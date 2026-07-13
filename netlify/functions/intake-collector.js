@@ -33,6 +33,13 @@ const RESEND_AFTER_MS = (Number(process.env.INTAKE_RESEND_HOURS) || 20) * 3600 *
 // No "second notice" nag — a booked/engaged customer is protected by the media +
 // availability "already answered" checks in the send loop.
 const INTAKE_SEQUENCE_CAP = 4;
+// PHONE-LEVEL CAP (Teddy 2026-07-13): the sequence cap above is PER JOB. A customer
+// whose dispatches spawned N duplicate job rows got N separate streams = spam. Cap
+// by the PERSON: max PHONE_CAP intake texts to a phone EVER (across all their jobs),
+// spaced by PHONE_RESEND_MS. Teddy's rule = "2 texts max, ever: the link + one
+// reminder ~2 days later if no reply, then reactive-only."
+const PHONE_CAP = Number(process.env.INTAKE_PHONE_CAP) || 2;
+const PHONE_RESEND_MS = (Number(process.env.INTAKE_PHONE_RESEND_HOURS) || 48) * 3600 * 1000;
 function intakeMsg(n, cust, appl, link, isW) {
   if (n <= 0) {
     return isW
@@ -236,7 +243,27 @@ exports.handler = async function (event) {
     }
   } catch (_) { /* fail open — per-job availability_requested cap still guards */ }
 
-  let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0, skipped_has_media = 0;
+  // PHONE-LEVEL history: count prior intake texts per PHONE (across all their jobs),
+  // so a customer is capped as a PERSON, not per job row. Keyed on the full E.164 we
+  // now stamp into intake_light_sent. (Older rows lack phone_e164 → not counted; a
+  // one-time transition where an already-texted customer may get up to PHONE_CAP more,
+  // then permanently capped. Strictly fewer texts than today's per-job spam.)
+  const phoneCount = {};   // e164 -> { count, lastMs }
+  try {
+    const pr = await jget(`${XANO}/list_recent_event_log?action=intake_light_sent&days_back=120&limit=3000`, 12000);
+    for (const r of (pr.items || [])) {
+      let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      m = m || {}; const ph = String(m.phone_e164 || '');
+      if (!ph) continue;
+      const cur = phoneCount[ph] || { count: 0, lastMs: 0 };
+      cur.count += 1;
+      const ts = (new Date(r.created_at || 0).getTime()) || Number(m.at_ms || 0);
+      if (ts > cur.lastMs) cur.lastMs = ts;
+      phoneCount[ph] = cur;
+    }
+  } catch (_) { /* fail open — per-job cap still guards */ }
+
+  let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0, skipped_has_media = 0, skipped_phone_cap = 0;
   const done = [];
   for (const j of cands) {
     if (sent >= MAX_PER_RUN) break;
@@ -282,6 +309,13 @@ exports.handler = async function (event) {
     // Honor STOP — a customer who opted out never gets a chase text. (Teddy 2026-07-02)
     try { if (await isOptedOut(phone)) { skipped_dupe++; continue; } } catch (_) {}
 
+    // PHONE CAP — the person, not the job. Max PHONE_CAP texts to this phone EVER,
+    // and the reminder is spaced PHONE_RESEND_MS after the first. This is what stops a
+    // multi-job customer from getting multiple streams. (Teddy 2026-07-13)
+    const pInfo = phoneCount[phone] || { count: 0, lastMs: 0 };
+    if (pInfo.count >= PHONE_CAP) { skipped_phone_cap++; continue; }
+    if (pInfo.count >= 1 && pInfo.lastMs && (Date.now() - pInfo.lastMs) < PHONE_RESEND_MS) { skipped_phone_cap++; continue; }
+
     // Claim BEFORE sending (optimistic lock) so a parallel run never double-texts.
     let claimed = false;
     try { const mr = await jpost(`${XANO}/record_event_log`, { action: `availability_requested_${id}`, metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', send_no: asks.length + 1, at_ms: Date.now() }) }); claimed = !!(mr && (mr.success || mr.id || mr.ok || typeof mr === 'object')); } catch (_) {}
@@ -303,12 +337,15 @@ exports.handler = async function (event) {
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: tag }); okSend = !!(r && r.success); } catch (_) {}
     if (okSend) {
       sent++; done.push(id);
-      try { await jpost(`${XANO}/record_event_log`, { action: 'intake_light_sent', metadata_json: JSON.stringify({ job_id: id, phone: maskPhone(phone), at_ms: Date.now() }) }); } catch (_) {}
+      // Update the in-run phone tally so a second job for the same phone in THIS run
+      // can't double-text, and future runs read phone_e164 to enforce the cap.
+      const pc = phoneCount[phone] || { count: 0, lastMs: 0 }; pc.count += 1; pc.lastMs = Date.now(); phoneCount[phone] = pc;
+      try { await jpost(`${XANO}/record_event_log`, { action: 'intake_light_sent', metadata_json: JSON.stringify({ job_id: id, phone: maskPhone(phone), phone_e164: phone, at_ms: Date.now() }) }); } catch (_) {}
       // Write the SHARED intake marker too so the LOOP's own 2-cap counts this send
       // (via:'intake_collector' keeps it out of our own loop-count above → no double count).
       try { await jpost(`${XANO}/record_event_log`, { action: 'intake_outreach_sent', metadata_json: JSON.stringify({ job_id: id, source: 'intake_collector', via: 'intake_collector', at_ms: Date.now() }) }); } catch (_) {}
     } else failed++;
   }
 
-  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, examined, sent, skipped_dupe, skipped_has_media, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
+  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, examined, sent, skipped_dupe, skipped_phone_cap, skipped_has_media, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
 };
