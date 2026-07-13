@@ -95,6 +95,8 @@ async function run(mode, per, startPage) {
     try { jobs = await crud.searchPageN(crud.TABLES.jobs, {}, { id: 'desc' }, per, page); }
     catch (e) { return { ok: false, stage: 'load_jobs', page, error: String(e.message || e), scanned, updated }; }
     if (!jobs || !jobs.length) { done = true; break; }
+    // Decide which jobs on this page actually need a write.
+    const toUpdate = [];
     for (const j of jobs) {
       scanned++;
       const already = String(j.customer_first || '').trim();
@@ -102,8 +104,15 @@ async function run(mode, per, startPage) {
       const c = custMap.get(Number(j.customer_id || 0));
       if (!c) { noCust++; continue; }
       if (String(j.customer_first || '') === c.first && String(j.customer_last || '') === c.last && String(j.customer_phone || '') === c.phone) { skipped++; continue; }
-      try { await crud.update(crud.TABLES.jobs, j.id, { customer_first: c.first, customer_last: c.last, customer_phone: c.phone }); updated++; }
-      catch (_) { errored++; }
+      toUpdate.push({ id: j.id, denorm: { customer_first: c.first, customer_last: c.last, customer_phone: c.phone } });
+    }
+    // Write them in concurrent batches of 8 (fast, but gentle on Xano).
+    for (let k = 0; k < toUpdate.length; k += 8) {
+      const batch = toUpdate.slice(k, k + 8);
+      const res = await Promise.all(batch.map((u) => crud.update(crud.TABLES.jobs, u.id, u.denorm).then(() => true).catch(() => false)));
+      updated += res.filter(Boolean).length;
+      errored += res.filter((x) => !x).length;
+      if (Date.now() - t0 > budgetMs) break;
     }
     page++;
     if (jobs.length < per) { done = true; break; }
