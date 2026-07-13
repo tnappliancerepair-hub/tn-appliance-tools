@@ -98,6 +98,11 @@
 [functions."indexnow-ping"]
   schedule = "10 13 * * *"
 
+# Denorm sweep — keep the kanban fast by filling customer_first/last/phone on any NEW
+# job that hasn't been denormed yet (scheduled invocation runs mode=sweep). Every 30 min.
+[functions."denorm-job-customer"]
+  schedule = "*/30 * * * *"
+
 # Gmail token watchdog — texts Teddy the moment the OAuth refresh token dies so
 # warranty-email intake outages are caught SAME-DAY (not when the office runs
 # short on jobs). Self-contained: talks straight to Google + Twilio, no Xano or

@@ -133,6 +133,12 @@ async function run(mode, per, startPage) {
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
+  // Scheduled (cron) invocations carry {next_run} — those run a SWEEP (fill only blanks)
+  // with no secret, to keep brand-new jobs denormed. Manual calls still secret-gated.
+  let scheduled = false;
+  try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  if (scheduled) return json(200, await run('sweep', 200, 1));
+
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
 
