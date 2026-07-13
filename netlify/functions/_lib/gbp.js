@@ -77,4 +77,34 @@ async function putReply(reviewName, comment) {
   return api('PUT', 'https://mybusiness.googleapis.com/v4/' + reviewName + '/reply', { comment: comment });
 }
 
-module.exports = { REDIRECT, SCOPE, TOKEN_URL, isConfigured, accessToken, api, listAccounts, listLocations, listReviews, putReply };
+// Resolve the {accountId, locationId} bare-id pair (localPosts needs both).
+async function resolveAccountLocation() {
+  const a = await listAccounts();
+  const accts = (a.data && a.data.accounts) || [];
+  if (!accts.length) throw new Error('no_accounts');
+  const accountId = String(accts[0].name).replace(/^accounts\//, '');
+  const loc = await listLocations(accountId);
+  const locs = (loc.data && loc.data.locations) || [];
+  if (!locs.length) throw new Error('no_locations');
+  const locationId = String(locs[0].name).replace(/^locations\//, '');
+  return { accountId, locationId };
+}
+
+// Publish a Business Profile "update" post (localPosts, v4 — the allow-listed host).
+// summary = post text; a BOOK/LEARN_MORE call-to-action button links to actionUrl.
+// Returns { ok, status, data } — data.name is the created post resource (for delete).
+async function createLocalPost({ summary, actionType, actionUrl, mediaUrl }) {
+  const { accountId, locationId } = await resolveAccountLocation();
+  const bodyObj = { languageCode: 'en-US', summary: String(summary || '').slice(0, 1490), topicType: 'STANDARD' };
+  if (actionType) { bodyObj.callToAction = { actionType }; if (actionUrl) bodyObj.callToAction.url = actionUrl; }
+  if (mediaUrl) bodyObj.media = [{ mediaFormat: 'PHOTO', sourceUrl: mediaUrl }];
+  const url = 'https://mybusiness.googleapis.com/v4/accounts/' + accountId + '/locations/' + locationId + '/localPosts';
+  return api('POST', url, bodyObj);
+}
+
+// Delete a local post by its full resource name (used to clean up a test post).
+async function deleteLocalPost(postName) {
+  return api('DELETE', 'https://mybusiness.googleapis.com/v4/' + String(postName).replace(/^\/+/, ''));
+}
+
+module.exports = { REDIRECT, SCOPE, TOKEN_URL, isConfigured, accessToken, api, listAccounts, listLocations, listReviews, putReply, resolveAccountLocation, createLocalPost, deleteLocalPost };

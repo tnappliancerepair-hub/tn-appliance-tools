@@ -1,20 +1,25 @@
 // gbp-post-generator — the map-pack freshness engine. A fresh Google Business
-// Profile post every week is a real local-ranking signal AND free visibility for
-// "dryer repair near me" searchers. Ant drafts an on-brand post (dryer-weighted,
-// since that's the demand push) and TEXTS Teddy the draft + a one-tap link to post
-// it. Flips to AUTO-POST when the Business Profile API approval lands
-// (case 4-9470000004382) — until then it's draft-and-tap, like review-reply-watch.
+// Profile post is a real local-ranking signal AND free visibility for "dryer repair
+// near me" searchers. Ant drafts an on-brand post (dryer-weighted, the demand push)
+// and AUTO-PUBLISHES it via the Business Profile API (approved 2026-07-10). If the
+// API post fails, it falls back to TEXTING Teddy the draft + a one-tap link so a
+// cadence slot never goes silent.
 //
-// Rotates topics by ISO week so posts stay varied. Dedups to once per ISO week.
-// Kill switch: vault GBP_POST_GENERATOR=false.  ?dryrun=1 to preview.
+// Cadence = TWICE a week (Mon + Thu crons). ~2/week is the freshness sweet spot;
+// past that the ranking benefit flattens and posts just bury each other. Dedups per
+// (ISO week, half-week slot) so a retry can't double-post. Topics rotate + the 2nd
+// weekly post is offset so the pair never repeats.
+// Kill switch: vault GBP_POST_GENERATOR=false. Draft-only mode: vault GBP_AUTOPOST=false.
+// ?dryrun=1 to preview.  ?test=1 (admin) publishes then immediately deletes (proof).
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
+const gbp = require('./_lib/gbp');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OWNER = '+16154855795';
 const GBP_POSTS_URL = 'https://business.google.com/posts';
-const BOOK_URL = 'https://tnapplianceexchange.net/book-repair.html?appliance=Dryer';
+const BOOK_URL = 'https://tnapplianceexchange.net/';
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -64,38 +69,84 @@ async function draftPost(topic, key) {
   try { return JSON.parse(txt); } catch (_) { return null; }
 }
 
-async function lastWeekPosted() {
+// Has THIS bucket (iso_week + slot a/b) already gone out? Scans recent publish rows.
+async function bucketPosted(bucketKey) {
   try {
-    const rows = await crud.searchPage(3, { action: 'gbp_post_generated' }, { id: 'desc' }, 1);
-    let m = (rows[0] || {}).metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
-    return (m && m.iso_week) || 0;
-  } catch (_) { return 0; }
+    const rows = await crud.searchPage(3, { action: 'gbp_post_published' }, { id: 'desc' }, 8);
+    for (const r of rows) {
+      let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      if (m && m.bucket === bucketKey) return true;
+    }
+    return false;
+  } catch (_) { return false; }
+}
+
+async function textDraft(post, note) {
+  const sms = `📣 Google Business post${note ? ' (' + note + ')' : ''} — ready to publish:\n\n${post.title ? '“' + post.title + '”\n' : ''}${post.body}\n\n(Booking link + phone get added.)\n\nPost it here → ${GBP_POSTS_URL}`;
+  try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: sms, force_send: true, context_tag: 'gbp_post_draft' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
 }
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const dry = q.dryrun === '1';
+  const test = q.test === '1';
+  if (test) {
+    const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+    if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
+  }
   if (String(await getSecret('GBP_POST_GENERATOR') || '').toLowerCase() === 'false') return json(200, { ok: true, disabled: true });
   const anthropic = process.env.ANTHROPIC_API_KEY;
   if (!anthropic) return json(200, { ok: false, error: 'no anthropic key' });
+  const autopost = String(await getSecret('GBP_AUTOPOST') || '').toLowerCase() !== 'false';
 
   const now = new Date();
   const wk = isoWeek(now);
-  if (!dry) {
-    const last = await lastWeekPosted();
-    if (last === wk) return json(200, { ok: true, note: 'already posted this week', iso_week: wk });
+  const dow = now.getUTCDay() || 7;            // 1=Mon .. 7=Sun (UTC ~ CT-adjacent for bucketing)
+  const slot = dow < 4 ? 'a' : 'b';            // Mon-Wed = a, Thu-Sun = b -> 2 posts/week
+  const bucket = `${wk}:${slot}`;
+  if (!dry && !test) {
+    if (await bucketPosted(bucket)) return json(200, { ok: true, note: 'already posted this slot', bucket });
   }
 
-  const topic = TOPICS[wk % TOPICS.length];
+  // Vary the pair: slot b is offset half the list so the two weekly posts never match.
+  const topicIdx = (wk + (slot === 'b' ? 4 : 0)) % TOPICS.length;
+  const topic = TOPICS[topicIdx];
   const post = await draftPost(topic, anthropic);
   if (!post || !post.body) return json(200, { ok: false, error: 'draft failed' });
 
   const fullPost = `${post.body}\n\nBook: ${BOOK_URL}  ·  Call/text 615-280-2949`;
-  const sms = `📣 This week's Google Business post — ready to publish:\n\n${post.title ? '“' + post.title + '”\n' : ''}${post.body}\n\n(Booking link + phone get added.)\n\nPost it here → ${GBP_POSTS_URL}`;
+  if (dry) return json(200, { ok: true, mode: 'dryrun', bucket, topic, title: post.title, post: fullPost });
 
-  if (dry) return json(200, { ok: true, mode: 'dryrun', iso_week: wk, topic, title: post.title, post: fullPost });
+  // TEST: publish then immediately delete — proves the API path without leaving a post.
+  if (test) {
+    const r = await gbp.createLocalPost({ summary: post.body, actionType: 'BOOK', actionUrl: BOOK_URL });
+    const name = r.data && r.data.name;
+    let deleted = null;
+    if (r.ok && name) { const d = await gbp.deleteLocalPost(name); deleted = d.ok; }
+    return json(200, { ok: r.ok, mode: 'test', published: r.ok, post_name: name || null, deleted, status: r.status, error: r.ok ? undefined : r.data });
+  }
 
-  try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: sms, force_send: true, context_tag: 'gbp_post_draft' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
-  try { await crud.logEvent('gbp_post_generated', { iso_week: wk, title: post.title || '', topic, at_ms: Date.now() }); } catch (_) {}
-  return json(200, { ok: true, mode: 'live', iso_week: wk, title: post.title, sent: true });
+  // LIVE: auto-publish via the API; fall back to texting Teddy the draft on any failure.
+  if (autopost) {
+    try {
+      const r = await gbp.createLocalPost({ summary: post.body, actionType: 'BOOK', actionUrl: BOOK_URL });
+      if (r.ok) {
+        try { await crud.logEvent('gbp_post_published', { bucket, iso_week: wk, slot, title: post.title || '', topic, post_name: (r.data && r.data.name) || '', at_ms: Date.now() }); } catch (_) {}
+        try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: `✅ Auto-posted your Google Business update:\n\n${post.title ? '“' + post.title + '”\n' : ''}${String(post.body).slice(0, 180)}…\n\nLive now on your profile. (2×/week: Mon + Thu.)`, force_send: true, context_tag: 'gbp_post_published' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
+        return json(200, { ok: true, mode: 'autopost', bucket, title: post.title, post_name: (r.data && r.data.name) || null });
+      }
+      // API said no — hand it to Teddy so the slot isn't lost.
+      await textDraft(post, 'auto-post failed, please tap');
+      try { await crud.logEvent('gbp_post_autopost_failed', { bucket, status: r.status, err: JSON.stringify(r.data).slice(0, 200), at_ms: Date.now() }); } catch (_) {}
+      return json(200, { ok: false, mode: 'fallback_text', bucket, status: r.status, error: r.data });
+    } catch (e) {
+      await textDraft(post, 'auto-post error, please tap');
+      return json(200, { ok: false, mode: 'fallback_text', bucket, error: String((e && e.message) || e).slice(0, 200) });
+    }
+  }
+
+  // Draft-only mode (GBP_AUTOPOST=false): text Teddy + log the slot so it dedups.
+  await textDraft(post);
+  try { await crud.logEvent('gbp_post_published', { bucket, iso_week: wk, slot, title: post.title || '', topic, draft_only: true, at_ms: Date.now() }); } catch (_) {}
+  return json(200, { ok: true, mode: 'draft_text', bucket, title: post.title, sent: true });
 };

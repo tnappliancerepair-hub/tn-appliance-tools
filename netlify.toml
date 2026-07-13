@@ -237,7 +237,7 @@
 # on-brand (dryer-weighted) post + texts Teddy a one-tap link to publish. Flips to
 # auto-post when the Business Profile API lands. Mondays 2pm UTC (~8-9am CT).
 [functions."gbp-post-generator"]
-  schedule = "0 14 * * 1"
+  schedule = "0 14 * * 1,4"
 
 # Social content pack (FB + IG + TikTok). Draft-texts Teddy weekly; auto-publishes
 # to FB + IG when the Meta Page token is vaulted. Mondays 3pm UTC (~9-10am CT).
