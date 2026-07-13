@@ -267,11 +267,26 @@ async function submitPin(){
 // button stuck on "Saving…"/"Completing…" forever with no recovery. Time every API
 // call out so it REJECTS -> the caller's catch fires -> the button re-enables + shows
 // an error the tech can act on.
-const FETCH_TIMEOUT_MS=15000;
+// 40s (was 15s): under a Xano load spike a 15s cap aborted the tech's job load in
+// the field ("signal is aborted without reason") — a slow load beats a hard fail for
+// a tech who NEEDS the job. Reads also auto-retry (see loadWithRetry) so a transient
+// timeout self-heals instead of dead-ending him.
+const FETCH_TIMEOUT_MS=40000;
 async function fetchT(url,opts){
   const c=new AbortController(); const t=setTimeout(function(){try{c.abort();}catch(_){}},FETCH_TIMEOUT_MS);
   try{ return await fetch(url,Object.assign({signal:c.signal},opts||{})); }
   finally{ clearTimeout(t); }
+}
+// Retry a READ-only call (get_job_for_dashboard is idempotent) up to `tries` times so
+// one slow/aborted Xano response doesn't strand the tech. Small backoff between tries.
+async function xanoGetJob(payload,tries){
+  tries=tries||3; let lastErr;
+  for(let i=0;i<tries;i++){
+    try{ const d=await xanoPost('get_job_for_dashboard',payload); if(d&&d.success) return d; lastErr=new Error((d&&d.error)||'not found'); }
+    catch(e){ lastErr=e; }
+    if(i<tries-1){ await new Promise(function(r){setTimeout(r,900*(i+1));}); }
+  }
+  throw lastErr||new Error('load failed');
 }
 async function xanoPost(ep,payload){
   const r=await fetchT(XANO+'/'+ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -289,7 +304,7 @@ async function loadJob(){
   const _prevNotes=(document.getElementById('notes')||{}).value;
   document.getElementById('content').innerHTML='<div class="loading"><div class="spinner"></div>Loading job…</div>';
   try{
-    const d=await xanoPost('get_job_for_dashboard',{job_id:JOB_ID});
+    const d=await xanoGetJob({job_id:JOB_ID});
     if(!d.success) throw new Error(d.error||'not found');
     job=d.job||{}; cust=d.customer||{}; tech=d.tech||{}; tdr=d.tdr||{}; appliance=d.appliance||{}; allTdrs=d.all_tdrs||[];
     render();

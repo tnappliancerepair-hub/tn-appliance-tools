@@ -916,11 +916,23 @@
   // Time out any auth/API fetch so a silent hang on weak signal can't freeze the app
   // at the loading screen — a hang now resolves to the degraded/'unreachable' path
   // that already exists (unlock in degraded mode instead of spinning forever).
-  const FETCH_TIMEOUT_MS = 15000;
+  // 40s (was 15s): a Xano load spike was aborting the schedule load in the field, so
+  // techs saw a frozen/empty day. A slow load beats "can't see where to go."
+  const FETCH_TIMEOUT_MS = 40000;
   async function fetchT(url, opts, ms) {
     const c = new AbortController(); const t = setTimeout(function () { try { c.abort(); } catch (_) {} }, ms || FETCH_TIMEOUT_MS);
     try { return await fetch(url, Object.assign({ signal: c.signal }, opts || {})); }
     finally { clearTimeout(t); }
+  }
+  // Retry a read up to `tries` times so one slow/aborted response doesn't blank the day.
+  async function fetchJsonRetry(url, opts, tries) {
+    tries = tries || 3; let lastErr;
+    for (let i = 0; i < tries; i++) {
+      try { const r = await fetchT(url, opts); if (r && r.ok) return await r.json(); lastErr = new Error('http ' + (r && r.status)); }
+      catch (e) { lastErr = e; }
+      if (i < tries - 1) { await new Promise(function (res) { setTimeout(res, 900 * (i + 1)); }); }
+    }
+    throw lastErr || new Error('load failed');
   }
   async function verifyPin(pin) {
     try {
@@ -1411,8 +1423,9 @@
     if (currentDateStr) url += `&date=${encodeURIComponent(currentDateStr)}`;
 
     try {
-      const res = await fetchT(url);   // time-boxed: a weak-signal hang shows an error instead of spinning forever
-      const data = await res.json();
+      // Retry the schedule load so one slow/aborted Xano response (load spike) doesn't
+      // leave the tech with a blank day — a slow load beats "can't see where to go".
+      const data = await fetchJsonRetry(url, { cache: 'no-store' }, 3);
       if (!data || data.success !== true) {
         showError(data && data.error ? data.error : 'failed to load');
         return;
