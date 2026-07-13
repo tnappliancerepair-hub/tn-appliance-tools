@@ -1276,7 +1276,14 @@
     html += '<div style="background:rgba(74,158,255,0.12);border:1px solid rgba(74,158,255,0.4);color:#8fc0ff;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;margin-bottom:12px">📦 One box per part — name + number together. Add as many as you used; leave extras blank (blanks never count against you).</div>';
     html += '<div id="ant-tdr-parts-rows" style="display:flex;flex-direction:column;gap:8px">';
     parts.forEach(function (p) {
-      html += '<input class="ant-tdr-part-input" type="text" placeholder="Part name + number (e.g. Ice maker W10250000)" value="' + escapeHtml(p) + '" style="' + PART_EDITOR_STYLE + '">';
+      var hasVal = !!String(p == null ? '' : p).trim();
+      html += '<div style="display:flex;gap:6px;align-items:center">';
+      html += '<input class="ant-tdr-part-input" type="text" placeholder="Part name + number (e.g. Ice maker W10250000)" value="' + escapeHtml(p) + '" style="' + PART_EDITOR_STYLE + ';flex:1;min-width:0">';
+      // Existing (already-saved) parts get a remove button — clears the wrong one from
+      // the warranty-parts log so it's actually gone (Teddy 2026-07-13: "needs to be
+      // editable"). New/blank rows have nothing to remove.
+      if (hasVal) html += '<button type="button" data-part="' + escapeHtml(p) + '" onclick="window.__antTdrRemovePart(this)" title="Remove this part" style="flex:0 0 auto;background:#2a1414;color:#ff7a7a;border:1px solid #5a2a2a;border-radius:9px;padding:11px 13px;font-size:15px;font-weight:800;cursor:pointer">🗑</button>';
+      html += '</div>';
     });
     html += '</div>';
     html += '<button onclick="window.__antTdrAddPartRow()" style="margin-top:10px;background:#1a2233;color:#8fc0ff;border:1px dashed #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;width:100%">+ add another part</button>';
@@ -1295,6 +1302,26 @@
     inp.setAttribute('style', PART_EDITOR_STYLE);
     rows.appendChild(inp);
     try { inp.focus(); } catch (_) {}
+  };
+  // Remove a wrong/mis-entered part from the warranty-parts log (soft delete — reversible).
+  // Reads the part off the button's data attribute so odd characters (#, spaces) are safe.
+  window.__antTdrRemovePart = async function (btn) {
+    if (role !== 'tech' && role !== 'office') return;
+    var part = btn && btn.getAttribute ? btn.getAttribute('data-part') : '';
+    if (!part) return;
+    if (!confirm('Remove this part?\n\n"' + String(part).slice(0, 90) + '"')) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      await fetch('/.netlify/functions/warranty-parts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', job_id: Number(jobId), part: part, by: role, technician_id: techId ? Number(techId) : 0 }),
+      });
+      await loadSuppliedParts();     // pull the updated list
+      window.__antTdrPartsEdit();    // re-render the editor with the part gone
+    } catch (e) {
+      btn.disabled = false; btn.textContent = '🗑';
+      alert('Could not remove part: ' + (e && e.message ? e.message : e));
+    }
   };
   window.__antTdrSaveParts = async function () {
     if (!lastData) return;
