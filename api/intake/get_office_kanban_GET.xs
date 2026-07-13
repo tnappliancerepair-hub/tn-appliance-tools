@@ -6,12 +6,12 @@
 //      in_progress, awaiting_parts, held)  -- all active states
 //    * OR scheduling_status=completed AND job_completed_at within the
 //      last 45 days  (MeisterTask keeps finished jobs in each tech's
-//      Invoice column until PAID, so the board must load them too — a
+//      Invoice column until PAID, so the board must load them too. A
 //      7-day window dropped the whole invoice backlog and the board
-//      could never match MeisterTask's counts. 2026-07-13.)
+//      could never match MeisterTask counts. 2026-07-13.)
 //
-//  Capped at 800 rows (was 300 — the cap squeezed out finished jobs so
-//  Lee/Jimmy/etc. under-counted vs MeisterTask). The page buckets
+//  Capped at 800 rows (was 300; the small cap squeezed out finished
+//  jobs so Lee/Jimmy under-counted vs MeisterTask). The page buckets
 //  client-side into columns and polls every 30s.
 // 
 //  XS rules: no em-dashes, no backticks, no try/catch, no raw if,
