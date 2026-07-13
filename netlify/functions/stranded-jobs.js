@@ -16,18 +16,6 @@ const crud = require('./_lib/xano/metadata-crud');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function j(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b, null, 2) }; }
 
-// CT midnight (start of today) in ms — used to detect past-dated scheduled jobs.
-function ctMidnightMs() {
-  const now = new Date();
-  // America/Chicago offset: CDT = UTC-5 in July. Use Intl to be DST-correct.
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
-  const y = parts.find((p) => p.type === 'year').value;
-  const m = parts.find((p) => p.type === 'month').value;
-  const d = parts.find((p) => p.type === 'day').value;
-  // midnight CT for that calendar day, expressed as a UTC instant
-  return Date.parse(`${y}-${m}-${d}T00:00:00-05:00`);
-}
-
 const first = (r, keys) => { for (const k of keys) { const v = r[k]; if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim(); } return ''; };
 
 exports.handler = async function (event) {
@@ -46,19 +34,24 @@ exports.handler = async function (event) {
     return j(500, { ok: false, error: 'scan_failed', detail: String(e && e.message || e) });
   }
 
-  const todayMs = ctMidnightMs();
+  const FRESH_MS = 3 * 86400000;   // "accepted recently, not yet routed" window
+  const now = Date.now();
   const out = [];
   for (const r of rows) {
     const tid = Number(r.technician_id || 0) || 0;
+    if (tid) continue;                              // only NO-TECH jobs can vanish off every day
     const ss = Number(r.scheduled_start || 0) || 0;
-    const noTech = !tid;
-    const pastDate = tid && ss && ss < todayMs;   // has a tech but scheduled to a past day
-    if (!noTech && !pastDate) continue;             // properly scheduled — skip
+    const hasDate = !!ss;
+    const created = Number(r.created_at || 0) || 0;
+    const fresh = created && (now - created) < FRESH_MS;
+    // A no-tech job WITH a date = a real appointment nobody's assigned to (the fire).
+    // A no-tech job with NO date but accepted in the last 3 days = a fresh accept not
+    // yet routed. Skip the ancient no-date "scheduled" shells (~200 dead warranty
+    // stubs) — that's a separate backlog cleanup, not a daily safety alarm.
+    if (!hasDate && !fresh) continue;
 
-    let reason, urgent = false;
-    if (noTech && !ss) { reason = 'accepted — never routed to a tech'; }
-    else if (noTech && ss) { reason = 'has a date but NO tech assigned'; urgent = true; }
-    else { reason = 'scheduled to a past date'; }
+    const urgent = hasDate;
+    const reason = hasDate ? 'has a date but NO tech assigned' : 'accepted — not yet routed to a tech';
 
     const name = `${first(r, ['customer_first', 'customer_first_name'])} ${first(r, ['customer_last', 'customer_last_name'])}`.trim();
     out.push({

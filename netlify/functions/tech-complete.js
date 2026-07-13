@@ -21,6 +21,13 @@ const crud = require('./_lib/xano/metadata-crud');
 const TABLES = crud.TABLES;
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const NONTERMINAL = new Set(['parts_needed', 'warranty_auth_needed', 'reassignment_needed']);
+// completion_type -> the scheduling_status the completion INTENDS (mirrors the XS map).
+// The XS delegates the scheduling_status write to the state machine, which can no-op
+// (esp. the auto-start scheduled->in_progress->completed two-hop). When it does, the
+// job keeps job_completed_at (tech sees "Done") but scheduling_status stays 'scheduled'
+// (office sees "not complete") — Jimmy 2026-07-13: "we mark complete, office isn't
+// showing it complete, keeps getting asked if it's done." We reconcile it here.
+const STATUS_MAP = { repair_complete: 'completed', no_repair: 'no_fix_possible', parts_needed: 'awaiting_parts', warranty_auth_needed: 'held', reassignment_needed: 'needs_more_info' };
 
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST,OPTIONS' }, body: JSON.stringify(b) }; }
 
@@ -67,6 +74,23 @@ exports.handler = async function (event) {
   // job_completed_at anyway; strip it so the next trip can complete cleanly.
   if (d && d.success && NONTERMINAL.has(ct)) {
     try { await crud.update(TABLES.jobs, jobId, { job_completed_at: null }); await crud.logEvent('diagnostic_visit_not_terminal', { job_id: jobId, completion_type: ct, at_ms: Date.now() }); } catch (_) {}
+  }
+
+  // RECONCILE — guarantee the office sees what the tech sees. The XS leaves
+  // scheduling_status to the state machine; if that no-opped, the office board (which
+  // reads scheduling_status) never shows the job complete while the tech app (which
+  // reads job_completed_at) does. After a successful completion, re-read the job and,
+  // if scheduling_status didn't land on the intended status, force it so both agree.
+  if (d && d.success) {
+    const want = STATUS_MAP[ct] || 'completed';
+    try {
+      const job = await crud.searchOne(TABLES.jobs, { id: jobId });
+      const have = String((job && job.scheduling_status) || '').toLowerCase();
+      if (job && have !== want) {
+        await crud.update(TABLES.jobs, jobId, { scheduling_status: want, current_status: want });
+        await crud.logEvent('tech_complete_status_reconciled', { job_id: jobId, completion_type: ct, from: have, to: want, at_ms: Date.now() });
+      }
+    } catch (_) { /* the office 'Not closed out' flag is still the backstop */ }
   }
 
   return j(200, d && typeof d === 'object' ? d : { success: false, error: 'no response' });
