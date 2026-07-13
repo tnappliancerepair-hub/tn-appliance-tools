@@ -37,12 +37,20 @@ function parseCardName(title) {
 function sectionToFolder(sectionName) {
   const s = lc(sectionName);
   if (!s) return null;
-  for (const [nm, id] of Object.entries(TECH_BY_NAME)) {
-    if (s.includes(nm)) return (s.includes('invoice') || s.includes('bill')) ? ('inv-' + id) : ('rep-' + id);
-  }
+  // Ambiguous MeisterTask columns with NO safe board equivalent → leave unknown
+  // (reported, never moved): a "Completion Appt" is a pending RETURN visit (not a
+  // finished job — mapping to done would falsely mark it complete); autho/upgrade/
+  // pre-post-diagnosis/templates have no board column.
+  if (/completion\s*app|completion\s*appointment/.test(s)) return null;
+  if (s.includes('autho') || s.includes('upgrade') || s.includes('diagnos') || s.includes('template')) return null;
+  // A tech's own column. Invoice ONLY when the word "invoice" is present — do NOT
+  // use "bill" as a keyword (it's a substring of the tech name "Billy").
+  const inv = s.includes('invoice');
+  for (const [nm, id] of Object.entries(TECH_BY_NAME)) { if (s.includes(nm)) return (inv ? 'inv-' : 'rep-') + id; }
+  if (/\bte\b/.test(s)) return (inv ? 'inv-' : 'rep-') + 1;          // "TE" = Teddy's shop abbreviation
   if (s.includes('paid') || s.includes('closed') || s.includes('shop money')) return 'paid';
-  if (s.includes('invoice') || (s.includes('need') && s.includes('bill'))) return 'needinv';
-  if (s.includes('follow')) return 'followup';
+  if (/foll?ow/.test(s)) return 'followup';                          // catches "follow" + the "FOLOW UP" misspelling; before invoice
+  if (inv || (s.includes('need') && s.includes('bill'))) return 'needinv';
   if (s.includes('complet') || s.includes('done') || s.includes('finish')) return 'done';
   if (s.includes('part') || s.includes('await') || s.includes('on order')) return 'parts';
   if ((s.includes('need') && s.includes('sched')) || s.includes('unschedul') || s.includes('to schedul') || s.includes('to be schedul')) return 'schedule';
@@ -92,19 +100,32 @@ async function openCards(projectId) {
   return cards;
 }
 
-async function pickProject(explicit) {
+// Resolve ?boards=tn,nola[,scheduling,florida] to project rows, in priority order
+// (an active work-board placement wins over a stale needs-scheduled one). Default =
+// the two drift-prone active work boards; Florida is a separate market (excluded).
+const BOARD_MATCH = {
+  tn: (n) => /\btn jobs\b/.test(n),
+  nola: (n) => /nola/.test(n),
+  scheduling: (n) => /^scheduling$/.test(n),
+  florida: (n) => /florida/.test(n),
+};
+const BOARD_PRIORITY = ['tn', 'nola', 'scheduling', 'florida'];
+async function resolveBoards(boardsCsv) {
   const projects = await mt.listProjects();
-  if (explicit) { const p = projects.find((x) => String(x.id) === String(explicit)); if (p) return { project: p, projects }; }
-  const rank = (p) => { const n = lc(p.name || p.title); let r = 0; if (/schedul/.test(n)) r += 3; if (/tn|tennessee|jobs?/.test(n)) r += 2; if (/nola|louisiana/.test(n)) r += 1; return r; };
-  const sorted = [...projects].sort((a, b) => rank(b) - rank(a));
-  return { project: sorted[0], projects };
+  const keys = String(boardsCsv || 'tn,nola').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const ordered = BOARD_PRIORITY.filter((k) => keys.includes(k));
+  const out = [];
+  for (const k of ordered) { const p = projects.find((x) => BOARD_MATCH[k] && BOARD_MATCH[k](lc(x.name || x.title))); if (p) out.push({ key: k, project: p }); }
+  return out;
 }
 
-// Build the full reconcile between a MeisterTask project and the current board.
-async function reconcile(projectId) {
-  const { project } = await pickProject(projectId);
-  if (!project) throw new Error('no MeisterTask project found');
-  const [cards, jobs] = await Promise.all([openCards(project.id), loadJobs()]);
+// Build the full reconcile between one-or-more MeisterTask boards and the job board.
+// Cards are pulled per board in priority order; the FIRST board to claim a given
+// job wins (so active placement beats a stale needs-scheduled), later dupes noted.
+async function reconcile(boardsCsv) {
+  const boards = await resolveBoards(boardsCsv);
+  if (!boards.length) throw new Error('no matching MeisterTask boards for "' + (boardsCsv || 'tn,nola') + '"');
+  const jobs = await loadJobs();
 
   const byClaim = new Map(); const byName = new Map();
   for (const job of jobs) {
@@ -112,30 +133,39 @@ async function reconcile(projectId) {
     for (const k of nameKeys(job.customer_first, job.customer_last)) { if (!byName.has(k)) byName.set(k, job); }
   }
 
-  const matchedAgree = [], wouldMove = [], nameMatches = [], missing = [], unknownSection = [];
-  for (const c of cards) {
-    const t = c.task;
-    const folder = sectionToFolder(c.section);
-    const blob = (t.name || '') + '\n' + (t.notes || t.description || '');
-    let job = null, via = '';
-    for (const cd of claimCandidates(blob)) { if (byClaim.has(cd)) { job = byClaim.get(cd); via = 'claim'; break; } }
-    if (!job) { const nm = parseCardName(t.name); for (const k of nameKeys(nm.first, nm.last)) { if (byName.has(k)) { job = byName.get(k); via = 'name'; break; } } }
-    if (!job) { missing.push({ card: (t.name || '').slice(0, 80), section: c.section, folder: folderLabel(folder) }); continue; }
-    if (!folder) { unknownSection.push({ job_id: job.id, section: c.section }); continue; }
-    const cur = currentFolder(job);
-    const rec = { job_id: job.id, via, section: c.section, customer: ((job.customer_first || '') + ' ' + (job.customer_last || '')).trim(), from: folderLabel(cur), from_id: cur, to: folderLabel(folder), to_id: folder };
-    if (cur === folder) matchedAgree.push(rec);
-    else if (via === 'claim') wouldMove.push(rec);
-    else nameMatches.push(rec);
+  const matchedAgree = [], wouldMove = [], nameMatches = [], missing = [], unknownSection = [], conflicts = [];
+  const claimedJob = new Map();          // job_id -> board key that already placed it
+  let openCardTotal = 0; const pulled = [];
+
+  for (const b of boards) {
+    let cards = []; try { cards = await openCards(b.project.id); } catch (e) { pulled.push({ board: b.key, error: String((e && e.message) || e) }); continue; }
+    openCardTotal += cards.length; pulled.push({ board: b.key, project: b.project.name || b.project.title, open_cards: cards.length });
+    for (const c of cards) {
+      const t = c.task;
+      const folder = sectionToFolder(c.section);
+      const blob = (t.name || '') + '\n' + (t.notes || t.description || '');
+      let job = null, via = '';
+      for (const cd of claimCandidates(blob)) { if (byClaim.has(cd)) { job = byClaim.get(cd); via = 'claim'; break; } }
+      if (!job) { const nm = parseCardName(t.name); for (const k of nameKeys(nm.first, nm.last)) { if (byName.has(k)) { job = byName.get(k); via = 'name'; break; } } }
+      if (!job) { missing.push({ card: (t.name || '').slice(0, 80), board: b.key, section: c.section, folder: folderLabel(folder) }); continue; }
+      if (claimedJob.has(job.id)) { conflicts.push({ job_id: job.id, first_board: claimedJob.get(job.id), also: b.key, section: c.section }); continue; }
+      if (!folder) { unknownSection.push({ job_id: job.id, board: b.key, section: c.section }); claimedJob.set(job.id, b.key); continue; }
+      claimedJob.set(job.id, b.key);
+      const cur = currentFolder(job);
+      const rec = { job_id: job.id, via, board: b.key, section: c.section, customer: ((job.customer_first || '') + ' ' + (job.customer_last || '')).trim(), from: folderLabel(cur), from_id: cur, to: folderLabel(folder), to_id: folder };
+      if (cur === folder) matchedAgree.push(rec);
+      else if (via === 'claim') wouldMove.push(rec);
+      else nameMatches.push(rec);
+    }
   }
   const dir = {}; for (const m of wouldMove) { const k = m.from_id + ' → ' + m.to_id; dir[k] = (dir[k] || 0) + 1; }
   return {
-    project: project.name || project.title, project_id: project.id,
-    open_cards: cards.length, board_jobs: jobs.length,
-    counts: { matched_and_agree: matchedAgree.length, would_move_claim: wouldMove.length, name_matches_review: nameMatches.length, unknown_section: unknownSection.length, missing_from_board: missing.length },
+    project: boards.map((b) => b.project.name || b.project.title).join(' + '), boards_pulled: pulled,
+    open_cards: openCardTotal, board_jobs: jobs.length,
+    counts: { matched_and_agree: matchedAgree.length, would_move_claim: wouldMove.length, name_matches_review: nameMatches.length, unknown_section: unknownSection.length, missing_from_board: missing.length, cross_board_conflicts: conflicts.length },
     move_breakdown: dir,
-    would_move: wouldMove, name_matches: nameMatches, missing, unknown_section: unknownSection,
+    would_move: wouldMove, name_matches: nameMatches, missing, unknown_section: unknownSection, conflicts,
   };
 }
 
-module.exports = { sectionToFolder, folderLabel, currentFolder, reconcile, pickProject, openCards, loadJobs, TECH_NAME };
+module.exports = { sectionToFolder, folderLabel, currentFolder, reconcile, resolveBoards, openCards, loadJobs, TECH_NAME };

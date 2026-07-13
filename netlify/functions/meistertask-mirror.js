@@ -74,7 +74,7 @@ exports.handler = async function (event) {
     if (q.apply === '1' && String(q.confirm || '') !== 'yes') return j(400, { ok: false, error: 'apply requires &confirm=yes' });
     const mode = q.apply === '1' ? 'apply' : 'diff';
     const params = new URLSearchParams({ secret: admin, mode });
-    if (q.project) params.set('project', q.project);
+    if (q.boards) params.set('boards', q.boards);
     if (mode === 'apply') { params.set('confirm', 'yes'); if (q.names === '1') params.set('names', '1'); if (q.allow_paid === '1') params.set('allow_paid', '1'); }
     try { await fetch(`${SITE}/.netlify/functions/meistertask-mirror-background?${params.toString()}`, { signal: AbortSignal.timeout(6000) }).catch(() => {}); } catch (_) {}
     return j(200, { ok: true, triggered: true, mode, read: '/.netlify/functions/meistertask-mirror?report=1&secret=…', note: 'result lands in ~1-2 min (big board is rate-limited)' });
