@@ -684,9 +684,16 @@ function renderBoard(){
   wireDnD();
   syncTopScroll();
   // Notification deep-link: office-board.html?job=ID drops her straight on
-  // that card so she can act and get back to the board fast.
+  // that card so she can act and get back to the board fast. CONSUME it after
+  // opening once — otherwise the ?job= stays in the URL and re-pops the same
+  // drawer on every reload (Danielle 2026-07-13: "this person pops up every
+  // time I update the system" — her tab was stuck on ?job=20045).
   const pj=new URLSearchParams(location.search).get('job');
-  if(pj && !window.__openedPending){ window.__openedPending=true; openDrawer(pj); }
+  if(pj && !window.__openedPending){
+    window.__openedPending=true;
+    openDrawer(pj);
+    try{ const u=new URL(location.href); u.searchParams.delete('job'); history.replaceState(null,'',u.pathname+u.search+u.hash); }catch(_){}
+  }
 }
 
 // A horizontal scrollbar ABOVE the board (synced to it), so you can scroll across
