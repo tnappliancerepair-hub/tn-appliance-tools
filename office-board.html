@@ -935,6 +935,17 @@ async function onDrop(colId,techId,colEl){
   }
 
   if(techId){
+    // PURE FOLDER MOVE for a job that's ALREADY on the schedule (Teddy 2026-07-13:
+    // "drag from Scheduled to tech Reports must just MOVE it — demanding a date is
+    // completely useless here"). office_stage is already saved above, so the card
+    // stays in the folder she dropped it in — MeisterTask behavior. We do NOT touch
+    // the date or the tech. Only an UNSCHEDULED job dropped on a tech still offers
+    // to schedule (below), since that's a real "put them on the schedule" intent.
+    const _jb=(allItems||[]).find(x=>String(x.id)===String(id))||{};
+    const _ss=String(_jb.scheduling_status||_jb.current_status||'').toLowerCase();
+    const _onSchedule=Number(_jb.scheduled_start)>0||['scheduled','in_progress','completed','awaiting_parts','no_fix_possible'].includes(_ss);
+    const _folder=TECH_NAME[techId]+(colId.indexOf('inv-')===0?' · Invoice':' · Report');
+    if(_onSchedule){ toast('Moved to '+_folder+' ✓'); setTimeout(loadBoard,800); return; }
     // Assigning to a tech must ALSO put them on a DAY. The calendar + the tech's
     // schedule both filter by scheduled_start, so a tech-only assignment (the old
     // reassign_job) never showed up on the actual schedule (Danielle, 2026-06-22).
@@ -2259,6 +2270,13 @@ async function moveJobFromDrawer(id){
     closeDrawer(); loadBoard(); return;
   }
   if(techId){
+    // Already on the schedule → pure folder placement (office_stage saved above),
+    // no reassign/no tech text — she's just filing it. Only an UNSCHEDULED job moved
+    // to a tech actually assigns the tech. (Teddy 2026-07-13, matches the drag.)
+    const _jb=(allItems||[]).find(x=>String(x.id)===String(id))||{};
+    const _ss=String(_jb.scheduling_status||_jb.current_status||'').toLowerCase();
+    const _onSchedule=Number(_jb.scheduled_start)>0||['scheduled','in_progress','completed','awaiting_parts','no_fix_possible'].includes(_ss);
+    if(_onSchedule){ toast('Moved to '+label+' ✓'); closeDrawer(); loadBoard(); return; }
     try{const d=await postJSON('reassign_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10)});toast((d&&d.success)?('Moved to '+label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}catch(_){toast('⚠ connection error');}
   } else if(STATUS_MAP[colId]){
     try{const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:STATUS_MAP[colId],actor:'Danielle'});toast((d&&d.success)?('Moved to '+label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}catch(_){toast('⚠ connection error');}
