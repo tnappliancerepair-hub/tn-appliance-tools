@@ -14,22 +14,29 @@
 //   &per=120 &page=1
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretPreferVault } = require('./_lib/secrets');
 
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const JOBS = 7;
 const COLS = ['customer_first', 'customer_last', 'customer_phone'];
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' }, body: JSON.stringify(b, null, 2) }; }
-function metaHeaders() {
-  const t = process.env.XANO_METADATA_TOKEN;
+// Vault-FIRST token read: a schema-scoped token vaulted via admin-secrets overrides the
+// (content-scoped) Netlify env var. That's how we get schema (add-column) permission.
+async function metaToken() {
+  let t = null;
+  try { t = await getSecretPreferVault('XANO_METADATA_TOKEN'); } catch (_) {}
+  t = t || process.env.XANO_METADATA_TOKEN;
   if (!t) throw new Error('XANO_METADATA_TOKEN not set');
-  return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
+  return t;
+}
+async function metaHeaders() {
+  return { Authorization: 'Bearer ' + (await metaToken()), 'Content-Type': 'application/json' };
 }
 
 // Read the jobs table schema -> list of existing column names.
 async function existingCols() {
-  const r = await fetch(`${META}/table/${JOBS}/schema`, { headers: metaHeaders(), signal: AbortSignal.timeout(12000) });
+  const r = await fetch(`${META}/table/${JOBS}/schema`, { headers: await metaHeaders(), signal: AbortSignal.timeout(12000) });
   if (!r.ok) throw new Error('schema GET ' + r.status);
   const d = await r.json().catch(() => []);
   const arr = Array.isArray(d) ? d : (d && d.schema) || [];
@@ -37,14 +44,18 @@ async function existingCols() {
 }
 
 async function addCols() {
+  const envTok = process.env.XANO_METADATA_TOKEN || '';
+  let vaultTok = '';
+  try { vaultTok = (await getSecretPreferVault('XANO_METADATA_TOKEN')) || ''; } catch (_) {}
+  const diag = { env_tail: envTok ? envTok.slice(-6) : null, vault_tail: vaultTok ? vaultTok.slice(-6) : null, using: vaultTok ? 'vault' : (envTok ? 'env' : 'none') };
   let have;
-  try { have = await existingCols(); } catch (e) { return { ok: false, stage: 'read_schema', error: String(e.message || e), hint: 'add the 3 text columns in the Xano UI instead' }; }
+  try { have = await existingCols(); } catch (e) { return { ok: false, stage: 'read_schema', error: String(e.message || e), token: diag, hint: 'this token lacks schema scope — vault a schema-scoped XANO_METADATA_TOKEN via admin-secrets.html, or add the 3 cols in the UI' }; }
   const results = [];
   for (const name of COLS) {
     if (have.includes(name)) { results.push({ name, status: 'already_exists' }); continue; }
     try {
       const r = await fetch(`${META}/table/${JOBS}/schema/type/text`, {
-        method: 'POST', headers: metaHeaders(),
+        method: 'POST', headers: await metaHeaders(),
         body: JSON.stringify({ name, description: 'denormalized from customer for fast board reads', nullable: true, default: null, required: false }),
         signal: AbortSignal.timeout(12000),
       });
@@ -61,7 +72,7 @@ async function addCols() {
 // Metadata content-LIST GET (no search filter — an empty search 400s). Returns the
 // page's rows regardless of the wrapper shape. Pages until an empty page.
 async function contentPage(tableId, page, perPage) {
-  const r = await fetch(`${META}/table/${tableId}/content?page=${page}&per_page=${perPage}`, { headers: metaHeaders(), signal: AbortSignal.timeout(20000) });
+  const r = await fetch(`${META}/table/${tableId}/content?page=${page}&per_page=${perPage}`, { headers: await metaHeaders(), signal: AbortSignal.timeout(20000) });
   if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error('content GET ' + tableId + ' -> ' + r.status + ' ' + t.slice(0, 120)); }
   const d = await r.json().catch(() => ({}));
   return Array.isArray(d) ? d : (d.items || []);
