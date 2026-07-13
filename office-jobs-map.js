@@ -14,8 +14,14 @@
   window.__antJobsMapLoaded = true;
 
   const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-  const GEO_PREFIX = 'tn_geo_v1:';
+  // v2 (2026-07-13): the geocode string carried the BARE state code "LA", which
+  // Nominatim reads as Los Angeles CA — so Louisiana jobs pinned in California
+  // (Teddy: "Louisiana jobs say La, that's the California bug"). Spell the state
+  // out (LA -> Louisiana) below; bump v1->v2 to throw away the poisoned coords.
+  const GEO_PREFIX = 'tn_geo_v2:';
   const GEO_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+  const US_STATES = { AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming' };
+  const stateFull = (st) => US_STATES[String(st || '').trim().toUpperCase()] || String(st || '').trim();
   const OPEN_KEY = 'tn_jobsmap_open_v1';
   const region = (location.pathname || '').toLowerCase().includes('-la') ? 'la' : 'tn';
 
@@ -223,7 +229,9 @@
       if (reqRegion !== currentRegion) return;  // user switched — abandon this pass
       const it = items[i];
       const jid = it.id != null ? it.id : it.job_id;
-      const addr = [it.service_address, it.service_city, it.service_state, it.service_zip].filter(Boolean).join(', ');
+      // Spell the state out (LA -> Louisiana) so Nominatim never reads "LA" as
+      // Los Angeles and drops a Louisiana pin in California.
+      const addr = [it.service_address, it.service_city, stateFull(it.service_state), it.service_zip].filter(Boolean).join(', ');
       if (!addr || jid == null) continue;
       const ll = await geocode(addr);
       if (!ll || reqRegion !== currentRegion) { if (reqRegion !== currentRegion) return; continue; }

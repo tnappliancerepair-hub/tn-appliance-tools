@@ -2029,7 +2029,13 @@ function __initCalendar() {
   // geocode with the shared tn_geo_v1 cache (same as office-jobs-map + tech dash), so
   // repeat views are instant. Only rebuilds when the scheduled-job set changes, so
   // the 20s poll doesn't wipe the tech's zoom/pan.
-  const NS_GEO_PREFIX = 'tn_geo_v1:', NS_GEO_TTL = 30 * 24 * 60 * 60 * 1000;
+  // v2 (2026-07-13): the map geocoded WITHOUT the state, so Nominatim read a bare
+  // "LA" / ambiguous city as Los Angeles CA (or a NY town) and dropped Louisiana/
+  // TN pins in the wrong state. Now we spell out the full state + use a structured
+  // query (below). Bumping v1->v2 throws away the old poisoned CA/NY coordinates.
+  const NS_GEO_PREFIX = 'tn_geo_v2:', NS_GEO_TTL = 30 * 24 * 60 * 60 * 1000;
+  const NS_US_STATES = { AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming' };
+  const _nsStateFull = (st) => NS_US_STATES[String(st || '').trim().toUpperCase()] || String(st || '').trim();
   const NS_MAP_COLORS = ['#7a5cf0', '#e67e22', '#2c8c4a', '#2c6fb0', '#c0392b', '#0d9488', '#b45309', '#db2777'];
   let _nsMap = null, _nsMapSig = '', _nsLastGeo = 0;
   // Map filters so Danielle can see WHERE a given tech is working on a given day
@@ -2046,14 +2052,32 @@ function __initCalendar() {
       sc.onload = () => res(); sc.onerror = rej; document.head.appendChild(sc);
     });
   }
-  async function _nsGeocode(addr) {
-    const k = NS_GEO_PREFIX + _nsHash(addr);
+  async function _nsGeocode(job) {
+    const street = String(job.service_address || '').trim();
+    const city = String(job.service_city || '').trim();
+    const st = _nsStateFull(job.service_state);      // "LA" -> "Louisiana" (kills the Los Angeles mixup)
+    const zip = String(job.service_zip || '').trim();
+    const k = NS_GEO_PREFIX + _nsHash([street, city, st, zip].join('|'));
     try { const raw = localStorage.getItem(k); if (raw) { const p = JSON.parse(raw); if (p && (Date.now() - p.ts) < NS_GEO_TTL) return { lat: p.lat, lng: p.lng }; } } catch (_) {}
     const wait = Math.max(0, (_nsLastGeo + 1100) - Date.now()); _nsLastGeo = Date.now() + wait;
     await new Promise((r) => setTimeout(r, wait));
+    // STRUCTURED query — separate street/city/state/postalcode params so Nominatim
+    // never free-text-guesses "LA" as a city (that was the Louisiana->California
+    // bug). Fall back to free-text with the FULL state name + USA if it misses.
+    const params = new URLSearchParams({ format: 'json', limit: '1', countrycodes: 'us' });
+    if (street) params.set('street', street);
+    if (city) params.set('city', city);
+    if (st) params.set('state', st);
+    if (zip) params.set('postalcode', zip);
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1&countrycodes=us`);
-      const d = await res.json(); if (!Array.isArray(d) || !d.length) return null;
+      let res = await fetch('https://nominatim.openstreetmap.org/search?' + params.toString());
+      let d = await res.json();
+      if (!Array.isArray(d) || !d.length) {
+        const q = [street, city, st, zip].filter(Boolean).join(', ') + ', USA';
+        res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(q));
+        d = await res.json();
+      }
+      if (!Array.isArray(d) || !d.length) return null;
       const lat = parseFloat(d[0].lat), lng = parseFloat(d[0].lon); if (!isFinite(lat) || !isFinite(lng)) return null;
       try { localStorage.setItem(k, JSON.stringify({ lat, lng, ts: Date.now() })); } catch (_) {}
       return { lat, lng };
@@ -2108,8 +2132,8 @@ function __initCalendar() {
     if (!sched.length && status) status.textContent = (_nsMapDay || _nsMapTech) ? 'No stops for this day/tech — pick another chip above.' : 'No scheduled jobs with an address to plot.';
     for (const j of sched) {
       if (_nsMapGen !== myGen) return;   // a newer filter/view superseded us — stop
-      const addr = [j.service_address, j.service_city].filter(Boolean).join(', ');
-      const g = await _nsGeocode(addr);
+      const addr = [j.service_address, j.service_city, j.service_state].filter(Boolean).join(', ');
+      const g = await _nsGeocode(j);
       done++;
       if (g) {
         plotted++;
