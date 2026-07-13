@@ -1041,7 +1041,7 @@ function __initCalendar() {
     if (currentWeekStart) url += `?week_start=${encodeURIComponent(currentWeekStart)}`;
 
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(20000) });  // fail-fast on weak signal
       const data = await res.json();
       if (!data || data.success !== true) {
         showError(data && data.error ? data.error : 'failed to load week');
@@ -1050,9 +1050,15 @@ function __initCalendar() {
       dashboardData = data;
       serverTodayCT = data.today_ct;
       currentWeekStart = data.week_start_ct;
-      await loadCashPaid(data.unscheduled || []);   // cash-only payment hold
-      await loadHolds();                             // tentative placeholder slots
-      render(data);
+      render(data);                    // paint the week grid NOW
+      loading.style.display = 'none';
+      // Enrichment badges (cash-paid holds + tentative slots) load in PARALLEL, then a
+      // quick re-render adds them. The grid no longer waits on two serial round-trips.
+      // CASH_PAID/HOLDS default empty + each loader self-guards, so this is safe.
+      try {
+        await Promise.all([loadCashPaid(data.unscheduled || []), loadHolds()]);
+        render(data);
+      } catch (_) { /* badges are decoration; grid already up */ }
     } catch (err) {
       console.error(err);
       showError('network error: ' + err.message);

@@ -525,7 +525,10 @@
       const res = await fetch(`${XANO_BASE}/get_customer_job_view`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: Number(JOB_ID), phone_last4: last4 })
+        body: JSON.stringify({ job_id: Number(JOB_ID), phone_last4: last4 }),
+        // Fail-fast: a hung request on weak signal used to spin the customer's loading
+        // screen forever. 15s cap -> catchable error -> retry. (2026-07-13)
+        signal: AbortSignal.timeout(15000)
       });
       const data = await res.json();
       if (!res.ok || !data || data.success !== true) {
