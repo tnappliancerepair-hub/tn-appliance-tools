@@ -11,12 +11,13 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
-## 🗓️🐜 2026-07-13 (Sun) — FINAL TEXT STRATEGY + FULL SPEED SWEEP + kanban denorm (blocked on cols) — READ FIRST
+## 🗓️🐜 2026-07-13 (Sun) — FINAL TEXT STRATEGY + FULL SPEED SWEEP + KANBAN DENORM (DONE) + SEO PUSH — READ FIRST
 
-Long Sunday. Theme: minimize customer texts to Teddy's "only if texted, plus intake +
-availability" rule, then a **system-wide speed sweep** ("time is money — save it everywhere,
-never at the expense of quality"). All shipped to `main` (Netlify auto-deploys). **TOP
-PRIORITY TOMORROW = finish the kanban denormalization (blocked only on 3 Xano columns).**
+Marathon Sunday. Four arcs, all shipped to `main`: (1) minimize customer texts to Teddy's
+"only if texted, plus intake + availability" rule; (2) a **system-wide speed sweep** ("time
+is money — save it everywhere, never at the expense of quality"); (3) the **kanban
+denormalization finished end-to-end** (board 16s→~2-4s); (4) an **aggressive cash-lead SEO
+push** (Teddy: "stay aggressive for cash jobs, I'll work it daily"). Everything below is LIVE.
 
 ### ✅ SHIPPED + LIVE (Netlify)
 - **Text strategy — warranty intake is now SIMPLE + video-first.** `job_created.js` (warranty
@@ -65,31 +66,50 @@ PRIORITY TOMORROW = finish the kanban denormalization (blocked only on 3 Xano co
   touch (`get_office_kanban`) was ALSO 16s**, proving it was Xano platform load, not the change.
   Ours snapped back to 1-2s; kanban stayed 16s. **Always verify a regression against an untouched control.**
 
-### 🔴 TOP PRIORITY TOMORROW — kanban denormalization (built, blocked on 3 columns)
-**Problem:** `get_office_kanban_GET.xs` does `db.get customer` PER job (up to **300 round-trips
-every 30s poll**) → **16s under load**. This is the #1 recurring latency; Danielle's board polls it.
-**Fix = denormalize `customer_first`/`customer_last`/`customer_phone` onto the jobs row.**
-- **Built + committed (NOT yet active):**
-  - `get_office_kanban_GET.xs` — reads the denorm name off the job; **falls back to a live db.get
-    ONLY when blank** (brand-new job) so a name ALWAYS shows (zero quality regression). Needs Mac push AFTER cols exist.
-  - `netlify/functions/denorm-job-customer.js` (NEW, admin-gated `VAPI_ADMIN_SECRET`):
-    `?action=addcols` (schema API + verify), `?action=backfill` (concurrent writes, time-boxed,
-    follow `next_page`), `?action=sweep` (fill only blanks — for a cron), `?action=probe` (read-only).
-    Reads the token **vault-first**. **Backfill mechanism VALIDATED** (loads 2481 customers, loaders work).
-  - `update-customer-name.js` — syncs denorm onto a customer's jobs on any edit (best-effort).
-- **THE BLOCKER:** the 3 columns don't exist on `jobs` yet, and `XANO_METADATA_TOKEN` (ends **…KWzggs**,
-  same in env + vault) is **content-scoped → 403 on the schema API** (proven via `?action=addcols`
-  diagnostic). So columns can't be added via API with that token.
-- **TOMORROW, pick one:**
-  - **(A) fast:** Xano UI → Database → `jobs` → Add field ×3: `customer_first`, `customer_last`,
-    `customer_phone` (all **Text**).
-  - **(B) API route Teddy wants:** create a Xano Metadata token WITH **Database/schema scope** (a NEW
-    token, value ≠ …KWzggs), vault it as `XANO_METADATA_TOKEN` via admin-secrets.html (function reads
-    vault-first). Then `?action=addcols` adds them via API.
-  - **THEN:** run `?action=backfill&secret=…&per=120&page=1` (follow next_page to done) → push
-    `get_office_kanban` (`/opt/homebrew/bin/xano workspace push -i "api/**/get_office_kanban*" --force`)
-    → verify board fast + all names correct → add the `sweep` cron to `netlify.toml` (every few min) so
-    new jobs stay denormalized.
+### ✅ KANBAN DENORMALIZATION — DONE END-TO-END (board 16s → ~2-4s)
+**Problem was:** `get_office_kanban_GET.xs` did `db.get customer` PER job (up to **300 round-trips
+every 30s poll**) → **16s under load** (Danielle's "frozen board"). **Fix = denormalize
+`customer_first`/`customer_last`/`customer_phone` onto the jobs row.** Shipped:
+- **`get_office_kanban_GET.xs`** — reads the denorm name off the job; falls back to a live db.get
+  ONLY when blank (brand-new job) so a name ALWAYS shows (zero quality regression). **Pushed + live.**
+- **`netlify/functions/denorm-job-customer.js`** (admin-gated `VAPI_ADMIN_SECRET`): `?action=addcols`
+  (schema API — 403 with our content-scoped token, so cols added via UI instead), `?action=backfill`
+  (concurrent writes, time-boxed, follow `next_page`), `?action=sweep` (fill only blanks),
+  `?action=probe`. Reads token **vault-first**. Loaders use the content-LIST GET (empty search 400s).
+- **`update-customer-name.js`** — syncs denorm onto a customer's jobs on any edit (best-effort).
+- **3 Text columns added to `jobs` via the Xano UI** (Teddy — the token is content-scoped so the
+  schema API 403'd; UI was the path). **Backfilled ~1,500 jobs** (backfill + sweep). **300/300 names
+  correct.** `sweep` cron in `netlify.toml` every 30 min keeps new jobs denormed.
+- **Composite index added (Xano UI): `scheduling_status` + `created_at`** on `jobs` — filter + sort in
+  one pass. (Single-column indexes on both already existed; the composite is the new one.)
+- **RESULT: 16s-under-load → ~2.3s best / ~4s typical.** N+1 gone (no more load spikes); composite index
+  dropped the floor. Remaining variance = the 7-status OR in the query; further gains would need a
+  query rewrite (IN-list vs chained ORs) — diminishing returns, parked.
+- ⚠️ FOOTGUN: `XANO_METADATA_TOKEN` (…KWzggs, same env+vault) is **content-scoped → 403 on ALL schema
+  endpoints**. Schema changes (add column/index) need the Xano UI or a Database-scoped token.
+
+### 🔎 SEO CASH-LEAD PUSH (aggressive, quality-safe — Teddy works it daily) — all LIVE
+GSC pulse first: **indexing grew 104 → ~477 active pages** (of 1,299 submitted); brand terms #1;
+**"appliance repair" pos 3.2 / 261 impr but ~0 clicks** (CTR problem); the **"used appliance store"
+ghost** still bleeds intent (the Exchange-name legacy). Shipped, quickest-first:
+- **Homepage + all 37 city hubs + 5 service hubs — CTR title/meta rebuilt.** City hubs (the organic
+  cash-lead landing pages): `Appliance Repair in {City}, {ST} — Same-Day, 4.5★`. Metas front-load the
+  unmatchable "we text you right back" hook + the **$50 Quick Check** cash CTA. Service hubs got the
+  "near me/you" modifier + 4.5★. (Scripted title-optimizer + per-page metas, dry-run-then-apply.)
+- **`netlify/functions/indexnow-ping.js`** (NEW) — submits URLs to Bing/Yandex. **Daily cron**
+  (`[functions."indexnow-ping"]`) resubmits priority cash pages hands-off; manual `?urls=/a,/b&secret=`.
+  (Google ignores IndexNow — for Google: sitemap `lastmod` bumped on changed pages + Request Indexing.)
+- **BreadcrumbList schema on 44 city + service pages** — built to MATCH each page's *visible* breadcrumb
+  exactly (Google ignores mismatched ones), HTML entities decoded. Rich-result breadcrumb trail in SERP.
+- **Internal mesh verified already strong** (repairs-directory links 1,210 pages + footer-wide; it also
+  links each city hub as its section header). Added La Vergne + Smyrna to the homepage "Areas we serve".
+- **Daily drivers for Teddy:** `gsc-queries?secret=&days=28` (striking-distance = cheap page-1 wins) ·
+  `indexnow-ping?secret=&urls=…` (push edits to search).
+- **STILL OPEN (Teddy's off-site action):** the "used appliance store" ghost — remove the "Appliance
+  store / Used appliance store" **category** in Google Business Profile, keep ONLY "Appliance repair
+  service." Highest-leverage move left; on-site is already handled (schema asserts we don't sell used).
+- NEXT SEO (not built): `freezer-repair.html` (pos 18.3, no page); a proper location hub; roll title/meta
+  to the remaining symptom/brand pages as they gain impressions.
 
 ### 🏗️ REMAINING SPEED ROADMAP (audited, not yet built)
 1. **SWR instant-load caches** on tech-daily / new-scheduling / tech-job (copy office-board's
