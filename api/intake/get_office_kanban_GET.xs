@@ -4,12 +4,15 @@
 //  Returns a flat list of every job that should appear on the board:
 //    * scheduling_status in (not_ready, needs_scheduled, scheduled,
 //      in_progress, awaiting_parts, held)  -- all active states
-//    * OR scheduling_status=completed AND warranty_company set AND
-//      updated_at in the last 7 days  (recent warranty completions
-//      that still need submission, even if "done" from a tech POV)
-// 
-//  Capped at 300 rows for sanity. The page buckets client-side into
-//  columns and polls every 30s.
+//    * OR scheduling_status=completed AND job_completed_at within the
+//      last 45 days  (MeisterTask keeps finished jobs in each tech's
+//      Invoice column until PAID, so the board must load them too — a
+//      7-day window dropped the whole invoice backlog and the board
+//      could never match MeisterTask's counts. 2026-07-13.)
+//
+//  Capped at 800 rows (was 300 — the cap squeezed out finished jobs so
+//  Lee/Jimmy/etc. under-counted vs MeisterTask). The page buckets
+//  client-side into columns and polls every 30s.
 // 
 //  XS rules: no em-dashes, no backticks, no try/catch, no raw if,
 //  every filter paren-wrapped, ?? only in value = (...).
@@ -22,7 +25,7 @@ query get_office_kanban verb=GET {
 
   stack {
     var $window_days {
-      value = ($input.days_back ?? 7)
+      value = ($input.days_back ?? 45)
     }
   
     var $now_ms {
@@ -36,7 +39,7 @@ query get_office_kanban verb=GET {
     db.query jobs {
       where = $db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "scheduled" || $db.jobs.scheduling_status == "in_progress" || $db.jobs.scheduling_status == "awaiting_parts" || $db.jobs.scheduling_status == "held" || ($db.jobs.scheduling_status == "completed" && $db.jobs.job_completed_at >= $window_cutoff_ms)
       sort = {jobs.created_at: "desc"}
-      return = {type: "list", paging: {page: 1, per_page: 300}}
+      return = {type: "list", paging: {page: 1, per_page: 800}}
     } as $job_rows
   
     var $items {

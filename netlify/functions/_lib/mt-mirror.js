@@ -34,11 +34,18 @@ function nameKeys(first, last) {
   return keys;
 }
 function parseCardName(title) {
-  const t = String(title || '').split('\n')[0].trim();
-  let m = t.match(/^([A-Za-z'’-]+)\s*,\s*([A-Za-z'’-]+)/);
-  if (m) return { first: m[2], last: m[1] };
-  m = t.match(/^([A-Za-z'’-]+)\s+([A-Za-z'’-]+)/);
-  if (m) return { first: m[1], last: m[2] };
+  let t = String(title || '').split('\n')[0];
+  // Warranty cards are titled "New Dispatch Notification #NNN First Last" or
+  // "ServicePower Call # NNN First Last" — strip the boilerplate + numbers first,
+  // then take the first + last real word (handles "First & Spouse Last" couples).
+  t = t.replace(/new dispatch notification/ig, ' ').replace(/dispatch notification/ig, ' ')
+       .replace(/servicepower call/ig, ' ').replace(/service power/ig, ' ')
+       .replace(/call\s*#?/ig, ' ').replace(/dispatch\s*#?/ig, ' ').replace(/claim\s*#?/ig, ' ')
+       .replace(/#\s*[\d-]+/g, ' ').replace(/[#&,]/g, ' ');
+  const stop = new Set(['the', 'and', 'nola', 'tn', 'la', 'cl', 'c', 'ahs', 'squaretrade', 'allstate', 'new', 'notification']);
+  const words = (t.match(/[A-Za-z][A-Za-z'’-]{1,}/g) || []).filter((w) => !stop.has(w.toLowerCase()));
+  if (words.length >= 2) return { first: words[0], last: words[words.length - 1] };
+  if (words.length === 1) return { first: '', last: words[0] };
   return { first: '', last: '' };
 }
 
@@ -143,6 +150,7 @@ async function reconcile(boardsCsv) {
   const byClaim = new Map(); const byPhone = new Map(); const byName = new Map();
   for (const job of jobs) {
     const cd = digits(job.claim_number); if (cd.length >= 6 && !byClaim.has(cd)) byClaim.set(cd, job);
+    const dp = digits(job.dispatch_source_id); if (dp.length >= 6 && !byClaim.has(dp)) byClaim.set(dp, job);   // match on dispatch# too (AHS/ServicePower cards carry it)
     const ph = digits(job.customer_phone).slice(-10); if (ph.length === 10 && !byPhone.has(ph)) byPhone.set(ph, job);
     for (const k of nameKeys(job.customer_first, job.customer_last)) { if (!byName.has(k)) byName.set(k, job); }
   }
