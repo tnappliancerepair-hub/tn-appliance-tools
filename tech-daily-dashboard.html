@@ -429,15 +429,24 @@
     letter-spacing: 0.04em;
   }
   .status-scheduled    { background: rgba(90,169,255,0.12);  border: 1px solid rgba(90,169,255,0.25);  color: var(--blue); }
-  .status-in_progress  { background: rgba(0,214,143,0.12);   border: 1px solid rgba(0,214,143,0.25);   color: var(--green); }
+  /* Started = AMBER (not green — green means DONE). Distinct from upcoming (blue). */
+  .status-in_progress  { background: rgba(245,166,35,0.18);   border: 1px solid rgba(245,166,35,0.5);   color: var(--orange); font-weight: 800; }
   .status-completed    { background: rgba(0,214,143,0.16); border: 1px solid rgba(0,214,143,0.45); color: var(--green); font-weight: 800; }
   .status-prediagnosis_pending { background: rgba(245,166,35,0.12); border: 1px solid rgba(245,166,35,0.25); color: var(--orange); }
   .status-needs_review { background: rgba(180,140,255,0.12); border: 1px solid rgba(180,140,255,0.25); color: var(--violet); }
   .status-other        { background: rgba(138,147,170,0.10); border: 1px solid rgba(138,147,170,0.20); color: var(--muted); }
-  /* ✅ Completed job = GREEN (Andre 2026-07-07: "turn the job green when completed") */
-  .card.card--done { border-color: rgba(0,214,143,0.55); box-shadow: inset 4px 0 0 var(--green); background: linear-gradient(90deg, rgba(0,214,143,0.09), transparent 60%); }
+  /* THREE simple colors so a tech never has to think — the stop stays PUT, only
+     its color changes: upcoming = plain · STARTED = amber · DONE = green.
+     (Teddy 2026-07-13: "too easy not to get right"; Andre: "turn it green when done") */
+  .card.card--started { border-color: rgba(245,166,35,0.6); box-shadow: inset 5px 0 0 var(--orange); background: linear-gradient(90deg, rgba(245,166,35,0.11), transparent 60%); }
+  .card.card--started .stop-num { background: var(--orange); color: #201400; }
+  .card.card--started::after { content: '🔧'; position: absolute; top: 12px; right: 12px; font-size: 17px; opacity: 0.95; }
+  /* DONE = greyed out + faded so it recedes (Teddy 2026-07-13: "grey it out").
+     A green edge + ✅ keeps it unmistakably finished, not just disabled. */
+  .card.card--done { opacity: 0.5; border-color: var(--border-soft); box-shadow: inset 5px 0 0 rgba(0,214,143,0.7); background: transparent; }
   .card.card--done .stop-num { background: var(--green); color: #082018; }
   .card.card--done::after { content: '✅'; position: absolute; top: 12px; right: 12px; font-size: 18px; opacity: 0.9; }
+  .card.card--done:hover { opacity: 0.85; }
   .card { position: relative; }
 
   .customer-line {
@@ -1831,22 +1840,14 @@
       return;
     }
     jobsHost.className = 'jobs';
-    // HCP-style SEGMENTS: group the day into sections (new vs in-progress vs
-    // done) so a tech sees at a glance what's left and what's finished. We keep
-    // each card's ORIGINAL index so the click/crew/thumbnail wiring below is
-    // untouched — only the visual grouping changes.
-    const groups = {};
-    jobs.forEach((it, i) => {
-      const seg = segmentOf(it);
-      (groups[seg] = groups[seg] || []).push({ it, i });
-    });
+    // ONE fixed list in ROUTE ORDER — a stop NEVER moves when its status changes.
+    // (Teddy 2026-07-13: "the stop moves when they open it" was the confusion.)
+    // State is shown by COLOR, not by relocating the card between sections:
+    //   upcoming = plain · STARTED = amber · DONE = greyed out.
+    // The tech's stop 1 stays stop 1, in the same place, all day. Index is the
+    // original array index so the click/crew/thumbnail wiring below is untouched.
     let html = '<div class="ant-built-note">🐜 Ant builds your day around your profile + each customer\'s availability. Something not work? Tap 🚩 on any stop and I\'ll fix it — no problem.</div>';
-    for (const seg of SEGMENTS) {
-      const arr = groups[seg.key];
-      if (!arr || !arr.length) continue;
-      html += `<div class="seg-header">${seg.label} <span class="seg-count">${arr.length}</span></div>`;
-      html += arr.map(({ it, i }) => renderCard(it, i)).join('');
-    }
+    html += jobs.map((it, i) => renderCard(it, i)).join('');
     jobsHost.innerHTML = html;
     // Hook up click handlers
     jobs.forEach((it, i) => {
@@ -2317,7 +2318,7 @@
     }
 
     return `
-      <div class="card${(status === 'completed' || status === 'complete') ? ' card--done' : ''}" id="card-${index}" data-index="${index}" style="animation-delay: ${index * 60}ms">
+      <div class="card${(status === 'completed' || status === 'complete') ? ' card--done' : (status === 'in_progress' ? ' card--started' : '')}" id="card-${index}" data-index="${index}" style="animation-delay: ${index * 60}ms">
         <div class="card-top">
           <div class="stop-num">${num}</div>
           <div class="time-window">${timeStr}</div>
