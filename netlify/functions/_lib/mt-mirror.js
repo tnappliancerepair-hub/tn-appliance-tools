@@ -101,12 +101,17 @@ async function openCards(projectId) {
     let tasks = [];
     try { tasks = await mt.listSectionTasks(s.id); } catch (_) {}
     for (const t of tasks) {
-      if (Number(t.status) === 8) continue;
+      if (Number(t.status) === 8) continue;      // 8 = trashed
       cards.push({ section: s.name || s.title || String(s.id), task: t });
     }
   }
   return cards;
 }
+// MeisterTask task.status: 1 = actionable/open (what Danielle SEES on the board),
+// 2 = completed/done-in-place (still in the column but finished — NOT active),
+// 18/19/20 = section-completed variants. Only status 1 is "on the live board."
+const ACTIVE_STATUS = new Set([1]);
+const isActiveCard = (t) => ACTIVE_STATUS.has(Number(t && t.status));
 
 // Resolve ?boards=tn,nola[,scheduling,florida] to project rows, in priority order
 // (an active work-board placement wins over a stale needs-scheduled one). Default =
@@ -145,16 +150,22 @@ async function reconcile(boardsCsv) {
   const matchedAgree = [], wouldMove = [], nameMatches = [], missing = [], unknownSection = [], conflicts = [];
   const claimedJob = new Map();          // job_id -> board key that already placed it
   const matchedJobIds = new Set();       // every board job a MT card matched
-  const mtFolderCount = {};              // mapped folder -> # open MT cards (MeisterTask's count)
+  const mtFolderCount = {};              // mapped folder -> # ACTIVE MT cards (MeisterTask's live count)
   const mtOnlyByFolder = {};             // folder -> # MT cards with NO board job (under-count)
   const mtOnlySamples = {};              // folder -> [card titles] causing the under-count
-  let openCardTotal = 0; const pulled = [];
+  const cardStatusHist = {};             // status value -> count (to verify what "active" means)
+  let openCardTotal = 0, activeCardTotal = 0; const pulled = [];
 
   for (const b of boards) {
     let cards = []; try { cards = await openCards(b.project.id); } catch (e) { pulled.push({ board: b.key, error: String((e && e.message) || e) }); continue; }
-    openCardTotal += cards.length; pulled.push({ board: b.key, project: b.project.name || b.project.title, open_cards: cards.length });
+    let activeHere = 0;
     for (const c of cards) {
       const t = c.task;
+      const stv = String(Number(t.status || 0)); cardStatusHist[stv] = (cardStatusHist[stv] || 0) + 1;
+      // Only status-1 (actionable) cards are on Danielle's LIVE board — completed/
+      // done-in-place cards pile up in the column but aren't part of her worklist.
+      if (!isActiveCard(t)) continue;
+      activeHere++;
       const folder = sectionToFolder(c.section);
       if (folder) mtFolderCount[folder] = (mtFolderCount[folder] || 0) + 1;   // MT's authoritative per-column count
       const blob = (t.name || '') + '\n' + (t.notes || t.description || '');
@@ -177,6 +188,8 @@ async function reconcile(boardsCsv) {
       else if (via === 'claim' || via === 'phone') wouldMove.push(rec);   // confident keys → auto-applyable
       else nameMatches.push(rec);                                          // name-only → review
     }
+    openCardTotal += cards.length; activeCardTotal += activeHere;
+    pulled.push({ board: b.key, project: b.project.name || b.project.title, open_cards: cards.length, active_cards: activeHere });
   }
 
   // Board side: where each active job actually sits + which are on the board with
@@ -209,7 +222,7 @@ async function reconcile(boardsCsv) {
   for (const m of matchedAgree.concat(wouldMove, nameMatches)) { if (via[m.via] != null) via[m.via]++; }
   return {
     project: boards.map((b) => b.project.name || b.project.title).join(' + '), boards_pulled: pulled,
-    open_cards: openCardTotal, board_jobs: jobs.length,
+    open_cards: openCardTotal, active_cards: activeCardTotal, card_status_histogram: cardStatusHist, board_jobs: jobs.length,
     counts: { matched_and_agree: matchedAgree.length, would_move_claim: wouldMove.length, name_matches_review: nameMatches.length, unknown_section: unknownSection.length, missing_from_board: missing.length, cross_board_conflicts: conflicts.length, board_only_no_mt_card: Object.values(boardOnlyByFolder).reduce((a, n) => a + n, 0) },
     matched_via: via, move_breakdown: dir, column_reconcile,
     would_move: wouldMove, name_matches: nameMatches, missing, unknown_section: unknownSection, conflicts,
