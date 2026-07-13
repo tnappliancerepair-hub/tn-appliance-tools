@@ -3107,6 +3107,39 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addNewJobPill); else addNewJobPill();
 })();
+
+/* The Week/Today/List/MAP view toggle lives inside the hidden .topbar (display:none),
+   so Danielle couldn't see the Map view at all (Teddy 2026-07-13: "can't see the map
+   view"). Surface a prominent 🗺️ Map PILL into the visible office-nav row — same
+   place "+ New Job" lives — that toggles the full scheduled-jobs map on/off by
+   driving the (hidden) view buttons. Tap → HCP-style map; tap again → back to grid. */
+(function(){
+  var t=0;
+  function addMapPill(){
+    var nav=document.getElementById('office-topnav');
+    if(!nav){ if(t++<80) setTimeout(addMapPill,40); return; }
+    if(document.getElementById('nav-mapview')) return;
+    var b=document.createElement('button');
+    b.id='nav-mapview'; b.type='button'; b.textContent='🗺️ Map';
+    var MAP_CSS='flex-shrink:0;white-space:nowrap;cursor:pointer;padding:10px 16px;border-radius:22px;font-size:14px;font-weight:800;line-height:1;';
+    function paint(){
+      var onMap=document.body.classList.contains('nsmap');
+      b.textContent=onMap?'📅 Schedule':'🗺️ Map';
+      b.style.cssText=MAP_CSS+(onMap
+        ? 'background:#0a7d4a;border:2px solid #0a7d4a;color:#fff;'
+        : 'background:#2f6fb0;border:2px solid #2f6fb0;color:#fff;');
+    }
+    b.addEventListener('click',function(){
+      var wk=document.getElementById('viewWeekBtn'), mp=document.getElementById('viewMapBtn');
+      if(document.body.classList.contains('nsmap')){ if(wk) wk.click(); } else { if(mp) mp.click(); }
+      setTimeout(paint,60);
+    });
+    paint();
+    var anchor=document.getElementById('nav-newjob');
+    if(anchor && anchor.parentNode===nav) nav.insertBefore(b, anchor); else nav.appendChild(b);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addMapPill); else addMapPill();
+})();
 </script>
 </body>
 </html>
