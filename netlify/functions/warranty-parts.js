@@ -102,6 +102,18 @@ exports.handler = async function (event) {
       });
       return j(200, { ok: true });
     }
+    // Soft-DELETE a supplied part (office). Removes a junk/mis-entered entry from the
+    // card — e.g. a tech typed a note into the part field. Event-sourced + reversible:
+    // the GET filters out any part whose delete marker is newer than its add. Re-adding
+    // the same part later (a newer add) shows it again.
+    if (b.action === 'delete' || b.action === 'remove') {
+      if (!b.part) return j(400, { ok: false, error: 'part required' });
+      await crud.logEvent('warranty_part_deleted', {
+        job_id: jobId, claim: String(b.claim || ''), part: String(b.part),
+        by: String(b.by || 'office'), at_ms: Date.now(),
+      });
+      return j(200, { ok: true });
+    }
     // add a manually-recorded supplied part (any vendor — SquareTrade / FrontDoor / NSA)
     if (!b.part) return j(400, { ok: false, error: 'part required' });
     await crud.logEvent('warranty_part_supplied', {
@@ -121,11 +133,16 @@ exports.handler = async function (event) {
   if (!jobId && !claim) return j(400, { ok: false, error: 'job_id or claim required' });
   const mine = (m) => (jobId && Number(m.job_id) === jobId) || (claim && String(m.claim) === claim);
 
-  const [labels, manual, statuses, discreps, photos] = await Promise.all([
+  const [labels, manual, statuses, discreps, photos, deletes] = await Promise.all([
     rows('parts_return_label', 400), rows('warranty_part_supplied', 200),
     rows('warranty_part_status', 300), rows('warranty_part_discrepancy', 200),
-    rows('warranty_part_photo', 300),
+    rows('warranty_part_photo', 300), rows('warranty_part_deleted', 200),
   ]);
+
+  // Newest soft-delete timestamp per part (this job/claim). A part is hidden when its
+  // delete marker is at-or-newer than its add — so a later re-add shows it again.
+  const deletedAt = {};
+  for (const r of deletes) { const m = meta(r); if (!mine(m) || !m.part) continue; const t = Number(m.at_ms) || 0; if (t >= (deletedAt[m.part] || 0)) deletedAt[m.part] = t; }
 
   // photos per part — newest first. The card resolves each s3_key to a signed thumbnail.
   const photoByPart = {};
@@ -149,11 +166,14 @@ exports.handler = async function (event) {
 
   const byPart = {};
   // from RMA tracker (auto-captured supplied/return parts) — SquareTrade/Allstate
-  for (const r of labels) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, description: m.description || '', distributor: m.distributor || '', vendor: m.vendor || 'SquareTrade', source: 'rma', rma: m.rma || '', tracking: m.tracking || '', return_desc: m.return_desc || '', note: '', status: descStatus(m.return_desc) }; }
+  for (const r of labels) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, description: m.description || '', distributor: m.distributor || '', vendor: m.vendor || 'SquareTrade', source: 'rma', rma: m.rma || '', tracking: m.tracking || '', return_desc: m.return_desc || '', note: '', status: descStatus(m.return_desc), _at: Number(m.at_ms) || 0 }; }
   // from email watchers + manual add (any vendor)
-  for (const r of manual) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, description: m.description || '', distributor: m.distributor || '', vendor: m.vendor || '', source: m.source || 'manual', rma: m.rma || '', tracking: m.tracking || '', return_desc: '', note: m.note || '', status: m.status || 'to_return' }; }
+  for (const r of manual) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, description: m.description || '', distributor: m.distributor || '', vendor: m.vendor || '', source: m.source || 'manual', rma: m.rma || '', tracking: m.tracking || '', return_desc: '', note: m.note || '', status: m.status || 'to_return', _at: Number(m.at_ms) || 0 }; }
 
-  const parts = Object.values(byPart).map((p) => {
+  const parts = Object.values(byPart)
+    // drop soft-deleted entries (delete marker at-or-newer than the part's add)
+    .filter((p) => !(deletedAt[p.part] && deletedAt[p.part] >= (p._at || 0)))
+    .map((p) => {
     const d = decision[p.part];
     return {
       ...p,

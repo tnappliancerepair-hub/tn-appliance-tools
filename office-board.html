@@ -1676,6 +1676,8 @@ async function loadWarrantyParts(jid, claim){
       btns+=ovBtn('Missing','missing',ch('missing')?'#c0392b':'#fff',ch('missing')?'#c0392b':'var(--line)',ch('missing')?'#fff':'inherit');
         if(tr) btns+=`<button onclick="markWarrantyPart(${jid},'${esc(p.part)}','returned')" style="padding:4px 8px;border:0;border-radius:7px;background:#0a7d33;color:#fff;font-size:11px;font-weight:800;cursor:pointer">Mark returned ✓</button>`;
       }
+      // Remove a junk/mis-entered entry (a tech note typed into the part field, a dup).
+      btns+=`<button onclick="deleteWarrantyPart(${jid},'${esc(p.part)}')" title="Remove this entry from the card" style="padding:4px 8px;border:1px solid #e0b4b4;border-radius:7px;background:#fff;color:#b00;font-size:11px;font-weight:700;cursor:pointer">🗑 Delete</button>`;
       return `<div style="padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="mono" style="font-weight:800;font-size:13px">${esc(p.part)} ${badge}</div>${who}</div><div style="font-size:11px;color:var(--ink2);margin:3px 0 2px">${esc(info)||'—'}</div><div style="font-size:11px;font-weight:700;color:#2c6fb0;margin-bottom:6px">${loc}</div><div style="display:flex;flex-wrap:wrap;gap:5px">${btns}</div></div>`;
     }).join('');
   }catch(_){ el.innerHTML='<span style="color:#b00">Could not load.</span>'; }
@@ -1688,6 +1690,11 @@ async function addWarrantyPart(jid){
 }
 async function markWarrantyPart(jid,part,status){
   try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:jid,part:part,status:status,by:'office'})}); toast(status==='returned'?'Marked returned ✓':(status==='missing'?'Flagged missing ⚠️':(status==='requested'?'Marked requested 📨':'Updated ✓'))); if(status==='requested')spOrderPartsShadow(jid,part); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
+}
+// Remove a junk/mis-entered warranty-part entry (soft delete — reversible, event-sourced).
+async function deleteWarrantyPart(jid,part){
+  if(!confirm('Remove this entry from the warranty parts card?\n\n"'+String(part).slice(0,90)+'"\n\n(Use this for a tech note typed into the part field, or a duplicate.)')) return;
+  try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',job_id:jid,claim:window.__drawerClaim||'',part:part,by:'office'})}); toast('Removed ✓'); loadWarrantyParts(jid,window.__drawerClaim||''); }catch(_){toast('⚠ failed');}
 }
 // SquareTrade/ServicePower only: when a part is marked Requested, log the exact
 // updateCallInfo "ORDER PARTS" payload we WOULD send (shadow — sends nothing). Lets
