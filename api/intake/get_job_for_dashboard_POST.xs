@@ -189,6 +189,12 @@ query get_job_for_dashboard verb=POST {
       sort = {technician_decision_report.created_at: "asc"}
       return = {type: "list", paging: {page: 1, per_page: 20}}
     } as $all_tdrs_query
+
+    // Load technicians ONCE (~6 rows) instead of a db.get per TDR (was up to 20 round-
+    // trips) just to attach each report author's first name. Scanned in-script below.
+    db.query technicians {
+      return = {type: "list", paging: {page: 1, per_page: 50}}
+    } as $all_techs
   
     var $all_tdrs {
       value = []
@@ -202,13 +208,16 @@ query get_job_for_dashboard verb=POST {
       
         conditional {
           if ($t.technician_id != null && $t.technician_id > 0) {
-            db.get technicians {
-              field_name = "id"
-              field_value = $t.technician_id
-            } as $tdr_author
-          
-            var.update $author_first {
-              value = (($tdr_author.first_name ?? "")|trim)
+            foreach ($all_techs.items) {
+              each as $tk {
+                conditional {
+                  if ($tk.id == $t.technician_id) {
+                    var.update $author_first {
+                      value = (($tk.first_name ?? "")|trim)
+                    }
+                  }
+                }
+              }
             }
           }
         }

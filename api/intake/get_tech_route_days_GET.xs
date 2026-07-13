@@ -70,6 +70,12 @@ query get_tech_route_days verb=GET {
       return = {type: "list", paging: {page: 1, per_page: 100}}
     } as $job_rows
 
+    // Load the service-zone table ONCE (small, ~100 rows) instead of a zip to cluster
+    // DB query per stop (was up to 100 round-trips). Scanned in-script below. (2026-07-13)
+    db.query service_zone {
+      return = {type: "list", paging: {page: 1, per_page: 1000}}
+    } as $all_zones
+
     var $stops {
       value = []
     }
@@ -86,17 +92,16 @@ query get_tech_route_days verb=GET {
 
         conditional {
           if ($zip != "") {
-            db.query service_zone {
-              where = $db.service_zone.zip_code == $zip
-              return = {type: "list", paging: {page: 1, per_page: 1}}
-            } as $zrows
-
-            var $zr {
-              value = (($zrows.items|first) ?? null)
-            }
-
-            var.update $cluster {
-              value = (($zr ?? {cluster: ""}).cluster ?? "")
+            foreach ($all_zones.items) {
+              each as $z {
+                conditional {
+                  if ((($z.zip_code ?? "")) == $zip) {
+                    var.update $cluster {
+                      value = (($z.cluster ?? ""))
+                    }
+                  }
+                }
+              }
             }
           }
         }
