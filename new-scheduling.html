@@ -339,6 +339,13 @@
      fully render — a container that resizes after Leaflet inits leaves black
      gaps. The rail itself SCROLLS for the month calendar + customers below. */
   #cal-rail #railMap { flex: 0 0 auto; height: 60vh; min-height: 380px; }
+  /* Map view (Danielle's scheduled-jobs map): full-width, rail hidden. */
+  body.nsmap #cal-rail, body.nsmap #miniCal { display: none !important; }
+  body.nsmap #content { width: 100%; flex: 1 1 auto; }
+  #ns-map { width: 100%; height: calc(100vh - 210px); min-height: 420px; border-radius: 10px; overflow: hidden; margin: 0 8px; }
+  .ns-map-legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 14px; font-size: 12.5px; font-weight: 700; align-items: center; }
+  .ns-map-legend .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 5px; vertical-align: middle; border: 1px solid rgba(255,255,255,.6); }
+  .leaflet-popup-content { margin: 10px 12px; }
   #cal-rail #railMap #antmap-panel.antmap-inline { height: 100%; width: 100%; }
   #cal-rail #railQueue { flex: 0 0 auto; }
   @media (min-width: 900px) {
@@ -852,6 +859,7 @@
       <button class="nav-btn view-btn active" id="viewWeekBtn" title="Week grid view" data-view="week">Week</button>
       <button class="nav-btn view-btn" id="viewTodayBtn" title="Today list view" data-view="today">Today</button>
       <button class="nav-btn view-btn" id="viewListBtn" title="List view — every job this range, chronological" data-view="list">List</button>
+      <button class="nav-btn view-btn" id="viewMapBtn" title="Map view — scheduled jobs plotted on a map, by tech" data-view="map">🗺️ Map</button>
     </div>
     <div class="spacer"></div>
     <a class="new-job-btn" href="book.html" id="newJobBtn"><span class="plus">+</span> New Job</a>
@@ -933,10 +941,12 @@ function __initCalendar() {
   const viewWeekBtn = $('viewWeekBtn');
   const viewTodayBtn = $('viewTodayBtn');
   const viewListBtn = $('viewListBtn');
+  const viewMapBtn = $('viewMapBtn');
   // Phones default to the list ("today") view — the wide week grid is desktop-
   // only. Explicit ?view= always wins.
   let currentView = params.get('view') === 'today' ? 'today'
     : params.get('view') === 'list' ? 'list'
+    : params.get('view') === 'map' ? 'map'
     : params.get('view') === 'week' ? 'week'
     : (window.innerWidth < 760 ? 'today' : 'week');
 
@@ -1117,7 +1127,10 @@ function __initCalendar() {
     // schedule/reschedule modal as everything else.
     for (const j of unscheduled) lastJobsById[j.id] = j;
 
-    // Branch on view mode.
+    // Branch on view mode. (Map view hides the left rail via body.nsmap; strip it
+    // for every non-map render so the rail comes back when switching away.)
+    if (currentView !== 'map') document.body.classList.remove('nsmap');
+    if (currentView === 'map') { renderMapView(data, techs, jobs); return; }
     if (currentView === 'today') { renderTodayView(data, techs, jobs); return; }
     if (currentView === 'list') { renderListView(data, techs, jobs); return; }
 
@@ -1808,6 +1821,7 @@ function __initCalendar() {
     viewWeekBtn?.classList.toggle('active', currentView === 'week');
     viewTodayBtn?.classList.toggle('active', currentView === 'today');
     viewListBtn?.classList.toggle('active', currentView === 'list');
+    viewMapBtn?.classList.toggle('active', currentView === 'map');
     // Snap the mini-calendar to the selected day's month + repaint it.
     miniCalView = startOfMonthOf(currentWeekStart);
     renderMiniCal();
@@ -1966,9 +1980,85 @@ function __initCalendar() {
   $('prevMonth')?.addEventListener('click', () => stepMonth(-1));
   $('nextMonth')?.addEventListener('click', () => stepMonth(1));
 
+  // ── MAP VIEW — scheduled jobs plotted geographically, colored by tech (Danielle's
+  // "toggle map of jobs scheduled", 2026-07-13). Self-contained Leaflet + Nominatim
+  // geocode with the shared tn_geo_v1 cache (same as office-jobs-map + tech dash), so
+  // repeat views are instant. Only rebuilds when the scheduled-job set changes, so
+  // the 20s poll doesn't wipe the tech's zoom/pan.
+  const NS_GEO_PREFIX = 'tn_geo_v1:', NS_GEO_TTL = 30 * 24 * 60 * 60 * 1000;
+  const NS_MAP_COLORS = ['#7a5cf0', '#e67e22', '#2c8c4a', '#2c6fb0', '#c0392b', '#0d9488', '#b45309', '#db2777'];
+  let _nsMap = null, _nsMapSig = '', _nsLastGeo = 0;
+  function _nsHash(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; } return String(Math.abs(h)); }
+  function ensureLeafletNS() {
+    return new Promise((res, rej) => {
+      if (window.L) return res();
+      if (!document.querySelector('link[href*="leaflet"]')) { const c = document.createElement('link'); c.rel = 'stylesheet'; c.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(c); }
+      let sc = document.querySelector('script[src*="leaflet@1.9.4"]');
+      if (sc) { sc.addEventListener('load', () => res()); if (window.L) res(); return; }
+      sc = document.createElement('script'); sc.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      sc.onload = () => res(); sc.onerror = rej; document.head.appendChild(sc);
+    });
+  }
+  async function _nsGeocode(addr) {
+    const k = NS_GEO_PREFIX + _nsHash(addr);
+    try { const raw = localStorage.getItem(k); if (raw) { const p = JSON.parse(raw); if (p && (Date.now() - p.ts) < NS_GEO_TTL) return { lat: p.lat, lng: p.lng }; } } catch (_) {}
+    const wait = Math.max(0, (_nsLastGeo + 1100) - Date.now()); _nsLastGeo = Date.now() + wait;
+    await new Promise((r) => setTimeout(r, wait));
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1&countrycodes=us`);
+      const d = await res.json(); if (!Array.isArray(d) || !d.length) return null;
+      const lat = parseFloat(d[0].lat), lng = parseFloat(d[0].lon); if (!isFinite(lat) || !isFinite(lng)) return null;
+      try { localStorage.setItem(k, JSON.stringify({ lat, lng, ts: Date.now() })); } catch (_) {}
+      return { lat, lng };
+    } catch (_) { return null; }
+  }
+  async function renderMapView(data, techs, jobs) {
+    document.body.classList.add('nsmap');
+    const host = $('content'); if (!host) return;
+    // Scheduled jobs only: a real day + a tech + an address to plot.
+    const sched = jobs.filter((j) => Number(j.scheduled_start) > 0 && Number(j.technician_id) > 0 && (j.service_address || j.service_city));
+    const techColor = {}, techName = {};
+    techs.forEach((t, i) => { techColor[Number(t.id)] = NS_MAP_COLORS[i % NS_MAP_COLORS.length]; techName[Number(t.id)] = t.first_name || ('Tech ' + t.id); });
+    // Legend — tech + how many stops each has plotted.
+    let leg = '<div class="ns-map-legend">';
+    techs.forEach((t) => { const c = techColor[Number(t.id)], cnt = sched.filter((j) => Number(j.technician_id) === Number(t.id)).length; if (cnt) leg += `<span><span class="dot" style="background:${c}"></span>${escapeHtml(techName[Number(t.id)])} · ${cnt}</span>`; });
+    leg += '</div>';
+    // Only rebuild when the plotted set actually changed (keeps zoom/pan across polls).
+    const sig = sched.map((j) => j.id + ':' + j.technician_id + ':' + j.scheduled_start).sort().join('|');
+    if (_nsMap && _nsMapSig === sig && document.getElementById('ns-map')) { const lg = host.querySelector('.ns-map-legend'); if (lg) lg.outerHTML = leg; return; }
+    _nsMapSig = sig;
+    host.innerHTML = leg + '<div id="ns-map"></div><div id="ns-map-status" style="padding:6px 14px;font-size:12px;color:var(--muted,#888)">Loading map…</div>';
+    try { await ensureLeafletNS(); } catch (_) { const s = $('ns-map-status'); if (s) s.textContent = '⚠ map failed to load'; return; }
+    const el = $('ns-map'); if (!el || !window.L) return;
+    if (_nsMap) { try { _nsMap.remove(); } catch (_) {} _nsMap = null; }
+    _nsMap = L.map(el).setView([35.9, -87.5], 6);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(_nsMap);
+    const status = $('ns-map-status'); const bounds = []; let done = 0, plotted = 0;
+    if (!sched.length && status) status.textContent = 'No scheduled jobs with an address in this range.';
+    for (const j of sched) {
+      const addr = [j.service_address, j.service_city].filter(Boolean).join(', ');
+      const g = await _nsGeocode(addr);
+      done++;
+      if (g) {
+        plotted++;
+        const color = techColor[Number(j.technician_id)] || '#666';
+        const cust = [j.customer_first_name, j.customer_last_name].filter(Boolean).join(' ') || 'Customer';
+        const day = j.scheduled_start ? new Date(Number(j.scheduled_start)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : '';
+        const m = L.circleMarker([g.lat, g.lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 }).addTo(_nsMap);
+        m.bindPopup(`<div style="font-size:13px;line-height:1.45"><b>${escapeHtml(cust)}</b><br>${escapeHtml(j.appliance_type || 'appliance')}${j.brand ? ' · ' + escapeHtml(j.brand) : ''}<br><b style="color:${color}">${escapeHtml(techName[Number(j.technician_id)] || '')}</b> · ${escapeHtml(day)}<br>${escapeHtml(addr)}<br><a href="/office-board.html?job=${j.id}" style="color:#2c6fb0;font-weight:700;text-decoration:none">Open job tile →</a></div>`);
+        bounds.push([g.lat, g.lng]);
+        if (bounds.length >= 2) { try { _nsMap.fitBounds(bounds, { padding: [34, 34], maxZoom: 12 }); } catch (_) {} }
+        else { try { _nsMap.setView([g.lat, g.lng], 10); } catch (_) {} }
+      }
+      if (status) status.textContent = `Plotted ${plotted} of ${sched.length} scheduled stops…`;
+      if (currentView !== 'map') return;   // tech switched views mid-geocode — stop
+    }
+    if (status) status.textContent = plotted === sched.length ? `${plotted} scheduled stop${plotted === 1 ? '' : 's'} on the map.` : `${plotted} of ${sched.length} plotted (some addresses couldn't be located).`;
+  }
+
   // View toggle. Today view re-renders the same loaded data — no extra fetch.
   function setView(view) {
-    if (view !== 'week' && view !== 'today' && view !== 'list') return;
+    if (view !== 'week' && view !== 'today' && view !== 'list' && view !== 'map') return;
     if (currentView === view) return;
     currentView = view;
     updateUrl();
@@ -1978,6 +2068,7 @@ function __initCalendar() {
   viewWeekBtn?.addEventListener('click', () => setView('week'));
   viewTodayBtn?.addEventListener('click', () => setView('today'));
   viewListBtn?.addEventListener('click', () => setView('list'));
+  viewMapBtn?.addEventListener('click', () => setView('map'));
   todayBtn.addEventListener('click', () => {
     if (!serverTodayCT) return;
     currentWeekStart = serverTodayCT; // jump to today-forward, not the past week
@@ -2054,7 +2145,7 @@ function __initCalendar() {
     } else if (currentWeekStart) {
       url.searchParams.set('week', currentWeekStart);
     }
-    if (currentView === 'today' || currentView === 'list') url.searchParams.set('view', currentView);
+    if (currentView === 'today' || currentView === 'list' || currentView === 'map') url.searchParams.set('view', currentView);
     else url.searchParams.delete('view');
     window.history.replaceState({}, '', url.toString());
   }
