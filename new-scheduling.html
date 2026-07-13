@@ -593,6 +593,18 @@
   .blk.bk-warranty { border-left-color: var(--violet); }
   .blk.bk-self_pay { border-left-color: var(--green); }
   .blk.bk-completed { opacity: 0.6; border-left-color: var(--muted); }
+  /* Live day-progress: where a tech is on his day (today column only). */
+  .blk.bk-onsite { border-left-color: #2f9bff; box-shadow: inset 0 0 0 1px rgba(47,155,255,0.5); opacity: 1; }
+  .st-chip { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 6px; white-space: nowrap; letter-spacing: 0.02em; }
+  .st-chip.st-done { background: rgba(0,168,107,0.16); color: #0a8a52; }
+  .st-chip.st-onsite { background: rgba(47,155,255,0.18); color: #1667c0; animation: onsitePulse 1.8s ease-in-out infinite; }
+  @keyframes onsitePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+  .day-progress { font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 8px; margin: 2px 0 4px; letter-spacing: 0.01em; }
+  .day-progress.dp-onsite { background: rgba(47,155,255,0.14); color: #1667c0; }
+  .day-progress.dp-alldone { background: rgba(0,168,107,0.14); color: #0a8a52; }
+  .day-progress.dp-partial { background: rgba(0,168,107,0.10); color: #0a7d4a; }
+  .day-progress.dp-notstarted { background: rgba(138,150,168,0.14); color: #667385; }
+  @media (prefers-reduced-motion: reduce) { .st-chip.st-onsite { animation: none; } }
   /* Tentative placeholder hold — ghosted so it never reads as a firm job. */
   .blk.hold { opacity: 0.72; border: 1px dashed #c79a17; border-left: 3px dashed #c79a17;
     background: repeating-linear-gradient(45deg, rgba(224,178,42,0.12), rgba(224,178,42,0.12) 6px, rgba(224,178,42,0.03) 6px, rgba(224,178,42,0.03) 12px); }
@@ -1457,6 +1469,23 @@ function __initCalendar() {
     // 1st, 2nd, 3rd… — that ordinal is what shows, not a clock time.
     const orderedJobs = jobs.slice().sort((a, b) => (Number(a.scheduled_start) || 0) - (Number(b.scheduled_start) || 0));
     const blocks = orderedJobs.map((j, i) => renderBlock(j, i)).join('');
+    // Live day-progress (TODAY only): where is this tech on his day right now?
+    // in_progress = the stop he's ON; completed = done; the rest are ahead.
+    // (Teddy 2026-07-13: "we need a way of knowing where a tech is on his day.")
+    let progressHtml = '';
+    if (day.isToday && orderedJobs.length) {
+      const isDone = (j) => (j.scheduling_status || '').toLowerCase() === 'completed';
+      const isOnSite = (j) => { const a = (j.scheduling_status || '').toLowerCase(), b = (j.current_status || '').toLowerCase(); return a === 'in_progress' || b === 'in_progress'; };
+      const total = orderedJobs.length;
+      const done = orderedJobs.filter(isDone).length;
+      const onIdx = orderedJobs.findIndex(isOnSite);
+      let txt, cls;
+      if (onIdx >= 0) { txt = `🔵 On stop ${onIdx + 1} of ${total}${done ? ` · ${done} done` : ''}`; cls = 'onsite'; }
+      else if (done >= total) { txt = `✓ Day complete · ${total}/${total}`; cls = 'alldone'; }
+      else if (done > 0) { txt = `✓ ${done}/${total} done · next: stop ${done + 1}`; cls = 'partial'; }
+      else { txt = `⏳ Not started · ${total} stop${total > 1 ? 's' : ''}`; cls = 'notstarted'; }
+      progressHtml = `<div class="day-progress dp-${cls}" title="Live progress through ${escapeHtml(techName)}'s day">${txt}</div>`;
+    }
     const holdBlocks = HOLDS.filter((h) => Number(h.tech_id) === Number(tech.id) && h.date === day.dateStr).map(renderHoldBlock).join('');
     return `
       <div class="cell cap-${tier} book-cell"
@@ -1471,6 +1500,7 @@ function __initCalendar() {
           <span class="denom">/${CAPACITY_MAX}</span>
           <span class="label">${remaining === 1 ? 'slot' : 'slots'}</span>
         </div>
+        ${progressHtml}
         <div class="blocks">${blocks}${holdBlocks}</div>
       </div>
     `;
@@ -1536,9 +1566,16 @@ function __initCalendar() {
     const status = (j.scheduling_status || '').toLowerCase();
     const ct = (j.customer_type || '').toLowerCase();
 
+    const cs = (j.current_status || '').toLowerCase();
+    const onSite = status === 'in_progress' || cs === 'in_progress';
     let bk = 'self_pay';
     if (ct === 'warranty') bk = 'warranty';
     if (status === 'completed') bk = 'completed';
+    if (onSite) bk = 'onsite';   // where the tech is RIGHT NOW — highlight it
+    // Live status chip: done ✓ / on site 🔵. Upcoming stops show nothing (default).
+    let stChip = '';
+    if (status === 'completed') stChip = '<span class="st-chip st-done">✓ done</span>';
+    else if (onSite) stChip = '<span class="st-chip st-onsite">🔵 on site</span>';
 
     const applLine = brand ? `${appl} · ${brand}` : appl;
     return `
@@ -1547,6 +1584,7 @@ function __initCalendar() {
         <div class="row1">
           <span class="time">${posLabel}</span>
           <span class="name">${escapeHtml(cust)}</span>
+          ${stChip}
         </div>
         <div class="row2">
           <span class="app">${escapeHtml(applLine)}</span>
