@@ -457,6 +457,7 @@ function renderFromCache(){
     if(!s.ts||(Date.now()-s.ts)>86400000) return false;  // ignore snapshots >1 day old
     allItems=s.items; STAGE_MAP=s.stageMap||{}; CHECK_MAP=s.checkMap||{};
     OFFICE_NOTE_JOBS=new Set(s.noteJobs||[]); HOLD_MAP=s.holdMap||{}; SLOTS_MAP=s.slotsMap||{};
+    stageReconcile();                 // a pending drop still wins over the cached snapshot
     renderBoard();
     return true;
   }catch(_){ return false; }
@@ -471,6 +472,7 @@ async function loadBoard(){
     const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadHoldMap(),loadSlotsMap()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
+    stageReconcile();                 // keep just-dropped cards pinned until the server catches up
     renderBoard();
     saveBoardCache();
     loadAddons();
@@ -541,6 +543,14 @@ function closeStrandedThenOpen(id){ openDrawer(String(id)); }
 // 2nd-trip/revisits all land here (anything not yet sitting on a day with a
 // tech). A job only moves to a tech column once it actually has a time.
 function stageGet(id){try{return localStorage.getItem('tn_stage_'+id)||'';}catch(_){return '';}}
+// PENDING-PIN — the instant Danielle drops a card (or picks from the dropdown) we
+// PIN it to that column locally; nothing can move it until the server confirms the
+// EXACT placement. Kills the "I dropped it and it jumped / disappeared" race — a
+// stale kanban reload can no longer clobber her move with an old office_stage.
+// (Teddy 2026-07-13: the board has to be MORE reliable than MeisterTask.)
+const pendingStage={};                                   // id -> {stage, ts}
+function stagePin(id,colId){ pendingStage[id]={stage:colId,ts:Date.now()}; const j=(allItems||[]).find(x=>String(x.id)===String(id)); if(j)j.office_stage=colId; try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){} }
+function stageReconcile(){ const now=Date.now(); Object.keys(pendingStage).forEach(function(id){ const p=pendingStage[id]; const j=(allItems||[]).find(x=>String(x.id)===String(id)); const srv=j?String(j.office_stage||'').trim():''; if(srv===p.stage){ delete pendingStage[id]; return; } if(j)j.office_stage=p.stage; if(now-p.ts>600000) delete pendingStage[id]; }); }
 // Office checklist — manual ticks she can mark herself (the steps that aren't
 // auto-derived). Stored per job; a step shows done if auto-derived OR ticked.
 // Server-first (CHECK_MAP from office-stage) so manual ticks STICK across
@@ -569,6 +579,9 @@ function placeOf(j){
   // even a manual placement. Check BOTH status fields so a job canceled via
   // either one drops off.
   if(/cancel/i.test(ss)||/cancel/i.test(cs)) return '__hide__';
+  // Her most-recent drop/dropdown wins over EVERYTHING (until the server confirms
+  // it), so a lagging reload can't bounce the card out of the column she chose.
+  if(pendingStage[j.id]) return pendingStage[j.id].stage;
   // THE OFFICE CONTROLS FOLDERS — full stop. Any explicit placement Danielle
   // made wins on ANY job, terminal or not, so she can move a card back and forth
   // between every area and it STAYS exactly where she dropped it (MeisterTask
@@ -904,7 +917,17 @@ function fetchT(url,ms,opts){
 // reloads). Optional serviceState moves the job's region (TN <-> LA) at the same
 // time. Fire-and-forget — the optimistic UI already moved the card.
 async function persistStage(id,colId,serviceState){
-  try{await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:colId||'',service_state:serviceState||'',actor:'Danielle'})});}catch(_){}
+  // Durable write: retry up to 3x so a network blip can't silently drop the save
+  // (which used to let the card snap back on reload). Returns true once it lands.
+  for(let a=0;a<3;a++){
+    try{
+      const r=await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:colId||'',service_state:serviceState||'',actor:'Danielle'})});
+      const d=await r.json().catch(()=>({}));
+      if(d&&(d.ok||d.success)) return true;
+    }catch(_){}
+    await new Promise(res=>setTimeout(res,400*(a+1)));
+  }
+  return false;
 }
 // Mark a job's invoice paid/unpaid (drop into the 💰 Paid folder = paid). The
 // invoices page (invoices.html) honors this over auto-detection. Fire-and-forget.
@@ -920,10 +943,10 @@ async function onDrop(colId,techId,colEl){
   const card=document.querySelector('.jcard[data-id="'+id+'"]');
   if(colEl&&card){const body=colEl.querySelector('.col-body');if(body){const em=body.querySelector('.empty-col');if(em)em.remove();body.appendChild(card);}refreshCounts();}
 
-  // Remember her placement so the card STAYS in the column she dropped it into
-  // (placeOf honors this first). localStorage = instant; server = durable truth.
-  try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){}
-  persistStage(id,colId);
+  // PIN her placement so the card STAYS in the column she dropped it into — no
+  // stale reload can bounce it. Then save durably; warn only if the save truly fails.
+  stagePin(id,colId);
+  persistStage(id,colId).then(function(ok){ if(!ok) toast('⚠ kept here — save is retrying'); });
 
   // Follow Up / Needs Invoice / Paid have no backend job-state — placement only.
   if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
@@ -2260,9 +2283,9 @@ async function moveJobFromDrawer(id){
   const sel=document.getElementById('moveSel'); if(!sel)return;
   const colId=sel.value; let techId='';
   if(colId.indexOf('rep-')===0||colId.indexOf('inv-')===0) techId=colId.split('-')[1];
-  // Same as a drag-drop: remember placement so it sticks, then fire the action.
-  try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){}
-  persistStage(id,colId);
+  // Same as a drag-drop: PIN the placement so it sticks, then fire the action.
+  stagePin(id,colId);
+  persistStage(id,colId).then(function(ok){ if(!ok) toast('⚠ kept here — save is retrying'); });
   const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',upgrade:'Upgrade',autho:'Waiting for Autho',parts:'Waiting Parts',done:'✅ Completed',followup:'Follow Up',needinv:'Needs Invoice',paid:'Shop Money · Paid'};
   const label=labelMap[colId]||(techId?(TECH_NAME[techId]+(colId.indexOf('inv-')===0?' · Invoice':' · Report')):colId);
   if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
