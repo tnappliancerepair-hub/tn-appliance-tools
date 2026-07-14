@@ -23,6 +23,10 @@
 @keyframes antFlicker{0%,100%{opacity:.9;transform:translateY(0) rotate(-1deg)}50%{opacity:1;transform:translateY(-1px) rotate(1deg)}}\
 @keyframes antFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}\
 @keyframes antPts{0%{opacity:0;transform:translateY(6px) scale(.7)}25%{opacity:1;transform:translateY(-4px) scale(1.15)}100%{opacity:0;transform:translateY(-30px) scale(1)}}\
+@keyframes antBanner{0%{opacity:0;transform:translate(-50%,-26px)}10%{opacity:1;transform:translate(-50%,0)}88%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-26px)}}\
+@keyframes antPat{0%{opacity:0;transform:translate(-12vw,32vh) scale(.8)}14%{opacity:.92}84%{opacity:.92}100%{opacity:0;transform:translate(112vw,18vh) scale(1.15)}}\
+.ant-banner{position:fixed;top:72px;left:50%;z-index:2147482010;transform:translate(-50%,0);font:800 15px/1.35 "Cinzel",Georgia,serif;color:#241a10;background:linear-gradient(180deg,#f4e3a8,#e7c65a);border:2px solid #b8860b;border-radius:14px;padding:12px 22px;box-shadow:0 10px 34px rgba(0,0,0,.4),0 0 0 4px rgba(184,134,11,.2);text-align:center;pointer-events:none;max-width:88vw;animation:antBanner var(--dur,4.4s) ease forwards}\
+.ant-patronus{position:fixed;top:0;left:0;z-index:2147482006;font-size:58px;pointer-events:none;filter:drop-shadow(0 0 18px rgba(150,200,255,.95)) brightness(1.5) saturate(.25);animation:antPat 4.6s ease-in-out forwards}\
 @keyframes antBadgePop{0%{transform:scale(1)}40%{transform:scale(1.28)}100%{transform:scale(1)}}\
 @keyframes antSnitch{0%{transform:translate(-8vw,40vh) rotate(0)}20%{transform:translate(22vw,18vh) rotate(20deg)}40%{transform:translate(46vw,52vh) rotate(-15deg)}60%{transform:translate(64vw,22vh) rotate(18deg)}80%{transform:translate(86vw,44vh) rotate(-10deg)}100%{transform:translate(114vw,20vh) rotate(0)}}\
 .ant-owl{position:fixed;top:60px;left:0;z-index:2147482000;font-size:34px;pointer-events:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));animation:antOwlFly 3.6s cubic-bezier(.4,0,.5,1) forwards}\
@@ -73,13 +77,51 @@
   function get() { try { return parseInt(localStorage.getItem('ant_house_pts') || '0', 10) || 0; } catch (_) { return 0; } }
   function set(v) { try { localStorage.setItem('ant_house_pts', String(v)); } catch (_) {} }
   function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  // Wizard rank — she LEVELS UP by keeping the board current. Leveling triggers a
+  // Patronus + fanfare, so tidiness becomes a game she's climbing.
+  var RANKS = [
+    { p: 0, n: 'First Year' }, { p: 250, n: 'Second Year' }, { p: 600, n: 'Prefect' },
+    { p: 1200, n: 'Head Student' }, { p: 2500, n: 'Auror' }, { p: 5000, n: 'Order of Merlin, 3rd Class' },
+    { p: 9000, n: 'Order of Merlin, 1st Class' }, { p: 16000, n: 'Headmaster' },
+  ];
+  function rankFor(p) { var r = RANKS[0]; for (var i = 0; i < RANKS.length; i++) { if (p >= RANKS[i].p) r = RANKS[i]; } return r; }
+  function nextRank(p) { for (var i = 0; i < RANKS.length; i++) { if (RANKS[i].p > p) return RANKS[i]; } return null; }
+
+  // Reusable magical banner (welcome / rank-up).
+  function banner(html, dur) {
+    if (quiet() || !document.body) return; ensureStyle();
+    var old = document.querySelector('.ant-banner'); if (old && old.parentNode) old.parentNode.removeChild(old);
+    var el = document.createElement('div'); el.className = 'ant-banner'; el.style.setProperty('--dur', (dur || 4.4) + 's'); el.innerHTML = html;
+    document.body.appendChild(el); setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, (dur || 4.4) * 1000 + 100);
+  }
+  function patronus() {
+    if (quiet() || !document.body) return; ensureStyle();
+    if (document.querySelector('.ant-patronus')) return;
+    var el = document.createElement('div'); el.className = 'ant-patronus'; el.textContent = '🦌';
+    document.body.appendChild(el); setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4700);
+  }
+  // Work streak — consecutive days she opens the Hall.
+  function streak() {
+    try {
+      var d = new Date(); var key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+      var last = localStorage.getItem('ant_last_day'); var s = parseInt(localStorage.getItem('ant_streak') || '0', 10) || 0;
+      if (last !== key) {
+        var y = new Date(d.getTime() - 86400000); var yk = y.getFullYear() + '-' + (y.getMonth() + 1) + '-' + y.getDate();
+        s = (last === yk) ? s + 1 : 1;
+        localStorage.setItem('ant_streak', String(s)); localStorage.setItem('ant_last_day', key);
+      } else if (!s) { s = 1; localStorage.setItem('ant_streak', '1'); }
+      return s;
+    } catch (_) { return 1; }
+  }
   function badge() {
     var b = document.getElementById('ant-pts-badge'); if (b) return b;
     ensureStyle();
     var row = document.querySelector('.topbar .tb-row'); if (!row) return null;
     b = document.createElement('div'); b.id = 'ant-pts-badge'; b.className = 'ant-pts-badge';
-    b.title = 'House Points — earned by keeping the board current. Tap to mute the magic.';
-    b.innerHTML = '⏳ <span id="ant-pts-n">' + fmt(get()) + '</span>';
+    var rk = rankFor(get()).n.split(',')[0];
+    b.title = rankFor(get()).n + ' — House Points earned by keeping the board current. Tap to mute the magic.';
+    b.innerHTML = '⏳ <span id="ant-pts-n">' + fmt(get()) + '</span> <span id="ant-pts-rank" style="opacity:.72;font-weight:700">· ' + rk + '</span>';
     b.onclick = function () { var off = !quiet(); try { localStorage.setItem('ant_magic', off ? 'off' : 'on'); localStorage.setItem('ant_sound', off ? 'off' : 'on'); } catch (_) {} b.style.opacity = off ? '.5' : '1'; if (!off) { ambient(); API.sparkle(); } };
     // place it right before the region toggle
     var seg = row.querySelector('.seg'); if (seg) row.insertBefore(b, seg); else row.appendChild(b);
@@ -94,6 +136,7 @@
       var b = badge();
       if (b && !quiet()) {
         var nEl = document.getElementById('ant-pts-n'); if (nEl) nEl.textContent = fmt(total);
+        var rkEl = document.getElementById('ant-pts-rank'); if (rkEl) rkEl.textContent = '· ' + rankFor(total).n.split(',')[0];
         b.style.animation = 'none'; void b.offsetWidth; b.style.animation = 'antBadgePop .5s ease';
         var r = b.getBoundingClientRect();
         var f = document.createElement('div'); f.className = 'ant-pts-float'; f.textContent = '+' + n + ' ✨';
@@ -103,9 +146,15 @@
       // sound: soft sparkle for small, 80s fanfare for the big ones
       if (kind === 'paid' || kind === 'section') snd('win'); else snd('move');
       if (x != null) API.sparkle(x, y);
-      // House-cup milestone every 250 points: snitch + train + fanfare
       var before = total - n;
-      if (Math.floor(total / 250) > Math.floor(before / 250)) { API.snitch(); API.train(); snd('win'); }
+      // ⚡ RANK UP — the big one: a Patronus charges across + fanfare + banner.
+      if (rankFor(total).n !== rankFor(before).n) {
+        API.patronus(); API.snitch(); snd('win');
+        banner('⚡ <b>You made ' + rankFor(total).n + '!</b> ⚡<br><span style="font-weight:600;font-size:13px">' + fmt(total) + ' House Points — the Great Hall salutes you.</span>', 5);
+      } else if (Math.floor(total / 250) > Math.floor(before / 250)) {
+        // House-cup checkpoint every 250 pts: snitch + train + fanfare
+        API.snitch(); API.train(); snd('win');
+      }
       return total;
     },
     owl: function () {
@@ -141,9 +190,29 @@
         (function (s) { setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 760); })(s);
       }
     },
+    patronus: patronus,
+    banner: banner,
+    rank: function () { return rankFor(get()); },
+    // 🪄 Once-a-day welcome to the Great Hall — rank, points, and work streak.
+    welcome: function () {
+      if (quiet()) return;
+      try {
+        var d = new Date(), key = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+        if (localStorage.getItem('ant_welcomed') === key) return;
+        localStorage.setItem('ant_welcomed', key);
+      } catch (_) {}
+      var s = streak(), p = get(), rk = rankFor(p), nx = nextRank(p);
+      setTimeout(function () {
+        banner('🪄 <b>Welcome back to the Great Hall</b> ✨<br>' +
+          '<span style="font-weight:700;font-size:13px">' + rk.n + ' · ' + fmt(p) + ' points' +
+          (s > 1 ? ' · 🔥 ' + s + '-day streak' : '') + '</span>' +
+          (nx ? '<br><span style="font-weight:600;font-size:12px;opacity:.8">' + fmt(nx.p - p) + ' points to ' + nx.n.split(',')[0] + '</span>' : ''), 5);
+        API.sparkle();
+      }, 600);
+    },
     quiet: function (off) { try { localStorage.setItem('ant_magic', off ? 'off' : 'on'); } catch (_) {} return !quiet(); },
     isQuiet: quiet,
-    init: function () { try { badge(); ambient(); } catch (_) {} },
+    init: function () { try { badge(); ambient(); this.welcome(); } catch (_) {} },
   };
   window.AntMagic = API;
   // auto-init once the header exists
