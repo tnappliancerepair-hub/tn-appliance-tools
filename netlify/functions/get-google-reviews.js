@@ -65,7 +65,12 @@ exports.handler = async (event) => {
   const q = event.queryStringParameters || {};
   const debug = {};
   try {
+    // Prefer an explicit / pinned place id. The fuzzy text search has grabbed
+    // UNRELATED shops (e.g. "Appliances 4 Less TN"), so a pinned id is the safe
+    // path. Pin it once in the vault as GOOGLE_PLACE_ID.
     let placeId = q.place_id || null;
+    let pinned = !!placeId;
+    if (!placeId) { try { const pv = await getSecret('GOOGLE_PLACE_ID'); if (pv) { placeId = pv; pinned = true; } } catch (_) {} }
 
     if (!placeId) {
       const s = await searchText(q.q || DEFAULT_Q, KEY);
@@ -89,6 +94,14 @@ exports.handler = async (event) => {
     debug.details_http = http;
     if (d.error || !d.rating) {
       return json(200, { ok: false, error: 'details_failed', place_id: placeId, google_error: d.error || null, debug });
+    }
+
+    // WRONG-BUSINESS GUARD — never return a listing that isn't ours. Unless the id
+    // was pinned/explicit, the resolved name must look like TN Appliance Exchange.
+    const nm = (d.displayName && d.displayName.text) || '';
+    if (!pinned && !/appliance\s*exchange|tn\s*appliance\s*exchange/i.test(nm)) {
+      return json(200, { ok: false, error: 'wrong_business_guard', got_name: nm, place_id: placeId,
+        hint: 'Places search returned a different business. Pin GOOGLE_PLACE_ID in the vault (admin-secrets.html) to your real listing.', debug });
     }
 
     const reviews = (d.reviews || []).map((rv) => ({

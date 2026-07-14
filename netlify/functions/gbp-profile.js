@@ -9,7 +9,7 @@ const gbp = require('./_lib/gbp');
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
 const MASK = ['title', 'categories', 'phoneNumbers', 'websiteUri', 'regularHours',
-  'profile', 'serviceArea', 'serviceItems', 'openInfo', 'storefrontAddress', 'labels', 'moreHours'].join(',');
+  'profile', 'serviceArea', 'serviceItems', 'openInfo', 'storefrontAddress', 'labels', 'moreHours', 'metadata'].join(',');
 
 async function resolveLocation() {
   const a = await gbp.listAccounts();
