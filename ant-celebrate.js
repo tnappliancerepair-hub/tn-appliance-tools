@@ -63,7 +63,12 @@
       _confetti();
     }
     try { if (navigator.vibrate) navigator.vibrate([35, 55, 35, 55, 70]); } catch (_) {}
-    if (sound === 'both') _sound(true); else if (sound === 'applause') _sound(false);
+    // Prefer the new synthesized cues (magical / 80s) over the old cha-ching+applause
+    // Danielle didn't like. opts.cue='win' → 80s fanfare; otherwise the HP shimmer.
+    if (sound !== 'none') {
+      if (window.AntSounds) { (opts.cue === 'win' ? window.AntSounds.win : window.AntSounds.magic)(); }
+      else if (sound === 'both') _sound(true); else if (sound === 'applause') _sound(false);
+    }
     ov._t = setTimeout(function () { window.antCelebrateClose(); }, 14000);
   };
   window.antCelebrateClose = function () {

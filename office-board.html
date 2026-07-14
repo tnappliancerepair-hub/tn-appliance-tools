@@ -329,7 +329,7 @@
 
 <div class="topbar">
   <div class="tb-row">
-    <div class="tb-title">🪄 The Great Hall</div>
+    <div class="tb-title">🪄 The Great Hall <span style="font-size:14px;letter-spacing:0">👓⚡</span></div>
     <div class="seg" id="region-seg">
       <button data-r="TN" class="on">TN</button>
       <button data-r="NOLA">NOLA</button>
@@ -572,7 +572,14 @@ async function loadBoard(){
     const d=await r.json();
     allItems=(d&&d.items)||[];
     stageReconcile();                 // keep just-dropped cards pinned until the server catches up
+    // 🦉 Owl post — a NEW job arrived since the last load. Skip the very first paint.
+    try{
+      const ids=new Set(allItems.map(x=>String(x.id)));
+      if(window.__prevJobIds){ let fresh=0; ids.forEach(x=>{ if(!window.__prevJobIds.has(x)) fresh++; }); if(fresh>0 && window.AntMagic) AntMagic.owl(); }
+      window.__prevJobIds=ids;
+    }catch(_){}
     renderBoard();
+    try{ if(window.AntMagic)AntMagic.init(); }catch(_){}   // points badge + enchanted ceiling
     saveBoardCache();
     loadAddons();
     loadPaid();
@@ -650,6 +657,9 @@ function stageGet(id){try{return localStorage.getItem('tn_stage_'+id)||'';}catch
 const pendingStage={};                                   // id -> {stage, ts}
 function stagePin(id,colId){ pendingStage[id]={stage:colId,ts:Date.now()}; const j=(allItems||[]).find(x=>String(x.id)===String(id)); if(j)j.office_stage=colId; try{localStorage.setItem('tn_stage_'+id,colId);}catch(_){} }
 function stageReconcile(){ const now=Date.now(); Object.keys(pendingStage).forEach(function(id){ const p=pendingStage[id]; const j=(allItems||[]).find(x=>String(x.id)===String(id)); const srv=j?String(j.office_stage||'').trim():''; if(srv===p.stage){ delete pendingStage[id]; return; } if(j)j.office_stage=p.stage; if(now-p.ts>600000) delete pendingStage[id]; }); }
+// 🪄 Filing a card = keeping the board current → award House Points (+ sparkle + chime)
+// right where the card landed. This is the habit we're rewarding. (Teddy 2026-07-14)
+function antFiled(id){ try{ if(!window.AntMagic)return; const el=document.querySelector('.jcard[data-id="'+id+'"]'); let x,y; if(el){const r=el.getBoundingClientRect(); x=r.left+r.width/2; y=r.top+16;} AntMagic.award('file',x,y); }catch(_){}}
 // Office checklist — manual ticks she can mark herself (the steps that aren't
 // auto-derived). Stored per job; a step shows done if auto-derived OR ticked.
 // Server-first (CHECK_MAP from office-stage) so manual ticks STICK across
@@ -661,7 +671,9 @@ function chkGet(id){
 }
 function toggleChk(id,i,el,auto){
   let arr=chkGet(id);
+  const _checking=!arr.includes(i);
   if(arr.includes(i))arr=arr.filter(x=>x!==i); else arr.push(i);
+  if(_checking && !auto){ try{ if(window.AntMagic){ const r=el&&el.getBoundingClientRect?el.getBoundingClientRect():null; AntMagic.award('check', r?r.left+14:null, r?r.top+8:null); } }catch(_){} }
   try{localStorage.setItem('tn_chk_'+id,JSON.stringify(arr));}catch(_){}
   CHECK_MAP[id]=arr;                                  // keep local view fresh
   // persist to the job so it sticks everywhere (fire-and-forget)
@@ -1031,6 +1043,8 @@ async function persistStage(id,colId,serviceState){
 // Mark a job's invoice paid/unpaid (drop into the 💰 Paid folder = paid). The
 // invoices page (invoices.html) honors this over auto-detection. Fire-and-forget.
 async function markInvoicePaid(id,paid){
+  // 💰 Money in = the big win. 80s fanfare + the Hogwarts Express + a fat House-Points bump.
+  if(paid!==false){ try{ if(window.AntMagic){AntMagic.award('paid'); AntMagic.train();} }catch(_){} }
   try{await fetch('/.netlify/functions/mark-invoice-paid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),paid:paid!==false,by:'Danielle',method:'board'})});}catch(_){}
 }
 function refreshCounts(){
@@ -1046,6 +1060,7 @@ async function onDrop(colId,techId,colEl){
   // stale reload can bounce it. Then save durably; warn only if the save truly fails.
   stagePin(id,colId);
   persistStage(id,colId).then(function(ok){ if(!ok) toast('⚠ kept here — save is retrying'); });
+  antFiled(id);
 
   // Follow Up / Needs Invoice / Paid have no backend job-state — placement only.
   if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
@@ -2385,6 +2400,7 @@ async function moveJobFromDrawer(id){
   // Same as a drag-drop: PIN the placement so it sticks, then fire the action.
   stagePin(id,colId);
   persistStage(id,colId).then(function(ok){ if(!ok) toast('⚠ kept here — save is retrying'); });
+  antFiled(id);
   const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',upgrade:'Upgrade',autho:'Waiting for Autho',parts:'Waiting Parts',done:'✅ Completed',followup:'Follow Up',needinv:'Needs Invoice',paid:'Shop Money · Paid'};
   const label=labelMap[colId]||(techId?(TECH_NAME[techId]+(colId.indexOf('inv-')===0?' · Invoice':' · Report')):colId);
   if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
@@ -2506,6 +2522,7 @@ async function saveInvoice(jid){
   // 🎉 Office celebration — the invoice worksheet is the office's "finish" (Teddy 2026-07-09:
   // "the celebration hits when this section is completed"). Fires on a real invoice (total>0).
   // Shows the invoiced amount + parts margin (office metrics — NOT the tech's pay).
+  if(total>0){ try{ if(window.AntMagic)AntMagic.award('estimate'); }catch(_){} }
   if(total>0 && typeof window.antCelebrate==='function'){
     let nm=((document.getElementById('d-name')||{}).textContent||'').trim(); if(nm==='Loading…') nm='';
     window.antCelebrate({
@@ -2729,6 +2746,8 @@ initAuth();
 </script>
 <script src="/ant-shell.js?v=20260703h" defer></script>
 <script src="/tech-autoupdate.js" defer></script>
-<script src="/ant-celebrate.js?v=20260709-1"></script>
+<script src="/ant-sounds.js?v=20260714-1"></script>
+<script src="/ant-magic.js?v=20260714-1"></script>
+<script src="/ant-celebrate.js?v=20260714-1"></script>
 </body>
 </html>
