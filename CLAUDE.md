@@ -11,6 +11,50 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-14 (Mon) — JOB BOARD = SOURCE OF TRUTH: MEISTERTASK MIRROR + DRAG-STICKS + CALVIN SAFETY NET + "THE GREAT HALL" + REVIEW-FETCHER FIX — READ FIRST
+
+Big day making the **job board the reliable source of truth** so MeisterTask can retire
+(Teddy's north star: "make the job board the source of truth — the only way is to make
+it the most reliable"), then made it a place Danielle *wants* to live in. All LIVE.
+
+### ✅ MEISTERTASK → JOB BOARD MIRROR (placement-only, never creates a job = zero dup risk)
+- **`netlify/functions/meistertask-mirror.js`** (thin control) + **`meistertask-mirror-background.js`** (heavy pull, 15-min budget) + **`_lib/mt-mirror.js`** (shared). Pulls the LIVE MeisterTask boards (TN Jobs + NOLA JOBS via `_lib/meistertask` + `MEISTERTASK_TOKEN`), matches each open card to a Xano kanban job by **claim# → dispatch# → phone → name** (claim+phone = confident/auto-applyable; name = review-only), maps the MeisterTask SECTION → board folder, and sets `office_stage` to match. **Never creates a job** (Danielle's dup fear). `?probe=1` (boards+sections), `?diff=1`+`?report=1` (read-only reconcile), `?apply=1&confirm=yes[&boards=tn,nola&allow_paid=1]`.
+- **Section→folder mapper footguns fixed:** "BILLY REPORTS" no longer reads the "bill" in Billy as invoicing; "TE"=Teddy; follow-up matched before invoice (+"FOLOW UP" typo); "Completion Appt"/Autho/Upgrade/diagnosis left UNMAPPED (never a false "done").
+- **Active-card filter:** MeisterTask task.status **1 = live**, **18 = completed-in-place** (piles up in columns). Count/mirror only status-1 (else Scheduled showed 487 vs Danielle's ~32). Histogram confirmed 344 active / 891 completed.
+- **Per-column reconcile** (`column_reconcile`): MeisterTask count vs board count + the exact gap-maker jobs. This is how we proved Lee 12-vs-8, Jimmy 7-vs-10, etc.
+- **APPLIED:** matched the board to MeisterTask — 69 jobs corrected first pass, then more after the feed widen. The board now agrees with MeisterTask on active work + holds MORE (paid/completed history MeisterTask archives). Money-side backward moves (paid→report) held by a guard unless `allow_paid=1`. Re-run anytime as a **parity check**.
+
+### ✅ THE 300-CAP ROOT FIX — `get_office_kanban_GET.xs` (Teddy PUSHED)
+The board couldn't match MeisterTask because the feed only loaded **completed jobs from the last 7 days** and **capped at 300 rows** → the invoice backlog (Lee's 42 invoices, etc.) never loaded. **Widened: completed window 7→60 days, cap 300→800.** Board went **300→473 jobs**, completed **6→42**. (XS = Mac push; Teddy ran `xano workspace push -i "api/**/{get_office_kanban,tech_job_complete,ahs_email_intake}*" --force` → "Pushed 3 documents".)
+
+### ✅ DRAG-DROP THAT STICKS — the trust foundation (`office-board.html` pending-pin)
+Danielle's drops were vanishing: the 800ms reload read a STALE `office_stage` and bounced the card back. **Fix = pending-pin:** the instant she drops (or picks the dropdown), `stagePin()` locks the card to that column locally; `placeOf` returns the pin first; `stageReconcile()` (in loadBoard + renderFromCache) keeps it pinned until the server confirms the exact placement; `persistStage` now retries 3×. **Verified end-to-end in a headless browser:** drop → saves (`office_stage:rep-2`) → survives a stale poll → never vanishes → even survives the magic layer THROWING on purpose. "Jobs stay where she puts them until she moves them."
+
+### ✅ CALVIN GIBSON SAFETY NET — accepted-but-invisible job (`accepted-not-scheduled-watch.js`, NEW)
+A SquareTrade job (#20284) was accepted with a date but **no tech**, sitting in `needs_more_info` — a status the board doesn't even render — so it was invisible everywhere; nobody knew it existed until Jimmy showed up. NEW hourly watchdog scans the blind-spot statuses (`needs_more_info`/`held`/`scheduled`) for **no-tech jobs with a committed near-term date** and **TEXTS Teddy + Danielle** (re-nags every 6h until a tech is assigned). Tuned to fire ONLY on the committed-date+no-tech signature (not fresh intake shells — would spam). `stranded-jobs.js` board banner widened to the same statuses. Scheduled `5 13-23,0,1 * * *`. (Root-cause auto-accept-should-route-a-tech is still upstream/parked.)
+
+### 🪄 "THE GREAT HALL" — the board is now an EXPERIENCE (Danielle = huge Harry Potter + 80s fan)
+Teddy: "make it the most interesting place she wants to go — owl, glasses, a train, go big." All **cosmetic/additive** — every id/handler/reliability untouched (proven: the 8 magic hooks are guarded so a magic failure can't block a drop). Mute = tap the House Points badge.
+- **Theme (`office-board.html` appended CSS):** candlelit parchment, columns as Hogwarts **house banners** (Ravenclaw scheduling, Gryffindor tech reports, Hufflepuff parts, Slytherin completed, amethyst follow-up), parchment-scroll cards w/ gold hover glow, gold **Cinzel** title "🪄 The Great Hall 👓⚡", **enchanted-ceiling** header (floating candles + twinkling stars), full dark "Great Hall at night" mode. Loads Cinzel from Google Fonts (graceful serif fallback).
+- **`ant-sounds.js` (NEW):** synthesized cues, no files/copyright — **magic()** wand-shimmer on estimate finish, **win()** 80s synth fanfare on money milestones, **move()** soft sparkle on filing. Replaces the cha-ching+applause Danielle disliked (`ant-celebrate.js` now routes to these).
+- **`ant-magic.js` (NEW):** **House Points** badge that grows on every file/complete (+N float) → **wizard ranks** she levels up (First Year→Prefect→Head Student→Auror→Order of Merlin→Headmaster) → **RANK UP = a Patronus 🦌 charges across + fanfare + gold banner**; **owl** delivers post on a new job; **golden snitch**; **Hogwarts Express** + snitch every 250pts; **daily welcome** banner w/ rank + 🔥 work-streak. Wired: onDrop/moveJobFromDrawer→`award('file')`, saveInvoice→`award('estimate')`+magic, markInvoicePaid→`award('paid')`+win+train, toggleChk→`award('check')`, loadBoard→owl on new jobs + `AntMagic.init()`.
+- Verified visually via headless Playwright + local http server (file:// can't load `/ant-*.js` absolute paths — serve over http to test).
+
+### ✅ SEO — REVIEW-FETCHER WAS PULLING THE WRONG BUSINESS (fixed) + index progress
+- **`get-google-reviews.js` was fuzzy-searching Google Places for "TN Appliance Exchange" and resolving to UNRELATED shops** ("Appliances 4 Less TN" 5★/251, "Appliance Repair Geek"). **Never live-embedded** (build-scripts only: `tools/seo-build/{build-reviews,fix-ratings}.js`) so nothing wrong was public. **Fixed:** hardcoded the authoritative place id **`ChIJaf5YgBQNZIgRG36-j754Anc`** as default (order: `?place_id`→vault `GOOGLE_PLACE_ID`→hardcoded→guarded search) + a **wrong-business guard** rejects any resolved listing whose name isn't TN Appliance Exchange. `gbp-profile.js` MASK += `metadata` (exposes real placeId/mapsUri). **Verified default now returns Tn Appliance Exchange LLC / 4.5★ / 1,081.**
+- **AUTHORITATIVE GBP (via gbp-reviews API): Tn Appliance Exchange LLC, location_id 13798412724887450555, cid 8575549400317591067, 4.5★, 1,081 REAL reviews.** The page schema's "4.5★/1,079" is accurate (2 stale). Ratings are genuine = no penalty risk on the AggregateRating.
+- **Index progress: 500 pages ranking-and-indexed (90d), up from ~477 on 7/13.** 28d=463. Sitemap 1,299 submitted, fetched 7/10, 0 errors. **~800 submitted URLs get 0 impressions** (thin doorway landers) — incl real flagship hubs (`/dishwasher-repair`,`/oven-repair`,`/whirlpool-appliance-repair`) that are live+self-canonical but not shown. Schema is ALREADY broad: FAQPage on 1,270, LocalBusiness on 1,279, AggregateRating on 118. Alt-text near-complete (237 imgs, 18 gaps all functional app images).
+- **Best free-ranking levers (Teddy asked "any tricks?" — steered him OFF hidden text/keyword stuffing = penalty risk):** the legit "invisible" levers (schema stars, alt text, meta) are already done; the REAL needle-movers = (1) unique content on the ~800 thin landers, (2) coach customers to name appliance+city in reviews, (3) local backlinks/citation cleanup ("used appliance store" ghost), (4) convert the dead flagship hubs (IndexNow+internal links). Fired one fresh GBP post (freshness). **Offered to bump schema to 1,081 + start unique lander content — Teddy declined for now.**
+
+### 🧭 XANO UPSELL NOTE
+Cassi Hall (cassi.h@xano.com) emailed Teddy that compute "spiked" — it's a growth/upsell touch, not a fire. We already went Pro today (headroom). Advice given: take the call for pricing intel but pull our own usage first + keep cutting reducible load (loop polling, N+1) before buying more; verify the sender is genuinely @xano.com.
+
+### ⏭️ OPEN / NEXT
+- **Retire MeisterTask** path: parity is here → Danielle works the board a few days (drops stick, nothing hides) → **fix intake data-completeness** (AHS parser drops street addresses — Calvin had none; the "1, LA" class) so records are whole → auto-accept routes a tech automatically → MeisterTask goes away.
+- Re-run the mirror (`?apply=1&confirm=yes&boards=tn,nola`) anytime as a parity check.
+- SEO when Teddy wants it: unique lander content (#1 lever), keyword reviews, dead flagship hubs (IndexNow+links), bump schema to 1,081.
+- Michelle Johnson #20362 / Calvin Gibson #20284 still have no address on file — backfill from the AHS dispatch.
+
 ## 🗓️🐜 2026-07-13 (Sun) — FINAL TEXT STRATEGY + FULL SPEED SWEEP + KANBAN DENORM (DONE) + SEO PUSH — READ FIRST
 
 Marathon Sunday. Four arcs, all shipped to `main`: (1) minimize customer texts to Teddy's
