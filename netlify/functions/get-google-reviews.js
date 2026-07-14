@@ -19,6 +19,11 @@
 const { getSecret } = require('./_lib/secrets');
 
 const DEFAULT_Q = 'TN Appliance Exchange appliance repair Antioch TN';
+// The AUTHORITATIVE Google place id for Tn Appliance Exchange LLC (verified off the
+// GBP listing metadata, cid 8575549400317591067 → 4.5★ / 1081 reviews). Hardcoded so
+// the fuzzy text search — which kept resolving to unrelated shops ("Appliances 4 Less
+// TN") — is never relied on. It's public info (right in the Maps URL), not a secret.
+const DEFAULT_PLACE_ID = 'ChIJaf5YgBQNZIgRG36-j754Anc';
 const BASE = 'https://places.googleapis.com/v1';
 
 function json(code, body) {
@@ -71,6 +76,7 @@ exports.handler = async (event) => {
     let placeId = q.place_id || null;
     let pinned = !!placeId;
     if (!placeId) { try { const pv = await getSecret('GOOGLE_PLACE_ID'); if (pv) { placeId = pv; pinned = true; } } catch (_) {} }
+    if (!placeId && DEFAULT_PLACE_ID) { placeId = DEFAULT_PLACE_ID; pinned = true; }
 
     if (!placeId) {
       const s = await searchText(q.q || DEFAULT_Q, KEY);
