@@ -34,6 +34,33 @@ exports.handler = async function (event) {
   const H = { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' };
 
   try {
+    // Read-only: search Telnyx's AVAILABLE inventory for a fresh number to buy
+    // (the shared human SMS line). Filters to SMS+voice capable in the area code,
+    // then keeps only ones matching the ends-with pattern. Buys NOTHING.
+    //   ...&action=searchnew&area=615&ends=00
+    if (action === 'searchnew') {
+      const area = (q.area || '615').replace(/\D/g, '');
+      const ends = (q.ends || '00').replace(/\D/g, '');
+      const url = `${TELNYX}/available_phone_numbers?filter[national_destination_code]=${area}&filter[features][]=sms&filter[features][]=voice&filter[limit]=100`;
+      const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) });
+      const d = await r.json().catch(() => ({}));
+      const all = ((d && d.data) || []).map((x) => x.phone_number).filter(Boolean);
+      const matches = all.filter((n) => String(n).endsWith(ends));
+      return json(200, { ok: r.ok, area, ends, available_in_area: all.length, ending_matches: matches.slice(0, 20), error: r.ok ? undefined : d });
+    }
+
+    // Buy a specific available number + attach it to the CUSTOMER SMS profile so it
+    // can text immediately. GATED: requires &confirm=yes so it never buys by accident.
+    //   ...&action=buynew&number=%2B16155550000&confirm=yes
+    if (action === 'buynew') {
+      const number = String(q.number || '').trim();
+      if (!number) return json(200, { ok: false, error: 'pass &number=+1XXXXXXXXXX' });
+      if (q.confirm !== 'yes') return json(200, { ok: false, error: 'add &confirm=yes to actually purchase ' + number });
+      const r = await fetch(`${TELNYX}/number_orders`, { method: 'POST', headers: H, body: JSON.stringify({ phone_numbers: [{ phone_number: number }] }), signal: AbortSignal.timeout(20000) });
+      const d = await r.json().catch(() => ({}));
+      return json(200, { ok: r.ok, number, order: r.ok ? { id: d.data && d.data.id, status: d.data && d.data.status } : undefined, error: r.ok ? undefined : d });
+    }
+
     // Set up "ring both cells": create a TeXML app pointing at office-texml and
     // re-point the office DID to it, so dialing the DID rings Teddy + Danielle.
     if (action === 'ringgroup') {
