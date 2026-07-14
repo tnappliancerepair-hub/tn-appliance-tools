@@ -150,7 +150,11 @@ function scrubTimes(msg) {
 // to send everything again.
 // Allowed = intake/availability + REACTIVE replies (never go silent on a customer
 // who texts us — but scrubTimes still strips any clock time from those replies).
-const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound/i;
+// PLUS tech_field: a human TECH deliberately texting his own live-job customer
+// (model/serial photo, "are you home?"). Not automated spam — a person doing the
+// job — so it passes the intake-only pause, while opt-out / dedup / quiet-hours /
+// no-clock-times all still apply at the chokepoint. (Lee 2026-07-14.)
+const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound|tech.?field/i;
 function isIntakeOrAvailability(kind, tag) {
   if (String(process.env.CUSTOMER_TEXTS_ALL || '') === '1') return true;   // re-enable all
   return INTAKE_OK.test(((kind || '') + ' ' + (tag || '')));

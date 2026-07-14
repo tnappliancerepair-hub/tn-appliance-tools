@@ -750,8 +750,16 @@ function render(){
         <summary style="cursor:pointer;padding:13px 14px;background:#f4f6f9;border:1px solid var(--line,#d4d9e0);border-radius:12px;font-weight:800;font-size:15px;color:#33415c">🧰 More — payment, texts, customer</summary>
         <div style="margin-top:8px">
           <div class="card" id="convo-card">
-            <h3>💬 Customer conversation <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">what Ant &amp; the customer have texted</span></h3>
+            <h3>💬 Message the customer <span style="font-size:10px;color:var(--dim);font-weight:600;margin-left:auto">from TN Appliance — they'll see it's you</span></h3>
             <div id="ant-sms-thread" style="margin-top:8px;border:1px solid #2a3040;border-radius:10px;background:#131720;min-height:48px;overflow:hidden"></div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+              <button type="button" class="cmsg-chip" data-msg="Could you send me a clear photo of the model &amp; serial number sticker on your ${esc(appliance.type||appliance.appliance||'appliance')}? It's usually inside the door frame or on the back. Thank you!" style="flex:1 1 auto;min-width:calc(33% - 6px);padding:9px 8px;border:1px solid #bcd6ea;background:#eef6fc;color:#1c5a8a;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer">📸 Model &amp; serial</button>
+              <button type="button" class="cmsg-chip" data-msg="Could you send a quick 10-15 second video of what the ${esc(appliance.type||appliance.appliance||'appliance')} is doing? It really helps me show up with the right part. Thanks!" style="flex:1 1 auto;min-width:calc(33% - 6px);padding:9px 8px;border:1px solid #bcd6ea;background:#eef6fc;color:#1c5a8a;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer">🎥 Send a video</button>
+              <button type="button" class="cmsg-chip" data-msg="I'm here for your appointment — are you home? Just making sure I'm at the right place." style="flex:1 1 auto;min-width:calc(33% - 6px);padding:9px 8px;border:1px solid #bcd6ea;background:#eef6fc;color:#1c5a8a;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer">🚪 I'm here</button>
+            </div>
+            <textarea id="cmsg-text" placeholder="Type a message to ${esc((name||'the customer').split(' ')[0])}…" style="width:100%;box-sizing:border-box;margin-top:8px;padding:11px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:15px;min-height:62px;resize:vertical"></textarea>
+            <button class="btn primary" id="cmsg-send" style="width:100%;margin-top:6px">📤 Send text</button>
+            <div id="cmsg-out" style="font-size:12.5px;margin-top:8px;min-height:14px"></div>
           </div>
 
           <div class="card" id="takepay-card">
@@ -889,21 +897,53 @@ function wireActions(){
   // Ant Diagnose card removed for simplicity (Teddy 2026-06-23: "we don't need three talk-to-Ant buttons").
 }
 
-// Read-only customer conversation (Ant ↔ customer texts), tech lens —
-// hides owner/internal chatter. Mounted via ant-spine.js into the dark
-// sub-panel. Card hides itself if the thread comes back empty so it
-// doesn't clutter jobs with no customer texting yet.
+// Customer conversation (tech lens) + a real compose box so the tech can text
+// his own customer from the shop number — model/serial photos, a video, "are you
+// home?" (Lee 2026-07-14). The read-only thread mounts above via ant-spine; the
+// compose box below always shows so a fresh job can still start a conversation.
 function mountConvo(){
   const card=document.getElementById('convo-card');
   const el=document.getElementById('ant-sms-thread');
   if(!card||!el) return;
-  if(!(window.Ant&&Ant.mountSmsThread&&JOB_ID)){ card.style.display='none'; return; }
-  try{
-    Ant.mountSmsThread(JOB_ID,'ant-sms-thread',{filterFor:'tech'});
-    // ant-spine renders "No SMS in this thread yet." when empty — hide the
-    // whole card in that case (check shortly after the async mount paints).
-    setTimeout(()=>{ if(/No SMS in this thread yet/i.test(el.textContent||'')) card.style.display='none'; }, 1200);
-  }catch(_){ card.style.display='none'; }
+  // Thread is best-effort; the compose box is the point, so the card always shows.
+  if(window.Ant&&Ant.mountSmsThread&&JOB_ID){ try{ Ant.mountSmsThread(JOB_ID,'ant-sms-thread',{filterFor:'tech'}); }catch(_){} }
+  else { el.style.display='none'; }
+  wireCustomerMessaging();
+}
+
+// Compose-box wiring: chips fill the box (tech can tweak before sending), Send
+// posts to tech-customer-message (resolves the customer phone server-side, adds
+// the "Lee (TN Appliance):" identity, translates, sends, logs the thread).
+function wireCustomerMessaging(){
+  const ta=document.getElementById('cmsg-text');
+  const send=document.getElementById('cmsg-send');
+  const out=document.getElementById('cmsg-out');
+  if(!ta||!send) return;
+  document.querySelectorAll('.cmsg-chip').forEach(chip=>{
+    chip.onclick=()=>{ ta.value=chip.getAttribute('data-msg')||''; ta.focus(); if(out){out.textContent='';} };
+  });
+  send.onclick=async ()=>{
+    const msg=String(ta.value||'').trim();
+    if(!msg){ if(out){out.style.color='#c2691c';out.textContent='Type a message first (or tap a quick option above).';} ta.focus(); return; }
+    send.disabled=true; const label=send.textContent; send.textContent='Sending…';
+    if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Sending…'; }
+    try{
+      const r=await fetch('/.netlify/functions/tech-customer-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,tech_id:TECH_ID||0,message:msg})});
+      const d=await r.json().catch(()=>({}));
+      if(d&&d.sent){
+        ta.value='';
+        const langNote=(d.language&&d.language!=='English')?(' (in '+esc(d.language)+')'):'';
+        if(out){ out.style.color='#127a4a'; out.innerHTML='✅ Sent to '+esc(d.to_first||'the customer')+langNote+'.'; }
+        toast('Text sent 📤');
+        // Refresh the thread so the tech sees his own message land.
+        if(window.Ant&&Ant.mountSmsThread&&JOB_ID){ try{ Ant.mountSmsThread(JOB_ID,'ant-sms-thread',{filterFor:'tech'}); }catch(_){} }
+      } else {
+        const why={no_customer_phone:"No phone on file for this customer yet — grab it and we'll get it added.",opted_out:'This customer replied STOP, so we can’t text them.',quiet_hours:'It’s outside texting hours (8am–9pm) right now.',customer_texts_paused:'That message was held by the safety gate.',duplicate_suppressed:'That exact text just went out a moment ago.'}[(d&&(d.error||d.reason))]||((d&&(d.error||d.reason))||'Couldn’t send.');
+        if(out){ out.style.color='#c0392b'; out.textContent='⚠ '+why; }
+      }
+    }catch(_){ if(out){ out.style.color='#c0392b'; out.textContent='⚠ Connection error — try again.'; } }
+    send.disabled=false; send.textContent=label;
+  };
 }
 
 // ── Add-ons at the stop (install now or ship it) ───────────────
