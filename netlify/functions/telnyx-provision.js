@@ -41,12 +41,13 @@ exports.handler = async function (event) {
     if (action === 'searchnew') {
       const area = (q.area || '615').replace(/\D/g, '');
       const ends = (q.ends || '00').replace(/\D/g, '');
-      const url = `${TELNYX}/available_phone_numbers?filter[national_destination_code]=${area}&filter[features][]=sms&filter[features][]=voice&filter[limit]=100`;
+      // Ask Telnyx directly for numbers ending in the pattern (rare in a random pull).
+      const url = `${TELNYX}/available_phone_numbers?filter[national_destination_code]=${area}&filter[features][]=sms&filter[features][]=voice&filter[phone_number][ends_with]=${ends}&filter[limit]=30`;
       const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) });
       const d = await r.json().catch(() => ({}));
       const all = ((d && d.data) || []).map((x) => x.phone_number).filter(Boolean);
       const matches = all.filter((n) => String(n).endsWith(ends));
-      return json(200, { ok: r.ok, area, ends, available_in_area: all.length, ending_matches: matches.slice(0, 20), error: r.ok ? undefined : d });
+      return json(200, { ok: r.ok, area, ends, returned: all.length, ending_matches: matches.slice(0, 20), sample: all.slice(0, 6), error: r.ok ? undefined : d });
     }
 
     // Buy a specific available number + attach it to the CUSTOMER SMS profile so it
