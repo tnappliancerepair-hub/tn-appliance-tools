@@ -725,7 +725,12 @@ function placeOf(j){
   // off scheduling_status (which the move reliably writes) so it holds even if
   // the office_stage breadcrumb ages out of the read window. (Teddy 2026-07-04:
   // "whenever Danielle moves a job to scheduled or completion it stays in parts")
-  const _schedOrDone = (ss==='scheduled' || ss==='completed' || cs==='completed');
+  // A real day + a tech = scheduled, even if scheduling_status lags at not_ready
+  // (danielle_schedule sets date+tech but the status flip can trail). Constrained to
+  // the states a freshly-scheduled job is actually in, so a stale scheduled_start on
+  // an awaiting_parts/held job does NOT get yanked into Scheduled.
+  const _reallyScheduled = (Number(j.scheduled_start)>0 && hasTech && (ss===''||ss==='not_ready'||ss==='scheduled'));
+  const _schedOrDone = (ss==='scheduled' || _reallyScheduled || ss==='completed' || cs==='completed');
   if(!_schedOrDone && ((j.parts_eta_date||'').trim() || PARTS_ORDERED.test(j.parts_status||''))) return 'parts';
   // Parts have ARRIVED → the return visit needs booking, so surface the job in
   // Needs Scheduled (NOT the tech's Report folder, where it sat invisible for
@@ -743,7 +748,12 @@ function placeOf(j){
   // place manually." The old `hasTech -> rep` default caught every scheduled job
   // because scheduling assigns a tech.)
   const _started=(ss==='in_progress'||cs==='in_progress');
-  if(!_started && (ss==='scheduled'||(Number(j.scheduled_start)>0&&ss!=='not_ready'&&cs!=='not_ready'))) return 'scheduled';
+  // AUTO-MOVE TO SCHEDULED (Teddy 2026-07-14: "it needs to auto move to scheduled
+  // whenever it's scheduled"). A job with a real day + a tech IS scheduled and belongs
+  // in the Scheduled column — even if scheduling_status is still lagging at not_ready
+  // (danielle_schedule sets the date+tech but the status flip can trail). Her manual
+  // office_stage move still wins (checked above), so this is only the default.
+  if(!_started && (ss==='scheduled'||_reallyScheduled)) return 'scheduled';
   if(hasTech) return 'rep-'+t;                                 // started/active with a tech -> tech Report
   return 'schedule';                                           // accepted/untimed/callback
 }

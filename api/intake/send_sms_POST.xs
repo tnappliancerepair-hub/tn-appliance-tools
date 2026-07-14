@@ -265,6 +265,71 @@ query send_sms verb=POST {
     }
   
     // ============================================================
+    // 5d. INTAKE-ONLY GATE (Teddy 2026-07-14: "eliminate all texts other than
+    //     intake and availability"). THE hard chokepoint EVERY sender passes
+    //     through (Netlify, tech-app taps, colony loop, XS), so appointment
+    //     confirmations, on-the-way/arrived, reminders, reschedule, review asks,
+    //     etc. are DROPPED no matter which code path fires them. Internal staff
+    //     (tech/owner/office) bypass via $is_internal above. Allowed customer
+    //     tags: intake / availability / media / model / video, reactive replies
+    //     (translated / reply / inbound / new_lead), opt-out confirmations, and a
+    //     human tech texting his own job's customer (tech_field). Untagged or
+    //     unknown customer sends are blocked by default (safe). Flippable OFF via
+    //     company_settings key "intake_only_gate" = "false" if ever needed.
+    // ============================================================
+    db.query company_settings {
+      where = $db.company_settings.company_id == 1 && $db.company_settings.setting_key == "intake_only_gate"
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $intake_gate_rows
+
+    var $intake_gate_row {
+      value = (($intake_gate_rows.items|first) ?? null)
+    }
+
+    var $intake_gate_on {
+      value = ($intake_gate_row != null) ? ((($intake_gate_row.setting_value ?? "")|trim|to_lower) != "false") : true
+    }
+
+    var $tag_l {
+      value = (($input.context_tag ?? "")|trim|to_lower)
+    }
+
+    var $tag_intake_ok {
+      value = ($tag_l|contains:"intake") || ($tag_l|contains:"availab") || ($tag_l|contains:"quick") || ($tag_l|contains:"finish") || ($tag_l|contains:"media") || ($tag_l|contains:"model") || ($tag_l|contains:"video") || ($tag_l|contains:"resume") || ($tag_l|contains:"reply") || ($tag_l|contains:"translated") || ($tag_l|contains:"inbound") || ($tag_l|contains:"new_lead") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($tag_l|contains:"tech_field")
+    }
+
+    conditional {
+      if ($is_internal == false && $intake_gate_on == true && $tag_intake_ok == false) {
+        db.add event_log {
+          data = {
+            action  : "sms_blocked_non_intake"
+            metadata: {
+              recipient_last4: ($p10 != "") ? ($p10|substr:6:4) : "?"
+              context_tag    : ($input.context_tag ?? "")
+              body_preview   : (($sms_body ?? "")|substr:0:80)
+              reason         : "intake_only_gate"
+            }
+          }
+        } as $blk_log
+
+        return {
+          value = ```
+            {
+              success            : false
+              provider           : "blocked_non_intake"
+              provider_message_id: null
+              provider_status    : null
+              twilio_sid         : null
+              twilio_status      : 0
+              error              : "only_intake_availability_allowed"
+              gated              : true
+            }
+            ```
+        }
+      }
+    }
+
+    // ============================================================
     // 6. Initialize response vars (success-shaped default so the gated
     //    path returns the same contract as the live path).
     // ============================================================
