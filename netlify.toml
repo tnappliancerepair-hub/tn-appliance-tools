@@ -130,8 +130,9 @@
 
 # Book-a-Repair media chase — if a web lead never sent their model pic + video,
 # text them ONCE (hard one-per-job dedup) to try to get it. Self-gates 9a-7p CT.
-[functions."book-media-chase"]
-  schedule = "0 * * * *"
+# DISABLED 2026-07-14 (Teddy: don't text customers unless they text us first — over-texting scheduled customers)
+# [functions."book-media-chase"]
+#   schedule = "0 * * * *"
 
 # Cash-ready push — text Teddy the moment a self-pay web lead has given
 # availability (so it can be scheduled fast). Once per job, 8a-8p CT.
@@ -141,13 +142,15 @@
 # Call-lead chase — every cash lead that calls in but doesn't convert (no address/
 # availability, not booked) gets one follow-up text (address + availability + AI
 # link). Shares book-media-chase's dedup so nobody's double-texted. Hourly, 9a-7p CT.
-[functions."call-lead-chase"]
-  schedule = "40 * * * *"
+# DISABLED 2026-07-14 (Teddy: don't text customers unless they text us first)
+# [functions."call-lead-chase"]
+#   schedule = "40 * * * *"
 
 # Cash-paid cover — the moment a cash-TDR customer pays, ask availability + send
 # the waiver + hold scheduling 2-3 days for the part. Every 3 min, idempotent.
-[functions."cash-paid-cover"]
-  schedule = "*/3 * * * *"
+# DISABLED 2026-07-14 (Teddy: don't text customers unless they text us first)
+# [functions."cash-paid-cover"]
+#   schedule = "*/3 * * * *"
 
 # Tech missed-stop nudge — late afternoon, text a tech about any stop still OPEN on
 # today's schedule (not started/done) so a scrolled-past stop gets caught while
@@ -172,8 +175,9 @@
 # Cash-pay nudge — UNPAID cash customers waiting to be scheduled get "we don't
 # schedule until you pay — fastest path is the $50 Quick Check" + their link.
 # CASH ONLY (warranty never charged), deduped, 9a-7p CT. Hourly at :20.
-[functions."cash-pay-nudge"]
-  schedule = "20 * * * *"
+# DISABLED 2026-07-14 (Teddy: don't text customers unless they text us first)
+# [functions."cash-pay-nudge"]
+#   schedule = "20 * * * *"
 
 # One-off, self-expiring: Frontdoor Zoom reminder w/ Ben Kelly (Jul 8 day-before +
 # Jul 9 morning-of, ~8:00 AM CT). Date-gated; no-ops every other day.
@@ -301,8 +305,9 @@
 # INTAKE_COLLECTOR_MAX_AGE_DAYS, off by default); the 15/run limit + one-text
 # dedup drain it steadily, not in a burst. Quiet-hours 8am-8pm CT, vendor jobs
 # skipped. Runs hourly 9am-6pm CT.
-[functions."intake-collector"]
-  schedule = "0 14-23 * * *"
+# DISABLED 2026-07-14 (Teddy: don't text customers unless they text us first — this hit already-scheduled Paul D. with "get on the schedule")
+# [functions."intake-collector"]
+#   schedule = "0 14-23 * * *"
 
 # Over-texting tripwire (Teddy 2026-07-13) — scans EVERY customer text by phone,
 # alerts Teddy + AUTO-PAUSES intake outreach the moment anyone crosses the line, so
@@ -533,8 +538,9 @@
 # to customers whose job completed that day. Forward-only (lookback window) + 60-day
 # per-customer dedup (shares the colony agent's dedup key so no double-texting). Reviews
 # lift Local Services Ads + map-pack rank = more free leads. ?dryrun=1 to inspect.
-[functions."review-request-sweep"]
-  schedule = "30 23 * * *"
+# DISABLED 2026-07-14 (Teddy: no proactive customer texts — this texted "How'd we do?" after completion)
+# [functions."review-request-sweep"]
+#   schedule = "30 23 * * *"
 
 # ServicePower auto-accept — grabs new OPEN SquareTrade dispatches every 10 min so we never
 # lose an offer to a slow accept. Accepts each OPEN call in our TN/LA areas (status-only

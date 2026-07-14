@@ -217,9 +217,17 @@ async function resolveIntakeLink(phone) {
   return PUBLIC_SITE;   // unknown lead → front door (self-routes warranty vs cash)
 }
 
+// ⛔ KILL SWITCH (Teddy 2026-07-14): the AI must NOT auto-text customers on the line
+// Danielle works — it was texting over her AND hitting already-scheduled customers
+// (Paul D., Gary B.). When false, inbound is still LOGGED (office sees the thread),
+// STOP/START opt-out + tech-reply-relay + owner alerts all still fire — only the AI's
+// customer-facing replies/acks are silenced so a human owns the conversation.
+const AI_CUSTOMER_AUTOREPLY = false;
+
 // Fire the instant inline reply. Only called when the customer ASKED for a link or
 // wrote in a foreign language (Teddy 2026-07-08). Bounded; best-effort.
 async function instantNewLeadReply(fromPhone, body, foreign) {
+  if (!AI_CUSTOMER_AUTOREPLY) return false;
   const phoneKey = String(fromPhone || '').replace(/\D/g, '');
   if (!phoneKey) return false;
   const dedupKey = 'new_lead_replied_' + phoneKey;
@@ -257,6 +265,7 @@ async function instantNewLeadReply(fromPhone, body, foreign) {
 // factual, DAY-ONLY answer ("scheduled with Jimmy for Wednesday; live window the
 // morning of"). Reliable + instant, so nobody waits hours on the loop like Sherri did.
 async function instantStatusReply(fromPhone, body) {
+  if (!AI_CUSTOMER_AUTOREPLY) return false;
   const phoneKey = String(fromPhone || '').replace(/\D/g, '');
   if (!phoneKey) return false;
   const dedupKey = 'status_answered_' + phoneKey;
@@ -686,7 +695,7 @@ exports.handler = async function (event) {
         // One warm ack per job (a customer may fire several "it's here!" texts).
         let ackAlready = false;
         try { const dd = await crud.searchPage(crud.TABLES.event_log, { action: 'parts_arrived_ack_' + pj.id }, { id: 'desc' }, 1); ackAlready = !!(dd && dd.length); } catch (_) {}
-        if (!ackAlready) {
+        if (!ackAlready && AI_CUSTOMER_AUTOREPLY) {
           const ack = gotAvail
             ? "Perfect — glad your part's in, and we've got your availability. We'll get you back on the schedule and text to confirm your day. 🐜 — TN Appliance Exchange"
             : "That's great news — glad your part arrived! 🐜 What days work best for you this week to get your tech back out? Text us your availability and we'll get you booked. — TN Appliance Exchange";
@@ -729,7 +738,7 @@ exports.handler = async function (event) {
         try {
           let ackAlready = false;
           try { const dd = await crud.searchPage(crud.TABLES.event_log, { action: 'availability_ack_sent_' + jid }, { id: 'desc' }, 1); ackAlready = !!(dd && dd.length); } catch (_) {}
-          if (!ackAlready) {
+          if (!ackAlready && AI_CUSTOMER_AUTOREPLY) {
             let hasMedia = false;
             try { const st = await (await fetch(`${XANO_BASE}/get_unified_tdr_status?job_id=${jid}`, { signal: AbortSignal.timeout(7000) })).json(); hasMedia = !!(st && (st.has_photo || Number(st.attachments_count || 0) > 0)); } catch (_) {}
             const link = 'https://tnapplianceexchange.net/warranty-intake.html?job_id=' + jid;
