@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" data-default-theme="light" data-self-theme>
 <head>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="/ant-theme.js"></script>
 <script src="/ant-job-tile.js?v=20260703-1"></script>
 <script src="/office-auth.js?v=20260703b"></script>
@@ -134,6 +137,102 @@
   .loading{padding:50px;text-align:center;color:var(--ink2);}
   .spinner{width:30px;height:30px;border:3px solid #d7dde5;border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
   @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ══════════════════════════════════════════════════════════════════════
+     🪄 THE GREAT HALL — a Hogwarts theme for Danielle's board. Candlelit
+     parchment, house-banner columns, gold candle-glow. Purely cosmetic:
+     nothing about the layout, ids, handlers, or reliability changes — the
+     board works exactly the same, it just feels like a place you want to be.
+     (Teddy 2026-07-14: "she's a huge Harry Potter fan — make it the most
+     interesting place she wants to go.")  Appended last so it wins the cascade.
+     ═════════════════════════════════════════════════════════════════════ */
+  :root{
+    --bg:#efe6cf; --card:#fbf5e6; --line:#ddcba0;
+    --ink:#2a2016; --ink2:#6a5843; --dim:#9a8a6a; --violet:#6a3fb5;
+    --gold:#b8860b; --gold-lt:#e7c65a; --gold-d:#8a6508;
+    --gryff:#8a1f1f; --raven:#2a3b6e; --slyth:#1f5738; --huff:#9a7d0a; --amethyst:#6a3fb5;
+  }
+  body{
+    background:
+      radial-gradient(1200px 620px at 82% -12%, rgba(184,134,11,.10), transparent 60%),
+      linear-gradient(180deg,#efe6cf,#e7dabb);
+  }
+  /* Enchanted-ceiling header — Great Hall night sky + candle gold */
+  .topbar{
+    background:
+      radial-gradient(2px 2px at 12% 34%, rgba(255,255,255,.75), transparent 60%),
+      radial-gradient(1.4px 1.4px at 27% 64%, rgba(255,255,255,.5), transparent 60%),
+      radial-gradient(2px 2px at 45% 24%, rgba(255,255,255,.6), transparent 60%),
+      radial-gradient(1.4px 1.4px at 63% 58%, rgba(255,255,255,.45), transparent 60%),
+      radial-gradient(2px 2px at 82% 36%, rgba(255,255,255,.6), transparent 60%),
+      radial-gradient(1.4px 1.4px at 92% 62%, rgba(255,255,255,.4), transparent 60%),
+      linear-gradient(152deg,#0e0b26,#241a44 55%,#3a2450);
+    border-bottom:2px solid var(--gold);
+    box-shadow:0 2px 0 rgba(184,134,11,.35), 0 8px 24px rgba(14,11,38,.35);
+  }
+  .tb-title{
+    font-family:"Cinzel","Trajan Pro","Palatino Linotype",Georgia,serif;
+    font-weight:700; letter-spacing:.05em; font-size:19px;
+    color:var(--gold-lt);
+    text-shadow:0 0 12px rgba(231,198,90,.5), 0 1px 0 #000;
+  }
+  /* header controls, legible on the night sky */
+  .seg{background:rgba(255,255,255,.10); border:1px solid rgba(231,198,90,.35);}
+  .seg button{color:#e9dfc4;}
+  .seg button.on{background:linear-gradient(180deg,#e7c65a,#b8860b); color:#241a10; box-shadow:0 1px 4px rgba(0,0,0,.45);}
+  .topbar .x{background:rgba(255,255,255,.10)!important; color:#e7c65a!important; border-color:rgba(231,198,90,.4)!important;}
+  .tb-search input{background:#fbf5e6; border:1px solid var(--gold); color:#2a2016;}
+  .tb-search input::placeholder{color:#9a8a6a;}
+  .hop a{background:rgba(255,255,255,.08); color:#eaddba; border:1px solid rgba(231,198,90,.28);}
+  .hop a:active{background:rgba(231,198,90,.22);}
+  #more-toggle{background:rgba(255,255,255,.06); color:#cdbf98; border-color:rgba(231,198,90,.3);}
+  #more-toggle.open{background:rgba(231,198,90,.18); color:#fff;}
+  .more-row a{background:rgba(255,255,255,.06); color:#eaddba; border-color:rgba(231,198,90,.25);}
+  .sresults a{background:#fbf5e6; border-color:var(--gold); color:#2a2016;}
+
+  /* Columns = house banners hung in the Great Hall */
+  .col{
+    background:linear-gradient(180deg, rgba(251,245,230,.55), rgba(238,227,198,.55));
+    border:1px solid #d8c7a0; border-top:4px solid var(--raven);
+    border-radius:12px; box-shadow:0 2px 8px rgba(90,70,20,.10);
+  }
+  .col-h{font-family:"Cinzel",Georgia,serif; letter-spacing:.07em; color:var(--raven);}
+  .col-h .ct{background:var(--raven); color:#fbf5e6;}
+  .col.tech{border-top-color:var(--gryff);}  .col.tech .col-h{color:var(--gryff);}   .col.tech .col-h .ct{background:var(--gryff);}
+  .col.parts{border-top-color:var(--huff);}  .col.parts .col-h{color:var(--huff);}   .col.parts .col-h .ct{background:var(--huff);}
+  .col.done{border-top-color:var(--slyth);}   .col.done .col-h{color:var(--slyth);}    .col.done .col-h .ct{background:var(--slyth);}
+  .col.followup{border-top-color:var(--amethyst);} .col.followup .col-h{color:var(--amethyst);} .col.followup .col-h .ct{background:var(--amethyst);}
+  .col.upgrade{border-top-color:#0f8a80;}     .col.upgrade .col-h{color:#0f8a80;}      .col.upgrade .col-h .ct{background:#0f8a80;}
+  .col.autho{border-top-color:#b8770f;}       .col.autho .col-h{color:#b8770f;}        .col.autho .col-h .ct{background:#b8770f;}
+  .col.dropok{outline:2px dashed var(--gold); outline-offset:-3px; background:rgba(231,198,90,.16);}
+
+  /* Cards = little parchment scrolls; candle-glow on hover */
+  .jcard{
+    background:linear-gradient(180deg,#fdf8ec,#f6eed7);
+    border:1px solid #e3d3a8; border-radius:10px;
+    box-shadow:0 1px 2px rgba(90,70,20,.12);
+    transition:box-shadow .12s ease, transform .12s ease, border-color .12s ease;
+  }
+  .jcard:hover{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold-lt), 0 6px 16px rgba(184,134,11,.22); transform:translateY(-1px);}
+  .jc-name{color:#2a2016;}
+  .jc-area{background:#efe2bd; color:#6a5433;}
+
+  /* 🌙 The Great Hall at night (dark mode = candlelit dungeon) */
+  [data-theme="dark"]{
+    --bg:#0c0a1a; --card:#181428; --line:#33294e;
+    --ink:#ece3cf; --ink2:#b0a488; --dim:#7a6f8f; --violet:#a884ff;
+  }
+  [data-theme="dark"] body{background:radial-gradient(1000px 520px at 82% -12%, rgba(184,134,11,.12), transparent 60%), linear-gradient(180deg,#0c0a1a,#120d26);}
+  [data-theme="dark"] .col{background:linear-gradient(180deg, rgba(26,21,44,.72), rgba(18,14,32,.72)); border-color:#2f2650;}
+  [data-theme="dark"] .col-h{color:#8fa0dd;}  [data-theme="dark"] .col-h .ct{color:#ece3cf;}
+  [data-theme="dark"] .col.tech .col-h{color:#e08a5a;} [data-theme="dark"] .col.parts .col-h{color:#e7c65a;}
+  [data-theme="dark"] .col.done .col-h{color:#5fc48a;} [data-theme="dark"] .col.followup .col-h{color:#b79bff;}
+  [data-theme="dark"] .jcard{background:linear-gradient(180deg,#1e1834,#171128); border-color:#3a2f57; box-shadow:none;}
+  [data-theme="dark"] .jcard:hover{border-color:var(--gold-lt); box-shadow:0 0 0 1px var(--gold), 0 6px 16px rgba(184,134,11,.32);}
+  [data-theme="dark"] .jc-name{color:var(--ink);}
+  [data-theme="dark"] .jc-area{background:#2a2340; color:#cbbc98;}
+  [data-theme="dark"] .tb-search input{background:#181428; color:var(--ink); border-color:var(--gold-d);}
+  [data-theme="dark"] .sresults a{background:#181428; color:var(--ink); border-color:var(--gold-d);}
   /* drawer (card file) */
   .scrim{position:fixed;inset:0;background:rgba(18,26,38,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;}
   .scrim.open{opacity:1;pointer-events:auto;}
@@ -230,7 +329,7 @@
 
 <div class="topbar">
   <div class="tb-row">
-    <div class="tb-title">🗂️ Job Board</div>
+    <div class="tb-title">🪄 The Great Hall</div>
     <div class="seg" id="region-seg">
       <button data-r="TN" class="on">TN</button>
       <button data-r="NOLA">NOLA</button>
