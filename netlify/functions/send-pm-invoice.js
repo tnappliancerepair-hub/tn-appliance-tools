@@ -40,6 +40,9 @@ exports.handler = async function (event) {
   const payUrl = s(b.pay_url, 900);
   const address = s(b.address, 160);
   const appliance = s(b.appliance, 80) || 'appliance repair';
+  const contact = s(b.contact, 80);
+  const subtotal = Math.round(Number(b.subtotal_cents) || 0);
+  const tax = Math.round(Number(b.tax_cents) || 0);
   if (!to || !payUrl || amount <= 0) return json(400, { ok: false, error: 'to, pay_url, amount_cents required' });
 
   if (channel === 'sms') {
@@ -54,9 +57,11 @@ exports.handler = async function (event) {
     const subject = 'Invoice' + (invNo ? (' ' + invNo) : '') + ' from TN Appliance Exchange — ' + dollars(amount);
     const html = '<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1d24;max-width:560px;margin:0 auto;padding:8px">'
       + '<div style="border-bottom:3px solid #ff6200;padding-bottom:12px;margin-bottom:18px"><span style="font-size:22px">🐜</span> <b style="font-size:17px">TN Appliance Exchange LLC</b><div style="font-size:12px;color:#6b7280;margin-top:2px">Appliance Repair · Family-Owned Since 2012</div></div>'
-      + '<p style="font-size:14px;line-height:1.7">Hi ' + company + ',</p>'
+      + '<p style="font-size:14px;line-height:1.7">Hi ' + (contact || company) + ',</p>'
       + '<p style="font-size:14px;line-height:1.7">Here is your invoice' + (invNo ? (' <b>' + invNo + '</b>') : '') + ' for the ' + appliance + (address ? (' at <b>' + address + '</b>') : '') + '.</p>'
-      + '<div style="background:#faf7f3;border:1px solid #e5e7eb;border-left:4px solid #ff6200;border-radius:8px;padding:16px 18px;margin:16px 0"><div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em">Total Due</div><div style="font-size:28px;font-weight:800;color:#ff6200">' + dollars(amount) + '</div></div>'
+      + '<div style="background:#faf7f3;border:1px solid #e5e7eb;border-left:4px solid #ff6200;border-radius:8px;padding:16px 18px;margin:16px 0">'
+      + (subtotal > 0 ? ('<div style="display:flex;justify-content:space-between;font-size:13px;color:#4b5563;padding:2px 0"><span>Subtotal</span><span>' + dollars(subtotal) + '</span></div>' + (tax > 0 ? ('<div style="display:flex;justify-content:space-between;font-size:13px;color:#4b5563;padding:2px 0"><span>TN sales tax (9.75%)</span><span>' + dollars(tax) + '</span></div>') : '') + '<div style="border-top:1px solid #e5e7eb;margin:8px 0 6px"></div>') : '')
+      + '<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em">Total Due</span><span style="font-size:26px;font-weight:800;color:#ff6200">' + dollars(amount) + '</span></div></div>'
       + '<div style="text-align:center;margin:22px 0"><a href="' + payUrl + '" style="display:inline-block;background:#ff6200;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 30px;border-radius:10px">Pay securely online →</a></div>'
       + '<p style="font-size:13px;line-height:1.7;color:#4b5563">Tap once to pay — and we’ll keep your card securely on file (stored by Stripe, we never see the number) so future repairs at your properties bill automatically, with anything over your pre-authorized amount coming to you for a one-tap OK first. One vendor, one portal, one monthly view.</p>'
       + '<p style="font-size:13px;line-height:1.7;color:#4b5563">Questions? Just reply here or call us at 615-280-2949.</p>'
