@@ -56,16 +56,26 @@ exports.handler = async function (event) {
     const city = s(j.service_city) || s(cust.city);
     const zip = (digits(j.service_zip) || digits(cust.zip)).slice(0, 5);
     const reasons = [];
+    // ADDRESS
     if (!street) reasons.push('no_street');
     else if (!hasStreetName(street)) reasons.push('number_only_street');
     if (!city) reasons.push('no_city');
     if (zip.length !== 5) reasons.push('bad_zip');
-    if (jStreet && cStreet && jStreet.toLowerCase() !== cStreet.toLowerCase()) reasons.push('job_vs_customer_mismatch');
+    if (jStreet && cStreet && jStreet.toLowerCase() !== cStreet.toLowerCase()) reasons.push('address_job_vs_customer_mismatch');
+    // NAME
+    const first = s(j.customer_first || cust.first_name), last = s(j.customer_last || cust.last_name);
+    if (!first && !last) reasons.push('name_missing');
+    else if (!first || !last) reasons.push('name_half_missing');           // only one of first/last
+    else if (first.toLowerCase() === last.toLowerCase()) reasons.push('name_duplicated');   // "SMITH SMITH"
+    else if ((/\s/.test(first) && !s(j.customer_last || cust.last_name)) || (/\s/.test(last) && !first)) reasons.push('name_unsplit');
+    // PHONE
+    const jP = digits(j.customer_phone).slice(-10), cP = digits(cust.phone || cust.mobile).slice(-10);
     if (phone.length < 10) reasons.push('no_phone');
+    else if (jP && cP && jP !== cP) reasons.push('phone_job_vs_customer_mismatch');
 
     if (reasons.length) {
       reasons.forEach((r) => { byReason[r] = (byReason[r] || 0) + 1; });
-      flagged.push({ id: j.id, name: name || '(no name)', status: ss, tech: Number(j.technician_id || 0), wc: j.warranty_company || '', street, job_street: jStreet, cust_street: cStreet, city, state: s(j.service_state) || s(cust.state), zip, reasons });
+      flagged.push({ id: j.id, name: name || '(no name)', first, last, phone: phone.slice(-10), status: ss, tech: Number(j.technician_id || 0), wc: j.warranty_company || '', street, job_street: jStreet, cust_street: cStreet, city, state: s(j.service_state) || s(cust.state), zip, reasons });
     } else clean++;
   }
   // Tech-assigned first (they roll soonest), then by id.
