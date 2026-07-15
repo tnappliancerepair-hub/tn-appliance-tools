@@ -327,6 +327,29 @@ Top of mind = the right touches, repeated, across the channels above. Layer them
 
 ---
 
+## 11b. Competitive: how Mr. Appliance / the franchises win — and how we counter (verified 2026-07-15)
+
+**Where Mr. Appliance gets PM/multifamily accounts (2 of 3 are ABOVE the local franchise):**
+1. **Neighborly National Accounts program** — corporate signs multi-location PM / multifamily /
+   warranty contracts nationally and dispatches the work DOWN to the local franchisee. The local
+   owner doesn't win it; HQ does. (Neighborly language: national accounts "provides additional
+   properties for you to manage.")
+2. **Captive cross-brand ecosystem** — Neighborly OWNS Real Property Management (a PM franchise)
+   plus Mr. Rooter, Molly Maid, etc. RPM offices feed appliance work to Mr. Appliance, and they
+   pitch "one vendor for the whole property across our family of brands."
+3. **Local B2B + brand-trust shortcut** — franchisees work local accounts, but the national brand
+   + guarantee does the trust-building; a PM signs a known brand without vetting a local unknown.
+
+**We can't copy #1 or #2 — that's their moat.** But the fed/dispatched model is their local
+WEAKNESS: impersonal (no relationship with the actual tech), call-center-slow, upsell-incentivized,
+variable quality. **Our counter = win the direct local relationship they neglect:** the maintenance
+supervisor's personal text line, instant text-back, honest repair-vs-replace, the portal. Manufacture
+the trust they get free from the brand via our 4.5-star/1,081 reviews + family-owned-since-2012 +
+reference accounts (Marshall Reddick). **Target the independent regional PMs + individual apartment
+communities NOT on a national contract — that's most of the market, and it's relationship-won.**
+
+---
+
 ## 12. Immediate next actions (2026-07-15)
 
 **Teddy (relationship — can't be automated):**
