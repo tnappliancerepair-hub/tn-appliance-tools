@@ -33,6 +33,19 @@ exports.handler = async function (event) {
     });
   }
 
+  // &dim=querypage → map each query to the URL Google surfaces for it (so we optimize
+  // the RIGHT page). Filter with &q=... to a term.
+  if (p.dim === 'querypage') {
+    let pr;
+    try { pr = await gsc.query({ days, dimensions: ['query', 'page'], rowLimit: 5000 }); }
+    catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
+    if (!pr.ok) return json(200, pr);
+    let rows = pr.rows.map((r) => ({ query: r.keys[0] || '', page: (r.keys[1] || '').replace('https://tnapplianceexchange.net/', ''), impressions: r.impressions, clicks: r.clicks, position: Math.round(r.position * 10) / 10 }));
+    if (filter) rows = rows.filter((r) => r.query.toLowerCase().includes(filter));
+    rows.sort((a, b) => b.impressions - a.impressions);
+    return json(200, { ok: true, site: pr.site, days, rows: rows.slice(0, 200) });
+  }
+
   let res;
   try { res = await gsc.query({ days, dimensions: ['query'], rowLimit: 500 }); }
   catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
