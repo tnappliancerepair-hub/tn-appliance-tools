@@ -40,7 +40,7 @@ exports.handler = async function (event) {
     const r = await fetch('https://maps.googleapis.com/maps/api/geocode/json?region=us&address=' + encodeURIComponent(address) + '&key=' + key, { signal: AbortSignal.timeout(9000) });
     const d = await r.json();
     const res = (d.results || [])[0];
-    if (!res) return json(200, { ok: true, verified: false, precision: 'not_found', address });
+    if (!res) return json(200, { ok: true, verified: (d.status === 'OK' ? false : null), precision: 'not_found', google_status: d.status, google_error: d.error_message || '', address });
     const lt = ((res.geometry || {}).location_type) || '';   // ROOFTOP / RANGE_INTERPOLATED / GEOMETRIC_CENTER / APPROXIMATE
     const hasNum = (res.address_components || []).some((c) => (c.types || []).includes('street_number'));
     const hasRoute = (res.address_components || []).some((c) => (c.types || []).includes('route'));
