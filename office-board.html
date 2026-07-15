@@ -652,11 +652,21 @@ function closeStrandedThenOpen(id){ openDrawer(String(id)); }
 // doesn't load, like needs_more_info). If any are missing → a loud red banner she can act
 // on; if none → a quiet green "every job accounted for" so she can TRUST the board holds
 // everything (and stop keeping MeisterTask as a shadow copy). This is the check-and-balance.
-let __auditOpen=true;
-async function loadAudit(){
+let __auditOpen=false;         // default collapsed — the headline count is the alarm
+let __auditLastMs=0, __auditCache=null;
+async function loadAudit(force){
   const el=document.getElementById('audit-banner'); if(!el)return;
+  // Throttle: the audit does several full-table scans, so run it at most every ~3 min
+  // (the board itself polls every 30s). Re-render from cache in between so it stays put.
+  if(!force && __auditCache && (Date.now()-__auditLastMs)<180000){ auditPaint(__auditCache); return; }
   try{
     const d=await (await fetch('/.netlify/functions/board-audit',{cache:'no-store'})).json();
+    __auditCache=d; __auditLastMs=Date.now();
+    auditPaint(d);
+  }catch(_){ /* never block the board on the audit */ }
+}
+function auditPaint(d){
+  const el=document.getElementById('audit-banner'); if(!el)return;
     if(!d||!d.ok){ el.innerHTML=''; return; }
     const miss=(d.missing)||[]; const n=d.missing_count||0;
     if(!n){
@@ -681,7 +691,6 @@ async function loadAudit(){
       +'</div>'
       +'<div id="audit-list" style="'+(__auditOpen?'':'display:none;')+'margin-top:4px">'+rows+'</div>'
     +'</div>';
-  }catch(_){ /* never block the board on the audit */ }
 }
 function auditRender(){ const l=document.getElementById('audit-list'); const c=document.getElementById('audit-caret'); if(l)l.style.display=__auditOpen?'':'none'; if(c)c.textContent=__auditOpen?'▾':'▸'; }
 
