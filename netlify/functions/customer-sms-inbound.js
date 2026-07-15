@@ -217,17 +217,22 @@ async function resolveIntakeLink(phone) {
   return PUBLIC_SITE;   // unknown lead → front door (self-routes warranty vs cash)
 }
 
-// ⛔ KILL SWITCH (Teddy 2026-07-14): the AI must NOT auto-text customers on the line
-// Danielle works — it was texting over her AND hitting already-scheduled customers
-// (Paul D., Gary B.). When false, inbound is still LOGGED (office sees the thread),
-// STOP/START opt-out + tech-reply-relay + owner alerts all still fire — only the AI's
-// customer-facing replies/acks are silenced so a human owns the conversation.
-const AI_CUSTOMER_AUTOREPLY = false;
+// ⛔ KILL SWITCH (Teddy 2026-07-14 -> refined 2026-07-15, "option A"). Two-lane split:
+// the AI line (588-9500) no longer CONVERSES with customers it already knows — a human
+// owns those threads on the human line (757-5500). The ONE thing the AI still does here
+// autonomously is a BRAND-NEW / UNKNOWN number's first touch: a fresh website/Google lead
+// gets the intake link so it books itself 24/7. Everything else a known customer sends
+// (status questions, parts-arrived acks, availability acks) gets NO AI reply. Inbound is
+// always LOGGED; STOP/START opt-out + tech-reply-relay + owner alerts + media capture all
+// still fire — only the AI's customer-facing conversational replies are silenced.
+const AI_CUSTOMER_AUTOREPLY = false;      // known-customer conversational replies/acks: OFF
+const AI_COLD_LEAD_AUTOREPLY = true;      // brand-new / unknown number first-touch (intake link): ON
 
 // Fire the instant inline reply. Only called when the customer ASKED for a link or
 // wrote in a foreign language (Teddy 2026-07-08). Bounded; best-effort.
-async function instantNewLeadReply(fromPhone, body, foreign) {
-  if (!AI_CUSTOMER_AUTOREPLY) return false;
+async function instantNewLeadReply(fromPhone, body, foreign, known) {
+  if (!AI_COLD_LEAD_AUTOREPLY) return false;
+  if (known) return false;   // known/returning number -> human owns the thread (option A)
   const phoneKey = String(fromPhone || '').replace(/\D/g, '');
   if (!phoneKey) return false;
   const dedupKey = 'new_lead_replied_' + phoneKey;
@@ -777,24 +782,34 @@ exports.handler = async function (event) {
   // (b) they wrote in a foreign language (then we reply in their language). Otherwise we
   // stay SILENT and let a human read it. (Teddy 2026-07-08: "delete that unless they ask
   // for it. Or text us in a foreign language then send to them in their language.")
+  // ⚡ COLD-LEAD FIRST-TOUCH (Teddy 2026-07-15, "option A"). The ONE autonomous customer
+  // reply the AI line still fires: a BRAND-NEW / UNKNOWN number that reads like a fresh
+  // repair lead gets the intake link so it books itself 24/7. A number we already KNOW gets
+  // NOTHING here — a human owns that thread on the human line (757-5500).
   try {
     if (!recallHandled && !availRescued && !statusAnswered && !partsArrivedHandled) {
-      const asked = asksForLink(parsed.body);
-      let foreign = null;
-      // Only spend a translate call when it's plausibly foreign (not asked, not an
-      // English courtesy/tapback) — keeps cost down while still catching Spanish etc.
-      if (!asked && looksLikeNewRepairLead(parsed.body)) {
-        try { const tx = await translateToEnglish(parsed.body); if (tx && tx.is_english === false) foreign = tx; } catch (_) {}
-      }
-      if (asked || foreign) {
-        const sent = await instantNewLeadReply(parsed.from, parsed.body, foreign);
-        console.log('[customer-sms-inbound] setup-link reply sent:', { sent, asked, foreign: foreign && foreign.lang_name, from: parsed.from });
+      const known = !!(recordData && (recordData.customer_known === true || Number(recordData.job_id) > 0));
+      if (known) {
+        console.log('[customer-sms-inbound] known customer on AI line — staying silent for a human:', { from: parsed.from, body: String(parsed.body).slice(0, 60) });
       } else {
-        console.log('[customer-sms-inbound] no link requested — staying silent for a human:', { from: parsed.from, body: String(parsed.body).slice(0, 60) });
+        const asked = asksForLink(parsed.body);
+        const lead = looksLikeNewRepairLead(parsed.body);
+        let foreign = null;
+        // Spend a translate call only when it's plausibly foreign (a lead, not asked, not
+        // an English courtesy/tapback) — keeps cost down while still catching Spanish etc.
+        if (!asked && lead) {
+          try { const tx = await translateToEnglish(parsed.body); if (tx && tx.is_english === false) foreign = tx; } catch (_) {}
+        }
+        if (asked || foreign || lead) {
+          const sent = await instantNewLeadReply(parsed.from, parsed.body, foreign, known);
+          console.log('[customer-sms-inbound] cold-lead first-touch:', { sent, asked, lead, foreign: foreign && foreign.lang_name, from: parsed.from });
+        } else {
+          console.log('[customer-sms-inbound] cold number, not a clear lead — staying silent for a human:', { from: parsed.from, body: String(parsed.body).slice(0, 60) });
+        }
       }
     }
   } catch (e) {
-    console.warn('[customer-sms-inbound] instant reply error:', String((e && e.message) || e));
+    console.warn('[customer-sms-inbound] cold-lead first-touch error:', String((e && e.message) || e));
   }
 
   // Capture any texted photos/videos onto the resolved job (or by phone if the
