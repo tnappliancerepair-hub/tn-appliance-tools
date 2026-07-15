@@ -581,7 +581,16 @@ function render(){
 
   const phone=(cust.phone||'').replace(/\D/g,'');
   const e164=phone.length===10?'+1'+phone:(phone.length===11?'+'+phone:phone);
-  const addr=[cust.address,cust.city,cust.state,cust.zip].filter(Boolean).join(', ');
+  // A real street has a NAME, not just a house number ("1" = the warranty parser dropped
+  // the street). Prefer whichever source (job or customer record) has a real street, so a
+  // bogus "1" can't mask the real address. Flag it when neither has one, so the tech
+  // confirms instead of driving to "1, Nashville". (crew trust, Teddy 2026-07-15)
+  const _hasStreetName=(v)=>{v=String(v||'').trim();return !!v && /[a-z]{2,}/i.test(v.replace(/^\s*\d+[a-z]?\s*/i,''));};
+  const _jStreet=(job.service_address||'').trim(), _cStreet=(cust.address||'').trim();
+  const _street=_hasStreetName(_jStreet)?_jStreet:(_hasStreetName(_cStreet)?_cStreet:(_jStreet||_cStreet));
+  const _city=(job.service_city||cust.city||'').trim(), _state=(job.service_state||cust.state||'').trim(), _zip=(job.service_zip||cust.zip||'').trim();
+  const addrSuspect=!_hasStreetName(_street)||!_city;
+  const addr=[_street,_city,_state,_zip].filter(Boolean).join(', ');
   // Open the device's NATIVE maps app for turn-by-turn: Apple Maps on iPhone/iPad
   // (Andre 2026-07-07 — no Google Maps installed), Google Maps on Android/desktop.
   const navUrl=(function(){
@@ -626,6 +635,7 @@ function render(){
 
       <div class="card" style="padding:11px 12px">
         <div style="font-size:13px;color:var(--ink2);margin-bottom:9px">📍 ${esc(addr||'address not set')}</div>
+        ${addrSuspect?`<div style="font-size:12.5px;font-weight:800;color:#b45309;background:#fff7ed;border:1px solid #fdba74;border-radius:9px;padding:7px 10px;margin-bottom:9px">⚠ Address may be incomplete — tap Call and confirm it with the customer before you head out.</div>`:''}
         <div style="display:flex;gap:8px">
           ${navUrl?`<a href="${esc(navUrl)}" target="_blank" rel="noopener" style="flex:2;background:#1f6fed;color:#fff;text-align:center;text-decoration:none;padding:13px;border-radius:10px;font-weight:800;font-size:15px">🧭 Navigate</a>`:''}
           ${e164?`<a href="tel:${esc(e164)}" style="flex:1;background:#fff;border:1px solid var(--line,#d4d9e0);color:var(--ink);text-align:center;text-decoration:none;padding:13px;border-radius:10px;font-weight:800;font-size:15px">📞 Call</a>`:''}
