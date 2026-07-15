@@ -232,6 +232,20 @@ contacts — what's it called?" **These are the apartment associations and PM as
 is the #1 channel for this audience — the room literally IS the customer base. Join as a
 **vendor / supplier / affiliate member** (that's the membership tier for a service company like us).
 
+### Association memberships — costs + join links (verified 2026-07-15)
+
+| Association | Covers | Supplier dues | Join |
+|---|---|---|---|
+| **GNAA** (Greater Nashville Apt Assn) | ALL Middle TN — Nashville, Murfreesboro, Franklin, surrounding | **$515/yr** + $25 one-time admin (prorated by quarter) | gnaa.org/register?memberTypeID=1343 · (615) 365-3047 |
+| **AAGNO** (Apt Assn of Greater New Orleans) | NOLA, Metairie, Kenner + **Northshore (Mandeville/Slidell/Covington)** | **$500/yr** (company-based) | aagno.biz/membership-information |
+| **BRAA** (Baton Rouge Apt Assn) | Baton Rouge, Denham Springs, Gonzales, Walker | (check braa.com) | braa.com |
+
+Both AAGNO + BRAA are affiliates of the **Apartment Association of Louisiana (AAL, aptla.org)**;
+LA has no single metro association like GNAA, so working the LA market = both memberships.
+Point every directory listing at `/apartment-appliance-repair`. NOTE: I cannot submit these
+applications (they need company info + payment + board review) — Teddy completes the signup;
+everything above is the exact path.
+
 ### The groups to join (Middle TN)
 
 - **🥇 Greater Nashville Apartment Association (GNAA)** — THE one for apartments/multifamily.
