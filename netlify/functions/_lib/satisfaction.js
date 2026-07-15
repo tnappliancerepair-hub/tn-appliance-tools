@@ -10,11 +10,23 @@
 // done). Pure Netlify (no Mac loop) so it's reliable + live immediately.
 'use strict';
 const crud = require('./xano/metadata-crud');
+const { getSecret } = require('./secrets');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
 const OWNER = '+16154855795';
 const STALE_MS = 14 * 86400000; // ignore a state older than 14 days
+
+// Nextdoor recommendation (compliant path): a REAL happy customer recommends us
+// from their own account — no bot, no incentive. We only append the ask once the
+// claimed Nextdoor Business Page's recommend URL is set (vault/env NEXTDOOR_RECOMMEND_URL),
+// so a broken/placeholder link never reaches a customer. Until then, behavior is unchanged.
+async function nextdoorSuffix() {
+  let url = '';
+  try { url = String((await getSecret('NEXTDOOR_RECOMMEND_URL')) || '').trim(); } catch (_) { url = ''; }
+  if (!/^https?:\/\/(www\.)?nextdoor\.com\//i.test(url)) return '';
+  return `\n\nOn Nextdoor? A quick recommendation to your neighbors helps just as much: ${url}`;
+}
 
 function d10(p) { return String(p || '').replace(/\D/g, '').slice(-10); }
 function e164(p) { const d = String(p || '').replace(/\D/g, ''); if (d.length === 10) return '+1' + d; if (d.length === 11 && d[0] === '1') return '+' + d; return d ? ('+' + d) : ''; }
@@ -77,8 +89,9 @@ async function handleInbound(phone, body) {
   if (st.stage === 'awaiting_rating') {
     const c = classify(body);
     if (c === 'pos') {
-      await sendCustomer(phone, `So glad to hear it, ${first}! 🙏 If you've got 30 seconds, a quick Google review would mean the world to our small team: ${REVIEW_URL}`, 'satisfaction_review_link');
-      await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'done', job_id: st.job_id, first, outcome: 'positive_review_link', at_ms: Date.now() });
+      const nd = await nextdoorSuffix();
+      await sendCustomer(phone, `So glad to hear it, ${first}! 🙏 If you've got 30 seconds, a quick Google review would mean the world to our small team: ${REVIEW_URL}${nd}`, 'satisfaction_review_link');
+      await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'done', job_id: st.job_id, first, outcome: nd ? 'positive_review_link_g+nd' : 'positive_review_link', at_ms: Date.now() });
       return { matched: true, stage: 'positive' };
     }
     if (c === 'neg') {
