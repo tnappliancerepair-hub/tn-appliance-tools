@@ -11,6 +11,56 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-14 (Mon, LATE NIGHT) — TEXTING FIREFIGHT + TWO-LANE SMS ARCHITECTURE + BOARD AUTO-MOVE + CASH-TDR/INVOICE VISION — READ FIRST
+
+Long live-ops night. Real customers were being over-texted (angry PM-scale customer among them). Root-caused + killed the over-texting, then Teddy locked in a **two separate SMS lanes** architecture (AI line + human line). All front-end/Netlify is LIVE; **ONE Mac push is still pending (the send_sms intake-only gate).**
+
+### 🚨 PENDING MAC PUSH (do FIRST next time at the Mac)
+The **intake-only gate on `send_sms`** is committed but NOT live (XS only deploys from the Mac). Until pushed, Xano-side/loop senders can still text customers off-hours/with times.
+```
+cd ~/tn-appliance-tools && git pull origin main && /opt/homebrew/bin/xano workspace push -i "api/**/send_sms*" --force
+```
+Look for "Pushed 1 documents." Then verify: a customer-direction send with a non-intake tag returns `blocked_non_intake`; an intake tag sends. (Reversible: company_settings `intake_only_gate=false`.)
+
+### ✅ THE OVER-TEXTING FIREFIGHT (all LIVE on Netlify)
+Customers were getting texts they shouldn't — **already-scheduled customers told to "get on the schedule"/reschedule** (Paul Dittmar #20367, Gary Broadrick), an **11 PM confirmation WITH a clock time** ("confirmed for Tue 8–10 AM" — Carroll Heiser #… , a John/PM customer), and the **AI auto-replying on top of Danielle** while she was manually texting. Teddy's rule crystallized: **"No proactive texts. Don't text unless texted first. Never auto-text over the person texting manually. We can still learn from inbound."** Fixes:
+- **Killed ALL proactive customer-texting crons** (`netlify.toml`): intake-collector (hit Paul), book-media-chase, call-lead-chase, cash-pay-nudge, cash-paid-cover, review-request-sweep.
+- **`customer-sms-inbound.js`: `AI_CUSTOMER_AUTOREPLY=false`** kill switch gates all 4 AI customer-facing sends (new-lead reply, status answer, parts-arrived ack, availability ack). Inbound is still LOGGED (office sees it, we learn), STOP/START + tech-relay + owner alerts still fire — only the AI's replies over the human are silenced. **Verified: 0 AI replies fired after deploy.**
+- **`send_sms_POST.xs` INTAKE-ONLY GATE (⏳ needs the Mac push above)** — THE chokepoint every sender hits (Netlify, tech taps, loop, XS). Customer-direction sends are dropped unless the context_tag is intake/availability/media/model/video, a reactive reply (translated/reply/inbound/new_lead), opt-out, or `tech_field`. Logs `sms_blocked_non_intake`.
+- **KEY FINDING:** the 11 PM/timed/confirmation texts are NOT from the Netlify crons — they're from **Xano-side/loop/tech-tap senders that bypass the Netlify guard** (which is why quiet-hours + no-times weren't enforced). That's exactly why the gate had to move to `send_sms` itself. (The Mac colony loop shows no `loop_tick` in 24h+ = effectively OFF; the live over-hours senders are Xano XS + HCP.)
+
+### ✅ BOARD RELIABILITY — auto-move to Scheduled (`office-board.html placeOf`, LIVE)
+Danielle: scheduled jobs weren't moving to the Scheduled column. Fix: a job with a **real day + a tech** now lands in Scheduled even when `scheduling_status` lags at `not_ready` (danielle_schedule sets date+tech but the status flip trails). Constrained to `''/not_ready/scheduled` so a stale scheduled_start on an awaiting_parts job isn't yanked in. Her manual office_stage move still wins.
+
+### 🆕 TWO-LANE SMS ARCHITECTURE (Teddy's decision — foundation LIVE + TESTED, not yet connected to the UI)
+The AI and humans get **completely separate phone numbers** so they can never collide. Physical separation > handoff logic (which kept failing + broke Danielle's trust).
+- **🤖 AI line = 615-588-9500** (the public number, Google/website "text us"). Only the AI. 24/7 autonomous: website "I want to book" → AI sends intake link → schedules → **creates the ticket**. No human texts here.
+- **👤 Human line = 615-757-5500** (NEW — bought fresh off Telnyx tonight, ends in 00). The **shared office/tech line** — office + techs + (future) staff all work it; **no AI ever**. Danielle can also **VIEW the AI thread read-only** (see what the AI said) but can't text into it.
+- **Built + tested tonight (Netlify, no Mac needed):** `human-line-inbound.js` (records customer inbound to the shared per-job thread, NO AI, STOP/START only), `human-line-send.js` (office/techs text customers FROM 757-5500 via Telnyx directly, logs to the thread), `telnyx-provision` `sethuman` action (routes 757-5500 → its own "TN Appliance Human SMS" profile → human-line-inbound). Also added `searchnew`/`buynew` actions (Telnyx number search + purchase). **Verified end-to-end:** simulated inbound → recorded on human lane, **0 AI replies**; live outbound test sent from 757-5500 to Teddy's cell (he was to reply to confirm the round-trip).
+- **⏭️ NOT yet done (next):** point the office Messages page + tech job page to **send from 757-5500** (they still send from 588-9500). Then lock 588-9500 to AI-only + re-enable the AI's 24/7 booking on it. Then build the **unified per-job thread across 3 surfaces** (office tile + tech page + customer portal), with the two-thread view (🤖 AI read-only + 👤 human read/write).
+
+### 📞 OFFICE PHONE — live transfer re-enabled (Teddy working phones today)
+Teddy needed inbound calls to reach him. Found: the Ant Inbound assistant had **no transfer tool** (message-mode since 7/6) AND the `OFFICE_REACH_TEDDY` flag was **"off"** in the vault despite the Office Phone page showing "On" (page/flag desync bug — worth fixing so the toggle actually saves). Fixed via `vapi-admin?action=transfer_on` (adds transferCall → ring group +16155889591) + `office-reach-toggle` set Teddy on. **Test call rang his cell — verified end-to-end.** When he's done working phones, flip him off (or it stays; a transferred call rings his cell ~25s then falls back to a message).
+
+### 🧾 LIVE OPS handled
+- **Dan Coker** (931-264-0354, 2-10 warranty, older gentleman) — created his warranty job **#20424** + texted the clean warranty-intake link (guarded, intake-tagged). Marked availability_requested to suppress the nightly re-ask.
+- **Marshall Reddick Real Estate** (job **#20436**, Frigidaire fridge, ice maker, La Vergne) — a **property-management company** (~3,000 units nationwide, 200+ Nashville, TN offices in Nashville/Clarksville/Brentwood) that outsources maintenance to vendors → a potential recurring B2B account. **Nail this job + pitch to be their preferred TN appliance vendor.** TDR recovered: ice maker not working, part **#241798224** (superseded → 241798231), 1.5 hrs, **needs a 2nd trip**. Invoice quoted: aftermarket+install ~$227 / OEM+install ~$267 (part cost÷0.75 + $140 flat labor + TN 9.75% tax). Awaiting Teddy's confirm on labor ($140 vs $150) + which options before writing it into the cash TDR.
+- **🐞 BUG: `get_unified_tdr_status` can't find a filed TDR** — job 20436's TDR (record 629, tech 1) reads as `tdr_id:0 / 0%` via get_unified_tdr_status but IS readable via `qc_cockpit_load`. So filed TDRs can look "empty/needs report" when they're actually done. Fix the get_unified_tdr_status lookup (Mac/XS).
+
+### 🌟 CASH TDR / INVOICE / RECEIPT — THE VISION (Teddy, thinking out loud — next major build)
+Make the cash-job document **one living record: Quote → Invoice → Receipt**, one tokenized link that's ALSO the portal key. "Better than the warranty TDR = that plus the options." Key design points captured:
+- **One record, three states, one link** (tech diagnoses → 4 options → pick → work done → invoice → paid → downloadable receipt). The TDR link authenticates them into the portal.
+- **Property managers are their own account type:** PM pays, **tenant is the on-site contact** (`bill_to_customer_id` + `on_site_contact_id` already exist). **Self-service for tenants = no prices** (tenant gets the intake link only). **Company-level portal** (PM sees ALL their jobs + downloadable receipts). **Net terms / monthly statement** billing alongside instant-Stripe-for-retail.
+- **Simplify options by type:** retail = full 4 options; landlord/PM = just aftermarket-install vs OEM-install (they won't DIY).
+- **Payroll/tax = the invoice is the single source of truth, entered once:** finalizing feeds tech commission (% of labor, **pay-on-collection** so a PM net-30 doesn't front the tech), TN sales tax collected (cash collects tax, warranty doesn't), parts margin, and revenue → the books. No re-keying.
+
+### ⏭️ NEXT SESSION — pick up here
+1. **The Mac push** (send_sms intake-only gate) — command at the top of this section.
+2. **Connect the human line to the UI** — office Messages + tech-job send FROM 757-5500; lock 588-9500 to AI-only; re-enable 24/7 AI booking on the AI line.
+3. **Unified per-job thread** across office tile + tech page + customer portal + the 🤖-read-only / 👤-read-write two-thread view.
+4. **Cash TDR unified doc** (Quote→Invoice→Receipt) — build on Marshall Reddick #20436 as the pilot; finish that invoice once Teddy confirms labor/options.
+5. **Fix `get_unified_tdr_status`** so it stops hiding filed TDRs; fix the Office Phone page/flag desync.
+
 ## 🗓️🐜 2026-07-14 (Mon) — JOB BOARD = SOURCE OF TRUTH: MEISTERTASK MIRROR + DRAG-STICKS + CALVIN SAFETY NET + "THE GREAT HALL" + REVIEW-FETCHER FIX — READ FIRST
 
 Big day making the **job board the reliable source of truth** so MeisterTask can retire
