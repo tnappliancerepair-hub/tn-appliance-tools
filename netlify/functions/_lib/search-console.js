@@ -36,13 +36,15 @@ async function accessToken(c) {
 function ymd(d) { return d.toISOString().slice(0, 10); }
 
 // searchAnalytics.query — the core read. dimensions e.g. ['query'] or ['query','page'].
-async function query({ days = 28, dimensions = ['query'], rowLimit = 250 } = {}) {
+// endDaysAgo shifts the window back (e.g. days=28, endDaysAgo=28 -> the 28 days
+// BEFORE the last 28), so callers can compare period-over-period.
+async function query({ days = 28, dimensions = ['query'], rowLimit = 250, endDaysAgo = 0 } = {}) {
   const c = await creds();
   if (!c.clientId || !c.clientSecret || !c.refresh) {
     return { ok: false, configured: false, missing: ['GOOGLE_ADS_CLIENT_ID', 'GOOGLE_ADS_CLIENT_SECRET', 'GSC_REFRESH_TOKEN'].filter((k) => !({ GOOGLE_ADS_CLIENT_ID: c.clientId, GOOGLE_ADS_CLIENT_SECRET: c.clientSecret, GSC_REFRESH_TOKEN: c.refresh }[k])) };
   }
   const token = await accessToken(c);
-  const end = new Date(); const start = new Date(end.getTime() - days * 86400000);
+  const end = new Date(Date.now() - (endDaysAgo || 0) * 86400000); const start = new Date(end.getTime() - days * 86400000);
   const url = `${API}/sites/${encodeURIComponent(c.siteUrl)}/searchAnalytics/query`;
   const r = await fetch(url, {
     method: 'POST',
