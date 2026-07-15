@@ -574,3 +574,9 @@
 # the blanks; different appliance = a separate machine, left alone. Every 15 min.
 [functions."squaretrade-redispatch-link"]
   schedule = "*/15 * * * *"
+
+# AHS data reconciler (Teddy 2026-07-15) - re-reads the real AHS dispatch XML and corrects
+# any job whose name/address/phone is stale/bogus (the "1, City" + unsplit-name bug). Keeps
+# recent AHS jobs matching their true dispatch so the crew can trust the tile. Every 10 min.
+[functions."ahs-reconcile"]
+  schedule = "*/10 * * * *"

@@ -60,8 +60,9 @@ async function listPage(tableId, perPage, page) {
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (q.secret !== admin && q.secret) return json(401, { ok: false, error: 'unauthorized' });
-  const live = q.confirm === '1';
+  if (q.secret && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
+  const isCron = !q.secret;              // Netlify scheduled invocation passes no query string
+  const live = q.confirm === '1' || isCron;   // the scheduled run acts (keeps recent AHS jobs correct)
   const days = Math.max(3, Math.min(120, parseInt(q.days, 10) || 45));
   const max = Math.min(parseInt(q.max, 10) || 18, 30);   // Gmail fetch is slow -> small batches fit the timeout; run repeatedly / schedule to cover all.
 
