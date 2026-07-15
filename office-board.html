@@ -2551,6 +2551,22 @@ async function deleteJob(jid,name){
     else toast('⚠ '+((d&&d.error)||'failed'));
   }catch(_){toast('⚠ that did not go through.');}
 }
+// Clear a job straight from the search results (find by name OR job # → one tap).
+// Soft-cancel (office_remove_job) — reversible, nobody gets texted. (Danielle 7/15)
+async function clearFromSearch(jid,name,evt){
+  if(evt){evt.preventDefault();evt.stopPropagation();}
+  if(!confirm('Clear '+(name||'#'+jid)+' (#'+jid+') off the board?\n\nUse for a duplicate / junk job. It is reversible and nobody gets texted.'))return;
+  try{
+    const d=await postJSON('office_remove_job',{job_id:parseInt(jid,10),action:'delete',actor:'Danielle'});
+    if(d&&d.success){
+      toast('Cleared 🗑 #'+jid);
+      // reflect it in the open search dropdown without a full re-search
+      const inp=document.getElementById('search-in');
+      if(inp&&inp.value.trim().length>=2){ inp.dispatchEvent(new Event('input')); }
+      loadBoard();
+    } else toast('⚠ '+((d&&d.error)||'failed'));
+  }catch(_){toast('⚠ that did not go through.');}
+}
 
 // ── invoice worksheet (labor logging) ──
 const INV_FIELDS=['labor','partcost','parts','ship','tax','tip','techpay'];
@@ -2653,10 +2669,17 @@ document.getElementById('search-in').addEventListener('input',e=>{
       const r=await fetch(XANO+'/office_universal_search?q='+encodeURIComponent(q),{cache:'no-store'});
       const d=await r.json();const rows=(d&&d.items)||[];
       if(!rows.length){box.innerHTML='<div class="empty-col">no matches</div>';return;}
-      box.innerHTML=rows.slice(0,10).map(x=>{
+      box.innerHTML=rows.slice(0,12).map(x=>{
         const jid=x.job_id||x.id;const nm=((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer';
-        const sub=[x.city,x.customer_phone,jid?('#'+jid):''].filter(Boolean).join(' · ');
-        return jid?`<a class="sr" href="javascript:void(0)" onclick="openDrawer(${jid})"><div class="sn">${esc(nm)}</div><div class="ss">${esc(sub)}</div></a>`:'';
+        const st=String(x.scheduling_status||'').replace(/_/g,' ');
+        const canceled=/cancel/i.test(String(x.scheduling_status||''));
+        const sub=[x.city,x.customer_phone,jid?('#'+jid):'',st?(canceled?'✕ '+st:st):''].filter(Boolean).join(' · ');
+        if(!jid) return '';
+        const nmJs=JSON.stringify(nm);
+        return `<div class="sr-row" style="display:flex;align-items:stretch;gap:6px;margin-bottom:5px">
+          <a class="sr" style="flex:1;margin:0" href="javascript:void(0)" onclick="openDrawer(${jid})"><div class="sn">${esc(nm)}</div><div class="ss">${esc(sub)}</div></a>
+          ${canceled?'<span style="display:flex;align-items:center;padding:0 10px;border:1px solid var(--line);border-radius:9px;color:var(--ink2);font-size:11px;font-weight:700">cleared</span>':`<button title="Clear this job off the board (junk / duplicate — nobody gets texted)" onclick='clearFromSearch(${jid},${nmJs},event)' style="flex:0 0 auto;padding:0 12px;border:1px solid #f3c0b7;border-radius:9px;background:#fdece9;color:#c0392b;font-weight:800;font-size:13px;cursor:pointer">🗑 Clear</button>`}
+        </div>`;
       }).join('');
     }catch(_){box.innerHTML='<div class="empty-col">search unavailable</div>';}
   },300);

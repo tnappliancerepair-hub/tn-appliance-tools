@@ -113,7 +113,14 @@ query office_universal_search verb=GET {
     var $matched_customer_ids {
       value = []
     }
-  
+
+    // Exact jobs matched by number (job # / claim / dispatch). A number search must
+    // return THOSE jobs, not the customer's latest job (Danielle 7/15: cant search a
+    // job number). Collected here, emitted first in the assembly below.
+    var $wo_matched_jobs {
+      value = []
+    }
+
     conditional {
       if ($is_phone_query) {
         var $q_last10_start {
@@ -194,22 +201,26 @@ query office_universal_search verb=GET {
     // dispatch_source_id, housecall_pro_job_id, job_number - adds the customer_id of any
     // match. Danielle's most-common search. A pure-number query also SKIPS the slow name
     // fallback scan below (a number is never a name) - that was the 5.8s lag (Teddy 7/8).
+    // jobs.id is an INTEGER column; comparing it to the text $q_raw never matched,
+    // so searching a job number (e.g. "20407") returned nothing (Danielle 7/15).
+    // Cast a pure-digit query to int for the id compare; leave 0 (matches nothing)
+    // for alphanumeric WO ids like NSA "ARW..." which hit the text fields below.
+    var $q_int {
+      value = ($q_digits_len == $q_raw_len) ? ($q_raw|to_int) : 0
+    }
+
     conditional {
       if ($is_wo_query) {
         db.query jobs {
-          where = $db.jobs.id == $q_raw || $db.jobs.claim_number == $q_raw || $db.jobs.dispatch_source_id == $q_raw || $db.jobs.housecall_pro_job_id == $q_raw || $db.jobs.job_number == $q_raw
+          where = $db.jobs.id == $q_int || $db.jobs.claim_number == $q_raw || $db.jobs.dispatch_source_id == $q_raw || $db.jobs.housecall_pro_job_id == $q_raw || $db.jobs.job_number == $q_raw
           sort = {jobs.id: "desc"}
           return = {type: "list", paging: {page: 1, per_page: 25}}
         } as $wo_job_rows
 
         foreach ($wo_job_rows.items) {
           each as $woj {
-            conditional {
-              if (($woj.customer_id ?? 0) > 0) {
-                var.update $matched_customer_ids {
-                  value = $matched_customer_ids|push:$woj.customer_id
-                }
-              }
+            var.update $wo_matched_jobs {
+              value = $wo_matched_jobs|push:$woj
             }
           }
         }
@@ -293,6 +304,82 @@ query office_universal_search verb=GET {
     // Dedup - the name + WO passes can match the same customer.
     var $seen_cust {
       value = []
+    }
+
+    // Emit the EXACT number-matched jobs first (each its own row) so a job-number
+    // search returns that job, not the customer's latest. Uses the denormalized
+    // name/phone on the jobs row, falling back to the customer record.
+    foreach ($wo_matched_jobs) {
+      each as $woj {
+        conditional {
+          if ($item_count < 25) {
+            var $woc {
+              value = null
+            }
+            conditional {
+              if (($woj.customer_id ?? 0) > 0) {
+                db.get customer {
+                  field_name = "id"
+                  field_value = $woj.customer_id
+                } as $woc_lookup
+                var.update $woc {
+                  value = $woc_lookup
+                }
+              }
+            }
+            var $wo_first_j {
+              value = (($woj.customer_first ?? "")|trim)
+            }
+            var $wo_last_j {
+              value = (($woj.customer_last ?? "")|trim)
+            }
+            var $wo_phone_j {
+              value = (($woj.customer_phone ?? "")|trim)
+            }
+            var $wo_first_final {
+              value = ($wo_first_j != "") ? $wo_first_j : (($woc.first_name ?? "")|trim)
+            }
+            var $wo_last_final {
+              value = ($wo_last_j != "") ? $wo_last_j : (($woc.last_name ?? "")|trim)
+            }
+            var $wo_phone_final {
+              value = ($wo_phone_j != "") ? $wo_phone_j : (($woc.phone ?? "")|trim)
+            }
+            var $wo_addr_final {
+              value = (($woj.service_address ?? ($woc.address ?? ""))|trim)
+            }
+            var $wo_city_final {
+              value = (($woj.service_city ?? ($woc.city ?? ""))|trim)
+            }
+            var $wo_zip_final {
+              value = (($woj.service_zip ?? ($woc.zip ?? ""))|trim)
+            }
+            var $wo_row {
+              value = {
+                job_id           : ($woj.id ?? 0)
+                customer_id      : ($woj.customer_id ?? 0)
+                customer_first   : $wo_first_final
+                customer_last    : $wo_last_final
+                customer_phone   : $wo_phone_final
+                address          : $wo_addr_final
+                city             : $wo_city_final
+                zip              : $wo_zip_final
+                appliance        : (($woj.appliance_type ?? "")|trim)
+                scheduling_status: (($woj.scheduling_status ?? "")|trim)
+                warranty_company : (($woj.warranty_company ?? "")|trim)
+                scheduled_start  : ($woj.scheduled_start ?? null)
+                last_job_at      : ($woj.created_at ?? 0)
+              }
+            }
+            var.update $items {
+              value = $items|push:$wo_row
+            }
+            var.update $item_count {
+              value = $item_count + 1
+            }
+          }
+        }
+      }
     }
 
     foreach ($matched_customer_ids) {
