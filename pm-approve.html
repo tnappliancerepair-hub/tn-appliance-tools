@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Approve Repair Charge — TN Appliance</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{background:#0b0e14;color:#e6e9ef;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.box{background:#12161f;border:1px solid #232a38;border-radius:18px;padding:30px 26px;max-width:420px;width:100%;text-align:center}
+.ico{font-size:44px;margin-bottom:12px}
+h1{font-size:20px;margin-bottom:6px}
+.co{color:#8b93a7;font-size:14px;margin-bottom:18px}
+.amt{font-size:40px;font-weight:800;color:#fff;margin:6px 0}
+.desc{color:#8b93a7;font-size:13px;margin-bottom:22px;line-height:1.5}
+button{background:#ff6200;color:#000;border:0;border-radius:11px;padding:15px;font-weight:800;font-size:15px;cursor:pointer;width:100%}
+button:hover{background:#ff7c28}button:disabled{opacity:.6}
+.fine{color:#6b7488;font-size:12px;margin-top:14px;line-height:1.5}
+.msg{margin-top:14px;font-size:14px;line-height:1.5}
+.ok{color:#39d353}.err{color:#ff6b6b}
+</style>
+</head>
+<body>
+<div class="box" id="box">
+  <div class="ico">💳</div>
+  <h1>Loading…</h1>
+</div>
+<script>
+function $(id){return document.getElementById(id);}
+var token=new URLSearchParams(location.search).get('token')||'';
+var box=$('box');
+function money(c){return '$'+((Number(c)||0)/100).toFixed(2);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function render(){
+  if(!token){box.innerHTML='<div class="ico">🔗</div><h1>Invalid link</h1><div class="co">This approval link is missing its token.</div>';return;}
+  fetch('/.netlify/functions/pm-approve?token='+encodeURIComponent(token)).then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.ok){box.innerHTML='<div class="ico">⚠️</div><h1>Something went wrong</h1><div class="co">Please call us at 615-280-2949.</div>';return;}
+    if(d.status==='not_found'){box.innerHTML='<div class="ico">🔗</div><h1>Link not found</h1><div class="co">This approval may have expired. Call us at 615-280-2949.</div>';return;}
+    if(d.status==='used'){box.innerHTML='<div class="ico">✅</div><h1>Already approved</h1><div class="co">This charge was already approved — nothing more to do. Thank you!</div>';return;}
+    box.innerHTML='<div class="ico">💳</div><h1>Approve this repair charge</h1>'
+      +'<div class="co">'+esc(d.company||'Your account')+(d.job_id?(' · job #'+esc(d.job_id)):'')+'</div>'
+      +'<div class="amt">'+money(d.amount_cents)+'</div>'
+      +(d.description?('<div class="desc">'+esc(d.description)+'</div>'):'<div style="height:10px"></div>')
+      +'<button id="go">Approve &amp; charge my card on file</button>'
+      +'<div class="fine">Charged to the card your company has on file with TN Appliance Exchange.</div>'
+      +'<div class="msg" id="m"></div>';
+    $('go').onclick=approve;
+  }).catch(function(){box.innerHTML='<div class="ico">⚠️</div><h1>Network error</h1><div class="co">Please try again or call 615-280-2949.</div>';});
+}
+function approve(){
+  var btn=$('go'),m=$('m');btn.disabled=true;btn.textContent='Charging…';m.className='msg';m.textContent='';
+  fetch('/.netlify/functions/pm-approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:token})}).then(function(r){return r.json();}).then(function(d){
+    if(d&&(d.status==='charged'||d.status==='already_charged')){box.innerHTML='<div class="ico">✅</div><h1>Approved — thank you!</h1><div class="co">Your card on file was charged. A receipt is on the way. We appreciate your business.</div>';}
+    else{btn.disabled=false;btn.textContent='Approve &amp; charge my card on file';m.className='msg err';m.textContent=(d&&(d.error||d.status))?('Couldn’t complete: '+(d.error||d.status)+'. Call us at 615-280-2949.'):'Something went wrong — call 615-280-2949.';}
+  }).catch(function(){btn.disabled=false;btn.textContent='Approve &amp; charge my card on file';m.className='msg err';m.textContent='Network error — please try again.';});
+}
+render();
+</script>
+</body></html>

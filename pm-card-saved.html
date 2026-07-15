@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Card Saved — TN Appliance</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{background:#0b0e14;color:#e6e9ef;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.box{background:#12161f;border:1px solid #232a38;border-radius:18px;padding:34px 28px;max-width:440px;width:100%;text-align:center}
+.ico{font-size:52px;margin-bottom:14px}
+h1{font-size:22px;margin-bottom:10px}
+p{color:#8b93a7;font-size:14px;line-height:1.7}
+a{color:#ff7c28;text-decoration:none;font-weight:700}
+</style>
+</head>
+<body>
+<div class="box" id="box"></div>
+<script>
+var canceled=new URLSearchParams(location.search).get('canceled');
+var box=document.getElementById('box');
+if(canceled){
+  box.innerHTML='<div class="ico">↩️</div><h1>No card saved</h1><p>You closed the secure card form before finishing. No problem — reopen your setup link any time, or call us at <a href="tel:6152802949">615-280-2949</a> and we’ll help.</p>';
+}else{
+  box.innerHTML='<div class="ico">✅</div><h1>Card saved — you’re all set.</h1><p>Your card is securely on file with TN Appliance Exchange (stored by Stripe — we never see the number). From here on, completed repairs bill automatically, and anything over your approval limit comes to you for a one-tap OK first.<br><br>Thanks for partnering with us. Questions? <a href="tel:6152802949">615-280-2949</a>.</p>';
+}
+</script>
+</body></html>

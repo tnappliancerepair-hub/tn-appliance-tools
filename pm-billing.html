@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>PM Billing — TN Appliance</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{background:#0b0e14;color:#e6e9ef;padding:16px;max-width:820px;margin:0 auto}
+h1{font-size:20px;margin-bottom:4px}.sub{color:#8b93a7;font-size:13px;margin-bottom:18px}
+.card{background:#12161f;border:1px solid #232a38;border-radius:14px;padding:18px;margin-bottom:14px}
+.card h2{font-size:15px;margin-bottom:12px;color:#fff}
+label{display:block;font-size:11px;color:#8b93a7;text-transform:uppercase;letter-spacing:.05em;margin:10px 0 4px}
+input,select{width:100%;background:#0b0e14;border:1px solid #2a3242;border-radius:9px;padding:11px 12px;color:#fff;font-size:15px}
+input:focus,select:focus{outline:none;border-color:#ff7c28}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{background:#ff6200;color:#000;border:0;border-radius:9px;padding:12px 16px;font-weight:800;font-size:14px;cursor:pointer;margin-top:12px;width:100%}
+button:hover{background:#ff7c28}button:disabled{opacity:.6}
+button.ghost{background:transparent;color:#e6e9ef;border:1px solid #2a3242}
+.msg{font-size:13px;margin-top:10px;min-height:16px;line-height:1.5}
+.ok{color:#39d353}.err{color:#ff6b6b}
+.acct{border:1px solid #232a38;border-radius:11px;padding:13px;margin-bottom:9px}
+.acct .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.acct .co{font-weight:800;font-size:15px}
+.badge{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.b-card{background:rgba(57,211,83,.14);color:#39d353}.b-net{background:rgba(120,160,255,.16);color:#9db8ff}.b-nocard{background:rgba(255,107,107,.15);color:#ff6b6b}
+.acct .meta{font-size:12px;color:#8b93a7;margin-top:5px}
+.acct .acts{display:flex;gap:8px;margin-top:10px}
+.acct .acts button{margin:0;padding:9px 12px;font-size:12px;width:auto;flex:1}
+.link{background:#0b0e14;border:1px solid #2a3242;border-radius:8px;padding:9px 10px;font-size:12px;color:#7fd7ff;word-break:break-all;margin-top:8px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<h1>🏢 Property-Management Billing</h1>
+<div class="sub">Card-on-file accounts. Card entry happens on Stripe (we never see the number).</div>
+
+<div id="gate" class="card">
+  <h2>Admin access</h2>
+  <label>Admin secret</label>
+  <input id="secret" type="password" placeholder="admin secret" autocomplete="off">
+  <button onclick="unlock()">Unlock</button>
+  <div class="msg err" id="gate-msg"></div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="card">
+    <h2>New property account</h2>
+    <label>Company *</label><input id="n-company" placeholder="e.g. Marshall Reddick Real Estate">
+    <div class="row"><div><label>Contact name</label><input id="n-contact" placeholder="Maintenance coordinator"></div><div><label>Phone</label><input id="n-phone" type="tel" placeholder="(615) 555-0199"></div></div>
+    <label>Email</label><input id="n-email" type="email" placeholder="ap@company.com">
+    <div class="row">
+      <div><label>Billing track</label><select id="n-track"><option value="card">Card on file (auto-charge)</option><option value="net_terms">Net terms (monthly statement)</option></select></div>
+      <div><label>Auto-charge ceiling ($)</label><input id="n-threshold" type="number" value="250" inputmode="numeric"></div>
+    </div>
+    <button onclick="createAcct()" id="n-btn">Create account + get card-setup link →</button>
+    <div class="msg" id="n-msg"></div>
+    <div id="n-link" class="link hidden"></div>
+  </div>
+
+  <div class="card">
+    <h2>Accounts <button class="ghost" style="width:auto;padding:6px 12px;font-size:12px;margin:0;float:right" onclick="loadAccts()">↻ Refresh</button></h2>
+    <div id="accts"></div>
+  </div>
+</div>
+
+<script>
+var SEC='';
+function $(id){return document.getElementById(id);}
+function api(path,opts){return fetch('/.netlify/functions/'+path,opts).then(function(r){return r.json();});}
+function money(c){return '$'+((Number(c)||0)/100).toFixed(2);}
+function unlock(){
+  SEC=($('secret').value||'').trim();
+  if(!SEC){$('gate-msg').textContent='Enter the secret.';return;}
+  api('pm-card-status?list=1&secret='+encodeURIComponent(SEC)).then(function(d){
+    if(d&&d.ok){try{localStorage.setItem('pm_sec',SEC);}catch(e){}$('gate').classList.add('hidden');$('app').classList.remove('hidden');renderAccts(d.accounts||[]);}
+    else{$('gate-msg').textContent='Wrong secret.';}
+  }).catch(function(){$('gate-msg').textContent='Network error.';});
+}
+try{var st=localStorage.getItem('pm_sec');if(st){$('secret').value=st;unlock();}}catch(e){}
+
+function createAcct(){
+  var company=($('n-company').value||'').trim();
+  if(!company){$('n-msg').className='msg err';$('n-msg').textContent='Company required.';return;}
+  $('n-btn').disabled=true;$('n-msg').className='msg';$('n-msg').textContent='Creating…';
+  api('pm-setup-card',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    secret:SEC,company:company,contact:$('n-contact').value.trim(),email:$('n-email').value.trim(),
+    phone:$('n-phone').value.trim(),track:$('n-track').value,threshold_cents:Math.round((parseFloat($('n-threshold').value)||250)*100)
+  })}).then(function(d){
+    $('n-btn').disabled=false;
+    if(d&&d.ok){
+      $('n-msg').className='msg ok';$('n-msg').textContent='✓ Account created ('+d.pm_key+'). Send the PM this card-setup link:';
+      var l=$('n-link');l.classList.remove('hidden');l.innerHTML=d.setup_url?('<a href="'+d.setup_url+'" target="_blank" style="color:#7fd7ff">'+d.setup_url+'</a>'):'(no link — net terms?)';
+      loadAccts();
+    }else{$('n-msg').className='msg err';$('n-msg').textContent=(d&&d.error)||'Failed.';}
+  }).catch(function(){$('n-btn').disabled=false;$('n-msg').className='msg err';$('n-msg').textContent='Network error.';});
+}
+
+function loadAccts(){api('pm-card-status?list=1&secret='+encodeURIComponent(SEC)).then(function(d){renderAccts((d&&d.accounts)||[]);});}
+function renderAccts(list){
+  var el=$('accts');
+  if(!list.length){el.innerHTML='<div style="color:#8b93a7;font-size:13px">No accounts yet.</div>';return;}
+  el.innerHTML=list.map(function(a){
+    var badge=a.track==='net_terms'?'<span class="badge b-net">net terms</span>':(a.has_customer?'<span class="badge b-card">card</span>':'<span class="badge b-nocard">no card</span>');
+    return '<div class="acct" data-pm="'+a.pm_key+'">'
+      +'<div class="top"><span class="co">'+esc(a.company||a.pm_key)+'</span>'+badge+'</div>'
+      +'<div class="meta">'+[a.contact,a.phone,a.email].filter(Boolean).map(esc).join(' · ')+(a.track!=='net_terms'?(' · auto ≤ '+money(a.threshold_cents)):'')+'</div>'
+      +'<div class="acts"><button class="ghost" onclick="viewCard(\''+a.pm_key+'\',this)">View card</button><button onclick="charge(\''+a.pm_key+'\',\''+esc(a.company||'')+'\')">Charge</button></div>'
+      +'<div class="msg" id="m-'+a.pm_key+'"></div></div>';
+  }).join('');
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function viewCard(pm,btn){
+  var m=$('m-'+pm);m.className='msg';m.textContent='Checking…';
+  api('pm-card-status?secret='+encodeURIComponent(SEC)+'&pm_key='+encodeURIComponent(pm)).then(function(d){
+    if(d&&d.ok&&d.card&&d.card.on_file){m.className='msg ok';m.textContent='💳 '+d.card.brand+' ••'+d.card.last4+' (exp '+d.card.exp+')';}
+    else if(d&&d.account&&d.account.track==='net_terms'){m.className='msg';m.textContent='Net-terms account — no card.';}
+    else{m.className='msg err';m.textContent='No card on file yet — send the setup link.';}
+  });
+}
+function charge(pm,co){
+  var amt=prompt('Charge '+(co||pm)+' — amount in dollars:');if(amt===null)return;
+  var cents=Math.round((parseFloat(amt)||0)*100);if(cents<=0){alert('Enter a valid amount.');return;}
+  var job=prompt('Job # (optional):')||'';
+  var m=$('m-'+pm);m.className='msg';m.textContent='Charging '+money(cents)+'…';
+  api('pm-charge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SEC,pm_key:pm,amount_cents:cents,job_id:job.trim()})}).then(function(d){
+    if(d&&d.status==='charged'){m.className='msg ok';m.textContent='✓ Charged '+money(cents)+' to card on file.';}
+    else if(d&&d.status==='awaiting_approval'){m.className='msg';m.textContent='Over the ceiling — approval link sent to the PM.'+(d.pm_notified?'':(' Send them: '+d.approve_url));}
+    else if(d&&d.status==='statement'){m.className='msg ok';m.textContent='Added to monthly statement.';}
+    else{m.className='msg err';m.textContent='⚠ '+((d&&(d.error||d.status))||'failed');}
+  }).catch(function(){m.className='msg err';m.textContent='Network error.';});
+}
+</script>
+</body></html>
