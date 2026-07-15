@@ -15,6 +15,8 @@ exports.config = { timeout: 26 };
 function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }; }
 const s = (v, n) => String(v == null ? '' : v).slice(0, n == null ? 200 : n).trim();
 const SITE = 'https://tnapplianceexchange.net';
+const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
+function authH() { const t = process.env.XANO_METADATA_TOKEN; return t ? { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null; }
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
@@ -61,7 +63,14 @@ exports.handler = async function (event) {
       metadata: { pm_key: pmKey, invoice_number: invoiceNo, job_id: jobId, amount_cents: String(subtotal + tax), source: 'pm_invoice_link' },
     });
 
-    return json(200, { ok: true, pm_key: pmKey, stripe_customer_id: customerId, amount_cents: subtotal + tax, pay_url: session.url });
+    // Remember this invoice's params so a short branded link (/pay?job=NN) can
+    // regenerate a fresh, always-valid Stripe session on each click.
+    try {
+      const h = authH();
+      if (h) await fetch(`${META}/table/3/content`, { method: 'POST', headers: h, body: JSON.stringify({ action: 'pm_invoice', metadata: { job_id: jobId, pm_key: pmKey, company: company || acct.company, subtotal_cents: subtotal, tax_cents: tax, description, invoice_number: invoiceNo, email: email || acct.email || '', contact: contact || acct.contact || '', at_ms: Date.now() } }) });
+    } catch (_) {}
+
+    return json(200, { ok: true, pm_key: pmKey, stripe_customer_id: customerId, amount_cents: subtotal + tax, pay_url: session.url, short_url: jobId ? (SITE + '/pay?job=' + jobId) : undefined });
   } catch (err) {
     console.error('[pm-invoice-link] stripe error', err.message);
     return json(500, { ok: false, error: err.message });

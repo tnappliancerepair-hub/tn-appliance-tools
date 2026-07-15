@@ -1,3 +1,6 @@
+# Short branded PM pay link -> regenerates a fresh Stripe checkout on each click
+/pay  /.netlify/functions/pm-pay  200
+
 # ── FRONT DOOR (2026-06-29, Teddy) — temporarily serving the CONTENT homepage ──
 # Google Ads API Basic Access (case 6-3335000041044) was bounced because the
 # reviewer hit "/" and saw the chat app, not a business website ("does not have
