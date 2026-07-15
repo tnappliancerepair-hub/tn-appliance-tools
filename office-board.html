@@ -369,6 +369,7 @@
 </script>
 
 <div id="msg-banner" style="padding:0 12px"></div>
+<div id="audit-banner" style="padding:0 12px"></div>
 <div id="stranded-banner" style="padding:0 12px"></div>
 <div id="addons-banner"></div>
 
@@ -586,6 +587,7 @@ async function loadBoard(){
     loadInvoices();
     loadMessages();
     loadStranded();
+    loadAudit();
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
   }
@@ -643,6 +645,45 @@ async function loadStranded(){
 }
 function loadStrandedRender(){ const l=document.getElementById('stranded-list'); const c=document.getElementById('stranded-caret'); if(l)l.style.display=__strandedOpen?'':'none'; if(c)c.textContent=__strandedOpen?'▾':'▸'; }
 function closeStrandedThenOpen(id){ openDrawer(String(id)); }
+
+// THE COMPLETENESS GUARANTEE (Teddy 2026-07-15: "the board must be the most reliable
+// source — a dropped job can cause major issues"). board-audit independently finds REAL
+// jobs that exist in the system but are NOT on the board (stuck in a status the feed
+// doesn't load, like needs_more_info). If any are missing → a loud red banner she can act
+// on; if none → a quiet green "every job accounted for" so she can TRUST the board holds
+// everything (and stop keeping MeisterTask as a shadow copy). This is the check-and-balance.
+let __auditOpen=true;
+async function loadAudit(){
+  const el=document.getElementById('audit-banner'); if(!el)return;
+  try{
+    const d=await (await fetch('/.netlify/functions/board-audit',{cache:'no-store'})).json();
+    if(!d||!d.ok){ el.innerHTML=''; return; }
+    const miss=(d.missing)||[]; const n=d.missing_count||0;
+    if(!n){
+      // Clean — reassure her the board is complete. Compact, calm green.
+      el.innerHTML='<div style="background:#eef8f1;border:1px solid #bfe3cc;border-radius:11px;padding:9px 14px;margin-bottom:8px;color:#1f7a4d;font-weight:700;font-size:13px">✅ Every job accounted for — nothing dropped ('+ (d.board_count||0) +' on the board)</div>';
+      return;
+    }
+    const day=(ms)=>{ if(!ms)return ''; try{return new Date(Number(ms)).toLocaleDateString('en-US',{month:'numeric',day:'numeric',timeZone:'America/Chicago'});}catch(_){return '';} };
+    const rows=miss.map(function(x){
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-top:1px solid #f3caca">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-weight:800;color:#7f1d1d;font-size:14px">'+esc(x.name||'(no name)')+(x.warranty_company?' <span style="font-weight:600;color:#b45454">· '+esc(x.warranty_company)+'</span>':'')+'</div>'
+          +'<div style="font-size:12px;color:#a15a5a">'+[esc(x.appliance||'?'),'stuck in '+esc(x.status),x.last4?('•••'+esc(x.last4)):''].filter(Boolean).join(' · ')+'</div>'
+        +'</div>'
+        +'<button onclick="openDrawer(\''+x.id+'\')" style="background:#111827;color:#fff;border:0;border-radius:8px;padding:8px 12px;font-weight:800;font-size:13px;cursor:pointer;white-space:nowrap">Open →</button>'
+      +'</div>';
+    }).join('');
+    const head='⛔ '+n+' job'+(n===1?'':'s')+' in the system but NOT on the board — they need attention';
+    el.innerHTML='<div style="background:#fff5f5;border:2px solid #e06666;border-radius:11px;padding:12px 14px;margin-bottom:8px">'
+      +'<div onclick="__auditOpen=!__auditOpen;auditRender()" style="cursor:pointer;display:flex;align-items:center;gap:8px;color:#b91c1c;font-weight:800;font-size:14px">'
+        +'<span id="audit-caret">'+(__auditOpen?'▾':'▸')+'</span><span style="flex:1">'+head+'</span>'
+      +'</div>'
+      +'<div id="audit-list" style="'+(__auditOpen?'':'display:none;')+'margin-top:4px">'+rows+'</div>'
+    +'</div>';
+  }catch(_){ /* never block the board on the audit */ }
+}
+function auditRender(){ const l=document.getElementById('audit-list'); const c=document.getElementById('audit-caret'); if(l)l.style.display=__auditOpen?'':'none'; if(c)c.textContent=__auditOpen?'▾':'▸'; }
 
 // place a job into a column id.
 // "Needs Scheduled" is the catch-all entry: accepted jobs, callbacks, and
