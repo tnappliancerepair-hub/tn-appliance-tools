@@ -235,6 +235,12 @@ is the #1 channel for this audience — the room literally IS the customer base.
 ### The groups to join (Middle TN)
 
 - **🥇 Greater Nashville Apartment Association (GNAA)** — THE one for apartments/multifamily.
+  **Covers ALL of Middle Tennessee — Murfreesboro/Rutherford, Franklin/Williamson, Wilson,
+  Sumner and surrounding — not just Nashville.** There is NO separate Murfreesboro association;
+  GNAA is it. (Verified 2026-07-15: the Tennessee Apartment Association has only 5 local
+  affiliates statewide — GNAA/Nashville, Memphis, Knoxville, Chattanooga, Tri-Cities — so ONE
+  GNAA membership covers our whole TN footprint.) 2 International Plaza Ste 201, Nashville 37217
+  · (615) 365-3047 · info@gnaa.org · gnaa.org.
   Community managers, regional managers, AND maintenance supervisors all belong. As a
   **Supplier/Associate member** you get: the member directory (they look up vendors here),
   monthly education + networking events, and the annual **Trade Show** (exhibit booth = meet
