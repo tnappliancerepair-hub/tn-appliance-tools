@@ -305,9 +305,15 @@
 # INTAKE_COLLECTOR_MAX_AGE_DAYS, off by default); the 15/run limit + one-text
 # dedup drain it steadily, not in a burst. Quiet-hours 8am-8pm CT, vendor jobs
 # skipped. Runs hourly 9am-6pm CT.
-# DISABLED 2026-07-14 (Teddy: don't text customers unless they text us first — this hit already-scheduled Paul D. with "get on the schedule")
-# [functions."intake-collector"]
-#   schedule = "0 14-23 * * *"
+# RE-ENABLED 2026-07-15 in INTAKE-LINK-ONLY mode (Teddy: "I still want the AI to send
+# the most important thing — the warranty intake link, and the cash intake link too,
+# automatically"). Now sends ONLY the intake link (warranty-intake for warranty jobs,
+# appliance-ai for cash), max 2 pure-intake touches/phone (link + one evening reminder),
+# and NEVER the availability "get on the schedule" texts that caused the 7/14 firefight
+# (INTAKE_LINK_ONLY clamp in the fn). All the firefight guards stay: has-media/availability
+# skip, opt-out, phone-cap 2, quiet-hours 8a-8p CT, and the overtexting-watch auto-pause.
+[functions."intake-collector"]
+  schedule = "0 14-23 * * *"
 
 # Over-texting tripwire (Teddy 2026-07-13) — scans EVERY customer text by phone,
 # alerts Teddy + AUTO-PAUSES intake outreach the moment anyone crosses the line, so

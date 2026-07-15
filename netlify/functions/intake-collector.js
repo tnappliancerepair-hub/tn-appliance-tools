@@ -33,6 +33,14 @@ const RESEND_AFTER_MS = (Number(process.env.INTAKE_RESEND_HOURS) || 20) * 3600 *
 // No "second notice" nag — a booked/engaged customer is protected by the media +
 // availability "already answered" checks in the send loop.
 const INTAKE_SEQUENCE_CAP = 4;
+// INTAKE-LINK-ONLY mode (Teddy 2026-07-15, re-enable after the firefight): send ONLY the
+// intake link (touch 0 = the pitch, touch 1 = one warm evening reminder — both pure intake:
+// video + model-# + the link). NEVER the availability touches (2,3 = "let's get you on the
+// schedule"), which are exactly what annoyed already-scheduled customers (Paul D., Gary B.).
+// So the AI sends the ONE most important thing — the warranty/cash intake link — automatically,
+// and nothing that reads like "get on the schedule / reschedule". Default ON; set false to
+// restore the old 4-touch intake->availability sequence.
+const INTAKE_LINK_ONLY = process.env.INTAKE_LINK_ONLY !== 'false';
 // PHONE-LEVEL CAP (Teddy 2026-07-13): the sequence cap above is PER JOB. A customer
 // whose dispatches spawned N duplicate job rows got N separate streams = spam. Cap
 // by the PERSON: max PHONE_CAP intake texts to a phone EVER (across all their jobs),
@@ -310,6 +318,10 @@ exports.handler = async function (event) {
     // 4 touches MAX, then reactive-only (Teddy 2026-07-08): 2 intake + 2 availability.
     const isW = linkFor(j, id).isW;
     if (priorIntake >= INTAKE_SEQUENCE_CAP) { skipped_dupe++; continue; }
+    // INTAKE-LINK-ONLY: never advance to the availability touches (2,3). Once a job has
+    // had its 2 intake touches (link + evening reminder), it goes reactive-only. This is
+    // what keeps an already-scheduled customer from ever getting a "get on the schedule" text.
+    if (INTAKE_LINK_ONLY && priorIntake >= 2) { skipped_dupe++; continue; }
     // "Already answered" guard — if a photo/video is on file the customer has engaged, so
     // we STOP proactively texting (this is what protects an already-scheduled customer like
     // Troy + Sherri). Cheap check, only on candidates that passed dedup.
@@ -360,7 +372,9 @@ exports.handler = async function (event) {
     // Cash keeps its single light message. (Teddy 2026-07-07.)
     // Touch 0,1 = intake (video+model+days); 2,3 = availability only.
     const msg = intakeMsg(priorIntake, cust, appl, vlink, isW);
-    const tag = priorIntake <= 1 ? 'intake_collect' : 'availability_request';
+    // Link-only mode always tags 'intake_collect' (never 'availability_request') so the
+    // send_sms intake-only gate reads it as intake and the copy stays intake-framed.
+    const tag = (INTAKE_LINK_ONLY || priorIntake <= 1) ? 'intake_collect' : 'availability_request';
 
     let okSend = false;
     try { const r = await jpost(`${XANO}/send_sms`, { to: phone, message: msg, context_tag: tag }); okSend = !!(r && r.success); } catch (_) {}
