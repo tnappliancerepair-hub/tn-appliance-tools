@@ -95,6 +95,19 @@ const PROBLEM_TERMINATORS = [
   /^To view all calls/i,
 ];
 
+// Parse a ServicePower/SquareTrade "Schedule Period" ("8:00 - 10:00",
+// "13:00 - 15:00", "12:00 - 17:00") into a zero-padded start ("08:00",
+// "13:00") for building scheduled_start, plus a normalized display label.
+// Returns { startHHMM:'', window:'' } when there's no window.
+function parseScheduleWindow(period) {
+  const p = String(period || '').trim();
+  if (!p) return { startHHMM: '', window: '' };
+  const m = p.match(/(\d{1,2}):(\d{2})/); // first HH:MM = the window start
+  const startHHMM = m ? `${String(m[1]).padStart(2, '0')}:${m[2]}` : '';
+  const window = p.replace(/\s*-\s*/, ' - '); // normalize the dash spacing
+  return { startHHMM, window };
+}
+
 function isSectionHeader(line) {
   return SECTION_HEADERS.some((h) => line === h || line.startsWith(h));
 }
@@ -348,6 +361,14 @@ function buildDispatchRecord(raw) {
   // Call # / Call No (cancellation variant)
   const callNumber = (f['Call #'] || f['Call No'] || '').trim();
 
+  // Schedule Period is the ARRIVAL WINDOW the customer already agreed to with
+  // SquareTrade ("8:00 - 10:00", "13:00 - 15:00"). We must land the job in THAT
+  // slot (Danielle 2026-07-15: "we accept the jobs but don't put them in the
+  // correct slot"), not a hardcoded 8am, and show the promised window on the
+  // tile. Pre-compute the zero-padded start ("08:00") + a clean label here so
+  // the Xano intake does no string math.
+  const schedWin = parseScheduleWindow(f['Schedule Period']);
+
   // Schedule + Call Taken / Service on date / Date of call dates
   const scheduleDate = parseDateMDY(f['Schedule Date']);
   const callTakenDate = parseDateMDY(f['Call Taken'] || f['Date of call']);
@@ -389,6 +410,8 @@ function buildDispatchRecord(raw) {
     serial: (f['Serial #'] || '').trim(),
     schedule_date: scheduleDate,
     schedule_period: (f['Schedule Period'] || '').trim(),
+    schedule_start_hhmm: schedWin.startHHMM,   // "08:00" / "13:00" — the slot start
+    schedule_window: schedWin.window,          // "8:00 - 10:00" — clean label for the tile
     call_taken_date: callTakenDate,
     service_on_date: serviceOnDate,
     call_type: (f['Call Type'] || '').trim(),

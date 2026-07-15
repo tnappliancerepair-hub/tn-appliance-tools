@@ -77,7 +77,7 @@ query servicepower_email_intake verb=POST {
             duplicate       : true
             reason          : "pre_activation"
             gmail_message_id: $input.gmail_message_id
-            resolution      : "skipped — pre PARSER_ACTIVATION_TS_MS"
+            resolution      : "skipped - pre PARSER_ACTIVATION_TS_MS"
           }
         }
       }
@@ -233,15 +233,29 @@ query servicepower_email_intake verb=POST {
                   
                     conditional {
                       if ($sched_date != "") {
-                        // Date-only fields from ServicePower land at midnight UTC
-                        // which is 7pm CT the prior day. Anchor to 08:00 CT
-                        // (the standard arrival window start) so the calendar
-                        // shows the job on the correct day.
-                        var $sched_ts {
-                          value = (($sched_date ~ " 08:00:00")|to_timestamp)|transform_timestamp:"+5 hours"
+                        // Use the SquareTrade arrival window start (parser-provided,
+                        // e.g. "13:00"), not a hardcoded 8am, so a reschedule lands
+                        // in the correct slot (Danielle 2026-07-15).
+                        var $slot_hhmm {
+                          value = (($disp.schedule_start_hhmm ?? "") != "") ? ($disp.schedule_start_hhmm ?? "") : "08:00"
                         }
-                      
-                        // Side fields stay on the direct write — they're
+
+                        // Date-only fields from ServicePower land at midnight UTC
+                        // which is 7pm CT the prior day. Anchor to the window start
+                        // in CT so the calendar shows the correct day + slot.
+                        var $sched_ts {
+                          value = (($sched_date ~ " " ~ $slot_hhmm ~ ":00")|to_timestamp)|transform_timestamp:"+5 hours"
+                        }
+
+                        var $resched_window {
+                          value = ($disp.schedule_window ?? "")
+                        }
+
+                        var $resched_pref {
+                          value = ($resched_window != "") ? ("AVAIL: SquareTrade window " ~ $sched_date ~ ": " ~ $resched_window) : (($existing_job.customer_preference_text ?? ""))
+                        }
+
+                        // Side fields stay on the direct write - they're
                         // not part of the state machine's scheduling_status concern.
                         db.edit jobs {
                           field_name = "id"
@@ -250,6 +264,8 @@ query servicepower_email_intake verb=POST {
                             scheduling_type  : "slot"
                             vendor_locked    : true
                             current_status   : "rescheduled"
+                            service_eta_window : $resched_window
+                            customer_preference_text : $resched_pref
                           }
                         } as $sched_update
 
@@ -543,12 +559,28 @@ query servicepower_email_intake verb=POST {
                 var $sched_date_str {
                   value = ($disp.schedule_date ?? "")
                 }
-              
+
+                // The SquareTrade/ServicePower "Schedule Period" IS the arrival
+                // window the customer already agreed to (parser gives us the
+                // zero-padded start, e.g. "13:00"). Land the job in THAT slot,
+                // not a hardcoded 8am (Danielle 2026-07-15). Fall back to 08:00
+                // only when no window was sent.
+                var $slot_hhmm {
+                  value = (($disp.schedule_start_hhmm ?? "") != "") ? ($disp.schedule_start_hhmm ?? "") : "08:00"
+                }
+
                 // Date-only fields from ServicePower land at midnight UTC
-                // which is 7pm CT the prior day. Anchor to 08:00 CT so the
-                // calendar shows the job on the correct day.
+                // which is 7pm CT the prior day. Anchor to the window start in CT
+                // so the calendar shows the job on the correct day + slot.
                 var $sched_ts {
-                  value = ($sched_date_str != "") ? ((($sched_date_str ~ " 08:00:00")|to_timestamp)|transform_timestamp:"+5 hours") : null
+                  value = ($sched_date_str != "") ? ((($sched_date_str ~ " " ~ $slot_hhmm ~ ":00")|to_timestamp)|transform_timestamp:"+5 hours") : null
+                }
+
+                // Surface the promised window on the tile via customer_preference_text
+                // (the board renders an "AVAIL:" line front-and-center). This is the
+                // customer's availability as THEY scheduled it with SquareTrade.
+                var $avail_pref {
+                  value = (($disp.schedule_window ?? "") != "") ? ("AVAIL: SquareTrade window " ~ $sched_date_str ~ ": " ~ ($disp.schedule_window ?? "")) : ""
                 }
               
                 var $install_date_str {
@@ -575,8 +607,10 @@ query servicepower_email_intake verb=POST {
                     service_state       : $raw_state
                     service_zip         : $zip5
                     scheduled_start     : $sched_ts
+                    service_eta_window  : ($disp.schedule_window ?? "")
+                    customer_preference_text : $avail_pref
                     current_status      : ($disp.call_status ?? "Open")
-                    friendly_status     : ($warranty_company == "SquareTrade") ? "SquareTrade — Needs Accept" : "New Intake (ServicePower)"
+                    friendly_status     : ($warranty_company == "SquareTrade") ? "SquareTrade - Needs Accept" : "New Intake (ServicePower)"
                     job_status          : "submitted"
                     triage_status       : "not_reviewed"
                     parts_status        : "not_needed"

@@ -15,7 +15,7 @@ query list_pending_accept_jobs verb=GET {
     var $now_ms { value = (now|to_ms) }
 
     db.query jobs {
-      where = $db.jobs.scheduling_status == "needs_more_info" && ($db.jobs.warranty_company == "SquareTrade" || $db.jobs.friendly_status == "SquareTrade — Needs Accept")
+      where = $db.jobs.scheduling_status == "needs_more_info" && ($db.jobs.warranty_company == "SquareTrade" || $db.jobs.friendly_status == "SquareTrade - Needs Accept")
       sort = {jobs.created_at: "asc"}
       return = {type: "list", paging: {page: 1, per_page: $lim}}
     } as $rows
@@ -53,6 +53,7 @@ query list_pending_accept_jobs verb=GET {
             service_city    : ($j.service_city ?? "")
             service_zip     : ($j.service_zip ?? "")
             scheduled_start : ($j.scheduled_start ?? 0)
+            service_eta_window: ($j.service_eta_window ?? "")
             claim_number    : ($j.claim_number ?? "")
             age_hours       : (($now_ms - ($j.created_at|to_ms)) / 3600000)
           }
