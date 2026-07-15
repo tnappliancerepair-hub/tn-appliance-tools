@@ -54,9 +54,11 @@ exports.handler = async function () {
   //    the ones the board isn't already showing.
   const missing = [];
   const byStatus = {};
+  const rawByStatus = {};   // total rows per excluded status (real + shells) — sizes the flood risk
   for (const st of EXCLUDED_ACTIVE) {
     let rows = [];
-    try { rows = (await crud.searchPage(JOBS, { scheduling_status: st }, { id: 'desc' }, 300)) || []; } catch (_) {}
+    try { rows = (await crud.searchPage(JOBS, { scheduling_status: st }, { id: 'desc' }, 500)) || []; } catch (_) {}
+    if (rows.length) rawByStatus[st] = rows.length;
     for (const j of rows) {
       if (CANCEL_RE.test(String(j.current_status || ''))) continue;   // truly canceled -> fine to hide
       if (!isReal(j)) continue;                                        // dead claim-shell, no real data
@@ -82,6 +84,7 @@ exports.handler = async function () {
     board_count: boardIds.size,
     missing_count: missing.length,
     by_status: byStatus,
+    raw_by_status: rawByStatus,
     checked_statuses: EXCLUDED_ACTIVE,
     missing: missing.slice(0, 150),
   });
