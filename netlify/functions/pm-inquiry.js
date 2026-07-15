@@ -38,14 +38,17 @@ exports.handler = async function (event) {
   const markets = s(b.markets, 200);
   const message = s(b.message, 800);
   const src = s(b.src || 'property-management', 40);
+  const role = s(b.role, 60);            // e.g. Maintenance Supervisor / Community Manager
+  const propertyType = s(b.property_type, 60); // e.g. Apartment community / Scattered rentals
 
   if (!company && !contact && !phone && !email) return jsonResp(400, { ok: false, error: 'company + a way to reach you required' });
 
-  await logRow('pm_inquiry', { company, contact, email, phone, units, markets, message, src, at_ms: Date.now() });
+  await logRow('pm_inquiry', { company, contact, email, phone, units, markets, message, src, role, property_type: propertyType, at_ms: Date.now() });
 
-  // Text Teddy + Danielle — a PM account is a big recurring win, follow up fast.
-  const alert = '[ant] 🏢 PROPERTY-MGMT inquiry: ' + (company || '(no company)') +
-    (units ? (' · ~' + units + ' units') : '') + (markets ? (' · ' + markets) : '') +
+  // Text Teddy + Danielle — a PM/multifamily account is a big recurring win, follow up fast.
+  const isApt = src === 'apartment' || /apartment|multifamily|community/i.test(propertyType);
+  const alert = '[ant] ' + (isApt ? '🏢 APARTMENT/MULTIFAMILY' : '🏢 PROPERTY-MGMT') + ' inquiry: ' + (company || '(no company)') +
+    (role ? (' · ' + role) : '') + (units ? (' · ~' + units + ' units') : '') + (markets ? (' · ' + markets) : '') +
     '\nContact: ' + (contact || '(no name)') + ' ' + (phone || '') + (email ? (' · ' + email) : '') +
     (message ? ('\n"' + message.slice(0, 200) + '"') : '') + '\nCall/email them back — preferred-vendor lead.';
   try { await sendSms(OWNER, alert, 'owner', 'pm_inquiry'); } catch (_) {}

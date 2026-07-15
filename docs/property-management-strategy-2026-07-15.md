@@ -202,3 +202,124 @@ a PM login scoped to `bill_to_customer_id` showing only their jobs.
 
 _The one-liner for the whole play: be the vendor a property manager never has to think about —
 we handle the tenant, we handle the fix, we handle the bill, and they watch it all get done._
+
+---
+
+## 10. APARTMENTS / MULTIFAMILY — the second audience (added 2026-07-15)
+
+Apartment communities buy differently than scattered-rental PMs. Two decision-makers, not one:
+
+- **Community / Property Manager** — approves the vendor, cuts the PO, owns the budget. Sells on
+  turn speed, one-vendor simplicity, PO/net terms, and the portal.
+- **Maintenance Supervisor / Maintenance Tech** — the person who *actually calls a vendor* when
+  they're slammed or a job's over their head. THIS is the top-of-mind target: when a fridge dies
+  in unit 214 on a Friday, we want to be the number they already have saved. Sell on: we take it
+  off your board, we make you look good to your manager, just text us — no PO, no phone tree.
+
+**Landing page (LIVE):** `/apartment-appliance-repair` — speaks to both, has a "For maintenance
+supervisors" text-us card (save-to-phone / print-for-the-shop), and a role + property-type form
+that routes to `pm-inquiry` (src=`apartment`).
+
+**The pitch in one line (apartments):** _"Backup for your maintenance team — we turn units fast,
+handle the resident, and bill on your PO or a card on file."_
+
+---
+
+## 11. HOW TO ACTUALLY REACH THEM — the associations + the top-of-mind system
+
+Teddy's exact question: "there's certain apartment/PM groups where they do seminars and share
+contacts — what's it called?" **These are the apartment associations and PM associations.** This
+is the #1 channel for this audience — the room literally IS the customer base. Join as a
+**vendor / supplier / affiliate member** (that's the membership tier for a service company like us).
+
+### The groups to join (Middle TN)
+
+- **🥇 Greater Nashville Apartment Association (GNAA)** — THE one for apartments/multifamily.
+  Community managers, regional managers, AND maintenance supervisors all belong. As a
+  **Supplier/Associate member** you get: the member directory (they look up vendors here),
+  monthly education + networking events, and the annual **Trade Show** (exhibit booth = meet
+  dozens of properties in a day). They also run **Maintenance Mania / maintenance-appreciation
+  events** — a competition/social built *specifically* for maintenance techs. Sponsoring or
+  showing up to those is the fastest way to get in front of the exact people who call vendors.
+  → Action: join as a Supplier member, get the directory listing, book a Trade Show booth,
+  sponsor a maintenance event.
+- **Tennessee Apartment Association (TAA)** — the state umbrella over GNAA; membership often
+  comes together. Statewide reach for when we expand markets.
+- **National Apartment Association (NAA) / NAAEI** — national parent; runs **Apartmentalize**
+  (big national conference) and the **CAMT** maintenance-tech certification. Not the first move,
+  but their education/credentialing is where maintenance supervisors live.
+- **🥈 NARPM — National Association of Residential Property Managers, Middle Tennessee chapter**
+  — for the *single-family / scattered-rental* PMs (the Tier B sweet spot). Monthly luncheons,
+  **affiliate/vendor membership**, referral-heavy room. Best for the `/property-management` side.
+- **IREM Middle Tennessee** (Institute of Real Estate Management) — CPM-designated PM
+  professionals, mixed residential/commercial. Good for the larger Tier-A managers.
+- **Local REIA / real-estate investor meetups** (Nashville REIA, BiggerPockets local) — reaches
+  the individual-landlord Tier C. Cheap, high-volume, low-commitment.
+
+### How to work the association channel (the play, not just "join")
+
+1. **Join GNAA as a Supplier member first** (single biggest lever for apartments). Get the
+   directory listing pointing at `/apartment-appliance-repair`.
+2. **Exhibit at the annual Trade Show** — a booth + a giveaway (branded fridge magnets with our
+   text line) puts us face-to-face with dozens of properties in one afternoon.
+3. **Sponsor a maintenance-focused event** (Maintenance Mania / maintenance appreciation) — this
+   is where the maintenance supervisors are, and they're the ones who call.
+4. **Show up to the monthly events** consistently — top-of-mind is a frequency game. One booth
+   isn't a strategy; being the vendor they see every month is.
+5. **Collect cards → the account list** — every contact goes into the outreach cadence below.
+
+### Beyond associations — where else these buyers are
+
+- **Vendor / maintenance-dispatch networks:** many communities dispatch repairs through software
+  vendor networks. Getting credentialed on these = being *inside the tool they already use*.
+  Targets: **PropertyMeld, Lula, AppFolio Stack / vendor network, SightPlan, Mezo.** (Teddy to
+  apply as a vendor; these are relationship + credentialing signups, not ad buys.)
+- **LinkedIn** — cleanest B2B targeting that exists. Target titles "Community Manager / Property
+  Manager / Maintenance Supervisor / Director of Facilities / Regional Manager" at apartment
+  operators in our metros. Start after the page + Search prove out.
+- **Facebook groups** — large "apartment maintenance" and "property management" groups where
+  maintenance techs swap tips and vendor recommendations. Organic presence, not ads.
+- **Turn-partner referrals** — the GCs, painters, flooring, and HVAC crews doing make-readies
+  already know the maintenance supervisors. Cross-refer.
+
+### Google Search (the ad layer for this audience)
+PM-intent + apartment-intent keywords → the right page:
+- → `/apartment-appliance-repair`: "apartment appliance repair <city>", "multifamily appliance
+  repair", "appliance repair for apartment communities", "maintenance appliance vendor".
+- → `/property-management`: "property management appliance repair", "rental appliance repair
+  contractor", "preferred appliance vendor property manager".
+Low volume, very high intent — one click is worth many homeowner clicks. Small daily budget,
+exact/phrase match, tight negatives, GA `generate_lead` wired as the conversion.
+
+### The TOP-OF-MIND system (recurring touch — the real answer to "how do we stay top of mind")
+Top of mind = the right touches, repeated, across the channels above. Layer them:
+1. **The saved number** — the maintenance-supervisor text card (on `/apartment-appliance-repair`,
+   printable for the shop). Once we're in their phone, we win the Friday 4pm fridge call.
+2. **Frictionless first job** — card on file + resident coordination + portal means their first
+   experience is effortless. That's what converts a trial into "our appliance guy."
+3. **Monthly value touch** — a short email/text to each account: seasonal reminder ("turn season
+   — lock your slots"), a mini scorecard of jobs we did for them, a heads-up on a common failure.
+   (Build: automate via the system once accounts exist.)
+4. **Consistent association presence** — show up monthly, sponsor the maintenance events, be the
+   face they know.
+5. **Reviews / reference** — Marshall Reddick as the flagship case study; every happy property
+   is a referral to the next.
+
+---
+
+## 12. Immediate next actions (2026-07-15)
+
+**Teddy (relationship — can't be automated):**
+1. **Join GNAA as a Supplier member** (greaternashvilleapartment.com) — #1 move. Ask about the
+   Trade Show booth + sponsoring a maintenance event.
+2. **Join NARPM Middle Tennessee chapter** as an affiliate — for the SFR/PM side.
+3. **Apply as a vendor** on PropertyMeld / Lula / AppFolio vendor networks.
+4. **Finish Marshall Reddick #20436 flawlessly** → ask for the reference + preferred-vendor intro.
+5. Order **branded fridge magnets** (our text line) for booth giveaways + property drop-offs.
+
+**Claude (built / to build):**
+- ✅ `/apartment-appliance-repair` landing page (live) + maintenance-supervisor text card.
+- ✅ `pm-inquiry` captures role + property_type + apartment source.
+- ⏭️ Google Search campaign (apartment + PM keywords → the two pages) when Ads access clears.
+- ⏭️ Monthly account-nurture touch (email/text) once accounts exist.
+- ⏭️ Company/community portal scoped to the account (shared with the PM billing build).
