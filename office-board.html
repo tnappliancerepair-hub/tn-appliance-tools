@@ -2673,11 +2673,14 @@ document.getElementById('search-in').addEventListener('input',e=>{
         const jid=x.job_id||x.id;const nm=((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer';
         const st=String(x.scheduling_status||'').replace(/_/g,' ');
         const canceled=/cancel/i.test(String(x.scheduling_status||''));
+        const applTxt=String(x.appliance||'').trim();
+        // SquareTrade sends a SEPARATE claim per machine (washer vs dryer are two jobs) —
+        // show the appliance so she keeps the machines separate + clears the right one.
         const sub=[x.city,x.customer_phone,jid?('#'+jid):'',st?(canceled?'✕ '+st:st):''].filter(Boolean).join(' · ');
         if(!jid) return '';
         const nmJs=JSON.stringify(nm);
         return `<div class="sr-row" style="display:flex;align-items:stretch;gap:6px;margin-bottom:5px">
-          <a class="sr" style="flex:1;margin:0" href="javascript:void(0)" onclick="openDrawer(${jid})"><div class="sn">${esc(nm)}</div><div class="ss">${esc(sub)}</div></a>
+          <a class="sr" style="flex:1;margin:0" href="javascript:void(0)" onclick="openDrawer(${jid})"><div class="sn">${esc(nm)}${applTxt?` <span style="color:#1f6fed;font-weight:800">· ${esc(applTxt)}</span>`:''}</div><div class="ss">${esc(sub)}</div></a>
           ${canceled?'<span style="display:flex;align-items:center;padding:0 10px;border:1px solid var(--line);border-radius:9px;color:var(--ink2);font-size:11px;font-weight:700">cleared</span>':`<button title="Clear this job off the board (junk / duplicate — nobody gets texted)" onclick='clearFromSearch(${jid},${nmJs},event)' style="flex:0 0 auto;padding:0 12px;border:1px solid #f3c0b7;border-radius:9px;background:#fdece9;color:#c0392b;font-weight:800;font-size:13px;cursor:pointer">🗑 Clear</button>`}
         </div>`;
       }).join('');

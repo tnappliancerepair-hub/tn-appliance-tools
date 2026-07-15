@@ -392,51 +392,49 @@ query office_universal_search verb=GET {
             var.update $seen_cust {
               value = $seen_cust|push:$mcid
             }
+            // Return the customer's recent jobs (up to 4), each its own row. SquareTrade
+            // sends a SEPARATE claim per machine and both land under ONE customer record
+            // (same phone), so a name/phone search must show the washer AND the dryer, not
+            // just the latest (Danielle 7/15 - keep the separate machines separate).
             db.query jobs {
               where = $db.jobs.customer_id == $mcid
               sort = {jobs.id: "desc"}
-              return = {type: "list", paging: {page: 1, per_page: 1}}
+              return = {type: "list", paging: {page: 1, per_page: 4}}
             } as $latest_job_rows
-          
-            var $lj_count {
-              value = $latest_job_rows.items|count
-            }
-          
-            conditional {
-              if ($lj_count > 0) {
-                var $j {
-                  value = $latest_job_rows.items|get:0
-                }
-              
-                db.get customer {
-                  field_name = "id"
-                  field_value = $mcid
-                } as $c2
-              
-                var $row {
-                  value = {
-                    job_id           : ($j.id ?? 0)
-                    customer_id      : $mcid
-                    customer_first   : (($c2.first_name ?? "")|trim)
-                    customer_last    : (($c2.last_name ?? "")|trim)
-                    customer_phone   : (($c2.phone ?? "")|trim)
-                    address          : ((($j.service_address ?? ($c2.address ?? ""))|trim))
-                    city             : ((($j.service_city ?? ($c2.city ?? ""))|trim))
-                    zip              : ((($j.service_zip ?? ($c2.zip ?? ""))|trim))
-                    appliance        : (($j.appliance_type ?? "")|trim)
-                    scheduling_status: (($j.scheduling_status ?? "")|trim)
-                    warranty_company : (($j.warranty_company ?? "")|trim)
-                    scheduled_start  : ($j.scheduled_start ?? null)
-                    last_job_at      : ($j.created_at ?? 0)
+
+            db.get customer {
+              field_name = "id"
+              field_value = $mcid
+            } as $c2
+
+            foreach ($latest_job_rows.items) {
+              each as $j {
+                conditional {
+                  if ($item_count < 25) {
+                    var $row {
+                      value = {
+                        job_id           : ($j.id ?? 0)
+                        customer_id      : $mcid
+                        customer_first   : (($c2.first_name ?? "")|trim)
+                        customer_last    : (($c2.last_name ?? "")|trim)
+                        customer_phone   : (($c2.phone ?? "")|trim)
+                        address          : ((($j.service_address ?? ($c2.address ?? ""))|trim))
+                        city             : ((($j.service_city ?? ($c2.city ?? ""))|trim))
+                        zip              : ((($j.service_zip ?? ($c2.zip ?? ""))|trim))
+                        appliance        : (($j.appliance_type ?? "")|trim)
+                        scheduling_status: (($j.scheduling_status ?? "")|trim)
+                        warranty_company : (($j.warranty_company ?? "")|trim)
+                        scheduled_start  : ($j.scheduled_start ?? null)
+                        last_job_at      : ($j.created_at ?? 0)
+                      }
+                    }
+                    var.update $items {
+                      value = $items|push:$row
+                    }
+                    var.update $item_count {
+                      value = $item_count + 1
+                    }
                   }
-                }
-              
-                var.update $items {
-                  value = $items|push:$row
-                }
-              
-                var.update $item_count {
-                  value = $item_count + 1
                 }
               }
             }
