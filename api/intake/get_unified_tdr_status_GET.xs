@@ -35,11 +35,17 @@ query get_unified_tdr_status verb=GET {
       value = ($input.technician_id ?? ($job.technician_id ?? 0))
     }
 
-    // Most-recent TDR for this job + tech (any state).
+    // ALL recent TDR rows for this job + tech, newest first. A job accumulates several
+    // TDR rows (each voice pass / finalize / re-open can add one). Reading ONLY the newest
+    // let a fresh or half-empty row HIDE a filled older one, so entering a part or
+    // re-opening the card looked like it erased the diagnosis, labor, model, everything
+    // (Lee 2026-07-15) and made a finished report read 0% (job 20436). We now MERGE below:
+    // the newest NON-EMPTY value per field, so a filled field can never disappear behind a
+    // blank newer row.
     db.query technician_decision_report {
       where = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == $tech_id
       sort  = {technician_decision_report.created_at: "desc"}
-      return = {type: "list", paging: {page: 1, per_page: 1}}
+      return = {type: "list", paging: {page: 1, per_page: 25}}
     } as $tdr_rows
 
     var $tdr {
@@ -63,14 +69,45 @@ query get_unified_tdr_status verb=GET {
     var $sig_count { value = ($sig_rows.itemsTotal ?? 0) }
     var $has_sig { value = ($sig_count > 0) }
 
-    // Per-field state — required is true for warranty-blocking fields.
-    var $v_diag   { value = ($tdr == null) ? "" : (($tdr.diagnosis ?? "")|to_text) }
-    var $v_failed { value = ($tdr == null) ? "" : (($tdr.failed_component ?? "")|to_text) }
-    var $v_hours  { value = ($tdr == null) ? "" : (($tdr.labor_time_hours ?? "")|to_text) }
-    var $v_repair { value = ($tdr == null) ? "" : (($tdr.repair_completed ?? "")|to_text) }
-    // parts_needed is a list column - join it back to text (null -> [] -> "").
-    var $v_parts  { value = ($tdr == null) ? "" : (($tdr.parts_needed ?? [])|join:", ") }
-    var $v_notes  { value = ($tdr == null) ? "" : (($tdr.customer_notes ?? "")|to_text) }
+    // MERGE newest-non-empty per field across all rows. Rows are newest-first, so the
+    // FIRST non-empty value we hit for a field is the newest one. This is the fix for a
+    // filled field vanishing behind a blank newer row (Lee's "it erased everything" + the
+    // 0% on a finished report). Each field is resolved independently.
+    var $v_diag   { value = "" }
+    var $v_failed { value = "" }
+    var $v_hours  { value = "" }
+    var $v_repair { value = "" }
+    var $v_parts  { value = "" }
+    var $v_notes  { value = "" }
+
+    foreach ($tdr_rows.items) {
+      each as $r {
+        var $r_diag { value = (($r.diagnosis ?? "")|to_text) }
+        conditional { if ($v_diag == "" && $r_diag != "") {
+          var.update $v_diag { value = $r_diag }
+        } }
+        var $r_failed { value = (($r.failed_component ?? "")|to_text) }
+        conditional { if ($v_failed == "" && $r_failed != "") {
+          var.update $v_failed { value = $r_failed }
+        } }
+        var $r_hours { value = (($r.labor_time_hours ?? "")|to_text) }
+        conditional { if ($v_hours == "" && $r_hours != "" && $r_hours != "0") {
+          var.update $v_hours { value = $r_hours }
+        } }
+        var $r_repair { value = (($r.repair_completed ?? "")|to_text) }
+        conditional { if ($v_repair == "" && $r_repair != "") {
+          var.update $v_repair { value = $r_repair }
+        } }
+        var $r_parts { value = (($r.parts_needed ?? [])|join:", ") }
+        conditional { if ($v_parts == "" && $r_parts != "") {
+          var.update $v_parts { value = $r_parts }
+        } }
+        var $r_notes { value = (($r.customer_notes ?? "")|to_text) }
+        conditional { if ($v_notes == "" && $r_notes != "") {
+          var.update $v_notes { value = $r_notes }
+        } }
+      }
+    }
 
     var $f_diag   { value = ($v_diag != "") }
     var $f_failed { value = ($v_failed != "") }
