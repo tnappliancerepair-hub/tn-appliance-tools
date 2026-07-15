@@ -11,6 +11,7 @@
 'use strict';
 exports.config = { timeout: 26 };
 const { google } = require('googleapis');
+const { parseServicePowerBody } = require('./_lib/parsers/servicepower');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 function authH() { const t = process.env.XANO_METADATA_TOKEN; if (!t) throw new Error('no metadata token'); return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }; }
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -29,6 +30,13 @@ function findXml(payload) {
   return null;
 }
 const attr = (tag, a) => { const p = (String(tag).split(a + '="')[1] || ''); return (p.split('"')[0] || '').trim(); };
+// ServicePower / SquareTrade / NSA emails carry the address in the text/plain body.
+function findPlainBody(payload) {
+  if (!payload) return '';
+  if ((payload.mimeType || '') === 'text/plain' && payload.body && payload.body.data) return Buffer.from(payload.body.data, 'base64url').toString('utf8');
+  for (const p of (payload.parts || [])) { const b = findPlainBody(p); if (b) return b; }
+  return '';
+}
 function parseName(raw) {
   let n = s(raw); if (n.includes('&')) n = n.split('&')[0].trim();
   const t = n.replace(/\s+/g, ' ').split(' ').filter(Boolean);
@@ -115,6 +123,25 @@ exports.handler = async function (event) {
         const a = await gmail.users.messages.attachments.get({ userId: 'me', messageId: mid, id: aid });
         disp = parseDispatch(Buffer.from(a.data.data, 'base64url').toString('utf8')); hitNum = num; break;
       } catch (_) {}
+    }
+    // Fallback: ServicePower / SquareTrade / NSA dispatch — address is in the plaintext body.
+    if (!disp) {
+      for (const num of nums) {
+        try {
+          const list = await gmail.users.messages.list({ userId: 'me', q: `"${num}" newer_than:${days}d`, maxResults: 3 });
+          for (const { id } of (list.data.messages || [])) {
+            const m = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
+            const body = findPlainBody(m.data.payload); if (!body || !/Call\s*#|SQUARE TRADE|Consumer Address/i.test(body)) continue;
+            const parsed = parseServicePowerBody(body, 'Service Request Offer');
+            const dd = (parsed.dispatches || []).find((x) => s(x.call_number) === num) || (parsed.dispatches || [])[0];
+            if (dd && dd.customer && (dd.customer.raw_street || dd.customer.first_name)) {
+              disp = { street: titleCase(dd.customer.raw_street), city: titleCase(dd.customer.raw_city), state: s(dd.customer.raw_state).toUpperCase(), zip: digits(dd.customer.raw_zip).slice(0, 5), first: titleCase(dd.customer.first_name), last: titleCase(dd.customer.last_name), phone: digits(dd.customer.phone10 || dd.customer.raw_phone).slice(-10) };
+              hitNum = num; break;
+            }
+          }
+          if (disp) break;
+        } catch (_) {}
+      }
     }
     if (!disp) { unmatched++; plan.push({ job: j.id, name: (s(j.customer_first) + ' ' + s(j.customer_last)).trim(), tech: Number(j.technician_id || 0), claim: nums[0], result: 'no_dispatch_found' }); continue; }
     matched++;
