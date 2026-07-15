@@ -194,29 +194,43 @@
     return base + 'align-self:flex-end; background:rgba(116,227,196,0.12); border:1px solid rgba(116,227,196,0.35); color:#e8eaf0;';
   }
 
+  // Which LANE an outbound message went out on (two-lane separation, 2026-07-15):
+  // human = the shared office/tech line (757-5500); ai = the AI line (588-9500).
+  function laneOf(md) {
+    const src = (md.source || '').toLowerCase();
+    const lane = (md.lane || '').toLowerCase();
+    const from = String(md.from || md.from_number || '').replace(/\D/g, '');
+    if (lane === 'human' || src === 'human_line' || src === 'office_translated_reply' || src === 'tech_field' || from.endsWith('7575500')) return 'human';
+    if (lane === 'ai' || from.endsWith('5889500')) return 'ai';
+    return src ? 'ai' : 'human'; // customer_sms_reply w/o lane info = historically office
+  }
+  function whoOf(md, lane) {
+    return md.sender || md.tech_name || (lane === 'human' ? 'Office' : 'Ant');
+  }
+
   function classifyMessage(row) {
     const a = row.action || '';
     const md = row.metadata || {};
     const cls = (md.recipient_class || '').toLowerCase();
     const recipient = (md.recipient || '').toLowerCase();
-    const fromN = (md.from_number || '').toLowerCase();
     if (a === 'inbound_customer_sms_received') {
-      return { direction: 'in', counterparty: 'customer' };
+      return { direction: 'in', counterparty: 'customer', who: 'Customer' };
     }
     if (a === 'sms_sent' || a === 'sms_owner_bypass') {
       const ct = cls === 'internal' ? (recipient.endsWith('4855795') ? 'owner' : 'tech') : 'customer';
-      return { direction: 'out', counterparty: ct };
+      // Raw send-envelope = the AI line / automated (human sends log customer_sms_reply, not sms_sent).
+      return { direction: 'out', counterparty: ct, lane: 'ai', who: 'Ant' };
     }
-    // The AI/office reply back to the customer — an outbound customer message
-    // (without this it classified 'unknown' and could drop from the thread).
+    // The reply back to the customer — from a human (office/tech, 757-5500) or the AI.
     if (a === 'customer_sms_reply') {
-      return { direction: 'out', counterparty: 'customer' };
+      const lane = laneOf(md);
+      return { direction: 'out', counterparty: 'customer', lane, who: whoOf(md, lane) };
     }
     if (a === 'sms_gated' || a === 'dropped_customer_sms') {
       return { direction: 'out', counterparty: 'customer', blocked: true };
     }
     if (a === 'feedback_sms_sent' || a === 'teddy_sms_triggered') {
-      return { direction: 'out', counterparty: 'customer' };
+      return { direction: 'out', counterparty: 'customer', lane: 'ai', who: 'Ant' };
     }
     return { direction: 'unknown', counterparty: 'unknown' };
   }
@@ -246,13 +260,20 @@
       return `<div style="padding:14px; text-align:center; color:#9aa1ad; font-size:12px;">No SMS in this thread yet.</div>`;
     }
     const html = items.map(({ row, cls, body }) => {
-      const tag = cls.counterparty + (cls.direction === 'in' ? ' →' : ' ←');
+      const isIn = cls.direction === 'in';
+      const emoji = (!isIn && cls.lane === 'ai') ? '🤖' : '👤';
+      const name = cls.who || (isIn ? 'Customer' : 'Us');
+      const laneNote = (!isIn && cls.lane === 'ai') ? ' · AI' : '';
+      const labelColor = (!isIn && cls.lane === 'ai') ? '#b39dff' : (isIn ? '#8fc4ff' : '#74e3c4');
       const fade = cls.blocked ? 'opacity:0.5;' : '';
       const blockedNote = cls.blocked ? '<div style="font-size:10px; color:#ff9d4a; margin-top:4px;">⚠ blocked by gate</div>' : '';
+      // Tint AI-line outbound violet so it's obviously the AI (read-only), never mistaken for a human's text.
+      let bs = bubbleStyle(cls.direction, cls.counterparty);
+      if (!isIn && cls.lane === 'ai') bs = bs.replace(/background:[^;]+;/, 'background:rgba(150,120,255,0.13);').replace(/border:[^;]+;/, 'border:1px solid rgba(150,120,255,0.4);');
       return `
         <div style="display:flex; flex-direction:column; padding:0 4px; ${fade}">
-          <div style="${bubbleStyle(cls.direction, cls.counterparty)}">
-            <div style="font-size:10px; color:#9aa1ad; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">${tag} · ${fmtTs(row.ts_ms)}</div>
+          <div style="${bs}">
+            <div style="font-size:10px; color:${labelColor}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700;">${emoji} ${name}${laneNote} · ${fmtTs(row.ts_ms)}</div>
             <div>${(body || '(blocked)').replace(/[<>&]/g, c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]))}</div>
             ${blockedNote}
           </div>
