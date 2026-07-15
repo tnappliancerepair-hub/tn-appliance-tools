@@ -70,5 +70,35 @@ exports.handler = async function (event) {
   }
   // Tech-assigned first (they roll soonest), then by id.
   flagged.sort((a, b) => ((b.tech > 0 ? 1 : 0) - (a.tech > 0 ? 1 : 0)) || (b.id - a.id));
+
+  // BACKFILL: the real street is often ALREADY on the customer record; the job's stub
+  // ("1" / empty) just masks it. Copy the customer's address onto the job wherever the
+  // job's field is missing/bogus and the customer's is good. Never overwrites a good job
+  // field. Requires ?secret + &confirm=1 (dry by default). (Teddy 2026-07-15 - build trust)
+  if (q.backfill === '1') {
+    const dry = q.confirm !== '1';
+    const plan = []; let fixed = 0; const stillLost = [];
+    for (const f of flagged) {
+      const j = jobs.find((x) => x.id === f.id) || {};
+      const cust = custById[j.customer_id] || {};
+      const patch = {};
+      const jStreetOk = s(j.service_address) && hasStreetName(s(j.service_address));
+      if (!jStreetOk && hasStreetName(s(cust.address))) patch.service_address = s(cust.address);
+      if (!s(j.service_city) && s(cust.city)) patch.service_city = s(cust.city);
+      if (!s(j.service_state) && s(cust.state)) patch.service_state = s(cust.state);
+      if (digits(j.service_zip).length !== 5 && digits(cust.zip).length >= 5) patch.service_zip = digits(cust.zip).slice(0, 5);
+      if (!Object.keys(patch).length) {
+        // Nothing on the customer record either -> the address is genuinely missing.
+        if (f.reasons.includes('no_street') || f.reasons.includes('number_only_street')) stillLost.push({ id: f.id, name: f.name, city: f.city, tech: f.tech });
+        continue;
+      }
+      plan.push({ job: f.id, name: f.name, patch });
+      if (!dry) {
+        try { const r = await fetch(`${META}/table/${JOBS}/content/${f.id}`, { method: 'PUT', headers: authH(), body: JSON.stringify(patch) }); if (r.ok) { fixed++; await fetch(`${META}/table/3/content`, { method: 'POST', headers: authH(), body: JSON.stringify({ action: 'address_backfilled_from_customer', metadata: { job_id: f.id, patch, at_ms: Date.now() } }) }).catch(() => {}); } } catch (_) {}
+      }
+    }
+    return json(200, { ok: true, mode: dry ? 'DRY' : 'LIVE', active, would_fix: plan.length, fixed: dry ? 0 : fixed, still_lost: stillLost.length, still_lost_jobs: stillLost.slice(0, 60), plan: plan.slice(0, 60) });
+  }
+
   return json(200, { ok: true, active, clean, flagged: flagged.length, by_reason: byReason, jobs: flagged.slice(0, 250) });
 };
