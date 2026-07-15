@@ -1,4 +1,4 @@
-// Unified TDR status — the central spine artifact. Powers the
+// Unified TDR status - the central spine artifact. Powers the
 // ant-tdr-card.js component embedded on tech-simple, customer-portal,
 // warranty-review, job-detail. ONE TDR, multiple lenses.
 //
@@ -52,7 +52,7 @@ query get_unified_tdr_status verb=GET {
       value = (($tdr_rows.items|first) ?? null)
     }
 
-    // Count attachments on job. Table is `job_attachments`, not `attachment`.
+    // Count attachments on job. Table is job_attachments, not attachment.
     db.query job_attachments {
       where = $db.job_attachments.job_id == $input.job_id
       return = {type: "list", paging: {page: 1, per_page: 1}}
@@ -132,7 +132,7 @@ query get_unified_tdr_status verb=GET {
       value = ($filled_count * 100 / $req_total)
     }
 
-    // Blocking list — text of fields still empty.
+    // Blocking list - text of fields still empty.
     var $b_diag   { value = ($f_diag == true) ? "" : "diagnosis" }
     var $b_failed { value = ($f_failed == true) ? "" : "failed_component" }
     var $b_hours  { value = ($f_hours == true) ? "" : "labor_hours" }
