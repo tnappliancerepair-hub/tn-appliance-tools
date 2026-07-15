@@ -346,6 +346,15 @@
   <details style="margin: 16px auto; max-width: 600px; padding: 0 16px;">
     <summary style="cursor: pointer; padding: 12px 14px; background: #f4f6fb; border: 1px solid #e0e4ed; border-radius: 10px; font-size: 14px; color: #4a5568; font-weight: 600;">💬 Your conversation with us</summary>
     <div id="ant-sms-thread" style="margin-top: 8px; border: 1px solid #e0e4ed; border-radius: 10px; background: #fff;"></div>
+    <!-- Customer can type back into the unified thread (Teddy 2026-07-15). Their message
+         joins the same conversation the office + tech see, and a person replies. -->
+    <div style="margin-top: 8px; display: flex; gap: 8px; align-items: flex-end;">
+      <textarea id="portal-msg" rows="1" placeholder="Message us…" maxlength="900"
+        style="flex: 1; resize: none; padding: 10px 12px; border: 1px solid #d5dae4; border-radius: 10px; font-size: 14px; font-family: inherit; line-height: 1.4; min-height: 42px; max-height: 120px;"></textarea>
+      <button id="portal-send" type="button"
+        style="background: #1f8f6f; color: #fff; border: none; border-radius: 10px; padding: 0 16px; height: 42px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap;">Send</button>
+    </div>
+    <div id="portal-msg-note" style="font-size: 11px; color: #8a93a1; margin-top: 5px;">A real person answers here — we won't send you clock times or extra texts.</div>
   </details>
 
   <!-- Unified Job Timeline — customer lens (auto-filtered). Shows
@@ -1560,6 +1569,45 @@
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[c]));
   }
+
+  // 💬 Customer types into the unified thread. POST to portal-message (records their
+  // message as an inbound row so it shows on the office tile + tech page + here), then
+  // re-render the thread. A person answers on the human line. (Teddy 2026-07-15)
+  function wirePortalMessage() {
+    const ta = document.getElementById('portal-msg');
+    const btn = document.getElementById('portal-send');
+    const note = document.getElementById('portal-msg-note');
+    if (!ta || !btn) return;
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(120, ta.scrollHeight) + 'px'; };
+    ta.addEventListener('input', grow);
+    async function send() {
+      const msg = (ta.value || '').trim();
+      if (!msg) return;
+      btn.disabled = true; const ob = btn.textContent; btn.textContent = '…';
+      try {
+        const r = await fetch('/.netlify/functions/portal-message', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: Number(JOB_ID), last4: LAST4 || '', message: msg }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d && d.ok) {
+          ta.value = ''; grow();
+          if (note) { note.textContent = '✓ Sent — a team member will reply here shortly.'; note.style.color = '#127a4a'; }
+          // Re-render the unified thread so their message appears immediately.
+          try { if (window.Ant && Ant.mountSmsThread) Ant.mountSmsThread(Number(JOB_ID), 'ant-sms-thread', { filterFor: 'customer' }); } catch (_) {}
+        } else if (note) {
+          note.textContent = (d && d.error === 'no_customer_phone') ? 'We could not reach your thread — please call us.' : '⚠ Could not send — try again.';
+          note.style.color = '#c0392b';
+        }
+      } catch (_) {
+        if (note) { note.textContent = '⚠ Connection error — try again.'; note.style.color = '#c0392b'; }
+      }
+      btn.disabled = false; btn.textContent = ob;
+    }
+    btn.addEventListener('click', send);
+    ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  }
+  wirePortalMessage();
 
   init();
 })();

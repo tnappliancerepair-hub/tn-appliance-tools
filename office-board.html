@@ -1195,6 +1195,17 @@ function openCustomerThread(){
   document.getElementById('smsThread').style.display='block';
   loadThread();
 }
+// Which LANE an outbound row went out on — mirrors ant-spine.js laneOf() so the
+// office tile, the tech page + the portal all label the same message the same way:
+// 🤖 Ant (the AI line, 588-9500) vs 👤 a person (the human line, 757-5500 — office/tech).
+function stLaneOf(md){
+  const src=String(md.source||'').toLowerCase();
+  const lane=String(md.lane||'').toLowerCase();
+  const from=String(md.from||md.from_number||'').replace(/\D/g,'');
+  if(lane==='human'||src==='human_line'||src==='office_translated_reply'||src==='tech_field'||from.slice(-7)==='7575500') return 'human';
+  if(lane==='ai'||from.slice(-7)==='5889500') return 'ai';
+  return src?'ai':'human';
+}
 function renderThreadBubbles(msgs){
   const IN=new Set(['inbound_customer_sms_received']); const HELD=new Set(['sms_gated','dropped_customer_sms']);
   if(!msgs||!msgs.length) return '<div style="color:#6b7280;font-size:13px;text-align:center;padding:24px">No texts with this customer yet. Type below to start the conversation.</div>';
@@ -1202,8 +1213,15 @@ function renderThreadBubbles(msgs){
     const md=m.metadata||{}; const inb=IN.has(m.action); const held=HELD.has(m.action);
     const body=(md.body||md.message||md.text||md.reply||md.body_preview||md.translated||'').toString();
     const txt=body?esc(body):(held?'(held by the customer-SMS gate)':'(no text)');
-    const bg=inb?'#eceff3':(held?'#fdf3df':'#daf3e4'); const lbl=inb?'Customer':(held?'Ant (held)':'Us / Ant');
-    return '<div style="display:flex;justify-content:'+(inb?'flex-start':'flex-end')+';margin:5px 0"><div style="max-width:82%;background:'+bg+';border-radius:13px;padding:8px 11px"><div style="font-size:10.5px;color:#8a93a1;margin-bottom:2px">'+lbl+' · '+stRel(m.ts_ms)+'</div><div style="font-size:14px;color:#1a2230;line-height:1.4;white-space:pre-wrap;word-break:break-word">'+txt+'</div></div></div>';
+    let bg, lblColor, who, emoji, laneNote='';
+    if(inb){ bg='#eceff3'; lblColor='#4a6fa5'; who='Customer'; emoji=''; }
+    else if(held){ bg='#fdf3df'; lblColor='#a9791f'; who='Ant (held)'; emoji='🤖'; }
+    else { const lane=stLaneOf(md);
+      if(lane==='human'){ bg='#daf3e4'; lblColor='#1f8f6f'; who=md.sender||md.tech_name||'Office'; emoji='👤'; }
+      else { bg='#ede9fe'; lblColor='#7c5cd6'; who='Ant'; emoji='🤖'; laneNote=' · AI'; }
+    }
+    const lbl=(emoji?emoji+' ':'')+esc(who)+laneNote;
+    return '<div style="display:flex;justify-content:'+(inb?'flex-start':'flex-end')+';margin:5px 0"><div style="max-width:82%;background:'+bg+';border-radius:13px;padding:8px 11px"><div style="font-size:10.5px;color:'+lblColor+';margin-bottom:2px">'+lbl+' · '+stRel(m.ts_ms)+'</div><div style="font-size:14px;color:#1a2230;line-height:1.4;white-space:pre-wrap;word-break:break-word">'+txt+'</div></div></div>';
   }).join('');
 }
 async function loadThread(){
