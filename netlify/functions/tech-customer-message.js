@@ -129,25 +129,24 @@ exports.handler = async function (event) {
   const alreadyIdentified = new RegExp('tn\\s*appliance|\\b' + techFirst + '\\b', 'i').test(message);
   const full = alreadyIdentified ? translated : (techFirst + ' (TN Appliance): ' + translated);
 
-  // guardedSend enforces opt-out (absolute), quiet-hours (allowQuiet lets a live
-  // en-route text through), dedup, and scrubs any clock time. kind:'tech_field'
-  // passes the intake-only pause (a human doing the job, not automated spam).
-  const res = await guard.guardedSend({ phone: '+1' + phone10, message: full, tag: 'tech_field_' + (techId || 'x'), kind: 'tech_field', allowQuiet: true });
-
-  // Log into the unified thread as an outbound reply (what the office Messages
-  // page + tech tile both recognize), tagged with the tech so we know Lee sent it.
-  if (res.sent) {
-    try {
-      await crud.logEvent('customer_sms_reply', {
-        phone: '+1' + phone10, body: full.slice(0, 400), message: full.slice(0, 400),
-        job_id: jobId, source: 'tech_field', tech_id: techId, tech_name: techFirst,
-        language, english: message.slice(0, 400), at_ms: Date.now(),
-      });
-    } catch (_) {}
-  }
+  // Send FROM the shared HUMAN line (757-5500) — a tech texting his own job's
+  // customer is the human lane (Teddy 2026-07-15). human-line-send does the Telnyx
+  // send from 757-5500 + logs customer_sms_reply (lane:human, sender = the tech) into
+  // the shared per-job thread. Opt-out is enforced there.
+  const SITE = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://tnapplianceexchange.net';
+  let sent = false, reason = '';
+  try {
+    const r = await fetch(`${SITE}/.netlify/functions/human-line-send`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: '+1' + phone10, message: full, sender: techFirst, job_id: jobId }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const d = await r.json().catch(() => ({}));
+    sent = !!(d && d.sent); reason = (d && d.reason) || '';
+  } catch (e) { reason = String((e && e.message) || e); }
 
   return json(200, {
-    ok: res.sent, sent: res.sent, reason: res.reason,
+    ok: sent, sent, reason,
     to_masked: maskPhone(phone10), to_first: custFirst || null,
     language, translated: language !== 'English' ? full : undefined,
   });

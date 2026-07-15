@@ -51,22 +51,21 @@ exports.handler = async function (event) {
 
   const { language, translated } = await translateReply(replyEnglish, customerText);
 
+  // Send FROM the shared HUMAN line (757-5500), NOT the AI line — office replies
+  // live on the human lane now (Teddy 2026-07-15, two-lane separation). human-line-send
+  // does the Telnyx send from 757-5500 + logs customer_sms_reply (lane:human) into the
+  // shared per-job thread, so office tile + tech page + portal all show it.
+  const SITE = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://tnapplianceexchange.net';
   let sent = false;
-  try { sent = !!(await sendSms(phone, translated, 'customer', 'translated_reply')); } catch (_) { sent = false; }
-
-  // Record the reply as a `customer_sms_reply` (the action the office Messages
-  // page + list_sms_conversations already recognize as an OUTBOUND reply) so the
-  // thread flips out of "waiting" and the red REPLY badge clears. It was being
-  // logged as `translated_reply_sent`, which NEITHER surface counts — so Danielle
-  // replied and the threads kept showing as unanswered (2026-06-30). Carry `body`
-  // for the snippet + the translation detail for the record.
   try {
-    const tok = process.env.XANO_METADATA_TOKEN;
-    if (tok) await fetch(`${META}/table/${EVENT_LOG_TABLE}/content`, {
-      method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'customer_sms_reply', metadata: { phone, body: translated.slice(0, 400), message: translated.slice(0, 400), language, english: replyEnglish.slice(0, 400), translated: translated.slice(0, 400), sent, source: 'office_translated_reply', at_ms: Date.now() } }),
+    const r = await fetch(`${SITE}/.netlify/functions/human-line-send`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, message: translated, sender: String(b.sender || 'office'), job_id: Number(b.job_id || 0) || 0 }),
+      signal: AbortSignal.timeout(15000),
     });
-  } catch (_) {}
+    const d = await r.json().catch(() => ({}));
+    sent = !!(d && d.sent);
+  } catch (_) { sent = false; }
 
   return json(200, { ok: sent, sent, language, translated });
 };
