@@ -18,13 +18,14 @@ const OWNER = '+16154855795';
 const STALE_MS = 14 * 86400000; // ignore a state older than 14 days
 
 // Nextdoor recommendation (compliant path): a REAL happy customer recommends us
-// from their own account — no bot, no incentive. We only append the ask once the
-// claimed Nextdoor Business Page's recommend URL is set (vault/env NEXTDOOR_RECOMMEND_URL),
-// so a broken/placeholder link never reaches a customer. Until then, behavior is unchanged.
+// from their own account — no bot, no incentive. The claimed TN Appliance Exchange
+// Nextdoor Business Page is the destination; a valid nextdoor.com URL in the vault
+// (NEXTDOOR_RECOMMEND_URL) overrides the default.
+const NEXTDOOR_URL = 'https://nextdoor.com/page/tn-appliance-exchange-antioch-tn';
 async function nextdoorSuffix() {
   let url = '';
   try { url = String((await getSecret('NEXTDOOR_RECOMMEND_URL')) || '').trim(); } catch (_) { url = ''; }
-  if (!/^https?:\/\/(www\.)?nextdoor\.com\//i.test(url)) return '';
+  if (!/^https?:\/\/(www\.)?nextdoor\.com\//i.test(url)) url = NEXTDOOR_URL;
   return `\n\nOn Nextdoor? A quick recommendation to your neighbors helps just as much: ${url}`;
 }
 
