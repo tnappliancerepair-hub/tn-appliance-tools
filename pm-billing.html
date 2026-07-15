@@ -52,7 +52,7 @@ button.ghost{background:transparent;color:#e6e9ef;border:1px solid #2a3242}
     <label>Email</label><input id="n-email" type="email" placeholder="ap@company.com">
     <div class="row">
       <div><label>Billing track</label><select id="n-track"><option value="card">Card on file (auto-charge)</option><option value="net_terms">Net terms (monthly statement)</option></select></div>
-      <div><label>Auto-charge ceiling ($)</label><input id="n-threshold" type="number" value="250" inputmode="numeric"></div>
+      <div><label>Pre-authorization / NTE ($)</label><input id="n-threshold" type="number" value="400" inputmode="numeric"></div>
     </div>
     <button onclick="createAcct()" id="n-btn">Create account + get card-setup link →</button>
     <div class="msg" id="n-msg"></div>
@@ -105,7 +105,7 @@ function renderAccts(list){
     var badge=a.track==='net_terms'?'<span class="badge b-net">net terms</span>':(a.has_customer?'<span class="badge b-card">card</span>':'<span class="badge b-nocard">no card</span>');
     return '<div class="acct" data-pm="'+a.pm_key+'">'
       +'<div class="top"><span class="co">'+esc(a.company||a.pm_key)+'</span>'+badge+'</div>'
-      +'<div class="meta">'+[a.contact,a.phone,a.email].filter(Boolean).map(esc).join(' · ')+(a.track!=='net_terms'?(' · auto ≤ '+money(a.threshold_cents)):'')+'</div>'
+      +'<div class="meta">'+[a.contact,a.phone,a.email].filter(Boolean).map(esc).join(' · ')+(a.track!=='net_terms'?(' · pre-auth ≤ '+money(a.threshold_cents)):'')+'</div>'
       +'<div class="acts"><button class="ghost" onclick="viewCard(\''+a.pm_key+'\',this)">View card</button><button onclick="charge(\''+a.pm_key+'\',\''+esc(a.company||'')+'\')">Charge</button></div>'
       +'<div class="msg" id="m-'+a.pm_key+'"></div></div>';
   }).join('');

@@ -57,14 +57,14 @@ exports.handler = async function (event) {
   const stripe = new Stripe(key);
   if (!acct.stripe_customer_id) return json(400, { ok: false, error: 'no_stripe_customer' });
 
-  const threshold = Math.max(0, parseInt(acct.threshold_cents, 10) || 25000);
+  const threshold = Math.max(0, parseInt(acct.threshold_cents, 10) || 40000); // $400 default pre-auth / NTE
 
-  // OVER THRESHOLD + not approved -> request one-tap approval, hold the charge.
+  // OVER THE PRE-AUTH (NTE) + not approved -> request one-tap approval, hold the charge.
   if (amount > threshold && !approved) {
     const token = crypto.randomBytes(16).toString('hex');
     await logRow('pm_charge_pending', { token, pm_key: pmKey, company: acct.company, job_id: jobId, amount_cents: amount, description, actor, created_ms: Date.now() });
     const link = `${SITE}/pm-approve.html?token=${token}`;
-    const msg = 'TN Appliance: your ' + (jobId ? ('job #' + jobId + ' ') : '') + 'repair is $' + (amount / 100).toFixed(2) + '. Approve the charge to your card on file: ' + link;
+    const msg = 'TN Appliance: the ' + (jobId ? ('job #' + jobId + ' ') : '') + 'repair is $' + (amount / 100).toFixed(2) + ', above the $' + (threshold / 100).toFixed(0) + ' pre-authorized amount. Approve to your card on file: ' + link;
     let notified = false;
     if (acct.phone) { try { await sendSms(acct.phone, msg, 'customer', 'pm_charge_approval'); notified = true; } catch (_) {} }
     try { await sendSms(OWNER, '[ant] PM approval sent: ' + acct.company + ' $' + (amount / 100).toFixed(2) + (jobId ? (' job #' + jobId) : '') + (notified ? '' : ' (no PM phone — send them ' + link + ')'), 'owner', 'pm_charge_approval'); } catch (_) {}

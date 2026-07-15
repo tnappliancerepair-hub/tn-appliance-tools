@@ -25,7 +25,10 @@ exports.handler = async function (event) {
   if (!company || !pmKey) return json(400, { ok: false, error: 'company required' });
   const email = s(b.email, 120), contact = s(b.contact, 80), phone = s(b.phone, 40);
   const track = (s(b.track, 20) === 'net_terms') ? 'net_terms' : 'card';
-  const threshold = Math.max(0, parseInt(b.threshold_cents, 10) || 25000); // $250 default auto-charge ceiling
+  // Pre-authorization / NTE (Not-To-Exceed) limit: PMs pre-authorize repairs up to this
+  // amount; anything over needs additional authorization first. $400 is the standard
+  // PM pre-auth (Teddy 2026-07-15). Editable per account.
+  const threshold = Math.max(0, parseInt(b.threshold_cents, 10) || 40000);
 
   const key = await getSecret('STRIPE_SECRET_KEY');
   if (!key) return json(500, { ok: false, error: 'stripe_not_configured' });
