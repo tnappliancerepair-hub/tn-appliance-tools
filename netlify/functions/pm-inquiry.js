@@ -45,9 +45,13 @@ exports.handler = async function (event) {
 
   await logRow('pm_inquiry', { company, contact, email, phone, units, markets, message, src, role, property_type: propertyType, at_ms: Date.now() });
 
-  // Text Teddy + Danielle — a PM/multifamily account is a big recurring win, follow up fast.
+  // Text Teddy + Danielle — a PM/multifamily/partner account is a big recurring win, follow up fast.
   const isApt = src === 'apartment' || /apartment|multifamily|community/i.test(propertyType);
-  const alert = '[ant] ' + (isApt ? '🏢 APARTMENT/MULTIFAMILY' : '🏢 PROPERTY-MGMT') + ' inquiry: ' + (company || '(no company)') +
+  const label = src === 'realtor' ? '🏠 REALTOR referral'
+    : src === 'dealer' ? '🏬 APPLIANCE-DEALER partner'
+    : isApt ? '🏢 APARTMENT/MULTIFAMILY'
+    : '🏢 PROPERTY-MGMT';
+  const alert = '[ant] ' + label + ' inquiry: ' + (company || '(no company)') +
     (role ? (' · ' + role) : '') + (units ? (' · ~' + units + ' units') : '') + (markets ? (' · ' + markets) : '') +
     '\nContact: ' + (contact || '(no name)') + ' ' + (phone || '') + (email ? (' · ' + email) : '') +
     (message ? ('\n"' + message.slice(0, 200) + '"') : '') + '\nCall/email them back — preferred-vendor lead.';
