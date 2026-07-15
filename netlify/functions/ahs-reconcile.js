@@ -72,8 +72,12 @@ exports.handler = async function (event) {
   const oauth2 = new google.auth.OAuth2(cid, csec); oauth2.setCredentials({ refresh_token: rt });
   const gmail = google.gmail({ version: 'v1', auth: oauth2 });
   const byClaim = {};
+  let nextPageToken = '';
   try {
-    const list = await gmail.users.messages.list({ userId: 'me', q: `subject:"New Dispatch Notification" has:attachment newer_than:${days}d`, maxResults: max });
+    const listArgs = { userId: 'me', q: `subject:"New Dispatch Notification" has:attachment newer_than:${days}d`, maxResults: max };
+    if (q.pageToken) listArgs.pageToken = q.pageToken;   // walk the whole backlog across calls
+    const list = await gmail.users.messages.list(listArgs);
+    nextPageToken = list.data.nextPageToken || '';
     for (const { id } of (list.data.messages || [])) {
       const m = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
       const headers = m.data.payload.headers || [];
@@ -116,5 +120,5 @@ exports.handler = async function (event) {
       try { const r = await fetch(`${META}/table/7/content/${j.id}`, { method: 'PUT', headers: authH(), body: JSON.stringify(patch) }); if (r.ok) { fixed++; await fetch(`${META}/table/3/content`, { method: 'POST', headers: authH(), body: JSON.stringify({ action: 'ahs_reconciled_from_dispatch', metadata: { job_id: j.id, patch, at_ms: Date.now() } }) }).catch(() => {}); } else fails.push({ job: j.id, status: r.status }); } catch (e) { fails.push({ job: j.id, err: String(e.message || e) }); }
     }
   }
-  return json(200, { ok: true, mode: live ? 'LIVE' : 'DRY', dispatches_read: Object.keys(byClaim).length, corrections: plan.length, fixed: live ? fixed : 0, failed: fails.length, plan: plan.slice(0, 80) });
+  return json(200, { ok: true, mode: live ? 'LIVE' : 'DRY', dispatches_read: Object.keys(byClaim).length, corrections: plan.length, fixed: live ? fixed : 0, failed: fails.length, next_page_token: nextPageToken, plan: plan.slice(0, 80) });
 };
