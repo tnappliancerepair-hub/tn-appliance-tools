@@ -384,23 +384,33 @@ exports.handler = async function (event) {
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     let sys = String(msgs[si].content || '');
 
-    // 1) remove the contradictory "NO live transfer" blocks (HUMAN-HANDOFF + OX if present).
+    // 1) remove EVERY contradictory "NO live transfer" block. These piled up from
+    // earlier toggles (message_mode / endcall_notransfer) and were never stripped when
+    // transfer went back on -> the AI got told it both CAN and CANNOT transfer, so it
+    // dithered (callers had to ask 2-3x) and sometimes said "connecting you" then died
+    // in dead air. Strip them all, plus the old LIVE-TRANSFER so we re-add it fresh.
     sys = sys.replace(/\n*<!-- HUMAN-HANDOFF -->[\s\S]*?<!-- HUMAN-HANDOFF -->\n*/g, '\n');
     sys = sys.replace(/\n*<!-- OX-START -->[\s\S]*?<!-- OX-END -->\n*/g, '\n');
+    sys = sys.replace(/\n*<!-- MESSAGE-MODE -->[\s\S]*?<!-- MESSAGE-MODE -->\n*/g, '\n');
+    sys = sys.replace(/\n*<!-- ENDCALL-NOTRANSFER -->[\s\S]*?<!-- ENDCALL-NOTRANSFER -->\n*/g, '\n');
+    sys = sys.replace(/\n*<!-- LIVE-TRANSFER -->[\s\S]*?<!-- LIVE-TRANSFER -->\n*/g, '\n');
 
-    // 2) add the transfer-triggers block (when to ring a human vs. handle/capture).
+    // 2) add ONE clean transfer block. Teddy 2026-07-15: ALWAYS transfer on request
+    // (one offer to help, then transfer — don't make them ask twice), with a
+    // take-a-message fallback if no one answers, and a hard NO-DEAD-AIR rule so a
+    // call never dies in silence (Michelle's reschedule died on a silent timeout).
     const MARK = '<!-- LIVE-TRANSFER -->';
-    if (!sys.includes(MARK)) {
-      const BLOCK = `${MARK}\n## CONNECTING A CALLER TO A LIVE PERSON — you CAN transfer now (use transferCall)\n`
-        + `You have a working transferCall function that rings a real person (the office/owner cell). Use it for calls that genuinely need a human, then fall back to a message if no one picks up.\n`
+    {
+      const BLOCK = `${MARK}\n## CONNECTING A CALLER TO A LIVE PERSON — you CAN transfer (use transferCall) [highest priority]\n`
+        + `You have a working transferCall function that rings the office/owner cell. Anyone who wants a person gets one — do NOT make them ask twice, and never argue with them.\n`
         + `TRANSFER (call transferCall) when:\n`
-        + `- The caller asks to speak to a person / representative / manager / "Teddy" — after you've offered to help once and they still want a human. Don't fight them on it.\n`
-        + `- The caller is clearly upset about a real problem (a no-show, damage, "no one calls me back," a repair that failed).\n`
-        + `- It's a warranty/AHS rep who needs a decision or something you can't do yourself.\n`
-        + `- Anything expedited / urgent / medical.\n`
-        + `HOW: say "Let me connect you with our office right now — one moment," THEN call transferCall. It rings ~25 seconds.\n`
-        + `IF NO ONE ANSWERS: do NOT leave them hanging and do NOT promise a specific person. Say "I couldn't reach someone live just now, but I'll take your details and the office will call you right back," then call capture_callback (name, number, one-line summary; for a warranty rep set caller_type "warranty_rep" and include the claim/dispatch + member info).\n`
-        + `DON'T transfer for routine status or scheduling you can already handle — just handle those.\n${MARK}\n\n`;
+        + `- The caller asks for a person / representative / manager / "Teddy": offer to help ONCE ("I can help with that — what's going on?"). If they still want a person, transfer right then. Never make them repeat the request.\n`
+        + `- The caller is upset about a real problem (a no-show, damage, "no one calls me back," a repair that failed).\n`
+        + `- It's a warranty/AHS rep, or anything expedited / urgent / medical.\n`
+        + `HOW: say "Sure — let me connect you with our office, one moment," THEN call transferCall. It rings about 25 seconds.\n`
+        + `IF NO ONE ANSWERS: don't leave them hanging. Say "I couldn't reach someone live just now, but I'll take your details and have the office call you right back," then call capture_callback (name, best number, one-line summary; for a warranty rep set caller_type "warranty_rep" and include the claim/dispatch + member info).\n`
+        + `DON'T transfer for routine status or scheduling you can already finish yourself — just handle those.\n`
+        + `NEVER SIT IN SILENCE: after you speak, keep it moving. If you're looking something up, say so out loud. If the caller goes quiet, check in ONCE ("you still there?"); if still nothing, wrap up warmly and END the call — never let it die on a silent timeout. When you're done (or you've logged a callback), give a short goodbye and end the call.\n${MARK}\n\n`;
       sys = BLOCK + sys;
     }
     msgs[si] = Object.assign({}, msgs[si], { content: sys });
