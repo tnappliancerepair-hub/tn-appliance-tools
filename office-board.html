@@ -702,7 +702,16 @@ function placeOf(j){
   // Follow Up. (Teddy 2026-07-03: "she needs to move them back and forth between
   // the different areas.") Truth order: job.office_stage -> STAGE_MAP -> local.
   const sm=STAGE_MAP[j.id]&&STAGE_MAP[j.id].office_stage;
-  const ov=((j.office_stage||'')+'').trim()||sm||stageGet(j.id);
+  let ov=((j.office_stage||'')+'').trim()||sm||stageGet(j.id);
+  // A genuinely scheduled job (real day + tech, not started/completed) can NEVER belong
+  // in Needs Scheduled — being scheduled is the opposite of needing scheduling. So a stale
+  // 'schedule' breadcrumb is auto-promoted to 'scheduled' (Teddy 2026-07-14: "it needs to
+  // auto move to scheduled whenever it's scheduled"). This catches jobs booked from a
+  // surface that doesn't rewrite the board's office_stage (the new-scheduling calendar, an
+  // availability auto-schedule, reassign+date). Every OTHER manual placement still wins,
+  // and her live drop wins via pendingStage above.
+  if(ov==='schedule' && Number(j.scheduled_start)>0 && hasTech
+     && ss!=='in_progress' && cs!=='in_progress' && ss!=='completed' && cs!=='completed') ov='scheduled';
   if(ov) return ov;
   // No manual placement yet → the system's sensible default for this job.
   // Every COMPLETED job lands in the ONE Completion lane = ready to invoice, no
@@ -787,7 +796,23 @@ function renderBoard(){
   let items=allItems.filter(j=>jobRegion(j)===region);
   if(soloTech) items=items.filter(j=>Number(j.technician_id)===Number(soloTech));
   const byCol={}; cols.forEach(c=>byCol[c.id]=[]);
-  items.forEach(j=>{const p=placeOf(j); if(p==='__hide__') return; (byCol[p]||byCol['schedule']).push(j);});
+  // THE CHECK-AND-BALANCE: every non-canceled job MUST land in a real, visible column —
+  // nothing is ever silently dropped or dumped into the wrong lane. If placeOf resolves to
+  // a column that isn't rendered right now (a DEPARTED tech's folder like Billy's inv-5, or
+  // a tech folder from the other region), we DON'T fall back to Needs Scheduled — that's the
+  // bug that kept already-invoiced jobs reappearing there (Danielle 2026-07-14). Instead we
+  // re-home the card by the job's REAL state so it stays truthful and findable.
+  function safeCol(j,p){
+    if(byCol[p]) return p;                       // the intended column exists → use it
+    const ssx=(j.scheduling_status||'').toLowerCase(), csx=(j.current_status||'').toLowerCase();
+    const doneP=/^inv-|^needinv$|^paid$|^done$/.test(p) || ssx==='completed' || csx==='completed';
+    if(doneP) return byCol['done']?'done':'schedule';                 // billed/completed → Completed lane
+    if(/^rep-/.test(p)) return (ssx==='in_progress'||csx==='in_progress')&&byCol['scheduled']?'scheduled':(byCol['schedule']?'schedule':cols[0].id);
+    return byCol[p]?p:(byCol['schedule']?'schedule':cols[0].id);      // last resort: a real column, never a void
+  }
+  let _misfiled=0;
+  items.forEach(j=>{const p=placeOf(j); if(p==='__hide__') return; const dest=safeCol(j,p); if(dest!==p)_misfiled++; byCol[dest].push(j);});
+  if(_misfiled>0) try{console.warn('[board] '+_misfiled+' job(s) re-homed from a non-rendered column (departed/cross-region tech) so none were lost');}catch(_){}
   // Oldest-first within every column so the stalest jobs float to the top.
   cols.forEach(c=>byCol[c.id].sort((a,b)=>(Number(a.created_at)||0)-(Number(b.created_at)||0)));
 
