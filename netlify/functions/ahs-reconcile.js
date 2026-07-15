@@ -9,6 +9,7 @@
 //   GET ?secret=<admin>[&days=45][&max=120]      DRY - show the corrections
 //   GET ?secret=<admin>&confirm=1                act
 'use strict';
+exports.config = { timeout: 26 };   // Gmail fetches are slow; cap the batch to fit.
 const { google } = require('googleapis');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 function authH() { const t = process.env.XANO_METADATA_TOKEN; if (!t) throw new Error('no metadata token'); return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }; }
@@ -62,7 +63,7 @@ exports.handler = async function (event) {
   if (q.secret !== admin && q.secret) return json(401, { ok: false, error: 'unauthorized' });
   const live = q.confirm === '1';
   const days = Math.max(3, Math.min(120, parseInt(q.days, 10) || 45));
-  const max = Math.min(parseInt(q.max, 10) || 120, 200);
+  const max = Math.min(parseInt(q.max, 10) || 18, 30);   // Gmail fetch is slow -> small batches fit the timeout; run repeatedly / schedule to cover all.
 
   // 1) Pull the real dispatch data, keyed by dispatch/claim number (from the subject).
   const cid = process.env.GMAIL_CLIENT_ID, csec = process.env.GMAIL_CLIENT_SECRET, rt = process.env.GMAIL_REFRESH_TOKEN;
