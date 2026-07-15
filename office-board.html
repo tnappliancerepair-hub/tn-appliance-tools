@@ -1487,7 +1487,13 @@ function renderDrawer(d){
   // checklist (auto-derived from job state)
   const has=(v)=>v!=null&&String(v).trim()!=='';
   const teddyDiag=tdrs.some(x=>Number(x.technician_id)===1 && has(x.diagnosis));
-  const techReport=tdrs.some(x=>Number(x.technician_id)!==1 && (has(x.diagnosis)||has(x.technician_notes)));
+  // A tech report = a filled TDR by whoever SERVICED the job. Normally that's a non-owner
+  // tech (tech 1 = Teddy is the pre-diagnosis owner). But when Teddy IS the assigned tech
+  // on the job, HIS filled TDR is the tech report — otherwise his own completed jobs read
+  // "Report not filed" forever (Marshall Reddick #20436). (Teddy 2026-07-15)
+  const jobTechId=Number((t&&t.id)||j.technician_id||0);
+  const ownerIsTech=jobTechId===1;
+  const techReport=tdrs.some(x=>{ const tid=Number(x.technician_id); const filled=has(x.diagnosis)||has(x.technician_notes); return tid!==1 ? filled : (ownerIsTech && filled); });
   const partsLogged=has(j.parts_status)||has(j.parts_ordered_at);
   const scheduled=Number(j.scheduled_start||0)>0;
   const completed=(j.scheduling_status==='completed')||has(j.job_completed_at);
