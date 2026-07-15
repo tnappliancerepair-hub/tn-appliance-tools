@@ -593,15 +593,39 @@ async function loadBoard(){
   }
 }
 
+// Danielle can DISMISS a top-of-board alert (she asked to be able to clear them, 7/15).
+// It stays cleared until the count GROWS (something new needs attention) or ~14h pass
+// (a fresh look each day) — so she clears the noise WITHOUT losing the check-and-balance.
+function bannerDismissed(key,count){
+  try{const v=JSON.parse(localStorage.getItem('tn_dismiss_'+key)||'null');
+    if(!v)return false;
+    if(Number(count)>Number(v.count))return false;          // more items → re-alert
+    if(Date.now()-Number(v.ts)>14*3600000)return false;     // daily-ish re-review
+    return true;
+  }catch(_){return false;}
+}
+function dismissBanner(key,count,elId,evt){
+  if(evt){try{evt.preventDefault();evt.stopPropagation();}catch(_){}}
+  try{localStorage.setItem('tn_dismiss_'+key,JSON.stringify({count:Number(count)||0,ts:Date.now()}));}catch(_){}
+  const el=document.getElementById(elId); if(el)el.innerHTML='';
+  try{toast('Cleared ✓ — comes back if something new shows up');}catch(_){}
+}
+// A small ✕ to tuck on the right of a banner header.
+function dismissX(key,count,elId){
+  return '<button title="Clear this alert (comes back if something new shows up)" onclick=\'dismissBanner("'+key+'",'+(Number(count)||0)+',"'+elId+'",event)\' style="flex:0 0 auto;background:transparent;border:0;color:inherit;opacity:.6;font-size:18px;font-weight:900;line-height:1;cursor:pointer;padding:0 2px">✕</button>';
+}
+
 // Obvious message inbox alert — caller messages Ant captured, waiting for a reply.
 async function loadMessages(){
   try{
     const d=await (await fetch(XANO+'/list_callback_requests?days=7',{cache:'no-store'})).json();
     const open=(d&&d.open_count)||0;
     const el=document.getElementById('msg-banner'); if(!el)return;
-    el.innerHTML = open>0
-      ? '<a href="callbacks.html" style="display:block;background:#fff4e0;border:1px solid #ffd98a;border-radius:11px;padding:12px 14px;margin-bottom:8px;text-decoration:none;color:#b3690a;font-weight:800;font-size:14px">📲 '+open+' message'+(open===1?'':'s')+' waiting — tap to view &amp; text back</a>'
-      : '';
+    if(!(open>0) || bannerDismissed('msg',open)){ el.innerHTML=''; return; }
+    el.innerHTML='<div style="display:flex;align-items:stretch;gap:6px;margin-bottom:8px">'
+      +'<a href="callbacks.html" style="flex:1;display:block;background:#fff4e0;border:1px solid #ffd98a;border-radius:11px;padding:12px 14px;text-decoration:none;color:#b3690a;font-weight:800;font-size:14px">📲 '+open+' message'+(open===1?'':'s')+' waiting — tap to view &amp; text back</a>'
+      +'<div style="display:flex;align-items:center;color:#b3690a">'+dismissX('msg',open,'msg-banner')+'</div>'
+    +'</div>';
   }catch(_){}
 }
 
@@ -617,7 +641,7 @@ async function loadStranded(){
   try{
     const d=await (await fetch('/.netlify/functions/stranded-jobs',{cache:'no-store'})).json();
     const jobs=(d&&d.jobs)||[]; const n=jobs.length; const urgent=(d&&d.urgent)||0;
-    if(!n){ el.innerHTML=''; return; }
+    if(!n || bannerDismissed('stranded',n)){ el.innerHTML=''; return; }
     const day=(ms)=>{ if(!ms)return ''; try{return new Date(ms).toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric',timeZone:'America/Chicago'});}catch(_){return '';} };
     const rows=jobs.map(function(x){
       const badge = x.urgent
@@ -636,8 +660,9 @@ async function loadStranded(){
     }).join('');
     const head='⚠️ Accepted but nowhere — '+n+' job'+(n===1?'':'s')+' on no one’s schedule'+(urgent?' · '+urgent+' with a date + no tech':'');
     el.innerHTML='<div style="background:#fff5f5;border:1px solid #f0a9a9;border-radius:11px;padding:12px 14px;margin-bottom:8px">'
-      +'<div onclick="__strandedOpen=!__strandedOpen;loadStrandedRender()" style="cursor:pointer;display:flex;align-items:center;gap:8px;color:#b91c1c;font-weight:800;font-size:14px">'
-        +'<span id="stranded-caret">'+(__strandedOpen?'▾':'▸')+'</span><span style="flex:1">'+head+'</span>'
+      +'<div style="display:flex;align-items:center;gap:8px;color:#b91c1c;font-weight:800;font-size:14px">'
+        +'<span onclick="__strandedOpen=!__strandedOpen;loadStrandedRender()" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px"><span id="stranded-caret">'+(__strandedOpen?'▾':'▸')+'</span><span>'+head+'</span></span>'
+        +dismissX('stranded',n,'stranded-banner')
       +'</div>'
       +'<div id="stranded-list" style="'+(__strandedOpen?'':'display:none;')+'margin-top:4px">'+rows+'</div>'
     +'</div>';
@@ -669,6 +694,7 @@ function auditPaint(d){
   const el=document.getElementById('audit-banner'); if(!el)return;
     if(!d||!d.ok){ el.innerHTML=''; return; }
     const miss=(d.missing)||[]; const n=d.missing_count||0;
+    if(n && bannerDismissed('audit',n)){ el.innerHTML=''; return; }
     if(!n){
       // Clean — reassure her the board is complete. Compact, calm green.
       el.innerHTML='<div style="background:#eef8f1;border:1px solid #bfe3cc;border-radius:11px;padding:9px 14px;margin-bottom:8px;color:#1f7a4d;font-weight:700;font-size:13px">✅ Every job accounted for — nothing dropped ('+ (d.board_count||0) +' on the board)</div>';
@@ -686,8 +712,9 @@ function auditPaint(d){
     }).join('');
     const head='⛔ '+n+' job'+(n===1?'':'s')+' in the system but NOT on the board — they need attention';
     el.innerHTML='<div style="background:#fff5f5;border:2px solid #e06666;border-radius:11px;padding:12px 14px;margin-bottom:8px">'
-      +'<div onclick="__auditOpen=!__auditOpen;auditRender()" style="cursor:pointer;display:flex;align-items:center;gap:8px;color:#b91c1c;font-weight:800;font-size:14px">'
-        +'<span id="audit-caret">'+(__auditOpen?'▾':'▸')+'</span><span style="flex:1">'+head+'</span>'
+      +'<div style="display:flex;align-items:center;gap:8px;color:#b91c1c;font-weight:800;font-size:14px">'
+        +'<span onclick="__auditOpen=!__auditOpen;auditRender()" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px"><span id="audit-caret">'+(__auditOpen?'▾':'▸')+'</span><span>'+head+'</span></span>'
+        +dismissX('audit',n,'audit-banner')
       +'</div>'
       +'<div id="audit-list" style="'+(__auditOpen?'':'display:none;')+'margin-top:4px">'+rows+'</div>'
     +'</div>';
