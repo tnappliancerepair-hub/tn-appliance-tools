@@ -65,7 +65,7 @@ exports.handler = async function (event) {
 
     if (reasons.length) {
       reasons.forEach((r) => { byReason[r] = (byReason[r] || 0) + 1; });
-      flagged.push({ id: j.id, name: name || '(no name)', status: ss, tech: Number(j.technician_id || 0), wc: j.warranty_company || '', street, city, state: s(j.service_state) || s(cust.state), zip, reasons });
+      flagged.push({ id: j.id, name: name || '(no name)', status: ss, tech: Number(j.technician_id || 0), wc: j.warranty_company || '', street, job_street: jStreet, cust_street: cStreet, city, state: s(j.service_state) || s(cust.state), zip, reasons });
     } else clean++;
   }
   // Tech-assigned first (they roll soonest), then by id.
