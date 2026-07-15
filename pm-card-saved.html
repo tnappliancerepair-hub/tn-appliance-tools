@@ -18,12 +18,18 @@ a{color:#ff7c28;text-decoration:none;font-weight:700}
 <body>
 <div class="box" id="box"></div>
 <script>
-var canceled=new URLSearchParams(location.search).get('canceled');
+var q=new URLSearchParams(location.search);
+var canceled=q.get('canceled'), paid=q.get('paid'), sessionId=q.get('session_id');
 var box=document.getElementById('box');
+function saved(){box.innerHTML='<div class="ico">✅</div><h1>Card saved — you’re all set.</h1><p>Your card is securely on file with TN Appliance Exchange (stored by Stripe — we never see the number). From here on, completed repairs bill automatically, and anything over your approval limit comes to you for a one-tap OK first.<br><br>Thanks for partnering with us. Questions? <a href="tel:6152802949">615-280-2949</a>.</p>';}
 if(canceled){
-  box.innerHTML='<div class="ico">↩️</div><h1>No card saved</h1><p>You closed the secure card form before finishing. No problem — reopen your setup link any time, or call us at <a href="tel:6152802949">615-280-2949</a> and we’ll help.</p>';
-}else{
-  box.innerHTML='<div class="ico">✅</div><h1>Card saved — you’re all set.</h1><p>Your card is securely on file with TN Appliance Exchange (stored by Stripe — we never see the number). From here on, completed repairs bill automatically, and anything over your approval limit comes to you for a one-tap OK first.<br><br>Thanks for partnering with us. Questions? <a href="tel:6152802949">615-280-2949</a>.</p>';
-}
+  box.innerHTML='<div class="ico">↩️</div><h1>No card saved</h1><p>You closed the secure form before finishing. No problem — reopen your link any time, or call us at <a href="tel:6152802949">615-280-2949</a>.</p>';
+}else if(paid&&sessionId){
+  box.innerHTML='<div class="ico">💳</div><h1>Confirming your payment…</h1><p>One moment.</p>';
+  fetch('/.netlify/functions/pm-payment-verify?session_id='+encodeURIComponent(sessionId)).then(function(r){return r.json();}).then(function(d){
+    if(d&&d.paid){box.innerHTML='<div class="ico">✅</div><h1>Payment complete — thank you!</h1><p>Your payment went through and your card is now securely on file with TN Appliance Exchange (stored by Stripe — we never see the number). Future repairs at your properties bill automatically, with anything over your pre-authorized amount coming to you for a one-tap OK first.<br><br>A receipt is on the way to your email. Questions? <a href="tel:6152802949">615-280-2949</a>.</p>';}
+    else{saved();}
+  }).catch(function(){saved();});
+}else{ saved(); }
 </script>
 </body></html>

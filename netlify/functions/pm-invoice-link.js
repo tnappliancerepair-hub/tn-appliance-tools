@@ -56,7 +56,7 @@ exports.handler = async function (event) {
       line_items,
       // THE KEY: charge now AND save the card for future off-session billing.
       payment_intent_data: { setup_future_usage: 'off_session', description: (invoiceNo || description), metadata: { pm_key: pmKey, invoice_number: invoiceNo, job_id: jobId, source: 'pm_invoice_link' } },
-      success_url: `${SITE}/pm-card-saved.html?pm=${encodeURIComponent(pmKey)}&paid=1`,
+      success_url: `${SITE}/pm-card-saved.html?pm=${encodeURIComponent(pmKey)}&paid=1&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${SITE}/pm-card-saved.html?pm=${encodeURIComponent(pmKey)}&canceled=1`,
       metadata: { pm_key: pmKey, invoice_number: invoiceNo, job_id: jobId, amount_cents: String(subtotal + tax), source: 'pm_invoice_link' },
     });

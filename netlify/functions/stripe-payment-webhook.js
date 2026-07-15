@@ -49,6 +49,11 @@ exports.handler = async function (event) {
     if (session && session.payment_status === 'paid') {
       const r = await recordPaidSession(session);
       console.log('[stripe-payment-webhook]', session.id, JSON.stringify(r));
+      // PM pay-and-save-card links: close the loop even if the payer closed the tab
+      // before the redirect (marks the job paid, sets the card default, alerts Teddy).
+      if (session.metadata && session.metadata.source === 'pm_invoice_link') {
+        try { await fetch('https://tnapplianceexchange.net/.netlify/functions/pm-payment-verify?session_id=' + encodeURIComponent(session.id), { method: 'GET' }); } catch (_) {}
+      }
     }
     return { statusCode: 200, body: JSON.stringify({ ok: true }) };
   } catch (err) {
