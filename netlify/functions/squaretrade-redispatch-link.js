@@ -161,10 +161,26 @@ exports.handler = async function (event) {
       const r = await fetch(`${XANO}/office_set_job_status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: p.cancel_dupe, scheduling_status: 'canceled', actor: 'warranty_dupe_combine' }) });
       if (r.ok) {
         combined++;
+        // Move the WO fully to the keeper: strip it off the canceled dup so a search for
+        // that number returns the ACTIVE keeper, not the dead twin. (Teddy 2026-07-15)
+        await fetch(`${META}/table/7/content/${p.cancel_dupe}`, { method: 'PUT', headers: authH(), body: JSON.stringify({ claim_number: '', dispatch_source_id: '' }) }).catch(() => {});
         await fetch(`${META}/table/3/content`, { method: 'POST', headers: authH(), body: JSON.stringify({ action: 'warranty_dupe_combined', metadata: { keeper_job: p.keeper_job, canceled_dupe: p.cancel_dupe, carried_wos: p.carry_wos, appliance: p.appliance, at_ms: Date.now() } }) }).catch(() => {});
       } else fails.push({ dupe: p.cancel_dupe, status: r.status });
     } catch (e) { fails.push({ dupe: p.cancel_dupe, err: String(e.message || e) }); }
   }
-  out.combined = combined; out.failed = fails.length; out.failed_list = fails.slice(0, 8);
+  // HEAL: any CANCELED job still carrying a WO that now lives on a different ACTIVE job
+  // (e.g. the 4 combined before this clear-on-cancel shipped) gets its WO stripped so it
+  // can never shadow the active keeper in search.
+  const activeWos = new Set();
+  for (const jb of jobs) { if (isCanceled(jb)) continue; [jb.claim_number, jb.dispatch_source_id, jb.job_number].forEach((w) => { const t = String(w || '').trim(); if (t) activeWos.add(t); }); }
+  let healed = 0;
+  for (const jb of jobs) {
+    if (!isCanceled(jb)) continue;
+    const c = String(jb.claim_number || '').trim();
+    if (c && activeWos.has(c)) {
+      try { await fetch(`${META}/table/7/content/${jb.id}`, { method: 'PUT', headers: authH(), body: JSON.stringify({ claim_number: '', dispatch_source_id: '' }) }); healed++; } catch (_) {}
+    }
+  }
+  out.combined = combined; out.healed = healed; out.failed = fails.length; out.failed_list = fails.slice(0, 8);
   return j(200, out);
 };

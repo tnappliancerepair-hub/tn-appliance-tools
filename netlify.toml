@@ -567,3 +567,10 @@
 # what it'd order); go live = vault SELF_CHECKOUT_AUTOPLACE_LIVE=true. Kill: =false. ?dryrun=1.
 [functions."parts-autoplace"]
   schedule = "*/15 * * * *"
+
+# Warranty duplicate combiner (Teddy 2026-07-15) - SquareTrade/ServicePower/AHS send the
+# same job as multiple emails -> multiple tickets. This combines same-customer+same-appliance
+# dups into the one furthest along, carries every WO number onto it (searchable), soft-cancels
+# the blanks; different appliance = a separate machine, left alone. Every 15 min.
+[functions."squaretrade-redispatch-link"]
+  schedule = "*/15 * * * *"
