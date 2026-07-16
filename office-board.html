@@ -741,6 +741,23 @@ function chkGet(id){
   if(Array.isArray(sm)) return sm.slice();
   try{return JSON.parse(localStorage.getItem('tn_chk_'+id)||'[]');}catch(_){return [];}
 }
+// On drawer open, if THIS device has no ticks for the job (different device, or iOS
+// cleared localStorage), pull the job's saved ticks from the server — scanning deeper
+// than the board's global window so they're never dropped (Danielle 2026-07-16: "it's
+// clearing out my checklist"). Only hydrates when local is empty, so it never wipes a
+// tick she just made on this device.
+async function hydrateChecklistFromServer(id){
+  try{
+    if(chkGet(id).length) return;                 // this device already has ticks — trust it
+    const d=await fetch('/.netlify/functions/office-stage?job_id='+encodeURIComponent(id),{cache:'no-store'}).then(r=>r.json());
+    const arr=(d&&Array.isArray(d.checklist))?d.checklist.map(n=>parseInt(n,10)).filter(n=>!isNaN(n)):[];
+    if(!arr.length) return;
+    CHECK_MAP[id]=arr;
+    try{localStorage.setItem('tn_chk_'+id,JSON.stringify(arr));}catch(_){}
+    const box=document.getElementById('chk-list-'+id); if(!box) return;
+    box.querySelectorAll('.chk').forEach((row,i)=>{ const on=arr.includes(i); row.classList.toggle('done',on); const b=row.querySelector('.box'); if(b)b.textContent=on?'✓':''; });
+  }catch(_){}
+}
 function toggleChk(id,i,el,auto){
   let arr=chkGet(id);
   const _checking=!arr.includes(i);
@@ -1823,7 +1840,7 @@ function renderDrawer(d){
 
     <div class="dcard">
       <h4>✅ Office checklist <span style="font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">tick each step as you handle it</span></h4>
-      ${chkHtml}
+      <div id="chk-list-${j.id}">${chkHtml}</div>
     </div>
 
     <div class="dcard">
@@ -1933,6 +1950,7 @@ function renderDrawer(d){
     </div>
   `;
   prefillInvoice(jid, TECH_PAY_RATES[j.technician_id||(t&&t.id)]||0.5);
+  hydrateChecklistFromServer(jid);
   loadWarrantyParts(jid, j.claim_number||'');
   loadStopMachines(jid);
   loadOfficeNoteStatus(jid);
@@ -2634,6 +2652,34 @@ function prefillInvoice(jid,rate){
   window.__addonsTotal=0;
   recomputeInvoice();
   loadInvoiceAddons(jid);
+  hydrateInvoiceFromServer(jid,saved);   // durable read-back — survives device/cache (Danielle 2026-07-16)
+}
+// The worksheet used to read ONLY this browser's localStorage, so an invoice she
+// filled + saved looked EMPTY on any other device or after iOS cleared storage.
+// Read the last server-logged invoice; if it's NEWER than (or the local copy is
+// missing), fill the fields from it so the board is the durable source of truth.
+// Never clobbers a locally-newer save, and never overwrites a field she's typing.
+async function hydrateInvoiceFromServer(jid,saved){
+  let d=null;
+  try{ d=await fetch('/.netlify/functions/get-job-invoice?job_id='+encodeURIComponent(jid),{cache:'no-store'}).then(r=>r.json()); }catch(_){ return; }
+  if(!d||!d.found||!d.invoice) return;
+  const localAt=Number((saved&&saved._savedAt)||0), srvAt=Number(d.when_ms||0);
+  const haveLocal=saved&&INV_FIELDS.some(f=>String(saved[f]||'')!=='');
+  // Local wins only when it's genuinely newer; otherwise the server copy is truth.
+  if(haveLocal && localAt>=srvAt) return;
+  const inv=d.invoice; let filled=false;
+  INV_FIELDS.forEach(f=>{
+    const el=document.getElementById('inv-'+f); if(!el) return;
+    if(document.activeElement===el) return;      // don't yank a field she's editing
+    const v=inv[f]; if(v==null||String(v)==='') return;
+    el.value=String(v); if(f==='techpay'){el.dataset.touched='1';} filled=true;
+  });
+  if(filled){
+    recomputeInvoice();
+    // Mirror the server copy into localStorage so it's instant next time here too.
+    try{ const merge={}; INV_FIELDS.forEach(f=>merge[f]=(document.getElementById('inv-'+f)||{}).value||''); merge.amount_invoiced=inv.amount_invoiced||''; merge._savedAt=srvAt||Date.now(); localStorage.setItem(invKey(jid),JSON.stringify(merge)); }catch(_){}
+    const note=document.getElementById('inv-note'); if(note && srvAt) note.textContent='Last saved '+new Date(srvAt).toLocaleString('en-US',{timeZone:'America/Chicago',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' (from the server)';
+  }
 }
 function num(id){const v=parseFloat((document.getElementById(id)||{}).value);return isNaN(v)?0:v;}
 function recomputeInvoice(){

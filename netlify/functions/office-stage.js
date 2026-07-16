@@ -26,6 +26,30 @@ function normState(s) {
 
 exports.handler = async function (event) {
   try {
+    // READ (single job): the latest checklist + stage for ONE job, scanning deeper
+    // than the global 400-row window so a job's ticks are never dropped just because
+    // a busy payroll session pushed them out of the window (Danielle 2026-07-16: "it's
+    // clearing out my checklist"). The board hydrates the open drawer from this.
+    const qJob = parseInt((event.queryStringParameters || {}).job_id, 10);
+    if (event.httpMethod === 'GET' && qJob) {
+      let checklist = null, stage = '';
+      for (const action of ['office_checklist_set', 'office_stage_set']) {
+        for (let page = 1; page <= 6; page++) {
+          const rows = await crud.searchPageN(EVENT_LOG_TABLE, { action }, { created_at: 'desc' }, 500, page);
+          let done = false;
+          for (const r of rows) {
+            let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {};
+            if (parseInt(m.job_id, 10) !== qJob) continue;
+            if (action === 'office_checklist_set') { checklist = Array.isArray(m.checklist) ? m.checklist : []; }
+            else { stage = m.stage || ''; }
+            done = true; break;
+          }
+          if (done || rows.length < 500) break;
+        }
+      }
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, job_id: qJob, checklist: (checklist || []), office_stage: stage }) };
+    }
+
     // READ: latest placement + checklist per job, from the event_log breadcrumbs.
     if (event.httpMethod === 'GET') {
       const [stageRows, chkRows] = await Promise.all([
