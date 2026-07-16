@@ -34,6 +34,26 @@ exports.handler = async function (event) {
   const H = { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' };
 
   try {
+    // Read-only: A2P 10DLC registration status per number. An unregistered long code
+    // has its texts silently dropped by US carriers — so this shows which of our lines
+    // are actually APPROVED to text customers (Teddy 2026-07-16: "we have approved
+    // numbers, we need to use them — let's check").
+    if (action === 'tendlc') {
+      const get = async (path) => { try { const r = await fetch(`${TELNYX}${path}`, { headers: H, signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({})); return { ok: r.ok, status: r.status, data: (d && d.data) || null }; } catch (e) { return { ok: false, status: 0, data: null }; } };
+      let brand = await get('/10dlc/brand'); if (!brand.ok) brand = await get('/brand');
+      let camp = await get('/10dlc/campaign?page[size]=100'); if (!camp.ok) camp = await get('/campaign?page[size]=100');
+      let pnc = await get('/phone_number_campaigns?page[size]=200'); if (!pnc.ok) pnc = await get('/10dlc/phone_number_campaigns?page[size]=200');
+      const campById = {};
+      (Array.isArray(camp.data) ? camp.data : []).forEach((c) => { const id = c.campaignId || c.campaign_id || c.id; if (id) campById[id] = c.status || c.campaignStatus || 'registered'; });
+      const norm = (p) => { const dd = String(p || '').replace(/\D/g, ''); return dd.length === 10 ? '+1' + dd : (dd.length === 11 ? '+' + dd : '+' + dd); };
+      const byNumber = {};
+      (Array.isArray(pnc.data) ? pnc.data : []).forEach((a) => { const ph = norm(a.phoneNumber || a.phone_number); const cid = a.campaignId || a.campaign_id || a.telnyxCampaignId; if (ph) byNumber[ph] = { campaign_id: cid || null, status: (cid && campById[cid]) || 'assigned' }; });
+      const WATCH = ['+16155889500', '+16152802949', '+16158578800', '+16157575500'];
+      const verdict = WATCH.map((ph) => { const a = byNumber[ph]; return { number: ph, registered: !!a, campaign_id: (a && a.campaign_id) || null, campaign_status: (a && a.status) || 'NONE — not in a 10DLC campaign (texts get dropped)' }; });
+      const brands = (Array.isArray(brand.data) ? brand.data : []).map((b) => ({ id: b.brandId || b.id, name: b.displayName || b.entityName || b.name, status: b.identityStatus || b.status }));
+      return json(200, { ok: true, brands, campaigns_count: Array.isArray(camp.data) ? camp.data.length : 0, verdict, _paths: { brand: brand.status, campaign: camp.status, pnc: pnc.status } });
+    }
+
     // Read-only: search Telnyx's AVAILABLE inventory for a fresh number to buy
     // (the shared human SMS line). Filters to SMS+voice capable in the area code,
     // then keeps only ones matching the ends-with pattern. Buys NOTHING.
