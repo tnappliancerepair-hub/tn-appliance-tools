@@ -94,23 +94,28 @@ async function getSecretPreferVault(name) {
 // trusted server contexts already holding the metadata token.
 async function setSecret(name, value) {
   const tid = await configTableId();
-  const sr = await fetch(`${XANO_META}/table/${tid}/content/search`, {
-    method: 'POST', headers: headers(),
-    body: JSON.stringify({ search: { name }, per_page: 5, page: 1 }),
-  });
-  const sd = sr.ok ? await sr.json() : { items: [] };
-  const existing = ((sd && sd.items) || []).find((x) => x && x.name === name);
-  if (existing) {
-    await fetch(`${XANO_META}/table/${tid}/content/${existing.id}`, {
-      method: 'PUT', headers: headers(), body: JSON.stringify({ name, value }),
-    });
-  } else {
-    await fetch(`${XANO_META}/table/${tid}/content`, {
-      method: 'POST', headers: headers(), body: JSON.stringify({ name, value }),
-    });
+  // Verify the write actually landed and retry — a swallowed Xano hiccup here was
+  // silently dropping runtime-flag writes (e.g. the Reach-Me toggle "flipping off by
+  // itself": setSecret returned success but the value never persisted). 2026-07-16.
+  let lastErr = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const sr = await fetch(`${XANO_META}/table/${tid}/content/search`, {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ search: { name }, per_page: 5, page: 1 }),
+      });
+      const sd = sr.ok ? await sr.json() : { items: [] };
+      const existing = ((sd && sd.items) || []).find((x) => x && x.name === name);
+      const wr = existing
+        ? await fetch(`${XANO_META}/table/${tid}/content/${existing.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify({ name, value }) })
+        : await fetch(`${XANO_META}/table/${tid}/content`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, value }) });
+      if (wr && wr.ok) { _secretCache[name] = value; return true; }
+      lastErr = 'write ' + (wr ? wr.status : 'no-response');
+    } catch (e) { lastErr = String((e && e.message) || e); }
+    await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
   }
-  _secretCache[name] = value;
-  return true;
+  console.error('[secrets] setSecret(' + name + ') did NOT persist:', lastErr);
+  return false;
 }
 
 // Always-fresh read (no cache) — for values that change at runtime, like the

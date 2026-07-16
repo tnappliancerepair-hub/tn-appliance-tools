@@ -52,13 +52,17 @@ exports.handler = async function (event) {
 
   const action = String(body.action || 'status');
 
+  let saveFailed = false;
   if (action === 'on' || action === 'off') {
     const who = String(body.who || '').toLowerCase();
     if (who !== 'teddy' && who !== 'danielle') return json(400, { ok: false, reason: 'who must be teddy or danielle' });
-    await setSecret('OFFICE_REACH_' + who.toUpperCase(), action === 'on' ? 'on' : 'off');
+    // setSecret now verifies + retries; if it STILL couldn't persist, say so instead
+    // of silently returning a stale state (which read as the switch "flipping off").
+    const ok = await setSecret('OFFICE_REACH_' + who.toUpperCase(), action === 'on' ? 'on' : 'off');
+    saveFailed = !ok;
   }
 
   const { teddyOn, danielleOn } = await readState();
   await syncTransfer(teddyOn || danielleOn);
-  return json(200, { ok: true, teddyOn, danielleOn, transfer_on: teddyOn || danielleOn });
+  return json(200, { ok: !saveFailed, saved: !saveFailed, teddyOn, danielleOn, transfer_on: teddyOn || danielleOn, reason: saveFailed ? 'save did not persist — tap again' : undefined });
 };
