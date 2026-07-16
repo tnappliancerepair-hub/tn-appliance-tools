@@ -62,8 +62,10 @@ sections.push(`\n  <!-- Category hub pages -->`);
 // Dryer vent cleaning — the market we're pushing hard (TN main + LA cluster).
 sections.push(`\n  <!-- Dryer vent cleaning -->`);
 sections.push(entry("dryer-vent-cleaning.html", "0.95", "weekly"));
+sections.push(entry("dryer-vent-cleaning-tennessee.html", "0.9", "weekly"));
 sections.push(entry("dryer-vent-cleaning-louisiana.html", "0.9", "weekly"));
-["new-orleans","metairie","kenner","chalmette","hammond","mandeville","covington","ponchatoula","slidell","baton-rouge","denham-springs","gonzales"].forEach(s => {
+["murfreesboro","smyrna","la-vergne","franklin","brentwood","spring-hill","antioch","mt-juliet","lebanon","hendersonville","gallatin","clarksville",
+ "new-orleans","metairie","kenner","chalmette","hammond","mandeville","covington","ponchatoula","slidell","baton-rouge","denham-springs","gonzales"].forEach(s => {
   sections.push(entry("dryer-vent-cleaning-" + s + ".html", "0.85", "weekly"));
 });
 
