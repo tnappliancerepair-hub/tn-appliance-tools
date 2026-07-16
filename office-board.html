@@ -1178,7 +1178,7 @@ function cardHtml(j){
     const _day=_sd.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric',timeZone:'America/Chicago'});
     const _tm=_sd.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'});
     const _win=String(j.service_eta_window||'').trim();
-    _availCard='<div class="jc-avail" title="'+esc(String(j.warranty_company||'Warranty'))+' promised the customer this window — honor it" style="margin-top:6px;padding:6px 9px;border-radius:8px;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.45);color:#1d4ed8;font-size:12px;font-weight:800;line-height:1.4">🔒 Customer agreed: '+esc(_day)+', '+esc(_win||_tm)+'</div>';
+    _availCard='<div class="jc-avail" title="'+esc(String(j.warranty_company||'Warranty'))+' promised the customer this full window — the tech must arrive inside it" style="margin-top:6px;padding:9px 11px;border-radius:9px;background:rgba(37,99,235,.14);border:2px solid rgba(37,99,235,.6);color:#1d4ed8;font-size:13.5px;font-weight:900;line-height:1.45">🔒 Customer available '+esc(_day)+': <span style="font-size:15px">'+esc(_win||_tm)+'</span></div>';
   }
   const _replace=(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible');
   return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}" draggable="true" data-id="${j.id}">
@@ -1348,6 +1348,11 @@ async function openDrawer(id){
       if(!String(d.job.claim_number||'').trim()) d.job.claim_number=src.claim_number||bi.claim_number||'';
       if(!String(d.job.dispatch_source_id||'').trim()) d.job.dispatch_source_id=src.dispatch_source_id||bi.dispatch_source_id||'';
       if(!String(d.job.model_number||'').trim() && src.model_number) d.job.model_number=src.model_number;
+      // The kanban feed drops these, so pull them from the full job row — the drawer's
+      // schedule picker pins the customer's AGREED window from them. (Teddy 2026-07-16)
+      if(!String(d.job.service_eta_window||'').trim() && src.service_eta_window) d.job.service_eta_window=src.service_eta_window;
+      if(!String(d.job.customer_preference_text||'').trim() && src.customer_preference_text) d.job.customer_preference_text=src.customer_preference_text;
+      if(!Number(d.job.scheduled_start) && Number(src.scheduled_start)) d.job.scheduled_start=src.scheduled_start;
     }
     renderDrawer(d);
     loadDrawerMedia(parseInt(id,10));
@@ -1747,12 +1752,21 @@ function renderDrawer(d){
   // pinned at the top pre-selected. (Teddy 2026-07-16: "we should have slots available
   // for all options that could be chosen by the customer.")
   const _agreedWin=String(j.service_eta_window||'').trim();
-  const _schWins=[{h:8,w:'8am-10am'},{h:10,w:'10am-12pm'},{h:12,w:'12-2pm'},{h:14,w:'2-4pm'},{h:16,w:'4-6pm'},{h:8,w:'8am-11am'},{h:9,w:'9-11am'},{h:11,w:'11am-1pm'},{h:13,w:'1-4pm'},{h:8,w:'AM (8-12)'},{h:12,w:'PM (12-5)'}];
-  const _agreedInList=_agreedWin && _schWins.some(x=>x.w.toLowerCase()===_agreedWin.toLowerCase());
+  // ALL the window types SquareTrade lets a customer pick — 2-hour, 4-hour, AM/PM,
+  // all-day — so we can mirror the customer's actual request, not force our own slot.
+  // (Teddy 2026-07-16: "they have larger 4-hour windows and all types of options —
+  // mirror the customer's request.")
+  const _winGroups=[
+    ['2-hour windows',[[8,'8am-10am'],[9,'9-11am'],[10,'10am-12pm'],[11,'11am-1pm'],[12,'12-2pm'],[13,'1-3pm'],[14,'2-4pm'],[15,'3-5pm'],[16,'4-6pm']]],
+    ['4-hour windows',[[8,'8am-12pm'],[9,'9am-1pm'],[10,'10am-2pm'],[12,'12-4pm'],[13,'1-5pm'],[14,'2-6pm']]],
+    ['AM / PM / all day',[[8,'AM (8-12)'],[12,'PM (12-5)'],[8,'All day (8-5)']]]
+  ];
+  const _allWins=_winGroups.reduce((a,g)=>a.concat(g[1].map(x=>x[1])),[]);
+  const _agreedInList=_agreedWin && _allWins.some(w=>w.toLowerCase()===_agreedWin.toLowerCase());
   let schPosOpts='<option value="">Time — auto (next open stop)</option>';
-  if(_agreedWin && !_agreedInList){ const _ah=Number(j.scheduled_start)>0?Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',hour:'numeric',hour12:false}).format(new Date(Number(j.scheduled_start)))):8; schPosOpts+=`<option value="${_ah}" data-win="${esc(_agreedWin)}" selected>🔒 Agreed: ${esc(_agreedWin)}</option>`; }
-  schPosOpts+='<optgroup label="Customer arrival windows">'+_schWins.map(x=>`<option value="${x.h}" data-win="${esc(x.w)}"${(_agreedWin.toLowerCase()===x.w.toLowerCase())?' selected':''}>${esc(x.w)}</option>`).join('')+'</optgroup>';
-  schPosOpts+='<optgroup label="Exact stop time (routing)">'+[[8,'8:00 AM (1st stop)'],[9,'9:00 AM (2nd)'],[10,'10:00 AM (3rd)'],[11,'11:00 AM (4th)'],[12,'12:00 PM (5th)'],[13,'1:00 PM (6th)'],[14,'2:00 PM (7th)'],[15,'3:00 PM (8th)'],[16,'4:00 PM'],[17,'5:00 PM']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')+'</optgroup>';
+  if(_agreedWin && !_agreedInList){ const _ah=Number(j.scheduled_start)>0?Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',hour:'numeric',hour12:false}).format(new Date(Number(j.scheduled_start)))):8; schPosOpts+=`<option value="${_ah}" data-win="${esc(_agreedWin)}" selected>🔒 Customer's window: ${esc(_agreedWin)}</option>`; }
+  schPosOpts+=_winGroups.map(g=>'<optgroup label="'+g[0]+'">'+g[1].map(x=>`<option value="${x[0]}" data-win="${esc(x[1])}"${(_agreedWin.toLowerCase()===String(x[1]).toLowerCase())?' selected':''}>${esc(x[1])}</option>`).join('')+'</optgroup>').join('');
+  schPosOpts+='<optgroup label="Exact stop time (routing only)">'+[[8,'8:00 AM (1st stop)'],[9,'9:00 AM (2nd)'],[10,'10:00 AM (3rd)'],[11,'11:00 AM (4th)'],[12,'12:00 PM (5th)'],[13,'1:00 PM (6th)'],[14,'2:00 PM (7th)'],[15,'3:00 PM (8th)'],[16,'4:00 PM'],[17,'5:00 PM']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')+'</optgroup>';
   initDrawCal(schDayVal); // seed the pick-a-day calendar shown in the Schedule card
   // Part # gate (Teddy 2026-07-01): a filed report with NO part number can't be
   // closed out. Flag it loud so the office chases the tech for the part #.

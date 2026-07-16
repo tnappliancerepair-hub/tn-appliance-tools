@@ -1367,7 +1367,7 @@ function __initCalendar() {
         const pref = (j.customer_preference_text || '').trim();
         const base = 'font-size:12px;font-weight:700;margin-top:3px;padding:4px 7px;border-radius:6px;line-height:1.4';
         // Vendor pre-scheduled: show the exact time the customer expects.
-        if (isVendor && vendorExpect) return `<div style="${base};background:rgba(91,155,213,0.22);color:#c3d8f7">📅 Customer expects: ${vendorExpect}</div>`;
+        if (isVendor && vendorExpect) return `<div style="${base};background:rgba(37,99,235,0.28);color:#dbe8ff;font-weight:900;font-size:13px;border:1px solid rgba(120,170,255,0.6)">🔒 Customer available: ${vendorExpect} — arrive inside this window</div>`;
         // Vendor job with no captured time — be honest, it needs scheduling.
         if (isVendor) return `<div style="${base};background:rgba(138,150,168,0.12);color:#9aa6b6">🏢 ${escapeHtml(j.warranty_company || 'warranty')} — no appt time on file · needs scheduling</div>`;
         const bits = [];
