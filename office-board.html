@@ -1752,6 +1752,13 @@ function renderDrawer(d){
         <button type="button" onclick="addPartRow()" style="padding:9px;border-radius:9px;background:#eef2ff;color:#3355cc;border:1px dashed #99a8e0;font-weight:800;cursor:pointer;font-size:13px">➕ Add another part</button>
         <label style="font-size:11px;color:var(--ink2);font-weight:700">Parts ETA</label>
         <input type="date" id="pt-eta" value="${esc(j.parts_eta_date||'')}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
+        <label style="font-size:11px;color:var(--ink2);font-weight:700">📍 Where will the tech get it? <span style="color:#b3690a">(so he never has to search)</span></label>
+        <select id="pt-dest" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff">
+          <option value="home">🏠 Shipping to the customer's home</option>
+          <option value="shop">🏢 Coming to our shop — tech grabs it before the job</option>
+          <option value="truck">🚚 On the tech's truck already</option>
+          <option value="willcall">🏬 Will-call — tech picks up at the distributor</option>
+        </select>
         <div style="display:flex;gap:8px">
           <button onclick="orderParts(${jid})" style="flex:2;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">📦 Order parts</button>
           <button onclick="partsArrived(${jid})" style="flex:1;padding:11px;border-radius:9px;background:var(--blue);color:#fff;border:0;font-weight:800;cursor:pointer">✅ Arrived</button>
@@ -2369,6 +2376,9 @@ async function orderParts(id){
     try{const d=await postJSON('record_parts_order',body); if(d&&!d.error)ok++; else fail++;}catch(_){fail++;}
   }
   if(!ok){ toast('⚠ none ordered — try again'); return; }
+  // Stamp WHERE the tech gets it so his job tile shows it plainly (no MeisterTask hunt).
+  const dest=(document.getElementById('pt-dest')||{}).value||'home';
+  try{ await fetch('/.netlify/functions/set-part-location',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),where_kind:dest,by:'office'})}); }catch(_){}
   // One customer text for the whole batch: part(s) ordered + ETA + availability ask.
   let texted=false;
   try{ const nd=await (await fetch('/.netlify/functions/notify-part-ordered',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),eta_date:eta})})).json(); texted=!!(nd&&nd.ok); }catch(_){}

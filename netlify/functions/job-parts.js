@@ -50,30 +50,44 @@ exports.handler = async function (event) {
     const placed = status !== 'to_order';
     const customerBound = shipTo === 'customer';
 
-    // Build the human "where is it / where do I get it" line.
-    let where, where_icon, pickup = false;
-    if (!placed) {
-      where = customerBound
-        ? `Not ordered yet — will ship to the customer's home`
-        : `Not ordered yet — will be picked up at ${supplier_nice}`;
-      where_icon = '⏳';
-      pickup = !customerBound;
+    // Build the human "where is it / where do I get it" line. An EXPLICIT destination
+    // (notes.where_kind, set by the office at order time or the tech's "got it") wins;
+    // otherwise fall back to inferring from ship_to. `ready` = the tech can act on it now
+    // (in hand / shipped / at the shop); `pickup` = he has to go grab it somewhere.
+    const kind = String(m.where_kind || '').toLowerCase();
+    const etaTxt = eta ? ` · ETA ${eta}` : '';
+    const trkTxt = tracking ? ` · track ${tracking}` : '';
+    let where, where_icon, pickup = false, ready = false;
+    if (kind === 'truck') {
+      where = `On your truck already`; where_icon = '🚚'; ready = true;
+    } else if (kind === 'in_hand') {
+      where = `In hand — you've got it`; where_icon = '✅'; ready = true;
+    } else if (kind === 'shop') {
+      where = (placed ? `At our shop — grab it before you head out` : `Coming to our shop — grab it before you head out`) + etaTxt;
+      where_icon = '🏢'; pickup = true; ready = placed;
+    } else if (kind === 'willcall') {
+      where = (placed ? `Will-call pickup at ${supplier_nice}` : `To order — will-call pickup at ${supplier_nice}`) + (tracking ? ` · ref ${tracking}` : '') + (eta ? ` · ready ${eta}` : '');
+      where_icon = '🏬'; pickup = true; ready = placed;
+    } else if (kind === 'home') {
+      where = (placed ? `Shipped to the customer's home` : `Will ship to the customer's home`) + etaTxt + (placed ? trkTxt : '');
+      where_icon = '🏠'; ready = placed;
+    } else if (!placed) {
+      where = customerBound ? `Not ordered yet — will ship to the customer's home` : `Not ordered yet — will be picked up at ${supplier_nice}`;
+      where_icon = '⏳'; pickup = !customerBound;
     } else if (customerBound) {
-      where = `Shipped to the customer's home` + (eta ? ` · ETA ${eta}` : '') + (tracking ? ` · track ${tracking}` : '');
-      where_icon = '🏠';
+      where = `Shipped to the customer's home` + etaTxt + trkTxt; where_icon = '🏠'; ready = true;
     } else {
-      where = `Pick up at ${supplier_nice}` + (tracking ? ` · ref ${tracking}` : '') + (eta ? ` · ready ${eta}` : '');
-      where_icon = '🏬';
-      pickup = true;
+      where = `Pick up at ${supplier_nice}` + (tracking ? ` · ref ${tracking}` : '') + (eta ? ` · ready ${eta}` : ''); where_icon = '🏬'; pickup = true; ready = placed;
     }
 
     return {
       order_id: r.id, part: r.part_number, name: r.part_name || '',
       supplier, supplier_nice, status, tracking, eta, ship_to: shipTo,
-      placed, where, where_icon, pickup,
+      placed, where, where_icon, pickup, ready, where_kind: kind,
     };
   }).filter((p) => p.part && p.part !== 'TBD' || p.name);
 
   const pickups = parts.filter((p) => p.pickup).length;
-  return j(200, { ok: true, count: parts.length, pickups, parts });
+  const ready = parts.filter((p) => p.ready).length;
+  return j(200, { ok: true, count: parts.length, pickups, ready, parts });
 };

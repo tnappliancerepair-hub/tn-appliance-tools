@@ -1087,15 +1087,32 @@ async function renderPartsLocation(){
   try{ const d=await fetch('/.netlify/functions/job-parts?job_id='+JOB_ID).then(r=>r.json()); parts=(d&&d.parts)||[]; }catch(_){}
   if(!parts.length){ card.style.display='none'; return; }
   card.style.display='';
-  list.innerHTML=parts.map(p=>{
+  const pickups=parts.filter(p=>p.pickup).length;
+  const notReady=parts.filter(p=>!p.ready).length;
+  // one-glance summary so the tech knows what (if anything) he has to chase before he rolls
+  let sumTxt,sumBg,sumCol;
+  if(pickups>0){ sumTxt='⚠ '+pickups+' part'+(pickups>1?'s':'')+' to pick up before you go'; sumBg='#fff3e0'; sumCol='#b3690a'; }
+  else if(notReady>0){ sumTxt='⏳ '+notReady+' part'+(notReady>1?'s':'')+' still on the way'; sumBg='#eef3fb'; sumCol='#1f5a99'; }
+  else { sumTxt='✅ All '+parts.length+' part'+(parts.length>1?'s':'')+' ready — nothing to chase'; sumBg='#e9f8ef'; sumCol='#127a4a'; }
+  const summary='<div style="background:'+sumBg+';color:'+sumCol+';font-weight:800;font-size:13px;padding:9px 11px;border-radius:9px;margin-bottom:8px">'+sumTxt+'</div>';
+  list.innerHTML=summary+parts.map(p=>{
     const nm=esc(p.part||p.name||'part'), sub=esc([p.name&&p.name!==p.part?p.name:'',p.supplier_nice].filter(Boolean).join(' · '));
-    const color=p.pickup?'#b3690a':(p.placed?'#127a4a':'#888');
+    const color=p.pickup?'#b3690a':(p.ready?'#127a4a':'#888');
+    // "Got it" lets the tech confirm he has the part in hand — flips it to ✅ for him + the office
+    const safePart=String(p.part||'').replace(/[^A-Za-z0-9\-]/g,'');
+    const gotBtn=(p.where_kind!=='in_hand'&&(p.pickup||!p.ready))?'<button onclick="partGotIt(\''+safePart+'\')" style="margin-top:6px;padding:7px 13px;border-radius:8px;background:#127a4a;color:#fff;border:0;font-weight:800;font-size:12px;cursor:pointer">✅ Got it</button>':'';
     return '<div style="padding:9px 0;border-top:1px solid var(--line,#e3e8ef)">'
       +'<div style="font-weight:800;font-size:14px">'+nm+'</div>'
       +(sub?'<div style="font-size:12px;color:var(--dim)">'+sub+'</div>':'')
       +'<div style="font-size:13px;font-weight:700;color:'+color+';margin-top:3px">'+esc(p.where_icon)+' '+esc(p.where)+'</div>'
+      +gotBtn
       +'</div>';
   }).join('');
+}
+// tech confirms a part is in hand → office + his own view flip to ✅
+async function partGotIt(part){
+  try{ await fetch('/.netlify/functions/set-part-location',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,part:part,in_hand:true,tech_id:TECH_ID})}); }catch(_){}
+  if(typeof renderPartsLoc==='function') renderPartsLoc();
 }
 async function renderJobParts(){
   const card=document.getElementById('wparts-card'), list=document.getElementById('wparts-list');
