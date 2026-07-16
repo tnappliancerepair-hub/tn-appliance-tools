@@ -27,7 +27,11 @@ const NONTERMINAL = new Set(['parts_needed', 'warranty_auth_needed', 'reassignme
 // job keeps job_completed_at (tech sees "Done") but scheduling_status stays 'scheduled'
 // (office sees "not complete") — Jimmy 2026-07-13: "we mark complete, office isn't
 // showing it complete, keeps getting asked if it's done." We reconcile it here.
-const STATUS_MAP = { repair_complete: 'completed', no_repair: 'no_fix_possible', parts_needed: 'awaiting_parts', warranty_auth_needed: 'held', reassignment_needed: 'needs_more_info' };
+// reassignment_needed (🙋 Pass off — 2nd opinion) lands on 'held' — NOT needs_more_info,
+// which is a board blind spot the office board never renders (the job would vanish). 'held'
+// is in the board feed and routes to the tech's Report folder, and the second_opinion_
+// requested marker (logged below) drives the ORANGE siren so the office jumps on it.
+const STATUS_MAP = { repair_complete: 'completed', no_repair: 'no_fix_possible', parts_needed: 'awaiting_parts', warranty_auth_needed: 'held', reassignment_needed: 'held' };
 
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST,OPTIONS' }, body: JSON.stringify(b) }; }
 
@@ -74,6 +78,12 @@ exports.handler = async function (event) {
   // job_completed_at anyway; strip it so the next trip can complete cleanly.
   if (d && d.success && NONTERMINAL.has(ct)) {
     try { await crud.update(TABLES.jobs, jobId, { job_completed_at: null }); await crud.logEvent('diagnostic_visit_not_terminal', { job_id: jobId, completion_type: ct, at_ms: Date.now() }); } catch (_) {}
+  }
+
+  // 🙋 SECOND OPINION marker → the office board flags it with an ORANGE siren so Danielle
+  // uploads it to the warranty company for a 2nd opinion. (Teddy 2026-07-16, option 4.)
+  if (d && d.success && ct === 'reassignment_needed') {
+    try { await crud.logEvent('second_opinion_requested', { job_id: jobId, technician_id: techId, at_ms: Date.now() }); } catch (_) {}
   }
 
   // RECONCILE — guarantee the office sees what the tech sees. The XS leaves

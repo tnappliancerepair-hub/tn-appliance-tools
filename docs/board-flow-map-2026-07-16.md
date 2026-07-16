@@ -90,7 +90,22 @@ Each maps to a `scheduling_status` and a board lane:
 | ✅ Fixed it — done | `repair_complete` | `completed` | **Follow Up** | Same-day: → Follow Up → 48h → Needs Invoice → bill |
 | 🔩 Needs parts — coming back | `parts_needed` | `awaiting_parts` | **Waiting Parts** | Parts cycle → Completion (parts in) → return → done |
 | 🔁 Recommend replacement | `no_repair` | `no_fix_possible` | **[Tech] · Report** | Stays as active work; office files the replacement claim |
-| 🙋 Pass off — 2nd opinion | `reassignment_needed` | `needs_more_info` | (option 4 — TBD) | (to be mapped) |
+| 🙋 Pass off — 2nd opinion | `reassignment_needed` | `held` | **[Tech] · Report** | Same as replacement; office uploads to warranty for a 2nd opinion |
+
+### Option 4 — Second opinion (same gate, ORANGE siren)
+
+Same flow as option 3 (replacement): stays in the **tech's Report folder** and
+fires an unmissable gate (`secondOpinionGate()`) requiring a **model+machine
+photo** and a **real written reason** — with a message that ribs the tech a
+little ("A second opinion?! Oh wow, you finally found one you can't fix…").
+
+Difference from replacement: it lands on `held` (NOT `no_fix_possible`) and
+logs a `second_opinion_requested` event, so the board shows an **ORANGE** siren
+(🟠 SECOND OPINION) instead of the RED replacement siren — so the office can tell
+them apart at a glance: **red = replacement, orange = second opinion.** `held`
+is used because `needs_more_info` (the old mapping) is a board blind spot that
+would make the job vanish. The office uploads the package to the warranty
+company for the 2nd opinion. (Teddy 2026-07-16.)
 
 ### Option 3 — Recommend replacement (the replacement gate)
 

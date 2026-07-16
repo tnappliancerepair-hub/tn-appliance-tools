@@ -1366,6 +1366,12 @@ function completeFlow(){
       const ok=await replacementGate();
       if(!ok) return;   // tech backed out — nothing submitted, job stays as-is
     }
+    // 🙋 Second opinion: same gate as replacement (office uploads it to the warranty
+    // company for a 2nd opinion) — needs a model photo + a real reason, no weak reports.
+    if(b.dataset.ct==='reassignment_needed'){
+      const ok=await secondOpinionGate();
+      if(!ok) return;
+    }
     toast('Completing…');
     try{
       // Persist the tech's typed report FIRST. Completing reloads the page and reseeds
@@ -1456,6 +1462,66 @@ function replacementGate(){
       if(btn.disabled) return;
       const nEl=document.getElementById('notes');
       if(nEl){ const pre='🔁 REPLACEMENT RECOMMENDED — '; const cur=(nEl.value||'').trim(); nEl.value = cur ? (pre+reason.value.trim()+'\n\n'+cur) : (pre+reason.value.trim()); }
+      ov.remove(); resolve(true);
+    };
+    refresh();
+  });
+}
+
+// The "Second opinion" gate — same shape as the replacement gate, ORANGE, with a
+// message that picks on the tech a little (Teddy 2026-07-16). Needs a model+machine
+// photo and a real reason so the office can upload it to the warranty company for a
+// 2nd opinion. Resolves true once both are supplied; false if he backs out.
+function secondOpinionGate(){
+  return new Promise(resolve=>{
+    let photos=0;
+    const ov=document.createElement('div');
+    ov.id='secondop-gate';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,12,20,.82);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:14px';
+    ov.innerHTML='<div style="max-width:520px;width:100%;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)">'
+      +'<div style="background:linear-gradient(135deg,#ea580c,#f59e0b);color:#fff;padding:18px;text-align:center">'
+        +'<div style="font-size:34px;line-height:1">🙋😏</div>'
+        +'<div style="font-size:20px;font-weight:900;margin-top:4px">A SECOND OPINION?!</div>'
+        +'<div style="font-size:13px;font-weight:600;opacity:.97;margin-top:6px">Oh wow — you finally found one you can\'t fix. 😉 Alright, let\'s make it count.</div>'
+      +'</div>'
+      +'<div style="padding:16px 18px 18px">'
+        +'<div style="font-weight:800;font-size:15px;margin-bottom:8px">Give me something GOOD to send the warranty company — no weak reports:</div>'
+        +'<ol style="margin:0 0 12px 18px;padding:0;font-size:14px;line-height:1.5;color:#1f2937"><li><b>A photo of the model number</b> and the machine</li><li><b>Tell me exactly why</b> we can\'t fix it / aren\'t the ones to work on this — your real reasoning</li></ol>'
+        +'<button id="so-photo-btn" style="width:100%;padding:13px;border:2px dashed #ea580c;background:#fff7ed;color:#c2410c;font-weight:800;font-size:15px;border-radius:10px;cursor:pointer">📷 Add photo (model # + machine)</button>'
+        +'<input type="file" accept="image/*" capture="environment" id="so-photo-in" style="display:none">'
+        +'<div id="so-photo-status" style="font-size:13px;color:#8a93a1;margin:6px 2px 12px">No photo added yet — tap above.</div>'
+        +'<label style="font-weight:800;font-size:14px;display:block;margin-bottom:4px">Why do we need a second opinion?</label>'
+        +'<textarea id="so-reason" rows="5" placeholder="What\'s the machine, what\'s failing, what you tried, and why it needs another set of eyes / why we\'re not the ones to fix this. Real detail — this is what the warranty company reads." style="width:100%;box-sizing:border-box;font-size:15px;padding:10px;border:1px solid #c8d2e0;border-radius:10px;resize:vertical"></textarea>'
+        +'<div id="so-reason-count" style="font-size:12px;color:#8a93a1;margin:4px 2px 14px">0 characters — give me more to work with</div>'
+        +'<button id="so-submit" disabled style="width:100%;padding:14px;border:0;border-radius:10px;background:#9aa4b2;color:#fff;font-weight:900;font-size:16px;cursor:not-allowed">Add photo + a real reason</button>'
+        +'<button id="so-cancel" style="width:100%;padding:10px;margin-top:8px;border:0;background:transparent;color:#6b7280;font-weight:700;font-size:13px;cursor:pointer">← Back (pick a different option)</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    const btn=ov.querySelector('#so-submit'), reason=ov.querySelector('#so-reason');
+    const cnt=ov.querySelector('#so-reason-count'), pstat=ov.querySelector('#so-photo-status');
+    function refresh(){
+      const rlen=reason.value.trim().length;
+      cnt.textContent=rlen+' characters'+(rlen<40?' — give me more to work with':' ✓');
+      const ready=photos>0 && rlen>=40;
+      btn.disabled=!ready;
+      btn.style.background=ready?'#ea580c':'#9aa4b2';
+      btn.style.cursor=ready?'pointer':'not-allowed';
+      btn.textContent=ready?'✅ Send it up for a 2nd opinion':'Add photo + a real reason';
+    }
+    reason.addEventListener('input',refresh);
+    ov.querySelector('#so-photo-btn').onclick=()=>ov.querySelector('#so-photo-in').click();
+    ov.querySelector('#so-photo-in').onchange=async(e)=>{
+      const f=e.target.files&&e.target.files[0]; if(!f) return;
+      pstat.textContent='Uploading photo…';
+      try{ const r=await uploadPhotoProxy(f); if(r&&r.ok){ photos++; pstat.innerHTML='✅ '+photos+' photo'+(photos>1?'s':'')+' added — add another (model # AND machine) or continue.'; } else { pstat.textContent='⚠ upload failed — try again.'; } }
+      catch(_){ pstat.textContent='⚠ upload failed — try again.'; }
+      e.target.value=''; refresh();
+    };
+    ov.querySelector('#so-cancel').onclick=()=>{ ov.remove(); resolve(false); };
+    btn.onclick=()=>{
+      if(btn.disabled) return;
+      const nEl=document.getElementById('notes');
+      if(nEl){ const pre='🙋 SECOND OPINION — '; const cur=(nEl.value||'').trim(); nEl.value = cur ? (pre+reason.value.trim()+'\n\n'+cur) : (pre+reason.value.trim()); }
       ov.remove(); resolve(true);
     };
     refresh();
