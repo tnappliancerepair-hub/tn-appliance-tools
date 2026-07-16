@@ -1178,7 +1178,7 @@ function cardHtml(j){
     const _day=_sd.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric',timeZone:'America/Chicago'});
     const _tm=_sd.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'});
     const _win=String(j.service_eta_window||'').trim();
-    _availCard='<div class="jc-avail" title="'+esc(String(j.warranty_company||'Warranty'))+' pre-scheduled the customer for this time" style="margin-top:6px;padding:6px 9px;border-radius:8px;background:rgba(37,99,235,.09);border:1px solid rgba(37,99,235,.35);color:#1d4ed8;font-size:12px;font-weight:700;line-height:1.4">📅 Customer expects: '+esc(_day)+', '+esc(_win||_tm)+'</div>';
+    _availCard='<div class="jc-avail" title="'+esc(String(j.warranty_company||'Warranty'))+' promised the customer this window — honor it" style="margin-top:6px;padding:6px 9px;border-radius:8px;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.45);color:#1d4ed8;font-size:12px;font-weight:800;line-height:1.4">🔒 Customer agreed: '+esc(_day)+', '+esc(_win||_tm)+'</div>';
   }
   const _replace=(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible');
   return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}" draggable="true" data-id="${j.id}">
@@ -1742,6 +1742,17 @@ function renderDrawer(d){
   // assignment (e.g. John on a TN board) stays selectable. (Teddy 2026-07-06)
   const schPool=Array.from(new Set(SCHED_TECHS.concat(Number(j.technician_id)>0?[Number(j.technician_id)]:[])));
   const schTechOpts='<option value="">— pick tech —</option>'+schPool.map(tt=>`<option value="${tt}"${Number(j.technician_id)===Number(tt)?' selected':''}>${esc(TECH_NAME[tt]||('Tech '+tt))}</option>`).join('');
+  // TIME OPTIONS = the customer's ARRIVAL WINDOWS (what SquareTrade promises), not just
+  // stop-hours. Honor the promised slot: if the job already has an agreed window, it's
+  // pinned at the top pre-selected. (Teddy 2026-07-16: "we should have slots available
+  // for all options that could be chosen by the customer.")
+  const _agreedWin=String(j.service_eta_window||'').trim();
+  const _schWins=[{h:8,w:'8am-10am'},{h:10,w:'10am-12pm'},{h:12,w:'12-2pm'},{h:14,w:'2-4pm'},{h:16,w:'4-6pm'},{h:8,w:'8am-11am'},{h:9,w:'9-11am'},{h:11,w:'11am-1pm'},{h:13,w:'1-4pm'},{h:8,w:'AM (8-12)'},{h:12,w:'PM (12-5)'}];
+  const _agreedInList=_agreedWin && _schWins.some(x=>x.w.toLowerCase()===_agreedWin.toLowerCase());
+  let schPosOpts='<option value="">Time — auto (next open stop)</option>';
+  if(_agreedWin && !_agreedInList){ const _ah=Number(j.scheduled_start)>0?Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Chicago',hour:'numeric',hour12:false}).format(new Date(Number(j.scheduled_start)))):8; schPosOpts+=`<option value="${_ah}" data-win="${esc(_agreedWin)}" selected>🔒 Agreed: ${esc(_agreedWin)}</option>`; }
+  schPosOpts+='<optgroup label="Customer arrival windows">'+_schWins.map(x=>`<option value="${x.h}" data-win="${esc(x.w)}"${(_agreedWin.toLowerCase()===x.w.toLowerCase())?' selected':''}>${esc(x.w)}</option>`).join('')+'</optgroup>';
+  schPosOpts+='<optgroup label="Exact stop time (routing)">'+[[8,'8:00 AM (1st stop)'],[9,'9:00 AM (2nd)'],[10,'10:00 AM (3rd)'],[11,'11:00 AM (4th)'],[12,'12:00 PM (5th)'],[13,'1:00 PM (6th)'],[14,'2:00 PM (7th)'],[15,'3:00 PM (8th)'],[16,'4:00 PM'],[17,'5:00 PM']].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join('')+'</optgroup>';
   initDrawCal(schDayVal); // seed the pick-a-day calendar shown in the Schedule card
   // Part # gate (Teddy 2026-07-01): a filed report with NO part number can't be
   // closed out. Flag it loud so the office chases the tech for the part #.
@@ -1965,19 +1976,7 @@ function renderDrawer(d){
         <select id="schTech" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${schTechOpts}</select>
         <div id="drawCal" class="dc">${drawCalHtml()}</div>
         <input type="date" id="schDay" value="${schDayVal}" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px">
-        <select id="schPos" title="Pick the time on that tech's day (office-only — customer still gets day-of)" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">
-          <option value="">Time — auto (next open stop)</option>
-          <option value="8">8:00 AM (1st stop)</option>
-          <option value="9">9:00 AM (2nd stop)</option>
-          <option value="10">10:00 AM (3rd)</option>
-          <option value="11">11:00 AM (4th)</option>
-          <option value="12">12:00 PM (5th)</option>
-          <option value="13">1:00 PM (6th)</option>
-          <option value="14">2:00 PM (7th)</option>
-          <option value="15">3:00 PM (8th)</option>
-          <option value="16">4:00 PM</option>
-          <option value="17">5:00 PM</option>
-        </select>
+        <select id="schPos" title="Pick the customer's arrival window (SquareTrade's promised slot pins at the top). Office-only — customer still gets day-of confirmation." style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${schPosOpts}</select>
         <select id="schSlots" title="How many stops this job takes on the tech's day" style="padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">
           <option value="1">Job length — 1 slot (standard)</option>
           <option value="2">2 slots — long job (~3 hrs)</option>
@@ -2605,6 +2604,10 @@ async function scheduleFromDrawer(id){
   // the time is never shown to them (Teddy's no-times-to-customers rule intact).
   const posEl=document.getElementById('schPos');
   const pos=parseInt((posEl&&posEl.value)||'0',10);
+  // If an arrival WINDOW was picked, capture its label so we record the exact window the
+  // customer was promised (service_eta_window) — not just a start hour. (Teddy 2026-07-16)
+  const _selOpt=posEl&&posEl.selectedOptions&&posEl.selectedOptions[0];
+  const win=(_selOpt&&_selOpt.getAttribute&&_selOpt.getAttribute('data-win'))||'';
   const posHour=(pos>=8&&pos<=21)?pos:Math.min(8+sameDay,21);
   const startMs=ctStartMs(day, posHour);
   // A long job blocks the tech's day for longer — reserve ~2.5hr per slot so the day's
@@ -2612,7 +2615,7 @@ async function scheduleFromDrawer(id){
   const endMs=startMs + jobSlots*2.5*3600000;
   toast('Scheduling…');
   try{
-    let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:''});
+    let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:win});
     // The state machine can refuse a (re)schedule two ways: "terminal_locked"
     // (a canceled/completed job) OR "illegal_transition" — e.g. a job that was
     // STARTED then sent back for a parts return still reads in_progress, and the
@@ -2623,7 +2626,7 @@ async function scheduleFromDrawer(id){
     if(d&&!d.success&&/terminal|illegal|transition|locked/i.test(String((d&&d.error)||''))){
       toast('Clearing a stuck status…');
       try{await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'not_ready',actor:'Danielle'});}catch(_){}
-      d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:''});
+      d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:win});
     }
     if(d&&d.success){
       // Record how many stop-slots this job eats (latest-wins). Always write it so

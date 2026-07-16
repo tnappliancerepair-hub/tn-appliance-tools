@@ -612,7 +612,7 @@
             const day = sd.toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'America/Chicago' });
             const tm = sd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' });
             const win = String(j.service_eta_window || '').trim();
-            appt = `<div style="margin-top:4px;font-weight:800;color:#1d4ed8">📅 Customer expects: ${escapeHtml(day)}, ${escapeHtml(win || tm)}</div>`;
+            appt = `<div style="margin-top:4px;font-weight:900;color:#1d4ed8">🔒 Customer agreed: ${escapeHtml(day)}, ${escapeHtml(win || tm)} — honor this window</div>`;
           }
           return `<div style="${base};background:rgba(91,155,213,0.13);border:1px solid rgba(91,155,213,0.5);color:#2c5777">📌 <b>${escapeHtml(j.warranty_company)}</b> — vendor pre-scheduled slot (locked).${appt} ${rows.length ? rows.join('') : ''}</div>`;
         }
