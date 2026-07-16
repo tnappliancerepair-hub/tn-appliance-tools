@@ -139,96 +139,95 @@
   @keyframes spin{to{transform:rotate(360deg);}}
 
   /* ══════════════════════════════════════════════════════════════════════
-     🕹️ THE ARCADE — an 80s synthwave theme for Danielle's board. Neon on a
-     midnight grid, sunset topbar, chrome headers, glowing columns. Purely
-     cosmetic: nothing about the layout, ids, handlers, or reliability changes
-     — the board works exactly the same, it just feels like a neon arcade.
-     (Teddy 2026-07-16: swapped from the Hogwarts "Great Hall"; she's a huge
-     80s fan.)  Appended last so it wins the cascade.
+     🎰 THE JACKPOT — a vivid Las Vegas slot-machine theme for Danielle's board.
+     Red velvet + gold marquee, saturated reel-color columns, coin-bright cards.
+     Purely cosmetic: nothing about the layout, ids, handlers, or reliability
+     changes — the board works exactly the same, it just feels like a casino floor.
+     (Teddy 2026-07-16: "more vivid colors, more slot-machine vibes.")  Appended
+     last so it wins the cascade.
      ═════════════════════════════════════════════════════════════════════ */
   :root{
-    --bg:#f2ecfb; --card:#ffffff; --line:#e3d6f5;
-    --ink:#1c1338; --ink2:#5b4a80; --dim:#9483b8; --violet:#8a4fff;
-    --cyan:#00b7c7; --magenta:#ff2d95; --orange:#ff7a2f; --neon:#12c78f; --purple:#8a4fff; --pink:#ff5db1;
+    --bg:#fbf1dd; --card:#fffdf7; --line:#e7cfa0;
+    --ink:#2a1410; --ink2:#7a4a2f; --dim:#a98a63; --violet:#8e24aa;
+    --gold:#f6b400; --gold-d:#c98a00; --red:#e01e37; --green:#10a54a; --purple:#8e24aa; --blue:#1e88e5; --pink:#e91e8c; --orange:#ff6d00;
   }
   body{
     background:
-      radial-gradient(1200px 600px at 82% -14%, rgba(255,45,149,.12), transparent 60%),
-      radial-gradient(900px 520px at 8% -8%, rgba(0,183,199,.10), transparent 60%),
-      linear-gradient(180deg,#f6effc,#efe6fb);
+      radial-gradient(1100px 560px at 84% -12%, rgba(224,30,55,.14), transparent 60%),
+      radial-gradient(900px 520px at 8% -8%, rgba(246,180,0,.16), transparent 60%),
+      linear-gradient(180deg,#fdf6e6,#f7ead0);
   }
-  /* Sunset-horizon topbar + faint neon grid */
+  /* Red-velvet + gold marquee topbar (chase-light dots) */
   .topbar{
     background:
-      linear-gradient(180deg, rgba(255,255,255,.05) 1px, transparent 1px) 0 0/100% 14px,
-      linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px) 0 0/26px 100%,
-      linear-gradient(180deg,#2a1150 0%,#5a1a5e 42%,#a12a6b 66%,#ff6a3d 100%);
-    border-bottom:2px solid var(--magenta);
-    box-shadow:0 2px 0 rgba(255,45,149,.5), 0 10px 26px rgba(42,17,80,.4);
+      radial-gradient(circle at 8px 6px, rgba(255,225,120,.9) 1.6px, transparent 2.4px) 0 0/28px 100%,
+      linear-gradient(180deg,#8e0e22 0%,#c01230 55%,#8e0e22 100%);
+    border-bottom:3px solid var(--gold);
+    box-shadow:0 2px 0 rgba(246,180,0,.6), 0 10px 26px rgba(90,8,20,.4);
   }
   .tb-title{
     font-family:"Orbitron","Arial Black",sans-serif;
-    font-weight:800; letter-spacing:.12em; font-size:19px; text-transform:uppercase;
-    color:#fff;
-    text-shadow:0 0 8px var(--cyan), 0 0 16px var(--magenta), 0 1px 0 #2a1150;
+    font-weight:800; letter-spacing:.10em; font-size:19px; text-transform:uppercase;
+    color:#ffe08a;
+    text-shadow:0 0 8px rgba(246,180,0,.9), 0 0 18px rgba(224,30,55,.7), 0 1px 0 #4a0812;
   }
-  /* header controls, legible on the sunset */
-  .seg{background:rgba(255,255,255,.10); border:1px solid rgba(0,183,199,.5);}
-  .seg button{color:#f3e6ff;}
-  .seg button.on{background:linear-gradient(180deg,#00e5ff,#00b7c7); color:#0a1030; box-shadow:0 0 10px rgba(0,229,255,.6);}
-  .topbar .x{background:rgba(255,255,255,.10)!important; color:#00e5ff!important; border-color:rgba(0,183,199,.5)!important;}
-  .tb-search input{background:#fff; border:1px solid var(--magenta); color:#1c1338;}
-  .tb-search input::placeholder{color:#9483b8;}
-  .hop a{background:rgba(255,255,255,.10); color:#f3e6ff; border:1px solid rgba(255,45,149,.4);}
-  .hop a:active{background:rgba(255,45,149,.28);}
-  #more-toggle{background:rgba(255,255,255,.08); color:#e7d6ff; border-color:rgba(0,183,199,.4);}
-  #more-toggle.open{background:rgba(0,229,255,.22); color:#fff;}
-  .more-row a{background:rgba(255,255,255,.08); color:#f3e6ff; border-color:rgba(255,45,149,.3);}
-  .sresults a{background:#fff; border-color:var(--magenta); color:#1c1338;}
+  /* header controls, legible on the velvet */
+  .seg{background:rgba(0,0,0,.16); border:1px solid rgba(246,180,0,.6);}
+  .seg button{color:#ffe9b8;}
+  .seg button.on{background:linear-gradient(180deg,#ffd54a,#f6b400); color:#3a1400; box-shadow:0 0 10px rgba(246,180,0,.7);}
+  .topbar .x{background:rgba(0,0,0,.16)!important; color:#ffd54a!important; border-color:rgba(246,180,0,.6)!important;}
+  .tb-search input{background:#fffdf7; border:1px solid var(--gold-d); color:#2a1410;}
+  .tb-search input::placeholder{color:#a98a63;}
+  .hop a{background:rgba(0,0,0,.14); color:#ffe9b8; border:1px solid rgba(246,180,0,.5);}
+  .hop a:active{background:rgba(246,180,0,.28);}
+  #more-toggle{background:rgba(0,0,0,.12); color:#ffe0a0; border-color:rgba(246,180,0,.5);}
+  #more-toggle.open{background:rgba(246,180,0,.28); color:#fff;}
+  .more-row a{background:rgba(0,0,0,.12); color:#ffe9b8; border-color:rgba(246,180,0,.4);}
+  .sresults a{background:#fffdf7; border-color:var(--gold-d); color:#2a1410;}
 
-  /* Columns = neon-lit lanes */
+  /* Columns = vivid slot reels */
   .col{
-    background:linear-gradient(180deg, rgba(255,255,255,.72), rgba(246,239,252,.72));
-    border:1px solid #e0d2f2; border-top:4px solid var(--cyan);
-    border-radius:12px; box-shadow:0 2px 10px rgba(138,79,255,.10);
+    background:linear-gradient(180deg, rgba(255,253,247,.82), rgba(251,241,221,.82));
+    border:1px solid #e7cfa0; border-top:5px solid var(--purple);
+    border-radius:12px; box-shadow:0 2px 12px rgba(142,14,34,.10);
   }
-  .col-h{font-family:"Orbitron",Georgia,sans-serif; letter-spacing:.09em; text-transform:uppercase; color:#0a8f9c;}
-  .col-h .ct{background:var(--cyan); color:#06262a;}
-  .col.tech{border-top-color:var(--magenta);}  .col.tech .col-h{color:#d6237c;}   .col.tech .col-h .ct{background:var(--magenta); color:#3a0020;}
-  .col.parts{border-top-color:var(--orange);}  .col.parts .col-h{color:#e0631a;}   .col.parts .col-h .ct{background:var(--orange); color:#3a1400;}
-  .col.done{border-top-color:var(--neon);}   .col.done .col-h{color:#0c9c74;}    .col.done .col-h .ct{background:var(--neon); color:#04241a;}
-  .col.followup{border-top-color:var(--purple);} .col.followup .col-h{color:var(--purple);} .col.followup .col-h .ct{background:var(--purple); color:#1a0640;}
-  .col.upgrade{border-top-color:#00b7c7;}     .col.upgrade .col-h{color:#0a8f9c;}      .col.upgrade .col-h .ct{background:#00b7c7; color:#06262a;}
-  .col.autho{border-top-color:var(--pink);}       .col.autho .col-h{color:#d63c8e;}        .col.autho .col-h .ct{background:var(--pink); color:#3a0020;}
-  .col.dropok{outline:2px dashed var(--cyan); outline-offset:-3px; background:rgba(0,229,255,.12);}
+  .col-h{font-family:"Orbitron",Georgia,sans-serif; letter-spacing:.08em; text-transform:uppercase; color:var(--purple);}
+  .col-h .ct{background:var(--purple); color:#fff;}
+  .col.tech{border-top-color:var(--red);}  .col.tech .col-h{color:var(--red);}   .col.tech .col-h .ct{background:var(--red); color:#fff;}
+  .col.parts{border-top-color:var(--gold);}  .col.parts .col-h{color:#b3760a;}   .col.parts .col-h .ct{background:var(--gold); color:#3a2400;}
+  .col.done{border-top-color:var(--green);}   .col.done .col-h{color:#0c8a3e;}    .col.done .col-h .ct{background:var(--green); color:#fff;}
+  .col.followup{border-top-color:var(--pink);} .col.followup .col-h{color:#c81678;} .col.followup .col-h .ct{background:var(--pink); color:#fff;}
+  .col.upgrade{border-top-color:var(--blue);}     .col.upgrade .col-h{color:#1565c0;}      .col.upgrade .col-h .ct{background:var(--blue); color:#fff;}
+  .col.autho{border-top-color:var(--orange);}       .col.autho .col-h{color:#d95a00;}        .col.autho .col-h .ct{background:var(--orange); color:#fff;}
+  .col.dropok{outline:3px dashed var(--gold); outline-offset:-3px; background:rgba(246,180,0,.16);}
 
-  /* Cards = neon-edged chips; glow on hover */
+  /* Cards = coin-bright chips; gold glow on hover */
   .jcard{
-    background:linear-gradient(180deg,#ffffff,#f7f1fd);
-    border:1px solid #e7dbf6; border-radius:10px;
-    box-shadow:0 1px 3px rgba(138,79,255,.12);
+    background:linear-gradient(180deg,#fffdf8,#fdf3e0);
+    border:1px solid #ecd9b4; border-radius:10px;
+    box-shadow:0 1px 3px rgba(142,14,34,.12);
     transition:box-shadow .12s ease, transform .12s ease, border-color .12s ease;
   }
-  .jcard:hover{border-color:var(--magenta); box-shadow:0 0 0 1px var(--magenta), 0 6px 18px rgba(255,45,149,.24); transform:translateY(-1px);}
-  .jc-name{color:#1c1338;}
-  .jc-area{background:#efe4fb; color:#6b4a8a;}
+  .jcard:hover{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold), 0 6px 18px rgba(246,180,0,.32); transform:translateY(-1px);}
+  .jc-name{color:#2a1410;}
+  .jc-area{background:#f4e2bd; color:#7a4a1f;}
 
-  /* 🌃 Night mode = full outrun: midnight grid, neon glow */
+  /* 🌃 Dark mode = casino floor at night (black + gold + red) */
   [data-theme="dark"]{
-    --bg:#0e0a24; --card:#191138; --line:#33265e;
-    --ink:#efe6ff; --ink2:#b7a6dd; --dim:#8478a8; --violet:#b78bff;
+    --bg:#160a10; --card:#241019; --line:#4a2436;
+    --ink:#ffedd0; --ink2:#d9a97f; --dim:#a07a68; --violet:#c964e0;
   }
-  [data-theme="dark"] body{background:radial-gradient(1000px 520px at 82% -12%, rgba(255,45,149,.16), transparent 60%), radial-gradient(800px 460px at 8% -6%, rgba(0,229,255,.12), transparent 60%), linear-gradient(180deg,#0e0a24,#140a30);}
-  [data-theme="dark"] .col{background:linear-gradient(180deg, rgba(25,17,56,.82), rgba(20,12,44,.82)); border-color:#2e2258;}
-  [data-theme="dark"] .col-h{color:#3fe9ff;}  [data-theme="dark"] .col-h .ct{color:#06262a;}
-  [data-theme="dark"] .col.tech .col-h{color:#ff5db1;} [data-theme="dark"] .col.parts .col-h{color:#ff9a4d;}
-  [data-theme="dark"] .col.done .col-h{color:#2fffb0;} [data-theme="dark"] .col.followup .col-h{color:#b78bff;}
-  [data-theme="dark"] .jcard{background:linear-gradient(180deg,#1d1442,#171034); border-color:#372a63; box-shadow:none;}
-  [data-theme="dark"] .jcard:hover{border-color:var(--magenta); box-shadow:0 0 0 1px var(--magenta), 0 6px 18px rgba(255,45,149,.34);}
+  [data-theme="dark"] body{background:radial-gradient(1000px 520px at 84% -12%, rgba(224,30,55,.2), transparent 60%), radial-gradient(800px 460px at 8% -6%, rgba(246,180,0,.16), transparent 60%), linear-gradient(180deg,#160a10,#1e0b14);}
+  [data-theme="dark"] .col{background:linear-gradient(180deg, rgba(36,16,25,.85), rgba(28,12,20,.85)); border-color:#4a2436;}
+  [data-theme="dark"] .col-h{color:#e08adf;}  [data-theme="dark"] .col-h .ct{color:#fff;}
+  [data-theme="dark"] .col.tech .col-h{color:#ff6a7f;} [data-theme="dark"] .col.parts .col-h{color:#ffce4a;}
+  [data-theme="dark"] .col.done .col-h{color:#3fe08a;} [data-theme="dark"] .col.followup .col-h{color:#ff74be;}
+  [data-theme="dark"] .jcard{background:linear-gradient(180deg,#2a1420,#20101a); border-color:#4e2a3c; box-shadow:none;}
+  [data-theme="dark"] .jcard:hover{border-color:var(--gold); box-shadow:0 0 0 1px var(--gold), 0 6px 18px rgba(246,180,0,.4);}
   [data-theme="dark"] .jc-name{color:var(--ink);}
-  [data-theme="dark"] .jc-area{background:#2a1f52; color:#c9b6ee;}
-  [data-theme="dark"] .tb-search input{background:#191138; color:var(--ink); border-color:var(--magenta);}
-  [data-theme="dark"] .sresults a{background:#191138; color:var(--ink); border-color:var(--magenta);}
+  [data-theme="dark"] .jc-area{background:#3a1f2e; color:#e6c39f;}
+  [data-theme="dark"] .tb-search input{background:#241019; color:var(--ink); border-color:var(--gold-d);}
+  [data-theme="dark"] .sresults a{background:#241019; color:var(--ink); border-color:var(--gold-d);}
   /* drawer (card file) */
   .scrim{position:fixed;inset:0;background:rgba(18,26,38,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s;}
   .scrim.open{opacity:1;pointer-events:auto;}
@@ -325,7 +324,7 @@
 
 <div class="topbar">
   <div class="tb-row">
-    <div class="tb-title">🕹️ The Arcade <span style="font-size:14px;letter-spacing:0">🌆⚡</span></div>
+    <div class="tb-title">🎰 The Jackpot <span style="font-size:14px;letter-spacing:0">💰7️⃣</span></div>
     <div class="seg" id="region-seg">
       <button data-r="TN" class="on">TN</button>
       <button data-r="NOLA">NOLA</button>
@@ -2914,8 +2913,8 @@ initAuth();
 </script>
 <script src="/ant-shell.js?v=20260703h" defer></script>
 <script src="/tech-autoupdate.js" defer></script>
-<script src="/ant-sounds.js?v=20260716-arcade"></script>
-<script src="/ant-magic.js?v=20260716-arcade"></script>
-<script src="/ant-celebrate.js?v=20260716-arcade"></script>
+<script src="/ant-sounds.js?v=20260716-jackpot"></script>
+<script src="/ant-magic.js?v=20260716-jackpot"></script>
+<script src="/ant-celebrate.js?v=20260716-jackpot"></script>
 </body>
 </html>

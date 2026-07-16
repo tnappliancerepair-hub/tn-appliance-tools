@@ -25,8 +25,8 @@
 @keyframes antPts{0%{opacity:0;transform:translateY(6px) scale(.7)}25%{opacity:1;transform:translateY(-4px) scale(1.15)}100%{opacity:0;transform:translateY(-30px) scale(1)}}\
 @keyframes antBanner{0%{opacity:0;transform:translate(-50%,-26px)}10%{opacity:1;transform:translate(-50%,0)}88%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-26px)}}\
 @keyframes antPat{0%{opacity:0;transform:translate(-12vw,32vh) scale(.8)}14%{opacity:.92}84%{opacity:.92}100%{opacity:0;transform:translate(112vw,18vh) scale(1.15)}}\
-.ant-banner{position:fixed;top:72px;left:50%;z-index:2147482010;transform:translate(-50%,0);font:800 15px/1.35 "Orbitron","Arial Black",sans-serif;letter-spacing:.04em;color:#fff;background:linear-gradient(180deg,#2a1150,#5a1a5e 60%,#a12a6b);border:2px solid #ff2d95;border-radius:14px;padding:12px 22px;box-shadow:0 10px 34px rgba(0,0,0,.5),0 0 0 3px rgba(0,229,255,.35),0 0 26px rgba(255,45,149,.5);text-align:center;pointer-events:none;max-width:88vw;animation:antBanner var(--dur,4.4s) ease forwards}\
-.ant-patronus{position:fixed;top:0;left:0;z-index:2147482006;font-size:58px;pointer-events:none;filter:drop-shadow(0 0 18px rgba(255,45,149,.95)) drop-shadow(0 0 30px rgba(0,229,255,.7)) brightness(1.15);animation:antPat 4.6s ease-in-out forwards}\
+.ant-banner{position:fixed;top:72px;left:50%;z-index:2147482010;transform:translate(-50%,0);font:800 15px/1.35 "Orbitron","Arial Black",sans-serif;letter-spacing:.04em;color:#ffe8b0;background:linear-gradient(180deg,#8e0e22,#c01230 60%,#8e0e22);border:2px solid #f6b400;border-radius:14px;padding:12px 22px;box-shadow:0 10px 34px rgba(0,0,0,.5),0 0 0 3px rgba(246,180,0,.5),0 0 26px rgba(224,30,55,.55);text-align:center;pointer-events:none;max-width:88vw;animation:antBanner var(--dur,4.4s) ease forwards}\
+.ant-patronus{position:fixed;top:0;left:0;z-index:2147482006;font-size:58px;pointer-events:none;filter:drop-shadow(0 0 18px rgba(246,180,0,.95)) drop-shadow(0 0 30px rgba(224,30,55,.7)) brightness(1.1);animation:antPat 4.6s ease-in-out forwards}\
 @keyframes antBadgePop{0%{transform:scale(1)}40%{transform:scale(1.28)}100%{transform:scale(1)}}\
 @keyframes antSnitch{0%{transform:translate(-8vw,40vh) rotate(0)}20%{transform:translate(22vw,18vh) rotate(20deg)}40%{transform:translate(46vw,52vh) rotate(-15deg)}60%{transform:translate(64vw,22vh) rotate(18deg)}80%{transform:translate(86vw,44vh) rotate(-10deg)}100%{transform:translate(114vw,20vh) rotate(0)}}\
 .ant-owl{position:fixed;top:60px;left:0;z-index:2147482000;font-size:34px;pointer-events:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));animation:antOwlFly 3.6s cubic-bezier(.4,0,.5,1) forwards}\
@@ -36,10 +36,10 @@
 .ant-spk{position:fixed;z-index:2147482001;pointer-events:none;font-size:15px;animation:antSpk .72s ease-out forwards}\
 .ant-snitch{position:fixed;top:0;left:0;z-index:2147482000;font-size:26px;pointer-events:none;filter:drop-shadow(0 0 6px rgba(255,214,80,.8));animation:antSnitch 5.2s ease-in-out forwards}\
 .ant-star{position:absolute;color:#fff;pointer-events:none;font-size:8px;animation:antTwinkle 3s ease-in-out infinite}\
-.ant-candle{position:absolute;pointer-events:none;font-size:15px;filter:drop-shadow(0 0 8px rgba(0,229,255,.85));animation:antFloat 4s ease-in-out infinite}\
+.ant-candle{position:absolute;pointer-events:none;font-size:15px;filter:drop-shadow(0 0 8px rgba(246,180,0,.9));animation:antFloat 4s ease-in-out infinite}\
 .ant-candle .fl{display:none}\
-.ant-pts-badge{position:relative;z-index:4;display:inline-flex;align-items:center;gap:5px;font:800 13px/1 "Orbitron","Arial Black",sans-serif;letter-spacing:.03em;color:#06121a;background:linear-gradient(180deg,#00e5ff,#00b7c7);border:1px solid #ff2d95;border-radius:999px;padding:6px 12px;box-shadow:0 0 12px rgba(0,229,255,.6),0 0 0 1px rgba(255,45,149,.4);cursor:pointer;white-space:nowrap;user-select:none}\
-.ant-pts-float{position:fixed;z-index:2147482002;pointer-events:none;font:900 15px/1 "Orbitron","Arial Black",sans-serif;color:#00e5ff;text-shadow:0 0 8px rgba(255,45,149,.8),0 1px 3px rgba(0,0,0,.6);animation:antPts 1.1s ease-out forwards}';
+.ant-pts-badge{position:relative;z-index:4;display:inline-flex;align-items:center;gap:5px;font:800 13px/1 "Orbitron","Arial Black",sans-serif;letter-spacing:.03em;color:#3a1400;background:linear-gradient(180deg,#ffd54a,#f6b400);border:1px solid #c01230;border-radius:999px;padding:6px 12px;box-shadow:0 0 12px rgba(246,180,0,.7),0 0 0 1px rgba(224,30,55,.5);cursor:pointer;white-space:nowrap;user-select:none}\
+.ant-pts-float{position:fixed;z-index:2147482002;pointer-events:none;font:900 15px/1 "Orbitron","Arial Black",sans-serif;color:#f6b400;text-shadow:0 0 8px rgba(224,30,55,.8),0 1px 3px rgba(0,0,0,.6);animation:antPts 1.1s ease-out forwards}';
 
   function ensureStyle() { if (document.getElementById('ant-magic-css')) return; var s = document.createElement('style'); s.id = 'ant-magic-css'; s.textContent = STYLE; document.head.appendChild(s); }
 
@@ -63,7 +63,7 @@
     }
     var spots = [['34%', '18px'], ['45%', '6px'], ['57%', '20px'], ['64%', '4px']];
     spots.forEach(function (p, i) {
-      var cd = document.createElement('div'); cd.className = 'ant-candle'; cd.innerHTML = '🌟';
+      var cd = document.createElement('div'); cd.className = 'ant-candle'; cd.innerHTML = (i % 2 ? '💎' : '🍒');
       cd.style.left = p[0]; cd.style.top = p[1]; cd.style.animationDelay = (i * 0.6) + 's';
       layer.appendChild(cd);
     });
@@ -81,9 +81,9 @@
   // Wizard rank — she LEVELS UP by keeping the board current. Leveling triggers a
   // Patronus + fanfare, so tidiness becomes a game she's climbing.
   var RANKS = [
-    { p: 0, n: 'Rookie' }, { p: 250, n: 'Challenger' }, { p: 600, n: 'Ace' },
-    { p: 1200, n: 'Pro' }, { p: 2500, n: 'All-Star' }, { p: 5000, n: 'Legend' },
-    { p: 9000, n: 'Champion' }, { p: 16000, n: 'Grid Master' },
+    { p: 0, n: 'Lucky' }, { p: 250, n: 'Hot Streak' }, { p: 600, n: 'On a Roll' },
+    { p: 1200, n: 'High Roller' }, { p: 2500, n: 'Big Shot' }, { p: 5000, n: 'Whale' },
+    { p: 9000, n: 'Jackpot King' }, { p: 16000, n: 'Legend' },
   ];
   function rankFor(p) { var r = RANKS[0]; for (var i = 0; i < RANKS.length; i++) { if (p >= RANKS[i].p) r = RANKS[i]; } return r; }
   function nextRank(p) { for (var i = 0; i < RANKS.length; i++) { if (RANKS[i].p > p) return RANKS[i]; } return null; }
@@ -98,7 +98,7 @@
   function patronus() {
     if (quiet() || !document.body) return; ensureStyle();
     if (document.querySelector('.ant-patronus')) return;
-    var el = document.createElement('div'); el.className = 'ant-patronus'; el.textContent = '⭐';
+    var el = document.createElement('div'); el.className = 'ant-patronus'; el.textContent = '💰';
     document.body.appendChild(el); setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4700);
   }
   // Work streak — consecutive days she opens the Hall.
@@ -120,8 +120,8 @@
     var row = document.querySelector('.topbar .tb-row'); if (!row) return null;
     b = document.createElement('div'); b.id = 'ant-pts-badge'; b.className = 'ant-pts-badge';
     var rk = rankFor(get()).n.split(',')[0];
-    b.title = rankFor(get()).n + ' — arcade score earned by keeping the board current. Tap to mute the effects.';
-    b.innerHTML = '🕹️ <span id="ant-pts-n">' + fmt(get()) + '</span> <span id="ant-pts-rank" style="opacity:.72;font-weight:700">· ' + rk + '</span>';
+    b.title = rankFor(get()).n + ' — credits earned by keeping the board current. Tap to mute the effects.';
+    b.innerHTML = '🎰 <span id="ant-pts-n">' + fmt(get()) + '</span> <span id="ant-pts-rank" style="opacity:.72;font-weight:700">· ' + rk + '</span>';
     b.onclick = function () { var off = !quiet(); try { localStorage.setItem('ant_magic', off ? 'off' : 'on'); localStorage.setItem('ant_sound', off ? 'off' : 'on'); } catch (_) {} b.style.opacity = off ? '.5' : '1'; if (!off) { ambient(); API.sparkle(); } };
     // place it right before the region toggle
     var seg = row.querySelector('.seg'); if (seg) row.insertBefore(b, seg); else row.appendChild(b);
@@ -150,7 +150,7 @@
       // ⚡ RANK UP — the big one: a Patronus charges across + fanfare + banner.
       if (rankFor(total).n !== rankFor(before).n) {
         API.patronus(); API.snitch(); snd('win');
-        banner('⚡ <b>You reached ' + rankFor(total).n + '!</b> ⚡<br><span style="font-weight:600;font-size:13px">' + fmt(total) + ' points — new high score, the Arcade salutes you.</span>', 5);
+        banner('🎰 <b>JACKPOT — you\'re a ' + rankFor(total).n + '!</b> 🎰<br><span style="font-weight:600;font-size:13px">' + fmt(total) + ' credits — the house pays out.</span>', 5);
       } else if (Math.floor(total / 250) > Math.floor(before / 250)) {
         // House-cup checkpoint every 250 pts: snitch + train + fanfare
         API.snitch(); API.train(); snd('win');
@@ -160,13 +160,13 @@
     owl: function () {
       if (quiet() || !document.body) return; ensureStyle();
       if (document.querySelector('.ant-owl')) return;
-      var el = document.createElement('div'); el.className = 'ant-owl'; el.innerHTML = '🛸<span class="env">📦</span>';
+      var el = document.createElement('div'); el.className = 'ant-owl'; el.innerHTML = '🔔<span class="env">🪙</span>';
       document.body.appendChild(el); setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 3800);
     },
     train: function () {
       if (quiet() || !document.body) return; ensureStyle();
       if (document.querySelector('.ant-train')) return;
-      var el = document.createElement('div'); el.className = 'ant-train'; el.textContent = '🚗💨'; document.body.appendChild(el);
+      var el = document.createElement('div'); el.className = 'ant-train'; el.textContent = '🎰💰🪙'; document.body.appendChild(el);
       for (var i = 0; i < 5; i++) (function (i) { setTimeout(function () { if (quiet()) return; var p = document.createElement('div'); p.className = 'ant-puff'; p.textContent = '☁️'; p.style.left = (10 + i * 20) + 'vw'; document.body.appendChild(p); setTimeout(function () { if (p.parentNode) p.parentNode.removeChild(p); }, 1100); }, i * 720 + 300); })(i);
       setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 4900);
     },
@@ -203,7 +203,7 @@
       } catch (_) {}
       var s = streak(), p = get(), rk = rankFor(p), nx = nextRank(p);
       setTimeout(function () {
-        banner('🕹️ <b>Player 1 — welcome back to The Arcade</b> ✨<br>' +
+        banner('🎰 <b>Welcome back — feeling lucky?</b> 💰<br>' +
           '<span style="font-weight:700;font-size:13px">' + rk.n + ' · ' + fmt(p) + ' points' +
           (s > 1 ? ' · 🔥 ' + s + '-day streak' : '') + '</span>' +
           (nx ? '<br><span style="font-weight:600;font-size:12px;opacity:.8">' + fmt(nx.p - p) + ' points to ' + nx.n.split(',')[0] + '</span>' : ''), 5);
