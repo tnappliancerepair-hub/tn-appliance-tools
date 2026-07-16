@@ -6,7 +6,11 @@ The single source of truth for how a job moves across the office board
 MANUAL move is a Danielle drag that sticks via `office_stage` (and her live
 drop wins via `pendingStage`).
 
-## The lifecycle (the full cycle)
+## The lifecycle
+
+There are two completion outcomes out of Tech Report, and they route
+differently. ✅ Completion is ONLY the parts-received checkpoint — a *finished*
+job never sits there.
 
 ```
 1  Needs Scheduled
@@ -16,27 +20,25 @@ drop wins via `pendingStage`).
       │  tech taps Start (in_progress)  (AUTO)│
       ▼                                        │
 3  [Tech] · Report                             │
-      ├──►  Completion   (finished this visit) │  (AUTO on completed)
-      └──►  Waiting Parts (parts needed)        │  (AUTO on part ETA set)
-                 │  parts RECEIVED  (AUTO)      │
-                 ▼                              │
-6  ✅ Completion  ← received parts land here to │
-      │  be verified/tracked; office then       │
-      └──── books the return visit ─────────────┘  (MANUAL → Scheduled)
+      │                                         │
+      ├─► FINISHED (completed, no return —       │
+      │   same-day / no-failure)                 │
+      │        │  (AUTO on completed)            │
+      │        ▼                                 │
+      │   7 Follow Up ──(48h)──► 8 Needs Invoice │
+      │                                          │
+      └─► NEEDS PARTS / RETURN                    │
+             ▼  (AUTO on part ETA set)           │
+          5 Waiting Parts                         │
+             │  parts RECEIVED  (AUTO)            │
+             ▼                                    │
+          6 ✅ Completion  ← parts-received       │
+             │  checkpoint: verify the parts,     │
+             └── office books the return ─────────┘  (MANUAL → Scheduled)
+                 …return visit runs, tech marks completed → 7 Follow Up
 
-6  ✅ Completion   ← ALSO a finished job's first stop
-      │  office walks it forward                 (MANUAL)
-      ▼
-7  Follow Up
-      │                                          (MANUAL)
-      ▼
-8  Needs Invoice   ← ready to bill
-      │                                          (MANUAL)
-      ▼
-9  [Tech] · Invoice
-      │                                          (MANUAL)
-      ▼
-10 💰 Paid (Shop Money) — closed                 (mark paid)
+7  Follow Up ──(after 48h)──► 8 Needs Invoice ──► 9 [Tech] · Invoice ──► 10 💰 Paid
+   (48h auto-advance = TO BUILD; today Follow Up → Needs Invoice is a manual drag)
 ```
 
 `Upgrade` = parked/dormant. Kept in the code so it never has to be rebuilt,
@@ -52,9 +54,9 @@ but it is NOT part of the flow and nothing auto-routes to it.
 | 3 | [Tech] · Report (`rep-<t>`) | Tech has STARTED the job | Tech taps Start → `in_progress` | AUTO |
 | — | Upgrade (`upgrade`) | Dormant/parked — not in flow | (none) | — |
 | 5 | Waiting Parts (`parts`) | Parts ordered, ETA set, not arrived | Danielle sets the part ETA | AUTO |
-| 6 | ✅ Completion (`done`) | Completion checkpoint — a finished job (`completed`) AND a parts-received job land here | Job marked `completed`, OR `parts_status=arrived` | AUTO |
-| 7 | Follow Up (`followup`) | Office follow-up / second look | Office drags it | MANUAL |
-| 8 | Needs Invoice (`needinv`) | Repair done, ready to BILL | Office drags it here from Completion/Follow Up | MANUAL |
+| 6 | ✅ Completion (`done`) | Parts-received checkpoint ONLY — verify parts, book the return. A finished job never sits here. | `parts_status=arrived` | AUTO |
+| 7 | Follow Up (`followup`) | A FINISHED job lands here (same-day / no-failure / return-visit done); customer gets 48h | Job marked `completed` | AUTO |
+| 8 | Needs Invoice (`needinv`) | Ready to BILL — a Follow Up job past its 48h | After 48h in Follow Up (TO BUILD), or office drag | MANUAL (auto TO BUILD) |
 | 9 | [Tech] · Invoice (`inv-<t>`) | Per-tech billing folder | Office drags it | MANUAL |
 | 10 | 💰 Paid (`paid`) | Invoiced + paid, closed | Marked paid | MANUAL / mark-paid |
 

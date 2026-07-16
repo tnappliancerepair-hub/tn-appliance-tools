@@ -813,12 +813,13 @@ function placeOf(j){
   if(ov==='scheduled' && _advanced) ov='';
   if(ov) return ov;
   // No manual placement yet → the system's sensible default for this job.
-  // A finished job's FIRST stop is ✅ COMPLETION (Teddy 2026-07-16 flow map: Tech Report
-  // → Completion → Follow Up → Needs Invoice → Tech Invoice → Paid). Completion is the
-  // completion stage, NOT the billing pile — from here the OFFICE walks it forward to
-  // Needs Invoice → Invoice → Paid (manual moves via office_stage, each of which wins,
-  // checked above). So a completed job lands in Completion; her drags carry it onward.
-  if(ss==='completed'||cs==='completed') return 'done';
+  // A FINISHED job (completed + NOT needing a return — same-day completion or no-failure)
+  // SKIPS Completion and lands straight in FOLLOW UP (Teddy 2026-07-16: "if a tech marks
+  // the job completed it skips all the steps in between and goes directly into follow-up").
+  // The customer gets 48h in Follow Up, then it advances to Needs Invoice → Tech Invoice
+  // → Paid. ✅ Completion is now ONLY the parts-received checkpoint (arrived → 'done',
+  // below) — a finished job never sits there. Her manual move still wins (office_stage).
+  if(ss==='completed'||cs==='completed') return 'followup';
   // A job moves to Waiting Parts ONLY once Danielle sets the part's ETA (that's
   // when she's actually ordered it — and it fires the "part ordered, ETA is X"
   // text to the customer). A part merely named/needed by the tech, or the tech's
