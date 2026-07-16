@@ -1479,18 +1479,17 @@ async function addAppliance(){
     } else { toast('⚠ '+((d&&d.error)||'could not add')); }
   }catch(e){ toast('⚠ '+e.message); }
 }
-async function reqTechReport(jobId, withNote){
+async function reqTechReport(jobId, note){
   const m=document.getElementById('reqrep-msg');
-  let note='';
-  if(withNote){
-    note=(prompt('What do you need from the tech on this job? (they get the text + it flags red on their dashboard)')||'').trim();
+  if(note==='__ASK__'){
+    note=(prompt('What do you need from the tech on this job? (they get a tap-to-open job tile + it flags red on their dashboard)')||'').trim();
     if(!note) return; // cancelled
   }
-  if(m)m.textContent='Texting the tech…';
+  if(m)m.textContent='Sending the tech…';
   try{
-    const r=await fetch('/.netlify/functions/request-tech-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId, note})});
+    const r=await fetch('/.netlify/functions/request-tech-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId, note: note||''})});
     const d=await r.json();
-    if(d&&d.ok){ if(m)m.textContent=(note?'✓ Texted the tech your question — ':'✓ Texted the tech — Ant will call them to finish it ')+'('+((d.missing||[]).join(', ')||(note?'your question':'a few details'))+'). Flagged on their dashboard.'; toast('Sent to tech ✓'); }
+    if(d&&d.ok){ if(m)m.textContent=(note?'✓ Sent — the tech gets a tap-to-open job tile for “'+note+'”. Flagged red on their dashboard until it\'s in.':'✓ Texted the tech — Ant will call them to finish it ('+((d.missing||[]).join(', ')||'a few details')+'). Flagged on their dashboard.'); toast('Sent to tech ✓'); }
     else if(d&&d.complete){ if(m)m.textContent='✓ This report\'s already complete — nothing missing.'; toast('Report complete ✓'); }
     else { if(m)m.textContent='⚠ '+((d&&d.error)||'failed — is a tech assigned?'); }
   }catch(_){ if(m)m.textContent='⚠ connection error'; }
@@ -1671,7 +1670,13 @@ function renderDrawer(d){
       <h4>📋 ${techReport ? 'Tech report — need more?' : 'Report not filed'}</h4>
       <p style="color:var(--dim,#8a93a1);font-size:13px;margin:4px 0 10px">${techReport ? 'A report\'s been started. Need '+esc(t.name||'the tech')+' to finish it or add detail? Ping them — Ant texts what\'s missing + calls to wrap it up.' : 'No tech report yet. Ping '+esc(t.name||'the tech')+' — Ant texts them what\'s missing + calls to finish it by voice.'} This also flags it red on ${_techFirst}\'s dashboard until it\'s in.</p>
       <button onclick="reqTechReport(${jid})" style="width:100%;padding:11px;border:0;border-radius:9px;background:#f5a623;color:#fff;font-weight:800;font-size:14px;cursor:pointer">📋 Request report from tech</button>
-      <button onclick="reqTechReport(${jid},true)" style="width:100%;padding:9px;margin-top:7px;border:1px solid #f0c674;border-radius:9px;background:#fff8e8;color:#8a6410;font-weight:800;font-size:13px;cursor:pointer">📩 Ask ${_techFirst} something specific…</button>
+      <div style="font-size:11.5px;color:var(--dim,#8a93a1);font-weight:700;margin:9px 0 5px">Or send ${_techFirst} the job tile with one ask — opens straight to it, no searching:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="reqTechReport(${jid},'Need the part number please')" style="flex:1;min-width:calc(50% - 3px);padding:9px;border:1px solid #f0c674;border-radius:9px;background:#fff8e8;color:#8a6410;font-weight:800;font-size:12.5px;cursor:pointer">📦 Need part #</button>
+        <button onclick="reqTechReport(${jid},'Need the failure description please')" style="flex:1;min-width:calc(50% - 3px);padding:9px;border:1px solid #f0c674;border-radius:9px;background:#fff8e8;color:#8a6410;font-weight:800;font-size:12.5px;cursor:pointer">🔍 Need failure</button>
+        <button onclick="reqTechReport(${jid},'Need the labor time please')" style="flex:1;min-width:calc(50% - 3px);padding:9px;border:1px solid #f0c674;border-radius:9px;background:#fff8e8;color:#8a6410;font-weight:800;font-size:12.5px;cursor:pointer">⏱️ Need labor</button>
+        <button onclick="reqTechReport(${jid},'__ASK__')" style="flex:1;min-width:calc(50% - 3px);padding:9px;border:1px solid #f0c674;border-radius:9px;background:#fff8e8;color:#8a6410;font-weight:800;font-size:12.5px;cursor:pointer">✏️ Something else…</button>
+      </div>
       <div id="reqrep-msg" style="font-size:12px;color:var(--dim,#8a93a1);margin-top:6px"></div>
     </div>
     ${availHtml}

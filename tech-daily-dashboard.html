@@ -849,6 +849,8 @@
 
   <div id="tdrNudge"></div>
 
+  <div id="bankCard"></div>
+
   <div id="antGameCard"></div>
 
   <div id="officeNotesDigest"></div>
@@ -1720,6 +1722,7 @@
     let d = null;
     try { d = await fetch('/.netlify/functions/tech-earnings?tech_id=' + encodeURIComponent(TECH_ID), { cache: 'no-store' }).then((r) => r.json()); } catch (_) { return; }
     if (!d || !d.success) return;
+    renderBank(d);
     _payByJob = {};
     (d.jobs || []).forEach((j) => { if (j && j.job_id != null) _payByJob[String(j.job_id)] = parseFloat(j.pay) || 0; });
     const jobs = (data && data.jobs) || [];
@@ -1742,6 +1745,36 @@
       el.textContent = '💪 You made $' + Math.round(pay) + ' on this one';
       card.appendChild(el);
     });
+  }
+  // 🏦 Money in the bank — the tech's running "already earned, waiting to be paid"
+  // number (Teddy 2026-07-16). owed = pay on COMPLETED jobs minus what's been paid
+  // out. It's the green counterpart to the red report box: finish reports → they get
+  // invoiced → the bank grows → payday pays it out. Tap → full breakdown on Pay.
+  function renderBank(d) {
+    var host = document.getElementById('bankCard'); if (!host || !TECH_ID) return;
+    var owed = Math.max(0, Number(d.owed) || 0);
+    var earned = Number(d.earned) || 0;
+    var paid = Number(d.paid) || 0;
+    var jobsN = Number(d.job_count) || 0;
+    var money = function (n) { return '$' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    if (!owed && !earned) { host.innerHTML = ''; return; }
+    var sub = owed > 0
+      ? ('earned on ' + jobsN + ' completed job' + (jobsN === 1 ? '' : 's') + ', waiting on payday')
+      : 'all caught up — every completed job has been paid out 🎉';
+    // A pending line so the tech knows more is coming once open jobs close + invoice.
+    var pend = (Number(d.pending_pay) > 0)
+      ? '<div style="font-size:11.5px;font-weight:700;opacity:.9;margin-top:5px">＋ ' + money(d.pending_pay) + ' more on ' + (d.pending_count || 0) + ' job' + ((d.pending_count === 1) ? '' : 's') + ' still finishing up</div>'
+      : '';
+    host.innerHTML =
+      '<a href="tech-payouts.html?tech_id=' + TECH_ID + '" style="display:block;text-decoration:none;background:linear-gradient(135deg,#0f9d58,#0a7d43);color:#fff;border-radius:14px;padding:13px 15px;margin-bottom:12px;box-shadow:0 4px 14px rgba(15,157,88,.28)">'
+      + '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;opacity:.9">🏦 In the bank</div>'
+      + '<div style="font-size:26px;font-weight:900;margin-top:2px;font-family:var(--mono,inherit);letter-spacing:-.5px">' + money(owed) + '</div>'
+      + '<div style="font-size:12.5px;font-weight:700;opacity:.95">' + sub + '</div>'
+      + pend
+      + '<div style="display:flex;gap:14px;margin-top:9px;font-size:11px;font-weight:700;opacity:.9;border-top:1px solid rgba(255,255,255,.22);padding-top:8px">'
+      + '<span>Earned all-time ' + money(earned) + '</span><span>Paid out ' + money(paid) + '</span>'
+      + '<span style="margin-left:auto">See your pay ›</span>'
+      + '</div></a>';
   }
   function doneCountOf(jobs) {
     return (jobs || []).filter((it) => {

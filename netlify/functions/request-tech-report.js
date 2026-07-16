@@ -68,14 +68,17 @@ exports.handler = async function (event) {
   const appliance = (appl.appliance_type || job.appliance_type || 'appliance').toLowerCase();
   const missingStr = missing.join(', ');
 
-  const link = `${SITE}/.netlify/functions/start-report-call?job_id=${jobId}&tech_id=${techId}`;
-  // Lead with the office's specific ask when there is one; always give the tap-to-finish link.
+  const callLink = `${SITE}/.netlify/functions/start-report-call?job_id=${jobId}&tech_id=${techId}`;
+  // A specific ask opens the ACTUAL job tile (its report), so the tech taps once and
+  // lands on the exact job — no digging (Teddy 2026-07-16: "the tech gets the actual
+  // job to open instead of searching for it"). The generic finish-nudge keeps the
+  // one-tap Ant-calls-you path.
+  const jobLink = `${SITE}/tech-job.html?job_id=${jobId}&tech_id=${techId}#tdr`;
   const body = note
-    ? (`[ant] Danielle needs more on ${customer}'s ${appliance} report: "${note}". ` +
-       (missing.length ? `Still needs: ${missingStr}. ` : '') +
-       `Tap and Ant will call you to finish it: ${link}`)
+    ? (`[ant] ${customer}'s ${appliance} — ${note}. ` +
+       `Tap to open the job and add it: ${jobLink}`)
     : (`[ant] ${customer}'s ${appliance} report still needs: ${missingStr}. ` +
-       `Tap and Ant will call you to finish it (he'll help find the part # too): ${link} ` +
+       `Tap and Ant will call you to finish it (he'll help find the part # too): ${callLink} ` +
        `— or call when you can. Sooner it's in, sooner it gets processed.`);
 
   if (b.dryrun === true || b.dryrun === '1') {
