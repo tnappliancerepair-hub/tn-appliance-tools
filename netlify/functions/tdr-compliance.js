@@ -149,6 +149,10 @@ exports.handler = async function (event) {
   const cutoff = Date.now() - days * 86400000;
   let invRows = [];
   try { invRows = await actionRows('office_invoice_logged', 4); } catch (_) {}
+  // Jobs this tech was already paid out on → their pay is NOT stuck, even if we didn't
+  // detect a filed report (Teddy 2026-07-16: the box was also showing old, already-paid jobs).
+  const paidJobs = new Set();
+  try { const payRows = await actionRows('tech_payout_recorded', 3); for (const r of payRows) { const m = metaOf(r); if (parseInt(m.technician_id, 10) !== techId) continue; const pj = Number(m.job_id || 0); if (pj) paidJobs.add(pj); } } catch (_) {}
   const seen = new Set(); const holding = [];
   let holdingAmount = 0;
   for (const r of invRows) {
@@ -163,6 +167,11 @@ exports.handler = async function (event) {
     const st = statusByJob[jid];
     const done = !!(st && (st.done > 0 || /complete/i.test(st.s) || /complete/i.test(st.c)));
     if (!done) continue;
+    // Anchor recency on the COMPLETION date when we have it, so a job finished long ago
+    // never nags — and drop anything the tech was already paid out on.
+    const completedAt = (st && st.done) || 0;
+    if (completedAt && completedAt < cutoff) continue;
+    if (paidJobs.has(jid)) continue;
     const pay = num(m.tech_pay) || num(m.labor);
     holding.push({ job_id: jid, amount: pay, when, customer: nameByJob[jid] || '' });
     holdingAmount += pay;
