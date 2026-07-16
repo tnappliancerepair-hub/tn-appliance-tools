@@ -82,14 +82,14 @@ exports.handler = async function (event) {
 
   // Today's stops per tech (from the calendar week, filtered to today CT) +
   // a job_id -> customer name map so a held report reads "Sarah Johnson", not "#123".
-  let week = {}, nameByJob = {};
+  let week = {}, nameByJob = {}, statusByJob = {};
   try {
     const [wk, km] = await Promise.all([
       fetch(`${XANO}/get_office_calendar_week?week_start=${ctTodayMonday()}`, { signal: AbortSignal.timeout(20000) }).then((r) => r.json()).catch(() => ({})),
       fetch(`${XANO}/get_office_kanban`, { signal: AbortSignal.timeout(20000) }).then((r) => r.json()).catch(() => ({})),
     ]);
     week = wk || {};
-    for (const jb of ((km && (km.items || km.jobs)) || [])) { const id = Number(jb.id); if (id) nameByJob[id] = `${(jb.customer_first || '').trim()} ${(jb.customer_last || '').trim()}`.trim(); }
+    for (const jb of ((km && (km.items || km.jobs)) || [])) { const id = Number(jb.id); if (!id) continue; nameByJob[id] = `${(jb.customer_first || '').trim()} ${(jb.customer_last || '').trim()}`.trim(); statusByJob[id] = { s: String(jb.scheduling_status || ''), c: String(jb.current_status || ''), done: Number(jb.job_completed_at || 0) }; }
   } catch (_) { week = {}; }
   const techNames = {};
   for (const t of (week.technicians || [])) techNames[Number(t.id)] = ((t.first_name || t.name || ('Tech ' + t.id)) + '').trim();
@@ -157,6 +157,12 @@ exports.handler = async function (event) {
     const when = num(m.logged_at_ms) || (r.created_at ? Date.parse(r.created_at) : 0);
     if (when && when < cutoff) continue;
     if (jobFiled(byJob, jid, techId)) continue;
+    // Only a COMPLETED job's report is genuinely "stuck" — a still-scheduled / awaiting-parts
+    // job isn't done yet, so no report is owed and no pay is held. (Teddy 2026-07-16: the box
+    // "doesn't appear accurate" — it was counting not-yet-done jobs that had an invoice logged.)
+    const st = statusByJob[jid];
+    const done = !!(st && (st.done > 0 || /complete/i.test(st.s) || /complete/i.test(st.c)));
+    if (!done) continue;
     const pay = num(m.tech_pay) || num(m.labor);
     holding.push({ job_id: jid, amount: pay, when, customer: nameByJob[jid] || '' });
     holdingAmount += pay;
