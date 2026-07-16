@@ -111,6 +111,11 @@
 [functions."multi-appliance-split-sweep"]
   schedule = "0 12,18 * * *"
 
+# COI expiry watchdog — texts Teddy when the Certificate of Insurance is within 30 days of
+# expiring (or expired), so a PM never gets an expired cert. Weekly, Mondays 8:20am CT.
+[functions."vendor-coi-expiry-check"]
+  schedule = "20 13 * * 1"
+
 # Denorm sweep — keep the kanban fast by filling customer_first/last/phone on any NEW
 # job that hasn't been denormed yet (scheduled invocation runs mode=sweep). Every 30 min.
 [functions."denorm-job-customer"]
