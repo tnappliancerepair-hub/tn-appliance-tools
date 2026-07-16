@@ -813,13 +813,12 @@ function placeOf(j){
   if(ov==='scheduled' && _advanced) ov='';
   if(ov) return ov;
   // No manual placement yet → the system's sensible default for this job.
-  // A FINISHED job (repair done, ready to bill) lands in NEEDS INVOICE — that's the
-  // folder for ready-to-invoice jobs. The ✅ Completion folder is NOT for ready-to-bill
-  // jobs; it's the completion/return-visit stage (parts arrived, book the return).
-  // (Teddy 2026-07-16: "completed tab is for completions… not whenever they're ready
-  // to be invoiced. The ones that need invoiced have their own file called need
-  // invoiced.") Her manual move into a tech's Invoice folder still wins (office_stage).
-  if(ss==='completed'||cs==='completed') return 'needinv';
+  // A finished job's FIRST stop is ✅ COMPLETION (Teddy 2026-07-16 flow map: Tech Report
+  // → Completion → Follow Up → Needs Invoice → Tech Invoice → Paid). Completion is the
+  // completion stage, NOT the billing pile — from here the OFFICE walks it forward to
+  // Needs Invoice → Invoice → Paid (manual moves via office_stage, each of which wins,
+  // checked above). So a completed job lands in Completion; her drags carry it onward.
+  if(ss==='completed'||cs==='completed') return 'done';
   // A job moves to Waiting Parts ONLY once Danielle sets the part's ETA (that's
   // when she's actually ordered it — and it fires the "part ordered, ETA is X"
   // text to the customer). A part merely named/needed by the tech, or the tech's
@@ -903,7 +902,7 @@ function renderBoard(){
     if(byCol[p]) return p;                       // the intended column exists → use it
     const ssx=(j.scheduling_status||'').toLowerCase(), csx=(j.current_status||'').toLowerCase();
     const doneP=/^inv-|^needinv$|^paid$|^done$/.test(p) || ssx==='completed' || csx==='completed';
-    if(doneP) return byCol['needinv']?'needinv':(byCol['done']?'done':'schedule');  // billed/finished → Needs Invoice
+    if(doneP) return byCol['done']?'done':'schedule';                 // finished → ✅ Completion lane
     if(/^rep-/.test(p)) return (ssx==='in_progress'||csx==='in_progress')&&byCol['scheduled']?'scheduled':(byCol['schedule']?'schedule':cols[0].id);
     return byCol[p]?p:(byCol['schedule']?'schedule':cols[0].id);      // last resort: a real column, never a void
   }
