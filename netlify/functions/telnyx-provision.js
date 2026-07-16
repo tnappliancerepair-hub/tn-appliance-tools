@@ -395,6 +395,40 @@ exports.handler = async function (event) {
       return json(200, { ok: true, human_profile: { id: humanProf.id, name: humanProf.name, webhook: humanProf.webhook_url }, results });
     }
 
+    if (action === 'settech') {
+      // Route a number to the TECH profile → tech-sms-inbound (the tech brain). Used
+      // after moving tech-direction outbound to 757-5500 so tech replies land right.
+      //   ?action=settech&number=+16157575500
+      const techWebhook = `${SITE}/.netlify/functions/tech-sms-inbound`;
+      const techNums = String(q.number || '+16157575500').split(',').map((s) => s.trim()).filter(Boolean);
+      const pr = await fetch(`${TELNYX}/messaging_profiles?page[size]=50`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const pd = await pr.json().catch(() => ({}));
+      let techProf = (pd.data || []).find((p) => String(p.webhook_url || '').includes('tech-sms-inbound'));
+      if (!techProf) {
+        const cr = await fetch(`${TELNYX}/messaging_profiles`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ name: 'TN Appliance Exchange SMS', webhook_url: techWebhook, webhook_api_version: '2', whitelisted_destinations: ['US', 'CA'] }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const cd = await cr.json().catch(() => ({}));
+        if (!cr.ok) return json(200, { ok: false, step: 'create_tech_profile', error: JSON.stringify(cd.errors || cd).slice(0, 300) });
+        techProf = cd.data;
+      }
+      const results = [];
+      for (const e of techNums) {
+        const fr = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${encodeURIComponent(e)}`, { headers: H, signal: AbortSignal.timeout(12000) });
+        const fd = await fr.json().catch(() => ({}));
+        const rec = (fd.data || [])[0];
+        if (!rec) { results.push({ number: e, ok: false, error: 'number not found' }); continue; }
+        const ur = await fetch(`${TELNYX}/phone_numbers/${rec.id}/messaging`, {
+          method: 'PATCH', headers: H, body: JSON.stringify({ messaging_profile_id: techProf.id }), signal: AbortSignal.timeout(12000),
+        });
+        const ud = await ur.json().catch(() => ({}));
+        results.push({ number: e, ok: ur.ok, error: ur.ok ? null : JSON.stringify(ud.errors || ud).slice(0, 200) });
+      }
+      return json(200, { ok: true, tech_profile: { id: techProf.id, name: techProf.name, webhook: techProf.webhook_url }, results });
+    }
+
     if (action === 'warrantytest') {
       // Send Jimmy + Danielle the EXACT warranty-customer link, FROM the customer
       // line (588-9500), so they see what a warranty customer gets + can reply
