@@ -14,7 +14,13 @@ const crud = require('./_lib/xano/metadata-crud');
 const guard = require('./_lib/sms-guard');
 
 const TELNYX = 'https://api.telnyx.com/v2';
-const HUMAN_LINE = '+16157575500';
+// The human/office line customers get texted from. Switched 757-5500 → 857-8800 on
+// 2026-07-16: 757-5500 was never A2P-10DLC-registered, so carriers silently dropped
+// every office text ("none of my messages went through to them"). 857-8800 is on our
+// APPROVED, active 10DLC campaign (alongside the AI line 588-9500), so it delivers.
+// (857-8800 was the tech line; techs move to a different number via the Xano send_sms
+// push — customers must be on an approved number, techs won't report spam.)
+const HUMAN_LINE = '+16158578800';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'content-type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 function e164(p) { let s = String(p || '').trim(); if (s.startsWith('+')) return '+' + s.slice(1).replace(/\D/g, ''); const d = s.replace(/\D/g, ''); if (d.length === 10) return '+1' + d; if (d.length === 11 && d[0] === '1') return '+' + d; return d ? '+' + d : ''; }

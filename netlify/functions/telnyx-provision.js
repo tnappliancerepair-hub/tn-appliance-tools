@@ -39,19 +39,22 @@ exports.handler = async function (event) {
     // are actually APPROVED to text customers (Teddy 2026-07-16: "we have approved
     // numbers, we need to use them — let's check").
     if (action === 'tendlc') {
-      const get = async (path) => { try { const r = await fetch(`${TELNYX}${path}`, { headers: H, signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({})); return { ok: r.ok, status: r.status, data: (d && d.data) || null }; } catch (e) { return { ok: false, status: 0, data: null }; } };
-      let brand = await get('/10dlc/brand'); if (!brand.ok) brand = await get('/brand');
-      let camp = await get('/10dlc/campaign?page[size]=100'); if (!camp.ok) camp = await get('/campaign?page[size]=100');
-      let pnc = await get('/phone_number_campaigns?page[size]=200'); if (!pnc.ok) pnc = await get('/10dlc/phone_number_campaigns?page[size]=200');
+      // Telnyx 10DLC endpoints return TCR-style bodies (rows under `records`), not `data`.
+      const rows = (d) => (Array.isArray(d && d.records) ? d.records : (Array.isArray(d && d.data) ? d.data : (Array.isArray(d) ? d : [])));
+      const get = async (path) => { try { const r = await fetch(`${TELNYX}${path}`, { headers: H, signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({})); return { ok: r.ok, status: r.status, rows: rows(d) }; } catch (e) { return { ok: false, status: 0, rows: [] }; } };
+      let brand = await get('/brand'); if (!brand.rows.length) { const b2 = await get('/10dlc/brand'); if (b2.rows.length) brand = b2; }
+      let camp = await get('/campaign'); if (!camp.rows.length) { const c2 = await get('/campaigns'); if (c2.rows.length) camp = c2; }
+      let pnc = await get('/phone_number_campaigns?page[size]=200'); if (!pnc.rows.length) { const p2 = await get('/messaging_profiles?page[size]=50'); }
       const campById = {};
-      (Array.isArray(camp.data) ? camp.data : []).forEach((c) => { const id = c.campaignId || c.campaign_id || c.id; if (id) campById[id] = c.status || c.campaignStatus || 'registered'; });
+      camp.rows.forEach((c) => { const id = c.campaignId || c.campaign_id || c.id || c.tcrCampaignId; if (id) campById[id] = c.status || c.campaignStatus || c.brandId && 'ACTIVE' || 'registered'; });
       const norm = (p) => { const dd = String(p || '').replace(/\D/g, ''); return dd.length === 10 ? '+1' + dd : (dd.length === 11 ? '+' + dd : '+' + dd); };
       const byNumber = {};
-      (Array.isArray(pnc.data) ? pnc.data : []).forEach((a) => { const ph = norm(a.phoneNumber || a.phone_number); const cid = a.campaignId || a.campaign_id || a.telnyxCampaignId; if (ph) byNumber[ph] = { campaign_id: cid || null, status: (cid && campById[cid]) || 'assigned' }; });
+      pnc.rows.forEach((a) => { const ph = norm(a.phoneNumber || a.phone_number); const cid = a.campaignId || a.campaign_id || a.telnyxCampaignId || a.tcrCampaignId; if (ph) byNumber[ph] = { campaign_id: cid || null, status: (cid && campById[cid]) || a.status || 'assigned' }; });
       const WATCH = ['+16155889500', '+16152802949', '+16158578800', '+16157575500'];
       const verdict = WATCH.map((ph) => { const a = byNumber[ph]; return { number: ph, registered: !!a, campaign_id: (a && a.campaign_id) || null, campaign_status: (a && a.status) || 'NONE — not in a 10DLC campaign (texts get dropped)' }; });
-      const brands = (Array.isArray(brand.data) ? brand.data : []).map((b) => ({ id: b.brandId || b.id, name: b.displayName || b.entityName || b.name, status: b.identityStatus || b.status }));
-      return json(200, { ok: true, brands, campaigns_count: Array.isArray(camp.data) ? camp.data.length : 0, verdict, _paths: { brand: brand.status, campaign: camp.status, pnc: pnc.status } });
+      const brands = brand.rows.map((b) => ({ id: b.brandId || b.id, name: b.displayName || b.entityName || b.name, status: b.identityStatus || b.status }));
+      const campaigns = camp.rows.map((c) => ({ id: c.campaignId || c.campaign_id || c.id, status: c.status || c.campaignStatus, useCase: c.useCase || c.usecase }));
+      return json(200, { ok: true, brands, campaigns, pnc_count: pnc.rows.length, verdict, _paths: { brand: brand.status, campaign: camp.status, pnc: pnc.status } });
     }
 
     // Read-only: search Telnyx's AVAILABLE inventory for a fresh number to buy
