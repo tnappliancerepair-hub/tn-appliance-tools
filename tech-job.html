@@ -1336,7 +1336,7 @@ async function sendPayLink(){
 }
 
 function completeFlow(){
-  const types=[['repair_complete','✅ Fixed it — done'],['parts_needed','🔩 Needs parts — coming back'],['no_repair','🔁 Recommend replacement'],['reassignment_needed','🙋 Pass off — 2nd opinion']];
+  const types=[['repair_complete','✅ Fixed it — done'],['parts_needed','🔩 Needs parts — coming back'],['no_repair','🔁 Recommend replacement'],['reassignment_needed','🙋 Pass off — 2nd opinion'],['cancel_job','🚫 Cancel this job']];
   const out=document.getElementById('lc-stamp');
   out.innerHTML='How did THIS visit end?<div style="font-size:12px;color:#8a93a1;margin:3px 0 2px">“Fixed it” closes the job out. Diagnostic / parts keeps it open and comes back — it won’t mark the job done.</div><div class="acts" style="margin-top:8px">'+types.map(t=>`<button class="act" data-ct="${t[0]}">${t[1]}</button>`).join('')+'</div>';
   out.querySelectorAll('[data-ct]').forEach(b=>b.onclick=async()=>{
@@ -1371,6 +1371,23 @@ function completeFlow(){
     if(b.dataset.ct==='reassignment_needed'){
       const ok=await secondOpinionGate();
       if(!ok) return;
+    }
+    // 🚫 Cancel this job: a separate path — don't "complete" it. Capture the tech's
+    // reason, park it in his Report folder with a BLUE siren, and let the office decide
+    // (trip fee? then cancel). (Teddy 2026-07-16, option 5.)
+    if(b.dataset.ct==='cancel_job'){
+      const reason=await cancelGate();
+      if(!reason) return;   // backed out
+      toast('Sending to the office…');
+      try{
+        await xanoPost('create_tdr',{job_id:JOB_ID,technician_id:TECH_ID,technician_notes:'🚫 CANCEL REQUESTED — '+reason}).catch(()=>{});
+        if(!job.job_started_at){ try{ await xanoPost('tech_job_started',{job_id:JOB_ID,technician_id:TECH_ID}); }catch(_){} }
+        await fetch('/.netlify/functions/cancel-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,reason})}).then(r=>r.json()).catch(()=>{});
+        toast('Sent to the office ✓');
+        pushSP('in_progress','Cancel requested by tech: '+reason.slice(0,180));
+        loadJob();
+      }catch(_){ toast('⚠ connection error'); }
+      return;   // don't fall through to the normal completion
     }
     toast('Completing…');
     try{
@@ -1524,6 +1541,44 @@ function secondOpinionGate(){
       if(nEl){ const pre='🙋 SECOND OPINION — '; const cur=(nEl.value||'').trim(); nEl.value = cur ? (pre+reason.value.trim()+'\n\n'+cur) : (pre+reason.value.trim()); }
       ov.remove(); resolve(true);
     };
+    refresh();
+  });
+}
+
+// The "Cancel this job" gate — BLUE. Just asks the tech, in his own words, why the job
+// needs canceling (no photo required). Returns the reason string, or '' if he backs out.
+// (Teddy 2026-07-16, option 5.)
+function cancelGate(){
+  return new Promise(resolve=>{
+    const ov=document.createElement('div');
+    ov.id='cancel-gate';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,12,20,.82);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:14px';
+    ov.innerHTML='<div style="max-width:520px;width:100%;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)">'
+      +'<div style="background:linear-gradient(135deg,#2563eb,#0ea5e9);color:#fff;padding:18px;text-align:center">'
+        +'<div style="font-size:34px;line-height:1">🚫</div>'
+        +'<div style="font-size:20px;font-weight:900;margin-top:4px">CANCEL THIS JOB</div>'
+        +'<div style="font-size:13px;font-weight:600;opacity:.97;margin-top:6px">In your own words — tell us what\'s going on so we can get this canceled out.</div>'
+      +'</div>'
+      +'<div style="padding:16px 18px 18px">'
+        +'<textarea id="cg-reason" rows="5" placeholder="What happened? (customer not home / not needed / duplicate / wrong info / etc.) — enough that the office knows how to handle it, and whether a trip fee is owed." style="width:100%;box-sizing:border-box;font-size:15px;padding:10px;border:1px solid #c8d2e0;border-radius:10px;resize:vertical"></textarea>'
+        +'<div id="cg-count" style="font-size:12px;color:#8a93a1;margin:4px 2px 14px">0 characters</div>'
+        +'<button id="cg-submit" disabled style="width:100%;padding:14px;border:0;border-radius:10px;background:#9aa4b2;color:#fff;font-weight:900;font-size:16px;cursor:not-allowed">Tell us what\'s going on</button>'
+        +'<button id="cg-cancel" style="width:100%;padding:10px;margin-top:8px;border:0;background:transparent;color:#6b7280;font-weight:700;font-size:13px;cursor:pointer">← Back (pick a different option)</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    const btn=ov.querySelector('#cg-submit'), reason=ov.querySelector('#cg-reason'), cnt=ov.querySelector('#cg-count');
+    function refresh(){
+      const rlen=reason.value.trim().length;
+      cnt.textContent=rlen+' characters'+(rlen<12?' — a little more':' ✓');
+      const ready=rlen>=12;
+      btn.disabled=!ready;
+      btn.style.background=ready?'#2563eb':'#9aa4b2';
+      btn.style.cursor=ready?'pointer':'not-allowed';
+      btn.textContent=ready?'🚫 Send cancel request':'Tell us what\'s going on';
+    }
+    reason.addEventListener('input',refresh);
+    ov.querySelector('#cg-cancel').onclick=()=>{ ov.remove(); resolve(''); };
+    btn.onclick=()=>{ if(btn.disabled) return; const v=reason.value.trim(); ov.remove(); resolve(v); };
     refresh();
   });
 }

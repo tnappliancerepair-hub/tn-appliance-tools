@@ -37,8 +37,9 @@ job never sits there.
              └── office books the return ─────────┘  (MANUAL → Scheduled)
                  …return visit runs, tech marks completed → 7 Follow Up
 
-7  Follow Up ──(after 48h)──► 8 Needs Invoice ──► 9 [Tech] · Invoice ──► 10 💰 Paid
-   (48h auto-advance = TO BUILD; today Follow Up → Needs Invoice is a manual drag)
+7  Follow Up ──(after 48h, AUTO)──► 8 Needs Invoice ──► 9 [Tech] · Invoice ──► 10 💰 Paid
+   (48h auto-advance = LIVE: followup-auto-advance cron, every 4h, moves a completed
+    job still in the Follow Up default into Needs Invoice 48h after job_completed_at.)
 ```
 
 `Upgrade` = parked/dormant. Kept in the code so it never has to be rebuilt,
@@ -56,7 +57,7 @@ but it is NOT part of the flow and nothing auto-routes to it.
 | 5 | Waiting Parts (`parts`) | Parts ordered, ETA set, not arrived | Danielle sets the part ETA | AUTO |
 | 6 | ✅ Completion (`done`) | Parts-received checkpoint ONLY — verify parts, book the return. A finished job never sits here. | `parts_status=arrived` | AUTO |
 | 7 | Follow Up (`followup`) | A FINISHED job lands here (same-day / no-failure / return-visit done); customer gets 48h | Job marked `completed` | AUTO |
-| 8 | Needs Invoice (`needinv`) | Ready to BILL — a Follow Up job past its 48h | After 48h in Follow Up (TO BUILD), or office drag | MANUAL (auto TO BUILD) |
+| 8 | Needs Invoice (`needinv`) | Ready to BILL — a Follow Up job past its 48h | After 48h in Follow Up (AUTO, followup-auto-advance), or office drag | AUTO + MANUAL |
 | 9 | [Tech] · Invoice (`inv-<t>`) | Per-tech billing folder | Office drags it | MANUAL |
 | 10 | 💰 Paid (`paid`) | Invoiced + paid, closed | Marked paid | MANUAL / mark-paid |
 
@@ -91,6 +92,7 @@ Each maps to a `scheduling_status` and a board lane:
 | 🔩 Needs parts — coming back | `parts_needed` | `awaiting_parts` | **Waiting Parts** | Parts cycle → Completion (parts in) → return → done |
 | 🔁 Recommend replacement | `no_repair` | `no_fix_possible` | **[Tech] · Report** | Stays as active work; office files the replacement claim |
 | 🙋 Pass off — 2nd opinion | `reassignment_needed` | `held` | **[Tech] · Report** | Same as replacement; office uploads to warranty for a 2nd opinion |
+| 🚫 Cancel this job | `cancel_job` (Netlify-only, no XS) | stays `in_progress` | **[Tech] · Report** | Office reviews (trip fee?) then cancels it out |
 
 ### Option 4 — Second opinion (same gate, ORANGE siren)
 
@@ -118,6 +120,27 @@ in tech-job.html) that BLOCKS the completion until the tech provides:
 Copy hammers: "Skipping this only delays YOUR pay for this job." The job then
 routes to the **tech's Report folder** (not Completion / Follow Up) so the office
 has the package to file the replacement claim same-day. (Teddy 2026-07-16.)
+
+### Option 5 — Cancel this job (BLUE siren)
+
+Tapping 🚫 Cancel this job opens a **blue** gate (`cancelGate()`) that asks the
+tech, in his own words, why it needs canceling (reason required, no photo). It
+does NOT complete/cancel the job through the state machine (a real cancel would
+hide it from the board). Instead it: saves the reason to the report, keeps the
+job in the tech's Report folder (`in_progress`), and logs a `cancel_requested`
+marker (`cancel-request.js`) so the board shows a **BLUE 🚫 CANCEL REQUESTED**
+siren. The office then reviews it — **invoice a trip fee if one is owed** — and
+cancels it out from there (the 🗑 Delete on the board sets it canceled → it
+leaves the board). (Teddy 2026-07-16.)
+
+### The three sirens (so the office reads them at a glance)
+
+- 🔴 **RED** = Recommend replacement (`no_fix_possible`)
+- 🟠 **ORANGE** = Second opinion (`held` + `second_opinion_requested`)
+- 🔵 **BLUE** = Cancel requested (`in_progress` + `cancel_requested`)
+
+All three sit in the tech's Report folder, flashing, so nothing time-sensitive
+gets missed.
 
 ## Guardrails already in the code
 
