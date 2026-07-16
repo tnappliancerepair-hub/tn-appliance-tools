@@ -82,6 +82,7 @@ for (const p of pages) {
   </div>
   ${p.appliance === 'dryer' ? `<p style="margin:16px 0 0;padding:13px 15px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:11px;font-size:14px;color:#065f46;line-height:1.55"><b>🔥 While we're out — dryer vent cleaning too.</b> We're <b>CSIA Certified Dryer Exhaust Technicians (C-DET)</b> — <a href="/dryer-vent-cleaning.html" style="color:#16a34a;font-weight:800">clean your ${cityName} dryer vent</a> same-day, price-match guaranteed. The only crew that also breaks down and cleans the dryer itself.</p>` : ''}
   <p style="margin:18px 0 0;font-size:13px;color:#8a93a5;line-height:2">Service areas: ${topCities} · <a href="/repairs-directory.html">View all areas →</a> · <a href="/dryer-vent-cleaning.html">Dryer vent cleaning →</a></p>
+  <p style="margin:12px 0 0;padding:12px 15px;background:#eef4ff;border:1px solid #bcd2ff;border-radius:11px;font-size:14px;color:#22406e;line-height:1.55"><b style="color:#12203a">Own rentals or run a community?</b> We're the preferred appliance + dryer-vent vendor for <a href="/property-management.html" style="color:#2563eb;font-weight:700">property managers</a>, <a href="/apartment-appliance-repair.html" style="color:#2563eb;font-weight:700">apartment communities</a> and <a href="/realtor-appliance-repair.html" style="color:#2563eb;font-weight:700">realtors</a> — one vendor, one invoice, we coordinate the tenant.</p>
 </section>
 <script type="application/ld+json">${JSON.stringify({
   '@context': 'https://schema.org',

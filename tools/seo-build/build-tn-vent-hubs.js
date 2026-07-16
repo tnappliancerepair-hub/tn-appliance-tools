@@ -200,7 +200,8 @@ function pageHtml(c, others) {
 
   <div class="rel">
     <b>Dryer vent cleaning across Middle Tennessee:</b><br>
-    ${rel} · <a href="/dryer-vent-cleaning-tennessee.html">All Middle TN →</a>${dryerLink}
+    ${rel} · <a href="/dryer-vent-cleaning-tennessee.html">All Middle TN →</a>${dryerLink}<br>
+    <b style="display:inline-block;margin-top:8px">Apartment complex or rentals?</b> <a href="/apartment-appliance-repair.html">Whole-property vent + appliance program →</a> · <a href="/property-management.html">Property managers →</a>
   </div>
 </div>
 
@@ -280,6 +281,7 @@ function hubHtml() {
     <div class="eh">🏗️ Why Middle TN vents clog — the new-construction trap</div>
     <p>Middle Tennessee is building faster than almost anywhere in the country, and those new two-story subdivisions in Murfreesboro, Spring Hill, Mt. Juliet and Gallatin almost all run the dryer exhaust a <b>long way up and out the roof</b>. A five-year-old house whose vent has <b>never once been cleaned</b> is the surprise clog nobody expects. Add the older long runs around Nashville and the tree-pollen everyone here knows, and it's no wonder dryers start taking two and three cycles. We clear the whole path, lint trap to wall cap.</p>
   </div>
+  <div class="edge" style="margin-top:20px;border-color:#2563eb;background:#eef4ff"><div class="eh" style="color:#12203a">🏢 Apartment communities &amp; property managers</div><p style="color:#22406e">A clogged dryer vent is a <b>fire-code and insurance liability</b> on every unit you manage — and we clean whole properties on <b>one price-matched quote, one invoice</b>, coordinating each tenant ourselves. We are also your <b>preferred appliance-repair vendor</b> (fridges, washers, dryers, ovens) — one call for the whole portfolio. <a href="/apartment-appliance-repair.html" style="color:#2563eb;font-weight:700">Apartment communities →</a> · <a href="/property-management.html" style="color:#2563eb;font-weight:700">Property managers →</a></p></div>
   <div class="trust" style="margin-top:18px">Prefer to talk? Call or text <a href="tel:+16152802949">615-280-2949</a> — a real person answers. Also serving <a href="/dryer-vent-cleaning-louisiana.html" style="color:#ad4e00;font-weight:700;text-decoration:none">Southeast Louisiana →</a></div>
 </div>
 <script type="application/ld+json">${JSON.stringify(svcLd)}</script>

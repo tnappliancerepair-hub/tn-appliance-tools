@@ -199,7 +199,8 @@ function pageHtml(c, others) {
   <div class="rel">
     <b>Dryer vent cleaning across Southeast Louisiana:</b><br>
     ${rel} · <a href="/dryer-vent-cleaning-louisiana.html">All Louisiana →</a><br>
-    <b style="display:inline-block;margin-top:8px">Dryer acting up?</b> <a href="/dryer-repair-${c.slug}.html">${c.name} dryer repair →</a>
+    <b style="display:inline-block;margin-top:8px">Dryer acting up?</b> <a href="/dryer-repair-${c.slug}.html">${c.name} dryer repair →</a><br>
+    <b style="display:inline-block;margin-top:8px">Apartment complex or rentals?</b> <a href="/apartment-appliance-repair.html">Whole-property vent + appliance program →</a> · <a href="/property-management.html">Property managers →</a>
   </div>
 </div>
 
@@ -279,6 +280,7 @@ function hubHtml() {
     <div class="eh">🌴 Why Louisiana vents clog faster</div>
     <p>Our humidity is the difference. Damp lint <b>clumps, holds moisture, and cakes the duct</b> far faster than in a dry climate — so a Louisiana dryer vent that's never been cleaned is usually worse than it looks. Add the long roof runs common on North Shore two-story homes and the older long interior runs in New Orleans, and it's no wonder dryers here start taking two and three cycles. We clear the whole path, lint trap to wall cap.</p>
   </div>
+  <div class="edge" style="margin-top:20px;border-color:#2563eb;background:#eef4ff"><div class="eh" style="color:#12203a">🏢 Apartment communities &amp; property managers</div><p style="color:#22406e">A clogged dryer vent is a <b>fire-code and insurance liability</b> on every unit you manage — and we clean whole properties on <b>one price-matched quote, one invoice</b>, coordinating each tenant ourselves. We are also your <b>preferred appliance-repair vendor</b> (fridges, washers, dryers, ovens) — one call for the whole portfolio. <a href="/apartment-appliance-repair.html" style="color:#2563eb;font-weight:700">Apartment communities →</a> · <a href="/property-management.html" style="color:#2563eb;font-weight:700">Property managers →</a></p></div>
   <div class="trust" style="margin-top:18px">Prefer to talk? Call or text <a href="tel:+16152802949">615-280-2949</a> — a real person answers. Also serving <a href="/dryer-vent-cleaning.html" style="color:#ad4e00;font-weight:700;text-decoration:none">Middle Tennessee →</a></div>
 </div>
 <script type="application/ld+json">${JSON.stringify(svcLd)}</script>
