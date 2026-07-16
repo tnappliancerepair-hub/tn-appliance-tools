@@ -473,6 +473,7 @@ function buildDispatchRecord(raw) {
 module.exports = {
   parseServicePowerBody,
   classifyEmailType,
+  parseScheduleWindow,
   // Exposed for tests
   isSectionHeader,
   findFieldKey,
