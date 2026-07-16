@@ -95,17 +95,36 @@ const PROBLEM_TERMINATORS = [
   /^To view all calls/i,
 ];
 
-// Parse a ServicePower/SquareTrade "Schedule Period" ("8:00 - 10:00",
-// "13:00 - 15:00", "12:00 - 17:00") into a zero-padded start ("08:00",
-// "13:00") for building scheduled_start, plus a normalized display label.
-// Returns { startHHMM:'', window:'' } when there's no window.
+// Parse a ServicePower/SquareTrade "Schedule Period" into a zero-padded 24h start
+// ("08:00", "13:00") for building scheduled_start, plus a friendly display window.
+// CRITICAL: ServicePower/SquareTrade sends the window as a MILITARY HOUR RANGE with
+// NO colons — "8-10", "10-12", "13-16" (13-16 = 1pm-4pm). The old parser only matched
+// "HH:MM" (with a colon), so every one of these FAILED and fell back to 8:00 — which
+// dumped every SquareTrade job into the 8-11 slot and got customers the wrong arrival
+// time (Teddy 2026-07-16). Now we handle the hour-range form AND the colon form.
+// Returns { startHHMM:'', window:'' } when there's no usable window.
+function _fmt12(h) { h = ((parseInt(h, 10) % 24) + 24) % 24; const ap = h < 12 ? 'am' : 'pm'; const h12 = (h % 12) || 12; return h12 + ap; }
 function parseScheduleWindow(period) {
   const p = String(period || '').trim();
   if (!p) return { startHHMM: '', window: '' };
-  const m = p.match(/(\d{1,2}):(\d{2})/); // first HH:MM = the window start
-  const startHHMM = m ? `${String(m[1]).padStart(2, '0')}:${m[2]}` : '';
-  const window = p.replace(/\s*-\s*/, ' - '); // normalize the dash spacing
-  return { startHHMM, window };
+  // Colon form first: "13:00 - 16:00", "8:00 AM - 11:00 AM".
+  if (/\d{1,2}:\d{2}/.test(p)) {
+    const m = p.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+    let startHHMM = '';
+    if (m) { let h = parseInt(m[1], 10); const ap = (m[3] || '').toLowerCase(); if (ap === 'pm' && h < 12) h += 12; if (ap === 'am' && h === 12) h = 0; startHHMM = `${String(h).padStart(2, '0')}:${m[2]}`; }
+    return { startHHMM, window: p.replace(/\s*-\s*/, ' - ') };
+  }
+  // Military HOUR-RANGE form: "8-10", "10-12", "13-16" (the real ServicePower format).
+  const range = p.match(/(\d{1,2})\s*-\s*(\d{1,2})/);
+  if (range) {
+    const sh = parseInt(range[1], 10);
+    const startHHMM = (sh >= 0 && sh <= 23) ? `${String(sh).padStart(2, '0')}:00` : '';
+    return { startHHMM, window: `${_fmt12(range[1])}-${_fmt12(range[2])}` };
+  }
+  // Single hour "8" → 08:00.
+  const one = p.match(/(\d{1,2})/);
+  if (one) { const h = parseInt(one[1], 10); const startHHMM = (h >= 0 && h <= 23) ? `${String(h).padStart(2, '0')}:00` : ''; return { startHHMM, window: startHHMM ? _fmt12(one[1]) : '' }; }
+  return { startHHMM: '', window: '' };
 }
 
 function isSectionHeader(line) {
