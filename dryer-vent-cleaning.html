@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Dryer Vent Cleaning & Installation Nashville & Middle TN — Faster, Safer</title>
-<meta name="description" content="Dryer taking 2-3 cycles to dry? A clogged vent is a fire risk. Pro dryer vent cleaning & installation across Middle TN — faster drying, safer home. Book in 30 seconds, we text you right back.">
+<title>Dryer Vent Cleaning Nashville & Middle TN — Price-Match Guaranteed</title>
+<meta name="description" content="Pro dryer exhaust cleaning across Middle TN — we price-match any competitor, from a single unit to an entire apartment complex. We also break down & clean the dryer itself, not just the vent. Reroutes, modifications & the exterior vent hood. Book in 30 seconds.">
 <link rel="canonical" href="https://tnapplianceexchange.net/dryer-vent-cleaning.html">
-<meta property="og:title" content="Dryer Vent Cleaning & Installation Nashville & Middle TN — Faster, Safer">
-<meta property="og:description" content="Clogged dryer vent = fire risk + wasted energy. Pro cleaning, faster drying, safer home. Book in 30 seconds.">
+<meta property="og:title" content="Dryer Vent Cleaning Nashville & Middle TN — Price-Match Guaranteed">
+<meta property="og:description" content="We'll match any competitor's dryer exhaust cleaning price — single unit to whole complex — and we also clean the dryer itself, not just the vent. Book in 30 seconds.">
 <meta property="og:image" content="https://tnapplianceexchange.net/og-image.jpg">
 <meta name="theme-color" content="#ff8a00">
 <!-- Google tag -->
@@ -30,6 +30,11 @@
   .signs li:before{content:"⚠️";position:absolute;left:0;top:0}
   .cred{display:inline-flex;align-items:center;gap:8px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;margin-bottom:16px}
   .cred .seal{font-size:16px}
+  .pmatch{background:#052e16;border:2px solid #16a34a;border-radius:14px;padding:16px 18px;margin-bottom:18px}
+  .pmatch .pm-badge{display:inline-block;background:#16a34a;color:#052e16;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 11px;border-radius:999px;margin-bottom:9px}
+  .pmatch .pm-h{font-size:19px;font-weight:800;color:#fff;margin-bottom:6px;line-height:1.2}
+  .pmatch p{font-size:14px;color:#bbf7d0;line-height:1.55}
+  .pmatch b{color:#fff}
   .edge{background:#fff;border:2px solid #ff8a00;border-radius:14px;padding:16px;margin-bottom:20px}
   .edge .eh{font-size:15px;font-weight:800;color:#1a202c;margin-bottom:6px}
   .edge p{font-size:14px;color:#4a5568}
@@ -62,6 +67,13 @@
   <h1>Dryer vent cleaning &amp; installation</h1>
   <div class="cred"><span class="seal">✅</span> CSIA Certified Dryer Exhaust Technician (C-DET)</div>
   <div class="cred"><span class="seal">🧹</span> Thousands of vents cleaned — we've pulled out more dryer lint than we can count</div>
+
+  <div class="pmatch">
+    <div class="pm-badge">💵 Price-Match Guarantee</div>
+    <div class="pm-h">Got a lower quote? We'll match it.</div>
+    <p>Show us any local competitor's written price on a dryer exhaust cleaning and <b>we'll match it</b> — from a <b>single unit to an entire apartment complex</b>. Same price, more service: we also <b>break down and clean out the dryer itself</b>, not just the vent line — the lint that builds up <b>inside the machine</b> is where the real fire hazard hides, and most vent-only crews won't touch it.</p>
+  </div>
+
   <div class="lede">Dryer taking <b>2-3 cycles to dry?</b> That's a clogged vent — a fire risk that wastes energy and wears out your dryer. We clean it out fast — and if the vent's crushed, disconnected, or missing, we <b>install a new one</b>. <b>We'll text you right back</b> to lock in a day.</div>
 
   <div class="edge">
@@ -72,6 +84,11 @@
   <div class="edge">
     <div class="eh">🔩 New dryer vent installation &amp; rerouting</div>
     <p>Need a <b>dryer vent installed</b>, not just cleaned? We do full <b>clothes dryer vent installation</b> — a new vent run for a relocated dryer, replacing crushed or disconnected ducting, and swapping flimsy foil for <b>code-compliant rigid metal</b> that won't sag or trap lint. Tight spot behind the dryer? We fit a periscope / low-profile kit so the dryer sits closer to the wall with better airflow. Side-wall or roof exit — we handle both.</p>
+  </div>
+
+  <div class="edge">
+    <div class="eh">🏢 One unit or a whole complex — and the flap outside</div>
+    <p>We clean <b>a single home</b> or <b>every unit in an apartment complex</b> — one price-matched quote for the whole property. We don't stop at the line either: full <b>reroutes and modifications</b> when a run is too long or kinked, and we replace the <b>exterior wall vent hood — the flap outside</b> — so lint and pests stay out and air flows free. From the lint trap all the way to the wall cap, the entire path gets cleared.</p>
   </div>
 
   <div class="signs">
@@ -103,7 +120,7 @@
       <input class="zip" id="zip" type="text" placeholder="ZIP" maxlength="5" inputmode="numeric" autocomplete="postal-code">
     </div>
 
-    <button class="btn" id="submit">Book my vent cleaning →</button>
+    <button class="btn" id="submit">Book my vent cleaning (price-match) →</button>
     <div class="err" id="err"></div>
   </div>
   <div class="trust">Prefer to talk? Call or text <a href="tel:+16152802949">615-280-2949</a> — a real person answers.</div>
@@ -147,8 +164,8 @@ document.getElementById('submit').onclick=async function(){
       document.getElementById('done-h').textContent='Got it, '+first+'!';
       document.getElementById('done').style.display='block';
       window.scrollTo({top:0,behavior:'smooth'});
-    } else { showErr((d&&d.error)||'Something went wrong — please call 615-280-2949.'); btn.disabled=false; btn.textContent='Book my vent cleaning →'; }
-  }catch(e){ showErr('Connection error — please try again or call 615-280-2949.'); btn.disabled=false; btn.textContent='Book my vent cleaning →'; }
+    } else { showErr((d&&d.error)||'Something went wrong — please call 615-280-2949.'); btn.disabled=false; btn.textContent='Book my vent cleaning (price-match) →'; }
+  }catch(e){ showErr('Connection error — please try again or call 615-280-2949.'); btn.disabled=false; btn.textContent='Book my vent cleaning (price-match) →'; }
 };
 </script>
 <script type="application/ld+json">
@@ -164,7 +181,7 @@ document.getElementById('submit').onclick=async function(){
     "areaServed":["Nashville TN","Murfreesboro TN","Franklin TN","Brentwood TN","Mt Juliet TN","Hammond LA"]
   },
   "areaServed":["Middle Tennessee"],
-  "description":"Certified (CSIA C-DET) dryer vent cleaning and clothes dryer vent installation. We're appliance techs, so we also open and clean the lint inside the dryer itself — most vent cleaners won't. New vent runs, rerouting, and code-compliant rigid metal installs. Faster drying, lower fire risk."
+  "description":"Certified (CSIA C-DET) dryer vent cleaning and clothes dryer vent installation with a competitor price-match guarantee, from a single unit to an entire apartment complex. We're appliance techs, so we also open and clean the lint inside the dryer itself — most vent cleaners won't. New vent runs, rerouting, modifications, code-compliant rigid metal installs, and exterior wall vent hood replacement. Faster drying, lower fire risk."
 }
 </script>
 <script type="application/ld+json">
@@ -177,7 +194,9 @@ document.getElementById('submit').onclick=async function(){
     {"@type":"Question","name":"Do you clean inside the dryer too?","acceptedAnswer":{"@type":"Answer","text":"We can. Because we're certified appliance repair technicians, we can open the dryer and clear the lint trapped inside the machine — where a lot of the fire hazard builds up — not just the vent line. Most vent-only companies won't do this."}},
     {"@type":"Question","name":"My dryer takes 2-3 cycles to dry — is it the vent?","acceptedAnswer":{"@type":"Answer","text":"Usually yes. Slow drying is the most common sign of a clogged vent restricting airflow. Cleaning it out typically restores normal drying in a single cycle."}},
     {"@type":"Question","name":"Do you install dryer vents, not just clean them?","acceptedAnswer":{"@type":"Answer","text":"Yes — we do full clothes dryer vent installation: a new vent run for a relocated dryer, replacing crushed or disconnected ducting, and upgrading foil to code-compliant rigid metal. Side-wall or roof exit, we handle both."}},
-    {"@type":"Question","name":"Can you install a dryer vent in a tight space?","acceptedAnswer":{"@type":"Answer","text":"Yes. When the dryer sits close to the wall, we fit a periscope or low-profile vent kit so the duct doesn't kink and the dryer can push back against the wall — better airflow and more room."}}
+    {"@type":"Question","name":"Can you install a dryer vent in a tight space?","acceptedAnswer":{"@type":"Answer","text":"Yes. When the dryer sits close to the wall, we fit a periscope or low-profile vent kit so the duct doesn't kink and the dryer can push back against the wall — better airflow and more room."}},
+    {"@type":"Question","name":"Do you match competitors' prices on dryer vent cleaning?","acceptedAnswer":{"@type":"Answer","text":"Yes. Show us any local competitor's written quote and we'll match it — from a single unit to an entire apartment complex. And we include what most crews skip: opening and cleaning the dryer itself, not just the vent line."}},
+    {"@type":"Question","name":"Do you clean dryer vents for apartment complexes?","acceptedAnswer":{"@type":"Answer","text":"Yes. We clean single homes and entire multifamily properties — every unit and stack — plus reroutes, modifications, and replacing the exterior wall vent hood (the flap outside). One price-matched quote covers the whole property."}}
   ]
 }
 </script>
