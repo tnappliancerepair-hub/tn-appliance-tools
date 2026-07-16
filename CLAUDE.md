@@ -11,6 +11,43 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-16 (Wed PM) — TWO LIVE COMMS OUTAGES FIXED (phone + SMS) · SMS MOVED TO APPROVED 10DLC NUMBERS · RED-BOX REDESIGN · BOARD DURABILITY · TECH "MONEY IN THE BANK" — READ FIRST
+
+Long live-ops afternoon. Two customer-facing outages found + fixed, plus board-trust + tech-dashboard work. All LIVE on Netlify (no Mac pushes pending except optional).
+
+### 🚨 SMS LANES — MIGRATED TO CARRIER-APPROVED NUMBERS (critical config — memorize)
+Danielle's office texts weren't reaching customers ("none of my messages went through, but they get the AI ones"). **Root cause: 615-757-5500 (the human line, bought fresh 7/14) was NEVER A2P-10DLC-registered → carriers silently DROP an unregistered long code's texts.** The AI line delivered because it's on the approved campaign. **Our active/verified 10DLC campaign has exactly TWO approved numbers: 588-9500 + 857-8800.** New lane map (LIVE):
+- **AI / system→customer = 615-588-9500** (approved). `TELNYX_FROM_CUSTOMER=+16155889500`. Inbound → customer-sms-inbound.
+- **HUMAN (office replies + tech→customer) = 615-857-8800** (approved; WAS the tech line). `human-line-send.js HUMAN_LINE=+16158578800`. Inbound → human-line-inbound (routed via telnyx-provision `sethuman`). send-translated-reply + tech-customer-message both delegate to human-line-send, so both moved.
+- **TECHS (system→tech) = 615-757-5500** (internal; techs won't report spam). Xano env `TELNYX_FROM_TECH=+16157575500` (Teddy changed in Xano dashboard). Inbound → tech-sms-inbound (routed via new telnyx-provision `settech`).
+- Lane labels (ant-spine.js + office-board.html `laneOf`/`stLaneOf`) now tag 857-8800 as the human lane.
+- **NEW telnyx-provision actions:** `tendlc` (read-only 10DLC status), `settech` (assign a number → tech-sms-inbound profile). `sethuman` already existed.
+- ⚠️ **FOOTGUN:** never send customer-facing texts from an un-10DLC-registered long code — Telnyx ACCEPTS it (looks "sent") but carriers drop it silently. Only 588-9500 + 857-8800 are approved.
+
+### 🚨 PHONE — calls weren't reaching Teddy (fixed)
+Teddy got ZERO calls all day. `vapi-admin?action=daycalls`: **63 calls / 24h, 31 `assistant-forwarded-call`** (Ant tried to connect a human) but none rang his cell + many "asked_for_human_or_upset / repeated_human_requests". **Cause: the "Reach Me" toggle `OFFICE_REACH_TEDDY` was OFF** (the documented page/flag desync) → forwards hit the ring group but it dialed no one. Teddy turned it back on. Test: call 588-9500, ask for a person → cell rings ~25s.
+
+### ✅ RED "REPORT = YOUR PAY" BOX — REDESIGNED (tdr-compliance.js)
+Teddy: box was inaccurate (showed not-done + already-paid + old jobs). Rebuilt so it surfaces a job ONLY when (a) the TDR is genuinely INCOMPLETE — missing a core tech-owned field (diagnosis / labor / job-status, judged in bulk from TDR rows; deliberately NOT model/parts which false-positive), or (b) the office hit **"Request info"**. Keeps completed + not-already-paid + recent gates. Office drawer got preset one-tap asks (📦 Need part # · 🔍 Need failure · ⏱️ Need labor · ✏️ custom) → `request-tech-report.js` logs `tdr_info_requested` + texts the tech a **tap-to-open job-tile link** (opens the exact job, no searching) + flags it red on their dashboard until it's in (auto-clears on complete / resolve / 21d). All field techs verified 0-held (accurate).
+
+### ✅ TECH DASHBOARD — "🏦 Money in the bank" card
+Green running total of pay earned (completed jobs) still owed = `tech-earnings.owed`. Sits under the red box (finish reports → invoice → bank grows → payday). Note: `tech_payout_recorded` = $0 for all (payouts not recorded through Ant yet), so everything reads as owed — accurate to current data.
+
+### ✅ BOARD DURABILITY — invoices + checklist now survive device/cache (Danielle's trust)
+"Half my invoice sections empty even though I filled + saved" + "clearing my checklist" + "invoice worksheet still missing on some". Root: the board leaned on **localStorage** — invoices were NEVER read back from the server, checklist only within a 400-row window, and `saveInvoice` said "Saved ✓" BEFORE the server write + swallowed failures (bad-signal saves lived only in the browser). Fixes (all Netlify, additive):
+- **NEW `get-job-invoice.js`** — reads the last `office_invoice_logged` for a job. `office-board prefillInvoice` hydrates the worksheet from it (newer-wins, never clobbers typing).
+- **office-stage.js `?job_id=`** — per-job deep checklist read (escapes the 400-row window). Board hydrates open drawer's ticks when the device has none.
+- **Tile invoice number**: `loadInvoices` now MERGES (never wipes on a transient empty read — a 30s-poll failure used to blink every 💵 number out); `list-invoices` deep-paginates `office_invoice_logged` (was page-1/500 cap → older jobs dropped as volume grows).
+- **`saveInvoice` hardened**: retries the server write, only says "Saved ✓" when the server confirms (else "Saved here but NOT synced — retries automatically"), `resyncPendingInvoices()` on board load pushes offline saves up. ⚠️ Danielle must **hard-refresh the board** to get it; any invoice she only entered in MeisterTask was never in Ant (must be entered in Ant).
+
+### ⏭️ OPEN / NEXT
+- **Marshall Reddick #20436 (PM account) — invoice NOT logged in Ant** (still `in_progress`, no `office_invoice_logged`, tech=Teddy). PM paid; to pay the tech we must log the invoice → mark paid → release in Payroll. Teddy chose **aftermarket ~$227** but the exact figures + "is the repair done (2nd trip?)" weren't confirmed, so nothing was written. There's NO auto "collected cash/PM → pay the tech" sweep (only warranty-EFT `payout-ready-notify`) — Teddy said "just handle 20436 for now" (sweep not built).
+- SMS verification (Teddy to eyeball): Danielle office-box → Teddy's cell should arrive from 857-8800; tech text now from 757-5500.
+- Optional: slot-machine board theme sound FX; widen red box; register 757-5500 for 10DLC if tech deliverability ever matters.
+
+### 🏢 FIELDPAL.AI / FRONTDOOR (competitive intel — not our codebase)
+FrontDoor/AHS (biggest warranty partner; Jeanna Corley + Jacob Watson @frontdoor.com CC'd) are running a 2-week sandbox PoC of **FieldPal.ai** — a voice-first AI for **authorization + tech troubleshooting**, i.e. a direct competitor to Ant's slice, evaluated BY our partner. Teddy tested it (impressive but basic; login painful). Sent a polished Reply-All feedback email (positive on vision, honest it's primitive, hammered the login friction, planted that TN Appliance is a tech+office+owner building his own AI and "if it worked WITH my agent to authorize claims = the ultimate"). Keep Ant's playbook + real data OUT of FieldPal (their dashboard shows all participants' AI convos; use fake data). Closes Fri 7/31.
+
 ## 🗓️🐜 2026-07-16 (Wed) — JOB DATA-QUALITY / "MOST TRUSTED" PUSH: NAME+ADDRESS AUDIT, AHS "1,LA" ROOT-FIXED + BACKFILLED, VENDOR-COMPLIANCE + DRYER-VENT PRICE-MATCH — READ FIRST
 
 Teddy's north star for the day: **make the app the most TRUSTED** — start by ensuring job names + addresses are correct/complete. Ran a full audit, root-caused + fixed the recurring AHS "1, City" address bug, backfilled every broken record, and hardened the intake. Plus (AM) shipped the vendor-compliance self-serve packet + a dryer-vent price-match across the B2B pages. All LIVE.
