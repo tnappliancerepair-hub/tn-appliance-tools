@@ -232,9 +232,11 @@
 
 # Tech-interview transcript SWEEP — builds a tech's profile from the call transcript
 # the moment an interview call completes (no in-call tool needed), texts Teddy when
-# one lands. READ-ONLY on finished calls — never dials anyone. Every 5 min.
+# one lands. READ-ONLY on finished calls — never dials anyone.
+# 2026-07-16 efficiency pass: was */5 (288 runs/day) — the crew is long onboarded, so
+# this was pure idle load. Dropped to once a day; bump back up only during a hiring push.
 [functions."tech-interview-sweep"]
-  schedule = "*/5 * * * *"
+  schedule = "0 15 * * *"
 
 # Review-reply engine — when a Google review posts (GBP notification email),
 # Ant drafts an on-brand reply + texts Teddy to post it. Negative reviews are
@@ -514,25 +516,25 @@
 # lands, so he doesn't have to babysit his inbox waiting on API access. Dedups on
 # alerted message IDs. Reuses the pollers' Gmail OAuth.
 [functions."amazon-api-watch"]
-  # Trimmed */30 → hourly (2026-06-29): waiting DAYS on a one-time approval
-  # email — an hour's detection lag is irrelevant, half the runs.
-  schedule = "0 * * * *"
+  # Trimmed hourly → 3×/day (2026-07-16 efficiency pass): it's a one-time approval
+  # email with a days-long wait, so 8h detection lag is fine and cuts ~63 runs/day.
+  schedule = "0 13,18,23 * * *"
 
 # Google API-access email watcher — scans Gmail every 30 min for the Business Profile
 # API allowlist decision (support case 4-9470000004382) AND the Google Ads API Basic
 # Access decision, and texts Teddy the moment one lands so he doesn't babysit his
 # inbox. Dedups on alerted message IDs. Reuses the pollers' Gmail OAuth.
 [functions."google-api-watch"]
-  # Trimmed */30 → hourly (2026-06-29): one-time approval email, days-long wait.
-  schedule = "0 * * * *"
+  # Trimmed hourly → 3×/day (2026-07-16 efficiency pass): one-time approval email, days-long wait.
+  schedule = "0 13,18,23 * * *"
 
 # Vendor (warranty + parts) API-access email watcher — scans Gmail every 30 min for
 # the Frontdoor/AHS Status API, ServicePower API, Reliable Parts (services agreement/
 # credentials), and MarconeAI API emails, and texts Teddy when one lands. Query REQUIRES
 # an API-specific phrase so it does NOT match routine AHS/ServicePower dispatch emails.
 [functions."vendor-api-watch"]
-  # Trimmed */30 → hourly (2026-06-29): one-time approval email, days-long wait.
-  schedule = "0 * * * *"
+  # Trimmed hourly → 3×/day (2026-07-16 efficiency pass): one-time approval email, days-long wait.
+  schedule = "0 13,18,23 * * *"
 
 # Cybertruck watch (personal, Teddy) — relays Tesla inventory/availability/order emails
 # about the Cybertruck to Teddy's phone. Tesla's inventory API blocks servers (Akamai),
