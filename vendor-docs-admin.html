@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Vendor Docs — Admin Upload</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b0d12;color:#e8eaed;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;max-width:620px;margin:0 auto;padding:26px 18px 80px;line-height:1.5}
+h1{font-size:22px;margin-bottom:4px}
+.sub{color:#8a93a5;font-size:13px;margin-bottom:22px}
+.card{background:#12151c;border:1px solid #232836;border-radius:13px;padding:20px;margin-bottom:16px}
+.card h2{font-size:15px;margin-bottom:4px}
+.card .d{color:#8a93a5;font-size:12px;margin-bottom:12px}
+label{display:block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#8a93a5;margin-bottom:6px}
+input[type=text],input[type=password],input[type=date]{width:100%;background:#0a0c11;border:1px solid #2a3040;border-radius:9px;padding:12px;color:#fff;font-size:15px;margin-bottom:14px}
+input[type=file]{width:100%;font-size:13px;color:#cfd4dc;margin-bottom:8px}
+.state{font-size:12px;margin-top:6px}
+.ok{color:#39d353}.warn{color:#e3b341}.bad{color:#ff6b6b}
+button{background:#ff6200;color:#000;border:none;font-weight:700;font-size:14px;letter-spacing:.03em;padding:14px 20px;border-radius:10px;cursor:pointer;width:100%}
+button:disabled{opacity:.5}
+.msg{font-size:13px;margin-top:12px;min-height:16px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+</style>
+</head>
+<body>
+<h1>Vendor Docs — Admin Upload</h1>
+<div class="sub">Upload the W-9, business license, and Certificate of Insurance PDFs. They power the self-serve page at <b>/vendor-compliance</b>. Uploads go to secure storage; downloads are signed links.</div>
+
+<div class="card">
+  <label>Admin key</label>
+  <input type="password" id="secret" placeholder="admin key" autocomplete="off">
+  <div class="d">Required to save. (Your VAPI_ADMIN_SECRET.)</div>
+  <div id="current" class="state">Loading current status…</div>
+</div>
+
+<div class="card">
+  <h2>📄 W-9</h2><div class="d">IRS W-9 with your EIN + signature.</div>
+  <input type="file" accept="application/pdf" id="file-w9">
+  <div class="state" id="s-w9"></div>
+</div>
+<div class="card">
+  <h2>🏛️ Business License</h2><div class="d">TN SoS LLC certificate and/or county business-tax license (one PDF).</div>
+  <input type="file" accept="application/pdf" id="file-license">
+  <div class="state" id="s-license"></div>
+</div>
+<div class="card">
+  <h2>🛡️ Certificate of Insurance (COI)</h2><div class="d">Your ACORD 25 — GL (Hiscox), Workers' Comp (Hartford), Auto (Progressive).</div>
+  <input type="file" accept="application/pdf" id="file-coi">
+  <div class="state" id="s-coi"></div>
+  <label style="margin-top:10px">COI valid through (expiry date)</label>
+  <input type="date" id="coi-expires">
+</div>
+
+<button id="save">Save vendor documents</button>
+<div class="msg" id="msg"></div>
+
+<script>
+var F='/.netlify/functions/vendor-docs', keys={};
+function fmt(d){ if(!d) return ''; try{ var p=d.split('-'); return p[1]+'/'+p[2]+'/'+p[0]; }catch(e){ return d; } }
+function loadStatus(){
+  fetch(F+'?meta=1').then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.ok){ document.getElementById('current').innerHTML='<span class=bad>could not load status</span>'; return; }
+    document.getElementById('current').innerHTML='On file: '+
+      (d.w9?'<span class=ok>W-9 ✓</span>':'<span class=warn>W-9 —</span>')+' · '+
+      (d.license?'<span class=ok>License ✓</span>':'<span class=warn>License —</span>')+' · '+
+      (d.coi?'<span class=ok>COI ✓</span>':'<span class=warn>COI —</span>')+
+      (d.coi_expires?(' · COI valid through <b>'+fmt(d.coi_expires)+'</b>'):'');
+    if(d.coi_expires && !document.getElementById('coi-expires').value) document.getElementById('coi-expires').value=d.coi_expires;
+  }).catch(function(){ document.getElementById('current').innerHTML='<span class=bad>could not load status</span>'; });
+}
+loadStatus();
+
+async function uploadDoc(doc, file, stEl){
+  stEl.innerHTML='<span class=warn>uploading…</span>';
+  var key='vendor-docs/'+doc+'-'+Date.now()+'.pdf';
+  var pr=await fetch('/.netlify/functions/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:key,mime_type:'application/pdf'})});
+  var pd=await pr.json();
+  if(!pd.success) throw new Error(pd.error||'presign failed');
+  var put=await fetch(pd.upload_url,{method:'PUT',headers:{'Content-Type':'application/pdf'},body:file});
+  if(!put.ok) throw new Error('upload failed ('+put.status+')');
+  keys[doc+'_key']=key;
+  stEl.innerHTML='<span class=ok>uploaded ✓ (saves when you click Save)</span>';
+}
+['w9','license','coi'].forEach(function(doc){
+  document.getElementById('file-'+doc).addEventListener('change', function(e){
+    var f=e.target.files[0]; if(!f) return;
+    if(f.type!=='application/pdf'){ document.getElementById('s-'+doc).innerHTML='<span class=bad>must be a PDF</span>'; return; }
+    uploadDoc(doc, f, document.getElementById('s-'+doc)).catch(function(err){ document.getElementById('s-'+doc).innerHTML='<span class=bad>'+err.message+'</span>'; });
+  });
+});
+
+document.getElementById('save').onclick=async function(){
+  var msg=document.getElementById('msg'); msg.innerHTML='';
+  var secret=document.getElementById('secret').value.trim();
+  if(!secret){ msg.innerHTML='<span class=bad>enter the admin key</span>'; return; }
+  var body=Object.assign({action:'set', secret:secret}, keys);
+  var exp=document.getElementById('coi-expires').value.trim();
+  if(exp) body.coi_expires=exp;
+  if(Object.keys(keys).length===0 && !exp){ msg.innerHTML='<span class=warn>nothing new to save — upload a file or set the expiry</span>'; return; }
+  this.disabled=true; this.textContent='Saving…';
+  try{
+    var r=await fetch(F,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var d=await r.json();
+    if(d&&d.ok){ msg.innerHTML='<span class=ok>saved ✓ — live on /vendor-compliance</span>'; keys={}; loadStatus(); }
+    else msg.innerHTML='<span class=bad>'+((d&&d.error)||'save failed')+'</span>';
+  }catch(e){ msg.innerHTML='<span class=bad>network error</span>'; }
+  this.disabled=false; this.textContent='Save vendor documents';
+};
+</script>
+</body></html>

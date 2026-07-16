@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>TN Appliance Exchange — Vendor Compliance Packet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--black:#050505;--surface:#0c0c0c;--surf2:#111;--border:#1a1a1a;--bord2:#252525;--orange:#ff6200;--oran2:#ff7c28;--green:#39ff14;--white:#f0f0f0;--gray:#8a8a8a;--gray2:#333;--mono:'Geist Mono',monospace;--serif:'Instrument Serif',serif;--block:'Bebas Neue',sans-serif;}
+html,body{background:#050505 !important;color:#f0f0f0;font-family:var(--mono);overflow-x:hidden}
+.shell{max-width:760px;margin:0 auto;padding:0 22px 70px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(5,5,5,.92);backdrop-filter:blur(20px);z-index:10}
+.nav-brand{display:flex;align-items:center;gap:9px;text-decoration:none}
+.nav-ant{font-size:20px}.nav-name{font-family:var(--block);font-size:15px;letter-spacing:.05em;color:var(--white)}
+.nav-tag{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--gray);margin-top:1px}
+.nav-call{font-size:11px;color:var(--gray);text-decoration:none}
+.hero{padding:44px 0 22px}
+.hero-label{font-size:10px;color:var(--orange);letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+h1{font-family:var(--block);font-size:clamp(34px,7vw,52px);letter-spacing:.02em;line-height:.98;color:var(--white);margin-bottom:16px}
+.hero-sub{font-size:14px;color:var(--gray);line-height:1.8;max-width:560px}
+.hero-sub b{color:var(--white);font-weight:500}
+.card{background:var(--surface);border:1px solid var(--bord2);border-radius:15px;padding:24px 24px;margin-top:26px}
+.card h2{font-family:var(--block);font-size:22px;letter-spacing:.03em;color:var(--white);margin-bottom:4px}
+.card .sub{font-size:12px;color:var(--gray);margin-bottom:16px;line-height:1.6}
+.rows{display:flex;flex-direction:column;gap:11px}
+.crow{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding-bottom:11px;border-bottom:1px solid var(--border);font-size:13px}
+.crow:last-child{border-bottom:none;padding-bottom:0}
+.crow .k{color:var(--gray);letter-spacing:.02em}
+.crow .v{color:var(--white);text-align:right;font-weight:500}
+.crow .v small{display:block;color:var(--gray);font-weight:400;font-size:11px;margin-top:2px}
+.dl{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px;margin-top:16px}
+.dlbtn{display:flex;flex-direction:column;align-items:center;gap:7px;background:#0a0a0a;border:1px solid var(--bord2);border-radius:12px;padding:18px 10px;text-decoration:none;transition:all .2s;text-align:center}
+.dlbtn:hover{border-color:var(--orange);transform:translateY(-2px)}
+.dlbtn .ic{font-size:24px}
+.dlbtn .lab{font-size:11px;color:var(--white);font-weight:500;letter-spacing:.02em;line-height:1.3}
+.dlbtn .st{font-size:9px;color:var(--green);letter-spacing:.08em;text-transform:uppercase}
+.dlbtn.off{opacity:.5;pointer-events:none}.dlbtn.off .st{color:var(--gray)}
+.note{font-size:11.5px;color:var(--gray);line-height:1.7;margin-top:14px}
+.pill{display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--green);background:rgba(57,255,20,.06);border:1px solid rgba(57,255,20,.2);border-radius:20px;padding:3px 10px;margin-left:8px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:11px}
+.field.full{grid-column:1/-1}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+label{font-size:10px;color:var(--gray);letter-spacing:.07em;text-transform:uppercase}
+input,textarea{background:#0a0a0a;border:1px solid var(--bord2);border-radius:9px;padding:12px 13px;color:var(--white);font-family:var(--mono);font-size:15px;width:100%}
+input:focus,textarea:focus{outline:none;border-color:var(--orange)}
+textarea{min-height:66px;resize:vertical}
+.btn{width:100%;background:var(--orange);color:#000;font-family:var(--mono);font-weight:700;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;padding:15px;border:none;border-radius:10px;cursor:pointer;margin-top:4px}
+.btn:hover{background:var(--oran2)}.btn:disabled{opacity:.6}
+.err{color:#ff6b6b;font-size:12px;min-height:14px;margin-top:8px}
+.done{display:none;text-align:center;padding:22px 6px}.done .big{font-size:38px;margin-bottom:8px}.done h2{margin-bottom:8px}.done p{font-size:13px;color:var(--gray);line-height:1.7}
+footer{border-top:1px solid var(--border);margin-top:34px;padding-top:20px;text-align:center;font-size:11px;color:var(--gray2)}
+footer a{color:var(--gray);text-decoration:none}
+@media(max-width:560px){.frow{grid-template-columns:1fr}.dl{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="nav-brand"><span class="nav-ant">🐜</span><div><div class="nav-name">TN Appliance Exchange</div><div class="nav-tag">Vendor Compliance</div></div></a>
+  <a href="tel:6152802949" class="nav-call">615-280-2949</a>
+</nav>
+
+<div class="shell">
+  <div class="hero">
+    <div class="hero-label">Approved Vendor · Compliance Packet</div>
+    <h1>Everything Your Onboarding Needs.</h1>
+    <p class="hero-sub">TN Appliance Exchange LLC is a fully insured, licensed appliance-repair vendor. Grab our <b>W-9, business license, and Certificate of Insurance</b> below — or request a COI naming your company as additional insured. We turn it around fast.</p>
+  </div>
+
+  <div class="card">
+    <h2>Compliance at a glance</h2>
+    <div class="sub">Family-owned & operating since 2012 · Middle Tennessee + Louisiana</div>
+    <div class="rows">
+      <div class="crow"><span class="k">Legal entity</span><span class="v">TN Appliance Exchange LLC<small>Registered Tennessee LLC · EIN on file (W-9)</small></span></div>
+      <div class="crow"><span class="k">General Liability</span><span class="v">Hiscox<small>Certificate on file</small></span></div>
+      <div class="crow"><span class="k">Workers' Compensation</span><span class="v">The Hartford</span></div>
+      <div class="crow"><span class="k">Commercial Auto</span><span class="v">Progressive</span></div>
+      <div class="crow"><span class="k">Certificate of Insurance</span><span class="v" id="coiExp">on file</span></div>
+    </div>
+
+    <div class="dl" id="dl">
+      <a class="dlbtn off" id="dl-w9" href="#"><span class="ic">📄</span><span class="lab">W-9</span><span class="st" id="st-w9">…</span></a>
+      <a class="dlbtn off" id="dl-license" href="#"><span class="ic">🏛️</span><span class="lab">Business License</span><span class="st" id="st-license">…</span></a>
+      <a class="dlbtn off" id="dl-coi" href="#"><span class="ic">🛡️</span><span class="lab">Insurance (COI)</span><span class="st" id="st-coi">…</span></a>
+    </div>
+    <div class="note">These are our standard vendor documents. If your onboarding portal (AppFolio, Vendorly, PropertyMeld, etc.) needs them uploaded on your end, download and drop them in — or request a company-specific COI below and we'll have our carrier issue it.</div>
+  </div>
+
+  <div class="card" id="reqcard">
+    <div id="reqform">
+      <h2>Request a COI for your company</h2>
+      <div class="sub">Need TN Appliance Exchange to list your company as <b>additional insured / certificate holder</b>? Tell us who to name and we'll have Hiscox/Hartford/Progressive issue it — usually same day.</div>
+      <div class="frow">
+        <div class="field"><label>Your company / PM</label><input id="f-company" placeholder="Management company"></div>
+        <div class="field"><label>Your name</label><input id="f-contact" placeholder="First Last"></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label>Email</label><input id="f-email" type="email" placeholder="you@company.com"></div>
+        <div class="field"><label>Phone</label><input id="f-phone" type="tel" placeholder="(615) 555-0199"></div>
+      </div>
+      <div class="field full"><label>Name to list as additional insured / certificate holder</label><input id="f-holder" placeholder="Exact legal name for the certificate"></div>
+      <div class="field full"><label>Certificate holder address</label><input id="f-addr" placeholder="Street, City, State, ZIP"></div>
+      <div class="field full"><label>Coverage / limits required (optional)</label><input id="f-cov" placeholder="e.g. $1M/$2M GL, additional insured, waiver of subrogation"></div>
+      <div class="field full"><label>Anything else? (optional)</label><textarea id="f-notes" placeholder="Your vendor-onboarding portal, deadline, etc."></textarea></div>
+      <button class="btn" id="f-submit">Request my COI →</button>
+      <div class="err" id="f-err"></div>
+    </div>
+    <div class="done" id="reqdone">
+      <div class="big">📄</div><h2>Got it — thank you.</h2>
+      <p>Your COI request is in. We'll have our carrier issue the certificate and send it over, usually the same day. Need it fast? Call <a href="tel:6152802949" style="color:var(--orange);text-decoration:none">615-280-2949</a>.</p>
+    </div>
+  </div>
+
+  <footer>TN Appliance Exchange LLC · Family-Owned Since 2012 · <a href="/">tnapplianceexchange.net</a> · <a href="/property-management">Property Managers</a></footer>
+</div>
+
+<script>
+(function(){
+  var F='/.netlify/functions/vendor-docs';
+  function setBtn(id, ok){
+    var b=document.getElementById('dl-'+id), st=document.getElementById('st-'+id);
+    if(ok){ b.classList.remove('off'); b.href=F+'?doc='+id; st.textContent='Download'; }
+    else { b.classList.add('off'); st.textContent='Ask below'; }
+  }
+  fetch(F+'?meta=1').then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.ok) return;
+    setBtn('w9', d.w9); setBtn('license', d.license); setBtn('coi', d.coi);
+    if(d.coi_expires) document.getElementById('coiExp').innerHTML='Valid through '+d.coi_expires+'<small>Request a company-specific cert below</small>';
+  }).catch(function(){});
+
+  var btn=document.getElementById('f-submit'), err=document.getElementById('f-err');
+  var val=function(id){return (document.getElementById(id).value||'').trim();};
+  btn.onclick=async function(){
+    err.textContent='';
+    var company=val('f-company'),contact=val('f-contact'),email=val('f-email'),phone=val('f-phone');
+    if(!company && !contact){ err.textContent='Please add your company or name.'; return; }
+    if(!phone && !email){ err.textContent='Add a phone or email so we can send the cert.'; return; }
+    btn.disabled=true; btn.textContent='Sending…';
+    try{
+      var r=await fetch(F,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        action:'request', kind:'coi', company:company, contact:contact, email:email, phone:phone,
+        cert_holder:val('f-holder'), cert_address:val('f-addr'), coverage:val('f-cov'), notes:val('f-notes')
+      })});
+      var d=await r.json();
+      if(d&&d.ok){ document.getElementById('reqform').style.display='none'; document.getElementById('reqdone').style.display='block'; }
+      else { err.textContent=(d&&d.error)||'Something went wrong — call 615-280-2949.'; btn.disabled=false; btn.textContent='Request my COI →'; }
+    }catch(e){ err.textContent='Network hiccup — call 615-280-2949.'; btn.disabled=false; btn.textContent='Request my COI →'; }
+  };
+})();
+</script>
+</body></html>
