@@ -10,6 +10,7 @@
 
 const crud = require('./_lib/xano/metadata-crud');
 const guard = require('./_lib/sms-guard');
+const dlr = require('./_lib/sms-dlr');
 
 const HUMAN_LINE = '+16158578800'; // the approved human line (switched from 757-5500, 2026-07-16)
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
@@ -28,8 +29,13 @@ function parseInbound(event) {
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return json(200, { ok: true, note: 'human-line inbound handler' });
+  // Outbound delivery receipt? Record any FAILURE (so sms-delivery-watch can catch the
+  // line going dark) and stop — it's not an inbound message.
+  let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
+  const d = await dlr.recordIfDeliveryFailure(body);
+  if (d.isDlr) return json(200, { ok: true, dlr: true, failed: d.failed });
   const { from, to, text, evType } = parseInbound(event);
-  // Ignore delivery-receipt / non-inbound events.
+  // Ignore any other non-inbound events.
   if (evType && !/received|inbound/i.test(evType)) return json(200, { ok: true, ignored: evType });
   if (!from) return json(200, { ok: true, note: 'no from number' });
 

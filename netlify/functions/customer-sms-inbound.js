@@ -477,6 +477,14 @@ exports.handler = async function (event) {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
+  // Outbound delivery receipt for the AI/customer line? Record any FAILURE so
+  // sms-delivery-watch can catch the line going dark, then stop — not an inbound msg.
+  try {
+    const _b = JSON.parse(event.body || '{}');
+    const _d = await require('./_lib/sms-dlr').recordIfDeliveryFailure(_b);
+    if (_d.isDlr) return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ok: true, dlr: true, failed: _d.failed }) };
+  } catch (_) {}
+
   const provider = detectProvider(event);
   console.log('[customer-sms-inbound] provider =', provider);
 

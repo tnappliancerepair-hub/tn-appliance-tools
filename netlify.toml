@@ -320,6 +320,19 @@
 [functions."callback-watch"]
   schedule = "*/30 * * * *"
 
+# Phone-reach watchdog — every 30 min during business hours, catch when BOTH office
+# Reach Me switches are off (the silent toggle-revert that gave Teddy zero calls for
+# hours on 2026-07-16) and text him before he notices the dead transfer himself.
+[functions."phone-reach-watch"]
+  schedule = "*/30 * * * *"
+
+# SMS-delivery watchdog — hourly, catch a customer text line going dark. Reads the real
+# Telnyx delivery-failure receipts captured by _lib/sms-dlr; if >=3 texts bounce on one
+# line in the last hour it texts Teddy (the exact 10DLC-drop that killed the human line
+# on 2026-07-16, where Telnyx accepted every text but carriers silently dropped them).
+[functions."sms-delivery-watch"]
+  schedule = "15 * * * *"
+
 # Intake collector — the foundation for cluster ghost-scheduling. Hourly during
 # reasonable hours (9am-6pm CT = 14:00-23:00 UTC) it texts non-vendor needs-
 # scheduled jobs (that have a phone + no availability yet) the intake request:
