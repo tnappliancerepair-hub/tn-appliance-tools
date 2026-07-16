@@ -80,7 +80,8 @@ for (const p of pages) {
     ${otherCities.length ? `<div><h3 style="font-size:14px;color:#5a6678;margin-bottom:6px">${brandName} ${applName} repair nearby</h3><ul style="list-style:none;padding:0;line-height:1.9;font-size:14px">${linkList(pick(otherCities, 7))}</ul></div>` : ''}
     ${ups.length ? `<div><h3 style="font-size:14px;color:#5a6678;margin-bottom:6px">Browse more</h3><ul style="list-style:none;padding:0;line-height:1.9;font-size:14px">${linkList(ups)}</ul></div>` : ''}
   </div>
-  <p style="margin:18px 0 0;font-size:13px;color:#8a93a5;line-height:2">Service areas: ${topCities} · <a href="/repairs-directory.html">View all areas →</a></p>
+  ${p.appliance === 'dryer' ? `<p style="margin:16px 0 0;padding:13px 15px;background:#ecfdf5;border:1px solid #6ee7b7;border-radius:11px;font-size:14px;color:#065f46;line-height:1.55"><b>🔥 While we're out — dryer vent cleaning too.</b> We're <b>CSIA Certified Dryer Exhaust Technicians (C-DET)</b> — <a href="/dryer-vent-cleaning.html" style="color:#16a34a;font-weight:800">clean your ${cityName} dryer vent</a> same-day, price-match guaranteed. The only crew that also breaks down and cleans the dryer itself.</p>` : ''}
+  <p style="margin:18px 0 0;font-size:13px;color:#8a93a5;line-height:2">Service areas: ${topCities} · <a href="/repairs-directory.html">View all areas →</a> · <a href="/dryer-vent-cleaning.html">Dryer vent cleaning →</a></p>
 </section>
 <script type="application/ld+json">${JSON.stringify({
   '@context': 'https://schema.org',
