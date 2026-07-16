@@ -7,6 +7,7 @@
 // Office-initiated (deliberate), so it sends through the direct Netlify SMS path
 // (bypasses the loop's automated weekend mute on purpose).
 const { sendSms } = require('./_lib/sms');
+const crud = require('./_lib/xano/metadata-crud');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 
@@ -55,7 +56,11 @@ exports.handler = async function (event) {
   if (!has(tdr.repair_completed)) missing.push('what you did');
   if (!(Number(tdr.labor_time_hours) > 0)) missing.push('labor time');
 
-  if (!missing.length) {
+  // A free-text ask from the office ("was the customer home?", "confirm the model").
+  const note = String(b.note || '').replace(/\s+/g, ' ').trim().slice(0, 240);
+
+  // Nothing missing AND nothing to ask → the report's already done, don't nag.
+  if (!missing.length && !note) {
     return j(200, { ok: false, complete: true, error: 'report already complete', technician_id: techId });
   }
 
@@ -64,17 +69,29 @@ exports.handler = async function (event) {
   const missingStr = missing.join(', ');
 
   const link = `${SITE}/.netlify/functions/start-report-call?job_id=${jobId}&tech_id=${techId}`;
-  const body =
-    `[ant] ${customer}'s ${appliance} report still needs: ${missingStr}. ` +
-    `Tap and Ant will call you to finish it (he'll help find the part # too): ${link} ` +
-    `— or call when you can. Sooner it's in, sooner it gets processed.`;
+  // Lead with the office's specific ask when there is one; always give the tap-to-finish link.
+  const body = note
+    ? (`[ant] Danielle needs more on ${customer}'s ${appliance} report: "${note}". ` +
+       (missing.length ? `Still needs: ${missingStr}. ` : '') +
+       `Tap and Ant will call you to finish it: ${link}`)
+    : (`[ant] ${customer}'s ${appliance} report still needs: ${missingStr}. ` +
+       `Tap and Ant will call you to finish it (he'll help find the part # too): ${link} ` +
+       `— or call when you can. Sooner it's in, sooner it gets processed.`);
 
   if (b.dryrun === true || b.dryrun === '1') {
-    return j(200, { ok: true, dryrun: true, technician_id: techId, tech_phone_on_file: !!techPhone, customer, missing });
+    return j(200, { ok: true, dryrun: true, technician_id: techId, tech_phone_on_file: !!techPhone, customer, missing, note, red_box: true });
   }
   let sent = false;
   try { await sendSms(techPhone, body, 'tech', 'report_nudge'); sent = true; } catch (_) {}
-  return j(200, { ok: sent, technician_id: techId, customer, missing });
+  // Record the ask so the tech's dashboard red box lights up for THIS job. It clears
+  // when the TDR is complete, an explicit resolve is logged, or it ages out (21d).
+  try {
+    await crud.logEvent('tdr_info_requested', {
+      job_id: jobId, technician_id: techId, requested_by: String(b.requested_by || 'office'),
+      note, missing, at_ms: Date.now(),
+    });
+  } catch (_) {}
+  return j(200, { ok: sent, technician_id: techId, customer, missing, note, red_box: true });
 };
 
 function j(code, obj) {

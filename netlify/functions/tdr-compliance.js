@@ -33,23 +33,47 @@ async function actionRows(action, pages) {
   return out;
 }
 
-// job_id -> Set(tech_ids who filed a TDR row with real content). "Filed" = a
-// diagnosis / repair / notes / failed-part is present (a bare pre-diagnosis with
-// only a diagnosis line still counts, but Teddy's owner pre-diag is separated by
-// author when we know the assigned tech).
-async function tdrFiledSets() {
-  const byJob = {};
+// One pass over the TDR rows builds TWO things per job:
+//   byJob  — Set(tech_ids who filed a row with real content)  [scoreboard uses this]
+//   comp   — merged completeness {diag,labor,status} across all the job's rows
+//
+// A voice scribe often splits a report across rows (diagnosis in an older row, the
+// part in a newer one), so completeness is merged: a field counts DONE if ANY of the
+// job's rows has it. We only judge the three CORE, tech-owned fields that live
+// reliably on the TDR row — diagnosis (or which-part-failed), labor time, and the
+// job-status ("complete / second trip"). We deliberately DON'T judge the model # or
+// part # here: the model is usually OCR'd at intake (not the tech's blocker) and the
+// parts column is the known-broken JSON/text column whose reads come back empty — so
+// judging it server-side would false-positive on jobs where the tech DID log the part.
+// Keeping the check to the three reliable fields is what makes the red box accurate.
+async function tdrScan() {
+  const byJob = {};   // jid -> Set(tech_ids)
+  const comp = {};    // jid -> { diag, labor, status }
   for (let p = 1; p <= 5; p++) {
     const rows = await metaSearch(TDR_TABLE, { sort: { id: 'desc' }, per_page: 500, page: p });
     for (const t of rows) {
       const jid = Number(t.job_id || 0); if (!jid) continue;
       const content = nonEmpty(t.diagnosis) || nonEmpty(t.repair_completed) || nonEmpty(t.technician_notes) || nonEmpty(t.failed_component);
-      if (!content) continue;
-      (byJob[jid] = byJob[jid] || new Set()).add(Number(t.technician_id || 0));
+      if (content) (byJob[jid] = byJob[jid] || new Set()).add(Number(t.technician_id || 0));
+      const c = comp[jid] || (comp[jid] = { diag: false, labor: false, status: false });
+      if (nonEmpty(t.diagnosis) || nonEmpty(t.failed_component)) c.diag = true;      // what failed
+      if (num(t.labor_time_hours) > 0 || nonEmpty(t.labor_hours)) c.labor = true;     // time on the job
+      if (nonEmpty(t.repair_completed)) c.status = true;                              // complete / 2nd trip
     }
     if (rows.length < 500) break;
   }
-  return byJob;
+  return { byJob, comp };
+}
+// Which of the three core fields are still missing on this job's report. No row at
+// all → all three missing (a totally-unfiled report). Empty array → complete.
+function tdrMissing(comp, jobId) {
+  const c = comp[Number(jobId)];
+  if (!c) return ['the diagnosis', 'labor time', 'job status'];
+  const m = [];
+  if (!c.diag) m.push('the diagnosis');
+  if (!c.labor) m.push('labor time');
+  if (!c.status) m.push('job status');
+  return m;
 }
 // Is this job's report filed by the tech who owns it? Assigned tech's own report
 // wins; otherwise any non-owner (non pre-diag) author counts. An owner-only
@@ -77,8 +101,8 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const todayCt = ctDate(Date.now());
 
-  let byJob;
-  try { byJob = await tdrFiledSets(); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
+  let byJob, comp;
+  try { const _s = await tdrScan(); byJob = _s.byJob; comp = _s.comp; } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
 
   // Today's stops per tech (from the calendar week, filtered to today CT) +
   // a job_id -> customer name map so a held report reads "Sarah Johnson", not "#123".
@@ -89,7 +113,7 @@ exports.handler = async function (event) {
       fetch(`${XANO}/get_office_kanban`, { signal: AbortSignal.timeout(20000) }).then((r) => r.json()).catch(() => ({})),
     ]);
     week = wk || {};
-    for (const jb of ((km && (km.items || km.jobs)) || [])) { const id = Number(jb.id); if (!id) continue; nameByJob[id] = `${(jb.customer_first || '').trim()} ${(jb.customer_last || '').trim()}`.trim(); statusByJob[id] = { s: String(jb.scheduling_status || ''), c: String(jb.current_status || ''), done: Number(jb.job_completed_at || 0) }; }
+    for (const jb of ((km && (km.items || km.jobs)) || [])) { const id = Number(jb.id); if (!id) continue; nameByJob[id] = `${(jb.customer_first || '').trim()} ${(jb.customer_last || '').trim()}`.trim(); statusByJob[id] = { s: String(jb.scheduling_status || ''), c: String(jb.current_status || ''), done: Number(jb.job_completed_at || 0), t: Number(jb.technician_id || 0) }; }
   } catch (_) { week = {}; }
   const techNames = {};
   for (const t of (week.technicians || [])) techNames[Number(t.id)] = ((t.first_name || t.name || ('Tech ' + t.id)) + '').trim();
@@ -142,39 +166,83 @@ exports.handler = async function (event) {
   const techId = parseInt(q.tech_id, 10) || 0;
   if (!techId) return j(400, { ok: false, error: 'tech_id or scope=today required' });
 
-  // Billed-but-unfiled = the tech's RECENT invoiced jobs with no filed report →
-  // the current pay that's waiting on documentation. Scoped to a rolling window
-  // (default 30d) so it's actionable, not an ancient backlog. Newest invoice per job.
+  // The red box now surfaces exactly two things (Teddy 2026-07-16 — "that warning
+  // should only be for jobs whose TDRs are incomplete, and/or Danielle should be
+  // able to hit a button to ask for info that triggers this box"):
+  //   (1) INCOMPLETE reports — the tech's recently-completed jobs whose TDR is
+  //       missing a core field (diagnosis / labor / job-status), and
+  //   (2) OFFICE-REQUESTED info — a job the office tapped "Request info" on.
+  // Both are gated so a done, unasked report never nags: not already paid out, and
+  // recent (completion within the window). The $ framing rides along when we have an
+  // invoice amount, but the box no longer requires an invoice to exist.
   const days = Math.max(1, Math.min(120, parseInt(q.days, 10) || 30));
   const cutoff = Date.now() - days * 86400000;
-  let invRows = [];
-  try { invRows = await actionRows('office_invoice_logged', 4); } catch (_) {}
-  // Jobs this tech was already paid out on → their pay is NOT stuck, even if we didn't
-  // detect a filed report (Teddy 2026-07-16: the box was also showing old, already-paid jobs).
+
+  // Invoice amounts (tech_pay) per job → the "$X of your pay is tied up" framing.
+  const invMap = {}; // jid -> { pay, when }
+  try {
+    const invRows = await actionRows('office_invoice_logged', 4);
+    for (const r of invRows) { const m = metaOf(r); if (parseInt(m.technician_id, 10) !== techId) continue; const jid = Number(m.job_id || 0); if (!jid || invMap[jid]) continue; invMap[jid] = { pay: num(m.tech_pay) || num(m.labor), when: num(m.logged_at_ms) || (r.created_at ? Date.parse(r.created_at) : 0) }; }
+  } catch (_) {}
+  // Jobs already paid out → pay isn't stuck; drop them (Teddy 2026-07-16).
   const paidJobs = new Set();
   try { const payRows = await actionRows('tech_payout_recorded', 3); for (const r of payRows) { const m = metaOf(r); if (parseInt(m.technician_id, 10) !== techId) continue; const pj = Number(m.job_id || 0); if (pj) paidJobs.add(pj); } } catch (_) {}
-  const seen = new Set(); const holding = [];
+
+  // Open office info-requests for this tech: a "Request info" tap is open until the
+  // TDR becomes complete, an explicit resolve is logged, or it ages out (21d) so a
+  // one-off ask can never stick forever.
+  const REQ_MAX_MS = 21 * 86400000;
+  const reqByJob = {}; // jid -> { at, note }
+  const resolvedAt = {}; // jid -> latest resolve ms
+  try { const rr = await actionRows('tdr_info_resolved', 2); for (const r of rr) { const m = metaOf(r); if (m.technician_id && parseInt(m.technician_id, 10) !== techId) continue; const jid = Number(m.job_id || 0); if (!jid) continue; const at = num(m.at_ms) || (r.created_at ? Date.parse(r.created_at) : 0); if (at > (resolvedAt[jid] || 0)) resolvedAt[jid] = at; } } catch (_) {}
+  try {
+    const rq = await actionRows('tdr_info_requested', 3);
+    for (const r of rq) {
+      const m = metaOf(r); if (parseInt(m.technician_id, 10) !== techId) continue;
+      const jid = Number(m.job_id || 0); if (!jid || reqByJob[jid]) continue; // newest per job (rows come desc)
+      const at = num(m.at_ms) || (r.created_at ? Date.parse(r.created_at) : 0);
+      if (!at || at < Date.now() - REQ_MAX_MS) continue;      // aged out
+      if (at <= (resolvedAt[jid] || 0)) continue;              // resolved after the ask
+      reqByJob[jid] = { at, note: String(m.note || '').trim() };
+    }
+  } catch (_) {}
+
+  // Candidate jobs = the tech's recent COMPLETED jobs (from the board feed) + any job
+  // with an open office request. Judge each on the merged TDR completeness.
+  const candidates = new Set(Object.keys(reqByJob).map(Number));
+  for (const [id, st] of Object.entries(statusByJob)) {
+    const jid = Number(id);
+    if (Number(st.t) !== techId) continue;
+    const done = !!(st.done > 0 || /complete/i.test(st.s) || /complete/i.test(st.c));
+    if (!done) continue;                                       // not finished → no report owed yet
+    candidates.add(jid);
+  }
+
+  const holding = [];
   let holdingAmount = 0;
-  for (const r of invRows) {
-    const m = metaOf(r); if (parseInt(m.technician_id, 10) !== techId) continue;
-    const jid = Number(m.job_id || 0); if (!jid || seen.has(jid)) continue; seen.add(jid);
-    const when = num(m.logged_at_ms) || (r.created_at ? Date.parse(r.created_at) : 0);
-    if (when && when < cutoff) continue;
-    if (jobFiled(byJob, jid, techId)) continue;
-    // Only a COMPLETED job's report is genuinely "stuck" — a still-scheduled / awaiting-parts
-    // job isn't done yet, so no report is owed and no pay is held. (Teddy 2026-07-16: the box
-    // "doesn't appear accurate" — it was counting not-yet-done jobs that had an invoice logged.)
-    const st = statusByJob[jid];
-    const done = !!(st && (st.done > 0 || /complete/i.test(st.s) || /complete/i.test(st.c)));
-    if (!done) continue;
-    // Anchor recency on the COMPLETION date when we have it, so a job finished long ago
-    // never nags — and drop anything the tech was already paid out on.
-    const completedAt = (st && st.done) || 0;
-    if (completedAt && completedAt < cutoff) continue;
-    if (paidJobs.has(jid)) continue;
-    const pay = num(m.tech_pay) || num(m.labor);
-    holding.push({ job_id: jid, amount: pay, when, customer: nameByJob[jid] || '' });
-    holdingAmount += pay;
+  for (const jid of candidates) {
+    if (paidJobs.has(jid)) continue;                           // already paid → not stuck
+    const missing = tdrMissing(comp, jid);
+    const complete = missing.length === 0;
+    const req = reqByJob[jid];
+    // Show if the office asked (open request) OR the report is genuinely incomplete.
+    // An open request auto-clears the moment the TDR is complete.
+    if (complete) continue;                                    // done → drops off (clears any ask too)
+    const inv = invMap[jid] || { pay: 0, when: 0 };
+    const st = statusByJob[jid] || {};
+    // Recency: an auto (incomplete) item must have a real, recent date — the
+    // completion timestamp or the invoice date — so a stale old job can never
+    // resurface (Teddy 2026-07-16, "it also had old, already-paid jobs"). An
+    // explicit office request overrides recency (it's a fresh, deliberate ask).
+    const dated = (st.done || 0) || inv.when || 0;
+    if (!req) { if (!dated || dated < cutoff) continue; }
+    const when = (req && req.at) || dated || 0;
+    holding.push({
+      job_id: jid, amount: inv.pay, when, customer: nameByJob[jid] || '',
+      reason: req ? 'requested' : 'incomplete',
+      missing, note: req ? req.note : '',
+    });
+    holdingAmount += inv.pay;
   }
   holding.sort((a, b) => b.when - a.when);
   // Fill any missing names on today's unfiled from the kanban map too.

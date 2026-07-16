@@ -1569,26 +1569,49 @@
       host.innerHTML = t.stops ? '<div style="background:rgba(47,189,119,0.12);border:1px solid rgba(47,189,119,0.5);color:#2fbd77;border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:13.5px;font-weight:800">✓ All your reports are filed — nice work</div>' : '';
       return;
     }
-    var headline = count
-      ? '<b>' + count + ' report' + (count === 1 ? '' : 's') + '</b> = <b>$' + (holding.amount || 0).toFixed(2) + '</b> of your pay is stuck'
-      : '<b>' + todayUnfiled.length + " stop" + (todayUnfiled.length === 1 ? '' : 's') + '</b> today still need a report';
-    // Name the freshest held job so it's a person, not a number.
-    var firstName = (d.holding_jobs && d.holding_jobs[0] && d.holding_jobs[0].customer) || (todayUnfiled[0] && todayUnfiled[0].customer) || '';
-    var nameLine = firstName ? '<div style="font-size:12.5px;font-weight:700;margin-top:3px;opacity:.95">e.g. ' + escapeHtml(firstName) + " — $" + Number((d.holding_jobs && d.holding_jobs[0] && d.holding_jobs[0].amount) || 0).toFixed(2) + " tied up 'til the TDR's done</div>" : '';
+    // Two kinds of items now: reports that are INCOMPLETE (missing a field) and
+    // jobs the office asked a specific question on. Lead with whichever is present.
+    var jobs = d.holding_jobs || [];
+    var requested = jobs.filter(function (x) { return x && x.reason === 'requested'; });
+    var amt = holding.amount || 0;
+    var label = requested.length ? '📩 The office needs info' : '📋 Your report = your pay';
+    var headline;
+    if (requested.length) {
+      headline = '<b>' + requested.length + ' job' + (requested.length === 1 ? '' : 's') + '</b> — the office asked for more info';
+    } else if (count) {
+      headline = amt > 0
+        ? '<b>' + count + ' report' + (count === 1 ? '' : 's') + '</b> = <b>$' + amt.toFixed(2) + '</b> of your pay is waiting'
+        : '<b>' + count + ' report' + (count === 1 ? '' : 's') + '</b> still need finishing';
+    } else {
+      headline = '<b>' + todayUnfiled.length + " stop" + (todayUnfiled.length === 1 ? '' : 's') + '</b> today still need a report';
+    }
+    // Name the freshest item + say exactly WHY, so it's specific and trustworthy —
+    // the office's actual question, or the fields that are still blank.
+    var top = requested[0] || jobs[0] || null;
+    var firstName = (top && top.customer) || (todayUnfiled[0] && todayUnfiled[0].customer) || '';
+    var whyLine = '';
+    if (top && top.reason === 'requested' && top.note) whyLine = '“' + escapeHtml(top.note) + '”';
+    else if (top && top.missing && top.missing.length) whyLine = 'still needs ' + escapeHtml(top.missing.join(', '));
+    else if (top && Number(top.amount) > 0) whyLine = '$' + Number(top.amount).toFixed(2) + " tied up 'til it's in";
+    var nameLine = firstName ? '<div style="font-size:12.5px;font-weight:700;margin-top:3px;opacity:.95">' + escapeHtml(firstName) + (whyLine ? ' — ' + whyLine : '') + '</div>' : '';
     var wk = d.week || {};
     var rankLine = wk.rank_total ? '<div style="font-size:12.5px;font-weight:800;margin-top:8px">🏆 ' + escapeHtml(wk.rank_label || ('#' + wk.rank)) + ' — most reports · ' + escapeHtml(wk.pct_rank_label || ('#' + wk.pct_rank)) + ' — completion rate (' + (wk.pct || 0) + '%) this week</div>' : '';
-    // First unfiled job → one-tap straight into its TDR; full list on the Pay page.
-    var firstJob = (todayUnfiled[0] && todayUnfiled[0].job_id) || (d.holding_jobs && d.holding_jobs[0] && d.holding_jobs[0].job_id) || 0;
+    // Tap → straight to the job that needs it (the office-flagged one wins), its TDR.
+    var firstJob = (top && top.job_id) || (todayUnfiled[0] && todayUnfiled[0].job_id) || 0;
     var goHref = firstJob ? ('tech-job.html?job_id=' + firstJob + '&tech_id=' + TECH_ID + '#tdr') : ('tech-payouts.html?tech_id=' + TECH_ID);
+    var flowLine = requested.length
+      ? '📩 The office needs this to finish the job — tap in, add it, and you\'re set.'
+      : '📋 Your report → 🧾 we bill the warranty co → 💵 they pay us → 🤝 you get paid';
+    var ctaText = requested.length ? '✨ Add what they need' : '✨ Finish a report';
     host.innerHTML =
       '<div style="background:linear-gradient(135deg,#e0524a,#b83b34);color:#fff;border-radius:14px;padding:13px 15px;margin-bottom:12px;box-shadow:0 4px 14px rgba(224,82,74,.3)">'
-      + '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;opacity:.9">📋 Your report = your pay</div>'
+      + '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;opacity:.9">' + label + '</div>'
       + '<div style="font-size:16px;font-weight:800;margin-top:3px">' + headline + '</div>'
       + nameLine
-      + '<div style="font-size:11px;font-weight:700;line-height:1.5;margin-top:7px;background:rgba(0,0,0,.16);border-radius:9px;padding:8px 10px">📋 Your report → 🧾 we bill the warranty co → 💵 they pay us → 🤝 you get paid</div>'
+      + '<div style="font-size:11px;font-weight:700;line-height:1.5;margin-top:7px;background:rgba(0,0,0,.16);border-radius:9px;padding:8px 10px">' + flowLine + '</div>'
       + rankLine
       + '<div style="display:flex;gap:8px;margin-top:10px">'
-      + '<a href="' + goHref + '" style="flex:2;text-align:center;background:#fff;color:#b83b34;border-radius:9px;padding:10px;font-size:14px;font-weight:800;text-decoration:none">✨ Finish a report</a>'
+      + '<a href="' + goHref + '" style="flex:2;text-align:center;background:#fff;color:#b83b34;border-radius:9px;padding:10px;font-size:14px;font-weight:800;text-decoration:none">' + ctaText + '</a>'
       + '<a href="tech-payouts.html?tech_id=' + TECH_ID + '" style="flex:1;text-align:center;background:rgba(255,255,255,.18);color:#fff;border-radius:9px;padding:10px;font-size:14px;font-weight:800;text-decoration:none">See all</a>'
       + '</div></div>';
   }
