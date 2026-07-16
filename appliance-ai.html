@@ -603,7 +603,10 @@ function collectContact(){
     state.address=document.getElementById('f-addr').value.trim();
     state.city=document.getElementById('f-city').value.trim();
     state.zip=document.getElementById('f-zip').value.trim();
-    if(!state.name||state.phone.replace(/\D/g,'').length<10||!state.address||!state.zip){ alert('Please add your name, a valid phone, the street address, and ZIP.'); return; }
+    // require a REAL street (has a letter + a house number, not just "1") plus city + ZIP,
+    // so a self-pay job can never land as "1, City" or with a missing city.
+    const streetOk=/[a-zA-Z]/.test(state.address)&&/\d/.test(state.address)&&state.address.replace(/\s/g,'').length>=4;
+    if(!state.name||state.phone.replace(/\D/g,'').length<10||!streetOk||!state.city||!state.zip){ alert('Please add your name, a valid phone, your full street address (number + street), city, and ZIP.'); return; }
     if(!FREE_MODE && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.email)){ alert('Please add a valid email — Stripe needs it for your receipt.'); return; }
     clearFlow(); think(400, askAvailability);
   };
