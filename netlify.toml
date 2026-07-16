@@ -116,6 +116,13 @@
 [functions."vendor-coi-expiry-check"]
   schedule = "20 13 * * 1"
 
+# Address auto-heal — recovers the real service address from the AHS dispatch for any job
+# that lands as "1, City" (street number only) or missing street, in case one slips past
+# the ahs_email_intake parser fix. Applies + texts the owner only when it heals something.
+# Daily 8:45am CT.
+[functions."ahs-address-backfill"]
+  schedule = "45 13 * * *"
+
 # Denorm sweep — keep the kanban fast by filling customer_first/last/phone on any NEW
 # job that hasn't been denormed yet (scheduled invocation runs mode=sweep). Every 30 min.
 [functions."denorm-job-customer"]

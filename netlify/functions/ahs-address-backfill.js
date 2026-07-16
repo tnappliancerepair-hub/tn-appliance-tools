@@ -16,7 +16,9 @@
 
 const { google } = require('googleapis');
 const crud = require('./_lib/xano/metadata-crud');
+const { sendSms } = require('./_lib/sms');
 const SITE = 'https://tnapplianceexchange.net';
+const OWNER = '+16154855795';
 const CUSTOMER = crud.TABLES.customer; // 6
 const JOBS = crud.TABLES.jobs;         // 7
 
@@ -60,9 +62,13 @@ function findXmlAtt(payload) {
 
 exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
+  // Scheduled (cron) invocations carry {next_run} in the body — they self-authorize and
+  // run in APPLY mode: the daily auto-heal safety-net for any "1, City" that slips past
+  // the parser fix. Manual runs still need the admin secret.
+  let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
-  const apply = q.apply === '1';
+  if (!scheduled && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
+  const apply = scheduled || q.apply === '1';
   const max = Math.min(parseInt(q.max, 10) || 8, 12);
   const offset = parseInt(q.offset, 10) || 0;
 
@@ -129,6 +135,14 @@ exports.handler = async function (event) {
   }
 
   const counts = results.reduce((m, r) => { m[r.status] = (m[r.status] || 0) + 1; return m; }, {});
+
+  // On a scheduled run that actually healed something, give the owner a quiet heads-up so
+  // the auto-fix is visible (not silent). Stays quiet when there's nothing to fix.
+  if (scheduled && counts.FIXED) {
+    const fixedList = results.filter((r) => r.status === 'FIXED').map((r) => `#${r.job_id} ${r.name} -> ${r.proposed}`).join('\n');
+    try { await sendSms(OWNER, `[ant] 🛠️ Auto-fixed ${counts.FIXED} job address${counts.FIXED > 1 ? 'es' : ''} from the dispatch:\n${fixedList}`, 'owner', 'address_autoheal'); } catch (_) {}
+  }
+
   return json(200, {
     ok: true,
     mode: apply ? 'APPLIED' : 'dry-run',
