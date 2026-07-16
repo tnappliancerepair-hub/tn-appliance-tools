@@ -62,12 +62,13 @@
 <div class="wrap">
 
   <div class="guide">
-    <h1>Your W-9 is filled in — 2 things left, then sign</h1>
-    Name, address, and EIN are done. Just complete the <b>red-dashed</b> tax-classification box, then print &amp; sign (or save as PDF and sign digitally), and upload it at <b>/vendor-docs-admin.html</b>.
+    <h1>Your W-9 is filled in — just sign it</h1>
+    Set up as a <b>single-member LLC you report on your personal return</b> (what "we filed together, it's personal" means): <b>Individual / sole proprietor</b> is checked, your name is on Line 1, the LLC name on Line 2, EIN in Part I. All you have left is:
     <ol>
-      <li><b>Tax classification</b> (Line 3a) — check ONE box. If TN Appliance Exchange LLC files its own return (S-corp / partnership / C-corp), keep <b>Line 1 = the LLC name</b>, check <b>LLC</b>, and enter your code (S, P, or C). If it's a single-member LLC you report on your personal return (disregarded), instead put <b>your name on Line 1</b>, the LLC name stays on Line 2, and check <b>Individual/sole proprietor</b>. (Your last tax return tells you which.)</li>
-      <li><b>Sign &amp; date</b> (Part II).</li>
+      <li><b>Sign &amp; date</b> (Part II) — that's it.</li>
+      <li><b>Confirm Line 1 matches your 1040</b> — it should read your legal name exactly as it appears on your personal return. Fix the spelling if it's off.</li>
     </ol>
+    <p style="margin-top:8px;font-size:12px;color:#9aa4b2"><b>One "what if":</b> if your accountant says the LLC files its <i>own</i> partnership return (Form 1065 — possible since you and your wife own it together), instead check the <b>LLC</b> box with code <b>P</b> and put <b>TN Appliance Exchange LLC</b> back on Line 1. One change, then sign.</p>
     <button class="pbtn" onclick="window.print()">🖨️ Print / Save as PDF</button>
   </div>
 
@@ -78,17 +79,17 @@
       <div class="r">Give this form to the requester. Do not send to the IRS.</div>
     </div>
 
-    <div class="line"><span class="ln">1</span><span class="lbl">Name of entity/individual (as shown on your income tax return):</span><span class="fill" style="flex:1">TN Appliance Exchange LLC</span></div>
-    <div class="line"><span class="ln">2</span><span class="lbl">Business name / disregarded entity name, if different from above:</span><span class="fill" style="flex:1">&nbsp;</span></div>
+    <div class="line"><span class="ln">1</span><span class="lbl">Name of entity/individual (as shown on your income tax return):</span><span class="fill" style="flex:1">James Pivacek</span></div>
+    <div class="line"><span class="ln">2</span><span class="lbl">Business name / disregarded entity name, if different from above:</span><span class="fill" style="flex:1">TN Appliance Exchange LLC</span></div>
 
     <div style="border:1px solid #000;border-top:none;padding:5px 7px;font-size:9px"><b>3a</b> &nbsp;Check the appropriate box for federal tax classification. Check only ONE:</div>
     <div class="cls">
-      <label><input type="checkbox"> Individual / sole proprietor</label>
+      <label><input type="checkbox" checked> Individual / sole proprietor</label>
       <label><input type="checkbox"> C corporation</label>
       <label><input type="checkbox"> S corporation</label>
       <label><input type="checkbox"> Partnership</label>
       <label><input type="checkbox"> Trust / estate</label>
-      <label><input type="checkbox"> LLC — enter tax classification (C=C corp, S=S corp, P=partnership): <input type="text" maxlength="1" placeholder="S"><span class="need">← check &amp; code</span></label>
+      <label><input type="checkbox"> LLC — enter tax classification (C=C corp, S=S corp, P=partnership): <input type="text" maxlength="1" placeholder="P"><span class="need" style="color:#888">partnership only</span></label>
     </div>
     <div class="line"><span class="ln">4</span><span class="lbl">Exemptions (codes apply only to certain entities — usually blank): Exempt payee code ____ · FATCA code ____</span></div>
 
