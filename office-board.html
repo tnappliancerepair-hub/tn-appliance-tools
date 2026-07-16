@@ -1326,7 +1326,7 @@ function stLaneOf(md){
   const src=String(md.source||'').toLowerCase();
   const lane=String(md.lane||'').toLowerCase();
   const from=String(md.from||md.from_number||'').replace(/\D/g,'');
-  if(lane==='human'||src==='human_line'||src==='office_translated_reply'||src==='tech_field'||from.slice(-7)==='7575500') return 'human';
+  if(lane==='human'||src==='human_line'||src==='office_translated_reply'||src==='tech_field'||from.slice(-7)==='7575500'||from.slice(-7)==='8578800') return 'human';
   if(lane==='ai'||from.slice(-7)==='5889500') return 'ai';
   return src?'ai':'human';
 }

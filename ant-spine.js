@@ -200,7 +200,7 @@
     const src = (md.source || '').toLowerCase();
     const lane = (md.lane || '').toLowerCase();
     const from = String(md.from || md.from_number || '').replace(/\D/g, '');
-    if (lane === 'human' || src === 'human_line' || src === 'office_translated_reply' || src === 'tech_field' || from.endsWith('7575500')) return 'human';
+    if (lane === 'human' || src === 'human_line' || src === 'office_translated_reply' || src === 'tech_field' || from.endsWith('7575500') || from.endsWith('8578800')) return 'human';
     if (lane === 'ai' || from.endsWith('5889500')) return 'ai';
     return src ? 'ai' : 'human'; // customer_sms_reply w/o lane info = historically office
   }

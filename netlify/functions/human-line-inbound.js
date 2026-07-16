@@ -11,7 +11,7 @@
 const crud = require('./_lib/xano/metadata-crud');
 const guard = require('./_lib/sms-guard');
 
-const HUMAN_LINE = '+16157575500';
+const HUMAN_LINE = '+16158578800'; // the approved human line (switched from 757-5500, 2026-07-16)
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
 
 // Telnyx v2 inbound webhook shape: { data: { event_type, payload: { from:{phone_number}, to:[{phone_number}], text } } }

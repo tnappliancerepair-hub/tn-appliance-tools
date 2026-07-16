@@ -129,9 +129,9 @@ exports.handler = async function (event) {
   const alreadyIdentified = new RegExp('tn\\s*appliance|\\b' + techFirst + '\\b', 'i').test(message);
   const full = alreadyIdentified ? translated : (techFirst + ' (TN Appliance): ' + translated);
 
-  // Send FROM the shared HUMAN line (757-5500) — a tech texting his own job's
+  // Send FROM the shared HUMAN line (857-8800) — a tech texting his own job's
   // customer is the human lane (Teddy 2026-07-15). human-line-send does the Telnyx
-  // send from 757-5500 + logs customer_sms_reply (lane:human, sender = the tech) into
+  // send from 857-8800 + logs customer_sms_reply (lane:human, sender = the tech) into
   // the shared per-job thread. Opt-out is enforced there.
   const SITE = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://tnapplianceexchange.net';
   let sent = false, reason = '';
