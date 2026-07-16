@@ -1169,6 +1169,16 @@ function cardHtml(j){
     const _a=((_am&&_am[1])||'').trim(), _u=((_um&&_um[1])||'').trim();
     const _txt=(_a||_u)?[_a?('✅ '+_a):'',_u?('⛔ '+_u):''].filter(Boolean).join('  ·  '):_prefC;
     _availCard='<div class="jc-avail" title="Customer availability" style="margin-top:6px;padding:6px 9px;border-radius:8px;background:rgba(31,143,58,.08);border:1px solid rgba(31,143,58,.35);color:#1d7a44;font-size:12px;font-weight:700;line-height:1.4">🗓 '+esc(_txt.slice(0,140))+'</div>';
+  } else if(Number(j.scheduled_start)>0 && String(j.warranty_company||'').trim()){
+    // A vendor (SquareTrade especially) pre-schedules the customer to an AGREED time; that
+    // time is parsed onto scheduled_start from the dispatch email but never lands in the
+    // texted-availability field, so the tile looked blank. Surface it as the availability
+    // so the office sees the appointment without opening the job. (Teddy 2026-07-16)
+    const _sd=new Date(Number(j.scheduled_start));
+    const _day=_sd.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric',timeZone:'America/Chicago'});
+    const _tm=_sd.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'});
+    const _win=String(j.service_eta_window||'').trim();
+    _availCard='<div class="jc-avail" title="'+esc(String(j.warranty_company||'Warranty'))+' pre-scheduled the customer for this time" style="margin-top:6px;padding:6px 9px;border-radius:8px;background:rgba(37,99,235,.09);border:1px solid rgba(37,99,235,.35);color:#1d4ed8;font-size:12px;font-weight:700;line-height:1.4">📅 Customer expects: '+esc(_day)+', '+esc(_win||_tm)+'</div>';
   }
   const _replace=(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible');
   return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}" draggable="true" data-id="${j.id}">
