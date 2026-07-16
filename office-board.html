@@ -814,7 +814,7 @@ function placeOf(j){
   if(ov) return ov;
   // No manual placement yet → the system's sensible default for this job.
   // A FINISHED job (repair done, ready to bill) lands in NEEDS INVOICE — that's the
-  // folder for ready-to-invoice jobs. The ✅ Completed folder is NOT for ready-to-bill
+  // folder for ready-to-invoice jobs. The ✅ Completion folder is NOT for ready-to-bill
   // jobs; it's the completion/return-visit stage (parts arrived, book the return).
   // (Teddy 2026-07-16: "completed tab is for completions… not whenever they're ready
   // to be invoiced. The ones that need invoiced have their own file called need
@@ -884,7 +884,7 @@ function renderBoard(){
   cols.push({id:'upgrade',label:'Upgrade',cls:'upgrade'});
   cols.push({id:'autho',label:'Waiting for Autho',cls:'autho'});
   cols.push({id:'parts',label:'Waiting Parts',cls:'parts'});
-  cols.push({id:'done',label:'✅ Completed',cls:'done'});
+  cols.push({id:'done',label:'✅ Completion',cls:'done'});
   cols.push({id:'followup',label:'Follow Up',cls:'followup'});
   cols.push({id:'needinv',label:'Needs Invoice',cls:'followup'});
   // All the per-tech INVOICE folders grouped together (done, ready to bill).
@@ -1251,7 +1251,7 @@ async function onDrop(colId,techId,colEl){
       }catch(_){toast('⚠ connection error');}
     }
   } else if(STATUS_MAP[colId]){
-    const label={parts:'Waiting Parts',done:'✅ Completed',schedule:'Needs Scheduled',scheduled:'Scheduled'}[colId];
+    const label={parts:'Waiting Parts',done:'✅ Completion',schedule:'Needs Scheduled',scheduled:'Scheduled'}[colId];
     toast('Moving to '+label+'…');
     try{const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:STATUS_MAP[colId],actor:'Danielle'});toast((d&&d.success)?(label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}
     catch(_){toast('⚠ connection error');}
@@ -1662,7 +1662,7 @@ function renderDrawer(d){
   // move a job from inside the open job file (not just by dragging).
   const moveCols=[['schedule','Needs Scheduled'],['scheduled','Scheduled']];
   (REGION_TECHS[region]||[]).forEach(tt=>{moveCols.push(['rep-'+tt,TECH_NAME[tt]+' · Report']);moveCols.push(['inv-'+tt,TECH_NAME[tt]+' · Invoice']);});
-  moveCols.push(['parts','Waiting Parts'],['done','✅ Completed'],['followup','Follow Up'],['needinv','Needs Invoice'],['paid','Paid · Closed']);
+  moveCols.push(['parts','Waiting Parts'],['done','✅ Completion'],['followup','Follow Up'],['needinv','Needs Invoice'],['paid','Paid · Closed']);
   // Use the board's copy of the job (it carries office_stage + parts_status etc.)
   // so the current column + region reflect the durable server state.
   const boardItem=allItems.find(x=>String(x.id)===String(jid))||j;
@@ -2590,7 +2590,7 @@ async function moveJobFromDrawer(id){
   stagePin(id,colId);
   persistStage(id,colId).then(function(ok){ if(!ok) toast('⚠ kept here — save is retrying'); });
   antFiled(id);
-  const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',upgrade:'Upgrade',autho:'Waiting for Autho',parts:'Waiting Parts',done:'✅ Completed',followup:'Follow Up',needinv:'Needs Invoice',paid:'Shop Money · Paid'};
+  const labelMap={schedule:'Needs Scheduled',scheduled:'Scheduled',upgrade:'Upgrade',autho:'Waiting for Autho',parts:'Waiting Parts',done:'✅ Completion',followup:'Follow Up',needinv:'Needs Invoice',paid:'Shop Money · Paid'};
   const label=labelMap[colId]||(techId?(TECH_NAME[techId]+(colId.indexOf('inv-')===0?' · Invoice':' · Report')):colId);
   if(colId==='followup'||colId==='needinv'||colId==='paid'||colId==='upgrade'||colId==='autho'){
     if(colId==='paid'){ markInvoicePaid(id,true); toast('💰 Paid — invoice marked paid ✓'); } else toast('Moved to '+label);
