@@ -105,6 +105,8 @@ query get_office_kanban verb=GET {
             intake_source    : (($j.intake_source ?? "")|trim)
             parallel_mode    : ($j.parallel_mode ?? false)
             scheduled_start  : ($j.scheduled_start ?? 0)
+            service_eta_window : (($j.service_eta_window ?? "")|trim)
+            customer_preference_text : (($j.customer_preference_text ?? "")|trim)
             technician_id    : ($j.technician_id ?? null)
             service_city     : (($j.service_city ?? "")|trim)
             service_zip      : (($j.service_zip ?? "")|trim)
