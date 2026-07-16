@@ -174,9 +174,9 @@ footer .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.1em;text-tran
 </div>
 
 <div class="section">
-<div class="section-label">Dryer vent cleaning · price-match guarantee</div>
-<h2>We Won't Be Undersold</h2>
-<p class="prose">Dryer exhaust cleaning is a fire-safety line item you're already budgeting — and clogged vents are a leading cause of dryer fires in multifamily. <strong>Bring us any competitor's written quote and we'll match it</strong>, from a single unit to every stack in a complex. Same price, and we do what vent-only crews can't.</p>
+<div class="section-label">Dryer vent cleaning · fire-code compliance</div>
+<h2>Your Fire-Code Vent Line Item — Handled</h2>
+<p class="prose">A clogged dryer vent is <strong>a leading cause of dryer fires</strong> and a documented liability on <strong>every unit in your portfolio</strong> — exactly what an insurer, an inspector, or an attorney asks about after something goes wrong. An <strong>annual whole-property cleaning</strong> keeps you compliant, cuts the fire risk, and speeds up make-readies. We clean <strong>every unit across every property on one quote and one invoice</strong>, coordinate each tenant ourselves, and hand you dated documentation for your files. <strong>CSIA-certified (C-DET)</strong>, and we price-match any licensed competitor so you're never undersold.</p>
 <div class="undersold">
 <div class="us-badge">💵 Price-Match Guarantee</div>
 <ul class="us-list">
@@ -186,6 +186,32 @@ footer .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.1em;text-tran
 </ul>
 <a href="/dryer-vent-cleaning" class="btn-primary" style="margin-top:2px">🔥 See dryer vent cleaning →</a>
 <p class="us-fine">Just show us the written quote. We match <b>licensed, insured professionals</b> only, and the tech reserves the right to decline any match.</p>
+</div>
+<div class="formwrap" id="vent-quote" style="margin-top:20px">
+<div id="vq-form">
+<div class="section-label">Fast quote · no account needed</div>
+<h2>Get a Whole-Portfolio Vent Quote</h2>
+<p class="sub">Tell us the properties and roughly how many dryers — we send back a whole-portfolio price fast. No account setup, no obligation.</p>
+<div class="frow">
+<div class="field"><label>Company / portfolio</label><input id="vq-company" type="text" placeholder="Management company" autocomplete="organization"></div>
+<div class="field"><label>Your name</label><input id="vq-contact" type="text" placeholder="First Last" autocomplete="name"></div>
+</div>
+<div class="frow">
+<div class="field"><label>Total units / doors</label><input id="vq-units" type="text" placeholder="e.g. 600" inputmode="numeric"></div>
+<div class="field"><label># of dryers (approx)</label><input id="vq-dryers" type="text" placeholder="e.g. 600" inputmode="numeric"></div>
+</div>
+<div class="frow">
+<div class="field"><label>Phone</label><input id="vq-phone" type="tel" placeholder="(615) 555-0199" autocomplete="tel" inputmode="tel"></div>
+<div class="field"><label>Markets / cities</label><input id="vq-market" type="text" placeholder="e.g. Nashville, Baton Rouge"></div>
+</div>
+<button class="form-btn" id="vq-submit">Get my vent quote →</button>
+<div class="form-err" id="vq-err"></div>
+</div>
+<div class="form-done" id="vq-done">
+<div class="big">🔥</div>
+<h2>Got it — thank you.</h2>
+<p>We'll get you a whole-portfolio vent quote fast. Need it today? Call <a href="tel:6152802949" style="color:var(--orange);text-decoration:none">615-280-2949</a>.</p>
+</div>
 </div>
 </div>
 
@@ -288,6 +314,30 @@ footer .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.1em;text-tran
         if(window.gtag) gtag('event','generate_lead',{event_category:'property_management'});
       } else { err.textContent=(d&&d.error)||'Something went wrong — please call us at 615-280-2949.'; btn.disabled=false; btn.textContent='Request preferred-vendor setup →'; }
     }catch(e){ err.textContent='Network hiccup — please call us at 615-280-2949.'; btn.disabled=false; btn.textContent='Request preferred-vendor setup →'; }
+  };
+})();
+(function(){
+  var btn=document.getElementById('vq-submit'); if(!btn) return;
+  var err=document.getElementById('vq-err');
+  var val=function(id){var e=document.getElementById(id);return e?(e.value||'').trim():'';};
+  btn.onclick=async function(){
+    err.textContent='';
+    var company=val('vq-company'),contact=val('vq-contact'),phone=val('vq-phone');
+    if(!company && !contact){ err.textContent='Add the company or your name.'; return; }
+    if(!phone){ err.textContent='Add a phone so we can send your quote.'; return; }
+    btn.disabled=true; btn.textContent='Sending…';
+    try{
+      var r=await fetch('/.netlify/functions/pm-inquiry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        company:company, contact:contact, phone:phone, units:val('vq-units'), dryers:val('vq-dryers'),
+        markets:val('vq-market'), message:'Whole-portfolio dryer vent quote request', src:'pm_vent'
+      })});
+      var d=await r.json();
+      if(d && d.ok){
+        document.getElementById('vq-form').style.display='none';
+        document.getElementById('vq-done').style.display='block';
+        if(window.gtag) gtag('event','generate_lead',{event_category:'pm_vent_quote'});
+      } else { err.textContent=(d&&d.error)||'Something went wrong — call 615-280-2949.'; btn.disabled=false; btn.textContent='Get my vent quote →'; }
+    }catch(e){ err.textContent='Network hiccup — call 615-280-2949.'; btn.disabled=false; btn.textContent='Get my vent quote →'; }
   };
 })();
 </script>

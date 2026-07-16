@@ -35,6 +35,7 @@ exports.handler = async function (event) {
   const email = s(b.email, 120);
   const phone = s(b.phone, 40);
   const units = s(b.units, 40);
+  const dryers = s(b.dryers, 40);        // # of dryers for a whole-property vent quote
   const markets = s(b.markets, 200);
   const message = s(b.message, 800);
   const src = s(b.src || 'property-management', 40);
@@ -43,18 +44,21 @@ exports.handler = async function (event) {
 
   if (!company && !contact && !phone && !email) return jsonResp(400, { ok: false, error: 'company + a way to reach you required' });
 
-  await logRow('pm_inquiry', { company, contact, email, phone, units, markets, message, src, role, property_type: propertyType, at_ms: Date.now() });
+  await logRow('pm_inquiry', { company, contact, email, phone, units, dryers, markets, message, src, role, property_type: propertyType, at_ms: Date.now() });
 
   // Text Teddy + Danielle — a PM/multifamily/partner account is a big recurring win, follow up fast.
+  const isVent = /vent/i.test(src);
   const isApt = src === 'apartment' || /apartment|multifamily|community/i.test(propertyType);
-  const label = src === 'realtor' ? '🏠 REALTOR referral'
+  const label = isVent ? '🔥 WHOLE-PROPERTY VENT QUOTE'
+    : src === 'realtor' ? '🏠 REALTOR referral'
     : src === 'dealer' ? '🏬 APPLIANCE-DEALER partner'
     : isApt ? '🏢 APARTMENT/MULTIFAMILY'
     : '🏢 PROPERTY-MGMT';
+  const cta = isVent ? '\nCash dryer-vent job — send them a whole-property quote fast.' : '\nCall/email them back — preferred-vendor lead.';
   const alert = '[ant] ' + label + ' inquiry: ' + (company || '(no company)') +
-    (role ? (' · ' + role) : '') + (units ? (' · ~' + units + ' units') : '') + (markets ? (' · ' + markets) : '') +
+    (role ? (' · ' + role) : '') + (units ? (' · ~' + units + ' units') : '') + (dryers ? (' · ~' + dryers + ' dryers') : '') + (markets ? (' · ' + markets) : '') +
     '\nContact: ' + (contact || '(no name)') + ' ' + (phone || '') + (email ? (' · ' + email) : '') +
-    (message ? ('\n"' + message.slice(0, 200) + '"') : '') + '\nCall/email them back — preferred-vendor lead.';
+    (message ? ('\n"' + message.slice(0, 200) + '"') : '') + cta;
   try { await sendSms(OWNER, alert, 'owner', 'pm_inquiry'); } catch (_) {}
   try { await sendSms(DANIELLE, alert, 'warranty_handler', 'pm_inquiry'); } catch (_) {}
 

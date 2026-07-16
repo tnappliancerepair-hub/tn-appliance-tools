@@ -98,7 +98,8 @@ exports.handler = async function (event) {
   const test = q.test === '1';
   const publish = q.publish === '1';   // admin: publish ONE post now (keeps it), ignores dedup
   const ventCity = (q.vent_city || '').trim();   // admin: publish a dryer-vent post for a city
-  if (test || publish || ventCity) {
+  const b2b = (q.b2b || '').trim().toLowerCase(); // admin: publish a B2B post (apartment|pm|realtor)
+  if (test || publish || ventCity || b2b) {
     const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
     if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
   }
@@ -128,6 +129,26 @@ exports.handler = async function (event) {
     const r = await gbp.createLocalPost({ summary: vpost.body, actionType: 'BOOK', actionUrl: url });
     if (r.ok) { try { await crud.logEvent('gbp_post_published', { bucket: 'vent:' + ventCity + ':' + Date.now(), title: vpost.title || '', topic: 'dryer_vent_' + ventCity, post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {} }
     return json(200, { ok: r.ok, mode: 'vent_publish', city: ventCity, published: r.ok, title: vpost.title, post: vfull, post_name: (r.data && r.data.name) || null, status: r.status, error: r.ok ? undefined : r.data });
+  }
+
+  // On-demand B2B post: ?b2b=apartment|pm|realtor&secret=  (add &dryrun=1 to preview). Points
+  // the Book button at that audience's hub. Re-fireable so we drip B2B outreach.
+  if (b2b) {
+    const B2B = {
+      apartment: { url: 'apartment-appliance-repair.html', topic: 'A post for APARTMENT COMMUNITIES and multifamily maintenance teams. A clogged dryer vent is a leading cause of dryer fires and a fire-code and insurance liability on every unit — an annual whole-property dryer vent cleaning keeps a community compliant and cuts the risk. We clean every stack on one quote and one invoice, coordinate each resident ourselves, and we are CSIA C-DET certified — the real credential. We are also the preferred appliance-repair vendor (fridges, ranges, dishwashers) with same-day make-ready turns. Speak to maintenance supervisors and community managers. End with a call to get a whole-property quote.' },
+      pm: { url: 'property-management.html', topic: 'A post for PROPERTY MANAGEMENT companies. We are the preferred appliance-repair and dryer-vent vendor across a whole portfolio — one vendor, one invoice, net terms, direct tenant coordination, and dated dryer-vent fire-code documentation for your files. A clogged vent is a liability on every unit; an annual whole-portfolio cleaning keeps you compliant. CSIA C-DET certified, price-match guaranteed. End with a call to set up an account or get a portfolio quote.' },
+      realtor: { url: 'realtor-appliance-repair.html', topic: 'A post for REAL ESTATE AGENTS. When an appliance issue threatens a closing or turns up on an inspection, we fix it fast and give an honest repair-or-replace call — and we do same-day dryer vent cleaning too. Your go-to appliance and dryer-vent pro for every transaction. End with a call to send us the client.' },
+    };
+    const cfg = B2B[b2b];
+    if (!cfg) return json(200, { ok: false, error: 'b2b must be apartment|pm|realtor' });
+    const url = 'https://tnapplianceexchange.net/' + cfg.url;
+    const bpost = await draftPost(cfg.topic, anthropic);
+    if (!bpost || !bpost.body) return json(200, { ok: false, error: 'b2b draft failed' });
+    const bfull = `${bpost.body}\n\nGet a quote: ${url}  ·  Call/text 615-280-2949`;
+    if (dry) return json(200, { ok: true, mode: 'b2b_dryrun', audience: b2b, url, title: bpost.title, post: bfull });
+    const r = await gbp.createLocalPost({ summary: bpost.body, actionType: 'BOOK', actionUrl: url });
+    if (r.ok) { try { await crud.logEvent('gbp_post_published', { bucket: 'b2b:' + b2b + ':' + Date.now(), title: bpost.title || '', topic: 'b2b_' + b2b, post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {} }
+    return json(200, { ok: r.ok, mode: 'b2b_publish', audience: b2b, published: r.ok, title: bpost.title, post: bfull, post_name: (r.data && r.data.name) || null, status: r.status, error: r.ok ? undefined : r.data });
   }
 
   const now = new Date();
