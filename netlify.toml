@@ -103,6 +103,14 @@
 [functions."indexnow-ping"]
   schedule = "10 13 * * *"
 
+# Multi-item warranty claims ("dryer/washer" on one dispatch) land as ONE job, so the tech
+# sees one appliance and there's no separate TDR for the others. This sweep splits the extra
+# appliances into their own linked stops (each with its own TDR) so every appliance shows on
+# the tech's day. Twice daily: 7:00am CT (before the day) + 1:00pm CT (catch morning intake).
+# Runs LIVE on the cron; kill switch = env MULTI_APPLIANCE_SPLIT_DISABLED=true.
+[functions."multi-appliance-split-sweep"]
+  schedule = "0 12,18 * * *"
+
 # Denorm sweep — keep the kanban fast by filling customer_first/last/phone on any NEW
 # job that hasn't been denormed yet (scheduled invocation runs mode=sweep). Every 30 min.
 [functions."denorm-job-customer"]

@@ -26,9 +26,19 @@ function collectJobs(d) {
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
-  const live = q.confirm === '1' || process.env.MULTI_APPLIANCE_SPLIT_LIVE === 'true';
+  // Scheduled (cron) invocations carry {next_run} in the body — they self-authorize and run
+  // LIVE (kill switch: env MULTI_APPLIANCE_SPLIT_DISABLED=true). Manual HTTP still needs the
+  // secret, and stays DRY unless &confirm=1.
+  let scheduled = false;
+  try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  let live;
+  if (scheduled) {
+    live = process.env.MULTI_APPLIANCE_SPLIT_DISABLED !== 'true';
+  } else {
+    const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+    if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
+    live = q.confirm === '1' || process.env.MULTI_APPLIANCE_SPLIT_LIVE === 'true';
+  }
 
   let jobs;
   try {
