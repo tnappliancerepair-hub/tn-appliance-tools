@@ -1360,6 +1360,12 @@ function completeFlow(){
         return;
       }
     }
+    // 🔁 Recommend replacement: an unmissable gate — the office can't file the replacement
+    // claim without a model photo + a detailed reason, so require them before finishing.
+    if(b.dataset.ct==='no_repair'){
+      const ok=await replacementGate();
+      if(!ok) return;   // tech backed out — nothing submitted, job stays as-is
+    }
     toast('Completing…');
     try{
       // Persist the tech's typed report FIRST. Completing reloads the page and reseeds
@@ -1393,6 +1399,66 @@ function completeFlow(){
       }
       else { toast('⚠ '+(d.error||'blocked')); }
     }catch(_){ toast('⚠ connection error'); }
+  });
+}
+
+// The "Recommend replacement" gate. Full-screen, can't-miss modal that REQUIRES a model+
+// machine photo and a detailed reason before the replacement can be turned in. Resolves
+// true once the tech supplies both (reason gets prefixed into the report box so the office
+// files/bills from it); false if he backs out. (Teddy 2026-07-16, option 3.)
+function replacementGate(){
+  return new Promise(resolve=>{
+    let photos=0;   // count photos added DURING this gate
+    const ov=document.createElement('div');
+    ov.id='replace-gate';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,12,20,.82);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:14px';
+    ov.innerHTML='<div style="max-width:520px;width:100%;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)">'
+      +'<div style="background:linear-gradient(135deg,#c0392b,#e67e22);color:#fff;padding:18px;text-align:center">'
+        +'<div style="font-size:34px;line-height:1">🔁🛑</div>'
+        +'<div style="font-size:20px;font-weight:900;margin-top:4px">REPLACEMENT — DON\'T SKIP THIS</div>'
+        +'<div style="font-size:13px;font-weight:600;opacity:.95;margin-top:6px">Skipping this only delays YOUR pay for this job.</div>'
+      +'</div>'
+      +'<div style="padding:16px 18px 18px">'
+        +'<div style="font-weight:800;font-size:15px;margin-bottom:8px">To turn this in today we MUST have:</div>'
+        +'<ol style="margin:0 0 12px 18px;padding:0;font-size:14px;line-height:1.5;color:#1f2937"><li><b>A photo of the model number</b> and the machine</li><li><b>A detailed explanation</b> of WHY it needs to be replaced — as much detail as possible</li></ol>'
+        +'<button id="rg-photo-btn" style="width:100%;padding:13px;border:2px dashed #c0392b;background:#fff5f3;color:#c0392b;font-weight:800;font-size:15px;border-radius:10px;cursor:pointer">📷 Add photo (model # + machine)</button>'
+        +'<input type="file" accept="image/*" capture="environment" id="rg-photo-in" style="display:none">'
+        +'<div id="rg-photo-status" style="font-size:13px;color:#8a93a1;margin:6px 2px 12px">No photo added yet — tap above.</div>'
+        +'<label style="font-weight:800;font-size:14px;display:block;margin-bottom:4px">Why does it need replacing?</label>'
+        +'<textarea id="rg-reason" rows="5" placeholder="Model #, what has failed, why it can\'t be repaired, repair cost vs. replace, any safety issue… the more detail, the faster it\'s approved and paid." style="width:100%;box-sizing:border-box;font-size:15px;padding:10px;border:1px solid #c8d2e0;border-radius:10px;resize:vertical"></textarea>'
+        +'<div id="rg-reason-count" style="font-size:12px;color:#8a93a1;margin:4px 2px 14px">0 characters — add more detail</div>'
+        +'<button id="rg-submit" disabled style="width:100%;padding:14px;border:0;border-radius:10px;background:#9aa4b2;color:#fff;font-weight:900;font-size:16px;cursor:not-allowed">Add photo + details to turn it in</button>'
+        +'<button id="rg-cancel" style="width:100%;padding:10px;margin-top:8px;border:0;background:transparent;color:#6b7280;font-weight:700;font-size:13px;cursor:pointer">← Back (pick a different option)</button>'
+      +'</div></div>';
+    document.body.appendChild(ov);
+    const btn=ov.querySelector('#rg-submit'), reason=ov.querySelector('#rg-reason');
+    const cnt=ov.querySelector('#rg-reason-count'), pstat=ov.querySelector('#rg-photo-status');
+    function refresh(){
+      const rlen=reason.value.trim().length;
+      cnt.textContent=rlen+' characters'+(rlen<40?' — add more detail':' ✓');
+      const ready=photos>0 && rlen>=40;
+      btn.disabled=!ready;
+      btn.style.background=ready?'#0f766e':'#9aa4b2';
+      btn.style.cursor=ready?'pointer':'not-allowed';
+      btn.textContent=ready?'✅ Turn it in':'Add photo + details to turn it in';
+    }
+    reason.addEventListener('input',refresh);
+    ov.querySelector('#rg-photo-btn').onclick=()=>ov.querySelector('#rg-photo-in').click();
+    ov.querySelector('#rg-photo-in').onchange=async(e)=>{
+      const f=e.target.files&&e.target.files[0]; if(!f) return;
+      pstat.textContent='Uploading photo…';
+      try{ const r=await uploadPhotoProxy(f); if(r&&r.ok){ photos++; pstat.innerHTML='✅ '+photos+' photo'+(photos>1?'s':'')+' added — add another (model # AND machine) or continue.'; } else { pstat.textContent='⚠ upload failed — try again.'; } }
+      catch(_){ pstat.textContent='⚠ upload failed — try again.'; }
+      e.target.value=''; refresh();
+    };
+    ov.querySelector('#rg-cancel').onclick=()=>{ ov.remove(); resolve(false); };
+    btn.onclick=()=>{
+      if(btn.disabled) return;
+      const nEl=document.getElementById('notes');
+      if(nEl){ const pre='🔁 REPLACEMENT RECOMMENDED — '; const cur=(nEl.value||'').trim(); nEl.value = cur ? (pre+reason.value.trim()+'\n\n'+cur) : (pre+reason.value.trim()); }
+      ov.remove(); resolve(true);
+    };
+    refresh();
   });
 }
 

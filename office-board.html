@@ -820,6 +820,10 @@ function placeOf(j){
   // → Paid. ✅ Completion is now ONLY the parts-received checkpoint (arrived → 'done',
   // below) — a finished job never sits there. Her manual move still wins (office_stage).
   if(ss==='completed'||cs==='completed') return 'followup';
+  // 🔁 RECOMMEND REPLACEMENT (no_fix_possible) stays in the TECH's Report folder as active
+  // work — the office needs the replacement package (model photo + detailed reason) to file
+  // the claim, so it must NOT drop into Completion / Follow Up. (Teddy 2026-07-16, option 3)
+  if((ss==='no_fix_possible'||cs==='no_fix_possible') && hasTech) return 'rep-'+t;
   // A job moves to Waiting Parts ONLY once Danielle sets the part's ETA (that's
   // when she's actually ordered it — and it fires the "part ordered, ETA is X"
   // text to the customer). A part merely named/needed by the tech, or the tech's

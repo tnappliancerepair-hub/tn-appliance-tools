@@ -80,6 +80,30 @@ Completion and waits for the office to move it forward. "Completion is for
 completions, not for ready-to-invoice jobs" = Completion is the finish stage;
 **Needs Invoice** is the ready-to-bill folder later in the walk.
 
+## Tech completion options → routing (what the tech taps when he finishes)
+
+The tech's "How did THIS visit end?" screen (`tech-job.html`) has four options.
+Each maps to a `scheduling_status` and a board lane:
+
+| Tech taps | completion_type | status | Board lane | Flow |
+|---|---|---|---|---|
+| ✅ Fixed it — done | `repair_complete` | `completed` | **Follow Up** | Same-day: → Follow Up → 48h → Needs Invoice → bill |
+| 🔩 Needs parts — coming back | `parts_needed` | `awaiting_parts` | **Waiting Parts** | Parts cycle → Completion (parts in) → return → done |
+| 🔁 Recommend replacement | `no_repair` | `no_fix_possible` | **[Tech] · Report** | Stays as active work; office files the replacement claim |
+| 🙋 Pass off — 2nd opinion | `reassignment_needed` | `needs_more_info` | (option 4 — TBD) | (to be mapped) |
+
+### Option 3 — Recommend replacement (the replacement gate)
+
+Tapping 🔁 Recommend replacement fires an **unmissable modal** (`replacementGate()`
+in tech-job.html) that BLOCKS the completion until the tech provides:
+1. A **photo of the model number + the machine** (uploaded to the job).
+2. A **detailed written reason** why it needs replacing (≥40 chars; prefixed
+   "🔁 REPLACEMENT RECOMMENDED —" into the report so the office files/bills from it).
+
+Copy hammers: "Skipping this only delays YOUR pay for this job." The job then
+routes to the **tech's Report folder** (not Completion / Follow Up) so the office
+has the package to file the replacement claim same-day. (Teddy 2026-07-16.)
+
 ## Guardrails already in the code
 
 - A **stale `scheduled` stamp** on a job that has moved on (started / waiting
