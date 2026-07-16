@@ -22,7 +22,7 @@
 <meta name="twitter:description" content="One vendor for your whole portfolio. We text the tenant, coordinate access, fix it right — you see it in one portal, one monthly statement. Net-30.">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","@id":"https://tnapplianceexchange.net/#business","name":"TN Appliance Exchange","description":"Family-owned appliance repair serving Middle Tennessee and Louisiana. Preferred appliance-repair vendor for property management companies: direct tenant coordination, portfolio portal, consolidated net-30 billing.","url":"https://tnapplianceexchange.net","telephone":"615-280-2949","priceRange":"$50-$600","foundingDate":"2012","image":"https://tnapplianceexchange.net/og-default.png","address":{"@type":"PostalAddress","addressRegion":"TN","addressCountry":"US"},"areaServed":[{"@type":"City","name":"Nashville","containedInPlace":{"@type":"State","name":"Tennessee"}},{"@type":"City","name":"Murfreesboro","containedInPlace":{"@type":"State","name":"Tennessee"}},{"@type":"City","name":"Antioch","containedInPlace":{"@type":"State","name":"Tennessee"}},{"@type":"City","name":"Clarksville","containedInPlace":{"@type":"State","name":"Tennessee"}},{"@type":"City","name":"Franklin","containedInPlace":{"@type":"State","name":"Tennessee"}},{"@type":"City","name":"New Orleans","containedInPlace":{"@type":"State","name":"Louisiana"}},{"@type":"City","name":"Baton Rouge","containedInPlace":{"@type":"State","name":"Louisiana"}},{"@type":"City","name":"Hammond","containedInPlace":{"@type":"State","name":"Louisiana"}}],"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.5","reviewCount":"1081"}}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Service","name":"Property Management Appliance Repair","serviceType":"Appliance Repair for Property Management Companies","provider":{"@id":"https://tnapplianceexchange.net/#business"},"areaServed":["Tennessee","Louisiana"],"description":"Preferred appliance-repair vendor for property managers: fast response, direct tenant coordination, a portfolio work-order portal, and consolidated net-30 monthly billing."}</script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Do you coordinate directly with our tenants?","acceptedAnswer":{"@type":"Answer","text":"Yes. Send us the unit and tenant contact (or forward the tenant to us) and we text them directly to confirm the issue, capture a photo or video, and set up access. You never have to relay messages back and forth."}},{"@type":"Question","name":"How do you bill property management companies?","acceptedAnswer":{"@type":"Answer","text":"One consolidated monthly statement across all your properties, on net terms. Every work order is itemized by property and unit, and you can download invoices from your portal any time."}},{"@type":"Question","name":"Can we see the status of every work order?","acceptedAnswer":{"@type":"Answer","text":"Yes. You get a portfolio portal that shows every job across every property in real time — scheduled, in progress, completed, parts on order — with photos and the technician's notes."}},{"@type":"Question","name":"What areas do you cover?","acceptedAnswer":{"@type":"Answer","text":"Middle Tennessee (Nashville, Murfreesboro, Franklin, Clarksville and surrounding) and Louisiana (New Orleans, Baton Rouge, Hammond and the North/South Shore). One vendor across both markets."}},{"@type":"Question","name":"Do you help decide repair vs. replace?","acceptedAnswer":{"@type":"Answer","text":"On every job. You own the appliance, so we give you an honest repair-vs-replace call with real cost numbers — we don't upsell repairs that aren't worth it on aging units."}}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Do you coordinate directly with our tenants?","acceptedAnswer":{"@type":"Answer","text":"Yes. Send us the unit and tenant contact (or forward the tenant to us) and we text them directly to confirm the issue, capture a photo or video, and set up access. You never have to relay messages back and forth."}},{"@type":"Question","name":"How do you bill property management companies?","acceptedAnswer":{"@type":"Answer","text":"One consolidated monthly statement across all your properties, on net terms. Every work order is itemized by property and unit, and you can download invoices from your portal any time."}},{"@type":"Question","name":"Can we see the status of every work order?","acceptedAnswer":{"@type":"Answer","text":"Yes. You get a portfolio portal that shows every job across every property in real time — scheduled, in progress, completed, parts on order — with photos and the technician's notes."}},{"@type":"Question","name":"What areas do you cover?","acceptedAnswer":{"@type":"Answer","text":"Middle Tennessee (Nashville, Murfreesboro, Franklin, Clarksville and surrounding) and Louisiana (New Orleans, Baton Rouge, Hammond and the North/South Shore). One vendor across both markets."}},{"@type":"Question","name":"Do you help decide repair vs. replace?","acceptedAnswer":{"@type":"Answer","text":"On every job. You own the appliance, so we give you an honest repair-vs-replace call with real cost numbers — we don't upsell repairs that aren't worth it on aging units."}},{"@type":"Question","name":"Do you do dryer vent cleaning, and will you match a price?","acceptedAnswer":{"@type":"Answer","text":"Yes. We clean dryer vents from a single unit to an entire complex and price-match any competitor's written quote so you're never undersold. We clear the whole path from the lint trap to the exterior wall vent hood, handle reroutes and modifications, and as appliance techs we also offer an add-on to break down and clean the dryer itself."}}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://tnapplianceexchange.net/"},{"@type":"ListItem","position":2,"name":"Property Management","item":"https://tnapplianceexchange.net/property-management"}]}</script>
 <style>html{background-color:#050505 !important}</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -90,6 +90,12 @@ h2{font-family:var(--block);font-size:clamp(28px,5vw,42px);letter-spacing:.03em;
 .portal-note h3{font-family:var(--block);font-size:20px;letter-spacing:.03em;color:var(--white);margin-bottom:8px}
 .portal-note p{font-size:13px;color:#cfcfcf;line-height:1.75}
 .portal-note b{color:var(--green);font-weight:500}
+.undersold{margin-top:22px;padding:24px 26px;background:linear-gradient(135deg,rgba(57,255,20,.06),rgba(57,255,20,.01));border:1px solid rgba(57,255,20,.24);border-radius:16px}
+.us-badge{display:inline-block;background:var(--green);color:#052e16;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;margin-bottom:15px}
+.us-list{list-style:none;display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.us-list li{font-size:13.5px;color:#cfcfcf;line-height:1.6;padding-left:24px;position:relative}
+.us-list li:before{content:'✓';position:absolute;left:0;top:0;color:var(--green);font-weight:700}
+.us-list li b{color:var(--white);font-weight:500}
 .faq{display:flex;flex-direction:column;gap:10px;margin-top:20px}
 .faq-item{background:var(--surface);border:1px solid var(--bord2);border-radius:12px;padding:20px 22px}
 .faq-q{font-size:14px;color:var(--white);font-weight:500;margin-bottom:10px}
@@ -166,6 +172,21 @@ footer .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.1em;text-tran
 </div>
 
 <div class="section">
+<div class="section-label">Dryer vent cleaning · price-match guarantee</div>
+<h2>We Won't Be Undersold</h2>
+<p class="prose">Dryer exhaust cleaning is a fire-safety line item you're already budgeting — and clogged vents are a leading cause of dryer fires in multifamily. <strong>Bring us any competitor's written quote and we'll match it</strong>, from a single unit to every stack in a complex. Same price, and we do what vent-only crews can't.</p>
+<div class="undersold">
+<div class="us-badge">💵 Price-Match Guarantee</div>
+<ul class="us-list">
+<li><b>Any competitor's written price — matched.</b> Single unit to an entire complex, including reroutes and modifications.</li>
+<li><b>The whole path, cleared.</b> Lint trap to the exterior wall vent hood — the flap outside — so airflow and fire-safety are handled end to end.</li>
+<li><b>We're appliance techs, not just vent cleaners.</b> Optional add-on: we break down and clean the dryer itself, clearing the lint inside the machine that vent-only crews leave behind.</li>
+</ul>
+<a href="/dryer-vent-cleaning" class="btn-primary" style="margin-top:2px">🔥 See dryer vent cleaning →</a>
+</div>
+</div>
+
+<div class="section">
 <div class="section-label">How it works</div>
 <h2>From Work Order to Done — Hands-Off</h2>
 <div class="process-steps">
@@ -227,6 +248,7 @@ footer .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.1em;text-tran
 <div class="faq-item"><div class="faq-q">How do you bill us?</div><div class="faq-a">One consolidated monthly statement across all your properties, on net terms. Every work order is itemized by property and unit, and you can download invoices from your portal any time.</div></div>
 <div class="faq-item"><div class="faq-q">Can we see the status of every work order?</div><div class="faq-a">Yes — a portfolio portal shows every job across every property in real time (scheduled, in progress, waiting on parts, completed) with photos and the technician's notes.</div></div>
 <div class="faq-item"><div class="faq-q">Do you help decide repair vs. replace?</div><div class="faq-a">On every job. You own the appliance, so we give you an honest repair-vs-replace call with real cost numbers — we don't upsell repairs that aren't worth it on aging units.</div></div>
+<div class="faq-item"><div class="faq-q">Do you do dryer vent cleaning, and will you match a price?</div><div class="faq-a">Yes — single unit to an entire complex, and we price-match any competitor's written quote so you're never undersold. We clean the whole path from the lint trap to the exterior wall vent hood, handle reroutes and modifications, and as appliance techs we also offer an add-on to break down and clean the dryer itself — something vent-only crews can't do.</div></div>
 <div class="faq-item"><div class="faq-q">What brands do you service?</div><div class="faq-a">All major brands — Whirlpool, GE, Samsung, LG, Maytag, Frigidaire, Kenmore, Bosch, KitchenAid, Electrolux, Amana and more, across refrigerators, washers, dryers, dishwashers, ranges and microwaves.</div></div>
 </div>
 </div>
@@ -234,7 +256,7 @@ footer .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.1em;text-tran
 </div>
 
 <footer>
-<div class="foot-links"><a href="/">Home</a><a href="/apartment-appliance-repair">Apartments &amp; Multifamily</a><a href="/vendor-compliance">Insurance &amp; W-9</a><a href="/dryer-repair">Dryer Repair</a><a href="/dishwasher-repair">Dishwasher Repair</a><a href="tel:6152802949">615-280-2949</a></div>
+<div class="foot-links"><a href="/">Home</a><a href="/apartment-appliance-repair">Apartments &amp; Multifamily</a><a href="/vendor-compliance">Insurance &amp; W-9</a><a href="/dryer-vent-cleaning">Dryer Vent Cleaning</a><a href="/dryer-repair">Dryer Repair</a><a href="/dishwasher-repair">Dishwasher Repair</a><a href="tel:6152802949">615-280-2949</a></div>
 <div class="foot-tag">TN Appliance Exchange · Family-Owned Since 2012 · Middle Tennessee + Louisiana</div>
 </footer>
 </div>
