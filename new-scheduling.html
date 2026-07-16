@@ -2033,7 +2033,11 @@ function __initCalendar() {
   // "LA" / ambiguous city as Los Angeles CA (or a NY town) and dropped Louisiana/
   // TN pins in the wrong state. Now we spell out the full state + use a structured
   // query (below). Bumping v1->v2 throws away the old poisoned CA/NY coordinates.
-  const NS_GEO_PREFIX = 'tn_geo_v2:', NS_GEO_TTL = 30 * 24 * 60 * 60 * 1000;
+  // v3 (2026-07-17): tiered geocode — real street, else ZIP centroid, else city+state.
+  // A ZIP is unambiguous so a bad-street AHS job ("1, LA") still plots (approx) in the
+  // right state instead of silently vanishing (the "4 jobs, 1 pin" report). Bump v2->v3
+  // to drop any old coords cached before the fallback existed.
+  const NS_GEO_PREFIX = 'tn_geo_v3:', NS_GEO_TTL = 30 * 24 * 60 * 60 * 1000;
   const NS_US_STATES = { AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming' };
   const _nsStateFull = (st) => NS_US_STATES[String(st || '').trim().toUpperCase()] || String(st || '').trim();
   const NS_MAP_COLORS = ['#7a5cf0', '#e67e22', '#2c8c4a', '#2c6fb0', '#c0392b', '#0d9488', '#b45309', '#db2777'];
@@ -2056,32 +2060,38 @@ function __initCalendar() {
     const street = String(job.service_address || '').trim();
     const city = String(job.service_city || '').trim();
     const st = _nsStateFull(job.service_state);      // "LA" -> "Louisiana" (kills the Los Angeles mixup)
-    const zip = String(job.service_zip || '').trim();
+    const zip = String(job.service_zip || '').replace(/\D/g, '').slice(0, 5);
     const k = NS_GEO_PREFIX + _nsHash([street, city, st, zip].join('|'));
-    try { const raw = localStorage.getItem(k); if (raw) { const p = JSON.parse(raw); if (p && (Date.now() - p.ts) < NS_GEO_TTL) return { lat: p.lat, lng: p.lng }; } } catch (_) {}
-    const wait = Math.max(0, (_nsLastGeo + 1100) - Date.now()); _nsLastGeo = Date.now() + wait;
-    await new Promise((r) => setTimeout(r, wait));
-    // STRUCTURED query — separate street/city/state/postalcode params so Nominatim
-    // never free-text-guesses "LA" as a city (that was the Louisiana->California
-    // bug). Fall back to free-text with the FULL state name + USA if it misses.
-    const params = new URLSearchParams({ format: 'json', limit: '1', countrycodes: 'us' });
-    if (street) params.set('street', street);
-    if (city) params.set('city', city);
-    if (st) params.set('state', st);
-    if (zip) params.set('postalcode', zip);
-    try {
-      let res = await fetch('https://nominatim.openstreetmap.org/search?' + params.toString());
-      let d = await res.json();
-      if (!Array.isArray(d) || !d.length) {
-        const q = [street, city, st, zip].filter(Boolean).join(', ') + ', USA';
-        res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(q));
-        d = await res.json();
-      }
-      if (!Array.isArray(d) || !d.length) return null;
-      const lat = parseFloat(d[0].lat), lng = parseFloat(d[0].lon); if (!isFinite(lat) || !isFinite(lng)) return null;
-      try { localStorage.setItem(k, JSON.stringify({ lat, lng, ts: Date.now() })); } catch (_) {}
-      return { lat, lng };
-    } catch (_) { return null; }
+    try { const raw = localStorage.getItem(k); if (raw) { const p = JSON.parse(raw); if (p && (Date.now() - p.ts) < NS_GEO_TTL) return { lat: p.lat, lng: p.lng, approx: !!p.approx }; } } catch (_) {}
+    // A usable street has a house NUMBER and a LETTER — "1" / "" are AHS placeholders,
+    // not a real address, so don't waste a geocode on them (it'd miss + drop the pin).
+    const realStreet = street && /\d/.test(street) && /[a-z]/i.test(street);
+    async function nom(params) {
+      const wait = Math.max(0, (_nsLastGeo + 1100) - Date.now()); _nsLastGeo = Date.now() + wait;
+      await new Promise((r) => setTimeout(r, wait));
+      try {
+        const res = await fetch('https://nominatim.openstreetmap.org/search?' + params.toString());
+        const d = await res.json();
+        if (Array.isArray(d) && d.length) { const lat = parseFloat(d[0].lat), lng = parseFloat(d[0].lon); if (isFinite(lat) && isFinite(lng)) return { lat, lng }; }
+      } catch (_) {}
+      return null;
+    }
+    let hit = null, approx = false;
+    // 1) exact street (only when the street is real — structured params so Nominatim
+    //    never free-text-guesses "LA" as a city).
+    if (realStreet) {
+      const p = new URLSearchParams({ format: 'json', limit: '1', countrycodes: 'us', street });
+      if (city) p.set('city', city); if (st) p.set('state', st); if (zip) p.set('postalcode', zip);
+      hit = await nom(p);
+    }
+    // 2) ZIP centroid — a US ZIP is unambiguous, so a bad-street ("1, LA") job still
+    //    plots (approx) in the RIGHT state instead of vanishing or landing in CA.
+    if (!hit && zip) { hit = await nom(new URLSearchParams({ format: 'json', limit: '1', countrycodes: 'us', postalcode: zip })); if (hit) approx = true; }
+    // 3) city + full state centroid — last resort when there's no ZIP.
+    if (!hit && city && st) { hit = await nom(new URLSearchParams({ format: 'json', limit: '1', countrycodes: 'us', city, state: st })); if (hit) approx = true; }
+    if (!hit) return null;
+    try { localStorage.setItem(k, JSON.stringify({ lat: hit.lat, lng: hit.lng, approx, ts: Date.now() })); } catch (_) {}
+    return { lat: hit.lat, lng: hit.lng, approx };
   }
   function _nsWireMapControls() {
     document.querySelectorAll('.ns-day-chip').forEach((el) => { el.onclick = () => { _nsMapDay = el.dataset.day || ''; if (dashboardData) render(dashboardData); }; });
@@ -2128,7 +2138,7 @@ function __initCalendar() {
     if (_nsMap) { try { _nsMap.remove(); } catch (_) {} _nsMap = null; }
     _nsMap = L.map(el).setView([35.9, -87.5], 6);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(_nsMap);
-    const status = $('ns-map-status'); const bounds = []; let done = 0, plotted = 0;
+    const status = $('ns-map-status'); const bounds = []; let done = 0, plotted = 0, approxN = 0; const unplotted = [];
     if (!sched.length && status) status.textContent = (_nsMapDay || _nsMapTech) ? 'No stops for this day/tech — pick another chip above.' : 'No scheduled jobs with an address to plot.';
     for (const j of sched) {
       if (_nsMapGen !== myGen) return;   // a newer filter/view superseded us — stop
@@ -2136,20 +2146,30 @@ function __initCalendar() {
       const g = await _nsGeocode(j);
       done++;
       if (g) {
-        plotted++;
+        plotted++; if (g.approx) approxN++;
         const color = techColor[Number(j.technician_id)] || '#666';
         const cust = [j.customer_first_name, j.customer_last_name].filter(Boolean).join(' ') || 'Customer';
         const day = j.scheduled_start ? new Date(Number(j.scheduled_start)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : '';
-        const m = L.circleMarker([g.lat, g.lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 }).addTo(_nsMap);
-        m.bindPopup(`<div style="font-size:13px;line-height:1.45"><b>${escapeHtml(cust)}</b><br>${escapeHtml(j.appliance_type || 'appliance')}${j.brand ? ' · ' + escapeHtml(j.brand) : ''}<br><b style="color:${color}">${escapeHtml(techName[Number(j.technician_id)] || '')}</b> · ${escapeHtml(day)}<br>${escapeHtml(addr)}<br><a href="/office-board.html?job=${j.id}" style="color:#2c6fb0;font-weight:700;text-decoration:none">Open job tile →</a></div>`);
+        // Approx pins (placed by ZIP/city because the street was missing/placeholder)
+        // are drawn hollow + dashed so it's honest they're not an exact address.
+        const m = L.circleMarker([g.lat, g.lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: g.approx ? 0.5 : 0.95, dashArray: g.approx ? '3' : null }).addTo(_nsMap);
+        m.bindPopup(`<div style="font-size:13px;line-height:1.45"><b>${escapeHtml(cust)}</b><br>${escapeHtml(j.appliance_type || 'appliance')}${j.brand ? ' · ' + escapeHtml(j.brand) : ''}<br><b style="color:${color}">${escapeHtml(techName[Number(j.technician_id)] || '')}</b> · ${escapeHtml(day)}<br>${escapeHtml(addr)}${g.approx ? '<br><i style="color:#b45309">≈ placed by ZIP/city — no street address on file</i>' : ''}<br><a href="/office-board.html?job=${j.id}" style="color:#2c6fb0;font-weight:700;text-decoration:none">Open job tile →</a></div>`);
         bounds.push([g.lat, g.lng]);
         if (bounds.length >= 2) { try { _nsMap.fitBounds(bounds, { padding: [34, 34], maxZoom: 12 }); } catch (_) {} }
         else { try { _nsMap.setView([g.lat, g.lng], 10); } catch (_) {} }
-      }
+      } else { unplotted.push(j); }
       if (status) status.textContent = `Plotted ${plotted} of ${sched.length} scheduled stops…`;
       if (currentView !== 'map') return;   // tech switched views mid-geocode — stop
     }
-    if (status) status.textContent = plotted === sched.length ? `${plotted} scheduled stop${plotted === 1 ? '' : 's'} on the map.` : `${plotted} of ${sched.length} plotted (some addresses couldn't be located).`;
+    if (_nsMapGen !== myGen) return;
+    let msg = plotted === sched.length ? `${plotted} scheduled stop${plotted === 1 ? '' : 's'} on the map` : `${plotted} of ${sched.length} plotted`;
+    if (approxN) msg += ` · ${approxN} placed by ZIP/city (no street address)`;
+    if (status) status.textContent = msg + '.';
+    // Never silently drop a job — list the ones with no usable address, tap to fix.
+    if (unplotted.length && host) {
+      const items = unplotted.map((j) => { const nm = [j.customer_first_name, j.customer_last_name].filter(Boolean).join(' ') || ('Job #' + j.id); const where = [j.service_city, j.service_state].filter(Boolean).join(', '); const who = techName[Number(j.technician_id)] || ''; return `<a href="/office-board.html?job=${j.id}" style="color:#c0392b;font-weight:700;text-decoration:none">${escapeHtml(nm)}${who ? ' (' + escapeHtml(who) + ')' : ''}${where ? ' · ' + escapeHtml(where) : ''} — add address</a>`; }).join('<br>');
+      host.insertAdjacentHTML('beforeend', `<div id="ns-map-unplotted" style="padding:8px 14px;font-size:12px;color:#c0392b;background:rgba(192,57,43,0.08);border-top:1px solid rgba(192,57,43,0.25)">⚠ ${unplotted.length} stop${unplotted.length === 1 ? '' : 's'} not on the map — no usable address on file. Tap to open + fix:<br>${items}</div>`);
+    }
   }
 
   // View toggle. Today view re-renders the same loaded data — no extra fetch.
