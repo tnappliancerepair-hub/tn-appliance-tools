@@ -29,6 +29,21 @@ async function metaSearch(tableId, body) {
 async function searchAction(tableId, action, perPage) {
   return metaSearch(tableId, { search: { action }, per_page: Math.min(perPage || 400, 500), page: 1, sort: { id: 'desc' } });
 }
+// Page DEEP through an action's rows (newest first), stopping once a full page is
+// entirely older than the window. Every invoice save/edit logs a new row, so a
+// single page-1 read (max 500) silently drops older jobs' numbers once volume grows
+// past 500 — that's a tile number vanishing from the board. This walks far enough
+// that a job's latest invoice within the window is always found. (Danielle 2026-07-16.)
+async function searchActionDeep(tableId, action, maxPages, cutoff) {
+  const out = [];
+  for (let page = 1; page <= (maxPages || 10); page++) {
+    const rows = await metaSearch(tableId, { search: { action }, per_page: 500, page, sort: { id: 'desc' } });
+    out.push(...rows);
+    if (rows.length < 500) break;
+    if (cutoff) { const last = rows[rows.length - 1]; const t = last && last.created_at ? Date.parse(last.created_at) : 0; if (t && t < cutoff) break; }
+  }
+  return out;
+}
 async function listPage(tableId, perPage, page) {
   return metaSearch(tableId, { per_page: Math.min(perPage, 500), page: page || 1, sort: { id: 'desc' } });
 }
@@ -64,10 +79,10 @@ exports.handler = async function (event) {
   let invRows = [], payRows = [], qcRows = [], markRows = [], unmarkRows = [];
   try {
     [invRows, payRows, qcRows, markRows, unmarkRows] = await Promise.all([
-      searchAction(EVENT, 'office_invoice_logged', 600),
+      searchActionDeep(EVENT, 'office_invoice_logged', 12, cutoff),
       searchAction(EVENT, 'customer_payment_received', 600),
       searchAction(EVENT, 'quick_check_paid', 400),
-      searchAction(EVENT, 'invoice_marked_paid', 600),
+      searchActionDeep(EVENT, 'invoice_marked_paid', 8, cutoff),
       searchAction(EVENT, 'invoice_marked_unpaid', 400),
     ]);
   } catch (e) { return j(200, { ok: false, error: 'events: ' + String(e.message || e) }); }

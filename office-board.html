@@ -1008,7 +1008,16 @@ let INVOICES={};
 async function loadInvoices(){
   try{
     const d=await (await fetch('/.netlify/functions/list-invoices?days=120',{cache:'no-store'})).json();
-    if(d&&d.ok){ const m={}; (d.invoices||[]).forEach(i=>{m[String(i.job_id)]={amount:i.amount,paid:i.paid,warranty:i.warranty};}); INVOICES=m; renderBoard(); }
+    if(d&&d.ok){
+      const m={}; (d.invoices||[]).forEach(i=>{m[String(i.job_id)]={amount:i.amount,paid:i.paid,warranty:i.warranty};});
+      // MERGE, never replace — a tile number then only ever UPDATES, it can't vanish.
+      // list-invoices runs every 30s poll and can briefly return count:0 (or a partial
+      // set) when the metadata search fails under load; a plain replace would blink the
+      // 💵 numbers out board-wide until the next good poll. Merging keeps every known
+      // number and just overwrites the ones that came back fresh. (Danielle 2026-07-16:
+      // "numbers disappearing off the tiles.")
+      if(Object.keys(m).length){ INVOICES=Object.assign({}, INVOICES, m); renderBoard(); }
+    }
   }catch(_){}
 }
 // refOf — the reference number Danielle works EVERY job by. Picks the best
