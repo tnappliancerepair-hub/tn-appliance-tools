@@ -86,6 +86,22 @@ function addrIssues(street, city, state, zip) {
 exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
 
+  // ?probe=<customer_id> — A/B a single customer read: POST content/search (what this audit
+  // uses, index-backed, can lag) vs GET content/{id} (the live row). Diagnoses stale-index
+  // false positives before we trust — or act on — any flag.
+  if (q.probe) {
+    const id = q.probe;
+    const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
+    const tok = process.env.XANO_METADATA_TOKEN;
+    const out = { customer_id: id };
+    try { const r = await crud.searchOne(CUSTOMER, { id: Number(id) }); out.via_search = r ? { address: r.address, city: r.city, state: r.state, zip: r.zip } : null; } catch (e) { out.via_search_err = String(e.message || e); }
+    try {
+      const r = await fetch(`${META}/table/${CUSTOMER}/content/${id}`, { headers: { Authorization: 'Bearer ' + tok }, signal: AbortSignal.timeout(10000) });
+      const j = await r.json(); out.via_get = { status: r.status, address: j.address, city: j.city, state: j.state, zip: j.zip };
+    } catch (e) { out.via_get_err = String(e.message || e); }
+    return json(200, { ok: true, probe: out });
+  }
+
   // 1) The live job set = the board feed itself (already the ~500 real, non-shell jobs).
   let jobs = [];
   try {
