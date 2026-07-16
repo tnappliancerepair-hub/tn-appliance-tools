@@ -54,7 +54,17 @@ textarea{min-height:66px;resize:vertical}
 .done{display:none;text-align:center;padding:22px 6px}.done .big{font-size:38px;margin-bottom:8px}.done h2{margin-bottom:8px}.done p{font-size:13px;color:var(--gray);line-height:1.7}
 footer{border-top:1px solid var(--border);margin-top:34px;padding-top:20px;text-align:center;font-size:11px;color:var(--gray2)}
 footer a{color:var(--gray);text-decoration:none}
-@media(max-width:560px){.frow{grid-template-columns:1fr}.dl{grid-template-columns:1fr}}
+.cinfo{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+.ci{display:flex;align-items:center;gap:12px;background:#0a0a0a;border:1px solid var(--bord2);border-radius:10px;padding:11px 13px}
+.ci .cl{font-size:9.5px;color:var(--gray);letter-spacing:.07em;text-transform:uppercase;flex:0 0 120px}
+.ci .cv{flex:1;color:var(--white);font-size:13.5px;word-break:break-word}
+.cbtn{flex:0 0 auto;background:transparent;border:1px solid var(--bord2);color:var(--gray);font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;transition:border-color .15s,color .15s}
+.cbtn:hover{border-color:var(--orange);color:var(--white)}
+.cbtn.ok{border-color:var(--green);color:var(--green)}
+.copyall{width:100%;background:transparent;border:1px dashed var(--bord2);color:var(--gray);font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:13px;border-radius:10px;cursor:pointer;margin-top:13px;transition:border-color .15s,color .15s}
+.copyall:hover{border-color:var(--orange);color:var(--white)}
+.copyall.ok{border-color:var(--green);color:var(--green)}
+@media(max-width:560px){.frow{grid-template-columns:1fr}.dl{grid-template-columns:1fr}.ci{flex-wrap:wrap}.ci .cl{flex:0 0 100%}}
 </style>
 </head>
 <body>
@@ -87,6 +97,26 @@ footer a{color:var(--gray);text-decoration:none}
       <a class="dlbtn off" id="dl-coi" href="#"><span class="ic">🛡️</span><span class="lab">Insurance (COI)</span><span class="st" id="st-coi">…</span></a>
     </div>
     <div class="note">These are our standard vendor documents. If your onboarding portal (AppFolio, Vendorly, PropertyMeld, etc.) needs them uploaded on your end, download and drop them in — or request a company-specific COI below and we'll have our carrier issue it.</div>
+  </div>
+
+  <div class="card">
+    <h2>Copy-paste vendor info</h2>
+    <div class="sub">When a portal makes you <b>type</b> these instead of uploading — AppFolio, Vendorly, Nexus, MRI, etc. — tap Copy on any field.</div>
+    <div class="cinfo">
+      <div class="ci" data-copy="TN Appliance Exchange LLC"><div class="cl">Legal name</div><div class="cv">TN Appliance Exchange LLC</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="38-3886067"><div class="cl">EIN</div><div class="cv">38-3886067</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="LLC — single-member (taxed as sole proprietor)"><div class="cl">Entity type</div><div class="cv">LLC — single-member (taxed as sole proprietor)</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="Tennessee"><div class="cl">State formed</div><div class="cv">Tennessee</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="423620"><div class="cl">NAICS code</div><div class="cv">423620</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="3137 Skinner Dr, Antioch, TN 37013"><div class="cl">Address</div><div class="cv">3137 Skinner Dr, Antioch, TN 37013</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="615-280-2949"><div class="cl">Phone</div><div class="cv">615-280-2949</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="tnappliancerepair@gmail.com"><div class="cl">Email</div><div class="cv">tnappliancerepair@gmail.com</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="2012"><div class="cl">Established</div><div class="cv">2012</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="Hiscox"><div class="cl">GL carrier</div><div class="cv">Hiscox</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="The Hartford"><div class="cl">Workers' comp</div><div class="cv">The Hartford</div><button class="cbtn">Copy</button></div>
+      <div class="ci" data-copy="Progressive"><div class="cl">Commercial auto</div><div class="cv">Progressive</div><button class="cbtn">Copy</button></div>
+    </div>
+    <button class="copyall" id="copyAll">⧉ Copy all fields as a list</button>
   </div>
 
   <div class="card" id="reqcard">
@@ -149,6 +179,21 @@ footer a{color:var(--gray);text-decoration:none}
       else { err.textContent=(d&&d.error)||'Something went wrong — call 615-280-2949.'; btn.disabled=false; btn.textContent='Request my COI →'; }
     }catch(e){ err.textContent='Network hiccup — call 615-280-2949.'; btn.disabled=false; btn.textContent='Request my COI →'; }
   };
+
+  // copy-paste vendor info
+  function copyText(t){
+    if(navigator.clipboard&&navigator.clipboard.writeText) return navigator.clipboard.writeText(t);
+    return new Promise(function(res,rej){ var ta=document.createElement('textarea'); ta.value=t; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.focus(); ta.select(); try{document.execCommand('copy');res();}catch(e){rej(e);} document.body.removeChild(ta); });
+  }
+  function flash(el,txt){ var o=el.textContent; el.textContent=txt; el.classList.add('ok'); setTimeout(function(){el.textContent=o; el.classList.remove('ok');},1300); }
+  document.querySelectorAll('.ci .cbtn').forEach(function(b){
+    b.addEventListener('click',function(){ var v=(b.parentNode.getAttribute('data-copy')||''); copyText(v).then(function(){flash(b,'Copied ✓');}).catch(function(){flash(b,'Copy failed');}); });
+  });
+  var all=document.getElementById('copyAll');
+  if(all) all.addEventListener('click',function(){
+    var lines=[]; document.querySelectorAll('.ci').forEach(function(r){ lines.push(r.querySelector('.cl').textContent+': '+(r.getAttribute('data-copy')||'')); });
+    copyText(lines.join('\n')).then(function(){flash(all,'✓ All fields copied');}).catch(function(){flash(all,'Copy failed');});
+  });
 })();
 </script>
 </body></html>
