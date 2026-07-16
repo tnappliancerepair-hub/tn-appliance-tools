@@ -25,10 +25,20 @@ const STATE_CODES = new Set(['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','
 // Names that are placeholders, not people.
 const JUNK_NAME = /^(test|zz+|zztest|unknown|n\/?a|none|null|customer|tenant|resident|occupant|homeowner|na|xx+|asdf|qwerty|aaa+)$/i;
 
+// Decode the HTML entities the denorm sometimes stores (&#39; apostrophes, &amp;) so a
+// name like "O&#39;brien" isn't misread as containing digits.
+function decodeEntities(s) {
+  return String(s || '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+
 // Human-readable label + severity per issue code, for the report.
 const ISSUE_META = {
   missing_name:        { sev: 'high', label: 'No customer name' },
-  partial_name:        { sev: 'med',  label: 'Only a first OR last name' },
+  single_word_name:    { sev: 'med',  label: 'Single-word name — possibly incomplete' },
   name_has_digits:     { sev: 'med',  label: 'Digits in the name (address bled in?)' },
   placeholder_name:    { sev: 'high', label: 'Placeholder/junk name (TEST, Tenant…)' },
   missing_street:      { sev: 'high', label: 'No street address' },
@@ -44,15 +54,13 @@ const ISSUE_META = {
 };
 
 function nameIssues(first, last) {
-  const f = String(first || '').trim();
-  const l = String(last || '').trim();
-  const full = (f + ' ' + l).trim();
+  const full = decodeEntities(((String(first || '').trim()) + ' ' + (String(last || '').trim())).trim());
   const out = [];
-  if (!f && !l) { out.push('missing_name'); return out; }
-  if (!f || !l) out.push('partial_name');
-  if (/\d/.test(full)) out.push('name_has_digits');
+  if (!full) { out.push('missing_name'); return out; }
   const letters = full.replace(/[^a-z]/gi, '');
-  if (JUNK_NAME.test(f) || JUNK_NAME.test(l) || JUNK_NAME.test(full) || letters.length < 2) out.push('placeholder_name');
+  if (JUNK_NAME.test(full) || letters.length < 2) { out.push('placeholder_name'); return out; }
+  if (/\d/.test(full)) out.push('name_has_digits');
+  if (!/\s/.test(full)) out.push('single_word_name');   // one token only — "Rod", "Anthony"
   return out;
 }
 
