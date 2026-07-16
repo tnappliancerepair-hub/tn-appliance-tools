@@ -793,15 +793,24 @@ function placeOf(j){
   // the different areas.") Truth order: job.office_stage -> STAGE_MAP -> local.
   const sm=STAGE_MAP[j.id]&&STAGE_MAP[j.id].office_stage;
   let ov=((j.office_stage||'')+'').trim()||sm||stageGet(j.id);
-  // A genuinely scheduled job (real day + tech, not started/completed) can NEVER belong
-  // in Needs Scheduled — being scheduled is the opposite of needing scheduling. So a stale
+  // Has this job actually moved PAST "scheduled"? (tech started it, parts on order/hold,
+  // or it's finished.) Drives BOTH the promotion and the demotion of the scheduled stamp.
+  const _advanced = ss==='in_progress'||cs==='in_progress'||ss==='completed'||cs==='completed'
+     ||ss==='awaiting_parts'||ss==='held'||ss==='no_fix_possible';
+  // A genuinely scheduled job (real day + tech, not yet advanced) can NEVER belong in
+  // Needs Scheduled — being scheduled is the opposite of needing scheduling. So a stale
   // 'schedule' breadcrumb is auto-promoted to 'scheduled' (Teddy 2026-07-14: "it needs to
-  // auto move to scheduled whenever it's scheduled"). This catches jobs booked from a
-  // surface that doesn't rewrite the board's office_stage (the new-scheduling calendar, an
-  // availability auto-schedule, reassign+date). Every OTHER manual placement still wins,
-  // and her live drop wins via pendingStage above.
-  if(ov==='schedule' && Number(j.scheduled_start)>0 && hasTech
-     && ss!=='in_progress' && cs!=='in_progress' && ss!=='completed' && cs!=='completed') ov='scheduled';
+  // auto move to scheduled whenever it's scheduled"). Only for jobs that truly are just
+  // scheduled — never one already in-progress / waiting-parts / completed.
+  if(ov==='schedule' && Number(j.scheduled_start)>0 && hasTech && !_advanced) ov='scheduled';
+  // SYMMETRIC DEMOTION (Teddy 2026-07-16: "TN Scheduled says 90, we actually have 62").
+  // The 'scheduled' stamp is auto-written by the booking flow and NEVER cleared when the
+  // tech starts / orders parts / completes — so advanced jobs stayed pinned in Scheduled
+  // and inflated its count. Drop the stale stamp so the status default below files the job
+  // in its REAL column (Completion / Waiting Parts / the tech's Report). Every OTHER
+  // office_stage value is a deliberate office placement and still wins; her live drop
+  // still wins via pendingStage above.
+  if(ov==='scheduled' && _advanced) ov='';
   if(ov) return ov;
   // No manual placement yet → the system's sensible default for this job.
   // Every COMPLETED job lands in the ONE Completion lane = ready to invoice, no
