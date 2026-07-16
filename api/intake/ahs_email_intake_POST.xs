@@ -1102,9 +1102,37 @@ query ahs_email_intake verb=POST {
         var.update $customer_id {
           value = $existing_customer.id
         }
+
+        //  ========================================================
+        //  2026-07-16 - ROOT-CAUSE FIX for the "1, City" address bug.
+        //
+        //  When an AHS dispatch matches an EXISTING customer by phone, the code
+        //  reused that customer id but NEVER refreshed the service address. So a
+        //  stale placeholder ("1" / blank street) written by an earlier dispatch
+        //  stuck forever, even when THIS dispatch carried the real street. Audit
+        //  2026-07-16 found 25 live jobs stranded this way ("1, New Orleans", etc.).
+        //
+        //  Fix: if the incoming dispatch parsed a real StreetName, update the matched
+        //  customer's address. Guarded on $street_name_raw being non-empty so we can
+        //  never overwrite a good stored address with a placeholder.
+        //  ========================================================
+        conditional {
+          if ($street_name_raw != "") {
+            db.edit customer {
+              field_name = "id"
+              field_value = $existing_customer.id
+              data = {
+                address: $service_address
+                city   : $service_city
+                state  : $service_state
+                zip    : $service_zip
+              }
+            } as $cust_addr_refresh
+          }
+        }
       }
     }
-  
+
     var $co_member_section {
       value = ($co_member_name_upper != "") ? ("\n\n=== CO-MEMBER ===\n" ~ $co_member_name_upper) : ""
     }
