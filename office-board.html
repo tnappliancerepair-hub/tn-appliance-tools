@@ -580,6 +580,7 @@ async function loadBoard(){
     loadAddons();
     loadPaid();
     loadInvoices();
+    resyncPendingInvoices();   // push up any invoice that saved offline on a bad connection
     loadMessages();
     loadStranded();
     loadAudit();
@@ -2721,6 +2722,38 @@ async function loadInvoiceAddons(jid){
   }catch(_){ line.style.display='none'; }
   recomputeInvoice();
 }
+// Write one invoice to the durable server record, with retries. Returns true only
+// when the server actually accepts it (res.ok) — so the UI can tell the truth about
+// whether it synced. Reads technician_id off the stored data so an offline-saved
+// invoice can be resynced later even when its drawer isn't open.
+async function postInvoiceToServer(jid,data){
+  const m=(parseFloat(data.parts_margin)||0).toFixed(2);
+  const body=JSON.stringify({
+    job_id:parseInt(jid,10),technician_id:(data.technician_id||window.__drawerTech||0),
+    labor:data.labor||'',part_cost:data.partcost||'',parts_charge:data.parts||'',
+    markup:m,parts_margin:m,shipping:data.ship||'',tax:data.tax||'',tip:data.tip||'',
+    addons:data.addons||'',tech_pay:data.techpay||'',amount_invoiced:data.amount_invoiced||''
+  });
+  for(let a=0;a<3;a++){
+    try{ const r=await fetch(XANO+'/record_job_invoice',{method:'POST',headers:{'Content-Type':'application/json'},body}); if(r&&r.ok) return true; }catch(_){}
+    await new Promise(res=>setTimeout(res,600*(a+1)));
+  }
+  return false;
+}
+// On every board load, push any invoice that saved offline (bad signal) up to the
+// server so it self-heals the moment the connection is back — an entry can never
+// stay stuck on one device. (Danielle 2026-07-16.)
+async function resyncPendingInvoices(){
+  let keys=[]; try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.indexOf('tn_inv_')===0) keys.push(k); } }catch(_){ return; }
+  let healed=0;
+  for(const k of keys){
+    let d=null; try{ d=JSON.parse(localStorage.getItem(k)||'{}'); }catch(_){ continue; }
+    if(!d||!d._unsynced) continue;
+    const jid=k.slice('tn_inv_'.length);
+    if(await postInvoiceToServer(jid,d)){ delete d._unsynced; try{localStorage.setItem(k,JSON.stringify(d));}catch(_){} healed++; }
+  }
+  if(healed) loadInvoices();   // refresh the tiles now that the server has them
+}
 async function saveInvoice(jid){
   // Unlock audio inside the Save tap (before any await) so the celebration's cha-ching +
   // applause play on iOS too.
@@ -2730,24 +2763,33 @@ async function saveInvoice(jid){
   const addons=(typeof window.__addonsTotal==='number')?window.__addonsTotal:0;
   const total=num('inv-labor')+charge+num('inv-ship')+num('inv-tax')+num('inv-tip')+addons;
   data.parts_margin=margin.toFixed(2);data.addons=addons.toFixed(2);data.amount_invoiced=total.toFixed(2);data._savedAt=Date.now();
-  // Always persist locally so her entries are never lost, then record to the
-  // server audit (record_job_invoice writes an event_log row — no schema
-  // change needed; once pushed it's the durable record).
+  data.technician_id=(window.__drawerTech||0);   // stored so an offline save can resync later
+  // Persist locally first so her entries are never lost, THEN confirm the server got
+  // it. The old code said "Saved ✓" before the server write and swallowed any failure,
+  // so a bad-signal save lived only in this browser — the tile never got a number and
+  // it vanished on another device ("invoice worksheet still missing on some", Danielle
+  // 2026-07-16). Now we only claim it's saved once the server confirms; otherwise we
+  // say so honestly and it auto-retries.
+  data._unsynced=true;
   try{localStorage.setItem(invKey(jid),JSON.stringify(data));}catch(_){}
-  toast('Saved ✓ ($'+total.toFixed(2)+' · margin $'+margin.toFixed(2)+')');
-  document.getElementById('inv-note').textContent='Saved just now';
-  try{
-    await fetch(XANO+'/record_job_invoice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-      job_id:parseInt(jid,10),technician_id:(window.__drawerTech||0),labor:data.labor,
-      part_cost:data.partcost,parts_charge:data.parts,markup:margin.toFixed(2),parts_margin:margin.toFixed(2),
-      shipping:data.ship,tax:data.tax,tip:data.tip,addons:data.addons,tech_pay:data.techpay,amount_invoiced:data.amount_invoiced
-    })});
-  }catch(_){/* endpoint may not be deployed yet; localStorage holds it */}
+  document.getElementById('inv-note').textContent='Saving…';
+  const synced=await postInvoiceToServer(jid,data);
+  if(synced){
+    try{ const s=JSON.parse(localStorage.getItem(invKey(jid))||'{}'); delete s._unsynced; localStorage.setItem(invKey(jid),JSON.stringify(s)); }catch(_){}
+    toast('Saved ✓ ($'+total.toFixed(2)+' · margin $'+margin.toFixed(2)+')');
+    document.getElementById('inv-note').textContent='Saved just now ✓';
+    // Reflect on the tile immediately (don't wait for the next 30s poll).
+    const prev=INVOICES[String(jid)]||{}; INVOICES[String(jid)]={amount:parseFloat(data.amount_invoiced)||0,paid:prev.paid||false,warranty:prev.warranty||false};
+    try{renderBoard();}catch(_){}
+  }else{
+    toast('⚠ Saved on this device — not synced yet');
+    document.getElementById('inv-note').textContent='⚠ Saved here but NOT synced yet (bad connection?). It stays and retries automatically — don\'t re-key it.';
+  }
   // 🎉 Office celebration — the invoice worksheet is the office's "finish" (Teddy 2026-07-09:
   // "the celebration hits when this section is completed"). Fires on a real invoice (total>0).
   // Shows the invoiced amount + parts margin (office metrics — NOT the tech's pay).
-  if(total>0){ try{ if(window.AntMagic)AntMagic.award('estimate'); }catch(_){} }
-  if(total>0 && typeof window.antCelebrate==='function'){
+  if(synced && total>0){ try{ if(window.AntMagic)AntMagic.award('estimate'); }catch(_){} }
+  if(synced && total>0 && typeof window.antCelebrate==='function'){
     let nm=((document.getElementById('d-name')||{}).textContent||'').trim(); if(nm==='Loading…') nm='';
     window.antCelebrate({
       tag:'Invoiced', big:'INVOICED! 💵', sub: nm || ('Job #'+jid),
