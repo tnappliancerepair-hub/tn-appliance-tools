@@ -1635,20 +1635,46 @@ async function uploadFile(file,kind){
     }catch(e){ toast('⚠ upload failed: '+(e&&e.message||e)); }
     return;
   }
-  if(kind==='photo' && window.AntPhoto){
-    toast('Uploading photo…');
-    try{
-      const r=await AntPhoto.upload(file,{ jobId:JOB_ID, uploadedBy:'tech',
-        onStatus:(phase,a)=>{ if(phase==='retry') toast('Weak signal — retrying…'); },
-        s3Fallback:f=>uploadFileS3(f,'photo') });
-      if(r&&r.ok){ toast('Photo added ✓'); loadAttachments();
-        if(r.via==='cfimages' && r.deliveryUrl) readModelFromUrl(r.deliveryUrl, r.id||null);
-        else if(r.via==='proxy' && r.s3_key) readModelFromPhoto(r.s3_key, r.attachment_id||null);
-      } else toast('⚠ photo upload failed — try again');
-    }catch(e){ toast('⚠ upload failed: '+(e&&e.message||e)); }
-    return;
-  }
+  if(kind==='photo'){ return uploadPhotoProxy(file); }
   return uploadFileS3(file,kind);
+}
+// Reliable photo upload: downscale in-browser, then POST the JPEG to OUR function (the
+// browser→Netlify hop that always works on weak signal / iOS), which stores it to S3
+// server-side. Replaces the flaky browser→S3 direct PUT that made field photos "sometimes
+// not load" (John + Jimmy, 2026-07-16). Up to 3 tries with backoff, then a last-ditch
+// direct-PUT fallback.
+function _downscalePhoto(file, cb){
+  try{
+    const reader=new FileReader();
+    reader.onload=function(){
+      const im=new Image();
+      im.onload=function(){
+        let max=1600,w=im.width,h=im.height;
+        if(w>max||h>max){ if(w>=h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+        try{ const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);cb(c.toDataURL('image/jpeg',0.85)); }
+        catch(_){ cb(reader.result); }
+      };
+      im.onerror=function(){ cb(reader.result); };
+      im.src=reader.result;
+    };
+    reader.onerror=function(){ cb(null); };
+    reader.readAsDataURL(file);
+  }catch(_){ cb(null); }
+}
+async function uploadPhotoProxy(file){
+  if(!file) return {ok:false};
+  toast('Uploading photo…');
+  const b64=await new Promise(res=>_downscalePhoto(file,res));
+  if(!b64){ toast('⚠ couldn\'t read that photo — try again'); return {ok:false}; }
+  for(let a=0;a<3;a++){
+    try{
+      const d=await fetch('/.netlify/functions/photo-upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image_base64:b64,job_id:JOB_ID,uploaded_by:'tech'})}).then(r=>r.json());
+      if(d&&d.ok&&d.s3_key){ toast('Photo added ✓'); loadAttachments(); readModelFromPhoto(d.s3_key, d.attachment_id||null); return {ok:true}; }
+    }catch(_){}
+    if(a<2){ toast('Weak signal — retrying… ('+(a+2)+'/3)'); await new Promise(r=>setTimeout(r,800*(a+1))); }
+  }
+  toast('Trying another way…');
+  return uploadFileS3(file,'photo');   // last-ditch direct PUT
 }
 async function uploadFileS3(file,kind){
   if(!file) return {ok:false};
@@ -1658,8 +1684,12 @@ async function uploadFileS3(file,kind){
     if(!gen.success) throw new Error(gen.error||'gen failed');
     const pres=await fetch('/.netlify/functions/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:gen.s3_key,mime_type:file.type||(kind==='video'?'video/mp4':'image/jpeg')})}).then(r=>r.json());
     if(!pres.success||!pres.upload_url) throw new Error('presign failed');
-    const put=await fetch(pres.upload_url,{method:'PUT',headers:{'Content-Type':file.type||(kind==='video'?'video/mp4':'image/jpeg')},body:file});
-    if(!put.ok) throw new Error('S3 upload failed');
+    let put=null;
+    for(let a=0;a<3;a++){
+      try{ put=await fetch(pres.upload_url,{method:'PUT',headers:{'Content-Type':file.type||(kind==='video'?'video/mp4':'image/jpeg')},body:file}); if(put&&put.ok) break; }catch(_){}
+      if(a<2){ toast('Weak signal — retrying… ('+(a+2)+'/3)'); await new Promise(r=>setTimeout(r,900*(a+1))); }
+    }
+    if(!put||!put.ok) throw new Error('S3 upload failed');
     await xanoPost('save_attachment',{attachment_id:gen.attachment_id,file_size_bytes:file.size||0});
     toast(kind.charAt(0).toUpperCase()+kind.slice(1)+' added ✓');
     loadAttachments();
