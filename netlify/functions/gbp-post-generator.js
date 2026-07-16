@@ -97,7 +97,8 @@ exports.handler = async function (event) {
   const dry = q.dryrun === '1';
   const test = q.test === '1';
   const publish = q.publish === '1';   // admin: publish ONE post now (keeps it), ignores dedup
-  if (test || publish) {
+  const ventCity = (q.vent_city || '').trim();   // admin: publish a dryer-vent post for a city
+  if (test || publish || ventCity) {
     const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
     if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
   }
@@ -105,6 +106,29 @@ exports.handler = async function (event) {
   const anthropic = process.env.ANTHROPIC_API_KEY;
   if (!anthropic) return json(200, { ok: false, error: 'no anthropic key' });
   const autopost = String(await getSecret('GBP_AUTOPOST') || '').toLowerCase() !== 'false';
+
+  // On-demand dryer-vent post for a specific city: ?vent_city=New Orleans&secret=  (add
+  // &dryrun=1 to preview). Points the Book button at that city's vent page. Re-fireable
+  // per city so we can drip the word out across markets without burying posts.
+  if (ventCity) {
+    const VENT_URL = {
+      'new orleans': 'dryer-vent-cleaning-new-orleans.html', 'baton rouge': 'dryer-vent-cleaning-baton-rouge.html',
+      'hammond': 'dryer-vent-cleaning-hammond.html', 'mandeville': 'dryer-vent-cleaning-mandeville.html',
+      'metairie': 'dryer-vent-cleaning-metairie.html', 'kenner': 'dryer-vent-cleaning-kenner.html',
+      'covington': 'dryer-vent-cleaning-covington.html', 'slidell': 'dryer-vent-cleaning-slidell.html',
+      'ponchatoula': 'dryer-vent-cleaning-ponchatoula.html', 'chalmette': 'dryer-vent-cleaning-chalmette.html',
+      'denham springs': 'dryer-vent-cleaning-denham-springs.html', 'gonzales': 'dryer-vent-cleaning-gonzales.html',
+    };
+    const url = 'https://tnapplianceexchange.net/' + (VENT_URL[ventCity.toLowerCase()] || 'dryer-vent-cleaning.html');
+    const vTopic = `A DRYER VENT CLEANING post for ${ventCity}. Get the word out that we clean dryer vents in ${ventCity}. We are the dryer vent cleaning people there — CSIA Certified Dryer Exhaust Technicians (C-DET), same-day service, and the ONLY crew that also breaks down and cleans the dryer itself, not just the vent line. A clogged dryer vent is a fire risk and makes drying take two or three cycles. We handle single homes, two- and three-story roof runs, and whole apartment complexes, and we price-match any licensed competitor. Name ${ventCity} naturally, keep it warm and human, end with a call to text, call, or book.`;
+    const vpost = await draftPost(vTopic, anthropic);
+    if (!vpost || !vpost.body) return json(200, { ok: false, error: 'vent draft failed' });
+    const vfull = `${vpost.body}\n\nBook: ${url}  ·  Call/text 615-280-2949`;
+    if (dry) return json(200, { ok: true, mode: 'vent_dryrun', city: ventCity, url, title: vpost.title, post: vfull });
+    const r = await gbp.createLocalPost({ summary: vpost.body, actionType: 'BOOK', actionUrl: url });
+    if (r.ok) { try { await crud.logEvent('gbp_post_published', { bucket: 'vent:' + ventCity + ':' + Date.now(), title: vpost.title || '', topic: 'dryer_vent_' + ventCity, post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {} }
+    return json(200, { ok: r.ok, mode: 'vent_publish', city: ventCity, published: r.ok, title: vpost.title, post: vfull, post_name: (r.data && r.data.name) || null, status: r.status, error: r.ok ? undefined : r.data });
+  }
 
   const now = new Date();
   const wk = isoWeek(now);
