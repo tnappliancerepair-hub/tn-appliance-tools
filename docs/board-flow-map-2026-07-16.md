@@ -18,10 +18,13 @@ drop wins via `pendingStage`).
 3  [Tech] · Report                             │
       ├──►  Completion   (finished this visit) │  (AUTO on completed)
       └──►  Waiting Parts (parts needed)        │  (AUTO on part ETA set)
-                 │  parts RECEIVED              │
-                 └──── back to scheduling ──────┘  (AUTO: → Needs Scheduled
-                        to book the return visit)
-6  ✅ Completion   ← a completed job's FIRST stop
+                 │  parts RECEIVED  (AUTO)      │
+                 ▼                              │
+6  ✅ Completion  ← received parts land here to │
+      │  be verified/tracked; office then       │
+      └──── books the return visit ─────────────┘  (MANUAL → Scheduled)
+
+6  ✅ Completion   ← ALSO a finished job's first stop
       │  office walks it forward                 (MANUAL)
       ▼
 7  Follow Up
@@ -44,12 +47,12 @@ but it is NOT part of the flow and nothing auto-routes to it.
 
 | # | Area (col id) | What it means | What puts a job IN (trigger) | Auto/Manual |
 |---|---|---|---|---|
-| 1 | Needs Scheduled (`schedule`) | Accepted, not on a tech's day yet | Intake; OR parts received → book the return | AUTO |
+| 1 | Needs Scheduled (`schedule`) | Accepted, not on a tech's day yet | Intake | AUTO |
 | 2 | Scheduled (`scheduled`) | Booked: real day + a tech, not started | Danielle books it (day + tech) | AUTO once day+tech set |
 | 3 | [Tech] · Report (`rep-<t>`) | Tech has STARTED the job | Tech taps Start → `in_progress` | AUTO |
 | — | Upgrade (`upgrade`) | Dormant/parked — not in flow | (none) | — |
 | 5 | Waiting Parts (`parts`) | Parts ordered, ETA set, not arrived | Danielle sets the part ETA | AUTO |
-| 6 | ✅ Completion (`done`) | The completion — tech finished the work (1st visit or return) | Job marked `completed` | AUTO |
+| 6 | ✅ Completion (`done`) | Completion checkpoint — a finished job (`completed`) AND a parts-received job land here | Job marked `completed`, OR `parts_status=arrived` | AUTO |
 | 7 | Follow Up (`followup`) | Office follow-up / second look | Office drags it | MANUAL |
 | 8 | Needs Invoice (`needinv`) | Repair done, ready to BILL | Office drags it here from Completion/Follow Up | MANUAL |
 | 9 | [Tech] · Invoice (`inv-<t>`) | Per-tech billing folder | Office drags it | MANUAL |
@@ -60,9 +63,11 @@ but it is NOT part of the flow and nothing auto-routes to it.
 A job in **[Tech] · Report** goes exactly ONE of two ways:
 - **Done this visit** → **✅ Completion** (auto when the tech marks it completed).
 - **Needs parts** → **Waiting Parts** (auto once Danielle sets the part ETA).
-  When the part **arrives**, the job returns to **Needs Scheduled** to book
-  the return visit, then re-enters the cycle at Scheduled → Tech Report →
-  Completion.
+  When the part **arrives** (`parts_status=arrived`), the job auto-moves to
+  **✅ Completion** FIRST — so the office can verify/track the received parts —
+  and from there the office books the return visit (→ **Scheduled**), which
+  re-enters the cycle at Scheduled → Tech Report → Completion. (Teddy
+  2026-07-16; supersedes the 2026-07-08 "parts received → Needs Scheduled".)
 
 ## The billing tail is office-driven
 

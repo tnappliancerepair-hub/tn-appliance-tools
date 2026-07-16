@@ -837,14 +837,16 @@ function placeOf(j){
   // an awaiting_parts/held job does NOT get yanked into Scheduled.
   const _reallyScheduled = (Number(j.scheduled_start)>0 && hasTech && (ss===''||ss==='not_ready'||ss==='scheduled'));
   const _schedOrDone = (ss==='scheduled' || _reallyScheduled || ss==='completed' || cs==='completed');
+  // Parts RECEIVED → ✅ Completion FIRST (Teddy 2026-07-16: "waiting for parts needs to go
+  // back to completion first — this helps us track the parts that were received; then once
+  // it hits completion they go back to scheduled"). Checked BEFORE the on-order rule below
+  // so an arrived part is never held in Waiting Parts by a lingering ETA. From Completion
+  // the office verifies the received parts, then books the return visit (→ Scheduled).
+  // (Supersedes the 2026-07-08 "parts received → needs scheduled" rule.) Danielle's
+  // explicit placement still wins (ov, checked above).
+  if(!_schedOrDone && (j.parts_status||'').toLowerCase()==='arrived') return 'done';
+  // Parts still ON ORDER (ETA set / ordered, not arrived yet) → Waiting Parts.
   if(!_schedOrDone && ((j.parts_eta_date||'').trim() || PARTS_ORDERED.test(j.parts_status||''))) return 'parts';
-  // Parts have ARRIVED → the return visit needs booking, so surface the job in
-  // Needs Scheduled (NOT the tech's Report folder, where it sat invisible for
-  // scheduling). Danielle's explicit placement still wins (ov, checked above);
-  // this only fires when nobody's filed it and it isn't already scheduled/done.
-  // (Teddy 2026-07-08: "when parts are received the customer added back to the
-  // needs scheduled list.")
-  if(!_schedOrDone && (j.parts_status||'').toLowerCase()==='arrived') return 'schedule';
   // A SCHEDULED job (a real day is set, not yet started) goes to the SCHEDULED
   // folder — NOT the tech's Report folder — so the office moves it forward
   // manually from there (her manual drop sticks via office_stage). Only a job the
