@@ -125,6 +125,13 @@
   .jcard:active{transform:scale(.99);}
   .jcard.dragging{opacity:.5;}
   .jcard.over{border:2px solid #e05a43;background:#fff6f4;box-shadow:0 1px 3px rgba(214,67,42,.18);}
+  /* 🚨 Replacement siren — a job the tech flagged for replacement needs Danielle's
+     attention FAST (file the claim same-day). Flashing red so she can't miss it. */
+  @keyframes sirenPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.55),0 6px 16px rgba(0,0,0,.10);}50%{box-shadow:0 0 0 5px rgba(220,38,38,0),0 0 20px 4px rgba(220,38,38,.6),0 6px 16px rgba(0,0,0,.10);}}
+  @keyframes sirenFlash{0%,49%{background:#dc2626;color:#fff;}50%,100%{background:#fff1f1;color:#dc2626;}}
+  .jcard.siren{border:2px solid #dc2626 !important;animation:sirenPulse 1s ease-in-out infinite;}
+  .tag.siren{border:1px solid #dc2626;font-weight:900;animation:sirenFlash .8s steps(1) infinite;}
+  @media (prefers-reduced-motion:reduce){.jcard.siren{animation:none;box-shadow:0 0 0 3px rgba(220,38,38,.45);}.tag.siren{animation:none;background:#dc2626;color:#fff;}}
   .jc-top{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
   .jc-name{font-weight:700;font-size:14px;flex:1;line-height:1.2;}
   .jc-meta{font-size:12px;color:var(--ink2);line-height:1.35;}
@@ -1064,7 +1071,7 @@ function cardHtml(j){
   // in_progress = started but NOT closed out yet (also carries the ⚠️ flag below).
   if(_vss==='completed'||_vcs==='completed') tags.push('<span class="tag" style="background:#e7f6ec;color:#0a7d33;border:1px solid #7fd3a3;font-weight:800">🟢 Fixed</span>');
   else if(_vss==='awaiting_parts') tags.push('<span class="tag" style="background:#fff3d0;color:#8a6410;border:1px solid #e0b22a;font-weight:800">🟠 Needs parts</span>');
-  else if(_vss==='no_fix_possible'||_vss==='no_fix') tags.push('<span class="tag" style="background:#efe7fb;color:#5b3ba3;border:1px solid #c9b6ee;font-weight:800">🟣 Replace / no-fix</span>');
+  else if(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible') tags.unshift('<span class="tag siren">🚨 REPLACEMENT — needs attention</span>');
   else if(_vss==='held') tags.push('<span class="tag" style="background:#eef1f5;color:#55617a;border:1px solid #d0d7e2;font-weight:800">⚪ Held (auth)</span>');
   else if(_vss==='in_progress'||_vcs==='in_progress') tags.push('<span class="tag" style="background:#fdf0e3;color:#9a5a12;border:1px solid #f0c896;font-weight:800">🔧 In progress</span>');
   else tags.push('<span class="tag" style="background:#e8f4ff;color:#0a6ebd;border:1px solid #a9d4f5;font-weight:800">🔍 Diagnosis</span>');
@@ -1132,7 +1139,8 @@ function cardHtml(j){
     const _txt=(_a||_u)?[_a?('✅ '+_a):'',_u?('⛔ '+_u):''].filter(Boolean).join('  ·  '):_prefC;
     _availCard='<div class="jc-avail" title="Customer availability" style="margin-top:6px;padding:6px 9px;border-radius:8px;background:rgba(31,143,58,.08);border:1px solid rgba(31,143,58,.35);color:#1d7a44;font-size:12px;font-weight:700;line-height:1.4">🗓 '+esc(_txt.slice(0,140))+'</div>';
   }
-  return `<div class="jcard${_over?' over':''}" draggable="true" data-id="${j.id}">
+  const _replace=(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible');
+  return `<div class="jcard${_over?' over':''}${_replace?' siren':''}" draggable="true" data-id="${j.id}">
     <div class="jc-status-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">${_statusPill}${_wait}</div>
     <div class="jc-name">${esc(name)}</div>
     <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}<span class="tag warr">${esc(_coLabel)}</span>${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
