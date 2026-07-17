@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>You're booked — TN Appliance Exchange</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#ff8a00">
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-0EF3THNXLE');</script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#f6f8fb;min-height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1a202c;line-height:1.55;padding:40px 20px;max-width:520px;margin:0 auto;text-align:center}
+  .ico{font-size:64px;margin-bottom:8px}
+  h1{font-size:26px;margin-bottom:10px}
+  p{color:#4a5568;font-size:16px;margin-bottom:14px}
+  .card{background:#fff;border-radius:16px;padding:24px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.05);margin-top:10px}
+  .muted{color:#718096;font-size:14px}
+  a.call{display:inline-block;margin-top:10px;color:#ad4e00;font-weight:700;text-decoration:none}
+  .spin{width:34px;height:34px;border:3px solid #e2e8f0;border-top-color:#ff8a00;border-radius:50%;animation:s 0.8s linear infinite;margin:12px auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div class="spin"></div>
+  <p class="muted">Confirming your booking…</p>
+</div>
+<div id="done" style="display:none">
+  <div class="ico">🔥✅</div>
+  <h1 id="h">You're booked!</h1>
+  <div class="card">
+    <p id="msg">Thanks — your dryer vent cleaning is booked. We'll text you shortly to lock in a day from your availability.</p>
+    <p class="muted">Your CSIA-certified tech confirms the final price on-site before any extra work. Your $80 applies to the total.</p>
+    <a class="call" href="tel:+16152802949">Questions? Call or text 615-280-2949</a>
+  </div>
+</div>
+<div id="pending" style="display:none">
+  <div class="ico">⏳</div>
+  <h1>Almost there</h1>
+  <div class="card">
+    <p>We couldn't confirm the payment just yet. If you completed checkout, you'll get a text shortly — or call us and we'll sort it out.</p>
+    <a class="call" href="tel:+16152802949">Call or text 615-280-2949</a>
+  </div>
+</div>
+<script>
+(async function(){
+  var sid=new URLSearchParams(location.search).get('session_id');
+  var loading=document.getElementById('loading'), done=document.getElementById('done'), pending=document.getElementById('pending');
+  if(!sid){ loading.style.display='none'; pending.style.display='block'; return; }
+  try{
+    var r=await fetch('/.netlify/functions/verify-vent-booking',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid})});
+    var d=await r.json();
+    loading.style.display='none';
+    if(d&&d.paid){
+      try{ gtag('event','purchase',{event_category:'vent_booking',value:(d.amount||80),currency:'USD'}); }catch(_){}
+      if(d.first_name){ document.getElementById('h').textContent="You're booked, "+d.first_name+'!'; }
+      done.style.display='block';
+    } else { pending.style.display='block'; }
+  }catch(e){ loading.style.display='none'; pending.style.display='block'; }
+})();
+</script>
+</body>
+</html>
