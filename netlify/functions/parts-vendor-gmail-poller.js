@@ -131,7 +131,9 @@ const FIND_JOB_ENDPOINT = `${XANO_BASE}/find_job_by_claim_number`;
 const MARK_ARRIVED_ENDPOINT = `${XANO_BASE}/mark_parts_arrived`;
 const ORDER_PROCESSED_LABEL = 'PartsOrder-Processed';
 const ARRIVED_PROCESSED_LABEL = 'PartsArrived-Processed';
-const ORDER_LIVE = process.env.PARTS_ORDER_POLLER_LIVE === 'true';
+// ORDER_LIVE is read INSIDE the handler from the vault (getSecretFresh, env-first
+// then Xano app_config) so it can be flipped via admin-secrets.html without adding
+// a Netlify env var (the 4KB env cap). See the handler. (Teddy 2026-07-18)
 const DISPATCH_RE = /dispatch\s*id[:\s#]*(\d{5,12})/i;
 const DISPATCH_RE2 = /dispatch[:\s#]*(\d{5,12})/i;
 const PART_HINT_RE = /part[#:\s]*([A-Z0-9][A-Z0-9\-]{3,})/i;
@@ -202,6 +204,11 @@ exports.handler = async (event) => {
   const oauth2 = new google.auth.OAuth2(clientId, clientSecret);
   oauth2.setCredentials({ refresh_token: refreshToken });
   const gmail = google.gmail({ version: 'v1', auth: oauth2 });
+
+  // Dry-run gate — flip live by setting PARTS_ORDER_POLLER_LIVE=true in the vault
+  // (admin-secrets.html) OR Netlify env. Vault-first-fresh so a flip takes effect
+  // on the next 30-min run without a redeploy.
+  const ORDER_LIVE = String((await require('./_lib/secrets').getSecretFresh('PARTS_ORDER_POLLER_LIVE')) || '').toLowerCase() === 'true';
 
   let processedLabelId;
   try {
