@@ -202,7 +202,8 @@ function pageHtml(c, others) {
   <div class="rel">
     <b>Dryer vent cleaning across Middle Tennessee:</b><br>
     ${rel} · <a href="/dryer-vent-cleaning-tennessee.html">All Middle TN →</a>${dryerLink}<br>
-    <b style="display:inline-block;margin-top:8px">Apartment complex or rentals?</b> <a href="/apartment-appliance-repair.html">Whole-property vent + appliance program →</a> · <a href="/property-management.html">Property managers →</a>
+    <b style="display:inline-block;margin-top:8px">Apartment complex or rentals?</b> <a href="/apartment-appliance-repair.html">Whole-property vent + appliance program →</a> · <a href="/property-management.html">Property managers →</a><br>
+    <b style="display:inline-block;margin-top:8px">🔁 Want it done every year, automatically?</b> <a href="/dryer-vent-cleaning.html#plan">Join the Vent Care Plan →</a>
   </div>
 </div>
 

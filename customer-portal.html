@@ -1024,7 +1024,15 @@
 
     // One-tap Google review on completed jobs (the #1 maps-ranking lever)
     const btnGR = $('btnGoogleReview');
-    if (btnGR) { btnGR.style.display = (viewState === 'completed' && job.scheduling_status === 'completed') ? '' : 'none'; }
+    if (btnGR) {
+      btnGR.style.display = (viewState === 'completed' && job.scheduling_status === 'completed') ? '' : 'none';
+      // Coach vent customers to name "dryer vent" — reviews that mention the service
+      // lift us in the map pack for "dryer vent cleaning near me" (competitor edge).
+      const grSub = btnGR.querySelector('.sub');
+      if (grSub && /vent/i.test(String(job.appliance_type || ''))) {
+        grSub.textContent = 'Mind mentioning your dryer vent cleaning in the review? It helps other homeowners find us. 20 seconds.';
+      }
+    }
 
     renderDeal(job, viewState);
     renderProtection(job, viewState);

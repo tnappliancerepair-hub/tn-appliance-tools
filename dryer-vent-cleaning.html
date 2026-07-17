@@ -148,6 +148,28 @@
   </div>
   <div class="trust">Prefer to talk? Call or text <a href="tel:+16152802949">615-280-2949</a> — a real person answers.</div>
 
+  <div class="edge" id="plan" style="margin-top:24px;border-color:#7c3aed;background:#f5f3ff">
+    <div class="eh" style="color:#4c1d95">🔁 The Vent Care Plan — never think about it again</div>
+    <p style="color:#5b21b6">Join the plan and we <b>clean your dryer vent every year, remind you when it's due, lock in your member rate, and put you first in line.</b> The easiest way to stay ahead of a fire hazard — and something <b>no other vent company around here offers.</b> Homes and whole properties welcome.</p>
+  </div>
+  <div class="card" id="vp-form" style="margin-top:-8px;border:2px solid #ddd6fe">
+    <label for="vp-name">Your name <span class="req">*</span></label>
+    <input id="vp-name" type="text" placeholder="First Last" autocomplete="name">
+    <label for="vp-phone">Mobile number <span class="req">*</span></label>
+    <input id="vp-phone" type="tel" placeholder="(615) 555-0199" autocomplete="tel" inputmode="tel">
+    <div class="addr-row" style="margin-top:8px">
+      <input class="city" id="vp-city" type="text" placeholder="City" autocomplete="address-level2">
+      <input class="state" id="vp-state" type="text" placeholder="TN" maxlength="2" autocomplete="address-level1">
+    </div>
+    <button class="btn" id="vp-submit" style="background:linear-gradient(135deg,#7c3aed,#6d28d9)">Join the Vent Care Plan →</button>
+    <div class="err" id="vp-err"></div>
+  </div>
+  <div class="card" id="vp-done" style="display:none;margin-top:-8px;text-align:center;border:2px solid #ddd6fe">
+    <div style="font-size:44px">🔁</div>
+    <h2 style="margin:6px 0;font-size:22px">You're on the list!</h2>
+    <p style="color:#4a5568;font-size:15px">We'll text you to lock in your member rate and book your first cleaning. Questions? Call <a href="tel:+16152802949" style="color:#ad4e00;font-weight:700;text-decoration:none">615-280-2949</a>.</p>
+  </div>
+
   <div style="margin-top:22px;padding-top:16px;border-top:1px solid #e6eaf0;font-size:12.5px;color:#8a93a5;line-height:2">
     <b style="color:#5a6678">Dryer running hot or slow? We also do full dryer repair:</b><br>
     <a href="/dryer-repair-nashville.html" style="color:#ad4e00;text-decoration:none">Nashville</a> ·
@@ -205,6 +227,26 @@ document.getElementById('submit').onclick=async function(){
     } else { showErr((d&&d.error)||'Something went wrong — please call 615-280-2949.'); btn.disabled=false; btn.textContent='Book my vent cleaning (price-match) →'; }
   }catch(e){ showErr('Connection error — please try again or call 615-280-2949.'); btn.disabled=false; btn.textContent='Book my vent cleaning (price-match) →'; }
 };
+(function(){
+  var b=document.getElementById('vp-submit'); if(!b) return;
+  b.onclick=async function(){
+    var e=document.getElementById('vp-err'); e.classList.remove('show');
+    var name=val('vp-name'), phone=val('vp-phone').replace(/\D/g,'');
+    if(!name){ e.textContent='Please add your name.'; e.classList.add('show'); return; }
+    if(phone.length<10){ e.textContent='Please add a valid mobile number.'; e.classList.add('show'); return; }
+    b.disabled=true; b.textContent='Joining…';
+    try{
+      var r=await fetch('/.netlify/functions/vent-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        name:name, phone:phone, city:val('vp-city'), state:val('vp-state'), plan_type:'home', message:'Vent Care Plan signup (annual)'
+      })});
+      var d=await r.json();
+      if(d&&d.ok){ try{ gtag('event','generate_lead',{event_category:'vent_care_plan'}); }catch(_){}
+        document.getElementById('vp-form').style.display='none'; document.getElementById('vp-done').style.display='block';
+        document.getElementById('vp-done').scrollIntoView({behavior:'smooth',block:'center'});
+      } else { e.textContent=(d&&d.error)||'Something went wrong — call 615-280-2949.'; e.classList.add('show'); b.disabled=false; b.textContent='Join the Vent Care Plan →'; }
+    }catch(_){ e.textContent='Connection error — try again or call 615-280-2949.'; e.classList.add('show'); b.disabled=false; b.textContent='Join the Vent Care Plan →'; }
+  };
+})();
 </script>
 <script type="application/ld+json">
 {

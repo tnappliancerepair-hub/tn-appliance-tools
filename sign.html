@@ -65,6 +65,8 @@
   <div class="check">✅</div>
   <h1>Thank you!</h1>
   <div class="sub">Your sign-off is saved. You're all set.</div>
+  <a id="signReview" href="https://g.page/r/CRt-vo--eAJ3EBM/review" target="_blank" rel="noopener" style="display:inline-block;margin-top:20px;background:linear-gradient(135deg,#ffb300,#ff8a00);color:#1a1f2c;font-weight:800;text-decoration:none;padding:14px 24px;border-radius:12px;font-size:15px">⭐ Leave us a Google review</a>
+  <div id="signReviewSub" style="margin-top:9px;color:#b9c0cc;font-size:13px;line-height:1.5">20 seconds — it means the world to our small team.</div>
 </div>
 
 <script>
@@ -110,6 +112,7 @@ document.getElementById('clear').onclick=()=>{ ctx.clearRect(0,0,canvas.width,ca
     const c=d.customer||{}, ap=d.appliance||{}, t=d.tech||{}, job=d.job||{};
     const tname=[t.first_name].filter(Boolean).join(' ')||'your technician';
     const appl=(ap.appliance_type||job.appliance_type||'appliance').toLowerCase();
+    if(/vent/.test(appl)){ const rs=document.getElementById('signReviewSub'); if(rs) rs.textContent='Mind mentioning your dryer vent cleaning in the review? It helps other homeowners find us. 20 seconds.'; }
     document.getElementById('ctx').textContent=(c.first_name?('For '+c.first_name+(c.last_name?(' '+c.last_name):'')+' · '):'')+(job.brand?job.brand+' ':'')+appl;
     document.getElementById('ackName').textContent=tname;
     document.getElementById('ackAppl').textContent=(job.brand?job.brand+' ':'')+appl;
