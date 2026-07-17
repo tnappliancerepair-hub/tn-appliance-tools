@@ -11,6 +11,53 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-17 (Thu) — TRUST STACK (confirmed saves + one save module + server self-heal) · ADDRESS-REVERT ROOT-FIXED · MULTI-ADDRESS CONFIRM-TEXT · JOHN'S PHOTO BUG · SQUARETRADE RETURN-TRIP RELATIONS · CASH INTAKE FREE-BOOK · 8-11 WINDOW FIX — READ FIRST
+
+The "most trusted" day. Teddy: *"I'm still fighting the most trusted. Everybody still wants to use the old system because they trust it."* Root-caused the trust-killers (dropped saves, reverting addresses, wrong-address dispatches) and built the stack that stops them. Plus field bug fixes + a SquareTrade relations feature + cash-intake polish. Most is LIVE on Netlify; **ONE Mac push pending (#4 self-heal XS).**
+
+### ✅ THE TRUST STACK (why the board keeps its word)
+- **#1 CONFIRMED SAVES + RECEIPTS (`schedule-receipt.js` NEW + `new-scheduling.html`).** Every schedule now does save → **verify it actually landed** (re-read the job) → **show a receipt** ("✅ Scheduled — Jimmy · Thu Jul 17 · you saved this at 2:41pm"). `confirmAndReceipt()` / `verifySaved()` / `pushReceipt()` in new-scheduling; `schedule-receipt` POST logs `schedule_receipt {job_id, actor, tech_id, day, confirmed}`, GET returns latest confirmed per job. **FOOTGUN: `/table/3/content/search` 400s on per_page > ~500** — capped receipts query at 500 (1500/800 both 400'd).
+- **#2 SHARED WHO/WHEN RECORD.** The receipt carries the actor + timestamp so when a tech says "I never got the change," Danielle has proof it saved + when. Same record the board reads.
+- **#3 ONE SHARED SAVE MODULE (`ant-schedule.js` NEW).** `AntSchedule.schedule({jobId,techId,startMs,etaWindow,endMs,actor})` + `reassign()` + `isLocked()` — ONE code path with built-in `terminal_locked` recovery (reopen via `not_ready` then retry). Converted all 5 schedule surfaces to it: new-scheduling, needs-scheduled, office-do-next, office-ready, office-board. No more 5 slightly-different save paths drifting apart.
+- **#4 SERVER SELF-HEAL (`danielle_schedule_parallel_job_POST.xs` — ⏳ MAC PUSH PENDING).** After the first transition fails with a lock, the endpoint itself reopens (`office_set_job_status` → `not_ready`) + retries + re-reads the job + **returns failure if it's still not scheduled** (`$final_ok`). So a lock can't silently swallow a save server-side. **PUSH:** `git pull origin main && xano workspace push -i "api/**/danielle_schedule_parallel_job*" --force`.
+
+### ✅ ADDRESS-REVERT ROOT-FIXED (Danielle's edits kept snapping back)
+`update-customer-name.js` synced only name/phone denorm onto jobs — **never the job `service_*` fields**, which the board + tech app actually read. So Danielle's address edit saved to the customer row but the job kept showing the old address → looked like it "reverted." **Fix:** scoped `service_*` sync — when an address/city/state/zip change comes in with a `jobId`, also PUT `{service_address, service_city, service_state, service_zip}` onto that job + log `address_correction_applied`. **Kota (job 20419) fixed live** — flipped to the correct 1042 Kelsey Glen (AHS was handing us the wrong one of his multiple addresses).
+
+### ✅ MULTI-ADDRESS CONFIRM-TEXT (Teddy's idea — flag for Danielle, LIVE dry-safe)
+When a customer has multiple addresses on file and the job's service address conflicts (house # OR zip differs), text them to confirm the exact service address. Teddy's call: **flag for Danielle (one-tap apply), NOT auto-update.** `_lib/address-notify.js` (`checkAndConfirm`, `addressConflict` — 8/8 unit tests, conflict-only, one-per-job dedup, gate-safe tag `intake_address_confirm`, `ADDRESS_CONFIRM_LIVE` kill switch) + `address-confirm-check.js` (sweep + `?job_id=` + `?dry=1`, cron `0 15,19 * * *`) + `address-flags.js` (board flags). `customer-sms-inbound.js` intercepts the reply (YES → `address_confirmed`; anything else → `address_correction_reported` flag for Danielle). office-board shows the ribbon + one-tap `applyAddressCorrection`. **Dry-run: 0 sends** (no conflicts pending) — ships safe.
+
+### ✅ JOHN'S FIELD PHOTO BUG (couldn't take/upload pics)
+Server-side `photo-upload` verified fine (200). Root cause client-side: **stale service-worker cache + oversized HEIC** blowing the upload. Fix: `sw-tech.js CACHE_VERSION → ant-field-v21-2026-07-17-photofix` (forces fresh app) + hardened `tech-job.html _downscalePhoto` (steps 1440→720 / q0.85→0.5 until the dataURL is <5MB, NEVER sends an oversized raw file). **Techs must fully close+reopen the app once** to pick up v21.
+
+### ✅ SQUARETRADE RETURN-TRIP RELATIONS (`squaretrade-reissue-link.js` NEW)
+Teddy: SquareTrade issues a NEW work-order per trip (trip 1 wrong-part = $105 on WO#A, trip 2 completion = $150 on WO#B, billed separately) — MeisterTask's "relations" linked the two so trip-1's info flowed to trip-2, but Ant didn't. Built it: the reissue email (`appliance_team@squaretrade.com`) literally names both numbers ("close out the original dispatch NNNN … new dispatch call number for an additional repair: NNNN") → `parseReissue()` extracts OLD+NEW WO → `jobForWO()` finds each real job (skips needs_more_info shells) → writes a `squaretrade_return_trip` marker. **Never merges/cancels — both jobs stay separately billable.** Read side: `?job_id=` returns the prior trip's diagnosis/failed_component/parts so trip-2's ticket shows "🔗 Continued from trip 1" (tech-job.html `loadReturnTrip()`) — tech finishes instead of starting blank.
+- **⚠️ FOOTGUN I HIT + OWNED:** a deploy-timing race — my "ready" poll matched BOTH old+new deploy versions, so `confirm=1&only_new_wo=` ran against the pre-refinement build and **linked all 29 ready pairs instead of the one pilot.** Non-destructive (additive markers, reversible). Told Teddy straight; he said "Danielle will let me know if she has an issue with it." **Open:** turn on the auto-linker (`SQUARETRADE_REISSUE_LINK=true`), add an office-board relation badge, teach the dedup merger these are LINKS not duplicates.
+
+### ✅ CASH INTAKE = FREE-BOOK + $100 DISCLOSURE (`appliance-ai.html`)
+Cash intake now mirrors warranty (video + pic + availability + waiver post-booking) and is **FREE to book**, with a firm "$100 diagnostic & trip fee at time of service, credited to repair, no exceptions, no free inspections" disclosure + required `#ih-ack` checkbox before submit. `cashPath()`, rerouted `askAvailability` (in_home→submitInHome), amber fee box, email optional.
+
+### ✅ 8-11 SCHEDULE WINDOW MISMATCH (Danielle's report — board vs job disagreed)
+The board tile derived the window from the hour and showed everything as "8-11" while the job detail had the real vendor window. Fix (`new-scheduling.html`): `winForBlock(j)` prefers the REAL vendor window (parsed from `notes_internal` "Schedule Period:" / `service_eta_window`) over the hour-derived label, compresses "8:00 AM - 11:00 AM" → "8-11". `renderBlock` uses it. Board + job now agree.
+
+### 🧾 LIVE OPS handled
+- **Tony Miller** (615-887-4057, La Vergne 37086, dryer no-heat, long-time CASH customer) — created **cash job #20576** (`self_pay`, customer_id 6321) + sent the neutral `finish-upload.html?job_id=20576` media link WITH the $100 disclosure (NOT warranty-intake, which says "free/covered"). Queued at Telnyx.
+- **Ms London** (Jucinta London, job 20568, Frontdoor dispatch) — sent her warranty intake link. (Answered Teddy's Q: the availability text ≠ the intake text; the intake link is `warranty-intake.html?job_id=`.)
+- **Nichole Gavranozic** ("AI messaged me + changed my time") — **cleared: zero SMS/calls on record** (guarded-send-sms 0/24h, 0/7d). Not our AI.
+- **Old Hickory / Diane Moxley** ("AI called me") — **cleared: the call was INBOUND from her number**; AI answered normally + helped with an arrival-time question. She misdescribed calling us. (Jimmy exaggerating.)
+
+### 📬 AMAZON B2B ORDERING API — nudge drafted (`docs/amazon-api-nudge-2026-07-17.md`)
+Ready-to-send production-access nudge to the Amazon Business Ordering API team, **incl. Teddy's cell 615-485-5795** (he explicitly authorized it on this ONE B2B email — still NEVER to customers). **⏭️ Teddy sends from tnappliance@gmail.com** (Netlify SES is dormant/dry-run; I can't send from his Gmail). Teddy: "This is a special one for me."
+
+### 🚚 TESLA FLEET STRATEGY (discussion — no build)
+Teddy at the Tesla dealer for Cybertrucks for the tech fleet ($69k base, none in stock; wife eyeing a Model S Plaid which is being discontinued). Strategy framing captured in chat: lead time + tax treatment (Sec.179 / bonus depreciation on the trucks as business vehicles), wrap-as-mobile-billboard, and staging the buy so it doesn't front cash the way a PM net-30 fronts a tech.
+
+### ⏭️ OPEN / NEXT
+- **#4 Mac push** (danielle_schedule_parallel_job self-heal) — command above.
+- SquareTrade linker: flip `SQUARETRADE_REISSUE_LINK=true`, board relation badge, dedup-merger "these are links" teach.
+- Amazon nudge: Teddy sends from tnappliance@gmail.com.
+- Multi-address confirm-text is live + dry-safe; watch the first real conflict flag land for Danielle.
+
 ## 🗓️🐜 2026-07-16 (Wed PM) — TWO LIVE COMMS OUTAGES FIXED (phone + SMS) · SMS MOVED TO APPROVED 10DLC NUMBERS · RED-BOX REDESIGN · BOARD DURABILITY · TECH "MONEY IN THE BANK" — READ FIRST
 
 Long live-ops afternoon. Two customer-facing outages found + fixed, plus board-trust + tech-dashboard work. All LIVE on Netlify (no Mac pushes pending except optional).
