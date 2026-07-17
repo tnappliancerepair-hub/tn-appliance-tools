@@ -361,6 +361,7 @@ async function loadJob(){
     loadDayJobs();
     loadOfficeNotes();
     loadMachines();
+    loadReturnTrip();
   }catch(e){
     // If we already painted from cache, keep it — a slow refresh must NEVER blank a
     // job the tech is looking at. Only show the error when we have nothing to show.
@@ -398,6 +399,32 @@ async function loadOfficeNotes(){
 // Only shows once there are 2+ machines OR always shows the "＋ Add machine" affordance.
 const APPL_ICON={dishwasher:'🍽',dish:'🍽',washer:'🌀',washing:'🌀',dryer:'🔥',refrigerator:'🧊',fridge:'🧊',freezer:'🧊',range:'🍳',stove:'🍳',oven:'🍳',cooktop:'🍳',microwave:'📡',disposal:'🗑',ice:'🧊'};
 function applIcon(a){ const s=String(a||'').toLowerCase(); for(const k in APPL_ICON){ if(s.indexOf(k)>=0) return APPL_ICON[k]; } return '🧰'; }
+// 🔗 SquareTrade return trip (Teddy 2026-07-17): this ticket is a NEW work order for a
+// return visit, but the tech's diagnosis + parts from trip 1 live on the ORIGINAL job.
+// Surface them here so he finishes instead of starting blank. Read-only (both jobs stay
+// separate for billing); the office linker writes the relationship from the reissue email.
+async function loadReturnTrip(){
+  const el=document.getElementById('return-trip'); if(!el) return;
+  try{
+    const d=await fetch('/.netlify/functions/squaretrade-reissue-link?job_id='+encodeURIComponent(JOB_ID),{cache:'no-store'}).then(r=>r.json());
+    if(!(d&&d.linked&&d.link&&d.link.role==='return_trip'&&d.prior)) return;
+    const p=d.prior, pid=p.job_id;
+    const rows=[];
+    if(p.diagnosis) rows.push('<div><b>Diagnosis:</b> '+esc(p.diagnosis)+'</div>');
+    if(p.failed_component) rows.push('<div><b>Failed part:</b> '+esc(p.failed_component)+'</div>');
+    if(p.parts) rows.push('<div><b>Part #:</b> '+esc(p.parts)+'</div>');
+    if(p.notes) rows.push('<div><b>Notes:</b> '+esc(p.notes)+'</div>');
+    const link='tech-job.html?job_id='+pid+'&tech_id='+encodeURIComponent(TECH_ID);
+    el.innerHTML='<div class="card" style="border:1px solid #7fbfe0;background:#eef6fc">'
+      +'<div style="font-weight:800;color:#1c5a8a;font-size:14px;margin-bottom:6px">🔗 Continued from trip 1'
+      +(d.link.orig_wo?(' · WO# '+esc(d.link.orig_wo)):'')+'</div>'
+      +'<div style="font-size:11.5px;color:#55617a;margin-bottom:8px">Wrong part first trip — you already diagnosed it. This is the return visit; here’s what you found last time so you can finish it.</div>'
+      +(rows.length?('<div style="font-size:13.5px;color:#1f2937;line-height:1.5;display:flex;flex-direction:column;gap:3px">'+rows.join('')+'</div>'):'<div style="font-size:12.5px;color:#8a93a1">No report was saved on trip 1.</div>')
+      +'<a href="'+link+'" style="display:inline-block;margin-top:9px;font-size:12.5px;font-weight:700;color:#1c5a8a;text-decoration:none">Open trip 1 (photos + full report) →</a>'
+      +'</div>';
+    el.style.display='';
+  }catch(_){ /* linker not available / not a return trip — stay hidden */ }
+}
 async function loadMachines(){
   const el=document.getElementById('machine-switcher'); if(!el) return;
   try{
@@ -620,6 +647,7 @@ function render(){
   document.getElementById('content').innerHTML=`
     <div class="wrap">
       <div id="release-banner"></div>
+      <div id="return-trip" style="display:none"></div>
       <div id="machine-switcher" style="display:none"></div>
       ${howto}
       <div class="card hero">
