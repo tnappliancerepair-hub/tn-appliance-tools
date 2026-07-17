@@ -144,6 +144,7 @@ function pageHtml(c, others) {
   <div class="king">👑 We are the dryer vent cleaning people.<span class="sub">${c.name}, ${c.county} &amp; all of Middle Tennessee — same-day when you need it.</span></div>
   <div class="cred"><span class="seal">⚡</span> Same-day service in ${c.name} — we can get it done today</div>
   <div class="cred"><span class="seal">🎖️</span> CSIA Certified Dryer Exhaust Technician (C-DET)</div>
+  <div class="cred"><span class="seal">💵</span> Cleaning from $80 (most $80–$250) · large-account pricing for multi-family</div>
 
   <div class="lede">Dryer in ${c.name} taking <b>2-3 cycles to dry?</b> That's a clogged vent — a fire risk that wastes energy and wears out your dryer. We clean it out fast, and if the vent's crushed, disconnected, or missing, we <b>install a new one</b>. <b>We'll text you right back</b> — and we can often get you cleaned out <b>the same day</b>.</div>
 
@@ -275,6 +276,7 @@ function hubHtml() {
   <h1>Dryer vent cleaning across Middle Tennessee</h1>
   <div class="king">👑 We are the dryer vent cleaning people.<span class="sub">Nashville and all of Middle Tennessee — Rutherford, Williamson, Wilson, Sumner &amp; Montgomery counties.</span></div>
   <div class="cred"><span class="seal">🎖️</span> CSIA Certified Dryer Exhaust Technician (C-DET)</div>
+  <div class="cred"><span class="seal">💵</span> Cleaning from $80 (most $80–$250) · large-account pricing for multi-family</div>
   <div class="lede">From Nashville out to Murfreesboro, Franklin, Brentwood and Clarksville, we clean dryer vents <b>same-day</b>, <b>price-match guaranteed</b> — and we're the only crew that also <b>breaks down and cleans the dryer itself</b>. Long roof runs, two- and three-story homes, single houses and whole apartment complexes. Pick your city:</div>
   ${groups}
   <div class="edge" style="margin-top:22px">
