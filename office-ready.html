@@ -2,6 +2,7 @@
 <html lang="en" data-default-theme="light">
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
+<script src="/ant-schedule.js?v=20260717-1"></script>
 <script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
@@ -312,14 +313,9 @@ document.getElementById('schedSave').onclick=async function(){
   const win=document.getElementById('schedWindow').value.trim();
   this.disabled=true;this.textContent='Scheduling…';
   try{
-    const sb=JSON.stringify({job_id:SCHED_JOB,technician_id:tech,scheduled_start_ms:startMs,service_eta_window:win});
-    let d=await (await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},body:sb})).json();
-    if(d&&!d.success&&/terminal|illegal|transition|locked/i.test(String((d&&d.error)||''))){
-      try{await fetch(XANO+'/office_set_job_status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:SCHED_JOB,scheduling_status:'scheduled',actor:'Danielle'})});}catch(_){}
-      d=await (await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},body:sb})).json();
-    }
-    if(d&&d.success){closeSched();load();}
-    else{this.disabled=false;this.textContent='Schedule it';alert('⚠ '+((d&&d.error)||'failed'));}
+    const r=await AntSchedule.schedule({jobId:SCHED_JOB,techId:tech,startMs:startMs,etaWindow:win,actor:'Danielle'});   // one shared save (ant-schedule.js)
+    if(r.ok){closeSched();load();}
+    else{this.disabled=false;this.textContent='Schedule it';alert('⚠ '+(r.error||'failed'));}
   }catch(_){this.disabled=false;this.textContent='Schedule it';alert('⚠ connection error');}
 };
 let FILL_JOB=0;

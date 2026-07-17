@@ -2,6 +2,7 @@
 <html lang="en" data-default-theme="dark">
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
+<script src="/ant-schedule.js?v=20260717-1"></script>
 <script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
@@ -1051,16 +1052,9 @@ function __initCalendar() {
   async function bookConfirmedHold(jobId, techId, date) {
     try {
       const hour = nextStopHourCT(techId, date, jobId);
-      const body = JSON.stringify({ job_id: jobId, technician_id: techId, scheduled_start_ms: ctMs(date, hour), service_eta_window: '' });
-      let res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-      let data = await res.json().catch(() => ({}));
-      // Same terminal_locked recovery (this path never even checked the response before).
-      if ((!res.ok || !data.success) && /terminal|illegal|transition|locked/i.test(String((data && data.error) || ''))) {
-        try { await fetch(`${XANO_BASE}/office_set_job_status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
-        res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-        data = await res.json().catch(() => ({}));
-      }
-      if (!res.ok || !data.success) { alert('Could not confirm: ' + ((data && (data.error || data.message)) || 'try again')); return; }
+      // ONE shared save (ant-schedule.js).
+      const r = await AntSchedule.schedule({ jobId: jobId, techId: techId, startMs: ctMs(date, hour), actor: 'Danielle' });
+      if (!r.ok) { alert('Could not confirm: ' + (r.error || 'try again')); return; }
       await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) });
       loadWeek();
       confirmAndReceipt(jobId, techId, date);   // verify + receipt
@@ -1906,20 +1900,11 @@ function __initCalendar() {
     if (dayChanged) { const ms = localDatetimeToMs(`${newDateStr}T${jobTimeHHMM_CT(j.scheduled_start)}`); if (ms) j.scheduled_start = ms; }
 
     try {
-      const ep = dayChanged ? 'danielle_schedule_parallel_job' : 'reassign_job';
-      const bod = dayChanged
-        ? JSON.stringify({ job_id: jobId, technician_id: newTechId, scheduled_start_ms: j.scheduled_start })
-        : JSON.stringify({ job_id: jobId, technician_id: newTechId });
-      let res = await fetch(`${XANO_BASE}/${ep}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bod });
-      let data = await res.json().catch(() => ({}));
-      // Canceled/terminal jobs bounce with "terminal_locked" → the move silently reverts.
-      // Lift the lock and retry (Danielle's "didn't save", Teddy 2026-07-17).
-      if ((!res.ok || !data.success) && /terminal|illegal|transition|locked/i.test(String((data && data.error) || ''))) {
-        try { await fetch(`${XANO_BASE}/office_set_job_status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
-        res = await fetch(`${XANO_BASE}/${ep}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bod });
-        data = await res.json().catch(() => ({}));
-      }
-      if (!res.ok || !data.success) { alert((data && (data.error || data.message)) || 'Move failed — refreshing.'); loadWeek(); }
+      // ONE shared save (ant-schedule.js) — schedule when the day changed, else reassign.
+      const r = dayChanged
+        ? await AntSchedule.schedule({ jobId: jobId, techId: newTechId, startMs: j.scheduled_start, actor: 'Danielle' })
+        : await AntSchedule.reassign({ jobId: jobId, techId: newTechId, actor: 'Danielle' });
+      if (!r.ok) { alert(r.error || 'Move failed — refreshing.'); loadWeek(); }
       else { confirmAndReceipt(jobId, newTechId, newDateStr || curDateStr); }   // verify + receipt
       // success: leave the optimistic move in place (no full reload = no freeze)
     } catch (_) { alert('Network problem — refreshing.'); loadWeek(); }
@@ -2756,21 +2741,11 @@ function __initCalendar() {
       // danielle_schedule_parallel_job sets tech + time, transitions
       // not_ready -> scheduled, and fires the tech confirmation — works for
       // both first-time scheduling and rescheduling in one call.
-      const schedBody = JSON.stringify({ job_id: manageJobId, technician_id: techId, scheduled_start_ms: newStartMs });
-      let res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: schedBody });
-      let data = await res.json().catch(() => ({}));
-      // Canceled/terminal jobs bounce with "terminal_locked" and the schedule silently
-      // fails to save (Danielle: "I put it in but it didn't save" — Teddy 2026-07-17).
-      // This calendar was the ONE surface missing the recovery the other 4 already have:
-      // lift the lock, then retry the schedule.
-      if ((!res.ok || !data.success) && /terminal|illegal|transition|locked/i.test(String((data && data.error) || ''))) {
-        manageError.textContent = 'Reopening job…';
-        try { await fetch(`${XANO_BASE}/office_set_job_status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: manageJobId, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
-        res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: schedBody });
-        data = await res.json().catch(() => ({}));
-      }
-      if (!res.ok || !data.success) {
-        manageError.textContent = (data && (data.error || data.message)) || `Reschedule failed (${res.status})`;
+      // ONE shared save (ant-schedule.js) — endpoint + terminal_locked recovery live in
+      // that single module every office surface calls, so this can't drift again.
+      const r = await AntSchedule.schedule({ jobId: manageJobId, techId: techId, startMs: newStartMs, actor: 'Danielle' });
+      if (!r.ok) {
+        manageError.textContent = r.error || `Reschedule failed`;
       } else {
         const _jid = manageJobId, _tid = techId, _day = String(dayValue).slice(0, 10);
         closeManageJobModal(); loadWeek();

@@ -2,6 +2,7 @@
 <html lang="en" data-default-theme="light" data-self-theme>
 <head>
 <script src="/ant-theme.js?v=20260704-1"></script>
+<script src="/ant-schedule.js?v=20260717-1"></script>
 <script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
@@ -806,14 +807,10 @@
     const startMs = new Date(date + 'T08:00:00').getTime();
     btn.disabled = true; btn.textContent = 'Scheduling…';
     try {
-      let d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
-      // Canceled/terminal jobs bounce with "terminal_locked" — lift the lock and retry.
-      if (d && !d.success && /terminal|illegal|transition|locked/i.test(String((d && d.error) || ''))) {
-        try { await fetch(XANO_BASE + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
-        d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: id, technician_id: tech, scheduled_start_ms: startMs, service_eta_window: '' }) })).json();
-      }
-      if (d && d.success) { clearPlacement(id); logFeedback(id, 'accepted', tech, date); load(); }
-      else { alert('Could not schedule: ' + ((d && d.error) || 'failed')); btn.disabled = false; btn.textContent = '✓ Use this'; }
+      // ONE shared save (ant-schedule.js) — endpoint + terminal_locked recovery in one place.
+      const r = await AntSchedule.schedule({ jobId: id, techId: tech, startMs: startMs, actor: 'Danielle' });
+      if (r.ok) { clearPlacement(id); logFeedback(id, 'accepted', tech, date); load(); }
+      else { alert('Could not schedule: ' + (r.error || 'failed')); btn.disabled = false; btn.textContent = '✓ Use this'; }
     } catch (_) { btn.disabled = false; btn.textContent = '✓ Use this'; }
   }
   function rejectSuggestion(btn) {
@@ -884,30 +881,16 @@
     } catch (_) {}
     $('schedSubmitBtn').disabled = true;
     try {
-      const schedBody = JSON.stringify({
-        job_id: currentJob.id,
-        technician_id: techId,
-        scheduled_start_ms: startMs,
-        service_eta_window: window
-      });
-      const r = await fetch(XANO_BASE + '/danielle_schedule_parallel_job', {
-        method: 'POST', headers: {'Content-Type': 'application/json'}, body: schedBody
-      });
-      let d = await r.json();
-      // Canceled/terminal jobs bounce with "terminal_locked" — lift the lock and retry.
-      if (d && !d.success && /terminal|illegal|transition|locked/i.test(String((d && d.error) || ''))) {
-        showToast('Reopening canceled job…', 'ok');
-        try { await fetch(XANO_BASE + '/office_set_job_status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: currentJob.id, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
-        d = await (await fetch(XANO_BASE + '/danielle_schedule_parallel_job', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: schedBody })).json();
-      }
-      if (d.success) {
+      // ONE shared save (ant-schedule.js) — endpoint + terminal_locked recovery in one place.
+      const r = await AntSchedule.schedule({ jobId: currentJob.id, techId: techId, startMs: startMs, etaWindow: window, actor: 'Danielle' });
+      if (r.ok) {
         clearPlacement(currentJob.id);
         showToast('Scheduled ✓', 'ok');
         schedModal.classList.remove('show');
         currentJob = null;
         load();
       } else {
-        showToast(d.error || 'Failed', 'err');
+        showToast(r.error || 'Failed', 'err');
       }
     } catch (e) {
       showToast('Network error', 'err');

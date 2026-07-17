@@ -5,6 +5,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&display=swap" rel="stylesheet">
 <script src="/ant-theme.js"></script>
+<script src="/ant-schedule.js?v=20260717-1"></script>
 <script src="/ant-job-tile.js?v=20260703-1"></script>
 <script src="/office-auth.js?v=20260703b"></script>
 <script src="/tech-auth.js?v=20260703-1"></script>
@@ -1377,12 +1378,8 @@ async function onDrop(colId,techId,colEl){
       const _startMs=ctStartMs(_day,_hr)||Date.parse(_day)||Date.now();
       toast('Scheduling '+TECH_NAME[techId]+'…');
       try{
-        let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10),scheduled_start_ms:_startMs,service_eta_window:''});
-        if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){            // reopen a canceled job, then retry
-          await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'scheduled',actor:'Danielle'});
-          d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10),scheduled_start_ms:_startMs,service_eta_window:''});
-        }
-        toast((d&&d.success)?('Scheduled '+TECH_NAME[techId]+' ✓ — now on the schedule'):('⚠ '+((d&&d.error)||'failed')));
+        const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:parseInt(techId,10),startMs:_startMs,actor:'Danielle'});   // one shared save (ant-schedule.js)
+        toast(r.ok?('Scheduled '+TECH_NAME[techId]+' ✓ — now on the schedule'):('⚠ '+(r.error||'failed')));
       }catch(_){toast('⚠ connection error');}
     }
   } else if(STATUS_MAP[colId]){
@@ -2647,12 +2644,11 @@ async function bookHoldConfirmed(id,techId,date){
   const win='';
   toast('Booking…');
   try{
-    let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:techId,scheduled_start_ms:startMs,service_eta_window:win});
-    if(d&&!d.success&&/terminal/i.test(String((d&&d.error)||''))){ try{await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'scheduled',actor:'Danielle'});}catch(_){} d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:techId,scheduled_start_ms:startMs,service_eta_window:win}); }
-    if(d&&d.success){
+    const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:techId,startMs:startMs,etaWindow:win,actor:'Danielle'});   // one shared save (ant-schedule.js)
+    if(r.ok){
       try{await fetch('/.netlify/functions/schedule-hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'release',job_id:parseInt(id,10)})});}catch(_){}
       persistStage(id,'scheduled'); toast('Confirmed ✓ — booked'); closeDrawer(); loadBoard();
-    } else toast('⚠ '+((d&&d.error)||'failed'));
+    } else toast('⚠ '+(r.error||'failed'));
   }catch(_){toast('⚠ connection error');}
 }
 async function releaseHoldFromDrawer(id){
@@ -2712,20 +2708,10 @@ async function scheduleFromDrawer(id){
   const endMs=startMs + jobSlots*2.5*3600000;
   toast('Scheduling…');
   try{
-    let d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:win});
-    // The state machine can refuse a (re)schedule two ways: "terminal_locked"
-    // (a canceled/completed job) OR "illegal_transition" — e.g. a job that was
-    // STARTED then sent back for a parts return still reads in_progress, and the
-    // machine won't go in_progress -> scheduled. Both are dead-ends for Danielle.
-    // Auto-recover: force it to a clean not_ready via the status override (which
-    // bypasses the machine and sets scheduling_status directly), then retry —
-    // not_ready -> scheduled is always legal. (Craig #20193, Danielle 2026-07-12)
-    if(d&&!d.success&&/terminal|illegal|transition|locked/i.test(String((d&&d.error)||''))){
-      toast('Clearing a stuck status…');
-      try{await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'not_ready',actor:'Danielle'});}catch(_){}
-      d=await postJSON('danielle_schedule_parallel_job',{job_id:parseInt(id,10),technician_id:tech,scheduled_start_ms:startMs,scheduled_end_ms:endMs,service_eta_window:win});
-    }
-    if(d&&d.success){
+    // One shared save (ant-schedule.js) — reopens a stuck status (canceled OR the
+    // in_progress-after-parts-return case, Craig #20193) via not_ready, then retries.
+    const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:tech,startMs:startMs,endMs:endMs,etaWindow:win,actor:'Danielle'});
+    if(r.ok){
       // Record how many stop-slots this job eats (latest-wins). Always write it so
       // switching a job back to 1 slot on a reschedule resets it to standard.
       SLOTS_MAP[parseInt(id,10)]=jobSlots;
@@ -2733,7 +2719,7 @@ async function scheduleFromDrawer(id){
       try{localStorage.setItem('tn_stage_'+id,'scheduled');}catch(_){}
       persistStage(id,'scheduled');
       toast('Scheduled ✓ — moved to Scheduled'+(jobSlots>1?' ('+jobSlots+' slots)':'')+capNote);closeDrawer();loadBoard();
-    } else toast('⚠ '+((d&&d.error)||'failed'));
+    } else toast('⚠ '+(r.error||'failed'));
   }catch(_){toast('⚠ connection error');}
 }
 async function moveJobFromDrawer(id){

@@ -38,7 +38,7 @@ exports.handler = async function (event) {
   // GET — read receipts (latest per job).
   const p = event.queryStringParameters || {};
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'schedule_receipt' }, { id: 'desc' }, 800);
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'schedule_receipt' }, { id: 'desc' }, 500);
     if (p.job_id) {
       const want = String(Number(p.job_id));
       for (const r of rows) { const m = metaOf(r); if (String(m.job_id) === want) return j(200, { ok: true, receipt: { job_id: Number(m.job_id), actor: m.actor || '', tech_id: Number(m.tech_id || 0), day: m.day || '', confirmed: !!m.confirmed, at: Number(m.at_ms) || Number(r.created_at) || 0 } }); }

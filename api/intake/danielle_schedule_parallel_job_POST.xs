@@ -67,14 +67,78 @@ query danielle_schedule_parallel_job verb=POST {
       value = (($transition_resp.response.result.success ?? false) == true)
     }
 
+    // First error (if any) — drives the self-heal decision + the failure report.
+    var $terr {
+      value = (($transition_resp.response.result.error ?? "")|to_text)
+    }
+    var $is_locked {
+      value = ($terr|contains:"lock")
+    }
+
+    // Self-heal (Teddy 2026-07-17): if the state machine refused because the job is in
+    // a terminal/locked state, the office is EXPLICITLY scheduling it — so reopen the
+    // lock and retry ONCE, right here. This moves the recovery each front-end used to
+    // duplicate into the ONE place every scheduling surface calls, so no screen can
+    // silently no-op ("I put it in but it didn't save"). Office override = final say.
     conditional {
-      if ($transition_ok == false) {
+      if ($transition_ok == false && $is_locked == true) {
+        api.request {
+          url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/office_set_job_status"
+          method = "POST"
+          params = {
+            job_id           : $input.job_id
+            scheduling_status: "not_ready"
+            actor            : "office"
+          }
+          headers = ["Content-Type: application/json"]
+          timeout = 30
+        } as $reopen_resp
+
+        api.request {
+          url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/transition_job_state"
+          method = "POST"
+          params = {
+            job_id            : $input.job_id
+            target_state      : "scheduled"
+            actor             : "office"
+            reason            : "danielle_schedule_reopen"
+            technician_id     : $input.technician_id
+            scheduled_start_ms: $input.scheduled_start_ms
+          }
+          headers = ["Content-Type: application/json"]
+          timeout = 30
+        } as $retry_resp
+
+        db.add event_log {
+          data = {
+            action  : "danielle_schedule_self_heal"
+            metadata: {
+              job_id     : $input.job_id
+              first_error: $terr
+            }
+          }
+        } as $heal_log
+      }
+    }
+
+    // Server-verified truth: re-read the job and confirm it is ACTUALLY scheduled now
+    // (whether by the first attempt or the reopen+retry). One source of "did it save".
+    db.get jobs {
+      field_name = "id"
+      field_value = $input.job_id
+    } as $job_after
+
+    var $final_ok {
+      value = ((($job_after.scheduling_status ?? "")|to_text) == "scheduled")
+    }
+
+    conditional {
+      if ($final_ok == false) {
         return {
           value = {
             success      : false
-            error        : (($transition_resp.response.result.error ?? "transition_failed")|to_text)
-            detail       : (($transition_resp.response.result.detail ?? "")|to_text)
-            current_state: (($transition_resp.response.result.current_state ?? "")|to_text)
+            error        : (($terr ?? "schedule_failed")|to_text)
+            current_state: (($job_after.scheduling_status ?? "")|to_text)
           }
         }
       }
