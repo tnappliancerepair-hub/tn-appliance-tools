@@ -396,12 +396,37 @@ function askPayer(){
   choices([{emo:'🛡️',label:'I have a warranty'},{emo:'💵',label:'I\'m paying myself'}], it=>{
     state.payer = it.emo==='🛡️' ? 'warranty':'cash';
     youMsg(it.label); clearFlow();
-    think(700, state.payer==='cash' ? pitchQuickCheck : warrantyPath);
+    think(700, state.payer==='cash' ? cashPath : warrantyPath);
   }, 'grid2');
 }
 
-// ── CASH: the pitch — sell the $50 phone Quick Check vs the industry $100–150
-// truck-roll, and offer BOTH (phone QC, or a traditional in-home diagnostic). ──
+// ── CASH path (Teddy 2026-07-17): the cash intake now MIRRORS the warranty intake
+// exactly — video + model photo + availability + (post-booking) waiver. FREE to book,
+// no payment up front. The ONLY difference from warranty is the money: warranty is
+// free; cash carries a $100 diagnostic + trip fee charged AT THE VISIT and credited
+// toward the repair. We disclose it plainly here, require an explicit acknowledgment
+// at booking, and NEVER roll a truck out to inspect for free — no exceptions.
+function cashPath(){
+  if(!state.convId) state.convId = Date.now();   // stable id ties video+photo+job together
+  state.serviceType='in_home';                    // cash = a real in-home visit
+  if(FREE_MODE){
+    setHead('Let\'s get you <span class="accent">on the schedule.</span>','No charge — let\'s get your tech showing up ready to fix it.');
+    antMsg('Perfect — we\'ll get a tech out to you. Two quick things so he rolls up <b>ready to fix it the first trip</b>: a <b>10-second video</b> + a photo of the <b>model sticker</b>. Takes about 2 minutes. 🐜');
+    think(800, capVideo); return;
+  }
+  setHead('We\'ll <span class="accent">come to you.</span>','Same great service — here\'s exactly how the cost works, up front.');
+  antMsg('You got it — we\'ll send a tech to your home. Straight talk on the cost so there are <b>no surprises</b>:');
+  const v=document.createElement('div'); v.className='value';
+  v.innerHTML='<div><b>$100 diagnostic &amp; trip fee</b> — charged <b>at the time of service</b>, not now.</div>'
+    +'<div><b>It goes straight toward your repair</b> — fix it with us and it comes right off the bill.</div>'
+    +'<div><b>No free inspections.</b> We don\'t send a tech out to look at a machine for free — <b>no exceptions</b>. It applies to every in-home visit.</div>';
+  FLOW.appendChild(v);
+  antMsg('Fair enough? Two quick things so your tech shows up <b>ready to fix it the first trip</b> — a short video + a photo of the model sticker.');
+  choices([{emo:'👍',label:'Got it — let\'s go',wide:true}], ()=>{ youMsg('Got it'); clearFlow(); think(500, capVideo); });
+}
+
+// ── CASH (legacy, dormant): the $50-phone-QC-vs-$100-in-home fork. No longer the
+// cash entry (askPayer routes to cashPath now) — kept for reference. ──
 function pitchQuickCheck(){
   if(!state.convId) state.convId = Date.now();  // stable id so video+photo+job all tie together
   if(FREE_MODE){
@@ -590,11 +615,11 @@ function collectContact(){
   const f=document.createElement('div'); f.className='field';
   f.innerHTML='<input id="f-name" placeholder="Your name" autocomplete="name">'
     +'<input id="f-phone" type="tel" placeholder="Phone number" autocomplete="tel">'
-    +'<input id="f-email" type="email" placeholder="Email (for your receipt)" autocomplete="email">'
+    +'<input id="f-email" type="email" placeholder="Email (optional)" autocomplete="email">'
     +'<input id="f-addr" placeholder="Service address (street)" autocomplete="street-address">'
     +'<input id="f-city" placeholder="City" autocomplete="address-level2">'
     +'<input id="f-zip" type="tel" placeholder="ZIP code" autocomplete="postal-code">'
-    +'<button class="go" id="f-go">Continue to payment →</button>';
+    +'<button class="go" id="f-go">Continue →</button>';
   FLOW.appendChild(f);
   document.getElementById('f-go').onclick=()=>{
     state.name=document.getElementById('f-name').value.trim();
@@ -607,7 +632,9 @@ function collectContact(){
     // so a self-pay job can never land as "1, City" or with a missing city.
     const streetOk=/[a-zA-Z]/.test(state.address)&&/\d/.test(state.address)&&state.address.replace(/\s/g,'').length>=4;
     if(!state.name||state.phone.replace(/\D/g,'').length<10||!streetOk||!state.city||!state.zip){ alert('Please add your name, a valid phone, your full street address (number + street), city, and ZIP.'); return; }
-    if(!FREE_MODE && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.email)){ alert('Please add a valid email — Stripe needs it for your receipt.'); return; }
+    // Email is optional now — cash books free (no upfront Stripe). Only a legacy paid
+    // path (phone Quick Check) would need it for the receipt.
+    if(state.serviceType!=='in_home' && !FREE_MODE && state.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.email)){ alert('That email doesn\'t look right — please fix it or clear it.'); return; }
     clearFlow(); think(400, askAvailability);
   };
 }
@@ -642,9 +669,13 @@ function askAvailability(){
     // Check and the $100 in-home (Teddy 2026-06-27). The ?free= token is the only
     // no-charge override (multi-machine / trip-fee waivers) → free booking.
     if(state.payer==='warranty'){ clearFlow(); think(500, ()=>{ antMsg('Got it — last thing, just your number and you\'re set.'); think(400, warrantyFinish); }); return; }
+    // Cash is now FREE to book (Teddy 2026-07-17) — the $100 diagnostic is disclosed +
+    // acknowledged + charged at the visit, never up front. In-home always books via
+    // submitInHome. (submitFree / payStep are the legacy free-token / paid-QC paths.)
     let _next;
-    if(FREE_MODE){ _next = (state.serviceType==='in_home') ? submitInHome : submitFree; }
-    else { _next = payStep; }   // payStep charges $100 for in-home, $50 for phone QC
+    if(state.serviceType==='in_home'){ _next = submitInHome; }
+    else if(FREE_MODE){ _next = submitFree; }
+    else { _next = payStep; }
     clearFlow(); think(500, _next);
   };
 }
@@ -754,20 +785,40 @@ function done(){
 // In-home ($100) booking — creates the job (pay-at-visit, credited) via the same
 // free-quickcheck path so it lands in Needs-Scheduled, marked as in-home.
 function submitInHome(){
-  setHead('One tap and <span class="accent">you\'re on the schedule.</span>','We\'ll text you a day. $100 diagnostic, paid at the visit, credited to your repair.');
+  setHead('One tap and <span class="accent">you\'re on the schedule.</span>','We\'ll text you a day. Just confirm the diagnostic fee below.');
   const p=document.createElement('div'); p.className='pay';
-  p.innerHTML='<div class="amt" style="font-size:26px">In-home diagnostic</div><div class="amtsub">$100, paid at the visit · credited to your repair</div>'
+  // Firm $100 disclosure + a REQUIRED acknowledgment so "it's understood" is recorded
+  // (Teddy 2026-07-17). Skipped only under the ?free= token (comped / waived trip fee).
+  const feeBox = FREE_MODE ? '' :
+    '<div style="background:rgba(224,161,26,.12);border:1px solid rgba(224,161,26,.45);color:#e0a11a;border-radius:12px;padding:12px 14px;margin:4px 0 14px;font-size:14px;line-height:1.5;text-align:left;">'
+    +'<b>💵 $100 diagnostic &amp; trip fee — charged at the time of service.</b><br>'
+    +'<span style="color:#e8d3a0;">It goes <b>straight toward your repair</b>. We don\'t send a tech out to inspect a machine for free — <b>no exceptions</b> — it applies to every in-home visit.</span></div>';
+  const ackRow = FREE_MODE ? '' :
+    '<label id="ih-ack-row" style="display:flex;align-items:flex-start;gap:9px;text-align:left;font-size:13.5px;color:var(--gray,#9aa);margin:0 2px 14px;cursor:pointer;">'
+    +'<input type="checkbox" id="ih-ack" style="width:19px;height:19px;margin-top:1px;flex:none;accent-color:#e0a11a;"> '
+    +'<span>I understand the <b>$100 diagnostic &amp; trip fee</b> is charged at the visit and credited toward my repair.</span></label>';
+  p.innerHTML='<div class="amt" style="font-size:26px">In-home visit</div>'
+    +'<div class="amtsub">'+(FREE_MODE?'No charge · a tech comes to you':'Free to book · a tech comes to you')+'</div>'
+    +feeBox+ackRow
     +'<button class="go" id="ih-go">Get me on the schedule →</button>';
   FLOW.appendChild(p);
   document.getElementById('ih-go').onclick=async()=>{
+    const ack=document.getElementById('ih-ack');
+    if(ack && !ack.checked){
+      const row=document.getElementById('ih-ack-row'); if(row){ row.style.color='#e0a11a'; row.style.fontWeight='700'; }
+      alert('Please check the box to confirm you understand the $100 diagnostic fee, then tap again.');
+      return;
+    }
+    state.feeAck = !FREE_MODE;   // acknowledged (or comped under ?free=)
     const btn=document.getElementById('ih-go'); btn.disabled=true; btn.textContent='Booking…';
     try{
       const r=await fetch(FN+'/free-quickcheck',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         name:state.name, phone:state.phone, email:state.email, address:state.address, city:state.city, zip:state.zip,
         appliance:state.appliance, brand:state.brand,
-        problem:'🏠 IN-HOME DIAGNOSTIC ($100, pay at visit, credited to repair) — '+(state.problem||''),
+        problem:'🏠 IN-HOME DIAGNOSTIC ($100, pay at visit, credited to repair'+(state.feeAck?', fee acknowledged':'')+') — '+(state.problem||''),
         sms_consent:state.smsConsent, town:state.town, conv_id:state.convId,
         has_video:state.video, has_model:state.model, availability:state.availability||'', language:LANG, service_type:'in_home_diagnostic',
+        fee_ack:state.feeAck?1:0,
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
