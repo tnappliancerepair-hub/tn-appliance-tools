@@ -34,9 +34,15 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 // dead SquareTrade claim-shells (no name/phone/appliance) that are NOT what Danielle is
 // looking for — we only flag jobs that carry actual work/financial data.
 function isReal(j) {
-  const name = String(j.customer_first || j.customer_last || '').trim();
+  let name = String(j.customer_first || j.customer_last || '').trim();
+  const full = (String(j.customer_first || '') + ' ' + String(j.customer_last || '')).trim();
+  // Placeholder / junk names — "(Pending review)", anything parenthesized, unknown,
+  // n/a, test — are NOT a real customer. Without this, an empty warranty shell whose
+  // only "data" is the placeholder name slips past and inflates the count. (2026-07-18)
+  if (/pending\s*review|^\(|^unknown\b|^n\/?a$|^test\b/i.test(full)) name = '';
   const ph = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
-  const appl = String(j.appliance_type || j.appliance || '').trim();
+  let appl = String(j.appliance_type || j.appliance || '').trim().toLowerCase();
+  if (appl === 'other' || appl === 'appliance' || appl === 'unknown') appl = '';  // vague defaults aren't a real signal
   return !!(name || ph.length >= 10 || appl);
 }
 
