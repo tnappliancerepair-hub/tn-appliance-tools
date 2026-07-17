@@ -1621,8 +1621,23 @@ function __initCalendar() {
     const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date(Number(startMs))));
     return h < 11 ? '8-11' : h < 14 ? '11-2' : '2-5';
   }
+  // The REAL window the office must hit for a vendor (SquareTrade) job = the dispatch's
+  // agreed "Schedule Period" / service_eta_window. SquareTrade intake parks scheduled_start
+  // at the 8am day-anchor, so winShort() alone always reads "8-11" even when the true
+  // window (shown on the job board) is 11-2 or 2-5 — that's the mismatch Danielle caught
+  // (2026-07-17). Prefer the real window so the schedule and the board agree; compress a
+  // long form ("8:00 AM - 11:00 AM") to "8-11". Self-pay jobs have no vendor window, so
+  // they keep the position-based label.
+  function winForBlock(j) {
+    const notesInt = (j.notes_internal || '');
+    const pM = notesInt.match(/Schedule Period:\s*([^\n]*)/i);
+    const vend = ((pM && pM[1]) || '').trim() || (j.service_eta_window || '').trim();
+    if (!vend) return winShort(j.scheduled_start);
+    const m = vend.match(/(\d{1,2})(?::\d{2})?\s*(?:am|pm)?\s*[-–to]+\s*(\d{1,2})(?::\d{2})?\s*(?:am|pm)?/i);
+    return m ? (m[1] + '-' + m[2]) : vend.trim().slice(0, 12);
+  }
   function renderBlock(j, pos) {
-    const win = winShort(j.scheduled_start);
+    const win = winForBlock(j);
     const posLabel = ((typeof pos === 'number') ? (ordinal(pos + 1) + ' stop') : 'stop') + (win ? ` · ${win}` : '');
     const cust = `${(j.customer_first_name||'').trim()} ${(j.customer_last_name||'').trim().slice(0,1)}${j.customer_last_name ? '.' : ''}`.trim() || '(no name)';
     const appl = (j.appliance_type || '').toLowerCase();
