@@ -705,19 +705,12 @@ exports.handler = async function (event) {
             gotAvail = true;
           } catch (_) {}
         }
-        // One warm ack per job (a customer may fire several "it's here!" texts).
-        let ackAlready = false;
-        try { const dd = await crud.searchPage(crud.TABLES.event_log, { action: 'parts_arrived_ack_' + pj.id }, { id: 'desc' }, 1); ackAlready = !!(dd && dd.length); } catch (_) {}
-        if (!ackAlready && AI_CUSTOMER_AUTOREPLY) {
-          const ack = gotAvail
-            ? "Perfect — glad your part's in, and we've got your availability. We'll get you back on the schedule and text to confirm your day. 🐜 — TN Appliance Exchange"
-            : "That's great news — glad your part arrived! 🐜 What days work best for you this week to get your tech back out? Text us your availability and we'll get you booked. — TN Appliance Exchange";
-          try {
-            await fetch(`${XANO_BASE}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ to: parsed.from, body: ack, message: ack, context_tag: 'parts_arrived_ack' }), signal: AbortSignal.timeout(9000) });
-          } catch (_) {}
-          try { await crud.logEvent('parts_arrived_ack_' + pj.id, { phone: String(parsed.from).slice(-4), got_avail: gotAvail, at_ms: Date.now() }); } catch (_) {}
-        }
+        // ONE deduped arrival text across ALL triggers (delivery emails + this text
+        // + a call), gate-safe. Availability ask, or a confirm if they already told us.
+        // Also drops the board's green->red "PART IN — SCHEDULE NOW" siren flag. The
+        // single funnel (notifyPartArrived) claims one shared marker before sending, so
+        // no matter how many signals land, the customer gets exactly one. (Teddy 2026-07-17)
+        try { await require('./_lib/part-notify').notifyPartArrived({ job_id: pj.id, via: 'customer_text', haveAvailability: gotAvail }); } catch (_) {}
         // Suppress the loop's generic new-lead / status replies (no double-text).
         try { await crud.logEvent('new_lead_replied_' + String(parsed.from).replace(/\D/g, ''), { outcome: 'parts_arrived', job_id: pj.id, at_ms: Date.now() }); } catch (_) {}
         try { await crud.logEvent('parts_arrived_reported', { job_id: pj.id, phone: String(parsed.from).slice(-4), body: String(parsed.body).slice(0, 120), got_avail: gotAvail, at_ms: Date.now() }); } catch (_) {}

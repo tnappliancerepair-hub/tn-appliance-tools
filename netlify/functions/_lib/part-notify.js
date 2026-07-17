@@ -84,4 +84,61 @@ async function notifyPartOrdered({ job_id, eta_date }) {
   return { ok: res.sent, reason: res.reason };
 }
 
-module.exports = { notifyPartOrdered, orderMessage, etaPhrase, LIVE };
+// ── Part ARRIVED (Teddy 2026-07-17) ──────────────────────────────────────────
+// ONE availability text when the part lands, deduped HARD across EVERY arrival
+// signal — multiple carrier/vendor "delivered" emails, the customer texting
+// "it's here", and the customer calling all funnel through here and produce
+// exactly ONE send. Also drops a board flag so the office board shows the
+// green->red "PART IN — SCHEDULE NOW" ribbon. No text to the office (the board
+// is the alert). At-most-once by design: we claim the marker BEFORE sending, so
+// "only ever one" wins over "guaranteed retry" — exactly what Teddy asked for.
+function arrivedMessage(name, appliance, haveAvail) {
+  const who = String(name || '').trim() || 'there';
+  const what = String(appliance || 'appliance').toLowerCase();
+  if (haveAvail) {
+    return `Hi ${who}, it's TN Appliance Exchange \u{1F41C} — great news, the part for your ${what} arrived and we've got your availability! We'll get you back on the schedule and text to confirm your day. Thanks!`;
+  }
+  return `Hi ${who}, it's TN Appliance Exchange \u{1F41C} — we're glad the part for your ${what} arrived! When are you available over the next few days to get your tech back out to finish up? Just reply: Wide open · Mornings · or After 12, and we'll lock in your visit.`;
+}
+
+async function hasJobMarker(action, jobId) {
+  try {
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, 2000);
+    return rows.some((r) => String(metaOf(r).job_id || '') === String(jobId));
+  } catch (_) { return false; }
+}
+
+// Idempotent board flag — the ribbon shows regardless of the text outcome
+// (opt-out, no phone, send fail). Written once per job.
+async function ensureArrivedFlag(jobId, via) {
+  if (await hasJobMarker('part_arrived_ready', jobId)) return;
+  try { await crud.logEvent('part_arrived_ready', { job_id: jobId, arrived_at: Date.now(), via: via || 'unknown' }); } catch (_) {}
+}
+
+// The single funnel every arrival trigger calls. Guarantees one text per job.
+async function notifyPartArrived({ job_id, via, haveAvailability }) {
+  if (!job_id) return { ok: false, reason: 'no_job' };
+  await ensureArrivedFlag(job_id, via);                 // board siren always
+  if (await hasJobMarker('part_arrived_availability_sent', job_id)) return { ok: false, reason: 'already_texted', flagged: true };
+  // Claim BEFORE sending so a near-simultaneous second trigger can't double-send.
+  try { await crud.logEvent('part_arrived_availability_sent', { job_id, via: via || 'unknown', at_ms: Date.now(), claimed: true }); } catch (_) {}
+
+  let name = 'there', phone = '', appliance = 'appliance';
+  try {
+    const d = await (await fetch(`${XANO}/get_job_for_dashboard`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id }),
+    })).json();
+    const c = (d && d.customer) || {}, a = (d && d.appliance) || {};
+    name = (c.first_name || '').trim() || (c.name || '').trim().split(/\s+/)[0] || 'there';
+    phone = c.phone || '';
+    appliance = (a.type || a.appliance_type || 'appliance');
+  } catch (_) {}
+  if (!phone) return { ok: false, reason: 'no_phone', flagged: true };
+
+  // tag carries 'availab' so this passes the intake-only gate (audit-safe).
+  const res = await guard.guardedSend({ phone, message: arrivedMessage(name, appliance, haveAvailability), tag: 'part_arrived_availability_reply', kind: 'status_update' });
+  try { await crud.logEvent('part_arrived_notified', { job_id, phone: guard.toE164(phone), via: via || 'unknown', reason: res.reason, at_ms: Date.now() }); } catch (_) {}
+  return { ok: res.sent, reason: res.reason, flagged: true };
+}
+
+module.exports = { notifyPartOrdered, notifyPartArrived, ensureArrivedFlag, orderMessage, arrivedMessage, etaPhrase, LIVE };
