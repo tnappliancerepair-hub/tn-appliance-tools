@@ -1051,7 +1051,16 @@ function __initCalendar() {
   async function bookConfirmedHold(jobId, techId, date) {
     try {
       const hour = nextStopHourCT(techId, date, jobId);
-      await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: techId, scheduled_start_ms: ctMs(date, hour), service_eta_window: '' }) });
+      const body = JSON.stringify({ job_id: jobId, technician_id: techId, scheduled_start_ms: ctMs(date, hour), service_eta_window: '' });
+      let res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+      let data = await res.json().catch(() => ({}));
+      // Same terminal_locked recovery (this path never even checked the response before).
+      if ((!res.ok || !data.success) && /terminal|illegal|transition|locked/i.test(String((data && data.error) || ''))) {
+        try { await fetch(`${XANO_BASE}/office_set_job_status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
+        res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+        data = await res.json().catch(() => ({}));
+      }
+      if (!res.ok || !data.success) { alert('Could not confirm: ' + ((data && (data.error || data.message)) || 'try again')); return; }
       await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) });
       loadWeek();
     } catch (_) { alert('Could not confirm — try again.'); }
@@ -1841,13 +1850,19 @@ function __initCalendar() {
     if (dayChanged) { const ms = localDatetimeToMs(`${newDateStr}T${jobTimeHHMM_CT(j.scheduled_start)}`); if (ms) j.scheduled_start = ms; }
 
     try {
-      let res;
-      if (dayChanged) {
-        res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: newTechId, scheduled_start_ms: j.scheduled_start }) });
-      } else {
-        res = await fetch(`${XANO_BASE}/reassign_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: newTechId }) });
+      const ep = dayChanged ? 'danielle_schedule_parallel_job' : 'reassign_job';
+      const bod = dayChanged
+        ? JSON.stringify({ job_id: jobId, technician_id: newTechId, scheduled_start_ms: j.scheduled_start })
+        : JSON.stringify({ job_id: jobId, technician_id: newTechId });
+      let res = await fetch(`${XANO_BASE}/${ep}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bod });
+      let data = await res.json().catch(() => ({}));
+      // Canceled/terminal jobs bounce with "terminal_locked" → the move silently reverts.
+      // Lift the lock and retry (Danielle's "didn't save", Teddy 2026-07-17).
+      if ((!res.ok || !data.success) && /terminal|illegal|transition|locked/i.test(String((data && data.error) || ''))) {
+        try { await fetch(`${XANO_BASE}/office_set_job_status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
+        res = await fetch(`${XANO_BASE}/${ep}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bod });
+        data = await res.json().catch(() => ({}));
       }
-      const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) { alert((data && (data.error || data.message)) || 'Move failed — refreshing.'); loadWeek(); }
       // success: leave the optimistic move in place (no full reload = no freeze)
     } catch (_) { alert('Network problem — refreshing.'); loadWeek(); }
@@ -2684,11 +2699,19 @@ function __initCalendar() {
       // danielle_schedule_parallel_job sets tech + time, transitions
       // not_ready -> scheduled, and fires the tech confirmation — works for
       // both first-time scheduling and rescheduling in one call.
-      const res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: manageJobId, technician_id: techId, scheduled_start_ms: newStartMs }),
-      });
-      const data = await res.json().catch(() => ({}));
+      const schedBody = JSON.stringify({ job_id: manageJobId, technician_id: techId, scheduled_start_ms: newStartMs });
+      let res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: schedBody });
+      let data = await res.json().catch(() => ({}));
+      // Canceled/terminal jobs bounce with "terminal_locked" and the schedule silently
+      // fails to save (Danielle: "I put it in but it didn't save" — Teddy 2026-07-17).
+      // This calendar was the ONE surface missing the recovery the other 4 already have:
+      // lift the lock, then retry the schedule.
+      if ((!res.ok || !data.success) && /terminal|illegal|transition|locked/i.test(String((data && data.error) || ''))) {
+        manageError.textContent = 'Reopening job…';
+        try { await fetch(`${XANO_BASE}/office_set_job_status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: manageJobId, scheduling_status: 'scheduled', actor: 'Danielle' }) }); } catch (_) {}
+        res = await fetch(`${XANO_BASE}/danielle_schedule_parallel_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: schedBody });
+        data = await res.json().catch(() => ({}));
+      }
       if (!res.ok || !data.success) {
         manageError.textContent = (data && (data.error || data.message)) || `Reschedule failed (${res.status})`;
       } else {
