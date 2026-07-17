@@ -1548,6 +1548,7 @@
     renderJobs(data.jobs || []);
     renderMap(data.jobs || []);
     hydrateOfficeNotes(data.jobs || []);
+    hydrateScheduleReceipts(data.jobs || []);   // "Scheduled by Danielle · time" — the shared record
     loadEarnings(data);
   }
 
@@ -1683,6 +1684,33 @@
           }).join('')
         + '</div>';
     }
+  }
+
+  // "📋 Scheduled by Danielle · Thu 10:33am" ON each job card (Teddy 2026-07-17, the
+  // trust fix). The office's scheduling screen writes a CONFIRMED receipt after it
+  // verifies the save landed; the tech sees who put the job on his day + when — so
+  // "did she schedule it or not?" is answered by a shared record both sides see, not a
+  // guess. One call, all recent confirmed receipts.
+  async function hydrateScheduleReceipts(jobs) {
+    if (!(jobs || []).some((it) => it && it.job && it.job.id)) return;
+    let byJob = {};
+    try {
+      const d = await fetch('/.netlify/functions/schedule-receipt', { cache: 'no-store' }).then((r) => r.json());
+      ((d && d.receipts) || []).forEach((r) => { byJob[r.job_id] = r; });
+    } catch (_) { return; }
+    (jobs || []).forEach(function (it, i) {
+      if (!it || !it.job || !it.job.id) return;
+      const rc = byJob[it.job.id]; if (!rc || !rc.actor) return;
+      const card = $('card-' + i); if (!card) return;
+      if (card.querySelector('.sched-by-line')) return;   // don't double-inject on re-render
+      let when = '';
+      try { when = new Date(rc.at).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', minute: '2-digit' }); } catch (_) {}
+      const el = document.createElement('div');
+      el.className = 'sched-by-line';
+      el.style.cssText = 'font-size:12px;color:#0a7d33;font-weight:700;margin:6px 0 0';
+      el.innerHTML = '📋 Scheduled by ' + escapeHtml(rc.actor) + (when ? ' · ' + escapeHtml(when) : '');
+      card.appendChild(el);
+    });
   }
 
   function renderDateHeader(dateCT, todayCT) {

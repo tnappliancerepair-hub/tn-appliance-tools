@@ -1063,6 +1063,7 @@ function __initCalendar() {
       if (!res.ok || !data.success) { alert('Could not confirm: ' + ((data && (data.error || data.message)) || 'try again')); return; }
       await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) });
       loadWeek();
+      confirmAndReceipt(jobId, techId, date);   // verify + receipt
     } catch (_) { alert('Could not confirm — try again.'); }
   }
   window.releaseHold = async function (jobId) {
@@ -1106,6 +1107,61 @@ function __initCalendar() {
 
   function showError(msg) {
     content.innerHTML = `<div class="err-banner">${escapeHtml(msg)}<br><button onclick="location.reload()">retry</button></div>`;
+  }
+
+  // ── Confirmed-save receipts (Teddy 2026-07-17, the trust fix) ─────────────────
+  // "Saved" must MEAN saved. After every schedule save the endpoint says OK — but we
+  // now VERIFY it actually landed on the server (read the week back) and show a durable
+  // green receipt, or a LOUD red "NOT saved" that can't be missed and offers a retry.
+  // We also write a shared record (who + when) that the TECH sees on his job, so "did
+  // she put it in?" is settled by a record both sides can see — not a he-said-she-said.
+  function nowTimeStrCT() { try { return new Date().toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' }); } catch (_) { return ''; } }
+  function fmtDayNice(dayStr) { try { return parseYMD(dayStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); } catch (_) { return dayStr || ''; } }
+  function techNameOf(id) { try { const t = ((dashboardData && dashboardData.technicians) || []).find((x) => Number(x.id) === Number(id)); return t ? ((t.first_name || t.name || '').trim() || ('Tech ' + id)) : ('Tech ' + id); } catch (_) { return 'Tech ' + id; } }
+  function schedLabel(jobId, techId) { const j = lastJobsById[jobId] || {}; const cust = ((j.customer_first_name || '') + ' ' + (j.customer_last_name || '')).trim(); const city = j.service_city || j.city || ''; return [techNameOf(techId), cust, city].filter(Boolean).join(' · '); }
+
+  function pushReceipt(kind, html) {
+    let box = document.getElementById('sched-receipts');
+    if (!box) { box = document.createElement('div'); box.id = 'sched-receipts'; box.style.cssText = 'position:fixed;left:12px;bottom:12px;z-index:99998;display:flex;flex-direction:column;gap:6px;max-width:360px;font:13px/1.4 system-ui,-apple-system,sans-serif'; document.body.appendChild(box); }
+    const c = kind === 'ok' ? { bg: '#e7f6ec', bd: '#7fd3a3', fg: '#0a7d33' } : (kind === 'err' ? { bg: '#fdeaea', bd: '#e0a0a0', fg: '#b3261e' } : { bg: '#fff6e6', bd: '#e0b25a', fg: '#8a5a00' });
+    const row = document.createElement('div');
+    row.style.cssText = `background:${c.bg};border:1px solid ${c.bd};color:${c.fg};border-radius:10px;padding:9px 11px;box-shadow:0 4px 14px rgba(0,0,0,.14);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap`;
+    row.innerHTML = html;
+    box.prepend(row);
+    while (box.children.length > 6) box.removeChild(box.lastChild);
+    if (kind !== 'err') setTimeout(() => { try { row.style.transition = 'opacity .6s'; row.style.opacity = '0'; setTimeout(() => row.remove(), 650); } catch (_) {} }, 15000);   // ok/warn fade; errors STAY until dealt with
+    return row;
+  }
+  function postReceipt(jobId, techId, dayStr, confirmed) {
+    try { fetch('/.netlify/functions/schedule-receipt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, actor: 'Danielle', tech_id: techId, day: dayStr, confirmed: !!confirmed }) }); } catch (_) {}
+  }
+  async function verifySaved(jobId, techId, dayStr) {
+    try {
+      const wk = currentWeekOfDateStr(dayStr);
+      const r = await fetch(`${XANO_BASE}/get_office_calendar_week?week_start=${encodeURIComponent(wk)}`, { signal: AbortSignal.timeout(15000) });
+      const d = await r.json();
+      if (!d || d.success !== true) return { soft: true };                 // couldn't verify -> don't cry wolf
+      const jb = (d.jobs || []).find((x) => Number(x.id) === Number(jobId));
+      if (!jb) return { ok: false };                                        // CONFIRMED not on the calendar
+      const dayOk = !dayStr || jobDateStrCT(jb.scheduled_start) === dayStr;
+      const techOk = !techId || Number(jb.technician_id) === Number(techId);
+      return { ok: dayOk && techOk, dayOk, techOk };
+    } catch (_) { return { soft: true }; }
+  }
+  // Call AFTER the save endpoint reports success. Verifies + shows the receipt + writes
+  // the shared record. Returns true when confirmed saved.
+  async function confirmAndReceipt(jobId, techId, dayStr, label) {
+    label = label || schedLabel(jobId, techId);
+    const v = await verifySaved(jobId, techId, dayStr);
+    const when = nowTimeStrCT(), day = fmtDayNice(dayStr);
+    if (v.ok) { pushReceipt('ok', `✓ <b>Saved</b> — ${escapeHtml(label)} · ${day} <span style="opacity:.65;font-weight:500">· ${when}</span>`); postReceipt(jobId, techId, dayStr, true); return true; }
+    if (v.soft) { pushReceipt('warn', `✓ Saved — ${escapeHtml(label)} · ${day} <span style="opacity:.7;font-weight:500">(couldn’t double-check — refresh to confirm)</span>`); postReceipt(jobId, techId, dayStr, true); return true; }
+    const row = pushReceipt('err', `⚠️ <b>NOT saved</b> — ${escapeHtml(label)} · ${day}. `);
+    const btn = document.createElement('button'); btn.textContent = 'Open to retry'; btn.style.cssText = 'padding:3px 10px;border:1px solid #b3261e;background:#fff;color:#b3261e;border-radius:7px;font-weight:800;cursor:pointer';
+    btn.onclick = () => { try { openManageJobModal(jobId); } catch (_) {} };
+    row.appendChild(btn);
+    postReceipt(jobId, techId, dayStr, false);
+    return false;
   }
 
   // Bird's-eye health bar: how many jobs are placed, across how many techs, and
@@ -1864,6 +1920,7 @@ function __initCalendar() {
         data = await res.json().catch(() => ({}));
       }
       if (!res.ok || !data.success) { alert((data && (data.error || data.message)) || 'Move failed — refreshing.'); loadWeek(); }
+      else { confirmAndReceipt(jobId, newTechId, newDateStr || curDateStr); }   // verify + receipt
       // success: leave the optimistic move in place (no full reload = no freeze)
     } catch (_) { alert('Network problem — refreshing.'); loadWeek(); }
   }
@@ -2715,7 +2772,10 @@ function __initCalendar() {
       if (!res.ok || !data.success) {
         manageError.textContent = (data && (data.error || data.message)) || `Reschedule failed (${res.status})`;
       } else {
-        closeManageJobModal(); loadWeek(); return;
+        const _jid = manageJobId, _tid = techId, _day = String(dayValue).slice(0, 10);
+        closeManageJobModal(); loadWeek();
+        confirmAndReceipt(_jid, _tid, _day);   // verify it truly saved + receipt (both sides)
+        return;
       }
     } catch (err) {
       manageError.textContent = 'Network problem. Try again.';
