@@ -110,6 +110,41 @@ the supply side of Layer 3.**
 - **Done looks like:** a second shop runs a full week on Ant unassisted, their
   data flows into the shared brain, per-tech billing clears.
 
+**⭐ THE WEDGE — why the warranty giants can't take this from us (FieldPal, 2026-07-17).**
+The warranty companies are already building their own tech-facing AI. FrontDoor —
+our single biggest partner — is sandbox-testing **FieldPal.ai** (voice-first claim
+authorization + troubleshooting). Teddy tested it: continuous voice, pulls up the
+actual form, fields open on screen; but glitchy, loses state when you flip to another
+page, no photo upload yet. It *looks* like the door closing on selling Ant to the
+giants. It's actually the **map** — and it sharpens the whole L2 thesis:
+- **Their AI serves THEM, never the tech.** FieldPal exists to make *FrontDoor's*
+  claims cheaper and pull the contractor deeper into *FrontDoor's* funnel. A warranty
+  company's AI is always optimized for the warranty company. It will never help a
+  contractor do more **cash** work, run their **other** vendors (AHS, ServicePower,
+  NSA, SquareTrade), schedule the crew, order parts, or do the books — that's not
+  FrontDoor's business.
+- **Ant is the opposite by design:** the contractor's OWN system, sitting *above*
+  every warranty company + cash + scheduling + parts + payroll + books. One pane of
+  glass across all of it.
+- **Fragmentation is our tailwind.** As each warranty co ships its own walled tool
+  (FieldPal, then the AHS/ServicePower equivalents), a contractor ends up with N
+  islands that don't talk — plus cash work floating outside all of them. The more they
+  fragment, the more valuable a single **cross-vendor contractor OS** becomes.
+- **Structurally uncopyable.** FrontDoor won't build a tool that makes a contractor
+  *less* dependent on FrontDoor — their incentives forbid it. That's exactly what Ant
+  does. So Ant and FieldPal aren't real competitors: FieldPal wants the tech deeper in
+  the funnel; Ant makes the tech independent of any single warranty company.
+- **Where we already beat FieldPal (don't rebuild — we're ahead):** the live form with
+  fields open + scribe-mode auto-fill, and **photo upload with Vision OCR** that reads
+  the model/part sticker straight into the report. The one thing worth learning from
+  them is *persistent, always-on voice that survives page-flips* — layered on the form
+  we already have.
+- **The operating rule this locks in:** don't bet the company on selling Ant to a
+  partner who's building their own (interop — "work WITH my agent to authorize claims"
+  — stays a nice-to-have, not the plan). **Learn from every competitor to know where
+  the bar is; build only what the warranty companies structurally won't.** The durable
+  ground is the independent contractor.
+
 ### L3 — The consumer platform · the big idea *(homeowner-facing)*
 Homeowner with a broken appliance opens Ant, shows symptom + model, gets one of
 three **honest** answers:
@@ -216,6 +251,12 @@ in parallel so the books eventually run without a bookkeeper.
 ---
 
 ## Changelog
+- **2026-07-17 — v1.1.** Added **THE WEDGE** to L2 (from Teddy testing FieldPal.ai,
+  FrontDoor's own tech-facing AI PoC): warranty giants building in-house isn't the
+  door closing — their AI serves *them*, so the durable ground is the cross-vendor
+  **contractor OS** for independents. Fragmentation is a tailwind; structurally
+  uncopyable (their incentives forbid making a contractor less dependent on them).
+  Rule: learn from competitors for the bar, build only what they structurally won't.
 - **2026-07-03 — v1.** First full draft (audience: team/operating; scope: all
   three layers). Corrected office framing: Danielle out **for the week**, Teddy
   covers — not a permanent handoff.
