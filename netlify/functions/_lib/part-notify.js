@@ -74,7 +74,10 @@ async function notifyPartOrdered({ job_id, eta_date }) {
     try { await crud.logEvent('part_ordered_notify_paused', { job_id, phone: guard.toE164(phone), at_ms: Date.now() }); } catch (_) {}
     return { ok: false, reason: 'paused' };
   }
-  const res = await guard.guardedSend({ phone, message, tag: 'part_ordered_notify', kind: 'status_update' });
+  // tag carries 'availab' so the message (an availability ask) passes the intake-only
+  // gate — the exact fix for the audit's silent drop. Teddy re-armed this one text
+  // deliberately (valuable) while everything else stays gated. 2026-07-17.
+  const res = await guard.guardedSend({ phone, message, tag: 'part_ordered_availability_request', kind: 'status_update' });
   if (res.reason !== 'send_failed') {
     try { await crud.logEvent('proactive_parts_notified', { job_id, phone: guard.toE164(phone), eta: String(eta || ''), at_ms: Date.now(), reason: res.reason, via: 'order_hook' }); } catch (_) {}
   }

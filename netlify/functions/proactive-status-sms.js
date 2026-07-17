@@ -106,7 +106,7 @@ exports.handler = async function (event) {
     if (sent >= MAX_PER_RUN) break;
     const message = orderMessage(j);
     if (!willSend) { results.push({ job_id: j.id, name: firstName(j), appliance: appl(j), eta: etaPhrase(j.parts_eta_date) || null, preview: message }); sent++; continue; }
-    const res = await guard.guardedSend({ phone: j.customer_phone, message, tag: 'part_ordered_notify', kind: 'status_update' });
+    const res = await guard.guardedSend({ phone: j.customer_phone, message, tag: 'part_ordered_availability_request', kind: 'status_update' });
     if (res.reason !== 'send_failed') await markNotified(j, res.reason);  // don't retry-spam; only a hard send failure retries
     results.push({ job_id: j.id, sent: res.sent, reason: res.reason });
     if (res.sent) sent++;
