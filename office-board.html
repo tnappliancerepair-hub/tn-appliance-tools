@@ -592,6 +592,37 @@ function partsInRibbon(at){
   const age=hrs<1?'just landed':(hrs<24?Math.round(hrs)+'h ago':Math.round(hrs/24)+'d ago');
   return '<div class="jc-partin" style="background:'+partsInColor(at)+'" title="Part delivered — schedule the return visit ASAP">📦 PART IN — SCHEDULE NOW · '+age+'</div>';
 }
+
+// 📍 ADDRESS-CONFIRM flags (Teddy 2026-07-17). A customer with two addresses on file
+// gets one text to confirm which house. This surfaces the answer on the tile:
+//   correction → RED, needs Danielle (customer sent a DIFFERENT address) — one tap to apply
+//   pending    → amber (asked, waiting on their reply)   confirmed → green ✓ (transient)
+let ADDR_FLAGS={};   // job_id -> {state, proposed, asked_address}
+async function loadAddrFlags(){
+  try{
+    const d=await fetch('/.netlify/functions/address-flags',{cache:'no-store'}).then(r=>r.json());
+    const next={}; ((d&&d.address_flags)||[]).forEach(f=>{ next[Number(f.job_id)]={state:f.state,proposed:f.proposed||'',asked:f.asked_address||''}; });
+    ADDR_FLAGS=next;
+  }catch(_){ /* keep the last map on a transient miss */ }
+}
+function addrFlagRibbon(f,jid){
+  if(!f) return '';
+  if(f.state==='correction'){
+    const prop=(f.proposed||'').replace(/</g,'&lt;').slice(0,80);
+    return '<div class="jc-partin" style="background:#dc2626;cursor:pointer" onclick="event.stopPropagation();applyAddressCorrection('+jid+')" title="Customer replied with a different address — tap to review + apply">📍 NEW ADDRESS FROM CUSTOMER — TAP TO APPLY'+(prop?' · '+prop:'')+'</div>';
+  }
+  if(f.state==='pending') return '<div class="jc-partin" style="background:#e0a11a" title="We asked the customer to confirm which of their addresses is right">📍 CONFIRMING ADDRESS…</div>';
+  if(f.state==='confirmed') return '<div class="jc-partin" style="background:#16a34a" title="Customer confirmed this is the right address">📍 ADDRESS CONFIRMED ✓</div>';
+  return '';
+}
+// One-tap apply for a correction: open the edit drawer prefilled with the customer's
+// proposed address so Danielle eyeballs + splits city/zip, then Save (which now syncs
+// the job's service_* too). Teddy chose flag-for-Danielle — never auto-redirect a truck.
+async function applyAddressCorrection(jid){
+  const f=ADDR_FLAGS[jid]; await editCustomerInfo(jid);
+  try{ const el=document.getElementById('ce-address'); if(el&&f&&f.proposed){ el.value=f.proposed; el.focus(); el.style.borderColor='#dc2626'; } }catch(_){}
+  toast('Review the customer\'s address, fix city/zip if needed, then Save');
+}
 function togglePartsChime(){ const on=localStorage.getItem('parts_in_chime')==='1'; localStorage.setItem('parts_in_chime', on?'0':'1'); try{ if(!on&&window.AntSounds)(AntSounds.win||AntSounds.move||function(){})(); }catch(_){}; renderBoard(); }
 // SLOTS_MAP[job_id] = N (>1) — a long job that eats N stop-positions on the tech's day.
 let SLOTS_MAP={};
@@ -613,7 +644,7 @@ function saveBoardCache(){
   try{
     localStorage.setItem(BOARD_CACHE_KEY, JSON.stringify({
       ts:Date.now(), items:allItems, stageMap:STAGE_MAP, checkMap:CHECK_MAP,
-      noteJobs:[...OFFICE_NOTE_JOBS], secondOp:[...SECOND_OPINION_JOBS], cancelReq:[...CANCEL_REQUEST_JOBS], holdMap:HOLD_MAP, slotsMap:SLOTS_MAP, partsIn:PARTS_IN
+      noteJobs:[...OFFICE_NOTE_JOBS], secondOp:[...SECOND_OPINION_JOBS], cancelReq:[...CANCEL_REQUEST_JOBS], holdMap:HOLD_MAP, slotsMap:SLOTS_MAP, partsIn:PARTS_IN, addrFlags:ADDR_FLAGS
     }));
   }catch(_){}
 }
@@ -624,7 +655,7 @@ function renderFromCache(){
     if(!s||!Array.isArray(s.items)||!s.items.length) return false;
     if(!s.ts||(Date.now()-s.ts)>86400000) return false;  // ignore snapshots >1 day old
     allItems=s.items; STAGE_MAP=s.stageMap||{}; CHECK_MAP=s.checkMap||{};
-    OFFICE_NOTE_JOBS=new Set(s.noteJobs||[]); SECOND_OPINION_JOBS=new Set(s.secondOp||[]); CANCEL_REQUEST_JOBS=new Set(s.cancelReq||[]); HOLD_MAP=s.holdMap||{}; SLOTS_MAP=s.slotsMap||{}; PARTS_IN=s.partsIn||{};
+    OFFICE_NOTE_JOBS=new Set(s.noteJobs||[]); SECOND_OPINION_JOBS=new Set(s.secondOp||[]); CANCEL_REQUEST_JOBS=new Set(s.cancelReq||[]); HOLD_MAP=s.holdMap||{}; SLOTS_MAP=s.slotsMap||{}; PARTS_IN=s.partsIn||{}; ADDR_FLAGS=s.addrFlags||{};
     stageReconcile();                 // a pending drop still wins over the cached snapshot
     renderBoard();
     return true;
@@ -658,6 +689,7 @@ async function loadBoard(){
     loadStranded();
     loadAudit();
     loadPartsIn();
+    loadAddrFlags();
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
   }
@@ -1141,6 +1173,7 @@ function cardHtml(j){
   const _vDone=(_vss==='completed'||_vcs==='completed');
   const _secondOp=SECOND_OPINION_JOBS.has(j.id);   // tech passed off for a 2nd opinion (orange siren)
   const _cancelReq=CANCEL_REQUEST_JOBS.has(j.id);  // tech asked to cancel this job (blue siren)
+  const _af=ADDR_FLAGS[j.id];                       // 📍 address-confirm flag (pending/confirmed/correction)
   // The 4 tech close-outs, color-coded so the Completed lane reads at a glance
   // (Teddy 2026-07-12): 🟢 fixed · 🟠 needs parts · 🟣 replace/no-fix · ⚪ held.
   // in_progress = started but NOT closed out yet (also carries the ⚠️ flag below).
@@ -1229,6 +1262,7 @@ function cardHtml(j){
   const _replace=(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible');
   return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}${_pin?' partin':''}" draggable="true" data-id="${j.id}"${_pin?` style="box-shadow:0 0 0 2px ${partsInColor(_pin)}66;border-color:${partsInColor(_pin)}"`:''}>
     ${_pin?partsInRibbon(_pin):''}
+    ${_af?addrFlagRibbon(_af,j.id):''}
     <div class="jc-status-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">${_statusPill}${_wait}</div>
     <div class="jc-name">${esc(name)}</div>
     <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}<span class="tag warr">${esc(_coLabel)}</span>${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
@@ -2340,12 +2374,14 @@ async function editCustomerInfo(jid){
 }
 async function saveCustomerInfo(jid){
   const g=function(id){ const el=document.getElementById('ce-'+id); return el?el.value.trim():undefined; };
-  const body={job_id:parseInt(jid,10),actor:'Danielle',first_name:g('first'),last_name:g('last'),phone:g('phone'),email:g('email'),address:g('address'),city:g('city'),state:g('state'),zip:g('zip')};
+  const _jid=parseInt(jid,10);
+  const _resolveAddr=!!(ADDR_FLAGS[_jid]&&ADDR_FLAGS[_jid].state==='correction');
+  const body={job_id:_jid,actor:'Danielle',first_name:g('first'),last_name:g('last'),phone:g('phone'),email:g('email'),address:g('address'),city:g('city'),state:g('state'),zip:g('zip'),resolve_address_flag:_resolveAddr};
   toast('Saving…');
   try{
     const r=await fetch('/.netlify/functions/update-customer-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
-    if(d&&d.ok){ toast('Customer info saved ✓'); const ov=document.getElementById('cust-edit-ov'); if(ov)ov.remove(); openDrawer(String(jid)); loadBoard(); }
+    if(d&&d.ok){ if(_resolveAddr){ delete ADDR_FLAGS[_jid]; } toast('Customer info saved ✓'); const ov=document.getElementById('cust-edit-ov'); if(ov)ov.remove(); openDrawer(String(jid)); loadBoard(); }
     else toast('⚠ '+((d&&d.error)||'did not save'));
   }catch(_){ toast('⚠ failed'); }
 }

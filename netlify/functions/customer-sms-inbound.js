@@ -119,6 +119,23 @@ async function findAwaitingPartsJob(phone) {
   } catch (_) { return { id: 0 }; }
 }
 
+// Find this phone's job awaiting an ADDRESS confirmation the customer hasn't answered
+// yet (Teddy 2026-07-17). A pending confirm = an `address_confirm_sent` marker with no
+// later `address_confirmed` / `address_correction_reported`. Returns the job id, or 0.
+async function findPendingAddressConfirm(phone) {
+  const jid = await findJobByPhone(phone);
+  if (!jid) return 0;
+  const metaOf = (r) => { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; };
+  const forJob = async (action) => {
+    try { const rows = await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, 2000); return (rows || []).some((r) => String(metaOf(r).job_id || '') === String(jid)); } catch (_) { return false; }
+  };
+  try {
+    if (!(await forJob('address_confirm_sent'))) return 0;
+    const done = (await forJob('address_confirmed')) || (await forJob('address_correction_reported'));
+    return done ? 0 : jid;
+  } catch (_) { return 0; }
+}
+
 // Specific-intent keywords (mirror of the loop's KEYWORD_ROUTES). If a cold
 // lead's text matches one of these, do NOT fire the instant new-lead greeting —
 // let the loop route it to the right responder (cancel / reschedule / status…).
@@ -720,6 +737,39 @@ exports.handler = async function (event) {
     }
   } catch (e) { console.warn('[customer-sms-inbound] parts-arrived detect error:', String((e && e.message) || e)); }
 
+  // 📍 ADDRESS-CONFIRM reply (Teddy 2026-07-17). If we asked this customer to confirm
+  // which of their two addresses is right, capture the answer here so it isn't mistaken
+  // for a new lead. YES → address_confirmed (green on the board). ANYTHING ELSE (they
+  // typed a corrected address) → address_correction_reported = a RED flag for Danielle
+  // to apply with one tap. We NEVER auto-redirect the truck from a raw text (Teddy's
+  // call: flag-for-Danielle). Either way we ack once and suppress the loop's replies.
+  let addressConfirmHandled = false;
+  try {
+    if (!recallHandled && !partsArrivedHandled) {
+      const acJob = await findPendingAddressConfirm(parsed.from);
+      if (acJob) {
+        const t = String(parsed.body || '').trim();
+        const yes = /^\s*(yes|yep|yeah|yup|ya|correct|right|that'?s right|that is right|confirm(ed)?|looks good|y|ok|okay|\u{1F44D})/iu.test(t);
+        let ack;
+        if (yes) {
+          try { await crud.logEvent('address_confirmed', { job_id: acJob, phone: String(parsed.from).slice(-4), at_ms: Date.now() }); } catch (_) {}
+          ack = "Perfect — thank you! Your tech will head to that address. We'll text a live arrival window the morning of your visit. \u{1F41C}";
+        } else {
+          try { await crud.logEvent('address_correction_reported', { job_id: acJob, proposed: t.slice(0, 200), phone: String(parsed.from).slice(-4), at_ms: Date.now() }); } catch (_) {}
+          ack = "Got it — thank you! We'll get that corrected so your tech goes to the right place, and text you to confirm. \u{1F41C}";
+        }
+        try {
+          await fetch(`${XANO_BASE}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: parsed.from, message: ack, context_tag: 'intake_address_confirm_ack' }), signal: AbortSignal.timeout(9000) });
+        } catch (_) {}
+        addressConfirmHandled = true;
+        // Suppress the loop's generic new-lead / status replies (no double-text).
+        try { await crud.logEvent('new_lead_replied_' + String(parsed.from).replace(/\D/g, ''), { outcome: 'address_confirm', job_id: acJob, at_ms: Date.now() }); } catch (_) {}
+        console.log('[customer-sms-inbound] address-confirm reply:', { job_id: acJob, yes });
+      }
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] address-confirm reply error:', String((e && e.message) || e)); }
+
   // 🗓️ AVAILABILITY RESCUE (Teddy 2026-07-07, the Jen Ross fix). Warranty jobs carry the
   // customer's phone on the JOB, not on a linked customer record — so the recorder can't
   // match the reply (job_id 0) and the availability the customer sent falls on the floor.
@@ -728,7 +778,7 @@ exports.handler = async function (event) {
   let availRescued = false;
   try {
     const matched = Number(recordData && recordData.job_id) > 0;
-    if (!matched && !recallHandled && !partsArrivedHandled && looksLikeAvailability(parsed.body)) {
+    if (!matched && !recallHandled && !partsArrivedHandled && !addressConfirmHandled && looksLikeAvailability(parsed.body)) {
       const jid = await findJobByPhone(parsed.from);
       if (jid) {
         await fetch(SAVE_AVAIL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -773,7 +823,7 @@ exports.handler = async function (event) {
   // day-only reply RIGHT NOW instead of waiting on the loop (Sherri asked 6x into silence).
   let statusAnswered = false;
   try {
-    if (!recallHandled && !availRescued && !partsArrivedHandled && looksLikeStatusQuestion(parsed.body)) {
+    if (!recallHandled && !availRescued && !partsArrivedHandled && !addressConfirmHandled && looksLikeStatusQuestion(parsed.body)) {
       statusAnswered = await instantStatusReply(parsed.from, parsed.body);
       if (statusAnswered) console.log('[customer-sms-inbound] instant status answer sent:', { from: parsed.from });
     }
@@ -788,7 +838,7 @@ exports.handler = async function (event) {
   // repair lead gets the intake link so it books itself 24/7. A number we already KNOW gets
   // NOTHING here — a human owns that thread on the human line (757-5500).
   try {
-    if (!recallHandled && !availRescued && !statusAnswered && !partsArrivedHandled) {
+    if (!recallHandled && !availRescued && !statusAnswered && !partsArrivedHandled && !addressConfirmHandled) {
       const known = !!(recordData && (recordData.customer_known === true || Number(recordData.job_id) > 0));
       if (known) {
         console.log('[customer-sms-inbound] known customer on AI line — staying silent for a human:', { from: parsed.from, body: String(parsed.body).slice(0, 60) });

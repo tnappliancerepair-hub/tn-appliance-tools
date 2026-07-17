@@ -134,6 +134,18 @@ exports.handler = async function (event) {
     try { await fetch(`${META}/table/${JOBS_TABLE}/content/${jobId}`, { method: 'PUT', headers: h, body: JSON.stringify(svc) }); } catch (_) {}
   }
 
+  // Clear the board's red "address correction" flag when Danielle applies a customer's
+  // corrected address (Teddy 2026-07-17 flag-for-Danielle flow). address-flags reads
+  // this marker as the resolution, so the tile stops showing the alert.
+  if (jobId && b.resolve_address_flag) {
+    try {
+      await fetch(`${META}/table/${EVENT_LOG}/content`, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ action: 'address_correction_applied', metadata: { job_id: jobId, actor, at_ms: Date.now() } }),
+      });
+    } catch (_) {}
+  }
+
   // Audit — so danielle-activity / the log show who fixed it + which fields changed.
   try {
     await fetch(`${META}/table/${EVENT_LOG}/content`, {

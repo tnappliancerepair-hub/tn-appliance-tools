@@ -128,6 +128,13 @@
 [functions."denorm-job-customer"]
   schedule = "*/30 * * * *"
 
+# Address-confirm sweep (Teddy 2026-07-17) — finds RECENT active jobs where the customer
+# has two addresses (job's service address ≠ our customer record) and texts them to
+# confirm which house before the tech rolls. Conflict-only + one text/job + capped, so
+# volume is tiny. Twice a business day (10a + 2p CT). Kill: ADDRESS_CONFIRM_LIVE=false.
+[functions."address-confirm-check"]
+  schedule = "0 15,19 * * *"
+
 # Gmail token watchdog — texts Teddy the moment the OAuth refresh token dies so
 # warranty-email intake outages are caught SAME-DAY (not when the office runs
 # short on jobs). Self-contained: talks straight to Google + Twilio, no Xano or
