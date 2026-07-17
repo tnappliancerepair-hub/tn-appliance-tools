@@ -423,6 +423,11 @@ exports.handler = async (event) => {
         });
         if (r.ok) {
           arrivedFlagged += 1;
+          // Close the loop: the delivered email lights the board's "📦 PART IN" ribbon
+          // + fires the ONE deduped availability text. The shared per-job marker means
+          // this, the customer's "it's here" text, and a call still produce exactly one
+          // send + one ribbon. (Teddy 2026-07-17)
+          try { await require('./_lib/part-notify').notifyPartArrived({ job_id: jobId, via: 'delivery_email' }); } catch (_) {}
           arrivedResults.push({ ...rec, action: 'arrived_flagged' });
           if (arrivedProcessedLabelId) await labelMsg(gmail, id, arrivedProcessedLabelId);
         } else {
