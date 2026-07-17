@@ -1831,18 +1831,35 @@ async function uploadFile(file,kind){
 // not load" (John + Jimmy, 2026-07-16). Up to 3 tries with backoff, then a last-ditch
 // direct-PUT fallback.
 function _downscalePhoto(file, cb){
+  // Netlify/Lambda caps the request body at ~6MB. A raw iPhone/HEIC photo base64s to
+  // 5–8MB, so if we ever sent the ORIGINAL (the old fallback did) the POST just failed
+  // → "can't upload pics" in the field (John, Walker LA, 2026-07-17). Now we ALWAYS
+  // shrink and step the dimension/quality down until the dataURL clears a safe budget,
+  // and we NEVER fall back to a full-size raw payload that's doomed to blow the limit.
+  const MAXLEN = 5 * 1024 * 1024;                 // dataURL string budget (~3.7MB of image)
+  const tooBig = (u) => !u || u.length > MAXLEN;
+  const ATTEMPTS = [[1440,0.85],[1280,0.8],[1024,0.72],[900,0.6],[720,0.5]];
   try{
     const reader=new FileReader();
     reader.onload=function(){
+      const raw=reader.result;
       const im=new Image();
       im.onload=function(){
-        let max=1600,w=im.width,h=im.height;
-        if(w>max||h>max){ if(w>=h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
-        try{ const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);cb(c.toDataURL('image/jpeg',0.85)); }
-        catch(_){ cb(reader.result); }
+        try{
+          for(const a of ATTEMPTS){
+            const max=a[0], q=a[1];
+            let w=im.width, h=im.height;
+            if(w>max||h>max){ if(w>=h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;} }
+            const c=document.createElement('canvas'); c.width=w; c.height=h;
+            c.getContext('2d').drawImage(im,0,0,w,h);
+            const u=c.toDataURL('image/jpeg',q);
+            if(!tooBig(u)){ cb(u); return; }         // first size that fits wins
+          }
+          cb(null);                                   // couldn't get it small enough — honest fail, not a doomed send
+        }catch(_){ cb(tooBig(raw)?null:raw); }         // canvas blocked (rare) — only send raw if it already fits
       };
-      im.onerror=function(){ cb(reader.result); };
-      im.src=reader.result;
+      im.onerror=function(){ cb(tooBig(raw)?null:raw); }; // undecodable — only send raw if it already fits
+      im.src=raw;
     };
     reader.onerror=function(){ cb(null); };
     reader.readAsDataURL(file);
