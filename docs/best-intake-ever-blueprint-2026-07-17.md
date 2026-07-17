@@ -188,6 +188,91 @@ accuracy climbs every month, we've built the thing they wish they could.
 
 ---
 
+## 8. Build strategy — standardize, then customize (Teddy, 2026-07-17)
+
+Teddy's framing: *"Standardize them and then customize them accordingly. Have them all
+prepared to help a customer easily get through the process, our office easily manage those
+leads, and our techs making money and running them back as much as possible."*
+
+That is the engine + recipe model in his own words. **Standardize = the engine + shared
+spine. Customize = a recipe per situation.**
+
+### The engine (standardize — build ONCE)
+One intake engine + one shared rule set every intake inherits:
+- One reconciled SMS gate / allowlist (kills the three-gates drift the audit found)
+- Quiet hours · opt-out · frequency caps · the SMS circuit breaker
+- One job record (the spine) — enter once, derive everything, every surface reads it
+- One dedup + one drop-watch (nothing fires twice, nothing silently dies)
+
+### The recipe (customize — cheap, per situation)
+Each intake/page = a small declarative recipe (data, not code):
+- **When it applies** — channel / source / params
+- **Capture** — the minimum fields for this situation (+ what to derive vs ask)
+- **Close** — type (pay / book / free-lead / relationship), the offer, the copy, the metric
+- **Payment behavior** — none (warranty) / $50 / $80 / net-terms (PM)
+- **Routing** — service line, cluster, warranty-vendor rules, multi-item
+- **Follow-ups** — the parts-arrived + how'd-we-do variants, tuned to the situation
+
+Add a new intake — or a whole new market — = write a recipe. No new codebase. This is why
+"all equally important / don't limit my options" and "cleanest to manage" are the *same*
+answer: the engine keeps every option open and cheap, present and future.
+
+### Success = the three seats (the yardstick for every recipe)
+1. **Customer** — gets through the process *easily* (the tuned close for that situation).
+2. **Office** — manages the lead *easily*: it lands on the tile with its media, in the right
+   column, never dropped; a registry shows every intake's conversion at a glance.
+3. **Tech** — *makes money and runs jobs back.* The intake feeds utilization:
+   pre-diagnosis → part on the truck → **first-visit-fix** (fewer wasted trips), and
+   route-fill → **back-to-back stops** (more jobs/day). A great intake isn't done when the
+   lead is booked — it's done when the tech got paid and is on to the next stop.
+
+### Sequencing (matches the live reality)
+- **Warranty = recipe #1, now.** It's the live business and the cash flow; Teddy's happy with
+  the strategy, it just needs dialing in. Build the engine *on* warranty (real, high-volume
+  traffic). Dial-in list in §9.
+- **Cash appliance · dryer vent · apartments/PM = standardized + prepared, not rushed.** No
+  volume there yet. Each becomes a recipe on the proven engine so it's *ready* — the day a
+  vent or cash lead shows up, it closes cleanly. **"Prepared" = the recipe exists, is
+  gate-safe, routes correctly, has its close + follow-ups + metric wired, and has been
+  test-driven end-to-end once.**
+- **Migration = strangler.** Prove the engine on warranty beside the existing front doors;
+  template the rest one at a time; retire each old front door only after its recipe is
+  verified. Never a big-bang rewrite.
+
+---
+
+## 9. Warranty dial-in — recipe #1 punch list
+
+The concrete first execution. `[ship]` = Netlify, deployable on go. `[Mac]` = needs an XS/loop
+push from Teddy's machine.
+
+1. 🔴 **Warranty submission auto-fires on completion** `[Mac + ship backstop]` — a warranty job
+   completed from the *board* silently skips Danielle's "submission ready" digest (only the
+   tech-app path fires it). The single biggest warranty money fix (audit H1).
+2. 🔴 **Parts-arrived text, warranty version** `[ship]` — "your part's in, when can [tech] wrap
+   it up?" Closes the 2nd-trip gap that strands warranty jobs in awaiting-parts. Gate-safe,
+   quiet-hours, one-per-job.
+3. 🟠 **Surface the ~121 hidden jobs** `[ship]` — schedule board-audit so hidden warranty shells
+   + real work alert Danielle instead of vanishing.
+4. 🟠 **Pre-video + model pic reliably on the tile** `[ship/verify]` — every warranty job,
+   office tile + tech page.
+5. 🟠 **TDR pre-filled + parts finder primed** `[ship]` from the warranty intake — tech edits
+   instead of authors; part predicted before the truck rolls (feeds first-visit-fix).
+6. 🟠 **Needs-reply safety net** `[ship]` — a warranty customer's text never rots unanswered
+   (audit H2).
+7. ⚙️ **Reconcile the gate to one list** `[Mac]` — so everything above rides one clean,
+   drift-proof gate.
+8. **"How'd we do" / review text** — Teddy's call whether warranty jobs get it.
+
+Every fix rides the safety rails (§4): reconciled gate, quiet hours, opt-out, dedup, breaker,
+drop-watch — so re-enabling proactive touches can't repeat the over-texting firefight.
+
+---
+
 ## Changelog
+- **2026-07-17 (v2):** Added §8 build strategy (standardize→customize = engine+recipe; the
+  three-seats scorecard incl. tech utilization / run-them-back; warranty-first sequencing;
+  "prepared" defined; strangler migration) and §9 warranty dial-in punch list. Reflects
+  Teddy's "no rush on cash/vent/apartment — standardize + customize + have them all prepared."
 - **2026-07-17 (v1):** Created. Sparked by the "best intake ever built / future of service
   intake" direction and the live lead-leak audit. Phase 0 = the audit findings.
