@@ -150,9 +150,9 @@
   .tag{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:9px;}
   .tag.parts{background:#fdf0e0;color:var(--warn);} .tag.warr{background:#e7f0fe;color:var(--blue);}
   .tag.cash{background:#e3f6ec;color:var(--ok);} .tag.over{background:#fde8e8;color:var(--bad);}
-  .tag.partin{animation:partinPulse 1.3s ease-in-out infinite;}
-  @keyframes partinPulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,0);}50%{box-shadow:0 0 0 3px rgba(220,38,38,.20);}}
-  @media (prefers-reduced-motion:reduce){.tag.partin{animation:none;}}
+  .jc-partin{color:#fff;font-weight:900;font-size:12px;text-align:center;letter-spacing:.02em;padding:6px 8px;border-radius:8px;margin:-3px -3px 8px;animation:partinPulse 1.3s ease-in-out infinite;text-shadow:0 1px 1px rgba(0,0,0,.18);}
+  @keyframes partinPulse{0%,100%{filter:none;}50%{filter:brightness(1.13);}}
+  @media (prefers-reduced-motion:reduce){.jc-partin{animation:none;}}
   .tag.src{background:#eef1f5;color:var(--ink2);} .tag.paid{background:#e3f6ec;color:var(--ok);}
   .empty-col{font-size:12px;color:var(--dim);text-align:center;padding:14px 4px;}
   .loading{padding:50px;text-align:center;color:var(--ink2);}
@@ -586,14 +586,11 @@ function partsInActive(j){
   if(/scheduled|in_progress|completed|cancel|no_fix/.test(s+' '+c)) return 0;
   return at;
 }
+function partsInColor(at){ const h=(Date.now()-Number(at))/3600000; return h<6?'#16a34a':(h<24?'#e0a11a':'#dc2626'); }  // green → amber → red as it sits
 function partsInRibbon(at){
   const hrs=(Date.now()-Number(at))/3600000;
-  let bg,bd,fg;
-  if(hrs<6){bg='#e7f6ec';bd='#16a34a';fg='#0a7d33';}          // fresh — green
-  else if(hrs<24){bg='#fff3d0';bd='#e0b22a';fg='#8a6410';}    // warming — amber
-  else {bg='#fdece9';bd='#dc2626';fg='#c0392b';}              // stale — red (it's been sitting)
-  const age=hrs<1?'just now':(hrs<24?Math.round(hrs)+'h':Math.round(hrs/24)+'d');
-  return '<span class="tag partin" style="background:'+bg+';color:'+fg+';border:1px solid '+bd+';font-weight:900" title="Part delivered — schedule the return visit ASAP">📦 PART IN — BOOK NOW · '+age+'</span>';
+  const age=hrs<1?'just landed':(hrs<24?Math.round(hrs)+'h ago':Math.round(hrs/24)+'d ago');
+  return '<div class="jc-partin" style="background:'+partsInColor(at)+'" title="Part delivered — schedule the return visit ASAP">📦 PART IN — SCHEDULE NOW · '+age+'</div>';
 }
 function togglePartsChime(){ const on=localStorage.getItem('parts_in_chime')==='1'; localStorage.setItem('parts_in_chime', on?'0':'1'); try{ if(!on&&window.AntSounds)(AntSounds.win||AntSounds.move||function(){})(); }catch(_){}; renderBoard(); }
 // SLOTS_MAP[job_id] = N (>1) — a long job that eats N stop-positions on the tech's day.
@@ -1175,8 +1172,7 @@ function cardHtml(j){
   if(_g>0)tags.push('<span class="tag" style="background:#fdece9;color:#d6432a;border:1px solid #f3c0b7" title="missing info Ant needs to answer calls">⚠ needs info</span>');
   const _over=overdue(j);
   if(_over)tags.unshift('<span class="tag over">⏰ OVERDUE</span>');
-  const _pin=partsInActive(j);
-  if(_pin)tags.unshift(partsInRibbon(_pin));   // 📦 PART IN leads every tag — the "book it now" siren
+  const _pin=partsInActive(j);   // 📦 PART IN — rendered as a full-width ribbon across the tile top (below)
   // "Looks done but not marked complete" (Danielle 2026-07-12: "jobs that should
   // be completions aren't saying complete… Jimmy has 17 that need info"). A job
   // with a tech, whose scheduled day has PASSED, that isn't marked complete/
@@ -1231,7 +1227,8 @@ function cardHtml(j){
     _availCard='<div class="jc-avail" title="'+esc(String(j.warranty_company||'Warranty'))+' promised the customer this full window — the tech must arrive inside it" style="margin-top:6px;padding:9px 11px;border-radius:9px;background:rgba(37,99,235,.14);border:2px solid rgba(37,99,235,.6);color:#1d4ed8;font-size:13.5px;font-weight:900;line-height:1.45">🔒 Customer available '+esc(_day)+': <span style="font-size:15px">'+esc(_win||_tm)+'</span></div>';
   }
   const _replace=(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible');
-  return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}" draggable="true" data-id="${j.id}">
+  return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}${_pin?' partin':''}" draggable="true" data-id="${j.id}"${_pin?` style="box-shadow:0 0 0 2px ${partsInColor(_pin)}66;border-color:${partsInColor(_pin)}"`:''}>
+    ${_pin?partsInRibbon(_pin):''}
     <div class="jc-status-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">${_statusPill}${_wait}</div>
     <div class="jc-name">${esc(name)}</div>
     <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}<span class="tag warr">${esc(_coLabel)}</span>${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
