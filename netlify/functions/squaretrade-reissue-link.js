@@ -119,16 +119,22 @@ exports.handler = async function (event) {
     if (await alreadyLinked(orig, nw)) { plan.push({ orig_wo: orig, new_wo: nw, status: 'already_linked' }); continue; }
     const origJob = await jobForWO(orig);
     const newJob = await jobForWO(nw);
+    // A real link target has an actual customer NAME — a blank needs_more_info claim-shell
+    // does not, and may get soft-canceled, so never link to it (wait for the real job).
+    const origReal = !!(origJob && origJob.name);
+    const newReal = !!(newJob && newJob.name);
     plan.push({
       orig_wo: orig, new_wo: nw,
-      orig_job: origJob ? { id: origJob.id, name: origJob.name, status: origJob.status } : null,
-      new_job: newJob ? { id: newJob.id, name: newJob.name, status: newJob.status } : null,
-      status: (origJob && newJob) ? 'READY' : 'waiting_for_jobs',
+      orig_job: origJob ? { id: origJob.id, name: origJob.name, status: origJob.status, real: origReal } : null,
+      new_job: newJob ? { id: newJob.id, name: newJob.name, status: newJob.status, real: newReal } : null,
+      status: (origReal && newReal) ? 'READY' : 'waiting_for_real_job',
       date: m.date || '',
     });
   }
 
-  const actionable = plan.filter((p) => p.status === 'READY');
+  // ?only_new_wo=<wo> links just that one pair (used to pilot on a single job first).
+  let actionable = plan.filter((p) => p.status === 'READY');
+  if (q.only_new_wo) actionable = actionable.filter((p) => String(p.new_wo) === String(q.only_new_wo));
   const out = { ok: true, mode: live ? 'LIVE' : (isCron ? 'shadow' : 'DRY'), reissue_emails: msgs.length, pairs: plan.length, ready: actionable.length, plan };
   if (!live) { out.note = isCron ? 'shadow — set SQUARETRADE_REISSUE_LINK=true to act' : 'DRY — add &confirm=1 to link'; return j(200, out); }
 
