@@ -60,10 +60,15 @@ exports.handler = async function (event) {
   // media/finish/…) or Xano's intake-only gate silently drops the text — the exact
   // "we text you right back" failure this closes. (2026-07-17)
   const isVent = /vent/i.test(appliance);
+  const isHvac = /hvac|heat pump|furnace|air.?condition|\ba\/?c\b|mini.?split|cooling|heating|gas pack|refriger/i.test(appliance);
   let msg, tag;
   if (isVent) {
     msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your dryer vent cleaning request! What days/times work to get a tech out? Just reply right here with your availability and we'll lock it in — the more open you are, the sooner we can squeeze you in. (Or call/text 615-280-2949.)";
     tag = 'intake_availability_vent_web_book';
+  } else if (isHvac) {
+    const photoUrl = 'https://tnapplianceexchange.net/finish-upload.html?job_id=' + jobId;
+    msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your heating & cooling request! What days/times work to get a tech out? Just reply right here. If you can, tap to send a quick photo of the unit + its data plate so we show up ready: " + photoUrl + " . (Or call/text 615-280-2949.)";
+    tag = 'intake_availability_hvac_web_book';
   } else {
     const apl = appliance ? (' ' + appliance.toLowerCase()) : ' appliance';
     const uploadUrl = 'https://tnapplianceexchange.net/finish-upload.html?job_id=' + jobId;
