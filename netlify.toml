@@ -331,6 +331,10 @@
 [functions."vent-plan-reminder"]
   schedule = "0 15 * * 1"
 
+# Bulletproof the lead closers — page the owner if a deal-closing text gets gate-blocked
+[functions."lead-text-block-watch"]
+  schedule = "*/30 * * * *"
+
 # Follow Up → Needs Invoice auto-advance — every 4 hours, move a completed job into
 # Needs Invoice once it's been 48h in Follow Up (Teddy 2026-07-16). Only touches jobs
 # still in the Follow Up default, so it never overrides an office placement.

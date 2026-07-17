@@ -55,5 +55,12 @@ exports.handler = async function (event) {
   try { await sendSms(OWNER, alert, 'owner', 'vent_plan_signup'); } catch (_) {}
   try { await sendSms(DANIELLE, alert, 'warranty_handler', 'vent_plan_signup'); } catch (_) {}
 
+  // Confirm to the member instantly (intake-gate allowlisted tag so it delivers).
+  if (phone.replace(/\D/g, '').length >= 10) {
+    const firstName = (name || '').trim().split(/\s+/)[0] || 'there';
+    const confirm = 'Hi ' + firstName + ", you're on the TN Appliance Exchange Vent Care Plan list 🔁 — we'll text you shortly to lock in your member rate and book your first cleaning. We keep your vent cleaned every year so you never have to think about it. Call or text 615-280-2949 anytime.";
+    try { await sendSms(phone, confirm, 'customer', 'intake_vent_plan'); } catch (_) {}
+  }
+
   return jsonResp(200, { ok: true });
 };

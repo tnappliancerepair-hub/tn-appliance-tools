@@ -53,15 +53,27 @@ exports.handler = async function (event) {
   // 2) SPEED-TO-LEAD — text the customer within seconds (the conversion lever).
   // Ask when they're available (their reply is parsed onto the job so it can get
   // scheduled) AND for a model-# pic + problem video (feeds the Teddy Tool).
+  // Vent cleaning needs NO model# or video (there's no appliance to diagnose) — asking
+  // for it just adds friction to a job that closes on "what days work?". Cash/repair
+  // leads DO want a model pic + problem video (feeds the diagnosis + $50 Quick Check).
+  // NOTE: context_tag MUST contain an intake-gate allowlisted word (intake/availab/
+  // media/finish/…) or Xano's intake-only gate silently drops the text — the exact
+  // "we text you right back" failure this closes. (2026-07-17)
   const isVent = /vent/i.test(appliance);
-  const apl = appliance ? (' ' + appliance.toLowerCase()) : ' appliance';
-  const reqWord = isVent ? ' request' : ' repair request'; // "vent cleaning repair" reads odd
-  const uploadUrl = 'https://tnapplianceexchange.net/finish-upload.html?job_id=' + jobId;
-  const msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your" + apl + reqWord + "! What days/times work to get a tech out? Just reply right here. To help us show up ready, you can also tap to send a model-# pic + short video: " + uploadUrl + " . (Or call/text 615-280-2949.)";
+  let msg, tag;
+  if (isVent) {
+    msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your dryer vent cleaning request! What days/times work to get a tech out? Just reply right here with your availability and we'll lock it in — the more open you are, the sooner we can squeeze you in. (Or call/text 615-280-2949.)";
+    tag = 'intake_availability_vent_web_book';
+  } else {
+    const apl = appliance ? (' ' + appliance.toLowerCase()) : ' appliance';
+    const uploadUrl = 'https://tnapplianceexchange.net/finish-upload.html?job_id=' + jobId;
+    msg = 'Hi ' + first + ", this is TN Appliance Exchange 🐜 — got your" + apl + " repair request! What days/times work to get a tech out? Just reply right here. To help us show up ready, tap to send a model-# pic + a short video: " + uploadUrl + " . (Or call/text 615-280-2949.)";
+    tag = 'intake_availability_media_web_book';
+  }
   try {
     await fetch(XANO + '/send_sms', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: e164(phoneDigits), message: msg, customer_first_name: first, context_tag: 'web_book_speed_to_lead' }),
+      body: JSON.stringify({ to: e164(phoneDigits), message: msg, customer_first_name: first, context_tag: tag }),
       signal: AbortSignal.timeout(12000),
     });
   } catch (_) {}

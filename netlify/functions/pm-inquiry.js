@@ -62,5 +62,16 @@ exports.handler = async function (event) {
   try { await sendSms(OWNER, alert, 'owner', 'pm_inquiry'); } catch (_) {}
   try { await sendSms(DANIELLE, alert, 'warranty_handler', 'pm_inquiry'); } catch (_) {}
 
+  // Close the loop with the lead too — an instant "we got it, here's what's next"
+  // text (responsiveness is a real edge in B2B). Tag carries an intake-gate
+  // allowlisted word so it isn't silently dropped by the customer send gate.
+  if (phone.replace(/\D/g, '').length >= 10) {
+    const firstName = (contact || '').trim().split(/\s+/)[0] || 'there';
+    const what = isVent ? 'a whole-property dryer vent price' : 'your quote and get your account set up';
+    const confirm = 'Hi ' + firstName + ', TN Appliance Exchange 🐜 — got your request' + (company ? ' for ' + company : '') +
+      '. A real person will text you ' + what + ' shortly. One vendor, one invoice, we coordinate the tenant. Call or text 615-280-2949 anytime.';
+    try { await sendSms(phone, confirm, 'customer', 'intake_b2b_quote'); } catch (_) {}
+  }
+
   return jsonResp(200, { ok: true });
 };
