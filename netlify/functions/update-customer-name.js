@@ -117,6 +117,23 @@ exports.handler = async function (event) {
     }
   } catch (_) {}
 
+  // Sync the JOB's service address (Teddy 2026-07-17). THE revert bug: the board tile
+  // and the tech app display the job's service_* fields, NOT the customer record — so
+  // editing the address here updated the customer row but the tile "went right back to
+  // the bad address" (Danielle, Jayaswy Kota — job showed AHS's stale 249 Broadgreen
+  // while the customer file was already correct). When the address is edited from a
+  // specific job's drawer, push it onto THAT job's service_* so the fix actually shows.
+  // Scoped to jobId ONLY — a multi-address customer's OTHER jobs keep their own service
+  // location (never blanket-overwrite every job with one edit).
+  if (jobId && ['address', 'city', 'state', 'zip'].some((k) => partial[k] !== undefined)) {
+    const svc = {};
+    if (partial.address !== undefined) svc.service_address = partial.address;
+    if (partial.city !== undefined) svc.service_city = partial.city;
+    if (partial.state !== undefined) svc.service_state = partial.state;
+    if (partial.zip !== undefined) svc.service_zip = partial.zip;
+    try { await fetch(`${META}/table/${JOBS_TABLE}/content/${jobId}`, { method: 'PUT', headers: h, body: JSON.stringify(svc) }); } catch (_) {}
+  }
+
   // Audit — so danielle-activity / the log show who fixed it + which fields changed.
   try {
     await fetch(`${META}/table/${EVENT_LOG}/content`, {
