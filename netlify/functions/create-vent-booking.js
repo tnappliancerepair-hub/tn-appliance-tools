@@ -35,7 +35,7 @@ exports.handler = async function (event) {
   const cents = isTest ? TEST_CENTS : DEPOSIT_CENTS;
   const productName = isTest
     ? 'Dryer Vent Cleaning — TEST ($1)'
-    : 'Dryer Vent Cleaning — $80 to book (applies to your total; roof/multi-story may be more)';
+    : 'Dryer Vent Cleaning — $80: full inspection + up to a 2-foot vent cleaning (applies to your total; longer runs quoted on-site)';
 
   try {
     const stripe = new Stripe(key);

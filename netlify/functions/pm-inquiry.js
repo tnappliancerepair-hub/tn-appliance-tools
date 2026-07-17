@@ -47,14 +47,18 @@ exports.handler = async function (event) {
   await logRow('pm_inquiry', { company, contact, email, phone, units, dryers, markets, message, src, role, property_type: propertyType, at_ms: Date.now() });
 
   // Text Teddy + Danielle — a PM/multifamily/partner account is a big recurring win, follow up fast.
+  const isInspect = /inspection/i.test(src);
   const isVent = /vent/i.test(src);
   const isApt = src === 'apartment' || /apartment|multifamily|community/i.test(propertyType);
-  const label = isVent ? '🔥 WHOLE-PROPERTY VENT QUOTE'
+  const label = isInspect ? '🏢🔍 FREE APARTMENT INSPECTION'
+    : isVent ? '🔥 WHOLE-PROPERTY VENT QUOTE'
     : src === 'realtor' ? '🏠 REALTOR referral'
     : src === 'dealer' ? '🏬 APPLIANCE-DEALER partner'
     : isApt ? '🏢 APARTMENT/MULTIFAMILY'
     : '🏢 PROPERTY-MGMT';
-  const cta = isVent ? '\nCash dryer-vent job — send them a whole-property quote fast.' : '\nCall/email them back — preferred-vendor lead.';
+  const cta = isInspect ? '\nFREE inspection — reach out fast + schedule a walk-through. Big recurring account.'
+    : isVent ? '\nCash dryer-vent job — send them a whole-property quote fast.'
+    : '\nCall/email them back — preferred-vendor lead.';
   const alert = '[ant] ' + label + ' inquiry: ' + (company || '(no company)') +
     (role ? (' · ' + role) : '') + (units ? (' · ~' + units + ' units') : '') + (dryers ? (' · ~' + dryers + ' dryers') : '') + (markets ? (' · ' + markets) : '') +
     '\nContact: ' + (contact || '(no name)') + ' ' + (phone || '') + (email ? (' · ' + email) : '') +
