@@ -167,8 +167,23 @@ exports.handler = async function (event) {
   const byPart = {};
   // from RMA tracker (auto-captured supplied/return parts) — SquareTrade/Allstate
   for (const r of labels) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, description: m.description || '', distributor: m.distributor || '', vendor: m.vendor || 'SquareTrade', source: 'rma', rma: m.rma || '', tracking: m.tracking || '', return_desc: m.return_desc || '', note: '', status: descStatus(m.return_desc), _at: Number(m.at_ms) || 0 }; }
-  // from email watchers + manual add (any vendor)
-  for (const r of manual) { const m = meta(r); if (!mine(m) || !m.part) continue; if (!byPart[m.part]) byPart[m.part] = { part: m.part, description: m.description || '', distributor: m.distributor || '', vendor: m.vendor || '', source: m.source || 'manual', rma: m.rma || '', tracking: m.tracking || '', return_desc: '', note: m.note || '', status: m.status || 'to_return', _at: Number(m.at_ms) || 0 }; }
+  // from email watchers + manual add (any vendor). A part can arrive as TWO notes — an
+  // "order" note (no tracking yet) then a "shipped" note (tracking) — so we merge them:
+  // create on first sight (newest), then backfill any field a blank newer dupe left empty
+  // so a real tracking #/description is never lost to an emptier duplicate.
+  for (const r of manual) {
+    const m = meta(r); if (!mine(m) || !m.part) continue;
+    const rec = byPart[m.part];
+    if (!rec) {
+      byPart[m.part] = { part: m.part, description: m.description || '', distributor: m.distributor || '', vendor: m.vendor || '', source: m.source || 'manual', rma: m.rma || '', tracking: m.tracking || '', return_desc: '', note: m.note || '', status: m.status || 'to_return', _at: Number(m.at_ms) || 0 };
+    } else {
+      if (!rec.tracking && m.tracking) rec.tracking = m.tracking;
+      if (!rec.description && m.description) rec.description = m.description;
+      if (!rec.distributor && m.distributor) rec.distributor = m.distributor;
+      if (!rec.vendor && m.vendor) rec.vendor = m.vendor;
+      if (!rec.note && m.note) rec.note = m.note;
+    }
+  }
 
   const parts = Object.values(byPart)
     // drop soft-deleted entries (delete marker at-or-newer than the part's add)

@@ -101,7 +101,11 @@ async function matchJob(wo) {
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
+  // Scheduled (cron) runs carry {next_run} in the body — they self-authorize and run
+  // live with no ?secret. Manual runs still require the admin secret. (Without this the
+  // every-20-min cron 401'd on EVERY invocation and never processed a single email.)
+  let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  if (!scheduled && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
   const dry = q.dry === '1';
   const days = Math.max(1, Math.min(60, parseInt(q.days, 10) || 14));
 
