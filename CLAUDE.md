@@ -23,9 +23,16 @@ Teddy forwarded a ServicePower "SERVICER NEW NOTES" part email ("For new system 
 ### ✅ TRACKING-LOSS FIX (`warranty-parts.js`)
 ServicePower sends TWO notes per part — an "order" note (no tracking) then a "shipped" note (tracking). `byPart` kept whichever was newest, so a blank order note **hid the real FedEx tracking** (belt showed empty tracking despite the email having 531794380608). **Fix:** merge duplicate `warranty_part_supplied` records and backfill empty fields (tracking/description/distributor/vendor/note) so a real value is never lost to an emptier dupe. **Verified:** belt now shows `track 531794380608`.
 
+### ✅ PHONE HOURS ADDED TO THE AI (Ant knows humans = Mon–Fri 9–6 CT; AI = 24/7)
+Teddy: "no humans answering weekends, none after 6 either — human answers Mon–Fri 9 to 6. You can transfer, but I won't answer." So Ant now KNOWS the human hours + behaves accordingly (still answers 24/7 itself).
+- **`vapi-tool.js get_business_hours` (NEW, server-computed America/Chicago)** — returns `{open, now_ct, hours_text, next_open_text, guidance}`. Deterministic (no LLM time math — same reason date logic is server-side). Open = Mon–Fri 9:00–17:59 CT. Verified live: Sat 12:14pm → open:false, next "Monday at 9 AM". Handled locally in `callBackend` (no backend hop).
+- **`vapi-admin.js ?action=business_hours` (NEW, idempotent, APPLIED to Ant Inbound)** — attaches the `get_business_hours` tool + prepends a `<!-- BUSINESS-HOURS -->` rules block: check hours before offering a person/callback; OFF-hours → never imply a live pickup, handle it yourself + take a message + "we follow up Mon–Fri 9 to 6"; ON-hours → transfer per the transfer rules (transfer is still OFF/message-mode today, so it just sets honest callback expectations for now). `get_business_hours` also added to the TOOLS array so any full setup includes it.
+- Re-apply anytime: `…/vapi-admin?secret=<admin>&action=business_hours`.
+
 ### ⏭️ OPEN / NEXT
 - Watch that BOTH crons now auto-process on schedule (no more manual forwards) — first scheduled runs after this deploy.
 - AHS parts land as `status:'requested'` (ordered, on the way, no return); tech marks Used/Missing on arrival. If Frontdoor ever adds a "part shipped" tracking email, wire it like ServicePower's shipped note.
+- Phone: when Teddy wants live transfers back on (`?action=transfer_on`), the hours block already gates them to open hours — no extra work.
 
 ## 🗓️🐜 2026-07-17 (Thu) — TRUST STACK (confirmed saves + one save module + server self-heal) · ADDRESS-REVERT ROOT-FIXED · MULTI-ADDRESS CONFIRM-TEXT · JOHN'S PHOTO BUG · SQUARETRADE RETURN-TRIP RELATIONS · CASH INTAKE FREE-BOOK · 8-11 WINDOW FIX — READ FIRST
 
