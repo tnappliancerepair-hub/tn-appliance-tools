@@ -11,6 +11,22 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-18 (Sat AM) — DEAD PARTS-WATCHER CRONS ROOT-FIXED (parts now auto-land) + TRACKING-LOSS FIX — READ FIRST
+
+Teddy forwarded a ServicePower "SERVICER NEW NOTES" part email ("For new system to update these jobs with parts"). Root-caused why he had to: **both supplied-parts watchers were dead on their cron.**
+
+### ✅ THE DEAD-CRON BUG (both watchers, root-fixed)
+`servicepower-parts-watch.js` + `ahs-parts-watch.js` both hard-required `?secret=` and `return json(401)` otherwise. **A Netlify scheduled invocation sends NO query string → every 20-min cron run 401'd and processed nothing.** The watchers had *only ever* worked when hit manually. So supplied parts silently piled up (10 ServicePower notes unprocessed) → Teddy forwarding by hand. **Fix (repo-standard pattern, matches ahs-address-backfill/address-confirm-check + 14 others):** `let scheduled = false; try { scheduled = !!JSON.parse(event.body||'{}').next_run; } catch(_){}` then `if (!scheduled && q.secret !== admin) return 401`. Scheduled runs self-authorize + run live; manual runs still need the secret. **Verified live:** a POST with `{next_run}` + no secret now returns `ok` (was 401) on both.
+- **ServicePower (SquareTrade/Allstate) = fully working.** Cleared the backlog live: 12 parts across 10 WOs, 0 unmatched. Belt WE03X29897 → job 20527 (Andrew Raymond, dryer). Cron `5,25,45 * * * *`.
+- **AHS/Frontdoor cron guard also fixed**, BUT its **parser extracts 0 parts from 26 frontdoor emails** — Frontdoor's format doesn't match the extractor (or those aren't part-ship notes). **OPEN: need one real Frontdoor "part ordered/shipped" email to tune the parser** (same way ServicePower's was built). Didn't run it live (nothing useful to record). Cron `12,32,52 * * * *`.
+
+### ✅ TRACKING-LOSS FIX (`warranty-parts.js`)
+ServicePower sends TWO notes per part — an "order" note (no tracking) then a "shipped" note (tracking). `byPart` kept whichever was newest, so a blank order note **hid the real FedEx tracking** (belt showed empty tracking despite the email having 531794380608). **Fix:** merge duplicate `warranty_part_supplied` records and backfill empty fields (tracking/description/distributor/vendor/note) so a real value is never lost to an emptier dupe. **Verified:** belt now shows `track 531794380608`.
+
+### ⏭️ OPEN / NEXT
+- Watch that the ServicePower cron now auto-processes on schedule (no more manual forwards). 
+- AHS/Frontdoor: Teddy to forward one real Frontdoor part email → tune the parser (if that channel even supplies parts to us).
+
 ## 🗓️🐜 2026-07-17 (Thu) — TRUST STACK (confirmed saves + one save module + server self-heal) · ADDRESS-REVERT ROOT-FIXED · MULTI-ADDRESS CONFIRM-TEXT · JOHN'S PHOTO BUG · SQUARETRADE RETURN-TRIP RELATIONS · CASH INTAKE FREE-BOOK · 8-11 WINDOW FIX — READ FIRST
 
 The "most trusted" day. Teddy: *"I'm still fighting the most trusted. Everybody still wants to use the old system because they trust it."* Root-caused the trust-killers (dropped saves, reverting addresses, wrong-address dispatches) and built the stack that stops them. Plus field bug fixes + a SquareTrade relations feature + cash-intake polish. Most is LIVE on Netlify; **ONE Mac push pending (#4 self-heal XS).**
