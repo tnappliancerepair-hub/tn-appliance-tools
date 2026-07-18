@@ -1,14 +1,16 @@
-// ahs-parts-watch — read AHS / Frontdoor "Notes Entered" work-order emails where a
-// part was ordered, and put that supplied part onto the job's tech ticket + feed its
-// ETA into scheduling so we don't roll a truck before the part lands.
+// ahs-parts-watch — read AHS / Frontdoor part-ordered emails and put the supplied part
+// onto the job's tech ticket so the tech sees what's coming + marks Used / Unused /
+// Missing like everything else.
 //
-// Teddy + Danielle (2026-06-29): AHS parts come differently than ServicePower. The
-// email is a regular Work Order (e.g. "NORMAL Work Order 48841459"), and the part is
-// described in prose in the DISPATCH NOTES — "Part(s) ordered from Marcone eta
-// 07/03/2026" — there is NO structured part number. So we capture the distributor +
-// ETA + work order, record it as a supplied part (so the tech can mark Used / Unused /
-// Missing like everything else), and stamp the job's parts_eta_date so the auto-
-// scheduler waits for it.
+// CURRENT Frontdoor format (2026-07): subject "Part automatically ordered for dispatch
+// id NNNN" with a Dispatch ID + a flattened part table (Part Ordered / Part Number
+// Ordered / Quantity Ordered / Supplier → "Burner Switch  DG44-01006C  1  Sundberg").
+// Real part #, no tracking, no return (AHS ships to the shop). parseFrontdoorOrdered
+// handles it; matchJob resolves the Dispatch ID → job via claim_number/dispatch_source_id.
+//
+// LEGACY format (kept as fallback): a regular Work Order with the part described in prose
+// in the notes — "Part(s) ordered from Marcone eta 07/03/2026" — no structured part #;
+// captured by distributor + ETA + work order, and stamps parts_eta_date.
 //
 //   GET ?secret=<admin>&dry=1[&days=14]   parse + match, write nothing
 //   GET ?secret=<admin>[&days=14]         record supplied parts + set ETAs
@@ -30,10 +32,44 @@ function isoDate(s) {
   return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
-// Parse one email body → [{ wo, distributor, eta, note }] (one per work order that
-// has a part-ordered note). AHS usually carries ONE work order per email but we walk
-// all of them in case a thread batches.
+// Structured Frontdoor "Part automatically ordered for dispatch id N" — the CURRENT AHS
+// format: a Dispatch ID + a flattened part table (headers Part Ordered / Part Number
+// Ordered / Quantity Ordered / Supplier, then a value row like
+// "Burner Switch    DG44-01006C    1    Sundberg"). No tracking, no return — AHS ships
+// the part to the shop. Returns [] if the email isn't this format.
+function parseFrontdoorOrdered(body) {
+  const t = String(body || '').replace(/\u00a0/g, ' ');
+  const dispatch = (t.match(/Dispatch ID:\s*(\d{5,})/i) || t.match(/dispatch id\s+(\d{5,})/i) || [])[1] || '';
+  if (!dispatch) return [];
+  if (!/order/i.test(t) || !/Supplier:/i.test(t)) return [];
+  // everything after the "Supplier:" column header, up to the footer, holds the value rows
+  let region = t.slice(t.search(/Supplier:\s*/i) + 'Supplier:'.length);
+  const foot = region.search(/Frontdoor,\s|PLEASE DO NOT REPLY|We respect your privacy|&copy;|©/i);
+  if (foot > 0) region = region.slice(0, foot);
+  const parts = [];
+  for (let line of region.split(/\r?\n/)) {
+    line = line.trim();
+    if (!line) continue;
+    const cols = line.split(/\s{2,}|\t+/).map((c) => c.trim()).filter(Boolean);
+    if (cols.length < 2) continue;
+    // the part-number column has letters AND digits, mostly alnum/dash, len >= 4
+    const pIdx = cols.findIndex((c) => /[A-Za-z]/.test(c) && /\d/.test(c) && /^[A-Za-z0-9][A-Za-z0-9.\-]{3,}$/.test(c));
+    if (pIdx < 0) continue;
+    const part = cols[pIdx];
+    const description = cols.slice(0, pIdx).join(' ').trim();
+    const qtyTok = cols.slice(pIdx + 1).find((c) => /^\d{1,3}$/.test(c));
+    const last = cols[cols.length - 1];
+    const distributor = last && !/^\d+$/.test(last) && last !== part ? last : '';
+    parts.push({ wo: dispatch, part, description, qty: qtyTok ? parseInt(qtyTok, 10) : 1, distributor, eta: '', requires_return: false, note: '' });
+  }
+  return parts;
+}
+
+// Parse one email body. Tries the current structured Frontdoor format first, then the
+// older prose "parts ordered from <distributor>" work-order format.
 function parseMessage(body) {
+  const fd = parseFrontdoorOrdered(body);
+  if (fd.length) return fd;
   const out = [];
   const woRe = /Work\s*Order\s*#?\s*([0-9]{5,})/gi;
   const idxs = []; let mm;
@@ -42,13 +78,13 @@ function parseMessage(body) {
   // number elsewhere) — but only if there's a part-ordered phrase to anchor on.
   if (!idxs.length) {
     const one = scanParts(body);
-    if (one) out.push({ wo: (body.match(/\b(\d{7,})\b/) || [])[1] || '', ...one });
+    if (one) out.push({ wo: (body.match(/\b(\d{7,})\b/) || [])[1] || '', part: '', description: '', qty: 1, ...one });
     return out;
   }
   for (let i = 0; i < idxs.length; i++) {
     const seg = body.slice(idxs[i].at, i + 1 < idxs.length ? idxs[i + 1].at : body.length);
     const p = scanParts(seg);
-    if (p) out.push({ wo: idxs[i].wo, ...p });
+    if (p) out.push({ wo: idxs[i].wo, part: '', description: '', qty: 1, ...p });
   }
   return out;
 }
@@ -120,9 +156,9 @@ exports.handler = async function (event) {
   const plan = [];
   for (const m of fresh) {
     for (const wo of parseMessage(m.body || '')) {
-      if (!wo.distributor) continue;
+      if (!wo.part && !wo.distributor) continue; // need a real part # OR a distributor to be a part note
       const job_id = wo.wo ? await matchJob(wo.wo) : null;
-      plan.push({ msg_id: m.id, wo: wo.wo, job_id, matched: !!job_id, distributor: wo.distributor, eta: wo.eta, note: wo.note });
+      plan.push({ msg_id: m.id, wo: wo.wo, job_id, matched: !!job_id, part: wo.part || '', description: wo.description || '', qty: wo.qty || 1, distributor: wo.distributor, eta: wo.eta, note: wo.note });
     }
   }
 
@@ -131,14 +167,19 @@ exports.handler = async function (event) {
 
   let recorded = 0, etas = 0; const processedIds = new Set(); const unmatched = [];
   for (const wo of plan) {
-    if (!wo.job_id) { unmatched.push({ wo: wo.wo, distributor: wo.distributor, eta: wo.eta }); processedIds.add(wo.msg_id); continue; }
-    // Record a supplied part the tech accounts for (no part # from AHS — label by distributor + WO).
+    if (!wo.job_id) { unmatched.push({ wo: wo.wo, part: wo.part, distributor: wo.distributor, eta: wo.eta }); processedIds.add(wo.msg_id); continue; }
+    // Record a supplied part the tech accounts for. New AHS format carries a real part #
+    // (+ description/supplier); older prose format has only a distributor. Status
+    // 'requested' = ordered + on the way (AHS ships to the shop, no return / no tracking).
     try {
       await crud.logEvent('warranty_part_supplied', {
-        job_id: wo.job_id, claim: wo.wo, part: `Part from ${wo.distributor}`,
-        description: `Ordered from ${wo.distributor}${wo.eta ? `, ETA ${wo.eta}` : ''} (AHS WO ${wo.wo})`,
-        distributor: wo.distributor, vendor: 'AHS', requires_return: false, status: 'to_return',
-        tracking: '', source: 'ahs_email', at_ms: Date.now(),
+        job_id: wo.job_id, claim: wo.wo,
+        part: wo.part || `Part from ${wo.distributor}`,
+        description: wo.part
+          ? [wo.description, wo.distributor ? 'via ' + wo.distributor : '', wo.qty > 1 ? '(qty ' + wo.qty + ')' : '', '(AHS dispatch ' + wo.wo + ')'].filter(Boolean).join(' ')
+          : `Ordered from ${wo.distributor}${wo.eta ? `, ETA ${wo.eta}` : ''} (AHS WO ${wo.wo})`,
+        qty: wo.qty || 1, distributor: wo.distributor || '', vendor: 'AHS',
+        requires_return: false, status: 'requested', tracking: '', source: 'ahs_email', at_ms: Date.now(),
       });
       recorded++;
     } catch (_) {}
