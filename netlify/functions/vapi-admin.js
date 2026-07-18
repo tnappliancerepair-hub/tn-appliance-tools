@@ -21,6 +21,7 @@ const PROXY = 'https://tnapplianceexchange.net/.netlify/functions/vapi-tool';
 const INBOUND_NAME = 'Ant Inbound';
 
 const TOOLS = [
+  { name: 'get_business_hours', description: 'Check whether the office is OPEN right now (a live person available) and get the shop hours. Humans answer Mon–Fri 9am–6pm Central only; closed evenings + weekends (you, the assistant, are 24/7). ALWAYS call this before offering to connect a caller to a live person or promising a callback, and follow the guidance it returns.', params: {}, required: [] },
   { name: 'lookup_customer_by_phone', description: 'Look up a caller by phone number. Returns customer + open jobs + caller_id_masked.', params: { phone: { type: 'string', description: 'Caller phone number.' } }, required: ['phone'] },
   { name: 'lookup_by_claim_number', description: 'Look up a job by claim, dispatch, or work-order number. Read back status, scheduled day, tech.', params: { claim_or_dispatch_number: { type: 'string', description: 'The number the caller gave.' } }, required: ['claim_or_dispatch_number'] },
   { name: 'search_customers', description: 'Find a caller by name or address when the number is masked/unmatched.', params: { query: { type: 'string', description: 'Full name or address.' } }, required: ['query'] },
@@ -179,6 +180,43 @@ exports.handler = async function (event) {
     const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
     const applied = String((sysNow && sysNow.content) || '').includes(MARK);
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
+  // Phone hours (Teddy 2026-07-18): a live person answers Mon–Fri 9–6 CT ONLY —
+  // no humans evenings or weekends; Ant is 24/7. Attaches get_business_hours + a
+  // rules block so Ant checks open/closed before offering a person or a callback.
+  // Idempotent. GET ?action=business_hours&secret=<admin>
+  if (action === 'business_hours') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- BUSINESS-HOURS -->';
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## PHONE HOURS — a live person is here Mon–Fri 9–6 Central ONLY; you (Ant) are 24/7 [highest priority]\n`
+        + `The office is staffed by a live person Monday through Friday, 9 AM to 6 PM Central. There is NO one to answer live in the evenings (after 6 PM) or on weekends. You are available 24/7 and can handle almost everything yourself.\n`
+        + `- If a caller asks our hours: "Our team's here Monday through Friday, 9 to 6 Central — and I'm here any time, day or night."\n`
+        + `- BEFORE you offer to connect someone to a live person, or promise a callback, CALL get_business_hours and follow its guidance.\n`
+        + `- WHEN CLOSED (evenings + weekends): never offer or imply a live transfer and never say someone will pick up now. Handle it yourself (look things up, book, send the intake/quick-check link, answer questions), then take their name + number + what they need with capture_callback and set honest expectations: "our team will follow up during business hours — Monday through Friday, 9 to 6." Give the next open time if they ask.\n`
+        + `- WHEN OPEN: help as normal; if a live transfer is enabled and they want a person, connect them per the transfer rules.\n`
+        + `Never promise a specific callback time you can't guarantee.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+    }
+    let tools = Array.isArray(model.tools) ? model.tools.slice() : [];
+    if (!tools.some((t) => tname(t) === 'get_business_hours')) {
+      const def = TOOLS.find((t) => t.name === 'get_business_hours');
+      if (def) tools.push(toolBody(def));
+    }
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { tools, messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vm = (verify.json || {}).model || {};
+    const sysNow = (vm.messages || []).find((m) => m.role === 'system');
+    const hasBlock = String((sysNow && sysNow.content) || '').includes(MARK);
+    const hasTool = (vm.tools || []).some((t) => tname(t) === 'get_business_hours');
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && hasBlock && hasTool, assistant: got.json.name, block_applied: hasBlock, tool_attached: hasTool, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
   // Lookup guidance — from call review (Phil Minge, 7/1): Ant couldn't find a

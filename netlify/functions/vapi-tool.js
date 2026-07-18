@@ -107,9 +107,46 @@ async function jobTruthAnswer(name, a) {
 // Route a tool name + args to the right backend. Generic by default: unwrap the
 // Vapi envelope and call Xano flat (POST), so EVERY tool the assistant has works
 // without per-tool code. GET tools use query params; a couple have overrides.
+// Deterministic business-hours check (America/Chicago). A live person answers the
+// phone Mon–Fri 9am–6pm CT ONLY — closed evenings + weekends. Ant (the AI) is 24/7.
+// Computed server-side so the assistant never does time math (same reason the date
+// logic is server-computed). Returns open/closed + the current CT time + guidance the
+// assistant follows. (Teddy 2026-07-18: no humans on the phone after 6 or on weekends.)
+function businessHoursNow() {
+  const now = new Date();
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago', weekday: 'long', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now).map((x) => [x.type, x.value]));
+  const DOW = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 };
+  const dow = DOW[p.weekday];
+  let hour = parseInt(p.hour, 10); if (hour === 24) hour = 0;
+  const isWeekday = dow >= 1 && dow <= 5;
+  const open = isWeekday && hour >= 9 && hour < 18;
+  const now_ct = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long', hour: 'numeric', minute: '2-digit', hour12: true }).format(now) + ' Central';
+  let next_open = 'open now';
+  if (!open) {
+    if (isWeekday && hour < 9) next_open = 'today at 9 AM Central';
+    else {
+      const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      let k = 1; while (((dow + k) % 7) < 1 || ((dow + k) % 7) > 5) k++;
+      next_open = (k === 1 ? 'tomorrow' : names[(dow + k) % 7]) + ' at 9 AM Central';
+    }
+  }
+  return {
+    open,
+    now_ct,
+    hours_text: 'Our team answers the phone Monday through Friday, 9 AM to 6 PM Central. We are closed evenings and weekends — but our assistant is here any time, day or night.',
+    next_open_text: next_open,
+    guidance: open
+      ? 'We are currently OPEN (a live person is in the office). If a live transfer is enabled and the caller wants a person, connect them per the transfer rules; otherwise take a message and the office can follow up today.'
+      : 'We are currently CLOSED for live calls. Do NOT offer or attempt a transfer and do NOT imply anyone will pick up now. Handle the request yourself, take name + number + what they need with capture_callback, and set expectations: our team follows up during business hours, Monday–Friday 9 to 6 Central. Next available: ' + next_open + '.',
+  };
+}
+
 async function callBackend(name, a) {
   a = a || {};
   if (!name) return { error: 'no tool name' };
+  if (name === 'get_business_hours') return businessHoursNow();
   if (STATUS_LENS[name]) return jobTruthAnswer(name, a);
   if (NETLIFY_TOOLS[name]) return postJson(`${NETLIFY}/${NETLIFY_TOOLS[name]}`, a);
   const path = ENDPOINT_OVERRIDE[name] || name;
