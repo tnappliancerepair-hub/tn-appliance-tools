@@ -101,20 +101,40 @@ exports.handler = async function (event) {
   if (action === 'approve') {
     if (!authed) return json(401, { error: 'unauthorized' });
     if (!s.pending) return json(200, { ok: false, error: 'no pending draft to approve' });
+    const item = s.pending;
     const token = await getSecret('SOCIAL_FB_PAGE_TOKEN');
     const pageId = await getSecret('SOCIAL_FB_PAGE_ID');
     if (!token || !pageId) return json(400, { error: 'not connected — run social-fb-oauth-start first' });
-    let message = s.pending.message;
+    let message = item.message;
     if (q.message != null) message = q.message;
     else if (event.body) { try { const b = JSON.parse(event.body); if (b.message != null) message = b.message; } catch (_) {} }
-    const pub = await publishFB(pageId, token, message, s.pending.link || null);
+    const pub = await publishFB(pageId, token, message, item.link || null);
     if (!pub.ok) return json(502, { ok: false, error: 'publish failed', detail: pub.err });
-    const key = s.pending.key;
+    const key = item.key;
     s.published.push(key);
-    s.log.push({ key, title: s.pending.title, action: 'published', fb_post_id: pub.id, at: Date.now() });
+    s.log.push({ key, title: item.title, action: 'published', fb_post_id: pub.id, at: Date.now() });
+
+    // Best-effort Instagram cross-post. IG can't post text-only, and video Reels
+    // process async — so for VIDEO posts we hand off to a background function.
+    let ig = { queued: false, reason: null };
+    try {
+      const igId = await getSecret('SOCIAL_IG_USER_ID');
+      const m = (item.link || '').match(/\/(?:videos|reel)\/(\d+)/);
+      if (!igId) ig.reason = 'instagram_not_connected';
+      else if (!m) ig.reason = 'text_or_link_post — paste the Instagram copy';
+      else {
+        const igCap = ((variantsFor(item) || {}).instagram || {}).text || message;
+        fetch('https://tnapplianceexchange.net/.netlify/functions/social-ig-crosspost-background', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, title: item.title, videoId: m[1], caption: igCap }),
+        }).catch(() => {});
+        ig.queued = true;
+      }
+    } catch (_) { ig.reason = 'error'; }
+
     s.pending = null;
     await saveState(s);
-    return json(200, { ok: true, published: key, fb_post_id: pub.id, url: `https://www.facebook.com/${pub.id}` });
+    return json(200, { ok: true, published: key, fb_post_id: pub.id, url: `https://www.facebook.com/${pub.id}`, instagram: ig });
   }
 
   if (action === 'reset') {

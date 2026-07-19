@@ -154,7 +154,8 @@ function render(d){
   if(d.recent&&d.recent.length){
     html+='<div class="log"><div style="border:none;color:var(--ink);font-weight:700;padding-bottom:4px">Recent</div>';
     d.recent.forEach(function(r){
-      html+='<div>'+(r.action==='published'?'✅':'⤫')+' <b>'+esc(r.title||r.key)+'</b> — '+esc(r.action)+' '+fmt(r.at)
+      var icon={published:'✅',skipped:'⤫',ig_published:'📸',ig_failed:'⚠️',ig_skipped:'·'}[r.action]||'•';
+      html+='<div>'+icon+' <b>'+esc(r.title||r.key)+'</b> — '+esc(r.action)+(r.reason?' ('+esc(r.reason)+')':'')+' '+fmt(r.at)
         +(r.fb_post_id?' · <a href="https://www.facebook.com/'+esc(r.fb_post_id)+'" target="_blank">view</a>':'')+'</div>';
     });
     html+='</div>';
@@ -177,7 +178,14 @@ async function approve(){
   setMsg('Publishing…');
   try{
     const d=await api('approve',{method:'POST',body:{message:cap}});
-    if(d.ok){ setMsg('✅ Published! '+(d.url||'')); }
+    if(d.ok){
+      var ig='';
+      if(d.instagram){
+        if(d.instagram.queued) ig=' · 📸 Instagram: posting…';
+        else if(d.instagram.reason && d.instagram.reason.indexOf('text')===0) ig=' · 📸 paste the Instagram copy below';
+      }
+      setMsg('✅ Published to Facebook!'+ig);
+    }
     else{ setMsg('Publish failed: '+(JSON.stringify(d.detail||d.error)),true); }
     load();
   }catch(e){ setMsg('Error: '+e.message,true); }
