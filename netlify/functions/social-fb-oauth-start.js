@@ -10,10 +10,13 @@
 // Open: https://tnapplianceexchange.net/.netlify/functions/social-fb-oauth-start
 'use strict';
 
-const { defaultRedirect, SCOPES } = require('./_lib/social-fb');
+const { defaultRedirect, SCOPES, SCOPES_IG } = require('./_lib/social-fb');
 const { getSecretPreferVault } = require('./_lib/secrets');
 
-exports.handler = async function () {
+// Add ?ig=1 to ALSO request Instagram publishing scopes (only after they're added
+// in the app). Without it, the base Facebook page re-connect is used.
+exports.handler = async function (event) {
+  const q = (event && event.queryStringParameters) || {};
   const appId = await getSecretPreferVault('SOCIAL_FB_APP_ID');
   if (!appId) {
     return {
@@ -21,10 +24,11 @@ exports.handler = async function () {
       body: '<p>Add <b>SOCIAL_FB_APP_ID</b> and <b>SOCIAL_FB_APP_SECRET</b> to the vault via <b>admin-secrets.html</b> first, then reload.</p>',
     };
   }
+  const scope = (q.ig === '1' || q.ig === 'true') ? SCOPES_IG : SCOPES;
   const u = new URL('https://www.facebook.com/v21.0/dialog/oauth');
   u.searchParams.set('client_id', appId);
   u.searchParams.set('redirect_uri', defaultRedirect());
-  u.searchParams.set('scope', SCOPES);
+  u.searchParams.set('scope', scope);
   u.searchParams.set('response_type', 'code');
   u.searchParams.set('state', 'ant' + Date.now());
   return { statusCode: 302, headers: { Location: u.toString() }, body: '' };
