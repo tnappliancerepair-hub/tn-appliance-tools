@@ -67,6 +67,39 @@ rank. The thing that makes money deepens the moat.
 
 ---
 
+## POSITIONING: an ASSET to Amazon, not just a seller (Teddy, 2026-07-18)
+The elevation that matters. "Seller on Amazon" fights for scraps; "asset to Amazon" gets
+courted. It's credible because we solve problems **Amazon itself has** in appliance parts:
+- **Returns reduction (the key hook).** Appliance parts have brutal return rates ("didn't fit
+  my model") — and returns are Amazon's pain too (cost, CX, fulfillment). If our AI + fitment
+  measurably LOWER category returns, we make Amazon's category healthier. This is the single
+  most compelling "asset" argument — it hits Amazon where they feel it. **Build the whole thing
+  to PRODUCE a returns-reduction number and put it on the table.**
+- **The expertise layer Amazon lacks.** Amazon sells the part; it can't tell you which one or
+  how to install it. That gap = wrong buys, returns, bad reviews, abandoned carts. We're the
+  expertise the platform structurally doesn't have.
+- **External traffic — Amazon pays for it.** The **Brand Referral Bonus** (~10% back) rewards
+  sales we drive to Amazon from outside. Our 449 ranking pages + base qualify. Amazon officially
+  treating a traffic-driver as an asset, in cash.
+
+**The honest sequence:** you do NOT pitch Amazon into "asset" status from zero — Amazon respects
+proven metrics, not decks. The path to asset IS the store strategy executed so well the data
+speaks: low returns, fast reviews, real external traffic. Earn it by being undeniable first.
+
+**The ladder (climb in order):**
+1. **Model seller** — nail the metrics; Amazon's *algorithms* favor you (Buy Box, Vine, rank).
+2. **Category partner** — with scale + the returns-reduction proof, cultivate a real Amazon
+   relationship (they court strategic brands). Asset to the *people*, not just the machine.
+3. **The expertise layer (moonshot)** — Amazon leans on our AI so buyers "confirm this fits my
+   model / get the fix guide" powered by Ant, or our repair network plugs into Amazon's home-
+   services side. Ant as *infrastructure*. Real optionality — earned at the top, never pitched
+   from the bottom.
+
+**The through-line (same as the warranty-giant wedge):** Ant is the **appliance-intelligence
+layer the big platforms lack and would rather partner with than build.** Frontdoor needs
+claim-auth intelligence; Amazon needs fitment + expertise. We don't compete *with* the
+platforms — we're the missing layer. That's a durable identity worth building toward.
+
 ## Honest challenges / risks (asked to be real)
 - **Competitive + margin-compressed** (~15% referral + FBA fees). Win on niche + trust +
   fitment, not price.
@@ -132,7 +165,7 @@ repeat-purchase rate · QR-scan → Ant engagement.
    Business *buyer* API; Amazon store waits on trademark/Seller Central — different gates).
 
 ---
-**Changelog:** v1 — 2026-07-18, lake brainstorm (Teddy). Strategy captured. The trust question
+**Changelog:** v1.1 — 2026-07-18, added the "asset to Amazon, not just a seller" positioning (returns-reduction as the key hook, the 3-rung ladder, and the "Ant = the intelligence layer platforms lack" through-line). v1 — strategy captured. The trust question
 answered: same moat (techs + transparency + AI + reviews), new surface. Not started; foundation
 (trademark → Brand Registry → Seller Central) can begin whenever Teddy wants — independent of
 the Amazon Business *buyer* API.
