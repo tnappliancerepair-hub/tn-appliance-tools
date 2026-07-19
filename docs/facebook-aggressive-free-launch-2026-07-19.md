@@ -7,6 +7,17 @@
 
 ---
 
+## 📖 THE STORY — the emotional spine (the heart of the whole campaign)
+Teddy's own words (2026-07-19). This is the anchor of the reintroduction — post #1 on the personal page + the pinned post on the page. Everything else (old videos, AI demos) hangs off this.
+
+- **Ant is named after Teddy's son, Ant** 🐜. Friends + family know his son — the tribute is what makes them spread it "far and wide." **Tasteful = sincere.** We do NOT dress it up; "I named it after my son" is the whole thing. Keep it warm, never a gimmick.
+- **Dawn** was the shop's beloved phone expert — the voice customers trusted. Her **eyesight became severely impaired**, and rather than complain, Teddy **built the next stage** to honor what she gave. Tell her part with **dignity — a tribute, not a sad footnote.** ⚠️ Get Dawn's blessing before publishing her story publicly (respect + it makes the story warmer if she's in on it).
+- **Ann** is Ant's assistant — the advanced AI that now answers the phones 24/7, replacing Dawn's role. "Ant" (the system, the son) + "Ann" (the assistant) = the family of names.
+- **8 months, day and night** — Teddy's relentless build. The sacrifice IS part of the story.
+- **The message:** same family, same honesty, since 2012 — we didn't quit, we built something advanced. Real + resilient = "safe to do business with us" = the crown 👑. People share the story, then discover the proof (reviews, the AI, the archive). That's the far-and-wide.
+
+**Draft anchor post** (Teddy's voice, refine before posting): opens "Some of you have known us for over a decade…" → Dawn's tribute + "we didn't complain, we got to work" → "8 months day and night" → "I named it after my son. Ant. 🐜" → Ann answers 24/7, send a video at 2am → "same family, same honesty, since 2012, we just gave it superpowers" → "we're just getting started 👑" → trust line.
+
 ## The principle
 **Free-first blitz. Paid is the accelerant, never the lead.** Every free lever maxed. The pixel (already live) + engagement build the warm audience for free. We add paid ONLY once organic has (a) proven which content converts, (b) filled the retargeting pool, and (c) shown the message lands. Cheapest customer acquisition that exists.
 
