@@ -25,6 +25,14 @@ or walk away), and let the outcomes compound into an intelligence no one else
 has. Transparency isn't a soft value — it's the moat and the growth engine, the
 same move.
 
+**🧠 The identity that creates: Ant is the appliance-intelligence layer the big
+platforms lack — and would rather partner with than build.** FrontDoor's warranty
+AI has no cross-vendor contractor brain; Amazon sells a part it can't diagnose;
+OEMs sell machines but don't own the repair. None of them will become an 8-year
+repair company to fix that — that's *our* techs, *our* outcomes, *our* trust. So
+we don't compete *with* the platforms; we're the layer they're incomplete without.
+That's who Ant is across all three layers below (developed in §02½).
+
 The plan below is the operating version of that: what's real today, what makes
 us hard to copy, the three layers in the order we build them, how each makes
 money, and the honest risks.
@@ -80,6 +88,41 @@ A competitor with a weekend and an LLM can clone a screen. They can't clone thes
 4. **Transparency is structurally hard to copy.** Incumbents survive on markup
    opacity — they can't match "here are your honest options + we'll ship you the
    part" without gutting their own margins.
+
+---
+
+## 02½ · The identity — the appliance-intelligence layer *(crystallized 2026-07-18, lake)*
+
+The unifying thread under all three layers. **Every big platform in appliances is
+missing the same thing — and none will build it, because it means becoming a repair
+company:**
+
+- **The warranty giants** (FrontDoor/AHS, SquareTrade) have claims + dispatch, but
+  their AI serves *them* — no cross-vendor contractor brain. (See **THE WEDGE** in L2.)
+- **Amazon** has the marketplace + the buy-button trust, but sells a part it can't
+  diagnose — it can't tell a buyer *which* part fits their model or *how* to install
+  it, and wrong-part returns are Amazon's pain too. Ant's fitment + AI part-confirmation
+  makes Amazon's category *healthier* — so we position not as one more seller but as an
+  **asset to Amazon** (returns-reduction is the key that opens the partner door). Full
+  play: `docs/amazon-store-strategy-2026-07-18.md` + `docs/amazon-dropship-store-plan-2026-07-18.md`.
+- **OEMs / big-box** sell machines + parts but don't own the repair or the
+  post-purchase moment.
+
+**The through-line:** Ant is the **appliance-intelligence layer the big platforms lack
+and would rather partner with than build.** We don't compete *with* the platforms —
+we're the missing layer that makes each of them better. This reframes the partner
+targets in §06: not "sell to a giant who might build their own," but "**be the
+intelligence they're structurally incomplete without.**"
+
+**The discipline it demands:** you earn the asset/partner seat by being **undeniable
+first** — proven outcomes (first-visit-fix, low returns, real reviews, external traffic),
+not a pitch deck. The metrics open the door; the deck never does. Build everything to
+*produce the number* (returns-reduction for Amazon; claim-accuracy for the warranty cos)
+and set it on the table.
+
+**Why it's ours to hold:** it rests on the same uncopyable base as §02 — the outcomes
+data, the tech-founder, the vendor relationships, transparency. A platform can rent an
+LLM; it can't rent eight years of what actually fixed the machine.
 
 ---
 
@@ -207,6 +250,10 @@ in parallel so the books eventually run without a bookkeeper.
 
 ## 06 · Partners & keys — collect them early (access IS the asset)
 
+*Frame (per §02½): approach each not as a vendor to sell to, but as a platform that's
+**structurally incomplete without our intelligence layer** — and earn the seat by being
+undeniable on their metric first (returns for Amazon, claim-accuracy for warranty cos).*
+
 | Target | Why they matter | Status |
 |---|---|---|
 | **Home-warranty cos** (AHS/Frontdoor, SquareTrade, 2-10, Cinch) | Biggest prize — Teddy has the relationships. White-label / status-API deal = scale-changer. | Relationship-deep; API BD-gated |
@@ -251,6 +298,14 @@ in parallel so the books eventually run without a bookkeeper.
 ---
 
 ## Changelog
+- **2026-07-18 — v1.2.** Folded in the **intelligence-layer identity** (lake brainstorm):
+  Ant is *the appliance-intelligence layer the big platforms lack and would rather partner
+  with than build.* Added to the thesis + a new **§02½** developing it across the warranty
+  giants (the WEDGE), **Amazon (asset, not just a seller — returns-reduction as the key that
+  opens the partner door)**, and OEMs/big-box; reframed §06 partners around it. Discipline:
+  earn the asset seat by being undeniable on their metric first, never a pitch deck. New
+  companion docs: `docs/amazon-store-strategy-2026-07-18.md` (trusted Amazon brand) +
+  `docs/amazon-dropship-store-plan-2026-07-18.md` (own-site drop-ship store).
 - **2026-07-17 — v1.1.** Added **THE WEDGE** to L2 (from Teddy testing FieldPal.ai,
   FrontDoor's own tech-facing AI PoC): warranty giants building in-house isn't the
   door closing — their AI serves *them*, so the durable ground is the cross-vendor
