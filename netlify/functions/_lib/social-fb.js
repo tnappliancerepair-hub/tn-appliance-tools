@@ -16,14 +16,16 @@ const REDIRECT = 'https://tnapplianceexchange.net/.netlify/functions/social-fb-o
 // be ADDED in the use case (Ready for testing) or the login dialog returns
 // "Invalid Scopes" — keep this list matched to what's added there. Instagram +
 // pages_messaging are separate use cases added later.
+// Trimmed to the scopes that are actually needed + reliably valid. Dropped
+// pages_manage_metadata (webhooks) + read_insights (analytics) after Meta flagged
+// them "Invalid Scopes" once the Instagram use case was added — neither is needed
+// to post to the Page or to Instagram.
 const PAGE_SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
   'pages_manage_engagement',
   'pages_read_user_content',
-  'pages_manage_metadata',
-  'read_insights',
 ];
 const SCOPES = PAGE_SCOPES.join(',');
 
