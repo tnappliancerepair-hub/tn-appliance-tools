@@ -92,7 +92,7 @@ function everywhere(v){
   if(!v) return '';
   let h='<div class="every"><h3>📣 Post everywhere — write once, drop it on all of them</h3>';
   // Instagram, X, TikTok (plain text blocks)
-  [['instagram',v.instagram],['x',v.x],['tiktok',v.tiktok]].forEach(function(pair){
+  [['instagram',v.instagram],['x',v.x],['truthsocial',v.truthsocial],['tiktok',v.tiktok]].forEach(function(pair){
     const id=pair[0], p=pair[1]; if(!p) return;
     COPY[id]=p.text;
     h+='<div class="plat"><div class="plat-h"><b>'+esc(p.label)+'</b>'

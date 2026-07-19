@@ -53,6 +53,12 @@ function forTikTok(item) {
   return `${lead} 🐜\n\n${tags}`;
 }
 
+// Truth Social allows longer posts than X — give it the full message + CTA.
+function forTruthSocial(item) {
+  const tags = tagsFor(item.key).slice(0, 4).join(' ');
+  return `${item.message.trim()}\n\n📞 ${PHONE} — Ann answers 24/7 🐜\n\n${tags}`;
+}
+
 function forYouTube(item) {
   // Title from the human title, stripped of internal notes/view-counts.
   let title = String(item.title || '')
@@ -74,6 +80,7 @@ function variantsFor(item) {
     facebook: { label: 'Facebook', text: item.message, link: item.link || null, note: item.link ? 'Attach the video, then paste this caption.' : null },
     instagram: { label: 'Instagram', text: forInstagram(item), note: item.kind === 'video' ? 'Post as a Reel; no clickable links in caption.' : 'Pair with an image or your logo.' },
     x: { label: 'X / Twitter', text: forX(item), note: 'Trimmed to fit. Add the video/photo natively.' },
+    truthsocial: { label: 'Truth Social', text: forTruthSocial(item), note: 'Paste + attach the video/photo. (No open posting API — manual.)' },
     tiktok: { label: 'TikTok', text: forTikTok(item), note: item.kind === 'video' ? 'Upload the clip; keep it snappy.' : 'Turn into a quick talking-head or text-on-screen clip.' },
     youtube: forYouTube(item), // { title, description }
   };
