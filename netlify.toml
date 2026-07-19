@@ -648,3 +648,9 @@
 # recent AHS jobs matching their true dispatch so the crew can trust the tile. Every 10 min.
 [functions."ahs-reconcile"]
   schedule = "*/10 * * * *"
+
+# Draft-first social campaign: drafts the next post daily at ~9am CT. Self-gates —
+# no-ops until SOCIAL_CAMPAIGN_LIVE=true (Teddy's GO). Never publishes on its own;
+# publishing is always an explicit approve on social-drafts.html.
+[functions."social-campaign"]
+  schedule = "0 14 * * *"

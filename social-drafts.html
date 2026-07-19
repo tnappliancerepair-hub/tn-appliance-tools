@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Social Drafts · TN Appliance</title>
+<style>
+  :root{--bg:#14100c;--card:#1e1913;--line:#33291d;--ink:#f3ece1;--muted:#a89a86;--orange:#ff8a3d;--go:#4ac07a;--red:#e8654e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:680px;margin:0 auto;padding:24px 18px 60px}
+  h1{font-size:22px;margin:0 0 2px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;font-size:13px}
+  .pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:600;color:var(--muted)}
+  .pill b{color:var(--ink)}
+  .pill.live{color:var(--go);border-color:#2c5b3f}
+  .pill.off{color:var(--muted)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+  .title{font-weight:800;font-size:16px;margin-bottom:2px}
+  .kind{display:inline-block;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:800;color:var(--orange);background:#2a1c10;border:1px solid #4a3218;border-radius:5px;padding:2px 7px;margin-bottom:10px}
+  .note{background:#2a1c10;border-left:3px solid var(--orange);border-radius:0 8px 8px 0;padding:8px 12px;font-size:13px;margin-bottom:12px}
+  textarea{width:100%;min-height:190px;background:#171208;border:1px solid var(--line);border-radius:10px;color:var(--ink);font-size:14.5px;line-height:1.55;padding:12px;font-family:inherit;resize:vertical}
+  .vid{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:13.5px;color:var(--orange);text-decoration:none;font-weight:600}
+  .actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  button{font:inherit;font-weight:700;border-radius:10px;padding:11px 18px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+  button.go{background:var(--go);border-color:var(--go);color:#08130c}
+  button.skip{color:var(--muted)}
+  button.ghost{background:transparent}
+  button:disabled{opacity:.5;cursor:default}
+  .empty{color:var(--muted);text-align:center;padding:24px 0}
+  .log{font-size:12.5px;color:var(--muted);margin-top:8px}
+  .log div{padding:5px 0;border-top:1px solid var(--line)}
+  .log b{color:var(--ink)}
+  .warn{color:var(--red)}
+  a{color:var(--orange)}
+  .msg{font-size:13px;margin:8px 0;min-height:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🐜 Social Drafts</h1>
+  <div class="sub">Draft-first campaign review — nothing posts to Facebook until you tap <b>Approve &amp; Publish</b>.</div>
+  <div class="bar" id="bar"></div>
+  <div class="msg" id="msg"></div>
+  <div id="content"><div class="empty">Loading…</div></div>
+</div>
+<script>
+const API = '/.netlify/functions/social-campaign';
+let SECRET = localStorage.getItem('tn_social_secret') || '';
+function esc(s){var d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+function fmt(ms){try{return new Date(ms).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}catch(e){return ''}}
+function setMsg(t,warn){var m=document.getElementById('msg');m.innerHTML=t?('<span class="'+(warn?'warn':'')+'">'+esc(t)+'</span>'):'';}
+
+async function api(action, opts){
+  opts=opts||{};
+  const u=API+'?action='+action+'&secret='+encodeURIComponent(SECRET);
+  const r=await fetch(u,{method:opts.method||'GET',headers:opts.body?{'Content-Type':'application/json'}:undefined,body:opts.body?JSON.stringify(opts.body):undefined});
+  const d=await r.json().catch(()=>({}));
+  if(r.status===401){localStorage.removeItem('tn_social_secret');SECRET='';throw new Error('unauthorized');}
+  return d;
+}
+
+function ensureSecret(){
+  if(SECRET)return true;
+  const s=prompt('Enter admin secret to manage social drafts:');
+  if(!s)return false;
+  SECRET=s.trim();localStorage.setItem('tn_social_secret',SECRET);return true;
+}
+
+async function load(){
+  if(!ensureSecret()){document.getElementById('content').innerHTML='<div class="empty">Locked.</div>';return;}
+  let d;
+  try{ d=await api('list'); }
+  catch(e){ document.getElementById('content').innerHTML='<div class="empty warn">Wrong secret. <button onclick="location.reload()">Try again</button></div>'; return; }
+  render(d);
+}
+
+function render(d){
+  const bar=document.getElementById('bar');
+  bar.innerHTML =
+    '<span class="pill '+(d.live?'live':'off')+'">'+(d.live?'🟢 Auto-draft LIVE':'⚪ Auto-draft OFF')+'</span>'
+    +'<span class="pill">Published <b>'+(d.published?d.published.length:0)+'</b>/'+d.total+'</span>'
+    +'<span class="pill">Remaining <b>'+d.remaining+'</b></span>';
+
+  const c=document.getElementById('content');
+  let html='';
+  const p=d.pending;
+  if(p){
+    html+='<div class="card">';
+    html+='<span class="kind">'+esc(p.kind)+(p.link?' · video':'')+'</span>';
+    html+='<div class="title">'+esc(p.title)+'</div>';
+    if(p.note)html+='<div class="note">'+esc(p.note)+'</div>';
+    html+='<textarea id="cap">'+esc(p.message)+'</textarea>';
+    if(p.link)html+='<a class="vid" href="'+esc(p.link)+'" target="_blank">🎬 open the video →</a>';
+    html+='<div class="actions">'
+      +'<button class="go" onclick="approve()">✓ Approve &amp; Publish</button>'
+      +'<button class="skip" onclick="skip()">Skip this one</button>'
+      +'</div>';
+    html+='</div>';
+  } else if(d.next_up){
+    html+='<div class="card"><div class="title">Next up: '+esc(d.next_up.title)+'</div>'
+      +'<div class="sub" style="margin:6px 0 0">No draft pending. Generate it to review.</div>'
+      +'<div class="actions"><button class="go" onclick="draftNext()">✏️ Draft next post</button></div></div>';
+  } else {
+    html+='<div class="card empty">🎉 Campaign queue complete — every post handled.</div>';
+  }
+
+  if(d.recent&&d.recent.length){
+    html+='<div class="log"><div style="border:none;color:var(--ink);font-weight:700;padding-bottom:4px">Recent</div>';
+    d.recent.forEach(function(r){
+      html+='<div>'+(r.action==='published'?'✅':'⤫')+' <b>'+esc(r.title||r.key)+'</b> — '+esc(r.action)+' '+fmt(r.at)
+        +(r.fb_post_id?' · <a href="https://www.facebook.com/'+esc(r.fb_post_id)+'" target="_blank">view</a>':'')+'</div>';
+    });
+    html+='</div>';
+  }
+  c.innerHTML=html;
+}
+
+async function draftNext(){
+  setMsg('Drafting…');
+  try{ await api('draft'); setMsg(''); load(); }catch(e){ setMsg('Error: '+e.message,true); }
+}
+async function skip(){
+  if(!confirm('Skip this post? It won\'t be published.'))return;
+  setMsg('Skipping…');
+  try{ await api('skip'); setMsg(''); load(); }catch(e){ setMsg('Error: '+e.message,true); }
+}
+async function approve(){
+  const cap=(document.getElementById('cap')||{}).value||'';
+  if(!confirm('Publish this to your Facebook page right now?'))return;
+  setMsg('Publishing…');
+  try{
+    const d=await api('approve',{method:'POST',body:{message:cap}});
+    if(d.ok){ setMsg('✅ Published! '+(d.url||'')); }
+    else{ setMsg('Publish failed: '+(JSON.stringify(d.detail||d.error)),true); }
+    load();
+  }catch(e){ setMsg('Error: '+e.message,true); }
+}
+load();
+</script>
+</body>
+</html>
