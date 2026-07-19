@@ -18,7 +18,7 @@ const { getSecret } = require('./_lib/secrets');
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const VAPI = 'https://api.vapi.ai';
 const PROXY = 'https://tnapplianceexchange.net/.netlify/functions/vapi-tool';
-const INBOUND_NAME = 'Ant Inbound';
+const INBOUND_NAME = 'Ann'; // renamed from 'Ant Inbound' 2026-07-19 — the phone assistant is Ann (Ant's assistant)
 
 const TOOLS = [
   { name: 'get_business_hours', description: 'Check whether the office is OPEN right now (a live person available) and get the shop hours. Humans answer Mon–Fri 9am–6pm Central only; closed evenings + weekends (you, the assistant, are 24/7). ALWAYS call this before offering to connect a caller to a live person or promising a callback, and follow the guidance it returns.', params: {}, required: [] },
@@ -67,6 +67,36 @@ exports.handler = async function (event) {
   // Dump a single call's structured turns + transcriber/voice config, so we can
   // tell whether Ant GENERATED gibberish (model issue) or the transcript just
   // garbled his audio (STT/voice issue) — e.g. the Hindi-speaker call.
+  // Rename the phone assistant to ANN (Ant's assistant) — the persona from the
+  // family story. Sets the display label to "Ann", prepends a WHO-YOU-ARE identity
+  // block so she introduces herself as Ann, and updates the spoken greeting.
+  // Idempotent on the identity block. (Teddy 2026-07-19.)
+  if (action === 'name_ann') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- ANN-IDENTITY -->';
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## WHO YOU ARE — your name is Ann\n`
+        + `You are **Ann**, the friendly AI phone assistant for TN Appliance Exchange. When you first greet a caller, introduce yourself by name, warmly and naturally — e.g. "Thanks for calling TN Appliance Exchange, this is Ann, how can I help you today?" If anyone asks your name, you are Ann. Stay warm, real, and human — you are part of the TN Appliance family.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+    }
+    const prevFirst = typeof got.json.firstMessage === 'string' ? got.json.firstMessage : '';
+    const patchBody = { name: 'Ann', model: Object.assign({}, model, { messages: msgs }) };
+    // Only override the spoken greeting if the assistant uses a static one (else the
+    // model generates it and the identity block above already handles the name).
+    if (prevFirst.trim()) patchBody.firstMessage = 'Thanks for calling TN Appliance Exchange, this is Ann, how can I help you today?';
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, patchBody);
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, renamed_to: (verify.json || {}).name, identity_applied: applied, previous_first_message: prevFirst || '(none — model-generated)', new_first_message: (verify.json || {}).firstMessage, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   if (action === 'calldetail') {
     const cid = String(q.call_id || '').trim();
     if (!cid) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'pass &call_id=' }) };
@@ -1280,7 +1310,7 @@ exports.handler = async function (event) {
     inbound = got;
   } else {
     const aResp = await vapi('GET', '/assistant?limit=100', key);
-    inbound = listFrom(aResp).find((a) => (a.name || '').trim().toLowerCase() === INBOUND_NAME.toLowerCase());
+    inbound = listFrom(aResp).find((a) => ['ann', 'ant inbound'].includes((a.name || '').trim().toLowerCase()));
     if (!inbound) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'Ant Inbound not found', names: listFrom(aResp).map((a) => a.name) }) };
   }
 
