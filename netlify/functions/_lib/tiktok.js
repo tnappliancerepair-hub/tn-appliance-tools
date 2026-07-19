@@ -14,10 +14,10 @@ const { getSecretPreferVault, getSecret, setSecret } = require('./secrets');
 const AUTHORIZE = 'https://www.tiktok.com/v2/auth/authorize/';
 const API = 'https://open.tiktokapis.com/v2';
 const REDIRECT = 'https://tnapplianceexchange.net/.netlify/functions/tiktok-oauth-callback';
-// Only what we demonstrate: user.info.basic (Login Kit, confirm account) +
-// video.publish (Content Posting API Direct Post). video.publish isn't in the
-// "Add scopes" list — it's granted by the Content Posting API product itself.
-const SCOPES = 'user.info.basic,video.publish';
+// Draft/Upload mode (approvable path): user.info.basic (confirm account) +
+// video.upload (Content Posting API "Upload to TikTok"). The video is auto-
+// uploaded to the user's TikTok drafts; they open TikTok, add caption, and post.
+const SCOPES = 'user.info.basic,video.upload';
 
 function defaultRedirect() { return REDIRECT; }
 function scopes() { return SCOPES; }
@@ -68,15 +68,14 @@ async function freshAccessToken() {
   return { ok: false, error: r.data.error || r.data, detail: r.data };
 }
 
-// Direct-post a video by pulling it from a public URL (domain must be a verified
-// URL property in the app). privacy SELF_ONLY until audited.
-async function publishFromUrl(accessToken, { videoUrl, title, privacy }) {
-  const body = {
-    post_info: { title: title || '', privacy_level: privacy || 'SELF_ONLY', disable_comment: false, disable_duet: false, disable_stitch: false },
-    source_info: { source: 'PULL_FROM_URL', video_url: videoUrl },
-  };
+// Upload a video to the user's TikTok DRAFTS by pulling it from a public URL
+// (the domain must be a verified URL property in the app). The user then opens
+// TikTok, adds the caption, and taps Post. This is the "Upload to TikTok" flow
+// (video.upload) — the approvable path.
+async function uploadToInbox(accessToken, { videoUrl }) {
+  const body = { source_info: { source: 'PULL_FROM_URL', video_url: videoUrl } };
   try {
-    const r = await fetch(`${API}/post/publish/video/init/`, {
+    const r = await fetch(`${API}/post/publish/inbox/video/init/`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -86,4 +85,4 @@ async function publishFromUrl(accessToken, { videoUrl, title, privacy }) {
   } catch (e) { return { ok: false, status: 0, data: { error: String((e && e.message) || e) } }; }
 }
 
-module.exports = { defaultRedirect, scopes, authorizeUrl, tokenFromCode, freshAccessToken, publishFromUrl, API, REDIRECT };
+module.exports = { defaultRedirect, scopes, authorizeUrl, tokenFromCode, freshAccessToken, uploadToInbox, API, REDIRECT };
