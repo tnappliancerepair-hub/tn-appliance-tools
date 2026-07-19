@@ -112,6 +112,34 @@ price** ($15–40), **huge search volume** ("dryer vent cleaning kit"), **zero d
   hands them the exact part), not on being cheapest. We drop-ship too, so we can stay
   competitive.
 
+## TWO CHANNELS, one store — the risk-reducer (Teddy, 2026-07-18)
+Don't pick drop-ship OR FBA — use each for the SKU it fits. This is the architecture that
+kills the two big risks (inventory + returns):
+- **Fat head — universal, high-volume, predictable parts** (vent kits, common belts, thermal
+  fuses, water filters): **Amazon FBA.** Stock a little, Amazon fulfills + handles returns +
+  **resells the returns** → the returns-margin problem largely disappears. Demand is steady so
+  dead-stock risk is low.
+- **Long tail — model-specific parts** (exact control board for one model): **drop-ship** from
+  Marcone / Amazon Business. Can't warehouse 10k variants; the **model#-verify gate prevents
+  the return** in the first place.
+- **Two buttons can map to two fulfillment paths:** OEM = Marcone drop-ship; Amazon-equivalent
+  = the FBA/Amazon listing.
+- **Caveat:** an installed-then-returned electrical part may grade "unsellable" (not 100% free
+  even on FBA) — but sealed/unused returns resell fine and the *logistics pain* is gone.
+- **FBA is its own setup:** a **Seller Central** account (separate from the Business *buyer*
+  API), inventory mgmt, and **sales-tax nexus** in Amazon's warehouse states. Real, doable.
+
+### START HERE — one hero SKU (lowest-risk test)
+Launch FBA with **ONE product: a dryer vent kit** (universal, cheap, high-search, returns
+resell clean). Learn the FBA machine on one SKU while the SEO pages drive to it. If it prints,
+expand the shelf; if not, you're out almost nothing. **Capped downside, uncapped upside.**
+
+### Why the whole bet is low-risk
+No traffic risk (pages/audience exist) · no build risk (~80% plumbing exists) · no long-tail
+inventory risk (drop-ship) · no fat-head returns risk (FBA resells) · no capital risk (one SKU,
+scale only winners) · no distraction risk (auto-runs). Each channel covers the other's weak
+spot. Kill it anytime.
+
 ## The moat angle
 Every part/kit sold + every "did that fix it?" follow-up **trains the symptom→part engine**
 (Ant Brain) — so the thing that makes money is the same thing that deepens the moat a ChatGPT
@@ -133,5 +161,5 @@ convert · attach rate of service upsell on vent pages · repeat buyers.
 once we commit to building — this is the consumer platform seeded on ranked real estate we
 already own, funded by nothing extra.*
 
-**Changelog:** v1 — 2026-07-18, lake brainstorm (Teddy). Plan captured; awaiting Amazon
+**Changelog:** v1.1 — 2026-07-18, added the two-channel model (FBA fat-head + drop-ship long-tail), returns-via-FBA, "one hero SKU" test, and the low-risk framing (Teddy). v1 — 2026-07-18, lake brainstorm (Teddy). Plan captured; awaiting Amazon
 Business Ordering API production approval to execute Phase 0.
