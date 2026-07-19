@@ -89,4 +89,19 @@ Paid amplifies a *proven* message; it never leads.
 - ✅ FB posting API connected + long-lived token vaulted · ✅ pixel live · ✅ catalog readable (34 videos).
 - **NEXT BUILD:** the campaign **auto-poster** — schedules the archive drip + generates captions, draft-first, fires on Teddy's GO. Then the **comment auto-reply** (webhook + Ant brain). IG cross-post + `pages_messaging` App Review after.
 
-**Changelog:** v1 — 2026-07-19. Aggressive free-first launch locked from Teddy's directive, built on the live FB connection + real 34-video catalog.
+---
+
+## 🗺️ OMNIPRESENCE ROADMAP + "POST EVERYWHERE" (2026-07-19)
+Teddy's goal: total omnipresence — *"how many times am I going to see the Ant appliance place."* The ordered connect-one-at-a-time plan:
+1. **Facebook** ✅ connected (page + auto-poster + pixel). Left: Dawn's blessing → post/pin the anchor → GO.
+2. **Instagram** 🔨 DO NEXT — the one true auto-add (rides the FB connection). Teddy converts @tnappliance to a **Business** account + links it to the FB page (~5 min); I add IG perms to the "TN Appliance Ant" app (App ID 950649561404797) + re-run OAuth → FB→IG cross-post on.
+3. **Google Business** ✅ connected (2 posts/week, map pack).
+4. **YouTube** ⏳ paste-ready now (543K-view classic), own OAuth later.
+5. **TikTok** ⏳ manual/paste now; start dev-app audit clock for auto-posting.
+6. **X/Twitter** ⏳ profile polish + paste-ready; API optional (finicky free tier).
+7. **Everywhere-else tier** ⏳ Nextdoor · personal FB page · Yelp/BBB cleanup · LinkedIn company page.
+- **Roadmap artifact** (shareable, status + who-does-what): published this session (favicon 🐜👑).
+
+**"Post everywhere" engine shipped** (`_lib/social-variants.js` → `social-campaign.js` → `social-drafts.html`): every drafted post now returns ready-to-paste copy for **Instagram / X / TikTok / YouTube** alongside the FB caption — X auto-trimmed ≤280, IG/TikTok get hashtag blocks + the phone CTA (no clickable links), YouTube gets a cleaned title + description. On `social-drafts.html`, each surface has a one-tap **Copy** button under the FB approve action. FB still auto-publishes on Approve; the rest are paste-and-post until each platform's API is wired. **Write once, drop it on all six.**
+
+**Changelog:** v1 — 2026-07-19. Aggressive free-first launch locked from Teddy's directive, built on the live FB connection + real 34-video catalog. v2 — 2026-07-19: omnipresence roadmap + "post everywhere" per-platform copy engine.

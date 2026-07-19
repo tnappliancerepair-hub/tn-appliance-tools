@@ -19,6 +19,7 @@
 
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const { PLAN } = require('./_lib/social-campaign-plan');
+const { variantsFor } = require('./_lib/social-variants');
 
 const STATE_KEY = 'SOCIAL_CAMPAIGN_STATE';
 const REVIEW_URL = 'https://tnapplianceexchange.net/social-drafts.html';
@@ -68,6 +69,7 @@ exports.handler = async function (event) {
       ok: true, live: liveFlag,
       total: PLAN.length, published: s.published, skipped: s.skipped, remaining,
       pending: s.pending, next_up: s.pending ? null : nextPlanItem(s),
+      variants: s.pending ? variantsFor(s.pending) : null,
       recent: s.log.slice(-14).reverse(),
       review_url: REVIEW_URL,
     });
@@ -81,10 +83,10 @@ exports.handler = async function (event) {
     if (!item) return json(200, { ok: true, done: true, message: 'campaign queue exhausted 🎉' });
     s.pending = { key: item.key, kind: item.kind, title: item.title, message: item.message, link: item.link || null, note: item.note || null, drafted_at: Date.now() };
     await saveState(s);
-    return json(200, { ok: true, drafted: s.pending, review_url: REVIEW_URL });
+    return json(200, { ok: true, drafted: s.pending, variants: variantsFor(s.pending), review_url: REVIEW_URL });
   }
 
-  if (action === 'preview') return json(200, { ok: true, pending: s.pending, next_up: s.pending ? null : nextPlanItem(s) });
+  if (action === 'preview') return json(200, { ok: true, pending: s.pending, variants: s.pending ? variantsFor(s.pending) : null, next_up: s.pending ? null : nextPlanItem(s) });
 
   if (action === 'skip') {
     if (!s.pending) return json(200, { ok: false, error: 'no pending draft' });
