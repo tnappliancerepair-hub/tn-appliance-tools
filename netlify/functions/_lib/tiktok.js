@@ -14,8 +14,10 @@ const { getSecretPreferVault, getSecret, setSecret } = require('./secrets');
 const AUTHORIZE = 'https://www.tiktok.com/v2/auth/authorize/';
 const API = 'https://open.tiktokapis.com/v2';
 const REDIRECT = 'https://tnapplianceexchange.net/.netlify/functions/tiktok-oauth-callback';
-// video.publish = Direct Post; video.upload = draft to inbox; user.info.basic = confirm account.
-const SCOPES = 'user.info.basic,video.publish,video.upload';
+// Only what we demonstrate: user.info.basic (Login Kit, confirm account) +
+// video.publish (Content Posting API Direct Post). video.publish isn't in the
+// "Add scopes" list — it's granted by the Content Posting API product itself.
+const SCOPES = 'user.info.basic,video.publish';
 
 function defaultRedirect() { return REDIRECT; }
 function scopes() { return SCOPES; }
