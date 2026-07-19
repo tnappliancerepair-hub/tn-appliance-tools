@@ -10,17 +10,20 @@
 const GRAPH = 'https://graph.facebook.com/v21.0';
 const REDIRECT = 'https://tnapplianceexchange.net/.netlify/functions/social-fb-oauth-callback';
 
-// Permissions from the "Manage everything on your Page" use case ONLY — publish
-// posts, read the page + its content/videos, and moderate comments. Instagram,
-// messaging (pages_messaging), and insights are separate use cases we add later;
-// requesting them before their use case exists returns "Invalid Scopes" and
-// breaks the whole login dialog, so keep this list matched to the added use case.
+// Permissions from the "Manage everything on your Page" use case — the full page
+// toolkit: publish, read the page + its video library, analytics, comment
+// moderation, read customer content, and webhooks (real-time activity). Each must
+// be ADDED in the use case (Ready for testing) or the login dialog returns
+// "Invalid Scopes" — keep this list matched to what's added there. Instagram +
+// pages_messaging are separate use cases added later.
 const SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'pages_manage_posts',
   'pages_manage_engagement',
   'pages_read_user_content',
+  'pages_manage_metadata',
+  'read_insights',
 ].join(',');
 
 function defaultRedirect() { return REDIRECT; }
