@@ -21,5 +21,17 @@ exports.handler = async function (event) {
   ];
   const out = {};
   for (const n of names) out[n] = mask(await getSecretPreferVault(n));
-  return json(200, { found: out, note: 'sbawcllk… = the sandbox key; awwg0qc0… = production' });
+
+  // Connection status: did the OAuth complete + vault the refresh token?
+  const refresh = await getSecretPreferVault('TIKTOK_REFRESH_TOKEN');
+  const openId = await getSecretPreferVault('TIKTOK_OPEN_ID');
+  const scope = await getSecretPreferVault('TIKTOK_SCOPE');
+  const connected = {
+    TIKTOK_REFRESH_TOKEN: mask(refresh),
+    TIKTOK_OPEN_ID: openId || null,
+    TIKTOK_SCOPE: scope || null,
+    is_connected: !!refresh,
+  };
+
+  return json(200, { found: out, connected, note: 'sbawcllk… = the sandbox key; awwg0qc0… = production' });
 };
