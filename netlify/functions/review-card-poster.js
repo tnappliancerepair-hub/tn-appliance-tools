@@ -43,8 +43,8 @@ function caption(card) {
   if (card.is_la) {
     const phone = card.phone || laPhone(card.tech);
     const towns = card.towns || LA_SWEEP_FALLBACK;
-    return `⭐️⭐️⭐️⭐️⭐️ Real 5-star service all across Louisiana. 🐜\n\n`
-      + `Thank you, ${first} — this is exactly why we do it. ${towns} — and everywhere in Louisiana, wherever you are, we've got you. 24/7: text a quick video, get a real answer, no runaround.\n\n`
+    return `⭐️⭐️⭐️⭐️⭐️ Real 5-star service just about everywhere in Louisiana. 🐜\n\n`
+      + `Thank you, ${first} — this is exactly why we do it. ${towns} — and just about everywhere in between. Wherever you're at, we've probably got you. 24/7: text a quick video, get a real answer, no runaround.\n\n`
       + `The people of Louisiana always show us love — and we're grateful. 🙏\n\n`
       + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
       + `#appliancerepair #familyowned #5starservice ${LA_TAGS}`;
