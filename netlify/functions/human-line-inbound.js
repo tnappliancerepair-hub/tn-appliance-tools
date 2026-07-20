@@ -62,10 +62,14 @@ exports.handler = async function (event) {
     });
   } catch (_) {}
 
-  // Re-host any texted photos/videos so they show INLINE in the thread (office +
-  // tech). Best-effort + phone-keyed (the thread matches media by customer phone).
+  // Re-host any texted photos/videos so they show INLINE in the thread AND attach
+  // to the customer's job → they auto-appear on the job tile (no manual add for
+  // the office — the "magic"). Best-effort; never blocks the ack.
   if (hasMedia) {
-    try { await require('./_lib/inbound-media').captureInboundMedia({ media, jobId: 0, convId: null, fromPhone: from, tag: 'human-line-inbound' }); } catch (_) {}
+    const im = require('./_lib/inbound-media');
+    let mediaJobId = 0;
+    try { mediaJobId = await im.resolveJobIdByPhone(from); } catch (_) {}
+    try { await im.captureInboundMedia({ media, jobId: mediaJobId, convId: null, fromPhone: from, tag: 'human-line-inbound' }); } catch (_) {}
   }
 
   // NO AI. A human answers from the shared office inbox / tech page. Done.

@@ -867,13 +867,17 @@ exports.handler = async function (event) {
   // recorder didn't match a job). Bounded; never blocks the ack on failure.
   if (hasMedia) {
     try {
+      // Attach to the customer's job so the pics auto-show on the job tile. Use the
+      // recorder's job_id; if it didn't match one, resolve by phone as a fallback.
+      let mediaJobId = Number(recordData.job_id) || 0;
+      if (!mediaJobId) { try { mediaJobId = await require('./_lib/inbound-media').resolveJobIdByPhone(parsed.from); } catch (_) {} }
       const saved = await captureInboundMedia({
         media: parsed.media,
-        jobId: Number(recordData.job_id) || 0,
+        jobId: mediaJobId,
         convId: Number(recordData.conversation_id) || 0,
         fromPhone: parsed.from,
       });
-      console.log('[customer-sms-inbound] media captured:', { count: saved.length, job_id: recordData.job_id || 0 });
+      console.log('[customer-sms-inbound] media captured:', { count: saved.length, job_id: mediaJobId });
     } catch (e) {
       console.error('[customer-sms-inbound] media capture error:', String((e && e.message) || e));
     }

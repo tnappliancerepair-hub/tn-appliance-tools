@@ -11,6 +11,20 @@ const crud = require('./xano/metadata-crud');
 
 const JOB_ATTACHMENTS = 22;
 const MEDIA_FETCH_TIMEOUT_MS = 6000;
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+// Resolve the customer's CURRENT job from their phone, so texted media attaches
+// to the right job → auto-shows on the job tile (no manual add for the office).
+// Prefers an open job, falls back to the most-recent. Best-effort → 0 if none.
+async function resolveJobIdByPhone(phone) {
+  const p = String(phone || '').replace(/\D/g, '');
+  if (!p) return 0;
+  try {
+    const lk = await fetch(XANO + '/lookup_customer_by_phone?phone=' + encodeURIComponent(p), { signal: AbortSignal.timeout(6000) }).then((r) => r.json());
+    const j = (lk && ((lk.open_jobs && lk.open_jobs[0]) || (lk.recent_jobs && lk.recent_jobs[0]))) || null;
+    return Number(j && (j.id || j.job_id)) || 0;
+  } catch (_) { return 0; }
+}
 
 function fileTypeFor(mime) { const m = String(mime || '').toLowerCase(); if (m.startsWith('image/')) return 'photo'; if (m.startsWith('video/')) return 'video'; return 'file'; }
 function extFor(mime) {
@@ -66,4 +80,4 @@ async function captureInboundMedia({ media, jobId, convId, fromPhone, tag }) {
   return out;
 }
 
-module.exports = { captureInboundMedia, captureOneMedia };
+module.exports = { captureInboundMedia, captureOneMedia, resolveJobIdByPhone };
