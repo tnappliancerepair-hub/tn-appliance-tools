@@ -11,6 +11,34 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-20 (Mon) — TIKTOK CONNECTED, MARKETING TOOLS (REVIEW CARDS + CONTENT ENGINE), FIELD-COMMS FIXES (customer-texted PHOTOS now show inline) — READ FIRST
+
+Continuation. **⚠️ DEPLOY STATE: everything below is committed + verified on branch `claude/shop-automation-setup-r9wzpm` but NOT yet on `main` (the live `tnapplianceexchange.net`).** The crew (Andre) + office (Danielle) need these on the live site — pushing to main was pending Teddy's go at last checkpoint. Get them onto main.
+
+### ✅ TIKTOK — CONNECTED + UPLOAD PROVEN (see the blitz section below for full detail)
+OAuth done (token vaulted), a real clip pushed into TikTok drafts via FILE_UPLOAD (`status 201`). Only the App-review audit remains. `docs/tiktok-app-review-submission-2026-07-20.md`.
+
+### ✅ TWO MARKETING TOOLS BUILT (content with zero filming — the "exhaust every idea" ask)
+- **Review-card generator** (`review-cards.html` + `review-cards-data.js`): real Google reviews (pulled 120 live, ★4.5/1,081) → premium **pure-canvas** branded cards (gold-on-black, serif quote, trust footer), **square + story**, shuffle/edit, **PNG download** + auto-caption. Verified headless.
+- **Content-idea engine** (`content-ideas.html` + `content-ideas.js` + `-background.js`): mines the REAL repair corpus (`get_common_failures`, 214 records) → Claude writes 8 grounded weekly content ideas in the TN voice, ★from-real-jobs vs evergreen, **safety-flags** gas/240V jobs. Part numbers deliberately kept OUT of anything customer-facing. Background-fn + poll pattern (sync fn timed out). Verified headless.
+- Advised Teddy on video production: CapCut auto-captions + hook + 9:16 on hero clips; auto-clipper (Opus Clip/Submagic) for volume. Automation augments the real tech, never an AI avatar.
+
+### ✅ FIELD-COMMS FIX — customers' TEXTED PHOTOS/VIDEOS now show INLINE in the conversation (Danielle + Andre's ask)
+The #1 field complaint: *"Need to be able to see pics customers send in text"* — customer-texted media showed as a **"[photo/video]" text placeholder**, and the **human line (857-8800) dropped media entirely**. Fixed end-to-end:
+- **`_lib/inbound-media.js`** (NEW, shared) — fetch the (temporary) Telnyx media URL → re-host to S3 → `job_attachments` row + log `customer_sms_media_captured` with the s3 keys. **Wired into `human-line-inbound.js`** (it captured NOTHING before); the AI line (`customer-sms-inbound.js`) already captured.
+- **`sms-media.js`** (NEW) — `GET ?key=` → 302 to a signed S3 URL (cfimg/cfstream passthrough). Lets the thread render pics with a plain `<img src="/.netlify/functions/sms-media?key=…">`, no client-side URL juggling.
+- **`sms-thread.js`** — returns `customer_sms_media_captured` rows; broadened the phone match to include `md.from` (media events are phone-keyed).
+- **Thread renderers** — `ant-spine.js renderThread` (tech page + portal) + `office-board.html renderThreadBubbles`: render customer media as **inline tap-to-open thumbnails** (photos as `<img>`, videos as a "🎥 tap to view" chip), and **drop the redundant "[photo/video]" placeholder bubble**. Verified headless (photos + video + AI/human/customer lanes all render). Cache: `ant-spine.js?v=20260720-media`, `sw-tech v22`.
+- **⚠️ Past human-line pics are gone** (never captured); going forward BOTH lines capture. Jennifer Roher's lost pics can't be recovered.
+
+### ✅ TECH JOB PAGE — full conversation un-buried (Andre couldn't find it)
+The complete thread (🤖 Ant AI line + 👤 office/human + customer) was collapsed inside the "🧰 More" fold. Lifted it to a **prominent visible card** ("💬 Full conversation — every text on this job") with a lane legend; left only payment/customer-info folded. `sw-tech v22`. NOTE: the "💬 Text" button is a native `sms:` shortcut (just the number) — the in-app history is this card.
+
+### 📌 Live-ops answered
+- **Job #19919 (James Taylor, SquareTrade)** = canceled, but **no cancel action in 14 days** → not a fresh mis-tap (old stale claim shell). Reversible on request.
+
+---
+
 ## 🗓️🐜 2026-07-19→20 (Sun, 15-HR SOCIAL BLITZ) — SIX PLATFORMS LIVE (FB+IG AUTO), "POST EVERYWHERE" ENGINE, TIKTOK SANDBOX 90% + SPAM-FIX + TRUST AUDIT — READ FIRST
 
 Marathon day with Teddy (~9am → midnight) taking Ant/TN Appliance from **near-zero social presence to SIX platforms** — the "how many times am I going to see the Ant appliance place" omnipresence push. All committed + pushed to `main` + `claude/shop-automation-setup-r9wzpm`. Ant is named after Teddy's son; the phone assistant is now **Ann** (renamed earlier). Story spine = "we never stopped helping people" (Dawn retired → we were ready). **⚠️ Get Dawn's blessing before her story goes public.**

@@ -216,6 +216,11 @@
     if (a === 'inbound_customer_sms_received') {
       return { direction: 'in', counterparty: 'customer', who: 'Customer' };
     }
+    // Customer texted a photo/video — render the actual media inline.
+    if (a === 'customer_sms_media_captured') {
+      const keys = Array.isArray(md.keys) ? md.keys.filter(Boolean) : [];
+      return { direction: 'in', counterparty: 'customer', who: 'Customer', media: keys };
+    }
     if (a === 'sms_sent' || a === 'sms_owner_bypass') {
       const ct = cls === 'internal' ? (recipient.endsWith('4855795') ? 'owner' : 'tech') : 'customer';
       // Raw send-envelope = the AI line / automated (human sends log customer_sms_reply, not sms_sent).
@@ -253,7 +258,11 @@
       // Skip internal-to-internal noise on tech lens (owner alerts etc)
       const md = m.metadata || {};
       const body = (md.body_preview || md.body || md.response || md.message || md.text || md.reply || '').trim();
-      if (!body && !c.blocked) continue;
+      const hasMedia = c.media && c.media.length;
+      // The photo/video renders as its own media bubble — drop the redundant
+      // "[photo/video]" placeholder text row so it isn't shown twice.
+      if (c.direction === 'in' && /^\[(photo|video|image|media)(\s*\/\s*video)?\]$/i.test(body)) continue;
+      if (!body && !c.blocked && !hasMedia) continue;
       items.push({ row: m, cls: c, body });
     }
     if (items.length === 0) {
@@ -270,11 +279,21 @@
       // Tint AI-line outbound violet so it's obviously the AI (read-only), never mistaken for a human's text.
       let bs = bubbleStyle(cls.direction, cls.counterparty);
       if (!isIn && cls.lane === 'ai') bs = bs.replace(/background:[^;]+;/, 'background:rgba(150,120,255,0.13);').replace(/border:[^;]+;/, 'border:1px solid rgba(150,120,255,0.4);');
+      // Customer-texted photos/videos, rendered inline (tap to open full size).
+      let mediaHtml = '';
+      if (cls.media && cls.media.length) {
+        mediaHtml = '<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:' + (body ? '6px' : '2px') + ';">' + cls.media.map((k) => {
+          const src = '/.netlify/functions/sms-media?key=' + encodeURIComponent(k);
+          if (/\.(mp4|mov|webm|3gp|m4v)$/i.test(k)) return `<a href="${src}" target="_blank" rel="noopener" style="display:inline-block; padding:22px 12px; background:#222a38; color:#8fc4ff; border-radius:8px; font-size:12px; text-decoration:none;">🎥 Video — tap to view</a>`;
+          return `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" loading="lazy" style="width:96px; height:96px; object-fit:cover; border-radius:8px; border:1px solid rgba(255,255,255,0.15);"></a>`;
+        }).join('') + '</div>';
+      }
+      const bodyHtml = body ? `<div>${body.replace(/[<>&]/g, c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]))}</div>` : (cls.blocked ? '<div>(blocked)</div>' : (mediaHtml ? '' : '<div></div>'));
       return `
         <div style="display:flex; flex-direction:column; padding:0 4px; ${fade}">
           <div style="${bs}">
             <div style="font-size:10px; color:${labelColor}; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; font-weight:700;">${emoji} ${name}${laneNote} · ${fmtTs(row.ts_ms)}</div>
-            <div>${(body || '(blocked)').replace(/[<>&]/g, c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]))}</div>
+            ${bodyHtml}${mediaHtml}
             ${blockedNote}
           </div>
         </div>`;

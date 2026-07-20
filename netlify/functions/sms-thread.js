@@ -37,6 +37,7 @@ const ACTIONS = [
   ['sms_sent', 3000],
   ['sms_owner_bypass', 400],
   ['customer_sms_reply', 1000],
+  ['customer_sms_media_captured', 800],  // customer-texted photos/videos → shown inline in the thread
   ['feedback_sms_sent', 300],
   ['teddy_sms_triggered', 200],
   ['sms_gated', 400],
@@ -48,8 +49,10 @@ function asObj(m) { if (typeof m === 'string') { try { return JSON.parse(m); } c
 function json(code, body) { return { statusCode: code, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }, body: JSON.stringify(body) }; }
 
 // The customer-phone-bearing fields on a row's metadata (NOT from_number/our number).
+// `from` is included for INBOUND rows + media-captured events (the customer's number);
+// our own number's last-10 never equals the customer's, so outbound rows aren't affected.
 function rowCustomerPhone10(md) {
-  return last10(md.phone) || last10(md.recipient) || last10(md.to) || '';
+  return last10(md.phone) || last10(md.recipient) || last10(md.to) || last10(md.from) || '';
 }
 
 exports.handler = async function (event) {

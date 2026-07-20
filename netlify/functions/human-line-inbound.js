@@ -24,7 +24,11 @@ function parseInbound(event) {
   const to = Array.isArray(toArr) ? ((toArr[0] && toArr[0].phone_number) || '') : ((toArr && toArr.phone_number) || toArr || '');
   const text = p.text || p.body || '';
   const evType = (b.data && b.data.event_type) || b.event_type || '';
-  return { from, to, text, evType };
+  // MMS: Telnyx delivers attachments in payload.media = [{url, content_type}].
+  const media = Array.isArray(p.media)
+    ? p.media.map((m) => ({ url: (m && (m.url || m.media_url)) || '', content_type: (m && (m.content_type || m.contentType)) || '' })).filter((x) => x.url)
+    : [];
+  return { from, to, text, evType, media };
 }
 
 exports.handler = async function (event) {
@@ -34,10 +38,13 @@ exports.handler = async function (event) {
   let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
   const d = await dlr.recordIfDeliveryFailure(body);
   if (d.isDlr) return json(200, { ok: true, dlr: true, failed: d.failed });
-  const { from, to, text, evType } = parseInbound(event);
+  const { from, to, text, evType, media } = parseInbound(event);
   // Ignore any other non-inbound events.
   if (evType && !/received|inbound/i.test(evType)) return json(200, { ok: true, ignored: evType });
   if (!from) return json(200, { ok: true, note: 'no from number' });
+  const hasMedia = Array.isArray(media) && media.length > 0;
+  // A photo/video with no caption still needs a body so the thread reads right.
+  const bodyText = text || (hasMedia ? '[photo/video]' : '');
 
   // TCPA: honor STOP / START (the only automated thing this lane ever does).
   try {
@@ -50,11 +57,17 @@ exports.handler = async function (event) {
   // customer portal). lane:'human' marks which lane it belongs to.
   try {
     await crud.logEvent('inbound_customer_sms_received', {
-      phone: from, from, to: to || HUMAN_LINE, body: text, message: text,
-      source: 'human_line', lane: 'human', at_ms: Date.now(),
+      phone: from, from, to: to || HUMAN_LINE, body: bodyText, message: bodyText,
+      source: 'human_line', lane: 'human', has_media: hasMedia, at_ms: Date.now(),
     });
   } catch (_) {}
 
+  // Re-host any texted photos/videos so they show INLINE in the thread (office +
+  // tech). Best-effort + phone-keyed (the thread matches media by customer phone).
+  if (hasMedia) {
+    try { await require('./_lib/inbound-media').captureInboundMedia({ media, jobId: 0, convId: null, fromPhone: from, tag: 'human-line-inbound' }); } catch (_) {}
+  }
+
   // NO AI. A human answers from the shared office inbox / tech page. Done.
-  return json(200, { ok: true, recorded: true, lane: 'human' });
+  return json(200, { ok: true, recorded: true, lane: 'human', media: hasMedia ? media.length : 0 });
 };

@@ -1480,7 +1480,18 @@ function renderThreadBubbles(msgs){
   if(!msgs||!msgs.length) return '<div style="color:#6b7280;font-size:13px;text-align:center;padding:24px">No texts with this customer yet. Type below to start the conversation.</div>';
   return msgs.map(m=>{
     const md=m.metadata||{}; const inb=IN.has(m.action); const held=HELD.has(m.action);
+    // Customer-texted photos/videos → render the actual media inline (tap to open).
+    if(m.action==='customer_sms_media_captured'){
+      const keys=(md.keys||[]).filter(Boolean); if(!keys.length) return '';
+      const thumbs=keys.map(k=>{ const src='/.netlify/functions/sms-media?key='+encodeURIComponent(k);
+        if(/\.(mp4|mov|webm|3gp|m4v)$/i.test(k)) return '<a href="'+src+'" target="_blank" rel="noopener" style="display:inline-block;padding:20px 12px;margin:3px;background:#dce6f2;color:#3a6aa5;border-radius:8px;font-size:12px;text-decoration:none">🎥 Video — tap to view</a>';
+        return '<a href="'+src+'" target="_blank" rel="noopener"><img src="'+src+'" loading="lazy" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid #d4d9e0;margin:3px"></a>';
+      }).join('');
+      return '<div style="display:flex;justify-content:flex-start;margin:5px 0"><div style="max-width:88%;background:#eceff3;border-radius:13px;padding:8px 9px"><div style="font-size:10.5px;color:#4a6fa5;margin-bottom:3px">📷 Customer sent '+keys.length+(keys.length>1?' photos/videos':' photo/video')+' · '+stRel(m.ts_ms)+'</div><div style="display:flex;flex-wrap:wrap">'+thumbs+'</div></div></div>';
+    }
     const body=(md.body||md.message||md.text||md.reply||md.body_preview||md.translated||'').toString();
+    // The photo/video renders as its own media bubble — drop the "[photo/video]" placeholder.
+    if(inb && /^\[(photo|video|image|media)(\s*\/\s*video)?\]$/i.test(body.trim())) return '';
     const txt=body?esc(body):(held?'(held by the customer-SMS gate)':'(no text)');
     let bg, lblColor, who, emoji, laneNote='';
     if(inb){ bg='#eceff3'; lblColor='#4a6fa5'; who='Customer'; emoji=''; }
