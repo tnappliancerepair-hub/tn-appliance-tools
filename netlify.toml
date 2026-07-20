@@ -663,3 +663,6 @@
 # publishing is always an explicit approve on social-drafts.html.
 [functions."social-campaign"]
   schedule = "0 14 * * *"
+
+[functions."review-card-poster"]
+  schedule = "30 15 * * 1,3,5"
