@@ -2969,19 +2969,40 @@ document.getElementById('search-in').addEventListener('input',e=>{
       const r=await fetch(XANO+'/office_universal_search?q='+encodeURIComponent(q),{cache:'no-store'});
       const d=await r.json();const rows=(d&&d.items)||[];
       if(!rows.length){box.innerHTML='<div class="empty-col">no matches</div>';return;}
-      box.innerHTML=rows.slice(0,12).map(x=>{
-        const jid=x.job_id||x.id;const nm=((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer';
-        const st=String(x.scheduling_status||'').replace(/_/g,' ');
-        const canceled=/cancel/i.test(String(x.scheduling_status||''));
-        const applTxt=String(x.appliance||'').trim();
-        // SquareTrade sends a SEPARATE claim per machine (washer vs dryer are two jobs) —
-        // show the appliance so she keeps the machines separate + clears the right one.
-        const sub=[x.city,x.customer_phone,jid?('#'+jid):'',st?(canceled?'✕ '+st:st):''].filter(Boolean).join(' · ');
-        if(!jid) return '';
-        const nmJs=JSON.stringify(nm);
-        return `<div class="sr-row" style="display:flex;align-items:stretch;gap:6px;margin-bottom:5px">
-          <a class="sr" style="flex:1;margin:0" href="javascript:void(0)" onclick="openDrawer(${jid})"><div class="sn">${esc(nm)}${applTxt?` <span style="color:#1f6fed;font-weight:800">· ${esc(applTxt)}</span>`:''}</div><div class="ss">${esc(sub)}</div></a>
-          ${canceled?'<span style="display:flex;align-items:center;padding:0 10px;border:1px solid var(--line);border-radius:9px;color:var(--ink2);font-size:11px;font-weight:700">cleared</span>':`<button title="Clear this job off the board (junk / duplicate — nobody gets texted)" onclick='clearFromSearch(${jid},${nmJs},event)' style="flex:0 0 auto;padding:0 12px;border:1px solid #f3c0b7;border-radius:9px;background:#fdece9;color:#c0392b;font-weight:800;font-size:13px;cursor:pointer">🗑 Clear</button>`}
+      // Group results by CUSTOMER (name + phone, so duplicate customer records collapse
+      // into ONE) → then by APPLIANCE, so a person's washer + dryer show as one clean
+      // timeline of stages instead of 6 scattered rows. SquareTrade bills a separate
+      // work-order per trip, so each stage stays its own clickable job. (Teddy 2026-07-20)
+      const applIcon=a=>{a=(a||'').toLowerCase();return a.includes('wash')?'🌀':a.includes('dry')?'🔥':(a.includes('refrig')||a.includes('fridg'))?'🧊':a.includes('dish')?'🍽️':(a.includes('oven')||a.includes('range')||a.includes('stove')||a.includes('cook'))?'🍳':a.includes('microwave')?'📻':'🔧';};
+      const groups={};
+      for(const x of rows){
+        const jid=x.job_id||x.id; if(!jid) continue;
+        const nm=((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer';
+        const ph10=String(x.customer_phone||'').replace(/\D/g,'').slice(-10);
+        const gkey=nm.toLowerCase()+'|'+ph10;
+        if(!groups[gkey]) groups[gkey]={name:nm,city:x.city||'',phone:x.customer_phone||'',appls:{},order:[],count:0};
+        const g=groups[gkey];
+        const appl=String(x.appliance||'').trim()||'Other';
+        const akey=appl.toLowerCase();
+        if(!g.appls[akey]){g.appls[akey]={label:appl,jobs:[]};g.order.push(akey);}
+        g.appls[akey].jobs.push({jid,status:String(x.scheduling_status||''),canceled:/cancel/i.test(String(x.scheduling_status||''))});
+        g.count++;
+      }
+      box.innerHTML=Object.values(groups).slice(0,10).map(g=>{
+        const nmJs=JSON.stringify(g.name);
+        const appls=g.order.map(ak=>{
+          const a=g.appls[ak];
+          const chips=a.jobs.map(j=>{
+            const stTxt=(j.status.replace(/_/g,' '))||'—';
+            const clr=j.canceled?'':`<button title="Clear this job (junk / duplicate — nobody gets texted)" onclick='clearFromSearch(${j.jid},${nmJs},event)' style="margin-left:2px;padding:2px 6px;border:1px solid #f3c0b7;border-radius:7px;background:#fdece9;color:#c0392b;font-weight:800;font-size:11px;cursor:pointer">🗑</button>`;
+            return `<span style="display:inline-flex;align-items:center;margin:3px 4px 0 0"><a href="javascript:void(0)" onclick="openDrawer(${j.jid})" style="text-decoration:none;padding:3px 8px;border:1px solid var(--line);border-radius:8px;background:#f6f8fb;color:${j.canceled?'#9aa1ad':'#1a2230'};font-size:12px;font-weight:700">${j.canceled?'✕ ':''}${esc(stTxt)} · #${j.jid}</a>${clr}</span>`;
+          }).join('');
+          return `<div style="margin-top:5px;display:flex;flex-wrap:wrap;align-items:center"><span style="font-weight:800;font-size:12.5px;margin-right:4px">${applIcon(a.label)} ${esc(a.label)}</span>${chips}</div>`;
+        }).join('');
+        const sub=[g.city,g.phone,g.count>1?g.count+' jobs':''].filter(Boolean).join(' · ');
+        return `<div style="border:1px solid var(--line);border-radius:11px;padding:9px 11px;margin-bottom:7px;background:#fff">
+          <div style="font-weight:800;font-size:14px">${esc(g.name)} <span style="font-weight:500;color:var(--ink2,#667);font-size:12px">${esc(sub)}</span></div>
+          ${appls}
         </div>`;
       }).join('');
     }catch(_){box.innerHTML='<div class="empty-col">search unavailable</div>';}
