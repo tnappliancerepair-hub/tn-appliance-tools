@@ -1434,9 +1434,40 @@ async function openDrawer(id){
     }
     renderDrawer(d);
     loadDrawerMedia(parseInt(id,10));
+    loadReturnTripBadge(parseInt(id,10));
   }catch(e){
     document.getElementById('d-body').innerHTML='<div class="empty-col">⚠ '+esc(e.message)+'</div>';
   }
+}
+
+// 🔗 SquareTrade return-trip billing badge (Teddy 2026-07-20: "make sure it's obvious
+// so Danielle bills accordingly"). SquareTrade issues a NEW work-order per trip and
+// PAYS EACH ONE — so a linked pair must be billed as TWO separate claims, never as a
+// duplicate. Shows on BOTH the original and the return-trip job.
+async function loadReturnTripBadge(id){
+  try{
+    const d=await fetch('/.netlify/functions/squaretrade-reissue-link?job_id='+encodeURIComponent(id),{cache:'no-store'}).then(r=>r.json());
+    if(!(d&&d.linked&&d.link)) return;
+    const L=d.link;
+    const isReturn=L.role==='return_trip';
+    const otherId=isReturn?L.orig_job_id:L.new_job_id;
+    const thisTrip=isReturn?'Trip 2 (the return / completion visit)':'Trip 1 (the original visit)';
+    const otherTrip=isReturn?'Trip 1 (original)':'Trip 2 (return)';
+    const woA=esc(String(L.orig_wo||'—')), woB=esc(String(L.new_wo||'—'));
+    const html='<div style="border:2px solid #e08a3c;background:#fff6ec;border-radius:12px;padding:11px 13px;margin-bottom:10px">'
+      +'<div style="font-weight:900;color:#b5651d;font-size:14px;margin-bottom:4px">🔗 SquareTrade return trip — BILL EACH STOP SEPARATELY</div>'
+      +'<div style="font-size:13px;color:#5a4326;line-height:1.5">This job is <b>'+thisTrip+'</b> of a linked repair. SquareTrade issues a <b>new work order per trip and pays each one</b> — submit a <b>separate claim for BOTH</b> (this is NOT a duplicate):</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">'
+      +'<span style="padding:4px 9px;border:1px solid #e0b98a;border-radius:8px;background:#fff;font-weight:800;font-size:12.5px">WO #'+woA+' · Trip 1</span>'
+      +'<span style="color:#b5651d;font-weight:900">+</span>'
+      +'<span style="padding:4px 9px;border:1px solid #e0b98a;border-radius:8px;background:#fff;font-weight:800;font-size:12.5px">WO #'+woB+' · Trip 2</span>'
+      +(otherId?'<a href="javascript:void(0)" onclick="openDrawer('+otherId+')" style="padding:4px 9px;border:1px solid #1f6fed;border-radius:8px;background:#eef4ff;color:#1f6fed;font-weight:800;font-size:12.5px;text-decoration:none">→ open '+otherTrip+' (#'+otherId+')</a>':'')
+      +'</div></div>';
+    const body=document.getElementById('d-body'); if(!body) return;
+    let host=document.getElementById('drawer-returntrip');
+    if(!host){ host=document.createElement('div'); host.id='drawer-returntrip'; body.insertBefore(host, body.firstChild); }
+    host.innerHTML=html;
+  }catch(_){}
 }
 function closeDrawer(){document.getElementById('scrim').classList.remove('open');document.getElementById('drawer').classList.remove('open');}
 // Round-trip: if we came from Messages (&from=messages), go BACK there (keeps her
