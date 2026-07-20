@@ -35,6 +35,11 @@
         recovered = true;
       }
       if (!res.ok || !data.success) return { ok: false, error: (data && (data.error || data.message)) || ('failed (' + res.status + ')'), recovered: recovered };
+      // Fire the "you're scheduled for {day/date}" + intake-if-needed packet to the
+      // customer (Teddy 2026-07-20). Fire-and-forget + keepalive so it finishes even
+      // if the tab navigates away; forward-only (only a real schedule triggers it);
+      // schedule-packet itself dedups per day + suppresses the link if intake's done.
+      try { fetch('/.netlify/functions/schedule-packet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), keepalive: true }); } catch (_) {}
       return { ok: true, recovered: recovered };
     } catch (e) { return { ok: false, error: (e && e.message) || 'network error' }; }
   }
