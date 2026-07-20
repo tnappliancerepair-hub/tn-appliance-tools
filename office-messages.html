@@ -101,11 +101,50 @@ function shape(r){
   return {key,jobId,name,phone,body,dir,blocked,human,ts:Number(r.created_at)||0};
 }
 
-// Expand/collapse a conversation's full thread inline.
-function toggleThread(key){
+// Render a full sms-thread (text + customer-texted photos/videos, inline).
+// Rows come from /.netlify/functions/sms-thread ({action, metadata, ts_ms}).
+function msgMediaBubbles(messages){
+  return messages.map(m=>{
+    const md=m.metadata||{}; const a=m.action;
+    if(a==='customer_sms_media_captured'){
+      const keys=(md.keys||[]).filter(Boolean); if(!keys.length) return '';
+      const thumbs=keys.map(k=>{ const src='/.netlify/functions/sms-media?key='+encodeURIComponent(k);
+        if(/\.(mp4|mov|webm|3gp|m4v)$/i.test(k)) return '<a href="'+src+'" target="_blank" rel="noopener" style="display:inline-block;padding:20px 12px;margin:3px;background:#22303f;color:#8fc4ff;border-radius:8px;font-size:12px;text-decoration:none">🎥 Video — tap to view</a>';
+        return '<a href="'+src+'" target="_blank" rel="noopener"><img src="'+src+'" loading="lazy" style="width:92px;height:92px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15);margin:3px"></a>';
+      }).join('');
+      return '<div style="display:flex;justify-content:flex-start;margin:5px 0"><div style="max-width:86%;background:#1b2330;border-radius:13px;padding:8px 10px"><div style="font-size:11px;color:#8fc4ff;margin-bottom:3px">📷 Customer sent '+keys.length+(keys.length>1?' photos/videos':' photo/video')+' · '+rel(m.ts_ms)+'</div><div style="display:flex;flex-wrap:wrap">'+thumbs+'</div></div></div>';
+    }
+    const inb = a==='inbound_customer_sms_received';
+    const blocked = a==='dropped_customer_sms'||a==='sms_gated';
+    const body=String(md.body_preview||md.body||md.message||md.reply||md.reply_text||md.translated||'').trim();
+    if(inb && /^\[(photo|video|image|media)(\s*\/\s*video)?\]$/i.test(body)) return '';  // placeholder → the media bubble shows the real thing
+    if(!body && !blocked) return '';
+    const txt=body?esc(body):'(held by the customer-SMS gate)';
+    const bg=inb?'#1b2330':(blocked?'#3a2a14':'#0a5d2a');
+    const lbl=inb?'Customer':(blocked?'Ant (held)':'Us / Ant');
+    return '<div style="display:flex;justify-content:'+(inb?'flex-start':'flex-end')+';margin:5px 0"><div style="max-width:80%;background:'+bg+';border-radius:13px;padding:8px 12px"><div style="font-size:11px;color:#8a96a8;margin-bottom:3px">'+lbl+' · '+rel(m.ts_ms)+'</div><div style="font-size:14px;color:#e7edf5;line-height:1.4;white-space:pre-wrap">'+txt+'</div></div></div>';
+  }).join('')||'<div style="color:#8a96a8;font-size:13px;padding:6px">No messages.</div>';
+}
+
+// Expand/collapse a conversation's full thread inline. On first open, hydrate the
+// full thread from sms-thread so customer-texted PHOTOS/VIDEOS show (the Xano
+// conversation feed is text-only). (Danielle 2026-07-20: "need to see the pics.")
+async function toggleThread(key){
   const el=document.getElementById('thr-'+key);
   if(!el)return;
-  el.style.display = el.style.display==='none' ? 'block' : 'none';
+  const opening = el.style.display==='none';
+  el.style.display = opening ? 'block' : 'none';
+  if(opening && !el._loaded){
+    const ref=(window.THREAD_REF||{})[key]; const bub=document.getElementById('thrbub-'+key);
+    if(ref && bub && (ref.phone||ref.job)){
+      el._loaded=true;
+      try{
+        const q=[]; if(ref.job)q.push('job_id='+ref.job); if(ref.phone)q.push('phone='+encodeURIComponent(ref.phone));
+        const d=await (await fetch('/.netlify/functions/sms-thread?'+q.join('&')+'&hours_back=2160',{cache:'no-store'})).json();
+        const msgs=(d&&d.messages)||[]; if(msgs.length) bub.innerHTML=msgMediaBubbles(msgs);
+      }catch(_){ el._loaded=false; }
+    }
+  }
 }
 // One-tap filter — show ONLY the conversations owed a reply (the "X waiting").
 function toggleWaitingOnly(){
@@ -223,7 +262,8 @@ async function load(){
             <div style="font-size:14px;color:#e7edf5;line-height:1.4;white-space:pre-wrap">${txt}</div>
           </div></div>`;
       }).join('')||'<div style="color:#8a96a8;font-size:13px;padding:6px">No messages.</div>';
-      const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)">${bubbles}<div class="actions" style="margin-top:10px;flex-wrap:wrap">${statusBtn}${replyBtn}${reviewBtn}${noCovBtn}${tileBtn}${openLink}${textLink}</div></div>`;
+      (window.THREAD_REF=window.THREAD_REF||{})[c.key]={job:c.jobId||0,phone:c.phone||''};
+      const thread=`<div id="thr-${c.key}" style="display:none;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.07)"><div id="thrbub-${c.key}">${bubbles}</div><div class="actions" style="margin-top:10px;flex-wrap:wrap">${statusBtn}${replyBtn}${reviewBtn}${noCovBtn}${tileBtn}${openLink}${textLink}</div></div>`;
       return `<div class="conv ${c.needsReview?'waiting':''}" id="conv-${c.key}" onclick="toggleThread('${c.key}')" style="cursor:pointer">
         <div class="crow"><div class="who" id="who-${c.key}" data-phone="${c.name?'':c.phone}">${esc(who)}${waitB}</div><div class="when">${rel(c.last.ts)} <button onclick="dismissThread(event,'${c.key}',${c.last.ts})" title="Clear — comes back if they text again" style="background:transparent;border:0;color:#8a96a8;font-size:17px;font-weight:800;cursor:pointer;padding:0 2px 0 9px;line-height:1">✕</button> <span style="opacity:.6">›</span></div></div>
         <div class="ctx" id="ctx-${c.key}" data-ph="${c.phone||''}" style="display:none;font-size:11.5px;color:#8a96a8;margin-top:3px"></div>
