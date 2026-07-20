@@ -33,7 +33,7 @@ function laPhone(tech) { if (tech === 'john' || tech === 'billy') return LA_225 
 // 225). (Teddy 2026-07-20)
 const LA_SWEEP_FALLBACK = 'New Orleans, Metairie, Baton Rouge & the North Shore';
 const LA_TAGS = '#neworleans #metairie #kenner #gretna #batonrouge #denhamsprings #walker #hammondla #covington #madisonville #slidell #mandeville #laplace #northshorela #louisiana #nola';
-const TN_TAGS = '#nashville #murfreesboro #antioch #tnappliance';
+const TN_TAGS = '#nashville #antioch #murfreesboro #smyrna #lavergne #franklin #brentwood #mtjuliet #clarksville #springfield #hendersonville #lebanon #middletennessee #tnappliance';
 
 async function loadPool() { try { return JSON.parse((await getSecretFresh(POOL_KEY)) || '[]'); } catch (_) { return []; } }
 async function savePool(p) { await setSecret(POOL_KEY, JSON.stringify(p)); }
@@ -50,6 +50,14 @@ function caption(card) {
       + `#appliancerepair #familyowned #5starservice ${LA_TAGS}`;
   }
   const phone = card.phone || TN_PHONE;
+  if (card.towns) {
+    // Middle Tennessee territory card (Jimmy / Lee / Teddy) — names the towns.
+    return `⭐️⭐️⭐️⭐️⭐️ Real 5-star service just about everywhere in Middle Tennessee. 🐜\n\n`
+      + `Thank you, ${first} — this is exactly why we do it. ${card.towns} — and just about everywhere in between. Wherever you're at, we've probably got you. 24/7: text a quick video, get a real answer, no runaround.\n\n`
+      + `Middle Tennessee's trusted us since 2012 — and we're grateful. 🙏\n\n`
+      + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
+      + `#appliancerepair #familyowned #5starservice ${TN_TAGS}`;
+  }
   return `⭐️⭐️⭐️⭐️⭐️ Another 5-star from the family. 🐜\n\n`
     + `Thank you, ${first} — this is exactly why we do it. Broken appliance in Middle TN? We're here 24/7: text a quick video, get a real answer, no runaround. Real techs, honest fixes.\n\n`
     + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
@@ -84,9 +92,9 @@ exports.handler = async function (event) {
   const pool = await loadPool();
   const remaining = pool.filter((x) => !x.posted);
   if (!remaining.length) return json(200, { ok: true, done: true, note: 'pool empty — top it up in review-cards.html', pool_size: pool.length });
-  // Louisiana first, then the (interleaved Andre/John) render order — so daily posts
-  // alternate territories and both techs get blown up all over the state.
-  remaining.sort((a, b) => (b.is_la - a.is_la) || (a.added_ms - b.added_ms));
+  // Post in the interleaved render order (Andre / John / Jimmy / Lee round-robin) so
+  // daily posts rotate across BOTH states — every territory sees their tech constantly.
+  remaining.sort((a, b) => (a.added_ms - b.added_ms));
   const card = remaining[0];
   const idx = pool.indexOf(card);
   const cap = caption(card);
