@@ -2907,13 +2907,39 @@ async function loadInvoiceAddons(jid){
     if(!items.length){ line.style.display='none'; recomputeInvoice(); return; }
     // Only UNPAID add-ons add to the bill — paid ones (card/cash) are already
     // collected and shown as "✓ paid" so we never charge twice.
-    let sum=0; const rows=items.map(a=>{const p=parseFloat(a.net_price)||0;let tag='';if(a.paid){tag=' · ✅ paid'+(a.pay_method?(' ('+esc(a.pay_method)+')'):'');}else{sum+=p;if(a.fulfilled)tag=' ✓';}return esc(a.name||a.addon_key)+' — $'+p.toFixed(2)+tag;});
+    let sum=0; const rows=items.map(a=>{
+      const p=parseFloat(a.net_price)||0; const key=a.addon_key||''; const nm=a.name||a.addon_key||'add-on';
+      const keyJs=JSON.stringify(String(key)); const nmSafe=JSON.stringify(String(nm).replace(/[\\'"]/g,''));
+      let tag='', rm='';
+      if(a.paid){ tag=' · ✅ paid'+(a.pay_method?(' ('+esc(a.pay_method)+')'):''); }
+      else{
+        sum+=p; if(a.fulfilled)tag=' ✓';
+        // Unpaid customer-requested add-on → let the office REMOVE it if the customer
+        // didn't actually buy it, so it comes off the bill. (Danielle 2026-07-20)
+        rm=`<button title="Remove — customer didn't buy this" onclick='removeAddon(${jid},${keyJs},${nmSafe},event)' style="flex:0 0 auto;margin-left:8px;padding:2px 8px;border:1px solid #f0c9a8;border-radius:7px;background:#fff;color:#c0392b;font-weight:800;font-size:11px;cursor:pointer">✕ remove</button>`;
+      }
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:3px 0">`
+        +`<span style="min-width:0">${esc(nm)} — $${p.toFixed(2)}${tag}</span>${rm}</div>`;
+    });
     window.__addonsTotal=sum;
     const amt=document.getElementById('inv-addons'); if(amt)amt.textContent='$'+sum.toFixed(2);
-    const it=document.getElementById('inv-addons-items'); if(it)it.innerHTML=rows.join('<br>');
+    const it=document.getElementById('inv-addons-items'); if(it)it.innerHTML=rows.join('');
     line.style.display='';
   }catch(_){ line.style.display='none'; }
   recomputeInvoice();
+}
+// Remove a customer-requested add-on the customer didn't actually buy. Voids it
+// (record-addon status:voided → addons-for-job drops it) so it comes off the bill
+// and nobody is charged/credited. Only offered on UNPAID add-ons. (Danielle 2026-07-20)
+async function removeAddon(jid,key,name,evt){
+  if(evt){evt.preventDefault();evt.stopPropagation();}
+  if(!confirm('Remove "'+(name||key)+'" from this invoice?\n\nUse this when the customer did NOT buy it. It comes off the bill — nobody is charged.'))return;
+  try{
+    const r=await fetch('/.netlify/functions/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10),addon_key:key,name:name||key,status:'voided',reason:'not purchased',source:'office'})});
+    const d=await r.json().catch(()=>({}));
+    if(d&&d.success){ toast('Removed ✕ '+(name||key)); loadInvoiceAddons(jid); }
+    else toast('⚠ '+((d&&d.error)||'could not remove it'));
+  }catch(_){toast('⚠ that did not go through.');}
 }
 // Write one invoice to the durable server record, with retries. Returns true only
 // when the server actually accepts it (res.ok) — so the UI can tell the truth about
