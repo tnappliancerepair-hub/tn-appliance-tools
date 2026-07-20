@@ -43,10 +43,10 @@ Audit takes days→weeks.
 ## Demo video to record (screen recording, ~60–90s)
 Record on the phone or desktop. Show the full loop:
 
-1. Open our internal post tool (`social-drafts.html`) — show a pending post with
-   the TikTok copy + the video.
-2. Trigger the TikTok upload (the "send to TikTok drafts" action / or narrate
-   that approving the post uploads it via the API).
+1. Open our internal post tool (`social-drafts.html` — enter the admin secret) →
+   show the pending post with the TikTok copy block + the video.
+2. Click the **"⬆ Upload to TikTok drafts"** button in the TikTok block → confirm →
+   it shows **"✓ In your TikTok drafts"** (a real on-screen action, not narration).
 3. Cut to the TikTok app on @tn.appliance.exch → open the notification/inbox →
    show the "video ready to post from another app" entry → tap it → the video
    opens in TikTok's editor.
@@ -55,6 +55,10 @@ Record on the phone or desktop. Show the full loop:
 
 Narration line: "Our tool uploads our own repair video into our own TikTok
 drafts; we review and post it inside TikTok."
+
+> The button lives in `social-drafts.html` (TikTok block) and calls
+> `tiktok-upload-test` → FILE_UPLOAD into the inbox. This is the exact screen to
+> record.
 
 ## After approval (flip to production)
 1. Clear the sandbox creds so the connector falls back to production
@@ -65,7 +69,10 @@ drafts; we review and post it inside TikTok."
 3. Wire the TikTok cross-post into the social-campaign approve flow (behind a
    `TIKTOK_CROSSPOST_LIVE` flag, mirroring the Instagram cross-post) so approving
    a video post also drops it into TikTok drafts.
-4. Remove `tiktok-upload-test.js` + `tiktok-vault-check.js` (diagnostics).
+4. Repoint the `social-drafts.html` "⬆ Upload to TikTok drafts" button at the
+   production cross-post (behind `TIKTOK_CROSSPOST_LIVE`) BEFORE removing
+   `tiktok-upload-test.js` — the button currently calls that endpoint. Then remove
+   `tiktok-upload-test.js` + `tiktok-vault-check.js` (diagnostics).
 
 ## Footguns learned
 - FB videos live on `fbcdn` (unverified domain) → PULL_FROM_URL is blocked.

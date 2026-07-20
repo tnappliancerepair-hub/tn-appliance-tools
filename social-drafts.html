@@ -95,10 +95,18 @@ function everywhere(v){
   [['instagram',v.instagram],['x',v.x],['truthsocial',v.truthsocial],['tiktok',v.tiktok]].forEach(function(pair){
     const id=pair[0], p=pair[1]; if(!p) return;
     COPY[id]=p.text;
+    // TikTok gets a real in-app action: upload the video straight into the TikTok
+    // drafts (inbox) via the Content Posting API — then the owner opens TikTok, adds
+    // the caption + posts. This is the button to click on-screen for the App-review demo.
+    const ttBtn = id==='tiktok'
+      ? '<button class="copy" id="tt_up" onclick="sendToTikTok()" style="background:#111;border:1px solid #25f4ee;color:#25f4ee">⬆ Upload to TikTok drafts</button>'
+      : '';
     h+='<div class="plat"><div class="plat-h"><b>'+esc(p.label)+'</b>'
       +'<span class="pnote">'+esc(p.note||'')+'</span>'
-      +'<button class="copy" id="c_'+id+'" onclick="copyVariant(\''+id+'\')">Copy</button></div>'
-      +'<pre>'+esc(p.text)+'</pre></div>';
+      +'<button class="copy" id="c_'+id+'" onclick="copyVariant(\''+id+'\')">Copy</button>'+ttBtn+'</div>'
+      +'<pre>'+esc(p.text)+'</pre>'
+      +(id==='tiktok'?'<div id="tt_msg" style="font-size:12px;color:#888;margin-top:6px"></div>':'')
+      +'</div>';
   });
   // YouTube (title + description)
   if(v.youtube){
@@ -112,6 +120,28 @@ function everywhere(v){
   }
   h+='</div>';
   return h;
+}
+// Upload our latest own repair video straight into our TikTok drafts (inbox) via
+// the Content Posting API. Drafts only — nothing publishes; the owner finishes +
+// posts inside TikTok. This is the on-screen action for the App-review demo.
+async function sendToTikTok(){
+  if(!ensureSecret()) return;
+  const btn=document.getElementById('tt_up'); const msg=document.getElementById('tt_msg');
+  if(!confirm('Upload our latest repair video into our TikTok drafts?\n\nIt lands in the @tn.appliance.exch TikTok inbox — you open TikTok, add the caption, and post.')) return;
+  const o=btn?btn.textContent:''; if(btn){btn.disabled=true;btn.textContent='Uploading…';}
+  if(msg)msg.textContent='Sending the video to TikTok…';
+  try{
+    const r=await fetch('/.netlify/functions/tiktok-upload-test?secret='+encodeURIComponent(SECRET),{cache:'no-store'});
+    const d=await r.json().catch(()=>({}));
+    if(d&&d.ok){
+      const pid=(d.upload&&d.upload.publish_id)||'';
+      if(btn){btn.textContent='✓ In your TikTok drafts';btn.classList.add('done');}
+      if(msg)msg.innerHTML='✓ Uploaded — open the <b>TikTok app → inbox</b> on @tn.appliance.exch, tap the ready video, add your caption + post.'+(pid?('<br><span style="color:#555">'+esc(pid)+'</span>'):'');
+    } else {
+      if(btn){btn.disabled=false;btn.textContent=o;}
+      if(msg)msg.innerHTML='<span style="color:#e05a4a">Couldn\'t upload: '+esc((d&&(d.error||d.detail))||'unknown')+'</span>';
+    }
+  }catch(e){ if(btn){btn.disabled=false;btn.textContent=o;} if(msg)msg.innerHTML='<span style="color:#e05a4a">Network error — try again.</span>'; }
 }
 async function copyVariant(id){
   const text=COPY[id]||''; const btn=document.getElementById('c_'+id);
