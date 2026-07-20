@@ -3008,6 +3008,8 @@ document.getElementById('search-in').addEventListener('input',e=>{
       const groups={};
       for(const x of rows){
         const jid=x.job_id||x.id; if(!jid) continue;
+        // A deleted / cleared / canceled job is gone — it must NOT be searchable. (Teddy 2026-07-20)
+        if(/cancel|delet/i.test(String(x.scheduling_status||x.status||''))) continue;
         const nm=((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer';
         const ph10=String(x.customer_phone||'').replace(/\D/g,'').slice(-10);
         const gkey=nm.toLowerCase()+'|'+ph10;
@@ -3064,7 +3066,8 @@ async function antSend(){
 async function searchJobs(q){
   try{const r=await fetch(XANO+'/office_universal_search?q='+encodeURIComponent(q),{cache:'no-store'});const d=await r.json();
     const rows=(d&&d.items)||[];
-    return rows.map(x=>({job_id:x.job_id||x.id,name:((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer'})).filter(x=>x.job_id);
+    // A deleted / canceled job is not searchable. (Teddy 2026-07-20)
+    return rows.filter(x=>!/cancel|delet/i.test(String(x.scheduling_status||x.status||''))).map(x=>({job_id:x.job_id||x.id,name:((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer'})).filter(x=>x.job_id);
   }catch(_){return [];}
 }
 async function antDo(p){

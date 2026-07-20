@@ -582,7 +582,8 @@ document.getElementById('search-in').addEventListener('input',e=>{
   searchTimer=setTimeout(async()=>{
     try{
       const d=await xanoGet('office_universal_search','q='+encodeURIComponent(q));
-      const rows=((d&&d.items)||[]).filter(r=>!recIds.has(Number(r.job_id||r.id)));
+      // A deleted / canceled job is not searchable. (Teddy 2026-07-20)
+      const rows=((d&&d.items)||[]).filter(r=>!recIds.has(Number(r.job_id||r.id))).filter(r=>!/cancel|delet/i.test(String(r.scheduling_status||r.status||'')));
       const srv=rows.length?rows.slice(0,12).map(serverRowHtml).join(''):(rec.length?'':'<div class="empty">no matches</div>');
       box.innerHTML=recHtml+srv;
     }catch(_){ const st=document.getElementById('srv-status'); if(st) st.textContent=rec.length?'':'search timed out — type again'; }
