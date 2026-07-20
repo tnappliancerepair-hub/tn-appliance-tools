@@ -355,6 +355,9 @@
   </div>
   <div class="tb-search">
     <input id="search-in" placeholder="Search any job — name, phone, job #…" autocomplete="off">
+    <label id="show-cleared-wrap" title="Include jobs you've cleared/deleted — so you can bring one back if you cleared it by mistake" style="display:none;align-items:center;gap:5px;margin-top:5px;font-size:12px;color:var(--ink2,#667);cursor:pointer;user-select:none">
+      <input type="checkbox" id="show-cleared" style="cursor:pointer"> Show cleared jobs
+    </label>
     <div class="sresults" id="sresults"></div>
   </div>
   <nav class="hop" aria-label="Jump to">
@@ -2994,8 +2997,16 @@ async function saveInvoice(jid){
 let st=null;
 document.getElementById('search-in').addEventListener('input',e=>{
   clearTimeout(st);const q=e.target.value.trim();const box=document.getElementById('sresults');
+  const clw=document.getElementById('show-cleared-wrap'); if(clw) clw.style.display=(q.length>=2)?'flex':'none';
   if(q.length<2){box.innerHTML='';return;}
-  st=setTimeout(async()=>{
+  st=setTimeout(runSearch,300);
+});
+// Re-run the current search when "Show cleared" is toggled.
+document.getElementById('show-cleared').addEventListener('change',()=>{ if((document.getElementById('search-in').value||'').trim().length>=2) runSearch(); });
+async function runSearch(){
+      const q=(document.getElementById('search-in').value||'').trim();const box=document.getElementById('sresults');
+      if(q.length<2){box.innerHTML='';return;}
+      const showCleared=!!(document.getElementById('show-cleared')||{}).checked;
     try{
       const r=await fetch(XANO+'/office_universal_search?q='+encodeURIComponent(q),{cache:'no-store'});
       const d=await r.json();const rows=(d&&d.items)||[];
@@ -3008,8 +3019,10 @@ document.getElementById('search-in').addEventListener('input',e=>{
       const groups={};
       for(const x of rows){
         const jid=x.job_id||x.id; if(!jid) continue;
-        // A deleted / cleared / canceled job is gone — it must NOT be searchable. (Teddy 2026-07-20)
-        if(/cancel|delet/i.test(String(x.scheduling_status||x.status||''))) continue;
+        // A deleted / cleared / canceled job is gone — it must NOT be searchable... UNLESS
+        // "Show cleared" is on, so a job cleared by mistake can be found + brought back. (Teddy 2026-07-20)
+        const isCleared=/cancel|delet/i.test(String(x.scheduling_status||x.status||''));
+        if(isCleared && !showCleared) continue;
         const nm=((x.customer_first||'')+' '+(x.customer_last||'')).trim()||'Customer';
         const ph10=String(x.customer_phone||'').replace(/\D/g,'').slice(-10);
         const gkey=nm.toLowerCase()+'|'+ph10;
@@ -3027,7 +3040,9 @@ document.getElementById('search-in').addEventListener('input',e=>{
           const a=g.appls[ak];
           const chips=a.jobs.map(j=>{
             const stTxt=(j.status.replace(/_/g,' '))||'—';
-            const clr=j.canceled?'':`<button title="Clear this job (junk / duplicate — nobody gets texted)" onclick='clearFromSearch(${j.jid},${nmJs},event)' style="margin-left:2px;padding:2px 6px;border:1px solid #f3c0b7;border-radius:7px;background:#fdece9;color:#c0392b;font-weight:800;font-size:11px;cursor:pointer">🗑</button>`;
+            const clr=j.canceled
+              ?`<button title="Bring this job back onto the board — undo the clear (nobody gets texted)" onclick='restoreFromSearch(${j.jid},${nmJs},event)' style="margin-left:2px;padding:2px 7px;border:1px solid #b7dcc0;border-radius:7px;background:#e9fdec;color:#1f8a4c;font-weight:800;font-size:11px;cursor:pointer">↩ Bring back</button>`
+              :`<button title="Clear this job (junk / duplicate — nobody gets texted)" onclick='clearFromSearch(${j.jid},${nmJs},event)' style="margin-left:2px;padding:2px 6px;border:1px solid #f3c0b7;border-radius:7px;background:#fdece9;color:#c0392b;font-weight:800;font-size:11px;cursor:pointer">🗑</button>`;
             return `<span style="display:inline-flex;align-items:center;margin:3px 4px 0 0"><a href="javascript:void(0)" onclick="openDrawer(${j.jid})" style="text-decoration:none;padding:3px 8px;border:1px solid var(--line);border-radius:8px;background:#f6f8fb;color:${j.canceled?'#9aa1ad':'#1a2230'};font-size:12px;font-weight:700">${j.canceled?'✕ ':''}${esc(stTxt)} · #${j.jid}</a>${clr}</span>`;
           }).join('');
           return `<div style="margin-top:5px;display:flex;flex-wrap:wrap;align-items:center"><span style="font-weight:800;font-size:12.5px;margin-right:4px">${applIcon(a.label)} ${esc(a.label)}</span>${chips}</div>`;
@@ -3039,8 +3054,24 @@ document.getElementById('search-in').addEventListener('input',e=>{
         </div>`;
       }).join('');
     }catch(_){box.innerHTML='<div class="empty-col">search unavailable</div>';}
-  },300);
-});
+}
+
+// Bring a cleared/canceled job back onto the board (undo an accidental clear).
+// Reopens to not_ready — the state machine always allows that — so it lands back in
+// Needs Scheduled. Nobody gets texted. (Teddy 2026-07-20)
+async function restoreFromSearch(jid,name,evt){
+  if(evt){evt.preventDefault();evt.stopPropagation();}
+  if(!confirm('Bring '+(name||'#'+jid)+' (#'+jid+') back onto the board?\n\nIt returns to Needs Scheduled. Nobody gets texted.'))return;
+  try{
+    const d=await postJSON('office_set_job_status',{job_id:parseInt(jid,10),scheduling_status:'not_ready',actor:'Danielle'});
+    if(d&&(d.success||d.id||d.job_id||d.ok)){
+      toast('Brought back ↩ #'+jid);
+      const inp=document.getElementById('search-in');
+      if(inp&&inp.value.trim().length>=2){ runSearch(); }
+      loadBoard();
+    } else toast('⚠ '+((d&&d.error)||'could not bring it back'));
+  }catch(_){toast('⚠ that did not go through.');}
+}
 
 // ── Talk to Ant (office assistant) ──
 const TECH_ID_BY_NAME={teddy:1,jimmy:2,andre:3,lee:4,billy:5,john:6};
