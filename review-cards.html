@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Review Cards · TN Appliance</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐜</text></svg>">
+<style>
+  :root{ --bg:#0c0d11; --panel:#15171d; --line:#242833; --gold:#e7c255; --gold2:#c9a23a; --ink:#f2efe6; --mut:#98a1ad; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; }
+  header{ padding:18px 18px 8px; text-align:center; }
+  h1{ margin:0; font-size:20px; letter-spacing:.02em; }
+  h1 .g{ color:var(--gold); }
+  .sub{ color:var(--mut); font-size:13px; margin-top:4px; }
+  .wrap{ max-width:760px; margin:0 auto; padding:12px 16px 60px; }
+  .bar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; margin:14px 0; }
+  button, select{ font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:9px 13px; cursor:pointer; }
+  button:hover{ border-color:var(--gold2); }
+  button.gold{ background:linear-gradient(180deg,var(--gold),var(--gold2)); color:#1a1400; border:none; font-weight:700; }
+  .seg{ display:inline-flex; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .seg button{ border:none; border-radius:0; background:transparent; }
+  .seg button.on{ background:var(--gold); color:#1a1400; font-weight:700; }
+  select{ max-width:280px; }
+  .stage{ display:flex; justify-content:center; margin:10px 0 16px; }
+  canvas{ width:100%; max-width:420px; height:auto; border-radius:14px; box-shadow:0 12px 40px rgba(0,0,0,.55); background:#0b0c10; }
+  .story canvas{ max-width:300px; }
+  .fields{ display:grid; gap:10px; margin:6px 0 16px; }
+  label{ font-size:12px; color:var(--mut); display:block; margin-bottom:4px; letter-spacing:.03em; text-transform:uppercase; }
+  input[type=text], textarea{ width:100%; font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px; }
+  textarea{ min-height:88px; resize:vertical; }
+  .cta{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:8px 0 18px; }
+  .cap{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; white-space:pre-wrap; font-size:14px; }
+  .cap h3{ margin:0 0 8px; font-size:12px; color:var(--mut); letter-spacing:.05em; text-transform:uppercase; }
+  .badge{ display:inline-block; background:#101319; border:1px solid var(--line); color:var(--gold); border-radius:999px; padding:3px 10px; font-size:12px; margin-left:6px; }
+  .empty{ text-align:center; color:var(--mut); padding:50px 12px; }
+  .toast{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--gold); color:#1a1400; font-weight:700; padding:10px 16px; border-radius:999px; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .toast.show{ opacity:1; }
+  a.mut{ color:var(--mut); font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐜👑 <span class="g">Review Cards</span></h1>
+  <div class="sub">Your real Google reviews → post-ready branded cards <span class="badge" id="statBadge">loading…</span></div>
+</header>
+
+<div class="wrap">
+  <div id="content"><div class="empty">Loading your reviews…</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA_API = '/.netlify/functions/review-cards-data';
+let SECRET = localStorage.getItem('tn_social_secret') || '';
+let POOL = [], STATS = { average:4.5, total:0 }, IDX = 0, FMT = 'square';
+
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1500); }
+
+async function loadPool(refresh){
+  if(!SECRET){ const s=prompt('Enter admin secret:'); if(!s) return; SECRET=s.trim(); localStorage.setItem('tn_social_secret',SECRET); }
+  const url = DATA_API+'?secret='+encodeURIComponent(SECRET)+(refresh?'&refresh=1':'');
+  const r = await fetch(url);
+  if(r.status===401){ localStorage.removeItem('tn_social_secret'); SECRET=''; document.getElementById('content').innerHTML='<div class="empty">Wrong secret. <button onclick="location.reload()">Try again</button></div>'; return; }
+  const d = await r.json();
+  if(!d.ok){ document.getElementById('content').innerHTML='<div class="empty">Couldn\'t load reviews: '+(d.error||d.note||'unknown')+'</div>'; return; }
+  POOL = d.pool||[]; STATS = d.stats||STATS;
+  document.getElementById('statBadge').textContent = '★ '+(STATS.average||4.5)+' · '+(STATS.total||POOL.length)+' reviews';
+  if(!POOL.length){ document.getElementById('content').innerHTML='<div class="empty">No substantive reviews found in the recent pool.</div>'; return; }
+  IDX = Math.floor(Math.random()*POOL.length);
+  renderUI();
+}
+
+function renderUI(){
+  const opts = POOL.map((r,i)=>'<option value="'+i+'"'+(i===IDX?' selected':'')+'>'+esc((r.author||'')+' — '+r.text.slice(0,48))+'…</option>').join('');
+  document.getElementById('content').innerHTML =
+    '<div class="bar">'
+    + '<div class="seg"><button id="fSq" class="'+(FMT==='square'?'on':'')+'" onclick="setFmt(\'square\')">◻︎ Square 1:1</button><button id="fSt" class="'+(FMT==='story'?'on':'')+'" onclick="setFmt(\'story\')">▯ Story 9:16</button></div>'
+    + '<button onclick="step(-1)">◀</button><button onclick="shuffle()">🎲 Shuffle</button><button onclick="step(1)">▶</button>'
+    + '<select id="pick" onchange="pick(this.value)">'+opts+'</select>'
+    + '</div>'
+    + '<div class="stage '+(FMT==='story'?'story':'')+'"><canvas id="card" width="1080" height="1080"></canvas></div>'
+    + '<div class="fields">'
+    +   '<div><label>Review text (trim if it\'s long)</label><textarea id="txt" oninput="onEdit()"></textarea></div>'
+    +   '<div><label>Reviewer name</label><input id="name" type="text" oninput="onEdit()"></div>'
+    + '</div>'
+    + '<div class="cta"><button class="gold" onclick="download()">⬇ Download PNG</button><button onclick="copyCap()">📋 Copy caption</button><a class="mut" href="#" onclick="loadPool(true);return false;">↻ refresh reviews</a></div>'
+    + '<div class="cap"><h3>Ready-to-post caption</h3><div id="cap"></div></div>';
+  syncFields();
+  draw();
+}
+
+function cur(){ return POOL[IDX] || { author:'', text:'', stars:5 }; }
+function syncFields(){ document.getElementById('txt').value = cur().text; document.getElementById('name').value = cur().author; document.getElementById('pick').value = IDX; }
+function onEdit(){ cur().text = document.getElementById('txt').value; cur().author = document.getElementById('name').value; draw(); }
+function step(n){ IDX = (IDX + n + POOL.length) % POOL.length; syncFields(); draw(); }
+function shuffle(){ IDX = Math.floor(Math.random()*POOL.length); syncFields(); draw(); }
+function pick(v){ IDX = +v; syncFields(); draw(); }
+function setFmt(f){ FMT=f; document.getElementById('fSq').className=(f==='square'?'on':''); document.getElementById('fSt').className=(f==='story'?'on':''); document.querySelector('.stage').className='stage '+(f==='story'?'story':''); resizeCanvas(); draw(); }
+function resizeCanvas(){ const c=document.getElementById('card'); c.width=1080; c.height=(FMT==='story'?1920:1080); }
+function esc(s){ return (s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+/* ---------- card rendering (pure canvas, system fonts) ---------- */
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function wrap(ctx,text,maxW){ const words=text.split(' '); const lines=[]; let line=''; for(const w of words){ const t=line?line+' '+w:w; if(ctx.measureText(t).width>maxW && line){ lines.push(line); line=w; } else line=t; } if(line) lines.push(line); return lines; }
+function fitQuote(ctx,text,maxW,maxH,startPx,minPx){ for(let px=startPx;px>=minPx;px-=2){ ctx.font='italic '+px+'px Georgia,"Times New Roman",serif'; const lines=wrap(ctx,text,maxW); const lh=px*1.34; if(lines.length*lh<=maxH) return {px,lines,lh}; } ctx.font='italic '+minPx+'px Georgia,serif'; return {px:minPx,lines:wrap(ctx,text,maxW),lh:minPx*1.34}; }
+function stars(ctx,cx,y,n,size,color){ ctx.save(); ctx.font='700 '+size+'px Arial,sans-serif'; ctx.fillStyle=color; ctx.textAlign='center'; ctx.textBaseline='middle'; const gap=size*1.16; const start=cx-((n-1)*gap)/2; for(let i=0;i<n;i++) ctx.fillText('★',start+i*gap,y); ctx.restore(); }
+
+function draw(){
+  const c=document.getElementById('card'); if(!c) return; resizeCanvas();
+  const ctx=c.getContext('2d'); const W=c.width, H=c.height; const r=cur();
+  // background
+  const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#13161d'); bg.addColorStop(1,'#0a0b0f'); ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  // gold hairline frame
+  ctx.strokeStyle='rgba(231,194,85,.55)'; ctx.lineWidth=3; roundRect(ctx,44,44,W-88,H-88,22); ctx.stroke();
+  ctx.strokeStyle='rgba(231,194,85,.16)'; ctx.lineWidth=1.5; roundRect(ctx,58,58,W-116,H-116,16); ctx.stroke();
+
+  const cx=W/2, pad=120;
+  // top label + stars
+  ctx.textAlign='center';
+  ctx.fillStyle='rgba(231,194,85,.85)'; ctx.font='700 26px Arial,sans-serif';
+  ctx.save(); ctx.translate(cx, H*(FMT==='story'?0.135:0.14)); ctx.fillText('G O O G L E   R E V I E W',0,0); ctx.restore();
+  stars(ctx,cx,H*(FMT==='story'?0.185:0.205),5,58,'#e7c255');
+
+  // opening quote mark
+  ctx.fillStyle='rgba(231,194,85,.30)'; ctx.font='800 150px Georgia,serif'; ctx.textBaseline='alphabetic';
+  ctx.fillText('“',cx,H*(FMT==='story'?0.30:0.33));
+
+  // quote text (auto-fit), vertically centered in the middle block
+  const blockTop=H*(FMT==='story'?0.31:0.34), blockBot=H*(FMT==='story'?0.74:0.70);
+  const maxW=W-pad*2, maxH=blockBot-blockTop;
+  const fit=fitQuote(ctx,('“'+(r.text||'')+'”').replace(/^“|”$/g,''),maxW,maxH-70,56,26);
+  ctx.fillStyle='#f4f1ea'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='italic '+fit.px+'px Georgia,"Times New Roman",serif';
+  const totalH=fit.lines.length*fit.lh; let ty=blockTop+(maxH-70-totalH)/2+fit.lh/2;
+  for(const ln of fit.lines){ ctx.fillText(ln,cx,ty); ty+=fit.lh; }
+  // attribution
+  ctx.fillStyle='#e7c255'; ctx.font='italic 30px Georgia,serif'; ctx.fillText('— '+(r.author||'A Google customer'), cx, ty+26);
+
+  // footer
+  const fY=H-(FMT==='story'?230:170);
+  ctx.strokeStyle='rgba(231,194,85,.35)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx-160,fY-46); ctx.lineTo(cx+160,fY-46); ctx.stroke();
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  ctx.fillStyle='#f2efe6'; ctx.font='800 40px Arial,"Helvetica Neue",sans-serif'; ctx.fillText('🐜  TN APPLIANCE EXCHANGE', cx, fY);
+  ctx.fillStyle='#98a1ad'; ctx.font='600 22px Arial,sans-serif'; ctx.fillText('APPLIANCE REPAIR  ·  FAMILY-OWNED SINCE 2012', cx, fY+34);
+  ctx.fillStyle='#e7c255'; ctx.font='700 24px Arial,sans-serif'; ctx.fillText('★ '+(STATS.average||4.5)+'  ·  '+fmtNum(STATS.total)+' Google reviews', cx, fY+72);
+  ctx.fillStyle='#c9cdd4'; ctx.font='700 26px Arial,sans-serif'; ctx.fillText('📞 615-280-2949   ·   tnapplianceexchange.net', cx, fY+110);
+
+  document.getElementById('cap').textContent = caption(r);
+}
+function fmtNum(n){ n=+n||0; return n>=1000? n.toLocaleString('en-US') : String(n); }
+
+function caption(r){
+  const first=(r.author||'').split(' ')[0]||'friend';
+  const q = r.text.length>210 ? r.text.slice(0,207).trim()+'…' : r.text;
+  return '⭐️⭐️⭐️⭐️⭐️ "'+q+'"\n— '+(r.author||'A Google customer')+', verified Google review\n\n'
+    + 'Thank you, '+first+'! This is exactly why we do it. 🐜 Real techs, honest fixes — TN Appliance Exchange, family-owned since 2012.\n\n'
+    + '📞 615-280-2949  ·  tnapplianceexchange.net\n\n'
+    + '#appliancerepair #appliancerepairnashville #nashville #murfreesboro #antioch #tnappliance #washerrepair #dryerrepair #refrigeratorrepair #familyowned #5starservice';
+}
+
+function copyCap(){ const t=caption(cur()); (navigator.clipboard? navigator.clipboard.writeText(t): Promise.reject()).then(()=>toast('Caption copied')).catch(()=>{ const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('Caption copied'); }); }
+function download(){ const c=document.getElementById('card'); const a=document.createElement('a'); const nm=(cur().author||'review').replace(/[^a-z0-9]+/gi,'-').toLowerCase().slice(0,24); a.download='tn-review-'+nm+'-'+FMT+'.png'; a.href=c.toDataURL('image/png'); a.click(); toast('Card downloaded'); }
+
+loadPool(false);
+</script>
+</body>
+</html>
