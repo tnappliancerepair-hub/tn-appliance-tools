@@ -13,7 +13,7 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 
 ## 🗓️🐜 2026-07-20 (Mon) — TIKTOK CONNECTED, MARKETING TOOLS (REVIEW CARDS + CONTENT ENGINE), FIELD-COMMS FIXES (customer-texted PHOTOS now show inline) — READ FIRST
 
-Continuation. **⚠️ DEPLOY STATE: everything below is committed + verified on branch `claude/shop-automation-setup-r9wzpm` but NOT yet on `main` (the live `tnapplianceexchange.net`).** The crew (Andre) + office (Danielle) need these on the live site — pushing to main was pending Teddy's go at last checkpoint. Get them onto main.
+Continuation. **✅ DEPLOY STATE: all of today's work is PUSHED TO `main` + LIVE on `tnapplianceexchange.net`** (Teddy said "push it"). Crew/office get it on app reopen (`sw-tech v22` prompts the update).
 
 ### ✅ TIKTOK — CONNECTED + UPLOAD PROVEN (see the blitz section below for full detail)
 OAuth done (token vaulted), a real clip pushed into TikTok drafts via FILE_UPLOAD (`status 201`). Only the App-review audit remains. `docs/tiktok-app-review-submission-2026-07-20.md`.
@@ -29,7 +29,8 @@ The #1 field complaint: *"Need to be able to see pics customers send in text"* �
 - **`sms-media.js`** (NEW) — `GET ?key=` → 302 to a signed S3 URL (cfimg/cfstream passthrough). Lets the thread render pics with a plain `<img src="/.netlify/functions/sms-media?key=…">`, no client-side URL juggling.
 - **`sms-thread.js`** — returns `customer_sms_media_captured` rows; broadened the phone match to include `md.from` (media events are phone-keyed).
 - **Thread renderers** — `ant-spine.js renderThread` (tech page + portal) + `office-board.html renderThreadBubbles`: render customer media as **inline tap-to-open thumbnails** (photos as `<img>`, videos as a "🎥 tap to view" chip), and **drop the redundant "[photo/video]" placeholder bubble**. Verified headless (photos + video + AI/human/customer lanes all render). Cache: `ant-spine.js?v=20260720-media`, `sw-tech v22`.
-- **⚠️ Past human-line pics are gone** (never captured); going forward BOTH lines capture. Jennifer Roher's lost pics can't be recovered.
+- **✅ THE "MAGIC" (Teddy's ask) — texted pics auto-link to the job tile, no manual add:** `_lib/inbound-media.resolveJobIdByPhone` (via `lookup_customer_by_phone` → open/recent job) resolves the customer's current job so captured media attaches to it → auto-shows on the job tile (drawer photos via `qc_cockpit_load`). Wired into the human line; AI line already used its recorder's job_id (+ same phone fallback when it's 0). So a customer texts a pic → it lands in the thread AND on the job, Danielle adds nothing.
+- **⚠️ Past human-line pics are gone** (never captured); going forward BOTH lines capture + link. Jennifer Roher's lost pics can't be recovered.
 
 ### ✅ TECH JOB PAGE — full conversation un-buried (Andre couldn't find it)
 The complete thread (🤖 Ant AI line + 👤 office/human + customer) was collapsed inside the "🧰 More" fold. Lifted it to a **prominent visible card** ("💬 Full conversation — every text on this job") with a lane legend; left only payment/customer-info folded. `sw-tech v22`. NOTE: the "💬 Text" button is a native `sms:` shortcut (just the number) — the in-app history is this card.
