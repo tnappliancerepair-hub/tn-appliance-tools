@@ -91,4 +91,51 @@ async function uploadToInbox(accessToken, { videoUrl }) {
   } catch (e) { return { ok: false, status: 0, data: { error: String((e && e.message) || e) } }; }
 }
 
-module.exports = { defaultRedirect, scopes, authorizeUrl, tokenFromCode, freshAccessToken, uploadToInbox, API, REDIRECT };
+// Download a public video's bytes (e.g. a Facebook fbcdn source URL). Returns a
+// Buffer we can push straight to TikTok — no URL-property verification needed,
+// which PULL_FROM_URL would require (fbcdn is not a verified domain).
+async function fetchVideoBuffer(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return { ok: false, status: r.status, error: 'fetch_failed' };
+    const ab = await r.arrayBuffer();
+    return { ok: true, buffer: Buffer.from(ab), size: ab.byteLength, contentType: r.headers.get('content-type') || 'video/mp4' };
+  } catch (e) { return { ok: false, status: 0, error: String((e && e.message) || e) }; }
+}
+
+// Upload a video to the user's TikTok DRAFTS via FILE_UPLOAD (we send the bytes),
+// so the source can be any public video (Facebook, our site, anywhere). The user
+// then opens TikTok, adds the caption, and taps Post — the "Upload to TikTok"
+// (video.upload) flow, TikTok's approvable path. Single-chunk (video <= 64MB),
+// which covers our short vertical clips.
+async function uploadFileToInbox(accessToken, videoBuffer) {
+  const size = videoBuffer.length;
+  const MAX_SINGLE = 64 * 1024 * 1024;
+  if (size > MAX_SINGLE) return { ok: false, step: 'size', error: 'video_too_large_for_single_chunk', size };
+
+  const initBody = { source_info: { source: 'FILE_UPLOAD', video_size: size, chunk_size: size, total_chunk_count: 1 } };
+  let initData;
+  try {
+    const r = await fetch(`${API}/post/publish/inbox/video/init/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(initBody),
+    });
+    const d = await r.json().catch(() => ({}));
+    const okInit = r.ok && d.data && d.data.publish_id && d.data.upload_url;
+    if (!okInit) return { ok: false, step: 'init', status: r.status, data: d };
+    initData = d.data;
+  } catch (e) { return { ok: false, step: 'init', error: String((e && e.message) || e) }; }
+
+  try {
+    const put = await fetch(initData.upload_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'video/mp4', 'Content-Range': `bytes 0-${size - 1}/${size}` },
+      body: videoBuffer,
+    });
+    const text = await put.text().catch(() => '');
+    return { ok: put.ok, step: put.ok ? 'done' : 'upload', status: put.status, publish_id: initData.publish_id, detail: put.ok ? undefined : text };
+  } catch (e) { return { ok: false, step: 'upload', publish_id: initData.publish_id, error: String((e && e.message) || e) }; }
+}
+
+module.exports = { defaultRedirect, scopes, authorizeUrl, tokenFromCode, freshAccessToken, uploadToInbox, uploadFileToInbox, fetchVideoBuffer, API, REDIRECT };
