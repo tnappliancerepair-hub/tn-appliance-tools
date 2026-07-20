@@ -50,15 +50,35 @@ let SECRET = localStorage.getItem('tn_social_secret') || '';
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1500); }
 function esc(s){ return (s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
+let POLL=null;
+async function get(refresh){
+  const r=await fetch(API+'?secret='+encodeURIComponent(SECRET)+(refresh?'&refresh=1':''));
+  if(r.status===401){ localStorage.removeItem('tn_social_secret'); SECRET=''; throw new Error('unauthorized'); }
+  return r.json();
+}
 async function load(refresh){
+  if(POLL){ clearInterval(POLL); POLL=null; }
   if(!SECRET){ const s=prompt('Enter admin secret:'); if(!s) return; SECRET=s.trim(); localStorage.setItem('tn_social_secret',SECRET); }
-  document.getElementById('content').innerHTML='<div class="spin">'+(refresh?'Generating fresh ideas from your latest jobs… (~15s)':'Loading…')+'</div>';
   let d;
-  try{ const r=await fetch(API+'?secret='+encodeURIComponent(SECRET)+(refresh?'&refresh=1':'')); if(r.status===401){ localStorage.removeItem('tn_social_secret'); SECRET=''; document.getElementById('content').innerHTML='<div class="empty">Wrong secret. <button onclick="location.reload()">Try again</button></div>'; return; } d=await r.json(); }
-  catch(e){ document.getElementById('content').innerHTML='<div class="empty">Network error. <button onclick="load(false)">Retry</button></div>'; return; }
-  if(!d.ok){ document.getElementById('content').innerHTML='<div class="empty">Couldn\'t generate: '+esc(d.error||'unknown')+'. <button onclick="load(true)">Try again</button></div>'; return; }
-  document.getElementById('corpus').textContent = (d.corpus_size||0)+' real repair records';
-  render(d.ideas||[], d.cached);
+  try{ d=await get(refresh); }
+  catch(e){ if(String(e.message)==='unauthorized'){ document.getElementById('content').innerHTML='<div class="empty">Wrong secret. <button onclick="location.reload()">Try again</button></div>'; return; } document.getElementById('content').innerHTML='<div class="empty">Network error. <button onclick="load(false)">Retry</button></div>'; return; }
+  const haveIdeas=(d.ideas||[]).length;
+  document.getElementById('corpus').textContent=(d.corpus_size||0)+' real repair records';
+  // If we asked for new (or there are none yet) and it's generating, poll for the result.
+  if(d.generating && (refresh || !haveIdeas)){ pollGenerating(); return; }
+  if(!haveIdeas){ document.getElementById('content').innerHTML='<div class="empty">'+(d.error?('Couldn\'t generate: '+esc(d.error)):'No ideas yet')+'. <button onclick="load(true)">Generate</button></div>'; return; }
+  render(d.ideas, d.cached);
+}
+function pollGenerating(){
+  let secs=0;
+  document.getElementById('content').innerHTML='<div class="spin">✨ Reading your latest jobs and writing this week’s calendar… (~15–30s)</div>';
+  POLL=setInterval(async()=>{
+    secs+=5;
+    let d; try{ d=await get(false); }catch(e){ return; }
+    if((d.ideas||[]).length && !d.generating){ clearInterval(POLL); POLL=null; document.getElementById('corpus').textContent=(d.corpus_size||0)+' real repair records'; render(d.ideas,false); return; }
+    if(d.error && !d.generating){ clearInterval(POLL); POLL=null; document.getElementById('content').innerHTML='<div class="empty">Couldn\'t generate: '+esc(d.error)+'. <button onclick="load(true)">Try again</button></div>'; return; }
+    if(secs>=75){ clearInterval(POLL); POLL=null; if((d.ideas||[]).length) render(d.ideas,true); else document.getElementById('content').innerHTML='<div class="empty">Still working — <button onclick="load(false)">check again</button></div>'; }
+  },5000);
 }
 
 function render(ideas, cached){
