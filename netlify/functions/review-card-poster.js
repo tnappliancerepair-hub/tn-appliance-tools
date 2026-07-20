@@ -84,8 +84,9 @@ exports.handler = async function (event) {
   const pool = await loadPool();
   const remaining = pool.filter((x) => !x.posted);
   if (!remaining.length) return json(200, { ok: true, done: true, note: 'pool empty — top it up in review-cards.html', pool_size: pool.length });
-  // Louisiana cards first, then oldest-added.
-  remaining.sort((a, b) => (b.is_la - a.is_la) || (a.added_ms - b.added_ms));
+  // Louisiana first; Andre (South Shore) gets blown up first; then oldest-added.
+  const andre = (x) => (x.tech === 'andre' ? 1 : 0);
+  remaining.sort((a, b) => (b.is_la - a.is_la) || (andre(b) - andre(a)) || (a.added_ms - b.added_ms));
   const card = remaining[0];
   const idx = pool.indexOf(card);
   const cap = caption(card);
