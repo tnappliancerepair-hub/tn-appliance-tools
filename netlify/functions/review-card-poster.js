@@ -16,21 +16,33 @@ const { igPublish } = require('./_lib/social-fb');
 const POOL_KEY = 'SOCIAL_REVIEW_CARD_POOL_POSTS';
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(o, null, 2) }; }
 
-// LA-first emphasis: rotate the service area named in each caption.
-const LA_AREAS = ['the North Shore', 'the South Shore', 'Metairie & Kenner', 'Hammond & Denham Springs', 'Baton Rouge', 'Slidell & Mandeville', 'Greater New Orleans'];
-const LA_TAGS = '#neworleansappliance #batonrougeappliance #hammondla #northshorela #louisiana #metairie #slidell';
+// Louisiana localization (Teddy 2026-07-20): show a LOCAL LA number so "TN Appliance"
+// reads as local, not "Tennessee — not for me." The 504 (New Orleans) is verified
+// ringing through to Ant. Areas kept New-Orleans-metro to match the 504. When a real
+// 225 (Baton Rouge) number is added + verified, add BR cards + areas.
+const LA_PHONE = '504-355-9111';
+const TN_PHONE = '615-280-2949';
+const LA_AREAS = ['Greater New Orleans', 'the North Shore', 'the South Shore', 'Metairie & Kenner', 'Slidell & Mandeville', 'Kenner & Gretna'];
+const LA_TAGS = '#neworleansappliance #neworleans #metairie #northshorela #southshore #slidell #louisiana #nola';
 const TN_TAGS = '#nashville #murfreesboro #antioch #tnappliance';
 
 async function loadPool() { try { return JSON.parse((await getSecretFresh(POOL_KEY)) || '[]'); } catch (_) { return []; } }
 async function savePool(p) { await setSecret(POOL_KEY, JSON.stringify(p)); }
 
 function caption(card, n) {
-  const area = LA_AREAS[n % LA_AREAS.length];
   const first = String(card.author || '').split(' ')[0] || 'friend';
+  const phone = card.phone || (card.is_la ? LA_PHONE : TN_PHONE);
+  if (card.is_la) {
+    const area = LA_AREAS[n % LA_AREAS.length];
+    return `⭐️⭐️⭐️⭐️⭐️ Another 5-star from your Louisiana neighbors. 🐜\n\n`
+      + `Thank you, ${first} — this is exactly why we do it. Broken appliance in ${area}? We're here 24/7: text a quick video, get a real answer, no runaround. Real techs, honest fixes — right here in Louisiana.\n\n`
+      + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
+      + `#appliancerepair #familyowned #5starservice ${LA_TAGS}`;
+  }
   return `⭐️⭐️⭐️⭐️⭐️ Another 5-star from the family. 🐜\n\n`
-    + `Thank you, ${first} — this is exactly why we do it. Broken appliance in ${area} or Middle TN? We're here 24/7: text a quick video, get a real answer, no runaround. Real techs, honest fixes.\n\n`
-    + `📞 615-280-2949  ·  tnapplianceexchange.net\n\n`
-    + `#appliancerepair #familyowned #5starservice ${LA_TAGS} ${TN_TAGS}`;
+    + `Thank you, ${first} — this is exactly why we do it. Broken appliance in Middle TN? We're here 24/7: text a quick video, get a real answer, no runaround. Real techs, honest fixes.\n\n`
+    + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
+    + `#appliancerepair #familyowned #5starservice ${TN_TAGS}`;
 }
 
 async function signedUrl(key) {
