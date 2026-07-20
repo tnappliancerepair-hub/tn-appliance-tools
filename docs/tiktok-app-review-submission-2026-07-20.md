@@ -10,6 +10,43 @@ Audit takes days→weeks.
 
 ---
 
+## ✅ READY — verified 2026-07-20 (everything below is confirmed live)
+- Domain-verification file live at site root (HTTP 200).
+- Terms of Service + Privacy Policy URLs live (HTTP 200).
+- Upload PROVEN again just now (`ok:true`, fresh clip in the @tn.appliance.exch
+  TikTok drafts, ready to show in the demo).
+- The on-screen demo button ("⬆ Upload to TikTok drafts") is live in `social-drafts.html`.
+
+## The submission, step by step (developers.tiktok.com → your app → App review)
+1. Confirm the app's basic info is filled (fields below).
+2. Record the ~60–90s demo (script further down).
+3. Paste the per-scope explanations (below).
+4. Submit for review.
+
+## Form fields — copy/paste
+| Field | Value |
+|---|---|
+| App name | TN Appliance |
+| Category | Business / Tools |
+| Platform | Web |
+| Website / desktop URL | https://tnapplianceexchange.net |
+| Terms of Service URL | https://tnapplianceexchange.net/app-terms.html |
+| Privacy Policy URL | https://tnapplianceexchange.net/privacy.html |
+| Redirect URI | https://tnapplianceexchange.net/.netlify/functions/tiktok-oauth-callback |
+| Products | Login Kit + Content Posting API |
+| Scopes | user.info.basic, video.upload |
+
+**App description (paste):**
+> Internal social tool for TN Appliance Exchange LLC, a family appliance-repair
+> business. The owner writes one post and sends the business's own original repair
+> videos to the business's own connected social channels. For TikTok, it uploads an
+> already-produced video into the owner's own TikTok drafts via the Content Posting
+> API; the owner then reviews, captions, and posts it inside TikTok. We only ever
+> upload the business's own content to the business's own account, and nothing
+> auto-publishes.
+
+---
+
 ## What we're requesting
 - **Products:** Login Kit + Content Posting API
 - **Scopes:** `user.info.basic`, `video.upload`
