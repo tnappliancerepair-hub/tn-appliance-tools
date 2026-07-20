@@ -26,11 +26,13 @@ const LA_504 = '504-355-9111';   // New Orleans — VERIFIED
 const LA_225 = '';               // Baton Rouge — set when a real 225 is verified ringing to Ant
 const TN_PHONE = '615-280-2949';
 function laPhone(tech) { if (tech === 'john' || tech === 'billy') return LA_225 || LA_504; return LA_504; }
-// ONE universal Louisiana sweep so ANY Louisianan instantly sees themselves — the
-// local NUMBER still flexes by tech (Andre 504 / John 225), but every LA card reads
-// "we cover all of Louisiana." (Teddy 2026-07-20)
-const LA_SWEEP = 'New Orleans, Metairie, Baton Rouge, the North Shore — everywhere in Louisiana';
-const LA_TAGS = '#neworleans #metairie #batonrouge #northshorela #slidell #kenner #hammondla #louisiana #nola';
+// Each LA card names a DIFFERENT set of real Louisiana towns (stored per card at
+// render time) so the feed feels like we're EVERYWHERE — Hammond, Slidell, Gretna,
+// Madisonville, Covington, Walker, Denham Springs, LaPlace, Manchac... every card
+// still ties to "all Louisiana." The local NUMBER flexes by tech (Andre 504 / John
+// 225). (Teddy 2026-07-20)
+const LA_SWEEP_FALLBACK = 'New Orleans, Metairie, Baton Rouge & the North Shore';
+const LA_TAGS = '#neworleans #metairie #kenner #gretna #batonrouge #denhamsprings #walker #hammondla #covington #madisonville #slidell #mandeville #laplace #northshorela #louisiana #nola';
 const TN_TAGS = '#nashville #murfreesboro #antioch #tnappliance';
 
 async function loadPool() { try { return JSON.parse((await getSecretFresh(POOL_KEY)) || '[]'); } catch (_) { return []; } }
@@ -40,8 +42,9 @@ function caption(card) {
   const first = String(card.author || '').split(' ')[0] || 'friend';
   if (card.is_la) {
     const phone = card.phone || laPhone(card.tech);
+    const towns = card.towns || LA_SWEEP_FALLBACK;
     return `⭐️⭐️⭐️⭐️⭐️ Real 5-star service all across Louisiana. 🐜\n\n`
-      + `Thank you, ${first} — this is exactly why we do it. ${LA_SWEEP}, wherever you are, we've got you. 24/7: text a quick video, get a real answer, no runaround.\n\n`
+      + `Thank you, ${first} — this is exactly why we do it. ${towns} — and everywhere in Louisiana, wherever you are, we've got you. 24/7: text a quick video, get a real answer, no runaround.\n\n`
       + `The people of Louisiana always show us love — and we're grateful. 🙏\n\n`
       + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
       + `#appliancerepair #familyowned #5starservice ${LA_TAGS}`;
