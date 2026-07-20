@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>🎬 Video Studio — TN Appliance</title>
+<style>
+  :root{ --bg:#0b0c10; --card:#14161d; --ink:#f4f1ea; --dim:#98a1ad; --gold:#e7c255; --line:rgba(231,194,85,.22); --ok:#34d399; --warn:#f59e0b; --bad:#ef4444; }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,#13161d,#0a0b0f);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px;padding-bottom:64px}
+  h1{font:800 26px/1.1 Georgia,serif;color:var(--gold);margin:6px 0 2px;letter-spacing:.3px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:0 0 14px}
+  label{display:block;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 4px}
+  input,select,textarea,button{font:inherit}
+  input[type=text],select,textarea{width:100%;background:#0e1016;border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:11px 12px}
+  textarea{min-height:78px;resize:vertical}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--gold);color:#1a1400;border:none;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn.ghost{background:transparent;color:var(--gold);border:1px solid var(--line)}
+  .pill{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:4px 9px;border-radius:999px}
+  .p-processing{background:rgba(245,158,11,.15);color:var(--warn)} .p-ready{background:rgba(52,211,153,.15);color:var(--ok)}
+  .p-failed{background:rgba(239,68,68,.15);color:var(--bad)} .p-posted{background:rgba(231,194,85,.15);color:var(--gold)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .muted{color:var(--dim);font-size:13px}
+  video{width:100%;border-radius:12px;background:#000;margin-top:10px;max-height:420px}
+  .chk{display:inline-flex;align-items:center;gap:6px;background:#0e1016;border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-size:13px;cursor:pointer;user-select:none}
+  .chk input{width:auto;margin:0}
+  .banner{border-radius:12px;padding:11px 13px;font-size:14px;margin-bottom:14px}
+  .banner.ok{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3)}
+  .banner.warn{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3)}
+  .prog{height:8px;background:#0e1016;border-radius:999px;overflow:hidden;margin-top:8px}
+  .prog>i{display:block;height:100%;width:0;background:var(--gold);transition:width .2s}
+  .res{font-size:12px;margin-top:8px;white-space:pre-wrap;color:var(--dim)}
+  .jt{font-weight:700;margin-bottom:2px}
+  a{color:var(--gold)}
+</style>
+</head>
+<body>
+  <h1>🎬 Video Studio</h1>
+  <div class="sub">Shoot on the tripod → auto-caption + hook → post everywhere. 🐜</div>
+  <div id="setup"></div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>➕ New clip</strong>
+      <span class="muted">MP4/MOV · vertical is best</span>
+    </div>
+    <label>Raw clip from the tripod</label>
+    <input type="file" id="file" accept="video/*">
+    <div class="prog" id="progWrap" style="display:none"><i id="prog"></i></div>
+    <div id="upmsg" class="muted"></div>
+
+    <div id="form" style="display:none">
+      <label>Title (what's this clip?)</label>
+      <input type="text" id="title" placeholder="Whirlpool dryer won't heat — fix or not?">
+      <label>Hook (big text on screen for the first second)</label>
+      <input type="text" id="hook" placeholder="Your dryer isn't broken — it's THIS 👀">
+      <div class="row">
+        <div style="flex:1;min-width:150px">
+          <label>Type</label>
+          <select id="ctype">
+            <option value="hero">Hero — you/tech on camera</option>
+            <option value="fix_or_not">Fix or not?</option>
+            <option value="quick_tip">Quick tip</option>
+            <option value="b_roll_voiceover">B-roll + voiceover</option>
+            <option value="review">Review / testimonial</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:150px">
+          <label>Caption style</label>
+          <select id="tmpl">
+            <option value="Hormozi 2">Bold (Hormozi 2)</option>
+            <option value="">Clean (auto)</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:14px"><button class="btn" id="submit">✨ Caption &amp; build it</button></div>
+      <div id="submsg" class="muted" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="row" style="justify-content:space-between;margin:4px 2px 10px">
+    <strong>🗂 The queue</strong>
+    <button class="btn ghost" id="refresh" style="padding:7px 12px">↻ Refresh</button>
+  </div>
+  <div id="jobs"><div class="muted">Loading…</div></div>
+
+<script>
+const F='/.netlify/functions';
+let SECRET = localStorage.getItem('tn_social_secret') || '';
+function need(){ if(SECRET) return true; const s=prompt('Enter admin secret for the Video Studio:'); if(!s) return false; SECRET=s.trim(); localStorage.setItem('tn_social_secret',SECRET); return true; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function jget(url){ const r=await fetch(url,{cache:'no-store'}); if(r.status===401){localStorage.removeItem('tn_social_secret');SECRET='';throw new Error('unauthorized');} return r.json(); }
+async function jpost(fn,body){ const r=await fetch(F+'/'+fn,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET,...body})}); return r.json(); }
+
+async function checkSetup(){
+  try{
+    const s=await jget(F+'/submagic-check?secret='+encodeURIComponent(SECRET));
+    const el=document.getElementById('setup');
+    if(s.ok){ el.innerHTML='<div class="banner ok">✅ Submagic connected ('+esc(s.key||'')+') — captions engine ready.</div>'; }
+    else if(s.configured){ el.innerHTML='<div class="banner warn">⚠️ Submagic key present but auth was rejected — re-check the key in the vault.</div>'; }
+    else { el.innerHTML='<div class="banner warn">⚠️ Submagic not connected yet. Sign up (Business plan = API), then add <b>SUBMAGIC_API_KEY</b> in admin-secrets.html. You can still upload clips — they\'ll build once the key is in.</div>'; }
+  }catch(e){ document.getElementById('setup').innerHTML='<div class="banner warn">Enter the admin secret to continue.</div>'; }
+}
+
+// ---- upload a raw clip straight to S3 (presigned PUT) ----
+let RAW_KEY='';
+document.getElementById('file').addEventListener('change', async function(){
+  const f=this.files&&this.files[0]; if(!f) return;
+  if(!need()) return;
+  const mime=f.type||'video/mp4';
+  const ext=(f.name.match(/\.(mp4|mov|m4v)$/i)||['','mp4'])[1].toLowerCase();
+  const key='social/raw/'+Date.now()+'-'+Math.floor(Math.random()*1e6)+'.'+ext;
+  document.getElementById('upmsg').textContent='Getting upload link…';
+  let pre; try{ pre=await jpost('s3-presign',{s3_key:key,mime_type:mime}); }catch(e){ document.getElementById('upmsg').textContent='Upload link failed.'; return; }
+  if(!pre||!pre.upload_url){ document.getElementById('upmsg').textContent='Upload link failed.'; return; }
+  document.getElementById('progWrap').style.display='block';
+  await new Promise((res,rej)=>{
+    const x=new XMLHttpRequest(); x.open('PUT',pre.upload_url);
+    x.setRequestHeader('Content-Type',mime);
+    x.upload.onprogress=e=>{ if(e.lengthComputable) document.getElementById('prog').style.width=Math.round(e.loaded/e.total*100)+'%'; };
+    x.onload=()=> x.status>=200&&x.status<300?res():rej(new Error('PUT '+x.status));
+    x.onerror=()=>rej(new Error('network')); x.send(f);
+  }).then(()=>{
+    RAW_KEY=key;
+    document.getElementById('upmsg').innerHTML='✅ Uploaded ('+Math.round(f.size/1048576)+' MB). Now caption it 👇';
+    document.getElementById('form').style.display='block';
+    if(!document.getElementById('title').value) document.getElementById('title').value=f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ');
+  }).catch(e=>{ document.getElementById('upmsg').textContent='Upload failed: '+e.message; });
+});
+
+document.getElementById('submit').addEventListener('click', async function(){
+  if(!RAW_KEY) return;
+  this.disabled=true; const msg=document.getElementById('submsg'); msg.textContent='Sending to the captions engine…';
+  const r=await jpost('video-submit',{ s3_key:RAW_KEY, title:document.getElementById('title').value, hook:document.getElementById('hook').value, content_type:document.getElementById('ctype').value, template:document.getElementById('tmpl').value });
+  this.disabled=false;
+  if(r&&r.ok){ msg.innerHTML='✅ Building your short — it\'ll appear in the queue below as <b>Ready</b> in a few minutes.'; RAW_KEY=''; document.getElementById('form').style.display='none'; document.getElementById('file').value=''; document.getElementById('progWrap').style.display='none'; document.getElementById('prog').style.width='0'; document.getElementById('upmsg').textContent=''; loadJobs(); }
+  else { msg.textContent='⚠️ '+(r&&(r.error||r.note)||'failed')+(r&&r.detail?(' — '+JSON.stringify(r.detail).slice(0,160)):''); }
+});
+
+// ---- the queue ----
+function suggestCaption(j){
+  const t=j.title||'Broken appliance?';
+  return t+'\n\nReal techs, honest fixes — Middle TN & South Louisiana. 24/7: text a quick video, get a real answer. 🐜\n📞 615-280-2949';
+}
+function jobCard(j){
+  const pill='<span class="pill p-'+esc(j.status)+'">'+esc(j.status)+'</span>';
+  let body='';
+  if(j.status==='ready'){
+    const posted=j.posted&&Object.keys(j.posted).length?('<div class="res">'+Object.entries(j.posted).map(([k,v])=>k+': '+(v.ok?'✅':'✗ '+(v.reason||''))).join('  ·  ')+'</div>'):'';
+    body='<video src="'+esc(j.download_url)+'" controls preload="metadata"></video>'
+      +'<label>Caption</label><textarea id="cap-'+j.id+'">'+esc(suggestCaption(j))+'</textarea>'
+      +'<div class="row" style="margin:10px 0">'
+      +['facebook','instagram','tiktok','youtube'].map(p=>'<label class="chk"><input type="checkbox" data-p="'+p+'" data-j="'+j.id+'" checked> '+({facebook:'Facebook',instagram:'IG Reel',tiktok:'TikTok draft',youtube:'YouTube'}[p])+'</label>').join('')
+      +'</div>'
+      +'<button class="btn" onclick="postAll(\''+j.id+'\',this)">🚀 Post everywhere</button>'
+      +'<div class="muted" style="margin-top:6px">FB + IG go live · TikTok lands in your drafts · YouTube uploads private (flip to public).</div>'+posted;
+  } else if(j.status==='posted'){
+    body='<video src="'+esc(j.download_url||'')+'" controls preload="metadata"></video><div class="res">'+Object.entries(j.posted||{}).map(([k,v])=>k+': '+(v.ok?('✅ '+(v.url?'<a href="'+esc(v.url)+'" target="_blank">view</a>':'done')):'✗ '+(v.reason||''))).join('  ·  ')+'</div><button class="btn ghost" style="margin-top:8px" onclick="reopen(\''+j.id+'\')">Post again / to more</button>';
+  } else if(j.status==='failed'){
+    body='<div class="muted">Build failed — re-upload the clip.</div>';
+  } else {
+    body='<div class="muted">✨ Captioning & rendering… (auto-refreshes)</div>'+(j.raw_preview?'<video src="'+esc(j.raw_preview)+'" controls preload="metadata" style="max-height:220px"></video>':'');
+  }
+  return '<div class="card"><div class="row" style="justify-content:space-between"><div class="jt">'+esc(j.title||'Untitled')+'</div>'+pill+'</div>'+body+'</div>';
+}
+window._jobs=[];
+function render(){ document.getElementById('jobs').innerHTML = window._jobs.length? window._jobs.map(jobCard).join('') : '<div class="muted">No clips yet — upload one above.</div>'; }
+function reopen(id){ const j=window._jobs.find(x=>String(x.id)===String(id)); if(j){ j.status='ready'; render(); } }
+
+async function postAll(id,btn){
+  btn.disabled=true; btn.textContent='Posting…';
+  const cap=(document.getElementById('cap-'+id)||{}).value||'';
+  const plats=[...document.querySelectorAll('input[data-j="'+id+'"]:checked')].map(c=>c.getAttribute('data-p'));
+  const r=await jpost('video-post',{ job_id:id, platforms:plats, caption:cap });
+  btn.disabled=false; btn.textContent='🚀 Post everywhere';
+  if(r&&r.ok){ loadJobs(); } else { alert('Post error: '+(r&&r.error||'failed')); }
+}
+
+async function loadJobs(refresh){
+  try{
+    const d=await jget(F+'/video-jobs?secret='+encodeURIComponent(SECRET)+(refresh?'&refresh=1':''));
+    window._jobs=d.jobs||[]; render();
+  }catch(e){ document.getElementById('jobs').innerHTML='<div class="muted">Enter the admin secret to load the queue.</div>'; }
+}
+document.getElementById('refresh').addEventListener('click',()=>loadJobs(true));
+
+(function init(){ if(!need()){ document.getElementById('jobs').innerHTML='<div class="muted">Admin secret required.</div>'; return; } checkSetup(); loadJobs(true);
+  // auto-refresh while anything is still building
+  setInterval(()=>{ if(window._jobs.some(j=>j.status!=='ready'&&j.status!=='posted'&&j.status!=='failed')) loadJobs(true); }, 20000);
+})();
+</script>
+</body>
+</html>
