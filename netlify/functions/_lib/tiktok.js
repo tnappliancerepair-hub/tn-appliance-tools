@@ -22,8 +22,14 @@ const SCOPES = 'user.info.basic,video.upload';
 function defaultRedirect() { return REDIRECT; }
 function scopes() { return SCOPES; }
 
+// Prefer sandbox credentials when present (unaudited testing) — production key
+// can't do live OAuth until the app passes review. Once approved, clear the
+// TIKTOK_SANDBOX_* vault keys and it falls back to production automatically.
+async function clientKey() { return (await getSecretPreferVault('TIKTOK_SANDBOX_CLIENT_KEY')) || (await getSecretPreferVault('TIKTOK_CLIENT_KEY')); }
+async function clientSecret() { return (await getSecretPreferVault('TIKTOK_SANDBOX_CLIENT_SECRET')) || (await getSecretPreferVault('TIKTOK_CLIENT_SECRET')); }
+
 async function authorizeUrl(state) {
-  const key = await getSecretPreferVault('TIKTOK_CLIENT_KEY');
+  const key = await clientKey();
   if (!key) return null;
   const u = new URL(AUTHORIZE);
   u.searchParams.set('client_key', key);
@@ -48,15 +54,15 @@ async function postForm(path, params) {
 
 // code -> tokens (returns { access_token, refresh_token, open_id, expires_in, ... })
 async function tokenFromCode(code) {
-  const key = await getSecretPreferVault('TIKTOK_CLIENT_KEY');
-  const secret = await getSecretPreferVault('TIKTOK_CLIENT_SECRET');
+  const key = await clientKey();
+  const secret = await clientSecret();
   return postForm('/oauth/token/', { client_key: key, client_secret: secret, code, grant_type: 'authorization_code', redirect_uri: REDIRECT });
 }
 
 // Refresh the access token from the vaulted refresh token.
 async function freshAccessToken() {
-  const key = await getSecretPreferVault('TIKTOK_CLIENT_KEY');
-  const secret = await getSecretPreferVault('TIKTOK_CLIENT_SECRET');
+  const key = await clientKey();
+  const secret = await clientSecret();
   const refresh = await getSecret('TIKTOK_REFRESH_TOKEN');
   if (!key || !secret || !refresh) return { ok: false, error: 'not_connected' };
   const r = await postForm('/oauth/token/', { client_key: key, client_secret: secret, grant_type: 'refresh_token', refresh_token: refresh });
