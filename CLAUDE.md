@@ -11,6 +11,58 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-19→20 (Sun, 15-HR SOCIAL BLITZ) — SIX PLATFORMS LIVE (FB+IG AUTO), "POST EVERYWHERE" ENGINE, TIKTOK SANDBOX 90% + SPAM-FIX + TRUST AUDIT — READ FIRST
+
+Marathon day with Teddy (~9am → midnight) taking Ant/TN Appliance from **near-zero social presence to SIX platforms** — the "how many times am I going to see the Ant appliance place" omnipresence push. All committed + pushed to `main` + `claude/shop-automation-setup-r9wzpm`. Ant is named after Teddy's son; the phone assistant is now **Ann** (renamed earlier). Story spine = "we never stopped helping people" (Dawn retired → we were ready). **⚠️ Get Dawn's blessing before her story goes public.**
+
+### ✅ SCOREBOARD — six platforms
+| Platform | State |
+|---|---|
+| **Facebook** | ✅ AUTO-posting (draft-first). Page **TN Appliance Exchange LLC** (id `370661509678189`, 6,128 followers, 34 videos). |
+| **Instagram** | ✅ AUTO cross-post (connected + verified). @tnappliance, IG user `17841400039615124`. |
+| **Google Business** | ✅ auto (2×/week, prior work). |
+| **TikTok** | ✅ active + posting MANUALLY (@tn.appliance.exch, 76 followers, great vertical "fix or not" clips). Dev app + **sandbox 90% built** (auto-posting pending — see below). |
+| **X / Twitter** | ✅ profile + pinned post live (Professional acct, @JamesTPivacek repurposed → "TN Appliance Exchange"). |
+| **Truth Social** | ✅ profile + first post live. |
+
+### ✅ THE "POST EVERYWHERE" ENGINE (write once → all six)
+- **`_lib/social-variants.js`** — `variantsFor(item)` derives ready-to-paste copy per platform: **facebook** (caption+link), **instagram** (hashtags + phone CTA, no links), **x** (auto-trimmed ≤280), **truthsocial** (full + CTA + tags), **tiktok** (short + tags), **youtube** ({title, description}, cleaned).
+- **`social-campaign.js`** (draft-first) + **`_lib/social-campaign-plan.js`** (12-post launch PLAN, anchor = the Dawn/Ant reintroduction). State in vault `SOCIAL_CAMPAIGN_STATE`. Actions: list/draft/preview/approve/skip/reset. **FB auto-publishes on Approve**; cron `0 14 * * *` idle until `SOCIAL_CAMPAIGN_LIVE=true`.
+- **`social-drafts.html`** — owner-gated review page (admin secret): pending draft + editable caption + **one-tap Copy per surface** (IG/X/Truth Social/TikTok/YouTube) + progress + log.
+- **`social-ig-crosspost-background.js`** — on Approve, VIDEO posts auto-cross-post to IG as Reels (resolves the FB video's `source` URL → `igPublish` REELS, async status-poll). Text-only can't post to IG → paste the IG copy. Some 2013–16 archive videos may fail Reel specs (landscape/>90s) → logged `ig_failed`, paste instead.
+
+### ✅ META / FACEBOOK + INSTAGRAM WIRING (all done + verified)
+- App **"TN Appliance Ant"** App ID `950649561404797`, business portfolio `1716368626344846` (Teddy's account). Vault: `SOCIAL_FB_APP_ID`/`_SECRET`, `SOCIAL_FB_PAGE_TOKEN` (long-lived, non-expiring)/`_PAGE_ID`/`_PAGE_NAME`/`_USER_TOKEN`, `SOCIAL_IG_USER_ID`.
+- `_lib/social-fb.js` — `SCOPES` (page) + `SCOPES_IG` (+`instagram_basic`,`instagram_content_publish`), `graphGet`/`graphPost`/`igPublish` (2-step create+publish, async video poll). `social-fb-oauth-start` (`?ig=1` opt-in requests IG scopes so base FB reconnect never breaks) / `-callback` (vaults everything incl. `instagram_business_account`). `social-fb-catalog.js`, **`social-ig-check.js`** (verified `ready_to_cross_post:true`).
+- **IG connect flow (Meta maze — documented):** switch @tnappliance → Business + link to the FB **Page** (done via Facebook app → Page → Linked accounts; the Business-Suite web dialog stalls in Chrome-for-Testing). Add the **Instagram use case → "Manage messaging & content on Instagram" → API setup with Facebook login → "Add required content permissions"** (`instagram_basic`+`instagram_content_publish`), NOT the "Instagram login" flavor (that needs app review). Re-auth via `?ig=1`.
+- **⚠️ FOOTGUN:** adding the Instagram use case made `pages_manage_metadata` + `read_insights` return **"Invalid Scopes"** — trimmed both from `PAGE_SCOPES` (neither needed to post). If you ever re-add scopes, keep the list matched to what's "Ready for testing" in the app.
+
+### 🎵 TIKTOK — dev app + SANDBOX 90% (the ⏳ 15-MIN FINISH for next session)
+Auto-posting to TikTok requires TikTok's audit (days→weeks) + a **demo video** made in a **Sandbox** (unaudited production OAuth is locked — errors "client key"). State:
+- Dev app **"TN Appliance"** (Individual). Products: Login Kit + Content Posting API. Domain **verified** (hosted `tiktokOSwbLk7gwnTPQmKJwamYpfJx09to8nC3.txt` at site root; content `tiktok-developers-site-verification=OSwbLk7gwnTPQmKJwamYpfJx09to8nC3`). Redirect URI `.../tiktok-oauth-callback`.
+- **Mode = Draft/Upload** (`video.upload`, the approvable path) — auto-uploads video to TikTok drafts, Teddy taps Post. (Direct Post = `video.publish` = fully hands-off but strict audit + private-only unaudited; we chose Draft.)
+- `_lib/tiktok.js` — `clientKey()`/`clientSecret()` **prefer sandbox creds** (`TIKTOK_SANDBOX_CLIENT_KEY`/`_SECRET`) over production, `authorizeUrl`, `tokenFromCode`, `freshAccessToken` (rotates refresh token), **`uploadToInbox`** (`/v2/post/publish/inbox/video/init/`, PULL_FROM_URL). `tiktok-oauth-start`/`-callback` (vaults `TIKTOK_REFRESH_TOKEN`/`_OPEN_ID`). Vault: production `TIKTOK_CLIENT_KEY`(awwg0qc0…)/`_SECRET`; **sandbox `TIKTOK_SANDBOX_CLIENT_KEY`(sbawcllk…)/`_SECRET` VAULTED** (verified via `tiktok-vault-check.js` — a masked diagnostic; **remove it for hygiene later**). Authorize link confirmed live on the sandbox key.
+- **App icon MADE + uploaded:** 1024×1024 gold "TN APPLIANCE" + ant, generated with Pillow (`scratchpad/make_icon.py`).
+- **⏳ REMAINING (sandbox holds its state):** the sandbox was empty of products (clone didn't copy them). In the **Sandbox** tab: (1) Products → add **Login Kit + Content Posting API**; (2) add the **redirect URI** in Login Kit config; (3) **Sandbox settings → Target users → Add account** = **@tn.appliance.exch**; (4) **Apply changes**. → then hit the authorize link (uses sandbox key) → `uploadToInbox` test → **record demo video** → fill App-review explanation (drafted in chat) + upload demo → **Submit** → audit. **Footgun:** `getSecretPreferVault` cached a stale/empty read in a warm fn — a new deploy recycles it (that's why the sandbox key looked "not picked up" until redeploy).
+- **Bio-link lever (not done):** switch @tn.appliance.exch to a **Business** TikTok account → add website link `tnapplianceexchange.net` (turns views → bookings, no follower minimum). The Business/link switch was buried in the app; do on the phone another time.
+
+### 📞 SPAM-LABEL FIX (queued — Teddy to do) + a real finding
+- **Recurring:** the AI line **615-588-9500** shows **"Potential Spam"** when it calls Teddy's cell (seen twice). If his carrier flags it, customers likely see it too → lost bookings. **Fix = free `freecallerregistry.com`** (submits to First Orion/Hiya/TNS). Register **615-280-2949 · 615-588-9500 · 615-857-8800**. Business info: TN Appliance Exchange LLC · 3137 Skinner Dr, Antioch TN 37013 · EIN 38-3886067 · tnappliancerepair@gmail.com (verification-only, not published). **Also worth:** pull Telnyx CDR to see WHY 588-9500 dials Teddy (transfer vs loop) — call log showed Sunday inbounds handled + some Telnyx↔Vapi transport drops (separate call-quality issue).
+
+### ✅ TRUST AUDIT — site is excellent (nothing to fix)
+HTTPS + HSTS ✅ · schema LocalBusiness + AggregateRating (**4.5★ / 1,079** in schema) + Address + Services ✅ · badges Licensed·Insured·Google Guaranteed·Background-Checked·CSIA·Family-Owned-since-2012 ✅ · privacy.html + app-terms.html live ✅. **NAP consistent** — phone `615-280-2949` + name "TN Appliance Exchange LLC" match across the site AND the new social bios (what search engines + AIs reward as legit). Meta Pixel `1441529794691715` live on 1,408 pages.
+
+### 📎 ROADMAP ARTIFACT + DOCS
+- **Social omnipresence roadmap** published as an Artifact (favicon 🐜👑) — platform order + who-does-what + status.
+- Docs: `facebook-aggressive-free-launch-2026-07-19.md` (the free-first plan + THE STORY + IG-connected + post-everywhere changelog), `facebook-growth-playbook-2026-07-19.md`, `social-connect-the-rest-2026-07-19.md` (YouTube/TikTok/X dev-app steps + vault cred names).
+
+### ⏭️ NEXT SESSION — pick up here
+1. **Finish TikTok** (~15 min): the 4 sandbox steps above → authorize → `uploadToInbox` test → demo video → submit. Then **remove `tiktok-vault-check.js`**.
+2. **Spam registration** (Teddy, ~5 min): freecallerregistry.com with the info above. Optional: I pull Telnyx CDR on 588-9500→Teddy calls.
+3. **Fire the FB anchor** (the reintroduction to 6,128) — needs **Dawn's blessing** first.
+4. Optional: TikTok Business-account + bio link; YouTube OAuth + X API (paste-ready now); IG cross-post first live run.
+- **Guardrails (standing):** only TRUE claims · never Teddy's cell in a post · own accounts + genuine participation only (no scraping/auto-DM) · draft-first (nothing posts without Approve).
+
 ## 🗓️🐜 2026-07-18 (Sat AM) — DEAD PARTS-WATCHER CRONS ROOT-FIXED (parts now auto-land) + TRACKING-LOSS FIX — READ FIRST
 
 Teddy forwarded a ServicePower "SERVICER NEW NOTES" part email ("For new system to update these jobs with parts"). Root-caused why he had to: **both supplied-parts watchers were dead on their cron.**
