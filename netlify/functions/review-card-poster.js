@@ -38,7 +38,20 @@ const TN_TAGS = '#nashville #antioch #murfreesboro #smyrna #lavergne #franklin #
 async function loadPool() { try { return JSON.parse((await getSecretFresh(POOL_KEY)) || '[]'); } catch (_) { return []; } }
 async function savePool(p) { await setSecret(POOL_KEY, JSON.stringify(p)); }
 
+const REGION = { andre: 'the South Shore', john: 'Baton Rouge & the North Shore', jimmy: 'Rutherford, Wilson, Sumner & Williamson', lee: 'Clarksville & greater Nashville' };
 function caption(card) {
+  // "Meet your tech" spotlight — introduce the guy so customers know him before he arrives.
+  if (card.spotlight) {
+    const name = String(card.tech || '').replace(/^./, (c) => c.toUpperCase());
+    const region = REGION[card.tech] || 'your area';
+    const phone = card.phone || (card.is_la ? laPhone(card.tech) : TN_PHONE);
+    const tags = card.is_la ? LA_TAGS : TN_TAGS;
+    return `👋 Meet ${name} — your ${region} appliance pro. 🐜\n\n`
+      + `When you call TN Appliance out here, THIS is who shows up: a real tech, an honest fix, and your home treated like his own. Get to know him now — so he already feels like family before he's ever at your door.\n\n`
+      + `Family-owned since 2012 · ★4.5 · 1,081 five-star reviews.\n\n`
+      + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
+      + `#appliancerepair #familyowned #5starservice #meetyourtech ${tags}`;
+  }
   const first = String(card.author || '').split(' ')[0] || 'friend';
   if (card.is_la) {
     const phone = card.phone || laPhone(card.tech);
