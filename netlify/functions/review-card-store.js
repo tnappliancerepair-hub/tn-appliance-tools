@@ -43,7 +43,7 @@ exports.handler = async function (event) {
   } catch (e) { return json(502, { error: 's3_put_failed', detail: String((e && e.message) || e) }); }
 
   const pool = await loadPool();
-  pool.push({ key, author: String(b.author || '').slice(0, 80), stars: Number(b.stars) || 5, text: String(b.text || '').slice(0, 600), is_la: !!b.is_la, phone: String(b.phone || '').slice(0, 20) || null, fmt: b.fmt === 'story' ? 'story' : 'square', posted: false, added_ms: Date.now() });
+  pool.push({ key, author: String(b.author || '').slice(0, 80), stars: Number(b.stars) || 5, text: String(b.text || '').slice(0, 600), is_la: !!b.is_la, tech: String(b.tech || '').slice(0, 12) || null, towns: String(b.towns || '').slice(0, 80) || null, phone: String(b.phone || '').slice(0, 20) || null, fmt: b.fmt === 'story' ? 'story' : 'square', posted: false, added_ms: Date.now() });
   await savePool(pool);
   return json(200, { ok: true, key, size_kb: Math.round(buf.length / 1024), pool_size: pool.length });
 };

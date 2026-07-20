@@ -16,29 +16,39 @@ const { igPublish } = require('./_lib/social-fb');
 const POOL_KEY = 'SOCIAL_REVIEW_CARD_POOL_POSTS';
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(o, null, 2) }; }
 
-// Louisiana localization (Teddy 2026-07-20): show a LOCAL LA number so "TN Appliance"
-// reads as local, not "Tennessee — not for me." The 504 (New Orleans) is verified
-// ringing through to Ant. Areas kept New-Orleans-metro to match the 504. When a real
-// 225 (Baton Rouge) number is added + verified, add BR cards + areas.
-const LA_PHONE = '504-355-9111';
+// Louisiana localization by TECH TERRITORY (Teddy 2026-07-20): a review naming a tech
+// gets THAT tech's towns + local number, so it reads as hyper-local — "these are real
+// customers in Kenner / Baton Rouge," not "a Tennessee company."
+//   Andre  -> 504 (New Orleans) : Kenner, Metairie, New Orleans     [VERIFIED ringing to Ant]
+//   John   -> 225 (Baton Rouge) : Baton Rouge, Hammond, Slidell     [225 not in Vapi yet -> 504 interim]
+//   Billy  -> North Shore/Hammond (John's bucket)
+const LA_504 = '504-355-9111';   // New Orleans — VERIFIED
+const LA_225 = '';               // Baton Rouge — set when a real 225 is verified ringing to Ant
 const TN_PHONE = '615-280-2949';
-const LA_AREAS = ['Greater New Orleans', 'the North Shore', 'the South Shore', 'Metairie & Kenner', 'Slidell & Mandeville', 'Kenner & Gretna'];
-const LA_TAGS = '#neworleansappliance #neworleans #metairie #northshorela #southshore #slidell #louisiana #nola';
+function laPhone(tech) { if (tech === 'john' || tech === 'billy') return LA_225 || LA_504; return LA_504; }
+const TERRITORY = {
+  andre: { towns: 'Kenner, Metairie & New Orleans', tags: '#neworleans #metairie #kenner #gretna #nola #louisiana' },
+  john: { towns: 'Baton Rouge, Hammond & Slidell', tags: '#batonrouge #hammondla #slidell #denhamsprings #louisiana' },
+  billy: { towns: 'Hammond, Baton Rouge & the North Shore', tags: '#hammondla #batonrouge #northshorela #louisiana' },
+  la: { towns: 'Greater New Orleans & Louisiana', tags: '#neworleans #metairie #batonrouge #louisiana #nola' },
+};
 const TN_TAGS = '#nashville #murfreesboro #antioch #tnappliance';
 
 async function loadPool() { try { return JSON.parse((await getSecretFresh(POOL_KEY)) || '[]'); } catch (_) { return []; } }
 async function savePool(p) { await setSecret(POOL_KEY, JSON.stringify(p)); }
 
-function caption(card, n) {
+function caption(card) {
   const first = String(card.author || '').split(' ')[0] || 'friend';
-  const phone = card.phone || (card.is_la ? LA_PHONE : TN_PHONE);
   if (card.is_la) {
-    const area = LA_AREAS[n % LA_AREAS.length];
-    return `⭐️⭐️⭐️⭐️⭐️ Another 5-star from your Louisiana neighbors. 🐜\n\n`
-      + `Thank you, ${first} — this is exactly why we do it. Broken appliance in ${area}? We're here 24/7: text a quick video, get a real answer, no runaround. Real techs, honest fixes — right here in Louisiana.\n\n`
+    const t = TERRITORY[card.tech] || TERRITORY.la;
+    const phone = card.phone || laPhone(card.tech);
+    return `⭐️⭐️⭐️⭐️⭐️ Real 5-star service in ${t.towns}. 🐜\n\n`
+      + `Thank you, ${first} — this is exactly why we do it. Appliance trouble in ${t.towns}? We're right here in Louisiana, 24/7: text a quick video, get a real answer, no runaround.\n\n`
+      + `The people of Louisiana always show us love — and we're grateful. 🙏\n\n`
       + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
-      + `#appliancerepair #familyowned #5starservice ${LA_TAGS}`;
+      + `#appliancerepair #familyowned #5starservice ${t.tags}`;
   }
+  const phone = card.phone || TN_PHONE;
   return `⭐️⭐️⭐️⭐️⭐️ Another 5-star from the family. 🐜\n\n`
     + `Thank you, ${first} — this is exactly why we do it. Broken appliance in Middle TN? We're here 24/7: text a quick video, get a real answer, no runaround. Real techs, honest fixes.\n\n`
     + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
@@ -77,8 +87,7 @@ exports.handler = async function (event) {
   remaining.sort((a, b) => (b.is_la - a.is_la) || (a.added_ms - b.added_ms));
   const card = remaining[0];
   const idx = pool.indexOf(card);
-  const postedCount = pool.filter((x) => x.posted).length;
-  const cap = caption(card, postedCount);
+  const cap = caption(card);
 
   if (dry) return json(200, { ok: true, dry_run: true, next: { author: card.author, is_la: card.is_la, key: card.key }, remaining: remaining.length, caption: cap });
 
