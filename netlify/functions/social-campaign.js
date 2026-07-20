@@ -20,6 +20,7 @@
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const { PLAN } = require('./_lib/social-campaign-plan');
 const { variantsFor } = require('./_lib/social-variants');
+const { graphGet } = require('./_lib/social-fb');
 
 const STATE_KEY = 'SOCIAL_CAMPAIGN_STATE';
 const REVIEW_URL = 'https://tnapplianceexchange.net/social-drafts.html';
@@ -41,14 +42,46 @@ function nextPlanItem(s) {
   return PLAN.find((p) => !s.published.includes(p.key) && !s.skipped.includes(p.key)) || null;
 }
 
-async function publishFB(pageId, token, message, link) {
-  const body = { message, access_token: token };
-  if (link) body.link = link;
+async function fbEdge(pageId, edge, body) {
   try {
-    const r = await fetch(`https://graph.facebook.com/v21.0/${pageId}/feed`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await fetch(`https://graph.facebook.com/v21.0/${pageId}/${edge}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     return { ok: r.ok && !!d.id, id: d.id, err: d.error };
   } catch (e) { return { ok: false, err: String(e.message || e) }; }
+}
+
+// A FB video permalink -> its direct source mp4, so we can re-post it NATIVELY
+// (plays inline in the feed) instead of as a buried gray link preview.
+async function resolveVideoSource(link, token) {
+  const m = String(link || '').match(/\/(?:videos|reel)\/(\d+)/);
+  if (!m) return null;
+  try { const r = await graphGet(`/${m[1]}`, { fields: 'source', access_token: token }); return (r && r.data && r.data.source) || null; }
+  catch (_) { return null; }
+}
+
+// Media-aware publish. Native photo > native video > text/link. Native media gets
+// ~2-3x the organic reach of a text or link-preview post — the whole point of
+// "aggressive." Each branch falls through to a weaker one on failure so a post
+// never silently fails to go out. (Teddy 2026-07-20)
+async function publishToFB(pageId, token, item, message) {
+  // 1) native PHOTO (branded review card / real job pic) — needs a hosted image URL
+  if (item.image_url) {
+    const r = await fbEdge(pageId, 'photos', { url: item.image_url, message, access_token: token });
+    if (r.ok) return { ...r, as: 'photo' };
+  }
+  // 2) native VIDEO — re-upload the archive clip's source so it plays inline
+  if (item.kind === 'video' && item.link) {
+    const src = await resolveVideoSource(item.link, token);
+    if (src) {
+      const r = await fbEdge(pageId, 'videos', { file_url: src, description: message, access_token: token });
+      if (r.ok) return { ...r, as: 'video' };
+    }
+  }
+  // 3) text (+ optional link) — the fallback
+  const body = { message, access_token: token };
+  if (item.link) body.link = item.link;
+  const r = await fbEdge(pageId, 'feed', body);
+  return { ...r, as: item.link ? 'link' : 'text' };
 }
 
 exports.handler = async function (event) {
@@ -108,11 +141,11 @@ exports.handler = async function (event) {
     let message = item.message;
     if (q.message != null) message = q.message;
     else if (event.body) { try { const b = JSON.parse(event.body); if (b.message != null) message = b.message; } catch (_) {} }
-    const pub = await publishFB(pageId, token, message, item.link || null);
+    const pub = await publishToFB(pageId, token, item, message);
     if (!pub.ok) return json(502, { ok: false, error: 'publish failed', detail: pub.err });
     const key = item.key;
     s.published.push(key);
-    s.log.push({ key, title: item.title, action: 'published', fb_post_id: pub.id, at: Date.now() });
+    s.log.push({ key, title: item.title, action: 'published', fb_post_id: pub.id, posted_as: pub.as, at: Date.now() });
 
     // Best-effort Instagram cross-post. IG can't post text-only, and video Reels
     // process async — so for VIDEO posts we hand off to a background function.
@@ -134,7 +167,7 @@ exports.handler = async function (event) {
 
     s.pending = null;
     await saveState(s);
-    return json(200, { ok: true, published: key, fb_post_id: pub.id, url: `https://www.facebook.com/${pub.id}`, instagram: ig });
+    return json(200, { ok: true, published: key, posted_as: pub.as, fb_post_id: pub.id, url: `https://www.facebook.com/${pub.id}`, instagram: ig });
   }
 
   if (action === 'reset') {
