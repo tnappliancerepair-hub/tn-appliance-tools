@@ -117,6 +117,7 @@ async function buildFacts(r, officeNote) {
     tech_name: (tech && tech.first_name) || TECHS[job.technician_id] || '',
     technician_id: job.technician_id || 0,
     scheduled_day: dayCT(job.scheduled_start),
+    scheduled_start_ms: (function () { const v = job.scheduled_start; if (!v) return 0; const ms = typeof v === 'string' ? Date.parse(v) : Number(v); return isNaN(ms) ? 0 : ms; })(),
     part_eta: dayCT(job.part_eta || job.parts_eta_date),
     part_number: (tdr && tdr.verified_part_number) || '',
     failed_component: (tdr && tdr.failed_component) || '',

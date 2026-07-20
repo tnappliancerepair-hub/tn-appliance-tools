@@ -32,6 +32,7 @@ const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
 function first(s) { return String(s || '').trim().split(/\s+/)[0] || 'there'; }
 function maskPhone(p) { const d = String(p || '').replace(/\D/g, ''); return d.length >= 4 ? '•••' + d.slice(-4) : d; }
 function ctHour() { return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()), 10); }
+function startOfTodayCtMs() { const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); const [y, m, d] = ymd.split('-').map(Number); return Date.UTC(y, m - 1, d, 5, 0, 0); }
 const term = (s) => /cancel|delet|complete|no_fix/i.test(String(s || ''));
 async function jget(url, ms = 9000) { try { const r = await fetch(url, { signal: AbortSignal.timeout(ms) }); return await r.json(); } catch (_) { return null; } }
 async function jpost(url, body, ms = 9000) { try { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) }); return await r.json(); } catch (_) { return null; } }
@@ -50,10 +51,17 @@ exports.handler = async function (event) {
   const f = tr && tr.facts;
   if (!f) return ok({ ok: false, error: 'job_not_found', job_id: jobId });
 
-  // Only confirm a REAL, live schedule: needs a day + a tech, and not terminal.
+  // Only confirm a REAL, live schedule: a real scheduled day, not terminal, not in
+  // the past. We deliberately do NOT gate on technician_id — the jobs row often reads
+  // 0 even for teched jobs (the calendar derives the tech elsewhere), and the packet
+  // only fires from AntSchedule.schedule() which just set a tech + day anyway. The
+  // "scheduled-no-tech limbo" bug has NO date, so the scheduled_day guard already
+  // excludes it. (Teddy 2026-07-20)
   if (term(f.status)) return ok({ ok: false, skipped: 'terminal_status', status: f.status });
   if (!f.scheduled_day) return ok({ ok: false, skipped: 'no_scheduled_day' });
-  if (!Number(f.technician_id)) return ok({ ok: false, skipped: 'no_tech_assigned' });
+  // Never text "you're scheduled for {past day}" — a stale record shouldn't confirm.
+  const startMs = Number(f.scheduled_start_ms || 0);
+  if (!force && startMs && startMs < startOfTodayCtMs()) return ok({ ok: false, skipped: 'scheduled_day_in_past', day: f.scheduled_day });
 
   const phoneDigits = String(f.customer_phone || '').replace(/\D/g, '');
   if (phoneDigits.length < 10) return ok({ ok: false, skipped: 'no_phone', job_id: jobId });
