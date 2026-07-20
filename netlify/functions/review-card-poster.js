@@ -46,7 +46,8 @@ function caption(card) {
     const region = REGION[card.tech] || 'your area';
     const phone = card.phone || (card.is_la ? laPhone(card.tech) : TN_PHONE);
     const tags = card.is_la ? LA_TAGS : TN_TAGS;
-    return `👋 Meet ${name} — your ${region} appliance pro. 🐜\n\n`
+    const lead = card.bio ? `👋 Meet ${name} — ${card.bio}, now serving ${region}. 🐜\n\n` : `👋 Meet ${name} — your ${region} appliance pro. 🐜\n\n`;
+    return lead
       + `When you call TN Appliance out here, THIS is who shows up: a real tech, an honest fix, and your home treated like his own. Get to know him now — so he already feels like family before he's ever at your door.\n\n`
       + `Family-owned since 2012 · ★4.5 · 1,081 five-star reviews.\n\n`
       + `📞 ${phone}  ·  tnapplianceexchange.net\n\n`
