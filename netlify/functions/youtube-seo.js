@@ -6,7 +6,15 @@
 //     -> { ok, titles:[3], description, tags:[], hashtags:[] }
 'use strict';
 const { getSecret } = require('./_lib/secrets');
-const { runBrainTurn, tryParseJsonReply } = require('./_lib/ant/brain-core');
+const { runBrainTurn } = require('./_lib/ant/brain-core');
+
+function parseJson(raw) {
+  const cleaned = String(raw || '').replace(/```json/g, '').replace(/```/g, '').trim();
+  try { return JSON.parse(cleaned); } catch (_) {}
+  const s = cleaned.indexOf('{'), e = cleaned.lastIndexOf('}');
+  if (s >= 0 && e > s) { try { return JSON.parse(cleaned.slice(s, e + 1)); } catch (_) {} }
+  return null;
+}
 
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o, null, 2) }; }
 
@@ -44,7 +52,7 @@ exports.handler = async function (event) {
 
   const r = await runBrainTurn({ systemPrompt: SYS, userContent: user, ctx: { brain: 'youtube_seo' }, maxTokens: 2000 });
   if (r.error) return json(502, { error: 'brain_failed', detail: r.error });
-  const parsed = tryParseJsonReply(r.reply);
+  const parsed = parseJson(r.reply);
   if (!parsed || !parsed.titles) return json(502, { error: 'parse_failed', raw: (r.reply || '').slice(0, 500) });
   return json(200, { ok: true, titles: parsed.titles, description: parsed.description, tags: parsed.tags || [], hashtags: parsed.hashtags || [] });
 };
