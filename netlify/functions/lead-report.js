@@ -27,7 +27,8 @@ exports.handler = async function (event) {
   const cutoff = Date.now() - days * 86400000;
 
   let rows = [];
-  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: ACTION }, { id: 'desc' }, 2000); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
+  // per_page caps at ~500 on the metadata content/search endpoint (400s above it).
+  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: ACTION }, { id: 'desc' }, 500); } catch (e) { return j(200, { ok: false, error: String(e.message || e) }); }
 
   const byChannel = {}, byLanding = {}, byAppliance = {}, byPayer = {};
   const recent = [];
