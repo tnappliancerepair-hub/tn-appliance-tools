@@ -220,12 +220,15 @@ function suggestCaption(j){
   const t=j.title||'Broken appliance?';
   return t+"\n\nReal techs, honest fixes — TN Appliance Exchange LLC, Middle TN & South Louisiana. 24/7: text a quick video, get a real answer. 🐜\n📞 615-280-2949\n\n#TNApplianceExchange #familyowned #appliancerepair";
 }
+function proxSrc(j){ return F+'/video-proxy?secret='+encodeURIComponent(SECRET)+'&job='+encodeURIComponent(j.id); }
+function player(j){ return '<video src="'+proxSrc(j)+'" controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000;margin-top:10px;max-height:420px"></video>'
+  +'<div style="margin-top:4px"><a href="'+esc(j.download_url)+'" target="_blank" class="muted" style="font-size:12px">▶ Can\'t see it? Open the clip ↗</a></div>'; }
 function jobCard(j){
   const pill='<span class="pill p-'+esc(j.status)+'">'+esc(j.status)+'</span>';
   let body='';
   if(j.status==='ready'){
     const posted=j.posted&&Object.keys(j.posted).length?('<div class="res">'+Object.entries(j.posted).map(([k,v])=>k+': '+(v.ok?'✅':'✗ '+(v.reason||''))).join('  ·  ')+'</div>'):'';
-    body='<video src="'+esc(j.download_url)+'" controls preload="metadata"></video>'
+    body=player(j)
       +'<label>Caption</label><textarea id="cap-'+j.id+'">'+esc(suggestCaption(j))+'</textarea>'
       +'<div class="row" style="margin:10px 0">'
       +['facebook','instagram','tiktok','youtube'].map(p=>'<label class="chk"><input type="checkbox" data-p="'+p+'" data-j="'+j.id+'" checked> '+({facebook:'Facebook',instagram:'IG Reel',tiktok:'TikTok draft',youtube:'YouTube'}[p])+'</label>').join('')
@@ -233,7 +236,7 @@ function jobCard(j){
       +'<button class="btn" onclick="postAll(\''+j.id+'\',this)">🚀 Post everywhere</button>'
       +'<div class="muted" style="margin-top:6px">FB + IG go live · TikTok lands in your drafts · YouTube uploads private (flip to public).</div>'+posted;
   } else if(j.status==='posted'){
-    body='<video src="'+esc(j.download_url||'')+'" controls preload="metadata"></video><div class="res">'+Object.entries(j.posted||{}).map(([k,v])=>k+': '+(v.ok?('✅ '+(v.url?'<a href="'+esc(v.url)+'" target="_blank">view</a>':'done')):'✗ '+(v.reason||''))).join('  ·  ')+'</div><button class="btn ghost" style="margin-top:8px" onclick="reopen(\''+j.id+'\')">Post again / to more</button>';
+    body=player(j)+'<div class="res">'+Object.entries(j.posted||{}).map(([k,v])=>k+': '+(v.ok?('✅ '+(v.url?'<a href="'+esc(v.url)+'" target="_blank">view</a>':'done')):'✗ '+(v.reason||''))).join('  ·  ')+'</div><button class="btn ghost" style="margin-top:8px" onclick="reopen(\''+j.id+'\')">Post again / to more</button>';
   } else if(j.status==='failed'){
     body='<div class="muted">Build failed — re-upload the clip.</div>';
   } else {
