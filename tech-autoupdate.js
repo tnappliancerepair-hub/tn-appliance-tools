@@ -62,7 +62,11 @@
     // Drop the SW caches + refresh the registration so the reload pulls the fresh
     // shell (the tech already has signal — that's how the banner appeared).
     try { if (window.caches) { var keys = await caches.keys(); await Promise.all(keys.map(function (k) { return caches.delete(k); })); } } catch (_) {}
-    try { if (navigator.serviceWorker) { var regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(function (r) { return r.update(); })); } } catch (_) {}
+    // UNREGISTER the old service worker (not just .update()). A tech who taps Update but
+    // stays stale is almost always a service worker that refused to hand over. Unregister
+    // guarantees the reload has NO old SW intercepting — every file comes straight from
+    // the network, then the page re-registers a fresh SW. Bulletproof (Jimmy, 2026-07-21).
+    try { if (navigator.serviceWorker) { var regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(function (r) { return r.unregister(); })); } } catch (_) {}
     // cache-bust the reload so no layer serves the old page
     try { location.replace(path + (location.search ? location.search + '&' : '?') + '_r=' + Date.now() + location.hash); }
     catch (_) { location.reload(); }
