@@ -27,7 +27,7 @@ exports.handler = async function (event) {
   const videos = [];
   let after = null, pageN = 0, videoErr = null;
   do {
-    const params = { access_token: token, fields: 'id,title,description,created_time,length,permalink_url,views', limit: 50 };
+    const params = { access_token: token, fields: 'id,title,description,created_time,length,permalink_url,views' + (q.src ? ',source' : ''), limit: 50 };
     if (after) params.after = after;
     const r = await graphGet(`/${pageId}/videos`, params);
     if (!r.ok) { videoErr = r.data && r.data.error; break; }
@@ -44,6 +44,7 @@ exports.handler = async function (event) {
     created: (v.created_time || '').slice(0, 10),
     length_s: v.length ? Math.round(v.length) : null,
     url: v.permalink_url,
+    source: v.source || null,
   }));
   const byViews = shaped.slice().sort((a, b) => (b.views || 0) - (a.views || 0));
 

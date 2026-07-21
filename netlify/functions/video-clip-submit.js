@@ -23,23 +23,31 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (b.secret !== admin) return json(401, { error: 'unauthorized' });
 
-  const s3_key = String(b.s3_key || '').trim();
-  if (!s3_key) return json(400, { error: 's3_key required (upload the long video first)' });
   if (!(await vizard.configured())) return json(400, { error: 'vizard_not_configured', note: 'Add VIZARDAI_API_KEY in the vault.' });
-  const bucket = process.env.TN_AWS_S3_BUCKET;
-  if (!bucket) return json(500, { error: 's3_not_configured' });
 
-  // Vizard clip links are valid 7 days; give the source a long enough pull window.
-  let videoUrl;
-  try {
-    const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
-    videoUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: s3_key, ResponseContentType: 'video/mp4' }), { expiresIn: 12 * 3600 });
-  } catch (e) { return json(502, { error: 'sign_failed', detail: String((e && e.message) || e) }); }
+  // Source: either a freshly-uploaded S3 clip, OR an external URL (a Facebook/YouTube
+  // link or any remote MP4 — lets us mine the existing back-catalog into shorts).
+  const s3_key = String(b.s3_key || '').trim();
+  const ext_url = String(b.video_url || '').trim();
+  let videoUrl, videoType = 1;
+  if (ext_url) {
+    videoUrl = ext_url;
+    videoType = parseInt(b.video_type, 10) || 1;   // 1 remote mp4, 2 YouTube, 11 Facebook
+  } else if (s3_key) {
+    const bucket = process.env.TN_AWS_S3_BUCKET;
+    if (!bucket) return json(500, { error: 's3_not_configured' });
+    try {
+      const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
+      videoUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: s3_key, ResponseContentType: 'video/mp4' }), { expiresIn: 12 * 3600 });
+    } catch (e) { return json(502, { error: 'sign_failed', detail: String((e && e.message) || e) }); }
+  } else {
+    return json(400, { error: 's3_key or video_url required' });
+  }
 
   const project_name = String(b.project_name || 'TN Appliance').slice(0, 100);
   const content_type = String(b.content_type || 'hero').slice(0, 24);
   const mode = b.mode === 'premium' ? 'premium' : 'vizard';   // default = free Vizard captions
-  const created = await vizard.createProject({ videoUrl, projectName: project_name, maxClips: b.max_clips, captions: mode === 'vizard' });
+  const created = await vizard.createProject({ videoUrl, videoType, projectName: project_name, maxClips: b.max_clips, captions: mode === 'vizard' });
   if (!created.ok) return json(502, { error: 'vizard_create_failed', detail: created.error || created.detail, code: created.code });
 
   const id = Date.now() + '-' + Math.floor(Math.random() * 1e6);
