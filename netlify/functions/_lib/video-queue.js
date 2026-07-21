@@ -46,4 +46,25 @@ async function enqueueFromVideoUrl(meta) {
   return { ok: true, job };
 }
 
-module.exports = { QUEUE_KEY, loadQueue, saveQueue, enqueueFromVideoUrl };
+// Push an ALREADY-FINISHED clip straight onto the queue as "ready" (no Submagic).
+// Used by the Vizard-only volume path — Vizard captioned it in one pass.
+// meta: { videoUrl (required), title, content_type?, source?, viral_score? }
+async function enqueueReady(meta) {
+  meta = meta || {};
+  if (!meta.videoUrl) return { ok: false, error: 'videoUrl_required' };
+  const id = Date.now() + '-' + Math.floor(Math.random() * 1e6);
+  const job = {
+    id, s3_key: null, title: String(meta.title || 'TN Appliance').slice(0, 100),
+    hook: '', content_type: String(meta.content_type || 'hero').slice(0, 24),
+    template: 'vizard', language: 'en', source: meta.source || 'vizard',
+    viral_score: meta.viral_score || null, submagic_id: null,
+    status: 'ready', download_url: meta.videoUrl, created_ms: Date.now(), ready_ms: Date.now(), posted: {},
+  };
+  const q = await loadQueue();
+  q.push(job);
+  await saveQueue(q);
+  try { await crud.logEvent('video_job_ready', { job_id: id, source: job.source, at_ms: Date.now() }); } catch (_) {}
+  return { ok: true, job };
+}
+
+module.exports = { QUEUE_KEY, loadQueue, saveQueue, enqueueFromVideoUrl, enqueueReady };

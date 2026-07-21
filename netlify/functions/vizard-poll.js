@@ -6,7 +6,7 @@
 'use strict';
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const vizard = require('./_lib/vizard');
-const { enqueueFromVideoUrl } = require('./_lib/video-queue');
+const { enqueueFromVideoUrl, enqueueReady } = require('./_lib/video-queue');
 const crud = require('./_lib/xano/metadata-crud');
 
 const CLIP_KEY = 'VIZARD_CLIP_JOBS';
@@ -33,16 +33,13 @@ exports.handler = async function (event) {
     if (!r.ok) { out.push({ id: job.id, error: r.error }); continue; }
     if (!r.ready) { out.push({ id: job.id, still: 'clipping' }); continue; }
 
+    const premium = job.mode === 'premium';
     let made = 0;
     for (const clip of r.clips) {
       if (!clip.videoUrl) continue;
-      const eq = await enqueueFromVideoUrl({
-        videoUrl: clip.videoUrl,
-        title: clip.title || job.project_name,
-        content_type: job.content_type,
-        source: 'vizard',
-        viral_score: clip.viralScore || null,
-      });
+      const meta = { videoUrl: clip.videoUrl, title: clip.title || job.project_name, content_type: job.content_type, source: 'vizard', viral_score: clip.viralScore || null };
+      // premium → Submagic captions; default → Vizard already captioned it, straight to ready.
+      const eq = premium ? await enqueueFromVideoUrl(meta) : await enqueueReady(meta);
       if (eq.ok) made++;
     }
     job.status = 'done';

@@ -94,6 +94,11 @@
     <div id="lform" style="display:none">
       <label>What is this? (names the clips)</label>
       <input type="text" id="lname" placeholder="Ride-along with John — Whirlpool fridge">
+      <label>Captions</label>
+      <select id="lmode">
+        <option value="vizard">⚡ Vizard — free &amp; instant (uses your Creator credits) — best for volume</option>
+        <option value="premium">✨ Submagic — premium look (uses Submagic minutes) — for hero clips</option>
+      </select>
       <div style="margin-top:12px"><button class="btn" id="lsubmit">🎬 Cut it into shorts</button></div>
       <div id="lsubmsg" class="muted" style="margin-top:8px"></div>
     </div>
@@ -185,7 +190,7 @@ document.getElementById('longfile').addEventListener('change', async function(){
 });
 document.getElementById('lsubmit').addEventListener('click', async function(){
   if(!LONG_KEY) return; this.disabled=true; const m=document.getElementById('lsubmsg'); m.textContent='Sending to the auto-clipper…';
-  const r=await jpost('video-clip-submit',{ s3_key:LONG_KEY, project_name:document.getElementById('lname').value, content_type:'hero' });
+  const r=await jpost('video-clip-submit',{ s3_key:LONG_KEY, project_name:document.getElementById('lname').value, content_type:'hero', mode:document.getElementById('lmode').value });
   this.disabled=false;
   if(r&&r.ok){ m.innerHTML='✅ Cutting into shorts — each finished clip appears in the queue below in a few minutes.'; LONG_KEY=''; document.getElementById('lform').style.display='none'; document.getElementById('longfile').value=''; document.getElementById('lprogWrap').style.display='none'; document.getElementById('lprog').style.width='0'; document.getElementById('lupmsg').textContent=''; loadJobs(true); }
   else { m.textContent='⚠️ '+(r&&(r.error||r.note)||'failed'); }

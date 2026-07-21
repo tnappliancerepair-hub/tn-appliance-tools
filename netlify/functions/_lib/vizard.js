@@ -32,18 +32,20 @@ async function req(method, path, body) {
 }
 
 // videoType 1 = remote MP4/MOV URL (our signed S3 link).
-// preferLength [1,2] = <30s and 30-60s. ratioOfClip 1 = 9:16. subtitle/headline OFF
-// (Submagic owns captions + hook). removeSilence trims dead air.
+// preferLength [1,2] = <30s and 30-60s. ratioOfClip 1 = 9:16. removeSilence trims dead air.
+// captions=true → Vizard burns its own captions + headline (the FREE volume path, uses
+// Creator credits). captions=false → raw clips for Submagic's premium captions.
 async function createProject(opts) {
   opts = opts || {};
+  const cap = opts.captions ? 1 : 0;
   const body = {
     lang: opts.lang || 'en',
     videoUrl: opts.videoUrl,
     videoType: opts.videoType || 1,
     preferLength: Array.isArray(opts.preferLength) ? opts.preferLength : [1, 2],
     ratioOfClip: 1,
-    subtitleSwitch: 0,
-    headlineSwitch: 0,
+    subtitleSwitch: cap,
+    headlineSwitch: cap,
     removeSilenceSwitch: 1,
     maxClipNumber: Math.min(Math.max(parseInt(opts.maxClips, 10) || 8, 1), 20),
     projectName: String(opts.projectName || 'TN Appliance').slice(0, 100),

@@ -2,7 +2,9 @@
 // S3, and Vizard cuts it into the best short moments. Each clip then flows through
 // Submagic → the Studio queue (handled by vizard-poll). Owner-gated.
 //
-//   POST { secret, s3_key, project_name?, content_type?, max_clips? }
+//   POST { secret, s3_key, project_name?, content_type?, max_clips?, mode? }
+//     mode: "vizard" (default, FREE — Vizard captions in one pass, uses Creator credits)
+//           "premium" (Vizard cuts raw → each clip through Submagic's captions)
 //     -> { ok, clip_job }
 'use strict';
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
@@ -36,11 +38,12 @@ exports.handler = async function (event) {
 
   const project_name = String(b.project_name || 'TN Appliance').slice(0, 100);
   const content_type = String(b.content_type || 'hero').slice(0, 24);
-  const created = await vizard.createProject({ videoUrl, projectName: project_name, maxClips: b.max_clips });
+  const mode = b.mode === 'premium' ? 'premium' : 'vizard';   // default = free Vizard captions
+  const created = await vizard.createProject({ videoUrl, projectName: project_name, maxClips: b.max_clips, captions: mode === 'vizard' });
   if (!created.ok) return json(502, { error: 'vizard_create_failed', detail: created.error || created.detail, code: created.code });
 
   const id = Date.now() + '-' + Math.floor(Math.random() * 1e6);
-  const clipJob = { id, s3_key, project_name, content_type, vizard_project_id: created.projectId, status: 'clipping', clip_count: 0, created_ms: Date.now() };
+  const clipJob = { id, s3_key, project_name, content_type, mode, vizard_project_id: created.projectId, status: 'clipping', clip_count: 0, created_ms: Date.now() };
   const jobs = await loadJobs();
   jobs.push(clipJob);
   await saveJobs(jobs);
