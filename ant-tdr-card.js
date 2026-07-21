@@ -72,6 +72,13 @@
     var p = new URLSearchParams(location.search);
     jobId = p.get('job_id') || p.get('job') || '';
     techId = p.get('tech_id') || '';
+    // CRITICAL (Jimmy, 2026-07-21): the TDR row is keyed by technician_id. A save with
+    // NO tech id lands on the tech-0 phantom row, while the app reads the tech's real
+    // row — so the write "succeeds" but is invisible, and the tech re-types it every
+    // time (job 20469: writes went to tdr 660/tech-0, reads showed 807). If the URL
+    // dropped tech_id, fall back to the id the tech app stored on this device so read
+    // AND write always target the SAME row.
+    if (!techId) { try { techId = localStorage.getItem('tn_tech_id') || ''; } catch (_) {} }
     if (!jobId) return; // No job context → no TDR surface
     role = detectRole();
     injectStyles();
@@ -193,11 +200,19 @@
     toggleStrayFabs(false);
   }
 
+  // Always resolve the tech id (URL → device store) so read + write hit the SAME TDR row.
+  function _resolveTechId() {
+    if (techId) return techId;
+    try { var t = localStorage.getItem('tn_tech_id') || ''; if (t) { techId = t; return t; } } catch (_) {}
+    return '';
+  }
+
   // ── Fetch + render ─────────────────────────────────────────────────
   async function refresh() {
     try {
+      var _tid = _resolveTechId();
       var url = XANO + '/get_unified_tdr_status?job_id=' + encodeURIComponent(jobId);
-      if (techId) url += '&technician_id=' + encodeURIComponent(techId);
+      if (_tid) url += '&technician_id=' + encodeURIComponent(_tid);
       var r = await fetch(url, { cache: 'no-store' });
       if (!r.ok) return;
       var d = await r.json();
@@ -235,7 +250,8 @@
   }
   async function _postFieldSave(field, val) {
     var body = { job_id: Number(jobId), field: field, value: val };
-    if (techId) body.technician_id = Number(techId);
+    var _tid = _resolveTechId();
+    if (_tid) body.technician_id = Number(_tid);
     var wr = await fetch(XANO + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var wd = await wr.json();
     if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
@@ -1561,6 +1577,10 @@
     // "Please reassign" sends the job back to the office (unassigns you) — confirm first.
     if (which === 'reassign' && !window.confirm('This sends the job back to the office to reassign — you\'ll be taken off it. Continue?')) return;
     var val = note ? (base + ' — ' + note) : base;
+    if (role === 'tech' && !_resolveTechId()) {
+      alert('Reopen this job from your dashboard first so your report saves to YOU (not a shared draft).');
+      return;
+    }
     _saveDraft('repair_completed', val);   // phone backup before the network call (weak-signal-proof)
     try {
       await _postFieldSave('repair_completed', val);
@@ -1816,6 +1836,12 @@
     var inp = document.getElementById('ant-tdr-edit-input');
     var val = inp ? String(inp.value == null ? '' : inp.value).trim() : '';
     var btns = document.querySelectorAll('.ant-tdr-save-btn');
+    // No tech id resolvable → the save would land on a shared draft the app can't read
+    // back (the row-mismatch bug). Stop and guide, don't silently lose it.
+    if (role === 'tech' && !_resolveTechId()) {
+      alert('Reopen this job from your dashboard first so your report saves to YOU (not a shared draft). Tap × then open it from your job list.');
+      return;
+    }
     btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
     // Back it up on the phone FIRST — before the network call — so a weak-signal
     // failure can never lose the tech's work (auto-retries when signal returns).
