@@ -228,7 +228,9 @@ function suggestCaption(j){
 function proxSrc(j){ return F+'/video-proxy?secret='+encodeURIComponent(SECRET)+'&job='+encodeURIComponent(j.id); }
 function player(j){
   // hosted clips play natively from S3; un-hosted (still re-hosting) use the proxy
-  const src = j.hosted ? esc(j.download_url) : proxSrc(j);
+  const base = j.hosted ? esc(j.download_url) : proxSrc(j);
+  // #t=0.3 makes iOS render the frame at 0.3s as a PREVIEW instead of a black box
+  const src = base + (base.indexOf('#')>=0 ? '' : '#t=0.3');
   const note = j.hosted ? '' : '<div class="muted" style="font-size:12px;margin-top:4px">⏳ optimizing this clip for smooth playback — refresh in a moment</div>';
   return '<video src="'+src+'" controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000;margin-top:10px;max-height:420px"></video>'
     +note+'<div style="margin-top:4px"><a href="'+esc(j.download_url||'#')+'" target="_blank" class="muted" style="font-size:12px">▶ Open the clip ↗</a></div>'; }
