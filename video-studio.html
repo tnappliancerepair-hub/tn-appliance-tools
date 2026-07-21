@@ -234,13 +234,38 @@ function suggestCaption(j){
 }
 function proxSrc(j){ return F+'/video-proxy?secret='+encodeURIComponent(SECRET)+'&job='+encodeURIComponent(j.id); }
 function player(j){
-  // hosted clips play natively from S3; un-hosted (still re-hosting) use the proxy
+  // hosted clips play natively from S3; un-hosted (still re-hosting) use the proxy.
   const base = j.hosted ? esc(j.download_url) : proxSrc(j);
-  // #t=0.3 makes iOS render the frame at 0.3s as a PREVIEW instead of a black box
-  const src = base + (base.indexOf('#')>=0 ? '' : '#t=0.3');
+  // #t=0.5 makes the browser render the frame at 0.5s as a PREVIEW (faststart keeps it cheap)
+  const src = base + (base.indexOf('#')>=0 ? '' : '#t=0.5');
   const note = j.hosted ? '' : '<div class="muted" style="font-size:12px;margin-top:4px">⏳ optimizing this clip for smooth playback — refresh in a moment</div>';
-  return '<video src="'+src+'" controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000;margin-top:10px;max-height:420px"></video>'
+  // LAZY MOUNT: a phone can only load a few videos at once. We render a light
+  // placeholder and only mount the real <video> when it scrolls into view (or is
+  // tapped) — so the page never chokes and each in-view clip shows a real frame.
+  return '<div class="vlazy" data-src="'+src+'" onclick="mountOne(this)" '
+    +'style="position:relative;width:100%;min-height:230px;max-height:430px;aspect-ratio:9/16;margin-top:10px;'
+    +'background:radial-gradient(circle at 50% 40%,#1b1b1b,#0a0a0a);border:1px solid #2a2a2a;border-radius:12px;'
+    +'display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden">'
+    +'<div class="muted" style="font-size:13px;text-align:center;line-height:1.5">▶<br>tap to preview</div></div>'
     +note+'<div style="margin-top:4px"><a href="'+esc(j.download_url||'#')+'" target="_blank" class="muted" style="font-size:12px">▶ Open the clip ↗</a></div>'; }
+function mountVideo(el){
+  if(!el||el.dataset.mounted) return;
+  el.dataset.mounted='1';
+  const src=el.getAttribute('data-src');
+  el.innerHTML='<video src="'+src+'" controls playsinline preload="metadata" style="width:100%;height:100%;object-fit:contain;background:#000;border-radius:12px"></video>';
+}
+function mountOne(el){ mountVideo(el); const v=el&&el.querySelector('video'); if(v){ try{ v.play(); }catch(_){} } }
+let _vio;
+function observeLazy(){
+  if(!('IntersectionObserver'in window)){ document.querySelectorAll('.vlazy:not([data-mounted])').forEach(mountVideo); return; }
+  if(!_vio){
+    _vio=new IntersectionObserver(function(ents){ ents.forEach(function(e){
+      if(e.isIntersecting){ mountVideo(e.target); }
+      else { var el=e.target, v=el.querySelector('video'); if(v&&v.paused){ el.dataset.mounted=''; el.innerHTML='<div class="muted" style="font-size:13px;text-align:center;line-height:1.5">▶<br>tap to preview</div>'; } }
+    }); }, { rootMargin:'250px 0px' });
+  }
+  document.querySelectorAll('.vlazy:not([data-obs])').forEach(function(el){ el.setAttribute('data-obs','1'); _vio.observe(el); });
+}
 function jobCard(j){
   const pill='<span class="pill p-'+esc(j.status)+'">'+esc(j.status)+'</span>';
   let body='';
@@ -268,7 +293,7 @@ function jobCard(j){
   return '<div class="card"><div class="row" style="justify-content:space-between"><div class="jt">'+esc(j.title||'Untitled')+'</div>'+pill+'</div>'+body+'</div>';
 }
 window._jobs=[];
-function render(){ document.getElementById('jobs').innerHTML = window._jobs.length? window._jobs.map(jobCard).join('') : '<div class="muted">No clips yet — upload one above.</div>'; }
+function render(){ document.getElementById('jobs').innerHTML = window._jobs.length? window._jobs.map(jobCard).join('') : '<div class="muted">No clips yet — upload one above.</div>'; observeLazy(); }
 function reopen(id){ const j=window._jobs.find(x=>String(x.id)===String(id)); if(j){ j.status='ready'; render(); } }
 
 async function dubEs(id,btn){
