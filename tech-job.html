@@ -1380,13 +1380,18 @@ function completeFlow(){
       // {} and only pass on 12+ typed chars, blocking Complete on jobs whose TDR is
       // 100% filled (Jimmy 2026-07-13: "the report is there, not sure why it's needed
       // again"). Scan the same data the visible TDR card renders from: allTdrs + tdr.
-      const _hasFields=t=>!!t&&(((t.diagnosis||'').trim())||((t.failed_component||'').trim())||((t.repair_completed||'').trim())||Number(t.labor_time_hours||0)>0);
+      // A written report in the Notes box saves to technician_notes — that IS a real
+      // report the office can bill (what you found/fixed/labor, in prose). The gate used
+      // to ignore it, so a tech who typed his report in the Notes box (like the app's own
+      // "Save report" prompt tells him to) got blocked at Complete and told to re-enter
+      // info he already saved (Jimmy 2026-07-21, job 20437). Count saved notes too.
+      const _hasFields=t=>!!t&&(((t.diagnosis||'').trim())||((t.failed_component||'').trim())||((t.repair_completed||'').trim())||Number(t.labor_time_hours||0)>0||((t.technician_notes||'').trim().length>=12));
       const ex=((typeof allTdrs!=='undefined'&&(allTdrs||[]).find(_hasFields))||(typeof tdr!=='undefined'&&_hasFields(tdr)?tdr:null)||{});
       const hasReport = note.length>=12 || _hasFields(ex);
       if(!hasReport){
         toast('✍️ Add your report first');
-        if(nEl){ nEl.scrollIntoView({behavior:'smooth',block:'center'}); nEl.focus(); }
-        alert('Before you mark this complete, the office needs your report to bill it:\n\n• what you found\n• what you fixed\n• your labor time\n\nType it in the report box, tap "Save report", then Complete.');
+        alert('Before you complete this job, the office needs your report to bill it:\n\n• what failed\n• the part & part #\n• job status\n• your labor time\n\nTap the green 📋 TDR button and fill those in, then Complete.');
+        try{ if(typeof window.antTdrOpen==='function') window.antTdrOpen(); }catch(_){}
         return;
       }
     }
@@ -1447,8 +1452,10 @@ function completeFlow(){
         loadJob();
       }
       else if(/tdr|incomplete|labor|repair|required|diagnos/i.test(String(d.error||''))){
-        const nEl=document.getElementById('notes'); if(nEl) nEl.scrollIntoView({behavior:'smooth',block:'center'});
-        alert('The office needs a complete report to bill this job:\n\n'+(d.error||'')+'\n\nFill in your report (what you found + fixed + labor), save it, then tap Complete.');
+        // Warranty claim needs the 5 TDR fields — a note in the box alone won't clear it.
+        // Open the TDR card and point the tech at the exact fields (not the notes box).
+        alert('This warranty job needs the full TDR before it can complete:\n\n'+(d.error||'')+'\n\nTap the green 📋 TDR button and fill in what failed, the part & part #, job status, and your labor — then Complete.');
+        try{ if(typeof window.antTdrOpen==='function') window.antTdrOpen(); }catch(_){}
       }
       else { toast('⚠ '+(d.error||'blocked')); }
     }catch(_){ toast('⚠ connection error'); }
