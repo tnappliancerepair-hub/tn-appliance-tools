@@ -249,6 +249,19 @@ function recordAdClick(jobId){
   try{ fetch(FN+'/record-gclid',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,
     body:JSON.stringify({job_id:jobId||0,gclid:AD_CLICK.gclid||'',gbraid:AD_CLICK.gbraid||'',wbraid:AD_CLICK.wbraid||'',conv_id:String(state.convId||'')})}); }catch(_){}
 }
+// ── Lead-source attribution ───────────────────────────────────────────────────
+// Stamp EVERY created job with the page + channel the customer first arrived on
+// (ant-track.js first-touch), so the office can see which pages/channels actually
+// produce jobs and double down on what works. Fires for all jobs, not just ads.
+function recordLeadSource(jobId){
+  try{
+    var a=(window.antAttribution&&window.antAttribution())||{};
+    fetch(FN+'/track-lead',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,
+      body:JSON.stringify({job_id:jobId||0, conv_id:String(state.convId||''),
+        landing:a.landing||'', ref:a.ref||'', channel:a.channel||'direct',
+        utm_source:a.utm_source||'', utm_campaign:a.utm_campaign||'',
+        appliance:state.appliance||'', town:state.town||state.city||'', payer:state.payer||''})}); }catch(_){}
+}
 // Client-side Google Ads conversion (gtag). Google attributes it to the ad click
 // automatically via the _gcl cookie set when this page loaded — no gclid needed here.
 // The offline UploadClickConversions API is blocked for new accounts, so this is the path.
@@ -703,7 +716,7 @@ function submitFree(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ recordAdClick(d.job_id); fireAdsBooked(d.job_id, FREE_MODE?0:50); clearFlow(); done(); }
+      if(d&&d.ok){ recordAdClick(d.job_id);recordLeadSource(d.job_id); fireAdsBooked(d.job_id, FREE_MODE?0:50); clearFlow(); done(); }
       else { btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
@@ -823,7 +836,7 @@ function submitInHome(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ recordAdClick(d.job_id); fireAdsBooked(d.job_id, 100); clearFlow(); doneInHome(); }
+      if(d&&d.ok){ recordAdClick(d.job_id);recordLeadSource(d.job_id); fireAdsBooked(d.job_id, 100); clearFlow(); doneInHome(); }
       else { btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
@@ -875,7 +888,7 @@ function warrantyFinish(){
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ recordAdClick(d.job_id); clearFlow(); done(); }
+      if(d&&d.ok){ recordAdClick(d.job_id);recordLeadSource(d.job_id); clearFlow(); done(); }
       else { btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 615-280-2949.')); }
     }catch(e){ btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ Connection hiccup — tap again, or call 615-280-2949.'); }
   };
@@ -972,5 +985,6 @@ if(CTX.appliance){ startContext(CTX); } else { start(); }
     <a href="/repairs-directory" style="color:#8a8a8a;text-decoration:none">All repairs &amp; areas</a></div>
 </footer>
 <script defer src="/ant-valuebar.js"></script>
+  <script src="/ant-track.js" defer></script>
 </body>
 </html>

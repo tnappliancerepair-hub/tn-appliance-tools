@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Where the work comes from — TN Appliance</title>
+<style>
+  :root{--bg:#0b0d10;--panel:#12151b;--line:#242a33;--ink:#eef1f5;--mut:#98a2b3;--mut2:#6b7686;
+    --orange:#ff6a1a;--green:#37d07a;--blue:#5aa8ff;--mono:ui-monospace,"SF Mono",Menlo,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding:20px 16px 70px;max-width:940px;margin:0 auto}
+  h1{font-size:24px;margin:0 0 2px}.sub{color:var(--mut);font-size:13px;margin-bottom:18px}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+  input,select,button{font-family:var(--sans);font-size:14px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 12px}
+  button{background:var(--orange);color:#0b0d10;font-weight:700;border:0;cursor:pointer}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .stat .n{font-family:var(--mono);font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+  .stat .k{color:var(--mut);font-size:12px;margin-top:4px}
+  section{margin-bottom:26px}
+  h2{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut2);margin:0 0 10px;display:flex;align-items:center;gap:10px}
+  h2::after{content:"";flex:1;height:1px;background:var(--line)}
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:420px}
+  th,td{padding:10px 13px;text-align:left;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:0}
+  th{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2)}
+  td.n{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+  .barcell{position:relative}.barcell i{position:absolute;left:0;top:0;bottom:0;background:rgba(255,106,26,.14);border-radius:0 6px 6px 0;z-index:0}
+  .barcell span{position:relative;z-index:1}
+  .pill{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--mut)}
+  .msg{color:var(--mut);font-size:13px;padding:20px;text-align:center}
+  a.path{color:var(--blue);text-decoration:none}
+</style></head><body>
+  <h1>🐜 Where the work comes from</h1>
+  <div class="sub">Every job stamped with the page + channel the customer first landed on. Find what produces jobs — double down on it.</div>
+  <div class="bar">
+    <input id="secret" type="password" placeholder="admin secret" style="flex:1;min-width:180px">
+    <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select>
+    <button onclick="load()">Load</button>
+  </div>
+  <div id="out"></div>
+<script>
+  var S=document.getElementById('secret'); try{S.value=localStorage.getItem('tn_admin_secret')||''}catch(_){}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function rows(list){ if(!list||!list.length) return '<tr><td colspan="4" class="msg">No jobs attributed yet in this window.</td></tr>';
+    var max=Math.max.apply(null,list.map(function(x){return x.jobs}));
+    return list.map(function(x){var w=Math.round(100*x.jobs/(max||1));
+      var label=x.key&&x.key.charAt(0)==='/'?'<a class="path" href="'+esc(x.key)+'" target="_blank">'+esc(x.key)+'</a>':esc(x.key);
+      return '<tr><td class="barcell"><i style="width:'+w+'%"></i><span>'+label+'</span></td>'+
+        '<td class="n">'+x.jobs+'</td><td class="n">'+x.cash+'</td><td class="n">'+x.warranty+'</td></tr>';}).join('');
+  }
+  function tbl(title,list,firstcol){ return '<section><h2>'+title+'</h2><div class="scroll"><table><thead><tr>'+
+    '<th>'+firstcol+'</th><th style="text-align:right">Jobs</th><th style="text-align:right">Cash</th><th style="text-align:right">Warranty</th></tr></thead><tbody>'+rows(list)+'</tbody></table></div></section>'; }
+  async function load(){
+    var sec=S.value.trim(); try{localStorage.setItem('tn_admin_secret',sec)}catch(_){}
+    var d=document.getElementById('days').value, out=document.getElementById('out');
+    out.innerHTML='<div class="msg">Loading…</div>';
+    try{
+      var r=await fetch('/.netlify/functions/lead-report?secret='+encodeURIComponent(sec)+'&days='+d);
+      var j=await r.json();
+      if(!j.ok){ out.innerHTML='<div class="msg">'+esc(j.error||'error')+'</div>'; return; }
+      var t=j.totals||{jobs:0,cash:0,warranty:0};
+      var html='<div class="stats">'+
+        '<div class="stat"><div class="n">'+t.jobs+'</div><div class="k">jobs attributed ('+j.window_days+'d)</div></div>'+
+        '<div class="stat"><div class="n" style="color:var(--green)">'+t.cash+'</div><div class="k">cash / self-pay</div></div>'+
+        '<div class="stat"><div class="n" style="color:var(--blue)">'+t.warranty+'</div><div class="k">warranty</div></div></div>';
+      html+=tbl('By channel — how they found us', j.by_channel, 'Channel');
+      html+=tbl('By landing page — the page that pulled them in', j.by_landing, 'First page');
+      html+=tbl('By appliance', j.by_appliance, 'Appliance');
+      html+='<section><div class="sub">'+esc(j.note||'')+' &nbsp;·&nbsp; Call-tap + intake-start counts by page live in GA4 (event names: call_click, intake_click).</div></section>';
+      out.innerHTML=html;
+    }catch(e){ out.innerHTML='<div class="msg">'+esc(e.message||e)+'</div>'; }
+  }
+  if(S.value) load();
+</script></body></html>
