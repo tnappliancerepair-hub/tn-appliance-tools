@@ -204,9 +204,21 @@ function renderClipJobs(list){
 }
 
 // ---- the queue ----
+// The "good ol days" voice (Teddy 2026-07-20): proud, redneck, name-forward,
+// omnipresent. "good ol days" is spelled that way ON PURPOSE. Archive clips post
+// in this voice; you can still edit before posting.
+const GOODOL=[
+  "🤠 The GOOD OL DAYS at TN Appliance Exchange LLC. Been fixin' appliances and cuttin' up down here since 2012 — family-owned, proud rednecks, and we ain't goin' nowhere. Middle TN to South Louisiana, you'll be seein' us EVERYWHERE. 🐜\n📞 615-280-2949 · tnapplianceexchange.net\n\n#GoodOlDays #TNApplianceExchange #rednecklife #familyowned #appliancerepair #Nashville #Louisiana",
+  "Throwback to the good ol days 🔥 This here's TN Appliance Exchange LLC — same family, same honest fixes, same characters since way back. Proud of who we are and proud of the work. Y'all remember these? 🐜\n📞 615-280-2949\n\n#GoodOlDays #TNApplianceExchange #redneckproud #familyowned #appliancerepair #supportlocal",
+  "😂 Diggin' up the good ol days from the TN Appliance Exchange LLC vault. Real deal since 2012 — rednecks who fix your stuff right AND have a good time doin' it. Tennessee & Louisiana, we're everywhere. Give us a holler 👉 615-280-2949\n\n#GoodOlDays #TNApplianceExchange #rednecklife #appliancerepair #familyowned",
+  "🐜 TN Appliance Exchange LLC — back in the good ol days. Family-owned, redneck-proud, still fixin' appliances the honest way all these years later. You'll see us EVERYWHERE across TN & LA.\n📞 615-280-2949 · tnapplianceexchange.net\n\n#GoodOlDays #TNApplianceExchange #familyowned #redneckproud #dryerrepair #fridgerepair",
+  "Man, the good ol days 🤠 TN Appliance Exchange LLC been at it since 2012 — the same family that'll treat your home like our own. Proud rednecks, honest work, and we don't care who don't like it 😄 We're EVERYWHERE, y'all.\n📞 615-280-2949\n\n#GoodOlDays #TNApplianceExchange #rednecklife #familyowned #Nashville",
+];
 function suggestCaption(j){
+  // archive (Vizard-sourced) clips get the good ol days voice, rotated by id so no two match
+  if(j.source==='vizard'){ let h=0; const s=String(j.id); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return GOODOL[h%GOODOL.length]; }
   const t=j.title||'Broken appliance?';
-  return t+'\n\nReal techs, honest fixes — Middle TN & South Louisiana. 24/7: text a quick video, get a real answer. 🐜\n📞 615-280-2949';
+  return t+"\n\nReal techs, honest fixes — TN Appliance Exchange LLC, Middle TN & South Louisiana. 24/7: text a quick video, get a real answer. 🐜\n📞 615-280-2949\n\n#TNApplianceExchange #familyowned #appliancerepair";
 }
 function jobCard(j){
   const pill='<span class="pill p-'+esc(j.status)+'">'+esc(j.status)+'</span>';

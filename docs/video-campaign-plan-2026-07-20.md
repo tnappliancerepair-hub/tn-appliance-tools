@@ -66,6 +66,21 @@ it behind a threshold, so first 90 days = pure volume+quality to build the audie
 - **Wk3** — add ElevenLabs faceless B-roll days; 2–3/day; launch "Ride-along with John."
 - **Wk4** — cut dead formats, clone hits, lock the weekly batch ritual; push toward first monetization thresholds.
 
+## 🤠 Brand voice — "good ol days" (Teddy 2026-07-20, LOCKED)
+Teddy: *"I want our name shown EVERYWHERE. People to say these guys are everywhere.
+TN Appliance Exchange LLC. People talking about the good ol days. Me and Andre start
+shooting videos and making people talk about us again."* + *"It's got to be MISSPELLED
+'good ol days'"* + *"We're proud to be rednecks. At least I am and I don't care who
+don't like it."*
+- **"good ol days"** — spelled that way on purpose (NOT "good old days"). Branded hashtag **#GoodOlDays**.
+- Voice = **proud, authentic, redneck, folksy** ("fixin'", "y'all", "ain't", "cuttin' up") — this is Teddy's real brand, he owns it. Keep it TRUE, proud, never sanitized.
+- **Name everywhere:** every caption spells out **TN Appliance Exchange LLC** + **#TNApplianceExchange** + the omnipresence line ("we're EVERYWHERE, TN & LA").
+- Implemented: `video-studio.html suggestCaption()` gives every archive/Vizard clip a
+  rotating good-ol-days caption (5 variants, id-hashed so none repeat). Fresh-footage
+  clips get a name-forward brand caption. Editable before posting.
+- **The buzz play:** mine the 2013–2016 FB archive (the good ol days) into shorts NOW to
+  reignite nostalgia + omnipresence, while Teddy + Andre shoot fresh "fix or not" content.
+
 ## Standing rules
 Only TRUE claims · never Teddy's cell in a post · draft-first (nothing posts blind) ·
 own accounts + genuine participation only · automation augments the real tech, **never an AI avatar of him**.
