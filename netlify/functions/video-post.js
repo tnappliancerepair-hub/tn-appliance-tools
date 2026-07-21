@@ -11,6 +11,7 @@
 //   POST { secret, job_id, platforms?:["facebook","instagram","tiktok","youtube"], caption? }
 'use strict';
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
+const { signedInlineUrl } = require('./_lib/video-queue');
 const { variantsFor } = require('./_lib/social-variants');
 const { igPublish } = require('./_lib/social-fb');
 const tiktok = require('./_lib/tiktok');
@@ -39,7 +40,9 @@ exports.handler = async function (event) {
   const job = queue.find((j) => String(j.id) === String(b.job_id));
   if (!job) return json(404, { error: 'job_not_found' });
   if (job.status !== 'ready' && job.status !== 'posted') return json(400, { error: 'not_ready', status: job.status });
-  const url = job.download_url;
+  // Prefer our S3 copy (permanent + clean headers) when the clip has been re-hosted.
+  let url = job.download_url;
+  if (job.hosted && job.clip_key) { try { url = (await signedInlineUrl(job.clip_key)) || url; } catch (_) {} }
   if (!url) return json(400, { error: 'no_finished_video' });
 
   const want = Array.isArray(b.platforms) && b.platforms.length ? b.platforms.filter((p) => ALL.includes(p)) : ALL;

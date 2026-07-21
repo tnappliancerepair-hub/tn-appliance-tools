@@ -221,8 +221,12 @@ function suggestCaption(j){
   return t+"\n\nReal techs, honest fixes — TN Appliance Exchange LLC, Middle TN & South Louisiana. 24/7: text a quick video, get a real answer. 🐜\n📞 615-280-2949\n\n#TNApplianceExchange #familyowned #appliancerepair";
 }
 function proxSrc(j){ return F+'/video-proxy?secret='+encodeURIComponent(SECRET)+'&job='+encodeURIComponent(j.id); }
-function player(j){ return '<video src="'+proxSrc(j)+'" controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000;margin-top:10px;max-height:420px"></video>'
-  +'<div style="margin-top:4px"><a href="'+esc(j.download_url)+'" target="_blank" class="muted" style="font-size:12px">▶ Can\'t see it? Open the clip ↗</a></div>'; }
+function player(j){
+  // hosted clips play natively from S3; un-hosted (still re-hosting) use the proxy
+  const src = j.hosted ? esc(j.download_url) : proxSrc(j);
+  const note = j.hosted ? '' : '<div class="muted" style="font-size:12px;margin-top:4px">⏳ optimizing this clip for smooth playback — refresh in a moment</div>';
+  return '<video src="'+src+'" controls playsinline preload="metadata" style="width:100%;border-radius:12px;background:#000;margin-top:10px;max-height:420px"></video>'
+    +note+'<div style="margin-top:4px"><a href="'+esc(j.download_url||'#')+'" target="_blank" class="muted" style="font-size:12px">▶ Open the clip ↗</a></div>'; }
 function jobCard(j){
   const pill='<span class="pill p-'+esc(j.status)+'">'+esc(j.status)+'</span>';
   let body='';

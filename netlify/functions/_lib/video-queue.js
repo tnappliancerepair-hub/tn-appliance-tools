@@ -3,9 +3,20 @@
 // returns (vizard-poll). It fires the Submagic caption/hook job and pushes the job
 // onto VIDEO_STUDIO_QUEUE so it shows in the cockpit and flows to post-everywhere.
 'use strict';
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getSecretFresh, setSecret } = require('./secrets');
 const submagic = require('./submagic');
 const crud = require('./xano/metadata-crud');
+
+// A signed S3 URL that PLAYS inline (native range support, no expiry problem —
+// the object is ours). Used for re-hosted clips so <video> just works everywhere.
+async function signedInlineUrl(key) {
+  const bucket = process.env.TN_AWS_S3_BUCKET;
+  if (!key || !bucket) return null;
+  const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
+  return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentType: 'video/mp4', ResponseContentDisposition: 'inline' }), { expiresIn: 6 * 3600 });
+}
 
 const QUEUE_KEY = 'VIDEO_STUDIO_QUEUE';
 const WEBHOOK = 'https://tnapplianceexchange.net/.netlify/functions/submagic-webhook';
@@ -67,4 +78,4 @@ async function enqueueReady(meta) {
   return { ok: true, job };
 }
 
-module.exports = { QUEUE_KEY, loadQueue, saveQueue, enqueueFromVideoUrl, enqueueReady };
+module.exports = { QUEUE_KEY, loadQueue, saveQueue, enqueueFromVideoUrl, enqueueReady, signedInlineUrl };

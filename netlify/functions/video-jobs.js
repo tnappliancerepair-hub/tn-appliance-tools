@@ -9,6 +9,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const submagic = require('./_lib/submagic');
 const vizard = require('./_lib/vizard');
+const { signedInlineUrl } = require('./_lib/video-queue');
 
 const QUEUE_KEY = 'VIDEO_STUDIO_QUEUE';
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o, null, 2) }; }
@@ -46,13 +47,21 @@ exports.handler = async function (event) {
 
   const jobs = [];
   for (const j of queue.slice().reverse().slice(0, 60)) {
+    // Re-hosted clips play natively from S3 (inline). Un-hosted ones still point at
+    // Vizard (the Studio proxies those). hosted flag tells the player which to use.
+    let dl = j.status === 'ready' ? j.download_url : null;
+    if (j.status === 'ready' && j.hosted && j.clip_key) { try { dl = await signedInlineUrl(j.clip_key); } catch (_) {} }
     jobs.push({
       id: j.id, title: j.title, hook: j.hook, content_type: j.content_type, template: j.template,
-      status: j.status, download_url: j.status === 'ready' ? j.download_url : null,
+      status: j.status, download_url: dl, hosted: !!(j.hosted && j.clip_key),
       source: j.source || 'upload', viral_score: j.viral_score || null,
       raw_preview: j.s3_key ? await rawPreview(j.s3_key) : null,
       created_ms: j.created_ms, ready_ms: j.ready_ms || null, posted: j.posted || {},
     });
+  }
+  // Kick off re-hosting for any un-hosted ready clips (fire-and-forget background fn).
+  if (queue.some((j) => j.status === 'ready' && !j.hosted)) {
+    fetch('https://tnapplianceexchange.net/.netlify/functions/video-rehost-background', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ internal: true }) }).catch(() => {});
   }
   const counts = queue.reduce((a, j) => { a[j.status] = (a[j.status] || 0) + 1; return a; }, {});
   // Long-video auto-clip jobs (Vizard) still in flight.
