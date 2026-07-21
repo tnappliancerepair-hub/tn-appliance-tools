@@ -11,6 +11,7 @@
 'use strict';
 const crud = require('./xano/metadata-crud');
 const { getSecret } = require('./secrets');
+const { sendSms } = require('./sms');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
@@ -34,7 +35,11 @@ function e164(p) { const d = String(p || '').replace(/\D/g, ''); if (d.length ==
 function metaOf(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 
 async function sendCustomer(phone, msg, tag) {
-  try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: e164(phone), message: msg, context_tag: tag || 'satisfaction' }), signal: AbortSignal.timeout(10000) }); } catch (_) {}
+  // Route the 👍 review-link + 👎 feedback replies through the SAME Netlify SMS guard
+  // the initial ask uses (opt-out / quiet-hours / dedup / freq all enforced; 'satisfaction'
+  // tags are on its intake-only allowlist). Previously these went straight to Xano send_sms,
+  // which has its own gate that could silently drop the review link. (2026-07-21)
+  try { await sendSms(e164(phone), msg, 'customer', tag || 'satisfaction'); } catch (_) {}
 }
 async function sendOwner(msg, tag) {
   try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: msg, force_send: true, context_tag: tag || 'satisfaction_owner' }), signal: AbortSignal.timeout(10000) }); } catch (_) {}
