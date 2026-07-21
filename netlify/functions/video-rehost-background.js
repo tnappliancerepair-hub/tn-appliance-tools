@@ -24,10 +24,11 @@ exports.handler = async function (event) {
   if (!bucket) return json(500, { error: 's3_not_configured' });
   const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
 
+  const force = q.force === '1' || b.force === true;
   const queue = await loadQueue();
-  // (re)process any ready clip not yet faststart-hosted. faststart_v2 = moov moved to
-  // the front so it plays instantly on mobile.
-  const todo = queue.filter((j) => j.status === 'ready' && j.download_url && !j.faststart).slice(0, 20);
+  // (re)process any ready clip not yet faststart-hosted (force = redo all). faststart
+  // moves the moov index to the front so clips play instantly on mobile.
+  const todo = queue.filter((j) => j.status === 'ready' && j.download_url && (force || !j.faststart)).slice(0, 20);
   let done = 0, failed = 0;
   for (const job of todo) {
     try {
