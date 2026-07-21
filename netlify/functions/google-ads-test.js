@@ -17,7 +17,7 @@ exports.handler = async function (event) {
     if (!c.clientId || !c.refresh || !c.devToken) return json(200, { ok: false, configured: false, missing: 'creds' });
     const token = await ads.accessToken(c);
     const tries = [];
-    for (const v of ['v21', 'v20', 'v19', 'v18', 'v17']) {
+    for (const v of ['v25', 'v24', 'v23', 'v22', 'v21', 'v20']) {
       const url = 'https://googleads.googleapis.com/' + v + '/customers:listAccessibleCustomers';
       let r, d;
       try { r = await fetch(url, { headers: ads.apiHeaders(token, c) }); d = await r.json().catch(() => ({})); } catch (e) { tries.push({ v, err: String(e.message || e) }); continue; }
