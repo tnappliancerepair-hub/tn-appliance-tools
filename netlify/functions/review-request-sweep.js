@@ -56,7 +56,7 @@ exports.handler = async function (event) {
   // 2) resolve each job's customer, dedup, send
   const sent = [], skipped = [];
   for (const jid of jobIds.slice(0, MAX_PER_RUN)) {
-    let cust = {}, applType = '', liveDone = false;
+    let cust = {}, applType = '', techName = '', cityName = '', liveDone = false;
     try {
       const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jid }), signal: AbortSignal.timeout(10000) }).then((r) => r.json());
       cust = (d && d.customer) || {};
@@ -64,6 +64,10 @@ exports.handler = async function (event) {
       // (String(object) was rendering "[object Object]" in the customer text).
       const ap = (d && d.appliance) || {};
       applType = String((ap && ap.type) || (d && d.job && d.job.appliance_type) || '').trim();
+      // tech first name + service city — used to personalize the review ask
+      const tk = (d && d.tech) || {};
+      techName = String((tk && (tk.first_name || tk.name)) || '').trim().split(/\s+/)[0] || '';
+      cityName = String((cust && cust.city) || (d && d.job && d.job.service_city) || '').trim();
       // Re-check the job's LIVE status — the completion event may be stale
       // (job later rescheduled/reopened, or a mis-tapped completion). Only ask
       // "how'd we do?" if the job is ACTUALLY completed right now, so a merely
@@ -84,7 +88,7 @@ exports.handler = async function (event) {
     let ok = false;
     try { await sendSms(phone, body, 'customer', 'satisfaction_check'); ok = true; } catch (_) {}
     if (ok) {
-      try { await satisfaction.arm(phone, { job_id: jid, cust_id: custId, first }); } catch (_) {}
+      try { await satisfaction.arm(phone, { job_id: jid, cust_id: custId, first, tech: techName, appliance: applType, city: cityName }); } catch (_) {}
       try { await crud.logEvent('google_review_asked_customer_' + custId, { job_id: jid, via: 'sweep', at_ms: Date.now() }); } catch (_) {}
       sent.push({ job_id: jid, customer: custId, first });
     } else skipped.push({ job_id: jid, why: 'send failed (gate?)' });

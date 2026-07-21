@@ -53,9 +53,11 @@ function classify(body) {
 }
 
 // Arm the gate: record awaiting_rating. Called by the request sweep.
+// Carries tech/appliance/city so the review ask can name them — turning a generic
+// "great service" review into "Lee fixed my dryer in Nashville" (richer trust + local rank).
 async function arm(phone, ctx) {
   const ph = d10(phone); if (!ph) return false;
-  try { await crud.logEvent('satisfaction_state_' + ph, { stage: 'awaiting_rating', job_id: (ctx && ctx.job_id) || null, cust_id: (ctx && ctx.cust_id) || null, first: (ctx && ctx.first) || '', at_ms: Date.now() }); return true; } catch (_) { return false; }
+  try { await crud.logEvent('satisfaction_state_' + ph, { stage: 'awaiting_rating', job_id: (ctx && ctx.job_id) || null, cust_id: (ctx && ctx.cust_id) || null, first: (ctx && ctx.first) || '', tech: (ctx && ctx.tech) || '', appliance: (ctx && ctx.appliance) || '', city: (ctx && ctx.city) || '', at_ms: Date.now() }); return true; } catch (_) { return false; }
 }
 
 async function latestState(phone) {
@@ -66,7 +68,7 @@ async function latestState(phone) {
   const m = metaOf(row);
   const at = Number(m.at_ms || row.created_at || 0);
   if (!at || at < Date.now() - STALE_MS) return null;   // expired
-  return { ph, stage: m.stage || '', job_id: m.job_id || null, first: m.first || '', at };
+  return { ph, stage: m.stage || '', job_id: m.job_id || null, first: m.first || '', tech: m.tech || '', appliance: m.appliance || '', city: m.city || '', at };
 }
 
 // Inbound interceptor. Returns {matched:true,...} when this text was a response
@@ -91,7 +93,19 @@ async function handleInbound(phone, body) {
     const c = classify(body);
     if (c === 'pos') {
       const nd = await nextdoorSuffix();
-      await sendCustomer(phone, `So glad to hear it, ${first}! 🙏 If you've got 30 seconds, a quick Google review would mean the world to our small team: ${REVIEW_URL}${nd}`, 'satisfaction_review_link');
+      const tech = String(st.tech || '').trim();
+      const appl = String(st.appliance || '').trim().toLowerCase();
+      const city = String(st.city || '').trim();
+      // Opener names the tech + appliance when we know them (honest, specific).
+      let opener;
+      if (tech && appl) opener = `So glad ${tech} got your ${appl} sorted, ${first}! 🙏`;
+      else if (tech) opener = `So glad ${tech} took good care of you, ${first}! 🙏`;
+      else if (appl) opener = `So glad we got your ${appl} sorted, ${first}! 🙏`;
+      else opener = `So glad to hear it, ${first}! 🙏`;
+      // Gentle (non-incentivized) nudge to mention tech + city → richer, more findable reviews.
+      const bits = [tech, city].filter(Boolean);
+      const hint = bits.length ? ` — a mention of ${bits.join(' and ')} helps neighbors find us` : '';
+      await sendCustomer(phone, `${opener} If you've got 30 seconds, a quick Google review would mean the world to our small team${hint}: ${REVIEW_URL}${nd}`, 'satisfaction_review_link');
       await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'done', job_id: st.job_id, first, outcome: nd ? 'positive_review_link_g+nd' : 'positive_review_link', at_ms: Date.now() });
       return { matched: true, stage: 'positive' };
     }
