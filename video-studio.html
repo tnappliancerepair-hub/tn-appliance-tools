@@ -251,9 +251,10 @@ function jobCard(j){
       +'<button class="btn" onclick="postAll(\''+j.id+'\',this)">🚀 Post everywhere</button>'
       +'<div class="muted" style="margin-top:6px">FB + IG go live · TikTok lands in your drafts · YouTube uploads private (flip to public).</div>'
       +'<div class="row" style="margin-top:10px">'
+      +'<button class="btn ghost" style="padding:8px 12px" onclick="genHook(\''+j.id+'\',this)">🎣 Hook Doctor</button>'
       +'<button class="btn ghost" style="padding:8px 12px" onclick="dubEs(\''+j.id+'\',this)">🌎 Spanish version</button>'
       +'<button class="btn ghost" style="padding:8px 12px" onclick="genSeo(\''+j.id+'\',this)">📈 YouTube SEO</button>'
-      +'</div><div id="seo-'+j.id+'" class="muted" style="margin-top:6px"></div>'+posted;
+      +'</div><div id="hook-'+j.id+'" class="muted" style="margin-top:6px"></div><div id="seo-'+j.id+'" class="muted" style="margin-top:6px"></div>'+posted;
   } else if(j.status==='posted'){
     body=player(j)+'<div class="res">'+Object.entries(j.posted||{}).map(([k,v])=>k+': '+(v.ok?('✅ '+(v.url?'<a href="'+esc(v.url)+'" target="_blank">view</a>':'done')):'✗ '+(v.reason||''))).join('  ·  ')+'</div><button class="btn ghost" style="margin-top:8px" onclick="reopen(\''+j.id+'\')">Post again / to more</button>';
   } else if(j.status==='failed'){
@@ -272,6 +273,18 @@ async function dubEs(id,btn){
   const r=await jpost('video-dub-submit',{job_id:id,lang:'es'});
   btn.disabled=false; btn.textContent='🌎 Spanish version';
   alert(r&&r.ok ? '✅ Dubbing to Spanish — the Español version lands in the queue in a few minutes.' : '⚠️ '+(r&&(r.error||r.note)||'failed'));
+}
+async function genHook(id,btn){
+  const j=(window._jobs||[]).find(x=>String(x.id)===String(id)); const el=document.getElementById('hook-'+id);
+  const who=prompt('Any character/person in this clip? (Paw, Andre, a customer… leave blank if none)','')||'';
+  el.textContent='Doctoring the hook…';
+  const r=await jpost('hook-doctor',{title:(j&&j.title)||'',character:who});
+  if(r&&r.ok){
+    el.innerHTML='<div class="res" style="white-space:normal"><b>🎣 Hook options (second 1):</b><br>'+(r.hooks||[]).map((h,i)=>(i+1)+'. '+esc(h)).join('<br>')
+      +'<br><br><b>👉 Point the camera at:</b><br>'+esc(r.middle||'')
+      +'<br><br><b>🎬 Payoff (last second):</b><br>'+esc(r.payoff||'')
+      +((r.notes&&r.notes.length)?('<br><br><b>Production:</b><br>'+r.notes.map(n=>'• '+esc(n)).join('<br>')):'')+'</div>';
+  } else el.textContent='⚠️ Hook error: '+(r&&(r.error)||'failed');
 }
 async function genSeo(id,btn){
   const j=(window._jobs||[]).find(x=>String(x.id)===String(id)); const el=document.getElementById('seo-'+id);
