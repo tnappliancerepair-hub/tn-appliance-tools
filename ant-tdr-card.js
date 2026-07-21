@@ -85,6 +85,11 @@
     injectButton();
     injectModal();
     refresh();
+    // Load the parts up front (not only when the sheet opens) so the FAB % counts the
+    // part immediately — otherwise the pill reads 20% (model only) until you open it,
+    // then jumps to 40% once parts load. That flicker looked like "it lost the part"
+    // (Jimmy, 2026-07-21). (role tech/office only — customer view doesn't use parts.)
+    if (role === 'tech' || role === 'office') loadSuppliedParts();
     pollTimer = setInterval(refresh, POLL_MS);
     window.addEventListener('ant:state-changed', refresh);
     // When the phone regains signal, push any TDR edits that failed to save earlier.
@@ -222,6 +227,8 @@
       renderModal(d);
       // Any edits still stuck on the phone (a save that failed on weak signal)? Push them now.
       _retryPendingDrafts();
+      // Keep the parts loaded so the FAB % counts them (no 20%↔40% flicker).
+      _maybePollParts();
     } catch (e) {}
   }
 
@@ -565,11 +572,23 @@
       suppliedParts = (d && d.ok && Array.isArray(d.parts)) ? d.parts : [];
     } catch (_) { if (suppliedParts === null) suppliedParts = []; }
     suppliedLoading = false;
-    // Re-render if the sheet is open and nothing is mid-edit.
-    if (editKey === null && !recordingNow && !antGuessOverriding && lastData) {
-      var back = document.getElementById('ant-tdr-backdrop');
-      if (back && back.classList.contains('open')) renderModal(lastData);
+    // Update the FAB % now that parts are known (keeps the pill from flickering
+    // 20%→40% when the sheet opens), and re-render the sheet if it's open.
+    if (lastData) {
+      renderButton(lastData);
+      if (editKey === null && !recordingNow && !antGuessOverriding) {
+        var back = document.getElementById('ant-tdr-backdrop');
+        if (back && back.classList.contains('open')) renderModal(lastData);
+      }
     }
+  }
+  // Keep parts fresh on the periodic refresh too, so the pill stays accurate without
+  // needing the sheet to be opened. (Guarded by suppliedLoading so it won't stack.)
+  var _partsPollN = 0;
+  function _maybePollParts() {
+    if (role !== 'tech' && role !== 'office') return;
+    // every ~4th refresh (~24s) is plenty; parts rarely change mid-visit.
+    if ((_partsPollN++ % 4) === 0) { suppliedLoading = false; loadSuppliedParts(); }
   }
 
   // The ONE parts area (John 7/8). Lists the parts the warranty SENT — tech taps each
