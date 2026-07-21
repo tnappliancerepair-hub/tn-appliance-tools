@@ -80,4 +80,46 @@ async function uploadVideo(buffer, opts) {
   return { ok: true, video_id: d.id, url: 'https://youtube.com/watch?v=' + d.id, privacy: (d.status && d.status.privacyStatus) || meta.status.privacyStatus };
 }
 
-module.exports = { REDIRECT, TOKEN_URL, SCOPE, creds, accessToken, getChannel, fetchVideoBuffer, uploadVideo };
+// Read one video's current snippet+status (needed before an in-place update).
+async function getVideo(videoId) {
+  const at = await accessToken();
+  if (!at.ok) return at;
+  const r = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=' + encodeURIComponent(videoId), { headers: { Authorization: 'Bearer ' + at.access_token } });
+  const d = await r.json().catch(() => ({}));
+  const v = d && d.items && d.items[0];
+  if (!v) return { ok: false, error: 'video_not_found', detail: d };
+  return { ok: true, snippet: v.snippet || {}, status: v.status || {} };
+}
+
+// Edit an existing video in place — fix title/description/tags and/or flip privacy
+// (public/private/unlisted). YouTube's videos.update requires the FULL snippet
+// (title + categoryId mandatory), so we read-merge-write. patch: {title?,description?,
+// tags?,privacyStatus?,categoryId?}
+async function updateVideo(videoId, patch) {
+  patch = patch || {};
+  const cur = await getVideo(videoId);
+  if (!cur.ok) return cur;
+  const at = await accessToken();
+  if (!at.ok) return at;
+  const snippet = {
+    title: String(patch.title != null ? patch.title : (cur.snippet.title || 'TN Appliance')).slice(0, 100),
+    description: patch.description != null ? String(patch.description) : (cur.snippet.description || ''),
+    categoryId: patch.categoryId || cur.snippet.categoryId || '26',
+  };
+  const tags = patch.tags != null ? patch.tags : cur.snippet.tags;
+  if (Array.isArray(tags) && tags.length) snippet.tags = tags.slice(0, 30);
+  const status = {
+    privacyStatus: patch.privacyStatus || cur.status.privacyStatus || 'private',
+    selfDeclaredMadeForKids: cur.status.selfDeclaredMadeForKids != null ? cur.status.selfDeclaredMadeForKids : false,
+  };
+  const r = await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet,status', {
+    method: 'PUT',
+    headers: { Authorization: 'Bearer ' + at.access_token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: videoId, snippet, status }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!(r.status >= 200 && r.status < 300) || !d.id) return { ok: false, status: r.status, detail: d };
+  return { ok: true, video_id: d.id, title: d.snippet && d.snippet.title, privacy: d.status && d.status.privacyStatus, url: 'https://youtube.com/watch?v=' + d.id };
+}
+
+module.exports = { REDIRECT, TOKEN_URL, SCOPE, creds, accessToken, getChannel, fetchVideoBuffer, uploadVideo, getVideo, updateVideo };
