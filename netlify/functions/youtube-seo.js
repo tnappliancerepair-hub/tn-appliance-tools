@@ -23,7 +23,7 @@ Return STRICT JSON only, no prose, this exact shape:
 }
 
 TITLE rules: front-load the exact search phrase; add a curiosity or benefit hook; a number or "How to" when it fits; NO false promises. Pick the strongest as titles[0].
-DESCRIPTION rules: first 2 lines are the hook + the main keyword (that's all that shows before "more"). Then 2-3 sentences of genuinely useful context using related search terms naturally. Then a clear CTA (call/text 615-280-2949, tnapplianceexchange.net, family-owned since 2012, serving Middle TN & South Louisiana). End with the hashtags line. Keep it real and human, not stuffed.`;
+DESCRIPTION rules: first 2 lines are the hook + the main keyword (that's all that shows before "more"). Then 2-3 sentences of genuinely useful context using related search terms naturally. Then a clear CTA (call/text 615-280-2949, tnapplianceexchange.net, family-owned since 2012, serving Middle TN & South Louisiana). End with the hashtags line. Keep it real and human, not stuffed. IMPORTANT: keep the whole description under 800 characters so it stays tight.`;
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return json(405, { error: 'method_not_allowed' });
@@ -42,7 +42,7 @@ exports.handler = async function (event) {
     '\nWrite the SEO package as strict JSON.',
   ].filter(Boolean).join('\n');
 
-  const r = await runBrainTurn({ systemPrompt: SYS, userContent: user, ctx: { brain: 'youtube_seo' }, maxTokens: 1200 });
+  const r = await runBrainTurn({ systemPrompt: SYS, userContent: user, ctx: { brain: 'youtube_seo' }, maxTokens: 2000 });
   if (r.error) return json(502, { error: 'brain_failed', detail: r.error });
   const parsed = tryParseJsonReply(r.reply);
   if (!parsed || !parsed.titles) return json(502, { error: 'parse_failed', raw: (r.reply || '').slice(0, 500) });
