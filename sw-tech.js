@@ -8,7 +8,7 @@
 // (HTML + JS/CSS) — serve from cache immediately so the page opens with zero
 // network wait, then refresh the cache in the background. Job DATA (API /
 // Netlify-function GETs) stays network-first so it's never stale.
-const CACHE_VERSION = 'ant-field-v30-2026-07-21-partmatch';
+const CACHE_VERSION = 'ant-field-v31-2026-07-21-reset';
 
 // Pre-cache the pages techs actually work from + shared assets. Pre-caching
 // happens on install (good signal — first visit / add-to-home-screen); after
