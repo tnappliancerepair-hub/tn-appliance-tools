@@ -28,22 +28,33 @@ exports.handler = async function (event) {
 
   const force = q.force === '1' || b.force === true;
   const max = Math.min(parseInt(q.max || b.max, 10) || 40, 60);
-  const queue = await loadQueue();
-  const todo = queue.filter((j) => j.status === 'ready' && (force || !j.enriched)).slice(0, max);
+  const first = await loadQueue();
+  const todo = first.filter((j) => j.status === 'ready' && (force || !j.enriched)).map((j) => j.id).slice(0, max);
+
+  // Merge one clip's enrichment onto the CURRENT queue (re-loaded), so concurrent
+  // posts/imports are never clobbered. Save right after — live progress + crash-safe.
+  async function persist(id, patch) {
+    const cur = await loadQueue();
+    const t = cur.find((x) => x.id === id);
+    if (!t) return;
+    Object.assign(t, patch, { enriched: true });
+    await saveQueue(cur);
+  }
 
   let done = 0, failed = 0;
-  for (const job of todo) {
-    // good-ol-days archive clips get a nostalgia character nudge for the hooks
-    const character = (job.source === 'fb-archive') ? 'the old TN Appliance shop days — the good ol days crew, real junk men, genuine and funny' : '';
-    const title = job.title || 'TN Appliance clip';
+  for (const id of todo) {
+    const src = first.find((x) => x.id === id) || {};
+    const character = (src.source === 'fb-archive') ? 'the old TN Appliance shop days — the good ol days crew, real junk men, genuine and funny' : '';
+    const title = src.title || 'TN Appliance clip';
     const hook = await post('hook-doctor', { secret: admin, title, character });
-    await sleep(400);
+    await sleep(300);
     const seo = await post('youtube-seo', { secret: admin, title, is_long: false });
-    await sleep(400);
-    if (hook && hook.ok) { job.hooks = hook.hooks; job.hook_middle = hook.middle; job.hook_payoff = hook.payoff; job.hook_notes = hook.notes; }
-    if (seo && seo.ok) { job.seo = { titles: seo.titles, description: seo.description, tags: seo.tags, hashtags: seo.hashtags }; }
-    if ((hook && hook.ok) || (seo && seo.ok)) { job.enriched = true; done++; } else { failed++; }
+    await sleep(300);
+    const patch = {};
+    if (hook && hook.ok) { patch.hooks = hook.hooks; patch.hook_middle = hook.middle; patch.hook_payoff = hook.payoff; patch.hook_notes = hook.notes; }
+    if (seo && seo.ok) { patch.seo = { titles: seo.titles, description: seo.description, tags: seo.tags, hashtags: seo.hashtags }; }
+    if (Object.keys(patch).length) { await persist(id, patch); done++; } else { failed++; }
   }
-  if (done) await saveQueue(queue);
-  return json(200, { ok: true, enriched: done, failed, remaining: queue.filter((j) => j.status === 'ready' && !j.enriched).length });
+  const rem = (await loadQueue()).filter((j) => j.status === 'ready' && !j.enriched).length;
+  return json(200, { ok: true, enriched: done, failed, remaining: rem });
 };
