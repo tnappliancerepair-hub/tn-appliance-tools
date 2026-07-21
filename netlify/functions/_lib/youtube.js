@@ -8,8 +8,10 @@ const { getSecretPreferVault } = require('./secrets');
 
 const REDIRECT = 'https://tnapplianceexchange.net/.netlify/functions/youtube-oauth-callback';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
-// upload = push a video; readonly = confirm which channel is connected.
-const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
+// upload = push a video; readonly = confirm the channel; force-ssl = manage existing
+// videos (edit title/description, flip privacy to publish, delete drafts) — all via API
+// so nobody ever has to open YouTube Studio.
+const SCOPE = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl';
 
 async function creds() {
   const [id, secret, refresh] = await Promise.all([
@@ -122,4 +124,14 @@ async function updateVideo(videoId, patch) {
   return { ok: true, video_id: d.id, title: d.snippet && d.snippet.title, privacy: d.status && d.status.privacyStatus, url: 'https://youtube.com/watch?v=' + d.id };
 }
 
-module.exports = { REDIRECT, TOKEN_URL, SCOPE, creds, accessToken, getChannel, fetchVideoBuffer, uploadVideo, getVideo, updateVideo };
+// Delete a video (cleanup of junk/test drafts). Needs the force-ssl scope.
+async function deleteVideo(videoId) {
+  const at = await accessToken();
+  if (!at.ok) return at;
+  const r = await fetch('https://www.googleapis.com/youtube/v3/videos?id=' + encodeURIComponent(videoId), { method: 'DELETE', headers: { Authorization: 'Bearer ' + at.access_token } });
+  if (r.status === 204) return { ok: true, deleted: videoId };
+  const d = await r.json().catch(() => ({}));
+  return { ok: false, status: r.status, detail: d };
+}
+
+module.exports = { REDIRECT, TOKEN_URL, SCOPE, creds, accessToken, getChannel, fetchVideoBuffer, uploadVideo, getVideo, updateVideo, deleteVideo };

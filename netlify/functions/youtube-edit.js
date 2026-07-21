@@ -13,6 +13,10 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (b.secret !== admin) return json(401, { error: 'unauthorized' });
   if (!b.video_id) return json(400, { error: 'video_id required' });
+  if (b.action === 'delete' || b.delete === true) {
+    const del = await youtube.deleteVideo(b.video_id);
+    return json(200, del);
+  }
   const patch = {};
   if (b.title != null) patch.title = b.title;
   if (b.description != null) patch.description = b.description;
