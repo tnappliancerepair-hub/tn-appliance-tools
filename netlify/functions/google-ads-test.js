@@ -22,7 +22,7 @@ exports.handler = async function (event) {
       let r, d;
       try { r = await fetch(url, { headers: ads.apiHeaders(token, c) }); d = await r.json().catch(() => ({})); } catch (e) { tries.push({ v, err: String(e.message || e) }); continue; }
       tries.push({ v, status: r.status });
-      if (r.status !== 404) return json(200, { ok: r.ok, working_version: v, status: r.status, manager_id: c.managerId, response: d, version_probe: tries });
+      if (r.status !== 404) return json(200, { ok: r.ok, working_version: v, connector_version: c.version, status: r.status, manager_id: c.managerId, response: d, version_probe: tries });
     }
     return json(200, { ok: false, error: 'no live API version found', version_probe: tries });
   } catch (e) {

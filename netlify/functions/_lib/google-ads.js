@@ -23,7 +23,9 @@ async function creds() {
     getSecretPreferVault('GOOGLE_ADS_REFRESH_TOKEN'), getSecretPreferVault('GOOGLE_ADS_DEVELOPER_TOKEN'),
     getSecretPreferVault('GOOGLE_ADS_MANAGER_ID'), getSecretPreferVault('GOOGLE_ADS_API_VERSION'),
   ]);
-  return { clientId, clientSecret, refresh, devToken, managerId: digits(mgr), version: (ver || 'v21').trim() };
+  // v21 sunsets 2026-08-05 (Google email 2026-07-15). v24 verified live via the
+  // version probe (v25 still 404s for us). Override anytime via vault GOOGLE_ADS_API_VERSION.
+  return { clientId, clientSecret, refresh, devToken, managerId: digits(mgr), version: (ver || 'v24').trim() };
 }
 
 async function accessToken(c) {
