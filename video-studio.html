@@ -81,6 +81,25 @@
     </div>
   </div>
 
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>🎬 Long video → auto-clip</strong>
+      <span class="muted">a ride-along / full job → the best shorts</span>
+    </div>
+    <div id="clipsetup" class="muted" style="margin-top:6px"></div>
+    <label>Long clip (a walkthrough, a ride-along with John…)</label>
+    <input type="file" id="longfile" accept="video/*">
+    <div class="prog" id="lprogWrap" style="display:none"><i id="lprog"></i></div>
+    <div id="lupmsg" class="muted"></div>
+    <div id="lform" style="display:none">
+      <label>What is this? (names the clips)</label>
+      <input type="text" id="lname" placeholder="Ride-along with John — Whirlpool fridge">
+      <div style="margin-top:12px"><button class="btn" id="lsubmit">🎬 Cut it into shorts</button></div>
+      <div id="lsubmsg" class="muted" style="margin-top:8px"></div>
+    </div>
+    <div id="clipjobs"></div>
+  </div>
+
   <div class="row" style="justify-content:space-between;margin:4px 2px 10px">
     <strong>🗂 The queue</strong>
     <button class="btn ghost" id="refresh" style="padding:7px 12px">↻ Refresh</button>
@@ -141,6 +160,44 @@ document.getElementById('submit').addEventListener('click', async function(){
   else { msg.textContent='⚠️ '+(r&&(r.error||r.note)||'failed')+(r&&r.detail?(' — '+JSON.stringify(r.detail).slice(0,160)):''); }
 });
 
+// ---- long video -> auto-clip (Vizard) ----
+let LONG_KEY='';
+async function s3upload(file, wrapId, barId, msgId){
+  const mime=file.type||'video/mp4';
+  const ext=(file.name.match(/\.(mp4|mov|m4v)$/i)||['','mp4'])[1].toLowerCase();
+  const key='social/raw/'+Date.now()+'-'+Math.floor(Math.random()*1e6)+'.'+ext;
+  document.getElementById(msgId).textContent='Getting upload link…';
+  const pre=await jpost('s3-presign',{s3_key:key,mime_type:mime});
+  if(!pre||!pre.upload_url) throw new Error('no upload link');
+  document.getElementById(wrapId).style.display='block';
+  await new Promise((res,rej)=>{ const x=new XMLHttpRequest(); x.open('PUT',pre.upload_url); x.setRequestHeader('Content-Type',mime);
+    x.upload.onprogress=e=>{ if(e.lengthComputable) document.getElementById(barId).style.width=Math.round(e.loaded/e.total*100)+'%'; };
+    x.onload=()=> x.status>=200&&x.status<300?res():rej(new Error('PUT '+x.status)); x.onerror=()=>rej(new Error('network')); x.send(file); });
+  return key;
+}
+document.getElementById('longfile').addEventListener('change', async function(){
+  const f=this.files&&this.files[0]; if(!f||!need()) return;
+  try{ LONG_KEY=await s3upload(f,'lprogWrap','lprog','lupmsg');
+    document.getElementById('lupmsg').innerHTML='✅ Uploaded ('+Math.round(f.size/1048576)+' MB). Now cut it 👇';
+    document.getElementById('lform').style.display='block';
+    if(!document.getElementById('lname').value) document.getElementById('lname').value=f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ');
+  }catch(e){ document.getElementById('lupmsg').textContent='Upload failed: '+e.message; }
+});
+document.getElementById('lsubmit').addEventListener('click', async function(){
+  if(!LONG_KEY) return; this.disabled=true; const m=document.getElementById('lsubmsg'); m.textContent='Sending to the auto-clipper…';
+  const r=await jpost('video-clip-submit',{ s3_key:LONG_KEY, project_name:document.getElementById('lname').value, content_type:'hero' });
+  this.disabled=false;
+  if(r&&r.ok){ m.innerHTML='✅ Cutting into shorts — each finished clip appears in the queue below in a few minutes.'; LONG_KEY=''; document.getElementById('lform').style.display='none'; document.getElementById('longfile').value=''; document.getElementById('lprogWrap').style.display='none'; document.getElementById('lprog').style.width='0'; document.getElementById('lupmsg').textContent=''; loadJobs(true); }
+  else { m.textContent='⚠️ '+(r&&(r.error||r.note)||'failed'); }
+});
+function renderClipJobs(list){
+  const el=document.getElementById('clipjobs'); if(!list||!list.length){ el.innerHTML=''; return; }
+  el.innerHTML='<div style="margin-top:12px">'+list.map(c=>{
+    const s=c.status==='clipping'?'<span class="pill p-processing">clipping…</span>':(c.status==='done'?'<span class="pill p-ready">'+c.clip_count+' shorts</span>':'<span class="pill p-failed">'+esc(c.status)+'</span>');
+    return '<div class="row" style="justify-content:space-between;padding:7px 0;border-top:1px solid rgba(255,255,255,.06)"><span class="muted">'+esc(c.project_name||'Long video')+'</span>'+s+'</div>';
+  }).join('')+'</div>';
+}
+
 // ---- the queue ----
 function suggestCaption(j){
   const t=j.title||'Broken appliance?';
@@ -183,14 +240,15 @@ async function postAll(id,btn){
 async function loadJobs(refresh){
   try{
     const d=await jget(F+'/video-jobs?secret='+encodeURIComponent(SECRET)+(refresh?'&refresh=1':''));
-    window._jobs=d.jobs||[]; render();
+    window._jobs=d.jobs||[]; window._clipjobs=d.clip_jobs||[]; render(); renderClipJobs(window._clipjobs);
+    const cs=document.getElementById('clipsetup'); if(cs) cs.innerHTML = d.clipper? '' : '⚠️ Auto-clipper not connected — add <b>VIZARDAI_API_KEY</b> in the vault to cut long videos.';
   }catch(e){ document.getElementById('jobs').innerHTML='<div class="muted">Enter the admin secret to load the queue.</div>'; }
 }
 document.getElementById('refresh').addEventListener('click',()=>loadJobs(true));
 
 (function init(){ if(!need()){ document.getElementById('jobs').innerHTML='<div class="muted">Admin secret required.</div>'; return; } checkSetup(); loadJobs(true);
   // auto-refresh while anything is still building
-  setInterval(()=>{ if(window._jobs.some(j=>j.status!=='ready'&&j.status!=='posted'&&j.status!=='failed')) loadJobs(true); }, 20000);
+  setInterval(()=>{ const busy=window._jobs.some(j=>j.status!=='ready'&&j.status!=='posted'&&j.status!=='failed')||(window._clipjobs||[]).some(c=>c.status==='clipping'); if(busy) loadJobs(true); }, 20000);
 })();
 </script>
 </body>

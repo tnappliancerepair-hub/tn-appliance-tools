@@ -8,6 +8,7 @@ const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const submagic = require('./_lib/submagic');
+const vizard = require('./_lib/vizard');
 
 const QUEUE_KEY = 'VIDEO_STUDIO_QUEUE';
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o, null, 2) }; }
@@ -48,10 +49,14 @@ exports.handler = async function (event) {
     jobs.push({
       id: j.id, title: j.title, hook: j.hook, content_type: j.content_type, template: j.template,
       status: j.status, download_url: j.status === 'ready' ? j.download_url : null,
-      raw_preview: await rawPreview(j.s3_key),
+      source: j.source || 'upload', viral_score: j.viral_score || null,
+      raw_preview: j.s3_key ? await rawPreview(j.s3_key) : null,
       created_ms: j.created_ms, ready_ms: j.ready_ms || null, posted: j.posted || {},
     });
   }
   const counts = queue.reduce((a, j) => { a[j.status] = (a[j.status] || 0) + 1; return a; }, {});
-  return json(200, { ok: true, configured: await submagic.configured(), counts, jobs });
+  // Long-video auto-clip jobs (Vizard) still in flight.
+  let clip_jobs = [];
+  try { clip_jobs = (JSON.parse((await getSecretFresh('VIZARD_CLIP_JOBS')) || '[]')).slice(-10).reverse().map((c) => ({ id: c.id, project_name: c.project_name, status: c.status, clip_count: c.clip_count || 0, created_ms: c.created_ms })); } catch (_) {}
+  return json(200, { ok: true, configured: await submagic.configured(), clipper: await vizard.configured(), counts, clip_jobs, jobs });
 };

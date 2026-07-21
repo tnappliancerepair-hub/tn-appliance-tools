@@ -666,3 +666,8 @@
 
 [functions."review-card-poster"]
   schedule = "30 15 * * *"
+
+# Vizard has no per-request webhook — poll every 5 min so finished auto-clips
+# flow into Submagic + the Studio queue on their own.
+[functions."vizard-poll"]
+  schedule = "*/5 * * * *"
