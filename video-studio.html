@@ -108,6 +108,7 @@
   <div class="row" style="justify-content:space-between;margin:4px 2px 10px">
     <strong>🗂 The queue</strong>
     <div class="row" style="gap:8px">
+      <button class="btn ghost" id="punchup" style="padding:7px 12px" title="Write scroll-stopping hooks + YouTube SEO for every clip at once">✨ Punch up everything</button>
       <button class="btn ghost" id="loadfb" style="padding:7px 12px" title="Pull the 2013–2016 good ol days videos off our Facebook Page into the Studio">📼 Load Facebook archive</button>
       <button class="btn ghost" id="refresh" style="padding:7px 12px">↻ Refresh</button>
     </div>
@@ -218,6 +219,11 @@ const GOODOL=[
   "😂 Throwin' it back to the good ol days. TN Appliance Exchange LLC — we've never taken OURSELVES too serious, but we take your appliances dead serious. Family-owned since 2012, still everywhere, still clownin' around. 🐜\n📞 615-280-2949\n\n#GoodOlDays #TNApplianceExchange #familyowned #appliancerepair",
 ];
 function suggestCaption(j){
+  // if the Hook Doctor already wrote hooks, LEAD the caption with the strongest one
+  if(j.hooks&&j.hooks.length){ return j.hooks[0].replace(/^["']|["']$/g,'')+"\n\n"+baseCaption(j); }
+  return baseCaption(j);
+}
+function baseCaption(j){
   // Spanish-dubbed clips get a Spanish caption
   if((j.source||'').indexOf('dub')===0){
     return "😅 Los viejos tiempos en TN Appliance Exchange LLC — reparando electrodomésticos con honestidad desde 2012. Familia, sin rodeos, y estamos en todas partes: Tennessee y Luisiana.\n📞 615-280-2949 · tnapplianceexchange.net\n\n#TNApplianceExchange #reparaciondeelectrodomesticos #electrodomesticos #familia";
@@ -273,6 +279,7 @@ function jobCard(j){
     const posted=j.posted&&Object.keys(j.posted).length?('<div class="res">'+Object.entries(j.posted).map(([k,v])=>k+': '+(v.ok?'✅':'✗ '+(v.reason||''))).join('  ·  ')+'</div>'):'';
     body=player(j)
       +'<label>Caption</label><textarea id="cap-'+j.id+'">'+esc(suggestCaption(j))+'</textarea>'
+      +enrichBlock(j)
       +'<div class="row" style="margin:10px 0">'
       +['facebook','instagram','tiktok','youtube'].map(p=>'<label class="chk"><input type="checkbox" data-p="'+p+'" data-j="'+j.id+'" checked> '+({facebook:'Facebook',instagram:'IG Reel',tiktok:'TikTok draft',youtube:'YouTube'}[p])+'</label>').join('')
       +'</div>'
@@ -293,6 +300,25 @@ function jobCard(j){
   return '<div class="card"><div class="row" style="justify-content:space-between"><div class="jt">'+esc(j.title||'Untitled')+'</div>'+pill+'</div>'+body+'</div>';
 }
 window._jobs=[];
+function enrichBlock(j){
+  if(!j.enriched || !(j.hooks||j.seo)){
+    return '<div class="muted" style="font-size:12px;margin:2px 0 8px">✨ not punched up yet — tap 🎣 Hook Doctor / 📈 YouTube SEO below, or "Punch up everything" up top.</div>';
+  }
+  var h='';
+  if(j.hooks&&j.hooks.length){
+    h+='<div style="margin-top:2px"><b style="color:#e9c46a">🎣 Hook options</b><br>'+j.hooks.map(function(x,i){return (i+1)+'. '+esc(x);}).join('<br>')+'</div>';
+    if(j.hook_payoff) h+='<div style="margin-top:6px"><b style="color:#e9c46a">🎬 Payoff:</b> '+esc(j.hook_payoff)+'</div>';
+    if(j.hook_middle) h+='<div style="margin-top:4px;color:#9aa"><b>👉 Point the camera at:</b> '+esc(j.hook_middle)+'</div>';
+  }
+  if(j.seo){
+    var t=(j.seo.titles&&j.seo.titles[0])||''; var tags=(j.seo.tags||[]).slice(0,8).join(', ');
+    h+='<div style="margin-top:8px"><b style="color:#8ecae6">📈 YouTube:</b> '+esc(t)+'</div>';
+    if(tags) h+='<div style="margin-top:2px;color:#9aa;font-size:12px">tags: '+esc(tags)+'</div>';
+    if(j.seo.description) h+='<div style="margin-top:4px"><button class="btn ghost" style="padding:4px 10px;font-size:12px" onclick="copyDesc(this)" data-d="'+esc(j.seo.description).replace(/"/g,"&quot;")+'">📋 Copy YouTube description</button></div>';
+  }
+  return '<details style="margin:4px 0 8px;background:#111;border:1px solid #262626;border-radius:10px;padding:8px 10px"><summary style="cursor:pointer;color:#e9c46a;font-weight:600">✅ Punched up — hooks + SEO ready</summary><div class="muted" style="white-space:normal;margin-top:8px;line-height:1.5">'+h+'</div></details>';
+}
+function copyDesc(btn){ try{ var d=btn.getAttribute('data-d'); navigator.clipboard.writeText(d.replace(/&quot;/g,'"')); btn.textContent='✓ Copied'; setTimeout(function(){btn.textContent='📋 Copy YouTube description';},1500);}catch(_){}}
 function render(){ document.getElementById('jobs').innerHTML = window._jobs.length? window._jobs.map(jobCard).join('') : '<div class="muted">No clips yet — upload one above.</div>'; observeLazy(); }
 function reopen(id){ const j=window._jobs.find(x=>String(x.id)===String(id)); if(j){ j.status='ready'; render(); } }
 
@@ -338,9 +364,18 @@ async function loadJobs(refresh){
     const d=await jget(F+'/video-jobs?secret='+encodeURIComponent(SECRET)+(refresh?'&refresh=1':''));
     window._jobs=d.jobs||[]; window._clipjobs=d.clip_jobs||[]; render(); renderClipJobs(window._clipjobs);
     const cs=document.getElementById('clipsetup'); if(cs) cs.innerHTML = d.clipper? '' : '⚠️ Auto-clipper not connected — add <b>VIZARDAI_API_KEY</b> in the vault to cut long videos.';
+    // hands-off: if any ready clip isn't punched up yet, fire enrichment once per load
+    if(!window._enrichFired && window._jobs.some(j=>j.status==='ready'&&!j.enriched)){ window._enrichFired=true; jpost('video-enrich',{}).catch(()=>{}); }
   }catch(e){ document.getElementById('jobs').innerHTML='<div class="muted">Enter the admin secret to load the queue.</div>'; }
 }
 document.getElementById('refresh').addEventListener('click',()=>loadJobs(true));
+document.getElementById('punchup').addEventListener('click',async function(){
+  this.disabled=true; const o=this.textContent; this.textContent='Punching up…';
+  const r=await jpost('video-enrich',{});
+  this.disabled=false; this.textContent=o;
+  if(r&&r.ok){ alert('✨ Writing hooks + YouTube SEO for '+(r.punching_up||0)+' clips — they\'ll fill in over the next couple minutes. Keep refreshing.'); setTimeout(()=>loadJobs(true),10000); }
+  else alert('⚠️ '+(r&&(r.error||r.note)||'failed'));
+});
 document.getElementById('loadfb').addEventListener('click',async function(){
   this.disabled=true; const o=this.textContent; this.textContent='Loading archive…';
   const r=await jpost('fb-archive-import',{});

@@ -82,5 +82,7 @@ exports.handler = async function (event) {
   }
   if (imported) await saveQueue(queue);
   try { await crud.logEvent('fb_archive_imported', { imported, skipped, failed, at_ms: Date.now() }); } catch (_) {}
+  // punch up the freshly-imported clips (hooks + SEO) hands-off
+  if (imported) { try { fetch('https://tnapplianceexchange.net/.netlify/functions/video-enrich-background', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ internal: true }) }).catch(() => {}); } catch (_) {} }
   return json(200, { ok: true, imported, skipped, failed, landed });
 };

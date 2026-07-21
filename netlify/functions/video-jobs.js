@@ -58,6 +58,8 @@ exports.handler = async function (event) {
       source: j.source || 'upload', viral_score: j.viral_score || null,
       raw_preview: j.s3_key ? await rawPreview(j.s3_key) : null,
       created_ms: j.created_ms, ready_ms: j.ready_ms || null, posted: j.posted || {},
+      enriched: !!j.enriched, hooks: j.hooks || null, hook_middle: j.hook_middle || null,
+      hook_payoff: j.hook_payoff || null, hook_notes: j.hook_notes || null, seo: j.seo || null,
     });
   }
   // Kick off re-hosting for any ready clip not yet faststart-hosted (fire-and-forget).
