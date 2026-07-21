@@ -621,9 +621,13 @@
 # to customers whose job completed that day. Forward-only (lookback window) + 60-day
 # per-customer dedup (shares the colony agent's dedup key so no double-texting). Reviews
 # lift Local Services Ads + map-pack rank = more free leads. ?dryrun=1 to inspect.
-# DISABLED 2026-07-14 (Teddy: no proactive customer texts — this texted "How'd we do?" after completion)
-# [functions."review-request-sweep"]
-#   schedule = "30 23 * * *"
+# RE-ENABLED 2026-07-21 (Teddy: go hard on the map pack — a 👍 is a likely positive reviewer).
+# Satisfaction-GATED: soft "How'd we do? 👍/👎" → 👍 gets the Google review link, 👎 → private
+# feedback + Teddy alert. Forward-only (26h window), 60-day per-customer dedup, opt-out +
+# quiet-hours + freq caps enforced at the guard. 'satisfaction' tag added to the intake-only
+# allowlist so it passes the pause. Kill: re-comment this block. ?dryrun=1 to inspect.
+[functions."review-request-sweep"]
+  schedule = "30 23 * * *"
 
 # ServicePower auto-accept — grabs new OPEN SquareTrade dispatches every 10 min so we never
 # lose an offer to a slow accept. Accepts each OPEN call in our TN/LA areas (status-only

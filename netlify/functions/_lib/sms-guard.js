@@ -154,7 +154,11 @@ function scrubTimes(msg) {
 // (model/serial photo, "are you home?"). Not automated spam — a person doing the
 // job — so it passes the intake-only pause, while opt-out / dedup / quiet-hours /
 // no-clock-times all still apply at the chokepoint. (Lee 2026-07-14.)
-const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound|tech.?field/i;
+// 'satisfaction' covers the whole review flow (satisfaction_check ask + the 👍→Google-
+// review-link reply + the 👎→private-feedback capture). Re-enabled 2026-07-21 (Teddy: go
+// hard on the map pack — a 👍 is a likely positive reviewer). Opt-out / quiet-hours / dedup
+// / frequency caps all STILL apply at the chokepoint below — this only lifts the pause.
+const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound|tech.?field|satisfaction/i;
 function isIntakeOrAvailability(kind, tag) {
   if (String(process.env.CUSTOMER_TEXTS_ALL || '') === '1') return true;   // re-enable all
   return INTAKE_OK.test(((kind || '') + ' ' + (tag || '')));
