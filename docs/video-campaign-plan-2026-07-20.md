@@ -73,7 +73,7 @@ shooting videos and making people talk about us again."* + *"It's got to be MISS
 'good ol days'"* + *"We're proud to be rednecks. At least I am and I don't care who
 don't like it."*
 - **"good ol days"** — spelled that way on purpose (NOT "good old days"). Branded hashtag **#GoodOlDays**.
-- Voice = **proud, authentic, redneck, folksy** ("fixin'", "y'all", "ain't", "cuttin' up") — this is Teddy's real brand, he owns it. Keep it TRUE, proud, never sanitized.
+- Voice = **self-deprecating hillbilly humor** — folksy ("fixin'", "y'all", "ain't", "cuttin' up") but poking fun at OURSELVES, not proclaiming pride. Teddy 2026-07-20: *"we don't need to hashtag redneck, it's just obvious — maybe self-deprecating hillbilly shit."* So: **NO #redneck / #rednecklife / #redneckproud hashtags** (saying it is try-hard; it shows). Humor = "we had no business on camera and did it anyway," "still a little ridiculous," "take your appliances serious, not ourselves." Keep it TRUE, never sanitized.
 - **Name everywhere:** every caption spells out **TN Appliance Exchange LLC** + **#TNApplianceExchange** + the omnipresence line ("we're EVERYWHERE, TN & LA").
 - Implemented: `video-studio.html suggestCaption()` gives every archive/Vizard clip a
   rotating good-ol-days caption (5 variants, id-hashed so none repeat). Fresh-footage
