@@ -72,12 +72,11 @@
     var p = new URLSearchParams(location.search);
     jobId = p.get('job_id') || p.get('job') || '';
     techId = p.get('tech_id') || '';
-    // CRITICAL (Jimmy, 2026-07-21): the TDR row is keyed by technician_id. A save with
-    // NO tech id lands on the tech-0 phantom row, while the app reads the tech's real
-    // row — so the write "succeeds" but is invisible, and the tech re-types it every
-    // time (job 20469: writes went to tdr 660/tech-0, reads showed 807). If the URL
-    // dropped tech_id, fall back to the id the tech app stored on this device so read
-    // AND write always target the SAME row.
+    // If the URL dropped tech_id, use the id the tech app stored on this device. The TDR
+    // row is keyed by technician_id: a read + write must use the SAME id or they hit
+    // different rows (a save with no id lands on a phantom tech-0 row the reader never
+    // shows — "it saved but it's gone", 2026-07-21). Invisible when tech_id is already
+    // in the URL; only fills the gap when it isn't.
     if (!techId) { try { techId = localStorage.getItem('tn_tech_id') || ''; } catch (_) {} }
     if (!jobId) return; // No job context → no TDR surface
     role = detectRole();
@@ -85,15 +84,8 @@
     injectButton();
     injectModal();
     refresh();
-    // Load the parts up front (not only when the sheet opens) so the FAB % counts the
-    // part immediately — otherwise the pill reads 20% (model only) until you open it,
-    // then jumps to 40% once parts load. That flicker looked like "it lost the part"
-    // (Jimmy, 2026-07-21). (role tech/office only — customer view doesn't use parts.)
-    if (role === 'tech' || role === 'office') loadSuppliedParts();
     pollTimer = setInterval(refresh, POLL_MS);
     window.addEventListener('ant:state-changed', refresh);
-    // When the phone regains signal, push any TDR edits that failed to save earlier.
-    window.addEventListener('online', _retryPendingDrafts);
     // Make the TDR a first-class nav destination: any surface (the cross-tool
     // strip, a "📝 TDR" button) can open it, and #tdr in the URL auto-opens it
     // so a deep-link lands right on the report. (Teddy 7/4: free flow of nav +
@@ -205,19 +197,11 @@
     toggleStrayFabs(false);
   }
 
-  // Always resolve the tech id (URL → device store) so read + write hit the SAME TDR row.
-  function _resolveTechId() {
-    if (techId) return techId;
-    try { var t = localStorage.getItem('tn_tech_id') || ''; if (t) { techId = t; return t; } } catch (_) {}
-    return '';
-  }
-
   // ── Fetch + render ─────────────────────────────────────────────────
   async function refresh() {
     try {
-      var _tid = _resolveTechId();
       var url = XANO + '/get_unified_tdr_status?job_id=' + encodeURIComponent(jobId);
-      if (_tid) url += '&technician_id=' + encodeURIComponent(_tid);
+      if (techId) url += '&technician_id=' + encodeURIComponent(techId);
       var r = await fetch(url, { cache: 'no-store' });
       if (!r.ok) return;
       var d = await r.json();
@@ -225,66 +209,8 @@
       lastData = d;
       renderButton(d);
       renderModal(d);
-      // Any edits still stuck on the phone (a save that failed on weak signal)? Push them now.
-      _retryPendingDrafts();
-      // Keep the parts loaded so the FAB % counts them (no 20%↔40% flicker).
-      _maybePollParts();
     } catch (e) {}
   }
-
-  // ── TDR draft safety-net (weak-signal-proof) ───────────────────────
-  // Techs were losing work when a save POST failed on weak signal at the house:
-  // the field looked done locally but never reached the server (job 20469 / Jimmy,
-  // 2026-07-21 — diagnosis, job status, and labor all came back EMPTY server-side
-  // even though he filled them). Now every TDR edit is backed up to localStorage
-  // BEFORE the network call, auto-retried whenever signal returns, and shown as
-  // "not synced yet" until the server confirms — so a weak-signal save can never
-  // silently lose the tech's work again.
-  function _draftKey(field) { return 'tn_tdr_draft_' + jobId + '_' + field; }
-  function _saveDraft(field, val) { try { localStorage.setItem(_draftKey(field), JSON.stringify({ v: String(val), at: Date.now() })); } catch (_) {} }
-  function _readDraft(field) { try { var r = JSON.parse(localStorage.getItem(_draftKey(field)) || 'null'); return (r && typeof r.v === 'string') ? r.v : null; } catch (_) { return null; } }
-  function _clearDraft(field) { try { localStorage.removeItem(_draftKey(field)); } catch (_) {} }
-  function _pendingDrafts() {
-    var out = []; if (!jobId) return out;
-    try {
-      var pre = 'tn_tdr_draft_' + jobId + '_';
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k && k.indexOf(pre) === 0) { var field = k.slice(pre.length); var v = _readDraft(field); if (v != null) out.push({ field: field, value: v }); }
-      }
-    } catch (_) {}
-    return out;
-  }
-  async function _postFieldSave(field, val) {
-    var body = { job_id: Number(jobId), field: field, value: val };
-    var _tid = _resolveTechId();
-    if (_tid) body.technician_id = Number(_tid);
-    var wr = await fetch(XANO + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    var wd = await wr.json();
-    if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
-    return true;
-  }
-  var _retrying = false;
-  async function _retryPendingDrafts() {
-    if (_retrying) return; var pend = _pendingDrafts(); if (!pend.length) return;
-    _retrying = true; var synced = 0;
-    for (var i = 0; i < pend.length; i++) {
-      try { await _postFieldSave(pend[i].field, pend[i].value); _clearDraft(pend[i].field); synced++; } catch (_) { /* still no signal — keep it for next time */ }
-    }
-    _retrying = false;
-    if (synced) { var b = document.getElementById('ant-tdr-savefail'); if (b && b.parentNode) b.parentNode.removeChild(b); }
-  }
-  // Loud, unmissable, PERSISTENT failure banner (max z-index, top of sheet — never hidden
-  // behind a bubble). The tech's typed value stays on screen + backed up on the phone.
-  function _saveFailBanner() {
-    var host = document.getElementById('ant-tdr-content'); if (!host) return;
-    var old = document.getElementById('ant-tdr-savefail'); if (old && old.parentNode) old.parentNode.removeChild(old);
-    var el = document.createElement('div'); el.id = 'ant-tdr-savefail';
-    el.style.cssText = 'position:sticky;top:0;z-index:60;background:#b91c1c;color:#fff;padding:13px 14px;border-radius:11px;margin-bottom:12px;font-weight:800;font-size:13.5px;line-height:1.4;box-shadow:0 6px 22px rgba(185,28,28,.55)';
-    el.innerHTML = '⚠️ Weak signal — that didn\'t reach our system yet. It\'s saved on your phone and will sync automatically when you get bars. <button onclick="window.__antTdrRetrySync()" style="margin-top:8px;background:#fff;color:#b91c1c;border:0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer">Retry sync now</button>';
-    host.insertBefore(el, host.firstChild);
-  }
-  window.__antTdrRetrySync = function () { _retryPendingDrafts(); };
 
   function renderButton(d) {
     var pctEl = document.getElementById('ant-tdr-fab-pct');
@@ -418,16 +344,6 @@
       html += pct + '% complete · ' + blockingText;
     }
     html += '</div>';
-    // ⚠️ Unsynced-work warning — if the tech typed fields that never reached the
-    // server (weak signal), show it LOUD at the top so it's never a silent loss.
-    var _pend = _pendingDrafts();
-    if (_pend.length) {
-      html += '<div style="background:#3a1414;border:1px solid #b91c1c;border-radius:12px;padding:12px 14px;margin-bottom:14px">'
-        + '<div style="color:#ff9a9a;font-weight:800;font-size:13.5px;line-height:1.45">⚠️ ' + _pend.length + ' field' + (_pend.length > 1 ? 's' : '') + ' saved on your phone but not yet synced to our system.</div>'
-        + '<div style="color:#e0a0a0;font-size:12px;margin-top:3px">Your work is safe — it syncs automatically when you get signal.</div>'
-        + '<button onclick="window.__antTdrRetrySync()" style="margin-top:9px;background:#b91c1c;color:#fff;border:0;border-radius:9px;padding:9px 15px;font-size:13px;font-weight:800;cursor:pointer">Retry sync now</button>'
-        + '</div>';
-    }
     // What the customer already told us — the intake info (complaint, model,
     // serial, claim). This IS the seed for the diagnosis: if the customer
     // described the problem, the TDR is not starting from zero. (Teddy 2026-07-04)
@@ -461,13 +377,10 @@
       if (isParts) { var _up = usedPartsList(); fState = { filled: _up.length > 0, value: _up.join('\n') }; }
       // Model # lives on the JOB (submission_extras), not the TDR row — show + edit it here.
       if (isModel) { var _mv = (((d.submission_extras || {}).model_number) || d.model_number || '').toString(); fState = { filled: !!_mv.trim(), value: _mv }; }
-      // Weak-signal draft: the tech typed this but it hasn't synced to the server yet.
-      // Show the value (never lose it) flagged "not synced" instead of an empty prompt.
-      if (!isParts && !isModel && !fState.filled) { var _dft = _readDraft(f.key); if (_dft != null && String(_dft).trim()) fState = { filled: false, value: _dft, _unsynced: true }; }
       var isOutcome = !!(FIELD_META[f.key] && FIELD_META[f.key].outcome);
       var editable = canEdit && !!FIELD_META[f.key];
-      var cls = fState.filled ? 'filled' : (fState._unsynced ? 'empty' : 'empty');
-      var icon = fState.filled ? '✅' : (fState._unsynced ? '⏳' : '⏳');
+      var cls = fState.filled ? 'filled' : 'empty';
+      var icon = fState.filled ? '✅' : '⏳';
       var editHandler = isParts ? 'window.__antTdrPartsEdit()'
         : isModel ? 'window.__antTdrModelEdit()'
         : (isOutcome ? 'window.__antTdrOutcomeEdit()' : ('window.__antTdrEdit(\'' + f.key + '\')'));
@@ -486,9 +399,6 @@
         } else {
           html += '<div class="ant-tdr-field-value">' + escapeHtml(String(fState.value)) + '</div>';
         }
-      } else if (fState._unsynced) {
-        html += '<div class="ant-tdr-field-value">' + escapeHtml(String(fState.value)) + '</div>';
-        html += '<div style="font-size:11px;color:#ff9a9a;font-weight:800;margin-top:4px">⏳ saved on your phone — not synced yet (tap Retry sync above)</div>';
       } else {
         html += '<div class="ant-tdr-field-empty-prompt">' + escapeHtml(f.prompt) + '</div>';
       }
@@ -572,23 +482,11 @@
       suppliedParts = (d && d.ok && Array.isArray(d.parts)) ? d.parts : [];
     } catch (_) { if (suppliedParts === null) suppliedParts = []; }
     suppliedLoading = false;
-    // Update the FAB % now that parts are known (keeps the pill from flickering
-    // 20%→40% when the sheet opens), and re-render the sheet if it's open.
-    if (lastData) {
-      renderButton(lastData);
-      if (editKey === null && !recordingNow && !antGuessOverriding) {
-        var back = document.getElementById('ant-tdr-backdrop');
-        if (back && back.classList.contains('open')) renderModal(lastData);
-      }
+    // Re-render if the sheet is open and nothing is mid-edit.
+    if (editKey === null && !recordingNow && !antGuessOverriding && lastData) {
+      var back = document.getElementById('ant-tdr-backdrop');
+      if (back && back.classList.contains('open')) renderModal(lastData);
     }
-  }
-  // Keep parts fresh on the periodic refresh too, so the pill stays accurate without
-  // needing the sheet to be opened. (Guarded by suppliedLoading so it won't stack.)
-  var _partsPollN = 0;
-  function _maybePollParts() {
-    if (role !== 'tech' && role !== 'office') return;
-    // every ~4th refresh (~24s) is plenty; parts rarely change mid-visit.
-    if ((_partsPollN++ % 4) === 0) { suppliedLoading = false; loadSuppliedParts(); }
   }
 
   // The ONE parts area (John 7/8). Lists the parts the warranty SENT — tech taps each
@@ -1596,19 +1494,16 @@
     // "Please reassign" sends the job back to the office (unassigns you) — confirm first.
     if (which === 'reassign' && !window.confirm('This sends the job back to the office to reassign — you\'ll be taken off it. Continue?')) return;
     var val = note ? (base + ' — ' + note) : base;
-    if (role === 'tech' && !_resolveTechId()) {
-      alert('Reopen this job from your dashboard first so your report saves to YOU (not a shared draft).');
-      return;
-    }
-    _saveDraft('repair_completed', val);   // phone backup before the network call (weak-signal-proof)
     try {
-      await _postFieldSave('repair_completed', val);
-      _clearDraft('repair_completed');
+      var body = { job_id: Number(jobId), field: 'repair_completed', value: val };
+      if (techId) body.technician_id = Number(techId);
+      var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      var wd = await wr.json();
+      if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
     } catch (e) {
-      editKey = null;
-      if (lastData) renderModal(lastData);
-      _saveFailBanner();
-      setTimeout(_retryPendingDrafts, 8000);
+      alert('Could not save: ' + (e && e.message ? e.message : e));
       return;
     }
     // Side effect: reassign kicks the job back to the office's Needs-Scheduled with the reason.
@@ -1855,28 +1750,24 @@
     var inp = document.getElementById('ant-tdr-edit-input');
     var val = inp ? String(inp.value == null ? '' : inp.value).trim() : '';
     var btns = document.querySelectorAll('.ant-tdr-save-btn');
-    // No tech id resolvable → the save would land on a shared draft the app can't read
-    // back (the row-mismatch bug). Stop and guide, don't silently lose it.
-    if (role === 'tech' && !_resolveTechId()) {
-      alert('Reopen this job from your dashboard first so your report saves to YOU (not a shared draft). Tap × then open it from your job list.');
-      return;
-    }
     btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
-    // Back it up on the phone FIRST — before the network call — so a weak-signal
-    // failure can never lose the tech's work (auto-retries when signal returns).
-    _saveDraft(key, val);
     try {
       // update_tdr_field_from_voice upserts the in-progress TDR by (job_id,
       // technician_id) and writes via db.edit — no TDR_SUBMITTED signal, so
-      // editing a field never autonomously moves the job.
-      await _postFieldSave(key, val);
-      _clearDraft(key);
+      // editing a field never autonomously moves the job. It takes the same
+      // field keys this card uses (diagnosis / failed_component / labor_hours /
+      // repair_completed / parts_needed).
+      var body = { job_id: Number(jobId), field: key, value: val };
+      if (techId) body.technician_id = Number(techId);
+      var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      var wd = await wr.json();
+      if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
-      editKey = null;
-      if (lastData) renderModal(lastData);   // re-render so the field shows "not synced" (value preserved)
-      _saveFailBanner();
-      setTimeout(_retryPendingDrafts, 8000);
+      alert('Could not save: ' + (e && e.message ? e.message : e));
       return;
     }
     editKey = null;
