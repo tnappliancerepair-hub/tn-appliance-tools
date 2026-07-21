@@ -671,3 +671,8 @@
 # flow into Submagic + the Studio queue on their own.
 [functions."vizard-poll"]
   schedule = "*/5 * * * *"
+
+# ElevenLabs dubbing is async too — poll every 5 min so finished Spanish dubs
+# land in the Studio queue.
+[functions."video-dub-poll"]
+  schedule = "*/5 * * * *"

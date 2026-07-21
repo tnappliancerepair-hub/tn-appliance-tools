@@ -215,6 +215,10 @@ const GOODOL=[
   "😂 Throwin' it back to the good ol days. TN Appliance Exchange LLC — we've never taken OURSELVES too serious, but we take your appliances dead serious. Family-owned since 2012, still everywhere, still clownin' around. 🐜\n📞 615-280-2949\n\n#GoodOlDays #TNApplianceExchange #familyowned #appliancerepair",
 ];
 function suggestCaption(j){
+  // Spanish-dubbed clips get a Spanish caption
+  if((j.source||'').indexOf('dub')===0){
+    return "😅 Los viejos tiempos en TN Appliance Exchange LLC — reparando electrodomésticos con honestidad desde 2012. Familia, sin rodeos, y estamos en todas partes: Tennessee y Luisiana.\n📞 615-280-2949 · tnapplianceexchange.net\n\n#TNApplianceExchange #reparaciondeelectrodomesticos #electrodomesticos #familia";
+  }
   // how-to / tip clips get a PRACTICAL, saveable caption (title leads)
   if(j.content_type==='quick_tip'){
     const t=(j.title||'Appliance tip').replace(/\s+/g,' ').trim();
@@ -245,7 +249,11 @@ function jobCard(j){
       +['facebook','instagram','tiktok','youtube'].map(p=>'<label class="chk"><input type="checkbox" data-p="'+p+'" data-j="'+j.id+'" checked> '+({facebook:'Facebook',instagram:'IG Reel',tiktok:'TikTok draft',youtube:'YouTube'}[p])+'</label>').join('')
       +'</div>'
       +'<button class="btn" onclick="postAll(\''+j.id+'\',this)">🚀 Post everywhere</button>'
-      +'<div class="muted" style="margin-top:6px">FB + IG go live · TikTok lands in your drafts · YouTube uploads private (flip to public).</div>'+posted;
+      +'<div class="muted" style="margin-top:6px">FB + IG go live · TikTok lands in your drafts · YouTube uploads private (flip to public).</div>'
+      +'<div class="row" style="margin-top:10px">'
+      +'<button class="btn ghost" style="padding:8px 12px" onclick="dubEs(\''+j.id+'\',this)">🌎 Spanish version</button>'
+      +'<button class="btn ghost" style="padding:8px 12px" onclick="genSeo(\''+j.id+'\',this)">📈 YouTube SEO</button>'
+      +'</div><div id="seo-'+j.id+'" class="muted" style="margin-top:6px"></div>'+posted;
   } else if(j.status==='posted'){
     body=player(j)+'<div class="res">'+Object.entries(j.posted||{}).map(([k,v])=>k+': '+(v.ok?('✅ '+(v.url?'<a href="'+esc(v.url)+'" target="_blank">view</a>':'done')):'✗ '+(v.reason||''))).join('  ·  ')+'</div><button class="btn ghost" style="margin-top:8px" onclick="reopen(\''+j.id+'\')">Post again / to more</button>';
   } else if(j.status==='failed'){
@@ -259,6 +267,22 @@ window._jobs=[];
 function render(){ document.getElementById('jobs').innerHTML = window._jobs.length? window._jobs.map(jobCard).join('') : '<div class="muted">No clips yet — upload one above.</div>'; }
 function reopen(id){ const j=window._jobs.find(x=>String(x.id)===String(id)); if(j){ j.status='ready'; render(); } }
 
+async function dubEs(id,btn){
+  btn.disabled=true; btn.textContent='Dubbing…';
+  const r=await jpost('video-dub-submit',{job_id:id,lang:'es'});
+  btn.disabled=false; btn.textContent='🌎 Spanish version';
+  alert(r&&r.ok ? '✅ Dubbing to Spanish — the Español version lands in the queue in a few minutes.' : '⚠️ '+(r&&(r.error||r.note)||'failed'));
+}
+async function genSeo(id,btn){
+  const j=(window._jobs||[]).find(x=>String(x.id)===String(id)); const el=document.getElementById('seo-'+id);
+  el.textContent='Writing SEO…';
+  const r=await jpost('youtube-seo',{title:(j&&j.title)||'',is_long:false});
+  if(r&&r.ok){
+    el.innerHTML='<div class="res" style="white-space:normal"><b>📈 Title options:</b><br>'+r.titles.map(t=>'• '+esc(t)).join('<br>')
+      +'<br><br><b>Description:</b><br>'+esc(r.description).replace(/\n/g,'<br>')
+      +'<br><br><b>Tags:</b> '+esc((r.tags||[]).join(', '))+'</div>';
+  } else el.textContent='⚠️ SEO error: '+(r&&(r.error)||'failed');
+}
 async function postAll(id,btn){
   btn.disabled=true; btn.textContent='Posting…';
   const cap=(document.getElementById('cap-'+id)||{}).value||'';
