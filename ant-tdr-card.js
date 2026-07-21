@@ -264,6 +264,16 @@
       // server fallback (parts_needed) in case the column is ever fixed server-side
       splitParts((((lastData && lastData.fields || {}).parts_needed || {}).value || '').toString()).forEach(function (w) { if (w && out.indexOf(w) === -1) out.push(w); });
     }
+    if (!out.length) {
+      // The part # is often documented inside the "Failed part" text (e.g.
+      // "...to be replaced by part #W10613606"). The OFFICE view reads it from there,
+      // so recognize it here too — otherwise the tech's card shows the part slot empty
+      // (stuck at 80%) while the office shows the number, and the two screens disagree
+      // (Danielle's discrepancy, job 20090, 2026-07-21). Pull #-marked part numbers.
+      var fc = (((lastData && lastData.fields || {}).failed_component || {}).value || '').toString();
+      var m = fc.match(/#\s*([A-Za-z0-9][A-Za-z0-9-]{4,15})/g);
+      if (m) m.forEach(function (tok) { var p = tok.replace(/^#\s*/, '').trim(); if (p && out.indexOf(p) === -1) out.push(p); });
+    }
     return out;
   }
 
