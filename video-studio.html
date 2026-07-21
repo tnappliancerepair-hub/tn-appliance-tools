@@ -215,6 +215,11 @@ const GOODOL=[
   "😂 Throwin' it back to the good ol days. TN Appliance Exchange LLC — we've never taken OURSELVES too serious, but we take your appliances dead serious. Family-owned since 2012, still everywhere, still clownin' around. 🐜\n📞 615-280-2949\n\n#GoodOlDays #TNApplianceExchange #familyowned #appliancerepair",
 ];
 function suggestCaption(j){
+  // how-to / tip clips get a PRACTICAL, saveable caption (title leads)
+  if(j.content_type==='quick_tip'){
+    const t=(j.title||'Appliance tip').replace(/\s+/g,' ').trim();
+    return "🔧 "+t+"\n\nReal techs, straight to the point. Save this one 📌 TN Appliance Exchange LLC — fixin' appliances the honest way since 2012, all over TN & LA.\n📞 615-280-2949 · tnapplianceexchange.net\n\n#howto #DIY #appliancerepair #dryerrepair #TNApplianceExchange #familyowned";
+  }
   // archive (Vizard-sourced) clips get the good ol days voice, rotated by id so no two match
   if(j.source==='vizard'){ let h=0; const s=String(j.id); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return GOODOL[h%GOODOL.length]; }
   const t=j.title||'Broken appliance?';
