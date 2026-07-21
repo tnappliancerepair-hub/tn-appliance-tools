@@ -49,18 +49,19 @@ exports.handler = async function (event) {
   for (const j of queue.slice().reverse().slice(0, 60)) {
     // Re-hosted clips play natively from S3 (inline). Un-hosted ones still point at
     // Vizard (the Studio proxies those). hosted flag tells the player which to use.
+    const goodHost = !!(j.hosted && j.clip_key && j.faststart);
     let dl = j.status === 'ready' ? j.download_url : null;
-    if (j.status === 'ready' && j.hosted && j.clip_key) { try { dl = await signedInlineUrl(j.clip_key); } catch (_) {} }
+    if (j.status === 'ready' && goodHost) { try { dl = await signedInlineUrl(j.clip_key); } catch (_) {} }
     jobs.push({
       id: j.id, title: j.title, hook: j.hook, content_type: j.content_type, template: j.template,
-      status: j.status, download_url: dl, hosted: !!(j.hosted && j.clip_key),
+      status: j.status, download_url: dl, hosted: goodHost,
       source: j.source || 'upload', viral_score: j.viral_score || null,
       raw_preview: j.s3_key ? await rawPreview(j.s3_key) : null,
       created_ms: j.created_ms, ready_ms: j.ready_ms || null, posted: j.posted || {},
     });
   }
-  // Kick off re-hosting for any un-hosted ready clips (fire-and-forget background fn).
-  if (queue.some((j) => j.status === 'ready' && !j.hosted)) {
+  // Kick off re-hosting for any ready clip not yet faststart-hosted (fire-and-forget).
+  if (queue.some((j) => j.status === 'ready' && !j.faststart)) {
     fetch('https://tnapplianceexchange.net/.netlify/functions/video-rehost-background', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ internal: true }) }).catch(() => {});
   }
   const counts = queue.reduce((a, j) => { a[j.status] = (a[j.status] || 0) + 1; return a; }, {});

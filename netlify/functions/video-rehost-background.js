@@ -7,6 +7,7 @@
 'use strict';
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
+const { faststart } = require('./_lib/faststart');
 
 const QUEUE_KEY = 'VIDEO_STUDIO_QUEUE';
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }; }
@@ -24,19 +25,22 @@ exports.handler = async function (event) {
   const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
 
   const queue = await loadQueue();
-  const todo = queue.filter((j) => j.status === 'ready' && !j.hosted && j.download_url).slice(0, 20);
+  // (re)process any ready clip not yet faststart-hosted. faststart_v2 = moov moved to
+  // the front so it plays instantly on mobile.
+  const todo = queue.filter((j) => j.status === 'ready' && j.download_url && !j.faststart).slice(0, 20);
   let done = 0, failed = 0;
   for (const job of todo) {
     try {
       const r = await fetch(job.download_url);
       if (!r.ok) { failed++; continue; }
-      const buf = Buffer.from(await r.arrayBuffer());
+      let buf = Buffer.from(await r.arrayBuffer());
       if (!buf.length) { failed++; continue; }
+      buf = faststart(buf); // move the index to the front for instant playback
       const key = 'social/clips/' + job.id + '.mp4';
       await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: buf, ContentType: 'video/mp4' }));
-      job.clip_key = key; job.hosted = true; done++;
+      job.clip_key = key; job.hosted = true; job.faststart = true; done++;
     } catch (_) { failed++; }
   }
   if (done) await saveQueue(queue);
-  return json(200, { ok: true, rehosted: done, failed, remaining: queue.filter((j) => j.status === 'ready' && !j.hosted).length });
+  return json(200, { ok: true, rehosted: done, failed, remaining: queue.filter((j) => j.status === 'ready' && !j.faststart).length });
 };
