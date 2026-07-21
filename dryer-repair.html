@@ -60,10 +60,18 @@
 <div class="section-label">Real People, Real Repairs</div>
 <h2>The Techs Who'll Actually Fix Your Dryer</h2>
 <p class="prose">No call center. No franchise script. TN Appliance Exchange is a family-owned shop that's been fixing dryers across Middle Tennessee &amp; South Louisiana since 2012. Here's founder Teddy at the shop — doing what we've done for over a decade.</p>
-<video controls playsinline preload="none" poster="https://tnapplianceexchange.net/.netlify/functions/media-file?key=social/clips/poster-755199354557734.jpg" style="width:100%;max-width:400px;border-radius:14px;background:#000;display:block;margin:10px auto">
-<source src="https://tnapplianceexchange.net/.netlify/functions/media-file?key=social/clips/fbarch-755199354557734.mp4" type="video/mp4">
-Your browser can't play this video. <a href="https://tnapplianceexchange.net/.netlify/functions/media-file?key=social/clips/fbarch-755199354557734.mp4">Open it here.</a>
-</video>
+<video id="tn-shop-video" controls playsinline preload="metadata" poster="https://tnapplianceexchange.net/.netlify/functions/media-file?key=social/clips/poster-755199354557734.jpg" style="width:100%;max-width:400px;border-radius:14px;background:#000;display:block;margin:10px auto"></video>
+<script>
+(function(){
+  var v=document.getElementById('tn-shop-video');
+  var key='social/clips/fbarch-755199354557734.mp4';
+  var proxy='https://tnapplianceexchange.net/.netlify/functions/media-file?key='+encodeURIComponent(key);
+  // iOS plays a DIRECT signed S3 url reliably; fetch a fresh one and set it as the src.
+  fetch(proxy+'&json=1').then(function(r){return r.json();}).then(function(d){
+    v.src=(d&&d.url)?d.url:proxy;
+  }).catch(function(){ v.src=proxy; });
+})();
+</script>
 <p class="prose" style="text-align:center;font-size:.9em;opacity:.82">Teddy at the TN Appliance shop — real dryer work, honest answers, no guessing. 📞 <a href="tel:6152802949">615-280-2949</a></p>
 </div>
 

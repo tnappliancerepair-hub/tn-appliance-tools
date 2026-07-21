@@ -6,6 +6,7 @@
 //   GET ?key=social/clips/<file>.(mp4|jpg)   (Range honored for video)
 'use strict';
 const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const CAP = 3 * 1024 * 1024; // 3MB/chunk → ~4MB base64, under the 6MB function limit
 
@@ -19,6 +20,16 @@ exports.handler = async function (event) {
   if (!bucket) return { statusCode: 500, body: 'no bucket' };
   const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
   const isImg = /\.(jpg|jpeg|png)$/i.test(key);
+
+  // ?json=1 → return a fresh signed S3 URL. iOS Safari plays a DIRECT S3 url (native
+  // range/seek) reliably, where it chokes on a proxy/redirect. The page fetches this
+  // on load and sets it as the <video> src — same approach the Studio uses.
+  if (q.json === '1') {
+    try {
+      const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentType: isImg ? 'image/jpeg' : 'video/mp4', ResponseContentDisposition: 'inline' }), { expiresIn: 6 * 3600 });
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }, body: JSON.stringify({ url }) };
+    } catch (_) { return { statusCode: 404, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'not found' }) }; }
+  }
 
   // Images (posters/thumbnails) are small → serve whole.
   if (isImg) {
