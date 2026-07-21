@@ -29,7 +29,11 @@ function toE164(p) {
 // allowQuiet is auto-set for same-day en-route/ETA texts the customer expects.
 const guard = require('./sms-guard');
 const INTERNAL_ROLES = new Set(['owner', 'technician', 'tech', 'warranty_handler', 'danielle', 'office']);
-const QUIET_OK_RE = /en.?route|on.?the.?way|arriv|\beta\b|running.?late|heads.?up/i;
+// Reactive replies the customer is actively waiting on bypass quiet hours (never go
+// silent on someone who just texted us). Includes the satisfaction REPLY tags
+// (satisfaction_review/ask/feedback) — the 👍 link + 👎 capture — but NOT the proactive
+// ask (satisfaction_check), which stays quiet-gated.
+const QUIET_OK_RE = /en.?route|on.?the.?way|arriv|\beta\b|running.?late|heads.?up|satisfaction_(?:review|ask|feedback)/i;
 
 async function sendSms(recipient, body, role, tag) {
   const to = toE164(recipient);
