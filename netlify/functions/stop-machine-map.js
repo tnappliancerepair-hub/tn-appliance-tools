@@ -11,8 +11,8 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'content-type': 'application/
 
 exports.handler = async function () {
   try {
-    // Newest 800 stop_machine links (plenty — this is a rare event). Latest wins per child.
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'stop_machine' }, { id: 'desc' }, 800);
+    // Newest 400 stop_machine links (plenty — a rare event; table-3 caps per_page ~500).
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'stop_machine' }, { id: 'desc' }, 400);
     const stops = {}; const childOf = {};
     for (const r of (rows || [])) {
       const m = (r && r.metadata) || {};
