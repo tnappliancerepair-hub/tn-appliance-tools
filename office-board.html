@@ -1965,6 +1965,8 @@ function renderDrawer(d){
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
         ${tdrLabel('Diagnosis','td-diag')}
         <textarea id="td-diag" rows="2" placeholder="what's wrong" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(tdr.diagnosis||'')}</textarea>
+        ${tdrLabel('Job status / return visit','td-status')}
+        <textarea id="td-status" rows="2" placeholder="Fixed & done, or coming back? What for (part, 2nd trip)?" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical;background:${(tdr.repair_completed&&/second|return|coming back|not|parts?|order|await/i.test(tdr.repair_completed))?'#fff8e8':'var(--card,#fff)'}">${esc(tdr.repair_completed||'')}</textarea>
         ${tdrLabel('Failed part','td-comp')}
         <input id="td-comp" value="${esc(tdr.failed_component||'')}" placeholder="e.g. bake element, control board" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
         ${tdrLabel('Part #','td-part')}
@@ -2445,7 +2447,7 @@ function copyField(id,btn){
 }
 function copyTdrAll(){
   const g=(x)=>{const el=document.getElementById(x);return el?el.value.trim():'';};
-  const parts=[]; if(g('td-diag'))parts.push('Diagnosis: '+g('td-diag')); if(g('td-comp'))parts.push('Failed part: '+g('td-comp')); if(g('td-part'))parts.push('Part #: '+g('td-part')); if(g('td-notes'))parts.push('Notes: '+g('td-notes'));
+  const parts=[]; if(g('td-diag'))parts.push('Diagnosis: '+g('td-diag')); if(g('td-status'))parts.push('Job status/return: '+g('td-status')); if(g('td-comp'))parts.push('Failed part: '+g('td-comp')); if(g('td-part'))parts.push('Part #: '+g('td-part')); if(g('td-notes'))parts.push('Notes: '+g('td-notes'));
   if(!parts.length){ toast('Nothing to copy yet'); return; }
   const txt=parts.join('\n');
   const done=()=>toast('Full TDR copied ✓');
@@ -2458,13 +2460,13 @@ function copyTdrAll(){
 // FILES one via create_tdr so a "no report" job isn't a dead end. (Teddy 7/3)
 async function saveTdr(tdrId, jid, techId){
   const g=(x)=>{const el=document.getElementById(x);return el?el.value.trim():'';};
-  const fields={diagnosis:g('td-diag'),failed_component:g('td-comp'),verified_part_number:g('td-part'),technician_notes:g('td-notes')};
+  const fields={diagnosis:g('td-diag'),repair_completed:g('td-status'),failed_component:g('td-comp'),verified_part_number:g('td-part'),technician_notes:g('td-notes')};
   if(!tdrId){
     // No report on this job yet — create one from what Danielle typed.
     if(!Object.values(fields).some(v=>v)){ toast('Type at least one field first'); return; }
     toast('Filing report…');
     try{
-      const body={job_id:parseInt(jid,10),diagnosis:fields.diagnosis,failed_component:fields.failed_component,verified_part_number:fields.verified_part_number,technician_notes:fields.technician_notes};
+      const body={job_id:parseInt(jid,10),diagnosis:fields.diagnosis,repair_completed:fields.repair_completed,failed_component:fields.failed_component,verified_part_number:fields.verified_part_number,technician_notes:fields.technician_notes};
       if(techId)body.technician_id=parseInt(techId,10);
       const d=await postJSON('create_tdr',body);
       toast(d&&d.tdr?'Report filed ✓':'⚠ could not file report');
