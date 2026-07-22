@@ -261,13 +261,14 @@ exports.handler = async function (event) {
     const si = msgs.findIndex((m) => m.role === 'system');
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const MARK = '<!-- ARRIVAL-FIRST -->';
-    const BLOCK = `${MARK}\n## "WHEN IS HE COMING?" / "IS HE LATE?" — NEVER give a time; connect them to their tech [highest priority]\n`
-      + `This is our #1 call. HARD RULES — no exceptions:\n`
-      + `- NEVER give a time or ANY estimate. No clock time, no "about X minutes," no "this afternoon," no "soon." Nothing. We schedule by DAY and run a route.\n`
-      + `- To answer "when is he coming," CONNECT THEM TO THEIR TECH. Look up their job (lookup_customer_by_phone; if not on file, ask name + city or claim #) to find the assigned tech, then transfer them straight to THAT tech (transferCall → that tech's destination). Their tech knows his own route.\n`
-      + `- If the tech does NOT answer or can't be reached: take their callback number + any message and CALL relay_to_tech to text the tech to call the customer back. Confirm you've sent it. Never leave them hanging.\n`
-      + `- If they're upset he's late: acknowledge it genuinely first ("I'm sorry, I know that's frustrating"), then connect them to their tech or text him — do NOT guess a time to placate them.\n`
-      + `- If pushed for a time: "I can't pin an exact time — we run a route — but let me get you straight to your tech, or have him get right back to you." You may offer "Want him to text you when he's on his way?" — but never a time.\n${MARK}\n\n`;
+    const BLOCK = `${MARK}\n## TIME vs DAY — you NEVER state an arrival time [highest priority, absolute]\n`
+      + `You have NO arrival clock time and you never invent one. NEVER tell a customer a tech is coming "at 3 o'clock," "this afternoon," "around noon," "this morning," "in X minutes," "shortly," "soon," or ANY time or estimate. There are ZERO exceptions to this.\n`
+      + `FINE TO SAY OR DO:\n`
+      + `- The DAY: you MAY tell a customer which DAY they're scheduled and confirm it ("you're on the schedule for Thursday"). Days are fine — times are not.\n`
+      + `- Their AVAILABILITY: if a customer wants to give their availability — days, or even times of day that work for THEM — that's fine. Collect it and note it for scheduling. Taking their preferences is fine; giving them an arrival time is not.\n`
+      + `WHEN THEY ASK WHAT TIME HE'S COMING, "is he late," or "how long":\n`
+      + `- Say the idea plainly: "I don't have an arrival time for you — let's call your technician directly so he can tell you himself." Then look up their job (lookup_customer_by_phone; if not on file, ask name + city or claim #) and transfer them straight to their tech (transferCall → that tech's destination).\n`
+      + `- If the tech doesn't answer, take their number + message and CALL relay_to_tech to text him to call the customer back. Never leave them hanging, and NEVER guess a time to placate them — connect them to their tech instead.\n${MARK}\n\n`;
     // strip any prior version of this block, then prepend the current one (so edits go live on re-run)
     {
       const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
