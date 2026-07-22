@@ -279,6 +279,53 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && hasBlock, assistant: got.json.name, block_applied: hasBlock, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Tech relay — when a caller needs their tech and he doesn't answer (or wants to
+  // leave a message), Ann texts the tech the message + notifies the owner. Attaches
+  // the relay_to_tech tool + a prompt block. Idempotent. ?action=tech_relay
+  if (action === 'tech_relay') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- TECH-RELAY -->';
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## REACHING THEIR TECH — if he doesn't pick up, take a message and you'll text it to him [high priority]\n`
+        + `When a caller needs their specific technician (something only the tech can answer, a gate code, "tell him I have to leave," etc.):\n`
+        + `- If live transfer to that tech is enabled and it's business hours, you may connect them.\n`
+        + `- If he DOESN'T answer, isn't available, or the caller just wants to leave word: never leave them hanging. Say warmly: "He's out on calls so he may not grab it live — but tell me what you'd like him to know and your best callback number, and I'll text it straight to him and flag it so he gets right back to you." Then CALL relay_to_tech with the tech (tech_id or tech_name from the job lookup), the caller's name + phone, the appliance, and their message. It texts the tech and alerts the office that he missed the call. Then confirm to the caller you've sent it.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+    }
+    let tools = Array.isArray(model.tools) ? model.tools.slice() : [];
+    if (!tools.some((t) => tname(t) === 'relay_to_tech')) {
+      tools.push({
+        type: 'function',
+        function: {
+          name: 'relay_to_tech',
+          description: "Text the caller's assigned technician their message + callback number, and notify the office the tech missed a live call. Use when the caller needs their specific tech and he's unavailable/doesn't answer, or wants to leave the tech a message.",
+          parameters: { type: 'object', properties: {
+            tech_id: { type: 'integer', description: 'assigned tech id: 2=Jimmy, 3=Andre, 4=Lee, 6=John, 1=Teddy' },
+            tech_name: { type: 'string', description: "assigned tech's first name (if id unknown)" },
+            customer_name: { type: 'string' },
+            customer_phone: { type: 'string', description: 'best callback number' },
+            appliance: { type: 'string' },
+            message: { type: 'string', description: 'what the caller wants the tech to know' },
+          }, required: ['message'] },
+        },
+        server: { url: 'https://tnapplianceexchange.net/.netlify/functions/relay-to-tech' },
+      });
+    }
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { tools, messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vm = (verify.json || {}).model || {};
+    const sysNow = (vm.messages || []).find((m) => m.role === 'system');
+    const hasBlock = String((sysNow && sysNow.content) || '').includes(MARK);
+    const hasTool = (vm.tools || []).some((t) => tname(t) === 'relay_to_tech');
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && hasBlock && hasTool, assistant: got.json.name, block_applied: hasBlock, tool_attached: hasTool, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Lookup guidance — from call review (Phil Minge, 7/1): Ant couldn't find a
   // caller and the call died searching. The search is now forgiving (fuzzy +
   // city). Tell Ant to USE it: search name + CITY together, don't demand exact
