@@ -59,6 +59,13 @@
 [functions."pm-autocharge"]
   schedule = "*/10 * * * *"
 
+# phone-hours-gate — flips LIVE human transfer ON at 9 AM / OFF at 6 PM Central,
+# Mon–Fri only. Off-hours the transferCall tool is physically removed so Ann
+# can't ring a tech/Danielle/office — she takes a message. Runs every 15 min so
+# the boundary flips within 15 min; the function computes Central time itself.
+[functions."phone-hours-gate"]
+  schedule = "*/15 * * * *"
+
 [functions."ahs-gmail-poller"]
   # STAGGERED 2026-06-18 to cure the Xano 503 spikes: 5 pollers were all firing
   # on the :00/:05/:10 marks, bursting Xano writes -> gateway shed load (instant

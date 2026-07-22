@@ -20,6 +20,19 @@ const VAPI = 'https://api.vapi.ai';
 const PROXY = 'https://tnapplianceexchange.net/.netlify/functions/vapi-tool';
 const INBOUND_NAME = 'Ann'; // renamed from 'Ant Inbound' 2026-07-19 — the phone assistant is Ann (Ant's assistant)
 
+// Business hours, computed server-side in America/Chicago. A LIVE person (tech,
+// Danielle, or the office) is reachable ONLY Mon–Fri 9 AM–6 PM Central. This is
+// the HARD gate: off-hours the transferCall tool is removed entirely so Ann
+// physically cannot ring anyone, no matter what the prompt-level rules say.
+function isBizHoursCT(d) {
+  const now = d || new Date();
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  const wd = (parts.find((p) => p.type === 'weekday') || {}).value || '';
+  const hour = parseInt((parts.find((p) => p.type === 'hour') || {}).value || '0', 10);
+  const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd);
+  return isWeekday && hour >= 9 && hour < 18; // 9:00 AM through 5:59 PM CT
+}
+
 const TOOLS = [
   { name: 'get_business_hours', description: 'Check whether the office is OPEN right now (a live person available) and get the shop hours. Humans answer Mon–Fri 9am–6pm Central only; closed evenings + weekends (you, the assistant, are 24/7). ALWAYS call this before offering to connect a caller to a live person or promising a callback, and follow the guidance it returns.', params: {}, required: [] },
   { name: 'lookup_customer_by_phone', description: 'Look up a caller by phone number. Returns customer + open jobs + caller_id_masked.', params: { phone: { type: 'string', description: 'Caller phone number.' } }, required: ['phone'] },
@@ -357,8 +370,13 @@ exports.handler = async function (event) {
     const dests = TECHS.map((t) => ({ type: 'number', number: t.num, message: `One moment — connecting you with ${t.name}.`, description: `Transfer here when the caller's assigned technician is ${t.name}. This is their own tech — use it for arrival ("when is he coming"), job, or status questions from a customer on one of ${t.name}'s jobs.` }));
     if (danielleOn) dests.push({ type: 'number', number: DANIELLE, message: 'One moment — connecting you with Danielle.', description: "Danielle (office manager), her DIRECT line. ALWAYS transfer American Home Shield / AHS and any other warranty or insurance company REP here. Homeowners do NOT go here." });
     if (teddyOn || danielleOn) dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: "The office ring. Use for general questions or complaints, or when you can't tell which tech is on the caller's job. NOT for a specific homeowner's tech (they have their own destination) and NOT for warranty reps when Danielle's direct line is present." });
+    // HARD business-hours gate: off-hours we REMOVE the transferCall tool entirely
+    // so Ann literally has no way to ring a human — she takes a message instead.
+    // On-hours we (re)attach it. This flips automatically via the phone-hours-gate
+    // cron at 9 AM / 6 PM CT, and any manual wiretechs call also respects it.
+    const openNow = isBizHoursCT();
     let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
-    tools.push({ type: 'transferCall', destinations: dests });
+    if (openNow) tools.push({ type: 'transferCall', destinations: dests });
     const MARK = '<!-- TECH-TRANSFER -->';
     const BLOCK = `${MARK}\n## TRANSFER ROUTING — LIVE CALLS TO A HUMAN ARE MON–FRI 9–6 CENTRAL ONLY [high priority]\n`
       + `CALL get_business_hours before ANY transfer. We connect a caller to a live person — a tech, Danielle, or the office — ONLY Monday–Friday, 9 AM–6 PM Central. Outside that (after 6 PM, before 9 AM, all weekend): transfer NO ONE. Handle it yourself, take a message with capture_callback, and tell them we follow up when we open. Never ring OR text a tech, Danielle, or the office off-hours.\n`
@@ -375,7 +393,7 @@ exports.handler = async function (event) {
     const vm = (verify.json || {}).model || {};
     const vt = (vm.tools || []).find((t) => t.type === 'transferCall');
     const sysNow = (vm.messages || []).find((m) => m.role === 'system');
-    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, assistant: got.json.name, block_applied: String((sysNow && sysNow.content) || '').includes(MARK), transfer_destinations: (vt && vt.destinations) ? vt.destinations.map((d) => ({ number: d.number, who: (d.description || '').slice(0, 30) })) : null, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, assistant: got.json.name, business_hours_open: openNow, transfer_enabled: !!vt, note: openNow ? 'OPEN — transfer wired to humans' : 'CLOSED — transfer removed, Ann takes messages only', block_applied: String((sysNow && sysNow.content) || '').includes(MARK), transfer_destinations: (vt && vt.destinations) ? vt.destinations.map((d) => ({ number: d.number, who: (d.description || '').slice(0, 30) })) : null, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
   // Lookup guidance — from call review (Phil Minge, 7/1): Ant couldn't find a
