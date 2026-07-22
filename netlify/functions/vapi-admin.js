@@ -267,8 +267,9 @@ exports.handler = async function (event) {
       + `- The DAY: you MAY tell a customer which DAY they're scheduled and confirm it ("you're on the schedule for Thursday"). Days are fine — times are not.\n`
       + `- Their AVAILABILITY: if a customer wants to give their availability — days, or even times of day that work for THEM — that's fine. Collect it and note it for scheduling. Taking their preferences is fine; giving them an arrival time is not.\n`
       + `WHEN THEY ASK WHAT TIME HE'S COMING, "is he late," or "how long":\n`
-      + `- Say the idea plainly: "I don't have an arrival time for you — let's call your technician directly so he can tell you himself." Then look up their job (lookup_customer_by_phone; if not on file, ask name + city or claim #) and transfer them straight to their tech (transferCall → that tech's destination).\n`
-      + `- If the tech doesn't answer, take their number + message and CALL relay_to_tech to text him to call the customer back. Never leave them hanging, and NEVER guess a time to placate them — connect them to their tech instead.\n${MARK}\n\n`;
+      + `- Never give a time. Say: "I don't have an arrival time for you — let me get you to your technician, who'll know best." Look up their job for the assigned tech.\n`
+      + `- DURING BUSINESS HOURS (Mon–Fri 9 AM–6 PM Central — call get_business_hours to confirm): transfer them straight to their tech (transferCall → that tech's destination); if he doesn't answer, call relay_to_tech to text him to call the customer back.\n`
+      + `- OUTSIDE business hours (after 6 PM, before 9 AM, or any weekend): do NOT ring or transfer ANYONE. Take their number + message with capture_callback and tell them we'll follow up when we open. Never call anyone off-hours.\n${MARK}\n\n`;
     // strip any prior version of this block, then prepend the current one (so edits go live on re-run)
     {
       const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
@@ -359,10 +360,12 @@ exports.handler = async function (event) {
     let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
     tools.push({ type: 'transferCall', destinations: dests });
     const MARK = '<!-- TECH-TRANSFER -->';
-    const BLOCK = `${MARK}\n## TRANSFER ROUTING [high priority]\n`
-      + `• HOMEOWNER who wants their tech or asks when he's coming: look up their job, then transferCall straight to THAT tech's own destination. Available ANY hour. If the tech doesn't answer, call relay_to_tech to text him to call the customer back — never leave them hanging, and never give a time.\n`
-      + `• AMERICAN HOME SHIELD / AHS or ANY warranty or insurance company REP (not the homeowner): if a "Danielle" destination is present, transfer them DIRECTLY to Danielle. If there is NO Danielle destination (she's off the phones), do NOT send them to a tech or the general office — take their dispatch/claim number + callback with capture_callback and tell them the office will process it.\n`
-      + `• The office ring is only for general questions/complaints, or when you truly can't tell who the caller's tech is. The Mon–Fri 9–6 hours limit applies ONLY to the office ring, never to reaching a field tech.\n${MARK}\n\n`;
+    const BLOCK = `${MARK}\n## TRANSFER ROUTING — LIVE CALLS TO A HUMAN ARE MON–FRI 9–6 CENTRAL ONLY [high priority]\n`
+      + `CALL get_business_hours before ANY transfer. We connect a caller to a live person — a tech, Danielle, or the office — ONLY Monday–Friday, 9 AM–6 PM Central. Outside that (after 6 PM, before 9 AM, all weekend): transfer NO ONE. Handle it yourself, take a message with capture_callback, and tell them we follow up when we open. Never ring OR text a tech, Danielle, or the office off-hours.\n`
+      + `DURING business hours only:\n`
+      + `• HOMEOWNER who wants their tech / asks when he's coming: look up their job, transferCall straight to THAT tech's own destination. If the tech doesn't answer, call relay_to_tech to text him to call the customer back.\n`
+      + `• AMERICAN HOME SHIELD / AHS or ANY warranty/insurance REP: if a "Danielle" destination is present, transfer them DIRECTLY to Danielle. If not (she's off the phones), take their dispatch/claim + callback with capture_callback.\n`
+      + `• The office ring is only for general questions/complaints, or when you can't tell who the caller's tech is.\n${MARK}\n\n`;
     {
       const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
       msgs[si].content = BLOCK + cur;
