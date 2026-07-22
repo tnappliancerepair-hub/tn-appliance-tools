@@ -405,6 +405,7 @@
     <div class="dt"><div class="n" id="d-name">Job</div><div class="s" id="d-sub"></div></div>
     <a href="/office-messages.html" onclick="event.preventDefault();openCustomerThread()" title="Open this customer's text thread" style="margin-left:auto;background:#1f6df0;color:#fff;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0">💬 Messages</a>
   </div>
+  <div id="d-machines" style="display:none;margin:6px 16px 0;padding:9px 11px;background:#f6f2fd;border:1px solid #ddd0f2;border-radius:10px"><div style="font-size:11.5px;font-weight:800;color:#5b3ba3;margin-bottom:6px">🧩 Machines on this stop — each has its own report</div><div id="d-machines-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
   <div id="d-status" style="display:none;margin:0 16px;background:#f0f6ff;border:1px solid #cfe0f5;border-radius:10px;padding:10px 12px;font-size:13.5px;line-height:1.45;color:#26405e"><b>📍 Where it stands: </b><span id="d-status-text"></span></div>
   <div style="margin:6px 16px;display:flex;gap:6px">
     <button onclick="addAppliance()" style="flex:1;background:#fff3df;border:1px solid #e8c98a;color:#7a5410;border-radius:9px;padding:9px;font-size:12.5px;font-weight:700;cursor:pointer">➕ Add appliance</button>
@@ -638,6 +639,28 @@ async function loadSlotsMap(){
 }
 function slotsOf(jobId){ return Math.max(1, Number(SLOTS_MAP[Number(jobId)])||1); }
 
+// ── Multi-machine grouping (Danielle 2026-07-22: an AHS multi-item claim = one
+// stop, several linked machines, each its OWN job/TDR — "need it all show on one
+// but have the separate TDRs"). STOP_KIDS[stopId] = [{job_id,appliance}] siblings;
+// MACHINE_CHILD_OF[jobId] = its stop_id. The board collapses the siblings onto the
+// stop's tile (chips) so it reads as ONE card, and the drawer gets a switcher.
+let STOP_KIDS={}, MACHINE_CHILD_OF={};
+async function loadMachineMap(){
+  try{
+    const d=await fetch('/.netlify/functions/stop-machine-map',{cache:'no-store'}).then(r=>r.json());
+    STOP_KIDS=(d&&d.stops)||{}; MACHINE_CHILD_OF={};
+    const c=(d&&d.child_of)||{}; Object.keys(c).forEach(k=>{ MACHINE_CHILD_OF[Number(k)]=Number(c[k]); });
+  }catch(_){ STOP_KIDS={}; MACHINE_CHILD_OF={}; }
+}
+// Machines on this stop, primary first: the stop's OWN appliance + its linked kids.
+function stopMachines(j){
+  const kids=STOP_KIDS[Number(j.id)]; if(!kids||!kids.length) return null;
+  const seen=new Set([Number(j.id)]);
+  const list=[{job_id:Number(j.id), appliance:(j.appliance||j.appliance_type||'appliance'), primary:true}];
+  kids.forEach(k=>{ if(!seen.has(Number(k.job_id))){ seen.add(Number(k.job_id)); list.push({job_id:Number(k.job_id), appliance:k.appliance||'appliance', primary:false}); } });
+  return list.length>1?list:null;
+}
+
 // ── Instant-open board cache (speed audit 2026-07-10) ──────────────────────────
 // The board's main fetch hauls ~260KB and takes ~1s. Snapshot the 5 inputs
 // renderBoard() needs (all together, so a cached render is never a mismatched
@@ -648,7 +671,7 @@ function saveBoardCache(){
   try{
     localStorage.setItem(BOARD_CACHE_KEY, JSON.stringify({
       ts:Date.now(), items:allItems, stageMap:STAGE_MAP, checkMap:CHECK_MAP,
-      noteJobs:[...OFFICE_NOTE_JOBS], secondOp:[...SECOND_OPINION_JOBS], cancelReq:[...CANCEL_REQUEST_JOBS], holdMap:HOLD_MAP, slotsMap:SLOTS_MAP, partsIn:PARTS_IN, addrFlags:ADDR_FLAGS
+      noteJobs:[...OFFICE_NOTE_JOBS], secondOp:[...SECOND_OPINION_JOBS], cancelReq:[...CANCEL_REQUEST_JOBS], holdMap:HOLD_MAP, slotsMap:SLOTS_MAP, partsIn:PARTS_IN, addrFlags:ADDR_FLAGS, stopKids:STOP_KIDS, machineChildOf:MACHINE_CHILD_OF
     }));
   }catch(_){}
 }
@@ -659,7 +682,7 @@ function renderFromCache(){
     if(!s||!Array.isArray(s.items)||!s.items.length) return false;
     if(!s.ts||(Date.now()-s.ts)>86400000) return false;  // ignore snapshots >1 day old
     allItems=s.items; STAGE_MAP=s.stageMap||{}; CHECK_MAP=s.checkMap||{};
-    OFFICE_NOTE_JOBS=new Set(s.noteJobs||[]); SECOND_OPINION_JOBS=new Set(s.secondOp||[]); CANCEL_REQUEST_JOBS=new Set(s.cancelReq||[]); HOLD_MAP=s.holdMap||{}; SLOTS_MAP=s.slotsMap||{}; PARTS_IN=s.partsIn||{}; ADDR_FLAGS=s.addrFlags||{};
+    OFFICE_NOTE_JOBS=new Set(s.noteJobs||[]); SECOND_OPINION_JOBS=new Set(s.secondOp||[]); CANCEL_REQUEST_JOBS=new Set(s.cancelReq||[]); HOLD_MAP=s.holdMap||{}; SLOTS_MAP=s.slotsMap||{}; PARTS_IN=s.partsIn||{}; ADDR_FLAGS=s.addrFlags||{}; STOP_KIDS=s.stopKids||{}; MACHINE_CHILD_OF=s.machineChildOf||{};
     stageReconcile();                 // a pending drop still wins over the cached snapshot
     renderBoard();
     return true;
@@ -672,7 +695,7 @@ async function loadBoard(){
   const _cached=renderFromCache();
   if(!_cached) document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap()]);
+    const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
     stageReconcile();                 // keep just-dropped cards pinned until the server catches up
@@ -1008,6 +1031,13 @@ function renderBoard(){
 
   let items=allItems.filter(j=>jobRegion(j)===region);
   if(soloTech) items=items.filter(j=>Number(j.technician_id)===Number(soloTech));
+  // Multi-machine collapse: a linked sibling (dryer/cooktop added to a washer stop)
+  // folds into the stop's ONE tile as a chip — UNLESS its stop isn't on the board
+  // right now (other region/filter), in which case keep the child so it's never lost.
+  if(Object.keys(MACHINE_CHILD_OF).length){
+    const _vis=new Set(items.map(j=>Number(j.id)));
+    items=items.filter(j=>{ const st=MACHINE_CHILD_OF[Number(j.id)]; return !(st && _vis.has(Number(st))); });
+  }
   const byCol={}; cols.forEach(c=>byCol[c.id]=[]);
   // THE CHECK-AND-BALANCE: every non-canceled job MUST land in a real, visible column —
   // nothing is ever silently dropped or dumped into the wrong lane. If placeOf resolves to
@@ -1263,6 +1293,21 @@ function cardHtml(j){
     const _win=String(j.service_eta_window||'').trim();
     _availCard='<div class="jc-avail" title="'+esc(String(j.warranty_company||'Warranty'))+' promised the customer this full window — the tech must arrive inside it" style="margin-top:6px;padding:9px 11px;border-radius:9px;background:rgba(37,99,235,.14);border:2px solid rgba(37,99,235,.6);color:#1d4ed8;font-size:13.5px;font-weight:900;line-height:1.45">🔒 Customer available '+esc(_day)+': <span style="font-size:15px">'+esc(_win||_tm)+'</span></div>';
   }
+  // 🧩 Multi-machine stop (Danielle 2026-07-22): one claim, several linked machines,
+  // each its OWN TDR/warranty. Show them as ONE tile with a chip per machine — tap a
+  // chip to open that machine's drawer (its own report/parts). Siblings are collapsed
+  // out of the board above, so this is the single place all machines on the stop live.
+  const _machines=stopMachines(j);
+  let _machineChips='';
+  if(_machines){
+    tags.unshift('<span class="tag" style="background:#efe7fb;color:#5b3ba3;border:1px solid #c9b6ee;font-weight:800" title="Multi-appliance claim — '+_machines.length+' machines on this one stop, each with its own report">🧩 '+_machines.length+' machines</span>');
+    const chips=_machines.map(m=>{
+      const lbl=esc(String(m.appliance||'appliance'));
+      if(m.primary) return '<span style="padding:3px 9px;border-radius:999px;background:#5b3ba3;color:#fff;font-size:11.5px;font-weight:800">'+lbl+'</span>';
+      return '<span onclick="event.stopPropagation();openDrawer(\''+m.job_id+'\')" title="Open this machine\'s report" style="padding:3px 9px;border-radius:999px;background:#f2ecfb;color:#5b3ba3;border:1px solid #c9b6ee;font-size:11.5px;font-weight:800;cursor:pointer">'+lbl+' ↗</span>';
+    }).join('');
+    _machineChips='<div class="jc-machines" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px" title="Each machine has its own TDR">'+chips+'</div>';
+  }
   const _replace=(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible');
   return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}${_pin?' partin':''}" draggable="true" data-id="${j.id}"${_pin?` style="box-shadow:0 0 0 2px ${partsInColor(_pin)}66;border-color:${partsInColor(_pin)}"`:''}>
     ${_pin?partsInRibbon(_pin):''}
@@ -1271,6 +1316,7 @@ function cardHtml(j){
     <div class="jc-name">${esc(name)}</div>
     <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}<span class="tag warr">${esc(_coLabel)}</span>${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
     <div class="jc-meta" style="margin-top:5px">${esc(appl||'appliance')}</div>
+    ${_machineChips}
     ${_availCard}
     <div class="jc-tags">${tags.join('')}</div>
     ${_completeBtn}
@@ -1755,6 +1801,23 @@ function renderDrawer(d){
   const name=c.name||((c.first_name||'')+' '+(c.last_name||'')).trim()||'Customer';
   document.getElementById('d-name').textContent=name;
   document.getElementById('d-sub').textContent='Job #'+(j.id||'?')+' · '+(t.name||'unassigned');
+  // 🧩 Machine switcher — a multi-item claim's linked machines, each its own TDR.
+  // Danielle opens one tile and hops between all the machines' reports to submit each.
+  (function(){
+    const box=document.getElementById('d-machines'), chipBox=document.getElementById('d-machines-chips');
+    if(!box||!chipBox||!j.id){ if(box)box.style.display='none'; return; }
+    box.style.display='none';
+    fetch('/.netlify/functions/get-stop-machines?job_id='+encodeURIComponent(j.id)).then(r=>r.json()).then(d3=>{
+      const ms=(d3&&d3.ok&&d3.machines)||[]; if(ms.length<2){ box.style.display='none'; return; }
+      chipBox.innerHTML=ms.map(m=>{
+        const cur=Number(m.job_id)===Number(j.id);
+        const lbl=esc(String(m.appliance||'appliance'))+(m.has_report?' ✓':'');
+        if(cur) return '<span style="padding:5px 11px;border-radius:999px;background:#5b3ba3;color:#fff;font-size:12.5px;font-weight:800">'+lbl+'</span>';
+        return '<span onclick="openDrawer(\''+m.job_id+'\')" title="Open this machine\'s report" style="padding:5px 11px;border-radius:999px;background:#fff;color:#5b3ba3;border:1px solid #c9b6ee;font-size:12.5px;font-weight:800;cursor:pointer">'+lbl+' ↗</span>';
+      }).join('');
+      box.style.display='block';
+    }).catch(()=>{ box.style.display='none'; });
+  })();
   // ONE job brain (job-truth): the OFFICE lens — same truth the phone relays to
   // AHS + the customer sees, but phrased for the office with the blockers baked
   // in (NO TECH / report-in-but-no-part# / part ETA). Danielle sees the status
