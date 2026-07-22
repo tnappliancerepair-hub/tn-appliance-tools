@@ -32,7 +32,11 @@ function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { t
 // (2026-07-22 — Danielle's report)
 async function rows(action) {
   const out = [];
-  for (let page = 1; page <= 14; page++) {
+  // UNLIMITED — page through EVERY record for this action; stops only at the real last
+  // page (a page shorter than 500). No coverage cap, so parts never fall out of view no
+  // matter how large the log grows. The 4000-page number is a pure runaway guard (2M
+  // rows) that will never be reached in practice. (Teddy 2026-07-22: "make it unlimited")
+  for (let page = 1; page <= 4000; page++) {
     let list = [];
     try { list = await crud.searchPageN(crud.TABLES.event_log, { action }, { id: 'desc' }, 500, page); } catch (_) { break; }
     if (!Array.isArray(list) || !list.length) break;
