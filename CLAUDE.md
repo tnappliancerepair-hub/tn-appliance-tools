@@ -44,6 +44,19 @@ Danielle: "parts requested + put in the warranty part section are no longer ther
 ### ⛔ BILLY SAVOY — COMPLETELY REMOVED (Teddy: "Remove Billy completely")
 See the Tech roster section — deactivated live + scrubbed from ALL 17 code files (maps/cell/commission/theme + about.html crew line), historical jobs now render "Tech 5", office-do-next picker leak closed, syntax verified. Never re-add id 5.
 
+### ✅ WEBSITE / SEO WINS + TECH PICS (same day — leads-first strategy)
+Teddy's reframe: **stop optimizing for indexing, optimize for LEADS/calls** — everything funnels to the AI intake page (`appliance-ai.html`), the easiest converter. Shipped (all live on `main`, idempotent MARK-based scratchpad scripts):
+- **AI over-promising KILLED (Teddy's catch):** 1,244 pages said/implied "our appliance AI troubleshoots it." **Humans troubleshoot — specifically Teddy — not the AI** ("we have an AI communication system + AI that assists tasks, but the troubleshooting is done by humans"). `fix-ai-claims.py` — 4 exact-string replacements: "from our appliance AI"→"from a real tech", lede + "Get the truth" + FAQ-schema all → "a real tech gives you an honest answer." Homepage + intake were already clean.
+- **👷 Lee's photo updated** (`team/lee-clarksville.jpg`, new photo, exif-transposed 760×1013) — shows on his Clarksville-area pages.
+- **Thin-lander unique content:** `lander-unique.py` replaced the thin 6-bullet `<ul>` on **145 `{appliance}-repair-{city}.html`** with real symptom→cause content per appliance (dryer/washer/refrigerator/dishwasher/oven) + per-city local intro + repair-vs-replace + gas/240V/sealed safety flags (MARK `<!-- UNIQUEBODY -->`).
+- **LA city FAQ:** `la-city-faq.py` added local FAQ + FAQPage schema to 9 LA cities (hammond, covington, mandeville, slidell, ponchatoula, abita-springs, madisonville, pearl-river, pumpkin-center).
+- **Internal-link authority (Tier 1):** brand wordmark → homepage link on **1,170 pages** (homepage inbound 125→1,295); homepage service-area city names now link to their hubs (17 cities); **each city hub → its 5 appliance landers** (mesh); **every marketing page drives to the `appliance-ai.html` intake** (the conversion play — "link to it as much as possible").
+- **10 new landers:** Hermitage + Mt. Juliet clusters built (cloned from Hendersonville template, TN techs, fresh UNIQUEBODY, added to sitemap).
+- **Lead-source tracking:** `ant-track.js` (site-wide, 1,436 GA4 pages) — first-touch attribution (`tn_attribution` localStorage) + GA4 call_click/intake_click/text_click → `track-lead.js` logs `lead_attribution` → `lead-report.js` (owner-gated) → `lead-sources.html` dashboard. `appliance-ai.html` beacons the source on job creation.
+- **Map pack (the real local lever):** re-enabled satisfaction-gated review requests (`review-request-sweep`, Teddy approved) — "How'd we do? 👍/👎" → 👍 = Google review link, 👎 = "what can we do better?" (private capture + owner alert). Fixed the SMS-guard allowlist + routed the 👍/👎 replies through the Netlify guard. Added review CTA to the two thank-you pages. **GSC insight: homepage ranks #1 for "refrigerator repair"/"appliance repair" but near-zero clicks — the map pack sits above organic, so GBP/reviews = THE lever.** GBP already fully optimized (4.5★/1,081, clean categories, 10 services, 20 areas).
+- **Google Ads:** connector v21→**v24** (v21 sunsets 2026-08-05; v24 verified live). Not spending until intake/handling is proven.
+- Strategy doc: `docs/seo-lead-strategy-2026-07-21.md` (+ artifact).
+
 ### ⏭️ OPEN / NEXT
 1. **YouTube dryer clip:** Teddy re-auths (`youtube-oauth-start`, approve force-ssl) → I fix the title, publish, delete the 2 junk drafts. Then optional: batch-treat the "good ol' days" archive clips into honest-SEO Shorts.
 2. **Phone overflow (yes/no):** missed general call during hours → text both + re-ping >2h?
