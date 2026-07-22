@@ -629,6 +629,11 @@
 [functions."review-request-sweep"]
   schedule = "30 23 * * *"
 
+# Content post watcher — texts the owner a one-tap approve link when a finished, punched-up
+# clip is ready to post everywhere. 9am + 2pm CT. Kill: vault CONTENT_POST_WATCH=false.
+[functions."content-post-watch"]
+  schedule = "0 14,19 * * *"
+
 # ServicePower auto-accept — grabs new OPEN SquareTrade dispatches every 10 min so we never
 # lose an offer to a slow accept. Accepts each OPEN call in our TN/LA areas (status-only
 # ACCEPTED, the proven flow), logs it, texts Teddy a digest. Capacity is wide open → pure
