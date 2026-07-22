@@ -139,7 +139,7 @@ function renderCard(){
       '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+(j.service_city?(' · '+esc(j.service_city)):'')+(j.service_zip?(' · '+esc(j.service_zip)):'')+waitBadge(j)+'</div>'+
       '<div class="what">Put it on the tech who runs that area, on the day that fits the route. We don\'t promise a time — the customer gets a live window the morning of.</div>'+
       '<label>Tech (whoever covers '+esc(j.service_city||j.service_zip||'this area')+')</label><select id="qTech"><option value="">— pick a tech —</option>'+
-        Object.keys(TECH).map(k=>'<option value="'+k+'">'+TECH[k]+'</option>').join('')+'</select>'+
+        Object.keys(TECH).filter(k=>k!=='5').map(k=>'<option value="'+k+'">'+TECH[k]+'</option>').join('')+'</select>'+
       '<div id="qSuggest" style="font-size:12px;color:#0a7d33;font-weight:700;margin:-4px 0 8px;min-height:14px"></div>'+
       '<label>Day</label><input id="qDate" type="date">'+
       '<label>Arrival window (optional — only if they really need one)</label><input id="qWin" placeholder="usually leave blank">'+

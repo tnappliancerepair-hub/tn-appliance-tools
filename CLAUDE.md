@@ -2310,8 +2310,9 @@ Every new session: read this whole file, then in your first reply report (a) **w
 | 2  | Jimmy Pivacek     | South Nashville              | 615-967-1304    |
 | 3  | Andre Pivacek     | Hammond, LA (dual-state)     | 615-969-3115    |
 | 4  | Lee Harding       | Clarksville, TN              | 615-829-1654    |
-| 5  | Billy Savoy       | Hammond, LA                  | 731-504-9617    |
 | 6  | John Houk         | Walker, LA                   | 813-352-7686    |
+
+**⛔ Billy Savoy (was tech id 5) is GONE — do NOT treat as staff.** Deactivated in the live system (`get-tech-profile tech_id=5` → found:false), excluded from every scheduler/picker/transfer/roster. Do not add him to any active tech list, transfer-eligibility list, or capacity/cluster assignment. The id→name lookups (`5:'Billy'`) are DELIBERATELY kept in display maps so his HISTORICAL jobs still render his name for attribution — that's business-record integrity, not active roster. Never re-add id 5 as current crew.
 
 ## Agent platform
 
