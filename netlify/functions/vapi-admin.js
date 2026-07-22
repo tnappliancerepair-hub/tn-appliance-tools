@@ -261,15 +261,17 @@ exports.handler = async function (event) {
     const si = msgs.findIndex((m) => m.role === 'system');
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const MARK = '<!-- ARRIVAL-FIRST -->';
-    if (!String(msgs[si].content || '').includes(MARK)) {
-      const BLOCK = `${MARK}\n## "WHEN IS HE COMING?" / "IS HE LATE?" — answer it yourself, instantly [highest priority]\n`
-        + `This is our #1 call. Handle it fully yourself — do NOT transfer or take a message just because they want a time.\n`
-        + `1. Pull their job (lookup_customer_by_phone; if the number isn't on file, ask their name + city or claim #), then CALL get_job_arrival_status.\n`
-        + `2. Answer in plain, reassuring terms. We schedule by DAY and run a route — NEVER quote or invent a clock time. Use what the tool gives you: the tech's name, whether he's on the way, roughly how far out ("Lee's running his route today and you're one of his next couple stops — looks like he's about 40 minutes out"). If there's no live ETA yet, say he's on today's schedule and we'll text a live window once he heads their way.\n`
-        + `3. ALWAYS offer the proactive text: "Want me to text you when he's about 15 minutes out?" If yes, capture it so we send it. This is what stops them calling back.\n`
-        + `4. If they're upset he's LATE: acknowledge it genuinely FIRST ("I'm sorry, I know that's frustrating"), give the honest status, reassure you'll flag it to the office. Never argue or minimize.\n`
-        + `5. Only AFTER handling status: if they truly need their TECH (reschedule on the spot, gate code, "I have to leave") — during business hours connect them to their tech per the transfer rules; otherwise take a callback so the tech reaches out.\n${MARK}\n\n`;
-      msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const BLOCK = `${MARK}\n## "WHEN IS HE COMING?" / "IS HE LATE?" — NEVER give a time; connect them to their tech [highest priority]\n`
+      + `This is our #1 call. HARD RULES — no exceptions:\n`
+      + `- NEVER give a time or ANY estimate. No clock time, no "about X minutes," no "this afternoon," no "soon." Nothing. We schedule by DAY and run a route.\n`
+      + `- To answer "when is he coming," CONNECT THEM TO THEIR TECH. Look up their job (lookup_customer_by_phone; if not on file, ask name + city or claim #) to find the assigned tech, then transfer them straight to THAT tech (transferCall → that tech's destination). Their tech knows his own route.\n`
+      + `- If the tech does NOT answer or can't be reached: take their callback number + any message and CALL relay_to_tech to text the tech to call the customer back. Confirm you've sent it. Never leave them hanging.\n`
+      + `- If they're upset he's late: acknowledge it genuinely first ("I'm sorry, I know that's frustrating"), then connect them to their tech or text him — do NOT guess a time to placate them.\n`
+      + `- If pushed for a time: "I can't pin an exact time — we run a route — but let me get you straight to your tech, or have him get right back to you." You may offer "Want him to text you when he's on his way?" — but never a time.\n${MARK}\n\n`;
+    // strip any prior version of this block, then prepend the current one (so edits go live on re-run)
+    {
+      const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
+      msgs[si].content = BLOCK + cur;
     }
     const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
     const verify = await vapi('GET', `/assistant/${id}`, key);
@@ -324,6 +326,47 @@ exports.handler = async function (event) {
     const hasBlock = String((sysNow && sysNow.content) || '').includes(MARK);
     const hasTool = (vm.tools || []).some((t) => tname(t) === 'relay_to_tech');
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && hasBlock && hasTool, assistant: got.json.name, block_applied: hasBlock, tool_attached: hasTool, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
+  // Wire per-tech transfer — transferCall can send a caller straight to THEIR tech
+  // (no on/off switch — every tech is always a destination) + the office ring group.
+  // Ann picks the destination by the caller's assigned tech. Idempotent. ?action=wiretechs
+  if (action === 'wiretechs') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const RING = '+16155889591';
+    const TECHS = [
+      { name: 'Jimmy', num: '+16159671304' },
+      { name: 'Andre', num: '+15049099413' },
+      { name: 'Lee', num: '+16158291654' },
+      { name: 'John', num: '+18133527686' },
+      { name: 'Teddy', num: '+16154855795' },
+    ];
+    const dests = TECHS.map((t) => ({ type: 'number', number: t.num, message: `One moment — connecting you with ${t.name}.`, description: `Transfer here when the caller's assigned technician is ${t.name}. This is their own tech — use it for arrival ("when is he coming"), job, or status questions from a customer on one of ${t.name}'s jobs.` }));
+    dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: 'The office (Teddy + Danielle). Use ONLY for general questions, warranty/insurance reps, complaints, or when you cannot tell which technician is on the caller\'s job.' });
+    let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
+    tools.push({ type: 'transferCall', destinations: dests });
+    const MARK = '<!-- TECH-TRANSFER -->';
+    const BLOCK = `${MARK}\n## TRANSFER ROUTING — send a caller to THEIR OWN tech, directly [high priority]\n`
+      + `Each technician has their own transfer destination. When a caller wants their tech, or asks when he's coming / where he is, look up their job to find the assigned tech, then transferCall to THAT tech's destination — not the office.\n`
+      + `- Connecting a caller to their own field tech (or texting him via relay_to_tech) is available ANY time of day — the Mon–Fri 9–6 office-hours limit applies ONLY to reaching the office/owner, never to reaching the field tech.\n`
+      + `- If the tech doesn't answer, use relay_to_tech to text him to call the customer back — don't leave them hanging.\n`
+      + `- The office destination is only for general/warranty/office matters, or when you genuinely can't tell who the caller's tech is.\n${MARK}\n\n`;
+    {
+      const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
+      msgs[si].content = BLOCK + cur;
+    }
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { tools, messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vm = (verify.json || {}).model || {};
+    const vt = (vm.tools || []).find((t) => t.type === 'transferCall');
+    const sysNow = (vm.messages || []).find((m) => m.role === 'system');
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, assistant: got.json.name, block_applied: String((sysNow && sysNow.content) || '').includes(MARK), transfer_destinations: (vt && vt.destinations) ? vt.destinations.map((d) => ({ number: d.number, who: (d.description || '').slice(0, 30) })) : null, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
   // Lookup guidance — from call review (Phil Minge, 7/1): Ant couldn't find a
