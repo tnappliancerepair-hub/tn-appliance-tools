@@ -249,6 +249,36 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && hasBlock && hasTool, assistant: got.json.name, block_applied: hasBlock, tool_attached: hasTool, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Arrival-first — the #1 call is "when is he coming / is he late." Make Ann answer
+  // it herself with the live ETA + stop position + a proactive "text you when he's
+  // 15 min out" so it stops generating repeat calls. Idempotent. ?action=arrival_first
+  if (action === 'arrival_first') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- ARRIVAL-FIRST -->';
+    if (!String(msgs[si].content || '').includes(MARK)) {
+      const BLOCK = `${MARK}\n## "WHEN IS HE COMING?" / "IS HE LATE?" — answer it yourself, instantly [highest priority]\n`
+        + `This is our #1 call. Handle it fully yourself — do NOT transfer or take a message just because they want a time.\n`
+        + `1. Pull their job (lookup_customer_by_phone; if the number isn't on file, ask their name + city or claim #), then CALL get_job_arrival_status.\n`
+        + `2. Answer in plain, reassuring terms. We schedule by DAY and run a route — NEVER quote or invent a clock time. Use what the tool gives you: the tech's name, whether he's on the way, roughly how far out ("Lee's running his route today and you're one of his next couple stops — looks like he's about 40 minutes out"). If there's no live ETA yet, say he's on today's schedule and we'll text a live window once he heads their way.\n`
+        + `3. ALWAYS offer the proactive text: "Want me to text you when he's about 15 minutes out?" If yes, capture it so we send it. This is what stops them calling back.\n`
+        + `4. If they're upset he's LATE: acknowledge it genuinely FIRST ("I'm sorry, I know that's frustrating"), give the honest status, reassure you'll flag it to the office. Never argue or minimize.\n`
+        + `5. Only AFTER handling status: if they truly need their TECH (reschedule on the spot, gate code, "I have to leave") — during business hours connect them to their tech per the transfer rules; otherwise take a callback so the tech reaches out.\n${MARK}\n\n`;
+      msgs[si].content = BLOCK + String(msgs[si].content || '');
+    }
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vm = (verify.json || {}).model || {};
+    const sysNow = (vm.messages || []).find((m) => m.role === 'system');
+    const hasBlock = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && hasBlock, assistant: got.json.name, block_applied: hasBlock, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Lookup guidance — from call review (Phil Minge, 7/1): Ant couldn't find a
   // caller and the call died searching. The search is now forgiving (fuzzy +
   // city). Tell Ant to USE it: search name + CITY together, don't demand exact
