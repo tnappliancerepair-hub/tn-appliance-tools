@@ -46,38 +46,30 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:16px 3
 .nav-call{font-size:12px;color:var(--white);text-decoration:none;letter-spacing:.04em;border:1px solid var(--bord2);padding:7px 13px;border-radius:9px;transition:all .2s}
 .nav-call:hover{border-color:var(--orange);color:var(--orange)}
 
-/* HERO — chat starter, IN FLOW, scrolls away normally */
-.hero{max-width:720px;margin:0 auto;width:100%;padding:56px 24px 40px;text-align:center;animation:fadeup .8s ease forwards;opacity:0}
+/* HERO — one big unmistakable ChatGPT-style ask, IN FLOW, lots of air */
+.hero{max-width:660px;margin:0 auto;width:100%;padding:76px 24px 56px;text-align:center;animation:fadeup .8s ease forwards;opacity:0}
 @keyframes fadeup{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-.trust-line{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;font-size:11px;color:var(--gray);letter-spacing:.05em;margin-bottom:22px}
+.trust-line{font-size:11px;color:var(--gray);letter-spacing:.05em;margin-bottom:30px}
 .trust-line b{color:var(--white);font-weight:500}
 .trust-line .star{color:var(--orange)}
-.hero h1{font-family:var(--block);font-size:clamp(34px,7vw,58px);letter-spacing:.03em;line-height:1.02;color:var(--white);margin-bottom:14px}
-.hero h1 em{color:var(--orange);font-style:normal;display:block}
-.hero-sub{font-size:14px;color:var(--gray);line-height:1.7;max-width:540px;margin:0 auto 30px}
+.hero-ant{font-size:46px;line-height:1;display:block;margin-bottom:18px;animation:alpulse 3s ease-in-out infinite}
+@keyframes alpulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 0 rgba(255,98,0,0))}50%{transform:scale(1.08);filter:drop-shadow(0 0 12px rgba(255,98,0,.7))}}
+.hero h1{font-family:var(--block);font-size:clamp(32px,6.4vw,52px);letter-spacing:.03em;line-height:1.04;color:var(--white);margin-bottom:14px}
+.hero-sub{font-size:15px;color:var(--gray);line-height:1.6;max-width:440px;margin:0 auto 32px}
 .hero-sub strong{color:var(--white);font-weight:500}
 
-.chatcard{background:linear-gradient(160deg,rgba(255,98,0,.09),rgba(12,12,12,.6));border:1px solid rgba(255,98,0,.32);border-radius:20px;padding:22px 20px 20px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-.cc-head{display:flex;align-items:center;gap:11px;text-align:left;margin-bottom:16px}
-.cc-ant{font-size:30px;animation:alpulse 2.6s ease-in-out infinite;flex-shrink:0}
-@keyframes alpulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 0 rgba(255,98,0,0))}50%{transform:scale(1.1);filter:drop-shadow(0 0 9px rgba(255,98,0,.75))}}
-.cc-hi{font-size:15px;color:var(--white);line-height:1.4}
-.cc-hi b{color:var(--orange);font-weight:500}
-.cc-hi span{display:block;font-size:12px;color:var(--gray);margin-top:2px}
-.chips{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:16px;justify-content:flex-start}
-.chip{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--bord2);color:var(--white);border-radius:12px;padding:11px 15px;font-family:var(--mono);font-size:13px;cursor:pointer;transition:all .18s}
-.chip:hover,.chip.on{border-color:var(--orange);color:var(--orange);background:rgba(255,98,0,.06)}
-.cc-input{display:flex;gap:9px;align-items:stretch}
-.cc-input input{flex:1;min-width:0;background:#080808;border:1px solid var(--bord2);border-radius:12px;color:var(--white);font-family:var(--mono);font-size:15px;padding:14px 16px;outline:none;transition:border-color .2s}
-.cc-input input:focus{border-color:var(--orange)}
-.cc-input input::placeholder{color:#5a5a5a}
-.cc-go{flex-shrink:0;background:var(--orange);color:#000;font-family:var(--mono);font-weight:700;font-size:14px;letter-spacing:.04em;border:none;border-radius:12px;padding:0 20px;cursor:pointer;transition:all .2s}
+/* THE ask — the single obvious spot */
+.ask{display:flex;align-items:center;gap:8px;max-width:600px;margin:0 auto;background:#0a0a0a;border:1.5px solid var(--bord2);border-radius:18px;padding:7px 7px 7px 20px;box-shadow:0 20px 55px rgba(0,0,0,.55);transition:border-color .2s,box-shadow .2s}
+.ask:focus-within{border-color:var(--orange);box-shadow:0 20px 65px rgba(255,98,0,.16)}
+.ask input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--white);font-family:var(--mono);font-size:17px;padding:16px 0}
+.ask input::placeholder{color:#5a5a5a}
+.cc-go{flex-shrink:0;background:var(--orange);color:#000;font-family:var(--mono);font-weight:700;font-size:15px;letter-spacing:.03em;border:none;border-radius:13px;padding:15px 22px;cursor:pointer;transition:all .2s}
 .cc-go:hover{background:var(--oran2);box-shadow:0 8px 24px rgba(255,98,0,.3)}
-.cc-fine{font-size:10.5px;color:#5a5a5a;margin-top:13px;letter-spacing:.02em;line-height:1.5}
+.chips{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:16px}
+.chip{display:inline-flex;align-items:center;gap:7px;background:transparent;border:1px solid var(--bord2);color:var(--gray);border-radius:20px;padding:9px 15px;font-family:var(--mono);font-size:13px;cursor:pointer;transition:all .18s}
+.chip:hover,.chip.on{border-color:var(--orange);color:var(--orange);background:rgba(255,98,0,.06)}
+.cc-fine{font-size:11px;color:#5a5a5a;margin-top:22px;letter-spacing:.02em;line-height:1.6}
 .cc-fine a{color:var(--gray);text-decoration:underline}
-.hero-alt{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px}
-.hero-alt a{font-size:12px;color:var(--gray);text-decoration:none;letter-spacing:.04em;border:1px solid var(--bord2);border-radius:10px;padding:11px 18px;transition:all .2s}
-.hero-alt a:hover{border-color:var(--orange);color:var(--orange)}
 
 /* TRUST STRIP */
 .trust-strip{max-width:1000px;margin:8px auto 0;padding:0 24px}
@@ -189,40 +181,25 @@ footer .ft{font-size:10px;color:var(--gray2);letter-spacing:.09em;text-transform
   <div class="nav-right"><div class="pill"><span class="pill-dot"></span>Ant is online</div><a href="tel:6152802949" class="nav-call">615-280-2949</a></div>
 </nav>
 
-<!-- HERO: chat starter, in normal flow -->
+<!-- HERO: one big unmistakable ask, in normal flow -->
 <div class="hero">
-  <div class="trust-line">
-    <span><span class="star">★</span> <b>4.5</b> · 1,000+ Google reviews</span>
-    <span><b>Family-owned</b> since 2012</span>
-    <span><b>Same-day</b> service</span>
-    <span>We <b>text you right back</b></span>
-  </div>
-  <h1>Broken appliance?<em>Just tell Ant.</em></h1>
-  <p class="hero-sub">A real local technician reviews what's wrong and gets you an <strong>honest answer with four clear options</strong> — no call center, no guessing, no commitment until you see your price.</p>
+  <div class="trust-line"><span class="star">★</span> <b>4.5</b> · 1,000+ Google reviews · <b>Family-owned</b> since 2012 · <b>Same-day</b></div>
+  <span class="hero-ant">🐜</span>
+  <h1>What's wrong with your appliance?</h1>
+  <p class="hero-sub">Tell Ant — a real local technician gets you an <strong>honest answer, same-day.</strong> No call center, no guessing.</p>
 
-  <div class="chatcard">
-    <div class="cc-head">
-      <span class="cc-ant">🐜</span>
-      <div class="cc-hi"><b>Hey — what's going on with your appliance?</b><span>Pick one or just type it below. Takes 30 seconds.</span></div>
-    </div>
-    <div class="chips" id="chips">
-      <button class="chip" data-a="Washer">🌀 Washer</button>
-      <button class="chip" data-a="Dryer">🔥 Dryer</button>
-      <button class="chip" data-a="Refrigerator">🧊 Refrigerator</button>
-      <button class="chip" data-a="Dishwasher">🍽️ Dishwasher</button>
-      <button class="chip" data-a="Oven">🍳 Oven / Range</button>
-    </div>
-    <div class="cc-input">
-      <input id="ccText" type="text" placeholder="e.g. my dryer won't heat…" autocomplete="off" aria-label="Describe your appliance problem">
-      <button class="cc-go" id="ccGo">Start →</button>
-    </div>
-    <div class="cc-fine">A real tech reviews it — usually within hours. By starting, you agree to receive texts about your repair. <a href="/terms">SMS Terms</a> · <a href="/privacy">Privacy</a>. Msg &amp; data rates may apply.</div>
+  <form class="ask" id="askForm" onsubmit="return false">
+    <input id="ccText" type="text" placeholder="Type it here — like “my dryer won’t heat”" autocomplete="off" aria-label="Describe your appliance problem">
+    <button class="cc-go" id="ccGo" type="submit">Start →</button>
+  </form>
+  <div class="chips" id="chips">
+    <button class="chip" data-a="Washer">🌀 Washer</button>
+    <button class="chip" data-a="Dryer">🔥 Dryer</button>
+    <button class="chip" data-a="Refrigerator">🧊 Refrigerator</button>
+    <button class="chip" data-a="Dishwasher">🍽️ Dishwasher</button>
+    <button class="chip" data-a="Oven">🍳 Oven / Range</button>
   </div>
-
-  <div class="hero-alt">
-    <a href="tel:6152802949">📞 Prefer to call? 615-280-2949</a>
-    <a href="/how-it-works">How it works →</a>
-  </div>
+  <div class="cc-fine">A real tech reviews it, usually within hours. By starting you agree to receive texts about your repair. <a href="/terms">SMS Terms</a> · <a href="/privacy">Privacy</a>. Or call <a href="tel:6152802949">615-280-2949</a>.</div>
 </div>
 
 <!-- TRUST STRIP -->
