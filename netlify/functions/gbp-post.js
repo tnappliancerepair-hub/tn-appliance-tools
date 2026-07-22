@@ -26,10 +26,10 @@ exports.handler = async function (event) {
   try {
     let r = await gbp.createLocalPost({ summary: b.summary, mediaUrl: b.mediaUrl || null, actionType: b.actionType || 'CALL', actionUrl: b.actionUrl || null });
     // If Google rejects the photo (too small / unfetchable), retry text-only so the post still lands.
-    if ((!r || r.error) && b.mediaUrl) {
+    if ((!r || !r.ok) && b.mediaUrl) {
       r = await gbp.createLocalPost({ summary: b.summary, actionType: b.actionType || 'CALL', actionUrl: b.actionUrl || null });
-      return json(200, { ok: !r.error, media_dropped: true, note: 'photo rejected by Google — posted text-only', post: r });
+      return json(200, { ok: !!(r && r.ok), media_dropped: true, note: 'photo rejected by Google — posted text-only', post: r });
     }
-    return json(200, { ok: !(r && r.error), post: r });
+    return json(200, { ok: !!(r && r.ok), post: r });
   } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
 };
