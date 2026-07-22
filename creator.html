@@ -106,6 +106,7 @@ input:focus{border-color:var(--orange)}
 <script>
 const F='/.netlify/functions';
 let CODE=localStorage.getItem('tn_creator_code')||'';
+let CREATOR_ID='andre';
 let RAW_KEY='';
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -119,6 +120,7 @@ async function enter(){
   else { $('gerr').className='msg err'; $('gerr').textContent='That code didn\'t work. Ask Teddy for your code.'; }
 }
 function showApp(creator){
+  if(creator&&creator.id) CREATOR_ID=creator.id;
   $('gate').style.display='none'; $('app').style.display='block';
   $('hi').textContent='Hey '+(creator&&creator.name||'')+' 👋';
   loadJobs();
@@ -132,7 +134,7 @@ $('file').addEventListener('change',async function(){
   const f=this.files&&this.files[0]; if(!f) return;
   const mime=f.type||'video/mp4';
   const ext=(f.name.match(/\.(mp4|mov|m4v|webm)$/i)||['','mp4'])[1].toLowerCase();
-  const key='social/raw/andre/'+Date.now()+'-'+Math.floor(Math.random()*1e6)+'.'+ext;
+  const key='social/raw/'+CREATOR_ID+'/'+Date.now()+'-'+Math.floor(Math.random()*1e6)+'.'+ext;
   $('upmsg').className='msg'; $('upmsg').textContent='Getting upload link…';
   let pre; try{ const r=await fetch(F+'/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:key,mime_type:mime})}); pre=await r.json(); }catch(e){}
   if(!pre||!pre.upload_url){ $('upmsg').className='msg err'; $('upmsg').textContent='Upload link failed — try again.'; return; }

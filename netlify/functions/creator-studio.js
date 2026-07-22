@@ -21,7 +21,8 @@ function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'applic
 // Roster of creators. code_env = vault key to override the seed code.
 const CREATORS = {
   andre: { name: 'Andre', code_env: 'CREATOR_CODE_ANDRE', seed: 'andre-tn-2026' },
-  // add more techs here later, e.g. jimmy/lee/john/teddy
+  jimmy: { name: 'Jimmy', code_env: 'CREATOR_CODE_JIMMY', seed: 'jimmy-tn-2026' },
+  // add more techs here later, e.g. lee/john/teddy
 };
 
 async function auth(codeRaw) {
