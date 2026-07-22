@@ -66,6 +66,14 @@ query update_tdr_field_from_voice verb=POST {
     var $v_parts {
       value = ($field_clean == "parts_needed") ? $parts_list : null
     }
+    // Also stamp the part number onto verified_part_number — the plain TEXT column
+    // the board, Ann, and the vendor-chase all actually READ. (Fix 2026-07-22: a
+    // part typed in the TDR card's "Part & part #" box only ever hit the parts_needed
+    // LIST column, which the board never reads, so Danielle saw "no part #" even when
+    // the tech entered it. Now the same save lands it where everyone looks.)
+    var $v_part_str {
+      value = ($field_clean == "parts_needed") ? $clean_value : ""
+    }
     var $v_notes {
       value = ($field_clean == "customer_notes") ? $clean_value : ""
     }
@@ -103,6 +111,7 @@ query update_tdr_field_from_voice verb=POST {
             labor_time_hours: $v_hours
             repair_completed: $v_repair
             parts_needed    : $v_parts
+            verified_part_number: $v_part_str
             customer_notes  : $v_notes
           }
         } as $created_tdr
@@ -152,7 +161,7 @@ query update_tdr_field_from_voice verb=POST {
         db.edit technician_decision_report {
           field_name = "id"
           field_value = $existing_id
-          data = {parts_needed: $parts_list}
+          data = {parts_needed: $parts_list, verified_part_number: $clean_value}
         }
       }
     }

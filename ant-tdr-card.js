@@ -1023,6 +1023,10 @@
     var _pn = String(ex.part_number || '').trim();
     if (_pn) { if (!_fc) _fc = _pn; else if (_fc.toUpperCase().indexOf(_pn.toUpperCase()) === -1) _fc = _fc + ' (' + _pn + ')'; }
     add('failed_component', _fc);
+    // Also save the part number as the part field so it lands in verified_part_number
+    // (the column the board + Ann read). Before, a voice-spoken part number only went
+    // into "Failed part" and never showed in the board's Part # slot. (2026-07-22)
+    if (_pn) add('parts_needed', _pn);
     add('repair_completed', ex.repair_completed);
     if (ex.labor_time_hours && Number(ex.labor_time_hours) > 0) add('labor_hours', String(ex.labor_time_hours));
     if (!toWrite.length) { if (btn) { btn.disabled = false; btn.textContent = '✨ Fill the report'; } if (msg) { msg.style.color = '#8fc0ff'; msg.textContent = 'Those are already filled — check them below.'; } return; }
