@@ -66,6 +66,12 @@
 [functions."phone-hours-gate"]
   schedule = "*/15 * * * *"
 
+# scorecard-digest — end-of-day truth text to the owner. Runs hourly and fires
+# only at 6 PM CT on a weekday (DST-proof, once/day). Danielle's timestamped
+# footprint, not her self-report.
+[functions."scorecard-digest"]
+  schedule = "0 * * * *"
+
 [functions."ahs-gmail-poller"]
   # STAGGERED 2026-06-18 to cure the Xano 503 spikes: 5 pollers were all firing
   # on the :00/:05/:10 marks, bursting Xano writes -> gateway shed load (instant
