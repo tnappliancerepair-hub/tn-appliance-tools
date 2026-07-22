@@ -23,11 +23,26 @@ const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
 async function jfetch(url, opts) { try { const r = await fetch(url, opts); return await r.json(); } catch (_) { return null; } }
 function post(path, body) { return jfetch(`${XANO}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
 
+// The scheduled DAY, always in America/Chicago. (Fixed 2026-07-22: a string-typed
+// scheduled_start used to format in the SERVER's timezone (UTC), so an evening-CT
+// appointment rolled to the next day — Thursday read as Friday on BOTH the text and
+// the phone, because both pull the day from here.)
 function dayCT(v) {
-  if (!v) return '';
-  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) { const d = new Date(v + 'T12:00:00'); return isNaN(d) ? v : d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); }
-  let ms = typeof v === 'string' ? Date.parse(v) : v;
-  if (!ms || isNaN(ms)) return '';
+  if (v == null || v === '') return '';
+  let ms;
+  if (typeof v === 'number') {
+    ms = v;
+  } else {
+    const s = String(v).trim();
+    const plain = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);   // "YYYY-MM-DD" only, no time
+    if (plain) {
+      // Anchor at NOON so the calendar day can never slip across a timezone.
+      ms = Date.UTC(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3]), 12, 0, 0);
+    } else {
+      ms = Date.parse(s);   // ISO / datetime string
+    }
+  }
+  if (!ms || isNaN(ms)) return typeof v === 'string' ? v : '';
   return new Date(Number(ms)).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'short', day: 'numeric' });
 }
 function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }

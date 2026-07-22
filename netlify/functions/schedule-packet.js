@@ -46,6 +46,14 @@ exports.handler = async function (event) {
   const force = q.force === '1' || q.force === 'true';  // bypass quiet-hours + dedup for a test preview
   if (!jobId) return ok({ ok: false, error: 'job_id required' });
 
+  // KILLED 2026-07-22 (Teddy): the "you're scheduled for {day}" text was wrong more
+  // than right (stored day off by one — timezone bug at scheduling write-time). Stop
+  // sending it to customers until the date is fixed + verified. Re-enable by setting
+  // vault/env SCHEDULE_PACKET_LIVE=true. Dry-run previews still work for debugging.
+  if (!dry && String(process.env.SCHEDULE_PACKET_LIVE || '').toLowerCase() !== 'true') {
+    return ok({ ok: true, skipped: 'disabled_day_text_off', note: 'day-of confirmation text is turned OFF (Teddy 2026-07-22)' });
+  }
+
   // ── resolve the job once (office lens gives day/date, phone, availability, warranty) ──
   const tr = await jget(`${SITE}/.netlify/functions/job-truth?job_id=${jobId}&lens=office`, 12000);
   const f = tr && tr.facts;
