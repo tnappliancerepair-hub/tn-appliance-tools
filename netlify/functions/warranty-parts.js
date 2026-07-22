@@ -25,7 +25,22 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods
 function j(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b, null, 2) }; }
 
 function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
-async function rows(action, n) { try { return await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, n); } catch (_) { return []; } }
+// Deep-paginate the FULL history for an action (pages of 500, early break). A fixed
+// recent-window cap (200/300/400) silently dropped older jobs' warranty parts as volume
+// grew — so parts from "last week and before" vanished from the drawer even though the
+// data was never lost. This reads all of it so a job's parts never fall out of view.
+// (2026-07-22 — Danielle's report)
+async function rows(action) {
+  const out = [];
+  for (let page = 1; page <= 14; page++) {
+    let list = [];
+    try { list = await crud.searchPageN(crud.TABLES.event_log, { action }, { id: 'desc' }, 500, page); } catch (_) { break; }
+    if (!Array.isArray(list) || !list.length) break;
+    out.push(...list);
+    if (list.length < 500) break;
+  }
+  return out;
+}
 
 // RMA return-description → our status. Unused/Core/DOA must go back; Used stays.
 function descStatus(desc) {
@@ -130,13 +145,21 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const jobId = Number(q.job_id || 0);
   const claim = String(q.claim || '');
+  // Diagnostic: total warranty-part records in the log (proves nothing was lost) + a
+  // sample of jobs that have parts, so we can verify old jobs show again.
+  if (q.diag === '1') {
+    const acts = ['parts_return_label', 'warranty_part_supplied', 'warranty_part_status', 'warranty_part_discrepancy', 'warranty_part_photo', 'warranty_part_deleted'];
+    const counts = {}; const jobsWithParts = new Set();
+    for (const a of acts) { const rs = await rows(a); counts[a] = rs.length; if (a === 'warranty_part_supplied' || a === 'parts_return_label') rs.forEach((r) => { const m = meta(r); if (m.job_id) jobsWithParts.add(Number(m.job_id)); }); }
+    return j(200, { ok: true, counts, jobs_with_supplied_parts: jobsWithParts.size, sample_job_ids: Array.from(jobsWithParts).slice(0, 25) });
+  }
   if (!jobId && !claim) return j(400, { ok: false, error: 'job_id or claim required' });
   const mine = (m) => (jobId && Number(m.job_id) === jobId) || (claim && String(m.claim) === claim);
 
   const [labels, manual, statuses, discreps, photos, deletes] = await Promise.all([
-    rows('parts_return_label', 400), rows('warranty_part_supplied', 200),
-    rows('warranty_part_status', 300), rows('warranty_part_discrepancy', 200),
-    rows('warranty_part_photo', 300), rows('warranty_part_deleted', 200),
+    rows('parts_return_label'), rows('warranty_part_supplied'),
+    rows('warranty_part_status'), rows('warranty_part_discrepancy'),
+    rows('warranty_part_photo'), rows('warranty_part_deleted'),
   ]);
 
   // Newest soft-delete timestamp per part (this job/claim). A part is hidden when its
