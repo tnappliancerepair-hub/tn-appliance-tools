@@ -35,14 +35,13 @@ async function readState() {
   return { teddyOn, danielleOn };
 }
 
-// Keep Ant's transfer in sync: any one available -> transfer ON (to ring group);
-// both off -> transfer OFF (Ant takes a message).
-async function syncTransfer(anyOn) {
+// Rebuild the full transfer set via wiretechs (it reads the reach switches itself):
+// field techs are ALWAYS reachable; Danielle's direct AHS line + the office ring appear
+// only when they're ON. So flipping a switch just adds/removes those, never the techs.
+async function syncTransfer() {
   const adminSec = (await getSecretFresh('VAPI_ADMIN_SECRET')) || ADMIN_FALLBACK;
-  const url = anyOn
-    ? `${SITE}/.netlify/functions/vapi-admin?secret=${encodeURIComponent(adminSec)}&action=wireoffice&number=${encodeURIComponent(RING_GROUP_DID)}`
-    : `${SITE}/.netlify/functions/vapi-admin?secret=${encodeURIComponent(adminSec)}&action=wireoffice&apply=off`;
-  try { await fetch(url, { signal: AbortSignal.timeout(12000) }); } catch (_) {}
+  const url = `${SITE}/.netlify/functions/vapi-admin?secret=${encodeURIComponent(adminSec)}&action=wiretechs`;
+  try { await fetch(url, { signal: AbortSignal.timeout(15000) }); } catch (_) {}
 }
 
 exports.handler = async function (event) {
@@ -63,6 +62,6 @@ exports.handler = async function (event) {
   }
 
   const { teddyOn, danielleOn } = await readState();
-  await syncTransfer(teddyOn || danielleOn);
+  await syncTransfer();
   return json(200, { ok: !saveFailed, saved: !saveFailed, teddyOn, danielleOn, transfer_on: teddyOn || danielleOn, reason: saveFailed ? 'save did not persist — tap again' : undefined });
 };

@@ -12,7 +12,7 @@
 
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh } = require('./_lib/secrets');
 
 // Legacy fallback — used ONLY if the VAPI_ADMIN_SECRET vault secret is unset.
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -340,6 +340,11 @@ exports.handler = async function (event) {
     const si = msgs.findIndex((m) => m.role === 'system');
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const RING = '+16155889591';
+    const DANIELLE = '+16154850713';
+    // Read the live reach switches — Danielle's direct (AHS) line + the office ring
+    // only appear when they're ON the phones; field techs are ALWAYS reachable.
+    const danielleOn = String((await getSecretFresh('OFFICE_REACH_DANIELLE')) || '').trim().toLowerCase() !== 'off';
+    const teddyOn = String((await getSecretFresh('OFFICE_REACH_TEDDY')) || '').trim().toLowerCase() !== 'off';
     const TECHS = [
       { name: 'Jimmy', num: '+16159671304' },
       { name: 'Andre', num: '+15049099413' },
@@ -348,15 +353,15 @@ exports.handler = async function (event) {
       { name: 'Teddy', num: '+16154855795' },
     ];
     const dests = TECHS.map((t) => ({ type: 'number', number: t.num, message: `One moment — connecting you with ${t.name}.`, description: `Transfer here when the caller's assigned technician is ${t.name}. This is their own tech — use it for arrival ("when is he coming"), job, or status questions from a customer on one of ${t.name}'s jobs.` }));
-    dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: 'The office (Teddy + Danielle). Use ONLY for general questions, warranty/insurance reps, complaints, or when you cannot tell which technician is on the caller\'s job.' });
+    if (danielleOn) dests.push({ type: 'number', number: DANIELLE, message: 'One moment — connecting you with Danielle.', description: "Danielle (office manager), her DIRECT line. ALWAYS transfer American Home Shield / AHS and any other warranty or insurance company REP here. Homeowners do NOT go here." });
+    if (teddyOn || danielleOn) dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: "The office ring. Use for general questions or complaints, or when you can't tell which tech is on the caller's job. NOT for a specific homeowner's tech (they have their own destination) and NOT for warranty reps when Danielle's direct line is present." });
     let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
     tools.push({ type: 'transferCall', destinations: dests });
     const MARK = '<!-- TECH-TRANSFER -->';
-    const BLOCK = `${MARK}\n## TRANSFER ROUTING — send a caller to THEIR OWN tech, directly [high priority]\n`
-      + `Each technician has their own transfer destination. When a caller wants their tech, or asks when he's coming / where he is, look up their job to find the assigned tech, then transferCall to THAT tech's destination — not the office.\n`
-      + `- Connecting a caller to their own field tech (or texting him via relay_to_tech) is available ANY time of day — the Mon–Fri 9–6 office-hours limit applies ONLY to reaching the office/owner, never to reaching the field tech.\n`
-      + `- If the tech doesn't answer, use relay_to_tech to text him to call the customer back — don't leave them hanging.\n`
-      + `- The office destination is only for general/warranty/office matters, or when you genuinely can't tell who the caller's tech is.\n${MARK}\n\n`;
+    const BLOCK = `${MARK}\n## TRANSFER ROUTING [high priority]\n`
+      + `• HOMEOWNER who wants their tech or asks when he's coming: look up their job, then transferCall straight to THAT tech's own destination. Available ANY hour. If the tech doesn't answer, call relay_to_tech to text him to call the customer back — never leave them hanging, and never give a time.\n`
+      + `• AMERICAN HOME SHIELD / AHS or ANY warranty or insurance company REP (not the homeowner): if a "Danielle" destination is present, transfer them DIRECTLY to Danielle. If there is NO Danielle destination (she's off the phones), do NOT send them to a tech or the general office — take their dispatch/claim number + callback with capture_callback and tell them the office will process it.\n`
+      + `• The office ring is only for general questions/complaints, or when you truly can't tell who the caller's tech is. The Mon–Fri 9–6 hours limit applies ONLY to the office ring, never to reaching a field tech.\n${MARK}\n\n`;
     {
       const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
       msgs[si].content = BLOCK + cur;
