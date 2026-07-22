@@ -50,6 +50,11 @@ async function bulk(tableId, maxPages) {
 
 const DONE = /completed|canceled|cancelled/i;
 function norm(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+// Normalize any phone to its bare last-10 digits so "+19314490977" and
+// "9314490977" collapse to the SAME key. This is the exact seam that lets a
+// phone/Vapi record (stores E.164 +1…) and an AHS dispatch (stores bare 10)
+// dodge each other's dedup and spawn two customer rows for one person.
+function phone10(s) { const d = String(s == null ? '' : s).replace(/\D/g, ''); return d.length > 10 ? d.slice(-10) : d; }
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
@@ -166,7 +171,49 @@ exports.handler = async function (event) {
     }
     review.sort((a, c) => c.jobs.length - a.jobs.length);
 
-    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, group_count: out.length, groups: out, review_count: review.length, review_groups: review }) };
+    // SAME-PHONE, DIFFERENT-CUSTOMER dupes (Teddy, 2026-07-22 — the Proteo /
+    // Rocio Davis case). When one person's phone is stored in two formats
+    // (E.164 "+19314490977" from a phone/Vapi capture vs bare "9314490977"
+    // from an AHS dispatch), the exact-match dedup misses it and TWO customer
+    // rows + TWO jobs get created for the same person. The claim-group + same-
+    // customer-review passes above both miss this (different customer_ids).
+    // Catch it by the one thing that IS the same: the last-10 phone digits.
+    const byPhone = {};
+    for (const cid of Object.keys(byCust)) {
+      const c = custById[cid] || {};
+      const key = phone10(c.phone);
+      if (!key || key.length < 10) continue; // need a real 10-digit phone
+      const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+      if (/\bzztest|partsloop|chatcheck\b/i.test(name) || /^zztest/i.test(name)) continue;
+      (byPhone[key] = byPhone[key] || []).push({ cid: Number(cid), c, jobs: byCust[cid] });
+    }
+    const phoneDupes = [];
+    for (const key of Object.keys(byPhone)) {
+      const custs = byPhone[key];
+      if (custs.length < 2) continue; // same phone spread across 2+ customer rows
+      const fmts = Array.from(new Set(custs.map((x) => String(x.c.phone || '')))); // the raw formats on file
+      phoneDupes.push({
+        phone: key,
+        formats_on_file: fmts,
+        customers: custs
+          .sort((a, b) => (Number((a.jobs[0] || {}).created_at) || 0) - (Number((b.jobs[0] || {}).created_at) || 0))
+          .map((x) => ({
+            customer_id: x.cid,
+            name: `${x.c.first_name || ''} ${x.c.last_name || ''}`.trim(),
+            phone_on_file: x.c.phone || '',
+            address: x.c.address || '', city: x.c.city || '', zip: x.c.zip || '',
+            jobs: x.jobs.map((j) => ({
+              id: j.id,
+              appliance: [j.brand, j.appliance_type].filter(Boolean).join(' ') || j.appliance_type || '',
+              status: j.scheduling_status || '', customer_type: j.customer_type || '',
+              claim_number: j.claim_number || '', created_at: j.created_at || 0,
+            })),
+          })),
+      });
+    }
+    phoneDupes.sort((a, c) => c.customers.length - a.customers.length);
+
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, group_count: out.length, groups: out, review_count: review.length, review_groups: review, phone_dupe_count: phoneDupes.length, phone_dupes: phoneDupes }) };
   } catch (e) {
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: String(e.message || e) }) };
   }
