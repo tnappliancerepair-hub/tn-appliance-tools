@@ -11,6 +11,49 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜 2026-07-22 (Tue, DAY session) — PHONE HOURS GATE (9–6, no weekends), DANIELLE SCORECARD DIGEST, CHATGPT-SIMPLE HOMEPAGE LIVE, CREATOR STUDIO (Andre+Jimmy), PART-# UNIFIED + BACKFILLED (129), WRONG-DAY FIX, MULTI-MACHINE AUTO-DETECT — READ FIRST
+
+Full day with Teddy. All pushed to `main` + `claude/shop-automation-setup-r9wzpm` (Netlify auto-deploys). Mac actions (git pull + `launchctl kickstart` + one `xano workspace push`) were run + verified by Teddy ("Pushed 1 documents").
+
+### ✅ PHONES: business-hours-only, hard-gated (Teddy: "no calls to anyone after 6 or before 9 or on weekends")
+- **`vapi-admin wiretechs` now strips the `transferCall` tool entirely off-hours** (`isBizHoursCT()` = Mon–Fri 9AM–6PM Central). Off-hours Ann literally has no transfer tool → she can't ring a tech/Danielle/office, she takes a message. Bulletproof vs prompt-only.
+- **`phone-hours-gate.js`** (NEW, cron `*/15`) re-runs wiretechs so transfer flips ON at 9 / OFF at 6 within 15 min; the fn computes Central time itself (DST-proof).
+- **`relay-to-tech.js`** off-hours logs `tech_relay_afterhours`, texts no one, tells the caller "right back at 9."
+
+### ✅ DANIELLE STRATEGY: Scorecard digest (Teddy: "no more write your own check")
+- **`scorecard-digest.js`** (NEW, cron hourly, fires only 6PM CT weekday, once/day via `SCORECARD_DIGEST_DATE` dedup) → texts the OWNER the timestamped office footprint from `office-scorecard`. Her record, not her self-report.
+- **`send-tech-note.js`** (NEW, owner-gated) — internal SMS to a team member via `sendSms(...,'technician',...)` (bypasses the customer intake gate). Used to text Andre + Jimmy their pages.
+
+### ✅ HOMEPAGE: ChatGPT-simple, LIVE (Teddy: "the dumbest person should be able to use this")
+- Replaced the locked full-screen chat-app `index.html` with a **scrolling landers-style page**: one big unmistakable ask-pill + appliance chips → `appliance-ai.html`, then normal-scroll sections (how-it-works, 4-option TDR, crew+shop video, pricing, reviews via `get-google-reviews`, service areas, brands, FAQ, CTA). Keeps GA + meta-pixel + LocalBusiness/AggregateRating schema. Backup: `index-old-homepage-2026-07-22.html`.
+
+### ✅ CREATOR STUDIO: techs own their channels (Andre + Jimmy)
+- **`creator-studio.js` + `creator.html`** (NEW) — phone-first per-creator upload page (own S3 folder `social/raw/<CREATOR_ID>/`, own login code), submit → video queue tagged with the creator, "Your videos" list with ⬇ Download so they post to their OWN YouTube/TikTok/IG today. Andre = "Andre the Appliance Man" (andretheapplianceman@gmail.com); Jimmy = "Jimmy the Appliance Guy". Vision: techs OWN + monetize their libraries independent of the shop. NEXT: finish their new socials tied to the Gmail → wire one-tap Connect + auto-post.
+
+### ✅ PART NUMBERS: unified where the board reads + historic backfill (Danielle's report)
+- **Root cause:** a part typed in the TDR card / spoken to Ann only ever hit the `parts_needed` LIST column (which the board never reads) — Danielle saw "no part #". Fixed the write path to ALSO stamp **`verified_part_number`** (the TEXT column the board, Ann, and vendor-chase all read): `update_tdr_field_from_voice_POST.xs` (Mac-pushed + verified) + `ant-tdr-card.js` (`add('parts_needed',_pn)` flows through the fixed XS).
+- **`backfill-part-numbers.js`** (NEW, owner-gated, DRY-run default) — swept 759 TDRs, recovered a real part-number token (word+≥3 digits) from `parts_needed`/`failed_component` into `verified_part_number`. **Ran LIVE: 129 recovered, 0 left.** Danielle just refreshes.
+
+### ✅ WRONG-DAY FIX + killed the "coming {day}" texts (Teddy: "Ann read the data wrong · that text is annoying")
+- **`job-truth.js dayCT()`** rewrote to always format in America/Chicago (noon-anchored `Date.UTC` for plain YYYY-MM-DD) — fixed the Thursday→Friday off-by-one that made Ann + texts state the wrong scheduled day.
+- **Killed the proactive "you're scheduled for [day]" / "coming {day}" texts:** `schedule-packet.js` gated OFF behind `SCHEDULE_PACKET_LIVE` (verified skipping); `appointment_scheduled.js` (colony-loop) gated behind `APPT_CONFIRM_CUSTOMER` (keeps the tech notification). Loaded on Mac kickstart.
+
+### ✅ RETURN-VISIT / JOB-STATUS on the board drawer (Danielle: return-trip updates weren't reaching her)
+- **`office-board.html`** drawer TDR gained a "Job status / return visit" field (bound to `repair_completed`, amber when return-like) + saved via `saveTdr`/create + copied in `copyTdrAll`.
+
+### ✅ MULTI-MACHINE AUTO-DETECT (Floyd Tribble catch — AHS multi-item claims)
+- **The gap:** an AHS/Frontdoor claim covering several appliances (Floyd: washer + dryer + cooktop on one dispatch) only ever creates ONE machine at intake — the rest get stranded in the problem text with no TDR/warranty. **`add-machine.js`** (existing multi-machine tool) clones the stop side-effect-free.
+- **Fixed live:** Floyd #20592 → added Dryer #20689 + Cooktop #20690 (3 machines); #20411 → added Dryer #20691.
+- **`multi-machine-watch.js`** (NEW, cron `17 13,17,21`) — sweeps recent warranty jobs, detects the FULL appliance set from problem text (**word-boundary matching** so "dishwasher"≠"washer", "orange"≠"range" + a multi-item cue for precision), and fills the missing machines as linked siblings. **FLAG mode by default** (texts Danielle, she one-taps) — auto behind `MULTI_MACHINE_AUTOADD=true`. Over 30 days it caught exactly 2 more (#20411 fixed; **#20299 flagged — primary mislabeled Refrigerator but problem is "range won't heat" → needs a relabel, NOT an add**). Zero false positives after precision tuning.
+
+### ⏭️ OPEN / NEXT
+1. **#20299** — relabel Refrigerator → Range (5-sec, skippable) — left for Teddy/Danielle.
+2. **Multi-machine mode** — running FLAG (safe) for a week, then flip `MULTI_MACHINE_AUTOADD=true` once proven.
+3. **Andre/Jimmy** — finish their new YouTube/TikTok/FB/IG tied to the Gmails → wire one-tap Connect + auto-post.
+4. (from the evening block below) YouTube dryer clip re-auth; phone-overflow yes/no; angry pre-fix callbacks.
+
+---
+
 ## 🗓️🐜 2026-07-22 (Tue) — YOUTUBE CONNECTED (6th platform), PHONE SYSTEM REBUILT (no ETA times · direct-to-tech · AHS→Danielle · business-hours-only), OWNER SCORECARD, WARRANTY-PARTS UNLIMITED FIX, BILLY FULLY REMOVED — READ FIRST
 
 Long live-ops evening with Teddy. All pushed to `main` + `claude/shop-automation-setup-r9wzpm` (Netlify auto-deploys; Vapi changes applied live via `vapi-admin` actions).
