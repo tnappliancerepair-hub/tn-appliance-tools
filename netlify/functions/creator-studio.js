@@ -48,7 +48,7 @@ exports.handler = async function (event) {
     const mine = q.filter((j) => j.creator === who.id)
       .sort((a, c) => (c.created_ms || 0) - (a.created_ms || 0))
       .slice(0, 30)
-      .map((j) => ({ id: j.id, title: j.title, status: j.status, created_ms: j.created_ms, posted: j.posted || {} }));
+      .map((j) => ({ id: j.id, title: j.title, status: j.status, created_ms: j.created_ms, posted: j.posted || {}, download_url: j.status === 'ready' ? (j.download_url || null) : null }));
     return json(200, { ok: true, creator: who, jobs: mine });
   }
 

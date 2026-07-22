@@ -171,7 +171,8 @@ async function loadJobs(){
     if(!jobs.length){ $('jobs').innerHTML='<div class="muted">No videos yet — upload your first one above! 🎬</div>'; return; }
     $('jobs').innerHTML=jobs.map(j=>{
       const d=j.created_ms?new Date(j.created_ms).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
-      return '<div class="job"><div class="jt">'+esc(j.title||'Untitled')+'<div class="jd">'+d+'</div></div>'+badge(j)+'</div>';
+      const dl=j.download_url?('<a class="badge b-ready" style="text-decoration:none" href="'+esc(j.download_url)+'" download target="_blank">⬇ Download</a>'):'';
+      return '<div class="job"><div class="jt">'+esc(j.title||'Untitled')+'<div class="jd">'+d+'</div></div>'+dl+badge(j)+'</div>';
     }).join('');
   }catch(e){ $('jobs').innerHTML='<div class="muted">Couldn\'t load — pull to refresh.</div>'; }
 }
