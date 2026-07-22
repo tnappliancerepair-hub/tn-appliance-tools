@@ -181,7 +181,12 @@ export async function run(signal, ctx) {
 
   // Customer SMS — gated by source + valid phone.
   let custResult = 'skipped';
-  if (SKIP_CUSTOMER_SOURCES.has(source)) {
+  // KILLED 2026-07-22 (Teddy): stop texting customers the scheduled day ("your tech
+  // is coming {day}"). It was wrong more than right and confused customers. The tech
+  // notification below still fires. Re-enable by setting APPT_CONFIRM_CUSTOMER=true.
+  if (String(process.env.APPT_CONFIRM_CUSTOMER || '').toLowerCase() !== 'true') {
+    custResult = 'disabled_day_text_off';
+  } else if (SKIP_CUSTOMER_SOURCES.has(source)) {
     custResult = 'skipped_source';
   } else if (!custPhone) {
     custResult = 'skipped_invalid_phone';
