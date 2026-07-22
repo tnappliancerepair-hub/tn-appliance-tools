@@ -76,6 +76,7 @@
     <button id="combineAll" onclick="combineAll()" style="display:none;margin-top:9px;width:100%;padding:11px;border:0;border-radius:9px;background:var(--ok);color:#fff;font-weight:800;font-size:14px;cursor:pointer">✓ Combine ALL duplicates</button>
   </header>
   <div class="wrap"><div id="list"></div></div>
+  <div class="wrap"><div id="phoneWrap" style="display:none"><h2 style="font-size:15px;margin:18px 0 4px">📞 Same phone, two records — almost always the SAME person</h2><div class="sub" id="phoneSummary" style="margin-bottom:8px">one phone number stored under two customer records (a phone/AHS format mismatch). Keep the real job, cancel the extra.</div><div id="phoneList"></div></div></div>
   <div class="wrap"><div id="reviewWrap" style="display:none"><h2 style="font-size:15px;margin:18px 0 4px">👀 Possible duplicates — review</h2><div class="sub" id="reviewSummary" style="margin-bottom:8px">same customer with more than one open job (could be two real appliances — you decide)</div><div id="reviewList"></div></div></div>
 </div>
 
@@ -92,11 +93,43 @@
       if(!d.ok){ if(d.error==='wrong_password'||d.error==='password_required'){showGate('Wrong password.');return;} $('list').innerHTML='<div class="empty">'+esc(d.error||'error')+'</div>'; return; }
       $('gate').style.display='none'; $('app').style.display='block';
       render(d.groups||[]);
+      renderPhoneDupes(d.phone_dupes||[]);
       renderReview(d.review_groups||[]);
     }catch(e){ $('list').innerHTML='<div class="empty">network error</div>'; }
   }
 
   var TECHNAMES={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
+
+  // Same phone number sitting on two different customer records = one person,
+  // duplicated because their phone was stored in two formats (+1… vs bare 10).
+  function renderPhoneDupes(groups){
+    var wrap=$('phoneWrap'); if(!wrap) return;
+    if(!groups.length){ wrap.style.display='none'; return; }
+    wrap.style.display='block';
+    $('phoneSummary').textContent=groups.length+' phone number'+(groups.length===1?'':'s')+' on two records — keep the real job (usually the AHS one with an address + claim), cancel the extra. No customer is texted.';
+    $('phoneList').innerHTML=groups.map(function(g){
+      var custs=g.customers.map(function(c){
+        var jobs=c.jobs.map(function(j){
+          var claim=j.claim_number?('claim '+esc(j.claim_number)):'no claim';
+          return '<div class="job" id="ph-'+j.id+'">'+
+            '<span class="jid">#'+j.id+'</span>'+
+            '<span class="st">'+esc(j.appliance||'—')+' · '+esc(j.status||'')+' · '+esc(j.customer_type||'')+' · '+claim+'</span>'+
+            '<a href="/teddy-tdr-tool.html?job_id='+j.id+'" target="_blank" style="text-decoration:none;color:#4a9eff;font-size:12px;margin-right:8px">open</a>'+
+            '<button class="keepbtn" onclick="cancelOne('+j.id+')">🗑 cancel</button>'+
+            '</div>';
+        }).join('');
+        var addr=[c.address,c.city,c.zip].filter(Boolean).join(' ');
+        return '<div style="margin:6px 0 2px;padding-left:2px">'+
+          '<div style="font-weight:700;font-size:13px">'+esc(c.name||'(no name)')+' <span style="color:#8b93a7;font-weight:500">· stored as '+esc(c.phone_on_file||'')+'</span></div>'+
+          (addr?'<div class="meta" style="margin:1px 0 4px">'+esc(addr)+'</div>':'')+
+          jobs+'</div>';
+      }).join('<div style="height:1px;background:#2a2f3e;margin:8px 0"></div>');
+      return '<div class="group">'+
+        '<h3>📞 '+esc(g.phone)+' <span style="color:#8b93a7;font-size:12px;font-weight:500">('+g.customers.length+' records)</span></h3>'+
+        custs+'</div>';
+    }).join('');
+  }
+
   function renderReview(groups){
     var wrap=$('reviewWrap'); if(!wrap) return;
     if(!groups.length){ wrap.style.display='none'; return; }
@@ -122,7 +155,7 @@
 
   window.cancelOne=async function(jid){
     if(!confirm('Cancel job #'+jid+'? (the OTHER job stays; no customer is texted)')) return;
-    var row=$('rev-'+jid); var btn=row&&row.querySelector('.keepbtn'); if(btn){btn.disabled=true;btn.textContent='canceling…';}
+    var row=$('rev-'+jid)||$('ph-'+jid); var btn=row&&row.querySelector('.keepbtn'); if(btn){btn.disabled=true;btn.textContent='canceling…';}
     try{
       const r=await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/office_remove_job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,action:'delete',actor:'dupe-review'})});
       const d=await r.json();
