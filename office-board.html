@@ -452,8 +452,8 @@ const OFFICE_AUTH_KEY='tn_office_auth_v1';
 let allItems=[], region='TN';
 
 // region by assigned tech, fallback to city keyword
-const TECH_REGION={1:'TN',2:'TN',4:'TN',3:'NOLA',5:'NOLA',6:'NOLA'};
-const TECH_NAME={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',5:'Billy',6:'John'};
+const TECH_REGION={1:'TN',2:'TN',4:'TN',3:'NOLA',6:'NOLA'};
+const TECH_NAME={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
 const REGION_TECHS={TN:[2,4,3,1],NOLA:[6,3]};
 // The SCHEDULE picker offers EVERY active tech regardless of board region —
 // day-of routing crosses state lines (Andre's dual-state; a TN customer can
@@ -3100,7 +3100,7 @@ async function restoreFromSearch(jid,name,evt){
 }
 
 // ── Talk to Ant (office assistant) ──
-const TECH_ID_BY_NAME={teddy:1,jimmy:2,andre:3,lee:4,billy:5,john:6};
+const TECH_ID_BY_NAME={teddy:1,jimmy:2,andre:3,lee:4,john:6};
 function antCap(s){return (s||'').charAt(0).toUpperCase()+(s||'').slice(1);}
 function antFolderLabel(f){return {waiting_parts:'Waiting Parts',completed:'Completion',needs_scheduled:'Needs Scheduled',needs_invoice:'Needs Invoice',follow_up:'Follow Up'}[f]||f;}
 function openAnt(){

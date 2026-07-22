@@ -7,8 +7,8 @@
 const mt = require('./meistertask');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const TECH_NAME = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
-const TECH_BY_NAME = { teddy: 1, jimmy: 2, andre: 3, lee: 4, billy: 5, john: 6 };
+const TECH_NAME = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
+const TECH_BY_NAME = { teddy: 1, jimmy: 2, andre: 3, lee: 4, john: 6 };
 
 const digits = (s) => String(s == null ? '' : s).replace(/\D/g, '');
 const lc = (s) => String(s == null ? '' : s).toLowerCase();

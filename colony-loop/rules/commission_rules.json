@@ -5,7 +5,6 @@
     "2": { "pct": 0.45, "note": "Jimmy" },
     "3": { "pct": 0.40, "note": "Andre" },
     "4": { "pct": 0.50, "note": "Lee" },
-    "5": { "pct": 0.40, "note": "Billy" },
     "6": { "pct": 0.40, "note": "John" }
   },
   "appliance_overrides": {}

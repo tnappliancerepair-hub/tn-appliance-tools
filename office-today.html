@@ -422,7 +422,7 @@
 <script>
 (function() {
   const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-  const TECH = { '1':'Teddy','2':'Jimmy','3':'Andre','4':'Lee','5':'Billy','6':'John' };
+  const TECH = { '1':'Teddy','2':'Jimmy','3':'Andre','4':'Lee','6':'John' };
   function esc(s){return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function fmtRel(ms){const d=Date.now()-Number(ms);if(!d||d<0)return 'now';const m=Math.floor(d/60000);if(m<1)return 'now';if(m<60)return m+'m';const h=Math.floor(m/60);if(h<24)return h+'h';return Math.floor(h/24)+'d';}
 
@@ -566,7 +566,7 @@
 // ── Communications Hub on office-today.html ───────────────────────
 (function() {
   const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-  const TECH_NAMES = { '1': 'Teddy', '2': 'Jimmy', '3': 'Andre', '4': 'Lee', '5': 'Billy', '6': 'John' };
+  const TECH_NAMES = { '1': 'Teddy', '2': 'Jimmy', '3': 'Andre', '4': 'Lee', '6': 'John' };
   let allCalls = [];
   let commsTab = 'needs';
   function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }

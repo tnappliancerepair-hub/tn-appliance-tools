@@ -6,7 +6,7 @@
 import { toOwner } from '../sms.js';
 
 const ACTIVE_TECH_IDS = [2, 3, 4, 5, 6];
-const TECH_NAMES = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+const TECH_NAMES = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 
 export async function run(signal, ctx) {
   const { xano, log } = ctx;

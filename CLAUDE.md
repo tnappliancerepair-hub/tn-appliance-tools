@@ -2312,7 +2312,7 @@ Every new session: read this whole file, then in your first reply report (a) **w
 | 4  | Lee Harding       | Clarksville, TN              | 615-829-1654    |
 | 6  | John Houk         | Walker, LA                   | 813-352-7686    |
 
-**⛔ Billy Savoy (was tech id 5) is GONE — do NOT treat as staff.** Deactivated in the live system (`get-tech-profile tech_id=5` → found:false), excluded from every scheduler/picker/transfer/roster. Do not add him to any active tech list, transfer-eligibility list, or capacity/cluster assignment. The id→name lookups (`5:'Billy'`) are DELIBERATELY kept in display maps so his HISTORICAL jobs still render his name for attribution — that's business-record integrity, not active roster. Never re-add id 5 as current crew.
+**⛔ Billy Savoy (was tech id 5) is FULLY REMOVED (Teddy 2026-07-22: "Remove Billy completely").** Deactivated live (`get-tech-profile tech_id=5` → found:false) AND scrubbed from ALL code: every id→name/name→id/region/color map (office-board, office-today, office-ready, office-do-next, needs-scheduled, money, callbacks, scheduler-efficiency, warranty-submission-dashboard, practice-board, office-schedule, ant-talk, mt-mirror, tools.js, tech_assist_eod_report), his cell 731-504-9617 from callbacks internal list, his commission rule, and the about.html "crew" line ("Lee and Billy round out the crew" → "Lee rounds out the crew"). Historical jobs with technician_id=5 now render as "Tech 5" (job DATA untouched; only the name label is gone — Teddy accepted this). Never re-add id 5 as crew. Active field techs = Jimmy(2), Andre(3), Lee(4), John(6); Teddy(1)=owner.
 
 ## Agent platform
 

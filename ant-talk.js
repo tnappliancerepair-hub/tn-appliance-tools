@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   var XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-  var TECH_ID_BY_NAME = { teddy: 1, jimmy: 2, andre: 3, lee: 4, billy: 5, john: 6 };
+  var TECH_ID_BY_NAME = { teddy: 1, jimmy: 2, andre: 3, lee: 4, john: 6 };
   var FOLDER = { follow_up: 'Follow Up', needs_invoice: 'Needs Invoice', waiting_parts: 'Waiting Parts', completed: 'Completion', needs_scheduled: 'Needs Scheduled' };
 
   function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }

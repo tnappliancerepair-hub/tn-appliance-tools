@@ -96,7 +96,7 @@ let FILTER='open', ROWS=[], DROPPED=[], TECHREC=[];
 // Our own techs + shop/office lines — these aren't customers to call back. A
 // field-assist call that timed out is a JOB RECORD (the summary is the tech's
 // diagnosis), so we archive it separately instead of cluttering the callback queue.
-const TECH_INTERNAL=new Set(['6154855795','6159671304','5049099413','6159693115','6158291654','8133527686','7315049617','6154850713','6152802949','6155889500','6158578800','8662680111']);
+const TECH_INTERNAL=new Set(['6154855795','6159671304','5049099413','6159693115','6158291654','8133527686','6154850713','6152802949','6155889500','6158578800','8662680111']);
 // Calls that died before the caller could leave info (dead air / drop). These
 // never reach list_callback_requests, so we mine them from the call log.
 const DROP_REASONS=['silence-timed-out','no-answer','customer-did-not-answer','customer-busy','transfer-fail','error-transfer','providerfault','pipeline-error'];
@@ -164,7 +164,7 @@ async function enrichNames(){
   }));
   renderDropped();
 }
-const TECH_NAMES={'6154855795':'Teddy','6159671304':'Jimmy','5049099413':'Andre','6159693115':'Andre','6158291654':'Lee','8133527686':'John','7315049617':'Billy','6154850713':'Danielle'};
+const TECH_NAMES={'6154855795':'Teddy','6159671304':'Jimmy','5049099413':'Andre','6159693115':'Andre','6158291654':'Lee','8133527686':'John','6154850713':'Danielle'};
 function dropCard(x,isTech){
   const tel=x.phone.replace(/[^0-9+]/g,'');
   const disp=tel.replace(/^\+?1?(\d{3})(\d{3})(\d{4})$/,'($1) $2-$3');

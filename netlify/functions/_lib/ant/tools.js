@@ -103,7 +103,7 @@ const READ_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        tech_id: { type: 'integer', description: 'Which tech (1=Teddy, 2=Jimmy, 3=Andre, 4=Lee, 5=Billy, 6=John)' },
+        tech_id: { type: 'integer', description: 'Which tech (1=Teddy, 2=Jimmy, 3=Andre, 4=Lee, 6=John)' },
         days: { type: 'integer', description: 'Days back to summarize (default 30)' },
       },
       required: ['tech_id'],
@@ -289,7 +289,7 @@ const SCHEDULER_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        tech_id: { type: 'integer', description: 'Tech ID (1=Teddy, 2=Jimmy, 3=Andre, 4=Lee, 5=Billy, 6=John)' },
+        tech_id: { type: 'integer', description: 'Tech ID (1=Teddy, 2=Jimmy, 3=Andre, 4=Lee, 6=John)' },
         date: { type: 'string', description: 'Date in YYYY-MM-DD' },
       },
       required: ['tech_id', 'date'],
@@ -1146,8 +1146,8 @@ async function executeTool(toolName, toolInput, ctx) {
 
       const jobState = (job.service_state || '').toUpperCase();
       const jobRegion = (jobState === 'LA' || jobState === 'LOUISIANA') ? 'LA' : 'TN';
-      const techHomeRegion = { 1: 'TN', 2: 'TN', 3: 'BOTH', 4: 'TN', 5: 'LA', 6: 'LA' };
-      const techNames = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+      const techHomeRegion = { 1: 'TN', 2: 'TN', 3: 'BOTH', 4: 'TN', 6: 'LA' };
+      const techNames = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
       const targetDay = (cal.days || []).find((d) => Math.abs(d.date_ms - dayStart) < 24 * 3600 * 1000);
       const techs = targetDay ? (targetDay.techs || []) : Object.keys(techHomeRegion).map((id) => ({ tech_id: Number(id), job_count: 0, day_off: false }));
 
@@ -1215,8 +1215,8 @@ async function executeTool(toolName, toolInput, ctx) {
       if (job.error) return job;
       const jobState = (job.service_state || '').toUpperCase();
       const jobRegion = (jobState === 'LA' || jobState === 'LOUISIANA') ? 'LA' : 'TN';
-      const techHomeRegion = { 1: 'TN', 2: 'TN', 3: 'BOTH', 4: 'TN', 5: 'LA', 6: 'LA' };
-      const techNames = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+      const techHomeRegion = { 1: 'TN', 2: 'TN', 3: 'BOTH', 4: 'TN', 6: 'LA' };
+      const techNames = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 
       // Filter to in-region techs (BOTH counts)
       const eligibleTechIds = Object.keys(techHomeRegion)

@@ -64,7 +64,7 @@
 <script src="/office-nav.js?v=20260703f"></script>
 <script>
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const TECH_NAMES = { 1:'Teddy', 2:'Jimmy', 3:'Andre', 4:'Lee', 5:'Billy', 6:'John' };
+const TECH_NAMES = { 1:'Teddy', 2:'Jimmy', 3:'Andre', 4:'Lee', 6:'John' };
 function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmtCT(ms) { try { return new Date(ms).toLocaleString('en-US', { timeZone:'America/Chicago', month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true }).replace(/\s/g,' '); } catch (_) { return String(ms); } }
 

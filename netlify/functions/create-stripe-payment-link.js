@@ -19,7 +19,7 @@ const JOBS_TABLE = 7;
 const EVENT_LOG_TABLE = 3;
 // Add-on sales tax (tax-added): region from the job's tech, combined rate.
 // These are reasonable defaults; refine with the CPA / a tax service later.
-const TECH_REGION = { 1: 'TN', 2: 'TN', 3: 'LA', 4: 'TN', 5: 'LA', 6: 'LA' };
+const TECH_REGION = { 1: 'TN', 2: 'TN', 3: 'LA', 4: 'TN', 6: 'LA' };
 const TAX_RATE = { TN: 0.0975, LA: 0.0945 };
 function metaHeaders() {
   const t = process.env.XANO_METADATA_TOKEN;
