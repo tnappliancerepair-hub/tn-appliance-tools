@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-0EF3THNXLE');</script>
+<script src="/meta-pixel.js"></script>
 <title>Nashville &amp; Louisiana Appliance Repair — Same-Day, 4.5★ · 1,000+ Reviews | TN Appliance Exchange</title>
 <meta name="description" content="Broken appliance? Tell Ant what's wrong — a real local technician gets you an honest answer and 4 clear options, same-day. Family-owned since 2012. Middle TN + Louisiana. We text you right back.">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -386,11 +390,15 @@ footer .ft{font-size:10px;color:var(--gray2);letter-spacing:.09em;text-transform
       return '<div class="rev-card"><div class="rs">★★★★★</div><p>'+esc(t)+'</p><div class="rn">— '+esc(name)+when+'</div></div>';
     }).join('');
   }).catch(function(){});
+  // track chat-start clicks as a lead intent (GA4)
+  function trackStart(){ try{ if(window.gtag) gtag('event','intake_click',{source:'homepage_hero'}); }catch(e){} }
+  document.getElementById('ccGo').addEventListener('click',trackStart);
   // shop video: iOS plays a direct signed S3 url reliably
   var v=document.getElementById('shopVideo');
   if(v){var key='social/clips/fbarch-755199354557734.mp4';var proxy='https://tnapplianceexchange.net/.netlify/functions/media-file?key='+encodeURIComponent(key);
     fetch(proxy+'&json=1').then(function(r){return r.json();}).then(function(d){v.src=(d&&d.url)?d.url:proxy;}).catch(function(){v.src=proxy;});}
 })();
 </script>
+<script src="/ant-track.js" defer></script>
 </body>
 </html>
