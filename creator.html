@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Creator Studio — TN Appliance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#050505;--surf:#0d0d0d;--surf2:#141414;--bord:#242424;--orange:#ff6200;--green:#39ff14;--white:#f0f0f0;--gray:#8a8a8a;--mono:'Geist Mono',ui-monospace,monospace;--block:'Bebas Neue',sans-serif}
+body{background:var(--bg);color:var(--white);font-family:var(--mono);min-height:100vh;line-height:1.55}
+.wrap{max-width:560px;margin:0 auto;padding:26px 18px 60px}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:26px}
+.brand .ant{font-size:24px}
+.brand .nm{font-family:var(--block);font-size:18px;letter-spacing:.05em}
+.brand .tag{font-size:9px;color:var(--orange);letter-spacing:.16em;text-transform:uppercase}
+h1{font-family:var(--block);font-size:30px;letter-spacing:.03em;line-height:1.05;margin-bottom:8px}
+.sub{font-size:13.5px;color:var(--gray);margin-bottom:24px;line-height:1.6}
+.card{background:var(--surf);border:1px solid var(--bord);border-radius:16px;padding:20px;margin-bottom:16px}
+label{display:block;font-size:11px;color:var(--gray);letter-spacing:.05em;text-transform:uppercase;margin-bottom:8px}
+input[type=text],input[type=password]{width:100%;background:#080808;border:1px solid var(--bord);border-radius:12px;color:var(--white);font-family:var(--mono);font-size:16px;padding:14px 15px;outline:none}
+input:focus{border-color:var(--orange)}
+.btn{display:block;width:100%;background:var(--orange);color:#000;font-family:var(--mono);font-weight:700;font-size:16px;border:none;border-radius:13px;padding:16px;cursor:pointer;text-align:center;transition:filter .15s}
+.btn:active{filter:brightness(.9)}
+.btn[disabled]{opacity:.55;cursor:default}
+.btn.ghost{background:transparent;color:var(--white);border:1px solid var(--bord);font-weight:500}
+.uploadzone{border:2px dashed var(--bord);border-radius:16px;padding:34px 18px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--surf)}
+.uploadzone:active{border-color:var(--orange)}
+.uploadzone .big{font-size:40px;margin-bottom:10px}
+.uploadzone .t{font-family:var(--block);font-size:22px;letter-spacing:.04em}
+.uploadzone .s{font-size:12px;color:var(--gray);margin-top:5px}
+#file,#code-real{display:none}
+.progwrap{height:9px;background:#1a1a1a;border-radius:6px;overflow:hidden;margin-top:14px;display:none}
+.prog{height:100%;width:0;background:var(--orange);transition:width .2s}
+.msg{font-size:13px;color:var(--gray);margin-top:12px;min-height:18px}
+.msg.ok{color:var(--green)}
+.msg.err{color:#ff5a5a}
+.hint{font-size:12px;color:var(--gray);line-height:1.7;margin-top:6px}
+.hint b{color:var(--white)}
+.joblist{margin-top:8px}
+.job{display:flex;align-items:center;gap:12px;padding:14px 0;border-top:1px solid var(--bord)}
+.job:first-child{border-top:none}
+.job .jt{flex:1;font-size:13.5px;color:var(--white);line-height:1.4}
+.job .jd{font-size:10.5px;color:var(--gray);margin-top:2px}
+.badge{font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:5px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.b-build{color:var(--orange);border:1px solid rgba(255,98,0,.3);background:rgba(255,98,0,.05)}
+.b-ready{color:var(--green);border:1px solid rgba(57,255,20,.25);background:rgba(57,255,20,.04)}
+.b-posted{color:#7fb0ff;border:1px solid rgba(127,176,255,.25);background:rgba(127,176,255,.05)}
+.muted{color:var(--gray);font-size:13px}
+.sec-h{font-family:var(--block);font-size:20px;letter-spacing:.04em;margin:28px 0 4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="ant">🐜</span><div><div class="nm">TN Appliance</div><div class="tag">Creator Studio</div></div></div>
+
+  <!-- GATE -->
+  <div id="gate">
+    <h1>Creator Studio</h1>
+    <p class="sub">Film it, upload it — we turn it into a polished, captioned short ready to post. Enter your creator code to start.</p>
+    <div class="card">
+      <label>Your creator code</label>
+      <input id="code" type="password" placeholder="your code" autocomplete="off" inputmode="text">
+      <div style="height:12px"></div>
+      <button class="btn" id="go">Enter →</button>
+      <div class="msg" id="gerr"></div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" style="display:none">
+    <h1 id="hi">Hey 👋</h1>
+    <p class="sub">Shoot a quick vertical video — a fix, a tip, a "watch this," anything. Upload it here and we make it look pro. The more you post, the faster you grow.</p>
+
+    <div class="card">
+      <div class="uploadzone" id="zone">
+        <div class="big">📹</div>
+        <div class="t">Upload a video</div>
+        <div class="s">Tap to pick or record · vertical is best</div>
+      </div>
+      <input id="file" type="file" accept="video/*">
+      <div class="progwrap" id="progwrap"><div class="prog" id="prog"></div></div>
+      <div class="msg" id="upmsg"></div>
+
+      <div id="form" style="display:none;margin-top:16px">
+        <label>Give it a title / what's it about?</label>
+        <input id="title" type="text" placeholder="e.g. Why your dryer takes 3 cycles">
+        <div style="height:12px"></div>
+        <button class="btn" id="submit">🚀 Send it — make my short</button>
+        <div class="msg" id="submsg"></div>
+      </div>
+      <div class="hint" id="uphint">Tip: hold your phone <b>upright</b> and keep clips short — 15–45 seconds hits hardest.</div>
+    </div>
+
+    <div class="sec-h">Your videos</div>
+    <div class="card">
+      <div class="joblist" id="jobs"><div class="muted">Loading…</div></div>
+    </div>
+
+    <button class="btn ghost" id="logout" style="margin-top:18px">Sign out</button>
+  </div>
+</div>
+
+<script>
+const F='/.netlify/functions';
+let CODE=localStorage.getItem('tn_creator_code')||'';
+let RAW_KEY='';
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+async function cpost(action,extra){const r=await fetch(F+'/creator-studio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({code:CODE,action},extra||{}))});return r.json();}
+
+async function enter(){
+  const c=$('code').value.trim(); if(!c){$('gerr').textContent='Enter your code.';return;}
+  CODE=c; $('gerr').textContent='Checking…';
+  const r=await cpost('me');
+  if(r&&r.ok){ localStorage.setItem('tn_creator_code',CODE); showApp(r.creator); }
+  else { $('gerr').className='msg err'; $('gerr').textContent='That code didn\'t work. Ask Teddy for your code.'; }
+}
+function showApp(creator){
+  $('gate').style.display='none'; $('app').style.display='block';
+  $('hi').textContent='Hey '+(creator&&creator.name||'')+' 👋';
+  loadJobs();
+}
+$('go').addEventListener('click',enter);
+$('code').addEventListener('keydown',e=>{if(e.key==='Enter')enter();});
+$('logout').addEventListener('click',()=>{localStorage.removeItem('tn_creator_code');location.reload();});
+$('zone').addEventListener('click',()=>$('file').click());
+
+$('file').addEventListener('change',async function(){
+  const f=this.files&&this.files[0]; if(!f) return;
+  const mime=f.type||'video/mp4';
+  const ext=(f.name.match(/\.(mp4|mov|m4v|webm)$/i)||['','mp4'])[1].toLowerCase();
+  const key='social/raw/andre/'+Date.now()+'-'+Math.floor(Math.random()*1e6)+'.'+ext;
+  $('upmsg').className='msg'; $('upmsg').textContent='Getting upload link…';
+  let pre; try{ const r=await fetch(F+'/s3-presign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s3_key:key,mime_type:mime})}); pre=await r.json(); }catch(e){}
+  if(!pre||!pre.upload_url){ $('upmsg').className='msg err'; $('upmsg').textContent='Upload link failed — try again.'; return; }
+  $('progwrap').style.display='block';
+  try{
+    await new Promise((res,rej)=>{const x=new XMLHttpRequest();x.open('PUT',pre.upload_url);x.setRequestHeader('Content-Type',mime);
+      x.upload.onprogress=e=>{if(e.lengthComputable)$('prog').style.width=Math.round(e.loaded/e.total*100)+'%';};
+      x.onload=()=>x.status>=200&&x.status<300?res():rej(new Error('PUT '+x.status));x.onerror=()=>rej(new Error('network'));x.send(f);});
+    RAW_KEY=key;
+    $('upmsg').className='msg ok'; $('upmsg').textContent='✅ Uploaded ('+Math.round(f.size/1048576)+' MB). Now name it 👇';
+    $('form').style.display='block';
+    if(!$('title').value) $('title').value=f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ');
+  }catch(e){ $('upmsg').className='msg err'; $('upmsg').textContent='Upload failed: '+e.message; }
+});
+
+$('submit').addEventListener('click',async function(){
+  if(!RAW_KEY) return; this.disabled=true;
+  $('submsg').className='msg'; $('submsg').textContent='Sending it to be polished…';
+  const r=await cpost('submit',{s3_key:RAW_KEY,title:$('title').value});
+  this.disabled=false;
+  if(r&&r.ok){ $('submsg').className='msg ok'; $('submsg').innerHTML='✅ On it! Your short is being made — check "Your videos" below in a few minutes.';
+    RAW_KEY=''; $('form').style.display='none'; $('file').value=''; $('progwrap').style.display='none'; $('prog').style.width='0'; $('upmsg').textContent=''; loadJobs(); }
+  else { $('submsg').className='msg err'; $('submsg').textContent='⚠️ '+((r&&(r.note||r.error))||'failed')+' — your video is saved, try Send again in a minute.'; }
+});
+
+function badge(j){
+  const posted=j.posted&&Object.keys(j.posted).length;
+  if(posted) return '<span class="badge b-posted">Posted</span>';
+  if(j.status==='ready') return '<span class="badge b-ready">Ready</span>';
+  return '<span class="badge b-build">Building…</span>';
+}
+async function loadJobs(){
+  try{
+    const r=await cpost('list');
+    const jobs=(r&&r.jobs)||[];
+    if(!jobs.length){ $('jobs').innerHTML='<div class="muted">No videos yet — upload your first one above! 🎬</div>'; return; }
+    $('jobs').innerHTML=jobs.map(j=>{
+      const d=j.created_ms?new Date(j.created_ms).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'';
+      return '<div class="job"><div class="jt">'+esc(j.title||'Untitled')+'<div class="jd">'+d+'</div></div>'+badge(j)+'</div>';
+    }).join('');
+  }catch(e){ $('jobs').innerHTML='<div class="muted">Couldn\'t load — pull to refresh.</div>'; }
+}
+
+// auto-login if we have a saved code
+if(CODE){ cpost('me').then(r=>{ if(r&&r.ok) showApp(r.creator); }); }
+</script>
+</body>
+</html>

@@ -47,6 +47,7 @@ async function enqueueFromVideoUrl(meta) {
     hook: String(meta.hook || '').slice(0, 90), content_type: String(meta.content_type || 'hero').slice(0, 24),
     template: meta.template || submagic.DEFAULT_TEMPLATE, language: meta.language || 'en',
     source: meta.source || 'upload', viral_score: meta.viral_score || null,
+    creator: meta.creator || null,
     submagic_id: created.id, status: created.status || 'processing',
     download_url: null, created_ms: Date.now(), ready_ms: null, posted: {},
   };
