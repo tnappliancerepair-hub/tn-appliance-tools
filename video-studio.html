@@ -351,12 +351,28 @@ async function genSeo(id,btn){
   } else el.textContent='⚠️ SEO error: '+(r&&(r.error)||'failed');
 }
 async function postAll(id,btn){
-  btn.disabled=true; btn.textContent='Posting…';
+  btn.disabled=true; btn.textContent='Writing title + posting…';
   const cap=(document.getElementById('cap-'+id)||{}).value||'';
   const plats=[...document.querySelectorAll('input[data-j="'+id+'"]:checked')].map(c=>c.getAttribute('data-p'));
-  const r=await jpost('video-post',{ job_id:id, platforms:plats, caption:cap });
+  // one-approve fan-out: honest title from the clip's real content, posts everywhere,
+  // returns one-tap publish links + X/Truth paste copy
+  const r=await jpost('post-everywhere',{ job_id:id, platforms:plats, caption:cap });
   btn.disabled=false; btn.textContent='🚀 Post everywhere';
-  if(r&&r.ok){ loadJobs(); } else { alert('Post error: '+(r&&r.error||'failed')); }
+  if(r&&r.ok&&r.bundle){
+    const bd=r.bundle, y=bd.one_tap&&bd.one_tap.youtube, t=bd.one_tap&&bd.one_tap.tiktok;
+    let h='<div class="res" style="white-space:normal;line-height:1.6">';
+    h+='<b>🚀 '+esc(bd.honest_title||'')+'</b><br>';
+    h+='✅ Live: '+[(bd.auto.facebook&&bd.auto.facebook.ok)?'Facebook':'', (bd.auto.instagram&&bd.auto.instagram.ok)?'Instagram':''].filter(Boolean).join(' + ')||'—';
+    if(y&&y.publish_here) h+='<br>▶️ <a href="'+y.publish_here+'" target="_blank">YouTube — tap to publish</a> (set Visibility → Public)';
+    if(t&&t.status==='in_drafts') h+='<br>🎵 TikTok — in your drafts, tap Post in the app';
+    if(bd.paste){
+      h+='<br><br><b>✍️ X / Twitter</b> <button class="btn" onclick="navigator.clipboard.writeText(this.nextSibling.textContent);this.textContent=\'Copied\'">Copy</button><span style="display:block;font-size:12px;color:#9aa">'+esc(bd.paste.x||'')+'</span>';
+      h+='<br><b>✍️ Truth Social</b> <button class="btn" onclick="navigator.clipboard.writeText(this.nextSibling.textContent);this.textContent=\'Copied\'">Copy</button><span style="display:block;font-size:12px;color:#9aa">'+esc(bd.paste.truthsocial||'')+'</span>';
+    }
+    h+='</div>';
+    const card=btn.closest('.card')||btn.parentElement; const box=document.createElement('div'); box.innerHTML=h; card.appendChild(box);
+    loadJobs();
+  } else { alert('Post error: '+(r&&r.error||'failed')); }
 }
 
 async function loadJobs(refresh){

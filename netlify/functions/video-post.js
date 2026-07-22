@@ -89,7 +89,11 @@ exports.handler = async function (event) {
   // YouTube — upload private (Short if vertical/<=60s); flip to public in YT
   if (want.includes('youtube')) {
     try {
-      const yt = v.youtube || { title: item.title, description: item.message };
+      // Honest, grounded title/description can be passed in (post-everywhere generates it
+      // from the clip's real content) — otherwise fall back to the derived variant.
+      const yt = (b.youtube_title || b.youtube_description)
+        ? { title: b.youtube_title || item.title, description: b.youtube_description || item.message }
+        : (v.youtube || { title: item.title, description: item.message });
       const vb = await youtube.fetchVideoBuffer(url);
       if (!vb.ok) out.youtube = { ok: false, reason: 'download_failed' };
       else { const r = await youtube.uploadVideo(vb.buffer, { title: yt.title, description: yt.description, privacyStatus: 'private' }); out.youtube = r && r.ok ? { ok: true, video_id: r.video_id, url: r.url, privacy: r.privacy } : { ok: false, reason: (r && (r.error || r.step)) || 'failed' }; }
@@ -100,5 +104,6 @@ exports.handler = async function (event) {
   for (const k of Object.keys(out)) job.posted[k] = { ...out[k], at: Date.now() };
   if (Object.values(out).some((r) => r && r.ok)) job.status = 'posted';
   await saveQueue(queue);
-  return json(200, { ok: true, job_id: job.id, results: out });
+  // Surface the copy for the platforms that have no open posting API (paste-only).
+  return json(200, { ok: true, job_id: job.id, results: out, paste: { x: (v.x && v.x.text) || item.message, truthsocial: (v.truthsocial && v.truthsocial.text) || item.message } });
 };
