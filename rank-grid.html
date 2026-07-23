@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>Map Pack Rank Grid — TN Appliance (owner)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0b0f14;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+  header{padding:14px 18px;border-bottom:1px solid #1e2733;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:16px;letter-spacing:.02em}
+  header .ant{font-size:20px}
+  .ctrls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
+  select,input,button{font:inherit;border-radius:8px;border:1px solid #2b3a4a;background:#111a23;color:#e6edf3;padding:8px 11px}
+  button{cursor:pointer;font-weight:700}
+  button.primary{background:#ff6200;border-color:#ff6200;color:#111}
+  button.primary:disabled{opacity:.5;cursor:wait}
+  button.ghost{background:transparent}
+  #map{height:64vh;width:100%}
+  .bar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:12px 18px;border-top:1px solid #1e2733;background:#0e141b;font-size:13px}
+  .stat{display:flex;flex-direction:column;gap:1px}
+  .stat b{font-size:20px;font-variant-numeric:tabular-nums}
+  .stat span{color:#8b98a5;font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 18px;font-size:12px;color:#8b98a5}
+  .legend i{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:5px;vertical-align:-2px}
+  .pin{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;font-weight:800;font-size:13px;color:#0b0f14;border:2px solid rgba(255,255,255,.85);box-shadow:0 1px 4px rgba(0,0,0,.5);font-variant-numeric:tabular-nums}
+  .note{padding:10px 18px;color:#8b98a5;font-size:12.5px}
+  .scanning{color:#ff6200;font-weight:700}
+  a{color:#ff9a4d}
+</style>
+</head>
+<body>
+<header>
+  <span class="ant">🐜</span>
+  <h1>Map-Pack Rank Grid</h1>
+  <div class="ctrls">
+    <select id="metro">
+      <option value="tn">Middle TN (Nashville metro)</option>
+      <option value="tn-clarksville">Clarksville</option>
+      <option value="la">South Louisiana</option>
+    </select>
+    <input id="kw" value="appliance repair" size="16" title="search term">
+    <button class="ghost" id="load">Load latest</button>
+    <button class="primary" id="scan">Run new scan</button>
+  </div>
+</header>
+
+<div id="map"></div>
+
+<div class="bar" id="bar">
+  <div class="stat"><b id="s-top3">—</b><span>% in top 3</span></div>
+  <div class="stat"><b id="s-top10">—</b><span>% in top 10</span></div>
+  <div class="stat"><b id="s-avg">—</b><span>avg rank (found)</span></div>
+  <div class="stat"><b id="s-best">—</b><span>best / worst</span></div>
+  <div class="stat"><b id="s-found">—</b><span>points showing us</span></div>
+  <div class="stat"><b id="s-when" style="font-size:13px">—</b><span>last scanned</span></div>
+</div>
+<div class="legend">
+  <span><i style="background:#16a34a"></i>1–3 (top pack)</span>
+  <span><i style="background:#a3e635"></i>4–6</span>
+  <span><i style="background:#facc15"></i>7–10</span>
+  <span><i style="background:#f97316"></i>11–15</span>
+  <span><i style="background:#ef4444"></i>16–20</span>
+  <span><i style="background:#5b1414"></i>not in top 20</span>
+</div>
+<div class="note" id="note">Approximation of the Google map pack via the Places API — the same method paid rank trackers use. Great for tracking change over time. Each fresh scan runs a few dollars of Places calls; “Load latest” is free.</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+let SECRET = localStorage.getItem('tn_rankgrid_secret') || '';
+function ensureSecret(force){
+  if (SECRET && !force) return SECRET;
+  const v = prompt('Owner secret:');
+  if (v){ SECRET = v.trim(); localStorage.setItem('tn_rankgrid_secret', SECRET); }
+  return SECRET;
+}
+
+const map = L.map('map', { scrollWheelZoom:true }).setView([36.05,-86.66], 9);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom:19, attribution:'© OpenStreetMap © CARTO' }).addTo(map);
+let layer = L.layerGroup().addTo(map);
+
+function colorFor(rank){
+  if (rank == null) return '#5b1414';
+  if (rank <= 3) return '#16a34a';
+  if (rank <= 6) return '#a3e635';
+  if (rank <= 10) return '#facc15';
+  if (rank <= 15) return '#f97316';
+  return '#ef4444';
+}
+function labelFor(rank){ return rank == null ? 'X' : String(rank); }
+
+function render(data){
+  layer.clearLayers();
+  const pts = data.points || [];
+  if (!pts.length){ $('note').textContent = data.note || 'No data yet — run a scan.'; return; }
+  const latlngs = [];
+  for (const p of pts){
+    const col = colorFor(p.rank);
+    const dark = (p.rank != null && p.rank <= 6);
+    const icon = L.divIcon({ className:'', html:`<div class="pin" style="background:${col};color:${dark?'#08130a':'#1a0a0a'}">${labelFor(p.rank)}</div>`, iconSize:[30,30], iconAnchor:[15,15] });
+    L.marker([p.lat,p.lng], { icon }).addTo(layer).bindPopup(`Rank: <b>${p.rank==null?'not in top 20':'#'+p.rank}</b><br>${p.lat.toFixed(3)}, ${p.lng.toFixed(3)}${p.err?'<br><i>'+p.err+'</i>':''}`);
+    latlngs.push([p.lat,p.lng]);
+  }
+  if (latlngs.length) map.fitBounds(latlngs, { padding:[30,30] });
+  const s = data.summary || {};
+  $('s-top3').textContent = (s.pct_top3!=null? s.pct_top3+'%':'—');
+  $('s-top10').textContent = (s.pct_top10!=null? s.pct_top10+'%':'—');
+  $('s-avg').textContent = (s.avg_rank_found!=null? '#'+s.avg_rank_found : '—');
+  $('s-best').textContent = (s.best!=null? '#'+s.best+' / #'+s.worst : '—');
+  $('s-found').textContent = (s.found!=null? s.found+'/'+s.total : '—');
+  $('s-when').textContent = data.scanned_at ? new Date(data.scanned_at).toLocaleString() : (data.empty?'never':'—');
+  $('note').innerHTML = (data.cached ? '📁 Showing the last saved scan. ' : '✅ Fresh scan. ') + 'Green = you’re in the top pack, red = buried. Approximation via Places API — track it monthly and watch red turn green.';
+}
+
+async function go(scan){
+  if (!ensureSecret()) return;
+  const metro = $('metro').value, kw = encodeURIComponent($('kw').value.trim()||'appliance repair');
+  const btn = $('scan');
+  if (scan){ btn.disabled = true; btn.textContent = 'Scanning…'; $('note').innerHTML = '<span class="scanning">Running the grid — this takes a few seconds…</span>'; }
+  try {
+    const url = `/.netlify/functions/rank-grid?secret=${encodeURIComponent(SECRET)}&metro=${metro}&q=${kw}${scan?'&scan=1':''}`;
+    const r = await fetch(url);
+    if (r.status === 401){ localStorage.removeItem('tn_rankgrid_secret'); SECRET=''; if(ensureSecret(true)) return go(scan); return; }
+    const d = await r.json();
+    if (!d.ok){ $('note').textContent = 'Error: ' + (d.error||JSON.stringify(d)); return; }
+    render(d);
+  } catch(e){ $('note').textContent = 'Error: ' + e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Run new scan'; }
+}
+
+$('load').onclick = () => go(false);
+$('scan').onclick = () => go(true);
+$('metro').onchange = () => go(false);
+ensureSecret();
+go(false);
+</script>
+</body>
+</html>
