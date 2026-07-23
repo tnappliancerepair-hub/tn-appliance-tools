@@ -160,6 +160,14 @@ exports.handler = async function (event) {
   if (!key) key = process.env.GOOGLE_MAPS_API_KEY || '';
   if (!key) return json(500, { ok: false, error: 'no_places_key', hint: 'Store GOOGLE_PLACES_API_KEY in the vault (admin-secrets.html), Places API (New) enabled.' });
 
+  // DEBUG: one search at center, return the ordered list so we can see what Places returns.
+  if (q.debug) {
+    const s = await searchAt(key, keyword, clat, clng, 8000);
+    return json(200, { ok: s.ok, err: s.err, count: (s.places || []).length,
+      our_match: rankOf(s.places || []),
+      places: (s.places || []).map((p, i) => ({ n: i + 1, id: p.id, name: (p.displayName && p.displayName.text) || '' })) });
+  }
+
   const grid = makeGrid(clat, clng, span, size);
   const stepMi = grid[0]._step_mi || span;
   const radiusM = Math.round(Math.max(2500, Math.min(14000, (stepMi * 1609) / 2)));
