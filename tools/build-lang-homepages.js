@@ -422,7 +422,7 @@ ${STYLE}
       <div class="crew-card"><img src="/team/andre-south-shore.jpg" alt="Andre" loading="lazy"><div><div class="cn">Andre</div><p>${esc(t.crew[3])}</p></div></div>
       <div class="crew-card"><img src="/team/john-north-shore.jpg" alt="John" loading="lazy"><div><div class="cn">John</div><p>${esc(t.crew[4])}</p></div></div>
     </div>
-    <video id="shopVideo" controls playsinline preload="metadata" poster="https://tnapplianceexchange.net/.netlify/functions/media-file?key=social/clips/poster-755199354557734.jpg" style="width:100%;max-width:400px;border-radius:14px;background:#000;display:block;margin:22px auto 0"></video>
+    <video id="shopVideo" controls playsinline preload="none" poster="https://tnapplianceexchange.net/.netlify/functions/media-file?key=social/clips/poster-755199354557734.jpg" src="https://tnapplianceexchange.net/.netlify/functions/media-file?key=social%2Fclips%2Ffbarch-755199354557734.mp4" style="width:100%;max-width:400px;border-radius:14px;background:#000;display:block;margin:22px auto 0"></video>
     <p class="prose" style="text-align:center;max-width:none;font-size:12.5px;opacity:.82;margin-top:10px">${esc(t.videoCap)}</p>
   </div>
 
@@ -535,9 +535,7 @@ ${STYLE}
       return '<div class="rev-card"><div class="rs">★★★★★</div><p>'+esc(tx)+'</p><div class="rn">— '+esc(rv.author||'Google')+'</div></div>';
     }).join('');
   }).catch(function(){});
-  var v=document.getElementById('shopVideo');
-  if(v){var key='social/clips/fbarch-755199354557734.mp4';var proxy='https://tnapplianceexchange.net/.netlify/functions/media-file?key='+encodeURIComponent(key);
-    fetch(proxy+'&json=1').then(function(r){return r.json();}).then(function(d){v.src=(d&&d.url)?d.url:proxy;}).catch(function(){v.src=proxy;});}
+  // shop video streams from the same-origin proxy (src in HTML, preload=none).
 })();
 </script>
 <script src="/ant-track.js" defer></script>
