@@ -19,18 +19,17 @@
 # TO REVERT to the chat-first front door: uncomment the appliance-ai line below.
 # /                     /appliance-ai.html   200!
 
-# Same clean intake for the non-English communities, in their language (the page
-# is fully translated via ?lang=). 2026-06-26. Each /xx/ was a single homepage.
-/es                   /appliance-ai.html?lang=es   200!
-/es/                  /appliance-ai.html?lang=es   200!
-/vi                   /appliance-ai.html?lang=vi   200!
-/vi/                  /appliance-ai.html?lang=vi   200!
-/ar                   /appliance-ai.html?lang=ar   200!
-/ar/                  /appliance-ai.html?lang=ar   200!
-/hi                   /appliance-ai.html?lang=hi   200!
-/hi/                  /appliance-ai.html?lang=hi   200!
-/fr                   /appliance-ai.html?lang=fr   200!
-/fr/                  /appliance-ai.html?lang=fr   200!
+# Non-English homepages: /es/ /vi/ /ar/ /hi/ /fr/ each serve their own translated
+# copy of the ChatGPT-simple homepage (es/index.html etc., built by
+# tools/build-lang-homepages.js). Netlify serves those files natively — NO rewrite,
+# so the language visitor lands on a real homepage (the hero ask carries ?lang= into
+# appliance-ai.html). 2026-07-23: replaced the old straight-to-intake rewrites.
+# Bare /es -> /es/ so the folder index resolves.
+/es                   /es/                         301!
+/vi                   /vi/                         301!
+/ar                   /ar/                         301!
+/hi                   /hi/                         301!
+/fr                   /fr/                         301!
 
 # Legacy WordPress URL redirects (added 2026-05-05).
 # Old GoDaddy WordPress site used /privacy-policy-2/ and /terms-and-conditions/
