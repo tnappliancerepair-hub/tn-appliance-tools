@@ -25,6 +25,8 @@ const XANO_LOOKUP_CUSTOMER = `${XANO_BASE}/lookup_customer_by_phone`;
 const XANO_RECORD_BRAIN_OBS = `${XANO_BASE}/record_brain_observation`;
 
 const SET_TDR_FIELD_URL = 'https://tnapplianceexchange.net/.netlify/functions/set-tdr-field';
+const REPORT_ADDR_CORRECTION_URL = 'https://tnapplianceexchange.net/.netlify/functions/report-address-correction';
+const ADMIN_SECRET = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
 const PHONE_BRAIN_URL = 'https://tnapplianceexchange.net/.netlify/functions/phone-ant-brain';
 const PHONE_OUTBOUND_URL = 'https://tnapplianceexchange.net/.netlify/functions/phone-ant-outbound';
 
@@ -445,6 +447,20 @@ exports.handler = async function (event) {
         note: summary.slice(0, 600),
         source: 'Phone call',
       });
+
+      // ADDRESS-CORRECTION SCRIBE (Teddy 2026-07-23). A service-address correction given on
+      // the call was landing ONLY in the merged problem_summary above — buried, so the tile
+      // kept the old address and a tech could roll to the wrong house (Daniel Reney #20600).
+      // Scan the summary; if the caller gave a DIFFERENT street address, promote it to the
+      // one-tap board flag (report-address-correction only flags on a real house-number
+      // change, so a read-back of the existing address is a no-op). Fire-and-forget.
+      try {
+        await fetch(REPORT_ADDR_CORRECTION_URL, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ secret: ADMIN_SECRET, job_id: resolvedJobId, summary: summary.slice(0, 2000), source: 'phone_scan' }),
+          signal: AbortSignal.timeout(7000),
+        });
+      } catch (_) {}
     }
 
     // 4a-bis. ANT FIELD ASSIST — when a tech-side call from the green

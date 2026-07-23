@@ -43,6 +43,25 @@ exports.handler = async function () {
         at: state === 'correction' ? correctedAt : (state === 'confirmed' ? confirmedAt : S[id].at),
       });
     }
+
+    // PHONE corrections (Teddy 2026-07-23): a correction captured on a CALL raises an
+    // `address_correction_reported` with NO prior `address_confirm_sent` (nobody texted
+    // an address-confirm — the caller just gave a new address). The loop above only
+    // covers jobs we texted, so those would never surface. Add any reported correction
+    // that isn't in S and hasn't since been applied, so it gets the same red one-tap flag.
+    for (const jid of Object.keys(R)) {
+      const id = Number(jid);
+      if (S[id]) continue;                                   // already handled above
+      const correctedAt = R[id].at || 0;
+      const appliedAt = A[id] ? A[id].at : 0;
+      if (appliedAt && appliedAt >= correctedAt) continue;   // Danielle already applied it
+      out.push({
+        job_id: id, state: 'correction',
+        proposed: String((R[id].m && R[id].m.proposed) || ''),
+        asked_address: String((R[id].m && R[id].m.prior_address) || ''),
+        at: correctedAt,
+      });
+    }
     return j(200, { ok: true, address_flags: out });
   } catch (e) {
     return j(200, { ok: false, error: String((e && e.message) || e), address_flags: [] });
