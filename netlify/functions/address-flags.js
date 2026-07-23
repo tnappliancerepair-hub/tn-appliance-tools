@@ -13,7 +13,10 @@ const crud = require('./_lib/xano/metadata-crud');
 function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }, body: JSON.stringify(b) }; }
 function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 
-async function rowsFor(action, n) { try { return (await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, n || 800)) || []; } catch (_) { return []; } }
+// per_page is capped at 500 — /table/3/content/search 400s above ~500 (documented footgun),
+// which would make every read here return [] and silently hide ALL address flags (phone AND
+// SMS). Newest-first 500 rows is plenty for active flags. Keep it at/below the cap.
+async function rowsFor(action, n) { try { return (await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, Math.min(n || 500, 500))) || []; } catch (_) { return []; } }
 
 exports.handler = async function () {
   try {
