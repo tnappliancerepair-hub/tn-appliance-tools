@@ -47,6 +47,24 @@ const TOPICS = [
   'A dryer-wont-start post: door switch, start switch, or thermal fuse are the usual culprits — we diagnose it fast and fix it right.',
 ];
 
+// Real brand photos (public URLs) so every scheduled post carries an image, rotated by
+// (week, slot) so consecutive posts never repeat. Google accepts these sizes; if it ever
+// rejects one, we retry the post text-only so the slot is never lost.
+const PHOTO_POOL = [
+  'https://tnapplianceexchange.net/assets/marketing/truck-wrap-gbp.jpg',
+  'https://tnapplianceexchange.net/assets/marketing/crew-1.jpg',
+  'https://tnapplianceexchange.net/assets/marketing/truck-sky.jpg',
+  'https://tnapplianceexchange.net/assets/marketing/crew-2.jpg',
+  'https://tnapplianceexchange.net/assets/marketing/truck-wrap-wide.jpg',
+];
+function pickPhoto(wk, slot) { return PHOTO_POOL[(wk * 2 + (slot === 'b' ? 1 : 0)) % PHOTO_POOL.length]; }
+// Post with a photo; if Google rejects the image, retry text-only so the post still lands.
+async function postWithPhoto(gbp, summary, mediaUrl, actionUrl) {
+  let r = await gbp.createLocalPost({ summary, mediaUrl, actionType: 'BOOK', actionUrl });
+  if ((!r || !r.ok) && mediaUrl) r = await gbp.createLocalPost({ summary, actionType: 'BOOK', actionUrl });
+  return r;
+}
+
 const SYSTEM = `You write a single Google Business Profile "post/update" for TN Appliance Exchange — a family-owned, technician-led appliance repair company (owner James "Teddy" Pivacek) serving Middle Tennessee and the Walker/Hammond/Baton Rouge area of Louisiana.
 
 Voice: warm, plainspoken, honest, local, confident — a real small-business owner who fixes appliances, NOT a marketing agency. No hype, no emojis spam (one tasteful emoji max), no ALL CAPS.
@@ -182,7 +200,7 @@ exports.handler = async function (event) {
   // PUBLISH: fire one real post NOW and keep it (admin on-demand). Logged with a manual
   // bucket so it never blocks a scheduled Mon/Thu slot.
   if (publish) {
-    const r = await gbp.createLocalPost({ summary: post.body, actionType: 'BOOK', actionUrl: BOOK_URL });
+    const r = await postWithPhoto(gbp, post.body, pickPhoto(wk, slot), BOOK_URL);
     if (r.ok) {
       try { await crud.logEvent('gbp_post_published', { bucket: 'manual:' + Date.now(), title: post.title || '', topic, post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {}
     }
@@ -192,7 +210,7 @@ exports.handler = async function (event) {
   // LIVE: auto-publish via the API; fall back to texting Teddy the draft on any failure.
   if (autopost) {
     try {
-      const r = await gbp.createLocalPost({ summary: post.body, actionType: 'BOOK', actionUrl: BOOK_URL });
+      const r = await postWithPhoto(gbp, post.body, pickPhoto(wk, slot), BOOK_URL);
       if (r.ok) {
         try { await crud.logEvent('gbp_post_published', { bucket, iso_week: wk, slot, title: post.title || '', topic, post_name: (r.data && r.data.name) || '', at_ms: Date.now() }); } catch (_) {}
         try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: `✅ Auto-posted your Google Business update:\n\n${post.title ? '“' + post.title + '”\n' : ''}${String(post.body).slice(0, 180)}…\n\nLive now on your profile. (2×/week: Mon + Thu.)`, force_send: true, context_tag: 'gbp_post_published' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
