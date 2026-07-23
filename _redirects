@@ -21,15 +21,10 @@
 
 # Non-English homepages: /es/ /vi/ /ar/ /hi/ /fr/ each serve their own translated
 # copy of the ChatGPT-simple homepage (es/index.html etc., built by
-# tools/build-lang-homepages.js). Netlify serves those files natively — NO rewrite,
-# so the language visitor lands on a real homepage (the hero ask carries ?lang= into
-# appliance-ai.html). 2026-07-23: replaced the old straight-to-intake rewrites.
-# Bare /es -> /es/ so the folder index resolves.
-/es                   /es/                         301!
-/vi                   /vi/                         301!
-/ar                   /ar/                         301!
-/hi                   /hi/                         301!
-/fr                   /fr/                         301!
+# tools/build-lang-homepages.js). Netlify serves these folder indexes NATIVELY and
+# resolves /es -> /es/ on its own — so NO rule here (a forced /es -> /es/ 301!
+# looped). The hero ask on each page carries ?lang= into appliance-ai.html.
+# 2026-07-23: replaced the old straight-to-intake rewrites with real homepages.
 
 # Legacy WordPress URL redirects (added 2026-05-05).
 # Old GoDaddy WordPress site used /privacy-policy-2/ and /terms-and-conditions/
