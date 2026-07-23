@@ -181,11 +181,23 @@ exports.handler = async function (event) {
 
   const errCount = results.filter((r) => r.err).length;
   const summary = summarize(results);
+
+  // Capture the competitor landscape at the center, and detect the SAB blind spot:
+  // if we're found at 0 points but real competitors ARE returned, the Places API simply
+  // can't see our service-area listing (it doesn't return address-hidden SABs). That's a
+  // DATA limitation, not our real map-pack rank — flag it so the UI never fakes a red map.
+  let competitors = [];
+  try {
+    const c = await searchAt(key, keyword, clat, clng, 12000);
+    competitors = (c.places || []).slice(0, 12).map((p, i) => ({ n: i + 1, name: (p.displayName && p.displayName.text) || '', id: p.id }));
+  } catch (_) {}
+  const sab_hidden = summary.found === 0 && competitors.length > 0;
   const payload = {
     metro, label: preset.label, q: keyword,
     center: { lat: clat, lng: clng }, span_mi: span, size,
     scanned_at: null, scanned_ms: null,   // stamped below (Date.now allowed in Netlify runtime)
     points: results, summary, errors: errCount,
+    competitors, sab_hidden,
   };
   payload.scanned_ms = Date.now();
   payload.scanned_at = new Date(payload.scanned_ms).toISOString();

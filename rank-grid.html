@@ -47,6 +47,8 @@
   </div>
 </header>
 
+<div id="banner" style="display:none;margin:12px 18px;padding:14px 16px;border:1px solid #7a5b00;background:#241d05;border-radius:12px;font-size:13.5px;line-height:1.6"></div>
+
 <div id="map"></div>
 
 <div class="bar" id="bar">
@@ -95,24 +97,35 @@ function labelFor(rank){ return rank == null ? 'X' : String(rank); }
 function render(data){
   layer.clearLayers();
   const pts = data.points || [];
+  const bn = $('banner');
+  // SAB blind spot: the Places API can't return our service-area listing, so a red
+  // grid would be a LIE. Show the honest explanation + who's actually winning instead.
+  if (data.sab_hidden){
+    const comp = (data.competitors||[]).map(c=>`<li>#${c.n} ${c.name}</li>`).join('');
+    bn.style.display='block';
+    bn.innerHTML = `<b style="color:#ffcf4d">⚠️ Not a rank of zero — a blind spot.</b> Google's Places API (what every affordable rank tracker runs on) <b>does not return service-area businesses</b> like ours in search. Your listing is live and strong (4.5★, 1,081 reviews) — the API just can't see it, so we can't grid-track <i>our</i> pin this way. Real customers on Google Maps <b>do</b> see you. What this scan CAN show is <b>who's actually winning “${data.q}” in this metro</b> — your real competitors to beat:<ol style="margin:8px 0 0 18px;columns:2;font-size:13px">${comp}</ol>`;
+  } else { bn.style.display='none'; }
   if (!pts.length){ $('note').textContent = data.note || 'No data yet — run a scan.'; return; }
   const latlngs = [];
   for (const p of pts){
-    const col = colorFor(p.rank);
-    const dark = (p.rank != null && p.rank <= 6);
-    const icon = L.divIcon({ className:'', html:`<div class="pin" style="background:${col};color:${dark?'#08130a':'#1a0a0a'}">${labelFor(p.rank)}</div>`, iconSize:[30,30], iconAnchor:[15,15] });
-    L.marker([p.lat,p.lng], { icon }).addTo(layer).bindPopup(`Rank: <b>${p.rank==null?'not in top 20':'#'+p.rank}</b><br>${p.lat.toFixed(3)}, ${p.lng.toFixed(3)}${p.err?'<br><i>'+p.err+'</i>':''}`);
+    const col = data.sab_hidden ? '#3b4654' : colorFor(p.rank);
+    const dark = (!data.sab_hidden && p.rank != null && p.rank <= 6);
+    const lbl = data.sab_hidden ? '·' : labelFor(p.rank);
+    const txt = data.sab_hidden ? '#8b98a5' : (dark?'#08130a':'#1a0a0a');
+    const icon = L.divIcon({ className:'', html:`<div class="pin" style="background:${col};color:${txt}">${lbl}</div>`, iconSize:[30,30], iconAnchor:[15,15] });
+    L.marker([p.lat,p.lng], { icon }).addTo(layer).bindPopup(data.sab_hidden ? `Places API can't return our service-area listing here` : `Rank: <b>${p.rank==null?'not in top 20':'#'+p.rank}</b><br>${p.lat.toFixed(3)}, ${p.lng.toFixed(3)}${p.err?'<br><i>'+p.err+'</i>':''}`);
     latlngs.push([p.lat,p.lng]);
   }
   if (latlngs.length) map.fitBounds(latlngs, { padding:[30,30] });
   const s = data.summary || {};
-  $('s-top3').textContent = (s.pct_top3!=null? s.pct_top3+'%':'—');
-  $('s-top10').textContent = (s.pct_top10!=null? s.pct_top10+'%':'—');
-  $('s-avg').textContent = (s.avg_rank_found!=null? '#'+s.avg_rank_found : '—');
-  $('s-best').textContent = (s.best!=null? '#'+s.best+' / #'+s.worst : '—');
-  $('s-found').textContent = (s.found!=null? s.found+'/'+s.total : '—');
+  const NA = data.sab_hidden;
+  $('s-top3').textContent = NA?'N/A':(s.pct_top3!=null? s.pct_top3+'%':'—');
+  $('s-top10').textContent = NA?'N/A':(s.pct_top10!=null? s.pct_top10+'%':'—');
+  $('s-avg').textContent = NA?'N/A':(s.avg_rank_found!=null? '#'+s.avg_rank_found : '—');
+  $('s-best').textContent = NA?'N/A':(s.best!=null? '#'+s.best+' / #'+s.worst : '—');
+  $('s-found').textContent = NA?'—':(s.found!=null? s.found+'/'+s.total : '—');
   $('s-when').textContent = data.scanned_at ? new Date(data.scanned_at).toLocaleString() : (data.empty?'never':'—');
-  $('note').innerHTML = (data.cached ? '📁 Showing the last saved scan. ' : '✅ Fresh scan. ') + 'Green = you’re in the top pack, red = buried. Approximation via Places API — track it monthly and watch red turn green.';
+  $('note').innerHTML = NA ? 'Gray dots = the Places API can’t see our service-area listing here (data limit, not your rank). The banner above shows who’s actually winning.' : ((data.cached ? '📁 Showing the last saved scan. ' : '✅ Fresh scan. ') + 'Green = you’re in the top pack, red = buried. Approximation via Places API — track it monthly and watch red turn green.');
 }
 
 async function go(scan){
