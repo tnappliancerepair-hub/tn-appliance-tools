@@ -498,6 +498,22 @@ async function submitTDR() {
       throw new Error((data && data.message) || ("Could not create TDR: " + JSON.stringify(data).slice(0, 200)));
     }
     state.submitResult = data;
+    // FINISH THE PRE-DIAGNOSIS → TDR FLOW (Teddy 2026-07-24): the part is the crux
+    // friction. create_tdr stores oem_part_number, but the tech's TDR card + the board
+    // read parts_needed / verified_part_number — a different column — so the tech never
+    // saw the part Teddy found and had to re-hunt it. Stamp the part into parts_needed on
+    // the SAME pre-diagnosis TDR (technician_id 1); the fixed write path also lands
+    // verified_part_number, so the tech opens the card with the predicted part already
+    // there to CONFIRM (or correct), not re-find. This is the last mile of the merge.
+    try {
+      const _pn = (state.oemPartNumber || state.amazonPartNumber || '').trim();
+      if (_pn) {
+        await fetch(XANO_BASE + '/update_tdr_field_from_voice', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: parseInt(state.jobId, 10), technician_id: 1, field: 'parts_needed', value: _pn })
+        });
+      }
+    } catch (_) {}
   } catch(e) {
     state.finalizeStatus = "failed";
     state.finalizeError = "Could not create TDR. " + e.message;
@@ -1876,6 +1892,18 @@ async function loadAntsGuess() {
     if (part)   html += '<div style="margin-top:4px;"><strong>📦 Likely part:</strong> ' + escapeHtml(part) + '</div>';
     if (!html) html = '<div style="color:#9aa1ad; font-style:italic;">' + escapeHtml(lines[0] || 'See draft') + '</div>';
     body.innerHTML = html;
+    // ✓ APPLY — one tap fills the pre-diagnosis fields from the guess so it's confirm-or-
+    // correct, not retype (the panel used to be read-only). (Teddy 2026-07-24.)
+    window.__antsGuessApply = function () {
+      var dx = [failed, cause].filter(Boolean).join(' — ');
+      if (dx) state.diagnosis = state.diagnosis.trim() ? (state.diagnosis.trim() + '\n' + dx) : dx;
+      var pnMatch = (part || '').match(/[A-Za-z]*\d[A-Za-z0-9\-]{3,}/);
+      if (pnMatch) state.oemPartNumber = pnMatch[0];
+      render();
+    };
+    if (failed || cause || part) {
+      body.innerHTML += '<div style="margin-top:10px;"><button type="button" onclick="window.__antsGuessApply()" style="background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:800;cursor:pointer;">✓ Use this — fill diagnosis + part</button></div>';
+    }
     panel.style.display = '';
   } catch (_) {}
 }
