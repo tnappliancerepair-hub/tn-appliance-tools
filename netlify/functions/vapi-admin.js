@@ -281,9 +281,11 @@ exports.handler = async function (event) {
       + `2. TALK TO THEIR TECH DAY-OF: For a real-time answer they can call back the day of and ask for their technician. During business hours (Mon–Fri 9 AM–6 PM Central — confirm with get_business_hours) transfer them to their tech (transferCall → that tech's destination); he can tell them how many stops are ahead and when he'll accurately be there. If he doesn't answer, relay_to_tech texts him to call them back.\n`
       + `3. FOLLOW-THE-TECH LINK: When their technician taps "on my way," they'll get a text link to follow him live on their phone and see an accurate, specific arrival time. Let them know that's coming so they watch for it.\n`
       + `ALWAYS FINE: confirm the DAY they're scheduled, and collect the customer's OWN availability. Outside business hours, never ring or transfer anyone — take a message with capture_callback.\n${MARK}\n\n`;
-    // strip any prior version of this block, then prepend the current one (so edits go live on re-run)
+    // strip EVERY prior copy of this block (global, whitespace-tolerant — collapses any
+    // accidental duplicate), then prepend the current one so edits go live on re-run.
     {
-      const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
+      const esc = MARK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const cur = String(msgs[si].content || '').replace(new RegExp(esc + '[\\s\\S]*?' + esc + '\\s*', 'g'), '');
       msgs[si].content = BLOCK + cur;
     }
     const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
@@ -587,9 +589,11 @@ exports.handler = async function (event) {
     const MARK = '<!-- NO-PRECISE-TIME -->';
     const BLOCK = `${MARK}\n## ON ARRIVAL TIMES (reinforces the arrival-times policy above)\n`
       + `Never invent a clock time, and never read our internal scheduled time-of-day back as a promise — it's a routing placeholder, not an appointment. If you don't have an exact time, say so honestly ("I don't know that exactly") and give them the REAL ways to know: their warranty company's window if they were given one (that's the time we'll be there), talking to their technician the day of (transfer during business hours), and the follow-the-tech link they get once he's on the way. You may always confirm the DAY. Never cave and guess a specific time.\n${MARK}\n\n`;
-    // Replace any prior version of this block so edits go live on re-run.
+    // Strip EVERY prior copy (global, whitespace-tolerant — collapses duplicates),
+    // then prepend the current one so edits go live on re-run.
     {
-      const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
+      const esc = MARK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const cur = String(msgs[si].content || '').replace(new RegExp(esc + '[\\s\\S]*?' + esc + '\\s*', 'g'), '');
       msgs[si].content = BLOCK + cur;
     }
     const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
