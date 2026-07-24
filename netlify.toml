@@ -413,6 +413,15 @@
 [functions."intake-collector"]
   schedule = "0 14-23 * * *"
 
+# intake-link-guarantee (Teddy 2026-07-24: "EVERY job we receive in must get the intake
+# link"). The safety net independent of the Mac loop: reads the live board and sends the
+# intake link ONCE to every reachable, recently-received job that hasn't ACTUALLY been sent
+# one — self-healing the jobs the loop marked "sent" but were gate-blocked. Every 15 min,
+# business hours (8a-8p CT guard in the fn), per-run cap, opt-out + engaged skips, tag
+# intake_collect so it clears the send gate today. Kill with env INTAKE_GUARANTEE_LIVE=false.
+[functions."intake-link-guarantee"]
+  schedule = "5,20,35,50 13-23 * * *"
+
 # Over-texting tripwire (Teddy 2026-07-13) — scans EVERY customer text by phone,
 # alerts Teddy + AUTO-PAUSES intake outreach the moment anyone crosses the line, so
 # the SquareTrade over-texting mess can never quietly run for a week again. 10a/2p/6p CT.
