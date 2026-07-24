@@ -706,3 +706,10 @@
 # land in the Studio queue.
 [functions."video-dub-poll"]
   schedule = "*/5 * * * *"
+
+# tech-prep-link — THE ONE tech text: Teddy Tool prep link to the assigned tech the
+# moment a job has a tech, so they call the customer + get a video (can save the trip).
+# Every 10 min, but a NO-OP until env TECH_PREP_LINK_LIVE=true (dry by default). Sends
+# from the approved line, forward-only, deduped, capped, business-hours. (Teddy 2026-07-24)
+[functions."tech-prep-link"]
+  schedule = "*/10 * * * *"
