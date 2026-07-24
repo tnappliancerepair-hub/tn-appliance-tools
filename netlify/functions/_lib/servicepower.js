@@ -137,6 +137,14 @@ function parseCalls(raw) {
       status: _tag(b, 'CallStatus'), sp_status_id: _tag(b, 'SPCallStatusID'),
       sub_status: _tag(b, 'CallSubStatus'), sp_sub_status_id: _tag(b, 'SPCallSubStatusID'),
       first_name: _tag(b, 'ConsumerFirstName'), last_name: _tag(b, 'ConsumerLastName'),
+      // CONTACT — the API carries what the dispatch EMAIL does not (Teddy 2026-07-24:
+      // "we have a ServicePower API but struggle with ServicePower jobs"). Phone1 is the
+      // primary; Phone2/CellPhone fall back (ServicePower fills empties with "0"). Email
+      // + street too, so a phone-less ServicePower job can be backfilled into the intake
+      // + tech-call flow like every other job.
+      phone1: _tag(b, 'Phone1'), phone2: _tag(b, 'Phone2'), cell: _tag(b, 'CellPhone'),
+      email: _tag(b, 'EmaiIld'), address1: _tag(b, 'ConsumerAddress1'), address2: _tag(b, 'ConsumerAddress2'),
+      serial: _tag(b, 'SerialNo'),
       city: _tag(b, 'PostcodeLevel3'), state: _tag(b, 'PostcodeLevel1'), zip: _tag(b, 'Postcode'),
       brand: _tag(b, 'SPBrandDesc'), product: _tag(b, 'SPProductDesc'), model: _tag(b, 'MobelNo'),
       problem: _tag(b, 'ProbelmDesc'), warranty_type: _tag(b, 'WarrantyType'), service_type: _tag(b, 'ServicetType'),

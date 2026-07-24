@@ -422,6 +422,16 @@
 [functions."intake-link-guarantee"]
   schedule = "5,20,35,50 13-23 * * *"
 
+# servicepower-contact-backfill (Teddy 2026-07-24: "we have a ServicePower API but
+# struggle with ServicePower jobs"). SP dispatch EMAILS carry only the claim #, not the
+# phone — so those jobs land phone-less and can't get the intake link or a tech call. The
+# SP API (getCallInfo) HAS the phone (Phone1/Phone2/CellPhone). This pulls it onto every
+# phone-less SP job so they flow into the intake + tech-call system. Runs a few times an
+# hour; kill with env SP_CONTACT_BACKFILL_LIVE=false. Must run BEFORE intake-link-guarantee
+# reads (offset so the phone is on file first).
+[functions."servicepower-contact-backfill"]
+  schedule = "0,15,30,45 13-23 * * *"
+
 # Over-texting tripwire (Teddy 2026-07-13) — scans EVERY customer text by phone,
 # alerts Teddy + AUTO-PAUSES intake outreach the moment anyone crosses the line, so
 # the SquareTrade over-texting mess can never quietly run for a week again. 10a/2p/6p CT.
