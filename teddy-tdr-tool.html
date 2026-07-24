@@ -1094,6 +1094,10 @@ function renderReview() {
     '<div class="section-card">' +
       '<div class="section-title">Part Recommendations</div>' +
 
+      renderPartFinder() +
+
+      '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--mono);margin:4px 0 8px;border-top:1px solid var(--border2);padding-top:12px;">Live pricing · cash jobs</div>' +
+
       '<button type="button" id="autoFindPartsBtn" onclick="autoFindParts()" ' +
         'style="width:100%;margin-bottom:10px;padding:11px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;font-weight:600;font-family:var(--sans);cursor:pointer;">' +
         '🔍 Auto-find parts (Marcone + Amazon)</button>' +
@@ -1288,6 +1292,38 @@ function updateLaborHint() {
 
 // Live Marcone price + stock for the OEM part # entered — direct API (instant,
 // no Mac daemon). Fills Our Cost + shows live stock. Internal only.
+// 🔩 FIND THE PART — the six-supplier finder Teddy loves (lifted from the TDR card).
+// Model # preloaded; one tap searches each source. THE pre-diagnosis tool: watch the
+// video → pull the real part number. Made the star of the Teddy Tool (Teddy 2026-07-24).
+function renderPartFinder() {
+  var model = (state.cockpit && state.cockpit.appliance && state.cockpit.appliance.model_number) || '';
+  window.__TEDDY_PART_SOURCES = [
+    { name: 'Sears PartsDirect', url: 'https://www.searspartsdirect.com/search?q=' },
+    { name: 'AppliancePartsPros', url: 'https://www.appliancepartspros.com/search.aspx?model=' },
+    { name: 'RepairClinic', url: 'https://www.repairclinic.com/Shop-For-Parts?query=' },
+    { name: 'Encompass', url: 'https://www.encompass.com/search?q=' },
+    { name: 'PartSelect', url: 'https://www.partselect.com/Search.aspx?SearchTerm=' },
+    { name: 'Marcone (sign in)', url: 'https://my.marcone.com' }
+  ];
+  var btns = window.__TEDDY_PART_SOURCES.map(function (s, i) {
+    return '<button type="button" onclick="teddyFindPart(' + i + ')" style="flex:1 1 46%;min-width:46%;background:var(--card);color:var(--text);border:1px solid var(--border2);border-radius:9px;padding:11px 8px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--sans);">🔍 ' + escapeHtml(s.name) + '</button>';
+  }).join('');
+  return '<div style="margin-bottom:14px;padding:13px;border:1px solid var(--accent);border-radius:10px;background:var(--bg);">' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;"><span style="font-size:18px">🔩</span><span style="font-size:12px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--mono);">Find the part</span></div>' +
+    '<input type="text" id="teddyPartFind" value="' + escapeAttr(model) + '" placeholder="model number" style="width:100%;margin-bottom:9px;padding:11px;border:1px solid var(--border2);border-radius:8px;background:var(--card);color:var(--text);font-size:15px;font-family:var(--mono);letter-spacing:0.03em;box-sizing:border-box;" />' +
+    '<div style="display:flex;flex-wrap:wrap;gap:7px;">' + btns + '</div>' +
+    '<div style="font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.4;">Watch the video → pull the part number. Tap a source to search this model.</div>' +
+  '</div>';
+}
+window.teddyFindPart = function (i) {
+  var sources = window.__TEDDY_PART_SOURCES || [];
+  var s = sources[i]; if (!s) return;
+  var el = document.getElementById('teddyPartFind');
+  var q = el ? String(el.value || '').trim() : '';
+  var url = (s.url.slice(-1) === '=') ? (s.url + encodeURIComponent(q)) : s.url;
+  try { window.open(url, '_blank', 'noopener'); } catch (_) { location.href = url; }
+};
+
 async function marconePrice(){
   const pn=(document.getElementById('oemPartInput').value||'').trim();
   const out=document.getElementById('marconeOut');
