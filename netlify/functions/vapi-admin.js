@@ -274,15 +274,13 @@ exports.handler = async function (event) {
     const si = msgs.findIndex((m) => m.role === 'system');
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const MARK = '<!-- ARRIVAL-FIRST -->';
-    const BLOCK = `${MARK}\n## TIME vs DAY — you NEVER state an arrival time [highest priority, absolute]\n`
-      + `You have NO arrival clock time and you never invent one. NEVER tell a customer a tech is coming "at 3 o'clock," "this afternoon," "around noon," "this morning," "in X minutes," "shortly," "soon," or ANY time or estimate. There are ZERO exceptions to this.\n`
-      + `FINE TO SAY OR DO:\n`
-      + `- The DAY: you MAY tell a customer which DAY they're scheduled and confirm it ("you're on the schedule for Thursday"). Days are fine — times are not.\n`
-      + `- Their AVAILABILITY: if a customer wants to give their availability — days, or even times of day that work for THEM — that's fine. Collect it and note it for scheduling. Taking their preferences is fine; giving them an arrival time is not.\n`
-      + `WHEN THEY ASK WHAT TIME HE'S COMING, "is he late," or "how long":\n`
-      + `- Never give a time. Say: "I don't have an arrival time for you — let me get you to your technician, who'll know best." Look up their job for the assigned tech.\n`
-      + `- DURING BUSINESS HOURS (Mon–Fri 9 AM–6 PM Central — call get_business_hours to confirm): transfer them straight to their tech (transferCall → that tech's destination); if he doesn't answer, call relay_to_tech to text him to call the customer back.\n`
-      + `- OUTSIDE business hours (after 6 PM, before 9 AM, or any weekend): do NOT ring or transfer ANYONE. Take their number + message with capture_callback and tell them we'll follow up when we open. Never call anyone off-hours.\n${MARK}\n\n`;
+    const BLOCK = `${MARK}\n## ARRIVAL TIMES — never invent one; give them the REAL ways to know [highest priority]\n`
+      + `You do NOT have an arrival clock time from our routing, and you NEVER make one up. Never read back our internal scheduled time-of-day (it's a routing placeholder, not a promise), and never say "around 3," "this afternoon," "in a few minutes," "soon." If you don't have an exact time, SAY SO plainly — "I don't have an exact arrival time for you" — then give them the accurate ways to get one below. A wrong time breaks trust; "I don't know that exactly, but here's how you can find out" builds it.\n`
+      + `THE TIMES WE CAN STAND BEHIND (use these):\n`
+      + `1. WARRANTY-COMPANY WINDOW: If the customer's warranty company already gave them a time or window, THAT is the time we'll be there. If they mention one, affirm it warmly: "If your warranty company gave you that window, that's the window we'll be there for." Do NOT invent a window they didn't mention.\n`
+      + `2. TALK TO THEIR TECH DAY-OF: For a real-time answer they can call back the day of and ask for their technician. During business hours (Mon–Fri 9 AM–6 PM Central — confirm with get_business_hours) transfer them to their tech (transferCall → that tech's destination); he can tell them how many stops are ahead and when he'll accurately be there. If he doesn't answer, relay_to_tech texts him to call them back.\n`
+      + `3. FOLLOW-THE-TECH LINK: When their technician taps "on my way," they'll get a text link to follow him live on their phone and see an accurate, specific arrival time. Let them know that's coming so they watch for it.\n`
+      + `ALWAYS FINE: confirm the DAY they're scheduled, and collect the customer's OWN availability. Outside business hours, never ring or transfer anyone — take a message with capture_callback.\n${MARK}\n\n`;
     // strip any prior version of this block, then prepend the current one (so edits go live on re-run)
     {
       const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
@@ -522,12 +520,12 @@ exports.handler = async function (event) {
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const MARK = '<!-- PRIMARY-PLAYBOOK -->';
     const BLOCK = `${MARK}\n## 📞 WHAT ALMOST EVERY CALLER WANTS — get this exactly right (top priority)\n`
-      + `Most callers want two things: (1) confirm we have their claim/job, and (2) get on the schedule. Handle both warmly and accurately. The small facts — the right DAY, the right TECH — are how we earn trust.\n\n`
+      + `Most callers want two things: (1) confirm we have their claim/job, and (2) get on the schedule. Handle both warmly and accurately. The small facts — the right DAY, the right TECH — are how we earn trust. Getting it RIGHT matters more than having an answer: if you don't know something, say "I don't know that" and find out — never guess. That is how we build and keep the customer's trust.\n\n`
       + `### STEP 1 — Confirm we have them (do this first, every call)\n`
       + `Find them: lookup_customer_by_phone. If not found, ask for a claim / work-order number (lookup_by_claim_number) or their NAME + CITY (search_customers). found:false is NORMAL for warranty callers — NEVER say "you're not in our system." Once found, reassure them right away: "Yes — I've got your claim for the [appliance] right here."\n`
       + `If you truly can't find it after phone AND claim AND name+city, take a callback (capture_callback) — never dead-end, never guess.\n\n`
       + `### STEP 2 — Are they already scheduled?\n`
-      + `Call get_job_arrival_status. If it returns a DAY, read it back EXACTLY: the day and the tech name it gives ("You're set with John for Monday — we'll text you that morning with a live arrival window"). If it returns NO tech name, say "your technician" — never guess a name. Say the DAY only, NEVER a time. If there's no day yet, go to Step 3.\n\n`
+      + `Call get_job_arrival_status. If it returns a DAY, read it back EXACTLY — the day and the tech name it gives ("You're set with John for Monday"). If it returns NO tech name, say "your technician" — never guess a name. On TIMES, follow the arrival-times policy: don't invent one; if they ask when, point them to their warranty company's window (if they were given one — that's the time we'll be there), talking to their tech the day of, or the follow-the-tech link they get once he's on the way. If there's no day yet, go to Step 3.\n\n`
       + `### STEP 3 — Get them on the schedule → SEND THE INTAKE LINK (do not book on the phone)\n`
       + `Anyone who wants to get scheduled: direct them to the intake link. We do NOT pick a day/time on the phone — our schedulers book them from their availability once the intake is in. Tell them what it is and why it's fast:\n`
       + `"The quickest way to get you on the schedule is a text link I'll send you — and the sooner you finish it, the sooner we get you booked. It only takes a minute: take or upload a short video showing what's going on with your [appliance], snap a photo of the model-number sticker so we bring the right part, and pick the days you're available. Once that's in, we'll text you a quick waiver to sign so our tech can work in your home — and our schedulers get you on the schedule as soon as possible."\n`
@@ -587,13 +585,13 @@ exports.handler = async function (event) {
     const si = msgs.findIndex((m) => m.role === 'system');
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const MARK = '<!-- NO-PRECISE-TIME -->';
-    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
-    const BLOCK = `${MARK}\n## NEVER GIVE A PRECISE ARRIVAL TIME — WE SCHEDULE BY DAY (highest priority; overrides anything that looks like a time)\n`
-      + `We do NOT commit to a clock time. The tech runs a route of stops and each one takes an unpredictable amount of time, so a specific time is a promise we can't keep. NEVER say "we'll be there at 11," "between 2 and 4," "around 3 o'clock," or read back a scheduled_start time-of-day as an appointment time — that time is an internal routing placeholder, not a promise.\n`
-      + `INSTEAD, always say it this way: the customer is set for a DAY (name the weekday + date), and we TEXT them a live arrival window the MORNING OF, once the tech starts his route and we can see how the day's running. That live window is accurate; a time picked days ahead never is.\n`
-      + `IF THEY PUSH FOR A TIME: be warm and honest — "I hear you, and I wish I could give you an exact time. The reason we don't is so we can give you an accurate heads-up the morning of instead of a guess we'd end up missing. You'll get a text that morning with a real arrival window, and you can always text or call us that day for where the tech is." Do not cave and invent a time.\n`
-      + `The ONLY time-ish thing you may offer is a broad part-of-day if the office set one (like "sometime in the afternoon") — never a specific hour, and always paired with "we'll text the live window that morning."\n${MARK}\n\n`;
-    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const BLOCK = `${MARK}\n## ON ARRIVAL TIMES (reinforces the arrival-times policy above)\n`
+      + `Never invent a clock time, and never read our internal scheduled time-of-day back as a promise — it's a routing placeholder, not an appointment. If you don't have an exact time, say so honestly ("I don't know that exactly") and give them the REAL ways to know: their warranty company's window if they were given one (that's the time we'll be there), talking to their technician the day of (transfer during business hours), and the follow-the-tech link they get once he's on the way. You may always confirm the DAY. Never cave and guess a specific time.\n${MARK}\n\n`;
+    // Replace any prior version of this block so edits go live on re-run.
+    {
+      const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
+      msgs[si].content = BLOCK + cur;
+    }
     const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
     const verify = await vapi('GET', `/assistant/${id}`, key);
     const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
