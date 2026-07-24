@@ -90,8 +90,19 @@ async function jobTruthAnswer(name, a) {
   if (claim) q.claim = claim; else if (a.job_id) q.job_id = a.job_id; else if (phone) q.phone = phone;
   // In-process (no function->function HTTP hop / second cold start) — fast enough
   // for the phone's budget.
+  // Guard the IN-PROCESS job-truth call with the same timeout the HTTP tools use.
+  // Without this, a cold start or a Xano spike (we've seen job-truth hit 30s+ cold)
+  // hangs the whole call until Vapi drops it — the "call timed out while locating the
+  // claim" drops in the logs. On a slow lookup, return the keep-talking fallback so
+  // Ann takes a callback instead of the call dying.
   let d = {};
-  try { const res = await jobTruth.handler({ httpMethod: 'GET', queryStringParameters: q }); d = JSON.parse(res.body || '{}'); } catch (_) {}
+  try {
+    const res = await Promise.race([
+      jobTruth.handler({ httpMethod: 'GET', queryStringParameters: q }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('job-truth timeout')), TOOL_TIMEOUT_MS)),
+    ]);
+    d = JSON.parse((res && res.body) || '{}');
+  } catch (_) { return SLOW_FALLBACK; }
   if (d && d.found) {
     const f = d.facts || {};
     // Only safe fields (part_eta is a DATE, never a part #). No internal notes.

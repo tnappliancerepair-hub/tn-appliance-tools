@@ -732,3 +732,10 @@
 # from the approved line, forward-only, deduped, capped, business-hours. (Teddy 2026-07-24)
 [functions."tech-prep-link"]
   schedule = "*/10 * * * *"
+
+# warm-phone — keep the phone's lookup path HOT 24/7 so a cold start never hangs a
+# live call. Pings job-truth (status brain) + vapi-tool (tool proxy) every 5 min; a
+# cold Netlify function takes 10–36s on first hit = the "call timed out locating the
+# claim" drops. Warm = first real lookup returns ~0.5s. (Teddy 2026-07-24 phone fire.)
+[functions."warm-phone"]
+  schedule = "*/5 * * * *"
