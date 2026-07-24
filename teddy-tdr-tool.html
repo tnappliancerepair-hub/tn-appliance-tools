@@ -513,6 +513,16 @@ async function submitTDR() {
           body: JSON.stringify({ job_id: parseInt(state.jobId, 10), technician_id: 1, field: 'parts_needed', value: _pn })
         });
       }
+      // PARTS TO ORDER (Teddy 2026-07-24): a pre-diagnosis that needs the SHOP to order a
+      // part (not a DIY drop-ship, not no-parts) → flag the job so it lands in Danielle's
+      // "🔩 Parts to Order" folder to order + set the ETA, so the tech never rolls before
+      // the part arrives. Cleared automatically once she sets the ETA (Waiting Parts).
+      if (_pn && state.parts_decision !== 'ship_to_customer' && state.parts_decision !== 'no_parts_needed') {
+        await fetch('/.netlify/functions/flag-parts-to-order', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: parseInt(state.jobId, 10) })
+        });
+      }
     } catch (_) {}
   } catch(e) {
     state.finalizeStatus = "failed";

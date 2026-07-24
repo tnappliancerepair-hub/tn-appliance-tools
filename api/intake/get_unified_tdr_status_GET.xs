@@ -42,8 +42,16 @@ query get_unified_tdr_status verb=GET {
     // (Lee 2026-07-15) and made a finished report read 0% (job 20436). We now MERGE below:
     // the newest NON-EMPTY value per field, so a filled field can never disappear behind a
     // blank newer row.
+    // SHARED PRE-DIAGNOSIS (Teddy 2026-07-24: "if I receive a link and the tech
+    // receives a link we should both be able to contribute to that TDR"). Read EVERY
+    // TDR row for the job, across ALL contributors (Teddy's pre-diagnosis on his row +
+    // the assigned tech's row), not just one tech. The newest-non-empty merge below
+    // then composes ONE unified pre-diagnosis everyone sees + builds on — so whatever
+    // Teddy pre-fills is visible to the tech, and whatever the tech adds is visible to
+    // Teddy. (Was filtered to a single technician_id, which hid Teddy's pre-diagnosis
+    // from a tech on a different id.)
     db.query technician_decision_report {
-      where = $db.technician_decision_report.job_id == $input.job_id && $db.technician_decision_report.technician_id == $tech_id
+      where = $db.technician_decision_report.job_id == $input.job_id
       sort  = {technician_decision_report.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 25}}
     } as $tdr_rows

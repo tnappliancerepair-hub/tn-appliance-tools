@@ -985,6 +985,12 @@ function placeOf(j){
   if(!_schedOrDone && (j.parts_status||'').toLowerCase()==='arrived') return 'done';
   // Parts still ON ORDER (ETA set / ordered, not arrived yet) → Waiting Parts.
   if(!_schedOrDone && ((j.parts_eta_date||'').trim() || PARTS_ORDERED.test(j.parts_status||''))) return 'parts';
+  // 🔩 PRE-DIAGNOSED, NEEDS THE PART ORDERED (Teddy 2026-07-24): the Teddy Tool flags a
+  // pre-diagnosed job parts_status='to_order' when the shop must order the part. It sits
+  // in "Parts to Order" until Danielle sets the ETA — then the rule ABOVE (parts_eta_date)
+  // takes over and it moves to Waiting Parts, so this never traps a job. So the tech never
+  // rolls before the part arrives.
+  if(!_schedOrDone && (j.parts_status||'').toLowerCase()==='to_order' && !(j.parts_eta_date||'').trim()) return 'toorder';
   // A SCHEDULED job (a real day is set, not yet started) goes to the SCHEDULED
   // folder — NOT the tech's Report folder — so the office moves it forward
   // manually from there (her manual drop sticks via office_stage). Only a job the
@@ -1021,6 +1027,10 @@ function renderBoard(){
   // All the per-tech REPORT folders grouped together (active work).
   techs.forEach(t=>{ cols.push({id:'rep-'+t,label:TECH_NAME[t]+' · Report',cls:'tech',tech:t}); });
   cols.push({id:'upgrade',label:'Upgrade',cls:'upgrade'});  // dormant — kept so we don't rebuild it (Teddy 2026-07-16)
+  // 🔩 PARTS TO ORDER (Teddy 2026-07-24) — pre-diagnosed jobs waiting for Danielle to
+  // ORDER the part + set an ETA, so the tech never rolls before it arrives. Sits right
+  // before Waiting Parts: order it here → set the ETA → it moves to Waiting Parts.
+  cols.push({id:'toorder',label:'🔩 Parts to Order',cls:'parts'});
   cols.push({id:'parts',label:'Waiting Parts',cls:'parts'});
   cols.push({id:'done',label:'✅ Completion',cls:'done'});
   cols.push({id:'followup',label:'Follow Up',cls:'followup'});
