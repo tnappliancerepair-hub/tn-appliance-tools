@@ -167,7 +167,12 @@ async function load(){
   document.getElementById('refresh').textContent='refreshing…';
   let rows=[];
   try{
-    const r=await fetch(XANO+'/list_sms_conversations?days_back=14',{cache:'no-store'});
+    // Was XANO /list_sms_conversations?days_back=14 — a single 300-row window that
+    // INCLUDED internal sms_sent, so heavy days shoved the morning's customer threads
+    // off the end ("gone for the day / reset at night"). This endpoint queries each
+    // customer action in its OWN window (internal noise can't evict them) + 30-day
+    // retention. (Teddy 2026-07-24)
+    const r=await fetch('/.netlify/functions/list-customer-texts?days_back=30',{cache:'no-store'});
     const d=await r.json();
     rows=(d&&d.rows)||[];
   }catch(e){
