@@ -24,6 +24,8 @@ const { getSecret } = require('./_lib/secrets');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const TELNYX = 'https://api.telnyx.com/v2';
 const SITE = 'https://tnapplianceexchange.net';
+// Teddy gets a copy of EVERY prep link too (2026-07-24: "me and that tech should get it").
+const OWNER = '+16154855795';
 const TECHNICIANS = crud.TABLES.technicians; // 15
 const EVENT_LOG = crud.TABLES.event_log;
 
@@ -68,7 +70,8 @@ async function boardJobs() {
 
 function qualifies(j, now) {
   const tid = Number(j.technician_id || 0);
-  if (!tid || tid === 1) return false;                                  // no tech, or owner (Teddy already gets it)
+  if (!tid) return false;                                               // no tech assigned yet
+  // tid === 1 (Teddy's own jobs) now qualify — he's the tech AND the owner, so he gets it.
   const st = String(j.scheduling_status || j.current_status || '').toLowerCase();
   if (TERMINAL.has(st)) return false;
   if (st === 'in_progress') return false;                               // already on it — a "call ahead" prep link is stale
@@ -155,10 +158,17 @@ exports.handler = async function (event) {
 
   // ── send (capped) ─────────────────────────────────────────────────────
   const results = [];
+  const ownerLast10 = OWNER.replace(/\D/g, '').slice(-10);
   for (const w of work.slice(0, PER_RUN_CAP)) {
     const res = await sendTelnyx(FROM, w.phone, w.text);
     if (res.sent) { try { await crud.logEvent('tech_prep_link_sent', { job_id: Number(w.job.id), technician_id: w.tid, to: w.phone, provider_id: res.id, at_ms: Date.now() }); } catch (_) {} }
-    results.push({ job_id: w.job.id, tech: w.name, to: w.phone, sent: res.sent, err: res.err || undefined });
+    // Teddy's copy of the same link — for EVERY job, unless he IS the assigned tech.
+    let ownerSent = false;
+    if (w.phone.replace(/\D/g, '').slice(-10) !== ownerLast10) {
+      const ores = await sendTelnyx(FROM, OWNER, '👀 ' + w.name + "'s job — " + w.text);
+      ownerSent = ores.sent;
+    }
+    results.push({ job_id: w.job.id, tech: w.name, to: w.phone, sent: res.sent, owner_copy: ownerSent, err: res.err || undefined });
   }
-  return json(200, { ok: true, mode: 'live', from: FROM, pending: work.length, sent_this_run: results.filter((r) => r.sent).length, capped_at: PER_RUN_CAP, results });
+  return json(200, { ok: true, mode: 'live', from: FROM, pending: work.length, sent_this_run: results.filter((r) => r.sent).length, owner_copies: results.filter((r) => r.owner_copy).length, capped_at: PER_RUN_CAP, results });
 };
