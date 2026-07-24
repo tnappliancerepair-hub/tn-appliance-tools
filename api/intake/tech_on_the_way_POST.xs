@@ -125,16 +125,19 @@ query tech_on_the_way verb=POST {
       value = "hi " ~ $cust_display_name ~ " - " ~ $tech_first_lower ~ " is on the way to your " ~ $appliance_disp ~ " appointment. see you soon!"
     }
   
+    // NO CLOCK TIMES TO CUSTOMERS, EVER (Teddy standing rule) — always the plain
+    // "on the way, see you soon" version; never quote an ETA/arrival time. The
+    // $sms_body_with_eta var is kept above but no longer selected.
     var $sms_body {
-      value = ($eta_str_clean != "") ? $sms_body_with_eta : $sms_body_plain
+      value = $sms_body_plain
     }
-  
+
     conditional {
       if ($cust_phone_e164 != "") {
         api.request {
           url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
           method = "POST"
-          params = {to: $cust_phone_e164, message: $sms_body}
+          params = {to: $cust_phone_e164, message: $sms_body, context_tag: "en_route"}
           headers = ["Content-Type: application/json"]
           timeout = 30
         } as $sms_resp

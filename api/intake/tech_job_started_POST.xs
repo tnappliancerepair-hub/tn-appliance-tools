@@ -242,7 +242,7 @@ query tech_job_started verb=POST {
             api.request {
               url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
               method = "POST"
-              params = {to: $cust_phone_e164, message: $arrival_sms_body}
+              params = {to: $cust_phone_e164, message: $arrival_sms_body, context_tag: "arrival"}
               headers = ["Content-Type: application/json"]
               timeout = 30
             } as $cust_arrival_sms_resp

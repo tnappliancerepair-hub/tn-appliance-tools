@@ -311,8 +311,17 @@ query send_sms verb=POST {
       value = ($body_l|contains:"warranty-intake") || ($body_l|contains:"customer-portal") || ($body_l|contains:"appliance-ai") || ($body_l|contains:"finish-upload")
     }
 
+    // EN-ROUTE + ARRIVED (Teddy 2026-07-24: "those two are fine to text the customer").
+    // Tech-tap real-time status the customer is expecting — allow by tag (en_route /
+    // arrival) or by body phrase as a backstop. No clock times (the en-route sender now
+    // sends the plain "on the way, see you soon" version). Cannot leak the killed
+    // "confirmed for 2:00 PM" / "coming Monday" texts.
+    var $body_is_status {
+      value = ($body_l|contains:"on the way") || ($body_l|contains:"has arrived") || ($body_l|contains:"is here")
+    }
+
     var $tag_intake_ok {
-      value = $body_is_intake || ($tag_l|contains:"intake") || ($tag_l|contains:"availab") || ($tag_l|contains:"quick") || ($tag_l|contains:"finish") || ($tag_l|contains:"media") || ($tag_l|contains:"model") || ($tag_l|contains:"video") || ($tag_l|contains:"resume") || ($tag_l|contains:"reply") || ($tag_l|contains:"translated") || ($tag_l|contains:"inbound") || ($tag_l|contains:"new_lead") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($tag_l|contains:"tech_field")
+      value = $body_is_intake || $body_is_status || ($tag_l|contains:"en_route") || ($tag_l|contains:"arriv") || ($tag_l|contains:"intake") || ($tag_l|contains:"availab") || ($tag_l|contains:"quick") || ($tag_l|contains:"finish") || ($tag_l|contains:"media") || ($tag_l|contains:"model") || ($tag_l|contains:"video") || ($tag_l|contains:"resume") || ($tag_l|contains:"reply") || ($tag_l|contains:"translated") || ($tag_l|contains:"inbound") || ($tag_l|contains:"new_lead") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($tag_l|contains:"tech_field")
     }
 
     conditional {
