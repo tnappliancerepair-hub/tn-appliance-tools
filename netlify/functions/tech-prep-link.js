@@ -44,12 +44,19 @@ async function techPhones() {
   return map;
 }
 
-// Jobs already texted -> Set of "jobId:techId"
+// Jobs already texted -> Set of "jobId:techId". Only a REAL send counts (a Telnyx
+// provider_id, or the intake area-tech send). A `baseline:true` marker means "marked
+// done, sent NOTHING" — we must NOT treat that as sent, or the tech working that job
+// never gets the link. (Same poison-immunity as the customer intake-link-guarantee.)
 async function alreadySent() {
   const seen = new Set();
   try {
     const rows = (await crud.searchPage(EVENT_LOG, { action: 'tech_prep_link_sent' }, { id: 'desc' }, 500)) || [];
-    for (const r of rows) { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {}; if (m.job_id && m.technician_id) seen.add(Number(m.job_id) + ':' + Number(m.technician_id)); }
+    for (const r of rows) {
+      let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {};
+      const realSend = !!m.provider_id || m.source === 'intake_area_tech';
+      if (m.job_id && m.technician_id && realSend) seen.add(Number(m.job_id) + ':' + Number(m.technician_id));
+    }
   } catch (_) {}
   return seen;
 }
@@ -62,11 +69,16 @@ async function boardJobs() {
 function qualifies(j, now) {
   const tid = Number(j.technician_id || 0);
   if (!tid || tid === 1) return false;                                  // no tech, or owner (Teddy already gets it)
-  if (TERMINAL.has(String(j.scheduling_status || '').toLowerCase())) return false;
+  const st = String(j.scheduling_status || j.current_status || '').toLowerCase();
+  if (TERMINAL.has(st)) return false;
+  if (st === 'in_progress') return false;                               // already on it — a "call ahead" prep link is stale
   const created = Number(j.created_at || 0);
   const sched = Number(j.scheduled_start || 0);
-  const recent = (created && now - created <= RECENT_MS) || (sched && sched >= now - 43200000); // 5d old OR upcoming/today
-  return !!recent;
+  // Where "call the customer for a video before you roll" still helps: an UPCOMING
+  // scheduled stop (today onward), or a freshly-assigned job not yet scheduled.
+  const upcoming = sched && sched >= (now - 43200000);
+  const freshUnscheduled = !sched && created && (now - created <= RECENT_MS);
+  return !!(upcoming || freshUnscheduled);
 }
 
 function composeText(j) {
@@ -128,7 +140,9 @@ exports.handler = async function (event) {
   }
 
   // ── decide whether to actually send ───────────────────────────────────
-  const liveEnv = String((await getSecret('TECH_PREP_LINK_LIVE')) || '').toLowerCase() === 'true';
+  // LIVE BY DEFAULT (Teddy 2026-07-24: techs must get the Teddy Tool link for the jobs
+  // they're working). Kill switch preserved: set TECH_PREP_LINK_LIVE=false to disable.
+  const liveEnv = String((await getSecret('TECH_PREP_LINK_LIVE')) || 'true').toLowerCase() !== 'false';
   const live = q.live === '1' ? (q.secret === admin) : (scheduled && liveEnv);
   const hourOk = ctHour() >= 7 && ctHour() < 21;
 
