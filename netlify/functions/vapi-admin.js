@@ -505,6 +505,42 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // PRIMARY-PLAYBOOK — the two calls that dominate our volume: (A) verify an
+  // appointment (read back the ACCURATE day + tech, never a time, never a guess) and
+  // (B) get scheduled (don't book on the phone — TEXT the availability/intake link so
+  // the schedulers book from real availability). Getting these two right, on the small
+  // facts (right day, right tech), is the whole trust game. (Teddy 2026-07-24.)
+  // Prepended so it sits at the very top. Idempotent.
+  if (action === 'primary_playbook') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- PRIMARY-PLAYBOOK -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## 📞 THE TWO CALLS YOU GET MOST — get these exactly right (top priority)\n`
+      + `Most callers either (A) want to confirm/verify their appointment, or (B) want to get scheduled. Nail these two. The small facts — the right DAY and the right TECH — are how we earn trust.\n\n`
+      + `### (A) "Am I scheduled?" / "When are you coming?" / "Who's my tech?"\n`
+      + `1. Find them: lookup_customer_by_phone. If not found, ask for a claim / work-order number (lookup_by_claim_number) or their NAME + CITY (search_customers). found:false is NORMAL for warranty callers — NEVER say "you're not in our system."\n`
+      + `2. Call get_job_arrival_status for their job and read back EXACTLY what it returns — the DAY and the tech name. If it returns a tech name, say it ("You're set with John for Monday"). If it returns NO name, say "your technician" — never guess a name. Say the DAY only, never a time.\n`
+      + `3. Confirm warmly, and offer to text them the link so they can see it themselves: voice_followup_send_links(job_id). If you truly can't find the job after phone AND claim AND name+city, take a callback (capture_callback) — never dead-end, never guess.\n\n`
+      + `### (B) "I want to get scheduled" / "Can someone come out?" / "Book me in"\n`
+      + `Do NOT pick a day or time on the phone — our schedulers book from the customer's own availability. Instead, TEXT them the link and let them choose their days:\n`
+      + `• Existing job on file → voice_followup_send_links(job_id).\n`
+      + `• Brand-new warranty caller → start_new_intake(...), then voice_followup_send_links(job_id).\n`
+      + `• New OUT-OF-POCKET / price-shopper → send_quickcheck_link(phone, first_name) — the $50 Quick Check.\n`
+      + `Say it warmly: "I'm texting you a link right now — just pick the days that work for you there, and our schedulers will get you on the schedule as soon as possible." Confirm the cell can receive texts.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // WARRANTY-REP handling — reps (esp. AHS) call to check status; answer the
   // whole picture in one breath, and if they ask to close out for a recall,
   // redirect the customer to text us instead. (Teddy 2026-07-03.) Idempotent.
