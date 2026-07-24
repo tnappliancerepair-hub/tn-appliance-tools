@@ -874,6 +874,67 @@ function renderCustomerStatus() {
   '</div>';
 }
 
+// ✅ CUSTOMER READINESS — the tech drives intake to done on the prep call (Teddy 2026-07-25).
+// Availability (Wide-open/AM/PM → recorded for Danielle) + waiver (send ahead + protection
+// upsell). Simple as it gets; status loads async via loadReadiness().
+function renderReadiness() {
+  setTimeout(loadReadiness, 40);
+  var chip = function (v) { return '<button type="button" onclick="availChip(\'' + v + '\')" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border2);border-radius:8px;padding:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans);">' + v + '</button>'; };
+  return '<div class="section-card" id="readinessCard" style="border-color:rgba(74,217,145,0.45);">' +
+    '<div class="section-title">✅ Get them ready — do it on the call</div>' +
+    '<div style="margin-bottom:15px;">' +
+      '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:7px;">🗓️ Availability <span id="availStatus" style="font-weight:500;font-size:12px;color:var(--muted);"></span></div>' +
+      '<div style="display:flex;gap:6px;margin-bottom:7px;">' + chip('Wide open') + chip('AM') + chip('PM') + '</div>' +
+      '<input type="text" id="availInput" value="" placeholder="what they told you — days + AM/PM" style="width:100%;padding:10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;box-sizing:border-box;margin-bottom:7px;" />' +
+      '<button type="button" onclick="saveAvailability()" style="width:100%;padding:11px;border:none;border-radius:8px;background:#1f7a3f;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans);">Save → tell Danielle</button>' +
+      '<div id="availSaveOut" style="font-size:12px;margin-top:5px;"></div>' +
+    '</div>' +
+    '<div style="border-top:1px solid var(--border2);padding-top:13px;">' +
+      '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:7px;">✍️ Waiver + protection <span id="waiverStatus" style="font-weight:500;font-size:12px;color:var(--muted);">checking…</span></div>' +
+      '<button type="button" onclick="sendWaiverAhead()" style="width:100%;padding:11px;border:1px solid var(--accent);border-radius:8px;background:var(--bg);color:var(--accent);font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans);">Send waiver ahead + protection options</button>' +
+      '<div id="waiverOut" style="font-size:12px;margin-top:5px;"></div>' +
+    '</div>' +
+  '</div>';
+}
+window.availChip = function (v) { var el = document.getElementById('availInput'); if (!el) return; var cur = el.value.trim(); el.value = cur ? (cur + ', ' + v) : v; };
+window.saveAvailability = async function () {
+  var el = document.getElementById('availInput'), out = document.getElementById('availSaveOut');
+  var val = el ? el.value.trim() : '';
+  if (!val) { if (out) out.innerHTML = '<span style="color:#e0a800;">Add what they told you first.</span>'; return; }
+  if (out) out.innerHTML = 'Saving…';
+  try {
+    await fetch('/.netlify/functions/set-job-availability', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: state.jobId, available: val, unavailable: '', actor: 'tech_teddy_tool' }) });
+    try { await fetch('/.netlify/functions/flag-job-needs-availability', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: state.jobId, clear: true }) }); } catch (_) {}
+    if (out) out.innerHTML = '<span style="color:#74e3c4;">✓ Saved — Danielle can book it now.</span>';
+    var st = document.getElementById('availStatus'); if (st) { st.textContent = '· ' + val; st.style.color = '#74e3c4'; }
+  } catch (e) { if (out) out.innerHTML = '<span style="color:#d33;">Failed — try again.</span>'; }
+};
+window.sendWaiverAhead = async function () {
+  var out = document.getElementById('waiverOut'); if (out) out.innerHTML = 'Sending…';
+  try {
+    var r = await fetch('/.netlify/functions/send-waiver', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: state.jobId }) });
+    var d = await r.json();
+    if (d && d.ok) { if (out) out.innerHTML = '<span style="color:#74e3c4;">✓ Sent — they can sign + add protection ahead.</span>'; var st = document.getElementById('waiverStatus'); if (st) { st.textContent = '· sent, waiting on signature'; st.style.color = '#e0a800'; } }
+    else if (d && d.phone_present === false) { if (out) out.innerHTML = '<span style="color:#e0a800;">No phone on file — call them.</span>'; }
+    else { if (out) out.innerHTML = '<span style="color:#d33;">Could not send — try again.</span>'; }
+  } catch (e) { if (out) out.innerHTML = '<span style="color:#d33;">Could not send — try again.</span>'; }
+};
+async function loadReadiness() {
+  try {
+    var tr = await fetch('/.netlify/functions/job-truth?job_id=' + encodeURIComponent(state.jobId) + '&lens=office', { cache: 'no-store' }).then(function (r) { return r.json(); });
+    var av = (tr && tr.facts && tr.facts.availability) || (tr && tr.availability) || '';
+    var st = document.getElementById('availStatus');
+    if (av) { if (st) { st.textContent = '· ' + av; } var inp = document.getElementById('availInput'); if (inp && !inp.value.trim()) inp.value = av; }
+    else if (st) { st.textContent = '· not given yet'; st.style.color = '#e0a800'; }
+  } catch (_) {}
+  try {
+    var wr = await fetch('/.netlify/functions/xano-proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: 'get_waiver_status', payload: { job_id: Number(state.jobId) }, api_group: 'intake', method: 'GET' }) }).then(function (r) { return r.json(); });
+    var signed = wr && (wr.signed === true || wr.status === 'signed' || (wr.data && wr.data.signed));
+    var w = document.getElementById('waiverStatus');
+    if (w) { if (signed) { w.textContent = '· ✓ signed'; w.style.color = '#74e3c4'; } else { w.textContent = '· not signed'; w.style.color = '#e0a800'; } }
+  } catch (_) { var w2 = document.getElementById('waiverStatus'); if (w2) w2.textContent = ''; }
+}
+
 function renderCockpitHeader() {
   const c = state.cockpit;
   const job = c.job, app = c.appliance, cust = c.customer;
@@ -1071,6 +1132,7 @@ function renderReview() {
       return t ? ('<a class="back-link" href="tech-job.html?job_id='+encodeURIComponent(j)+'&tech_id='+encodeURIComponent(t)+'">← Back to the job</a>')
                : '<a class="back-link" href="dashboard.html">← Back to dashboard</a>'; })() +
     renderCustomerStatus() +
+    renderReadiness() +
     renderCockpitHeader() +
     renderAntsGuessPanel() +
     renderPreviousAttempts() +
