@@ -474,6 +474,37 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // NO-GUESS — the top-priority anti-fabrication rule. The DB is accurate; the agent
+  // must REPORT what the tools return and never fill a gap with a guessed tech, day,
+  // or status, and never declare a caller "not found" or "canceled" without trying
+  // every lookup. Prepended so it sits FIRST (highest salience in a large prompt).
+  // (Teddy 2026-07-24: "I just want the phone agent to follow [the database] and stop
+  // guessing.") Idempotent.
+  if (action === 'no_guess') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- NO-GUESS -->';
+    if (String(msgs[si].content || '').includes(MARK)) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, assistant: got.json.name }) };
+    const BLOCK = `${MARK}\n## 🔒 READ THE TOOLS — NEVER GUESS (highest priority, overrides everything below)\n`
+      + `Our database is accurate. Your ONLY job is to REPORT what the tools return this call — never fill a gap with a guess, a memory from another call, or an assumption from the area.\n`
+      + `1. Tech name, day, and status come from get_job_arrival_status (homeowner) or get_job_status_for_warranty (warranty rep). Say EXACTLY what it returns. If it gives no tech name, say "your technician" — NEVER a name. If it gives no day, say "we're getting you scheduled and we'll text to confirm" — NEVER a guessed day. Never state an arrival time.\n`
+      + `2. NEVER tell a caller they are "not in our system" or that we "can't find" them until you have tried: their phone, their NAME + CITY together (search is fuzzy), AND a claim/dispatch number. If still nothing after a couple tries, take their name + number with capture_callback so the office pulls it by hand — do NOT declare them not found.\n`
+      + `3. NEVER say a job is canceled to a caller. If a lookup shows canceled, treat it as needs-confirming: say the office will confirm and we'll text them, and capture a callback.\n`
+      + `4. If a lookup is slow, times out, or returns a "having trouble pulling that up" message, do NOT invent an answer — apologize once and take a callback.\n`
+      + `A truthful "let me confirm that and we'll text you right back" ALWAYS beats a confident wrong answer. Wrong techs, wrong days, and false "canceled / not found" are the exact mistakes that destroy trust — never make them.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + String(msgs[si].content || '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // WARRANTY-REP handling — reps (esp. AHS) call to check status; answer the
   // whole picture in one breath, and if they ask to close out for a recall,
   // redirect the customer to text us instead. (Teddy 2026-07-03.) Idempotent.
