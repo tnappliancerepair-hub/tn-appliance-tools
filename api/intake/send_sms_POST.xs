@@ -294,8 +294,25 @@ query send_sms verb=POST {
       value = (($input.context_tag ?? "")|trim|to_lower)
     }
 
+    // BODY-BASED INTAKE ALLOW (Teddy 2026-07-24: "confirm this text is going to the
+    // customer — without the intake text none of this works"). The Mac loop's instant
+    // new-job greeting sends context nested as {action:...} with NO top-level
+    // context_tag, so the tag reads empty and the gate was silently blocking every
+    // instant intake link (27+/3d in sms_blocked_non_intake). The bulletproof signal:
+    // any customer text that CARRIES an intake link IS the intake text. This CANNOT
+    // leak the killed clock-time "confirmed for 2:00 PM" / "coming Monday" texts —
+    // those have no link. Covers the warranty-intake, customer-portal, appliance-ai,
+    // and finish-upload flows regardless of how the sender tagged (or didn't tag) it.
+    var $body_l {
+      value = (($sms_body ?? "")|to_lower)
+    }
+
+    var $body_is_intake {
+      value = ($body_l|contains:"warranty-intake") || ($body_l|contains:"customer-portal") || ($body_l|contains:"appliance-ai") || ($body_l|contains:"finish-upload")
+    }
+
     var $tag_intake_ok {
-      value = ($tag_l|contains:"intake") || ($tag_l|contains:"availab") || ($tag_l|contains:"quick") || ($tag_l|contains:"finish") || ($tag_l|contains:"media") || ($tag_l|contains:"model") || ($tag_l|contains:"video") || ($tag_l|contains:"resume") || ($tag_l|contains:"reply") || ($tag_l|contains:"translated") || ($tag_l|contains:"inbound") || ($tag_l|contains:"new_lead") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($tag_l|contains:"tech_field")
+      value = $body_is_intake || ($tag_l|contains:"intake") || ($tag_l|contains:"availab") || ($tag_l|contains:"quick") || ($tag_l|contains:"finish") || ($tag_l|contains:"media") || ($tag_l|contains:"model") || ($tag_l|contains:"video") || ($tag_l|contains:"resume") || ($tag_l|contains:"reply") || ($tag_l|contains:"translated") || ($tag_l|contains:"inbound") || ($tag_l|contains:"new_lead") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($tag_l|contains:"tech_field")
     }
 
     conditional {
