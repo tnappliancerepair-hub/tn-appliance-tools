@@ -17,6 +17,7 @@
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const TECHS = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 5: 'Billy', 6: 'John' };
+const { techCoversState } = require('./_lib/zone-integrity');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
 
@@ -122,6 +123,24 @@ async function buildFacts(r, officeNote) {
   const jid = Number(job.id) || 0;
   officeNote = officeNote || '';   // fetched in PARALLEL by the handler
 
+  // Source the tech + state ROBUSTLY. get_job_for_dashboard hands the tech as
+  // { id, name } (NOT technician_id on the job, NOT first_name), and the job row
+  // omits service_state — but the customer carries state. Reading the old field
+  // names silently found nothing, so job-truth could never name the tech ("she
+  // doesn't know who my tech is"). Pull techId from tech.id, the first name from a
+  // TECHS map (or the full name), and the state from the customer when the job lacks it.
+  const techId = Number(job.technician_id) || Number(tech && tech.id) || 0;
+  const firstWord = (s) => String(s || '').trim().split(/\s+/)[0] || '';
+  const realTechName = TECHS[techId] || firstWord(tech && tech.name) || (tech && tech.first_name) || '';
+  const jobState = String(job.service_state || (cust && cust.state) || '').trim();
+
+  // ZONE-SAFE tech name for OUTWARD lenses. Keep the real assigned name in
+  // `tech_name` (office/tech lenses need it — that's how the office spots + fixes a
+  // bad assignment), but never let Ann SAY a tech whose state doesn't match the job's
+  // state. Mid-churn (a job briefly on the wrong tech) she'll say "your technician"
+  // instead of "Jimmy" on a Louisiana job — honest, never confidently wrong.
+  const techZoneOk = techCoversState(techId, jobState);
+
   return {
     job_id: jid, claim_number: job.claim_number || r.claim || '',
     customer_name: cust ? `${(cust.first_name || '').trim()} ${(cust.last_name || '').trim()}`.trim() : '',
@@ -129,8 +148,11 @@ async function buildFacts(r, officeNote) {
     customer_phone: (cust && cust.phone) || job.customer_phone || '',
     appliance, model: job.model_number || job.appliance_model || (dash && dash.appliance && dash.appliance.model_number) || '',
     status, is_warranty: isWarranty, warranty_company: (job.warranty_company || '').trim(),
-    tech_name: (tech && tech.first_name) || TECHS[job.technician_id] || '',
-    technician_id: job.technician_id || 0,
+    tech_name: realTechName,
+    tech_name_safe: techZoneOk ? realTechName : '',   // outward lenses use this
+    tech_zone_ok: techZoneOk,
+    service_state: jobState,
+    technician_id: techId,
     scheduled_day: dayCT(job.scheduled_start),
     scheduled_start_ms: (function () { const v = job.scheduled_start; if (!v) return 0; const ms = typeof v === 'string' ? Date.parse(v) : Number(v); return isNaN(ms) ? 0 : ms; })(),
     part_eta: dayCT(job.part_eta || job.parts_eta_date),
@@ -154,7 +176,7 @@ async function buildFacts(r, officeNote) {
 
 // ── the four lenses (thin — each just phrases the shared facts) ──
 function lensCustomer(f) {
-  const ap = 'your ' + f.appliance, t = f.tech_name || 'your tech';
+  const ap = 'your ' + f.appliance, t = f.tech_name_safe || 'your tech';
   if (/complete|done/.test(f.status)) {
     if (f.is_warranty) return `Our records show this repair was completed. If ${ap} is having trouble again, it has to go back through your warranty company as a recall — please contact ${f.warranty_company || 'your warranty company'} and open a recall on this claim, and they'll dispatch us back out. We can't schedule a return until that recall is opened.`;
     return `Your repair is complete — thank you!`;
@@ -171,7 +193,7 @@ function lensCustomer(f) {
 // the return/scheduled day. (The recall close-out redirect is f.recall_redirect,
 // used as a conversational branch when they ask to close out for a recall.)
 function lensWarranty(f) {
-  const who = f.customer_first || 'the customer', t = f.tech_name || 'our tech';
+  const who = f.customer_first || 'the customer', t = f.tech_name_safe || 'our tech';
   const done = /complete|done/.test(f.status);
   const awaiting = /await|part|order/.test(f.status);
   const inprog = /in_progress|started/.test(f.status);
@@ -214,6 +236,7 @@ function lensOffice(f) {
   if (/await|part|order/.test(f.status)) bits.push(f.part_eta ? `Part ETA ${f.part_eta}.` : `Part on order — ETA not set.`);
   if (f.tdr_complete && !f.has_part_number) bits.push(`⚠️ Report in but NO part # — get it from ${f.tech_name || 'the tech'} before closing.`);
   if (!f.technician_id) bits.push(`⚠️ No tech assigned.`);
+  if (f.technician_id && !f.tech_zone_ok) bits.push(`⚠️ ${f.tech_name || 'That tech'} is OUT OF ZONE for ${f.service_state || 'this job'} — reassign to a ${f.service_state || 'local'} tech.`);
   if (f.office_note) bits.push(`Note: ${f.office_note}.`);
   return bits.join(' ');
 }

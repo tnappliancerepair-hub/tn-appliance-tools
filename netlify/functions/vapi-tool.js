@@ -97,7 +97,12 @@ async function jobTruthAnswer(name, a) {
     // Only safe fields (part_eta is a DATE, never a part #). No internal notes.
     // recall_redirect only for the warranty lens — the line to say if a rep asks
     // to close out the claim for a recall (don't; customer texts us instead).
-    const out = { found: true, answer: (d.lenses && d.lenses[lens]) || '', status: f.status, scheduled_day: f.scheduled_day, part_eta: f.part_eta, tech: f.tech_name };
+    // Zone-safe tech name: never hand the phone an out-of-zone tech to say (a TN tech
+    // on an LA job). tech_name_safe is '' when the assignment doesn't match the state,
+    // so the agent falls back to "your technician". Falls back to tech_name on an older
+    // job-truth deploy that predates the field.
+    const safeTech = ('tech_name_safe' in f) ? f.tech_name_safe : f.tech_name;
+    const out = { found: true, answer: (d.lenses && d.lenses[lens]) || '', status: f.status, scheduled_day: f.scheduled_day, part_eta: f.part_eta, tech: safeTech };
     if (lens === 'warranty' && f.recall_redirect) out.recall_redirect = f.recall_redirect;
     return out;
   }
