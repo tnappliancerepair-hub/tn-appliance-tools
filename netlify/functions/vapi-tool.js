@@ -168,10 +168,35 @@ function stripInternal(obj) {
   return out;
 }
 
+// DAY-ONLY the schedule the phone agent sees. The lookup returns a formatted
+// "Mon Jul 27, 2:04 PM" — but that clock time is a bogus derived timestamp (not a
+// real slot), and Ant must NEVER quote an arrival time (day-of routing rule). Left
+// in, the agent parrots "2:04 PM" and the customer hears a wrong/made-up time. We
+// strip the ", H:MM AM/PM" tail and expose a clean scheduled_day, so the phone can
+// only ever say the DAY. (Teddy 2026-07-24: "the days are almost always wrong.")
+function dayOnly(ct) {
+  const s = String(ct || '').trim();
+  if (!s) return '';
+  return s.replace(/,?\s*\d{1,2}:\d{2}\s*[AP]M.*$/i, '').trim();
+}
+function scheduleSafeJob(j) {
+  if (!j || typeof j !== 'object') return j;
+  const derived = dayOnly(j.scheduled_start_ct);
+  // Prefer a day derived from the timestamp field; else keep an existing day-only
+  // value; else day-only whatever scheduled_day already holds. Never quote a time.
+  const day = derived || dayOnly(j.scheduled_day) || '';
+  const out = { ...j, scheduled_day: day };
+  if ('scheduled_start_ct' in out) out.scheduled_start_ct = day;
+  // Never hand the phone a raw millisecond timestamp it might read back as a time.
+  delete out.scheduled_start_ms;
+  return out;
+}
+
 function shapeResult(name, data) {
   if (!data || typeof data !== 'object') return data;
   if (name === 'lookup_by_claim_number') {
-    return { found: (data.match_count || 0) > 0, match_count: data.match_count || 0, primary: data.primary || null };
+    const primary = data.primary ? scheduleSafeJob(stripInternal(data.primary)) : null;
+    return { found: (data.match_count || 0) > 0, match_count: data.match_count || 0, primary };
   }
   if (name === 'lookup_customer_by_phone') {
     const c = data.customer || {};
@@ -180,8 +205,8 @@ function shapeResult(name, data) {
       caller_id_masked: !!data.caller_id_masked,
       hint: data.hint || '',
       customer_first_name: c.first_name || '',
-      open_jobs: Array.isArray(data.open_jobs) ? data.open_jobs.map(stripInternal) : [],
-      recent_jobs: Array.isArray(data.recent_jobs) ? data.recent_jobs.map(stripInternal) : [],
+      open_jobs: Array.isArray(data.open_jobs) ? data.open_jobs.map(stripInternal).map(scheduleSafeJob) : [],
+      recent_jobs: Array.isArray(data.recent_jobs) ? data.recent_jobs.map(stripInternal).map(scheduleSafeJob) : [],
       last_call_summary: data.last_call_summary || '',
     };
   }
