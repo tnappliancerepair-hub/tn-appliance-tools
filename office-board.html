@@ -221,6 +221,13 @@
   .col.followup{border-top-color:var(--pink);} .col.followup .col-h{color:#c81678;} .col.followup .col-h .ct{background:var(--pink); color:#fff;}
   .col.upgrade{border-top-color:var(--blue);}     .col.upgrade .col-h{color:#1565c0;}      .col.upgrade .col-h .ct{background:var(--blue); color:#fff;}
   .col.autho{border-top-color:var(--orange);}       .col.autho .col-h{color:#d95a00;}        .col.autho .col-h .ct{background:var(--orange); color:#fff;}
+  /* 🔩 PARTS ASAP — front & center, bright, PULSING so Danielle can't miss it. The
+     revenue-driving action queue: pre-diagnosed jobs waiting to be ordered. (Teddy 7/24) */
+  .col.asap{border-top-color:#ff2d55; border-top-width:5px; background:linear-gradient(180deg,rgba(255,45,85,.14),rgba(255,149,0,.06)); box-shadow:0 0 0 2px rgba(255,45,85,.4),0 6px 24px rgba(255,45,85,.28); animation:asapPulse 1.9s ease-in-out infinite;}
+  .col.asap .col-h{color:#ff2d55; font-weight:900; text-shadow:0 0 12px rgba(255,45,85,.35);}
+  .col.asap .col-h .ct{background:#ff2d55; color:#fff; box-shadow:0 0 10px rgba(255,45,85,.6);}
+  @keyframes asapPulse{0%,100%{box-shadow:0 0 0 2px rgba(255,45,85,.4),0 6px 24px rgba(255,45,85,.22);}50%{box-shadow:0 0 0 4px rgba(255,45,85,.7),0 8px 32px rgba(255,45,85,.45);}}
+  @media (prefers-reduced-motion:reduce){ .col.asap{animation:none;} }
   .col.dropok{outline:3px dashed var(--gold); outline-offset:-3px; background:rgba(246,180,0,.16);}
 
   /* Cards = coin-bright chips; gold glow on hover */
@@ -1023,14 +1030,10 @@ function renderBoard(){
   // Column flow mirrors the MeisterTask TN Jobs board (Teddy 2026-07-04):
   // Scheduled → all Reports → Upgrade → Waiting Autho → Waiting Parts →
   // Completion → Follow Up → Needs Invoice → all Invoices → Shop Money.
-  const cols=[{id:'schedule',label:'Needs Scheduled',cls:''},{id:'scheduled',label:'Scheduled',cls:''}];
+  const cols=[{id:'schedule',label:'Needs Scheduled',cls:''},{id:'toorder',label:'🔩 Pre-Diagnosed · Needs Parts ASAP',cls:'asap'},{id:'scheduled',label:'Scheduled',cls:''}];
   // All the per-tech REPORT folders grouped together (active work).
   techs.forEach(t=>{ cols.push({id:'rep-'+t,label:TECH_NAME[t]+' · Report',cls:'tech',tech:t}); });
   cols.push({id:'upgrade',label:'Upgrade',cls:'upgrade'});  // dormant — kept so we don't rebuild it (Teddy 2026-07-16)
-  // 🔩 PARTS TO ORDER (Teddy 2026-07-24) — pre-diagnosed jobs waiting for Danielle to
-  // ORDER the part + set an ETA, so the tech never rolls before it arrives. Sits right
-  // before Waiting Parts: order it here → set the ETA → it moves to Waiting Parts.
-  cols.push({id:'toorder',label:'🔩 Parts to Order',cls:'parts'});
   cols.push({id:'parts',label:'Waiting Parts',cls:'parts'});
   cols.push({id:'done',label:'✅ Completion',cls:'done'});
   cols.push({id:'followup',label:'Follow Up',cls:'followup'});
@@ -1438,6 +1441,7 @@ async function onDrop(colId,techId,colEl){
       toast('Scheduling '+TECH_NAME[techId]+'…');
       try{
         const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:parseInt(techId,10),startMs:_startMs,actor:'Danielle'});   // one shared save (ant-schedule.js)
+        if(r.ok){ try{ if(window.AntMagic)AntMagic.award('file'); if(window.AntSounds)(AntSounds.move||function(){})(); }catch(_){} }   // 🏆 reward the pre-schedule
         toast(r.ok?('Scheduled '+TECH_NAME[techId]+' ✓ — now on the schedule'):('⚠ '+(r.error||'failed')));
       }catch(_){toast('⚠ connection error');}
     }
@@ -2693,7 +2697,34 @@ async function orderParts(id){
   let texted=false;
   try{ const nd=await (await fetch('/.netlify/functions/notify-part-ordered',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),eta_date:eta})})).json(); texted=!!(nd&&nd.ok); }catch(_){}
   toast(ok+' part'+(ok!==1?'s':'')+' ordered ✓'+(fail?(' ('+fail+' failed)'):'')+(texted?' — customer texted the ETA':' — moved to Waiting Parts'));
+  // Clear the ASAP flag — the ETA now owns the flow (moves it to Waiting Parts).
+  try{ fetch('/.netlify/functions/flag-parts-to-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),clear:1})}); }catch(_){}
+  // 🏆 REWARD (Teddy 2026-07-24): clearing a Needs-Parts-ASAP job is revenue-driving work
+  // — celebrate it big, then push her to pre-schedule (the next win). Points + fanfare +
+  // a bright toast that nudges the pre-schedule.
+  try{ if(window.AntMagic){ AntMagic.award('paid'); AntMagic.train&&AntMagic.train(); } }catch(_){}
+  try{ if(window.AntSounds)(AntSounds.win||AntSounds.move||function(){})(); }catch(_){}
+  rewardBanner('🔩💰 Parts ordered + ETA set! Nice work.','Now pre-schedule the return so it books itself the moment the part lands 👉', id);
   closeDrawer();loadBoard();
+}
+// Big bright reward banner + one-tap "Pre-schedule" that re-opens the job on its schedule
+// card (the pre-schedule step Teddy wants rewarded too). Auto-dismisses.
+function rewardBanner(title, sub, jobId){
+  try{
+    const b=document.createElement('div');
+    b.style.cssText='position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:99999;max-width:min(92vw,560px);padding:16px 20px;border-radius:16px;background:linear-gradient(135deg,#ff2d55,#ff9500);color:#fff;box-shadow:0 12px 40px rgba(255,45,85,.5);font-family:system-ui;text-align:center;animation:asapPulse 1.6s ease-in-out infinite';
+    b.innerHTML='<div style="font-size:19px;font-weight:900;letter-spacing:.3px">'+title+'</div>'+
+      '<div style="font-size:13.5px;font-weight:700;opacity:.95;margin-top:5px;line-height:1.4">'+sub+'</div>'+
+      '<div style="margin-top:12px;display:flex;gap:9px;justify-content:center">'+
+      '<button id="rb-presched" style="background:#fff;color:#c81e3c;border:0;border-radius:10px;padding:10px 18px;font-weight:900;font-size:14px;cursor:pointer">📅 Pre-schedule now</button>'+
+      '<button id="rb-close" style="background:rgba(255,255,255,.22);color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:800;font-size:14px;cursor:pointer">Later</button>'+
+      '</div>';
+    document.body.appendChild(b);
+    const kill=()=>{ try{b.remove();}catch(_){} };
+    const t=setTimeout(kill, 9000);
+    b.querySelector('#rb-close').onclick=()=>{ clearTimeout(t); kill(); };
+    b.querySelector('#rb-presched').onclick=()=>{ clearTimeout(t); kill(); try{ openDrawer(String(jobId)); setTimeout(()=>{ const s=document.getElementById('schDay')||document.querySelector('[id^="sch"]'); if(s&&s.scrollIntoView)s.scrollIntoView({behavior:'smooth',block:'center'}); }, 400); }catch(_){} };
+  }catch(_){}
 }
 async function partsArrived(id){
   if(!confirm('Mark parts arrived? This frees the job to be scheduled.'))return;
