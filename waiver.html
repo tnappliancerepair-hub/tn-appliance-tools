@@ -78,16 +78,16 @@
   <div class="name">TN APPLIANCE EXCHANGE</div>
 </div>
 
-<h1>Quick release before we get started</h1>
-<div class="sub">Takes 10 seconds — just sign with your finger.</div>
+<h1 data-i18n="h1">Quick release before we get started</h1>
+<div class="sub" data-i18n="sub">Takes 10 seconds — just sign with your finger.</div>
 
 <div class="card">
   <div class="release">
-    <p>Appliances are complicated, and servicing one means moving and handling it. A couple of things can come up that are outside our control:</p>
-    <p>• <b>Hidden or pre-existing problems</b> — old wiring, a slow leak, a worn-out part — that we couldn't see going in and that can give out during normal service.</p>
-    <p>• <b>Old water lines, hoses, valves, shut-offs, or flooring</b> that have to be disturbed when a machine is pulled out and moved to work on it. Aged connections and floors can wear, leak, or fail when a unit that's sat for years is moved — even when it's handled carefully.</p>
-    <p class="big">By signing below, you understand that TN Appliance Exchange isn't responsible for problems caused by those hidden or pre-existing conditions, or for old water lines, connections, hoses, or flooring that are disturbed by the normal, careful moving of your appliance.</p>
-    <p>We always move and reconnect with care, and we check the area before we leave to confirm there's no active leak. We'll treat your home and your appliance like our own. 🐜</p>
+    <p data-i18n="r1">Appliances are complicated, and servicing one means moving and handling it. A couple of things can come up that are outside our control:</p>
+    <p data-i18n="r2">• <b>Hidden or pre-existing problems</b> — old wiring, a slow leak, a worn-out part — that we couldn't see going in and that can give out during normal service.</p>
+    <p data-i18n="r3">• <b>Old water lines, hoses, valves, shut-offs, or flooring</b> that have to be disturbed when a machine is pulled out and moved to work on it. Aged connections and floors can wear, leak, or fail when a unit that's sat for years is moved — even when it's handled carefully.</p>
+    <p class="big" data-i18n="r4">By signing below, you understand that TN Appliance Exchange isn't responsible for problems caused by those hidden or pre-existing conditions, or for old water lines, connections, hoses, or flooring that are disturbed by the normal, careful moving of your appliance.</p>
+    <p data-i18n="r5">We always move and reconnect with care, and we check the area before we leave to confirm there's no active leak. We'll treat your home and your appliance like our own. 🐜</p>
   </div>
 
   <!-- Appliance-aware safety recommendation + explicit yes/no, injected on load
@@ -99,28 +99,28 @@
   <div id="leak-rec"></div>
 
   <div class="field">
-    <label for="type-name">Your name <span class="req">*</span></label>
-    <input id="type-name" type="text" placeholder="First Last" autocomplete="name" inputmode="text">
+    <label for="type-name" data-i18n="l_name">Your name <span class="req">*</span></label>
+    <input id="type-name" type="text" placeholder="First Last" autocomplete="name" inputmode="text" data-i18n-ph="ph_name">
   </div>
 
   <div class="field">
-    <label>Signature <span class="req">*</span></label>
+    <label data-i18n="l_sig">Signature <span class="req">*</span></label>
     <div class="canvas-wrap">
       <canvas id="sig-canvas"></canvas>
-      <div id="sig-placeholder">Sign here with your finger</div>
+      <div id="sig-placeholder" data-i18n="sig_ph">Sign here with your finger</div>
     </div>
   </div>
 
   <div class="row">
-    <button class="btn btn-clear" id="btn-clear">Clear</button>
-    <button class="btn btn-save" id="btn-save">✓ Sign &amp; submit</button>
+    <button class="btn btn-clear" id="btn-clear" data-i18n="clear">Clear</button>
+    <button class="btn btn-save" id="btn-save" data-i18n="save">✓ Sign &amp; submit</button>
   </div>
   <div class="err" id="err"></div>
 </div>
 
 <div class="done" id="done">
-  ✓ Thank you — you're all set.<br>
-  <span style="font-size:14px;font-weight:500;opacity:0.9">Your release is on file with your job.</span>
+  <span data-i18n="done1">✓ Thank you — you're all set.</span><br>
+  <span style="font-size:14px;font-weight:500;opacity:0.9" data-i18n="done2">Your release is on file with your job.</span>
 </div>
 
 <script>
@@ -128,9 +128,42 @@
   var XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
   var params = new URLSearchParams(location.search);
   var JOB_ID = Number(params.get('job_id') || 0);
+
+  // ── i18n (Spanish) ──────────────────────────────────────────────────────
+  var LANG = (params.get('lang') || 'en').toLowerCase();
+  var ES = LANG === 'es';
+  var I18N = { es: {
+    h1:'Autorización rápida antes de empezar', sub:'Toma 10 segundos — solo firma con tu dedo.',
+    r1:'Los electrodomésticos son complicados, y repararlos implica moverlos y manipularlos. Pueden surgir un par de cosas fuera de nuestro control:',
+    r2:'• <b>Problemas ocultos o preexistentes</b> — cableado viejo, una fuga lenta, una pieza desgastada — que no podíamos ver y que pueden fallar durante el servicio normal.',
+    r3:'• <b>Mangueras, líneas de agua, válvulas, llaves de paso o pisos viejos</b> que hay que mover al sacar y desplazar el electrodoméstico para repararlo. Las conexiones y los pisos envejecidos pueden desgastarse, gotear o fallar al mover una unidad que lleva años en el mismo lugar — aun manejándola con cuidado.',
+    r4:'Al firmar abajo, entiendes que TN Appliance Exchange no es responsable de problemas causados por esas condiciones ocultas o preexistentes, ni por líneas de agua, conexiones, mangueras o pisos viejos que se muevan durante el traslado normal y cuidadoso de tu electrodoméstico.',
+    r5:'Siempre movemos y reconectamos con cuidado, y revisamos el área antes de irnos para confirmar que no haya fugas. Trataremos tu hogar y tu electrodoméstico como si fueran nuestros. 🐜',
+    l_name:'Tu nombre <span class="req">*</span>', ph_name:'Nombre Apellido',
+    l_sig:'Firma <span class="req">*</span>', sig_ph:'Firma aquí con tu dedo',
+    clear:'Borrar', save:'✓ Firmar y enviar',
+    done1:'✓ Gracias — todo listo.', done2:'Tu autorización quedó registrada con tu trabajo.',
+  } };
+  var M = { es: {
+    nojob:'Falta la referencia del trabajo. Usa el enlace de tu mensaje de cita.',
+    typename:'Por favor escribe tu nombre.', sign:'Por favor firma arriba antes de enviar.',
+    hoseChoose:'Una cosa más — elige Sí o No en la recomendación de {item} arriba.',
+    leakChoose:'Una cosa más — elige Sí o No sobre el kit detector de fugas arriba.',
+    saving:'Guardando…', saveReset:'✓ Firmar y enviar',
+    savefail:'No se pudo guardar. Intenta de nuevo o llama al 615-280-2949.', neterr:'Error de red. Intenta de nuevo.',
+    sourceLbl:'Fuente:', yesAdd:'✅ <b>Sí</b> — agrégalo, $', installed:' instalado', no:'❌ <b>No, gracias</b>',
+  } };
+  var DICT = I18N[LANG] || null; var MX = M[LANG] || {};
+  function mm(k, en){ return (MX[k] != null) ? MX[k] : en; }
+  if (DICT) {
+    document.documentElement.lang = LANG;
+    document.querySelectorAll('[data-i18n]').forEach(function (el) { var k = el.getAttribute('data-i18n'); if (DICT[k] != null) el.innerHTML = DICT[k]; });
+    document.querySelectorAll('[data-i18n-ph]').forEach(function (el) { var k = el.getAttribute('data-i18n-ph'); if (DICT[k] != null) el.setAttribute('placeholder', DICT[k]); });
+  }
+
   if (!JOB_ID) {
     var e0 = document.getElementById('err');
-    e0.textContent = 'This link is missing a job reference. Please use the link from your appointment text.';
+    e0.textContent = mm('nojob', 'This link is missing a job reference. Please use the link from your appointment text.');
     e0.classList.add('show');
   }
 
@@ -140,10 +173,10 @@
   // liability protection ("we offered to replace it on [date], you declined").
   var HOSE_REC = null;
   var LINE_MAP = {
-    dryer:        { item: 'dryer vent hose',         price: 50,  why: 'The NFPA reports clothes dryers cause about 13,800 home fires a year, and failure to clean is the #1 cause. The U.S. Fire Administration and CSIA recommend servicing dryer exhaust at least once a year.', source: 'NFPA · U.S. Fire Administration · CSIA' },
-    refrigerator: { item: 'refrigerator water line', price: 50,  why: 'The water line behind the fridge is a common hidden slow-leak source under your floor — a fresh braided line is cheap insurance.', source: '' },
-    washer:       { item: 'washer fill hoses',       price: 50,  why: 'Insurance research found supply hoses cause about 55% of washing-machine water-damage claims. Plumbers and insurers recommend replacing rubber hoses every 3–5 years (braided steel lines last longer).', source: 'Insurance Institute for Business & Home Safety (IBHS)' },
-    dishwasher:   { item: 'dishwasher supply line',  price: 120, why: 'The supply line runs under your cabinet where a slow leak can go unseen for months — a fresh braided line prevents hidden cabinet and floor damage.', source: '' }
+    dryer:        { item: 'dryer vent hose',         item_es: 'manguera de ventilación de la secadora', price: 50,  why: 'The NFPA reports clothes dryers cause about 13,800 home fires a year, and failure to clean is the #1 cause. The U.S. Fire Administration and CSIA recommend servicing dryer exhaust at least once a year.', why_es: 'La NFPA reporta que las secadoras causan unos 13,800 incendios al año, y la falta de limpieza es la causa #1. La U.S. Fire Administration y la CSIA recomiendan darle servicio a la ventilación al menos una vez al año.', source: 'NFPA · U.S. Fire Administration · CSIA' },
+    refrigerator: { item: 'refrigerator water line', item_es: 'línea de agua del refrigerador', price: 50,  why: 'The water line behind the fridge is a common hidden slow-leak source under your floor — a fresh braided line is cheap insurance.', why_es: 'La línea de agua detrás del refrigerador es una fuente común de fugas lentas ocultas bajo tu piso — una línea trenzada nueva es un seguro barato.', source: '' },
+    washer:       { item: 'washer fill hoses',       item_es: 'mangueras de llenado de la lavadora', price: 50,  why: 'Insurance research found supply hoses cause about 55% of washing-machine water-damage claims. Plumbers and insurers recommend replacing rubber hoses every 3–5 years (braided steel lines last longer).', why_es: 'Estudios de seguros hallaron que las mangueras causan cerca del 55% de los reclamos por daños de agua de lavadoras. Se recomienda reemplazar las mangueras de goma cada 3 a 5 años (las trenzadas de acero duran más).', source: 'Insurance Institute for Business & Home Safety (IBHS)' },
+    dishwasher:   { item: 'dishwasher supply line',  item_es: 'línea de suministro del lavavajillas', price: 120, why: 'The supply line runs under your cabinet where a slow leak can go unseen for months — a fresh braided line prevents hidden cabinet and floor damage.', why_es: 'La línea de suministro va bajo tu mueble, donde una fuga lenta puede pasar meses sin verse — una línea trenzada nueva evita daños ocultos al mueble y al piso.', source: '' }
   };
   function normAppliance(s) {
     s = String(s || '').toLowerCase();
@@ -159,19 +192,27 @@
   // phone; simpler version just alarms so you can shut the water off. Offered on
   // every waiver; the recorded Yes/No (especially No) is the liability shield,
   // and it's the direct answer for any customer worried about their floors.
-  var LEAK_KIT = { item: 'smart leak-detector kit', price: 100,
+  var LEAK_KIT = { item: 'smart leak-detector kit', item_es: 'kit inteligente detector de fugas', price: 100,
     why: 'Insurance research (IBHS) ties most washer water-damage claims to leaks — and a slow leak under a fridge, dishwasher or washer can rot a floor before you ever see it. We place smart sensors at every water point — under the dishwasher, behind the fridge, under the washer, behind the toilet, under a bathroom sink. They text your phone AND sound an alarm the moment they sense water, so you can shut it off before it ever reaches your floor.',
+    why_es: 'Los estudios de seguros (IBHS) vinculan la mayoría de los reclamos por daños de agua de lavadoras a fugas — y una fuga lenta bajo un refrigerador, lavavajillas o lavadora puede pudrir el piso antes de que la veas. Colocamos sensores inteligentes en cada punto de agua — bajo el lavavajillas, detrás del refrigerador, bajo la lavadora, detrás del inodoro, bajo el lavabo del baño. Te envían un mensaje al teléfono Y suenan una alarma en cuanto detectan agua, para que la cierres antes de que llegue al piso.',
     source: 'Insurance Institute for Business & Home Safety (IBHS)' };
   var LEAK_REC = null;
   function renderLeak(floorConcern) {
-    LEAK_REC = { item: LEAK_KIT.item };
+    LEAK_REC = { item: LEAK_KIT.item };   // English item name kept for the office/ticket
+    var floorLine = ES ? '🛟 Nos dijiste que te preocupa tu piso — esta es la protección para eso.'
+                       : '🛟 You told us you\'re concerned about your flooring — this is the protection for it.';
+    var head = ES ? ('💧 <b>Protege tus pisos — kit inteligente detector de fugas. $' + LEAK_KIT.price + ' instalado.</b> ' + LEAK_KIT.why_es)
+                  : ('💧 <b>Protect your floors — smart leak-detector kit. $' + LEAK_KIT.price + ' installed.</b> ' + LEAK_KIT.why);
+    var yesLbl = ES ? ('✅ <b>Sí</b> — agrégalo, $' + LEAK_KIT.price + ' instalado') : ('✅ <b>Yes</b> — add it, $' + LEAK_KIT.price + ' installed');
+    var noLbl = ES ? '❌ <b>No, gracias</b>' : '❌ <b>No thanks</b> — I\'ll pass';
+    var srcLbl = ES ? 'Fuente:' : 'Source:';
     document.getElementById('leak-rec').innerHTML =
       '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 13px;margin:14px 0 4px;color:#1e3a8a;font-size:14.5px;line-height:1.5">'
-      + (floorConcern ? '<p style="margin:0 0 6px;font-weight:700">🛟 You told us you\'re concerned about your flooring — this is the protection for it.</p>' : '')
-      + '<p style="margin:0 0 6px">💧 <b>Protect your floors — smart leak-detector kit. $' + LEAK_KIT.price + ' installed.</b> ' + LEAK_KIT.why + '</p>'
-      + '<div style="font-size:11px;color:#3b5a9a;font-style:italic;margin:0 0 10px">Source: ' + LEAK_KIT.source + '</div>'
-      + '<label style="display:flex;gap:9px;align-items:center;background:#eff8ff;border:1px solid #bcdcff;border-radius:9px;padding:11px;margin-bottom:8px;cursor:pointer;color:#1e3a8a"><input type="radio" name="leak-opt" value="yes" style="width:19px;height:19px;flex:0 0 auto"> <span>✅ <b>Yes</b> — add it, $' + LEAK_KIT.price + ' installed</span></label>'
-      + '<label style="display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px;cursor:pointer;color:#475569"><input type="radio" name="leak-opt" value="no" style="width:19px;height:19px;flex:0 0 auto"> <span>❌ <b>No thanks</b> — I\'ll pass</span></label>'
+      + (floorConcern ? '<p style="margin:0 0 6px;font-weight:700">' + floorLine + '</p>' : '')
+      + '<p style="margin:0 0 6px">' + head + '</p>'
+      + '<div style="font-size:11px;color:#3b5a9a;font-style:italic;margin:0 0 10px">' + srcLbl + ' ' + LEAK_KIT.source + '</div>'
+      + '<label style="display:flex;gap:9px;align-items:center;background:#eff8ff;border:1px solid #bcdcff;border-radius:9px;padding:11px;margin-bottom:8px;cursor:pointer;color:#1e3a8a"><input type="radio" name="leak-opt" value="yes" style="width:19px;height:19px;flex:0 0 auto"> <span>' + yesLbl + '</span></label>'
+      + '<label style="display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px;cursor:pointer;color:#475569"><input type="radio" name="leak-opt" value="no" style="width:19px;height:19px;flex:0 0 auto"> <span>' + noLbl + '</span></label>'
       + '</div>';
   }
   if (JOB_ID) {
@@ -185,13 +226,21 @@
         var appl = (d && d.appliance && d.appliance.type) || (d && d.job && d.job.appliance_type) || '';
         var rec = LINE_MAP[normAppliance(appl)];
         if (!rec) return;
-        HOSE_REC = { key: normAppliance(appl), item: rec.item, price: rec.price };
+        HOSE_REC = { key: normAppliance(appl), item: rec.item, item_es: rec.item_es || rec.item, price: rec.price };   // English item kept for the office/ticket
+        var itemDisp = ES ? (rec.item_es || rec.item) : rec.item;
+        var whyDisp = ES ? (rec.why_es || rec.why) : rec.why;
+        var recLine = ES
+          ? ('💧 <b>Una recomendación rápida de seguridad.</b> ' + whyDisp + ' Ya que estamos ahí, podemos ponerle una <b>' + itemDisp + '</b> nueva — unos <b>$' + rec.price + ' instalado.</b>')
+          : ('💧 <b>One quick safety recommendation.</b> ' + whyDisp + " While we're already there, we can put on a fresh <b>" + itemDisp + '</b> — about <b>$' + rec.price + ' installed.</b>');
+        var hoseYes = ES ? ('✅ <b>Sí</b> — instala una ' + itemDisp + ' nueva (~$' + rec.price + ')') : ('✅ <b>Yes</b> — install a fresh ' + itemDisp + ' (~$' + rec.price + ')');
+        var hoseNo = ES ? '❌ <b>No, gracias</b>' : '❌ <b>No thanks</b> — I\'ll pass';
+        var srcLbl2 = ES ? 'Fuente:' : 'Source:';
         document.getElementById('hose-rec').innerHTML =
           '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 13px;margin:14px 0 4px;color:#7c2d12;font-size:14.5px;line-height:1.5">'
-          + '<p style="margin:0 0 6px">💧 <b>One quick safety recommendation.</b> ' + rec.why + " While we're already there, we can put on a fresh <b>" + rec.item + '</b> — about <b>$' + rec.price + ' installed.</b></p>'
-          + (rec.source ? '<div style="font-size:11px;color:#9a6a3a;font-style:italic;margin:0 0 10px">Source: ' + rec.source + '</div>' : '<div style="margin-bottom:10px"></div>')
-          + '<label style="display:flex;gap:9px;align-items:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:11px;margin-bottom:8px;cursor:pointer;color:#14532d"><input type="radio" name="hose-opt" value="yes" style="width:19px;height:19px;flex:0 0 auto"> <span>✅ <b>Yes</b> — install a fresh ' + rec.item + ' (~$' + rec.price + ')</span></label>'
-          + '<label style="display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px;cursor:pointer;color:#475569"><input type="radio" name="hose-opt" value="no" style="width:19px;height:19px;flex:0 0 auto"> <span>❌ <b>No thanks</b> — I\'ll pass</span></label>'
+          + '<p style="margin:0 0 6px">' + recLine + '</p>'
+          + (rec.source ? '<div style="font-size:11px;color:#9a6a3a;font-style:italic;margin:0 0 10px">' + srcLbl2 + ' ' + rec.source + '</div>' : '<div style="margin-bottom:10px"></div>')
+          + '<label style="display:flex;gap:9px;align-items:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:9px;padding:11px;margin-bottom:8px;cursor:pointer;color:#14532d"><input type="radio" name="hose-opt" value="yes" style="width:19px;height:19px;flex:0 0 auto"> <span>' + hoseYes + '</span></label>'
+          + '<label style="display:flex;gap:9px;align-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:11px;cursor:pointer;color:#475569"><input type="radio" name="hose-opt" value="no" style="width:19px;height:19px;flex:0 0 auto"> <span>' + hoseNo + '</span></label>'
           + '</div>';
       })
       .catch(function () { renderLeak(false); });
@@ -277,19 +326,19 @@
 
   saveBtn.addEventListener('click', async function () {
     clearErr();
-    if (!JOB_ID) { showErr('No job reference. Please use the link from your appointment text.'); return; }
+    if (!JOB_ID) { showErr(mm('nojob', 'No job reference. Please use the link from your appointment text.')); return; }
     var name = document.getElementById('type-name').value.trim();
-    if (!name) { showErr('Please type your name.'); return; }
-    if (!hasInk) { showErr('Please sign above before submitting.'); return; }
+    if (!name) { showErr(mm('typename', 'Please type your name.')); return; }
+    if (!hasInk) { showErr(mm('sign', 'Please sign above before submitting.')); return; }
     // Require an explicit Yes/No on the wear-item recommendation when shown — the
     // recorded choice (especially "No") is the whole protection.
     var hoseChoice = (document.querySelector('input[name="hose-opt"]:checked') || {}).value || '';
-    if (HOSE_REC && !hoseChoice) { showErr('One more — please choose Yes or No on the ' + HOSE_REC.item + ' recommendation above.'); return; }
+    if (HOSE_REC && !hoseChoice) { var hi = (ES && HOSE_REC.item_es) ? HOSE_REC.item_es : HOSE_REC.item; showErr(mm('hoseChoose', 'One more — please choose Yes or No on the {item} recommendation above.').replace('{item}', hi)); return; }
     var leakChoice = (document.querySelector('input[name="leak-opt"]:checked') || {}).value || '';
-    if (LEAK_REC && !leakChoice) { showErr('One more — please choose Yes or No on the leak-detector kit above.'); return; }
+    if (LEAK_REC && !leakChoice) { showErr(mm('leakChoose', 'One more — please choose Yes or No on the leak-detector kit above.')); return; }
 
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving…';
+    saveBtn.textContent = mm('saving', 'Saving…');
     try {
       var dataUrl = canvas.toDataURL('image/png');
       var b64 = (dataUrl.split(',')[1] || '');
@@ -342,14 +391,14 @@
         document.getElementById('done').classList.add('show');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        showErr((d && d.message) || 'Could not save. Please try again or call 615-280-2949.');
+        showErr((d && d.message) || mm('savefail', 'Could not save. Please try again or call 615-280-2949.'));
         saveBtn.disabled = false;
-        saveBtn.textContent = '✓ Sign & submit';
+        saveBtn.textContent = mm('saveReset', '✓ Sign & submit');
       }
     } catch (e) {
-      showErr('Network error. Please try again.');
+      showErr(mm('neterr', 'Network error. Please try again.'));
       saveBtn.disabled = false;
-      saveBtn.textContent = '✓ Sign & submit';
+      saveBtn.textContent = mm('saveReset', '✓ Sign & submit');
     }
   });
 })();

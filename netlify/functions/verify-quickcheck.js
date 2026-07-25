@@ -110,6 +110,9 @@ exports.handler = async function (event) {
   // create_job_from_chat only takes zip — set the full service address on the job row
   const lang = String(m.language || 'en').toLowerCase();
   const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ar: 'Arabic', hi: 'Hindi', fr: 'French' };
+  // Remember their language so the payment-received + "got everything" texts (and
+  // every future text) auto-translate at the SMS chokepoint.
+  if (lang && lang !== 'en') { try { await require('./_lib/customer-lang').setCustomerLang(m.phone, lang); } catch (_) {} }
   if (jobId && (m.address || m.city || m.availability || m.floors_label || LANGNAME[lang])) {
     const pref = [m.availability || '', m.floors_label ? ('🛟 FLOORS: ' + m.floors_label) : '', LANGNAME[lang] ? ('⚑ Customer language: ' + LANGNAME[lang] + ' — reply in their language (Ant auto-translates).') : ''].filter(Boolean).join(' · ');
     try {
@@ -214,5 +217,5 @@ exports.handler = async function (event) {
     }
   }
 
-  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: true, job_id: jobId, first_name: first, media_linked: linkedAttachments }) };
+  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: true, job_id: jobId, first_name: first, media_linked: linkedAttachments, language: lang }) };
 };

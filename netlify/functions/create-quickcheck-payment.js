@@ -45,13 +45,22 @@ exports.handler = async function (event) {
   // service: 'in_home' = $100 tech-comes-out (pay before we schedule), else $50 phone
   // Quick Check. Test token makes either $1. (Teddy 2026-06-27.)
   const service = s(b.service, 20) === 'in_home' ? 'in_home' : 'quick_check';
+  const lang = s(b.language, 8).toLowerCase();
   const baseCents = service === 'in_home' ? 10000 : PRICE_CENTS;
   const priceCents = isTest ? TEST_PRICE_CENTS : baseCents;
-  const productName = isTest
+  let productName = isTest
     ? (service === 'in_home' ? 'In-Home Diagnostic — TEST ($1)' : 'Appliance Quick Check — TEST ($1)')
     : (service === 'in_home'
         ? 'In-Home Diagnostic — tech comes to you ($100, credited to your repair)'
         : 'Appliance Quick Check — honest diagnosis ($50, credited to your repair)');
+  // Spanish product name so the whole Stripe page reads in Spanish (locale set below).
+  if (lang === 'es') {
+    productName = isTest
+      ? (service === 'in_home' ? 'Diagnóstico a domicilio — PRUEBA ($1)' : 'Revisión rápida — PRUEBA ($1)')
+      : (service === 'in_home'
+          ? 'Diagnóstico a domicilio — un técnico va a tu casa ($100, se acredita a tu reparación)'
+          : 'Revisión rápida de electrodoméstico — diagnóstico honesto ($50, se acredita a tu reparación)');
+  }
   try {
     const stripe = new Stripe(key);
     const opts = {
@@ -93,6 +102,11 @@ exports.handler = async function (event) {
         source: 'appliance_ai_quick_check',
       },
     };
+    // Render the whole Stripe Checkout in the customer's language where Stripe
+    // supports it (es/fr/vi are supported locales; ar/hi aren't, so those fall back
+    // to auto — the product name still carries our wording).
+    const STRIPE_LOCALES = { es: 'es', fr: 'fr', vi: 'vi' };
+    if (STRIPE_LOCALES[lang]) opts.locale = STRIPE_LOCALES[lang];
     // pre-fill the Stripe email field so the customer doesn't have to type it (the
     // exact friction that stalled the first test). Falls back to Stripe asking if blank.
     if (email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) opts.customer_email = email;

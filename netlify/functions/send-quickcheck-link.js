@@ -18,9 +18,12 @@ const TEST_PHONES = new Set(
   String(process.env.QC_TEST_PHONES || '6154855795')
     .split(',').map((s) => s.replace(/\D/g, '').replace(/^1(\d{10})$/, '$1')).filter(Boolean)
 );
-function linkFor(phone) {
+function linkFor(phone, lang) {
   const d = String(phone || '').replace(/\D/g, '').replace(/^1(\d{10})$/, '$1');
-  return TEST_PHONES.has(d) ? (QUICK_CHECK_URL + '?qc=' + QC_TEST_TOKEN) : QUICK_CHECK_URL;
+  const params = [];
+  if (TEST_PHONES.has(d)) params.push('qc=' + QC_TEST_TOKEN);
+  if (lang && lang !== 'en') params.push('lang=' + lang);   // load the intake page in their language
+  return QUICK_CHECK_URL + (params.length ? ('?' + params.join('&')) : '');
 }
 
 function headers() {
@@ -39,13 +42,18 @@ exports.handler = async function (event) {
   const args = b.arguments || b.args || b;
   const phone = String(args.phone || args.number || '').trim();
   const name = String(args.name || '').trim();
+  const lang = String(args.lang || args.language || '').trim().toLowerCase();
+
+  // Remember their language so THIS text (via the chokepoint) + every future text
+  // goes out translated. The Spanish Closer passes lang:"es".
+  if (lang && lang !== 'en') { try { await require('./_lib/customer-lang').setCustomerLang(phone, lang); } catch (_) {} }
 
   if (phone.replace(/\D/g, '').length < 10) {
     return jsonResp(200, { ok: false, say: "I didn't catch a good number to text — what's the best cell to send it to?" });
   }
 
   const hi = name ? ('Hi ' + name.split(/\s+/)[0] + '! ') : 'Hi! ';
-  const body = hi + "Here's your $50 Quick Check from TN Appliance Exchange 🐜 — a real tech gives you an honest diagnosis and your exact options within ~2 business hours, and the $50 comes off your repair. Start here: " + linkFor(phone);
+  const body = hi + "Here's your $50 Quick Check from TN Appliance Exchange 🐜 — a real tech gives you an honest diagnosis and your exact options within ~2 business hours, and the $50 comes off your repair. Start here: " + linkFor(phone, lang);
 
   let sent = false, gated = false;
   try {

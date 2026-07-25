@@ -76,66 +76,66 @@
 </style></head><body>
   <div class="orb-wrap"><div class="orb" id="orb"></div><div class="ant">🐜</div></div>
   <div class="kicker">TN Appliance Exchange</div>
-  <h1 id="head">Let’s get your repair <span class="a">moving.</span></h1>
-  <div class="sub" id="sub">Three quick things — under two minutes — and we’ll roll up ready with the right part.</div>
+  <h1 id="head" data-i18n="head">Let’s get your repair <span class="a">moving.</span></h1>
+  <div class="sub" id="sub" data-i18n="sub">Three quick things — under two minutes — and we’ll roll up ready with the right part.</div>
 
   <div class="steps" id="steps">
     <div class="step" id="s1">
-      <div class="step-head"><div class="step-num" id="n1">1</div><div class="step-title">A short 10-second video</div></div>
-      <div class="step-hint">10–15 seconds is perfect. Just say what it <b>is or isn’t doing</b> — making noise, not draining, not heating, not spinning. You don’t need to diagnose it, just show us.</div>
-      <label class="cap-btn" id="vbtn"><span class="emo">📹</span><span>Tap to record or choose a video</span><input type="file" accept="video/*" class="hidden" id="vfile"></label>
+      <div class="step-head"><div class="step-num" id="n1">1</div><div class="step-title" data-i18n="s1t">A short 10-second video</div></div>
+      <div class="step-hint" data-i18n="s1h">10–15 seconds is perfect. Just say what it <b>is or isn’t doing</b> — making noise, not draining, not heating, not spinning. You don’t need to diagnose it, just show us.</div>
+      <label class="cap-btn" id="vbtn"><span class="emo">📹</span><span data-i18n="vbtn">Tap to record or choose a video</span><input type="file" accept="video/*" class="hidden" id="vfile"></label>
       <div class="uprog hidden" id="vprog"><div class="upbar" id="vbar"></div></div><div class="upstat hidden" id="vstat"></div>
     </div>
 
     <div class="step" id="s2">
-      <div class="step-head"><div class="step-num" id="n2">2</div><div class="step-title">A photo of the model number</div></div>
-      <div class="step-hint">The sticker with the model #. Usually on the door frame, back, or inside. Get it close + clear so we can read it.</div>
-      <label class="cap-btn" id="mbtn"><span class="emo">📸</span><span>Tap to add the model-sticker photo</span><input type="file" accept="image/*" class="hidden" id="mfile"></label>
+      <div class="step-head"><div class="step-num" id="n2">2</div><div class="step-title" data-i18n="s2t">A photo of the model number</div></div>
+      <div class="step-hint" data-i18n="s2h">The sticker with the model #. Usually on the door frame, back, or inside. Get it close + clear so we can read it.</div>
+      <label class="cap-btn" id="mbtn"><span class="emo">📸</span><span data-i18n="mbtn">Tap to add the model-sticker photo</span><input type="file" accept="image/*" class="hidden" id="mfile"></label>
       <div class="uprog hidden" id="mprog"><div class="upbar" id="mbar"></div></div><div class="upstat hidden" id="mstat"></div>
     </div>
 
     <div id="extraMachines"></div>
-    <button class="add-machine-btn" id="addMachineBtn">➕ Another appliance on this repair?</button>
+    <button class="add-machine-btn" id="addMachineBtn" data-i18n="addm">➕ Another appliance on this repair?</button>
     <div class="appl-pick hidden" id="applPick">
-      <div class="step-hint" style="margin-bottom:8px">Which appliance is it?</div>
+      <div class="step-hint" style="margin-bottom:8px" data-i18n="whichappl">Which appliance is it?</div>
       <div class="appl-opts" id="applOpts">
-        <div class="applopt" data-a="Refrigerator">🧊 Fridge</div>
-        <div class="applopt" data-a="Washer">🌀 Washer</div>
-        <div class="applopt" data-a="Dryer">🔥 Dryer</div>
-        <div class="applopt" data-a="Oven / Range">🍳 Oven / Range</div>
-        <div class="applopt" data-a="Dishwasher">🍽️ Dishwasher</div>
-        <div class="applopt" data-a="Microwave">📻 Microwave</div>
-        <div class="applopt" data-a="Other">➕ Other</div>
+        <div class="applopt" data-a="Refrigerator" data-i18n="a_fridge">🧊 Fridge</div>
+        <div class="applopt" data-a="Washer" data-i18n="a_washer">🌀 Washer</div>
+        <div class="applopt" data-a="Dryer" data-i18n="a_dryer">🔥 Dryer</div>
+        <div class="applopt" data-a="Oven / Range" data-i18n="a_oven">🍳 Oven / Range</div>
+        <div class="applopt" data-a="Dishwasher" data-i18n="a_dish">🍽️ Dishwasher</div>
+        <div class="applopt" data-a="Microwave" data-i18n="a_micro">📻 Microwave</div>
+        <div class="applopt" data-a="Other" data-i18n="a_other">➕ Other</div>
       </div>
     </div>
 
     <div class="step" id="s3">
-      <div class="step-head"><div class="step-num" id="n3">3</div><div class="step-title">The days that work for you</div></div>
-      <div class="step-hint">Tap every day you’re available over the next few days. The more you pick, the sooner we can come.</div>
+      <div class="step-head"><div class="step-num" id="n3">3</div><div class="step-title" data-i18n="s3t">The days that work for you</div></div>
+      <div class="step-hint" data-i18n="s3h">Tap every day you’re available over the next few days. The more you pick, the sooner we can come.</div>
       <div class="days" id="days"></div>
-      <div class="step-hint" style="margin-top:14px">Any time of day that's best? <b style="color:var(--green)">The more open you are, the quicker we can get to you.</b></div>
+      <div class="step-hint" style="margin-top:14px" data-i18n="s3h2">Any time of day that's best? <b style="color:var(--green)">The more open you are, the quicker we can get to you.</b></div>
       <div class="tod" id="tod">
-        <div class="todopt wide" data-tod="wide open — here anytime">🙌 I'm wide open — anytime works</div>
-        <div class="todopt" data-tod="open most mornings">🌅 Most mornings</div>
-        <div class="todopt" data-tod="open most afternoons/evenings">🌆 Most afternoons</div>
+        <div class="todopt wide" data-tod="wide open — here anytime" data-i18n="tod_wide">🙌 I'm wide open — anytime works</div>
+        <div class="todopt" data-tod="open most mornings" data-i18n="tod_am">🌅 Most mornings</div>
+        <div class="todopt" data-tod="open most afternoons/evenings" data-i18n="tod_pm">🌆 Most afternoons</div>
       </div>
-      <button class="save-day" id="saveDay" disabled>Pick your days above</button>
+      <button class="save-day" id="saveDay" disabled data-i18n="pickdays">Pick your days above</button>
     </div>
 
     <div class="step hidden" id="s4">
-      <div class="step-head"><div class="step-num" id="n4">4</div><div class="step-title">While we’re there? <span style="color:var(--gray);font-weight:400;font-size:12px;">(optional)</span></div></div>
-      <div class="step-hint">Handy extras we can knock out on the same visit — tap any you’d like. No obligation.</div>
+      <div class="step-head"><div class="step-num" id="n4">4</div><div class="step-title" data-i18n="s4t">While we’re there? <span style="color:var(--gray);font-weight:400;font-size:12px;">(optional)</span></div></div>
+      <div class="step-hint" data-i18n="s4h">Handy extras we can knock out on the same visit — tap any you’d like. No obligation.</div>
       <div id="addons"></div>
     </div>
 
     <div class="step" id="s5">
-      <div class="step-head"><div class="step-num" id="n5">5</div><div class="step-title">Quick sign-off</div></div>
-      <div class="step-hint">A 10-second signature so we can get to work — protects your home and lets us start on time.</div>
-      <a class="save-day" id="waiverBtn" href="#" style="display:block;text-align:center;text-decoration:none;background:#1c1c1c;border:1.5px solid var(--orange);color:var(--orange);">✍️ Review &amp; sign your waiver</a>
+      <div class="step-head"><div class="step-num" id="n5">5</div><div class="step-title" data-i18n="s5t">Quick sign-off</div></div>
+      <div class="step-hint" data-i18n="s5h">A 10-second signature so we can get to work — protects your home and lets us start on time.</div>
+      <a class="save-day" id="waiverBtn" href="#" style="display:block;text-align:center;text-decoration:none;background:#1c1c1c;border:1.5px solid var(--orange);color:var(--orange);" data-i18n="waiverbtn">✍️ Review &amp; sign your waiver</a>
     </div>
   </div>
 
-  <div class="allset" id="allset">✅ Got your video, model &amp; days! Last thing — tap <b>“Review &amp; sign your waiver”</b> above and you’re all done. Thank you!</div>
+  <div class="allset" id="allset" data-i18n="allset">✅ Got your video, model &amp; days! Last thing — tap <b>“Review &amp; sign your waiver”</b> above and you’re all done. Thank you!</div>
   <div class="footer">TN Appliance Exchange · <a href="tel:+16152802949">615-280-2949</a></div>
 
 <script src="/ant-video-upload.js"></script>
@@ -145,7 +145,42 @@ if (location.hostname.indexOf('www.') === 0) { location.replace(location.href.re
 const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const FN='https://tnapplianceexchange.net/.netlify/functions';
 const jobId=parseInt(new URLSearchParams(location.search).get('job_id')||'0',10)||0;
+const LANG=(new URLSearchParams(location.search).get('lang')||'en').toLowerCase();
 const state={video:false,model:false,avail:false};
+
+// ── i18n (Spanish; static via data-i18n, dynamic via TX/tt) ────────────────
+const I18N={ es:{
+  head:'Pongamos en marcha tu <span class="a">reparación.</span>',
+  sub:'Tres cosas rápidas — menos de dos minutos — y llegamos listos con la pieza correcta.',
+  s1t:'Un video corto de 10 segundos',
+  s1h:'10–15 segundos es perfecto. Solo di qué <b>está o no está haciendo</b> — hace ruido, no drena, no calienta, no gira. No necesitas diagnosticarlo, solo muéstranos.',
+  vbtn:'Toca para grabar o elegir un video',
+  s2t:'Una foto del número de modelo',
+  s2h:'La etiqueta con el número de modelo. Suele estar en el marco de la puerta, atrás o adentro. Tómala de cerca y clara para poder leerla.',
+  mbtn:'Toca para agregar la foto de la etiqueta del modelo',
+  addm:'➕ ¿Otro electrodoméstico en esta reparación?', whichappl:'¿Cuál electrodoméstico es?',
+  a_fridge:'🧊 Refri', a_washer:'🌀 Lavadora', a_dryer:'🔥 Secadora', a_oven:'🍳 Horno/Estufa', a_dish:'🍽️ Lavavajillas', a_micro:'📻 Microondas', a_other:'➕ Otro',
+  s3t:'Los días que te funcionan',
+  s3h:'Toca cada día que estés disponible en los próximos días. Entre más elijas, más pronto podemos ir.',
+  s3h2:'¿Alguna hora del día que sea mejor? <b style="color:var(--green)">Entre más disponible estés, más rápido llegamos.</b>',
+  tod_wide:"🙌 Estoy totalmente libre — cualquier hora", tod_am:'🌅 Casi todas las mañanas', tod_pm:'🌆 Casi todas las tardes',
+  pickdays:'Elige tus días arriba',
+  s4t:'Ya que estamos ahí <span style="color:var(--gray);font-weight:400;font-size:12px;">(opcional)</span>',
+  s4h:'Extras útiles que podemos resolver en la misma visita — toca los que quieras. Sin compromiso.',
+  s5t:'Firma rápida',
+  s5h:'Una firma de 10 segundos para poder empezar — protege tu hogar y nos deja empezar a tiempo.',
+  waiverbtn:'✍️ Revisa y firma tu autorización',
+  allset:'✅ ¡Recibimos tu video, modelo y días! Último paso — toca <b>“Revisa y firma tu autorización”</b> arriba y listo. ¡Gracias!',
+} };
+const T={ es:{
+  greetHead:'Hola {first} — pongamos tu {appl} <span class="a">en marcha.</span>', applWord:'electrodoméstico',
+  saveN:'Enviar mi disponibilidad', saving:'Guardando…', availSent:'✓ Disponibilidad enviada', tryagain:'Intenta de nuevo',
+  addAdd:'＋ Agregar a mi visita', adding:'Agregando…', added:'✓ Agregado — el técnico se encargará',
+  DOW:['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], MON:['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],
+} };
+const DICT=I18N[LANG]||null; const TX=T[LANG]||{};
+function tt(k,en){ return (TX[k]!=null)?TX[k]:en; }
+if(DICT){ document.documentElement.lang=LANG; document.querySelectorAll('[data-i18n]').forEach(el=>{ const k=el.getAttribute('data-i18n'); if(DICT[k]!=null) el.innerHTML=DICT[k]; }); }
 
 if(!jobId){
   document.getElementById('head').textContent='Hmm —';
@@ -154,7 +189,7 @@ if(!jobId){
 }
 
 // Set the waiver link (appliance-aware waiver + signature lives on waiver.html).
-document.getElementById('waiverBtn').setAttribute('href', 'waiver.html?job_id='+encodeURIComponent(jobId));
+document.getElementById('waiverBtn').setAttribute('href', 'waiver.html?job_id='+encodeURIComponent(jobId)+(LANG&&LANG!=='en'?('&lang='+LANG):''));
 
 // Greet by first name + appliance (carried by the link — no typing). Best-effort.
 // Also drives the appliance-specific add-on offers.
@@ -165,7 +200,10 @@ document.getElementById('waiverBtn').setAttribute('href', 'waiver.html?job_id='+
     const f=(d&&d.facts)||{};
     const first=(f.customer_first||'').trim();
     const appl=(f.appliance&&f.appliance!=='appliance')?f.appliance:'';
-    if(first) document.getElementById('head').innerHTML='Hi '+esc(first)+' — let’s get your '+esc(appl||'appliance')+' <span class="a">fixed.</span>';
+    if(first){ const applW=appl||tt('applWord','appliance');
+      document.getElementById('head').innerHTML = (LANG==='es')
+        ? tt('greetHead','Hi {first} — let’s get your {appl} <span class="a">fixed.</span>').replace('{first}',esc(first)).replace('{appl}',esc(applW))
+        : ('Hi '+esc(first)+' — let’s get your '+esc(applW)+' <span class="a">fixed.</span>'); }
     renderAddons(appl);
   }catch(_){ renderAddons(''); }
 })();
@@ -187,17 +225,17 @@ function renderAddons(appl){
         +(price?'<div style="font-family:var(--mono);font-size:13px;color:var(--green);white-space:nowrap;">'+esc(price)+'</div>':'')
       +'</div>'
       +(o.pitch?'<div style="font-size:11.5px;color:var(--gray);line-height:1.5;margin:5px 0 9px;">'+esc(o.pitch)+'</div>':'<div style="height:6px"></div>')
-      +'<button class="addon-add" data-key="'+esc(o.key)+'" data-name="'+esc(o.name)+'" data-price="'+esc(o.price||0)+'" data-disc="'+esc(o.discount||0)+'" style="width:100%;background:#141414;border:1.5px solid var(--bord2);border-radius:10px;padding:11px;color:var(--white);font-family:var(--mono);font-size:13.5px;cursor:pointer;">＋ Add to my visit</button>'
+      +'<button class="addon-add" data-key="'+esc(o.key)+'" data-name="'+esc(o.name)+'" data-price="'+esc(o.price||0)+'" data-disc="'+esc(o.discount||0)+'" style="width:100%;background:#141414;border:1.5px solid var(--bord2);border-radius:10px;padding:11px;color:var(--white);font-family:var(--mono);font-size:13.5px;cursor:pointer;">'+esc(tt('addAdd','＋ Add to my visit'))+'</button>'
     +'</div>';
   }).join('');
   wrap.querySelectorAll('.addon-add').forEach(function(btn){
     btn.onclick=async function(){
       if(btn.dataset.added==='1'){ return; }
-      btn.disabled=true; btn.textContent='Adding…';
+      btn.disabled=true; btn.textContent=tt('adding','Adding…');
       try{
         await fetch(FN+'/record-addon',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId, addon_key:btn.dataset.key, name:btn.dataset.name, price:Number(btn.dataset.price)||0, discount:Number(btn.dataset.disc)||0, source:'warranty_intake'})});
-        btn.dataset.added='1'; btn.style.borderColor='var(--green)'; btn.style.color='var(--green)'; btn.textContent='✓ Added — the tech will take care of it';
-      }catch(_){ btn.disabled=false; btn.textContent='Try again'; }
+        btn.dataset.added='1'; btn.style.borderColor='var(--green)'; btn.style.color='var(--green)'; btn.textContent=tt('added','✓ Added — the tech will take care of it');
+      }catch(_){ btn.disabled=false; btn.textContent=tt('tryagain','Try again'); }
     };
   });
 }
@@ -297,22 +335,23 @@ let selTod='';
 })();
 (function buildDays(){
   const wrap=document.getElementById('days'); if(!wrap) return;
-  const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DOW_EN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; const MON_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DOW=(TX.DOW)||DOW_EN; const MON=(TX.MON)||MON_EN;   // localized display; label stays English for the office
   const out=[]; const d=new Date(); let added=0;
   while(added<5){ d.setDate(d.getDate()+1); const wd=d.getDay(); if(wd===0||wd===6) continue; // Mon–Fri only
-    const label=DOW[wd]+' '+MON[d.getMonth()]+' '+d.getDate(); out.push({dow:DOW[wd],dnum:MON[d.getMonth()]+' '+d.getDate(),label}); added++; }
+    const label=DOW_EN[wd]+' '+MON_EN[d.getMonth()]+' '+d.getDate(); out.push({dow:DOW[wd],dnum:MON[d.getMonth()]+' '+d.getDate(),label}); added++; }
   wrap.innerHTML=out.map(o=>'<div class="day" data-lbl="'+esc(o.label)+'"><div class="dow">'+esc(o.dow)+'</div><div class="dnum">'+esc(o.dnum)+'</div></div>').join('');
-  wrap.querySelectorAll('.day').forEach(el=>{ el.onclick=()=>{ const lbl=el.getAttribute('data-lbl'); if(selDays.has(lbl)){selDays.delete(lbl);el.classList.remove('sel');}else{selDays.add(lbl);el.classList.add('sel');} const b=document.getElementById('saveDay'); b.disabled=selDays.size===0; b.textContent=selDays.size?('Send my availability ('+selDays.size+')'):'Pick your days above'; }; });
+  wrap.querySelectorAll('.day').forEach(el=>{ el.onclick=()=>{ const lbl=el.getAttribute('data-lbl'); if(selDays.has(lbl)){selDays.delete(lbl);el.classList.remove('sel');}else{selDays.add(lbl);el.classList.add('sel');} const b=document.getElementById('saveDay'); b.disabled=selDays.size===0; b.textContent=selDays.size?(tt('saveN','Send my availability')+' ('+selDays.size+')'):tt('pickdays','Pick your days above'); }; });
 })();
 document.getElementById('saveDay').onclick=async function(){
   if(!jobId||!selDays.size) return;
-  const btn=this; btn.disabled=true; btn.textContent='Saving…';
+  const btn=this; btn.disabled=true; btn.textContent=tt('saving','Saving…');
   const txt='Available: '+Array.from(selDays).join(', ')+(selTod?(' — '+selTod):'');
   try{
     const r=await fetchJSON(FN+'/save-availability',{job_id:jobId, availability_text:txt});
-    if(r&&r.ok){ btn.classList.add('done'); btn.textContent='✓ Availability sent'; document.getElementById('s3').classList.add('done'); state.avail=true; maybeAllSet(); }
-    else { btn.disabled=false; btn.textContent='Try again'; }
-  }catch(_){ btn.disabled=false; btn.textContent='Try again'; }
+    if(r&&r.ok){ btn.classList.add('done'); btn.textContent=tt('availSent','✓ Availability sent'); document.getElementById('s3').classList.add('done'); state.avail=true; maybeAllSet(); }
+    else { btn.disabled=false; btn.textContent=tt('tryagain','Try again'); }
+  }catch(_){ btn.disabled=false; btn.textContent=tt('tryagain','Try again'); }
 };
 function maybeAllSet(){ if(state.video&&state.model&&state.avail){ document.getElementById('allset').style.display='block'; } }
 </script>

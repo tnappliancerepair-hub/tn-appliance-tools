@@ -77,16 +77,23 @@ async function go(){
     try{ if(!d.already) gtag('event','purchase',{ transaction_id: sid, value: Number(d.amount)||50, currency:'USD', items:[{item_id:'quick_check', item_name:'$50 Quick Check'}] }); }catch(_){}
     // Google Ads paid conversion — deduped per Stripe session so a refresh can't double-count.
     try{ if(!d.already) gtag('event','conversion',{ send_to:'AW-11509905666/YM7jCPDK3skcEILyrPAq', value: Number(d.amount)||50, currency:'USD', transaction_id: sid }); }catch(_){}
+    const LG=(d.language||'en').toLowerCase(); const ES=LG==='es';
     orb.classList.add('ok');
-    kicker.textContent='Payment received';
-    head.innerHTML='You\'re <span class="a">all set'+(d.first_name?(', '+d.first_name):'')+'!</span>';
+    kicker.textContent= ES?'Pago recibido':'Payment received';
+    head.innerHTML= ES ? ('¡<span class="a">Todo listo'+(d.first_name?(', '+d.first_name):'')+'!</span>') : ('You\'re <span class="a">all set'+(d.first_name?(', '+d.first_name):'')+'!</span>');
     // NEW cash flow (pay first): no video yet — send them into the polished warranty
-    // intake (video → model → availability → waiver) bound to the job we just created.
+    // intake (video → model → availability → waiver) bound to the job we just created,
+    // carrying their language so the whole flow stays in it.
+    const langq = (d.language && d.language!=='en') ? ('&lang='+encodeURIComponent(d.language)) : '';
     if(d.job_id){
-      msg.innerHTML='Got your $50 Quick Check ✅ — <b>next, a couple quick things</b> so our tech can give you an honest answer. Taking you there now…';
-      setTimeout(function(){ location.href='/warranty-intake.html?job_id='+encodeURIComponent(d.job_id); }, 1600);
+      msg.innerHTML= ES
+        ? 'Recibimos tu Revisión Rápida de $50 ✅ — <b>ahora unos pasos rápidos</b> para que nuestro técnico te dé una respuesta honesta. Te llevamos ahí…'
+        : 'Got your $50 Quick Check ✅ — <b>next, a couple quick things</b> so our tech can give you an honest answer. Taking you there now…';
+      setTimeout(function(){ location.href='/warranty-intake.html?job_id='+encodeURIComponent(d.job_id)+langq; }, 1600);
     } else {
-      msg.innerHTML='Got your $50 Quick Check ✅ — text us a quick video of what it\'s doing + a photo of the model number at <b>615-280-2949</b> and you\'ll have your honest answer within a couple hours.';
+      msg.innerHTML= ES
+        ? 'Recibimos tu Revisión Rápida de $50 ✅ — envíanos un video corto de lo que está pasando + una foto del número de modelo al <b>615-280-2949</b> y tendrás tu respuesta honesta en un par de horas.'
+        : 'Got your $50 Quick Check ✅ — text us a quick video of what it\'s doing + a photo of the model number at <b>615-280-2949</b> and you\'ll have your honest answer within a couple hours.';
     }
   } else {
     head.textContent='Almost —';

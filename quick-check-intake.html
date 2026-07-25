@@ -44,44 +44,44 @@
 </style></head><body>
   <div class="orb-wrap"><div class="orb"></div><div class="ant">🐜</div></div>
   <div class="kicker">TN Appliance Exchange</div>
-  <h1>The <span class="a">$50 Quick Check</span></h1>
-  <div class="sub">Skip the wait. A real tech gives you an honest diagnosis from a short video — usually within a couple hours.</div>
+  <h1 data-i18n="h1">The <span class="a">$50 Quick Check</span></h1>
+  <div class="sub" data-i18n="sub">Skip the wait. A real tech gives you an honest diagnosis from a short video — usually within a couple hours.</div>
 
   <div class="valuebox">
-    ✅ <b>Faster + easier</b> — a straight answer today, no waiting on a house call.<br>
-    ✅ <b>The $50 comes off your repair</b> — and if you'd rather a tech come out, it credits toward the trip fee. You never pay twice.<br>
-    ✅ <b>DIY-friendly</b> — if it's a simple fix, we'll even point you to the exact part.
+    ✅ <b data-i18n="v1a">Faster + easier</b><span data-i18n="v1b"> — a straight answer today, no waiting on a house call.</span><br>
+    ✅ <b data-i18n="v2a">The $50 comes off your repair</b><span data-i18n="v2b"> — and if you'd rather a tech come out, it credits toward the trip fee. You never pay twice.</span><br>
+    ✅ <b data-i18n="v3a">DIY-friendly</b><span data-i18n="v3b"> — if it's a simple fix, we'll even point you to the exact part.</span>
   </div>
 
   <div class="card" id="card">
-    <label class="fld">Your name</label>
-    <input id="name" type="text" autocomplete="name" placeholder="First and last">
-    <label class="fld">Best cell number (we text your answer here)</label>
+    <label class="fld" data-i18n="l_name">Your name</label>
+    <input id="name" type="text" autocomplete="name" placeholder="First and last" data-i18n-ph="ph_name">
+    <label class="fld" data-i18n="l_phone">Best cell number (we text your answer here)</label>
     <input id="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="(615) 555-1234">
-    <label class="fld">Email <span style="color:var(--gray2)">(optional)</span></label>
-    <input id="email" type="email" autocomplete="email" placeholder="you@email.com">
-    <label class="fld">Street address</label>
-    <input id="address" type="text" autocomplete="street-address" placeholder="123 Main St">
+    <label class="fld" data-i18n="l_email">Email <span style="color:var(--gray2)">(optional)</span></label>
+    <input id="email" type="email" autocomplete="email" placeholder="you@email.com" data-i18n-ph="ph_email">
+    <label class="fld" data-i18n="l_addr">Street address</label>
+    <input id="address" type="text" autocomplete="street-address" placeholder="123 Main St" data-i18n-ph="ph_addr">
     <div style="display:flex;gap:10px">
-      <div style="flex:2"><label class="fld">City</label><input id="city" type="text" autocomplete="address-level2" placeholder="City"></div>
-      <div style="flex:1"><label class="fld">ZIP</label><input id="zip" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="37013"></div>
+      <div style="flex:2"><label class="fld" data-i18n="l_city">City</label><input id="city" type="text" autocomplete="address-level2" placeholder="City" data-i18n-ph="ph_city"></div>
+      <div style="flex:1"><label class="fld" data-i18n="l_zip">ZIP</label><input id="zip" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="37013"></div>
     </div>
-    <label class="fld">Which appliance?</label>
+    <label class="fld" data-i18n="l_appl">Which appliance?</label>
     <div class="appl-opts" id="applOpts">
-      <div class="applopt" data-a="Refrigerator">🧊 Fridge</div>
-      <div class="applopt" data-a="Washer">🌀 Washer</div>
-      <div class="applopt" data-a="Dryer">🔥 Dryer</div>
-      <div class="applopt" data-a="Oven / Range">🍳 Oven/Range</div>
-      <div class="applopt" data-a="Dishwasher">🍽️ Dishwasher</div>
-      <div class="applopt" data-a="Microwave">📻 Microwave</div>
-      <div class="applopt" data-a="Other">➕ Other</div>
+      <div class="applopt" data-a="Refrigerator" data-i18n="a_fridge">🧊 Fridge</div>
+      <div class="applopt" data-a="Washer" data-i18n="a_washer">🌀 Washer</div>
+      <div class="applopt" data-a="Dryer" data-i18n="a_dryer">🔥 Dryer</div>
+      <div class="applopt" data-a="Oven / Range" data-i18n="a_oven">🍳 Oven/Range</div>
+      <div class="applopt" data-a="Dishwasher" data-i18n="a_dish">🍽️ Dishwasher</div>
+      <div class="applopt" data-a="Microwave" data-i18n="a_micro">📻 Microwave</div>
+      <div class="applopt" data-a="Other" data-i18n="a_other">➕ Other</div>
     </div>
-    <label class="fld">What's it doing? (a sentence is plenty)</label>
-    <textarea id="problem" placeholder="e.g. fridge stopped cooling, freezer still works"></textarea>
-    <label class="consent"><input id="consent" type="checkbox" checked> It's OK to text me about my repair at the number above.</label>
-    <button class="pay" id="payBtn">Pay $50 &amp; continue →</button>
+    <label class="fld" data-i18n="l_prob">What's it doing? (a sentence is plenty)</label>
+    <textarea id="problem" placeholder="e.g. fridge stopped cooling, freezer still works" data-i18n-ph="ph_prob"></textarea>
+    <label class="consent"><input id="consent" type="checkbox" checked> <span data-i18n="consent">It's OK to text me about my repair at the number above.</span></label>
+    <button class="pay" id="payBtn" data-i18n="pay">Pay $50 &amp; continue →</button>
     <div class="err" id="err"></div>
-    <div class="reassure">🔒 Secure checkout by Stripe. Next you'll send a quick video + a photo of the model number.</div>
+    <div class="reassure" data-i18n="reassure">🔒 Secure checkout by Stripe. Next you'll send a quick video + a photo of the model number.</div>
   </div>
 
   <div class="footer">TN Appliance Exchange · <a href="tel:+16152802949">615-280-2949</a></div>
@@ -91,7 +91,40 @@ if (location.hostname.indexOf('www.')===0){ location.replace(location.href.repla
 const FN='https://tnapplianceexchange.net/.netlify/functions';
 const QS=new URLSearchParams(location.search);
 const QC=QS.get('qc')||''; // $1 test token passthrough
+const LANG=(QS.get('lang')||'en').toLowerCase();
 const pre={ appliance:(QS.get('appliance')||''), town:(QS.get('town')||'') };
+
+// ── i18n (Spanish; extend by adding a lang block) ──────────────────────────
+const I18N={ es:{
+  h1:'La <span class="a">Revisión Rápida de $50</span>',
+  sub:'Evita la espera. Un técnico de verdad te da un diagnóstico honesto a partir de un video corto — normalmente en un par de horas.',
+  v1a:'Más rápido y fácil', v1b:' — una respuesta clara hoy, sin esperar una visita a domicilio.',
+  v2a:'Los $50 se descuentan de tu reparación', v2b:' — y si prefieres que vaya un técnico, se acreditan a la tarifa de visita. Nunca pagas dos veces.',
+  v3a:'Ideal para hacerlo tú mismo', v3b:' — si es algo simple, hasta te indicamos la pieza exacta.',
+  l_name:'Tu nombre', l_phone:'Mejor número de celular (te enviamos tu respuesta aquí)',
+  l_email:'Correo electrónico <span style="color:var(--gray2)">(opcional)</span>',
+  l_addr:'Dirección', l_city:'Ciudad', l_zip:'Código postal',
+  l_appl:'¿Qué electrodoméstico?', l_prob:'¿Qué está haciendo? (una frase es suficiente)',
+  a_fridge:'🧊 Refri', a_washer:'🌀 Lavadora', a_dryer:'🔥 Secadora', a_oven:'🍳 Horno/Estufa', a_dish:'🍽️ Lavavajillas', a_micro:'📻 Microondas', a_other:'➕ Otro',
+  consent:'Autorizo que me envíen mensajes de texto sobre mi reparación al número de arriba.',
+  pay:'Pagar $50 y continuar →',
+  reassure:'🔒 Pago seguro con Stripe. Después enviarás un video corto + una foto del número de modelo.',
+  ph_name:'Nombre y apellido', ph_email:'tu@correo.com', ph_addr:'123 Calle Principal', ph_city:'Ciudad', ph_prob:'ej. el refrigerador dejó de enfriar, el congelador sí funciona',
+} };
+const MSG={ es:{
+  name:'Por favor ingresa tu nombre.', phone:'Por favor ingresa un número de celular válido.',
+  addr:'Por favor ingresa tu dirección completa.', city:'Por favor ingresa tu ciudad.', zip:'Por favor ingresa tu código postal.',
+  appl:'Toca qué electrodoméstico es.', going:'Llevándote al pago…', pay:'Pagar $50 y continuar →',
+  checkoutErr:'No se pudo iniciar el pago — escríbenos al 615-280-2949.', net:'Problema de red — intenta de nuevo o escribe al 615-280-2949.',
+} };
+const DICT=I18N[LANG]||null;
+const M=MSG[LANG]||{ name:'Please enter your name.', phone:'Please enter a valid cell number.', addr:'Please enter your full street address.', city:'Please enter your city.', zip:'Please enter your ZIP code.', appl:'Tap which appliance it is.', going:'Taking you to checkout…', pay:'Pay $50 & continue →', checkoutErr:"Couldn't start checkout — text us at 615-280-2949.", net:'Network hiccup — try again, or text 615-280-2949.' };
+if(DICT){
+  document.documentElement.lang=LANG;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ const k=el.getAttribute('data-i18n'); if(DICT[k]!=null) el.innerHTML=DICT[k]; });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ const k=el.getAttribute('data-i18n-ph'); if(DICT[k]!=null) el.setAttribute('placeholder',DICT[k]); });
+}
+
 let appliance=pre.appliance||'';
 document.querySelectorAll('#applOpts .applopt').forEach(el=>{
   if(appliance && el.getAttribute('data-a')===appliance) el.classList.add('sel');
@@ -102,22 +135,22 @@ function hasStreet(a){ return /\d/.test(a) && /[a-z]/i.test(a); }
 document.getElementById('payBtn').onclick=async function(){
   const err=document.getElementById('err'); err.textContent='';
   const name=val('name'), phone=val('phone'), email=val('email'), address=val('address'), city=val('city'), zip=val('zip'), problem=val('problem');
-  if(name.length<2) return err.textContent='Please enter your name.';
-  if(phone.replace(/\D/g,'').length<10) return err.textContent='Please enter a valid cell number.';
-  if(!hasStreet(address)) return err.textContent='Please enter your full street address.';
-  if(!city) return err.textContent='Please enter your city.';
-  if(zip.replace(/\D/g,'').length<5) return err.textContent='Please enter your ZIP code.';
-  if(!appliance) return err.textContent='Tap which appliance it is.';
-  const btn=this; btn.disabled=true; btn.textContent='Taking you to checkout…';
+  if(name.length<2) return err.textContent=M.name;
+  if(phone.replace(/\D/g,'').length<10) return err.textContent=M.phone;
+  if(!hasStreet(address)) return err.textContent=M.addr;
+  if(!city) return err.textContent=M.city;
+  if(zip.replace(/\D/g,'').length<5) return err.textContent=M.zip;
+  if(!appliance) return err.textContent=M.appl;
+  const btn=this; btn.disabled=true; btn.textContent=M.going;
   try{
-    const r=await fetch(FN+'/create-quickcheck-payment'+(QC?('?qc='+encodeURIComponent(QC)):''),{
+    const r=await fetch(FN+'/create-quickcheck-payment',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ name, phone, email, address, city, zip, appliance, brand:'', problem, payer:'self_pay', town:pre.town||city, sms_consent:document.getElementById('consent').checked, service:'quick_check', qc_test:QC })
+      body:JSON.stringify({ name, phone, email, address, city, zip, appliance, brand:'', problem, payer:'self_pay', town:pre.town||city, sms_consent:document.getElementById('consent').checked, service:'quick_check', language:LANG, qc_test:QC })
     });
     const d=await r.json();
     if(d&&d.ok&&d.url){ location.href=d.url; }
-    else { btn.disabled=false; btn.textContent='Pay $50 & continue →'; err.textContent=(d&&d.error)||'Couldn\'t start checkout — text us at 615-280-2949.'; }
-  }catch(_){ btn.disabled=false; btn.textContent='Pay $50 & continue →'; err.textContent='Network hiccup — try again, or text 615-280-2949.'; }
+    else { btn.disabled=false; btn.textContent=M.pay; err.textContent=(d&&d.error)||M.checkoutErr; }
+  }catch(_){ btn.disabled=false; btn.textContent=M.pay; err.textContent=M.net; }
 };
 </script>
 <script src="/ant-track.js" defer></script>

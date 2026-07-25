@@ -213,8 +213,18 @@ async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
     await wouldBlock(to, checks.join('+'), kind);   // shadow — still send below
   }
 
+  // 4.5. AUTO-TRANSLATE — if this customer has a known non-English language, send
+  // the text IN THAT LANGUAGE. All gate checks above ran on the English body (so
+  // dedup/counters stay stable), only the outgoing copy is translated. Fully
+  // fail-safe: any error → send the original English. One-fix-covers-every-text.
+  let outMsg = message;
+  try {
+    const lang = await require('./customer-lang').getCustomerLang(to);
+    if (lang && lang !== 'en') outMsg = await require('./translate').translateTo(message, lang);
+  } catch (_) { outMsg = message; }
+
   // 5. Send + record (record drives the frequency counters).
-  const ok = await xanoSend(to, message, tag);
+  const ok = await xanoSend(to, outMsg, tag);
   if (ok) { try { await crud.logEvent('sms_guard_sent', { phone: to, kind: kind || '', tag: tag || '', body: message.slice(0, 200), at_ms: now }); } catch (_) {} }
   return { sent: ok, reason: ok ? (checks.length ? 'sent_shadow' : 'sent') : 'send_failed', shadow: checks.length ? checks : undefined };
 }
