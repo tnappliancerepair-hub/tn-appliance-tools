@@ -29,6 +29,14 @@ const KITS = {
     descriptions: ['Fridge not cooling? Local techs fix it fast. Book your $50 Quick Check today.', 'Honest, upfront pricing. Same-week service in Smyrna & Murfreesboro. Book online now.'],
     final: 'https://tnapplianceexchange.net/appliance-ai.html?appliance=refrigerator',
   },
+  // Spanish (lang=es) — generic appliance repair for the nationwide video+ship model.
+  general_es: {
+    label: 'Reparación en Español',
+    keywords: ['reparacion de electrodomesticos', 'reparacion de lavadora', 'reparacion de refrigerador', 'reparacion de secadora', 'reparacion de nevera', 'tecnico de electrodomesticos', 'reparacion de lavavajillas', 'reparacion de estufa'],
+    headlines: ['Reparación en Español', 'Diagnóstico por Video $50', 'Técnico de Verdad', 'Te Enviamos la Pieza', 'Atención en Español', 'Respuesta Honesta Hoy', 'Familia desde 2012', 'Reparación Honesta'],
+    descriptions: ['Un técnico de verdad revisa tu electrodoméstico por video y te dice la verdad. Solo $50.', 'Te enviamos la pieza exacta a tu puerta. Atención en español. Llámanos o escríbenos hoy.'],
+    final: 'https://tnapplianceexchange.net/quick-check-intake.html?lang=es',
+  },
 };
 
 exports.handler = async function (event) {
@@ -36,9 +44,11 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
-  const appl = String(q.appliance || 'dryer').toLowerCase();
-  const kit = KITS[appl];
-  if (!kit) return json(400, { ok: false, error: 'appliance must be dryer or refrigerator' });
+  const lang = String(q.lang || 'en').toLowerCase();
+  const appl = lang === 'es' ? 'general_es' : String(q.appliance || 'dryer').toLowerCase();
+  const kit = Object.assign({}, KITS[appl]);
+  if (!kit || !kit.keywords) return json(400, { ok: false, error: 'appliance must be dryer or refrigerator (or lang=es)' });
+  if ((q.final || '').trim()) kit.final = q.final.trim(); // per-campaign landing page override
   const cities = String(q.cities || 'Smyrna,Murfreesboro').split(',').map((s) => s.trim()).filter(Boolean);
   const stateName = String(q.state || 'Tennessee').trim();
   const budget = Math.max(5, Math.min(500, parseInt(q.budget, 10) || 20));
@@ -96,8 +106,11 @@ exports.handler = async function (event) {
   if (!camp.ok) return json(200, { ok: false, step: 'campaign', error: camp.err, budget: budgetRes });
   const campRes = camp.d.results[0].resourceName;
 
-  // 4) geo targeting
-  const geoMut = await post('/campaignCriteria:mutate', { operations: geo.map((g) => ({ create: { campaign: campRes, location: { geoTargetConstant: g.resource } } })) });
+  // 4) geo targeting (+ language targeting for Spanish campaigns so they only serve
+  //    to Spanish-language users: languageConstants/1003 = Spanish)
+  const critOps = geo.map((g) => ({ create: { campaign: campRes, location: { geoTargetConstant: g.resource } } }));
+  if (lang === 'es') critOps.push({ create: { campaign: campRes, language: { languageConstant: 'languageConstants/1003' } } });
+  const geoMut = await post('/campaignCriteria:mutate', { operations: critOps });
 
   // 5) ad group (default max CPC $6 — aggressive enough to win a small market, capped)
   const ag = await post('/adGroups:mutate', { operations: [{ create: { name: `${kit.label} ad group`, campaign: campRes, status: 'ENABLED', type: 'SEARCH_STANDARD', cpcBidMicros: 6000000 } }] });
