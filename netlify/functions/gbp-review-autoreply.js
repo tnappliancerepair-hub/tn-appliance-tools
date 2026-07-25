@@ -7,8 +7,13 @@
 // between runs. Positives dedup naturally (once replied, has_reply=true);
 // negatives dedup via an event_log marker so Teddy isn't re-texted.
 //
-//   (scheduled)                      -> run
-//   GET ?secret=<admin>[&dryrun=1]   -> manual run / preview (no posts, no texts)
+//   (scheduled)                      -> forward run (page 1: post 4-5★, text Teddy new 1-3★)
+//   GET ?secret=<admin>[&dryrun=1]   -> manual forward run / preview (no posts, no texts)
+//   GET ?secret=<admin>&audit=1[&pages=N]        -> walk the backlog, count replied vs
+//                                                   unreplied by star (no posts). Measures the gap.
+//   GET ?secret=<admin>&backfill=1[&pages=N][&pageToken=X][&maxPosts=40]
+//        -> reply to UNREPLIED 4-5★ across older pages (bounded per call), returns
+//           next_page_token to continue. Old 1-3★ are counted, never auto-posted.
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
@@ -66,6 +71,47 @@ exports.handler = async function (event) {
     if (!locs.length) return json(200, { ok: false, error: 'no_locations', data: loc.data });
     locId = String(locs[0].name).replace(/^locations\//, '');
   } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
+
+  // ── AUDIT / BACKFILL: walk older pages ──────────────────────────────────────
+  // audit = count replied vs unreplied by star (no posts). backfill = reply to
+  // UNREPLIED 4-5★ across older pages, bounded per call (returns next_page_token so
+  // it can be looped). Old 1-3★ are counted + sampled for a human, NEVER auto-posted.
+  const audit = q.audit === '1';
+  const backfill = q.backfill === '1';
+  if (audit || backfill) {
+    const maxPages = Math.max(1, Math.min(25, parseInt(q.pages, 10) || (audit ? 10 : 3)));
+    const maxPosts = Math.max(1, Math.min(60, parseInt(q.maxPosts, 10) || 40));
+    let token = q.pageToken || '';
+    let scanned = 0, replied = 0, unreplied_pos = 0, unreplied_neg = 0, unrated = 0, posted = 0, failed = 0, pages = 0, posIdx = 0, hitCap = false;
+    const negs = [];
+    for (let pg = 0; pg < maxPages; pg++) {
+      const usedToken = token;
+      const rr = await gbp.listReviews(acctId, locId, token || undefined);
+      if (!rr.ok) return json(200, { ok: false, step: 'list_reviews', status: rr.status, data: rr.data, pages });
+      const revs = (rr.data && rr.data.reviews) || [];
+      for (const rv of revs) {
+        scanned++;
+        const stars = STAR[rv.starRating] || 0;
+        if (rv.reviewReply) { replied++; continue; }
+        if (stars >= 4) {
+          unreplied_pos++;
+          if (backfill) {
+            if (posted >= maxPosts) { hitCap = true; break; }
+            const r = { reviewer: (rv.reviewer && rv.reviewer.displayName) || 'A Google user', comment: rv.comment || '' };
+            try { (await gbp.putReply(rv.name, positiveReply(r, posIdx++))).ok ? posted++ : failed++; } catch (_) { failed++; }
+          }
+        } else if (stars >= 1) {
+          unreplied_neg++;
+          if (negs.length < 15) negs.push({ stars, reviewer: (rv.reviewer && rv.reviewer.displayName) || '', comment: (rv.comment || '').slice(0, 140) });
+        } else unrated++;
+      }
+      pages++;
+      if (hitCap) { token = usedToken; break; }   // resume THIS page next run (replied ones now skip)
+      token = (rr.data && rr.data.nextPageToken) || '';
+      if (!token) break;
+    }
+    return json(200, { ok: true, mode: backfill ? 'backfill' : 'audit', pages, scanned, replied, unreplied_pos, unreplied_neg, unrated, posted, failed, next_page_token: token || null, done: !token, sample_negatives: negs });
+  }
 
   const rev = await gbp.listReviews(acctId, locId);
   if (!rev.ok) return json(200, { ok: false, step: 'list_reviews', status: rev.status, data: rev.data });
