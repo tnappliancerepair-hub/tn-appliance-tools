@@ -195,6 +195,22 @@ function dayOnly(ct) {
   if (!s) return '';
   return s.replace(/,?\s*\d{1,2}:\d{2}\s*[AP]M.*$/i, '').trim();
 }
+// The customer's OWN stated complaint, cleaned — so Ann can confirm "your washer
+// that's not spinning" when she recognizes a caller. Takes only the FIRST segment of
+// problem_summary (before the " || [Phone call] ..." history ledger), so she says the
+// original issue, never the poisoned call-history or internal diagnosis. stripInternal
+// still removes the full problem_summary; this clean `complaint` is what survives.
+function cleanComplaint(s) {
+  let t = String(s || '').split('||')[0].split('[Phone call]')[0].split('\n')[0].trim();
+  if (t.length > 90) t = t.slice(0, 90).trim();
+  if (/^(n\/?a|none|null|n\/a|unknown|test|zztest|\W*)$/i.test(t)) return '';
+  return t;
+}
+function withComplaint(j) {
+  if (!j || typeof j !== 'object') return j;
+  const complaint = cleanComplaint(j.problem_summary);
+  return complaint ? Object.assign({}, j, { complaint }) : j;
+}
 function scheduleSafeJob(j) {
   if (!j || typeof j !== 'object') return j;
   const derived = dayOnly(j.scheduled_start_ct);
@@ -221,8 +237,9 @@ function shapeResult(name, data) {
       caller_id_masked: !!data.caller_id_masked,
       hint: data.hint || '',
       customer_first_name: c.first_name || '',
-      open_jobs: Array.isArray(data.open_jobs) ? data.open_jobs.map(stripInternal).map(scheduleSafeJob) : [],
-      recent_jobs: Array.isArray(data.recent_jobs) ? data.recent_jobs.map(stripInternal).map(scheduleSafeJob) : [],
+      customer_last_name: c.last_name || '',
+      open_jobs: Array.isArray(data.open_jobs) ? data.open_jobs.map(withComplaint).map(stripInternal).map(scheduleSafeJob) : [],
+      recent_jobs: Array.isArray(data.recent_jobs) ? data.recent_jobs.map(withComplaint).map(stripInternal).map(scheduleSafeJob) : [],
       last_call_summary: data.last_call_summary || '',
     };
   }

@@ -746,3 +746,10 @@
 # with a feedback loop. (Teddy 2026-07-24.)
 [functions."phone-trust-scorecard"]
   schedule = "0 0 * * *"
+
+# phone-accuracy-audit — daily proof that Ann reads the record correctly. Runs her
+# real status-tool path across ~30 live jobs each morning and scores right-tech /
+# right-day / no-invented-time vs the source record. Regression guard alongside the
+# trust scorecard. (Teddy 2026-07-25: run it daily.)
+[functions."phone-accuracy-audit"]
+  schedule = "0 13 * * *"

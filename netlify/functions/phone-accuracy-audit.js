@@ -9,10 +9,12 @@
 //   GET ?secret=<admin>&n=30       -> sample size (default 24, max 40)
 'use strict';
 const { getSecret } = require('./_lib/secrets');
+const { sendSms } = require('./_lib/sms');
 const { techCoversState } = require('./_lib/zone-integrity');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net/.netlify/functions';
+const OWNER = '+16154855795';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const TECHS = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 const ACTIVE = new Set(['scheduled', 'in_progress', 'awaiting_parts', 'held']);
@@ -56,8 +58,9 @@ async function auditJob(job) {
 
 exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
+  const scheduled = !!(event && event.body && (() => { try { return JSON.parse(event.body).next_run; } catch (_) { return false; } })());
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
-  if (q.secret !== admin && q.secret !== GUARD_FALLBACK) return json(403, { ok: false, error: 'forbidden' });
+  if (!scheduled && q.secret !== admin && q.secret !== GUARD_FALLBACK) return json(403, { ok: false, error: 'forbidden' });
   const N = Math.max(4, Math.min(40, Number(q.n) || 24));
 
   let items = [];
@@ -93,5 +96,12 @@ exports.handler = async function (event) {
     mismatches.length ? `Mismatches: ${mismatches.length} (see list)` : `Zero mismatches — every answer matched the source record.`,
   ].join('\n');
 
-  return json(200, { ok: true, tested: graded.length, passed, score, fails, mismatches, readout, sample: graded });
+  // On the scheduled run (or ?text=1) text the owner — but keep it quiet on a clean
+  // 100 unless it's the scheduled daily check, so a perfect score doesn't nag.
+  let texted = false;
+  if (scheduled || q.text === '1') {
+    try { await sendSms(OWNER, readout, 'owner', 'phone_accuracy_audit'); texted = true; } catch (_) {}
+  }
+
+  return json(200, { ok: true, tested: graded.length, passed, score, fails, mismatches, readout, texted, sample: graded });
 };
