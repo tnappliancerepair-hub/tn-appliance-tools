@@ -179,8 +179,14 @@ async function loadJobs(){
   }catch(e){ $('jobs').innerHTML='<div class="muted">Couldn\'t load — pull to refresh.</div>'; }
 }
 
-// auto-login if we have a saved code
-if(CODE){ cpost('me').then(r=>{ if(r&&r.ok) showApp(r.creator); }); }
+// one-tap link: ?code=... signs you in and saves it, so a texted link just works
+try{
+  const urlCode=new URLSearchParams(location.search).get('code');
+  if(urlCode){ CODE=urlCode.trim(); if($('code')) $('code').value=CODE;
+    history.replaceState(null,'',location.pathname); }  // strip the code from the address bar
+}catch(_){}
+// auto-login if we have a saved (or just-passed) code
+if(CODE){ cpost('me').then(r=>{ if(r&&r.ok){ localStorage.setItem('tn_creator_code',CODE); showApp(r.creator); } }); }
 </script>
 </body>
 </html>
