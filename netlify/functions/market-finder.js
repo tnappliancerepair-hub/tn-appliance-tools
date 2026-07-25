@@ -120,6 +120,23 @@ exports.handler = async function (event) {
   let token;
   try { token = await ga.accessToken(c); } catch (e) { return json(200, { ok: false, error: 'auth: ' + String((e && e.message) || e) }); }
 
+  // ?keywords=a|b|c  → national (US) per-keyword monthly volume. Answers "what
+  // symptom/how-to terms are people searching" — the seed list for the knowledge base.
+  if ((q.keywords || '').trim()) {
+    const kws = q.keywords.split(/[|;]/).map((s) => s.trim()).filter(Boolean).slice(0, 20);
+    const langConst = LANG_CONST[langReq === 'es' && q.lang === 'es' ? 'es' : 'en'];
+    const US = 'geoTargetConstants/2840';
+    const url = 'https://googleads.googleapis.com/' + c.version + '/customers/' + customerId + ':generateKeywordHistoricalMetrics';
+    const body = { keywords: kws, geoTargetConstants: [US], keywordPlanNetwork: 'GOOGLE_SEARCH', language: langConst, historicalMetricsOptions: { includeAverageCpc: true } };
+    let r = await fetch(url, { method: 'POST', headers: ga.apiHeaders(token, c, customerId), body: JSON.stringify(body) });
+    let d = await r.json().catch(() => ({}));
+    if (!r.ok && r.status === 403 && c.managerId) { r = await fetch(url, { method: 'POST', headers: ga.apiHeaders(token, c, c.managerId), body: JSON.stringify(body) }); d = await r.json().catch(() => ({})); }
+    if (!r.ok) return json(200, { ok: false, error: JSON.stringify(d).slice(0, 600) });
+    const rows = (d.results || []).map((res) => ({ term: res.text, monthly_searches: Number((res.keywordMetrics || {}).avgMonthlySearches || 0), competition: (res.keywordMetrics || {}).competition || null, competition_index: (res.keywordMetrics || {}).competitionIndex != null ? Number(res.keywordMetrics.competitionIndex) : null }));
+    rows.sort((a, b) => b.monthly_searches - a.monthly_searches);
+    return json(200, { ok: true, scope: 'US national', language: langConst, keywords: rows });
+  }
+
   let geos;
   try { geos = await suggestGeos(token, c, metros); } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
 
