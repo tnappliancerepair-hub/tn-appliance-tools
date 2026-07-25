@@ -739,3 +739,10 @@
 # claim" drops. Warm = first real lookup returns ~0.5s. (Teddy 2026-07-24 phone fire.)
 [functions."warm-phone"]
   schedule = "*/5 * * * *"
+
+# phone-trust-scorecard — "get better every day" made measurable. Daily ~7PM CT it
+# reads the day's calls, scores TRUST honestly (real misses vs noise), tracks the
+# day-over-day trend, names the #1 fix, and texts the owner. Improvement = a metric
+# with a feedback loop. (Teddy 2026-07-24.)
+[functions."phone-trust-scorecard"]
+  schedule = "0 0 * * *"
