@@ -92,7 +92,11 @@ function ctaBlock() {
 
 function page(item) {
   const url = `${BASE}/es/fix/${item.slug}.html`;
-  const enUrl = `${BASE}/fix/${item.slug}.html`;
+  // Only pair hreflang/"In English" with an English page that actually exists on
+  // disk (the original 6 use English slugs). Spanish-only topics use Spanish slugs
+  // and stand alone (self-canonical), so we never link to a 404.
+  const hasEn = fs.existsSync(path.join(ROOT, 'fix', item.slug + '.html'));
+  const enUrl = hasEn ? `${BASE}/fix/${item.slug}.html` : '';
   const related = ITEMS.filter((x) => x.slug !== item.slug).slice(0, 3);
 
   const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', inLanguage: 'es', mainEntity: item.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) };
@@ -121,9 +125,9 @@ function page(item) {
 <title>${esc(item.metaTitle)} | TN Appliance Exchange</title>
 <meta name="description" content="${esc(item.metaDesc)}">
 <link rel="canonical" href="${url}">
-<link rel="alternate" hreflang="es" href="${url}">
+<link rel="alternate" hreflang="es" href="${url}">${hasEn ? `
 <link rel="alternate" hreflang="en" href="${enUrl}">
-<link rel="alternate" hreflang="x-default" href="${enUrl}">
+<link rel="alternate" hreflang="x-default" href="${enUrl}">` : ''}
 <meta property="og:title" content="${esc(item.metaTitle)}">
 <meta property="og:description" content="${esc(item.metaDesc)}">
 <meta property="og:type" content="article">
@@ -162,7 +166,7 @@ ${faqHtml}
     </div>
 
     <footer>
-      <p><b>TN Appliance Exchange</b> — reparación de electrodomésticos honesta y dirigida por técnicos desde 2012. Servicio a domicilio en el centro de Tennessee y el área de Baton Rouge, Luisiana; diagnóstico por video a nivel nacional con envío de piezas. Estamos 24/7/365 al ${PHONE}. <a href="${enUrl}">In English</a></p>
+      <p><b>TN Appliance Exchange</b> — reparación de electrodomésticos honesta y dirigida por técnicos desde 2012. Servicio a domicilio en el centro de Tennessee y el área de Baton Rouge, Luisiana; diagnóstico por video a nivel nacional con envío de piezas. Estamos 24/7/365 al ${PHONE}.${hasEn ? ` <a href="${enUrl}">In English</a>` : ''}</p>
       <p style="margin-top:8px"><a href="/es/fix/">Todas las guías de reparación</a> · <a href="/es/">Inicio</a></p>
     </footer>
   </div>
