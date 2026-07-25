@@ -258,16 +258,25 @@ function mountVideo(el){
   if(!el||el.dataset.mounted) return;
   el.dataset.mounted='1';
   const src=el.getAttribute('data-src');
-  el.innerHTML='<video src="'+src+'" controls playsinline preload="metadata" style="width:100%;height:100%;object-fit:contain;background:#000;border-radius:12px"></video>';
+  // muted preload lets iOS decode + SEEK to paint a real still frame without a tap;
+  // it un-mutes the moment you actually hit play, so previewing still has sound.
+  el.innerHTML='<video src="'+src+'" controls playsinline muted preload="metadata" style="width:100%;height:100%;object-fit:contain;background:#000;border-radius:12px"></video>';
+  const v=el.querySelector('video');
+  if(v){
+    v.addEventListener('loadedmetadata',function(){ try{ if(v.currentTime<0.1) v.currentTime=0.5; }catch(_){} }); // force the poster frame
+    v.addEventListener('play',function(){ v.muted=false; }, {once:true});                                          // sound on when they play
+  }
 }
-function mountOne(el){ mountVideo(el); const v=el&&el.querySelector('video'); if(v){ try{ v.play(); }catch(_){} } }
+function mountOne(el){ mountVideo(el); const v=el&&el.querySelector('video'); if(v){ v.muted=false; try{ v.play(); }catch(_){} } }
 let _vio;
 function observeLazy(){
   if(!('IntersectionObserver'in window)){ document.querySelectorAll('.vlazy:not([data-mounted])').forEach(mountVideo); return; }
   if(!_vio){
     _vio=new IntersectionObserver(function(ents){ ents.forEach(function(e){
       if(e.isIntersecting){ mountVideo(e.target); }
-      else { var el=e.target, v=el.querySelector('video'); if(v&&v.paused){ el.dataset.mounted=''; el.innerHTML='<div class="muted" style="font-size:13px;text-align:center;line-height:1.5">▶<br>tap to preview</div>'; } }
+      // Scrolled away: just PAUSE — keep the painted frame so it never reverts to a
+      // blank "tap to preview" box (that was the "can't see it unless I click" bug).
+      else { var v=e.target.querySelector('video'); if(v&&!v.paused){ try{ v.pause(); }catch(_){} } }
     }); }, { rootMargin:'250px 0px' });
   }
   document.querySelectorAll('.vlazy:not([data-obs])').forEach(function(el){ el.setAttribute('data-obs','1'); _vio.observe(el); });
