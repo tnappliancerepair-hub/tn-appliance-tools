@@ -37,7 +37,11 @@ exports.handler = async function (event) {
 
   let sent = false, gated = false;
   try {
-    const ok = await sendSms(phone, body, 'customer', 'quickcheck_link');
+    // tag MUST carry 'intake' so it clears the Xano send_sms intake-only gate
+    // (which only passes intake/availability/media/model/video). 'quickcheck_link'
+    // alone was getting dropped as non-intake → Ann "sold" the Quick Check but the
+    // link never texted (Teddy 2026-07-25).
+    const ok = await sendSms(phone, body, 'customer', 'quick_check_intake_link');
     sent = !!ok;
     gated = !ok; // sendSms returns false if the customer gate dropped it
   } catch (_) { sent = false; }
