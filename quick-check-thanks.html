@@ -78,17 +78,15 @@ async function go(){
     // Google Ads paid conversion — deduped per Stripe session so a refresh can't double-count.
     try{ if(!d.already) gtag('event','conversion',{ send_to:'AW-11509905666/YM7jCPDK3skcEILyrPAq', value: Number(d.amount)||50, currency:'USD', transaction_id: sid }); }catch(_){}
     orb.classList.add('ok');
-    kicker.textContent='Quick Check confirmed';
-    head.innerHTML='You\'re <span class="a">all set'+(d.first_name?(', '+d.first_name):'')+'.</span>';
-    msg.innerHTML='Our tech is reviewing your video right now. You\'ll have your <b>honest assessment and your repair options</b> within <b>2 business hours</b> — usually a lot sooner. Keep an eye on your phone. 🐜';
-    // Capture the service release right here at intake (the job exists now) so the
-    // tech never has to chase it at the door.
+    kicker.textContent='Payment received';
+    head.innerHTML='You\'re <span class="a">all set'+(d.first_name?(', '+d.first_name):'')+'!</span>';
+    // NEW cash flow (pay first): no video yet — send them into the polished warranty
+    // intake (video → model → availability → waiver) bound to the job we just created.
     if(d.job_id){
-      msg.innerHTML += '<div style="margin-top:20px;background:#fff7e6;border:2px solid #ff8a00;border-radius:14px;padding:16px;text-align:left">'
-        +'<div style="font-size:15px;font-weight:800;color:#1a202c">📝 One quick thing</div>'
-        +'<div style="font-size:13px;color:#4a5568;margin:4px 0 12px">A 10-second service release so our tech can get right to work.</div>'
-        +'<a href="/waiver.html?job_id='+encodeURIComponent(d.job_id)+'" style="display:block;text-align:center;background:linear-gradient(135deg,#ff8a00,#e26d00);color:#fff;font-weight:800;text-decoration:none;border-radius:11px;padding:13px;font-size:15px">✍️ Sign your release (10 sec)</a>'
-        +'</div>';
+      msg.innerHTML='Got your $50 Quick Check ✅ — <b>next, a couple quick things</b> so our tech can give you an honest answer. Taking you there now…';
+      setTimeout(function(){ location.href='/warranty-intake.html?job_id='+encodeURIComponent(d.job_id); }, 1600);
+    } else {
+      msg.innerHTML='Got your $50 Quick Check ✅ — text us a quick video of what it\'s doing + a photo of the model number at <b>615-280-2949</b> and you\'ll have your honest answer within a couple hours.';
     }
   } else {
     head.textContent='Almost —';

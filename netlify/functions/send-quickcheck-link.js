@@ -9,7 +9,7 @@
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const { sendSms } = require('./_lib/sms');
-const QUICK_CHECK_URL = 'https://tnapplianceexchange.net/appliance-ai.html';
+const QUICK_CHECK_URL = 'https://tnapplianceexchange.net/quick-check-intake.html';
 
 function headers() {
   const t = process.env.XANO_METADATA_TOKEN;
