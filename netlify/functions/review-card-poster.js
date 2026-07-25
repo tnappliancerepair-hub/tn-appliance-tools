@@ -109,7 +109,17 @@ exports.handler = async function (event) {
   // Post in the interleaved render order (Andre / John / Jimmy / Lee round-robin) so
   // daily posts rotate across BOTH states — every territory sees their tech constantly.
   remaining.sort((a, b) => (a.added_ms - b.added_ms));
-  const card = remaining[0];
+  // Optional targeting for a specific tech's card (manual campaigns): ?tech=john|andre
+  // — matches the card's tech tag OR the reviewer naming that tech. Falls back to the
+  // normal rotation if nothing matches.
+  let pickList = remaining;
+  const want = String(q.tech || q.author || '').trim().toLowerCase().replace(/[^a-z]/g, '');
+  if (want) {
+    const rx = new RegExp('\\b' + want + '\\b', 'i');
+    const f = remaining.filter((x) => String(x.tech || '').toLowerCase() === want || rx.test((x.author || '') + ' ' + (x.text || '')));
+    if (f.length) pickList = f;
+  }
+  const card = pickList[0];
   const idx = pool.indexOf(card);
   const cap = caption(card);
 
