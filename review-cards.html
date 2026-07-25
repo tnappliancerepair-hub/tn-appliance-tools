@@ -56,6 +56,10 @@
 const DATA_API = '/.netlify/functions/review-cards-data';
 let SECRET = localStorage.getItem('tn_social_secret') || '';
 let POOL = [], STATS = { average:4.5, total:0 }, IDX = 0, FMT = 'square';
+let VIEW = [], VP = 0, FILTER = 'all';
+function reHasWord(s,w){ return new RegExp('\\b'+w+'\\b','i').test(String(s||'')); }
+function matchesTech(t){ return function(r){ return reHasWord((r.author||'')+' '+(r.text||''), t); }; }
+function setFilter(f){ FILTER=f; VIEW = POOL.map(function(r,i){return i;}).filter(function(i){ return f==='all' ? true : matchesTech(f)(POOL[i]); }); if(!VIEW.length){ VIEW=POOL.map(function(r,i){return i;}); FILTER='all'; } VP=0; IDX=VIEW[0]; renderUI(); }
 
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1500); }
 
@@ -69,17 +73,20 @@ async function loadPool(refresh){
   POOL = d.pool||[]; STATS = d.stats||STATS;
   document.getElementById('statBadge').textContent = '★ '+(STATS.average||4.5)+' · '+(STATS.total||POOL.length)+' reviews';
   if(!POOL.length){ document.getElementById('content').innerHTML='<div class="empty">No substantive reviews found in the recent pool.</div>'; return; }
-  IDX = Math.floor(Math.random()*POOL.length);
+  FILTER='all'; VIEW = POOL.map(function(r,i){return i;}); VP = Math.floor(Math.random()*VIEW.length); IDX = VIEW[VP];
   renderUI();
 }
 
 function renderUI(){
-  const opts = POOL.map((r,i)=>'<option value="'+i+'"'+(i===IDX?' selected':'')+'>'+esc((r.author||'')+' — '+r.text.slice(0,48))+'…</option>').join('');
+  const cntJohn = POOL.filter(matchesTech('john')).length, cntAndre = POOL.filter(matchesTech('andre')).length;
+  const opts = VIEW.map((i)=>'<option value="'+i+'"'+(i===IDX?' selected':'')+'>'+esc((POOL[i].author||'')+' — '+POOL[i].text.slice(0,48))+'…</option>').join('');
   document.getElementById('content').innerHTML =
     '<div class="bar">'
+    + '<div class="seg"><button id="tAll" class="'+(FILTER==='all'?'on':'')+'" onclick="setFilter(\'all\')">All</button><button id="tJohn" class="'+(FILTER==='john'?'on':'')+'" onclick="setFilter(\'john\')">👤 John ('+cntJohn+')</button><button id="tAndre" class="'+(FILTER==='andre'?'on':'')+'" onclick="setFilter(\'andre\')">👤 Andre ('+cntAndre+')</button></div>'
     + '<div class="seg"><button id="fSq" class="'+(FMT==='square'?'on':'')+'" onclick="setFmt(\'square\')">◻︎ Square 1:1</button><button id="fSt" class="'+(FMT==='story'?'on':'')+'" onclick="setFmt(\'story\')">▯ Story 9:16</button></div>'
     + '<button onclick="step(-1)">◀</button><button onclick="shuffle()">🎲 Shuffle</button><button onclick="step(1)">▶</button>'
     + '<select id="pick" onchange="pick(this.value)">'+opts+'</select>'
+    + '<span class="mut" style="align-self:center;font-size:12px">'+VIEW.length+' in view</span>'
     + '</div>'
     + '<div class="stage '+(FMT==='story'?'story':'')+'"><canvas id="card" width="1080" height="1080"></canvas></div>'
     + '<div class="fields">'
@@ -95,9 +102,9 @@ function renderUI(){
 function cur(){ return POOL[IDX] || { author:'', text:'', stars:5 }; }
 function syncFields(){ document.getElementById('txt').value = cur().text; document.getElementById('name').value = cur().author; document.getElementById('pick').value = IDX; }
 function onEdit(){ cur().text = document.getElementById('txt').value; cur().author = document.getElementById('name').value; draw(); }
-function step(n){ IDX = (IDX + n + POOL.length) % POOL.length; syncFields(); draw(); }
-function shuffle(){ IDX = Math.floor(Math.random()*POOL.length); syncFields(); draw(); }
-function pick(v){ IDX = +v; syncFields(); draw(); }
+function step(n){ if(!VIEW.length) return; VP = (VP + n + VIEW.length) % VIEW.length; IDX = VIEW[VP]; syncFields(); draw(); }
+function shuffle(){ if(!VIEW.length) return; VP = Math.floor(Math.random()*VIEW.length); IDX = VIEW[VP]; syncFields(); draw(); }
+function pick(v){ IDX = +v; const p = VIEW.indexOf(IDX); if(p>=0) VP = p; syncFields(); draw(); }
 function setFmt(f){ FMT=f; document.getElementById('fSq').className=(f==='square'?'on':''); document.getElementById('fSt').className=(f==='story'?'on':''); document.querySelector('.stage').className='stage '+(f==='story'?'story':''); resizeCanvas(); draw(); }
 function resizeCanvas(){ const c=document.getElementById('card'); c.width=1080; c.height=(FMT==='story'?1920:1080); }
 function esc(s){ return (s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
