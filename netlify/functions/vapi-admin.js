@@ -1636,12 +1636,12 @@ exports.handler = async function (event) {
     ];
     for (const t of EXTRA) if (!haveTool(t.name)) tools.push({ type: 'function', function: { name: t.name, description: t.description, parameters: { type: 'object', properties: t.params, required: t.required } }, server: { url: PROXY } });
     model.tools = tools;
-    // Spanish line: lock the transcriber + voice to Spanish so it hears + speaks es.
-    // Cartesia requires a Spanish-supported voiceId when language='es' (Brooke isn't
-    // valid for es) — use a Cartesia Spanish voice.
-    const voiceOut = useEs
-      ? Object.assign({}, src.voice || {}, { language: 'es', voiceId: (q.voice_id || '2deb3edf-b9d8-4d06-8db9-5742fb8a3cb2') })
-      : src.voice;
+    // Spanish line: lock only the EARS (transcriber → es) so it hears Spanish
+    // accurately; keep the existing multilingual Cartesia sonic-2 voice, which
+    // speaks Spanish from the Spanish text — the same way the main multilingual
+    // line already does. (Forcing voice.language='es' triggers a Cartesia
+    // voiceId validation whose listed IDs aren't accessible on this account.)
+    const voiceOut = src.voice;
     const transcriberOut = useEs ? Object.assign({}, src.transcriber || {}, { language: 'es' }) : src.transcriber;
     const payload = {
       name: CLOSER_NAME,
