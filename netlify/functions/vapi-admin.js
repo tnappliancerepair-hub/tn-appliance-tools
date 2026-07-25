@@ -1524,6 +1524,23 @@ exports.handler = async function (event) {
     })), null, 2) };
   }
 
+  // Register a NEW Telnyx number in Vapi, bound to Ann — copies the provider +
+  // credentialId from an existing number so Vapi configures the Telnyx routing
+  // itself. Idempotent (won't double-add). ?action=addphone&number=+1...[&label=..]
+  if (action === 'addphone') {
+    const number = String(q.number || '').trim();
+    if (!/^\+1\d{10}$/.test(number)) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'pass &number=+1XXXXXXXXXX (E.164)' }) };
+    const ANN = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const all = listFrom(await vapi('GET', '/phone-number?limit=100', key));
+    const existing = all.find((p) => p.number === number);
+    if (existing) return { statusCode: 200, body: JSON.stringify({ ok: true, already: true, number, id: existing.id, assistantId: existing.assistantId }, null, 2) };
+    const sample = all.find((p) => p.provider === 'telnyx' && p.credentialId) || all.find((p) => p.credentialId);
+    if (!sample) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no existing number with a credentialId to copy' }) };
+    const payload = { provider: sample.provider || 'telnyx', number, credentialId: sample.credentialId, assistantId: ANN, name: (q.label || ('ANT ' + number)).slice(0, 40) };
+    const res = await vapi('POST', '/phone-number', key, payload);
+    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, status: res.status, created: res.ok ? { id: res.json.id, number: res.json.number, assistantId: res.json.assistantId } : undefined, used_provider: payload.provider, used_credentialId: sample.credentialId, error: res.ok ? undefined : res.json }, null, 2) };
+  }
+
   // Target assistant: default = Ant Inbound, OR &assistant_id=<id> to inspect/
   // setprompt ANY assistant (e.g. the field-assist scribe a22edcd1-...).
   let inbound;
