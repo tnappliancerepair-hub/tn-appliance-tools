@@ -63,7 +63,9 @@ exports.handler = async function (event) {
   if (String(await getSecret('GBP_SPANISH_POSTS') || '').toLowerCase() === 'false') return json(200, { ok: true, disabled: true });
   if (!(await gbp.isConfigured())) return json(200, { ok: false, error: 'gbp not configured' });
 
-  const post = await pickNext();
+  // ?id=<pool_id> forces a specific post (manual/admin only); else rotation.
+  const forced = (q.id || '').trim() ? POOL.find((p) => p.id === q.id.trim()) : null;
+  const post = forced || await pickNext();
   if (dry) return json(200, { ok: true, mode: 'dryrun', pool_id: post.id, url: post.url, post: post.body });
 
   const r = await gbp.createLocalPost({ summary: post.body, actionType: 'BOOK', actionUrl: post.url });
