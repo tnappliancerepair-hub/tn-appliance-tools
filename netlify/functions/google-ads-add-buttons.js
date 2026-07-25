@@ -4,9 +4,11 @@
 // deep-links under the ad — the thing that made Hoffmann Brothers' ad look full
 // and ours look like plain text.
 //
-// The Call number matches the website (615-280-2949, live on Telnyx -> Vapi ->
-// Ant Inbound) so the ad and the landing page agree — better quality score, and
-// every tap still lands on Ant.
+// The Call number defaults to 615-845-8500 — the dedicated Google Ads line that
+// rings Ann the Closer (Teddy 2026-07-25, "ads only": paid Google leads are cold
+// new leads → the Closer). The Business Profile + website stay on 615-280-2949
+// (general Ann) for NAP consistency. To do a clean SWAP (remove an old number
+// first), use google-ads-set-call-number instead of re-running this.
 //
 // Location "Directions" extension is NOT done here: it needs the Google Business
 // Profile linked as a location asset-set (a one-time Google Ads UI link). Once
@@ -35,8 +37,10 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
-  const phoneRaw = String(q.phone || '+16152802949').trim();
-  const phone = phoneRaw.startsWith('+') ? phoneRaw : '+1' + phoneRaw.replace(/\D/g, '');
+  // Default = the Google Ads / Closer line. Robust normalize (a URL "+" decodes to
+  // a space, so accept 10 digits, 11 with leading 1, or +1XXXXXXXXXX).
+  const pd = String(q.phone || '6158458500').replace(/\D/g, '');
+  const phone = pd.length === 11 && pd[0] === '1' ? '+' + pd : (pd.length === 10 ? '+1' + pd : (pd.length >= 11 ? '+' + pd : '+1' + pd));
   const campaignIds = String(q.campaigns || '23985730202,23990301052').split(',').map((s) => s.trim()).filter(Boolean);
   const apply = q.apply === '1';
 
