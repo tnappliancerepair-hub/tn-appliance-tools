@@ -1586,6 +1586,17 @@ exports.handler = async function (event) {
     const si = msgs.findIndex((m) => m.role === 'system');
     if (si >= 0) msgs[si].content = PROMPT; else msgs.unshift({ role: 'system', content: PROMPT });
     model.messages = msgs;
+    // Ensure the booking-link tools are attached (Ann's set omits these; the
+    // vapi-tool proxy already routes them). Without send_quickcheck_link she can
+    // PITCH the $50 Quick Check but has no way to TEXT it — the exact miss Teddy hit.
+    const tools = Array.isArray(model.tools) ? model.tools.slice() : [];
+    const haveTool = (n) => tools.some((t) => ((t.function && t.function.name) || t.name) === n);
+    const EXTRA = [
+      { name: 'send_quickcheck_link', description: 'Text the caller the $50 Quick Check cash-intake link (they enter their info, pay the $50, and send a short video + a photo of the model number). USE THIS the moment an out-of-pocket caller picks the Quick Check. Needs their cell; include their name if you have it.', params: { phone: { type: 'string', description: 'the caller cell number to text' }, name: { type: 'string', description: 'caller first name if known' } }, required: ['phone'] },
+      { name: 'save_availability', description: 'Save the days/times a caller is available when they will not or cannot do the text link, so scheduling can reach out and book them. Include the job_id from a lookup or a job you just created.', params: { job_id: { type: 'number', description: 'job id if known' }, availability: { type: 'string', description: 'the days/times they gave you' } }, required: ['availability'] },
+    ];
+    for (const t of EXTRA) if (!haveTool(t.name)) tools.push({ type: 'function', function: { name: t.name, description: t.description, parameters: { type: 'object', properties: t.params, required: t.required } }, server: { url: PROXY } });
+    model.tools = tools;
     const payload = {
       name: 'Ann — Closer',
       firstMessage: "Thanks for calling TN Appliance Exchange — you got the right folks! What's going on with your appliance?",
