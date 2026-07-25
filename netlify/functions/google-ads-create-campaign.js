@@ -101,7 +101,6 @@ exports.handler = async function (event) {
     name, advertisingChannelType: 'SEARCH', status: enable ? 'ENABLED' : 'PAUSED', campaignBudget: budgetRes,
     targetSpend: {}, networkSettings: { targetGoogleSearch: true, targetSearchNetwork: false, targetContentNetwork: false, targetPartnerSearchNetwork: false },
     containsEuPoliticalAdvertising: 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING',
-    startDate: todayYMD(),
   } }] });
   if (!camp.ok) return json(200, { ok: false, step: 'campaign', error: camp.err, budget: budgetRes });
   const campRes = camp.d.results[0].resourceName;
