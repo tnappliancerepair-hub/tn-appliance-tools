@@ -28,5 +28,21 @@ exports.handler = async function (event) {
   }
   try { await crud.logEvent('availability_captured_intake', { job_id: jobId, availability: pref, at_ms: Date.now() }); } catch (_) {}
 
+  // ✅ Availability is the LAST step of intake (warranty flow AND the $50 Quick
+  // Check both end here) — the true "customer finished" moment. Fire the
+  // confirmation so nobody's left hanging after sending their video/model/days.
+  // sendIntakeAck dedupes per job (won't double with the payment-received text)
+  // and the guard enforces opt-out / quiet-hours. Best-effort — never block the save.
+  try {
+    const job = await crud.searchOne(crud.TABLES.jobs, { id: jobId });
+    if (job) {
+      const phone = job.customer_phone || job.phone || '';
+      const name = job.customer_first || job.customer_first_name || '';
+      const appliance = job.appliance_type || 'appliance';
+      const consent = (job.sms_consent === false || String(job.sms_consent).toLowerCase() === 'no') ? 'no' : 'yes';
+      if (phone) await require('./_lib/intake-ack').sendIntakeAck({ job_id: jobId, phone, name, appliance, availability: pref, consent, suppressed: false });
+    }
+  } catch (_) {}
+
   return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true }) };
 };

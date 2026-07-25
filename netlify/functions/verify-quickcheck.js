@@ -170,10 +170,24 @@ exports.handler = async function (event) {
     }
   }
 
-  // Close the intake->schedule loop: media landed clean, so confirm receipt +
-  // next step + ask availability so nobody's left hanging after sending a video
-  // (Teddy 7/3). Suppressed if we already texted a finish-upload link above.
-  if (jobId) { try { await require('./_lib/intake-ack').sendIntakeAck({ job_id: jobId, phone: m.phone, name: m.name, appliance: m.appliance, availability: m.availability, consent: m.sms_consent, suppressed: customerTexted }); } catch (_) {} }
+  // Confirm the $ landed + point them to the next step. PAY-FIRST flow: no video
+  // yet, so the generic "got your video" ack would be wrong here — the real
+  // "we got everything" confirmation fires later when they finish availability
+  // (save-availability.js). If availability already came with the payment (the
+  // in-home path collects it), send the fuller scheduled-ack instead. Skipped if
+  // we already texted a finish-upload link above (no double-text). Guarded:
+  // opt-out / dedup still enforced; allowQuiet because it's a transactional
+  // response to a payment the customer just made.
+  if (jobId && !customerTexted && yes(m.sms_consent) && m.phone) {
+    if (String(m.availability || '').trim()) {
+      try { await require('./_lib/intake-ack').sendIntakeAck({ job_id: jobId, phone: m.phone, name: m.name, appliance: m.appliance, availability: m.availability, consent: m.sms_consent, suppressed: false }); } catch (_) {}
+    } else {
+      const who = String(m.name || '').trim().split(/\s+/)[0] || 'there';
+      const appl = String(m.appliance || m.machine || 'appliance').toLowerCase();
+      const pmsg = 'Hi ' + who + ", it's TN Appliance — got your $" + amount + ' Quick Check ✅. Next: send a quick video of your ' + appl + " + a photo of the model-number sticker (the link's on your screen, or just reply here). A real tech gives you an honest answer within a couple hours. Thank you!";
+      try { await require('./_lib/sms-guard').guardedSend({ phone: m.phone, message: pmsg, tag: 'quick_check_intake', kind: 'quick_check_intake', allowQuiet: true }); } catch (_) {}
+    }
+  }
 
   // Record the line/hose safety-offer decision (Teddy 2026-06-27). The recorded
   // choice — especially a DECLINE — is the liability protection; a YES tells the
