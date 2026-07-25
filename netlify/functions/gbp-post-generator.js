@@ -117,7 +117,7 @@ exports.handler = async function (event) {
   const publish = q.publish === '1';   // admin: publish ONE post now (keeps it), ignores dedup
   const ventCity = (q.vent_city || '').trim();   // admin: publish a dryer-vent post for a city
   const b2b = (q.b2b || '').trim().toLowerCase(); // admin: publish a B2B post (apartment|pm|realtor)
-  if (test || publish || ventCity || b2b) {
+  if (test || publish || ventCity || b2b || q.es === '1' || (q.summary || '').trim()) {
     const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
     if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
   }
@@ -167,6 +167,21 @@ exports.handler = async function (event) {
     const r = await gbp.createLocalPost({ summary: bpost.body, actionType: 'BOOK', actionUrl: url });
     if (r.ok) { try { await crud.logEvent('gbp_post_published', { bucket: 'b2b:' + b2b + ':' + Date.now(), title: bpost.title || '', topic: 'b2b_' + b2b, post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {} }
     return json(200, { ok: r.ok, mode: 'b2b_publish', audience: b2b, published: r.ok, title: bpost.title, post: bfull, post_name: (r.data && r.data.name) || null, status: r.status, error: r.ok ? undefined : r.data });
+  }
+
+  // On-demand SPANISH post: ?es=1&secret=  (add &dryrun=1 to preview). One GBP,
+  // no per-language duplicate listings — this adds genuine Spanish content to the
+  // single profile, pointing at the Spanish funnel (/es/ → DIY guides + $50 Quick
+  // Check). Re-fireable. ?summary=<text>&url=<url> publishes any custom post.
+  const es = q.es === '1';
+  const custom = (q.summary || '').trim();
+  if (es || custom) {
+    const url = (q.url || '').trim() || 'https://tnapplianceexchange.net/es/';
+    const summary = custom || '¿Se te descompuso un electrodoméstico? 🔧 En TN Appliance Exchange te ayudamos — atención en español. Con nuestra Revisión Rápida de $50 envías un video corto y una foto del número de modelo, y un técnico de verdad te dice exactamente qué está mal y tus opciones — y los $50 se acreditan a tu reparación. ¿Es algo simple? Te decimos la pieza exacta para que lo hagas tú mismo. Servicio a domicilio en el centro de Tennessee y el área de Baton Rouge; ayuda por video en todo EE. UU. Familia reparando electrodomésticos desde 2012. Llámanos o escríbenos: 1-888-268-8998.';
+    if (dry) return json(200, { ok: true, mode: 'es_dryrun', url, post: summary });
+    const r = await gbp.createLocalPost({ summary, actionType: 'BOOK', actionUrl: url });
+    if (r.ok) { try { await crud.logEvent('gbp_post_published', { bucket: 'es:' + Date.now(), topic: es ? 'spanish' : 'custom', post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {} }
+    return json(200, { ok: r.ok, mode: 'es_publish', url, published: r.ok, post: summary, post_name: (r.data && r.data.name) || null, status: r.status, error: r.ok ? undefined : r.data });
   }
 
   const now = new Date();
