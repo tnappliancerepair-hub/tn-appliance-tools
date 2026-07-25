@@ -54,11 +54,24 @@ async function suggestGeos(token, c, names) {
   return out;
 }
 
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+
 async function metricsFor(token, c, customerId, keywords, geoResource, langConst) {
   const url = 'https://googleads.googleapis.com/' + c.version + '/customers/' + customerId + ':generateKeywordHistoricalMetrics';
   const body = { keywords, geoTargetConstants: [geoResource], keywordPlanNetwork: 'GOOGLE_SEARCH', language: langConst, historicalMetricsOptions: { includeAverageCpc: true } };
-  const r = await fetch(url, { method: 'POST', headers: ga.apiHeaders(token, c), body: JSON.stringify(body) });
-  const d = await r.json().catch(() => ({}));
+  // login-customer-id = the account itself (mirrors the working Ads functions); on
+  // 403 fall back to the manager id; on 429 (per-minute quota) wait + retry once.
+  let r, d;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    r = await fetch(url, { method: 'POST', headers: ga.apiHeaders(token, c, customerId), body: JSON.stringify(body) });
+    d = await r.json().catch(() => ({}));
+    if (!r.ok && r.status === 403 && c.managerId) {
+      r = await fetch(url, { method: 'POST', headers: ga.apiHeaders(token, c, c.managerId), body: JSON.stringify(body) });
+      d = await r.json().catch(() => ({}));
+    }
+    if (r.status === 429 && attempt === 0) { await sleep(4000); continue; }
+    break;
+  }
   if (!r.ok) return { ok: false, status: r.status, error: JSON.stringify(d).slice(0, 300) };
   let total = 0, compSum = 0, compN = 0, top = null, topV = -1;
   const COMP = { LOW: 25, MEDIUM: 55, HIGH: 85 };
@@ -81,8 +94,9 @@ async function runLang(token, c, customerId, geos, metros, lang) {
     const g = geos[m] || geos[m.split(',')[0].trim()];
     if (!g) { rows.push({ metro: m, error: 'no geo match' }); continue; }
     const r = await metricsFor(token, c, customerId, kws, g.resourceName, langConst);
-    if (!r.ok) { rows.push({ metro: m, error: r.error }); continue; }
-    rows.push({ metro: m, geo: g.name, total_monthly_searches: r.total, competition: r.comp, top_term: r.top, top_term_volume: r.topV });
+    if (!r.ok) { rows.push({ metro: m, error: r.error }); }
+    else rows.push({ metro: m, geo: g.name, total_monthly_searches: r.total, competition: r.comp, top_term: r.top, top_term_volume: r.topV });
+    await sleep(900); // stay under Keyword Planner per-minute quota
   }
   rows.sort((a, b) => (b.total_monthly_searches || 0) - (a.total_monthly_searches || 0));
   return rows;
@@ -95,7 +109,9 @@ exports.handler = async function (event) {
 
   const langReq = (q.lang || 'es').toLowerCase();
   const langs = langReq === 'both' ? ['es', 'en'] : [langReq === 'en' ? 'en' : 'es'];
-  const metros = (q.metros || '').trim() ? q.metros.split(/[|;]/).map((s) => s.trim()).filter(Boolean) : DEFAULT_METROS;
+  const max = Math.max(1, Math.min(20, parseInt(q.max, 10) || 12)); // fit the 26s sync window + quota
+  let metros = (q.metros || '').trim() ? q.metros.split(/[|;]/).map((s) => s.trim()).filter(Boolean) : DEFAULT_METROS;
+  metros = metros.slice(0, max);
 
   const c = await ga.creds();
   if (!c.clientId || !c.refresh || !c.devToken) return json(200, { ok: false, error: 'google ads not configured' });
