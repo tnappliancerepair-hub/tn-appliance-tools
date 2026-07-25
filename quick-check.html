@@ -472,14 +472,15 @@
       html += '</div>';
     }
 
-    // CTA based on verdict
+    // CTA based on verdict — primary = start the paid $50 Quick Check (real tech,
+    // honest diagnosis from your video, $50 credited to the repair).
     html += '<div class="actions">';
+    html += '<a class="btn btn-primary" href="/quick-check-intake.html">✅ Start your $50 Quick Check →</a>';
     if (d.fix_or_replace === 'replace') {
-      html += '<a class="btn btn-primary" href="tel:6152802949">📞 Talk to us about new appliance options</a>';
+      html += '<a class="btn btn-secondary" href="tel:6152802949">📞 Talk about new appliance options</a>';
     } else {
-      html += '<a class="btn btn-primary" href="tel:6152802949">📞 Talk to a real tech — 615-280-2949</a>';
+      html += '<a class="btn btn-secondary" href="tel:6152802949">📞 Prefer to talk? Call a real tech</a>';
     }
-    html += '<a class="btn btn-secondary" href="mailto:tnappliancerepair@gmail.com?subject=Quick%20Check%20follow-up">Email instead</a>';
     html += '</div>';
 
     html += '<div class="disclaimer">AI-generated estimate based on what you described + showed us, backed by real-world data from thousands of repairs. Real-world conditions can change the diagnosis. If you schedule with us, the tech does a full diagnostic and the written estimate reflects what they actually find. TN Appliance Exchange only installs parts we supply.</div>';

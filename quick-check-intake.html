@@ -112,7 +112,7 @@ document.getElementById('payBtn').onclick=async function(){
   try{
     const r=await fetch(FN+'/create-quickcheck-payment'+(QC?('?qc='+encodeURIComponent(QC)):''),{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ name, phone, email, address, city, zip, appliance, brand:'', problem, payer:'self_pay', town:pre.town||city, sms_consent:document.getElementById('consent').checked, service:'quick_check' })
+      body:JSON.stringify({ name, phone, email, address, city, zip, appliance, brand:'', problem, payer:'self_pay', town:pre.town||city, sms_consent:document.getElementById('consent').checked, service:'quick_check', qc_test:QC })
     });
     const d=await r.json();
     if(d&&d.ok&&d.url){ location.href=d.url; }
