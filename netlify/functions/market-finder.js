@@ -72,7 +72,7 @@ async function metricsFor(token, c, customerId, keywords, geoResource, langConst
     if (r.status === 429 && attempt === 0) { await sleep(4000); continue; }
     break;
   }
-  if (!r.ok) return { ok: false, status: r.status, error: JSON.stringify(d).slice(0, 300) };
+  if (!r.ok) return { ok: false, status: r.status, error: JSON.stringify(d).slice(0, 900) };
   let total = 0, compSum = 0, compN = 0, top = null, topV = -1;
   const COMP = { LOW: 25, MEDIUM: 55, HIGH: 85 };
   for (const res of (d.results || [])) {
