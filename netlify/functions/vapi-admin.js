@@ -1548,7 +1548,9 @@ exports.handler = async function (event) {
   //   ?action=create_closer   (returns the new assistant id)
   if (action === 'create_closer') {
     const ANN = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
-    const existing = listFrom(await vapi('GET', '/assistant?limit=100', key)).find((a) => (a.name || '').trim().toLowerCase() === 'ann — closer');
+    const useEs = String(q.lang || '').toLowerCase() === 'es';
+    const CLOSER_NAME = useEs ? 'Ann — Closer (Español)' : 'Ann — Closer';
+    const existing = listFrom(await vapi('GET', '/assistant?limit=100', key)).find((a) => (a.name || '').trim().toLowerCase() === CLOSER_NAME.toLowerCase());
     const src = (await vapi('GET', `/assistant/${ANN}`, key)).json;
     if (!src || !src.model) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load Ann to clone' }) };
     const PROMPT = [
@@ -1588,10 +1590,40 @@ exports.handler = async function (event) {
 '## ZIGLAR CLOSES TO USE NATURALLY',
 'Fair Enough ("...fair enough?" / "sound good?"). Alternate of Choice ("mornings or afternoons?" not yes/no). Assumptive (talk like they are already booked — "when the tech comes out..."). Similar Situation (a quick true-to-life story — "had a lady in [their town] last week, same issue, [tech] had her running again the next day"). Cost ("the hundred comes right off your repair — peace of mind that pays for itself"). Above all: warm, honest, help-first.',
     ].join('\n');
+    // Spanish twin of the closer prompt (same logic: returning-customer branch,
+    // money policy, value, hard rules). Speaks + closes entirely in Spanish.
+    const PROMPT_ES = [
+'Eres Ann, la voz cálida y amable de TN Appliance Exchange — una empresa familiar de reparación de electrodomésticos que sirve al centro de Tennessee y el sur de Luisiana desde 2012. ESTA línea es para personas que llaman por nuestros anuncios con un electrodoméstico descompuesto. Tu ÚNICO trabajo: ayudarlas con calidez y AGENDARLAS — o, si de verdad no pueden comprometerse ahora, capturar su número y disponibilidad para que agendamiento les dé seguimiento. Un cliente NUNCA debe colgar con las manos vacías. Habla SIEMPRE en español.',
+'',
+'## QUIÉN ERES',
+'Cierras como Zig Ziglar: cálida, sincera, alentadora, genuinamente útil. NO estás "vendiendo" — ayudas a un vecino a arreglar su electrodoméstico y volver a la normalidad. Sin prisa pero eficiente. Crees de verdad que los cuidaremos muy bien. Nunca presiones, nunca engañes. Una objeción es solo una petición de más información — respóndela con empatía. Haz que sientan que GANARON por llamarnos.',
+'',
+'## LA REGLA DE ORO DE LA CONFIANZA',
+'Tener la razón importa más que tener una respuesta. Si no sabes algo, di "déjame confirmarlo para ti" — NUNCA adivines, NUNCA inventes una hora de cita, NUNCA prometas el mismo día. Que una búsqueda regrese vacía es NORMAL — nunca digas "no estás en el sistema"; pide su número, un número de reclamo/orden, o su nombre y ciudad.',
+'',
+'## PRIMERO — SABE CON QUIÉN HABLAS (antes de todo)',
+'Al inicio de la llamada, llama EN SILENCIO a lookup_customer_by_phone con el número ({{customer.number}}). Si YA es cliente con un trabajo: NO ofrezcas la tarifa de $100 ni la Revisión de $50 y NO hagas el guion de cierre. Salúdalo por su nombre — "Hola [nombre], qué gusto, aquí tengo tu reparación de [electrodoméstico]" — y AYÚDALO con precisión: estado con get_job_arrival_status / get_parts_status / get_schedule_history, reprograma con initiate_customer_reschedule, o pásale un mensaje a su técnico con relay_to_tech. Solo pasa a agendar algo nuevo si menciona OTRO electrodoméstico. Si no aparece nada (found:false) o no tiene trabajo activo: es cliente NUEVO — sigue el cierre de abajo. Un representante de garantía se maneja con las reglas de garantía (confirma el reclamo, nunca cotices tarifa).',
+'',
+'## EL FLUJO',
+'1) Escucha primero qué está mal. 2) Empatiza. 3) Genera confianza: "Arreglamos estos todos los días — familia desde 2012, cuatro y media estrellas en más de mil reseñas, técnicos con licencia, no un centro de llamadas." 4) CALIFICA: "¿Esto es con garantía del hogar, o lo pagas tú?" GARANTÍA = no pagan nada, confirma el reclamo y agenda. PAGO PROPIO = la política de dinero de abajo.',
+'5) EL DINERO (solo pago propio): "Así lo hacemos — un técnico con licencia va por una tarifa fija de cien dólares de visita y diagnóstico, y esos cien se acreditan a tu reparación si sigues adelante. O, si prefieres que nadie vaya todavía, tenemos la Revisión Rápida de cincuenta dólares — grabas un video corto y una foto del número de modelo y te damos una evaluación honesta con eso. ¿Decides que quieres un técnico después? Tus cincuenta se acreditan a la tarifa de visita — nunca pagas dos veces. De cualquier forma, lo que gastes se descuenta de la mano de obra. ¿Te parece justo?"',
+'   - EL VALOR: es el camino MÁS FÁCIL, RÁPIDO y a menudo MÁS BARATO a un electrodoméstico funcionando. La Revisión de $50 cuesta menos Y da una respuesta más rápida. Somos amigables con el "hazlo tú mismo" — si es algo simple, hasta te damos la pieza exacta. Lo que sea más fácil y barato para TI.',
+'6) CIERRA PARA AGENDAR (asumiendo + alternativa, nunca "¿quieres agendar?"): "¿Qué días te funcionan mejor esta semana — mañanas o tardes?" Luego: "Te voy a enviar un enlace rápido para traer la pieza correcta y firmar una autorización rápida, sin demoras." Envíalo con send_quickcheck_link (SIEMPRE pásale lang "es" y su número de celular). Confirma que el celular recibe textos. SI NO PUEDE/QUIERE TEXTO: toma su disponibilidad y dirección, guárdala con save_availability, y di "Perfecto — se lo paso a agendamiento y te contactarán para fijar tu día." Nunca elijas tú una fecha/hora exacta.',
+'7) ENMARCA LA VICTORIA al comprometerse: "Tomaste una gran decisión. Ya estás cuidado."',
+'8) TRANQUILIDAD: "Recibirás una confirmación por texto, te enviamos una ventana de llegada en vivo la mañana del servicio, y si algo surge, una persona real contesta este número."',
+'',
+'## REGLAS FIRMES',
+'- Nunca prometas EL MISMO DÍA. Escasez honesta: "La agenda se llena rápido, agarremos el espacio más pronto que te sirva."',
+'- Nunca des una hora de reloj. Solo el día.',
+'- EMERGENCIA: empatiza y ofrece la opción prioritaria — "tenemos una opción para adelantarte; tiene un cargo adicional y la oficina confirma el monto exacto." Aun así nunca prometas el mismo día.',
+'- Los clientes de garantía no pagan nada. Nunca leas un número de pieza a un cliente. Nunca compartas el celular personal de nadie.',
+'- Promete de menos, entrega de más.',
+    ].join('\n');
+    const SYS = useEs ? PROMPT_ES : PROMPT;
     const model = Object.assign({}, src.model);
     const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
     const si = msgs.findIndex((m) => m.role === 'system');
-    if (si >= 0) msgs[si].content = PROMPT; else msgs.unshift({ role: 'system', content: PROMPT });
+    if (si >= 0) msgs[si].content = SYS; else msgs.unshift({ role: 'system', content: SYS });
     model.messages = msgs;
     // Ensure the booking-link tools are attached (Ann's set omits these; the
     // vapi-tool proxy already routes them). Without send_quickcheck_link she can
@@ -1599,16 +1631,21 @@ exports.handler = async function (event) {
     const tools = Array.isArray(model.tools) ? model.tools.slice() : [];
     const haveTool = (n) => tools.some((t) => ((t.function && t.function.name) || t.name) === n);
     const EXTRA = [
-      { name: 'send_quickcheck_link', description: 'Text the caller the $50 Quick Check cash-intake link (they enter their info, pay the $50, and send a short video + a photo of the model number). USE THIS the moment an out-of-pocket caller picks the Quick Check. Needs their cell; include their name if you have it.', params: { phone: { type: 'string', description: 'the caller cell number to text' }, name: { type: 'string', description: 'caller first name if known' } }, required: ['phone'] },
+      { name: 'send_quickcheck_link', description: 'Text the caller the $50 Quick Check cash-intake link (they enter their info, pay the $50, and send a short video + a photo of the model number). USE THIS the moment an out-of-pocket caller picks the Quick Check. Needs their cell; include their name if you have it. On a Spanish line, pass lang:"es" so the link + all follow-up texts are in Spanish.', params: { phone: { type: 'string', description: 'the caller cell number to text' }, name: { type: 'string', description: 'caller first name if known' }, lang: { type: 'string', description: 'language code for the link + texts, e.g. "es" for Spanish; omit for English' } }, required: ['phone'] },
       { name: 'save_availability', description: 'Save the days/times a caller is available when they will not or cannot do the text link, so scheduling can reach out and book them. Include the job_id from a lookup or a job you just created.', params: { job_id: { type: 'number', description: 'job id if known' }, availability: { type: 'string', description: 'the days/times they gave you' } }, required: ['availability'] },
     ];
     for (const t of EXTRA) if (!haveTool(t.name)) tools.push({ type: 'function', function: { name: t.name, description: t.description, parameters: { type: 'object', properties: t.params, required: t.required } }, server: { url: PROXY } });
     model.tools = tools;
+    // Spanish line: lock the transcriber + voice to Spanish so it hears + speaks es.
+    const voiceOut = useEs ? Object.assign({}, src.voice || {}, { language: 'es' }) : src.voice;
+    const transcriberOut = useEs ? Object.assign({}, src.transcriber || {}, { language: 'es' }) : src.transcriber;
     const payload = {
-      name: 'Ann — Closer',
-      firstMessage: "Thanks for calling TN Appliance Exchange — you got the right folks! What's going on with your appliance?",
+      name: CLOSER_NAME,
+      firstMessage: useEs
+        ? '¡Gracias por llamar a TN Appliance Exchange — llegaste al lugar correcto! ¿Qué está pasando con tu electrodoméstico?'
+        : "Thanks for calling TN Appliance Exchange — you got the right folks! What's going on with your appliance?",
       firstMessageMode: src.firstMessageMode || 'assistant-speaks-first',
-      model, voice: src.voice, transcriber: src.transcriber,
+      model, voice: voiceOut, transcriber: transcriberOut,
     };
     if (src.server) payload.server = src.server;
     if (src.serverMessages) payload.serverMessages = src.serverMessages;
@@ -1619,7 +1656,7 @@ exports.handler = async function (event) {
       const sys = (((v.model || {}).messages) || []).find((m) => m.role === 'system');
       const content = String((sys && sys.content) || '');
       const toolNames = (((v.model || {}).tools) || []).map((t) => (t.function && t.function.name) || t.name);
-      return { returning_branch_live: content.includes('RETURNING CUSTOMER'), send_quickcheck_link: toolNames.includes('send_quickcheck_link') };
+      return { returning_branch_live: content.includes('RETURNING CUSTOMER') || content.includes('SABE CON QUIÉN HABLAS'), send_quickcheck_link: toolNames.includes('send_quickcheck_link') };
     };
     if (existing) {
       const upd = await vapi('PATCH', `/assistant/${existing.id}`, key, payload);
