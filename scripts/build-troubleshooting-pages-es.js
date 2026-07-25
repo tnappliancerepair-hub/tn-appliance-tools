@@ -1,25 +1,25 @@
-// build-troubleshooting-pages.js — renders the authority content library from
-// scripts/troubleshooting-content.js into /fix/<slug>.html + a /fix/ hub index.
-// Each page carries FAQPage + HowTo + BreadcrumbList schema so voice assistants and
-// AI answer engines can quote it, and dual CTAs: local in-home repair (TN/LA) AND
-// the nationwide video diagnostic (ship-you-the-part, works anywhere in the U.S.).
+// build-troubleshooting-pages-es.js — Spanish twin of build-troubleshooting-pages.js.
+// Renders scripts/troubleshooting-content-es.js into /es/fix/<slug>.html + a /es/fix/
+// hub, with Spanish FAQ + HowTo + BreadcrumbList schema, hreflang paired to the
+// English /fix/ pages, the 888 Spanish line, and a lead CTA into the $50 Revisión
+// Rápida (quick-check-intake.html?lang=es) + DIY-friendly framing.
 //
-// Run:  node scripts/build-troubleshooting-pages.js
-// Then bump sitemap.xml with the printed URLs and commit.
+// Run:  node scripts/build-troubleshooting-pages-es.js
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const ITEMS = require('./troubleshooting-content');
+const ITEMS = require('./troubleshooting-content-es');
 
 const ROOT = path.resolve(__dirname, '..');
-const OUT = path.join(ROOT, 'fix');
+const OUT = path.join(ROOT, 'es', 'fix');
 const BASE = 'https://tnapplianceexchange.net';
-const PHONE = '(615) 280-2949';
-const TODAY = '2026-07-13';
-
-const SERVICE_PAGE = { Washer: 'washer-repair.html', Dryer: 'dryer-repair.html', Refrigerator: 'refrigerator-repair.html', Dishwasher: 'dishwasher-repair.html', Oven: 'oven-repair.html' };
+const PHONE = '1-888-268-8998';           // the Spanish line → Ann — Closer (Español)
+const TEL = '+18882688998';
+const QC = '/quick-check-intake.html?lang=es';
 
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+const stripQ = (q) => q.replace(/ — ¿qué hago\?$/, '');
+const TAG = { Easy: 'Revisión fácil', Moderate: 'Revisión moderada', Pro: 'Técnico' };
 
 const CSS = `*{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0b0b0c;--surf:#141416;--bord:#26262a;--ink:#ececec;--dim:#a0a0a6;--orange:#ff6200;--green:#39ff14}
@@ -73,49 +73,57 @@ function howToSteps(item) {
     .map((c, i) => ({ '@type': 'HowToStep', position: i + 1, name: c.name, text: c.diy }));
   return steps.length ? {
     '@context': 'https://schema.org', '@type': 'HowTo',
-    name: 'Safe things to check when ' + item.question.replace(/ — what do I do\?$/, '').toLowerCase(),
-    about: item.appliance + ' repair',
+    name: 'Qué revisar de forma segura cuando ' + stripQ(item.question).toLowerCase(),
+    inLanguage: 'es', about: item.appliance,
     step: steps,
   } : null;
 }
 
-function page(item, idx) {
-  const url = `${BASE}/fix/${item.slug}.html`;
-  const svc = SERVICE_PAGE[item.appliance];
+function ctaBlock() {
+  return `    <div class="cta">
+      <h2>Una respuesta real — hoy, desde donde estés</h2>
+      <p>¿En el centro de Tennessee o el área de Baton Rouge? Vamos a tu casa. ¿En cualquier otro lugar de EE. UU.? Empieza con la <b>Revisión Rápida de $50</b>: envías un video de 10 segundos y una foto del número de modelo, un técnico de verdad te dice exactamente qué está mal, y los $50 se acreditan a tu reparación. Y si es algo simple, hasta te decimos la pieza exacta para que lo hagas tú mismo.</p>
+      <div class="btnrow">
+        <a class="btn p" href="${QC}">Empieza tu Revisión Rápida de $50 →</a>
+        <a class="btn s" href="tel:${TEL}">Llámanos o escríbenos · ${PHONE}</a>
+      </div>
+    </div>`;
+}
+
+function page(item) {
+  const url = `${BASE}/es/fix/${item.slug}.html`;
+  const enUrl = `${BASE}/fix/${item.slug}.html`;
   const related = ITEMS.filter((x) => x.slug !== item.slug).slice(0, 3);
 
-  const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: item.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) };
+  const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', inLanguage: 'es', mainEntity: item.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) };
   const bc = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: BASE + '/' },
-    { '@type': 'ListItem', position: 2, name: 'Appliance Fix Guides', item: BASE + '/fix/' },
-    { '@type': 'ListItem', position: 3, name: item.appliance + ' — ' + item.question.replace(/ — what do I do\?$/, ''), item: url },
+    { '@type': 'ListItem', position: 1, name: 'Inicio', item: BASE + '/es/' },
+    { '@type': 'ListItem', position: 2, name: 'Guías de reparación', item: BASE + '/es/fix/' },
+    { '@type': 'ListItem', position: 3, name: item.appliance + ' — ' + stripQ(item.question), item: url },
   ] };
   const howto = howToSteps(item);
+  const schemas = [faqSchema, bc].concat(howto ? [howto] : []);
 
   const causesHtml = item.causes.map((c) => `      <div class="cause">
-        <h3>${esc(c.name)} <span class="tag ${c.difficulty}">${c.difficulty === 'Pro' ? 'Technician' : c.difficulty + ' DIY check'}</span></h3>
+        <h3>${esc(c.name)} <span class="tag ${c.difficulty}">${TAG[c.difficulty] || c.difficulty}</span></h3>
         <p class="why">${esc(c.why)}</p>
-        <p class="check"><b>Check it:</b> ${esc(c.diy)}</p>
+        <p class="check"><b>Revísalo:</b> ${esc(c.diy)}</p>
       </div>`).join('\n');
 
   const faqHtml = item.faqs.map((f) => `        <details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join('\n');
-
-  const relatedHtml = related.map((r) => `<a href="/fix/${r.slug}.html">${esc(r.question.replace(/ — what do I do\?$/, ''))}</a>`).join('\n        ')
-    + (svc ? `\n        <a href="/${svc}">${esc(item.appliance)} repair service →</a>` : '');
-
-  const schemas = [faqSchema, bc].concat(howto ? [howto] : []);
+  const relatedHtml = related.map((r) => `<a href="/es/fix/${r.slug}.html">${esc(stripQ(r.question))}</a>`).join('\n        ');
 
   return `<!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(item.metaTitle)} | TN Appliance Exchange</title>
 <meta name="description" content="${esc(item.metaDesc)}">
 <link rel="canonical" href="${url}">
-<link rel="alternate" hreflang="en" href="${url}">
-<link rel="alternate" hreflang="es" href="${BASE}/es/fix/${item.slug}.html">
-<link rel="alternate" hreflang="x-default" href="${url}">
+<link rel="alternate" hreflang="es" href="${url}">
+<link rel="alternate" hreflang="en" href="${enUrl}">
+<link rel="alternate" hreflang="x-default" href="${enUrl}">
 <meta property="og:title" content="${esc(item.metaTitle)}">
 <meta property="og:description" content="${esc(item.metaDesc)}">
 <meta property="og:type" content="article">
@@ -127,42 +135,35 @@ ${schemas.map((s) => `<script type="application/ld+json">${JSON.stringify(s)}</s
 <body>
   <div class="wrap">
     <header>
-      <a class="brand" href="/">TN Appliance<b>·</b>Ant</a>
-      <a class="callbtn" href="tel:+16152802949">Text or call 24/7 · ${PHONE}</a>
+      <a class="brand" href="/es/">TN Appliance<b>·</b>Ant</a>
+      <a class="callbtn" href="tel:${TEL}">Llámanos o escríbenos 24/7 · ${PHONE}</a>
     </header>
-    <nav class="bc"><a href="/">Home</a> › <a href="/fix/">Appliance Fix Guides</a> › ${esc(item.appliance)}</nav>
+    <nav class="bc"><a href="/es/">Inicio</a> › <a href="/es/fix/">Guías de reparación</a> › ${esc(item.appliance)}</nav>
     <h1>${esc(item.question)}</h1>
     <p class="lede">${esc(item.intro)}</p>
-    <div class="safety"><b>⚠ Safety first:</b> ${esc(item.safety)}</div>
+    <div class="safety"><b>⚠ Primero la seguridad:</b> ${esc(item.safety)}</div>
 
-    <h2>The most likely causes</h2>
+    <h2>Las causas más probables</h2>
 ${causesHtml}
 
-    <h2>Is it worth fixing?</h2>
+    <h2>¿Vale la pena arreglarlo?</h2>
     <p>${esc(item.repairReplace)}</p>
 
-    <div class="cta">
-      <h2>Get a real answer — anytime, anywhere</h2>
-      <p>In Middle Tennessee or the Baton Rouge area? We'll come to you, same-day. Anywhere else in the U.S.? Send a 10-second video, a real technician tells you exactly what's wrong for $50 (credited toward the repair), and we ship you the exact part. 24/7 — text, call, or upload anytime.</p>
-      <div class="btnrow">
-        <a class="btn p" href="/">Start now — send a video</a>
-        <a class="btn s" href="tel:+16152802949">Text or call ${PHONE}</a>
-      </div>
-    </div>
+${ctaBlock()}
 
-    <h2>Common questions</h2>
+    <h2>Preguntas frecuentes</h2>
     <div class="faq">
 ${faqHtml}
     </div>
 
-    <h2>Related fixes</h2>
+    <h2>Reparaciones relacionadas</h2>
     <div class="related">
         ${relatedHtml}
     </div>
 
     <footer>
-      <p><b>TN Appliance Exchange</b> — honest, technician-led appliance repair since 2012. In-home service across Middle Tennessee &amp; the Baton Rouge area of Louisiana; nationwide video diagnostic with parts shipping. Reach us 24/7/365 at ${PHONE}.</p>
-      <p style="margin-top:8px"><a href="/fix/">All appliance fix guides</a> · <a href="/">Home</a></p>
+      <p><b>TN Appliance Exchange</b> — reparación de electrodomésticos honesta y dirigida por técnicos desde 2012. Servicio a domicilio en el centro de Tennessee y el área de Baton Rouge, Luisiana; diagnóstico por video a nivel nacional con envío de piezas. Estamos 24/7/365 al ${PHONE}. <a href="${enUrl}">In English</a></p>
+      <p style="margin-top:8px"><a href="/es/fix/">Todas las guías de reparación</a> · <a href="/es/">Inicio</a></p>
     </footer>
   </div>
 </body>
@@ -170,24 +171,22 @@ ${faqHtml}
 }
 
 function hub() {
-  const byAppliance = {};
-  for (const it of ITEMS) { (byAppliance[it.appliance] = byAppliance[it.appliance] || []).push(it); }
-  const cards = ITEMS.map((it) => `      <a class="card" href="/fix/${it.slug}.html">
+  const cards = ITEMS.map((it) => `      <a class="card" href="/es/fix/${it.slug}.html">
         <span class="ap">${esc(it.appliance)}</span>
-        <span class="q">${esc(it.question.replace(/ — what do I do\?$/, ''))}</span>
+        <span class="q">${esc(stripQ(it.question))}</span>
       </a>`).join('\n');
-  const itemList = { '@context': 'https://schema.org', '@type': 'ItemList', name: 'Appliance troubleshooting guides', itemListElement: ITEMS.map((it, i) => ({ '@type': 'ListItem', position: i + 1, url: `${BASE}/fix/${it.slug}.html`, name: it.question })) };
-  const bc = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [ { '@type': 'ListItem', position: 1, name: 'Home', item: BASE + '/' }, { '@type': 'ListItem', position: 2, name: 'Appliance Fix Guides', item: BASE + '/fix/' } ] };
+  const itemList = { '@context': 'https://schema.org', '@type': 'ItemList', inLanguage: 'es', name: 'Guías de reparación de electrodomésticos', itemListElement: ITEMS.map((it, i) => ({ '@type': 'ListItem', position: i + 1, url: `${BASE}/es/fix/${it.slug}.html`, name: it.question })) };
+  const bc = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [ { '@type': 'ListItem', position: 1, name: 'Inicio', item: BASE + '/es/' }, { '@type': 'ListItem', position: 2, name: 'Guías de reparación', item: BASE + '/es/fix/' } ] };
   return `<!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Appliance Fix Guides — Honest Answers From Real Technicians | TN Appliance Exchange</title>
-<meta name="description" content="Straight answers to the most common appliance problems from working technicians. What's wrong, what's safe to check yourself, and whether it's worth fixing. 24/7 help anywhere in the U.S.">
-<link rel="canonical" href="${BASE}/fix/">
-<link rel="alternate" hreflang="en" href="${BASE}/fix/">
+<title>Guías de reparación de electrodomésticos — Respuestas honestas de técnicos reales | TN Appliance Exchange</title>
+<meta name="description" content="Respuestas claras a los problemas más comunes de electrodomésticos, de técnicos que los reparan a diario. Qué está mal, qué es seguro revisar tú mismo, y si vale la pena arreglarlo. Ayuda 24/7 en todo EE. UU.">
+<link rel="canonical" href="${BASE}/es/fix/">
 <link rel="alternate" hreflang="es" href="${BASE}/es/fix/">
+<link rel="alternate" hreflang="en" href="${BASE}/fix/">
 <link rel="alternate" hreflang="x-default" href="${BASE}/fix/">
 <meta name="robots" content="index,follow,max-snippet:-1">
 <script type="application/ld+json">${JSON.stringify(itemList)}</script>
@@ -203,24 +202,17 @@ function hub() {
 <body>
   <div class="wrap">
     <header>
-      <a class="brand" href="/">TN Appliance<b>·</b>Ant</a>
-      <a class="callbtn" href="tel:+16152802949">Text or call 24/7 · ${PHONE}</a>
+      <a class="brand" href="/es/">TN Appliance<b>·</b>Ant</a>
+      <a class="callbtn" href="tel:${TEL}">Llámanos o escríbenos 24/7 · ${PHONE}</a>
     </header>
-    <nav class="bc"><a href="/">Home</a> › Appliance Fix Guides</nav>
-    <h1>Appliance Fix Guides</h1>
-    <p class="lede">Straight, honest answers to the most common appliance problems — from technicians who fix these every day. What's likely wrong, what's safe to check yourself, and whether it's worth repairing. Stuck? Send us a video anytime and we'll tell you exactly what's going on.</p>
+    <nav class="bc"><a href="/es/">Inicio</a> › Guías de reparación</nav>
+    <h1>Guías de reparación de electrodomésticos</h1>
+    <p class="lede">Respuestas claras y honestas a los problemas más comunes de electrodomésticos — de técnicos que los reparan todos los días. Qué es lo más probable, qué es seguro revisar tú mismo, y si vale la pena repararlo. ¿Atorado? Envíanos un video cuando quieras y te decimos exactamente qué pasa.</p>
     <div class="grid">
 ${cards}
     </div>
-    <div class="cta">
-      <h2>Can't find your problem?</h2>
-      <p>Describe it or send a 10-second video — 24/7, from anywhere in the U.S. A real technician answers, and we can ship you the exact part even if you're outside our in-home service area.</p>
-      <div class="btnrow">
-        <a class="btn p" href="/">Ask a technician now</a>
-        <a class="btn s" href="tel:+16152802949">Text or call ${PHONE}</a>
-      </div>
-    </div>
-    <footer><p><b>TN Appliance Exchange</b> — honest, technician-led appliance repair since 2012. 24/7/365 at ${PHONE}.</p></footer>
+${ctaBlock()}
+    <footer><p><b>TN Appliance Exchange</b> — reparación honesta dirigida por técnicos desde 2012. 24/7/365 al ${PHONE}. <a href="${BASE}/fix/">In English</a></p></footer>
   </div>
 </body>
 </html>`;
@@ -229,12 +221,11 @@ ${cards}
 // ---- write ----
 if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
 const urls = [];
-ITEMS.forEach((it, i) => {
-  fs.writeFileSync(path.join(OUT, it.slug + '.html'), page(it, i));
-  urls.push(`${BASE}/fix/${it.slug}.html`);
+ITEMS.forEach((it) => {
+  fs.writeFileSync(path.join(OUT, it.slug + '.html'), page(it));
+  urls.push(`${BASE}/es/fix/${it.slug}.html`);
 });
 fs.writeFileSync(path.join(OUT, 'index.html'), hub());
-urls.unshift(`${BASE}/fix/`);
-console.log('Built ' + ITEMS.length + ' fix pages + hub in /fix/');
-console.log('SITEMAP_URLS:');
-urls.forEach((u) => console.log(u));
+urls.push(`${BASE}/es/fix/`);
+console.log('Wrote ' + (ITEMS.length + 1) + ' Spanish pages to /es/fix/:');
+urls.forEach((u) => console.log('  ' + u));
