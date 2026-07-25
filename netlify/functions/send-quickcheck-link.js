@@ -10,6 +10,18 @@ const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const { sendSms } = require('./_lib/sms');
 const QUICK_CHECK_URL = 'https://tnapplianceexchange.net/quick-check-intake.html';
+// Test phones get the $1 link (?qc=<token>); every real customer pays $50. Add
+// numbers via QC_TEST_PHONES env (comma-separated) or the default set below.
+// Teddy's cell is in so he can run a full call->pay test for a buck.
+const QC_TEST_TOKEN = 'tn-qc-test-2026';
+const TEST_PHONES = new Set(
+  String(process.env.QC_TEST_PHONES || '6154855795')
+    .split(',').map((s) => s.replace(/\D/g, '').replace(/^1(\d{10})$/, '$1')).filter(Boolean)
+);
+function linkFor(phone) {
+  const d = String(phone || '').replace(/\D/g, '').replace(/^1(\d{10})$/, '$1');
+  return TEST_PHONES.has(d) ? (QUICK_CHECK_URL + '?qc=' + QC_TEST_TOKEN) : QUICK_CHECK_URL;
+}
 
 function headers() {
   const t = process.env.XANO_METADATA_TOKEN;
@@ -33,7 +45,7 @@ exports.handler = async function (event) {
   }
 
   const hi = name ? ('Hi ' + name.split(/\s+/)[0] + '! ') : 'Hi! ';
-  const body = hi + "Here's your $50 Quick Check from TN Appliance Exchange 🐜 — a real tech gives you an honest diagnosis and your exact options within ~2 business hours, and the $50 comes off your repair. Start here: " + QUICK_CHECK_URL;
+  const body = hi + "Here's your $50 Quick Check from TN Appliance Exchange 🐜 — a real tech gives you an honest diagnosis and your exact options within ~2 business hours, and the $50 comes off your repair. Start here: " + linkFor(phone);
 
   let sent = false, gated = false;
   try {
