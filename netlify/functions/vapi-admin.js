@@ -1614,12 +1614,21 @@ exports.handler = async function (event) {
     if (src.serverMessages) payload.serverMessages = src.serverMessages;
     if (src.analysisPlan) payload.analysisPlan = src.analysisPlan;
     if (src.backgroundSound) payload.backgroundSound = src.backgroundSound;
+    const verifyClose = async (id) => {
+      const v = (await vapi('GET', `/assistant/${id}`, key)).json || {};
+      const sys = (((v.model || {}).messages) || []).find((m) => m.role === 'system');
+      const content = String((sys && sys.content) || '');
+      const toolNames = (((v.model || {}).tools) || []).map((t) => (t.function && t.function.name) || t.name);
+      return { returning_branch_live: content.includes('RETURNING CUSTOMER'), send_quickcheck_link: toolNames.includes('send_quickcheck_link') };
+    };
     if (existing) {
       const upd = await vapi('PATCH', `/assistant/${existing.id}`, key, payload);
-      return { statusCode: 200, body: JSON.stringify({ ok: upd.ok, mode: 'updated', id: existing.id, status: upd.status, error: upd.ok ? undefined : upd.json }, null, 2) };
+      const chk = upd.ok ? await verifyClose(existing.id) : {};
+      return { statusCode: 200, body: JSON.stringify(Object.assign({ ok: upd.ok, mode: 'updated', id: existing.id, status: upd.status }, chk, { error: upd.ok ? undefined : upd.json }), null, 2) };
     }
     const res = await vapi('POST', '/assistant', key, payload);
-    return { statusCode: 200, body: JSON.stringify({ ok: res.ok, mode: 'created', id: res.ok ? res.json.id : undefined, status: res.status, error: res.ok ? undefined : res.json }, null, 2) };
+    const chk2 = res.ok ? await verifyClose(res.json.id) : {};
+    return { statusCode: 200, body: JSON.stringify(Object.assign({ ok: res.ok, mode: 'created', id: res.ok ? res.json.id : undefined, status: res.status }, chk2, { error: res.ok ? undefined : res.json }), null, 2) };
   }
 
   // Point an existing phone number at a given assistant. ?action=route_number&number=+1...&assistant=<id>
