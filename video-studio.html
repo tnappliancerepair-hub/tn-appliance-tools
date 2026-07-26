@@ -252,7 +252,7 @@ function player(j){
     +'style="position:relative;width:100%;min-height:230px;max-height:430px;aspect-ratio:9/16;margin-top:10px;'
     +'background:radial-gradient(circle at 50% 40%,#1b1b1b,#0a0a0a);border:1px solid #2a2a2a;border-radius:12px;'
     +'display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden">'
-    +'<div class="muted" style="font-size:13px;text-align:center;line-height:1.5">▶<br>tap to preview</div></div>'
+    +'<div style="text-align:center;padding:0 14px"><div style="font-size:42px;line-height:1;color:#e9c46a">▶</div><div class="muted" style="font-size:13px;margin-top:8px">Tap to play</div></div></div>'
     +note+'<div style="margin-top:4px"><a href="'+esc(j.download_url||'#')+'" target="_blank" class="muted" style="font-size:12px">▶ Open the clip ↗</a></div>'; }
 function mountVideo(el){
   if(!el||el.dataset.mounted) return;
@@ -268,18 +268,22 @@ function mountVideo(el){
   }
 }
 function mountOne(el){ mountVideo(el); const v=el&&el.querySelector('video'); if(v){ v.muted=false; try{ v.play(); }catch(_){} } }
+async function delClip(id,btn){
+  if(!confirm('Delete this clip from the Studio? It comes off the list for good.')) return;
+  if(btn){ btn.disabled=true; btn.textContent='Deleting…'; }
+  try{
+    const r=await fetch(F+'/video-prune',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET,ids:[String(id)]})});
+    const d=await r.json();
+    if(d&&d.ok){ loadJobs(); }
+    else { if(btn){btn.disabled=false;btn.textContent='🗑 Delete clip';} alert('Could not delete — '+((d&&d.error)||'try again')); }
+  }catch(e){ if(btn){btn.disabled=false;btn.textContent='🗑 Delete clip';} alert('Network hiccup — try again.'); }
+}
 let _vio;
 function observeLazy(){
-  if(!('IntersectionObserver'in window)){ document.querySelectorAll('.vlazy:not([data-mounted])').forEach(mountVideo); return; }
-  if(!_vio){
-    _vio=new IntersectionObserver(function(ents){ ents.forEach(function(e){
-      if(e.isIntersecting){ mountVideo(e.target); }
-      // Scrolled away: just PAUSE — keep the painted frame so it never reverts to a
-      // blank "tap to preview" box (that was the "can't see it unless I click" bug).
-      else { var v=e.target.querySelector('video'); if(v&&!v.paused){ try{ v.pause(); }catch(_){} } }
-    }); }, { rootMargin:'250px 0px' });
-  }
-  document.querySelectorAll('.vlazy:not([data-obs])').forEach(function(el){ el.setAttribute('data-obs','1'); _vio.observe(el); });
+  // Clips stay as clean gold "▶ Tap to play" cards and only load the real video when
+  // TAPPED (mountOne). Auto-mounting many videos on a phone painted black boxes for
+  // clips whose poster frame didn't decode — this keeps every card clean + readable
+  // so you can tell them apart to pick or delete. (Teddy feedback 2026-07-26.)
 }
 function jobCard(j){
   const pill='<span class="pill p-'+esc(j.status)+'">'+esc(j.status)+'</span>';
@@ -306,7 +310,8 @@ function jobCard(j){
   } else {
     body='<div class="muted">✨ Captioning & rendering… (auto-refreshes)</div>'+(j.raw_preview?'<video src="'+esc(j.raw_preview)+'" controls preload="metadata" style="max-height:220px"></video>':'');
   }
-  return '<div class="card"><div class="row" style="justify-content:space-between"><div class="jt">'+esc(j.title||'Untitled')+'</div>'+pill+'</div>'+body+'</div>';
+  const delBtn='<div style="margin-top:12px;text-align:right;border-top:1px solid var(--line);padding-top:10px"><button class="btn ghost" style="padding:6px 12px;font-size:13px;color:#f87171;border-color:#3a2626" onclick="delClip(\''+j.id+'\',this)">🗑 Delete clip</button></div>';
+  return '<div class="card"><div class="row" style="justify-content:space-between"><div class="jt">'+esc(j.title||'Untitled')+'</div>'+pill+'</div>'+body+delBtn+'</div>';
 }
 window._jobs=[];
 function enrichBlock(j){
