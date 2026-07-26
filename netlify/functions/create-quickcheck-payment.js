@@ -47,7 +47,14 @@ exports.handler = async function (event) {
   const service = s(b.service, 20) === 'in_home' ? 'in_home' : 'quick_check';
   const lang = s(b.language, 8).toLowerCase();
   const baseCents = service === 'in_home' ? 10000 : PRICE_CENTS;
-  const priceCents = isTest ? TEST_PRICE_CENTS : baseCents;
+  let priceCents = isTest ? TEST_PRICE_CENTS : baseCents;
+  // ⛪ Church partnership: a member referred by a Spanish church carries a church
+  // code (their church's link/card) → $25 off. Recorded for per-church attribution.
+  // Honoring the communities that helped us — Anthony was baptized in one.
+  const church = s(b.church, 40).trim().toUpperCase().replace(/[^A-Z0-9 .-]/g, '');
+  const CHURCH_OFF = 2500; // $25
+  const churchApplies = !isTest && church.length >= 2;
+  if (churchApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
   let productName = isTest
     ? (service === 'in_home' ? 'In-Home Diagnostic — TEST ($1)' : 'Appliance Quick Check — TEST ($1)')
     : (service === 'in_home'
@@ -60,6 +67,9 @@ exports.handler = async function (event) {
       : (service === 'in_home'
           ? 'Diagnóstico a domicilio — un técnico va a tu casa ($100, se acredita a tu reparación)'
           : 'Revisión rápida de electrodoméstico — diagnóstico honesto ($50, se acredita a tu reparación)');
+  }
+  if (churchApplies) {
+    productName += lang === 'es' ? ' — Descuento de iglesia (−$25)' : ' — Church discount (−$25)';
   }
   try {
     const stripe = new Stripe(key);
@@ -97,6 +107,7 @@ exports.handler = async function (event) {
         floors: s(b.floors, 20),
         floors_label: s(b.floors_label, 120),
         conv_id: s(b.conv_id, 40),
+        church_code: churchApplies ? church : '',
         has_video: b.has_video ? 'yes' : 'no',
         has_model: b.has_model ? 'yes' : 'no',
         source: 'appliance_ai_quick_check',
