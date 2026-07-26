@@ -93,10 +93,17 @@ exports.handler = async function (event) {
           ? '上门诊断 — 技师上门 ($100，可抵扣维修费用)'
           : '电器快速检测 — 诚实诊断 ($50，可抵扣维修费用)');
   }
+  if (lang === 'ru') {
+    productName = isTest
+      ? (service === 'in_home' ? 'Диагностика на дому — ТЕСТ ($1)' : 'Быстрая проверка — ТЕСТ ($1)')
+      : (service === 'in_home'
+          ? 'Диагностика на дому — мастер приедет к вам ($100, засчитывается в ремонт)'
+          : 'Быстрая проверка техники — честная диагностика ($50, засчитывается в ремонт)');
+  }
   if (churchApplies) {
     productName += lang === 'es' ? ' — Descuento de iglesia (−$25)' : ' — Church discount (−$25)';
   } else if (partnerApplies) {
-    productName += lang === 'es' ? ' — Descuento comunitario (−$25)' : lang === 'zh' ? ' — 社区优惠 (−$25)' : ' — Community discount (−$25)';
+    productName += lang === 'es' ? ' — Descuento comunitario (−$25)' : lang === 'zh' ? ' — 社区优惠 (−$25)' : lang === 'ru' ? ' — Скидка для сообщества (−$25)' : ' — Community discount (−$25)';
   }
   try {
     const stripe = new Stripe(key);
@@ -144,7 +151,7 @@ exports.handler = async function (event) {
     // Render the whole Stripe Checkout in the customer's language where Stripe
     // supports it (es/fr/vi are supported locales; ar/hi aren't, so those fall back
     // to auto — the product name still carries our wording).
-    const STRIPE_LOCALES = { es: 'es', fr: 'fr', vi: 'vi', zh: 'zh' };
+    const STRIPE_LOCALES = { es: 'es', fr: 'fr', vi: 'vi', zh: 'zh', ru: 'ru' };
     if (STRIPE_LOCALES[lang]) opts.locale = STRIPE_LOCALES[lang];
     // pre-fill the Stripe email field so the customer doesn't have to type it (the
     // exact friction that stalled the first test). Falls back to Stripe asking if blank.

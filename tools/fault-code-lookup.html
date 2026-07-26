@@ -109,7 +109,7 @@
 <script>
 const FN='https://tnapplianceexchange.net/.netlify/functions';
 const QS=new URLSearchParams(location.search);
-const _rl=(QS.get('lang')||'en').toLowerCase(); const LANG=(_rl==='es'||_rl==='vi'||_rl==='zh')?_rl:'en';
+const _rl=(QS.get('lang')||'en').toLowerCase(); const LANG=(_rl==='es'||_rl==='vi'||_rl==='zh'||_rl==='ru')?_rl:'en';
 
 const I18N={ es:{
   h1:'Buscador de códigos de error',
@@ -141,6 +141,16 @@ const I18N={ es:{
   v_head:'真正的技师，不是机器人。', v_body:'家族经营，始于 2012 · ★4.5，谷歌 1,082 条评价。',
   v_guides:'查看我们的免费维修指南 →',
   f_home:'首页', f_guides:'指南', f_qc:'快速检测 $50',
+}, ru:{
+  h1:'Поиск кодов ошибок техники',
+  sub:'Техника показывает код ошибки? Введите марку и код — база данных настоящего мастера скажет, что он значит, самые вероятные причины и как это подтвердить. Бесплатно.',
+  l_brand:'Марка', opt_pick:'Выберите марку…', opt_other:'Другая / не уверен(а)',
+  l_appl:'Техника', opt_opt:'(необязательно)', opt_any:'Любая / не знаю',
+  a_washer:'Стиральная машина', a_dryer:'Сушильная машина', a_fridge:'Холодильник', a_dish:'Посудомоечная машина', a_oven:'Духовка / Плита', a_micro:'Микроволновка',
+  l_code:'Код ошибки', ph_code:'напр. F5E2, 4C, OE, PF', go:'Найти →',
+  v_head:'Настоящие мастера, а не робот.', v_body:'Семейное дело с 2012 · ★4.5, 1082 отзыва в Google.',
+  v_guides:'Смотреть наши бесплатные инструкции по ремонту →',
+  f_home:'Главная', f_guides:'Инструкции', f_qc:'Быстрая проверка $50',
 } };
 const D=I18N[LANG]||null;
 if(D){
@@ -150,8 +160,8 @@ if(D){
 }
 // language toggle (show the other two languages)
 (function(){
-  const links={en:'<a href="?lang=en">🇺🇸 English</a>',es:'<a href="?lang=es">🇲🇽 Español</a>',vi:'<a href="?lang=vi">🇻🇳 Tiếng Việt</a>',zh:'<a href="?lang=zh">🇨🇳 中文</a>'};
-  document.getElementById('langbar').innerHTML=['en','es','vi','zh'].filter(l=>l!==LANG).map(l=>links[l]).join(' · ');
+  const links={en:'<a href="?lang=en">🇺🇸 English</a>',es:'<a href="?lang=es">🇲🇽 Español</a>',vi:'<a href="?lang=vi">🇻🇳 Tiếng Việt</a>',zh:'<a href="?lang=zh">🇨🇳 中文</a>',ru:'<a href="?lang=ru">🇷🇺 Русский</a>'};
+  document.getElementById('langbar').innerHTML=['en','es','vi','zh','ru'].filter(l=>l!==LANG).map(l=>links[l]).join(' · ');
 })();
 
 // copy per language
@@ -191,13 +201,22 @@ const TMAP={ es:{
   nf_body:'但真正的技师几分钟内就能告诉你问题所在。发一段短视频，我们给你诚实的答案。',
   nf_codes:'该品牌的常见代码：',
   err:'出错了 — 请重试或致电 1-888-268-8998。', need:'请选择品牌并输入代码。', wait:'查询中…', go:'查询 →',
+}, ru:{
+  found_causes:'Самые вероятные причины', found_test:'Как это подтвердить',
+  cta:'Узнать точную деталь — быстрая проверка $50', cta_sub:'Настоящий мастер смотрит ваше видео и называет точную деталь · пришлём вам или установим',
+  part:'💡 Мы точно знаем, какая деталь это исправит. Подтверждаем по вашему видео и присылаем к двери — без догадок.',
+  disc:'Коды зависят от модели — всегда сверяйтесь с сервисной картой вашей модели. Инструмент задаёт направление, но не заменяет реальную проверку.',
+  nf_head:'Такого кода у нас пока нет в базе',
+  nf_body:'Но настоящий мастер за пару минут скажет, в чём дело. Пришлите короткое видео — и мы дадим честный ответ.',
+  nf_codes:'Частые коды этой марки:',
+  err:'Что-то пошло не так — попробуйте снова или позвоните 1-888-268-8998.', need:'Выберите марку и введите код.', wait:'Ищем…', go:'Найти →',
 } };
 const T=TMAP[LANG]||TMAP.en;
-const intakeUrl = LANG==='es' ? '/es/revision-rapida.html' : LANG==='vi' ? '/vi/kiem-tra-nhanh.html' : LANG==='zh' ? '/zh/kuai-su-jian-cha.html' : '/quick-check-intake.html';
+const intakeUrl = LANG==='es' ? '/es/revision-rapida.html' : LANG==='vi' ? '/vi/kiem-tra-nhanh.html' : LANG==='zh' ? '/zh/kuai-su-jian-cha.html' : LANG==='ru' ? '/ru/bystraya-proverka.html' : '/quick-check-intake.html';
 // point the guides / quick-check / home links at the right language where a translated page exists
 (function(){
-  const guidesUrl = LANG==='es' ? '/es/fix/' : LANG==='zh' ? '/zh/fix/' : '/fix/';
-  const homeUrl = LANG==='es' ? '/es/' : LANG==='vi' ? '/vi/' : LANG==='zh' ? '/zh/kuai-su-jian-cha.html' : '/';
+  const guidesUrl = LANG==='es' ? '/es/fix/' : LANG==='zh' ? '/zh/fix/' : LANG==='ru' ? '/ru/fix/' : '/fix/';
+  const homeUrl = LANG==='es' ? '/es/' : LANG==='vi' ? '/vi/' : LANG==='zh' ? '/zh/kuai-su-jian-cha.html' : LANG==='ru' ? '/ru/bystraya-proverka.html' : '/';
   document.querySelectorAll('[data-i18n="v_guides"],[data-i18n="f_guides"]').forEach(e=>e.setAttribute('href',guidesUrl));
   document.querySelectorAll('[data-i18n="f_qc"]').forEach(e=>e.setAttribute('href',intakeUrl));
   document.querySelectorAll('[data-i18n="f_home"]').forEach(e=>e.setAttribute('href',homeUrl));
