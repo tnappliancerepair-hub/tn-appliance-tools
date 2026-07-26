@@ -49,7 +49,7 @@
 
   <div class="valuebox">
     ✅ <b data-i18n="v1a">Faster + easier</b><span data-i18n="v1b"> — a straight answer today, no waiting on a house call.</span><br>
-    ✅ <b data-i18n="v2a">The $50 comes off your repair</b><span data-i18n="v2b"> — and if you'd rather a tech come out, it credits toward the trip fee. You never pay twice.</span><br>
+    ✅ <b data-i18n="v2a">The $50 comes off your part or repair</b><span data-i18n="v2b"> — it credits toward whatever you buy from us. You never pay twice.</span><br>
     ✅ <b data-i18n="v3a">DIY-friendly</b><span data-i18n="v3b"> — if it's a simple fix, we'll even point you to the exact part.</span>
   </div>
 
@@ -82,6 +82,7 @@
     <button class="pay" id="payBtn" data-i18n="pay">Pay $50 &amp; continue →</button>
     <div class="err" id="err"></div>
     <div class="reassure" data-i18n="reassure">🔒 Secure checkout by Stripe. Next you'll send a quick video + a photo of the model number.</div>
+    <div class="reassure" style="margin-top:6px"><span data-i18n="guar">By continuing you agree the $50 is a diagnostic fee credited to your part or repair, and that parts are final sale (except defects — see our</span> <a id="guarLink" href="/guarantee.html" style="color:var(--orange);text-decoration:none" data-i18n="guarLink">guarantee</a>).</div>
   </div>
 
   <div class="footer">TN Appliance Exchange · <a href="tel:+16152802949">615-280-2949</a></div>
@@ -99,7 +100,7 @@ const I18N={ es:{
   h1:'La <span class="a">Revisión Rápida de $50</span>',
   sub:'Evita la espera. Un técnico de verdad te da un diagnóstico honesto a partir de un video corto — normalmente en un par de horas.',
   v1a:'Más rápido y fácil', v1b:' — una respuesta clara hoy, sin esperar una visita a domicilio.',
-  v2a:'Los $50 se descuentan de tu reparación', v2b:' — y si prefieres que vaya un técnico, se acreditan a la tarifa de visita. Nunca pagas dos veces.',
+  v2a:'Los $50 se descuentan de tu pieza o reparación', v2b:' — se acreditan a lo que sea que compres con nosotros. Nunca pagas dos veces.',
   v3a:'Ideal para hacerlo tú mismo', v3b:' — si es algo simple, hasta te indicamos la pieza exacta.',
   l_name:'Tu nombre', l_phone:'Mejor número de celular (te enviamos tu respuesta aquí)',
   l_email:'Correo electrónico <span style="color:var(--gray2)">(opcional)</span>',
@@ -109,6 +110,8 @@ const I18N={ es:{
   consent:'Autorizo que me envíen mensajes de texto sobre mi reparación al número de arriba.',
   pay:'Pagar $50 y continuar →',
   reassure:'🔒 Pago seguro con Stripe. Después enviarás un video corto + una foto del número de modelo.',
+  guar:'Al continuar aceptas que los $50 son una tarifa de diagnóstico que se acredita a tu pieza o reparación, y que las piezas son venta final (excepto defectos — consulta nuestra',
+  guarLink:'garantía',
   ph_name:'Nombre y apellido', ph_email:'tu@correo.com', ph_addr:'123 Calle Principal', ph_city:'Ciudad', ph_prob:'ej. el refrigerador dejó de enfriar, el congelador sí funciona',
 } };
 const MSG={ es:{
@@ -124,6 +127,7 @@ if(DICT){
   document.querySelectorAll('[data-i18n]').forEach(el=>{ const k=el.getAttribute('data-i18n'); if(DICT[k]!=null) el.innerHTML=DICT[k]; });
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ const k=el.getAttribute('data-i18n-ph'); if(DICT[k]!=null) el.setAttribute('placeholder',DICT[k]); });
 }
+if(LANG==='es'){ var gl=document.getElementById('guarLink'); if(gl) gl.href='/guarantee.html?lang=es'; }
 
 let appliance=pre.appliance||'';
 document.querySelectorAll('#applOpts .applopt').forEach(el=>{
