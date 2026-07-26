@@ -316,6 +316,10 @@
 [functions."ad-autopause"]
   schedule = "0 13 * * *"
 
+# Weekly markets report — who's finding/clicking us + ad perf + opportunities → texts owner (Mon 9am CT)
+[functions."markets-report"]
+  schedule = "0 14 * * 1"
+
 # Social content pack (FB + IG + TikTok). Draft-texts Teddy weekly; auto-publishes
 # to FB + IG when the Meta Page token is vaulted. Mondays 3pm UTC (~9-10am CT).
 [functions."social-post-generator"]
