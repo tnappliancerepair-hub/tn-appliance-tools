@@ -119,12 +119,44 @@ details p{color:var(--dim);font-size:15px;padding:0 0 14px}
 .near a{font-size:13.5px;color:var(--ink);text-decoration:none;background:var(--surf);border:1px solid var(--bord);border-radius:999px;padding:8px 13px}
 .near a:hover{border-color:var(--orange)}
 footer{border-top:1px solid var(--bord);margin-top:44px;padding:22px 0;color:var(--dim);font-size:13px}
-footer a{color:var(--dim)}`;
+footer a{color:var(--dim)}
+.team{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0}
+@media(max-width:520px){.team{grid-template-columns:repeat(3,1fr)}}
+.team figure{margin:0;text-align:center}
+.team img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:12px;border:1px solid var(--bord);background:#222}
+.team figcaption{font-size:11.5px;color:var(--dim);margin-top:5px;line-height:1.25}
+.team figcaption b{display:block;color:var(--ink);font-size:12.5px}
+.verify{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:16px 18px;margin:16px 0;font-size:14.5px;color:#dcdcdc}
+.verify b{color:var(--ink)}
+.verify a{color:var(--orange);text-decoration:none}
+.verify .row{display:flex;gap:9px;margin:7px 0;align-items:flex-start}`;
+
+// Real crew faces + verifiable business details — the anti-scam trust block.
+function trustBlock(m) {
+  return `    <h2>Somos gente de verdad 👋</h2>
+    <p>No somos una página anónima. Somos una empresa familiar dirigida por técnicos de verdad desde 2012 — estas son las caras detrás de tu reparación:</p>
+    <div class="team">
+      <figure><img src="/team/teddy-owner.jpg" alt="Teddy, dueño" loading="lazy"><figcaption><b>Teddy</b>Dueño</figcaption></figure>
+      <figure><img src="/team/jimmy-nashville.jpg" alt="Jimmy" loading="lazy"><figcaption><b>Jimmy</b>Técnico</figcaption></figure>
+      <figure><img src="/team/andre-south-shore.jpg" alt="Andre" loading="lazy"><figcaption><b>Andre</b>Técnico</figcaption></figure>
+      <figure><img src="/team/lee-clarksville.jpg" alt="Lee" loading="lazy"><figcaption><b>Lee</b>Técnico</figcaption></figure>
+      <figure><img src="/team/john-north-shore.jpg" alt="John" loading="lazy"><figcaption><b>John</b>Técnico</figcaption></figure>
+    </div>
+    <p style="text-align:center;margin-top:2px"><a href="/es/nosotros.html" style="color:var(--orange);text-decoration:none;font-weight:600">Lee nuestra historia — por qué nos llamamos Ant 🐜 →</a></p>
+    <div class="verify">
+      <b>Verifícanos tú mismo — no tienes que confiar en nuestra palabra:</b>
+      <div class="row">⭐ <span><b>4.5 estrellas con 1,082 reseñas reales en Google.</b> <a href="https://g.page/r/CRt-vo--eAJ3EBM/review" target="_blank" rel="noopener">Léelas aquí →</a></span></div>
+      <div class="row">📍 <span>Negocio registrado y real: <b>TN Appliance Exchange LLC</b>, 3137 Skinner Dr, Antioch, TN 37013.</span></div>
+      <div class="row">📞 <span>Un número real donde te contesta una persona: <a href="tel:${TEL}">${PHONE}</a>.</span></div>
+      <div class="row">✅ <span>Con licencia, asegurados y con antecedentes verificados. Familia, desde 2012.</span></div>
+      <div class="row">💳 <span>Pago 100% seguro procesado por Stripe — nunca vemos ni guardamos tu tarjeta.</span></div>
+    </div>`;
+}
 
 function ctaBlock() {
   return `    <div class="cta">
       <h2>Empieza en español — desde tu teléfono</h2>
-      <p>Con la <b>Revisión Rápida de $50</b> envías un video corto y una foto del número de modelo. Un técnico de verdad te dice qué está mal y tus opciones, y los $50 se acreditan a la pieza o reparación. Te enviamos la pieza exacta a tu puerta — o te guiamos para que lo arregles tú mismo.</p>
+      <p>Con la <b>Revisión Rápida de $50</b> envías un video corto y una foto del número de modelo. Un técnico de verdad te dice qué está mal y tus opciones. Te enviamos la pieza exacta a tu puerta — o te guiamos para que lo arregles tú mismo. Mucho más barato que comprar una pieza equivocada.</p>
       <div class="btnrow">
         <a class="btn p" href="${QC}">Empieza tu Revisión Rápida de $50 →</a>
         <a class="btn s" href="tel:${TEL}">Llámanos o escríbenos · ${PHONE}</a>
@@ -158,7 +190,7 @@ function lander(m) {
   const faqHtml = faqs.map((f) => `        <details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join('\n');
 
   return `<!doctype html>
-<!-- ant-build:2 -->
+<!-- ant-build:3 -->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -205,6 +237,8 @@ ${problems}
     <p>No todo vale la pena repararlo, y no queremos que gastes de más. Con la Revisión Rápida de $50, un técnico de verdad revisa tu video y te da la comparación honesta antes de decidir. Trabajamos con todas las marcas: ${esc(BRANDS.join(', '))} y más.</p>
 
 ${ctaBlock()}
+
+${trustBlock(m)}
 
     <h2>Preguntas frecuentes — ${esc(m.name)}</h2>
     <div class="faq">
