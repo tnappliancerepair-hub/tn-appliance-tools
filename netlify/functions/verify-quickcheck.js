@@ -135,7 +135,13 @@ exports.handler = async function (event) {
 
   // record the payment + the idempotency marker
   const amount = amtPaid;
-  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, service, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, language: lang, at_ms: Date.now() });
+  // 🐜 Anthony's Gift: if this customer came through a church/community-partner code,
+  // record which org sent them + the $ given up, so the giving is documented for the
+  // CPA (and totaled in the markets report). church_code/partner_code set at checkout.
+  const churchCode = String(m.church_code || '');
+  const partnerCode = String(m.partner_code || '');
+  const givingCents = (churchCode || partnerCode) ? 2500 : 0;
+  await crud.logEvent('quick_check_paid', { session_id: sessionId, job_id: jobId, service, conv_id: m.conv_id || '', linked_attachments: linkedAttachments, amount, name: m.name, phone: m.phone, email: m.email || '', machine: m.machine, town: m.town, sms_consent: m.sms_consent, language: lang, church_code: churchCode, partner_code: partnerCode, giving_cents: givingCents, at_ms: Date.now() });
   await crud.logEvent('customer_payment_received', { job_id: jobId, amount, kind: service, session_id: sessionId, source: service, at_ms: Date.now() });
   // Web funnel: the 'paid' step — ties to the same conv_id as open/started/reached_pay.
   try { await crud.logEvent('web_funnel', { step: 'paid', conv_id: m.conv_id || '', appliance: m.appliance || m.machine || '', at_ms: Date.now() }); } catch (_) {}
