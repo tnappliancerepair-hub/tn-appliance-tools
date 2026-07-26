@@ -7678,6 +7678,11 @@
     <priority>0.75</priority>
   </url>
   <url>
+    <loc>https://tnapplianceexchange.net/tools/fault-code-lookup.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://tnapplianceexchange.net/es/aliados-comunitarios.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.75</priority>

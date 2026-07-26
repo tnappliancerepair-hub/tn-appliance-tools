@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en"><head>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-0EF3THNXLE');</script>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Appliance Fault-Code Lookup — free tool from real technicians | TN Appliance Exchange</title>
+<meta name="description" content="Free appliance error-code lookup. Enter your brand and fault code (Whirlpool, Samsung, LG, GE, Frigidaire, Bosch) and a real technician's database tells you what it means, the likely causes, and how to confirm it.">
+<link rel="canonical" href="https://tnapplianceexchange.net/tools/fault-code-lookup.html">
+<link rel="alternate" hreflang="en" href="https://tnapplianceexchange.net/tools/fault-code-lookup.html">
+<link rel="alternate" hreflang="es" href="https://tnapplianceexchange.net/tools/fault-code-lookup.html?lang=es">
+<link rel="alternate" hreflang="x-default" href="https://tnapplianceexchange.net/tools/fault-code-lookup.html">
+<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+<meta property="og:title" content="Appliance Fault-Code Lookup — free, from real technicians">
+<meta property="og:description" content="What does your appliance's error code mean? Look it up free — meaning, likely causes, and how to confirm.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0b0b0c">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0b0b0c;--surf:#141416;--bord:#26262a;--ink:#f0f0f0;--dim:#a0a0a6;--orange:#ff6200;--green:#39ff14}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;padding:0 18px 80px}
+  .wrap{max-width:640px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--bord)}
+  .brand{font-weight:800;color:var(--ink);text-decoration:none;font-size:17px}.brand b{color:var(--orange)}
+  .call{font-size:13px;color:var(--ink);text-decoration:none;border:1px solid var(--bord);border-radius:8px;padding:8px 12px;white-space:nowrap}
+  .langbar{font-size:12px;color:var(--dim);text-align:center;padding:12px 0 0}.langbar a{color:var(--orange);text-decoration:none}
+  .hero{text-align:center;padding:26px 0 6px}
+  .orb{width:56px;height:56px;border-radius:50%;margin:0 auto 12px;background:radial-gradient(circle at 50% 42%,#ff7c28,#ff6200 46%,#7a2f00);box-shadow:0 0 24px 5px rgba(255,98,0,.4);display:flex;align-items:center;justify-content:center;font-size:26px}
+  h1{font-size:clamp(25px,6vw,36px);line-height:1.14;margin:6px 0 10px;text-wrap:balance}
+  .sub{color:var(--dim);font-size:16px;margin:8px auto 0;max-width:520px}
+  .tool{background:linear-gradient(180deg,#161616,#0f0f0f);border:1px solid var(--bord);border-radius:16px;padding:20px;margin:22px 0}
+  label{display:block;font-size:13px;color:var(--dim);margin:12px 0 5px}label:first-child{margin-top:0}
+  select,input{width:100%;background:#111;border:1.5px solid var(--bord);border-radius:11px;padding:13px;color:var(--ink);font-size:16px}
+  select:focus,input:focus{outline:none;border-color:var(--orange)}
+  .go{width:100%;margin-top:16px;background:var(--orange);border:0;border-radius:12px;padding:15px;color:#0a0a0a;font-weight:800;font-size:16px;cursor:pointer}
+  .go:disabled{opacity:.55}
+  .out{margin-top:18px;display:none}
+  .res{background:var(--surf);border:1px solid var(--bord);border-radius:14px;padding:18px}
+  .res .code{font-size:22px;font-weight:900;color:var(--green)}
+  .res .mean{font-size:17px;margin:2px 0 12px;color:var(--ink)}
+  .res h3{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--orange);margin:14px 0 6px}
+  .res ul{margin:0 0 0 18px}.res li{margin:4px 0;color:#dcdcdc}
+  .res .test{color:#dcdcdc;background:#0e1016;border:1px solid var(--bord);border-radius:10px;padding:11px 13px;font-size:14.5px}
+  .cta{display:block;text-align:center;background:var(--orange);color:#0a0a0a;font-weight:800;text-decoration:none;padding:15px;border-radius:12px;margin:16px 0 4px;font-size:16px}
+  .cta small{display:block;font-weight:600;font-size:12.5px;opacity:.82;margin-top:3px}
+  .partnote{font-size:13px;color:var(--dim);margin-top:10px;text-align:center}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+  .chip{font-size:13px;color:#dcdcdc;background:#0e1016;border:1px solid var(--bord);border-radius:999px;padding:8px 12px;cursor:pointer}
+  .chip b{color:var(--orange)}
+  .disc{font-size:12.5px;color:var(--dim);margin-top:14px;text-align:center}
+  .verify{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px 16px;margin:18px 0;font-size:13.5px;color:#dcdcdc}
+  .verify a{color:var(--orange);text-decoration:none}.verify .row{margin:5px 0}
+  footer{border-top:1px solid var(--bord);margin-top:28px;padding:18px 0;color:var(--dim);font-size:13px;text-align:center}
+  footer a{color:var(--dim);margin:0 6px;text-decoration:none}
+</style></head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="brand" href="/">TN Appliance<b>·</b>Ant</a>
+    <a class="call" href="tel:+18882688998">1-888-268-8998</a>
+  </header>
+  <div class="langbar" id="langbar"></div>
+
+  <div class="hero">
+    <div class="orb">🔎</div>
+    <h1 data-i18n="h1">Appliance Fault-Code Lookup</h1>
+    <div class="sub" data-i18n="sub">Blinking a code at you? Enter your brand and the code — a real technician's database tells you what it means, the likely causes, and how to confirm it. Free.</div>
+  </div>
+
+  <div class="tool">
+    <label for="brand" data-i18n="l_brand">Brand</label>
+    <select id="brand">
+      <option value="" data-i18n="opt_pick">Pick your brand…</option>
+      <option value="whirlpool">Whirlpool / Maytag / KitchenAid / Amana</option>
+      <option value="ge">GE / Hotpoint / Café / Profile</option>
+      <option value="samsung">Samsung</option>
+      <option value="lg">LG</option>
+      <option value="frigidaire">Frigidaire / Electrolux</option>
+      <option value="bosch">Bosch / Thermador</option>
+      <option value="other" data-i18n="opt_other">Other / not sure</option>
+    </select>
+    <label for="appliance" data-i18n="l_appl">Appliance <span style="color:#555" data-i18n="opt_opt">(optional)</span></label>
+    <select id="appliance">
+      <option value="" data-i18n="opt_any">Any / not sure</option>
+      <option value="washer" data-i18n="a_washer">Washer</option>
+      <option value="dryer" data-i18n="a_dryer">Dryer</option>
+      <option value="refrigerator" data-i18n="a_fridge">Refrigerator</option>
+      <option value="dishwasher" data-i18n="a_dish">Dishwasher</option>
+      <option value="oven" data-i18n="a_oven">Oven / Range</option>
+      <option value="microwave" data-i18n="a_micro">Microwave</option>
+    </select>
+    <label for="code" data-i18n="l_code">Error / fault code</label>
+    <input id="code" type="text" autocomplete="off" placeholder="e.g. F5E2, 4C, OE, PF" data-i18n-ph="ph_code">
+    <button class="go" id="go" data-i18n="go">Look it up →</button>
+  </div>
+
+  <div class="out" id="out"></div>
+
+  <div class="verify">
+    <div class="row">🐜 <b style="color:#eee" data-i18n="v_head">Real technicians, not a bot.</b> <span data-i18n="v_body">Family-owned since 2012 · ★4.5, 1,082 Google reviews.</span></div>
+    <div class="row">🔧 <a href="/fix/" data-i18n="v_guides">Browse our free fix-it guides →</a></div>
+  </div>
+
+  <footer>
+    <a href="/" data-i18n="f_home">Home</a><a href="/fix/" data-i18n="f_guides">Fix-It Guides</a><a href="/quick-check-intake.html" data-i18n="f_qc">$50 Quick Check</a><a href="tel:+18882688998">1-888-268-8998</a>
+  </footer>
+</div>
+
+<script>
+const FN='https://tnapplianceexchange.net/.netlify/functions';
+const QS=new URLSearchParams(location.search);
+const LANG=(QS.get('lang')||'en').toLowerCase()==='es'?'es':'en';
+
+const I18N={ es:{
+  h1:'Buscador de códigos de error',
+  sub:'¿Tu electrodoméstico muestra un código? Escribe la marca y el código — la base de datos de un técnico de verdad te dice qué significa, las causas más probables y cómo confirmarlo. Gratis.',
+  l_brand:'Marca', opt_pick:'Elige tu marca…', opt_other:'Otra / no estoy seguro',
+  l_appl:'Electrodoméstico', opt_opt:'(opcional)', opt_any:'Cualquiera / no sé',
+  a_washer:'Lavadora', a_dryer:'Secadora', a_fridge:'Refrigerador', a_dish:'Lavavajillas', a_oven:'Horno / Estufa', a_micro:'Microondas',
+  l_code:'Código de error', ph_code:'ej. F5E2, 4C, OE, PF', go:'Buscar →',
+  v_head:'Técnicos de verdad, no un robot.', v_body:'Familia desde 2012 · ★4.5, 1,082 reseñas en Google.',
+  v_guides:'Ver nuestras guías de reparación gratis →',
+  f_home:'Inicio', f_guides:'Guías', f_qc:'Revisión Rápida $50',
+} };
+const D=I18N[LANG]||null;
+if(D){
+  document.documentElement.lang='es';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(D[k]!=null)el.textContent=D[k];});
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{const k=el.getAttribute('data-i18n-ph');if(D[k]!=null)el.setAttribute('placeholder',D[k]);});
+}
+// language toggle
+document.getElementById('langbar').innerHTML = LANG==='es'
+  ? '<a href="?lang=en">🇺🇸 In English →</a>'
+  : '<a href="?lang=es">🇲🇽 Ver en español →</a>';
+
+// copy per language
+const T = LANG==='es' ? {
+  found_causes:'Causas más probables', found_test:'Cómo confirmarlo',
+  cta:'Descubre la pieza exacta — $50', cta_sub:'Un técnico revisa tu video y te dice la pieza exacta · te la enviamos o la instalamos',
+  part:'💡 Sabemos exactamente qué pieza arregla esto. La confirmamos con tu video y te la enviamos a tu puerta — sin adivinar.',
+  disc:'Los códigos varían según el modelo — confirma siempre con la hoja técnica de tu modelo. Esta herramienta orienta, no reemplaza una prueba física.',
+  nf_head:'No tenemos ese código exacto todavía',
+  nf_body:'Pero un técnico de verdad puede decirte qué pasa en minutos. Envía un video corto y te damos la respuesta honesta.',
+  nf_codes:'Códigos comunes de esta marca:',
+  err:'Algo falló — inténtalo de nuevo o llámanos al 1-888-268-8998.', need:'Elige la marca y escribe el código.', wait:'Buscando…', go:'Buscar →',
+} : {
+  found_causes:'Likely causes', found_test:'How to confirm it',
+  cta:'Get the exact part — $50 Quick Check', cta_sub:'A real tech reviews your video, names the exact part · shipped to you or installed',
+  part:'💡 We know exactly which part fixes this. We confirm it from your video and ship it to your door — no guessing.',
+  disc:'Codes vary by model — always confirm against your model’s tech sheet. This tool points you in the right direction; it isn’t a substitute for a physical test.',
+  nf_head:'We don’t have that exact code on file yet',
+  nf_body:'But a real technician can tell you what’s going on in minutes. Send a short video and we’ll give you the honest answer.',
+  nf_codes:'Common codes for this brand:',
+  err:'Something went wrong — try again or call 1-888-268-8998.', need:'Pick a brand and enter the code.', wait:'Looking…', go:'Look it up →',
+};
+const intakeUrl = LANG==='es' ? '/es/revision-rapida.html' : '/quick-check-intake.html';
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+const out=document.getElementById('out');
+
+function ctaBlock(appl){
+  const u = intakeUrl + (LANG==='es'?'':('?lang=en')) + (appl?((intakeUrl.indexOf('?')>=0?'&':'?')+'appliance='+encodeURIComponent(appl)):'');
+  return '<a class="cta" href="'+esc(intakeUrl)+(appl?('?appliance='+encodeURIComponent(appl)):'')+(LANG==='es'?'':'')+'">'+esc(T.cta)+'<small>'+esc(T.cta_sub)+'</small></a>'
+    +'<div class="partnote">'+esc(T.part)+'</div>';
+}
+
+function renderFound(m){
+  const causes=(m.likely_causes||[]).map(c=>'<li>'+esc(c)+'</li>').join('');
+  out.innerHTML='<div class="res">'
+    +'<div class="code">'+esc(m.code)+'</div>'
+    +'<div class="mean">'+esc(m.meaning)+'</div>'
+    +(causes?('<h3>'+esc(T.found_causes)+'</h3><ul>'+causes+'</ul>'):'')
+    +(m.test?('<h3>'+esc(T.found_test)+'</h3><div class="test">'+esc(m.test)+'</div>'):'')
+    +ctaBlock(m.appliance)
+    +'<div class="disc">'+esc(T.disc)+'</div>'
+    +'</div>';
+  out.style.display='block'; out.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function renderNotFound(codes){
+  let chips='';
+  if(codes&&codes.length){
+    chips='<h3 style="color:var(--orange);font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin:14px 0 6px">'+esc(T.nf_codes)+'</h3><div class="chips">'
+      +codes.slice(0,14).map(c=>'<span class="chip" data-code="'+esc(c.code)+'"><b>'+esc(c.code)+'</b> · '+esc(c.meaning)+'</span>').join('')+'</div>';
+  }
+  out.innerHTML='<div class="res">'
+    +'<div class="mean" style="font-weight:700">'+esc(T.nf_head)+'</div>'
+    +'<div style="color:#dcdcdc;margin:4px 0 6px">'+esc(T.nf_body)+'</div>'
+    +chips
+    +ctaBlock('')
+    +'<div class="disc">'+esc(T.disc)+'</div>'
+    +'</div>';
+  out.querySelectorAll('.chip').forEach(el=>el.onclick=()=>{document.getElementById('code').value=el.getAttribute('data-code');run();});
+  out.style.display='block'; out.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+async function run(){
+  const brand=document.getElementById('brand').value;
+  const appliance=document.getElementById('appliance').value;
+  const code=(document.getElementById('code').value||'').trim();
+  const btn=document.getElementById('go');
+  if((!brand||brand==='other')&&!code){ out.style.display='block'; out.innerHTML='<div class="res">'+esc(T.need)+'</div>'; return; }
+  if(!code){ out.style.display='block'; out.innerHTML='<div class="res">'+esc(T.need)+'</div>'; return; }
+  btn.disabled=true; const og=btn.textContent; btn.textContent=T.wait;
+  try{
+    const b = (brand&&brand!=='other')?brand:'';
+    const r=await fetch(FN+'/fault-code-lookup?brand='+encodeURIComponent(b)+'&code='+encodeURIComponent(code)+(appliance?('&appliance='+encodeURIComponent(appliance)):''));
+    const d=await r.json();
+    if(d&&d.ok&&d.found&&d.match){ renderFound(d.match); }
+    else if(d&&d.ok){ renderNotFound(d.brand_codes||[]); }
+    else { out.style.display='block'; out.innerHTML='<div class="res">'+esc(T.err)+'</div>'; }
+  }catch(_){ out.style.display='block'; out.innerHTML='<div class="res">'+esc(T.err)+'</div>'; }
+  btn.disabled=false; btn.textContent=og;
+}
+document.getElementById('go').onclick=run;
+document.getElementById('code').addEventListener('keydown',e=>{if(e.key==='Enter')run();});
+
+// deep-link prefill (?brand=&code=&appliance=) + auto-run
+(function(){
+  const pb=(QS.get('brand')||'').toLowerCase(), pc=QS.get('code')||'', pa=(QS.get('appliance')||'').toLowerCase();
+  if(pb){const sel=document.getElementById('brand'); if([...sel.options].some(o=>o.value===pb)) sel.value=pb;}
+  if(pa){const sel=document.getElementById('appliance'); if([...sel.options].some(o=>o.value===pa)) sel.value=pa;}
+  if(pc){document.getElementById('code').value=pc;}
+  if(pc) run();
+})();
+</script>
+<script src="/ant-track.js" defer></script>
+</body></html>
