@@ -79,6 +79,13 @@ exports.handler = async function (event) {
           ? 'Diagnóstico a domicilio — un técnico va a tu casa ($100, se acredita a tu reparación)'
           : 'Revisión rápida de electrodoméstico — diagnóstico honesto ($50, se acredita a tu reparación)');
   }
+  if (lang === 'vi') {
+    productName = isTest
+      ? (service === 'in_home' ? 'Chẩn đoán tại nhà — THỬ ($1)' : 'Kiểm tra nhanh — THỬ ($1)')
+      : (service === 'in_home'
+          ? 'Chẩn đoán tại nhà — kỹ thuật viên đến tận nơi ($100, được trừ vào chi phí sửa)'
+          : 'Kiểm tra nhanh thiết bị — chẩn đoán trung thực ($50, được trừ vào chi phí sửa)');
+  }
   if (churchApplies) {
     productName += lang === 'es' ? ' — Descuento de iglesia (−$25)' : ' — Church discount (−$25)';
   } else if (partnerApplies) {

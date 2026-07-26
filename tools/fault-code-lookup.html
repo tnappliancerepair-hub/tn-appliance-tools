@@ -109,7 +109,7 @@
 <script>
 const FN='https://tnapplianceexchange.net/.netlify/functions';
 const QS=new URLSearchParams(location.search);
-const LANG=(QS.get('lang')||'en').toLowerCase()==='es'?'es':'en';
+const _rl=(QS.get('lang')||'en').toLowerCase(); const LANG=(_rl==='es'||_rl==='vi')?_rl:'en';
 
 const I18N={ es:{
   h1:'Buscador de códigos de error',
@@ -121,20 +121,31 @@ const I18N={ es:{
   v_head:'Técnicos de verdad, no un robot.', v_body:'Familia desde 2012 · ★4.5, 1,082 reseñas en Google.',
   v_guides:'Ver nuestras guías de reparación gratis →',
   f_home:'Inicio', f_guides:'Guías', f_qc:'Revisión Rápida $50',
+}, vi:{
+  h1:'Tra cứu mã lỗi thiết bị',
+  sub:'Thiết bị hiện mã lỗi? Nhập hãng và mã — cơ sở dữ liệu của kỹ thuật viên thật sự cho biết nó nghĩa là gì, nguyên nhân khả dĩ, và cách xác nhận. Miễn phí.',
+  l_brand:'Hãng', opt_pick:'Chọn hãng của bạn…', opt_other:'Khác / không chắc',
+  l_appl:'Thiết bị', opt_opt:'(không bắt buộc)', opt_any:'Bất kỳ / không rõ',
+  a_washer:'Máy giặt', a_dryer:'Máy sấy', a_fridge:'Tủ lạnh', a_dish:'Máy rửa chén', a_oven:'Lò / Bếp', a_micro:'Lò vi sóng',
+  l_code:'Mã lỗi', ph_code:'vd. F5E2, 4C, OE, PF', go:'Tra cứu →',
+  v_head:'Kỹ thuật viên thật sự, không phải robot.', v_body:'Gia đình từ 2012 · ★4.5, 1.082 đánh giá Google.',
+  v_guides:'Xem các hướng dẫn sửa chữa miễn phí →',
+  f_home:'Trang chủ', f_guides:'Hướng dẫn', f_qc:'Kiểm Tra Nhanh $50',
 } };
 const D=I18N[LANG]||null;
 if(D){
-  document.documentElement.lang='es';
+  document.documentElement.lang=LANG;
   document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n');if(D[k]!=null)el.textContent=D[k];});
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{const k=el.getAttribute('data-i18n-ph');if(D[k]!=null)el.setAttribute('placeholder',D[k]);});
 }
-// language toggle
-document.getElementById('langbar').innerHTML = LANG==='es'
-  ? '<a href="?lang=en">🇺🇸 In English →</a>'
-  : '<a href="?lang=es">🇲🇽 Ver en español →</a>';
+// language toggle (show the other two languages)
+(function(){
+  const links={en:'<a href="?lang=en">🇺🇸 English</a>',es:'<a href="?lang=es">🇲🇽 Español</a>',vi:'<a href="?lang=vi">🇻🇳 Tiếng Việt</a>'};
+  document.getElementById('langbar').innerHTML=['en','es','vi'].filter(l=>l!==LANG).map(l=>links[l]).join(' · ');
+})();
 
 // copy per language
-const T = LANG==='es' ? {
+const TMAP={ es:{
   found_causes:'Causas más probables', found_test:'Cómo confirmarlo',
   cta:'Descubre la pieza exacta — $50', cta_sub:'Un técnico revisa tu video y te dice la pieza exacta · te la enviamos o la instalamos',
   part:'💡 Sabemos exactamente qué pieza arregla esto. La confirmamos con tu video y te la enviamos a tu puerta — sin adivinar.',
@@ -143,7 +154,7 @@ const T = LANG==='es' ? {
   nf_body:'Pero un técnico de verdad puede decirte qué pasa en minutos. Envía un video corto y te damos la respuesta honesta.',
   nf_codes:'Códigos comunes de esta marca:',
   err:'Algo falló — inténtalo de nuevo o llámanos al 1-888-268-8998.', need:'Elige la marca y escribe el código.', wait:'Buscando…', go:'Buscar →',
-} : {
+}, en:{
   found_causes:'Likely causes', found_test:'How to confirm it',
   cta:'Get the exact part — $50 Quick Check', cta_sub:'A real tech reviews your video, names the exact part · shipped to you or installed',
   part:'💡 We know exactly which part fixes this. We confirm it from your video and ship it to your door — no guessing.',
@@ -152,15 +163,25 @@ const T = LANG==='es' ? {
   nf_body:'But a real technician can tell you what’s going on in minutes. Send a short video and we’ll give you the honest answer.',
   nf_codes:'Common codes for this brand:',
   err:'Something went wrong — try again or call 1-888-268-8998.', need:'Pick a brand and enter the code.', wait:'Looking…', go:'Look it up →',
-};
-const intakeUrl = LANG==='es' ? '/es/revision-rapida.html' : '/quick-check-intake.html';
+}, vi:{
+  found_causes:'Nguyên nhân khả dĩ', found_test:'Cách xác nhận',
+  cta:'Nhận đúng linh kiện — Kiểm Tra $50', cta_sub:'Kỹ thuật viên xem video, cho biết đúng linh kiện · gửi đến bạn hoặc lắp đặt',
+  part:'💡 Chúng tôi biết chính xác linh kiện nào sửa được. Chúng tôi xác nhận qua video của bạn và gửi đến tận nhà — không đoán mò.',
+  disc:'Mã lỗi thay đổi theo model — luôn xác nhận với bảng kỹ thuật của model bạn. Công cụ này định hướng, không thay thế kiểm tra thực tế.',
+  nf_head:'Chúng tôi chưa có mã đó trong hệ thống',
+  nf_body:'Nhưng một kỹ thuật viên thật sự có thể cho bạn biết trong vài phút. Gửi một video ngắn và chúng tôi sẽ trả lời trung thực.',
+  nf_codes:'Các mã thường gặp của hãng này:',
+  err:'Có lỗi xảy ra — thử lại hoặc gọi 1-888-268-8998.', need:'Chọn hãng và nhập mã.', wait:'Đang tra…', go:'Tra cứu →',
+} };
+const T=TMAP[LANG]||TMAP.en;
+const intakeUrl = LANG==='es' ? '/es/revision-rapida.html' : LANG==='vi' ? '/vi/kiem-tra-nhanh.html' : '/quick-check-intake.html';
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 const out=document.getElementById('out');
 
 function ctaBlock(appl){
-  const u = intakeUrl + (LANG==='es'?'':('?lang=en')) + (appl?((intakeUrl.indexOf('?')>=0?'&':'?')+'appliance='+encodeURIComponent(appl)):'');
-  return '<a class="cta" href="'+esc(intakeUrl)+(appl?('?appliance='+encodeURIComponent(appl)):'')+(LANG==='es'?'':'')+'">'+esc(T.cta)+'<small>'+esc(T.cta_sub)+'</small></a>'
+  const href = intakeUrl + (appl?('?appliance='+encodeURIComponent(appl)):'');
+  return '<a class="cta" href="'+esc(href)+'">'+esc(T.cta)+'<small>'+esc(T.cta_sub)+'</small></a>'
     +'<div class="partnote">'+esc(T.part)+'</div>';
 }
 
