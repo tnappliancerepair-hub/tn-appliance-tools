@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How to Diagnose Any Appliance: Power → Switch → Load (the 95% method) | TN Appliance Exchange</title>
+<meta name="description" content="Almost every appliance repair comes down to two tests — voltage and continuity — on three parts: power source, switch/control, and load. Here's the exact method a real technician uses, with the readings, in plain English.">
+<link rel="canonical" href="https://tnapplianceexchange.net/fix/how-to-diagnose-any-appliance.html">
+<link rel="alternate" hreflang="en" href="https://tnapplianceexchange.net/fix/how-to-diagnose-any-appliance.html">
+<link rel="alternate" hreflang="x-default" href="https://tnapplianceexchange.net/fix/how-to-diagnose-any-appliance.html">
+<meta property="og:title" content="How to Diagnose Any Appliance: Power → Switch → Load (the 95% method)">
+<meta property="og:description" content="Two tests — voltage and continuity — on three parts. The exact method a real technician uses to find almost any appliance fault.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://tnapplianceexchange.net/fix/how-to-diagnose-any-appliance.html">
+<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How do technicians diagnose appliances?","acceptedAnswer":{"@type":"Answer","text":"Almost every appliance fault is an electrical circuit problem found with two measurements: voltage (is power arriving?) and continuity (is the path unbroken and the part good?). You test three things in order — the power source, the switch/control, and the load — and whichever one fails the test is your repair."}},{"@type":"Question","name":"What is the difference between a voltage test and a continuity test?","acceptedAnswer":{"@type":"Answer","text":"A voltage test is done with power ON and tells you whether electricity is present at a point (for example 120V at an outlet). A continuity test is done with power OFF and tells you whether a path or part is unbroken — a good path reads near 0 ohms, and an open/broken part reads OL (infinite)."}},{"@type":"Question","name":"What does OL or open mean on a multimeter?","acceptedAnswer":{"@type":"Answer","text":"OL (over-limit / infinite resistance) on a continuity test means the path is broken — no connection. On a load like a heating element or motor winding, OL means the part has failed open and needs to be replaced. A good load reads its characteristic resistance instead (a heating element roughly 10–50 ohms, for example)."}},{"@type":"Question","name":"What multimeter do I need to fix appliances?","acceptedAnswer":{"@type":"Answer","text":"An inexpensive digital multimeter with a continuity (beep) mode, an ohms (Ω) setting, and an AC voltage setting covers almost every appliance test. You do not need an expensive meter for basic power-switch-load diagnosis."}},{"@type":"Question","name":"Is it safe to test appliances with a multimeter?","acceptedAnswer":{"@type":"Answer","text":"Continuity/resistance tests are safe because they are done with the appliance unplugged. Voltage tests are done live and require care. Never test the high-voltage capacitor in a microwave (it can hold a lethal charge even unplugged), respect 240V circuits, and treat gas appliances differently — when in doubt, send us a video and we'll guide you."}}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://tnapplianceexchange.net/"},{"@type":"ListItem","position":2,"name":"Appliance Fix Guides","item":"https://tnapplianceexchange.net/fix/"},{"@type":"ListItem","position":3,"name":"How to diagnose any appliance","item":"https://tnapplianceexchange.net/fix/how-to-diagnose-any-appliance.html"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"How to diagnose an appliance with the power-switch-load method","about":"Appliance repair diagnosis","tool":[{"@type":"HowToTool","name":"Digital multimeter (continuity, ohms, AC voltage)"}],"step":[{"@type":"HowToStep","position":1,"name":"Confirm power is arriving","text":"With a voltage test, confirm the outlet and cord deliver the expected voltage — 120V for most appliances, 240V for electric dryers, ranges, and ovens. No power here means the outlet, cord, or breaker is the problem, not the appliance."},{"@type":"HowToStep","position":2,"name":"Confirm the switch/control passes power","text":"Unplug the appliance and test switches and controls for continuity — a door switch, lid switch, thermostat, or thermal fuse should read continuity (near 0 ohms) when closed. If it never closes the path, the switch/control is the fault."},{"@type":"HowToStep","position":3,"name":"Confirm the load is good","text":"Unplug the appliance and test the load — the heating element, motor winding, pump, or valve coil — for continuity. A good load reads its characteristic resistance; an open (OL) reading means the load has failed and needs to be replaced."}]}</script>
+<style>*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0b0b0c;--surf:#141416;--surf2:#191b1e;--bord:#26262a;--ink:#ececec;--dim:#a0a0a6;--orange:#ff6200;--green:#39ff14}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.65;padding:0 18px 72px}
+.wrap{max-width:720px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 0;border-bottom:1px solid var(--bord);position:sticky;top:0;background:var(--bg);z-index:5}
+.brand{font-weight:800;letter-spacing:.02em;color:var(--ink);text-decoration:none;font-size:18px}
+.brand b{color:var(--orange)}
+.callbtn{font-size:13px;color:var(--ink);text-decoration:none;border:1px solid var(--bord);border-radius:8px;padding:8px 12px;white-space:nowrap}
+nav.bc{font-size:12.5px;color:var(--dim);padding:16px 0 4px}
+nav.bc a{color:var(--dim);text-decoration:none}nav.bc a:hover{color:var(--orange)}
+h1{font-size:clamp(26px,6vw,38px);line-height:1.15;margin:14px 0 6px;text-wrap:balance}
+.lede{color:var(--dim);font-size:17px;margin:10px 0 20px}
+h2{font-size:22px;margin:34px 0 6px;padding-top:8px;text-wrap:balance}
+h3{font-size:17px;margin:18px 0 4px}
+p{margin:12px 0}
+.big{background:linear-gradient(180deg,rgba(255,98,0,.08),rgba(255,98,0,.02));border:1px solid rgba(255,98,0,.30);border-radius:14px;padding:18px 20px;margin:18px 0;font-size:16px}
+.big b{color:var(--orange)}
+.safety{background:rgba(255,98,0,.08);border:1px solid rgba(255,98,0,.35);border-radius:10px;padding:12px 14px;font-size:14.5px;margin:18px 0}
+.safety b{color:var(--orange)}
+.flow{display:grid;gap:11px;margin:16px 0}
+.node{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:15px 17px}
+.node h3{margin:0 0 4px;display:flex;align-items:center;gap:9px}
+.node .k{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--orange);border:1px solid rgba(255,98,0,.4);border-radius:999px;padding:3px 9px}
+.node p{font-size:14.5px;color:#dcdcdc;margin:6px 0 0}
+.node .ex{font-size:13px;color:var(--dim);margin-top:6px}
+.step{background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:15px 17px;margin:12px 0;display:flex;gap:13px;align-items:flex-start}
+.step .n{flex:0 0 30px;height:30px;border-radius:50%;background:var(--orange);color:#0a0a0a;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
+.step h3{margin:0 0 3px}.step p{font-size:14.5px;color:#dcdcdc;margin:4px 0 0}
+table.read{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px;overflow:hidden;border-radius:10px;border:1px solid var(--bord)}
+table.read th,table.read td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--bord)}
+table.read th{background:var(--surf2);color:var(--ink);font-size:13px}
+table.read td{color:#dcdcdc}
+table.read tr:last-child td{border-bottom:0}
+.tbl-wrap{overflow-x:auto}
+.cta{background:linear-gradient(180deg,#161616,#0f0f0f);border:1px solid var(--bord);border-radius:16px;padding:22px;margin:30px 0}
+.cta h2{margin:0 0 6px}
+.cta p{font-size:15px;color:var(--dim);margin:6px 0 16px}
+.btnrow{display:flex;gap:12px;flex-wrap:wrap}
+.btn{flex:1 1 200px;text-align:center;text-decoration:none;font-weight:700;border-radius:12px;padding:15px 18px;font-size:15.5px}
+.btn.p{background:var(--orange);color:#0b0b0c}
+.btn.s{background:transparent;color:var(--ink);border:1px solid var(--bord)}
+.faq{border-top:1px solid var(--bord);margin-top:8px}
+details{border-bottom:1px solid var(--bord);padding:4px 0}
+summary{cursor:pointer;font-weight:600;font-size:16px;padding:14px 0;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";float:right;color:var(--orange);font-weight:700}
+details[open] summary::after{content:"–"}
+details p{color:var(--dim);font-size:15px;padding:0 0 14px}
+.related{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.related a{font-size:14px;color:var(--ink);text-decoration:none;background:var(--surf);border:1px solid var(--bord);border-radius:999px;padding:9px 14px}
+.related a:hover{border-color:var(--orange)}
+footer{border-top:1px solid var(--bord);margin-top:44px;padding:22px 0;color:var(--dim);font-size:13px}
+footer a{color:var(--dim)}</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="/">TN Appliance<b>·</b>Ant</a>
+      <a class="callbtn" href="tel:+16152802949">Text or call 24/7 · (615) 280-2949</a>
+    </header>
+    <nav class="bc"><a href="/">Home</a> › <a href="/fix/">Appliance Fix Guides</a> › How to diagnose any appliance</nav>
+    <h1>How to diagnose any appliance: power → switch → load</h1>
+    <p class="lede">Here's the secret real technicians run on: you don't memorize a thousand repairs — you learn one method. <b>Continuity and voltage testing finds about 95% of all appliance faults</b>, because almost every failure is one broken link in a simple circuit: <b>power source → switch/control → load</b>. Find which of those three fails the test, and you've found the repair. This is the exact method we use on every job — in plain English.</p>
+    <div class="safety"><b>⚠ Safety first:</b> Do continuity/resistance tests with the appliance <b>unplugged</b>. Do voltage tests live, carefully. <b>Never</b> touch a microwave's high-voltage capacitor — it can hold a lethal charge even unplugged. Respect 240V circuits, and treat gas appliances differently. Unsure? Send us a video and we'll walk you through it.</div>
+
+    <h2>The two tests that do almost everything</h2>
+    <div class="big"><b>Voltage:</b> "Is power getting here?" — measured live (AC volts). &nbsp; <b>Continuity:</b> "Is this path or part unbroken?" — measured unplugged (ohms / beep mode). Master these two and a $15 multimeter, and you can trace nearly any appliance problem to the exact part.</div>
+
+    <h2>Every appliance is the same three-part circuit</h2>
+    <p>No matter the machine, power has to flow through three things in a chain. Break any link and the appliance stops. Your whole job is finding the broken link.</p>
+    <div class="flow">
+      <div class="node">
+        <h3><span class="k">1 · Power source</span></h3>
+        <p>The electricity coming in — the outlet, cord, plug, and breaker.</p>
+        <p class="ex">Examples: 120V wall outlet, power cord, house breaker. Electric dryers, ranges, and ovens use <b>240V</b> (two legs) — lose one leg and the machine acts half-dead (drum spins, no heat).</p>
+      </div>
+      <div class="node">
+        <h3><span class="k">2 · Switch / control</span></h3>
+        <p>Anything that makes or breaks the path on command — the "gatekeepers."</p>
+        <p class="ex">Examples: door switch, lid switch, thermostat, thermal fuse, timer, relay, pressure switch, control board. These pass power <b>only when conditions are right</b> (door closed, temp low enough, etc.).</p>
+      </div>
+      <div class="node">
+        <h3><span class="k">3 · Load</span></h3>
+        <p>The part that actually does the work by consuming power.</p>
+        <p class="ex">Examples: heating element, motor, pump, valve coil, compressor, igniter. Loads usually fail <b>open</b> — which a continuity test catches instantly.</p>
+      </div>
+    </div>
+
+    <h2>The method — test in this order</h2>
+    <div class="step"><div class="n">1</div><div><h3>Is power arriving? (voltage)</h3><p>Confirm the outlet and cord deliver the expected voltage — 120V for most, 240V for electric dryers/ranges/ovens. <b>No power here = it's the outlet, cord, or breaker, not the appliance.</b> This one step saves a lot of wasted part-buying.</p></div></div>
+    <div class="step"><div class="n">2</div><div><h3>Does the switch/control pass power when it should? (continuity)</h3><p>Unplug, then test each switch/control for continuity: a door switch, lid switch, thermostat, or thermal fuse should read <b>continuity (near 0 Ω) when closed/latched</b> and open when released. If it never closes the path, that gatekeeper is your fault.</p></div></div>
+    <div class="step"><div class="n">3</div><div><h3>Is the load good? (continuity)</h3><p>Unplug, then test the load — element, motor winding, pump, valve coil — for continuity. A good load reads its <b>characteristic resistance</b>; an <b>open (OL) reading = failed</b>, replace it. This is the single most common finding of all.</p></div></div>
+    <p>That's it. Power in → gatekeeper passes it → load does the work. Whichever step fails its test is the repair. You just diagnosed like a pro.</p>
+
+    <h2>What the readings mean (cheat sheet)</h2>
+    <div class="tbl-wrap"><table class="read">
+      <tr><th>Reading</th><th>What it means</th></tr>
+      <tr><td><b>~0 Ω / beep</b></td><td>Good continuity — the path or switch is closed and unbroken.</td></tr>
+      <tr><td><b>OL / infinite</b></td><td>Open — the path is broken or the load has failed. Usually your bad part.</td></tr>
+      <tr><td><b>120V / 240V present</b></td><td>Power is arriving at that point as expected.</td></tr>
+      <tr><td><b>0V where you expect power</b></td><td>Power isn't getting there — look upstream (breaker, cord, a switch that isn't closing).</td></tr>
+    </table></div>
+    <h3>Typical "good load" resistances</h3>
+    <div class="tbl-wrap"><table class="read">
+      <tr><th>Load</th><th>Roughly reads</th></tr>
+      <tr><td>Dryer heating element</td><td>~10–50 Ω (open = burned out)</td></tr>
+      <tr><td>Oven bake element</td><td>~15–40 Ω (open = burned out)</td></tr>
+      <tr><td>Drain / water pump motor</td><td>a few to ~20 Ω (open = dead)</td></tr>
+      <tr><td>Thermal fuse / thermostat (closed)</td><td>~0 Ω / continuity (open = blown)</td></tr>
+      <tr><td>Oven temperature sensor</td><td>~1,080–1,100 Ω at room temp</td></tr>
+    </table></div>
+    <p class="lede" style="font-size:14px">Exact values vary by model — treat these as "is it in the ballpark or wide open?" An <b>open reading is the clear tell</b> almost every time.</p>
+
+    <h2>Where power-switch-load doesn't apply</h2>
+    <p>The method covers the electrical ~95%. The exceptions worth knowing: <b>sealed-system / refrigerant</b> problems (compressor, leaks — licensed + EPA-certified only), <b>mechanical</b> issues (worn bearings, broken belts, a jammed impeller — found by feel and inspection, not a meter), and <b>gas</b> (the igniter is a load you can test, but the gas side needs a pro). And the <b>microwave high-voltage capacitor</b> is off-limits — dangerous even unplugged.</p>
+
+    <div class="cta">
+      <h2>Stuck on which link is broken?</h2>
+      <p>Send a 10-second video and a photo of the model number. For $50, a real technician tells you exactly which part failed the test — and we ship you the exact part or walk you through the fix. In Middle Tennessee or the Baton Rouge area, we'll come to you. 24/7.</p>
+      <div class="btnrow">
+        <a class="btn p" href="/">Start now — send a video</a>
+        <a class="btn s" href="tel:+16152802949">Text or call (615) 280-2949</a>
+      </div>
+    </div>
+
+    <h2>Common questions</h2>
+    <div class="faq">
+      <details open><summary>How do technicians diagnose appliances so fast?</summary><p>They run one method, not a thousand memorized repairs: check power → check the switch/control → check the load, using voltage and continuity. Whichever fails its test is the repair. It works on washers, dryers, ovens, dishwashers, and fridges alike.</p></details>
+      <details><summary>Voltage vs. continuity — which do I use?</summary><p>Voltage (power ON) answers "is electricity here?" Continuity (power OFF) answers "is this path/part unbroken?" You use voltage to check the power source and to see if a switch is passing power; continuity to test switches and loads with the machine unplugged.</p></details>
+      <details><summary>What does OL mean on my multimeter?</summary><p>OL (over-limit / infinite) on a continuity test means "open" — a broken path or a failed load. On a heating element or motor winding, OL means replace it. A good load reads its characteristic resistance instead.</p></details>
+      <details><summary>What multimeter should I buy?</summary><p>Any inexpensive digital multimeter with continuity (beep) mode, ohms (Ω), and AC voltage will handle nearly every appliance test. You don't need a fancy one.</p></details>
+      <details><summary>When should I stop and call a pro?</summary><p>Sealed-system/refrigerant work, the gas side of a gas appliance, and anything involving a microwave's high-voltage capacitor. When you're unsure, send us a video — we'll tell you honestly whether it's a safe DIY or a technician job.</p></details>
+    </div>
+
+    <h2>Now apply it — symptom by symptom</h2>
+    <div class="related">
+      <a href="/fix/washer-wont-drain.html">Washer won't drain</a>
+      <a href="/fix/refrigerator-not-cooling.html">Refrigerator not cooling</a>
+      <a href="/fix/dryer-not-heating.html">Dryer runs but won't heat</a>
+      <a href="/fix/dishwasher-wont-drain.html">Dishwasher won't drain</a>
+      <a href="/fix/oven-not-heating.html">Oven won't heat</a>
+      <a href="/tools/fault-code-lookup.html">Fault-code lookup</a>
+      <a href="/fix/">All fix guides →</a>
+    </div>
+
+    <footer>
+      <p><b>TN Appliance Exchange</b> — honest, technician-led appliance repair since 2012. In-home service across Middle Tennessee &amp; the Baton Rouge area of Louisiana; nationwide video diagnostic with parts shipping. Reach us 24/7/365 at (615) 280-2949.</p>
+      <p style="margin-top:8px"><a href="/fix/">All appliance fix guides</a> · <a href="/">Home</a></p>
+    </footer>
+  </div>
+</body>
+</html>
