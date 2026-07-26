@@ -66,6 +66,18 @@ const METROS = [
   { name: 'Miami', slug: 'miami', st: 'FL', group: 'metro', vol: 2270, blurb: 'Miami homeowners get a real technician\'s honest diagnosis by video and the exact part shipped to their door — en español también.' },
   { name: 'Orlando', slug: 'orlando', st: 'FL', group: 'metro', vol: 1820, blurb: 'Orlando: skip the runaround. A real tech diagnoses your appliance by video and ships you the right part.' },
   { name: 'Nashville', slug: 'nashville-national', st: 'TN', group: 'metro', vol: 1890, hide: true, blurb: '' }, // on-site handled elsewhere; skip
+  // --- DC metro / tri-state (DMV): DC + Maryland + Northern Virginia ---
+  { name: 'Washington', slug: 'washington-dc', st: 'DC', group: 'dmv', vol: 3500, blurb: 'Washington DC homeowners get honest, technician-led appliance help by video and the exact part shipped to your door — no overpriced service call, se habla español.' },
+  { name: 'Arlington', slug: 'arlington-va', st: 'VA', group: 'dmv', vol: 1200, blurb: 'Arlington and Northern Virginia: a real tech diagnoses your appliance by video and ships you the right part — fix it yourself or with our help.' },
+  { name: 'Alexandria', slug: 'alexandria-va', st: 'VA', group: 'dmv', vol: 1000, blurb: 'Alexandria homeowners get an honest video diagnosis and the exact part shipped fast — no runaround.' },
+  { name: 'Silver Spring', slug: 'silver-spring', st: 'MD', group: 'dmv', vol: 1100, blurb: 'Silver Spring and Montgomery County: skip the pricey house call. Show us the problem by video, get the truth, get the part.' },
+  { name: 'Rockville', slug: 'rockville', st: 'MD', group: 'dmv', vol: 900, blurb: 'Rockville homeowners get honest, technician-led appliance help by video and the exact part to their door.' },
+  { name: 'Bethesda', slug: 'bethesda', st: 'MD', group: 'dmv', vol: 800, blurb: 'Bethesda: a real technician tells you what\'s wrong and whether it\'s worth fixing before you spend a dime, all from your phone.' },
+  { name: 'Gaithersburg', slug: 'gaithersburg', st: 'MD', group: 'dmv', vol: 800, blurb: 'Gaithersburg and upper Montgomery County get honest appliance answers by video and the exact part shipped fast.' },
+  { name: 'Fairfax', slug: 'fairfax-va', st: 'VA', group: 'dmv', vol: 900, blurb: 'Fairfax County homeowners get a real tech\'s honest diagnosis by video and the exact part shipped to their door.' },
+  { name: 'Woodbridge', slug: 'woodbridge-va', st: 'VA', group: 'dmv', vol: 700, blurb: 'Woodbridge and Prince William County: honest, technician-led appliance help by video, with the part shipped fast.' },
+  { name: 'Baltimore', slug: 'baltimore', st: 'MD', group: 'dmv', vol: 2600, blurb: 'Baltimore homeowners get an honest video diagnosis from a real tech and the exact part shipped to their door — no overpriced service call.' },
+  { name: 'Frederick', slug: 'frederick-md', st: 'MD', group: 'dmv', vol: 600, blurb: 'Frederick and western Maryland get honest appliance help by video and the exact part shipped to your door.' },
 ];
 
 const CSS = `*{box-sizing:border-box;margin:0;padding:0}
@@ -223,6 +235,7 @@ ${faqHtml}
 function hub(list) {
   const groups = [
     { key: 'tampa', label: 'Tampa Bay & Central Florida' },
+    { key: 'dmv', label: 'Washington DC, Maryland & Northern Virginia' },
     { key: 'ky', label: 'Bedford & Trimble County, Kentucky' },
     { key: 'metro', label: 'Major U.S. metros' },
   ];

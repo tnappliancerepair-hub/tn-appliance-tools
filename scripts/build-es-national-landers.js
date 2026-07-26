@@ -56,6 +56,20 @@ const METROS = [
   { name: 'McAllen', slug: 'mcallen', st: 'TX', vol: 70, blurb: 'En McAllen y todo el Valle del Río Grande, el español es el idioma de casa. Te damos servicio honesto por video y la pieza enviada a tu puerta.' },
   { name: 'Riverside', slug: 'riverside', st: 'CA', vol: 70, blurb: 'El Inland Empire tiene una gran comunidad latina. Te atendemos en español con diagnóstico honesto por video y la pieza enviada a casa.' },
   { name: 'Fresno', slug: 'fresno', st: 'CA', vol: 60, blurb: 'En el Valle Central de California te servimos en español — un técnico de verdad revisa tu electrodoméstico por video y te envía la pieza exacta.' },
+  // --- Área de DC (DMV): DC + Maryland + el norte de Virginia. Una de las
+  //     comunidades salvadoreñas y centroamericanas más grandes del país. ---
+  { name: 'Washington DC', slug: 'washington-dc', st: 'DC', vol: 110, blurb: 'El área de DC tiene una enorme comunidad salvadoreña y centroamericana. Te atendemos en español: un técnico de verdad revisa tu electrodoméstico por video y te envía la pieza exacta a tu puerta.' },
+  { name: 'Silver Spring', slug: 'silver-spring', st: 'MD', vol: 90, blurb: 'Silver Spring es hogar de miles de familias latinas. Te damos un diagnóstico honesto en español por video y te enviamos la pieza correcta a tu casa.' },
+  { name: 'Langley Park', slug: 'langley-park', st: 'MD', vol: 70, blurb: 'En Langley Park, el español es el idioma de casa. Aquí te atendemos en tu idioma — diagnóstico honesto por video y la pieza enviada a tu puerta.' },
+  { name: 'Hyattsville', slug: 'hyattsville', st: 'MD', vol: 60, blurb: 'Hyattsville y el condado de Prince George tienen una fuerte comunidad centroamericana. Te ayudamos en español a arreglar tu electrodoméstico, por video y con la pieza enviada.' },
+  { name: 'Wheaton', slug: 'wheaton', st: 'MD', vol: 60, blurb: 'En Wheaton te servimos en español — un técnico real revisa tu problema por video y te dice exactamente qué pieza necesitas.' },
+  { name: 'Gaithersburg', slug: 'gaithersburg', st: 'MD', vol: 70, blurb: 'Gaithersburg y Montgomery County tienen una gran comunidad latina. Diagnóstico honesto en español por video y la pieza enviada a tu casa.' },
+  { name: 'Arlington', slug: 'arlington-va', st: 'VA', vol: 80, blurb: 'En Arlington y el norte de Virginia te atendemos en español, con un diagnóstico honesto por video y la pieza exacta enviada a tu puerta.' },
+  { name: 'Alexandria', slug: 'alexandria-va', st: 'VA', vol: 80, blurb: 'Alexandria tiene una comunidad salvadoreña muy fuerte. Te ayudamos en español — por video, con la pieza enviada a tu casa.' },
+  { name: 'Annandale', slug: 'annandale-va', st: 'VA', vol: 60, blurb: 'En Annandale y el condado de Fairfax te servimos en español, con diagnóstico honesto por video y envío de la pieza correcta.' },
+  { name: 'Woodbridge', slug: 'woodbridge-va', st: 'VA', vol: 60, blurb: 'Woodbridge y el condado de Prince William tienen una gran comunidad latina. Te atendemos en español, por video, con la pieza enviada a tu puerta.' },
+  { name: 'Manassas', slug: 'manassas-va', st: 'VA', vol: 50, blurb: 'En Manassas te ayudamos en español a arreglar tu electrodoméstico — un técnico de verdad por video y la pieza exacta a tu casa.' },
+  { name: 'Baltimore', slug: 'baltimore', st: 'MD', vol: 90, blurb: 'La comunidad latina de Baltimore crece cada año. Te damos un diagnóstico honesto en español por video y te enviamos la pieza a tu puerta.' },
 ];
 
 const CSS = `*{box-sizing:border-box;margin:0;padding:0}
