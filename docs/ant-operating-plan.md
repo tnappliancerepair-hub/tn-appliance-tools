@@ -225,6 +225,44 @@ in parallel so the books eventually run without a bookkeeper.
 
 ---
 
+## 04½ · The demand engine — how L1 gets found *(decided 2026-07-26)*
+
+Great ops with no demand is a secret. Here's how we fill the funnel — the order matters as much as the money.
+
+**The discipline: free-first, then pay.** No paid ads until a few real paid sales
+(Quick Checks / parts orders) prove the page + offer actually *close*. A sale gives us
+a true cost-per-sale to bid against, and the sales themselves fund the ad budget (the
+markets report already does the "$X earned = N days of ads" math). We paused the Miami
+$10/day test on 2026-07-26 for exactly this reason — spend follows proof, not hope.
+
+**Content strategy — the big correction.** Stop widening the thin **city × service grid**
+(doorway-page pattern: mass-produced, near-duplicate, Google ignores *and* can penalize
+the whole domain). Proof from our own Search Console: **607 pages ranking in the last 90
+days out of ~1,336 submitted (~45%)** — the ~729 dead ones are overwhelmingly the thin city
+landers. **Pivot to the type that's in the winning 607: diagnostic / symptom / brand / model
+/ part-number pages** — "dryer not heating," "Samsung fridge not cooling," "Whirlpool F21,"
+"replace part #X." Each answers a real search and funnels to a **part order or $50 Quick
+Check.** Built from our 13-year repair corpus = genuinely useful *and* uncopyable (the moat).
+Quality per page, **in English AND Spanish.** (Engine already seeded: `/fix/` pages +
+brand×symptom knowledge base — we scale the library, not the doorway grid.)
+
+**The Spanish market — the biggest under-served lane in the trade.**
+- **68M Hispanics** in the U.S. (2024); **44.9M speak Spanish at home** — the U.S. is the
+  **2nd-largest Spanish-speaking country on earth.**
+- **~18M speak English less than "very well"** — the most under-served, most loyal-once-earned
+  group. Almost no appliance competitor serves them in Spanish at all.
+- **Mobile-first:** 93% own a smartphone; **28% are smartphone-only** for internet (rising) —
+  our video + text intake is built for exactly this. Heavy on TikTok/IG/YouTube/**WhatsApp**.
+- **Our model erases geography:** repair = 2 states, but **video diagnosis + ship the part =
+  all 44.9M nationwide.** The Spanish market isn't our service area — it's the whole country.
+- **Aim by Spanish-reliance + low competition, not raw size:** **Miami** (42.7% of metro,
+  Miami-Dade 67%), **Houston**, and the **DMV** (Salvadoran-led, very low English proficiency)
+  beat LA/NYC (bigger but crowded). Point free channels there first.
+- **WhatsApp = the unbuilt unlock** for this audience — flagged as a real next-build.
+
+**Channel order:** diagnostic content (slow-compounding SEO) + social (live now) + community
+(Anthony's Gift codes) → first sales → *then* paid ads, aimed where the sales came from.
+
 ## 05 · The order we build it (sequencing is the game)
 
 **Now · next few weeks — finish Layer 1 + cover the office**
@@ -298,6 +336,13 @@ undeniable on their metric first (returns for Amazon, claim-accuracy for warrant
 ---
 
 ## Changelog
+- **2026-07-26 — v1.3.** Added **§04½ · The demand engine**: free-first (no paid ads until
+  sales prove the funnel — paused the Miami test), the **content pivot** from the thin
+  city×service doorway grid → **diagnostic/symptom/brand/model/part pages in EN + ES**
+  (grounded in the repair corpus = moat), and the **Spanish market thesis** (44.9M Spanish-
+  at-home, ~18M low-English, mobile-first, aim Miami/Houston/DMV; video+ship-parts erases
+  geography). Milestone: **607 pages ranking / ~1,336 submitted (~45%)** — build more of the
+  winning type, stop feeding the dead ~729. WhatsApp flagged as the unbuilt unlock.
 - **2026-07-18 — v1.2.** Folded in the **intelligence-layer identity** (lake brainstorm):
   Ant is *the appliance-intelligence layer the big platforms lack and would rather partner
   with than build.* Added to the thesis + a new **§02½** developing it across the warranty
