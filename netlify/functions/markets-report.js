@@ -49,7 +49,17 @@ async function quickChecks(days) {
   catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
   const cutoff = Date.now() - days * 86400000;
   const meta = (r) => { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; };
-  const recent = (rows || []).map(meta).filter((m) => (m.at_ms || 0) >= cutoff);
+  // Exclude owner/internal test purchases + $1 test-token runs so the "sales prove the
+  // funnel" number is honest — a real stranger's first order should stand out. (2026-07-27)
+  const OWNER_PHONES = new Set(['6154855795', '6154850713']); // Teddy, Danielle
+  const dig = (p) => String(p || '').replace(/\D/g, '').slice(-10);
+  const recent = (rows || []).map(meta).filter((m) => {
+    if ((m.at_ms || 0) < cutoff) return false;
+    if (String(m.is_test) === 'yes') return false;   // $1 test token
+    if (Number(m.amount || 0) < 5) return false;      // $1 test purchases
+    if (OWNER_PHONES.has(dig(m.phone))) return false; // owner's own test buys
+    return true;
+  });
   const byCity = {};
   const byOrg = {};
   let total = 0, dollars = 0, giftCount = 0, giftCents = 0;
