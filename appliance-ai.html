@@ -358,6 +358,11 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 // customer can also just type in their own language — Ant + the tech read it.
 // English (default) passes straight through, so the English flow is untouched.
 const LANG=(new URLSearchParams(location.search).get('lang')||'en').toLowerCase();
+// 🤝 Community/church $25 gift codes carried in via ?partner= / ?socio= / ?church= / ?iglesia=
+// so the discount reaches Stripe even when the funnel lands on the AI intake (not just quick-check-intake).
+const _QP=new URLSearchParams(location.search);
+const PARTNER_CODE=(_QP.get('partner')||_QP.get('socio')||'').trim();
+const CHURCH_CODE=(_QP.get('church')||_QP.get('iglesia')||'').trim();
 const TR_LANGS={es:1,vi:1,ar:1,hi:1,fr:1,zh:1,ru:1};
 const TR={
  es:{"Refrigerator":"Refrigerador","Washer":"Lavadora","Dryer":"Secadora","Dishwasher":"Lavavajillas","Oven / Stove":"Horno / Estufa","Microwave":"Microondas","Freezer":"Congelador","Something else":"Otra cosa","Not cooling":"No enfría","Leaking water":"Gotea agua","Making noise":"Hace ruido","Ice maker out":"Sin hielo","Won't run":"No funciona","Won't start":"No enciende","Won't drain":"No drena","Won't spin":"No centrifuga","Leaking":"Gotea","Loud / shaking":"Ruidosa / vibra","No heat":"No calienta","Takes forever":"Tarda demasiado","Noisy":"Ruidosa","Not cleaning":"No limpia","Won't turn on":"No enciende","Not working right":"No funciona bien","I have a warranty":"Tengo garantía","I'm paying myself":"Pago de mi bolsillo","…or just type or talk to me":"…o solo escríbeme o háblame","Start my Quick Check":"Empezar mi Revisión Rápida"},
@@ -786,6 +791,7 @@ function payStep(){
         appliance:state.appliance, brand:state.brand, problem:state.problem, payer:state.payer, sms_consent:state.smsConsent, town:state.town,
         conv_id:state.convId, has_video:state.video, has_model:state.model, media_pending:state.mediaPending,
         availability:state.availability||'', qc_test:QC_TEST, language:LANG, service:svc,
+        partner:PARTNER_CODE, church:CHURCH_CODE,
         hose_item:state.hoseItem||'', hose_choice:state.hoseChoice||'', floors:state.floors||'', floors_label:state.floorsLabel||''
       })});
       const d=await r.json();
