@@ -14,7 +14,7 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 // { campaign, label, pauseOnOrAfter (YYYY-MM-DD, CT) }. Add a row per test; remove
 // after it's paused. Dates are inclusive of the last full day BEFORE this date.
 const TESTS = [
-  { campaign: '24072373387', label: 'Miami — Spanish DIY + Quick Check test', pauseOnOrAfter: '2026-07-30' },
+  { campaign: '24072392806', label: 'Miami — Spanish $50 Quick Check pitch test', pauseOnOrAfter: '2026-07-30' },
 ];
 
 function todayCT() { const p = {}; for (const x of new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())) p[x.type] = x.value; return `${p.year}-${p.month}-${p.day}`; }
