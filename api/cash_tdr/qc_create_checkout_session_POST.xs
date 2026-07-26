@@ -546,7 +546,28 @@ query qc_create_checkout_session verb=POST {
       value = $params|set:$key_qty_s:"1"
     }
   
-    // Session-level params (no discounts — qc_credit_50 retired in 3e).
+    // Quick Check Credit on a DIY (part-only) order: there's no labor line to
+    // absorb the $50, so the credit was being lost for DIYers. Apply it as a
+    // session-level coupon so the $50 comes off the PART. Only when the order is
+    // pure-DIY ($total_labor_cents == 0, i.e. all non-skip selections were diy_*)
+    // AND the Quick Check wasn't waived (labor_credit_cents > 0). Install/mixed
+    // orders keep the labor-line credit above (no double-credit).
+    var $diy_credit_cents {
+      value = ($tdr.labor_credit_cents ?? 5000)
+    }
+    conditional {
+      if ($total_labor_cents == 0) {
+        conditional {
+          if ($diy_credit_cents > 0) {
+            var.update $params {
+              value = $params|set:"discounts[0][coupon]":"qc_credit_50"
+            }
+          }
+        }
+      }
+    }
+
+    // Session-level params.
     var $cancel_url {
       value = "https://tnapplianceexchange.net/cash-tdr-customer.html?token=" ~ $input.public_view_token
     }
