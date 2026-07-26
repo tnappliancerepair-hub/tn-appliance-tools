@@ -11,6 +11,40 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🎁 2026-07-26 (Sat) — "ANTHONY'S GIFT": community giving program (churches + all community orgs), $25-off code, his name everywhere, giving tracked for taxes — READ FIRST
+
+Teddy's north star today: **help as many people as possible + "I want everyone to know his name"** (Anthony — the son the company Ant is named after) + "the discount could help with our tax burdens." All LIVE on `main` (Netlify auto-deploy). No Mac/XS push needed — pure Netlify fns + static pages.
+
+### ✅ THE PROGRAM — "Anthony's Gift" / "El Regalo de Anthony" ($25 off, open-by-design)
+Broadened the earlier church-only $25 discount into a full **Community Partners** program: churches AND food banks, senior centers, immigrant/refugee groups, shelters, apartment communities, schools, nonprofits. **Mechanism = a code in the URL → $25 off the $50 Quick Check** (open by design; any code works so it's frictionless to hand out — allowlist later if abused).
+- **Discount plumbing (`create-quickcheck-payment.js`):** `church` code (label "Church discount") + NEW neutral `partner` code (label "Community discount", metadata `partner_code`). Never stacks. Both = $25 off (`CHURCH_OFF=2500`, `Math.max(100, …)`).
+- **🛑 ONE-FLIP PAUSE (Teddy: "we may stop it if we get overwhelmed"):** env **`COMMUNITY_GIFT_PAUSED=true`** (vault) → all church/partner codes stop discounting (charge full $50). Flip back to re-open. NOTE: pages still *say* $25 while paused (static) — if paused for a while, add a "program resting" note to the pages (~5 min follow-up).
+- **Intake (`quick-check-intake.html`):** reads `?partner=`/`?socio=` (+ existing `?church=`/`?iglesia=`), shows the right banner, passes `partner`/`church` to payment.
+- **ES pitch (`es/revision-rapida.html`, build:9):** carries `socio`/`partner` (+ church) code to every CTA + shows banner.
+
+### ✅ HIS NAME — on every giving page, printed card + point-of-payment banner
+"Anthony's Gift" / "El Regalo de Anthony" is now a kicker above the hero, **a line on the printable card** (so his name physically travels to every church/food bank), and in the $25-applied banners. Each program page's story ties **Ant → Anthony** explicitly. **Matthew 25:40** epigraph added (EN + Reina-Valera 1960 ES) under Anthony's story on the church pages.
+
+### ✅ GIVING TRACKED FOR TAXES (honest tax stance)
+- **`verify-quickcheck.js`:** the `quick_check_paid` event now logs `church_code`, `partner_code`, `giving_cents` (2500 when a code was used) — every gift documented.
+- **`markets-report.js`:** NEW 🎁 Anthony's Gift section in the Monday text digest + HTML — families helped, $ given, by-org breakdown, labeled "keep this for the CPA."
+- **HONEST TAX REALITY told to Teddy (not built as a deduction):** a discount is NOT a charitable write-off — you're just taxed on the $25 you collect. Real levers = (1) the program's real costs are **marketing/advertising expense**, (2) actual **cash/parts-at-cost donations to a 501(c)(3)** ARE deductible. **Route through Alyse + the CPA;** the new giving log is the documentation for whatever they choose.
+
+### 📄 NEW PAGES / FILES
+- `community-partners.html` (EN) + `es/aliados-comunitarios.html` (ES) — self-serve link/card generator for any org (types name → member link + printable card + share/WhatsApp message). EN links → `/quick-check-intake.html?partner=CODE`; ES → `/es/revision-rapida.html?socio=CODE`.
+- Cross-links: church ↔ community pages, homepage footers (index + es/index), sitemap (+2 locs).
+- `docs/church-outreach-kit-2026-07-26.md` — broadened to community orgs + Matthew 25:40 + **researched real starter list** (Nashville: Second Harvest MidTN = 490-partner hub, HELP Center, Branch of Nashville, Hispanic Chamber, Council on Aging; New Orleans/Kenner: ⭐St. Jerome Kenner [Spanish translators], St. Mary Magdalen Metairie, Broadmoor Community Church, Kenner Food Bank, Second Harvest GNO).
+
+### ✍️ DRAFTED (in chat, NOT sent — Teddy sends from his Gmail)
+Full **Second Harvest of Middle TN outreach email** (+ short contact-form version + 15-sec voicemail script) — leads with Anthony, concrete $25 benefit, "free/no catch/no data," ask = share with their 490-partner network, turnkey `SECOND-HARVEST-MIDTN` tracking link. **⏭️ OPEN:** save that draft into the outreach kit + write the St. Jerome Kenner (Spanish) version (offered, awaiting go).
+
+### ⏭️ OPEN / NEXT
+1. Teddy sends the Second Harvest email (find Agency Relations / Community Partnerships contact, not the donations inbox).
+2. Draft St. Jerome Kenner (ES) outreach + save both drafts to the kit.
+3. If ever paused: add a "program resting" note to the discount pages so the static $25 banner doesn't mismatch.
+4. Expand starter org list to more metros (Miami/Houston/DMV) when ready; optional QR on the printable card.
+5. Standing decision: discount is open-by-design (any code = $25 off) — allowlist only if abused.
+
 ## 🗓️🐜📞 2026-07-24 (Thu) — PHONE TRUST OVERHAUL: Ann now KNOWS the right tech + day, never guesses, honest times, calls stop dropping, intake+waiver+add-on script, + a DAILY TRUST SCORECARD ("get better every day") — READ FIRST
 
 Teddy's north star all day: **make the phones the most TRUSTED thing we have.** "More important than giving an answer is giving the RIGHT answer. If we don't know, say 'I don't know.'" Everything below is LIVE (Netlify auto-deploy + applied to the live Vapi assistant **"Ann"** `7cc98b0c-54a7-4d19-bd48-6dfac606e55d` on the **tnappliance@gmail** Vapi account). No Mac push needed — all Netlify + Vapi prompt-block actions.
