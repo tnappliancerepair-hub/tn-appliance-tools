@@ -40,13 +40,37 @@ async function adsPerf(days) {
   return { ok: true, campaigns: rows };
 }
 
+// Quick Check conversions (the paid $50/$100 intakes) in the window, grouped by city.
+// This is the money — and it funds the ads: each $50 Quick Check ≈ 5 more days at $10/day.
+async function quickChecks(days) {
+  const crud = require('./_lib/xano/metadata-crud');
+  let rows;
+  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'quick_check_paid' }, { created_at: 'desc' }, 400); }
+  catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+  const cutoff = Date.now() - days * 86400000;
+  const meta = (r) => { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; };
+  const recent = (rows || []).map(meta).filter((m) => (m.at_ms || 0) >= cutoff);
+  const byCity = {};
+  let total = 0, dollars = 0;
+  for (const m of recent) {
+    total++; dollars += Number(m.amount || 0);
+    const city = (m.town || m.city || 'Unknown') + (m.language && m.language !== 'en' ? ' 🌐' : '');
+    if (!byCity[city]) byCity[city] = { city, count: 0, dollars: 0 };
+    byCity[city].count++; byCity[city].dollars += Number(m.amount || 0);
+  }
+  const cities = Object.values(byCity).sort((a, b) => b.count - a.count);
+  return { ok: true, total, dollars, cities, ad_days_funded_at_10: Math.floor(dollars / 10) };
+}
+
 async function build(days) {
-  const [qr, pr, ad] = await Promise.all([
+  const [qr, pr, ad, qc] = await Promise.all([
     gsc.query({ days, dimensions: ['query'], rowLimit: 1000 }).catch((e) => ({ ok: false, error: String(e) })),
     gsc.query({ days, dimensions: ['page'], rowLimit: 1000 }).catch((e) => ({ ok: false, error: String(e) })),
     adsPerf(days),
+    quickChecks(days),
   ]);
   const out = { ok: true, days, generated_for: 'owner' };
+  out.quick_checks = qc;
 
   if (qr && qr.ok) {
     const rows = qr.rows.map((r) => ({ query: r.keys[0], impressions: r.impressions, clicks: r.clicks, position: Math.round(r.position * 10) / 10 }));
@@ -67,6 +91,11 @@ async function build(days) {
 function digest(o) {
   const L = [];
   L.push(`🐜 Ant markets — last ${o.days}d`);
+  if (o.quick_checks && o.quick_checks.ok) {
+    const q = o.quick_checks;
+    L.push(`💰 ${q.total} Quick Check${q.total === 1 ? '' : 's'} · $${q.dollars} → funds ${q.ad_days_funded_at_10} days of ads`);
+    if (q.cities.length) L.push(`   ${q.cities.slice(0, 4).map((c) => `${c.city} (${c.count})`).join(', ')}`);
+  }
   if (o.top_finding && o.top_finding.length) {
     const fi = o.top_finding.reduce((s, r) => s + r.impressions, 0);
     const cl = (o.top_clicking || []).reduce((s, r) => s + r.clicks, 0);
@@ -94,6 +123,13 @@ function page(o) {
   const n = (v) => (v || 0).toLocaleString();
   let s = `<!doctype html><meta charset=utf-8><title>Ant Markets Report</title><style>body{font-family:system-ui;background:#0b0b0c;color:#eee;padding:22px;max-width:900px;margin:0 auto}h1{font-size:22px}h2{font-size:16px;color:#ff8c42;margin-top:28px}table{border-collapse:collapse;width:100%;font-size:13.5px;margin-top:8px}th,td{padding:7px 9px;border-bottom:1px solid #2a2a2a;text-align:left}th{color:#8a8a8a;font-weight:600}.n{color:#8a8a8a;font-size:13px}</style>`;
   s += `<h1>🐜 Markets Report — last ${o.days} days</h1>`;
+  if (o.quick_checks && o.quick_checks.ok) {
+    const q = o.quick_checks;
+    s += `<h2>💰 Quick Checks (the money — and it funds the ads)</h2>`;
+    s += `<p class=n><b style="color:#39ff14;font-size:18px">${q.total} paid · $${q.dollars}</b> — that funds <b>${q.ad_days_funded_at_10} days</b> of ads at $10/day. Get 2, run $100. Get 4, run $200.</p>`;
+    if (q.cities.length) s += tbl(q.cities, [['City', (r) => r.city], ['Quick Checks', (r) => r.count], ['$', (r) => '$' + r.dollars]]);
+    else s += `<p class=n>No paid Quick Checks yet in this window. First one closes the loop.</p>`;
+  }
   if (o.ads && o.ads.ok && o.ads.campaigns.length) { s += `<h2>💵 Paid tests</h2>` + tbl(o.ads.campaigns, [['Campaign', (r) => r.name], ['Status', (r) => r.status], ['Impr', (r) => n(r.impressions)], ['Clicks', (r) => r.clicks], ['Cost', (r) => '$' + r.cost], ['Conv', (r) => r.conversions]]); }
   if (o.new_market_pages) { s += `<h2>🌎 New-market pages getting found (${n(o.new_market_total_impressions)} impressions)</h2>`; s += o.new_market_pages.length ? tbl(o.new_market_pages, [['Page', (r) => r.page], ['Impr', (r) => n(r.impressions)], ['Clicks', (r) => r.clicks], ['Pos', (r) => r.position]]) : '<p class=n>None indexed yet — the pages are fresh. Google usually takes days to weeks.</p>'; }
   if (o.top_finding) s += `<h2>👀 Who's finding us (top searches)</h2>` + tbl(o.top_finding, [['Search', (r) => r.query], ['Impr', (r) => n(r.impressions)], ['Clicks', (r) => r.clicks], ['Pos', (r) => r.position]]);
