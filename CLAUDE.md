@@ -11,6 +11,42 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜📱 2026-07-26 (Sat PM) — FIRST VIDEO POSTED EVERYWHERE + TIKTOK PRODUCTION APP REVIEW *SUBMITTED* — READ FIRST
+
+Teddy's goal for the evening: "post one video to TikTok, Instagram, Facebook, YouTube, and X." Did it — then finished + SUBMITTED the long-pending TikTok production app review.
+
+### ✅ ONE VIDEO → ALL PLATFORMS (the 3-prong dryer cord clip)
+Fired via `video-studio.html` → **🚀 Post everywhere** (`post-everywhere.js` → `video-post.js`). Confirmed from the queue's `posted` map + live checks:
+- **Facebook — LIVE** (`facebook.com/1755740145419615`)
+- **Instagram — LIVE** (media count 54→55, @tnappliance)
+- **YouTube — uploaded PRIVATE** (`zMLsBoNuH_4`; public videoCount stays 26 because private uploads don't count — that's why it "looked" missing). One tap in Studio → Public.
+- **TikTok — landed in DRAFTS/inbox** (publish_id v2.7666661626044762125)
+- **X + Truth Social = paste-only** (no posting API) — caption handed to him.
+- **KEY teaching moment:** TikTok API uploads land in **Inbox → "Upload from other apps" / System notifications**, NOT the profile Drafts folder or grid — Teddy couldn't find it because he was looking at his profile. Same for YouTube (private ≠ visible in public count).
+
+### ✅ TIKTOK PRODUCTION APP REVIEW — SUBMITTED (was stuck in Draft for weeks)
+Walked Teddy through the whole `developers.tiktok.com` production app form on his Mac/phone, submitted **2026-07-26**. Now in TikTok's queue (days→weeks; email decision). What got filled:
+- **App icon** — regenerated a fresh 1024×1024 (old one was in a dead scratchpad); dark + orange-glow "TN / APPLIANCE EXCHANGE / est. 2012", sent to Teddy via file, he uploaded it.
+- **Description** — ⚠️ **120-char hard limit** (my first paste truncated at 120): "Internal tool for TN Appliance Exchange, a family repair business, to post its own videos to its own social accounts." (117/120)
+- **Category** Business · **ToS** `/app-terms.html` · **Privacy** `/privacy.html` · **Platforms** Web.
+- **Domain verify** — chose **URL prefix → signature file**; the existing `tiktokOSwbLk7gwnTPQmKJwamYpfJx09to8nC3.txt` at the site root (HTTP 200) matched → verified with no new deploy.
+- **Redirect URI** `https://tnapplianceexchange.net/.netlify/functions/tiktok-oauth-callback`
+- **Products** Login Kit + Content Posting API · **Scopes** `user.info.basic` + `video.upload` (did NOT add stats/profile/video.list — extra scopes = rejection risk). **Content Posting API left on "Upload/draft" mode, NOT Direct Post** (Direct Post = stricter review).
+- **Scope explanation** (767/1000) pasted (both scopes, "nothing auto-publishes, own content to own account").
+- **Demo video** — TWO iPhone screen-recording clips (clip 1: studio → upload to TikTok drafts; clip 2: finding it in TikTok inbox). Form accepts up to 5 files, ≤50MB each; trimmed clip 1 in Photos (Edit → drag handles → Save as New Clip) to get under 50MB.
+- **Submission reason** (120-char): "First submission. Requesting Login Kit + Content Posting API to upload our own repair videos to our own TikTok."
+
+### 🔑 STANDING FACTS (TikTok)
+- **Production creds ≠ approval.** Every app gets a client key/secret at creation; real Content Posting API in production requires passing this review. Connector `_lib/tiktok.js` currently **prefers SANDBOX creds** (`clientKey()`/`clientSecret()` = `TIKTOK_SANDBOX_*` || `TIKTOK_*`), so tonight's post used sandbox → drafts.
+- **After approval:** clear `TIKTOK_SANDBOX_CLIENT_KEY`/`_SECRET` from the vault → connector falls back to production → re-run `tiktok-oauth-start` to vault a production refresh token → wire TikTok into the campaign approve flow behind `TIKTOK_CROSSPOST_LIVE` → remove `tiktok-upload-test.js` + `tiktok-vault-check.js`. Full runbook: `docs/tiktok-app-review-submission-2026-07-20.md`.
+- The `⬆ Upload to TikTok drafts` button in `social-drafts.html` (→ `tiktok-upload-test`, verified working tonight) is the demo/test path.
+
+### ⏭️ OPEN / NEXT
+1. Watch for TikTok's review email (days–weeks). If revision requested (likely candidate: show the Login Kit "Connected as @tn.appliance.exch"), add a short clip + resubmit.
+2. On approval → flip connector to production (steps above).
+3. YouTube: the dryer clip is still PRIVATE (`zMLsBoNuH_4`) — one tap in Studio to make Public if wanted.
+4. X + Truth Social: still manual paste (no API wired).
+
 ## 🗓️🐜🎁 2026-07-26 (Sat) — "ANTHONY'S GIFT": community giving program (churches + all community orgs), $25-off code, his name everywhere, giving tracked for taxes — READ FIRST
 
 Teddy's north star today: **help as many people as possible + "I want everyone to know his name"** (Anthony — the son the company Ant is named after) + "the discount could help with our tax burdens." All LIVE on `main` (Netlify auto-deploy). No Mac/XS push needed — pure Netlify fns + static pages.
