@@ -40,6 +40,15 @@ const KITS = {
     descriptions: ['Not sure which part you need? A real tech diagnoses by video—$50—and ships it to you.', 'Skip the guesswork—send a short video, get the right appliance part shipped fast.'],
     final: 'https://tnapplianceexchange.net/quick-check-intake.html',
   },
+  // Spanish parts + DIY + $50 Quick Check (lang=es & appliance=parts). Competitor-safe:
+  // DIY/parts/symptom intent, NOT "reparación de electrodomésticos" (= appliance repair).
+  parts_es: {
+    label: 'Piezas + Revisión en Español',
+    keywords: ['como arreglar una secadora', 'secadora no calienta', 'como reparar lavadora', 'refrigerador no enfria', 'piezas para electrodomesticos', 'repuestos electrodomesticos', 'como arreglar refrigerador', 'como arreglar lavadora'],
+    headlines: ['Arréglalo Tú Mismo', 'Guía Gratis en Español', '¿Secadora No Calienta?', 'Diagnóstico por Video $50', 'Te Enviamos la Pieza', 'Técnico de Verdad', 'Piezas a Tu Puerta', 'Atención en Español'],
+    descriptions: ['¿No sabes qué pieza necesitas? Un técnico revisa tu video ($50) y te la envía a casa.', 'Guías gratis en español para arreglarlo tú mismo. O te mandamos la pieza exacta.'],
+    final: 'https://tnapplianceexchange.net/es/diagnostico/miami.html',
+  },
   // Spanish (lang=es) — generic appliance repair for the nationwide video+ship model.
   general_es: {
     label: 'Reparación en Español',
@@ -56,7 +65,9 @@ exports.handler = async function (event) {
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
   const lang = String(q.lang || 'en').toLowerCase();
-  const appl = lang === 'es' ? 'general_es' : String(q.appliance || 'dryer').toLowerCase();
+  const appl = lang === 'es'
+    ? (String(q.appliance || '').toLowerCase() === 'parts' ? 'parts_es' : 'general_es')
+    : String(q.appliance || 'dryer').toLowerCase();
   const kit = Object.assign({}, KITS[appl]);
   if (!kit || !kit.keywords) return json(400, { ok: false, error: 'appliance must be dryer or refrigerator (or lang=es)' });
   if ((q.final || '').trim()) kit.final = q.final.trim(); // per-campaign landing page override
