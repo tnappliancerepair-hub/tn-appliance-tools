@@ -53,14 +53,18 @@ exports.handler = async function (event) {
   // Honoring the communities that helped us — Anthony was baptized in one.
   const church = s(b.church, 40).trim().toUpperCase().replace(/[^A-Z0-9 .-]/g, '');
   const CHURCH_OFF = 2500; // $25
-  const churchApplies = !isTest && church.length >= 2;
+  // 🛑 One-flip pause: if we ever get overwhelmed, set env COMMUNITY_GIFT_PAUSED=true
+  // and every church/partner code stops discounting (charges full $50). Flip back
+  // to re-open. (Cards already handed out just won't discount while paused.)
+  const giftPaused = String((await getSecret('COMMUNITY_GIFT_PAUSED')) || '').toLowerCase() === 'true';
+  const churchApplies = !isTest && !giftPaused && church.length >= 2;
   if (churchApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
   // 🤝 Community partner program: same $25 gift extended to ANY community org that
   // helps its people — food banks, senior centers, immigrant/refugee groups,
   // shelters, apartment communities, schools, nonprofits. Same mechanism as the
   // church code, but neutral wording on the receipt. Never stacks with a church code.
   const partner = s(b.partner, 40).trim().toUpperCase().replace(/[^A-Z0-9 .-]/g, '');
-  const partnerApplies = !isTest && !churchApplies && partner.length >= 2;
+  const partnerApplies = !isTest && !giftPaused && !churchApplies && partner.length >= 2;
   if (partnerApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
   let productName = isTest
     ? (service === 'in_home' ? 'In-Home Diagnostic — TEST ($1)' : 'Appliance Quick Check — TEST ($1)')

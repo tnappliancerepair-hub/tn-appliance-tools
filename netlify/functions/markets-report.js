@@ -51,15 +51,26 @@ async function quickChecks(days) {
   const meta = (r) => { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; };
   const recent = (rows || []).map(meta).filter((m) => (m.at_ms || 0) >= cutoff);
   const byCity = {};
-  let total = 0, dollars = 0;
+  const byOrg = {};
+  let total = 0, dollars = 0, giftCount = 0, giftCents = 0;
   for (const m of recent) {
     total++; dollars += Number(m.amount || 0);
     const city = (m.town || m.city || 'Unknown') + (m.language && m.language !== 'en' ? ' 🌐' : '');
     if (!byCity[city]) byCity[city] = { city, count: 0, dollars: 0 };
     byCity[city].count++; byCity[city].dollars += Number(m.amount || 0);
+    // 🎁 Anthony's Gift — families helped through a church/community-partner code
+    const give = Number(m.giving_cents || 0);
+    if (give > 0) {
+      giftCount++; giftCents += give;
+      const org = String(m.church_code || m.partner_code || 'Unknown');
+      if (!byOrg[org]) byOrg[org] = { org, count: 0, dollars: 0, kind: m.church_code ? 'church' : 'partner' };
+      byOrg[org].count++; byOrg[org].dollars += give / 100;
+    }
   }
   const cities = Object.values(byCity).sort((a, b) => b.count - a.count);
-  return { ok: true, total, dollars, cities, ad_days_funded_at_10: Math.floor(dollars / 10) };
+  const orgs = Object.values(byOrg).sort((a, b) => b.count - a.count);
+  const giving = { count: giftCount, dollars: Math.round(giftCents / 100), orgs };
+  return { ok: true, total, dollars, cities, giving, ad_days_funded_at_10: Math.floor(dollars / 10) };
 }
 
 async function build(days) {
@@ -95,6 +106,10 @@ function digest(o) {
     const q = o.quick_checks;
     L.push(`💰 ${q.total} Quick Check${q.total === 1 ? '' : 's'} · $${q.dollars} → funds ${q.ad_days_funded_at_10} days of ads`);
     if (q.cities.length) L.push(`   ${q.cities.slice(0, 4).map((c) => `${c.city} (${c.count})`).join(', ')}`);
+    if (q.giving && q.giving.count) {
+      L.push(`🎁 Anthony's Gift: ${q.giving.count} famil${q.giving.count === 1 ? 'y' : 'ies'} helped · $${q.giving.dollars} given · ${q.giving.orgs.length} org${q.giving.orgs.length === 1 ? '' : 's'}`);
+      if (q.giving.orgs.length) L.push(`   ${q.giving.orgs.slice(0, 4).map((o) => `${o.org} (${o.count})`).join(', ')}`);
+    }
   }
   if (o.top_finding && o.top_finding.length) {
     const fi = o.top_finding.reduce((s, r) => s + r.impressions, 0);
@@ -129,6 +144,13 @@ function page(o) {
     s += `<p class=n><b style="color:#39ff14;font-size:18px">${q.total} paid · $${q.dollars}</b> — that funds <b>${q.ad_days_funded_at_10} days</b> of ads at $10/day. Get 2, run $100. Get 4, run $200.</p>`;
     if (q.cities.length) s += tbl(q.cities, [['City', (r) => r.city], ['Quick Checks', (r) => r.count], ['$', (r) => '$' + r.dollars]]);
     else s += `<p class=n>No paid Quick Checks yet in this window. First one closes the loop.</p>`;
+    if (q.giving) {
+      s += `<h2>🎁 Anthony's Gift (families helped through churches + community partners)</h2>`;
+      if (q.giving.count) {
+        s += `<p class=n><b style="color:#39ff14;font-size:18px">${q.giving.count} famil${q.giving.count === 1 ? 'y' : 'ies'} helped · $${q.giving.dollars} given</b> across ${q.giving.orgs.length} org${q.giving.orgs.length === 1 ? '' : 's'}. <i>(Keep this for the CPA — it documents the giving.)</i></p>`;
+        s += tbl(q.giving.orgs, [['Organization', (r) => r.org], ['Type', (r) => r.kind], ['Families', (r) => r.count], ['Given', (r) => '$' + r.dollars]]);
+      } else s += `<p class=n>No gift discounts used yet in this window. Once churches + community partners share their links, this fills in.</p>`;
+    }
   }
   if (o.ads && o.ads.ok && o.ads.campaigns.length) { s += `<h2>💵 Paid tests</h2>` + tbl(o.ads.campaigns, [['Campaign', (r) => r.name], ['Status', (r) => r.status], ['Impr', (r) => n(r.impressions)], ['Clicks', (r) => r.clicks], ['Cost', (r) => '$' + r.cost], ['Conv', (r) => r.conversions]]); }
   if (o.new_market_pages) { s += `<h2>🌎 New-market pages getting found (${n(o.new_market_total_impressions)} impressions)</h2>`; s += o.new_market_pages.length ? tbl(o.new_market_pages, [['Page', (r) => r.page], ['Impr', (r) => n(r.impressions)], ['Clicks', (r) => r.clicks], ['Pos', (r) => r.position]]) : '<p class=n>None indexed yet — the pages are fresh. Google usually takes days to weeks.</p>'; }

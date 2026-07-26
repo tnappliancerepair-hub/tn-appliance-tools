@@ -112,3 +112,25 @@ Use the Community Partners page (https://tnapplianceexchange.net/community-partn
 - **Nonprofits & mutual-aid** — United Way partners, community centers, Habitat for Humanity ReStores
 
 **Priority order:** food banks + senior centers + immigrant/refugee orgs first (highest need, highest trust, warmest reception), then apartments/housing authorities (volume), then schools/nonprofits.
+
+### Researched starter list — real orgs (verify contact + best channel before sending)
+
+**Nashville / Middle TN**
+- **Second Harvest Food Bank of Middle Tennessee** — the hub: distributes through **490 partner agencies across 46 counties** (incl. senior centers). Best move = ask them to share Anthony's Gift with their partner network. secondharvestmidtn.org
+- **The HELP Center (TN)** — food pantry + grocery assistance for families facing food insecurity. thehelpcentertn.org/pantry
+- **The Branch of Nashville** — essential groceries pantry. thebranchofnashville.org/food-pantry
+- **Nashville Area Hispanic Chamber of Commerce** — direct line to Hispanic-serving orgs + businesses; great for spreading the ES pages.
+- **Neighbor Care Pantries** — 6 sites across Davidson County (2–3 days of staples by household size).
+- **Metro Nashville senior centers / Council on Aging of Middle TN** — fixed-income seniors, perfect fit.
+
+**New Orleans / Metairie / Kenner** (Spanish-language friendly noted)
+- **St. Jerome Parish, Kenner** (2402 33rd St) — food pantry Wed 1–3pm, **Spanish translators on site each week**. ⭐ top ES fit.
+- **St. Mary Magdalen Parish, Metairie** (6425 West Metairie Ave) — food bank Wed 5:30–6:30pm.
+- **Broadmoor Community Church, New Orleans** (2021 S Dupre St) — pantry, **Spanish on request**, Tue 10–12 / Wed 1–3.
+- **Kenner Food Bank** (City of Kenner) — serves **350+ families/month**. kenner.la.us/257/Kenner-Food-Bank
+- **Second Harvest Food Bank of Greater New Orleans & Acadiana** — regional hub + partner network.
+- **Archdiocese of New Orleans pantry network** — full list at clarionherald.org (many Spanish-friendly).
+
+**Nationwide hubs (one ask → many families):** Feeding America member food banks, local Councils on Aging, Catholic Charities regional offices, United Way 211 partners. Pitch the hub, let it cascade to its partners.
+
+Sources: foodpantries.org, Second Harvest MidTN, Clarion Herald (Archdiocese of New Orleans), City of Kenner, findhelp.org (2026-07-26). Verify current hours/contact before reaching out.
