@@ -158,6 +158,7 @@ function lander(m) {
   const faqHtml = faqs.map((f) => `        <details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join('\n');
 
   return `<!doctype html>
+<!-- ant-build:2 -->
 <html lang="es">
 <head>
 <meta charset="utf-8">
