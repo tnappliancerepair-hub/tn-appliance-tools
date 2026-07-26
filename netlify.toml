@@ -312,6 +312,10 @@
 [functions."gbp-post-spanish"]
   schedule = "0 16 * * 1,3,5"
 
+# Safety timer for short paid ad tests — auto-pauses any test past its end date (13:00 UTC ~8am CT daily)
+[functions."ad-autopause"]
+  schedule = "0 13 * * *"
+
 # Social content pack (FB + IG + TikTok). Draft-texts Teddy weekly; auto-publishes
 # to FB + IG when the Meta Page token is vaulted. Mondays 3pm UTC (~9-10am CT).
 [functions."social-post-generator"]
