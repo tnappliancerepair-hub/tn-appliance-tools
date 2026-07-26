@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>TN Appliance Field Academy — Crew Reference</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0b0b0c">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0b0b0c;--surf:#141416;--surf2:#191b1e;--bord:#26262a;--ink:#f0f0f0;--dim:#a0a0a6;--orange:#ff6200;--green:#39ff14;--amber:#ffd23f}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;padding:0 16px 80px}
+  .wrap{max-width:720px;margin:0 auto}
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--bord);position:sticky;top:0;background:var(--bg);z-index:5}
+  .brand{font-weight:800;color:var(--ink);text-decoration:none;font-size:16px}.brand b{color:var(--orange)}
+  .back{font-size:12px;color:var(--dim);text-decoration:none;border:1px solid var(--bord);border-radius:8px;padding:7px 11px}
+  h1{font-size:clamp(24px,6vw,34px);line-height:1.14;margin:20px 0 6px;text-wrap:balance}
+  .lede{color:var(--dim);font-size:16px;margin:8px 0 14px}
+  .creed{background:linear-gradient(180deg,rgba(255,98,0,.09),rgba(255,98,0,.02));border:1px solid rgba(255,98,0,.3);border-radius:14px;padding:16px 18px;margin:14px 0;font-size:15.5px}
+  .creed b{color:var(--orange)}
+  h2{font-size:20px;margin:30px 0 6px;padding-top:6px;display:flex;align-items:center;gap:9px;text-wrap:balance}
+  h3{font-size:16px;margin:16px 0 4px;color:var(--ink)}
+  p{margin:10px 0;font-size:15px;color:#dcdcdc}
+  .box{background:var(--surf2);border:1px solid var(--bord);border-radius:12px;padding:15px 17px;margin:12px 0;font-size:15px;color:#dcdcdc}
+  .box b{color:var(--ink)}
+  .flow{display:grid;gap:9px;margin:12px 0}
+  .node{background:var(--surf);border:1px solid var(--bord);border-radius:11px;padding:12px 15px}
+  .node .k{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--orange)}
+  .node b{color:var(--ink)}
+  .node p{margin:4px 0 0;font-size:14px;color:var(--dim)}
+  .tbl-wrap{overflow-x:auto;margin:12px 0}
+  table{width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--bord);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--bord)}
+  th{background:var(--surf2);color:var(--ink);font-size:12.5px}
+  td{color:#dcdcdc}tr:last-child td{border-bottom:0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+  a.tile{display:flex;flex-direction:column;gap:3px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:14px;text-decoration:none}
+  a.tile:hover{border-color:var(--orange)}
+  a.tile .t{font-size:15px;color:var(--ink);font-weight:700}
+  a.tile .d{font-size:13px;color:var(--dim)}
+  .tools a{display:flex;align-items:center;gap:10px;background:var(--surf);border:1px solid var(--bord);border-radius:12px;padding:13px 15px;margin:9px 0;text-decoration:none;color:var(--ink)}
+  .tools a:hover{border-color:var(--orange)}
+  .tools .t{font-weight:700;font-size:15px}.tools .d{font-size:12.5px;color:var(--dim)}
+  .safe{color:var(--amber)}
+  footer{border-top:1px solid var(--bord);margin-top:36px;padding:20px 0;color:var(--dim);font-size:13px;text-align:center}
+  code{background:#0e0f11;border:1px solid var(--bord);border-radius:6px;padding:1px 6px;font-size:13px;color:#eee}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="/tech">🐜 TN Appliance<b>·</b>Field Academy</a>
+      <a class="back" href="/tech">← My day</a>
+    </header>
+
+    <h1>Field Academy</h1>
+    <p class="lede">The method, the meter, and the deep guides — for the crew. Study it, then keep it in your pocket on the job. This is internal — built from how <em>we</em> diagnose.</p>
+    <div class="creed"><b>The standard:</b> first-visit fix. <b>Confirm with the meter — don't guess.</b> Continuity + voltage finds ~95% of everything. Give the customer honest options. Beat the machine: the more you nail the exact part before the truck rolls, the faster the day goes and the bigger the check.</div>
+
+    <h2>1 · The 95% method — power → switch → load</h2>
+    <p>Almost every fault is one broken link in a simple circuit. Find the broken link and you've found the repair.</p>
+    <div class="flow">
+      <div class="node"><span class="k">1 · Power source</span><p>Outlet, cord, plug, breaker. <b>120V</b> most, <b>240V</b> for dryers/ranges/ovens (lose a leg = runs but no heat).</p></div>
+      <div class="node"><span class="k">2 · Switch / control</span><p>Door/lid switch, thermostat, thermal fuse, timer, relay, pressure switch, board — the gatekeepers. Pass power only when conditions are right.</p></div>
+      <div class="node"><span class="k">3 · Load</span><p>Element, motor, pump, valve coil, compressor, igniter — the part doing the work. <b>Loads almost always fail open.</b></p></div>
+    </div>
+    <p><b>Test order:</b> (1) power arriving? (voltage) → (2) switch passing it? (continuity) → (3) load good? (continuity). Whichever fails is the repair. Full write-up: <a href="/fix/how-to-diagnose-any-appliance.html" style="color:var(--orange);font-weight:600">how to diagnose any appliance →</a></p>
+
+    <h2>2 · Your multimeter — every symbol</h2>
+    <div class="tbl-wrap"><table>
+      <tr><th>Symbol</th><th>What</th><th>Use for</th></tr>
+      <tr><td><b>Ω</b></td><td>Ohms / resistance</td><td>Load resistance. ~0 = good; <b>OL/"1" = open/dead</b>.</td></tr>
+      <tr><td><b>•)))</b></td><td>Continuity (beep)</td><td>Switches, fuses, wiring. Beep = connected. Power OFF.</td></tr>
+      <tr><td><b>V~</b></td><td>AC voltage</td><td>Wall/appliance power — 120V / 240V. Power ON.</td></tr>
+      <tr><td><b>V⎓</b></td><td>DC voltage</td><td>Control boards, sensors, batteries.</td></tr>
+      <tr><td><b>A / mA</b></td><td>Amps</td><td>Gas-igniter amp-draw (clamp meter for most current).</td></tr>
+    </table></div>
+    <p><b>Jacks:</b> black → <code>COM</code>; red → <code>VΩ</code> for volts/ohms/continuity; red → <code>10A</code> only for an amp test (fused). <b>Verify first:</b> touch probes together on continuity — should beep / ~0Ω.</p>
+    <p class="safe">⚠ Ohms/continuity = <b>power OFF</b> + isolate the part (disconnect a lead) or a sneak path fools you. Voltage = power ON, careful. Never ohm a live circuit. Microwave HV cap can kill even unplugged — leave it.</p>
+
+    <h2>3 · Reading cheat-sheet</h2>
+    <div class="tbl-wrap"><table>
+      <tr><th>Reading</th><th>Means</th></tr>
+      <tr><td><b>~0 Ω / beep</b></td><td>Good, unbroken path.</td></tr>
+      <tr><td><b>OL / infinite</b></td><td>Open — broken path or dead load. Usually your bad part.</td></tr>
+      <tr><td><b>120V / 240V present</b></td><td>Power arriving as expected.</td></tr>
+      <tr><td><b>0V where you expect it</b></td><td>Power not getting there — look upstream.</td></tr>
+    </table></div>
+    <h3>Typical good-load resistances</h3>
+    <div class="tbl-wrap"><table>
+      <tr><th>Load</th><th>Roughly</th></tr>
+      <tr><td>Dryer heating element</td><td>~10–50 Ω (open = burnt)</td></tr>
+      <tr><td>Oven bake element</td><td>~15–40 Ω (open = burnt)</td></tr>
+      <tr><td>Drain / water pump motor</td><td>a few–20 Ω (open = dead)</td></tr>
+      <tr><td>Thermal fuse / thermostat (closed)</td><td>~0 Ω / continuity (open = blown)</td></tr>
+      <tr><td>Oven temp sensor (RTD)</td><td>~1,080–1,100 Ω @ room temp</td></tr>
+      <tr><td>Valve / solenoid coil (water, gas safety)</td><td>tens–low hundreds Ω (open = dead)</td></tr>
+    </table></div>
+    <p style="font-size:13.5px;color:var(--dim)">Values vary by model — you're asking "in the ballpark, or wide open?" <b>Open is the clear tell</b> almost every time.</p>
+
+    <h2>4 · Diagnose by symptom (the deep guides)</h2>
+    <p>Each one is the real causes in check-order, with the exact test + reading + the part. Study them; pull them up on a call.</p>
+    <div class="grid">
+      <a class="tile" href="/fix/refrigerator-not-cooling.html"><span class="t">Fridge not cooling</span><span class="d">airflow · evap fan · defrost · relay</span></a>
+      <a class="tile" href="/fix/washer-wont-drain.html"><span class="t">Washer won't drain</span><span class="d">filter · pump · lid switch</span></a>
+      <a class="tile" href="/fix/washer-not-spinning.html"><span class="t">Washer won't spin</span><span class="d">lid lock · belt · coupler · motor</span></a>
+      <a class="tile" href="/fix/dryer-not-heating.html"><span class="t">Dryer won't heat</span><span class="d">vent · fuse · element · igniter · 240V</span></a>
+      <a class="tile" href="/fix/dishwasher-wont-drain.html"><span class="t">Dishwasher won't drain</span><span class="d">filter · knockout plug · pump</span></a>
+      <a class="tile" href="/fix/oven-not-heating.html"><span class="t">Oven won't heat</span><span class="d">bake element · igniter · sensor · 240V</span></a>
+      <a class="tile" href="/fix/"><span class="t">All guides →</span><span class="d">full library</span></a>
+    </div>
+
+    <h2>5 · Brand quirks &amp; fault codes</h2>
+    <p>Same physics, brand-specific tells. A few worth knowing cold:</p>
+    <div class="box">
+      • <b>Samsung fridge</b> shows <code>OF OF</code> = store DEMO mode, won't cool — exit demo first. RF French-door = evap frost-up (defrost sensor/heater).<br>
+      • <b>LG fridge</b> — 2014–2017 linear compressors had an extended-warranty wave; check coverage before condemning.<br>
+      • <b>Whirlpool/Maytag washer</b> <code>F9 E1</code> = long drain (pump/hose/filter); <code>F5</code> = lid lock.<br>
+      • <b>Bosch dishwasher</b> <code>E24/E25</code> = drain (filter/pump/check-valve; base-pan float stops drain).<br>
+      • <b>LG</b> <code>OE</code> = drain error (washer + dishwasher). <b>Samsung</b> <code>5C/SC/nd</code> = drain.<br>
+      • <b>Dryer</b> blocked vent blows the thermal fuse — replace the fuse AND clear the vent or it blows again.
+    </div>
+    <p>Look up any code fast: <a href="/tools/fault-code-lookup.html" style="color:var(--orange);font-weight:600">fault-code lookup →</a> · brand deep-dives: <a href="/fix/samsung-refrigerator-not-cooling.html" style="color:var(--orange)">Samsung fridge</a>, <a href="/fix/lg-refrigerator-not-cooling.html" style="color:var(--orange)">LG fridge</a>, <a href="/fix/whirlpool-washer-wont-drain.html" style="color:var(--orange)">Whirlpool washer</a>, <a href="/fix/bosch-dishwasher-wont-drain.html" style="color:var(--orange)">Bosch dishwasher</a>.</p>
+
+    <h2>6 · Your tools</h2>
+    <div class="tools">
+      <a href="/tools/fault-code-lookup.html"><span>🔎</span><span><span class="t">Fault-code lookup</span><br><span class="d">brand + code → meaning, likely cause, the test</span></span></a>
+      <a href="/ant-brain.html"><span>🧠</span><span><span class="t">Ant Brain — predict the part</span><br><span class="d">model + symptom → most-likely part, from our own job history</span></span></a>
+      <a href="/tech"><span>🔩</span><span><span class="t">On any job: 🔧 Tech help</span><br><span class="d">Find the part (live Marcone price + stock) · Diagnose · Recalls · Talk to Ant</span></span></a>
+    </div>
+
+    <div class="creed" style="margin-top:24px"><b>Bottom line:</b> power → switch → load, confirm with the meter, name the exact part. Do that every time and you're the tech customers ask for by name. 🐜</div>
+
+    <footer>
+      <p><b>TN Appliance Exchange</b> — crew reference · internal use. Questions? Text Teddy.</p>
+    </footer>
+  </div>
+</body>
+</html>
