@@ -41,6 +41,9 @@ Walked Teddy through the whole `developers.tiktok.com` production app form on hi
 - **After approval:** clear `TIKTOK_SANDBOX_CLIENT_KEY`/`_SECRET` from the vault → connector falls back to production → re-run `tiktok-oauth-start` to vault a production refresh token → wire TikTok into the campaign approve flow behind `TIKTOK_CROSSPOST_LIVE` → remove `tiktok-upload-test.js` + `tiktok-vault-check.js`. Full runbook: `docs/tiktok-app-review-submission-2026-07-20.md`.
 - The `⬆ Upload to TikTok drafts` button in `social-drafts.html` (→ `tiktok-upload-test`, verified working tonight) is the demo/test path.
 
+### 💸 AD STRATEGY (Teddy 2026-07-26 PM): FREE-FIRST until sales prove the funnel
+Teddy killed the Miami test early — **paused campaign `24072392806` NOW** (via `google-ads-enable?...&status=PAUSED`, ok:true; didn't wait for the 7/30 auto-pause). **Standing rule: no paid ads until a few real paid Quick Checks come in from FREE channels** (social, SEO/GBP/map pack, Anthony's Gift, Spanish pages). Rationale: a sale proves the page/offer converts + gives a real cost-per-sale; the markets report's "funds N days of ads" math then lets the sales self-fund the budget. **Re-enable ads only after ~3-5 free sales**, then scale only what converts.
+
 ### ⏭️ OPEN / NEXT
 1. Watch for TikTok's review email (days–weeks). If revision requested (likely candidate: show the Login Kit "Connected as @tn.appliance.exch"), add a short clip + resubmit.
 2. On approval → flip connector to production (steps above).
