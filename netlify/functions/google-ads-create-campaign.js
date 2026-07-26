@@ -29,6 +29,17 @@ const KITS = {
     descriptions: ['Fridge not cooling? Local techs fix it fast. Book your $50 Quick Check today.', 'Honest, upfront pricing. Same-week service in Smyrna & Murfreesboro. Book online now.'],
     final: 'https://tnapplianceexchange.net/appliance-ai.html?appliance=refrigerator',
   },
+  // Parts + $50 Quick Check — the COMPETITOR-SAFE kit for markets we're NOT physically
+  // in. Deliberately avoids "appliance repair near me" (which tips off local repair
+  // companies and implies on-site service we don't offer there). Targets parts + DIY +
+  // diagnosis intent — the scalable ship-the-part / video-diagnosis model.
+  parts: {
+    label: 'Appliance Parts + Diagnosis',
+    keywords: ['appliance parts', 'refrigerator parts', 'dryer parts', 'washer parts', 'dishwasher parts', 'appliance part finder', 'what appliance part do i need', 'appliance diagnosis'],
+    headlines: ['Get the Exact Part', 'Ship Appliance Parts Fast', '$50 Video Diagnosis', 'Find Your Appliance Part', 'We Ship the Right Part', 'Real Tech Diagnosis $50', 'Part Shipped to Your Door', 'Fix It Yourself, We Help'],
+    descriptions: ['Not sure which part you need? A real tech diagnoses by video—$50—and ships it to you.', 'Skip the guesswork—send a short video, get the right appliance part shipped fast.'],
+    final: 'https://tnapplianceexchange.net/quick-check-intake.html',
+  },
   // Spanish (lang=es) — generic appliance repair for the nationwide video+ship model.
   general_es: {
     label: 'Reparación en Español',
