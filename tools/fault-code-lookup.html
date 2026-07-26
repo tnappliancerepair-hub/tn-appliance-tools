@@ -109,7 +109,7 @@
 <script>
 const FN='https://tnapplianceexchange.net/.netlify/functions';
 const QS=new URLSearchParams(location.search);
-const _rl=(QS.get('lang')||'en').toLowerCase(); const LANG=(_rl==='es'||_rl==='vi')?_rl:'en';
+const _rl=(QS.get('lang')||'en').toLowerCase(); const LANG=(_rl==='es'||_rl==='vi'||_rl==='zh')?_rl:'en';
 
 const I18N={ es:{
   h1:'Buscador de códigos de error',
@@ -131,6 +131,16 @@ const I18N={ es:{
   v_head:'Kỹ thuật viên thật sự, không phải robot.', v_body:'Gia đình từ 2012 · ★4.5, 1.082 đánh giá Google.',
   v_guides:'Xem các hướng dẫn sửa chữa miễn phí →',
   f_home:'Trang chủ', f_guides:'Hướng dẫn', f_qc:'Kiểm Tra Nhanh $50',
+}, zh:{
+  h1:'电器故障代码查询',
+  sub:'电器显示故障代码？输入品牌和代码 — 真正技师的数据库告诉你它的含义、最可能的原因，以及如何确认。免费。',
+  l_brand:'品牌', opt_pick:'选择你的品牌…', opt_other:'其他 / 不确定',
+  l_appl:'电器', opt_opt:'（可选）', opt_any:'任意 / 不清楚',
+  a_washer:'洗衣机', a_dryer:'烘干机', a_fridge:'冰箱', a_dish:'洗碗机', a_oven:'烤箱 / 炉灶', a_micro:'微波炉',
+  l_code:'故障代码', ph_code:'例如 F5E2, 4C, OE, PF', go:'查询 →',
+  v_head:'真正的技师，不是机器人。', v_body:'家族经营，始于 2012 · ★4.5，谷歌 1,082 条评价。',
+  v_guides:'查看我们的免费维修指南 →',
+  f_home:'首页', f_guides:'指南', f_qc:'快速检测 $50',
 } };
 const D=I18N[LANG]||null;
 if(D){
@@ -140,8 +150,8 @@ if(D){
 }
 // language toggle (show the other two languages)
 (function(){
-  const links={en:'<a href="?lang=en">🇺🇸 English</a>',es:'<a href="?lang=es">🇲🇽 Español</a>',vi:'<a href="?lang=vi">🇻🇳 Tiếng Việt</a>'};
-  document.getElementById('langbar').innerHTML=['en','es','vi'].filter(l=>l!==LANG).map(l=>links[l]).join(' · ');
+  const links={en:'<a href="?lang=en">🇺🇸 English</a>',es:'<a href="?lang=es">🇲🇽 Español</a>',vi:'<a href="?lang=vi">🇻🇳 Tiếng Việt</a>',zh:'<a href="?lang=zh">🇨🇳 中文</a>'};
+  document.getElementById('langbar').innerHTML=['en','es','vi','zh'].filter(l=>l!==LANG).map(l=>links[l]).join(' · ');
 })();
 
 // copy per language
@@ -172,9 +182,26 @@ const TMAP={ es:{
   nf_body:'Nhưng một kỹ thuật viên thật sự có thể cho bạn biết trong vài phút. Gửi một video ngắn và chúng tôi sẽ trả lời trung thực.',
   nf_codes:'Các mã thường gặp của hãng này:',
   err:'Có lỗi xảy ra — thử lại hoặc gọi 1-888-268-8998.', need:'Chọn hãng và nhập mã.', wait:'Đang tra…', go:'Tra cứu →',
+}, zh:{
+  found_causes:'最可能的原因', found_test:'如何确认',
+  cta:'查出确切零件 — $50 快速检测', cta_sub:'真正的技师看你的视频，告诉你确切的零件 · 寄给你或上门安装',
+  part:'💡 我们清楚知道哪个零件能修好。我们通过你的视频确认，并寄到你家门口 — 绝不瞎猜。',
+  disc:'代码因型号而异 — 请务必对照你型号的技术手册确认。此工具为你指明方向，不能替代实物检测。',
+  nf_head:'我们系统里暂时还没有这个代码',
+  nf_body:'但真正的技师几分钟内就能告诉你问题所在。发一段短视频，我们给你诚实的答案。',
+  nf_codes:'该品牌的常见代码：',
+  err:'出错了 — 请重试或致电 1-888-268-8998。', need:'请选择品牌并输入代码。', wait:'查询中…', go:'查询 →',
 } };
 const T=TMAP[LANG]||TMAP.en;
-const intakeUrl = LANG==='es' ? '/es/revision-rapida.html' : LANG==='vi' ? '/vi/kiem-tra-nhanh.html' : '/quick-check-intake.html';
+const intakeUrl = LANG==='es' ? '/es/revision-rapida.html' : LANG==='vi' ? '/vi/kiem-tra-nhanh.html' : LANG==='zh' ? '/zh/kuai-su-jian-cha.html' : '/quick-check-intake.html';
+// point the guides / quick-check / home links at the right language where a translated page exists
+(function(){
+  const guidesUrl = LANG==='es' ? '/es/fix/' : LANG==='zh' ? '/zh/fix/' : '/fix/';
+  const homeUrl = LANG==='es' ? '/es/' : LANG==='vi' ? '/vi/' : LANG==='zh' ? '/zh/kuai-su-jian-cha.html' : '/';
+  document.querySelectorAll('[data-i18n="v_guides"],[data-i18n="f_guides"]').forEach(e=>e.setAttribute('href',guidesUrl));
+  document.querySelectorAll('[data-i18n="f_qc"]').forEach(e=>e.setAttribute('href',intakeUrl));
+  document.querySelectorAll('[data-i18n="f_home"]').forEach(e=>e.setAttribute('href',homeUrl));
+})();
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 const out=document.getElementById('out');

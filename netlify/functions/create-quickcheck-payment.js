@@ -86,10 +86,17 @@ exports.handler = async function (event) {
           ? 'Chẩn đoán tại nhà — kỹ thuật viên đến tận nơi ($100, được trừ vào chi phí sửa)'
           : 'Kiểm tra nhanh thiết bị — chẩn đoán trung thực ($50, được trừ vào chi phí sửa)');
   }
+  if (lang === 'zh') {
+    productName = isTest
+      ? (service === 'in_home' ? '上门诊断 — 测试 ($1)' : '快速检测 — 测试 ($1)')
+      : (service === 'in_home'
+          ? '上门诊断 — 技师上门 ($100，可抵扣维修费用)'
+          : '电器快速检测 — 诚实诊断 ($50，可抵扣维修费用)');
+  }
   if (churchApplies) {
     productName += lang === 'es' ? ' — Descuento de iglesia (−$25)' : ' — Church discount (−$25)';
   } else if (partnerApplies) {
-    productName += lang === 'es' ? ' — Descuento comunitario (−$25)' : ' — Community discount (−$25)';
+    productName += lang === 'es' ? ' — Descuento comunitario (−$25)' : lang === 'zh' ? ' — 社区优惠 (−$25)' : ' — Community discount (−$25)';
   }
   try {
     const stripe = new Stripe(key);
@@ -137,7 +144,7 @@ exports.handler = async function (event) {
     // Render the whole Stripe Checkout in the customer's language where Stripe
     // supports it (es/fr/vi are supported locales; ar/hi aren't, so those fall back
     // to auto — the product name still carries our wording).
-    const STRIPE_LOCALES = { es: 'es', fr: 'fr', vi: 'vi' };
+    const STRIPE_LOCALES = { es: 'es', fr: 'fr', vi: 'vi', zh: 'zh' };
     if (STRIPE_LOCALES[lang]) opts.locale = STRIPE_LOCALES[lang];
     // pre-fill the Stripe email field so the customer doesn't have to type it (the
     // exact friction that stalled the first test). Falls back to Stripe asking if blank.
