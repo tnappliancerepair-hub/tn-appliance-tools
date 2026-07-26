@@ -1,10 +1,22 @@
-# ⛪ Church Outreach Kit — $25 Member Discount Program
+# ⛪🤝 Community Outreach Kit — $25 Member Discount Program
 
-**Program page:** https://tnapplianceexchange.net/es/iglesias.html
-**What a church member gets:** $25 off the Revisión Rápida ($25 instead of $50) — real technician, in Spanish, part shipped to their door. Works nationwide (video diagnosis + ship the part).
-**How a church shares it:** open the program page → type the church name → get a member link + printable card + WhatsApp message. Each church's code = its name, so we track which church converts (shows in the weekly markets report).
+**Church program page:** https://tnapplianceexchange.net/es/iglesias.html (ES) · https://tnapplianceexchange.net/churches.html (EN)
+**Community Partners page (ALL orgs):** https://tnapplianceexchange.net/community-partners.html (EN) · https://tnapplianceexchange.net/es/aliados-comunitarios.html (ES)
 
-Member link format: `https://tnapplianceexchange.net/es/revision-rapida.html?iglesia=<CHURCH-CODE>`
+**Who it's for:** churches AND every community org that serves families — food banks & pantries, senior centers, immigrant & refugee groups, shelters & transitional housing, apartment communities, schools & PTAs, nonprofits/charities. Same $25 gift, same mechanism.
+
+**What a member gets:** $25 off the Quick Check / Revisión Rápida ($25 instead of $50) — real technician, in English or Spanish, part shipped to their door. Works nationwide (video diagnosis + ship the part).
+**How an org shares it:** open the program page → type the org name → get a member link + printable card + share message. Each org's code = its name, so we track which org converts (shows in the weekly markets report).
+
+Member link formats:
+- Church (ES): `https://tnapplianceexchange.net/es/revision-rapida.html?iglesia=<CODE>`
+- Church (EN): `https://tnapplianceexchange.net/quick-check-intake.html?church=<CODE>`
+- Community partner (ES): `https://tnapplianceexchange.net/es/revision-rapida.html?socio=<CODE>`
+- Community partner (EN): `https://tnapplianceexchange.net/quick-check-intake.html?partner=<CODE>`
+
+**Scripture we lead with (small epigraph on the pages + optional in outreach):**
+> "Truly I tell you, whatever you did for one of the least of these brothers and sisters of mine, you did for me." — Matthew 25:40
+> "De cierto os digo que en cuanto lo hicisteis a uno de estos mis hermanos más pequeños, a mí lo hicisteis." — Mateo 25:40
 
 ---
 
@@ -77,3 +89,26 @@ Member link format: `https://tnapplianceexchange.net/es/revision-rapida.html?igl
 Target the big Spanish metros next: Miami, Houston, San Antonio, El Paso, LA, Chicago, the DC/DMV (huge Salvadoran community), Orlando, Dallas. Search "iglesia hispana <city> Facebook" and use the same messages.
 
 **Sources:** FaithStreet, ChurchFinder, church Facebook pages (Nashville + New Orleans searches, 2026-07-26).
+
+---
+
+## 5) Community partners (beyond churches) — same $25 gift
+
+Use the Community Partners page (https://tnapplianceexchange.net/community-partners.html) — type the org's name, get their link + card. These groups reach exactly the families the program is meant to help.
+
+**Generic message (EN):**
+> Hi — I'm Teddy with TN Appliance Exchange, a family appliance-repair business since 2012. We give the families your organization serves **$25 off** appliance help — a real technician, the exact part shipped to their door, anywhere in the U.S. It's completely free for your organization, and I can make you a link + printable card in a minute: https://tnapplianceexchange.net/community-partners.html — or I'll set it up for you. Matthew 25:40 is why we do it. God bless. 🐜
+
+**Generic message (ES):**
+> Hola — soy Teddy de TN Appliance Exchange, empresa familiar de reparación de electrodomésticos desde 2012. A las familias que sirve su organización les damos **$25 de descuento**: un técnico de verdad, en español, la pieza enviada a su puerta, a cualquier parte de EE. UU. Es gratis para su organización. Les creo el enlace y una tarjeta en un minuto: https://tnapplianceexchange.net/es/aliados-comunitarios.html — o con gusto lo preparo yo. Mateo 25:40 es la razón. Dios los bendiga. 🐜
+
+**Target org types (search "<type> <city>" + Facebook / Google):**
+- **Food banks & pantries** — Second Harvest (Middle TN + Greater New Orleans), local church pantries, Feeding America member orgs
+- **Senior centers & Councils on Aging** — every county has one; fixed-income seniors are the perfect fit
+- **Immigrant & refugee resettlement** — Catholic Charities, Nashville International Center for Empowerment (NICE), Conexión Américas (Nashville), Hispanic Chamber of Commerce chapters
+- **Shelters & transitional housing** — YWCA, Salvation Army, Rescue Mission, domestic-violence shelters, veteran housing
+- **Apartment communities & housing authorities** — MDHA (Nashville), HANO (New Orleans), Section 8 property managers, affordable-housing complexes
+- **Schools & PTAs** — Title I schools, family resource centers, ESL parent groups
+- **Nonprofits & mutual-aid** — United Way partners, community centers, Habitat for Humanity ReStores
+
+**Priority order:** food banks + senior centers + immigrant/refugee orgs first (highest need, highest trust, warmest reception), then apartments/housing authorities (volume), then schools/nonprofits.

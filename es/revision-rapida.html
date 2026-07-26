@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- ant-build:7 -->
+<!-- ant-build:8 -->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -167,19 +167,27 @@
 
   <div class="sticky"><a href="/quick-check-intake.html?lang=es">Empieza tu Revisión de $50 →</a></div>
 <script>
-// ⛪ Church partner: carry the ?iglesia= code from this page into every Quick Check
-// CTA, and show the $25-off banner so members see the discount before they tap.
+// ⛪🤝 Partner discount: carry the church (?iglesia=) OR community-partner (?socio=)
+// code from this page into every Quick Check CTA, and show the $25-off banner so
+// members see the discount before they tap. Community partners = food banks, senior
+// centers, immigrant/refugee groups, shelters, apartment communities, schools.
 (function(){
-  var code=(new URLSearchParams(location.search).get('iglesia')||new URLSearchParams(location.search).get('church')||'').trim();
-  if(!code) return;
+  var qs=new URLSearchParams(location.search);
+  var church=(qs.get('iglesia')||qs.get('church')||'').trim();
+  var partner=(qs.get('socio')||qs.get('partner')||'').trim();
+  if(!church && !partner) return;
+  var key = church ? 'iglesia' : 'socio';
+  var code = church || partner;
   document.querySelectorAll('a[href*="quick-check-intake.html"]').forEach(function(a){
-    try{ var u=new URL(a.getAttribute('href'), location.origin); u.searchParams.set('iglesia',code); a.setAttribute('href', u.pathname+u.search); }catch(_){}
+    try{ var u=new URL(a.getAttribute('href'), location.origin); u.searchParams.set(key,code); a.setAttribute('href', u.pathname+u.search); }catch(_){}
   });
   var hero=document.querySelector('.hero');
   if(hero){
     var d=document.createElement('div');
     d.style.cssText='background:rgba(57,255,20,.12);border:1px solid var(--green);border-radius:12px;padding:12px 14px;margin:14px 0 0;color:#eafce4;font-size:14.5px;font-weight:600;text-align:center';
-    d.innerHTML='⛪ <b>Descuento de iglesia aplicado</b> — pagas <b>$25</b> en vez de $50. ¡Gracias por ser parte de la comunidad!';
+    d.innerHTML = church
+      ? '⛪ <b>Descuento de iglesia aplicado</b> — pagas <b>$25</b> en vez de $50. ¡Gracias por ser parte de la comunidad!'
+      : '🤝 <b>Descuento comunitario aplicado</b> — pagas <b>$25</b> en vez de $50. ¡Gracias por ser parte de la comunidad!';
     hero.appendChild(d);
   }
 })();

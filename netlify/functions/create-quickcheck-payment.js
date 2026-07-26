@@ -55,6 +55,13 @@ exports.handler = async function (event) {
   const CHURCH_OFF = 2500; // $25
   const churchApplies = !isTest && church.length >= 2;
   if (churchApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
+  // 🤝 Community partner program: same $25 gift extended to ANY community org that
+  // helps its people — food banks, senior centers, immigrant/refugee groups,
+  // shelters, apartment communities, schools, nonprofits. Same mechanism as the
+  // church code, but neutral wording on the receipt. Never stacks with a church code.
+  const partner = s(b.partner, 40).trim().toUpperCase().replace(/[^A-Z0-9 .-]/g, '');
+  const partnerApplies = !isTest && !churchApplies && partner.length >= 2;
+  if (partnerApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
   let productName = isTest
     ? (service === 'in_home' ? 'In-Home Diagnostic — TEST ($1)' : 'Appliance Quick Check — TEST ($1)')
     : (service === 'in_home'
@@ -70,6 +77,8 @@ exports.handler = async function (event) {
   }
   if (churchApplies) {
     productName += lang === 'es' ? ' — Descuento de iglesia (−$25)' : ' — Church discount (−$25)';
+  } else if (partnerApplies) {
+    productName += lang === 'es' ? ' — Descuento comunitario (−$25)' : ' — Community discount (−$25)';
   }
   try {
     const stripe = new Stripe(key);
@@ -108,6 +117,7 @@ exports.handler = async function (event) {
         floors_label: s(b.floors_label, 120),
         conv_id: s(b.conv_id, 40),
         church_code: churchApplies ? church : '',
+        partner_code: partnerApplies ? partner : '',
         has_video: b.has_video ? 'yes' : 'no',
         has_model: b.has_model ? 'yes' : 'no',
         source: 'appliance_ai_quick_check',

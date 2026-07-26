@@ -95,6 +95,7 @@ const QC=QS.get('qc')||''; // $1 test token passthrough
 const LANG=(QS.get('lang')||'en').toLowerCase();
 const pre={ appliance:(QS.get('appliance')||''), town:(QS.get('town')||'') };
 const CHURCH=(QS.get('iglesia')||QS.get('church')||'').trim(); // ⛪ church partner code → $25 off
+const PARTNER=(QS.get('partner')||QS.get('socio')||'').trim(); // 🤝 community partner code → $25 off
 
 // ── i18n (Spanish; extend by adding a lang block) ──────────────────────────
 const I18N={ es:{
@@ -145,6 +146,21 @@ if(CHURCH){
     vb.parentNode.insertBefore(d, vb);
   }
 }
+// 🤝 Community partner discount (food banks, senior centers, immigrant/refugee
+// groups, shelters, apartment communities, schools) — same $25 gift, neutral wording.
+else if(PARTNER){
+  var pb2=document.getElementById('payBtn');
+  if(pb2) pb2.textContent = LANG==='es' ? 'Pagar $25 y continuar →' : 'Pay $25 & continue →';
+  var vb2=document.querySelector('.valuebox');
+  if(vb2){
+    var d2=document.createElement('div');
+    d2.style.cssText='background:rgba(57,255,20,.12);border:1px solid var(--green,#39ff14);border-radius:12px;padding:12px 14px;margin-bottom:14px;color:#eafce4;font-size:14px;font-weight:600;text-align:center';
+    d2.innerHTML = LANG==='es'
+      ? '🤝 <b>Descuento comunitario aplicado</b> — pagas <b>$25</b> en vez de $50. ¡Gracias por ser parte de la comunidad!'
+      : '🤝 <b>Community discount applied</b> — you pay <b>$25</b> instead of $50. Thank you for being part of the community!';
+    vb2.parentNode.insertBefore(d2, vb2);
+  }
+}
 
 let appliance=pre.appliance||'';
 document.querySelectorAll('#applOpts .applopt').forEach(el=>{
@@ -166,7 +182,7 @@ document.getElementById('payBtn').onclick=async function(){
   try{
     const r=await fetch(FN+'/create-quickcheck-payment',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ name, phone, email, address, city, zip, appliance, brand:'', problem, payer:'self_pay', town:pre.town||city, sms_consent:document.getElementById('consent').checked, service:'quick_check', language:LANG, qc_test:QC, church:CHURCH })
+      body:JSON.stringify({ name, phone, email, address, city, zip, appliance, brand:'', problem, payer:'self_pay', town:pre.town||city, sms_consent:document.getElementById('consent').checked, service:'quick_check', language:LANG, qc_test:QC, church:CHURCH, partner:PARTNER })
     });
     const d=await r.json();
     if(d&&d.ok&&d.url){ location.href=d.url; }
