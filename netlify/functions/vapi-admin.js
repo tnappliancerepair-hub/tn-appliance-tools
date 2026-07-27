@@ -110,6 +110,36 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, renamed_to: (verify.json || {}).name, identity_applied: applied, previous_first_message: prevFirst || '(none — model-generated)', new_first_message: (verify.json || {}).firstMessage, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // Anti-drop: give a caller who goes quiet (hunting for a claim # or model sticker)
+  // breathing room instead of a silence-timeout hangup. Raises silenceTimeoutSeconds and
+  // makes Ann NUDGE ("you still there?") a couple times before the call ever ends.
+  //   ?action=setsilence[&seconds=45&idle=12]
+  if (action === 'setsilence') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const secs = Math.min(Math.max(parseInt(q.seconds, 10) || 45, 20), 90);
+    const idleSecs = Math.min(Math.max(parseInt(q.idle, 10) || 12, 6), 30);
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const cur = got.json || {};
+    const mp = Object.assign({}, cur.messagePlan || {});
+    mp.idleMessages = ['Are you still there?', "No rush — I'm right here whenever you're ready."];
+    mp.idleTimeoutSeconds = idleSecs;
+    mp.idleMessageMaxSpokenCount = 2;
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { silenceTimeoutSeconds: secs, messagePlan: mp });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const v = verify.json || {};
+    const vmp = v.messagePlan || {};
+    return { statusCode: 200, body: JSON.stringify({
+      ok: resp.ok,
+      patch_status: resp.status,
+      silenceTimeoutSeconds: v.silenceTimeoutSeconds,
+      idleTimeoutSeconds: vmp.idleTimeoutSeconds,
+      idleMessageMaxSpokenCount: vmp.idleMessageMaxSpokenCount,
+      idleMessages: vmp.idleMessages,
+      error: resp.ok ? null : resp.json,
+    }, null, 2) };
+  }
+
   if (action === 'calldetail') {
     const cid = String(q.call_id || '').trim();
     if (!cid) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'pass &call_id=' }) };
