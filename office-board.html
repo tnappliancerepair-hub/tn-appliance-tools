@@ -1569,6 +1569,29 @@ function stLaneOf(md){
   if(lane==='ai'||from.slice(-7)==='5889500') return 'ai';
   return src?'ai':'human';
 }
+// Cloudflare Stream videos: show the REAL state (player / still-processing / didn't-finish)
+// instead of the opaque black "An unknown error occurred" box. Mirrors the Teddy Tool fix.
+function cfPlayer(uid){ var u=String(uid).replace(/[^0-9a-zA-Z]/g,''); return '<iframe src="https://iframe.cloudflarestream.com/'+u+'?preload=metadata" style="width:100%;height:100%;border:0" allow="autoplay;encrypted-media;fullscreen;picture-in-picture" allowfullscreen></iframe>'; }
+function cfMsg(icon,title,sub,uid){ var u=String(uid).replace(/[^0-9a-zA-Z]/g,''); return '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:6px;padding:12px;text-align:center"><div style="font-size:26px;line-height:1">'+icon+'</div><div style="font-size:12px;font-weight:800;color:#fff">'+esc(title)+'</div><div style="font-size:10px;line-height:1.4;color:#9fb0c8">'+esc(sub)+'</div><button onclick="retryCf(this)" data-cfuid="'+esc(u)+'" style="margin-top:4px;background:#1c2740;border:1px solid #33518a;color:#9ec1ff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">↻ Retry</button></div>'; }
+async function hydrateStreamVideos(root){
+  var scope=root||document; var cards=[].slice.call(scope.querySelectorAll('.cf-stream-card[data-cfuid]'));
+  if(!cards.length) return;
+  var uids=cards.map(function(c){return c.getAttribute('data-cfuid');}).filter(Boolean);
+  var uniq=uids.filter(function(u,i){return uids.indexOf(u)===i;});
+  var data=null;
+  try{ var ctrl=new AbortController(); var to=setTimeout(function(){try{ctrl.abort();}catch(_){}},9000);
+    var r=await fetch('/.netlify/functions/stream-status?uids='+encodeURIComponent(uniq.join(',')),{signal:ctrl.signal,cache:'no-store'}); clearTimeout(to); data=await r.json();
+  }catch(_){ data=null; }
+  cards.forEach(function(card){ var uid=card.getAttribute('data-cfuid');
+    if(!data||!data.ok||!data.videos||!data.videos[uid]){ card.innerHTML=cfPlayer(uid); return; }  // fall back to player if status is unknown
+    var v=data.videos[uid];
+    if(v.ready&&v.requireSignedURLs){ card.innerHTML=cfMsg('🔒','Signed playback required','Turn that off in Cloudflare Stream, or have them re-send.',uid); }
+    else if(v.ready){ card.innerHTML=cfPlayer(uid); }
+    else if(v.state==='error'||v.state==='not_found'||v.state==='pendingupload'){ card.innerHTML=cfMsg('⚠️','Video didn\'t finish uploading',(v.reason||'The customer lost signal mid-upload.')+' Re-send them the link.',uid); }
+    else { var pct=(v.pct!=null)?(' ('+Math.round(v.pct)+'%)'):''; card.innerHTML=cfMsg('⏳','Still processing'+pct,'Cloudflare is still encoding — check back in a minute, then Retry.',uid); }
+  });
+}
+function retryCf(btn){ var card=btn.closest?btn.closest('.cf-stream-card'):null; if(card){ card.innerHTML='<span style="color:#9fb0c8;font-size:12px">⏳ checking…</span>'; } hydrateStreamVideos(document); }
 function renderThreadBubbles(msgs){
   const IN=new Set(['inbound_customer_sms_received']); const HELD=new Set(['sms_gated','dropped_customer_sms']);
   if(!msgs||!msgs.length) return '<div style="color:#6b7280;font-size:13px;text-align:center;padding:24px">No texts with this customer yet. Type below to start the conversation.</div>';
@@ -1672,8 +1695,10 @@ async function loadDrawerMedia(id){
     if(!atts.length){ host.innerHTML='<div class="dcard"><h4>📷 Photos &amp; Video</h4><div style="font-size:12px;color:var(--ink2)">No photos or video uploaded yet.</div>'+officeUplControl(id)+'</div>'; return; }
     const cell=(a)=>{
       const sk=a.s3_key||a.cf_key||''; const url=a.signed_view_url||'';
-      if(sk.indexOf('cfstream:')===0){ const uid=sk.slice(9);
-        return '<div style="aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden"><iframe src="https://iframe.cloudflarestream.com/'+esc(uid)+'?preload=metadata" style="width:100%;height:100%;border:0" allow="autoplay;encrypted-media;fullscreen;picture-in-picture" allowfullscreen></iframe></div>'; }
+      if(sk.indexOf('cfstream:')===0){ const uid=String(sk.slice(9)).replace(/[^0-9a-zA-Z]/g,'');
+        // Hydratable placeholder — hydrateStreamVideos() fills in the player when ready, or
+        // a plain-English message ("still processing" / "didn't finish uploading") otherwise.
+        return '<div class="cf-stream-card" data-cfuid="'+esc(uid)+'" style="aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#9fb0c8;font-size:12px;text-align:center">⏳ loading video…</div>'; }
       if(a.file_type==='video'){ return url?('<video src="'+esc(url)+'" controls preload="metadata" style="width:100%;border-radius:8px;background:#000"></video><a href="'+esc(url)+'" target="_blank" rel="noopener" style="font-size:11px;font-weight:700;color:var(--blue)">⬇ Download</a>'):'<div style="font-size:11px;color:var(--ink2)">video unavailable</div>'; }
       return url?('<a href="'+esc(url)+'" target="_blank" rel="noopener"><img src="'+esc(url)+'" loading="lazy" style="width:100%;border-radius:8px;display:block;border:1px solid var(--line)"></a><a href="'+esc(url)+'" target="_blank" rel="noopener" download style="font-size:11px;font-weight:700;color:var(--blue)">⬇ Download</a>'):'<div style="font-size:11px;color:var(--ink2)">photo unavailable</div>';
     };
@@ -1681,6 +1706,7 @@ async function loadDrawerMedia(id){
       +'<div style="font-size:11px;color:var(--ink2);margin-bottom:2px">From the customer, the tech + the office. Tap to open, ⬇ to save for an invoice.</div>'
       +officeUplControl(id)
       +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'+atts.map(a=>'<div>'+cell(a)+'</div>').join('')+'</div></div>';
+    try{ hydrateStreamVideos(host); }catch(_){}  // resolve each Cloudflare video to its real state
   }catch(e){ host.innerHTML='<div class="dcard"><h4>📷 Photos &amp; Video</h4><div style="font-size:12px;color:var(--ink2)">Could not load media.</div></div>'; }
 }
 // 📋 Self-checkout (#10) — text the self-pay customer their honest answer + the 4
