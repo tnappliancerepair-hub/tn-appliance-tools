@@ -20,13 +20,24 @@ exports.handler = async function (event) {
   const subject = (hdrs.find((h) => h.name.toLowerCase() === 'subject') || {}).value || '';
   const parts = [];
   let text = '';
+  let attachId = '', attachName = '';
   (function walk(p, path) {
     if (!p) return;
     parts.push({ path, mimeType: p.mimeType, filename: p.filename || '', hasAttachment: !!(p.body && p.body.attachmentId), size: (p.body && p.body.size) || 0 });
     const mt = (p.mimeType || '').toLowerCase();
     if ((mt === 'text/plain' || mt === 'text/html') && p.body && p.body.data && text.length < 8000) text += '\n\n[' + mt + ']\n' + b64d(p.body.data);
+    // capture the first attachment (CSV/PDF) so we can decode it with &attach=1
+    if (p.body && p.body.attachmentId && !attachId) { attachId = p.body.attachmentId; attachName = p.filename || ''; }
     if (p.parts) p.parts.forEach((c, i) => walk(c, path + '.' + i));
   })(full.data.payload, '0');
+  // &attach=1 → decode the first attachment (CSV report) as UTF-8 text
+  if (q.attach === '1' && attachId) {
+    try {
+      const a = await gmail.users.messages.attachments.get({ userId: 'me', messageId: q.id, id: attachId });
+      const decoded = b64d(a.data.data);
+      return json(200, { subject, attachment: attachName, attachment_text: decoded.slice(0, 12000) });
+    } catch (e) { return json(200, { subject, attachment: attachName, error: 'attachment decode failed: ' + String((e && e.message) || e) }); }
+  }
   // pull any hrefs / print-label links out of the body
   const allLinks = [...new Set((text.match(/https?:\/\/[^\s"'<>)]+/g) || []))];
   const labelLinks = allLinks.filter((u) => /label|fedex|rma|print|return|ship|track|pdf|document|attachment|/i.test(u));
