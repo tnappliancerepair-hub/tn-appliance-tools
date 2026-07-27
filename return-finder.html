@@ -96,14 +96,25 @@ function render(d){
     if(l.customer_name||o.customer_name) whoBits.push(esc(l.customer_name||o.customer_name));
     if(l.return_desc) whoBits.push(esc(l.return_desc));
     if(l.rma) whoBits.push('RMA '+esc(l.rma));
+    // Prefer the real label PNG (prints clean). Fall back to SquareTrade's viewer,
+    // then the email, only if we couldn't pull the image.
+    var action;
+    if(l.has_image){
+      action = '<img src="'+esc(l.label_image_url)+'" alt="return label" style="width:100%;border-radius:8px;border:1px solid var(--line);margin:6px 0 8px;background:#fff">'
+        +'<a class="print" href="'+esc(l.label_image_url)+'" target="_blank" rel="noopener">📄 Open / print this label</a>'
+        +'<div style="text-align:center"><a class="ghost" href="'+esc(l.label_url||l.gmail_link)+'" target="_blank" rel="noopener">trouble printing? open in SquareTrade</a></div>';
+    } else if(l.has_label){
+      action = '<a class="print" href="'+esc(l.label_url)+'" target="_blank" rel="noopener">📄 Print my return label</a>'
+        +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div>';
+    } else {
+      action = '<div class="warn" style="margin:0">Couldn’t grab the label — open the email:</div>'
+        +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div>';
+    }
     return '<div class="'+cls+'">'+ribbon
       +partLine
       +distChip
       +(whoBits.length?'<div class="who">'+whoBits.join(' · ')+'</div>':'')
-      +(l.has_label
-          ? '<a class="print" href="'+esc(l.label_url)+'" target="_blank" rel="noopener">📄 Print my return label</a>'
-          : '<div class="warn" style="margin:0">Couldn’t grab the print link — open the email:</div>')
-      +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div></div>';
+      +action+'</div>';
   }
 
   var body='';

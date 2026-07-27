@@ -73,6 +73,36 @@ function gmailOpenLink(apiId, messageId) {
   return `https://mail.google.com/mail/u/${GMAIL_ACCT}/#all/${apiId}`;
 }
 
+// Resolve the DIRECT label image behind SquareTrade's "PRINT MY LABEL" link.
+// Their in-browser viewer is a flaky JS app that prints blank ("Unit repair form
+// could not be loaded") on mobile. But the print link redirects to a provisional
+// JWT, and their label API hands back a static PNG of the actual FedEx label — so
+// we grab that and give Teddy a clean, preloaded, printable image every time.
+const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile Safari/604.1';
+async function resolveLabelImage(printUrl) {
+  if (!printUrl) return '';
+  try {
+    let url = printUrl, token = '', sid = '', hops = 0;
+    while (hops++ < 6) {
+      const r = await fetch(url, { method: 'GET', redirect: 'manual', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
+      const loc = r.headers.get('location') || '';
+      const tm = /token=([^&\s]+)/.exec(loc);
+      const sm = /shippingId=([0-9]+)/.exec(loc);
+      if (tm) token = tm[1];
+      if (sm) sid = sm[1];
+      if (token && sid) break;
+      if (loc && /^https?:/i.test(loc)) { url = loc; continue; }
+      break;
+    }
+    if (!token || !sid) return '';
+    const a = await fetch(`https://www.squaretrade.com/api/shipping/v1/labels/${sid}`, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json', 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
+    if (!a.ok) return '';
+    const j = await a.json();
+    const urls = ((((j.body || [])[0] || {}).entity || {}).labelURLs) || [];
+    return urls[0] || '';
+  } catch (_) { return ''; }
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
@@ -136,13 +166,14 @@ exports.handler = async function (event) {
   let labels = await Promise.all(msgs.slice(0, 8).map(async (msg) => {
     const info = await labelFromMessage(gmail, msg.id);
     const part_match = !!(boxPart && info.part_number && normPart(info.part_number) === boxPart);
+    const label_image_url = await resolveLabelImage(info.label_url);   // the real printable PNG
     return {
       rma: info.rma, claim: info.claim, subject: info.subject,
       part_number: info.part_number, distributor: info.distributor,
       return_desc: info.return_desc, customer_name: info.customer_name,
       fedex_tracking: info.fedex_tracking,
       part_match,
-      label_url: info.label_url, has_label: !!info.label_url,
+      label_url: info.label_url, label_image_url, has_image: !!label_image_url, has_label: !!info.label_url,
       gmail_link: gmailOpenLink(msg.id, info.message_id), email_id: msg.id,
     };
   }));
