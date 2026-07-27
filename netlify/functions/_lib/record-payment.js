@@ -28,6 +28,24 @@ async function smsCustomer(jobId, kind, amount) {
   await sendSms(to, text, 'customer', 'payment_confirmation');
 }
 
+const OWNER = '+16154855795';    // Teddy
+const DANIELLE = '+16154850713'; // office
+
+// Let the shop know the moment money lands (Teddy 2026-07-27: "make the invoice let
+// us know once paid"). Fires once — recordPaidSession is idempotent per session.
+async function notifyOffice(jobId, kind, amount) {
+  const amt = '$' + Number(amount).toFixed(2);
+  let name = '', appliance = '';
+  try {
+    const r = await fetch(`${META}/table/${JOBS_TABLE}/content/${jobId}`, { headers: headers() });
+    if (r.ok) { const j = await r.json(); name = [(j.customer_first || ''), (j.customer_last || '')].join(' ').trim(); appliance = String(j.appliance_type || '').trim(); }
+  } catch (_) {}
+  const label = kind === 'tip' ? '💵 TIP PAID' : (kind === 'addon' ? '💵 ADD-ON PAID' : '💵 INVOICE PAID');
+  const msg = label + ' ' + amt + (name ? ' · ' + name : '') + (appliance ? ' ' + appliance : '') + ' · job #' + jobId + ' (paid online) — marked paid on the board.';
+  try { await sendSms(OWNER, msg, 'owner', 'payment_received'); } catch (_) {}
+  try { await sendSms(DANIELLE, msg, 'office', 'payment_received'); } catch (_) {}
+}
+
 function headers() {
   const t = process.env.XANO_METADATA_TOKEN;
   if (!t) throw new Error('XANO_METADATA_TOKEN not set');
@@ -95,6 +113,7 @@ async function recordPaidSession(session) {
       source: 'customer_paid', requested_at_ms: Date.now(),
     });
   }
+  await notifyOffice(jobId, kind, amount);                          // tell the shop money came in
   await smsCustomer(jobId, kind, kind === 'addon' ? base : amount); // best-effort receipt SMS
   return { recorded: true, duplicate: false, kind, amount, job_id: jobId };
 }

@@ -2195,7 +2195,10 @@ function renderDrawer(d){
         <div style="flex:1;font-size:14px;font-weight:800">Amount invoiced: <span id="inv-total" style="color:var(--ok)">$0.00</span></div>
         <button class="x" style="width:auto;padding:9px 16px;border-radius:9px;background:var(--blue);color:#fff;border:0;font-weight:700;cursor:pointer" onclick="saveInvoice(${jid})">Save</button>
       </div>
-      ${c.phone?`<button id="inv-textbtn" style="width:100%;margin-top:9px;padding:14px;border-radius:10px;background:#16a34a;color:#fff;border:0;font-weight:800;font-size:15px;cursor:pointer" onclick="textInvoice(${jid},'${(''+c.phone).replace(/\\D/g,'')}')">📱 Text invoice to customer</button>`:`<div style="font-size:11px;color:var(--ink2);margin-top:8px">No customer phone on file — add one to text the invoice.</div>`}
+      ${c.phone?`<div style="display:flex;gap:8px;margin-top:9px">
+        <button id="inv-textbtn" style="flex:1;padding:14px;border-radius:10px;background:#16a34a;color:#fff;border:0;font-weight:800;font-size:15px;cursor:pointer" onclick="textInvoice(${jid},'${(''+c.phone).replace(/\\D/g,'')}')">📱 Text invoice</button>
+        <button id="inv-paybtn" style="flex:1;padding:14px;border-radius:10px;background:#7c3aed;color:#fff;border:0;font-weight:800;font-size:15px;cursor:pointer" onclick="textPayLink(${jid},'${(''+c.phone).replace(/\\D/g,'')}')">💳 Text pay-now link</button>
+      </div>`:`<div style="font-size:11px;color:var(--ink2);margin-top:8px">No customer phone on file — add one to text the invoice.</div>`}
       <div id="inv-note" style="font-size:11px;color:var(--ink2);margin-top:6px"></div>
     </div>
 
@@ -3126,6 +3129,31 @@ async function textInvoice(jid, phoneDigits){
     if(r.ok&&d&&d.sent){ if(n2){n2.style.color='#16a34a';n2.textContent='✅ Invoice texted to '+ten;} if(b2){b2.textContent='✅ Invoice sent';} }
     else { const reason=(d&&(d.reason||d.error))?' ('+(d.reason||d.error)+')':''; if(n2){n2.style.color='#c0392b';n2.textContent='Could not send'+reason+' — open 💬 Messages to text manually.';} if(b2){b2.disabled=false;b2.textContent='📱 Text invoice to customer';} }
   }catch(e){ const b2=document.getElementById('inv-textbtn'), n2=document.getElementById('inv-note'); if(n2){n2.style.color='#c0392b';n2.textContent='Network error — try again.';} if(b2){b2.disabled=false;b2.textContent='📱 Text invoice to customer';} }
+}
+
+// One-tap: text the customer a secure Stripe pay-now link (card/Apple Pay). Amount +
+// warranty guard resolved server-side from the logged invoice. When they pay, the
+// board auto-marks it paid and texts Teddy + Danielle.
+async function textPayLink(jid, phoneDigits){
+  const note=document.getElementById('inv-note'), btn=document.getElementById('inv-paybtn');
+  const digits=(''+(phoneDigits||'')).replace(/\D/g,'');
+  if(digits.length<10){ if(note){note.style.color='#c0392b';note.textContent='No customer phone on file — can\'t text.';} return; }
+  const ten=digits.slice(-10), e164='+1'+ten;
+  const total=((document.getElementById('inv-total')||{}).textContent||'$0.00').trim();
+  if(!confirm('Text a pay-now link ('+total+') to the customer at '+ten+'?')) return;
+  if(btn){btn.disabled=true;btn.textContent='Saving + creating…';}
+  try{ await saveInvoice(jid); }catch(_){}
+  try{
+    const pr=await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,kind:'invoice',customer_phone:e164})});
+    const pd=await pr.json().catch(()=>({}));
+    const b2=()=>document.getElementById('inv-paybtn'), n2=()=>document.getElementById('inv-note');
+    if(!pr.ok||!pd||!pd.url){ const reason=(pd&&pd.error)?' ('+pd.error+')':''; if(n2()){n2().style.color='#c0392b';n2().textContent='Couldn\'t create pay link'+reason+'.';} const b=b2(); if(b){b.disabled=false;b.textContent='💳 Text pay-now link';} return; }
+    const msg="Hi, this is TN Appliance Exchange. You can pay your "+total+" invoice securely online here (card or Apple Pay): "+pd.url+"  Thank you!";
+    const r=await fetch('/.netlify/functions/human-line-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:e164,message:msg,job_id:jid,sender:'office'})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d&&d.sent){ if(n2()){n2().style.color='#16a34a';n2().textContent='✅ Pay-now link texted to '+ten+' — auto-marks paid when they pay.';} const b=b2(); if(b){b.textContent='✅ Pay link sent';} }
+    else { const reason=(d&&(d.reason||d.error))?' ('+(d.reason||d.error)+')':''; if(n2()){n2().style.color='#c0392b';n2().textContent='Could not send'+reason+'.';} const b=b2(); if(b){b.disabled=false;b.textContent='💳 Text pay-now link';} }
+  }catch(e){ const n=document.getElementById('inv-note'), b=document.getElementById('inv-paybtn'); if(n){n.style.color='#c0392b';n.textContent='Network error — try again.';} if(b){b.disabled=false;b.textContent='💳 Text pay-now link';} }
 }
 
 async function saveInvoice(jid){
