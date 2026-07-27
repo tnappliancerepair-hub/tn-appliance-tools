@@ -100,8 +100,9 @@ function render(d){
     // then the email, only if we couldn't pull the image.
     var action;
     if(l.has_image){
+      var printHref='/label-print.html?u='+encodeURIComponent(l.label_image_url);
       action = '<img src="'+esc(l.label_image_url)+'" alt="return label" style="width:100%;border-radius:8px;border:1px solid var(--line);margin:6px 0 8px;background:#fff">'
-        +'<a class="print" href="'+esc(l.label_image_url)+'" target="_blank" rel="noopener">📄 Open / print this label</a>'
+        +'<a class="print" href="'+esc(printHref)+'" target="_blank" rel="noopener">🖨 Print this label</a>'
         +'<div style="text-align:center"><a class="ghost" href="'+esc(l.label_url||l.gmail_link)+'" target="_blank" rel="noopener">trouble printing? open in SquareTrade</a></div>';
     } else if(l.has_label){
       action = '<a class="print" href="'+esc(l.label_url)+'" target="_blank" rel="noopener">📄 Print my return label</a>'

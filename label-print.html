@@ -1,0 +1,31 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>Print return label</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; background:#fff; }
+  #wrap { padding:10px 10px 92px; }
+  #l { width:100%; max-width:520px; margin:0 auto; display:block; }
+  #msg { font:15px/1.4 -apple-system,system-ui,sans-serif; color:#444; text-align:center; padding:40px 20px; }
+  .bar { position:fixed; left:0; right:0; bottom:0; padding:12px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left)); background:#fff; border-top:1px solid #e5e5e5; display:flex; gap:10px; }
+  .bar button { flex:1; font:800 18px -apple-system,system-ui,sans-serif; padding:16px; border:0; border-radius:12px; background:#2ecc71; color:#053; }
+  .bar a { flex:0 0 auto; font:700 15px -apple-system,system-ui,sans-serif; padding:16px 14px; border-radius:12px; text-decoration:none; color:#2563eb; }
+  @media print { .bar { display:none !important; } #wrap { padding:0; } }
+</style>
+<div id="wrap"><img id="l" alt="return label"><div id="msg" style="display:none">Couldn’t load the label — go back and tap the label again.</div></div>
+<div class="bar">
+  <button onclick="doPrint()">🖨 Print label</button>
+  <a href="#" onclick="history.back();return false;">← back</a>
+</div>
+<script>
+  var u = new URLSearchParams(location.search).get('u') || '';
+  var img = document.getElementById('l'), msg = document.getElementById('msg');
+  function doPrint(){ try{ window.print(); }catch(e){} }
+  if(!u){ img.style.display='none'; msg.style.display='block'; }
+  else {
+    img.src = u;
+    img.onload = function(){ setTimeout(doPrint, 500); };   // auto-open the print dialog once the label is on screen
+    img.onerror = function(){ img.style.display='none'; msg.style.display='block'; };
+  }
+</script>

@@ -166,7 +166,8 @@ exports.handler = async function (event) {
   let labels = await Promise.all(msgs.slice(0, 8).map(async (msg) => {
     const info = await labelFromMessage(gmail, msg.id);
     const part_match = !!(boxPart && info.part_number && normPart(info.part_number) === boxPart);
-    const label_image_url = await resolveLabelImage(info.label_url);   // the real printable PNG
+    const rawImg = await resolveLabelImage(info.label_url);            // the real printable PNG (S3, octet-stream)
+    const label_image_url = rawImg ? `/.netlify/functions/return-label-image?u=${encodeURIComponent(rawImg)}` : '';  // proxied → shows inline, prints clean
     return {
       rma: info.rma, claim: info.claim, subject: info.subject,
       part_number: info.part_number, distributor: info.distributor,
