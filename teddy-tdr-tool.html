@@ -697,12 +697,15 @@ function renderMediaSplit() {
   });
 
   const renderVideo = a => {
-    // Cloudflare Stream video (resumable uploads) — render the Stream player.
+    // Cloudflare Stream video (resumable uploads). Render a hydratable placeholder, not
+    // the player directly — hydrateStreamVideos() then checks the video's REAL state and
+    // fills in the player when it's ready, or a plain-English message ("didn't finish
+    // uploading" / "still processing") instead of the opaque black "unknown error" box.
     const sk = a.s3_key || a.cf_key || "";
     if (sk.indexOf("cfstream:") === 0) {
-      const uid = sk.slice(9);
-      return '<div class="video-card" style="padding:0;overflow:hidden;aspect-ratio:9/16;background:#000;">' +
-        '<iframe src="https://iframe.cloudflarestream.com/' + escapeAttr(uid) + '?preload=metadata" style="width:100%;height:100%;border:0;" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe>' +
+      const uid = String(sk.slice(9)).replace(/[^0-9a-zA-Z]/g, "");
+      return '<div class="video-card cf-stream-card" data-cfuid="' + escapeAttr(uid) + '" style="padding:0;overflow:hidden;aspect-ratio:9/16;background:#000;display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:12px;text-align:center;">' +
+        '<span>⏳ loading video…</span>' +
       '</div>';
     }
     const url = a.signed_view_url;
@@ -743,6 +746,62 @@ function renderMediaSplit() {
     : '<div class="media-block"><div class="media-block-label">📷 Photos (' + photos.length + ')</div><div class="photo-grid-cockpit">' + photos.map(renderPhoto).join("") + '</div></div>';
 
   return '<div class="media-split">' + videosBlock + photosBlock + '</div>';
+}
+
+// ── Cloudflare Stream: show the truth, not a black "unknown error" box ──────────────
+// The intake records a video as cfstream:<uid> and marks it complete the instant the
+// upload URL is minted — even if the customer lost signal mid-upload — so a truncated /
+// still-encoding clip renders the Stream player's opaque "An unknown error occurred".
+// After each paint we ask Cloudflare the REAL state and swap in the player when it's
+// ready, or a plain-English message + Retry otherwise. If the status check itself fails
+// we fall back to the player (today's behavior — never worse).
+function cfStreamPlayer(uid) {
+  var u = String(uid).replace(/[^0-9a-zA-Z]/g, "");
+  return '<iframe src="https://iframe.cloudflarestream.com/' + u + '?preload=metadata" style="width:100%;height:100%;border:0;" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe>';
+}
+function cfStreamMsg(icon, title, sub, uid) {
+  var u = String(uid).replace(/[^0-9a-zA-Z]/g, "");
+  return '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;padding:14px;text-align:center;">' +
+    '<div style="font-size:30px;line-height:1;">' + icon + '</div>' +
+    '<div style="font-size:13px;font-weight:700;color:#fff;">' + escapeHtml(title) + '</div>' +
+    '<div style="font-size:11px;line-height:1.4;color:var(--muted2);">' + escapeHtml(sub) + '</div>' +
+    '<button onclick="retryStreamVideo(this)" data-cfuid="' + escapeAttr(u) + '" style="margin-top:4px;background:rgba(130,140,255,0.12);border:1px solid rgba(150,160,255,0.45);color:#aeb6ff;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:var(--mono);">↻ Retry</button>' +
+  '</div>';
+}
+async function hydrateStreamVideos() {
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.cf-stream-card[data-cfuid]'));
+  if (!cards.length) return;
+  var uids = cards.map(function (c) { return c.getAttribute('data-cfuid'); }).filter(Boolean);
+  var uniq = uids.filter(function (u, i) { return uids.indexOf(u) === i; });
+  var data = null;
+  try {
+    var ctrl = new AbortController();
+    var to = setTimeout(function () { try { ctrl.abort(); } catch (_) {} }, 9000);
+    var r = await fetch('/.netlify/functions/stream-status?uids=' + encodeURIComponent(uniq.join(',')), { signal: ctrl.signal, cache: 'no-store' });
+    clearTimeout(to);
+    data = await r.json();
+  } catch (_) { data = null; }
+  cards.forEach(function (card) {
+    var uid = card.getAttribute('data-cfuid');
+    // No status (endpoint down / creds missing / not configured) → just show the player.
+    if (!data || !data.ok || !data.videos || !data.videos[uid]) { card.innerHTML = cfStreamPlayer(uid); return; }
+    var v = data.videos[uid];
+    if (v.ready && v.requireSignedURLs) {
+      card.innerHTML = cfStreamMsg('🔒', 'Signed playback required', 'This clip is set to require signed URLs, so it can\'t embed here. Turn that off in Cloudflare Stream, or have the customer re-send it.', uid);
+    } else if (v.ready) {
+      card.innerHTML = cfStreamPlayer(uid);
+    } else if (v.state === 'error' || v.state === 'not_found') {
+      card.innerHTML = cfStreamMsg('⚠️', 'Video didn\'t finish uploading', (v.reason || 'The customer likely lost signal mid-upload.') + ' Text them the link and ask them to re-send it.', uid);
+    } else {
+      var pct = (v.pct != null) ? (' (' + Math.round(v.pct) + '%)') : '';
+      card.innerHTML = cfStreamMsg('⏳', 'Still processing' + pct, 'Cloudflare is still encoding this one — check back in a minute, then tap Retry.', uid);
+    }
+  });
+}
+function retryStreamVideo(btn) {
+  var card = btn.closest ? btn.closest('.cf-stream-card') : null;
+  if (card) card.innerHTML = '<span style="color:var(--muted2);font-size:12px;">⏳ checking…</span>';
+  hydrateStreamVideos();
 }
 
 // Lightweight transient toast (the tool had none — the save-fail used a raw alert).
@@ -1932,6 +1991,8 @@ function render() {
   app.innerHTML = '<div class="container">' + html + '</div>';
   // Wire post-render: inline editors + find-part button
   setTimeout(wireCockpitInteractions, 0);
+  // Resolve each Cloudflare Stream video to its real state (player / processing / failed).
+  setTimeout(function () { try { hydrateStreamVideos(); } catch (_) {} }, 0);
 }
 
 // Inline editors for appliance fields + Find Part launcher + Ant's Guess load.
