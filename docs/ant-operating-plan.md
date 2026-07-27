@@ -343,6 +343,22 @@ undeniable on their metric first (returns for Amazon, claim-accuracy for warrant
   at-home, ~18M low-English, mobile-first, aim Miami/Houston/DMV; video+ship-parts erases
   geography). Milestone: **607 pages ranking / ~1,336 submitted (~45%)** — build more of the
   winning type, stop feeding the dead ~729. WhatsApp flagged as the unbuilt unlock.
+- **2026-07-27 — v1.4.** **Multilingual authority push (evolving the demand engine).**
+  Stood up full/core in-language funnels beyond Spanish — **Vietnamese, Chinese (Simplified),
+  Russian** — each with a $50 Quick-Check pitch → localized intake → Stripe in-language →
+  fault-code tool → diagnostic guides; Russian got the full Spanish-parity program (homepage,
+  community-partners "$25 gift", about/story). Language pick is DIY-search-driven: Russian
+  strongest DIY culture, then Chinese/Vietnamese; Hindi/French deprioritized (those US
+  communities search in English). SEO spine: **complete reciprocal hreflang** across every
+  pitch + homepage + fix cluster, visible language switchers on all homepages, sitemap +
+  IndexNow (Yandex matters for RU). **Content depth:** the English `/fix/` library rebuilt to
+  RepairClinic+ (real tests w/ ohm readings, part + honest price, tools/time, repair-vs-replace)
+  + a cornerstone **"how to diagnose any appliance — power → switch → load + full multimeter
+  guide"** (Teddy's tech insight: continuity/voltage = ~95% of repairs), now translated into
+  ES/ZH/RU. Same content serves 3 audiences — customers/DIYers, our own crew (`/tech-academy.html`),
+  and Ant (fault-code tool + Ant Brain). Honest read: organic in-language is slow/modest, so
+  **community shares + Yandex + (later) low-CPC in-language ads carry the first weeks**; SEO
+  compounds under it. Watch GSC by language folder for impressions → clicks.
 - **2026-07-18 — v1.2.** Folded in the **intelligence-layer identity** (lake brainstorm):
   Ant is *the appliance-intelligence layer the big platforms lack and would rather partner
   with than build.* Added to the thesis + a new **§02½** developing it across the warranty
