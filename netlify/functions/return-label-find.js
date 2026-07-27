@@ -50,11 +50,16 @@ exports.handler = async function (event) {
   if (b.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
   let imgB64 = String(b.image_b64 || ''); let mediaType = b.media_type || 'image/jpeg';
   const mm = /^data:([^;]+);base64,(.*)$/i.exec(imgB64); if (mm) { mediaType = mm[1]; imgB64 = mm[2]; }
-  if (!imgB64) return json(400, { ok: false, error: 'image_b64 required' });
+  // Manual fallback: type the claim # (or customer name) off the box when the camera can't read it.
+  const typed = String(b.query || b.claim || '').trim();
+  if (!imgB64 && !typed) return json(400, { ok: false, error: 'image_b64 or claim/query required' });
 
-  // 1) OCR the box. Never hard-error — a blurry/glossy label just means "retake it".
+  // 1) Read the box — typed value skips OCR; otherwise Vision. Never hard-error.
   let ocr = {}, rawText = '';
-  try {
+  if (typed) {
+    const digits = typed.replace(/[^0-9]/g, '');
+    ocr = (digits.length >= 8) ? { claim_number: digits } : { customer_name: typed };
+  } else try {
     const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: MODEL, max_tokens: 500, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } }, { type: 'text', text: OCR_PROMPT }] }] }), signal: AbortSignal.timeout(22000) });
     const d = await r.json();
     rawText = (d && d.content && d.content[0] && d.content[0].text) || '';

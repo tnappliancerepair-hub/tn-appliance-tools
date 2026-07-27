@@ -25,7 +25,11 @@
 
   <button class="big" id="shoot">📷 Take a photo of the box</button>
   <input type="file" id="cam" accept="image/*" capture="environment">
-  <div id="spin">🔎 Reading the box…</div>
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <input id="typed" placeholder="…or type the claim # / name" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--line);background:#0f141c;color:var(--ink);font-size:16px">
+    <button class="big" id="find" style="width:auto;padding:14px 18px;font-size:16px">Find</button>
+  </div>
+  <div id="spin">🔎 Looking…</div>
   <div id="out"></div>
 
 <script>
@@ -37,16 +41,23 @@ var shoot=document.getElementById('shoot'), cam=document.getElementById('cam'), 
 
 shoot.addEventListener('click', function(){ if(!need()) return; cam.value=''; cam.click(); });
 
-cam.addEventListener('change', async function(){
-  var f=this.files && this.files[0]; if(!f) return;
+async function lookup(payload){
   out.innerHTML=''; spin.style.display='block'; shoot.style.display='none';
   try {
-    var b64=await downscale(f, 2000, 0.78);
-    var r=await fetch(F+'/return-label-find',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET, image_b64:b64})});
-    var d=await r.json();
-    render(d);
-  } catch(e){ out.innerHTML='<div class="warn">Something hiccuped — try again.<br><span class="muted">'+esc(e.message||e)+'</span></div>'; }
+    var r=await fetch(F+'/return-label-find',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({secret:SECRET},payload))});
+    render(await r.json());
+  } catch(e){ out.innerHTML='<div class="warn">Something hiccuped — try again.</div>'; }
   spin.style.display='none';
+}
+document.getElementById('find').addEventListener('click', function(){
+  if(!need()) return; var v=document.getElementById('typed').value.trim(); if(!v) return; lookup({query:v});
+});
+document.getElementById('typed').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('find').click(); });
+
+cam.addEventListener('change', async function(){
+  var f=this.files && this.files[0]; if(!f) return;
+  var b64; try { b64=await downscale(f, 2000, 0.78); } catch(e){ out.innerHTML='<div class="warn">Couldn’t read that photo — try again.</div>'; return; }
+  lookup({image_b64:b64});
 });
 
 function render(d){
