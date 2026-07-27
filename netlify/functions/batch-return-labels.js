@@ -23,7 +23,7 @@ exports.handler = async function (event) {
 
   // Count what's open so the reply is honest, then fire the heavy worker in the background.
   let open = [];
-  try { const res = await loadOpenReturns({ max: 600, resolveTech: false }); open = (res && res.returns) || []; } catch (_) {}
+  try { const res = await loadOpenReturns({ max: 500, resolveTech: false }); open = (res && res.returns) || []; } catch (_) {}
   if (distributor) open = open.filter((o) => String(o.distributor || '').toUpperCase() === String(distributor).toUpperCase());
   const byDist = open.reduce((a, o) => { const g = (o.distributor || 'OTHER').toUpperCase(); a[g] = (a[g] || 0) + 1; return a; }, {});
 
