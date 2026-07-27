@@ -2195,6 +2195,7 @@ function renderDrawer(d){
         <div style="flex:1;font-size:14px;font-weight:800">Amount invoiced: <span id="inv-total" style="color:var(--ok)">$0.00</span></div>
         <button class="x" style="width:auto;padding:9px 16px;border-radius:9px;background:var(--blue);color:#fff;border:0;font-weight:700;cursor:pointer" onclick="saveInvoice(${jid})">Save</button>
       </div>
+      ${c.phone?`<button id="inv-textbtn" style="width:100%;margin-top:9px;padding:14px;border-radius:10px;background:#16a34a;color:#fff;border:0;font-weight:800;font-size:15px;cursor:pointer" onclick="textInvoice(${jid},'${(''+c.phone).replace(/\\D/g,'')}')">📱 Text invoice to customer</button>`:`<div style="font-size:11px;color:var(--ink2);margin-top:8px">No customer phone on file — add one to text the invoice.</div>`}
       <div id="inv-note" style="font-size:11px;color:var(--ink2);margin-top:6px"></div>
     </div>
 
@@ -3105,6 +3106,28 @@ async function resyncPendingInvoices(){
   }
   if(healed) loadInvoices();   // refresh the tiles now that the server has them
 }
+// One-tap: save the worksheet, then text the customer their invoice link (office
+// line 857-8800, opt-out checked, logged to the job thread). As easy as it gets.
+async function textInvoice(jid, phoneDigits){
+  const note=document.getElementById('inv-note'), btn=document.getElementById('inv-textbtn');
+  const digits=(''+(phoneDigits||'')).replace(/\D/g,'');
+  if(digits.length<10){ if(note){note.style.color='#c0392b';note.textContent='No customer phone on file — can\'t text.';} return; }
+  const ten=digits.slice(-10), last4=ten.slice(-4), e164='+1'+ten;
+  const total=((document.getElementById('inv-total')||{}).textContent||'$0.00').trim();
+  if(!confirm('Text this invoice ('+total+') to the customer at '+ten+'?')) return;
+  if(btn){btn.disabled=true;btn.textContent='Saving + sending…';}
+  try{ await saveInvoice(jid); }catch(_){}
+  const link='https://tnapplianceexchange.net/.netlify/functions/customer-invoice?job_id='+jid+'&last4='+last4;
+  const msg="Hi, this is TN Appliance Exchange. Here's your invoice — total "+total+". View or print it here: "+link+"  Thank you! Reply here with any questions.";
+  try{
+    const r=await fetch('/.netlify/functions/human-line-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:e164,message:msg,job_id:jid,sender:'office'})});
+    const d=await r.json().catch(()=>({}));
+    const b2=document.getElementById('inv-textbtn'), n2=document.getElementById('inv-note');
+    if(r.ok&&d&&d.sent){ if(n2){n2.style.color='#16a34a';n2.textContent='✅ Invoice texted to '+ten;} if(b2){b2.textContent='✅ Invoice sent';} }
+    else { const reason=(d&&(d.reason||d.error))?' ('+(d.reason||d.error)+')':''; if(n2){n2.style.color='#c0392b';n2.textContent='Could not send'+reason+' — open 💬 Messages to text manually.';} if(b2){b2.disabled=false;b2.textContent='📱 Text invoice to customer';} }
+  }catch(e){ const b2=document.getElementById('inv-textbtn'), n2=document.getElementById('inv-note'); if(n2){n2.style.color='#c0392b';n2.textContent='Network error — try again.';} if(b2){b2.disabled=false;b2.textContent='📱 Text invoice to customer';} }
+}
+
 async function saveInvoice(jid){
   // Unlock audio inside the Save tap (before any await) so the celebration's cha-ching +
   // applause play on iOS too.
