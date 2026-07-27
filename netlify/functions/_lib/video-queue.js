@@ -15,7 +15,9 @@ async function signedInlineUrl(key) {
   const bucket = process.env.TN_AWS_S3_BUCKET;
   if (!key || !bucket) return null;
   const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
-  return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentType: 'video/mp4', ResponseContentDisposition: 'inline' }), { expiresIn: 6 * 3600 });
+  // 7 days (the SigV4 max) so Studio play/download links don't expire out from under
+  // a tab that's been left open. They still re-sign fresh on every page load.
+  return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentType: 'video/mp4', ResponseContentDisposition: 'inline' }), { expiresIn: 7 * 24 * 3600 });
 }
 
 const QUEUE_KEY = 'VIDEO_STUDIO_QUEUE';
