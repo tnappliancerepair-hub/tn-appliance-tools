@@ -1,0 +1,97 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta charset="utf-8">
+<title>Return Label Finder</title>
+<style>
+  :root { --bg:#0c0f15; --card:#141922; --line:#232c3a; --ink:#eef2f8; --ink2:#9fb0c8; --grn:#2ecc71; --blu:#3a86ff; --amb:#e9a23b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 -apple-system,system-ui,sans-serif; padding:14px; }
+  h1 { font-size:19px; margin:2px 0 2px; }
+  .sub { color:var(--ink2); font-size:13px; margin-bottom:14px; }
+  .big { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:22px; border:0; border-radius:16px; background:var(--blu); color:#fff; font-size:20px; font-weight:800; cursor:pointer; }
+  .big.grn { background:var(--grn); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-top:14px; }
+  .lbl { font-size:12px; color:var(--ink2); text-transform:uppercase; letter-spacing:.06em; }
+  .val { font-size:17px; font-weight:700; margin:1px 0 8px; }
+  .print { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:18px; border:0; border-radius:14px; background:var(--grn); color:#062; font-size:19px; font-weight:900; text-decoration:none; margin-top:8px; }
+  .ghost { display:inline-block; padding:10px 14px; border:1px solid var(--line); border-radius:10px; color:var(--blu); text-decoration:none; font-weight:700; font-size:14px; background:transparent; margin-top:8px; }
+  .warn { background:#2a2110; border:1px solid #4a3a12; color:var(--amb); border-radius:12px; padding:12px; margin-top:12px; font-size:14px; }
+  .muted { color:var(--ink2); font-size:13px; }
+  #spin { display:none; text-align:center; padding:26px; color:var(--ink2); font-size:16px; }
+  #cam { display:none; }
+</style>
+<body>
+  <h1>📦 Return Label Finder</h1>
+  <div class="sub">Snap the box → get the prepaid label to print.</div>
+
+  <button class="big" id="shoot">📷 Take a photo of the box</button>
+  <input type="file" id="cam" accept="image/*" capture="environment">
+  <div id="spin">🔎 Reading the box…</div>
+  <div id="out"></div>
+
+<script>
+var F='/.netlify/functions';
+var SECRET = localStorage.getItem('tn_social_secret') || '';
+function need(){ if(SECRET) return true; var s=prompt('Enter admin secret:'); if(!s) return false; SECRET=s.trim(); localStorage.setItem('tn_social_secret',SECRET); return true; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+var shoot=document.getElementById('shoot'), cam=document.getElementById('cam'), out=document.getElementById('out'), spin=document.getElementById('spin');
+
+shoot.addEventListener('click', function(){ if(!need()) return; cam.value=''; cam.click(); });
+
+cam.addEventListener('change', async function(){
+  var f=this.files && this.files[0]; if(!f) return;
+  out.innerHTML=''; spin.style.display='block'; shoot.style.display='none';
+  try {
+    var b64=await downscale(f, 1400, 0.72);
+    var r=await fetch(F+'/return-label-find',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET, image_b64:b64})});
+    var d=await r.json();
+    render(d);
+  } catch(e){ out.innerHTML='<div class="warn">Something hiccuped — try again.<br><span class="muted">'+esc(e.message||e)+'</span></div>'; }
+  spin.style.display='none';
+});
+
+function render(d){
+  var again='<button class="big grn" style="margin-top:16px" onclick="reset()">📷 Next box</button>';
+  if(!d || !d.ok){ out.innerHTML='<div class="warn">'+esc((d&&d.error)||'Could not read that — try a clearer photo of the label.')+'</div>'+again; return; }
+  var o=d.ocr||{};
+  var head='<div class="card"><div class="lbl">What I read</div>'
+    +(o.claim_number?'<div class="val">Claim '+esc(o.claim_number)+'</div>':'')
+    +(o.customer_name?'<div class="muted">'+esc(o.customer_name)+'</div>':'')
+    +(o.part_number?'<div class="muted">Part '+esc(o.part_number)+'</div>':'')
+    +(o.distributor?'<div class="muted">'+esc(o.distributor)+'</div>':'')
+    +'</div>';
+  var body='';
+  var labels=(d.labels||[]).filter(function(l){return l.has_pdf;});
+  var noPdf=(d.labels||[]).filter(function(l){return !l.has_pdf;});
+  if(labels.length){
+    body+=labels.map(function(l){
+      return '<div class="card"><div class="lbl">Return label'+(l.rma?' · RMA '+esc(l.rma):'')+'</div>'
+        +'<a class="print" href="'+esc(l.pdf_url)+'" target="_blank" rel="noopener">📄 Open &amp; print label</a>'
+        +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div></div>';
+    }).join('');
+  } else if(noPdf.length){
+    body+='<div class="warn">Found the RMA email'+(noPdf[0].rma?' (RMA '+esc(noPdf[0].rma)+')':'')+' but no printable PDF attached. Open it in Gmail:</div>'
+      +noPdf.map(function(l){return '<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ '+esc(l.subject||'open the email')+'</a></div>';}).join('');
+  } else {
+    body+='<div class="warn">No return label found for this box yet — it may not have been issued.'
+      +(d.gmail_search?' <a class="ghost" href="'+esc(d.gmail_search)+'" target="_blank" rel="noopener">🔎 search Gmail</a>':'')+'</div>';
+  }
+  out.innerHTML=head+body+again;
+}
+function reset(){ out.innerHTML=''; shoot.style.display='flex'; }
+
+// Downscale + JPEG so the upload is fast on a phone.
+function downscale(file, maxW, q){
+  return new Promise(function(res,rej){
+    var img=new Image(), url=URL.createObjectURL(file);
+    img.onload=function(){
+      var s=Math.min(1, maxW/Math.max(img.width,img.height));
+      var c=document.createElement('canvas'); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', q||0.72));
+    };
+    img.onerror=function(){ URL.revokeObjectURL(url); rej(new Error('bad image')); };
+    img.src=url;
+  });
+}
+</script>
+</body>
