@@ -28,6 +28,11 @@ exports.handler = async function (event) {
     if (p.parts) p.parts.forEach((c, i) => walk(c, path + '.' + i));
   })(full.data.payload, '0');
   // pull any hrefs / print-label links out of the body
-  const links = [...new Set((text.match(/https?:\/\/[^\s"'<>)]+/g) || []))].filter((u) => /label|fedex|rma|print|return|ship|track|pdf/i.test(u)).slice(0, 20);
-  return json(200, { subject, parts, links, body_preview: text.slice(0, 3000) });
+  const allLinks = [...new Set((text.match(/https?:\/\/[^\s"'<>)]+/g) || []))];
+  const labelLinks = allLinks.filter((u) => /label|fedex|rma|print|return|ship|track|pdf|document|attachment|/i.test(u));
+  // also pull anchor text→href pairs so we can see which link says "print label"
+  const anchors = [];
+  const aRe = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi; let mm;
+  while ((mm = aRe.exec(text)) && anchors.length < 40) { const txt = mm[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60); if (mm[1].startsWith('http')) anchors.push({ text: txt, href: mm[1].slice(0, 200) }); }
+  return json(200, { subject, parts, all_links: allLinks.slice(0, 40), anchors });
 };
