@@ -215,7 +215,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 70,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), max_builds: 999 },
         });
-        try { await xano.recordEventLog('colony_architect_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+        try { await xano.recordEventLog('colony_architect_fired', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('colony_architect_emit_failed', { error: err.message });
       }
@@ -240,7 +240,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 80,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs), days_ahead: 3 },
         });
-        try { await xano.recordEventLog('daily_job_prep_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+        try { await xano.recordEventLog('daily_job_prep_fired', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('daily_job_prep_emit_failed', { error: err.message });
       }
@@ -943,7 +943,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 55,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        try { await xano.recordEventLog('capacity_check_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+        try { await xano.recordEventLog('capacity_check_fired', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('capacity_check_emit_failed', { error: err.message });
       }
@@ -1138,7 +1138,7 @@ async function maybeEmitTimeSignals() {
           signal_strength: 60,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        try { await xano.recordEventLog('schedule_gap_check_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+        try { await xano.recordEventLog('schedule_gap_check_fired', { since_ts_ms: sinceMs }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('schedule_gap_check_emit_failed', { error: err.message });
       }
@@ -1378,7 +1378,7 @@ async function maybeEmitTimeSignals() {
         signal_strength: 80,
         payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
       });
-      try { await xano.recordEventLog('daily_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+      try { await xano.recordEventLog('daily_briefing_fired', { since_ts_ms: sinceMs }); } catch (_e) {}
     }
 
     // DAILY_CLAUDE_SPEND_CHECK — daily Claude spend audit + alert. Same
