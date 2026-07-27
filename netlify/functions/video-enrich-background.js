@@ -46,12 +46,22 @@ exports.handler = async function (event) {
     const src = first.find((x) => x.id === id) || {};
     const character = (src.source === 'fb-archive') ? 'the old TN Appliance shop days — the good ol days crew, real junk men, genuine and funny' : '';
     const title = src.title || 'TN Appliance clip';
-    const hook = await post('hook-doctor', { secret: admin, title, character });
+    // Series-aware + data-grounded: pass the clip's series + appliance/brand/model so
+    // the hook engine writes in the right franchise flavor and grounds the stat hook.
+    const hook = await post('hook-doctor', {
+      secret: admin, title, character,
+      series: src.series || src.content_type, appliance: src.appliance || '',
+      brand: src.brand || '', model: src.model || '', symptom: src.symptom || '',
+    });
     await sleep(300);
     const seo = await post('youtube-seo', { secret: admin, title, is_long: false });
     await sleep(300);
     const patch = {};
-    if (hook && hook.ok) { patch.hooks = hook.hooks; patch.hook_middle = hook.middle; patch.hook_payoff = hook.payoff; patch.hook_notes = hook.notes; }
+    if (hook && hook.ok) {
+      patch.hooks = hook.hooks; patch.hook_formats = hook.hook_formats; patch.on_screen_hook = hook.on_screen_hook;
+      patch.proof_line = hook.proof_line; patch.hook_middle = hook.middle; patch.hook_payoff = hook.payoff;
+      patch.hook_notes = hook.notes; patch.series = hook.series; patch.facts = hook.facts; patch.title_suggestions = hook.title_suggestions;
+    }
     if (seo && seo.ok) { patch.seo = { titles: seo.titles, description: seo.description, tags: seo.tags, hashtags: seo.hashtags }; }
     if (Object.keys(patch).length) { await persist(id, patch); done++; } else { failed++; }
   }

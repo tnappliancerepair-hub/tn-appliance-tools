@@ -48,6 +48,10 @@ async function enqueueFromVideoUrl(meta) {
     template: meta.template || submagic.DEFAULT_TEMPLATE, language: meta.language || 'en',
     source: meta.source || 'upload', viral_score: meta.viral_score || null,
     creator: meta.creator || null,
+    // Content Engine (Phase 1): franchise + machine context for grounded hooks/facts.
+    series: meta.series || meta.content_type || 'hero',
+    appliance: String(meta.appliance || '').slice(0, 40), brand: String(meta.brand || '').slice(0, 40),
+    model: String(meta.model || '').slice(0, 60), symptom: String(meta.symptom || '').slice(0, 160),
     submagic_id: created.id, status: created.status || 'processing',
     download_url: null, created_ms: Date.now(), ready_ms: null, posted: {},
   };

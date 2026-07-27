@@ -55,19 +55,38 @@
     <div id="form" style="display:none">
       <label>Title (what's this clip?)</label>
       <input type="text" id="title" placeholder="Whirlpool dryer won't heat — fix or not?">
-      <label>Hook (big text on screen for the first second)</label>
-      <input type="text" id="hook" placeholder="Your dryer isn't broken — it's THIS 👀">
       <div class="row">
         <div style="flex:1;min-width:150px">
-          <label>Type</label>
-          <select id="ctype">
-            <option value="hero">Hero — you/tech on camera</option>
-            <option value="fix_or_not">Fix or not?</option>
-            <option value="quick_tip">Quick tip</option>
-            <option value="b_roll_voiceover">B-roll + voiceover</option>
-            <option value="review">Review / testimonial</option>
+          <label>Series (the franchise)</label>
+          <select id="series">
+            <option value="hero">⭐ Hero — you/tech on camera</option>
+            <option value="fix_or_toss">⚖️ Fix or Toss?</option>
+            <option value="what_killed_it">💀 What killed this appliance?</option>
+            <option value="model_to_part">🔎 Model # → the exact part</option>
+            <option value="fault_code">🚨 Fault-code explainer</option>
+            <option value="quick_tip">🔧 Quick tip / how-to</option>
           </select>
         </div>
+        <div style="flex:1;min-width:110px">
+          <label>Appliance</label>
+          <select id="appliance">
+            <option value="">(auto-detect)</option>
+            <option>Refrigerator</option><option>Washer</option><option>Dryer</option>
+            <option>Dishwasher</option><option>Range/Oven</option><option>Microwave</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:110px">
+          <label>Brand <span class="muted">(optional)</span></label>
+          <input type="text" id="brand" placeholder="Whirlpool">
+        </div>
+      </div>
+      <label>Hook (big text burned on screen, second 1)</label>
+      <div class="row" style="gap:8px;align-items:stretch">
+        <input type="text" id="hook" placeholder="Your dryer isn't broken — it's THIS 👀" style="flex:1">
+        <button class="btn ghost" id="sughook" style="padding:8px 12px;white-space:nowrap" title="Ant writes a scroll-stopping hook grounded in our real repair data">🎣 Suggest hook</button>
+      </div>
+      <div id="hooksug" class="muted" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:10px">
         <div style="flex:1;min-width:150px">
           <label>Caption style</label>
           <select id="tmpl">
@@ -160,10 +179,31 @@ document.getElementById('file').addEventListener('change', async function(){
   }).catch(e=>{ document.getElementById('upmsg').textContent='Upload failed: '+e.message; });
 });
 
+// 🎣 Suggest hook — BEFORE building, so the grounded, scroll-stopping line gets
+// BURNED on screen (not just used in the caption after the fact).
+document.getElementById('sughook').addEventListener('click', async function(){
+  const t=document.getElementById('title').value.trim();
+  const el=document.getElementById('hooksug');
+  if(!t){ el.textContent='Type a title first so Ant knows the clip.'; return; }
+  this.disabled=true; const old=this.textContent; this.textContent='Thinking…'; el.textContent='';
+  const r=await jpost('hook-doctor',{ title:t, series:document.getElementById('series').value, appliance:document.getElementById('appliance').value, brand:document.getElementById('brand').value });
+  this.disabled=false; this.textContent=old;
+  if(r&&r.ok){
+    if(r.on_screen_hook) document.getElementById('hook').value=r.on_screen_hook;
+    let h='<div style="background:#111;border:1px solid #262626;border-radius:10px;padding:8px 10px;white-space:normal;line-height:1.5">';
+    if(r.on_screen_hook) h+='<div><b style="color:#e9c46a">✅ On screen:</b> '+esc(r.on_screen_hook)+' <span class="muted">(filled in above — edit freely)</span></div>';
+    if(r.proof_line) h+='<div style="margin-top:5px"><b style="color:#e9c46a">🐜 Proof line:</b> '+esc(r.proof_line)+'</div>';
+    if(r.facts&&r.facts.has_stat) h+='<div style="margin-top:5px;color:#9aa">📊 grounded in '+(r.facts.based_on_n||0)+' real '+esc((r.facts.appliance||'').toLowerCase())+' repairs'+(r.facts.top_component?' · most common: '+esc(r.facts.top_component):'')+'</div>';
+    if(r.hook_formats&&r.hook_formats.length){ h+='<div style="margin-top:6px"><b style="color:#e9c46a">Other angles</b> <span class="muted">(tap to use)</span><br>'+r.hook_formats.map(function(x){return '<span onclick="document.getElementById(\'hook\').value=this.dataset.h" data-h="'+esc(x.text).replace(/"/g,'&quot;')+'" style="cursor:pointer;display:inline-block;margin:3px 0"><b style="color:#7fb">'+esc(x.format)+':</b> '+esc(x.text)+'</span>';}).join('<br>')+'</div>'; }
+    h+='</div>'; el.innerHTML=h;
+  } else el.textContent='⚠️ '+((r&&r.error)||'could not write a hook — try again');
+});
+
 document.getElementById('submit').addEventListener('click', async function(){
   if(!RAW_KEY) return;
   this.disabled=true; const msg=document.getElementById('submsg'); msg.textContent='Sending to the captions engine…';
-  const r=await jpost('video-submit',{ s3_key:RAW_KEY, title:document.getElementById('title').value, hook:document.getElementById('hook').value, content_type:document.getElementById('ctype').value, template:document.getElementById('tmpl').value });
+  const sv=document.getElementById('series').value;
+  const r=await jpost('video-submit',{ s3_key:RAW_KEY, title:document.getElementById('title').value, hook:document.getElementById('hook').value, series:sv, content_type:sv, appliance:document.getElementById('appliance').value, brand:document.getElementById('brand').value, template:document.getElementById('tmpl').value });
   this.disabled=false;
   if(r&&r.ok){ msg.innerHTML='✅ Building your short — it\'ll appear in the queue below as <b>Ready</b> in a few minutes.'; RAW_KEY=''; document.getElementById('form').style.display='none'; document.getElementById('file').value=''; document.getElementById('progWrap').style.display='none'; document.getElementById('prog').style.width='0'; document.getElementById('upmsg').textContent=''; loadJobs(); }
   else { msg.textContent='⚠️ '+(r&&(r.error||r.note)||'failed')+(r&&r.detail?(' — '+JSON.stringify(r.detail).slice(0,160)):''); }
@@ -239,9 +279,12 @@ const GOODOL=[
   "😂 Throwin' it back to the good ol days. TN Appliance Exchange LLC — we've never taken OURSELVES too serious, but we take your appliances dead serious. Family-owned since 2012, still everywhere, still clownin' around. 🐜\n📞 615-280-2949\n\n#GoodOlDays #TNApplianceExchange #familyowned #appliancerepair",
 ];
 function suggestCaption(j){
-  // if the Hook Doctor already wrote hooks, LEAD the caption with the strongest one
-  if(j.hooks&&j.hooks.length){ return j.hooks[0].replace(/^["']|["']$/g,'')+"\n\n"+baseCaption(j); }
-  return baseCaption(j);
+  // LEAD with the strongest hook, and fold the grounded proof line in right under it
+  // (the real-data trust signal is the moat) before the base caption.
+  var lead=(j.on_screen_hook||(j.hooks&&j.hooks[0])||'').replace(/^["']|["']$/g,'');
+  var parts=[]; if(lead) parts.push(lead); if(j.proof_line) parts.push(j.proof_line);
+  var top=parts.join("\n\n");
+  return (top?top+"\n\n":"")+baseCaption(j);
 }
 function baseCaption(j){
   // Spanish-dubbed clips get a Spanish caption
@@ -339,7 +382,14 @@ function enrichBlock(j){
     return '<div class="muted" style="font-size:12px;margin:2px 0 8px">✨ not punched up yet — tap 🎣 Hook Doctor / 📈 YouTube SEO below, or "Punch up everything" up top.</div>';
   }
   var h='';
-  if(j.hooks&&j.hooks.length){
+  if(j.proof_line){ h+='<div style="margin-top:2px;background:#1a1608;border:1px solid #3a2f0e;border-radius:8px;padding:6px 9px"><b style="color:#e9c46a">🐜 Proof line:</b> '+esc(j.proof_line)+(j.facts&&j.facts.has_stat?' <span style="color:#7fb">(from '+(j.facts.based_on_n||0)+' real repairs)</span>':'')+'</div>'; }
+  var fmts=j.hook_formats&&j.hook_formats.length?j.hook_formats:null;
+  if(fmts){
+    if(j.on_screen_hook) h+='<div style="margin-top:6px"><b style="color:#e9c46a">✅ On-screen hook:</b> '+esc(j.on_screen_hook)+'</div>';
+    h+='<div style="margin-top:4px"><b style="color:#e9c46a">🎣 Hook angles</b><br>'+fmts.map(function(x){return '<b style="color:#7fb">'+esc(x.format)+':</b> '+esc(x.text);}).join('<br>')+'</div>';
+    if(j.hook_payoff) h+='<div style="margin-top:6px"><b style="color:#e9c46a">🎬 Payoff:</b> '+esc(j.hook_payoff)+'</div>';
+    if(j.hook_middle) h+='<div style="margin-top:4px;color:#9aa"><b>👉 Point the camera at:</b> '+esc(j.hook_middle)+'</div>';
+  } else if(j.hooks&&j.hooks.length){
     h+='<div style="margin-top:2px"><b style="color:#e9c46a">🎣 Hook options</b><br>'+j.hooks.map(function(x,i){return (i+1)+'. '+esc(x);}).join('<br>')+'</div>';
     if(j.hook_payoff) h+='<div style="margin-top:6px"><b style="color:#e9c46a">🎬 Payoff:</b> '+esc(j.hook_payoff)+'</div>';
     if(j.hook_middle) h+='<div style="margin-top:4px;color:#9aa"><b>👉 Point the camera at:</b> '+esc(j.hook_middle)+'</div>';
@@ -366,9 +416,15 @@ async function genHook(id,btn){
   const j=(window._jobs||[]).find(x=>String(x.id)===String(id)); const el=document.getElementById('hook-'+id);
   const who=prompt('Any character/person in this clip? (Paw, Andre, a customer… leave blank if none)','')||'';
   el.textContent='Doctoring the hook…';
-  const r=await jpost('hook-doctor',{title:(j&&j.title)||'',character:who});
+  const r=await jpost('hook-doctor',{title:(j&&j.title)||'',character:who,series:(j&&(j.series||j.content_type))||'',appliance:(j&&j.appliance)||'',brand:(j&&j.brand)||'',model:(j&&j.model)||'',symptom:(j&&j.symptom)||''});
   if(r&&r.ok){
-    el.innerHTML='<div class="res" style="white-space:normal"><b>🎣 Hook options (second 1):</b><br>'+(r.hooks||[]).map((h,i)=>(i+1)+'. '+esc(h)).join('<br>')
+    // persist onto the job so the caption + card pick it up
+    if(j){ j.on_screen_hook=r.on_screen_hook||j.on_screen_hook; j.hooks=r.hooks||j.hooks; j.hook_formats=r.hook_formats||j.hook_formats; j.proof_line=r.proof_line||j.proof_line; j.hook_middle=r.middle; j.hook_payoff=r.payoff; j.facts=r.facts||j.facts; }
+    var angles=(r.hook_formats&&r.hook_formats.length)?r.hook_formats.map(x=>'<b style="color:#7fb">'+esc(x.format)+':</b> '+esc(x.text)).join('<br>'):(r.hooks||[]).map((h,i)=>(i+1)+'. '+esc(h)).join('<br>');
+    el.innerHTML='<div class="res" style="white-space:normal">'
+      +(r.on_screen_hook?'<b>✅ On-screen:</b> '+esc(r.on_screen_hook)+'<br><br>':'')
+      +(r.proof_line?'<b>🐜 Proof line:</b> '+esc(r.proof_line)+(r.facts&&r.facts.has_stat?' <span style="color:#7fb">(from '+(r.facts.based_on_n||0)+' real repairs)</span>':'')+'<br><br>':'')
+      +'<b>🎣 Hook angles:</b><br>'+angles
       +'<br><br><b>👉 Point the camera at:</b><br>'+esc(r.middle||'')
       +'<br><br><b>🎬 Payoff (last second):</b><br>'+esc(r.payoff||'')
       +((r.notes&&r.notes.length)?('<br><br><b>Production:</b><br>'+r.notes.map(n=>'• '+esc(n)).join('<br>')):'')+'</div>';

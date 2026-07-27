@@ -31,6 +31,8 @@ exports.handler = async function (event) {
   const r = await enqueueFromVideoUrl({
     videoUrl, s3_key, title: b.title, hook: b.hook, template: (String(b.template || '').slice(0, 40) || undefined),
     content_type: b.content_type, language: b.language, source: 'upload',
+    // Content Engine (Phase 1): the series/appliance drive the hook flavor + grounded stat.
+    series: b.series, appliance: b.appliance, brand: b.brand, model: b.model, symptom: b.symptom,
   });
   if (!r.ok) return json(502, { error: 'submagic_create_failed', detail: r.error || r.detail });
   return json(200, { ok: true, job: { id: r.job.id, submagic_id: r.job.submagic_id, status: r.job.status, title: r.job.title } });
