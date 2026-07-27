@@ -55,7 +55,7 @@ exports.handler = async function (event) {
   // 1) OCR the box.
   let ocr = {};
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: MODEL, max_tokens: 400, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } }, { type: 'text', text: OCR_PROMPT }] }] }) });
+    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: MODEL, max_tokens: 400, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } }, { type: 'text', text: OCR_PROMPT }] }] }), signal: AbortSignal.timeout(20000) });
     const d = await r.json();
     if (!r.ok || !d.content) throw new Error(JSON.stringify(d).slice(0, 160));
     ocr = JSON.parse(String(d.content[0].text || '').replace(/```json|```/g, '').trim());

@@ -13,6 +13,11 @@
 [functions]
   node_bundler = "esbuild"
 
+# The box→label finder does Vision OCR + Gmail, which can exceed the default 10s on a
+# glossy/angled label. Give it the full sync budget so it doesn't 502 mid-scan.
+[functions."return-label-find"]
+  timeout = 26
+
 # Security headers — applied to every page served from this site.
 # Keeps office surfaces hardened: CSP limits where scripts/connections
 # can come from, X-Frame-Options blocks click-jacking, Referrer-Policy
