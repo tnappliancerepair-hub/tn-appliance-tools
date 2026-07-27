@@ -4,7 +4,8 @@
 //   POST { secret, job_id, lang? }   (lang default "es")
 'use strict';
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
-const { loadQueue, signedInlineUrl } = require('./_lib/video-queue');
+const { loadQueue } = require('./_lib/video-queue');
+const { buildProxyUrl } = require('./_lib/media-proxy');
 const dub = require('./_lib/elevenlabs-dub');
 
 const DUB_KEY = 'VIDEO_DUB_JOBS';
@@ -24,9 +25,11 @@ exports.handler = async function (event) {
   if (!job) return json(404, { error: 'job_not_found' });
   const lang = String(b.lang || 'es').slice(0, 5);
 
-  // Source must be a public URL ElevenLabs can fetch — use the S3 copy if hosted, else the stored url.
+  // Source must be a URL ElevenLabs can fetch. For our hosted S3 copy, hand over the
+  // HEAD-able proxy URL (a raw S3 presigned GET URL 403s on HEAD-validation); otherwise
+  // fall back to the stored public download URL (Submagic/Vizard CDN, already HEAD-able).
   let source_url = job.download_url;
-  if (job.hosted && job.clip_key) { try { source_url = (await signedInlineUrl(job.clip_key)) || source_url; } catch (_) {} }
+  if (job.hosted && job.clip_key) { try { source_url = buildProxyUrl(job.clip_key, admin, 6 * 3600 * 1000); } catch (_) {} }
   if (!source_url) return json(400, { error: 'no_source_video' });
 
   const created = await dub.createDub({ source_url, target_lang: lang, source_lang: 'en', name: (job.title || 'TN Appliance').slice(0, 60) });
