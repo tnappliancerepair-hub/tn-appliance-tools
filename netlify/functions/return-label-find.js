@@ -75,8 +75,16 @@ exports.handler = async function (event) {
   // 1) Read the box — typed value skips OCR; otherwise Vision. Never hard-error.
   let ocr = {}, rawText = '';
   if (typed) {
-    const digits = typed.replace(/[^0-9]/g, '');
-    ocr = (digits.length >= 8) ? { claim_number: digits } : { customer_name: typed };
+    // Parse the typed input into claim / part / name. Teddy can type the claim,
+    // or "claim part#", or just a name — a part-looking token (letters+digits)
+    // still drives the per-part match.
+    const tokens = typed.split(/[\s,]+/).filter(Boolean);
+    const claimTok = tokens.map((t) => t.replace(/[^0-9]/g, '')).find((d) => d.length >= 8) || '';
+    const partTok = tokens.find((t) => /[A-Za-z]/.test(t) && /[0-9]/.test(t) && t.replace(/[^A-Za-z0-9]/g, '').length >= 5) || '';
+    if (claimTok) ocr.claim_number = claimTok;
+    if (partTok) ocr.part_number = partTok;
+    if (!claimTok && !partTok) ocr.customer_name = typed;
+    else if (!claimTok && !ocr.customer_name) { const nameTok = tokens.filter((t) => !/[0-9]/.test(t)).join(' '); if (nameTok) ocr.customer_name = nameTok; }
   } else try {
     const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: MODEL, max_tokens: 500, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } }, { type: 'text', text: OCR_PROMPT }] }] }), signal: AbortSignal.timeout(22000) });
     const d = await r.json();
