@@ -64,22 +64,53 @@ function render(d){
   var again='<button class="big grn" style="margin-top:16px" onclick="reset()">📷 Next box</button>';
   if(!d || !d.ok){ out.innerHTML='<div class="warn">'+esc((d&&d.error)||'Could not read that — try a clearer photo of the label.')+'</div>'+again; return; }
   var o=d.ocr||{};
-  var head='<div class="card"><div class="lbl">What I read</div>'
-    +(o.claim_number?'<div class="val">Claim '+esc(o.claim_number)+'</div>':'')
+  var head='<div class="card"><div class="lbl">What I read off the box</div>'
+    +(o.part_number?'<div class="val">Part '+esc(o.part_number)+'</div>':'')
+    +(o.claim_number?'<div class="muted">Claim '+esc(o.claim_number)+'</div>':'')
     +(o.customer_name?'<div class="muted">'+esc(o.customer_name)+'</div>':'')
-    +(o.part_number?'<div class="muted">Part '+esc(o.part_number)+'</div>':'')
     +(o.distributor?'<div class="muted">'+esc(o.distributor)+'</div>':'')
     +'</div>';
+
+  // one card per label — the one whose PART matches this box gets the green "this is it" badge
+  function labelCard(l,isMatch){
+    var meta=[];
+    if(l.part_number) meta.push('Part '+esc(l.part_number));
+    if(l.distributor) meta.push(esc(l.distributor));
+    if(l.rma) meta.push('RMA '+esc(l.rma));
+    var badge = isMatch
+      ? '<div style="background:var(--grn);color:#052;font-weight:900;border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:15px">✅ THIS is your part'+(l.part_number?' — '+esc(l.part_number):'')+'</div>'
+      : '';
+    var cls = isMatch ? 'card" style="border:2px solid var(--grn)' : 'card';
+    return '<div class="'+cls+'">'+badge
+      +'<div class="lbl">Return label</div>'
+      +'<div class="muted" style="margin:2px 0 8px">'+esc(l.customer_name||o.customer_name||'')+(meta.length?' · '+meta.join(' · '):'')+'</div>'
+      +(l.has_label
+          ? '<a class="print" href="'+esc(l.label_url)+'" target="_blank" rel="noopener">📄 Print this label</a>'
+          : '<div class="warn" style="margin:0">Couldn’t grab the print link — open the email:</div>')
+      +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div></div>';
+  }
+
   var body='';
-  var withLink=(d.labels||[]).filter(function(l){return l.has_label;});
-  var noLink=(d.labels||[]).filter(function(l){return !l.has_label;});
-  if(withLink.length){
-    body+=withLink.map(function(l){
-      return '<div class="card"><div class="lbl">Return label'+(l.rma?' · RMA '+esc(l.rma):'')+(l.claim?' · claim '+esc(l.claim):'')+'</div>'
-        +'<a class="print" href="'+esc(l.label_url)+'" target="_blank" rel="noopener">📄 Print this label</a>'
-        +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div></div>';
-    }).join('');
-    if(noLink.length) body+='<div class="muted" style="margin-top:8px">('+noLink.length+' more RMA email(s) matched — tap ✉️ if the label above isn’t the right part.)</div>';
+  var labels=(d.labels||[]);
+  var match=labels.filter(function(l){return l.part_match;});
+  var others=labels.filter(function(l){return !l.part_match;});
+  var withLink=labels.filter(function(l){return l.has_label;});
+  var noLink=labels.filter(function(l){return !l.has_label;});
+
+  if(match.length){
+    // We know exactly which label goes with this box.
+    body+=match.map(function(l){return labelCard(l,true);}).join('');
+    if(others.length){
+      body+='<div class="lbl" style="margin:14px 2px 2px">Other parts on this claim ('+others.length+')</div>';
+      body+=others.map(function(l){return labelCard(l,false);}).join('');
+    }
+  } else if(d.box_part && labels.length){
+    // Read a part off the box but none of the claim's labels matched it.
+    body+='<div class="warn">Read part <b>'+esc(d.box_part)+'</b> off the box but it didn’t match any label on this claim — pick the right one below (part # is on each), or retake the photo of the part sticker.</div>';
+    body+=labels.map(function(l){return labelCard(l,false);}).join('');
+  } else if(withLink.length){
+    if(labels.length>1) body+='<div class="warn">'+labels.length+' parts on this claim — I couldn’t read the part # off the box to pick one. Match by the Part # shown on each card (it’s printed on your box too):</div>';
+    body+=labels.map(function(l){return labelCard(l,false);}).join('');
   } else if(noLink.length){
     body+='<div class="warn">Found the RMA email'+(noLink[0].rma?' (RMA '+esc(noLink[0].rma)+')':'')+' but couldn’t grab the print link. Open it in Gmail:</div>'
       +noLink.map(function(l){return '<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ '+esc(l.subject||'open the email')+'</a></div>';}).join('');

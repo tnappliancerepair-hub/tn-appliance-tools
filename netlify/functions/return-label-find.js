@@ -11,9 +11,9 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b, null, 2) }; }
 function b64d(s) { try { return Buffer.from(String(s || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch (_) { return ''; } }
 const MODEL = 'claude-sonnet-5';
-const OCR_PROMPT = `You are reading a photo of a shipping box for an appliance part being RETURNED under a warranty (SquareTrade / Allstate). There may be a FedEx label and other stickers. Extract what you can. Return STRICT JSON only, this shape:
-{"claim_number":"<the Allstate/SquareTrade claim or dispatch number, usually 10-12 digits — the MOST important field>","customer_name":"<recipient name>","part_number":"<the appliance part number if shown>","rma_number":"<RMA/REF number if shown>","distributor":"<Marcone/Encompass/Reliable/UED/etc if shown>","tracking_number":"<the FedEx tracking number if shown>"}
-Use "" for anything not visible. Do not guess the claim number — only report digits you can actually read.`;
+const OCR_PROMPT = `You are reading a photo of a shipping box for an appliance part. The box was shipped by a distributor (Marcone / Encompass / Reliable / UED) and now needs its warranty RETURN label. Read the stickers on the box. Return STRICT JSON only, this shape:
+{"claim_number":"<the Allstate/SquareTrade claim or dispatch number, usually 10-12 digits>","customer_name":"<recipient name>","part_number":"<the APPLIANCE PART NUMBER, e.g. W10919003, DA97-19973A, WE03X38319, 4738ER1002A — the single most important field for telling this box apart from the customer's other parts>","rma_number":"<RMA/REF number if shown>","distributor":"<Marcone/Encompass/Reliable/UED/etc if shown>","tracking_number":"<the FedEx tracking number if shown>"}
+The PART NUMBER is the key field — it's an alphanumeric code (often 7-12 chars, sometimes with a dash) usually near a "Part", "P/N", "Part No.", or "MPN" label, or printed large on the distributor sticker. Read it EXACTLY, character by character (watch 0/O, 1/I, 5/S, 8/B). Use "" for anything you cannot actually read — never guess the claim number or the part number.`;
 
 async function gmailClient() {
   const id = process.env.GMAIL_CLIENT_ID, secret = process.env.GMAIL_CLIENT_SECRET, refresh = process.env.GMAIL_REFRESH_TOKEN;
@@ -21,7 +21,12 @@ async function gmailClient() {
   try { const { google } = require('googleapis'); const o = new google.auth.OAuth2(id, secret); o.setCredentials({ refresh_token: refresh }); return google.gmail({ version: 'v1', auth: o }); } catch (_) { return null; }
 }
 
-// Pull the "PRINT MY LABEL" link (and rma/claim) out of an RMA email.
+const normPart = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+// Pull the "PRINT MY LABEL" link + the part it's for out of ONE RMA email.
+// The email body literally names the part: "Part Number: W10919003", plus the
+// distributor, FedEx tracking, and customer — that's how we tell WHICH of a
+// claim's several labels goes with the box in Teddy's hand.
 async function labelFromMessage(gmail, id) {
   try {
     const full = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
@@ -37,10 +42,23 @@ async function labelFromMessage(gmail, id) {
     }
     // fallback: any anchor mentioning label
     if (!labelUrl) { aRe.lastIndex = 0; while ((m = aRe.exec(html))) { const txt = m[2].replace(/<[^>]+>/g, ' ').toLowerCase(); if (/label/.test(txt) && /^https?:/i.test(m[1])) { labelUrl = m[1]; break; } } }
-    const rmaM = /#\[?([0-9-]{5,})\]?/.exec(subject) || /RMA[^0-9]*([0-9-]{4,})/i.exec(subject);
-    const claimM = /claim[^0-9]*([0-9]{8,})/i.exec(subject);
-    return { subject, label_url: labelUrl, rma: rmaM ? rmaM[1] : '', claim: claimM ? claimM[1] : '' };
-  } catch (_) { return { subject: '', label_url: '', rma: '', claim: '' }; }
+    // clean the visible text (drop <style>/<script>) then read the labeled fields
+    const body = html.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+    const pick = (re) => { const x = re.exec(body); return x ? x[1].trim() : ''; };
+    const rmaM = /RMA\s*#?\s*is\s*([0-9-]{4,})/i.exec(body) || /#\[?([0-9-]{5,})\]?/.exec(subject) || /RMA[^0-9]*([0-9-]{4,})/i.exec(subject);
+    const claimM = /Claim\s*Number:\s*([0-9]{8,})/i.exec(body) || /claim[^0-9]*([0-9]{8,})/i.exec(subject);
+    return {
+      subject,
+      label_url: labelUrl,
+      rma: rmaM ? rmaM[1] : '',
+      claim: claimM ? claimM[1] : '',
+      part_number: pick(/Part\s*Number:\s*([A-Za-z0-9./-]{3,})/i),
+      distributor: pick(/Distributor:\s*([A-Za-z0-9 &-]+?)\s+(?:Part\s*Number|Return|Details|Customer)/i),
+      return_desc: pick(/Return\s*Description:\s*([A-Za-z0-9 ]+?)\s+(?:Details|Customer|Thanks)/i),
+      fedex_tracking: pick(/FedEx\s*tracking\s*#?\s*is\s*([0-9]{8,})/i),
+      customer_name: pick(/Customer\s*Name:\s*([A-Za-z ,.'-]+?)\s+Claim\s*Number/i),
+    };
+  } catch (_) { return { subject: '', label_url: '', rma: '', claim: '', part_number: '', distributor: '', return_desc: '', fedex_tracking: '', customer_name: '' }; }
 }
 
 exports.handler = async function (event) {
@@ -92,14 +110,24 @@ exports.handler = async function (event) {
     : (cust ? `https://mail.google.com/mail/u/0/#search/${encodeURIComponent('from:rma_request@squaretrade.com ' + cust)}` : '');
   if (!msgs.length) return json(200, { ok: true, ocr, labels: [], gmail_search, note: 'No RMA label email found for this box yet — it may not have been issued. Check the Gmail search, or the SquareTrade portal.' });
 
-  // 3) Pull the PRINT MY LABEL link from each (in parallel, capped, so we stay well
-  //    under the sync timeout even on a cold start).
-  let labels = await Promise.all(msgs.slice(0, 4).map(async (msg) => {
+  // 3) Pull the PRINT MY LABEL link + the part each is for (in parallel, capped
+  //    higher so multi-part claims — Tovar had 4, Fleming 5 — all come back).
+  const boxPart = normPart(ocr.part_number);
+  let labels = await Promise.all(msgs.slice(0, 8).map(async (msg) => {
     const info = await labelFromMessage(gmail, msg.id);
-    return { rma: info.rma, claim: info.claim, subject: info.subject, label_url: info.label_url, has_label: !!info.label_url, gmail_link: `https://mail.google.com/mail/u/0/#search/rfc822msgid:${msg.id}`, email_id: msg.id };
+    const part_match = !!(boxPart && info.part_number && normPart(info.part_number) === boxPart);
+    return {
+      rma: info.rma, claim: info.claim, subject: info.subject,
+      part_number: info.part_number, distributor: info.distributor,
+      return_desc: info.return_desc, customer_name: info.customer_name,
+      fedex_tracking: info.fedex_tracking,
+      part_match,
+      label_url: info.label_url, has_label: !!info.label_url,
+      gmail_link: `https://mail.google.com/mail/u/0/#search/rfc822msgid:${msg.id}`, email_id: msg.id,
+    };
   }));
-  // If we OCR'd a claim, put exact-claim matches first (customer-name search can pull neighbors).
-  if (claim) labels.sort((a, c) => ((c.claim === claim) - (a.claim === claim)) || (c.has_label - a.has_label));
-  else labels.sort((a, c) => (c.has_label - a.has_label));
-  return json(200, { ok: true, ocr, matched_on: via, labels, gmail_search });
+  // Rank: the label for THIS box's part first, then exact-claim, then has-a-link.
+  labels.sort((a, c) => (c.part_match - a.part_match) || ((c.claim === claim) - (a.claim === claim)) || (c.has_label - a.has_label));
+  const matched_part = boxPart ? (labels.find((l) => l.part_match) ? ocr.part_number : '') : '';
+  return json(200, { ok: true, ocr, matched_on: via, box_part: ocr.part_number || '', matched_part, multi: labels.length > 1, labels, gmail_search });
 };
