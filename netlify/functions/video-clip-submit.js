@@ -7,10 +7,9 @@
 //           "premium" (Vizard cuts raw → each clip through Submagic's captions)
 //     -> { ok, clip_job }
 'use strict';
-const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const vizard = require('./_lib/vizard');
+const { buildProxyUrl } = require('./_lib/media-proxy');
 
 const CLIP_KEY = 'VIZARD_CLIP_JOBS';
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o, null, 2) }; }
@@ -34,12 +33,10 @@ exports.handler = async function (event) {
     videoUrl = ext_url;
     videoType = parseInt(b.video_type, 10) || 1;   // 1 remote mp4, 2 YouTube, 11 Facebook
   } else if (s3_key) {
-    const bucket = process.env.TN_AWS_S3_BUCKET;
-    if (!bucket) return json(500, { error: 's3_not_configured' });
-    try {
-      const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
-      videoUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: s3_key, ResponseContentType: 'video/mp4' }), { expiresIn: 12 * 3600 });
-    } catch (e) { return json(502, { error: 'sign_failed', detail: String((e && e.message) || e) }); }
+    if (!process.env.TN_AWS_S3_BUCKET) return json(500, { error: 's3_not_configured' });
+    // HEAD-able proxy URL (not a raw S3 presigned GET URL) so Vizard's source validation
+    // passes — same reason as submagic-media (GET-presigned URLs 403 on HEAD). 12h TTL.
+    videoUrl = buildProxyUrl(s3_key, admin, 12 * 3600 * 1000);
   } else {
     return json(400, { error: 's3_key or video_url required' });
   }

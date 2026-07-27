@@ -5,11 +5,10 @@
 //   POST { secret, s3_key, title, hook?, template?, content_type?, language? }
 //     -> { ok, job }
 'use strict';
-const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getSecret } = require('./_lib/secrets');
 const submagic = require('./_lib/submagic');
 const { enqueueFromVideoUrl } = require('./_lib/video-queue');
+const { buildProxyUrl } = require('./_lib/media-proxy');
 
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o, null, 2) }; }
 
@@ -22,14 +21,12 @@ exports.handler = async function (event) {
   const s3_key = String(b.s3_key || '').trim();
   if (!s3_key) return json(400, { error: 's3_key required (upload the raw clip first)' });
   if (!(await submagic.configured())) return json(400, { error: 'submagic_not_configured', note: 'Add SUBMAGIC_API_KEY in the vault.' });
-  const bucket = process.env.TN_AWS_S3_BUCKET;
-  if (!bucket) return json(500, { error: 's3_not_configured' });
+  if (!process.env.TN_AWS_S3_BUCKET) return json(500, { error: 's3_not_configured' });
 
-  let videoUrl;
-  try {
-    const s3 = new S3Client({ region: process.env.TN_AWS_S3_REGION, credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY } });
-    videoUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: s3_key, ResponseContentType: 'video/mp4' }), { expiresIn: 6 * 3600 });
-  } catch (e) { return json(502, { error: 'sign_failed', detail: String((e && e.message) || e) }); }
+  // Hand Submagic the HEAD-able proxy URL, NOT a raw S3 presigned GET URL. Submagic
+  // validates a source with a HEAD request, and a GET-presigned SigV4 URL 403s on HEAD
+  // ("not a downloadable media file"). submagic-media answers HEAD + 302s the GET to S3.
+  const videoUrl = buildProxyUrl(s3_key, admin, 6 * 3600 * 1000);
 
   const r = await enqueueFromVideoUrl({
     videoUrl, s3_key, title: b.title, hook: b.hook, template: (String(b.template || '').slice(0, 40) || undefined),
