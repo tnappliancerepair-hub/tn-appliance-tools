@@ -52,14 +52,23 @@ exports.handler = async function (event) {
   const mm = /^data:([^;]+);base64,(.*)$/i.exec(imgB64); if (mm) { mediaType = mm[1]; imgB64 = mm[2]; }
   if (!imgB64) return json(400, { ok: false, error: 'image_b64 required' });
 
-  // 1) OCR the box.
-  let ocr = {};
+  // 1) OCR the box. Never hard-error — a blurry/glossy label just means "retake it".
+  let ocr = {}, rawText = '';
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: MODEL, max_tokens: 400, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } }, { type: 'text', text: OCR_PROMPT }] }] }), signal: AbortSignal.timeout(20000) });
+    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: MODEL, max_tokens: 500, messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } }, { type: 'text', text: OCR_PROMPT }] }] }), signal: AbortSignal.timeout(22000) });
     const d = await r.json();
-    if (!r.ok || !d.content) throw new Error(JSON.stringify(d).slice(0, 160));
-    ocr = JSON.parse(String(d.content[0].text || '').replace(/```json|```/g, '').trim());
-  } catch (e) { return json(502, { ok: false, error: 'could not read the box: ' + String(e.message || e) }); }
+    rawText = (d && d.content && d.content[0] && d.content[0].text) || '';
+    const clean = rawText.replace(/```json|```/g, '').trim();
+    const s = clean.indexOf('{'), e = clean.lastIndexOf('}');
+    if (s >= 0 && e > s) { try { ocr = JSON.parse(clean.slice(s, e + 1)); } catch (_) {} }
+    if (!Object.keys(ocr).length && clean) { try { ocr = JSON.parse(clean); } catch (_) {} }
+  } catch (_) { /* fall through — treated as "couldn't read" below */ }
+
+  const claimRaw = String(ocr.claim_number || '').replace(/[^0-9]/g, '');
+  const custRaw = String(ocr.customer_name || '').trim();
+  if (!claimRaw && !custRaw) {
+    return json(200, { ok: true, ocr, labels: [], note: 'Could not read this label — retake the photo a bit closer and flatter (avoid glare), or type the claim # in.' });
+  }
 
   const claim = String(ocr.claim_number || '').replace(/[^0-9]/g, '');
   const cust = String(ocr.customer_name || '').trim();
