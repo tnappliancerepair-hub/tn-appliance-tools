@@ -201,10 +201,30 @@ document.getElementById('lsubmit').addEventListener('click', async function(){
 });
 function renderClipJobs(list){
   const el=document.getElementById('clipjobs'); if(!list||!list.length){ el.innerHTML=''; return; }
+  const junk=list.filter(c=>c.status!=='clipping'&&c.status!=='done').length;
+  const clearBtn = junk ? '<div style="margin-top:10px"><button onclick="clearClipTimeouts(this)" style="background:#3a1414;color:#ff8080;border:1px solid #5a1e1e;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer">🧹 Clear all '+junk+' timed-out</button></div>' : '';
   el.innerHTML='<div style="margin-top:12px">'+list.map(c=>{
     const s=c.status==='clipping'?'<span class="pill p-processing">clipping…</span>':(c.status==='done'?'<span class="pill p-ready">'+c.clip_count+' shorts</span>':'<span class="pill p-failed">'+esc(c.status)+'</span>');
-    return '<div class="row" style="justify-content:space-between;padding:7px 0;border-top:1px solid rgba(255,255,255,.06)"><span class="muted">'+esc(c.project_name||'Long video')+'</span>'+s+'</div>';
-  }).join('')+'</div>';
+    // Any row that's no longer working (done/timeout/failed) gets a 🗑 so it can be cleared.
+    const del = c.status==='clipping' ? '' : '<button title="Remove from list" onclick="delClipJob('+JSON.stringify(String(c.id))+',this)" style="background:none;border:none;color:#e57373;font-size:16px;cursor:pointer;padding:0 4px;margin-left:8px">🗑</button>';
+    return '<div class="row" style="justify-content:space-between;padding:7px 0;border-top:1px solid rgba(255,255,255,.06)"><span class="muted">'+esc(c.project_name||'Long video')+'</span><span style="display:flex;align-items:center">'+s+del+'</span></div>';
+  }).join('')+'</div>'+clearBtn;
+}
+async function delClipJob(id,btn){
+  if(btn){ btn.disabled=true; btn.textContent='…'; }
+  try{
+    const r=await fetch(F+'/video-prune',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET,clip_ids:[String(id)]})});
+    const d=await r.json();
+    if(d&&d.ok){ loadJobs(); } else { if(btn){btn.disabled=false;btn.textContent='🗑';} alert('Could not remove — '+((d&&d.error)||'try again')); }
+  }catch(e){ if(btn){btn.disabled=false;btn.textContent='🗑';} alert('Network hiccup — try again.'); }
+}
+async function clearClipTimeouts(btn){
+  if(btn){ btn.disabled=true; btn.textContent='Clearing…'; }
+  try{
+    const r=await fetch(F+'/video-prune',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET,clip_status:['timeout','failed','error']})});
+    const d=await r.json();
+    if(d&&d.ok){ loadJobs(); } else { if(btn){btn.disabled=false;btn.textContent='🧹 Clear all timed-out';} alert('Could not clear — '+((d&&d.error)||'try again')); }
+  }catch(e){ if(btn){btn.disabled=false;btn.textContent='🧹 Clear all timed-out';} alert('Network hiccup — try again.'); }
 }
 
 // ---- the queue ----
