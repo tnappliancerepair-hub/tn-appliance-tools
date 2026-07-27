@@ -60,17 +60,18 @@ function render(d){
     +(o.distributor?'<div class="muted">'+esc(o.distributor)+'</div>':'')
     +'</div>';
   var body='';
-  var labels=(d.labels||[]).filter(function(l){return l.has_pdf;});
-  var noPdf=(d.labels||[]).filter(function(l){return !l.has_pdf;});
-  if(labels.length){
-    body+=labels.map(function(l){
-      return '<div class="card"><div class="lbl">Return label'+(l.rma?' · RMA '+esc(l.rma):'')+'</div>'
-        +'<a class="print" href="'+esc(l.pdf_url)+'" target="_blank" rel="noopener">📄 Open &amp; print label</a>'
+  var withLink=(d.labels||[]).filter(function(l){return l.has_label;});
+  var noLink=(d.labels||[]).filter(function(l){return !l.has_label;});
+  if(withLink.length){
+    body+=withLink.map(function(l){
+      return '<div class="card"><div class="lbl">Return label'+(l.rma?' · RMA '+esc(l.rma):'')+(l.claim?' · claim '+esc(l.claim):'')+'</div>'
+        +'<a class="print" href="'+esc(l.label_url)+'" target="_blank" rel="noopener">📄 Print this label</a>'
         +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div></div>';
     }).join('');
-  } else if(noPdf.length){
-    body+='<div class="warn">Found the RMA email'+(noPdf[0].rma?' (RMA '+esc(noPdf[0].rma)+')':'')+' but no printable PDF attached. Open it in Gmail:</div>'
-      +noPdf.map(function(l){return '<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ '+esc(l.subject||'open the email')+'</a></div>';}).join('');
+    if(noLink.length) body+='<div class="muted" style="margin-top:8px">('+noLink.length+' more RMA email(s) matched — tap ✉️ if the label above isn’t the right part.)</div>';
+  } else if(noLink.length){
+    body+='<div class="warn">Found the RMA email'+(noLink[0].rma?' (RMA '+esc(noLink[0].rma)+')':'')+' but couldn’t grab the print link. Open it in Gmail:</div>'
+      +noLink.map(function(l){return '<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ '+esc(l.subject||'open the email')+'</a></div>';}).join('');
   } else {
     body+='<div class="warn">No return label found for this box yet — it may not have been issued.'
       +(d.gmail_search?' <a class="ghost" href="'+esc(d.gmail_search)+'" target="_blank" rel="noopener">🔎 search Gmail</a>':'')+'</div>';
