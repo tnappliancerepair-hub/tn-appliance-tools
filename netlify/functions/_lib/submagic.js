@@ -35,16 +35,24 @@ async function req(method, path, body) {
 // on purpose (stock B-roll reads generic; the moat is the REAL tech on camera).
 async function createProject(opts) {
   opts = opts || {};
+  // Core fields = captions + hook + reframe, which every Submagic plan supports.
   const body = {
     title: String(opts.title || 'TN Appliance').slice(0, 100),
     language: opts.language || 'en',
     videoUrl: opts.videoUrl,
     templateName: opts.template || DEFAULT_TEMPLATE,
-    magicZooms: opts.magicZooms !== false,       // punchy auto-zooms
-    cleanAudio: opts.cleanAudio !== false,       // kill kitchen/shop background noise
-    removeSilencePace: opts.pace || 'natural',   // tighten dead air, keep it human
     autoRender: true,                            // render the moment transcription finishes
   };
+  // Premium enhancement flags (magic zooms, clean audio, remove-silence) are plan-gated —
+  // sending them on a lower plan makes Submagic reject the whole create with VALIDATION_ERROR
+  // ("… requires a higher plan"). Off by default; flip SUBMAGIC_PREMIUM=1 in the vault once
+  // the plan supports them. Captioning still works fully without them.
+  const premium = String((await getSecretPreferVault('SUBMAGIC_PREMIUM')) || '').toLowerCase();
+  if (premium === '1' || premium === 'true') {
+    body.magicZooms = opts.magicZooms !== false;
+    body.cleanAudio = opts.cleanAudio !== false;
+    body.removeSilencePace = opts.pace || 'natural';
+  }
   if (opts.hook) body.hookTitle = { text: String(opts.hook).slice(0, 90), top: 12, size: 34 };
   if (opts.webhookUrl) body.webhookUrl = opts.webhookUrl;
   if (opts.dictionary && opts.dictionary.length) body.dictionary = opts.dictionary.slice(0, 100);
