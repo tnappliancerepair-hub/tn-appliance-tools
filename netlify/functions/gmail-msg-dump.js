@@ -1,0 +1,33 @@
+// gmail-msg-dump — owner-gated: dump ONE Gmail message's structure so we can see how a
+// return label is actually delivered (PDF attachment vs inline image vs a print link).
+//   GET ?secret=<admin>&id=<messageId>
+'use strict';
+const { getSecret } = require('./_lib/secrets');
+function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
+function b64d(s) { try { return Buffer.from(String(s || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch (_) { return ''; } }
+
+exports.handler = async function (event) {
+  const q = event.queryStringParameters || {};
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  if (q.secret !== admin) return json(401, { error: 'unauthorized' });
+  if (!q.id) return json(400, { error: 'pass ?id=' });
+  const { google } = require('googleapis');
+  const o = new google.auth.OAuth2(process.env.GMAIL_CLIENT_ID, process.env.GMAIL_CLIENT_SECRET);
+  o.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
+  const gmail = google.gmail({ version: 'v1', auth: o });
+  const full = await gmail.users.messages.get({ userId: 'me', id: q.id, format: 'full' });
+  const hdrs = (full.data.payload.headers || []);
+  const subject = (hdrs.find((h) => h.name.toLowerCase() === 'subject') || {}).value || '';
+  const parts = [];
+  let text = '';
+  (function walk(p, path) {
+    if (!p) return;
+    parts.push({ path, mimeType: p.mimeType, filename: p.filename || '', hasAttachment: !!(p.body && p.body.attachmentId), size: (p.body && p.body.size) || 0 });
+    const mt = (p.mimeType || '').toLowerCase();
+    if ((mt === 'text/plain' || mt === 'text/html') && p.body && p.body.data && text.length < 8000) text += '\n\n[' + mt + ']\n' + b64d(p.body.data);
+    if (p.parts) p.parts.forEach((c, i) => walk(c, path + '.' + i));
+  })(full.data.payload, '0');
+  // pull any hrefs / print-label links out of the body
+  const links = [...new Set((text.match(/https?:\/\/[^\s"'<>)]+/g) || []))].filter((u) => /label|fedex|rma|print|return|ship|track|pdf/i.test(u)).slice(0, 20);
+  return json(200, { subject, parts, links, body_preview: text.slice(0, 3000) });
+};
