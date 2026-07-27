@@ -790,8 +790,10 @@ async function hydrateStreamVideos() {
       card.innerHTML = cfStreamMsg('🔒', 'Signed playback required', 'This clip is set to require signed URLs, so it can\'t embed here. Turn that off in Cloudflare Stream, or have the customer re-send it.', uid);
     } else if (v.ready) {
       card.innerHTML = cfStreamPlayer(uid);
-    } else if (v.state === 'error' || v.state === 'not_found') {
-      card.innerHTML = cfStreamMsg('⚠️', 'Video didn\'t finish uploading', (v.reason || 'The customer likely lost signal mid-upload.') + ' Text them the link and ask them to re-send it.', uid);
+    } else if (v.state === 'error' || v.state === 'not_found' || v.state === 'pendingupload') {
+      // pendingupload = Cloudflare made the slot but never got all the bytes (customer
+      // lost signal / closed the app). It will NEVER finish on its own — re-send, don't wait.
+      card.innerHTML = cfStreamMsg('⚠️', 'Video didn\'t finish uploading', (v.reason || 'The customer lost signal mid-upload, so it never came through.') + ' Text them the link and ask them to re-send it.', uid);
     } else {
       var pct = (v.pct != null) ? (' (' + Math.round(v.pct) + '%)') : '';
       card.innerHTML = cfStreamMsg('⏳', 'Still processing' + pct, 'Cloudflare is still encoding this one — check back in a minute, then tap Retry.', uid);
