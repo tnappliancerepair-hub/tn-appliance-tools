@@ -78,12 +78,12 @@ exports.handler = async function (event) {
     : (cust ? `https://mail.google.com/mail/u/0/#search/${encodeURIComponent('from:rma_request@squaretrade.com ' + cust)}` : '');
   if (!msgs.length) return json(200, { ok: true, ocr, labels: [], gmail_search, note: 'No RMA label email found for this box yet — it may not have been issued. Check the Gmail search, or the SquareTrade portal.' });
 
-  // 3) Pull the PRINT MY LABEL link from each.
-  let labels = [];
-  for (const msg of msgs.slice(0, 8)) {
+  // 3) Pull the PRINT MY LABEL link from each (in parallel, capped, so we stay well
+  //    under the sync timeout even on a cold start).
+  let labels = await Promise.all(msgs.slice(0, 4).map(async (msg) => {
     const info = await labelFromMessage(gmail, msg.id);
-    labels.push({ rma: info.rma, claim: info.claim, subject: info.subject, label_url: info.label_url, has_label: !!info.label_url, gmail_link: `https://mail.google.com/mail/u/0/#search/rfc822msgid:${msg.id}`, email_id: msg.id });
-  }
+    return { rma: info.rma, claim: info.claim, subject: info.subject, label_url: info.label_url, has_label: !!info.label_url, gmail_link: `https://mail.google.com/mail/u/0/#search/rfc822msgid:${msg.id}`, email_id: msg.id };
+  }));
   // If we OCR'd a claim, put exact-claim matches first (customer-name search can pull neighbors).
   if (claim) labels.sort((a, c) => ((c.claim === claim) - (a.claim === claim)) || (c.has_label - a.has_label));
   else labels.sort((a, c) => (c.has_label - a.has_label));

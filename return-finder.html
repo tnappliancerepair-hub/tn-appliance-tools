@@ -41,7 +41,7 @@ cam.addEventListener('change', async function(){
   var f=this.files && this.files[0]; if(!f) return;
   out.innerHTML=''; spin.style.display='block'; shoot.style.display='none';
   try {
-    var b64=await downscale(f, 1400, 0.72);
+    var b64=await downscale(f, 2000, 0.78);
     var r=await fetch(F+'/return-label-find',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET, image_b64:b64})});
     var d=await r.json();
     render(d);
