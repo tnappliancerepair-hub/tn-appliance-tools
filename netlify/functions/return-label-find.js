@@ -30,7 +30,9 @@ const normPart = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 async function labelFromMessage(gmail, id) {
   try {
     const full = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
-    const subject = ((full.data.payload.headers || []).find((h) => h.name.toLowerCase() === 'subject') || {}).value || '';
+    const hdrs = full.data.payload.headers || [];
+    const subject = (hdrs.find((h) => h.name.toLowerCase() === 'subject') || {}).value || '';
+    const messageId = ((hdrs.find((h) => h.name.toLowerCase() === 'message-id') || {}).value || '').replace(/[<>]/g, '').trim();
     let html = '';
     (function walk(p) { if (!p) return; const mt = (p.mimeType || '').toLowerCase(); if ((mt === 'text/html' || mt === 'text/plain') && p.body && p.body.data) html += b64d(p.body.data); if (p.parts) p.parts.forEach(walk); })(full.data.payload);
     // find the anchor whose visible text is (or contains) PRINT ... LABEL
@@ -49,6 +51,7 @@ async function labelFromMessage(gmail, id) {
     const claimM = /Claim\s*Number:\s*([0-9]{8,})/i.exec(body) || /claim[^0-9]*([0-9]{8,})/i.exec(subject);
     return {
       subject,
+      message_id: messageId,
       label_url: labelUrl,
       rma: rmaM ? rmaM[1] : '',
       claim: claimM ? claimM[1] : '',
@@ -58,7 +61,16 @@ async function labelFromMessage(gmail, id) {
       fedex_tracking: pick(/FedEx\s*tracking\s*#?\s*is\s*([0-9]{8,})/i),
       customer_name: pick(/Customer\s*Name:\s*([A-Za-z ,.'-]+?)\s+Claim\s*Number/i),
     };
-  } catch (_) { return { subject: '', label_url: '', rma: '', claim: '', part_number: '', distributor: '', return_desc: '', fedex_tracking: '', customer_name: '' }; }
+  } catch (_) { return { subject: '', message_id: '', label_url: '', rma: '', claim: '', part_number: '', distributor: '', return_desc: '', fedex_tracking: '', customer_name: '' }; }
+}
+
+// A Gmail deep-link that ACTUALLY opens the message. rfc822msgid: needs the real
+// Message-ID header (not Gmail's API id — that was the "random empty search" bug).
+// Falls back to #all/<apiId>, which Gmail also resolves by internal id.
+const GMAIL_ACCT = 'tnappliancerepair@gmail.com';
+function gmailOpenLink(apiId, messageId) {
+  if (messageId) return `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent('rfc822msgid:' + messageId)}`;
+  return `https://mail.google.com/mail/u/${GMAIL_ACCT}/#all/${apiId}`;
 }
 
 exports.handler = async function (event) {
@@ -114,8 +126,8 @@ exports.handler = async function (event) {
   for (let i = 0; i < queries.length; i++) {
     try { const list = await gmail.users.messages.list({ userId: 'me', q: queries[i], maxResults: 10 }); if (list.data.messages && list.data.messages.length) { msgs = list.data.messages; via = i === 0 ? 'claim' : 'customer'; break; } } catch (_) {}
   }
-  const gmail_search = claim ? `https://mail.google.com/mail/u/0/#search/${encodeURIComponent('from:rma_request@squaretrade.com ' + claim)}`
-    : (cust ? `https://mail.google.com/mail/u/0/#search/${encodeURIComponent('from:rma_request@squaretrade.com ' + cust)}` : '');
+  const gmail_search = claim ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent('from:rma_request@squaretrade.com ' + claim)}`
+    : (cust ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent('from:rma_request@squaretrade.com ' + cust)}` : '');
   if (!msgs.length) return json(200, { ok: true, ocr, labels: [], gmail_search, note: 'No RMA label email found for this box yet — it may not have been issued. Check the Gmail search, or the SquareTrade portal.' });
 
   // 3) Pull the PRINT MY LABEL link + the part each is for (in parallel, capped
@@ -131,7 +143,7 @@ exports.handler = async function (event) {
       fedex_tracking: info.fedex_tracking,
       part_match,
       label_url: info.label_url, has_label: !!info.label_url,
-      gmail_link: `https://mail.google.com/mail/u/0/#search/rfc822msgid:${msg.id}`, email_id: msg.id,
+      gmail_link: gmailOpenLink(msg.id, info.message_id), email_id: msg.id,
     };
   }));
   // Rank: the label for THIS box's part first, then exact-claim, then has-a-link.
