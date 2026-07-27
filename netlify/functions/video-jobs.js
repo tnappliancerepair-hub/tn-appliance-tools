@@ -44,6 +44,12 @@ exports.handler = async function (event) {
     if (!s3) return null;
     try { return await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentDisposition: 'inline' }), { expiresIn: 3600 }); } catch (_) { return null; }
   }
+  // A saved poster/thumbnail image (JPG in S3) — the still that shows what's in the
+  // clip without playing it. Signed for 7 days (it's stable, re-signs each load).
+  async function posterPreview(key) {
+    if (!s3) return null;
+    try { return await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key, ResponseContentDisposition: 'inline' }), { expiresIn: 7 * 24 * 3600 }); } catch (_) { return null; }
+  }
 
   const jobs = [];
   for (const j of queue.slice().reverse().slice(0, 60)) {
@@ -57,9 +63,14 @@ exports.handler = async function (event) {
       status: j.status, download_url: dl, hosted: goodHost,
       source: j.source || 'upload', viral_score: j.viral_score || null,
       raw_preview: j.s3_key ? await rawPreview(j.s3_key) : null,
+      poster_url: j.poster_key ? await posterPreview(j.poster_key) : null,
       created_ms: j.created_ms, ready_ms: j.ready_ms || null, posted: j.posted || {},
       enriched: !!j.enriched, hooks: j.hooks || null, hook_middle: j.hook_middle || null,
       hook_payoff: j.hook_payoff || null, hook_notes: j.hook_notes || null, seo: j.seo || null,
+      // Content Engine (Phase 1) grounded fields so the cockpit can surface them.
+      on_screen_hook: j.on_screen_hook || null, hook_formats: j.hook_formats || null, proof_line: j.proof_line || null,
+      series: j.series || null, appliance: j.appliance || null, brand: j.brand || null, model: j.model || null, symptom: j.symptom || null,
+      facts: j.facts || null, title_suggestions: j.title_suggestions || null,
     });
   }
   // Kick off re-hosting for any ready clip not yet faststart-hosted (fire-and-forget).

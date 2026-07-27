@@ -305,17 +305,20 @@ function proxSrc(j){ return F+'/video-proxy?secret='+encodeURIComponent(SECRET)+
 function player(j){
   // hosted clips play natively from S3; un-hosted (still re-hosting) use the proxy.
   const base = j.hosted ? esc(j.download_url) : proxSrc(j);
-  // #t=0.5 makes the browser render the frame at 0.5s as a PREVIEW (faststart keeps it cheap)
   const src = base + (base.indexOf('#')>=0 ? '' : '#t=0.5');
   const note = j.hosted ? '' : '<div class="muted" style="font-size:12px;margin-top:4px">⏳ optimizing this clip for smooth playback — refresh in a moment</div>';
-  // LAZY MOUNT: a phone can only load a few videos at once. We render a light
-  // placeholder and only mount the real <video> when it scrolls into view (or is
-  // tapped) — so the page never chokes and each in-view clip shows a real frame.
-  return '<div class="vlazy" data-src="'+src+'" onclick="mountOne(this)" '
-    +'style="position:relative;width:100%;min-height:230px;max-height:430px;aspect-ratio:9/16;margin-top:10px;'
-    +'background:radial-gradient(circle at 50% 40%,#1b1b1b,#0a0a0a);border:1px solid #2a2a2a;border-radius:12px;'
-    +'display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden">'
-    +'<div style="text-align:center;padding:0 14px"><div style="font-size:42px;line-height:1;color:#e9c46a">▶</div><div class="muted" style="font-size:13px;margin-top:8px">Tap to play</div></div></div>'
+  // A saved poster IMAGE shows what's in the clip at a glance — no video load needed.
+  const poster = j.poster_url ? esc(j.poster_url) : '';
+  const bg = poster
+    ? "background:#000 center/contain no-repeat url('"+poster+"')"
+    : 'background:radial-gradient(circle at 50% 40%,#1b1b1b,#0a0a0a)';
+  const overlay = poster
+    ? '<div style="width:58px;height:58px;border-radius:50%;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center"><span style="font-size:26px;color:#fff;margin-left:4px">▶</span></div>'
+    : '<div style="text-align:center;padding:0 14px"><div style="font-size:42px;line-height:1;color:#e9c46a">▶</div><div class="muted" style="font-size:13px;margin-top:8px" id="pmsg-'+esc(String(j.id))+'">Tap to play</div></div>';
+  return '<div class="vlazy" data-src="'+src+'" data-jobid="'+esc(String(j.id))+'" onclick="mountOne(this)" '
+    +'style="position:relative;width:100%;min-height:230px;max-height:430px;aspect-ratio:9/16;margin-top:10px;'+bg+';'
+    +'border:1px solid #2a2a2a;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden">'
+    +overlay+'</div>'
     +note+'<div style="margin-top:4px"><a href="'+esc(j.download_url||'#')+'" target="_blank" class="muted" style="font-size:12px">▶ Open the clip ↗</a></div>'; }
 function mountVideo(el){
   if(!el||el.dataset.mounted) return;
@@ -341,12 +344,67 @@ async function delClip(id,btn){
     else { if(btn){btn.disabled=false;btn.textContent='🗑 Delete clip';} alert('Could not delete — '+((d&&d.error)||'try again')); }
   }catch(e){ if(btn){btn.disabled=false;btn.textContent='🗑 Delete clip';} alert('Network hiccup — try again.'); }
 }
-let _vio;
-function observeLazy(){
-  // Clips stay as clean gold "▶ Tap to play" cards and only load the real video when
-  // TAPPED (mountOne). Auto-mounting many videos on a phone painted black boxes for
-  // clips whose poster frame didn't decode — this keeps every card clean + readable
-  // so you can tell them apart to pick or delete. (Teddy feedback 2026-07-26.)
+function observeLazy(){ posterizeSoon(); }
+
+// ---- auto poster/thumbnail: grab a still so you can SEE what's in each clip ----
+// One at a time (never many videos at once — that's what painted black boxes). We pull
+// a frame off a hidden muted video via the CORS-enabled proxy, show it instantly, and
+// save it to S3 so it's a cheap <img> forever after.
+let _postering=false;
+function posterizeSoon(){ if(_postering) return; setTimeout(posterizeNext, 400); }
+async function uploadBlob(blob, key, mime){
+  const pre=await jpost('s3-presign',{s3_key:key,mime_type:mime});
+  if(!pre||!pre.upload_url) throw new Error('no presign');
+  const put=await fetch(pre.upload_url,{method:'PUT',headers:{'Content-Type':mime},body:blob});
+  if(!put.ok) throw new Error('put '+put.status);
+}
+function grabPoster(j){
+  return new Promise(function(resolve){
+    var v=document.createElement('video');
+    v.crossOrigin='anonymous'; v.muted=true; v.playsInline=true; v.preload='auto';
+    v.setAttribute('webkit-playsinline',''); v.src=proxSrc(j);
+    v.style.cssText='position:fixed;left:-9999px;top:0;width:180px;height:auto;opacity:0.01;pointer-events:none';
+    document.body.appendChild(v);
+    var done=false;
+    function cleanup(){ try{ v.pause(); }catch(_){}; try{ v.removeAttribute('src'); v.load(); }catch(_){}; try{ document.body.removeChild(v); }catch(_){}; }
+    function finish(blob){ if(done) return; done=true; cleanup(); resolve(blob||null); }
+    function grab(){
+      if(done) return;
+      try{
+        var w=v.videoWidth, h=v.videoHeight; if(!w||!h){ return; }
+        var c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(v,0,0,w,h);
+        c.toBlob(function(blob){ finish(blob); },'image/jpeg',0.72);
+      }catch(e){ finish(null); } // tainted canvas / decode fail -> give up gracefully
+    }
+    v.addEventListener('loadeddata',function(){ try{ v.currentTime=Math.min(1,(v.duration||3)*0.25); }catch(_){ grab(); } });
+    v.addEventListener('seeked', grab);
+    v.addEventListener('error', function(){ finish(null); });
+    v.play().then(function(){ try{ v.pause(); }catch(_){} }).catch(function(){});
+    setTimeout(function(){ if(!done){ grab(); setTimeout(function(){ finish(null); },500); } }, 6500);
+  });
+}
+async function posterizeNext(){
+  if(_postering) return;
+  var jobs=window._jobs||[];
+  var j=jobs.find(function(x){ return x.status==='ready' && x.download_url && !x.poster_url && !x._posterTried; });
+  if(!j) return;
+  _postering=true; j._posterTried=true;
+  try{
+    var blob=await grabPoster(j);
+    if(blob){
+      j.poster_url=URL.createObjectURL(blob);   // show it instantly
+      var card=render(); void card;
+      // persist to S3 so next visit it's a cheap image (no re-capture)
+      try{
+        var key='social/posters/'+String(j.id).replace(/[^0-9a-zA-Z_-]/g,'')+'-'+Date.now()+'.jpg';
+        await uploadBlob(blob,key,'image/jpeg');
+        await jpost('video-poster',{job_id:String(j.id),poster_key:key});
+      }catch(_){}
+    }
+  }catch(_){}
+  _postering=false;
+  setTimeout(posterizeNext, 300); // move to the next clip
 }
 function jobCard(j){
   const pill='<span class="pill p-'+esc(j.status)+'">'+esc(j.status)+'</span>';
