@@ -56,7 +56,7 @@ exports.handler = async function (event) {
   const limit = b.limit ? Number(b.limit) : 0;
 
   let open = [];
-  try { open = await loadOpenReturns({ max: 600 }); } catch (_) {}
+  try { const res = await loadOpenReturns({ max: 600 }); open = (res && res.returns) || []; } catch (_) {}
   if (distFilter) open = open.filter((o) => String(o.distributor || '').toUpperCase() === distFilter);
   if (techFilter) open = open.filter((o) => Number(o.tech_id) === techFilter);
   // most-urgent first (soonest due), then by distributor so batches are tidy
