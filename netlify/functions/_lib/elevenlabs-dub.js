@@ -10,11 +10,6 @@ const API = 'https://api.elevenlabs.io/v1';
 
 async function key() { return getSecretPreferVault('ELEVENLABS_API_KEY'); }
 async function configured() { return !!(await key()); }
-// A watermark-free dub is plan-gated (Starter+). On the free/base plan, asking for
-// watermark:false makes ElevenLabs reject the whole create. Default: let it dub WITH
-// the watermark (works everywhere). Flip ELEVENLABS_NO_WATERMARK=1 in the vault once
-// the plan is Starter+ to drop the watermark.
-async function noWatermark() { const v = String((await getSecretPreferVault('ELEVENLABS_NO_WATERMARK')) || '').toLowerCase(); return v === '1' || v === 'true'; }
 
 async function createDub(opts) {
   const k = await key();
@@ -24,7 +19,10 @@ async function createDub(opts) {
   fd.append('target_lang', opts.target_lang || 'es');
   if (opts.source_lang) fd.append('source_lang', opts.source_lang);
   fd.append('num_speakers', '0');       // auto-detect
-  if (await noWatermark()) fd.append('watermark', 'false');   // plan-gated; omit on free -> watermarked dub still succeeds
+  // NB: do NOT send watermark:false — it's a Starter+ feature and rejects the whole
+  // create on the base plan ("Dubbing without a watermark is only available for
+  // Starter+ users"). Dub WITH the watermark (works on every plan). Re-add the opt-out
+  // only when the plan supports it.
   if (opts.name) fd.append('name', String(opts.name).slice(0, 80));
   try {
     const r = await fetch(`${API}/dubbing`, { method: 'POST', headers: { 'xi-api-key': k }, body: fd });

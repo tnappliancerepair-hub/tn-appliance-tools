@@ -38,6 +38,20 @@ export default async (req) => {
     credentials: { accessKeyId: process.env.TN_AWS_ACCESS_KEY_ID, secretAccessKey: process.env.TN_AWS_SECRET_ACCESS_KEY },
   });
 
+  // Redirect mode (m=r): 302 to a fresh S3 presigned GET URL. Used by ingesters that
+  // need a real Content-Length up front (Vizard) — S3 supplies it on its own GET, and
+  // the download goes straight from S3 (no Netlify size/time limit on huge ride-alongs).
+  if (url.searchParams.get('m') === 'r') {
+    try {
+      const loc = await getSignedUrl(s3, new GetObjectCommand({
+        Bucket: bucket, Key: key,
+        ResponseContentType: 'video/mp4',
+        ResponseContentDisposition: 'inline; filename="clip.mp4"',
+      }), { expiresIn: 12 * 3600 });
+      return new Response(null, { status: 302, headers: { Location: loc } });
+    } catch (e) { return new Response('not_found', { status: 404 }); }
+  }
+
   const range = req.headers.get('range') || undefined;
   let obj;
   try {

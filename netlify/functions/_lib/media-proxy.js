@@ -18,11 +18,18 @@ function signToken(key, expMs, secret) {
 // `ext`; it errors 4006 on an extension-less URL) see ".mp4". Netlify routes the
 // subpath to the function and the k/e/t query params are preserved. The HMAC signs
 // key+expiry (not the path), so the token still validates.
-function buildProxyUrl(key, secret, ttlMs) {
+//
+// opts.redirect=true adds &m=r: the proxy 302-redirects to a fresh S3 presigned URL
+// instead of streaming. Use this for ingesters that need a real Content-Length up
+// front (Vizard errors 4005 "0 Bytes" off a chunked/streamed response — S3 supplies
+// Content-Length on its own GET). Submagic can't take a 302, so it uses stream mode.
+function buildProxyUrl(key, secret, ttlMs, opts) {
+  opts = opts || {};
   const exp = Date.now() + (ttlMs || 6 * 3600 * 1000);
   const tok = signToken(key, exp, secret);
   return 'https://tnapplianceexchange.net/.netlify/functions/submagic-media/clip.mp4'
-    + '?k=' + encodeURIComponent(key) + '&e=' + exp + '&t=' + tok;
+    + '?k=' + encodeURIComponent(key) + '&e=' + exp + '&t=' + tok
+    + (opts.redirect ? '&m=r' : '');
 }
 
 module.exports = { signToken, buildProxyUrl };

@@ -34,9 +34,10 @@ exports.handler = async function (event) {
     videoType = parseInt(b.video_type, 10) || 1;   // 1 remote mp4, 2 YouTube, 11 Facebook
   } else if (s3_key) {
     if (!process.env.TN_AWS_S3_BUCKET) return json(500, { error: 's3_not_configured' });
-    // HEAD-able proxy URL (not a raw S3 presigned GET URL) so Vizard's source validation
-    // passes — same reason as submagic-media (GET-presigned URLs 403 on HEAD). 12h TTL.
-    videoUrl = buildProxyUrl(s3_key, admin, 12 * 3600 * 1000);
+    // Redirect-mode proxy URL: Vizard needs a real Content-Length (a streamed proxy is
+    // chunked -> Vizard reads 0 bytes -> error 4005). m=r 302s to S3, which supplies the
+    // size and serves the full download directly. 12h TTL for long ride-alongs.
+    videoUrl = buildProxyUrl(s3_key, admin, 12 * 3600 * 1000, { redirect: true });
   } else {
     return json(400, { error: 's3_key or video_url required' });
   }
