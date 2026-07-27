@@ -130,7 +130,7 @@ exports.handler = async function (event) {
     try { if (await require('./_lib/intake-cap').overCap(jobId)) { skipped.push({ job: jobId, why: 'intake cap (2) reached' }); continue; } } catch (_) {}
 
     const isW = !!String(jd.warranty_company || '').trim() || String(jd.customer_type || '').toLowerCase() === 'warranty';
-    const first = jd.customer_first_name || (jd.customer && jd.customer.first_name) || 'there';
+    const first = jd.customer_first || jd.customer_first_name || (jd.customer && jd.customer.first_name) || 'there';
     const appl = jd.appliance_type ? (' ' + String(jd.appliance_type).toLowerCase()) : ' appliance';
     const link = isW ? `${SITE}/warranty-intake.html?job_id=${jobId}` : `${SITE}/finish-upload.html?job_id=${jobId}`;
     const msg = isW
