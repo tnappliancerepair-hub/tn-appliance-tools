@@ -24,8 +24,8 @@
   #cam { display:none; }
 </style>
 <body>
-  <h1>📦 Return Label Finder</h1>
-  <div class="sub">Snap the box → get the prepaid label to print.</div>
+  <h1>📦 Return Label Finder <a href="#" onclick="resetPw();return false;" style="float:right;font-size:12px;color:var(--ink2);text-decoration:none;font-weight:400">🔑 password</a></h1>
+  <div class="sub">Snap the box → get the prepaid label to print. If a photo won’t read, type the claim # below.</div>
 
   <button class="big" id="shoot">📷 Take a photo of the box</button>
   <input type="file" id="cam" accept="image/*" capture="environment">
@@ -39,18 +39,27 @@
 <script>
 var F='/.netlify/functions';
 var SECRET = localStorage.getItem('tn_social_secret') || '';
-function need(){ if(SECRET) return true; var s=prompt('Enter admin secret:'); if(!s) return false; SECRET=s.trim(); localStorage.setItem('tn_social_secret',SECRET); return true; }
+function need(){ if(SECRET) return true; var s=prompt('Enter the password:'); if(!s) return false; SECRET=s.trim(); localStorage.setItem('tn_social_secret',SECRET); return true; }
+function resetPw(){ localStorage.removeItem('tn_social_secret'); SECRET=''; if(need()) alert('Saved. Try again.'); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 var shoot=document.getElementById('shoot'), cam=document.getElementById('cam'), out=document.getElementById('out'), spin=document.getElementById('spin');
 
 shoot.addEventListener('click', function(){ if(!need()) return; cam.value=''; cam.click(); });
 
-async function lookup(payload){
+async function lookup(payload,_retried){
+  if(!SECRET && !need()){ shoot.style.display='flex'; return; }
   out.innerHTML=''; spin.style.display='block'; shoot.style.display='none';
   try {
     var r=await fetch(F+'/return-label-find',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({secret:SECRET},payload))});
+    if(r.status===401){
+      spin.style.display='none';
+      localStorage.removeItem('tn_social_secret'); SECRET='';
+      if(!_retried && need()) return lookup(payload,true);   // wrong password → re-enter → retry once
+      out.innerHTML='<div class="warn">Password wasn’t right. Tap “🔑 password” up top and enter it again.</div>';
+      shoot.style.display='flex'; return;
+    }
     render(await r.json());
-  } catch(e){ out.innerHTML='<div class="warn">Something hiccuped — try again.</div>'; }
+  } catch(e){ out.innerHTML='<div class="warn">Network hiccup — check signal and try again.</div><button class="big grn" style="margin-top:12px" onclick="reset()">↻ Try again</button>'; }
   spin.style.display='none';
 }
 document.getElementById('find').addEventListener('click', function(){
@@ -122,8 +131,11 @@ function render(d){
     body+='<div class="warn">Found the RMA email'+(noLink[0].rma?' (RMA '+esc(noLink[0].rma)+')':'')+' but couldn’t grab the print link. Open it in Gmail:</div>'
       +noLink.map(function(l){return '<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ '+esc(l.subject||'open the email')+'</a></div>';}).join('');
   } else {
-    body+='<div class="warn">No return label found for this box yet — it may not have been issued.'
-      +(d.gmail_search?' <a class="ghost" href="'+esc(d.gmail_search)+'" target="_blank" rel="noopener">🔎 search Gmail</a>':'')+'</div>';
+    var msg = d.note || 'No return label found for this box yet — it may not have been issued.';
+    body+='<div class="warn">'+esc(msg)+'</div>'
+      +'<div style="margin-top:10px" class="muted">👇 Type the <b>claim #</b> off the paperwork (add the part # if it’s a multi-part claim):</div>'
+      +(d.gmail_search?'<div style="text-align:center;margin-top:8px"><a class="ghost" href="'+esc(d.gmail_search)+'" target="_blank" rel="noopener">🔎 search Gmail</a></div>':'');
+    setTimeout(function(){ var t=document.getElementById('typed'); if(t){ t.focus(); t.scrollIntoView({block:'center'}); } },60);
   }
   out.innerHTML=head+body+again;
 }
