@@ -72,6 +72,16 @@
 [functions."scorecard-digest"]
   schedule = "0 * * * *"
 
+# video-resend-sweep — self-heal for failure videos that never made it to Cloudflare
+# (customer lost signal mid-upload, leaving a dead 'pendingupload'/error/not_found clip
+# that shows as a black box in the tools). Verifies every recently-minted video against
+# Cloudflare, and texts the customer their intake link to re-send — before Teddy/Danielle
+# ever open the job. Skips jobs that already have a ready video; respects opt-out, quiet
+# hours (self-gates 9a-8p CT), the 2-text intake cap, and a 24h / max-2 resend limit.
+# Kill switch: vault VIDEO_RESEND_SWEEP=false.
+[functions."video-resend-sweep"]
+  schedule = "31 * * * *"
+
 # multi-machine-watch — an AHS multi-item claim (e.g. washer + dryer + cooktop on
 # one dispatch) only creates ONE machine at intake; the others get stranded in the
 # problem text with no TDR/warranty. This sweeps recent warranty jobs, detects the
