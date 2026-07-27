@@ -1837,11 +1837,24 @@ async function delAtt(ev, attId){
   }catch(e){ toast('⚠ delete failed — check signal'); }
 }
 
-// Tap a video poster → swap in the Cloudflare Stream player and play it inline.
-function playStream(ev, el, uid){
+// Tap a video poster → check its real Cloudflare state, then play it inline (ready) or
+// show the honest reason (still processing / didn't finish uploading) instead of the
+// scary black "An unknown error occurred" iframe. Falls back to the player if status
+// can't be read (never worse than before).
+async function playStream(ev, el, uid){
   if(ev){ ev.preventDefault(); ev.stopPropagation(); }
-  el.outerHTML='<div style="position:relative;aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden">'
-    +'<iframe src="https://iframe.cloudflarestream.com/'+uid+'?autoplay=true&preload=metadata" style="width:100%;height:100%;border:0" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe></div>';
+  const u=String(uid).replace(/[^0-9a-zA-Z]/g,'');
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:relative;aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#cbd3e0;font-size:12px;text-align:center';
+  wrap.textContent='⏳ checking…';
+  el.replaceWith(wrap);
+  const player=()=>{ wrap.innerHTML='<iframe src="https://iframe.cloudflarestream.com/'+u+'?autoplay=true&preload=metadata" style="width:100%;height:100%;border:0" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe>'; };
+  const msg=(icon,t,s)=>{ wrap.innerHTML='<div style="padding:14px"><div style="font-size:26px">'+icon+'</div><div style="font-weight:800;color:#fff;font-size:13px;margin-top:4px">'+t+'</div><div style="font-size:11px;color:#9fb0c8;margin-top:3px">'+s+'</div></div>'; };
+  let v=null;
+  try{ const r=await fetch('/.netlify/functions/stream-status?uids='+u,{cache:'no-store'}); const d=await r.json(); v=d&&d.videos&&d.videos[u]; }catch(_){}
+  if(!v || v.ready) player();
+  else if(v.state==='error'||v.state==='not_found'||v.state==='pendingupload') msg('⚠️',"Video didn't finish uploading",'Ask the customer to re-send it.');
+  else msg('⏳','Still processing','Give it a minute, then tap again.');
   return false;
 }
 
