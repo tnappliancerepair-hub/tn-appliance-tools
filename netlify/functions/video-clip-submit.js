@@ -11,6 +11,7 @@ const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const vizard = require('./_lib/vizard');
+const brands = require('./_lib/brands');
 
 const CLIP_KEY = 'VIZARD_CLIP_JOBS';
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o, null, 2) }; }
@@ -59,7 +60,8 @@ exports.handler = async function (event) {
   if (!created.ok) return json(502, { error: 'vizard_create_failed', detail: created.error || created.detail, code: created.code });
 
   const id = Date.now() + '-' + Math.floor(Math.random() * 1e6);
-  const clipJob = { id, s3_key, project_name, content_type, mode, vizard_project_id: created.projectId, status: 'clipping', clip_count: 0, created_ms: Date.now() };
+  const channel = brands.get(b.channel).key;   // which studio brand these clips belong to
+  const clipJob = { id, s3_key, project_name, content_type, channel, mode, vizard_project_id: created.projectId, status: 'clipping', clip_count: 0, created_ms: Date.now() };
   const jobs = await loadJobs();
   jobs.push(clipJob);
   await saveJobs(jobs);

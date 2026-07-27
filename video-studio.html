@@ -53,21 +53,17 @@
     <div id="upmsg" class="muted"></div>
 
     <div id="form" style="display:none">
-      <label>Title (what's this clip?)</label>
+      <label>Channel (brand)</label>
+      <select id="channel"></select>
+      <div id="channelNote" class="muted" style="font-size:12px;margin:4px 0 0"></div>
+      <label style="margin-top:12px">Title (what's this clip?)</label>
       <input type="text" id="title" placeholder="Whirlpool dryer won't heat — fix or not?">
       <div class="row">
         <div style="flex:1;min-width:150px">
           <label>Series (the franchise)</label>
-          <select id="series">
-            <option value="hero">⭐ Hero — you/tech on camera</option>
-            <option value="fix_or_toss">⚖️ Fix or Toss?</option>
-            <option value="what_killed_it">💀 What killed this appliance?</option>
-            <option value="model_to_part">🔎 Model # → the exact part</option>
-            <option value="fault_code">🚨 Fault-code explainer</option>
-            <option value="quick_tip">🔧 Quick tip / how-to</option>
-          </select>
+          <select id="series"></select>
         </div>
-        <div style="flex:1;min-width:110px">
+        <div id="applWrap" style="flex:1;min-width:110px">
           <label>Appliance</label>
           <select id="appliance">
             <option value="">(auto-detect)</option>
@@ -75,7 +71,7 @@
             <option>Dishwasher</option><option>Range/Oven</option><option>Microwave</option>
           </select>
         </div>
-        <div style="flex:1;min-width:110px">
+        <div id="brandWrap" style="flex:1;min-width:110px">
           <label>Brand <span class="muted">(optional)</span></label>
           <input type="text" id="brand" placeholder="Whirlpool">
         </div>
@@ -111,7 +107,9 @@
     <div class="prog" id="lprogWrap" style="display:none"><i id="lprog"></i></div>
     <div id="lupmsg" class="muted"></div>
     <div id="lform" style="display:none">
-      <label>What is this? (names the clips)</label>
+      <label>Channel (brand)</label>
+      <select id="lchannel"></select>
+      <label style="margin-top:12px">What is this? (names the clips)</label>
       <input type="text" id="lname" placeholder="Ride-along with John — Whirlpool fridge">
       <label>Captions</label>
       <select id="lmode">
@@ -142,6 +140,35 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;',
 
 async function jget(url){ const r=await fetch(url,{cache:'no-store'}); if(r.status===401){localStorage.removeItem('tn_social_secret');SECRET='';throw new Error('unauthorized');} return r.json(); }
 async function jpost(fn,body){ const r=await fetch(F+'/'+fn,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET,...body})}); return r.json(); }
+
+// ── Brand layer: one machine, many channels. Mirrors _lib/brands.js. ──
+const BRANDS = {
+  tn_appliance: { label:'⭐ TN Appliance', connected:true, appliance:true,
+    series:[['hero','⭐ Hero — you/tech on camera'],['fix_or_toss','⚖️ Fix or Toss?'],['what_killed_it','💀 What killed this appliance?'],['model_to_part','🔎 Model # → the exact part'],['fault_code','🚨 Fault-code explainer'],['quick_tip','🔧 Quick tip / how-to']] },
+  dish_guy: { label:'🧼 The Dish Guy', connected:false, appliance:false,
+    caption_footer:"The Dish Guy — the smartest man in the room's got his hands in the sink. 🧼\nFollow for the wisdom you didn't ask for.\n\n#TheDishGuy #wisdom #oldschool #dishes",
+    series:[['wisdom_sink','🧼 Wisdom over the sink'],['advice_nobody_asked','🗣️ Advice nobody asked for'],['back_in_my_day','👴 Back in my day'],['ask_dish_guy','💬 Ask the Dish Guy'],['hot_take','🔥 The hot take']] },
+};
+function brandOf(k){ return BRANDS[k] || BRANDS.tn_appliance; }
+function initBrands(){
+  const opts=Object.keys(BRANDS).map(k=>'<option value="'+k+'">'+esc(BRANDS[k].label)+'</option>').join('');
+  const chan=document.getElementById('channel');
+  const lchan=document.getElementById('lchannel');
+  if(lchan) lchan.innerHTML=opts;   // long-video path picks a brand too
+  if(!chan) return;
+  chan.innerHTML=opts;
+  chan.addEventListener('change', syncChannel);
+  syncChannel();
+}
+function syncChannel(){
+  const b=brandOf((document.getElementById('channel')||{}).value);
+  const ser=document.getElementById('series'); if(ser) ser.innerHTML=(b.series||[]).map(s=>'<option value="'+s[0]+'">'+esc(s[1])+'</option>').join('');
+  const aw=document.getElementById('applWrap'), bw=document.getElementById('brandWrap');
+  if(aw) aw.style.display=b.appliance?'':'none';
+  if(bw) bw.style.display=b.appliance?'':'none';
+  const note=document.getElementById('channelNote');
+  if(note) note.innerHTML=b.connected?'':'⚠️ Accounts not connected yet — clips build here, then <b>download &amp; post manually</b>. Give Claude the handles to turn on auto-post.';
+}
 
 async function checkSetup(){
   try{
@@ -186,7 +213,7 @@ document.getElementById('sughook').addEventListener('click', async function(){
   const el=document.getElementById('hooksug');
   if(!t){ el.textContent='Type a title first so Ant knows the clip.'; return; }
   this.disabled=true; const old=this.textContent; this.textContent='Thinking…'; el.textContent='';
-  const r=await jpost('hook-doctor',{ title:t, series:document.getElementById('series').value, appliance:document.getElementById('appliance').value, brand:document.getElementById('brand').value });
+  const r=await jpost('hook-doctor',{ title:t, channel:document.getElementById('channel').value, series:document.getElementById('series').value, appliance:document.getElementById('appliance').value, brand:document.getElementById('brand').value });
   this.disabled=false; this.textContent=old;
   if(r&&r.ok){
     if(r.on_screen_hook) document.getElementById('hook').value=r.on_screen_hook;
@@ -203,7 +230,7 @@ document.getElementById('submit').addEventListener('click', async function(){
   if(!RAW_KEY) return;
   this.disabled=true; const msg=document.getElementById('submsg'); msg.textContent='Sending to the captions engine…';
   const sv=document.getElementById('series').value;
-  const r=await jpost('video-submit',{ s3_key:RAW_KEY, title:document.getElementById('title').value, hook:document.getElementById('hook').value, series:sv, content_type:sv, appliance:document.getElementById('appliance').value, brand:document.getElementById('brand').value, template:document.getElementById('tmpl').value });
+  const r=await jpost('video-submit',{ s3_key:RAW_KEY, channel:document.getElementById('channel').value, title:document.getElementById('title').value, hook:document.getElementById('hook').value, series:sv, content_type:sv, appliance:document.getElementById('appliance').value, brand:document.getElementById('brand').value, template:document.getElementById('tmpl').value });
   this.disabled=false;
   if(r&&r.ok){ msg.innerHTML='✅ Building your short — it\'ll appear in the queue below as <b>Ready</b> in a few minutes.'; RAW_KEY=''; document.getElementById('form').style.display='none'; document.getElementById('file').value=''; document.getElementById('progWrap').style.display='none'; document.getElementById('prog').style.width='0'; document.getElementById('upmsg').textContent=''; loadJobs(); }
   else { msg.textContent='⚠️ '+(r&&(r.error||r.note)||'failed')+(r&&r.detail?(' — '+JSON.stringify(r.detail).slice(0,160)):''); }
@@ -234,7 +261,7 @@ document.getElementById('longfile').addEventListener('change', async function(){
 });
 document.getElementById('lsubmit').addEventListener('click', async function(){
   if(!LONG_KEY) return; this.disabled=true; const m=document.getElementById('lsubmsg'); m.textContent='Sending to the auto-clipper…';
-  const r=await jpost('video-clip-submit',{ s3_key:LONG_KEY, project_name:document.getElementById('lname').value, content_type:'hero', mode:document.getElementById('lmode').value });
+  const r=await jpost('video-clip-submit',{ s3_key:LONG_KEY, channel:document.getElementById('lchannel').value, project_name:document.getElementById('lname').value, content_type:'hero', mode:document.getElementById('lmode').value });
   this.disabled=false;
   if(r&&r.ok){ m.innerHTML='✅ Cutting into shorts — each finished clip appears in the queue below in a few minutes.'; LONG_KEY=''; document.getElementById('lform').style.display='none'; document.getElementById('longfile').value=''; document.getElementById('lprogWrap').style.display='none'; document.getElementById('lprog').style.width='0'; document.getElementById('lupmsg').textContent=''; loadJobs(true); }
   else { m.textContent='⚠️ '+(r&&(r.error||r.note)||'failed'); }
@@ -287,6 +314,13 @@ function suggestCaption(j){
   return (top?top+"\n\n":"")+baseCaption(j);
 }
 function baseCaption(j){
+  // Brand layer: a non-TN-Appliance channel (Dish Guy, etc.) speaks in ITS OWN voice.
+  // Lead with the clip's line, then the channel's own footer — never the TN Appliance CTA.
+  const bc=brandOf(j.channel||'tn_appliance');
+  if(bc && bc.caption_footer){
+    const t=(j.title||'').replace(/\s+/g,' ').trim();
+    return (t?t+"\n\n":"")+bc.caption_footer;
+  }
   // Spanish-dubbed clips get a Spanish caption
   if((j.source||'').indexOf('dub')===0){
     return "😅 Los viejos tiempos en TN Appliance Exchange LLC — reparando electrodomésticos con honestidad desde 2012. Familia, sin rodeos, y estamos en todas partes: Tennessee y Luisiana.\n📞 615-280-2949 · tnapplianceexchange.net\n\n#TNApplianceExchange #reparaciondeelectrodomesticos #electrodomesticos #familia";
@@ -411,14 +445,27 @@ function jobCard(j){
   let body='';
   if(j.status==='ready'){
     const posted=j.posted&&Object.keys(j.posted).length?('<div class="res">'+Object.entries(j.posted).map(([k,v])=>k+': '+(v.ok?'✅':'✗ '+(v.reason||''))).join('  ·  ')+'</div>'):'';
+    const bc=brandOf(j.channel||'tn_appliance');
+    // Distribution: TN Appliance auto-posts everywhere. A DIFFERENT channel whose accounts
+    // aren't connected yet (Dish Guy) shows download + copy-caption so it's posted BY HAND —
+    // it can never land on TN Appliance's accounts.
+    const dist = bc.connected
+      ? ('<div class="row" style="margin:10px 0">'
+          +['facebook','instagram','tiktok','youtube'].map(p=>'<label class="chk"><input type="checkbox" data-p="'+p+'" data-j="'+j.id+'" checked> '+({facebook:'Facebook',instagram:'IG Reel',tiktok:'TikTok draft',youtube:'YouTube'}[p])+'</label>').join('')
+          +'</div>'
+          +'<button class="btn" onclick="postAll(\''+j.id+'\',this)">🚀 Post everywhere</button>'
+          +'<div class="muted" style="margin-top:6px">FB + IG go live · TikTok lands in your drafts · YouTube uploads private (flip to public).</div>')
+      : ('<div style="background:#1a1608;border:1px solid #3a2f0e;border-radius:10px;padding:10px 12px;margin:10px 0">'
+          +'<b style="color:#e9c46a">'+esc(bc.label)+' — post this one by hand</b>'
+          +'<div class="muted" style="font-size:13px;margin-top:4px">These accounts aren\'t connected yet, so this clip <b>won\'t</b> touch TN Appliance\'s accounts. Download it and post to '+esc(bc.label)+'. Give Claude the handles to turn on auto-post.</div>'
+          +'<div class="row" style="margin-top:8px;gap:8px">'
+          +'<a class="btn" href="'+esc(j.download_url||'#')+'" target="_blank" download>⬇ Download clip</a>'
+          +'<button class="btn ghost" onclick="copyCap(\''+j.id+'\',this)">📋 Copy caption</button>'
+          +'</div></div>');
     body=player(j)
       +'<label>Caption</label><textarea id="cap-'+j.id+'">'+esc(suggestCaption(j))+'</textarea>'
       +enrichBlock(j)
-      +'<div class="row" style="margin:10px 0">'
-      +['facebook','instagram','tiktok','youtube'].map(p=>'<label class="chk"><input type="checkbox" data-p="'+p+'" data-j="'+j.id+'" checked> '+({facebook:'Facebook',instagram:'IG Reel',tiktok:'TikTok draft',youtube:'YouTube'}[p])+'</label>').join('')
-      +'</div>'
-      +'<button class="btn" onclick="postAll(\''+j.id+'\',this)">🚀 Post everywhere</button>'
-      +'<div class="muted" style="margin-top:6px">FB + IG go live · TikTok lands in your drafts · YouTube uploads private (flip to public).</div>'
+      +dist
       +'<div class="row" style="margin-top:10px">'
       +'<button class="btn ghost" style="padding:8px 12px" onclick="genHook(\''+j.id+'\',this)">🎣 Hook Doctor</button>'
       +'<button class="btn ghost" style="padding:8px 12px" onclick="dubEs(\''+j.id+'\',this)">🌎 Spanish version</button>'
@@ -461,6 +508,7 @@ function enrichBlock(j){
   return '<details style="margin:4px 0 8px;background:#111;border:1px solid #262626;border-radius:10px;padding:8px 10px"><summary style="cursor:pointer;color:#e9c46a;font-weight:600">✅ Punched up — hooks + SEO ready</summary><div class="muted" style="white-space:normal;margin-top:8px;line-height:1.5">'+h+'</div></details>';
 }
 function copyDesc(btn){ try{ var d=btn.getAttribute('data-d'); navigator.clipboard.writeText(d.replace(/&quot;/g,'"')); btn.textContent='✓ Copied'; setTimeout(function(){btn.textContent='📋 Copy YouTube description';},1500);}catch(_){}}
+function copyCap(id,btn){ try{ var t=(document.getElementById('cap-'+id)||{}).value||''; navigator.clipboard.writeText(t); btn.textContent='✓ Copied'; setTimeout(function(){btn.textContent='📋 Copy caption';},1500);}catch(_){}}
 function render(){ document.getElementById('jobs').innerHTML = window._jobs.length? window._jobs.map(jobCard).join('') : '<div class="muted">No clips yet — upload one above.</div>'; observeLazy(); }
 function reopen(id){ const j=window._jobs.find(x=>String(x.id)===String(id)); if(j){ j.status='ready'; render(); } }
 
@@ -474,7 +522,7 @@ async function genHook(id,btn){
   const j=(window._jobs||[]).find(x=>String(x.id)===String(id)); const el=document.getElementById('hook-'+id);
   const who=prompt('Any character/person in this clip? (Paw, Andre, a customer… leave blank if none)','')||'';
   el.textContent='Doctoring the hook…';
-  const r=await jpost('hook-doctor',{title:(j&&j.title)||'',character:who,series:(j&&(j.series||j.content_type))||'',appliance:(j&&j.appliance)||'',brand:(j&&j.brand)||'',model:(j&&j.model)||'',symptom:(j&&j.symptom)||''});
+  const r=await jpost('hook-doctor',{title:(j&&j.title)||'',character:who,channel:(j&&j.channel)||'tn_appliance',series:(j&&(j.series||j.content_type))||'',appliance:(j&&j.appliance)||'',brand:(j&&j.brand)||'',model:(j&&j.model)||'',symptom:(j&&j.symptom)||''});
   if(r&&r.ok){
     // persist onto the job so the caption + card pick it up
     if(j){ j.on_screen_hook=r.on_screen_hook||j.on_screen_hook; j.hooks=r.hooks||j.hooks; j.hook_formats=r.hook_formats||j.hook_formats; j.proof_line=r.proof_line||j.proof_line; j.hook_middle=r.middle; j.hook_payoff=r.payoff; j.facts=r.facts||j.facts; }
@@ -499,6 +547,10 @@ async function genSeo(id,btn){
   } else el.textContent='⚠️ SEO error: '+(r&&(r.error)||'failed');
 }
 async function postAll(id,btn){
+  // Belt-and-suspenders: never auto-post a channel whose accounts aren't connected —
+  // the auto surfaces are all wired to TN Appliance. (post-everywhere also refuses server-side.)
+  const jj=(window._jobs||[]).find(x=>String(x.id)===String(id)); const bc=brandOf((jj&&jj.channel)||'tn_appliance');
+  if(bc && bc.connected===false){ alert(bc.label+' isn\'t connected yet — download the clip and post it by hand so it never goes to TN Appliance\'s accounts.'); return; }
   btn.disabled=true; btn.textContent='Writing title + posting…';
   const cap=(document.getElementById('cap-'+id)||{}).value||'';
   const plats=[...document.querySelectorAll('input[data-j="'+id+'"]:checked')].map(c=>c.getAttribute('data-p'));
@@ -548,7 +600,7 @@ document.getElementById('loadfb').addEventListener('click',async function(){
   else alert('⚠️ '+(r&&(r.error||r.note)||'failed'));
 });
 
-(function init(){ if(!need()){ document.getElementById('jobs').innerHTML='<div class="muted">Admin secret required.</div>'; return; } checkSetup(); loadJobs(true);
+(function init(){ if(!need()){ document.getElementById('jobs').innerHTML='<div class="muted">Admin secret required.</div>'; return; } initBrands(); checkSetup(); loadJobs(true);
   // auto-refresh while anything is still building
   setInterval(()=>{ const busy=window._jobs.some(j=>j.status!=='ready'&&j.status!=='posted'&&j.status!=='failed')||(window._clipjobs||[]).some(c=>c.status==='clipping'); if(busy) loadJobs(true); }, 20000);
 })();

@@ -52,6 +52,7 @@ exports.handler = async function (event) {
       secret: admin, title, character,
       series: src.series || src.content_type, appliance: src.appliance || '',
       brand: src.brand || '', model: src.model || '', symptom: src.symptom || '',
+      channel: src.channel || 'tn_appliance',
     });
     await sleep(300);
     const seo = await post('youtube-seo', { secret: admin, title, is_long: false });

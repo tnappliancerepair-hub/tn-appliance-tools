@@ -33,6 +33,8 @@ exports.handler = async function (event) {
     content_type: b.content_type, language: b.language, source: 'upload',
     // Content Engine (Phase 1): the series/appliance drive the hook flavor + grounded stat.
     series: b.series, appliance: b.appliance, brand: b.brand, model: b.model, symptom: b.symptom,
+    // Brand layer: which channel this clip belongs to (tn_appliance | dish_guy | ...).
+    channel: b.channel,
   });
   if (!r.ok) return json(502, { error: 'submagic_create_failed', detail: r.error || r.detail });
   return json(200, { ok: true, job: { id: r.job.id, submagic_id: r.job.submagic_id, status: r.job.status, title: r.job.title } });

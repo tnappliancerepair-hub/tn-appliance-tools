@@ -54,6 +54,8 @@ async function enqueueFromVideoUrl(meta) {
     series: meta.series || meta.content_type || 'hero',
     appliance: String(meta.appliance || '').slice(0, 40), brand: String(meta.brand || '').slice(0, 40),
     model: String(meta.model || '').slice(0, 60), symptom: String(meta.symptom || '').slice(0, 160),
+    // Brand layer: the channel this clip belongs to (defaults to tn_appliance).
+    channel: String(meta.channel || 'tn_appliance').slice(0, 24),
     submagic_id: created.id, status: created.status || 'processing',
     download_url: null, created_ms: Date.now(), ready_ms: null, posted: {},
   };
@@ -76,6 +78,9 @@ async function enqueueReady(meta) {
     hook: '', content_type: String(meta.content_type || 'hero').slice(0, 24),
     template: 'vizard', language: 'en', source: meta.source || 'vizard',
     viral_score: meta.viral_score || null, submagic_id: null,
+    // Brand layer: carry the channel so an auto-clipped clip posts to the RIGHT brand
+    // (defaults to tn_appliance). An unconnected channel is gated at post time.
+    channel: String(meta.channel || 'tn_appliance').slice(0, 24),
     status: 'ready', download_url: meta.videoUrl, created_ms: Date.now(), ready_ms: Date.now(), posted: {},
   };
   const q = await loadQueue();

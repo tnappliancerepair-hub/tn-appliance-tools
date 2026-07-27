@@ -100,5 +100,35 @@ compound as every new job is logged.
 3. Brief the crew on the 3 shooting rules: **start mid-action, camera on hands+face
    during the reveal, one idea per clip.**
 
+## Brand layer — one machine, many channels (2026-07-27)
+The Studio is no longer single-brand. A **channel** picker (top of both the single-clip
+and long-video forms) routes each clip to a brand, each with its OWN voice, series, and
+accounts. `_lib/brands.js` is the registry; `channel` rides on every job (distinct from
+`brand`, which is the *appliance* brand like Whirlpool).
+
+- **⭐ TN Appliance** (`tn_appliance`) — the appliance shop. Data-**grounded** hooks (the
+  moat), appliance series (Hero / Fix or Toss / What killed it / Model→part / Fault code /
+  Quick tip), accounts **connected** → "🚀 Post everywhere" auto-posts FB+IG+TikTok+YouTube.
+- **🧼 The Dish Guy** (`dish_guy`) — a **character channel**: the house laborer at the sink
+  who's the smartest, wisest person in the room. A little Archie Bunker, a little George
+  Jefferson — blunt, proud, old-school, funny — but **clean and never punching down** (the
+  comedy is aimed at nonsense/laziness/fakeness, never anyone's identity). Non-grounded
+  (character, not repair data), own series (Wisdom over the sink / Advice nobody asked for /
+  Back in my day / Ask the Dish Guy / Hot take), own caption footer. Accounts **not
+  connected yet** → the Studio shows **⬇ Download + 📋 Copy caption** ("post by hand"); it
+  is hard-blocked from posting so a Dish Guy clip can **never** land on TN Appliance's
+  accounts. Three layers enforce it: the Studio hides "Post everywhere" for unconnected
+  channels, `postAll()` refuses client-side, and `post-everywhere.js` + `video-post.js`
+  both refuse server-side (`channel_not_connected`).
+
+**To turn on auto-post for a new channel:** connect its FB/IG/TikTok/YouTube, wire its
+tokens, then flip `connected: true` in `brands.js`. The Hook Doctor already writes in that
+channel's voice (`hook-doctor.js` picks `brandCfg.personaSystem`).
+
+**Next for Dish Guy:** connect the existing cooking-brand FB + TikTok (need the handles),
+add IG + YouTube, then flip `connected`. Optional: a first batch of 10 Dish Guy hooks.
+
 ## Changelog
 - **2026-07-27** — Doc created. Phase 1 (grounded hook engine + series presets) shipped.
+- **2026-07-27** — Brand layer shipped: multi-channel Studio + "The Dish Guy" voice, with a
+  triple-guarded distribution lock so an unconnected channel can never post to TN's accounts.

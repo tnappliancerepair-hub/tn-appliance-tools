@@ -37,7 +37,7 @@ exports.handler = async function (event) {
     let made = 0;
     for (const clip of r.clips) {
       if (!clip.videoUrl) continue;
-      const meta = { videoUrl: clip.videoUrl, title: clip.title || job.project_name, content_type: job.content_type, source: 'vizard', viral_score: clip.viralScore || null };
+      const meta = { videoUrl: clip.videoUrl, title: clip.title || job.project_name, content_type: job.content_type, source: 'vizard', viral_score: clip.viralScore || null, channel: job.channel || 'tn_appliance' };
       // premium → Submagic captions; default → Vizard already captioned it, straight to ready.
       const eq = premium ? await enqueueFromVideoUrl(meta) : await enqueueReady(meta);
       if (eq.ok) made++;

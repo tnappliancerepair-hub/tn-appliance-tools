@@ -11,6 +11,7 @@
 const { getSecret } = require('./_lib/secrets');
 const { runBrainTurn } = require('./_lib/ant/brain-core');
 const cs = require('./_lib/content-series');
+const brands = require('./_lib/brands');
 
 function parseJson(raw) {
   const cleaned = String(raw || '').replace(/```json/g, '').replace(/```/g, '').trim();
@@ -59,12 +60,23 @@ exports.handler = async function (event) {
   const title = String(b.title || '').trim();
   if (!title) return json(400, { error: 'title required' });
 
-  const series = cs.seriesFor(b.series || b.content_type);
-  const appliance = b.appliance || cs.inferAppliance([title, b.symptom, b.transcript].filter(Boolean).join(' '));
+  // The STUDIO brand (channel): tn_appliance (default) or dish_guy, etc. Each brand
+  // has its own voice + series + whether its hooks are data-grounded. NB: b.brand is
+  // the APPLIANCE brand (e.g. Whirlpool) — the studio brand rides on b.channel.
+  const brandCfg = brands.get(b.channel);
+  const grounded = brandCfg.grounded !== false;
+  const brandSys = brandCfg.personaSystem || SYS;   // per-brand voice, else the appliance Hook Doctor
 
-  // Real shop data (the moat). Use what's passed, else compute best-effort.
-  let facts = b.facts || null;
-  if (!facts) { try { facts = await cs.groundedFacts({ title, appliance, brand: b.brand, model: b.model, symptom: b.symptom }); } catch (_) { facts = { has_stat: false }; } }
+  // Series: brand-specific (Dish Guy segments) or the appliance franchises.
+  const series = brandCfg.series ? brands.seriesFor(brandCfg.key, b.series || b.content_type) : cs.seriesFor(b.series || b.content_type);
+
+  // Grounding is appliance-only (the moat). Character brands (Dish Guy) skip it.
+  const appliance = grounded ? (b.appliance || cs.inferAppliance([title, b.symptom, b.transcript].filter(Boolean).join(' '))) : '';
+  let facts = null;
+  if (grounded) {
+    facts = b.facts || null;
+    if (!facts) { try { facts = await cs.groundedFacts({ title, appliance, brand: b.brand, model: b.model, symptom: b.symptom }); } catch (_) { facts = { has_stat: false }; } }
+  }
 
   const factLines = [];
   if (facts && facts.has_stat) {
@@ -77,17 +89,17 @@ exports.handler = async function (event) {
     'SERIES: ' + series.label + ' — hook flavor: ' + series.hook_flavor,
     'Title pattern for this series: ' + series.title_pattern,
     'Clip topic / title: ' + title,
-    appliance ? 'Appliance: ' + appliance : '',
-    b.brand ? 'Brand: ' + b.brand : '',
-    b.symptom ? 'Symptom/problem: ' + b.symptom : '',
+    (grounded && appliance) ? 'Appliance: ' + appliance : '',
+    (grounded && b.brand) ? 'Brand: ' + b.brand : '',
+    b.symptom ? 'Topic/problem: ' + b.symptom : '',
     b.character ? 'Character/person in the clip: ' + b.character : '',
     b.is_long ? 'Format: long-form video' : 'Format: short vertical clip (Reel/Short/TikTok)',
-    factLines.length ? ('REAL SHOP DATA you MAY use (only these exact numbers):\n- ' + factLines.join('\n- ')) : 'REAL SHOP DATA: none provided — do NOT invent numbers; write on the human/curiosity angle.',
+    grounded ? (factLines.length ? ('REAL SHOP DATA you MAY use (only these exact numbers):\n- ' + factLines.join('\n- ')) : 'REAL SHOP DATA: none provided — do NOT invent numbers; write on the human/curiosity angle.') : '',
     b.transcript ? ('Transcript/notes:\n' + String(b.transcript).slice(0, 4000)) : '',
-    '\nWrite the hook package as strict JSON, in the series flavor.',
+    '\nWrite the hook package as strict JSON, in the series flavor + the brand voice.',
   ].filter(Boolean).join('\n');
 
-  const r = await runBrainTurn({ systemPrompt: SYS, userContent: user, ctx: { brain: 'hook_doctor' }, maxTokens: 1600 });
+  const r = await runBrainTurn({ systemPrompt: brandSys, userContent: user, ctx: { brain: 'hook_doctor', channel: brandCfg.key }, maxTokens: 1600 });
   if (r.error) return json(502, { error: 'brain_failed', detail: r.error });
   const parsed = parseJson(r.reply);
   if (!parsed || !(parsed.hook_formats || parsed.hooks)) return json(502, { error: 'parse_failed', raw: (r.reply || '').slice(0, 500) });
@@ -109,6 +121,7 @@ exports.handler = async function (event) {
     title_suggestions: parsed.title_suggestions || [],
     notes: parsed.notes || [],
     series: series.key,
+    channel: brandCfg.key,
     cta: series.cta,
     hashtags,
     facts: facts || null,

@@ -71,6 +71,7 @@ exports.handler = async function (event) {
       on_screen_hook: j.on_screen_hook || null, hook_formats: j.hook_formats || null, proof_line: j.proof_line || null,
       series: j.series || null, appliance: j.appliance || null, brand: j.brand || null, model: j.model || null, symptom: j.symptom || null,
       facts: j.facts || null, title_suggestions: j.title_suggestions || null,
+      channel: j.channel || 'tn_appliance',
     });
   }
   // Kick off re-hosting for any ready clip not yet faststart-hosted (fire-and-forget).

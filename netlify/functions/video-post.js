@@ -16,6 +16,7 @@ const { variantsFor } = require('./_lib/social-variants');
 const { igPublish } = require('./_lib/social-fb');
 const tiktok = require('./_lib/tiktok');
 const youtube = require('./_lib/youtube');
+const brands = require('./_lib/brands');
 
 const QUEUE_KEY = 'VIDEO_STUDIO_QUEUE';
 const ALL = ['facebook', 'instagram', 'tiktok', 'youtube'];
@@ -39,6 +40,14 @@ exports.handler = async function (event) {
   const queue = await loadQueue();
   const job = queue.find((j) => String(j.id) === String(b.job_id));
   if (!job) return json(404, { error: 'job_not_found' });
+  // Brand-layer hard stop: the platform tokens below are ALL TN Appliance's accounts.
+  // A clip from another channel (Dish Guy, etc.) whose own accounts aren't connected must
+  // never be distributed here — it would post to the wrong brand. This is the last line.
+  const chan = brands.get(job.channel || 'tn_appliance');
+  if (chan && chan.connected === false) {
+    return json(200, { ok: false, error: 'channel_not_connected', channel: chan.key, label: chan.label,
+      note: `${chan.label} has no connected accounts — download and post by hand.` });
+  }
   if (job.status !== 'ready' && job.status !== 'posted') return json(400, { error: 'not_ready', status: job.status });
   // Prefer our S3 copy (permanent + clean headers) when the clip has been re-hosted.
   let url = job.download_url;

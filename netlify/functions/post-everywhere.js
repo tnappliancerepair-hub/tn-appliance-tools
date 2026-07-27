@@ -7,6 +7,7 @@
 'use strict';
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const brands = require('./_lib/brands');
 const SITE = 'https://tnapplianceexchange.net';
 const OWNER = '+16154855795';
 function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o, null, 2) }; }
@@ -27,6 +28,16 @@ exports.handler = async function (event) {
   let queue = []; try { queue = JSON.parse((await getSecretFresh('VIDEO_STUDIO_QUEUE')) || '[]'); } catch (_) {}
   const job = queue.find((j) => String(j.id) === String(b.job_id));
   if (!job) return json(404, { error: 'job_not_found' });
+
+  // Brand-layer safety: every auto surface (Facebook/IG/TikTok/YouTube) is wired to the
+  // TN Appliance accounts. A clip that belongs to a DIFFERENT channel (Dish Guy, etc.)
+  // must NEVER post here — it would land on the wrong brand's accounts. Refuse hard until
+  // that channel's own accounts are connected.
+  const chan = brands.get(job.channel || 'tn_appliance');
+  if (chan && chan.connected === false) {
+    return json(200, { ok: false, error: 'channel_not_connected', channel: chan.key, label: chan.label,
+      note: `${chan.label} has no connected accounts — download the clip and post it by hand so it never goes to TN Appliance's accounts.` });
+  }
 
   // Ground the SEO in the clip's REAL content — the enrichment hooks + payoff describe
   // what actually happens on screen, so the title comes out honest, not a blind guess.
