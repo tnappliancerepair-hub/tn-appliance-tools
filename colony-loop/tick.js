@@ -773,7 +773,11 @@ async function maybeEmitTimeSignals() {
           signal_strength: 80,
           payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
         });
-        try { await xano.recordEventLog('daily_tech_briefing_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
+        // Write the dedup marker the checker actually reads (get_daily_tech_briefing_fired_today
+        // queries action=="daily_tech_briefing_fired") AT EMIT TIME — so re-fire is blocked even if
+        // the agent throws before it can mark itself. Previously wrote "..._emitted" (never read),
+        // so a mid-run agent error re-fired the briefing every 60s tick (spammed the tech's inbox).
+        try { await xano.recordEventLog('daily_tech_briefing_fired', { since_ts_ms: sinceMs, marked_by: 'tick_emit' }); } catch (_e) {}
       } catch (err) {
         xano.logLocal('daily_tech_briefing_emit_failed', { error: err.message });
       }

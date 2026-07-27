@@ -83,12 +83,22 @@ export async function run(signal, ctx) {
       techId,
     });
 
-    const smsRes = await sms.toTech(techPhone, body, {
-      action: 'daily_tech_briefing',
-      tech_id: techId,
-      job_count: jobCount,
-      source_signal_id: signal.id,
-    });
+    // Never let one tech's send throw the whole run — if it does, the run never
+    // reaches markSignalProcessed, the dedup marker never lands, and the tick
+    // re-fires the briefing every 60s (inbox spam). Isolate each send.
+    let smsRes = null;
+    try {
+      smsRes = await sms.toTech(techPhone, body, {
+        action: 'daily_tech_briefing',
+        tech_id: techId,
+        job_count: jobCount,
+        source_signal_id: signal.id,
+      });
+    } catch (err) {
+      log('daily_tech_briefing_send_failed', { tech_id: techId, error: err && err.message });
+      results.push({ tech_id: techId, outcome: 'send_failed' });
+      continue;
+    }
 
     log('daily_tech_briefing_sent', {
       tech_id: techId,
