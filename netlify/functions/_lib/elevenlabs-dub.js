@@ -19,10 +19,11 @@ async function createDub(opts) {
   fd.append('target_lang', opts.target_lang || 'es');
   if (opts.source_lang) fd.append('source_lang', opts.source_lang);
   fd.append('num_speakers', '0');       // auto-detect
-  // NB: do NOT send watermark:false — it's a Starter+ feature and rejects the whole
-  // create on the base plan ("Dubbing without a watermark is only available for
-  // Starter+ users"). Dub WITH the watermark (works on every plan). Re-add the opt-out
-  // only when the plan supports it.
+  // The dubbing API DEFAULTS to watermark-off (a Starter+ feature) — omitting the param
+  // OR sending false both get rejected on the base plan ("Dubbing without a watermark is
+  // only available for Starter+ users"). Explicitly REQUEST the watermarked version so it
+  // works on every plan. Flip to 'false' once the plan is Starter+.
+  fd.append('watermark', 'true');
   if (opts.name) fd.append('name', String(opts.name).slice(0, 80));
   try {
     const r = await fetch(`${API}/dubbing`, { method: 'POST', headers: { 'xi-api-key': k }, body: fd });
