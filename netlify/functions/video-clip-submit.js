@@ -44,7 +44,11 @@ exports.handler = async function (event) {
   const project_name = String(b.project_name || 'TN Appliance').slice(0, 100);
   const content_type = String(b.content_type || 'hero').slice(0, 24);
   const mode = b.mode === 'premium' ? 'premium' : 'vizard';   // default = free Vizard captions
-  const created = await vizard.createProject({ videoUrl, videoType, projectName: project_name, maxClips: b.max_clips, captions: mode === 'vizard' });
+  // Vizard needs the container `ext` for remote files. Our S3 proxy always presents mp4;
+  // for a pasted external mp4 URL, read the extension off the path.
+  let ext = 'mp4';
+  if (ext_url) { const m = ext_url.split('?')[0].match(/\.([a-z0-9]{2,4})$/i); if (m) ext = m[1].toLowerCase(); }
+  const created = await vizard.createProject({ videoUrl, videoType, ext, projectName: project_name, maxClips: b.max_clips, captions: mode === 'vizard' });
   if (!created.ok) return json(502, { error: 'vizard_create_failed', detail: created.error || created.detail, code: created.code });
 
   const id = Date.now() + '-' + Math.floor(Math.random() * 1e6);

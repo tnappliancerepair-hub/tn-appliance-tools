@@ -38,10 +38,11 @@ async function req(method, path, body) {
 async function createProject(opts) {
   opts = opts || {};
   const cap = opts.captions ? 1 : 0;
+  const vtype = opts.videoType || 1;
   const body = {
     lang: opts.lang || 'en',
     videoUrl: opts.videoUrl,
-    videoType: opts.videoType || 1,
+    videoType: vtype,
     preferLength: Array.isArray(opts.preferLength) ? opts.preferLength : [1, 2],
     ratioOfClip: 1,
     subtitleSwitch: cap,
@@ -50,6 +51,10 @@ async function createProject(opts) {
     maxClipNumber: Math.min(Math.max(parseInt(opts.maxClips, 10) || 8, 1), 20),
     projectName: String(opts.projectName || 'TN Appliance').slice(0, 100),
   };
+  // videoType 1 = a remote file (our proxy URL): Vizard REQUIRES a non-empty `ext`
+  // (the container format) — it errors 4006 without one. Our proxy presents the clip
+  // as mp4, so default to 'mp4'.
+  if (vtype === 1) body.ext = (opts.ext || 'mp4').replace(/^\./, '').toLowerCase();
   const r = await req('POST', '/project/create', body);
   if (!r.ok || (r.data && r.data.code && r.data.code !== 2000)) return { ok: false, status: r.status, error: (r.data && (r.data.errMsg || r.data.msg)) || r.error || 'create_failed', code: r.data && r.data.code, detail: r.data };
   return { ok: true, projectId: r.data.projectId };
