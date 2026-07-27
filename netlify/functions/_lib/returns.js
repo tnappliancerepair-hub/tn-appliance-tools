@@ -67,6 +67,7 @@ async function loadOpenReturns(opts = {}) {
     open.push({
       key: k, job_id: m.job_id || null, part: m.part || '', rma: m.rma || '', tracking: m.tracking || '',
       distributor: m.distributor || '', customer: m.customer || '', return_desc: m.return_desc || '', claim: m.claim || '',
+      email_id: m.email_id || '', // source RMA email → lets us pull the prepaid label PDF
       issued_ms: issuedMs || null, label_ms: anchorMs, due_ms: dueMs, deadline_source: source, deadline_text: m.deadline_text || '',
     });
   }
