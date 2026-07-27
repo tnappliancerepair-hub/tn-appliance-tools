@@ -45,5 +45,8 @@ exports.handler = async function (event) {
   const anchors = [];
   const aRe = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi; let mm;
   while ((mm = aRe.exec(text)) && anchors.length < 40) { const txt = mm[2].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60); if (mm[1].startsWith('http')) anchors.push({ text: txt, href: mm[1].slice(0, 200) }); }
-  return json(200, { subject, parts, all_links: allLinks.slice(0, 40), anchors, body_text: text.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').slice(0, 2500) });
+  // strip <style>/<script> blocks first so CSS doesn't drown the visible text
+  const visible = text.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+  const bodyLen = Math.min(parseInt(q.chars, 10) || 2500, 14000);
+  return json(200, { subject, parts, all_links: allLinks.slice(0, 40), anchors, body_text: visible.slice(0, bodyLen) });
 };
