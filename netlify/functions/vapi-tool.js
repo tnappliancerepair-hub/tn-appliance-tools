@@ -306,13 +306,36 @@ async function logProxy(name, args, data) {
   } catch (_) {}
 }
 
-// The caller's real number, dug out of whatever shape Vapi sends.
+// The caller's real number, dug out of whatever shape Vapi sends. Vapi has moved this
+// field around across payload versions, so check every known spot — an empty caller ID
+// is exactly what forces Ann to ask the caller to recite their number (which transcribes
+// badly and drops the call), so it's worth being thorough here.
 function callerNumberFrom(body) {
   const m = (body && body.message) || {};
-  return (m.call && m.call.customer && m.call.customer.number)
+  const c = m.call || (body && body.call) || {};
+  return (c.customer && c.customer.number)
     || (m.customer && m.customer.number)
-    || (body && body.call && body.call.customer && body.call.customer.number)
+    || (body && body.customer && body.customer.number)
+    || c.customerNumber || c.from || m.from
     || '';
+}
+// A usable 10-digit customer number: real, not one of our own shop lines.
+function usableDigits(raw) {
+  const d = String(raw || '').replace(/\D/g, '').slice(-10);
+  return (d.length === 10 && !SHOP_DIGITS.has(d)) ? d : '';
+}
+// Claim/dispatch numbers get spoken digit-by-digit and transcribed with spaces and
+// stray leading zeros. Return the distinct variants worth trying, most-specific first.
+function claimVariants(raw) {
+  const s = String(raw || '').trim();
+  const out = [];
+  const push = (v) => { v = String(v || '').trim(); if (v && out.indexOf(v) === -1) out.push(v); };
+  push(s);                                   // exactly as given
+  push(s.replace(/[\s-]/g, ''));             // spaces/dashes removed
+  const digits = s.replace(/\D/g, '');
+  push(digits);                              // digits only
+  push(digits.replace(/^0+/, ''));           // leading zeros stripped
+  return out.filter(Boolean);
 }
 
 // Learn the caller's number: when Ant resolves someone by CLAIM # (their phone
@@ -416,10 +439,6 @@ exports.handler = async function (event) {
     // send_parts_link: text the diagram link to the tech she's ON THE PHONE with,
     // so the assistant never has to know his number — just his model + brand.
     if (c.name === 'send_parts_link' && !a.phone && !a.tech_phone && !a.to && callerPhone) a.tech_phone = callerPhone;
-    // We KNOW the caller's number — they're calling us. Always look them up by the
-    // REAL caller ID, never by whatever the model mis-heard or left blank. (The
-    // lookup itself flags a masked/shop number, so this is safe.)
-    if (c.name === 'lookup_customer_by_phone' && callerPhone) a.phone = callerPhone;
     // log_callback (recall on the phone): use the REAL caller ID to find their prior
     // job, and always text them the intake link — the agent tells them it's coming.
     if (c.name === 'log_callback') {
@@ -428,8 +447,45 @@ exports.handler = async function (event) {
       a.source = 'phone';
     }
     let data;
-    try { data = await callBackend(c.name, a); }
-    catch (e) { data = { error: String((e && e.message) || e) }; }
+    // Shared deadline so multiple recognition tries can NEVER stack into the dead air we
+    // are fixing: the first attempt always runs; extra attempts only fire while we're
+    // still inside the tool budget (warm lookups are ~0.3s, so the common case is 1 try).
+    const t0 = Date.now();
+    const budgetLeft = () => (Date.now() - t0) < (TOOL_TIMEOUT_MS - 400);
+    if (c.name === 'lookup_customer_by_phone') {
+      // Recognize the caller by number. Try the REAL caller ID FIRST (direct customers),
+      // then any number the agent was given (a warranty rep / toll-free relay dials in
+      // and reads the CUSTOMER's number — the caller ID isn't theirs, so we must not just
+      // clobber it). First hit wins; stop early. This is the core recognition fix.
+      const cands = [];
+      const cid = usableDigits(callerPhone);
+      const said = usableDigits(a.phone || a.phone_number || a.phone_e164 || a.customer_phone);
+      if (cid) cands.push(cid);
+      if (said && said !== cid) cands.push(said);
+      if (!cands.length) cands.push(String(a.phone || a.phone_number || '').trim()); // let the backend say "missing"
+      data = null;
+      for (let i = 0; i < cands.length; i++) {
+        if (i > 0 && !budgetLeft()) break;
+        try { const d = await callBackend(c.name, { ...a, phone: cands[i] }); if (d && d.found) { data = d; break; } data = d; }
+        catch (e) { data = { error: String((e && e.message) || e) }; }
+      }
+    } else if (c.name === 'lookup_by_claim_number') {
+      // Claim/dispatch #s get read aloud and transcribed with spaces + stray leading
+      // zeros. Try the sensible variants (as-said, spaces stripped, digits-only, no
+      // leading zeros) so a warranty caller is recognized instead of asked to repeat it.
+      const raw = a.claim_or_dispatch_number || a.claim_number || a.claim || a.dispatch_number || '';
+      const variants = claimVariants(raw);
+      const tries = (variants.length ? variants : [raw]).slice(0, 3);
+      data = null;
+      for (let i = 0; i < tries.length; i++) {
+        if (i > 0 && !budgetLeft()) break;
+        try { const d = await callBackend(c.name, { ...a, claim_or_dispatch_number: tries[i] }); if (d && (d.match_count || 0) > 0) { data = d; break; } data = d; }
+        catch (e) { data = { error: String((e && e.message) || e) }; }
+      }
+    } else {
+      try { data = await callBackend(c.name, a); }
+      catch (e) { data = { error: String((e && e.message) || e) }; }
+    }
     // Shape + push the caller's answer FIRST so the tool response is ready the
     // instant the lookup returns. The bookkeeping below talks to the flaky Xano
     // metadata API — it must never delay (or silence) the call.
