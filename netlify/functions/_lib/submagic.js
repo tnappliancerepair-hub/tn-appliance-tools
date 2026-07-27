@@ -49,7 +49,14 @@ async function createProject(opts) {
   if (opts.webhookUrl) body.webhookUrl = opts.webhookUrl;
   if (opts.dictionary && opts.dictionary.length) body.dictionary = opts.dictionary.slice(0, 100);
   const r = await req('POST', '/projects', body);
-  if (!r.ok) return { ok: false, status: r.status, error: (r.data && r.data.error) || r.error || 'create_failed', detail: r.data };
+  if (!r.ok) {
+    const d = r.data || {};
+    // Surface the ACTUAL validation message (field + reason), not just the code.
+    const msg = d.message || (Array.isArray(d.details) ? d.details.map(x => (x && (x.message || x.msg || x.path)) || x).join('; ')
+              : (Array.isArray(d.errors) ? d.errors.map(x => (x && (x.message || x.msg || x.path)) || x).join('; ') : ''));
+    const code = d.error || r.error || 'create_failed';
+    return { ok: false, status: r.status, error: msg ? (code + ' — ' + msg) : code, detail: d, sent: body };
+  }
   return { ok: true, id: r.data.id, status: r.data.status || 'processing' };
 }
 
