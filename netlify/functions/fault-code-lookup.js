@@ -24,17 +24,22 @@ function familyOf(brand) {
 // normalize a code for comparison: strip spaces/dashes, uppercase ("F5 E2"->"F5E2")
 function normCode(c) { return String(c || '').toUpperCase().replace(/[\s\-_.]/g, ''); }
 
+// collapse a trailing E/C so Samsung's "4E" (older display) == "4C" (newer) — but
+// NOT so "84C" collapses into "4C". "4E"->"4", "84C"->"84", "21C"->"21".
+function canonCode(c) { const n = normCode(c); return n.replace(/[EC]$/, ''); }
+
 function lookup(brand, code, appliance) {
   const fam = familyOf(brand);
   const nc = normCode(code);
   const ap = String(appliance || '').toLowerCase().trim();
-  const codes = (DB.codes || []).filter((r) => r.family === fam);
-  // exact code match (optionally constrained by appliance)
-  let match = codes.find((r) => normCode(r.code) === nc && (!ap || r.appliance === ap));
-  if (!match) match = codes.find((r) => normCode(r.code) === nc);
-  // loose: code contained either way (handles "4E" vs "4C", "Sud" vs "Sd")
-  if (!match && nc) match = codes.find((r) => { const x = normCode(r.code); return x.includes(nc) || nc.includes(x); });
-  return { fam, match, brand_codes: codes.map((r) => ({ code: r.code, appliance: r.appliance, meaning: r.meaning })) };
+  const all = (DB.codes || []).filter((r) => r.family === fam);
+  // When an appliance is given, NEVER cross into another appliance's codes — a fridge
+  // question must never answer with a washer code (that was the 84C->4C bug).
+  const codes = ap ? all.filter((r) => r.appliance === ap) : all;
+  const cn = canonCode(code);
+  let match = codes.find((r) => normCode(r.code) === nc);                    // exact
+  if (!match && cn) match = codes.find((r) => canonCode(r.code) === cn);     // E/C suffix equivalence only
+  return { fam, match, brand_codes: all.map((r) => ({ code: r.code, appliance: r.appliance, meaning: r.meaning })) };
 }
 
 function respond(brand, code, appliance) {
