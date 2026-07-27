@@ -41,7 +41,7 @@ const REPAIRS = [
   { key: 'washer_shocks', appliance: 'Washer', label: 'Shocks / suspension', flat_labor: 150, common_parts: ['ACV72909503'] },
   { key: 'washer_motor', appliance: 'Washer', label: 'Drive motor / clutch', flat_labor: 205, common_parts: ['WE17X10010'] },
   // 🔥 Dryer
-  { key: 'dryer_heating_element', appliance: 'Dryer', label: 'Heating element', flat_labor: 120, common_parts: ['WD22X10063', 'W11025156'] },
+  { key: 'dryer_heating_element', appliance: 'Dryer', label: 'Heating element', flat_labor: 120, common_parts: ['3387747', 'WD22X10063', 'W11025156'] },
   { key: 'dryer_belt', appliance: 'Dryer', label: 'Belt', flat_labor: 135, common_parts: ['WH16X26911', 'WH01X24180'] },
   { key: 'dryer_thermal', appliance: 'Dryer', label: 'Thermal fuse / thermostat', flat_labor: 100, common_parts: ['WE04X36457', 'W10258275'] },
   // 🍽️ Dishwasher
