@@ -16,6 +16,10 @@
   .ghost { display:inline-block; padding:10px 14px; border:1px solid var(--line); border-radius:10px; color:var(--blu); text-decoration:none; font-weight:700; font-size:14px; background:transparent; margin-top:8px; }
   .warn { background:#2a2110; border:1px solid #4a3a12; color:var(--amb); border-radius:12px; padding:12px; margin-top:12px; font-size:14px; }
   .muted { color:var(--ink2); font-size:13px; }
+  .part { font-size:26px; font-weight:900; letter-spacing:.01em; margin:2px 0 6px; word-break:break-all; }
+  .dist { display:inline-block; background:#12233a; border:1px solid #244; color:#7fd7ff; border-radius:999px; padding:5px 12px; font-size:14px; font-weight:800; margin:2px 0 4px; }
+  .who { color:var(--ink2); font-size:14px; margin:4px 0 10px; }
+  .ribbon { background:var(--grn); color:#052; font-weight:900; border-radius:10px 10px 0 0; padding:9px 12px; font-size:15px; margin:-14px -14px 12px; }
   #spin { display:none; text-align:center; padding:26px; color:var(--ink2); font-size:16px; }
   #cam { display:none; }
 </style>
@@ -71,21 +75,24 @@ function render(d){
     +(o.distributor?'<div class="muted">'+esc(o.distributor)+'</div>':'')
     +'</div>';
 
-  // one card per label — the one whose PART matches this box gets the green "this is it" badge
+  // one card per label — part # is the big heading, distributor is the "return-to"
+  // chip (each part goes back to a DIFFERENT place), so Alec can eyeball the box,
+  // match it, print, and move on.
   function labelCard(l,isMatch){
-    var meta=[];
-    if(l.part_number) meta.push('Part '+esc(l.part_number));
-    if(l.distributor) meta.push(esc(l.distributor));
-    if(l.rma) meta.push('RMA '+esc(l.rma));
-    var badge = isMatch
-      ? '<div style="background:var(--grn);color:#052;font-weight:900;border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:15px">✅ THIS is your part'+(l.part_number?' — '+esc(l.part_number):'')+'</div>'
-      : '';
+    var ribbon = isMatch ? '<div class="ribbon">✅ Matches your box — print this one</div>' : '';
     var cls = isMatch ? 'card" style="border:2px solid var(--grn)' : 'card';
-    return '<div class="'+cls+'">'+badge
-      +'<div class="lbl">Return label</div>'
-      +'<div class="muted" style="margin:2px 0 8px">'+esc(l.customer_name||o.customer_name||'')+(meta.length?' · '+meta.join(' · '):'')+'</div>'
+    var partLine = l.part_number ? '<div class="part">'+esc(l.part_number)+'</div>' : '<div class="part" style="color:var(--ink2)">Part not listed</div>';
+    var distChip = l.distributor ? '<div class="dist">↩ Return to '+esc(l.distributor)+'</div>' : '';
+    var whoBits=[];
+    if(l.customer_name||o.customer_name) whoBits.push(esc(l.customer_name||o.customer_name));
+    if(l.return_desc) whoBits.push(esc(l.return_desc));
+    if(l.rma) whoBits.push('RMA '+esc(l.rma));
+    return '<div class="'+cls+'">'+ribbon
+      +partLine
+      +distChip
+      +(whoBits.length?'<div class="who">'+whoBits.join(' · ')+'</div>':'')
       +(l.has_label
-          ? '<a class="print" href="'+esc(l.label_url)+'" target="_blank" rel="noopener">📄 Print this label</a>'
+          ? '<a class="print" href="'+esc(l.label_url)+'" target="_blank" rel="noopener">📄 Print my return label</a>'
           : '<div class="warn" style="margin:0">Couldn’t grab the print link — open the email:</div>')
       +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div></div>';
   }
