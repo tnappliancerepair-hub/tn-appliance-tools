@@ -84,10 +84,10 @@ exports.handler = async function (event) {
   // default = since CT midnight (today). &days=N widens back N-1 days (on-demand review).
   const days = Math.min(Math.max(parseInt(q.days, 10) || 1, 1), 14);
   const sinceMs = ctMidnightMs() - (days - 1) * 86400000;
-  const { per, automated } = await build(sinceMs);
+  const { per, automated, dbg } = await build(sinceMs);
   const msg = compose(per, automated, sinceMs);
 
   const send = scheduled || q.text === '1';
   if (send) { try { await sendSms(OWNER, msg, 'owner', 'office_recap'); } catch (_) {} }
-  return json(200, { ok: true, sent: send, since_ct: ctLabel(sinceMs), per, automated, message: msg });
+  return json(200, { ok: true, sent: send, since_ct: ctLabel(sinceMs), since_ms: sinceMs, per, automated, message: msg, ...(q.debug === '1' ? { dbg } : {}) });
 };
