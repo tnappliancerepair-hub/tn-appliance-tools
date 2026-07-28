@@ -194,6 +194,7 @@ exports.handler = async function (event) {
         id: c.id,
         at: c.startedAt || c.createdAt,
         from: (c.customer && c.customer.number) || c.phoneNumber || '',
+        dir: /outbound/i.test(String(c.type || '')) ? 'outbound' : 'inbound',
         dur_s: dur,
         ended: c.endedReason || '',
         flags,
@@ -1107,6 +1108,35 @@ exports.handler = async function (event) {
     const promptApplied = String((sysNow && sysNow.content) || '').includes(MARK);
     const endcallApplied = vj.endCallFunctionEnabled === true && Array.isArray(vj.endCallPhrases) && vj.endCallPhrases.length > 0;
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && promptApplied && endcallApplied, assistant: got.json.name, no_transfer_prompt: promptApplied, endcall_enabled: endcallApplied, end_phrases: vj.endCallPhrases, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
+  // Close-the-call reinforcement (7/28 call review): even with endCall enabled, Ann
+  // lingers after she's resolved a call ("No rush, I'm right here whenever you're
+  // ready" — Diane's call was handled perfectly then died on a silence timeout and
+  // got scored as a drop). Ban the linger phrases; close the moment she's done.
+  if (action === 'close_call') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- CLOSE-CALL -->';
+    let changed = false;
+    const stripped = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\s*', 'g'), '');
+    const BLOCK = `${MARK}\n## CLOSE THE CALL THE MOMENT YOU'RE DONE (highest priority)\n`
+      + `The SECOND you've given the answer, logged a callback, or escalated to the office, you are finished — close immediately. End with a warm goodbye that INCLUDES an end phrase, e.g. "…they'll call you right back. Thanks for calling — have a good day." then hang up.\n`
+      + `NEVER say "I'm right here whenever you're ready," "take your time," "no rush," "whenever you're ready," or anything that invites the caller to sit in silence — a lingering line dies on a timeout and looks like a dropped call. If the caller has gone quiet after you've already helped them, do NOT wait: say "Thanks for calling — have a good day" and end the call.\n${MARK}\n\n`;
+    const newContent = BLOCK + stripped;
+    if (newContent !== String(msgs[si].content || '')) { msgs[si].content = newContent; changed = true; }
+    const patch = { model: Object.assign({}, model, { messages: msgs }), endCallFunctionEnabled: true };
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, patch);
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vj = verify.json || {};
+    const sysNow = ((vj.model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK) && vj.endCallFunctionEnabled === true;
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, changed, endcall_enabled: vj.endCallFunctionEnabled === true, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
   // Lee's rule: at wrap-up, ask the tech for any parts he brought but didn't

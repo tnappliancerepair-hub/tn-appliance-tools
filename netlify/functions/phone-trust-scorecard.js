@@ -58,7 +58,11 @@ const FIX_HINT = {
 async function scoreWindow(admin, hours) {
   const r = await fetch(`${SITE}/vapi-admin?secret=${encodeURIComponent(admin)}&action=daycalls&hours=${hours}`, { signal: AbortSignal.timeout(20000) });
   const d = await r.json();
-  const calls = (d && d.calls) || [];
+  // INBOUND CUSTOMER calls only. Outbound reminder/confirmation calls hit voicemail
+  // and end in "silence-timed-out" — that's not an inbound-trust failure, so scoring
+  // them was dragging the number down for calls that worked as intended.
+  const calls = ((d && d.calls) || []).filter((c) => c.dir !== 'outbound');
+  const outbound_excluded = (((d && d.calls) || []).length) - calls.length;
   const buckets = {};
   for (const c of calls) { const k = categorize(c); buckets[k] = (buckets[k] || 0) + 1; }
   const total = calls.length;
@@ -69,7 +73,7 @@ async function scoreWindow(admin, hours) {
   // #1 fix = the biggest real-failure bucket (fall back to the biggest actionable annoyance)
   const ranked = Object.entries(buckets).filter(([k]) => REAL_FAIL.has(k)).sort((a, b) => b[1] - a[1]);
   const topFix = ranked.length ? ranked[0][0] : (buckets.human_transfer ? 'human_transfer' : (buckets.instant_hangup ? 'instant_hangup' : null));
-  return { total, actionable, failures, score, buckets, topFix };
+  return { total, actionable, failures, score, buckets, topFix, outbound_excluded };
 }
 
 exports.handler = async function (event) {
