@@ -93,7 +93,7 @@ export async function run(signal, ctx) {
       if (!phone) continue;
       const body =
         `Hi${who ? ' ' + who : ''}, quick heads-up from TN Appliance — ${firstName} is running a little behind today, ` +
-        `so your visit may push later. We'll text a live arrival window once he's en route. ` +
+        `so your visit may push later. Your tech will reach out when he's on his way. ` +
         `Reply RESCHEDULE if today no longer works.`;
       try {
         const r = await sms.toCustomer(phone, body, { action: 'tech_behind_customer_nudge', tech_id: techId, job_id: s.job.id });

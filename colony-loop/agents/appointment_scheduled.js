@@ -92,7 +92,7 @@ function customerBody({ first, appliance, apptStr, techFirst, slot, finishLink }
   const lines = [
     `Hi ${name}, good news — your ${appliance} repair is scheduled.`,
     `${techPart}${slotPart}.`,
-    `We run day-of routing, so we'll text you a live arrival window that morning. Any questions, just reply here or call 866-268-0111.`,
+    `We run day-of routing (no set time slots) — your tech will reach out when he's on his way. Any questions, just reply here or call 866-268-0111.`,
   ];
   if (finishLink) lines.push(`Haven't sent your tech a video yet? Tap here so he shows up ready: ${finishLink}`);
   return lines.join(' ');

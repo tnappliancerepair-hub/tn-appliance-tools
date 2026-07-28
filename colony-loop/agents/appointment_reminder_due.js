@@ -140,7 +140,7 @@ export async function run(signal, ctx) {
     : '';
   const body =
     `Hi ${firstName} - reminder: ${techName} is coming tomorrow for your ${appliance}. ` +
-    `We'll text you a live arrival window in the morning. Reply RESCHEDULE if you need to move it.${portalClause}`;
+    `Your tech will reach out when he's on his way. Reply RESCHEDULE if you need to move it.${portalClause}`;
 
   let smsRes = null;
   try {
