@@ -11,7 +11,18 @@
   .bar { position:fixed; left:0; right:0; bottom:0; padding:12px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left)); background:#fff; border-top:1px solid #e5e5e5; display:flex; gap:10px; }
   .bar button { flex:1; font:800 18px -apple-system,system-ui,sans-serif; padding:16px; border:0; border-radius:12px; background:#2ecc71; color:#053; }
   .bar a { flex:0 0 auto; font:700 15px -apple-system,system-ui,sans-serif; padding:16px 14px; border-radius:12px; text-decoration:none; color:#2563eb; }
-  @media print { .bar { display:none !important; } #wrap { padding:0; } }
+  /* Print output locked to a 4x6 shipping label so it fills the whole sticker on a
+     thermal printer (Rollo/MUNBYN) — no margins, no shrink, no clipping. Without the
+     @page size the label prints tiny/centered with white space. object-fit:contain
+     preserves the FedEx label's aspect so nothing distorts. */
+  @page { size: 4in 6in; margin: 0; }
+  @media print {
+    .bar { display:none !important; }
+    #msg { display:none !important; }
+    html, body { margin:0; width:4in; height:6in; }
+    #wrap { padding:0; margin:0; }
+    #l { width:4in; height:6in; max-width:none; object-fit:contain; margin:0; }
+  }
 </style>
 <div id="wrap"><img id="l" alt="return label"><div id="msg" style="display:none">Couldn’t load the label — go back and tap the label again.</div></div>
 <div class="bar">
