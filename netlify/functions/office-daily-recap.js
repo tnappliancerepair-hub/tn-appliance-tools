@@ -35,16 +35,23 @@ async function build(sinceMs) {
     per[a] = per[a] || { scheduled: 0, invoices: 0, moves: 0, texts: 0, ticks: 0, last: 0 };
     per[a][key]++; if (at > per[a].last) per[a].last = at;
   };
+  const dbg = {};
   for (const { action, label } of ACTIONS) {
     let rows = [];
     try { rows = await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, 800); } catch (_) {}
+    let maxAt = 0, kept = 0;
     for (const r of rows) {
-      const m = metaOf(r); const at = Number(m.at_ms || m.logged_at_ms || r.created_at || 0);
+      const m = metaOf(r);
+      let at = Number(m.at_ms || m.logged_at_ms || r.created_at || 0);
+      if (at > 0 && at < 1e12) at *= 1000; // created_at in seconds → ms
+      if (at > maxAt) maxAt = at;
       if (at < sinceMs) continue;
+      kept++;
       bump(actorOf(m), label, at);
     }
+    dbg[action] = { fetched: rows.length, maxAt, kept, sampleActor: rows.length ? actorOf(metaOf(rows[0])) : '' };
   }
-  return { per, automated };
+  return { per, automated, dbg };
 }
 
 function compose(per, automated, sinceMs) {
