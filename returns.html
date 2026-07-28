@@ -25,13 +25,15 @@
   .age .d { font-size:20px; font-weight:900; }
   .age .d.hot { color:var(--red); }
   .print { display:inline-block; margin-top:6px; padding:9px 12px; border-radius:9px; background:var(--grn); color:#052; font-weight:800; font-size:13px; text-decoration:none; }
+  .ship { margin-top:6px; margin-left:7px; padding:9px 12px; border-radius:9px; background:transparent; color:var(--grn); border:1px solid var(--grn); font-weight:800; font-size:13px; cursor:pointer; }
+  .ship:disabled { opacity:.7; }
   .muted { color:var(--ink2); font-size:13px; padding:14px 4px; }
   #spin { text-align:center; padding:40px; color:var(--ink2); }
   a.link { color:var(--blu); text-decoration:none; }
 </style>
 <body>
   <h1>📦 SquareTrade Returns</h1>
-  <div class="sub">The scoreboard — pulled from the weekly Allstate RMA report. <a class="link" href="/return-finder.html?v=6" target="_blank">open finder →</a> · <a class="link" href="#" onclick="load();return false;">refresh</a></div>
+  <div class="sub">Work it down: <b>🖨 print</b> the label, box it, tap <b>✓ Shipped it</b> → watch Owed drop. Pulled from the weekly Allstate RMA report. <a class="link" href="/return-finder.html?v=6" target="_blank">open finder →</a> · <a class="link" href="#" onclick="load();return false;">refresh</a></div>
   <div id="spin">📊 Loading the scoreboard…</div>
   <div id="out"></div>
 
@@ -58,10 +60,30 @@ function findLink(i){ return '/return-finder.html?v=6&q='+encodeURIComponent(i.c
 function rowHtml(i, hot){
   var days=(i.held_days||0);
   return '<div class="row'+(hot?' risk':'')+'">'
-    +'<div><div class="part">'+esc(i.part||'—')+'</div>'
+    +'<div style="flex:1"><div class="part">'+esc(i.part||'—')+'</div>'
     +'<div class="meta">'+esc(i.name||'')+(i.distributor?' · ↩ '+esc(i.distributor):'')+(i.exception?' · ⚠️ '+esc(i.exception):'')+'</div>'
-    +'<a class="print" href="'+findLink(i)+'" target="_blank" rel="noopener">🖨 Find & print</a></div>'
+    +'<div style="display:flex;flex-wrap:wrap;align-items:center">'
+    +'<a class="print" href="'+findLink(i)+'" target="_blank" rel="noopener">🖨 Find &amp; print</a>'
+    +'<button class="ship" data-claim="'+esc(i.claim||'')+'" data-part="'+esc(i.part||'')+'" data-dist="'+esc(i.distributor||'')+'" data-rma="'+esc(i.rma||'')+'">✓ Shipped it</button>'
+    +'</div></div>'
     +'<div class="age"><div class="d'+(hot?' hot':'')+'">'+days+'</div><div class="meta">days held</div></div></div>';
+}
+
+// Mark a return shipped straight from the scoreboard — logs it (mark-return-shipped),
+// drops it off Owed → In transit, and reloads so the counts fall live. This is the
+// blitz: print → box → tap Shipped → watch Owed drop toward zero. (Teddy 2026-07-28)
+async function markShipped(b){
+  b.disabled=true; b.textContent='Saving…';
+  try{
+    var r=await fetch(F+'/mark-return-shipped',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({secret:SECRET,claim:b.dataset.claim,part:b.dataset.part,distributor:b.dataset.dist,rma:b.dataset.rma,by:'office'})});
+    var d=await r.json();
+    if(d&&d.ok){
+      var row=b.closest('.row'); if(row) row.style.opacity=.4;
+      b.textContent='✅ Shipped'; b.style.background='var(--grn)'; b.style.color='#052';
+      setTimeout(load,900);   // reload → Owed count drops, item moves to In transit
+    } else { b.disabled=false; b.textContent='✓ Shipped it — retry'; }
+  }catch(_){ b.disabled=false; b.textContent='✓ Shipped it — retry'; }
 }
 
 function render(d){
@@ -90,6 +112,7 @@ function render(d){
     h+= d.exceptions.map(function(i){return rowHtml(i,true);}).join('');
   }
   out.innerHTML=h;
+  out.querySelectorAll('.ship').forEach(function(b){ b.onclick=function(){ markShipped(b); }; });
 }
 load();
 </script>
