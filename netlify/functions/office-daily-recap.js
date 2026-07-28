@@ -74,7 +74,9 @@ exports.handler = async function (event) {
   let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
   if (!scheduled && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
-  const sinceMs = ctMidnightMs();
+  // default = since CT midnight (today). &days=N widens back N-1 days (on-demand review).
+  const days = Math.min(Math.max(parseInt(q.days, 10) || 1, 1), 14);
+  const sinceMs = ctMidnightMs() - (days - 1) * 86400000;
   const { per, automated } = await build(sinceMs);
   const msg = compose(per, automated, sinceMs);
 
