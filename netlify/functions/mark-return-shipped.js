@@ -13,8 +13,10 @@ function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringif
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
+  // Admin secret (return-finder) OR a tech context (the tech app marks his own
+  // return shipped from the field — it carries a job_id, not the admin secret).
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (b.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
+  if (b.secret !== admin && !Number(b.job_id)) return json(401, { ok: false, error: 'unauthorized' });
   const claim = String(b.claim || '').replace(/[^0-9]/g, '');
   const part = String(b.part || '').trim();
   if (!claim && !part) return json(400, { ok: false, error: 'claim or part required' });
