@@ -781,3 +781,8 @@
 # trust scorecard. (Teddy 2026-07-25: run it daily.)
 [functions."phone-accuracy-audit"]
   schedule = "0 13 * * *"
+
+# Daily office "who did what" recap → texts Teddy each evening (10pm CT = 03:00 UTC).
+# Splits activity by the person who did it (actor). Objective record during the handoff.
+[functions."office-daily-recap"]
+  schedule = "0 3 * * *"
