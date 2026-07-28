@@ -11,6 +11,35 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜📦💳 2026-07-28 (Mon) — SQUARETRADE RETURN-LABEL FINDER (snap→print, multi-part matched, REAL label PNG) + INVOICE TEXT/PAY-NOW BUTTONS + AUTO-MARK-PAID — READ FIRST
+
+Teddy + Alec printing down a **150-pile of SquareTrade parts returns**. Built the finder end-to-end into a "snap the box → print the right label → next" tool, then fixed the invoice/payment loop. All LIVE (Netlify auto-deploy on `main`).
+
+### 📦 RETURN LABEL FINDER — `return-finder.html` + `return-label-find.js` (the game-changer)
+**The link: `tnapplianceexchange.net/return-finder.html` · password (admin secret) = `tn-vapi-admin-9f83b1c4e7a206d5`.** Snap a box (or type the claim #) → it finds the SquareTrade/Allstate RMA email(s) for that claim and gives a one-tap print of the CORRECT label.
+- **🎯 MULTI-PART MATCHING (Teddy's core problem): a claim has several parts, each returns to a DIFFERENT distributor, and the box has NO RMA# on it.** SOLVED: the RMA email body literally names its part — `Part Number: W10919003` + `Distributor: MARCONE` + `FedEx tracking # …`. So OCR reads the **part number off the box** (the distributor sticker HAS it), and the finder flags the ONE label whose `Part Number:` matches — green **"✅ Matches your box"** ribbon; the claim's other parts list underneath. Each card leads with a **big part# heading** + **"↩ Return to <distributor>"** chip. Part match normalizes case/dashes. Verified live on Fleming's multi-distributor claim (5221ER1003A→UED, not the ENCOMPASS one). (Earlier belief "RMA email has no part#" was WRONG — a CSS-truncated dump misled me.)
+- **🖨️ THE REAL LABEL (killed SquareTrade's blank mobile viewer):** their "PRINT MY LABEL" link opens a JS viewer that prints BLANK on phones ("Unit repair form could not be loaded"). Reverse-traced it: the print link → provisional JWT → their label API `www.squaretrade.com/api/shipping/v1/labels/<shippingId>` (Bearer JWT) returns `labelURLs` = **signed-S3 PNG of the actual FedEx label** (7-day valid). `resolveLabelImage()` follows the redirect chain (`redirect:'manual'`, reads token+shippingId off the Location fragment), calls the API, returns the PNG. Finder shows the label **inline** + Print.
+- **NO-DOWNLOAD FIX:** S3 serves the PNG as `octet-stream` → Safari tried to *download* "792573648813". Added `return-label-image.js` (proxy: streams it as `image/png` INLINE, host-locked to `*.amazonaws.com` + `/shipping/`) and `label-print.html?u=` (shows label full-size, auto-fires the print dialog). Button → the print page → one-tap print from the phone.
+- **Deep-link fixes:** "✉️ open the email" was opening a random inbox — was using `/u/0/` (Teddy's *personal* inbox) + `rfc822msgid` with Gmail's API id (not the real header). Now forces `/u/tnappliancerepair@gmail.com/` + the true `Message-ID`.
+- **Auth self-heal:** wrong/stale cached password made every lookup silently fail with no recovery. Now a **401 clears the secret, re-prompts, retries**; a **🔑 password** reset link is in the header. Typed input parses **claim + part** (`061114584138 5221ER1003A`) as a fallback when the camera can't read the box.
+- **⚠️ CACHE FOOTGUN:** iOS Safari served a stale cached page (fixes not showing). `/*.html` already has `no-cache` in netlify.toml, but the in-memory tab copy persists — **hand out a `?v=N` cache-buster URL** to force fresh.
+- **Data source for RMA→part (also confirmed, not yet wired):** the weekly **"ALLSTATE RMA REPORT" email** from `APPtechcompliance@allstate.com` carries a **CSV attachment** (`RMA_YYYY-MM-DD_TNA00001.csv`) listing every claim × part_number × distributor × inbound_tracking × **returned status**. `gmail-msg-dump.js?attach=1` decodes attachments. OFFERED (not built): auto-count the 150-pile down + auto-close FedEx-delivered ones + tag each label with a friendly part name.
+
+### 🧾 INVOICE + PAYMENT LOOP (office-board.html invoice worksheet)
+- **📱 Text invoice** button: saves the worksheet, then texts the customer their `customer-invoice?job_id=&last4=` link from the office line (`human-line-send.js` → 615-857-8800, opt-out checked, logged to the job thread). Confirm-gated.
+- **💳 Text pay-now link** button: `create-stripe-payment-link {job_id,kind:'invoice'}` (server resolves the amount from `office_invoice_logged` + **blocks warranty jobs**) → texts a **live Stripe checkout** (card/Apple Pay).
+- **AUTO "let us know + mark paid" (Teddy's ask):** `_lib/record-payment.js recordPaidSession()` (fired by `verify-payment.js` on redirect + `stripe-payment-webhook.js`, idempotent per session) already writes `customer_payment_received` → **the board auto-marks paid** (`get-invoice-status` + `list-invoices` read it; no manual step). ADDED `notifyOffice()` → **texts Teddy (615-485-5795) + Danielle** "💵 INVOICE PAID $X · Name Appliance · job #N (paid online)" the moment money lands. Customer also gets an auto receipt text.
+- **Live ops:** texted **Tony Miller (job #20673, 615-887-4057)** his invoice ($185.25 = labor $120 + parts $49.56 + tax $15.69) AND a pay-now link. Loaded his **heating-element pre-diagnosis** onto the TDR (failed_component "Heating element", `verified_part_number` 3387747, diagnosis note; via `update_tdr_field_from_voice` for the text fields + `set-tdr-field` for `verified_part_number` since the voice endpoint doesn't map it). NOTE: there's an older dup shell #20576 (not scheduled) — used the active #20673.
+
+### 🔧 REPAIR MENU + FAULT CODES
+- Added Whirlpool **`3387747`** (classic dryer heating element) as the lead common part for `dryer_heating_element` in `_lib/repair-menu.js`. **⏭️ OPEN: Teddy still owes the NEW heating-element LABOR price** (currently $120) — one-line change + push when he lands on it.
+- **`fault-code-lookup.js` bug fixed:** a loose substring match answered a Samsung **fridge** "84C" with the **washer** `4C` water-supply code. Now the appliance filter is hard (a fridge query never crosses into washer codes) and the loose tier only collapses a trailing E/C (`4E`==`4C`), not `84C`⊃`4C`. (We have NO verified Samsung fridge 84C; told Teddy honestly — power-cycle + model# to pin it.)
+
+### ⏭️ OPEN / NEXT
+1. **Heating-element labor price** — Teddy to give the number (currently $120) → update `_lib/repair-menu.js`.
+2. Return-finder: offered but not built — **✓ Returned tap** to count the 150-pile down + auto-close FedEx-delivered; tag each label with the friendly part name from the weekly Allstate RMA-report CSV.
+3. Watch for Tony Miller's payment → the 💵 text + tile flipping to paid (first live test of the auto-notify).
+
 ## 🗓️🐜📱 2026-07-26 (Sat PM) — FIRST VIDEO POSTED EVERYWHERE + TIKTOK PRODUCTION APP REVIEW *SUBMITTED* — READ FIRST
 
 Teddy's goal for the evening: "post one video to TikTok, Instagram, Facebook, YouTube, and X." Did it — then finished + SUBMITTED the long-pending TikTok production app review.
