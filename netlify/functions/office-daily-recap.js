@@ -38,7 +38,7 @@ async function build(sinceMs) {
   const dbg = {};
   for (const { action, label } of ACTIONS) {
     let rows = [];
-    try { rows = await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, 800); } catch (_) {}
+    try { rows = await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, 500); } catch (_) {}
     let maxAt = 0, kept = 0;
     for (const r of rows) {
       const m = metaOf(r);
