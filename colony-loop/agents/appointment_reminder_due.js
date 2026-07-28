@@ -154,12 +154,13 @@ export async function run(signal, ctx) {
     smsRes = { success: false, error: String(err.message || err) };
   }
 
-  // Voice-call confirmation: in parallel with SMS, place an outbound
-  // Vapi call so the customer gets an active confirm/reschedule path.
-  // Gated by env var APPOINTMENT_REMINDER_VOICE_ENABLED (default true).
-  // If customers complain about double-touch (SMS + call), flip to false.
+  // TEXT-FIRST (Teddy 2026-07-28): the reminder is a TEXT. We do NOT auto-call
+  // alongside it — most reminder calls today hit voicemail/full mailboxes (17 calls,
+  // ~2 real answers) and just dragged the phone score. Default = OFF (text only).
+  // The "call only if they don't reply" follow-up is handled separately, not here.
+  // Set APPOINTMENT_REMINDER_VOICE_ENABLED=true to restore the old simultaneous call.
   let voiceRes = null;
-  const voiceEnabled = (process.env.APPOINTMENT_REMINDER_VOICE_ENABLED || 'true').toLowerCase() !== 'false';
+  const voiceEnabled = (process.env.APPOINTMENT_REMINDER_VOICE_ENABLED || 'false').toLowerCase() === 'true';
   if (voiceEnabled) {
     const region = String(job.service_state || '').toLowerCase().startsWith('la') ? 'LA' : 'TN';
     // Day-of routing: pass DAY ONLY, not time. Customer hears
