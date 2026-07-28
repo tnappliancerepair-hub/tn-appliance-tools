@@ -1,0 +1,96 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>SquareTrade Returns</title>
+<style>
+  :root { --bg:#0c0f15; --card:#141922; --line:#232c3a; --ink:#eef2f8; --ink2:#9fb0c8; --red:#ff5c6c; --amb:#e9a23b; --grn:#2ecc71; --blu:#3a86ff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 -apple-system,system-ui,sans-serif; padding:14px; max-width:760px; margin:0 auto; }
+  h1 { font-size:20px; margin:2px 0; }
+  .sub { color:var(--ink2); font-size:13px; margin-bottom:14px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:8px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:13px; padding:13px 12px; text-align:center; }
+  .tile .n { font-size:28px; font-weight:900; line-height:1.05; font-variant-numeric:tabular-nums; }
+  .tile .l { font-size:11px; color:var(--ink2); text-transform:uppercase; letter-spacing:.05em; margin-top:3px; }
+  .rate { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--line); border-radius:13px; padding:13px 15px; }
+  .rate .big { font-size:26px; font-weight:900; }
+  .bar { height:9px; border-radius:6px; background:#1e2836; overflow:hidden; flex:1; margin:0 12px; }
+  .bar > i { display:block; height:100%; background:var(--grn); }
+  h2 { font-size:15px; margin:20px 0 8px; display:flex; align-items:center; gap:8px; }
+  .pill { font-size:11px; font-weight:800; padding:2px 9px; border-radius:999px; }
+  .row { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:11px 13px; margin-bottom:8px; display:flex; align-items:center; gap:10px; }
+  .row.risk { border-color:#5a2530; background:#1a1013; }
+  .row .part { font-size:17px; font-weight:800; }
+  .row .meta { font-size:12.5px; color:var(--ink2); margin-top:2px; }
+  .age { margin-left:auto; text-align:right; flex:0 0 auto; }
+  .age .d { font-size:20px; font-weight:900; }
+  .age .d.hot { color:var(--red); }
+  .print { display:inline-block; margin-top:6px; padding:9px 12px; border-radius:9px; background:var(--grn); color:#052; font-weight:800; font-size:13px; text-decoration:none; }
+  .muted { color:var(--ink2); font-size:13px; padding:14px 4px; }
+  #spin { text-align:center; padding:40px; color:var(--ink2); }
+  a.link { color:var(--blu); text-decoration:none; }
+</style>
+<body>
+  <h1>📦 SquareTrade Returns</h1>
+  <div class="sub">The scoreboard — pulled from the weekly Allstate RMA report. <a class="link" href="/return-finder.html?v=6" target="_blank">open finder →</a> · <a class="link" href="#" onclick="load();return false;">refresh</a></div>
+  <div id="spin">📊 Loading the scoreboard…</div>
+  <div id="out"></div>
+
+<script>
+var F='/.netlify/functions';
+var SECRET = localStorage.getItem('tn_social_secret') || '';
+function need(){ if(SECRET) return true; var s=prompt('Enter the password:'); if(!s) return false; SECRET=s.trim(); localStorage.setItem('tn_social_secret',SECRET); return true; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+var out=document.getElementById('out'), spin=document.getElementById('spin');
+
+async function load(){
+  if(!need()) return;
+  spin.style.display='block'; out.innerHTML='';
+  try{
+    var r=await fetch(F+'/squaretrade-returns?secret='+encodeURIComponent(SECRET)+'&weeks=10');
+    if(r.status===401){ localStorage.removeItem('tn_social_secret'); SECRET=''; spin.style.display='none'; out.innerHTML='<div class="muted">Password wasn\'t right — refresh and re-enter.</div>'; return; }
+    render(await r.json());
+  }catch(e){ out.innerHTML='<div class="muted">Couldn\'t load — try refresh.</div>'; }
+  spin.style.display='none';
+}
+
+function findLink(i){ return '/return-finder.html?v=6&q='+encodeURIComponent(i.claim+(i.part?(' '+i.part):'')); }
+
+function rowHtml(i, hot){
+  var days=(i.held_days||0);
+  return '<div class="row'+(hot?' risk':'')+'">'
+    +'<div><div class="part">'+esc(i.part||'—')+'</div>'
+    +'<div class="meta">'+esc(i.name||'')+(i.distributor?' · ↩ '+esc(i.distributor):'')+(i.exception?' · ⚠️ '+esc(i.exception):'')+'</div>'
+    +'<a class="print" href="'+findLink(i)+'" target="_blank" rel="noopener">🖨 Find & print</a></div>'
+    +'<div class="age"><div class="d'+(hot?' hot':'')+'">'+days+'</div><div class="meta">days held</div></div></div>';
+}
+
+function render(d){
+  if(!d||!d.ok){ out.innerHTML='<div class="muted">'+esc((d&&d.error)||'No data yet.')+'</div>'; return; }
+  var s=d.scoreboard||{};
+  var pct=Math.max(0,Math.min(100,s.return_rate||0));
+  var h='<div class="grid">'
+    +'<div class="tile"><div class="n" style="color:var(--red)">'+(s.owed||0)+'</div><div class="l">Owed</div></div>'
+    +'<div class="tile"><div class="n" style="color:var(--amb)">'+(s.in_transit||0)+'</div><div class="l">In transit</div></div>'
+    +'<div class="tile"><div class="n" style="color:var(--grn)">'+(s.received||0)+'</div><div class="l">Received ✓</div></div>'
+    +'<div class="rate"><div><div class="l" style="font-size:11px;color:var(--ink2)">RETURN RATE</div><div class="big" style="color:'+(pct>=80?'var(--grn)':'var(--amb)')+'">'+pct+'%</div></div>'
+      +'<div class="bar"><i style="width:'+pct+'%"></i></div>'
+      +'<div style="text-align:right"><div class="l" style="font-size:11px;color:var(--ink2)">GOAL</div><div class="big" style="font-size:18px;color:var(--ink2)">'+(s.goal||80)+'%</div></div></div>'
+    +'</div>';
+
+  var risk=d.at_risk||[];
+  h+='<h2>⚠️ At risk — ship these first <span class="pill" style="background:#3a1620;color:var(--red)">'+risk.length+'</span></h2>';
+  h+= risk.length ? risk.map(function(i){return rowHtml(i,true);}).join('') : '<div class="muted">Nothing sitting 7+ days. 🎉</div>';
+
+  var owed=(d.owed||[]).filter(function(i){return (i.held_days||0)<7;});
+  h+='<h2>❌ Owed (under 7 days) <span class="pill" style="background:#20262f;color:var(--ink2)">'+owed.length+'</span></h2>';
+  h+= owed.length ? owed.map(function(i){return rowHtml(i,false);}).join('') : '<div class="muted">None.</div>';
+
+  if((d.exceptions||[]).length){
+    h+='<h2>⚠️ Exceptions (SquareTrade flagged) <span class="pill" style="background:#3a1620;color:var(--red)">'+d.exceptions.length+'</span></h2>';
+    h+= d.exceptions.map(function(i){return rowHtml(i,true);}).join('');
+  }
+  out.innerHTML=h;
+}
+load();
+</script>
+</body>

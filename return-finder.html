@@ -20,6 +20,8 @@
   .dist { display:inline-block; background:#12233a; border:1px solid #244; color:#7fd7ff; border-radius:999px; padding:5px 12px; font-size:14px; font-weight:800; margin:2px 0 4px; }
   .who { color:var(--ink2); font-size:14px; margin:4px 0 10px; }
   .ribbon { background:var(--grn); color:#052; font-weight:900; border-radius:10px 10px 0 0; padding:9px 12px; font-size:15px; margin:-14px -14px 12px; }
+  .shipbtn { width:100%; margin-top:10px; padding:13px; border:1px solid #2b3b4f; border-radius:11px; background:#0f1a12; color:#7ee6a6; font-weight:800; font-size:15px; cursor:pointer; }
+  .shipbtn.done { background:#123; color:#7ee6a6; border-color:#1c5; opacity:.85; }
   #spin { display:none; text-align:center; padding:26px; color:var(--ink2); font-size:16px; }
   #cam { display:none; }
 </style>
@@ -67,6 +69,13 @@ document.getElementById('find').addEventListener('click', function(){
 });
 document.getElementById('typed').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('find').click(); });
 
+// Deep-link from the Returns board: ?q=<claim> (and part) auto-runs the lookup.
+(function(){
+  var q=new URLSearchParams(location.search).get('q'); if(!q) return;
+  var t=document.getElementById('typed'); if(t) t.value=q;
+  if(need()) lookup({query:q});
+})();
+
 cam.addEventListener('change', async function(){
   var f=this.files && this.files[0]; if(!f) return;
   var b64; try { b64=await downscale(f, 2000, 0.78); } catch(e){ out.innerHTML='<div class="warn">Couldn’t read that photo — try again.</div>'; return; }
@@ -111,11 +120,14 @@ function render(d){
       action = '<div class="warn" style="margin:0">Couldn’t grab the label — open the email:</div>'
         +'<div style="text-align:center"><a class="ghost" href="'+esc(l.gmail_link)+'" target="_blank" rel="noopener">✉️ open the email</a></div>';
     }
+    var shipBtn = (l.claim||o.claim_number||l.part_number)
+      ? '<button class="shipbtn" data-claim="'+esc(l.claim||o.claim_number||'')+'" data-part="'+esc(l.part_number||'')+'" data-rma="'+esc(l.rma||'')+'" data-tracking="'+esc(l.fedex_tracking||'')+'" data-dist="'+esc(l.distributor||'')+'" onclick="markShipped(this)">✓ Shipped it — count it down</button>'
+      : '';
     return '<div class="'+cls+'">'+ribbon
       +partLine
       +distChip
       +(whoBits.length?'<div class="who">'+whoBits.join(' · ')+'</div>':'')
-      +action+'</div>';
+      +action+shipBtn+'</div>';
   }
 
   var body='';
@@ -150,6 +162,16 @@ function render(d){
     setTimeout(function(){ var t=document.getElementById('typed'); if(t){ t.focus(); t.scrollIntoView({block:'center'}); } },60);
   }
   out.innerHTML=head+body+again;
+}
+async function markShipped(btn){
+  var d=btn.dataset;
+  btn.disabled=true; var was=btn.textContent; btn.textContent='Saving…';
+  try{
+    var r=await fetch(F+'/mark-return-shipped',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET,claim:d.claim,part:d.part,rma:d.rma,tracking:d.tracking,distributor:d.dist,by:'return-finder'})});
+    var j=await r.json();
+    if(r.ok&&j&&j.ok){ btn.className='shipbtn done'; btn.textContent='✅ Shipped — counted down'; }
+    else { btn.disabled=false; btn.textContent=was; }
+  }catch(e){ btn.disabled=false; btn.textContent=was; }
 }
 function reset(){ out.innerHTML=''; shoot.style.display='flex'; }
 
