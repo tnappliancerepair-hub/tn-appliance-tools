@@ -8,6 +8,12 @@
 <script src="/ant-schedule.js?v=20260720-packet"></script>
 <script src="/ant-job-tile.js?v=20260703-1"></script>
 <script src="/office-auth.js?v=20260703b"></script>
+<script src="/office-identity.js?v=20260728"></script>
+<script>
+// Who's doing the action — their signed-in identity, or the historical default
+// until someone signs in (so nothing changes for the current session).
+function officeActor(){ try{ return (window.OfficeStaff&&OfficeStaff.name())||'Danielle'; }catch(_){ return 'Danielle'; } }
+</script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
 <!-- Google tag (gtag.js) -->
@@ -907,7 +913,7 @@ function toggleChk(id,i,el,auto){
   try{localStorage.setItem('tn_chk_'+id,JSON.stringify(arr));}catch(_){}
   CHECK_MAP[id]=arr;                                  // keep local view fresh
   // persist to the job so it sticks everywhere (fire-and-forget)
-  try{fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),checklist:arr,actor:'Danielle'})});}catch(_){}
+  try{fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),checklist:arr,actor:officeActor()})});}catch(_){}
   const on=arr.includes(i); // FULLY MANUAL — Danielle ticks each step herself, never auto (Teddy 2026-07-04)
   el.classList.toggle('done',on);
   const box=el.querySelector('.box'); if(box)box.textContent=on?'✓':'';
@@ -1372,7 +1378,7 @@ async function persistStage(id,colId,serviceState){
   // (which used to let the card snap back on reload). Returns true once it lands.
   for(let a=0;a<3;a++){
     try{
-      const r=await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:colId||'',service_state:serviceState||'',actor:'Danielle'})});
+      const r=await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:colId||'',service_state:serviceState||'',actor:officeActor()})});
       const d=await r.json().catch(()=>({}));
       if(d&&(d.ok||d.success)) return true;
     }catch(_){}
@@ -1440,7 +1446,7 @@ async function onDrop(colId,techId,colEl){
       const _startMs=ctStartMs(_day,_hr)||Date.parse(_day)||Date.now();
       toast('Scheduling '+TECH_NAME[techId]+'…');
       try{
-        const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:parseInt(techId,10),startMs:_startMs,actor:'Danielle'});   // one shared save (ant-schedule.js)
+        const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:parseInt(techId,10),startMs:_startMs,actor:officeActor()});   // one shared save (ant-schedule.js)
         if(r.ok){ try{ if(window.AntMagic)AntMagic.award('file'); if(window.AntSounds)(AntSounds.move||function(){})(); }catch(_){} }   // 🏆 reward the pre-schedule
         toast(r.ok?('Scheduled '+TECH_NAME[techId]+' ✓ — now on the schedule'):('⚠ '+(r.error||'failed')));
       }catch(_){toast('⚠ connection error');}
@@ -1448,7 +1454,7 @@ async function onDrop(colId,techId,colEl){
   } else if(STATUS_MAP[colId]){
     const label={parts:'Waiting Parts',done:'✅ Completion',schedule:'Needs Scheduled',scheduled:'Scheduled'}[colId];
     toast('Moving to '+label+'…');
-    try{const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:STATUS_MAP[colId],actor:'Danielle'});toast((d&&d.success)?(label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}
+    try{const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:STATUS_MAP[colId],actor:officeActor()});toast((d&&d.success)?(label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}
     catch(_){toast('⚠ connection error');}
   }
   setTimeout(loadBoard,800); // quiet resync to confirm server truth
@@ -2441,7 +2447,7 @@ async function saveJobInfo(id){
   let ok=true;
   try{const d=await postJSON('update_job_basics',basics);if(!(d&&d.success))ok=false;}catch(_){ok=false;}
   if(claim||phone){
-    try{const d2=await postJSON('office_quick_fill',{job_id:parseInt(id,10),claim_number:claim,customer_phone:phone,actor:'Danielle'});if(!(d2&&d2.success))ok=false;}catch(_){ok=false;}
+    try{const d2=await postJSON('office_quick_fill',{job_id:parseInt(id,10),claim_number:claim,customer_phone:phone,actor:officeActor()});if(!(d2&&d2.success))ok=false;}catch(_){ok=false;}
   }
   toast(ok?'Saved ✓':'⚠ some fields did not save');
   openDrawer(String(id)); // reload the job file with the new values
@@ -2461,7 +2467,7 @@ async function savePhoneInline(jid){
   if(!ph){toast('Enter a phone');return;}
   toast('Saving…');
   try{
-    const d=await postJSON('office_quick_fill',{job_id:parseInt(jid,10),customer_phone:ph,actor:'Danielle'});
+    const d=await postJSON('office_quick_fill',{job_id:parseInt(jid,10),customer_phone:ph,actor:officeActor()});
     if(d&&d.success){toast('Phone saved ✓');openDrawer(String(jid));loadBoard();}
     else{toast('⚠ did not save');}
   }catch(_){toast('⚠ failed');}
@@ -2473,7 +2479,7 @@ async function markJobComplete(id){
   if(!confirm('Mark this job complete? It moves to Completion so you can invoice it.'))return;
   toast('Marking complete…');
   try{
-    const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'completed',actor:'Danielle'});
+    const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:'completed',actor:officeActor()});
     if(d&&d.success){toast('Marked complete ✓');loadBoard();}
     else{toast('⚠ '+((d&&d.error)||'did not save'));}
   }catch(_){toast('⚠ failed');}
@@ -2494,7 +2500,7 @@ async function saveCustomerNameInline(jid){
   const last=sp<0?'':full.slice(sp+1);
   toast('Saving…');
   try{
-    const r=await fetch('/.netlify/functions/update-customer-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10),first_name:first,last_name:last,actor:'Danielle'})});
+    const r=await fetch('/.netlify/functions/update-customer-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10),first_name:first,last_name:last,actor:officeActor()})});
     const d=await r.json();
     if(d&&d.ok){toast('Name saved ✓');openDrawer(String(jid));loadBoard();}
     else{toast('⚠ '+((d&&d.error)||'did not save'));}
@@ -2527,7 +2533,7 @@ async function saveCustomerInfo(jid){
   const g=function(id){ const el=document.getElementById('ce-'+id); return el?el.value.trim():undefined; };
   const _jid=parseInt(jid,10);
   const _resolveAddr=!!(ADDR_FLAGS[_jid]&&ADDR_FLAGS[_jid].state==='correction');
-  const body={job_id:_jid,actor:'Danielle',first_name:g('first'),last_name:g('last'),phone:g('phone'),email:g('email'),address:g('address'),city:g('city'),state:g('state'),zip:g('zip'),resolve_address_flag:_resolveAddr};
+  const body={job_id:_jid,actor:officeActor(),first_name:g('first'),last_name:g('last'),phone:g('phone'),email:g('email'),address:g('address'),city:g('city'),state:g('state'),zip:g('zip'),resolve_address_flag:_resolveAddr};
   toast('Saving…');
   try{
     const r=await fetch('/.netlify/functions/update-customer-name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -2825,7 +2831,7 @@ async function bookHoldConfirmed(id,techId,date){
   const win='';
   toast('Booking…');
   try{
-    const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:techId,startMs:startMs,etaWindow:win,actor:'Danielle'});   // one shared save (ant-schedule.js)
+    const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:techId,startMs:startMs,etaWindow:win,actor:officeActor()});   // one shared save (ant-schedule.js)
     if(r.ok){
       try{await fetch('/.netlify/functions/schedule-hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'release',job_id:parseInt(id,10)})});}catch(_){}
       persistStage(id,'scheduled'); toast('Confirmed ✓ — booked'); closeDrawer(); loadBoard();
@@ -2891,7 +2897,7 @@ async function scheduleFromDrawer(id){
   try{
     // One shared save (ant-schedule.js) — reopens a stuck status (canceled OR the
     // in_progress-after-parts-return case, Craig #20193) via not_ready, then retries.
-    const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:tech,startMs:startMs,endMs:endMs,etaWindow:win,actor:'Danielle'});
+    const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:tech,startMs:startMs,endMs:endMs,etaWindow:win,actor:officeActor()});
     if(r.ok){
       // Record how many stop-slots this job eats (latest-wins). Always write it so
       // switching a job back to 1 slot on a reschedule resets it to standard.
@@ -2927,7 +2933,7 @@ async function moveJobFromDrawer(id){
     if(_onSchedule){ toast('Moved to '+label+' ✓'); closeDrawer(); loadBoard(); return; }
     try{const d=await postJSON('reassign_job',{job_id:parseInt(id,10),technician_id:parseInt(techId,10)});toast((d&&d.success)?('Moved to '+label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}catch(_){toast('⚠ connection error');}
   } else if(STATUS_MAP[colId]){
-    try{const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:STATUS_MAP[colId],actor:'Danielle'});toast((d&&d.success)?('Moved to '+label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}catch(_){toast('⚠ connection error');}
+    try{const d=await postJSON('office_set_job_status',{job_id:parseInt(id,10),scheduling_status:STATUS_MAP[colId],actor:officeActor()});toast((d&&d.success)?('Moved to '+label+' ✓'):('⚠ '+((d&&d.error)||'failed')));}catch(_){toast('⚠ connection error');}
   }
   closeDrawer(); loadBoard();
 }
@@ -2938,7 +2944,7 @@ async function setRegion(id,st){
   const keepStage=((bi.office_stage||'')+'').trim()||(STAGE_MAP[id]&&STAGE_MAP[id].office_stage)||stageGet(id)||'';
   toast('Moving region…');
   try{
-    const r=await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:keepStage,service_state:st,actor:'Danielle'})});
+    const r=await fetch('/.netlify/functions/office-stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),stage:keepStage,service_state:st,actor:officeActor()})});
     const d=await r.json();
     if(d&&(d.ok||d.success)){ toast('Moved to '+(st==='LA'?'NOLA':'TN')+' ✓'); closeDrawer(); loadBoard(); }
     else toast('⚠ '+((d&&d.error)||'failed'));
@@ -2947,7 +2953,7 @@ async function setRegion(id,st){
 async function deleteJob(jid,name){
   if(!confirm('Delete '+(name||'this job')+' off the board? Use for junk / canceled-email jobs. Nobody gets texted.'))return;
   try{
-    const d=await postJSON('office_remove_job',{job_id:parseInt(jid,10),action:'delete',actor:'Danielle'});
+    const d=await postJSON('office_remove_job',{job_id:parseInt(jid,10),action:'delete',actor:officeActor()});
     if(d&&d.success){toast('Deleted 🗑');closeDrawer();loadBoard();}
     else toast('⚠ '+((d&&d.error)||'failed'));
   }catch(_){toast('⚠ that did not go through.');}
@@ -2958,7 +2964,7 @@ async function clearFromSearch(jid,name,evt){
   if(evt){evt.preventDefault();evt.stopPropagation();}
   if(!confirm('Clear '+(name||'#'+jid)+' (#'+jid+') off the board?\n\nUse for a duplicate / junk job. It is reversible and nobody gets texted.'))return;
   try{
-    const d=await postJSON('office_remove_job',{job_id:parseInt(jid,10),action:'delete',actor:'Danielle'});
+    const d=await postJSON('office_remove_job',{job_id:parseInt(jid,10),action:'delete',actor:officeActor()});
     if(d&&d.success){
       toast('Cleared 🗑 #'+jid);
       // reflect it in the open search dropdown without a full re-search
@@ -3272,7 +3278,7 @@ async function restoreFromSearch(jid,name,evt){
   if(evt){evt.preventDefault();evt.stopPropagation();}
   if(!confirm('Bring '+(name||'#'+jid)+' (#'+jid+') back onto the board?\n\nIt returns to Needs Scheduled. Nobody gets texted.'))return;
   try{
-    const d=await postJSON('office_set_job_status',{job_id:parseInt(jid,10),scheduling_status:'not_ready',actor:'Danielle'});
+    const d=await postJSON('office_set_job_status',{job_id:parseInt(jid,10),scheduling_status:'not_ready',actor:officeActor()});
     if(d&&(d.success||d.id||d.job_id||d.ok)){
       toast('Brought back ↩ #'+jid);
       const inp=document.getElementById('search-in');
@@ -3357,7 +3363,7 @@ async function antDo(p){
     if(t==='follow_up'||t==='needs_invoice'){try{localStorage.setItem('tn_stage_'+jobId,t==='needs_invoice'?'needinv':'followup');}catch(_){}antMsg('it','✅ '+jobLabel+' → '+antFolderLabel(t)+'.');loadBoard();return;}
     const sm={waiting_parts:'awaiting_parts',completed:'completed',needs_scheduled:'not_ready'};const st=sm[t];
     if(!st){antMsg('it','Where should it go?');return;}
-    try{await postJSON('office_set_job_status',{job_id:jobId,scheduling_status:st,actor:'Danielle (Ant)'});antMsg('it','✅ '+jobLabel+' → '+antFolderLabel(t)+'.');loadBoard();}catch(_){antMsg('it','⚠ that did not go through.');}
+    try{await postJSON('office_set_job_status',{job_id:jobId,scheduling_status:st,actor:officeActor()+' (Ant)'});antMsg('it','✅ '+jobLabel+' → '+antFolderLabel(t)+'.');loadBoard();}catch(_){antMsg('it','⚠ that did not go through.');}
     return;
   }
 }
