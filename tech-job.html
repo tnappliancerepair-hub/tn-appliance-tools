@@ -1213,6 +1213,7 @@ async function returnFlow(row,part){
     if(d&&d.ok&&d.print_url){
       panel.innerHTML='<div style="font-size:12.5px;color:#127a4a;font-weight:700;margin-bottom:6px">↩︎ Return to '+esc(d.distributor||'the distributor')+(d.texted?' · label texted to you':'')+'</div>'
         +'<a href="'+esc(d.print_url)+'" target="_blank" rel="noopener" class="btn primary" style="display:block;text-align:center;text-decoration:none;padding:11px;font-size:15px">🖨 Print return label</a>'
+        +(d.gmail_link?'<div style="text-align:center;margin-top:6px"><a href="'+esc(d.gmail_link)+'" target="_blank" rel="noopener" style="color:#3a86ff;font-size:13px;text-decoration:none">✉️ or open the RMA email</a></div>':'')
         +'<button class="btn wp-shipped" style="width:100%;margin-top:7px;background:#0f5132;color:#fff;font-size:15px;padding:11px">✓ Put out for pickup</button>';
       const sb=panel.querySelector('.wp-shipped');
       sb.onclick=async function(){

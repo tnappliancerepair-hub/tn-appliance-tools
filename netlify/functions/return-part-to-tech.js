@@ -51,6 +51,7 @@ exports.handler = async function (event) {
   const print_url = label_image_url ? `${SITE}/label-print.html?u=${encodeURIComponent(label_image_url)}` : (match.label_url || '');
   const distributor = match.distributor || '';
   const rma = match.rma || '';
+  const gmail_link = match.gmail_link || '';
 
   // 3) text the label straight to the tech's phone
   let texted = false;
@@ -60,5 +61,5 @@ exports.handler = async function (event) {
     try { await sendSms(phone, msg, 'technician', 'part_return_label'); texted = true; } catch (_) {}
   }
 
-  return json(200, { ok: true, part, claim, distributor, rma, label_image_url, print_url, has_image: !!label_image_url, texted });
+  return json(200, { ok: true, part, claim, distributor, rma, label_image_url, print_url, gmail_link, has_image: !!label_image_url, texted });
 };
