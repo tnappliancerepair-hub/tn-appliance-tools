@@ -766,7 +766,10 @@
 # cold Netlify function takes 10–36s on first hit = the "call timed out locating the
 # claim" drops. Warm = first real lookup returns ~0.5s. (Teddy 2026-07-24 phone fire.)
 [functions."warm-phone"]
-  schedule = "*/5 * * * *"
+  # */3 (was */5, 2026-07-28): shrink the cold-start window further — the last
+  # lookup_drop misses land when a call hits just as the container recycles between
+  # 5-min pings. Tighter warming = smaller gap for a cold hang. Cheap benign GET.
+  schedule = "*/3 * * * *"
 
 # phone-trust-scorecard — "get better every day" made measurable. Daily ~7PM CT it
 # reads the day's calls, scores TRUST honestly (real misses vs noise), tracks the
