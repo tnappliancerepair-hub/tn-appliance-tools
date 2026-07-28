@@ -87,12 +87,39 @@ function render(d){
       '<div class="row">For <b>'+(o.customer||('job #'+o.job_id))+'</b></div>'+
       (o.rma?'<div class="row">RMA <b>'+o.rma+'</b></div>':'')+
       '<div class="how">'+howLine(o)+'</div>';
+
+    // 🖨 Print return label — pull THIS part's prepaid label straight to the screen
+    // (no re-text, the tech is already here) so he prints it, boxes it, puts it out.
+    const printWrap=document.createElement('div');
+    const printBtn=document.createElement('button');
+    printBtn.style.background='#1f6feb';
+    printBtn.textContent='🖨 Print return label';
+    printBtn.onclick=async()=>{ printBtn.disabled=true; printBtn.textContent='Finding your label…';
+      try{
+        const r=await fetch('/.netlify/functions/return-part-to-tech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:o.job_id,part:o.part,tech_id:parseInt(TECH,10)||0,claim:o.claim||'',notify:false})});
+        const d=await r.json();
+        if(d&&d.ok&&d.print_url){
+          window.open(d.print_url,'_blank','noopener');
+          printBtn.textContent='🖨 Print again';
+          if(d.gmail_link && !printWrap.querySelector('.eml')){ const a=document.createElement('div'); a.className='eml'; a.style.cssText='text-align:center;margin-top:8px;font-size:13px'; a.innerHTML='<a href="'+d.gmail_link+'" target="_blank" rel="noopener">✉️ or open the RMA email</a>'; printWrap.appendChild(a); }
+        } else {
+          printBtn.textContent='Label not found — use the tracking above';
+        }
+      }catch(_){ printBtn.textContent='Hiccup — try again'; }
+      printBtn.disabled=false;
+    };
+    printWrap.appendChild(printBtn);
+    card.appendChild(printWrap);
+
     const btn=document.createElement('button');
-    btn.textContent='Shipped ✓ — mark it returned';
+    btn.style.background='#0f5132';
+    btn.textContent='✓ Put out for pickup';
     btn.onclick=async()=>{ btn.disabled=true; btn.textContent='Saving…';
-      try{ await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:o.job_id,part:o.part,status:'returned'})});
-        card.style.opacity=.4; btn.textContent='✓ Marked returned'; setTimeout(load,700);
-      }catch(_){ btn.disabled=false; btn.textContent='Shipped ✓ — try again'; } };
+      // mark-return-shipped logs warranty_part_status status:'shipped' — closes it in
+      // the open-returns loader AND counts it on the office scoreboard, one write.
+      try{ await fetch('/.netlify/functions/mark-return-shipped',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:o.job_id,claim:o.claim||'',part:o.part,rma:o.rma||'',tracking:o.tracking||'',distributor:o.distributor||'',by:'tech'+TECH})});
+        card.style.opacity=.4; btn.textContent='✅ Out for pickup — counted'; setTimeout(load,800);
+      }catch(_){ btn.disabled=false; btn.textContent='✓ Put out for pickup — try again'; } };
     card.appendChild(btn);
     root.appendChild(card);
   }

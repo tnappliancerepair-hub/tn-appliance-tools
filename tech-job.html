@@ -1236,6 +1236,38 @@ async function wpMissing(row,part){
     else if(s){ s.style.color='#c0392b'; s.textContent='⚠ failed — try again'; }
   }catch(_){ if(s){s.style.color='#c0392b';s.textContent='⚠ error';} }
 }
+// Auto-flag on Complete — the returns safety net. After a job closes, if any warranty
+// part on it still has to go back (marked Unused, not yet put out) OR hasn't been checked
+// yet, drop a sticky banner so the tech handles the return before he leaves. Tapping it
+// scrolls to the parts card where he prints the label + puts it out for FedEx pickup.
+async function nudgePendingReturns(){
+  try{
+    const claim=encodeURIComponent((job&&job.claim_number)||'');
+    const d=await fetch('/.netlify/functions/warranty-parts?job_id='+JOB_ID+'&claim='+claim).then(r=>r.json());
+    const parts=(d&&d.parts)||[];
+    const toReturn=parts.filter(p=>p.status==='to_return');            // unused → goes back
+    const unchecked=parts.filter(p=>!p.checked && p.status!=='returned' && p.status!=='missing');
+    const nBack=toReturn.length, nCheck=unchecked.length;
+    if(!nBack && !nCheck) return;   // nothing hanging — clean close
+    let old=document.getElementById('ret-nudge'); if(old) old.remove();
+    const bar=document.createElement('div'); bar.id='ret-nudge';
+    bar.style.cssText='position:fixed;left:10px;right:10px;bottom:14px;z-index:9999;background:#c2691c;color:#fff;border-radius:14px;padding:13px 15px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:14px;line-height:1.4';
+    const msg = nBack
+      ? '↩︎ <b>'+nBack+' part'+(nBack===1?'':'s')+' to return</b> on this job — print the label & put it out for FedEx pickup before you leave.'
+      : '📦 <b>'+nCheck+' supplied part'+(nCheck===1?'':'s')+'</b> still need a tap — Used / Unused / Missing.';
+    bar.innerHTML='<div style="display:flex;gap:10px;align-items:center">'
+      +'<div style="flex:1">'+msg+'</div>'
+      +'<button id="ret-nudge-go" style="background:#fff;color:#8a3b00;border:0;border-radius:9px;font-weight:800;padding:9px 12px;font-size:14px">Handle it →</button>'
+      +'<button id="ret-nudge-x" style="background:transparent;color:#fff;border:0;font-size:20px;line-height:1;padding:2px 4px">×</button></div>';
+    document.body.appendChild(bar);
+    document.getElementById('ret-nudge-x').onclick=()=>bar.remove();
+    document.getElementById('ret-nudge-go').onclick=()=>{
+      bar.remove();
+      const card=document.getElementById('wparts-card');
+      if(card){ card.scrollIntoView({behavior:'smooth',block:'center'}); card.style.boxShadow='0 0 0 3px rgba(194,105,28,.55)'; setTimeout(()=>{card.style.boxShadow='';},2200); }
+    };
+  }catch(_){}
+}
 
 // ── 💳 Take a payment (on-the-spot, any job incl. warranty) ────
 // The everyday "the customer is paying me now" tool. Charges via Stripe
@@ -1480,6 +1512,11 @@ function completeFlow(){
         const rpt=(document.getElementById('notes')||{}).value||'';
         pushSP('completed', rpt ? ('Job completed. '+rpt).slice(0,240) : 'Job completed.');
         loadJob();
+        // Auto-flag returns at job close: don't let an unused part leave in the truck
+        // uncounted. If this job has warranty parts still to return (or unchecked),
+        // surface a loud banner so the tech prints the label + puts it out for pickup
+        // before he drives off. (Teddy 2026-07-28 — the sloppy-process fix.)
+        nudgePendingReturns();
       }
       else if(/tdr|incomplete|labor|repair|required|diagnos/i.test(String(d.error||''))){
         // Warranty claim needs the 5 TDR fields — a note in the box alone won't clear it.

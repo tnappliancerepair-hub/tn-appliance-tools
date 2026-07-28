@@ -53,10 +53,13 @@ exports.handler = async function (event) {
   const rma = match.rma || '';
   const gmail_link = match.gmail_link || '';
 
-  // 3) text the label straight to the tech's phone
+  // 3) text the label straight to the tech's phone. Skip the text when the caller
+  //    asks (notify:false) — e.g. the My Returns worklist, where the tech is already
+  //    looking at the label on screen and a text would just be noise.
   let texted = false;
+  const wantText = b.notify !== false && b.notify !== 'false';
   const phone = TECH_PHONES[techId] || '';
-  if (phone && print_url) {
+  if (wantText && phone && print_url) {
     const msg = `↩️ RETURN: part ${part}${distributor ? ' → ' + distributor : ''}. Print the label, box the part, put it out for FedEx pickup: ${print_url}  Tap "✓ Put out for pickup" in your app when it's out.`;
     try { await sendSms(phone, msg, 'technician', 'part_return_label'); texted = true; } catch (_) {}
   }
