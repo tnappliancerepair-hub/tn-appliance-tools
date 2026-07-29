@@ -16,11 +16,11 @@ function toE164(p) {
 }
 function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 
-const OK = new Set(['es', 'vi', 'ar', 'hi', 'fr', 'en']);
+const OK = new Set(['es', 'vi', 'ru', 'zh', 'ar', 'hi', 'fr', 'en']);
 function norm(code) {
   const c = String(code || '').trim().toLowerCase();
   if (OK.has(c)) return c;
-  const byName = { spanish: 'es', vietnamese: 'vi', arabic: 'ar', hindi: 'hi', french: 'fr', english: 'en' }[c];
+  const byName = { spanish: 'es', vietnamese: 'vi', russian: 'ru', chinese: 'zh', arabic: 'ar', hindi: 'hi', french: 'fr', english: 'en' }[c];
   return byName || '';
 }
 

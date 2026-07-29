@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Already know your part? — TN Appliance Exchange</title>
+<meta name="description" content="Know your model number? A real appliance tech confirms the exact part — in your language — and ships it to your door. No wrong-part guessing.">
+<meta name="robots" content="noindex,follow">
+<style>
+  :root{--bg:#0a0a0b;--card:#141416;--bord:#26262a;--bord2:#33333a;--white:#ececec;--gray:#a0a0a6;--gray2:#6c6c74;--orange:#ff6200;--green:#39ff14;--mono:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--white);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.6;padding:26px 18px 60px;max-width:560px;margin:0 auto;}
+  .orb-wrap{display:flex;justify-content:center;margin-bottom:8px;position:relative;height:52px;}
+  .orb{width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff8a3d,#ff6200 60%,#b93f00);box-shadow:0 0 26px rgba(255,98,0,.5);}
+  .ant{position:absolute;top:13px;font-size:24px;}
+  .kicker{text-align:center;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--gray);}
+  h1{font-size:clamp(24px,6vw,32px);text-align:center;margin:8px 0 6px;line-height:1.2;text-wrap:balance;}
+  h1 .a{color:var(--green);}
+  .sub{text-align:center;color:var(--gray);font-size:15.5px;margin:0 auto 18px;max-width:460px;}
+  .valuebox{background:var(--card);border:1px solid var(--bord);border-radius:14px;padding:14px 16px;font-size:14px;color:#dfe6da;line-height:1.7;margin-bottom:16px;}
+  .card{background:var(--card);border:1px solid var(--bord);border-radius:16px;padding:18px;}
+  label.fld{display:block;font-size:12.5px;color:var(--gray);margin:12px 0 5px;}
+  input,textarea{width:100%;background:#0f0f10;border:1.5px solid var(--bord2);border-radius:11px;padding:13px;color:var(--white);font-size:16px;font-family:inherit;}
+  input:focus,textarea:focus{outline:none;border-color:var(--orange);}
+  textarea{min-height:66px;resize:vertical;}
+  .appl-opts{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px;}
+  .applopt{flex:1 1 30%;min-width:96px;background:#111;border:1.5px solid var(--bord2);border-radius:11px;padding:11px 6px;text-align:center;cursor:pointer;color:var(--white);font-size:13.5px;}
+  .applopt.sel{border-color:var(--green);background:rgba(57,255,20,.09);color:var(--green);}
+  .go{width:100%;margin-top:18px;background:var(--orange);border:0;border-radius:12px;padding:16px;color:#0a0a0a;font-family:var(--mono);font-size:16px;font-weight:600;cursor:pointer;}
+  .go:disabled{opacity:.55;}
+  .err{color:#ff7a7a;font-size:12.5px;margin-top:10px;text-align:center;min-height:16px;}
+  .reassure{font-size:11.5px;color:var(--gray2);text-align:center;margin-top:10px;line-height:1.5;}
+  .done{text-align:center;padding:20px 8px;}
+  .done .big{font-size:44px;}
+  .done h2{font-size:21px;margin:8px 0 6px;}
+  .done p{color:var(--gray);font-size:15px;}
+  .footer{margin-top:26px;font-size:11px;color:var(--gray2);text-align:center;}
+  .footer a{color:var(--gray);}
+  .altlink{display:block;text-align:center;margin-top:14px;font-size:13px;color:var(--gray);text-decoration:none;}
+  .altlink b{color:var(--orange);}
+</style></head><body>
+  <div class="orb-wrap"><div class="orb"></div><div class="ant">🐜</div></div>
+  <div class="kicker">TN Appliance Exchange</div>
+  <h1 data-i18n="h1">Already know your part? <span class="a">We'll confirm it + ship it.</span></h1>
+  <div class="sub" data-i18n="sub">Send your model number and what's wrong. A real appliance tech confirms the <b>exact</b> part — in your language — and ships it to your door. No wrong-part guessing.</div>
+
+  <div class="valuebox">
+    ✅ <b data-i18n="b1">A real tech confirms the exact part</b><span data-i18n="b1b"> — so you never buy the wrong one twice.</span><br>
+    ✅ <b data-i18n="b2">Shipped anywhere in the US</b><span data-i18n="b2b"> — you install it (we'll help), or we do it (TN &amp; LA).</span><br>
+    ✅ <b data-i18n="b3">In your language</b><span data-i18n="b3b"> — text us however you're comfortable; we answer the same way.</span>
+  </div>
+
+  <div class="card" id="card">
+    <label class="fld" data-i18n="l_name">Your name</label>
+    <input id="name" type="text" autocomplete="name" placeholder="First and last" data-i18n-ph="ph_name">
+    <label class="fld" data-i18n="l_phone">Best cell number (we text your answer here)</label>
+    <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(615) 555-1234">
+    <label class="fld" data-i18n="l_appl">Which appliance?</label>
+    <div class="appl-opts" id="applOpts">
+      <div class="applopt" data-a="Refrigerator" data-i18n="a_fridge">🧊 Fridge</div>
+      <div class="applopt" data-a="Washer" data-i18n="a_washer">🌀 Washer</div>
+      <div class="applopt" data-a="Dryer" data-i18n="a_dryer">🔥 Dryer</div>
+      <div class="applopt" data-a="Oven / Range" data-i18n="a_oven">🍳 Oven/Range</div>
+      <div class="applopt" data-a="Dishwasher" data-i18n="a_dish">🍽️ Dishwasher</div>
+      <div class="applopt" data-a="Other" data-i18n="a_other">➕ Other</div>
+    </div>
+    <label class="fld" data-i18n="l_model">Model number (on a sticker inside the door / on the back)</label>
+    <input id="model" type="text" placeholder="e.g. WRF535SWHZ00" data-i18n-ph="ph_model">
+    <label class="fld" data-i18n="l_prob">What part do you need, or what's it doing?</label>
+    <textarea id="problem" placeholder="e.g. need the ice maker, or: fridge not cooling" data-i18n-ph="ph_prob"></textarea>
+    <button class="go" id="goBtn" data-i18n="go">Send my part request →</button>
+    <div class="err" id="err"></div>
+    <div class="reassure" data-i18n="reassure">A real tech replies by text — usually within a couple hours. Not sure what's wrong? <a href="/quick-check-intake.html" id="qcLink" style="color:var(--orange);text-decoration:none" data-i18n="qc">Start the $50 Quick Check instead.</a></div>
+  </div>
+
+  <div class="footer">TN Appliance Exchange · <a href="tel:+18882688998">1-888-268-8998</a></div>
+
+<script>
+if (location.hostname.indexOf('www.')===0){ location.replace(location.href.replace('://www.','://')); }
+const FN='https://tnapplianceexchange.net/.netlify/functions';
+const QS=new URLSearchParams(location.search);
+const LANG=(QS.get('lang')||'en').toLowerCase();
+const pre={ appliance:(QS.get('appliance')||''), model:(QS.get('model')||'') };
+
+const I18N={
+ es:{ h1:'¿Ya sabes tu pieza? <span class="a">La confirmamos y te la enviamos.</span>',
+   sub:'Manda tu número de modelo y qué falla. Un técnico de verdad confirma la pieza <b>exacta</b> — en tu idioma — y te la envía a tu puerta. Sin adivinar.',
+   b1:'Un técnico real confirma la pieza exacta', b1b:' — para que no compres la equivocada dos veces.',
+   b2:'Enviada a cualquier parte de EE. UU.', b2b:' — la instalas tú (te ayudamos) o lo hacemos nosotros (TN y LA).',
+   b3:'En tu idioma', b3b:' — escríbenos como te sientas cómodo; respondemos igual.',
+   l_name:'Tu nombre', l_phone:'Mejor número de celular (te enviamos la respuesta aquí)', l_appl:'¿Qué electrodoméstico?',
+   l_model:'Número de modelo (en una etiqueta dentro de la puerta / atrás)', l_prob:'¿Qué pieza necesitas, o qué está haciendo?',
+   a_fridge:'🧊 Refri', a_washer:'🌀 Lavadora', a_dryer:'🔥 Secadora', a_oven:'🍳 Horno/Estufa', a_dish:'🍽️ Lavavajillas', a_other:'➕ Otro',
+   go:'Enviar mi solicitud de pieza →', reassure:'Un técnico real responde por mensaje — normalmente en un par de horas. ¿No sabes qué falla? <a href="/quick-check-intake.html?lang=es" style="color:var(--orange);text-decoration:none">Empieza la Revisión Rápida de $50.</a>',
+   ph_name:'Nombre y apellido', ph_model:'ej. WRF535SWHZ00', ph_prob:'ej. necesito la fábrica de hielo, o: el refri no enfría',
+   done_h:'¡Listo!', done_p:'Un técnico de verdad está buscando tu pieza exacta. Atento a nuestro mensaje.' },
+ ru:{ h1:'Знаете свою деталь? <span class="a">Подтвердим и отправим.</span>',
+   sub:'Пришлите номер модели и что не так. Настоящий мастер подтвердит <b>точную</b> деталь — на вашем языке — и отправит её вам домой. Без угадывания.',
+   b1:'Настоящий мастер подтверждает точную деталь', b1b:' — чтобы вы не купили не ту дважды.',
+   b2:'Доставка в любую точку США', b2b:' — поставите сами (поможем) или сделаем мы (TN и LA).',
+   b3:'На вашем языке', b3b:' — пишите как удобно; отвечаем так же.',
+   l_name:'Ваше имя', l_phone:'Лучший номер мобильного (пришлём ответ сюда)', l_appl:'Какая техника?',
+   l_model:'Номер модели (на шильдике внутри дверцы / сзади)', l_prob:'Какая деталь нужна или что происходит?',
+   a_fridge:'🧊 Холодильник', a_washer:'🌀 Стиралка', a_dryer:'🔥 Сушилка', a_oven:'🍳 Плита/Духовка', a_dish:'🍽️ Посудомойка', a_other:'➕ Другое',
+   go:'Отправить запрос детали →', reassure:'Настоящий мастер ответит сообщением — обычно за пару часов. Не знаете, что не так? <a href="/quick-check-intake.html?lang=ru" style="color:var(--orange);text-decoration:none">Начните Быструю Проверку за $50.</a>',
+   ph_name:'Имя и фамилия', ph_model:'напр. WRF535SWHZ00', ph_prob:'напр. нужен льдогенератор, или: холодильник не холодит',
+   done_h:'Готово!', done_p:'Настоящий мастер уже ищет вашу точную деталь. Ждите наше сообщение.' },
+ vi:{ h1:'Đã biết linh kiện của mình? <span class="a">Chúng tôi xác nhận và gửi.</span>',
+   sub:'Gửi số model và máy bị gì. Một thợ thật xác nhận <b>đúng</b> linh kiện — bằng ngôn ngữ của quý vị — và gửi đến tận nhà. Không đoán mò.',
+   b1:'Thợ thật xác nhận đúng linh kiện', b1b:' — để quý vị không mua nhầm hai lần.',
+   b2:'Gửi đến mọi nơi ở Mỹ', b2b:' — quý vị tự lắp (có hướng dẫn) hoặc chúng tôi lắp (TN & LA).',
+   b3:'Bằng ngôn ngữ của quý vị', b3b:' — nhắn kiểu nào cũng được; chúng tôi trả lời như vậy.',
+   l_name:'Tên của quý vị', l_phone:'Số di động tốt nhất (chúng tôi gửi trả lời về đây)', l_appl:'Thiết bị gì?',
+   l_model:'Số model (trên nhãn trong cửa / phía sau)', l_prob:'Cần linh kiện gì, hoặc máy đang bị gì?',
+   a_fridge:'🧊 Tủ lạnh', a_washer:'🌀 Máy giặt', a_dryer:'🔥 Máy sấy', a_oven:'🍳 Bếp/Lò', a_dish:'🍽️ Máy rửa chén', a_other:'➕ Khác',
+   go:'Gửi yêu cầu linh kiện →', reassure:'Thợ thật trả lời bằng tin nhắn — thường trong vài giờ. Không rõ máy bị gì? <a href="/quick-check-intake.html?lang=vi" style="color:var(--orange);text-decoration:none">Bắt đầu Kiểm Tra Nhanh $50.</a>',
+   ph_name:'Họ và tên', ph_model:'vd. WRF535SWHZ00', ph_prob:'vd. cần bộ làm đá, hoặc: tủ lạnh không lạnh',
+   done_h:'Đã nhận!', done_p:'Một thợ thật đang tìm đúng linh kiện cho quý vị. Chờ tin nhắn của chúng tôi nhé.' },
+ ar:{ h1:'تعرف قطعتك؟ <span class="a">نؤكّدها ونشحنها.</span>',
+   sub:'أرسل رقم الموديل وما العطل. فنّي حقيقي يؤكّد القطعة <b>الصحيحة</b> — بلغتك — ويشحنها إلى بابك. بلا تخمين.',
+   b1:'فنّي حقيقي يؤكّد القطعة الصحيحة', b1b:' — حتى لا تشتري الخطأ مرتين.',
+   b2:'تُشحن إلى أي مكان في أمريكا', b2b:' — تركّبها بنفسك (نساعدك) أو نركّبها نحن (TN و LA).',
+   b3:'بلغتك', b3b:' — راسلنا كما يناسبك؛ نردّ بالمثل.',
+   l_name:'اسمك', l_phone:'أفضل رقم جوال (نرسل الإجابة هنا)', l_appl:'أي جهاز؟',
+   l_model:'رقم الموديل (على ملصق داخل الباب / في الخلف)', l_prob:'أي قطعة تحتاج، أو ما المشكلة؟',
+   a_fridge:'🧊 ثلاجة', a_washer:'🌀 غسالة', a_dryer:'🔥 نشّافة', a_oven:'🍳 فرن/موقد', a_dish:'🍽️ غسالة أطباق', a_other:'➕ أخرى',
+   go:'أرسل طلب القطعة ←', reassure:'فنّي حقيقي يردّ برسالة — عادةً خلال ساعتين. لا تعرف العطل؟ <a href="/quick-check-intake.html?lang=ar" style="color:var(--orange);text-decoration:none">ابدأ الفحص السريع بـ$50.</a>',
+   ph_name:'الاسم الكامل', ph_model:'مثال WRF535SWHZ00', ph_prob:'مثال: أحتاج صانعة الثلج، أو: الثلاجة لا تبرّد',
+   done_h:'تم الاستلام!', done_p:'فنّي حقيقي يبحث الآن عن قطعتك الصحيحة. ترقّب رسالتنا.' },
+ zh:{ h1:'已经知道零件了？<span class="a">我们确认并寄给您。</span>',
+   sub:'发来型号和故障。真正的技师确认<b>准确</b>的零件——用您的语言——寄到您家门口。不再瞎猜。',
+   b1:'真正的技师确认准确零件', b1b:' —— 让您不用买错两次。',
+   b2:'寄到全美任何地方', b2b:' —— 您自己装（我们指导），或我们上门装（TN 和 LA）。',
+   b3:'用您的语言', b3b:' —— 您怎么方便怎么发，我们照样回复。',
+   l_name:'您的姓名', l_phone:'最佳手机号码（我们把答复发到这里）', l_appl:'哪种家电？',
+   l_model:'型号（门内标签／背面）', l_prob:'需要什么零件，或出了什么问题？',
+   a_fridge:'🧊 冰箱', a_washer:'🌀 洗衣机', a_dryer:'🔥 烘干机', a_oven:'🍳 烤箱/炉灶', a_dish:'🍽️ 洗碗机', a_other:'➕ 其他',
+   go:'提交我的零件请求 →', reassure:'真正的技师会发短信回复——通常几小时内。不确定哪里坏了？<a href="/quick-check-intake.html?lang=zh" style="color:var(--orange);text-decoration:none">改用 $50 快速检查。</a>',
+   ph_name:'姓名', ph_model:'例如 WRF535SWHZ00', ph_prob:'例如：需要制冰器，或：冰箱不制冷',
+   done_h:'已收到！', done_p:'真正的技师正在为您寻找准确零件。请留意我们的短信。' },
+ hi:{ h1:'अपना पार्ट पता है? <span class="a">हम पक्का करके भेजते हैं।</span>',
+   sub:'अपना मॉडल नंबर और समस्या भेजें। असली तकनीशियन <b>सही</b> पार्ट पक्का करता है — आपकी भाषा में — और आपके घर भेजता है। बिना अंदाज़े।',
+   b1:'असली तकनीशियन सही पार्ट पक्का करता है', b1b:' — ताकि आप गलत पार्ट दो बार न खरीदें।',
+   b2:'पूरे अमेरिका में भेजा जाता है', b2b:' — आप खुद लगाएँ (हम मदद करें), या हम लगाएँ (TN और LA)।',
+   b3:'आपकी भाषा में', b3b:' — जैसे सहज हो वैसे लिखें; हम वैसे ही जवाब देते हैं।',
+   l_name:'आपका नाम', l_phone:'बेहतरीन मोबाइल नंबर (हम जवाब यहीं भेजते हैं)', l_appl:'कौन-सा उपकरण?',
+   l_model:'मॉडल नंबर (दरवाज़े के अंदर लेबल / पीछे)', l_prob:'कौन-सा पार्ट चाहिए, या क्या समस्या है?',
+   a_fridge:'🧊 फ्रिज', a_washer:'🌀 वॉशर', a_dryer:'🔥 ड्रायर', a_oven:'🍳 ओवन/स्टोव', a_dish:'🍽️ डिशवॉशर', a_other:'➕ अन्य',
+   go:'मेरा पार्ट अनुरोध भेजें →', reassure:'असली तकनीशियन टेक्स्ट से जवाब देता है — आमतौर पर कुछ घंटों में। पता नहीं क्या खराब है? <a href="/quick-check-intake.html?lang=hi" style="color:var(--orange);text-decoration:none">$50 क्विक चेक शुरू करें।</a>',
+   ph_name:'पूरा नाम', ph_model:'जैसे WRF535SWHZ00', ph_prob:'जैसे आइस मेकर चाहिए, या: फ्रिज ठंडा नहीं कर रहा',
+   done_h:'मिल गया!', done_p:'एक असली तकनीशियन आपका सही पार्ट ढूँढ रहा है। हमारे टेक्स्ट का इंतज़ार करें।' },
+ fr:{ h1:'Vous connaissez votre pièce ? <span class="a">On la confirme et on l’expédie.</span>',
+   sub:'Envoyez votre numéro de modèle et la panne. Un vrai technicien confirme la <b>bonne</b> pièce — dans votre langue — et l’expédie chez vous. Sans deviner.',
+   b1:'Un vrai technicien confirme la bonne pièce', b1b:' — pour ne pas acheter la mauvaise deux fois.',
+   b2:'Expédiée partout aux É.-U.', b2b:' — vous l’installez (on vous aide), ou on le fait (TN et LA).',
+   b3:'Dans votre langue', b3b:' — écrivez comme vous voulez ; on répond pareil.',
+   l_name:'Votre nom', l_phone:'Meilleur numéro de portable (on vous répond ici)', l_appl:'Quel appareil ?',
+   l_model:'Numéro de modèle (étiquette dans la porte / à l’arrière)', l_prob:'Quelle pièce vous faut-il, ou quel est le problème ?',
+   a_fridge:'🧊 Frigo', a_washer:'🌀 Lave-linge', a_dryer:'🔥 Sèche-linge', a_oven:'🍳 Four/Cuisinière', a_dish:'🍽️ Lave-vaisselle', a_other:'➕ Autre',
+   go:'Envoyer ma demande de pièce →', reassure:'Un vrai technicien répond par texto — en quelques heures. Vous ne savez pas la panne ? <a href="/quick-check-intake.html?lang=fr" style="color:var(--orange);text-decoration:none">Commencez le Diagnostic à 50 $.</a>',
+   ph_name:'Nom complet', ph_model:'ex. WRF535SWHZ00', ph_prob:'ex. il me faut la machine à glaçons, ou : le frigo ne refroidit plus',
+   done_h:'C’est reçu !', done_p:'Un vrai technicien cherche votre pièce exacte. Surveillez notre texto.' },
+};
+const DONE_EN={ done_h:'Got it!', done_p:'A real tech is finding your exact part now. Watch for our text.' };
+const DICT=I18N[LANG]||null;
+const DONE=DICT?{done_h:DICT.done_h,done_p:DICT.done_p}:DONE_EN;
+if(DICT){
+  document.documentElement.lang=LANG; document.documentElement.dir=(LANG==='ar')?'rtl':'ltr';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.getAttribute('data-i18n'); if(DICT[k]!=null) el.innerHTML=DICT[k];});
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{const k=el.getAttribute('data-i18n-ph'); if(DICT[k]!=null) el.setAttribute('placeholder',DICT[k]);});
+}
+// preselect appliance/model from the landing page
+let appl=pre.appliance||'';
+document.querySelectorAll('.applopt').forEach(o=>{
+  if(appl && (o.dataset.a.toLowerCase().indexOf(appl.toLowerCase())>=0)) o.classList.add('sel');
+  o.addEventListener('click',()=>{ document.querySelectorAll('.applopt').forEach(x=>x.classList.remove('sel')); o.classList.add('sel'); appl=o.dataset.a; });
+});
+if(pre.model) document.getElementById('model').value=pre.model;
+
+const goBtn=document.getElementById('goBtn'), errEl=document.getElementById('err');
+goBtn.addEventListener('click', async ()=>{
+  const name=document.getElementById('name').value.trim();
+  const phone=document.getElementById('phone').value.trim();
+  const model=document.getElementById('model').value.trim();
+  const problem=document.getElementById('problem').value.trim();
+  const sel=document.querySelector('.applopt.sel'); const appliance=sel?sel.dataset.a:(appl||'');
+  errEl.textContent='';
+  if(phone.replace(/\D/g,'').length<10){ errEl.textContent='📱 '+ (DICT?DICT.l_phone:'Enter a valid cell number.'); return; }
+  if(!model && !problem){ errEl.textContent='🔧 '+ (DICT?DICT.l_prob:'Tell us the part or the problem.'); return; }
+  goBtn.disabled=true; const orig=goBtn.textContent; goBtn.textContent='…';
+  try{
+    const r=await fetch(FN+'/parts-concierge',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,phone,appliance,model,problem,lang:LANG})});
+    const d=await r.json().catch(()=>({}));
+    if(d && d.ok){
+      document.getElementById('card').innerHTML='<div class="done"><div class="big">✅</div><h2>'+DONE.done_h+'</h2><p>'+DONE.done_p+'</p></div>';
+      window.scrollTo({top:0,behavior:'smooth'});
+    } else { errEl.textContent='⚠️ '+(d.error||'Try again, or text 1-888-268-8998.'); goBtn.disabled=false; goBtn.textContent=orig; }
+  }catch(_){ errEl.textContent='⚠️ Network — try again, or text 1-888-268-8998.'; goBtn.disabled=false; goBtn.textContent=orig; }
+});
+</script>
+</body></html>

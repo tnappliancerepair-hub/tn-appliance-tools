@@ -1624,7 +1624,13 @@ function renderThreadBubbles(msgs){
       else { bg='#ede9fe'; lblColor='#7c5cd6'; who='Ant'; emoji='🤖'; laneNote=' · AI'; }
     }
     const lbl=(emoji?emoji+' ':'')+esc(who)+laneNote;
-    return '<div style="display:flex;justify-content:'+(inb?'flex-start':'flex-end')+';margin:5px 0"><div style="max-width:82%;background:'+bg+';border-radius:13px;padding:8px 11px"><div style="font-size:10.5px;color:'+lblColor+';margin-bottom:2px">'+lbl+' · '+stRel(m.ts_ms)+'</div><div style="font-size:14px;color:#1a2230;line-height:1.4;white-space:pre-wrap;word-break:break-word">'+txt+'</div></div></div>';
+    // Two-way translator (inbound half): if the customer wrote in another language,
+    // show the English gloss under their original so Danielle can read + act on it.
+    const eng=(md.english||'').toString().trim();
+    const gloss=(inb && eng && eng!==body.trim())
+      ? '<div style="margin-top:5px;padding-top:5px;border-top:1px dashed #c3ccd8;font-size:12.5px;color:#33507a;line-height:1.4"><span style="font-size:10px;letter-spacing:.04em;color:#7a8aa0;text-transform:uppercase">🌐 English'+(md.lang?(' · '+esc(String(md.lang).toUpperCase())):'')+'</span><br>'+esc(eng)+'</div>'
+      : '';
+    return '<div style="display:flex;justify-content:'+(inb?'flex-start':'flex-end')+';margin:5px 0"><div style="max-width:82%;background:'+bg+';border-radius:13px;padding:8px 11px"><div style="font-size:10.5px;color:'+lblColor+';margin-bottom:2px">'+lbl+' · '+stRel(m.ts_ms)+'</div><div style="font-size:14px;color:#1a2230;line-height:1.4;white-space:pre-wrap;word-break:break-word">'+txt+'</div>'+gloss+'</div></div>';
   }).join('');
 }
 async function loadThread(){

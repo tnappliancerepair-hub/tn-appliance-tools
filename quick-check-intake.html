@@ -93,6 +93,8 @@
     <div class="reassure" style="margin-top:6px"><span data-i18n="guar">By continuing you agree a video diagnosis is a professional best-assessment (not a physical test), the $50 is a diagnostic fee credited to your repair, and that parts are final sale (except defects — see our</span> <a id="guarLink" href="/guarantee.html" style="color:var(--orange);text-decoration:none" data-i18n="guarLink">guarantee</a>).</div>
   </div>
 
+  <a href="/parts-concierge.html" id="altDoor" data-i18n="altdoor" style="display:block;text-align:center;margin-top:16px;font-size:13.5px;color:var(--gray);text-decoration:none;line-height:1.5">🔧 Already know your part? <b style="color:var(--orange)">Skip the $50 — we'll confirm it &amp; ship it →</b></a>
+
   <div class="footer">TN Appliance Exchange · <a href="tel:+16152802949">615-280-2949</a></div>
 
 <script>
@@ -122,6 +124,7 @@ const I18N={ es:{
   reassure:'🔒 Pago seguro con Stripe. Después enviarás un video corto + una foto del número de modelo.',
   guar:'Al continuar aceptas que un diagnóstico por video es una evaluación profesional (no una prueba física), los $50 son una tarifa de diagnóstico que se acredita a tu reparación, y que las piezas son venta final (excepto defectos — consulta nuestra',
   guarLink:'garantía',
+  altdoor:'🔧 ¿Ya sabes tu pieza? <b style=\"color:var(--orange)\">Sáltate los $50 — la confirmamos y te la enviamos →</b>',
   ph_name:'Nombre y apellido', ph_email:'tu@correo.com', ph_addr:'123 Calle Principal', ph_city:'Ciudad', ph_prob:'ej. el refrigerador dejó de enfriar, el congelador sí funciona',
 }, ru:{
   h1:'Быстрая <span class="a">Проверка за $50</span>',
@@ -139,6 +142,7 @@ const I18N={ es:{
   reassure:'🔒 Безопасная оплата через Stripe. Затем вы отправите короткое видео + фото номера модели.',
   guar:'Продолжая, вы соглашаетесь, что видеодиагностика — это профессиональная оценка (не физическая проверка), $50 — это плата за диагностику, засчитываемая в ремонт, а детали не подлежат возврату (кроме брака — см. нашу',
   guarLink:'гарантию',
+  altdoor:'🔧 Знаете свою деталь? <b style=\"color:var(--orange)\">Без $50 — подтвердим и отправим →</b>',
   ph_name:'Имя и фамилия', ph_email:'vy@pochta.com', ph_addr:'ул. Главная, 123', ph_city:'Город', ph_prob:'напр. холодильник перестал холодить, морозилка работает',
 }, vi:{
   h1:'Kiểm Tra Nhanh <span class="a">$50</span>',
@@ -156,6 +160,7 @@ const I18N={ es:{
   reassure:'🔒 Thanh toán an toàn qua Stripe. Sau đó quý vị sẽ gửi một video ngắn + ảnh số model.',
   guar:'Khi tiếp tục, quý vị đồng ý rằng chẩn đoán qua video là một đánh giá chuyên môn (không phải kiểm tra thực tế), $50 là phí chẩn đoán được trừ vào tiền sửa, và linh kiện là bán không hoàn lại (trừ lỗi kỹ thuật — xem',
   guarLink:'bảo đảm của chúng tôi',
+  altdoor:'🔧 Đã biết linh kiện? <b style=\"color:var(--orange)\">Bỏ qua $50 — xác nhận và gửi cho quý vị →</b>',
   ph_name:'Họ và tên', ph_email:'ban@email.com', ph_addr:'123 Đường Chính', ph_city:'Thành phố', ph_prob:'vd. tủ lạnh ngừng làm lạnh, ngăn đá vẫn chạy',
 }, ar:{
   h1:'الفحص السريع <span class="a">بـ$50</span>',
@@ -173,6 +178,7 @@ const I18N={ es:{
   reassure:'🔒 دفع آمن عبر Stripe. بعدها ترسل فيديو قصيرًا + صورة لرقم الموديل.',
   guar:'بالمتابعة، أنت توافق على أن التشخيص بالفيديو تقييم مهني (وليس فحصًا فعليًا)، وأن الـ$50 رسوم تشخيص تُخصم من تصليحك، وأن القطع بيع نهائي (باستثناء العيوب — راجع',
   guarLink:'ضماننا',
+  altdoor:'🔧 تعرف قطعتك؟ <b style=\"color:var(--orange)\">بدون $50 — نؤكّدها ونشحنها ←</b>',
   ph_name:'الاسم الكامل', ph_email:'you@email.com', ph_addr:'123 الشارع الرئيسي', ph_city:'المدينة', ph_prob:'مثال: الثلاجة توقفت عن التبريد، الفريزر يعمل',
 }, zh:{
   h1:'50美元<span class="a">快速检测</span>',
@@ -190,6 +196,7 @@ const I18N={ es:{
   reassure:'🔒 通过 Stripe 安全支付。之后您会发一段短视频 + 型号铭牌照片。',
   guar:'继续即表示您同意：视频诊断是专业评估（非实物检测），这50美元是可抵扣维修费的诊断费，且零件为最终销售（缺陷除外——请参阅我们的',
   guarLink:'保障条款',
+  altdoor:'🔧 已经知道零件了？<b style=\"color:var(--orange)\">免 $50 —— 我们确认并寄给您 →</b>',
   ph_name:'姓名', ph_email:'you@email.com', ph_addr:'主街 123 号', ph_city:'城市', ph_prob:'例如：冰箱不制冷了，冷冻室还能用',
 }, hi:{
   h1:'$50 <span class="a">क्विक चेक</span>',
@@ -207,6 +214,7 @@ const I18N={ es:{
   reassure:'🔒 Stripe से सुरक्षित भुगतान। इसके बाद आप एक छोटा वीडियो + मॉडल नंबर की फ़ोटो भेजेंगे।',
   guar:'आगे बढ़ने पर आप सहमत होते हैं कि वीडियो डायग्नोसिस एक पेशेवर आकलन है (फ़िज़िकल टेस्ट नहीं), $50 एक डायग्नोसिस फ़ीस है जो रिपेयर में घटती है, और पार्ट्स फ़ाइनल सेल हैं (खराबी को छोड़कर — हमारी',
   guarLink:'गारंटी देखें',
+  altdoor:'🔧 अपना पार्ट पता है? <b style=\"color:var(--orange)\">$50 छोड़ें — हम पक्का करके भेजते हैं →</b>',
   ph_name:'पूरा नाम', ph_email:'you@email.com', ph_addr:'123 मेन स्ट्रीट', ph_city:'शहर', ph_prob:'जैसे फ्रिज ठंडा करना बंद, फ्रीज़र चल रहा',
 }, fr:{
   h1:'Le <span class="a">Diagnostic Rapide à 50 $</span>',
@@ -224,6 +232,7 @@ const I18N={ es:{
   reassure:'🔒 Paiement sécurisé avec Stripe. Ensuite vous enverrez une courte vidéo + une photo du numéro de modèle.',
   guar:'En continuant, vous acceptez qu’un diagnostic vidéo est une évaluation professionnelle (pas un test physique), que les 50 $ sont des frais de diagnostic déduits de votre réparation, et que les pièces sont en vente finale (sauf défaut — voir notre',
   guarLink:'garantie',
+  altdoor:'🔧 Vous connaissez votre pièce ? <b style=\"color:var(--orange)\">Sans les 50 $ — on la confirme et on l’expédie →</b>',
   ph_name:'Nom complet', ph_email:'vous@courriel.com', ph_addr:'123 rue Principale', ph_city:'Ville', ph_prob:'ex. le frigo ne refroidit plus, le congélateur fonctionne',
 } };
 const MSG={ es:{
@@ -251,6 +260,10 @@ if(DICT){
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ const k=el.getAttribute('data-i18n-ph'); if(DICT[k]!=null) el.setAttribute('placeholder',DICT[k]); });
 }
 if(LANG==='es'){ var gl=document.getElementById('guarLink'); if(gl) gl.href='/guarantee.html?lang=es'; }
+// "I already know my part" door — carry language + appliance to the concierge page.
+(function(){ var a=document.getElementById('altDoor'); if(!a) return; var p=new URLSearchParams();
+  if(LANG&&LANG!=='en')p.set('lang',LANG); if(pre.appliance)p.set('appliance',pre.appliance);
+  a.href='/parts-concierge.html'+(p.toString()?('?'+p.toString()):''); })();
 
 // ⛪ Church discount: if a church code is present, show a $25-off banner and drop the
 // Pay button to $25. The server applies the actual discount + records the church.

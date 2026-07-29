@@ -52,12 +52,31 @@ exports.handler = async function (event) {
     else if (guard.isStart(text)) { await guard.clearOptOut(from, 'human_line'); }
   } catch (_) {}
 
+  // TWO-WAY TRANSLATOR (inbound half): if the customer texts in their own language,
+  // translate it to English so the office can read + act on it — and remember their
+  // language so every outbound reply auto-goes-back in it. Best-effort; the fast-path
+  // in translateToEnglish skips the API for plain-English text (no cost/latency).
+  let engGloss = '', custLang = '';
+  if (text && text.trim()) {
+    try {
+      const { translateToEnglish } = require('./_lib/translate');
+      const tr = await translateToEnglish(text);
+      if (tr && tr.code && tr.code !== 'en') {
+        custLang = tr.code;
+        if (tr.english && tr.english.trim() && tr.english.trim() !== text.trim()) engGloss = tr.english.trim();
+      }
+    } catch (_) {}
+    if (custLang) { try { await require('./_lib/customer-lang').setCustomerLang(from, custLang); } catch (_) {} }
+  }
+
   // Record to the shared per-job thread. sms-thread.js matches these by the
   // customer's phone, so this lands on every surface (office tile, tech page,
-  // customer portal). lane:'human' marks which lane it belongs to.
+  // customer portal). lane:'human' marks which lane it belongs to. When the message
+  // was foreign, `english` carries the office-readable gloss + `lang` the code.
   try {
     await crud.logEvent('inbound_customer_sms_received', {
       phone: from, from, to: to || HUMAN_LINE, body: bodyText, message: bodyText,
+      english: engGloss || undefined, lang: custLang || undefined,
       source: 'human_line', lane: 'human', has_media: hasMedia, at_ms: Date.now(),
     });
   } catch (_) {}
