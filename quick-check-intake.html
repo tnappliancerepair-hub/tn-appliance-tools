@@ -157,6 +157,23 @@ const I18N={ es:{
   guar:'Khi tiếp tục, quý vị đồng ý rằng chẩn đoán qua video là một đánh giá chuyên môn (không phải kiểm tra thực tế), $50 là phí chẩn đoán được trừ vào tiền sửa, và linh kiện là bán không hoàn lại (trừ lỗi kỹ thuật — xem',
   guarLink:'bảo đảm của chúng tôi',
   ph_name:'Họ và tên', ph_email:'ban@email.com', ph_addr:'123 Đường Chính', ph_city:'Thành phố', ph_prob:'vd. tủ lạnh ngừng làm lạnh, ngăn đá vẫn chạy',
+}, ar:{
+  h1:'الفحص السريع <span class="a">بـ$50</span>',
+  sub:'لا تنتظر الزيارة. فني حقيقي يعطيك تشخيصًا صادقًا من فيديو قصير — عادةً خلال ساعتين.',
+  v1a:'أسرع وأسهل', v1b:' — إجابة واضحة اليوم، دون انتظار زيارة منزلية.',
+  v2a:'الـ$50 تُخصم من تصليحك', v2b:' — وإذا فضّلت زيارة فني، تُحتسب ضمن رسوم الزيارة. لا تدفع مرتين أبدًا.',
+  v3a:'مثالي إن أردت التصليح بنفسك', v3b:' — إذا كان العطل بسيطًا، نخبرك بالقطعة المطلوبة بالضبط.',
+  l_name:'اسمك', l_phone:'أفضل رقم جوال (نرسل لك الإجابة هنا)',
+  l_email:'البريد الإلكتروني <span style="color:var(--gray2)">(اختياري)</span>',
+  l_addr:'العنوان', l_city:'المدينة', l_zip:'الرمز البريدي (ZIP)',
+  l_appl:'أي جهاز؟', l_prob:'ما المشكلة؟ (جملة واحدة تكفي)',
+  a_fridge:'🧊 ثلاجة', a_washer:'🌀 غسالة', a_dryer:'🔥 نشّافة', a_oven:'🍳 فرن/موقد', a_dish:'🍽️ غسالة أطباق', a_micro:'📻 ميكروويف', a_other:'➕ أخرى',
+  consent:'أوافق على تلقّي رسائل نصية حول تصليحي على الرقم أعلاه.',
+  pay:'ادفع $50 وتابع ←',
+  reassure:'🔒 دفع آمن عبر Stripe. بعدها ترسل فيديو قصيرًا + صورة لرقم الموديل.',
+  guar:'بالمتابعة، أنت توافق على أن التشخيص بالفيديو تقييم مهني (وليس فحصًا فعليًا)، وأن الـ$50 رسوم تشخيص تُخصم من تصليحك، وأن القطع بيع نهائي (باستثناء العيوب — راجع',
+  guarLink:'ضماننا',
+  ph_name:'الاسم الكامل', ph_email:'you@email.com', ph_addr:'123 الشارع الرئيسي', ph_city:'المدينة', ph_prob:'مثال: الثلاجة توقفت عن التبريد، الفريزر يعمل',
 } };
 const MSG={ es:{
   name:'Por favor ingresa tu nombre.', phone:'Por favor ingresa un número de celular válido.',
@@ -178,6 +195,7 @@ const DICT=I18N[LANG]||null;
 const M=MSG[LANG]||{ name:'Please enter your name.', phone:'Please enter a valid cell number.', addr:'Please enter your full street address.', city:'Please enter your city.', zip:'Please enter your ZIP code.', appl:'Tap which appliance it is.', going:'Taking you to checkout…', pay:'Pay $50 & continue →', checkoutErr:"Couldn't start checkout — text us at 615-280-2949.", net:'Network hiccup — try again, or text 615-280-2949.' };
 if(DICT){
   document.documentElement.lang=LANG;
+  document.documentElement.dir=(LANG==='ar')?'rtl':'ltr';
   document.querySelectorAll('[data-i18n]').forEach(el=>{ const k=el.getAttribute('data-i18n'); if(DICT[k]!=null) el.innerHTML=DICT[k]; });
   document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ const k=el.getAttribute('data-i18n-ph'); if(DICT[k]!=null) el.setAttribute('placeholder',DICT[k]); });
 }
