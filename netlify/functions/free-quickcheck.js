@@ -84,7 +84,7 @@ exports.handler = async function (event) {
   }
 
   const lang = String(m.language || 'en').toLowerCase();
-  const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ar: 'Arabic', hi: 'Hindi', fr: 'French' };
+  const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ru: 'Russian', ar: 'Arabic', zh: 'Chinese', hi: 'Hindi', fr: 'French' };
   if (jobId && (m.address || m.city || m.availability || m.floors_label || LANGNAME[lang])) {
     const pref = [m.availability || '', m.floors_label ? ('🛟 FLOORS: ' + m.floors_label) : '', LANGNAME[lang] ? ('⚑ Customer language: ' + LANGNAME[lang] + ' — reply in their language (Ant auto-translates).') : ''].filter(Boolean).join(' · ');
     try { await crud.update(crud.TABLES.jobs, jobId, { service_address: m.address || '', service_city: m.city || '', service_state: stateFromZip(m.zip), customer_preference_text: pref }); } catch (_) {}

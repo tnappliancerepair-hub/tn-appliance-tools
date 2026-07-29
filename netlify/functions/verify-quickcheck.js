@@ -109,7 +109,7 @@ exports.handler = async function (event) {
 
   // create_job_from_chat only takes zip — set the full service address on the job row
   const lang = String(m.language || 'en').toLowerCase();
-  const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ar: 'Arabic', hi: 'Hindi', fr: 'French' };
+  const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ru: 'Russian', ar: 'Arabic', zh: 'Chinese', hi: 'Hindi', fr: 'French' };
   // Remember their language so the payment-received + "got everything" texts (and
   // every future text) auto-translate at the SMS chokepoint.
   if (lang && lang !== 'en') { try { await require('./_lib/customer-lang').setCustomerLang(m.phone, lang); } catch (_) {} }

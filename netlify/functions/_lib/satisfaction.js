@@ -12,6 +12,7 @@
 const crud = require('./xano/metadata-crud');
 const { getSecret } = require('./secrets');
 const { sendSms } = require('./sms');
+const revI18n = require('./review-i18n');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
@@ -62,7 +63,7 @@ function classify(body) {
 // "great service" review into "Lee fixed my dryer in Nashville" (richer trust + local rank).
 async function arm(phone, ctx) {
   const ph = d10(phone); if (!ph) return false;
-  try { await crud.logEvent('satisfaction_state_' + ph, { stage: 'awaiting_rating', job_id: (ctx && ctx.job_id) || null, cust_id: (ctx && ctx.cust_id) || null, first: (ctx && ctx.first) || '', tech: (ctx && ctx.tech) || '', appliance: (ctx && ctx.appliance) || '', city: (ctx && ctx.city) || '', at_ms: Date.now() }); return true; } catch (_) { return false; }
+  try { await crud.logEvent('satisfaction_state_' + ph, { stage: 'awaiting_rating', job_id: (ctx && ctx.job_id) || null, cust_id: (ctx && ctx.cust_id) || null, first: (ctx && ctx.first) || '', tech: (ctx && ctx.tech) || '', appliance: (ctx && ctx.appliance) || '', city: (ctx && ctx.city) || '', lang: (ctx && ctx.lang) || 'en', at_ms: Date.now() }); return true; } catch (_) { return false; }
 }
 
 async function latestState(phone) {
@@ -73,7 +74,7 @@ async function latestState(phone) {
   const m = metaOf(row);
   const at = Number(m.at_ms || row.created_at || 0);
   if (!at || at < Date.now() - STALE_MS) return null;   // expired
-  return { ph, stage: m.stage || '', job_id: m.job_id || null, first: m.first || '', tech: m.tech || '', appliance: m.appliance || '', city: m.city || '', at };
+  return { ph, stage: m.stage || '', job_id: m.job_id || null, first: m.first || '', tech: m.tech || '', appliance: m.appliance || '', city: m.city || '', lang: m.lang || 'en', at };
 }
 
 // Inbound interceptor. Returns {matched:true,...} when this text was a response
@@ -84,11 +85,12 @@ async function handleInbound(phone, body) {
   if (!st) return { matched: false };
   const first = st.first || 'there';
 
+  const P = revI18n.pack(st.lang);
   // Stage 2: we asked "what could we have done better?" — THIS text is the feedback.
   if (st.stage === 'awaiting_feedback') {
     const fb = String(body || '').trim();
     await sendOwner(`📝 Customer feedback (👎) from ${first}${st.job_id ? (' · job #' + st.job_id) : ''} (${d10(phone)}):\n"${fb.slice(0, 400)}"\n\nThey're expecting a personal follow-up.`, 'satisfaction_feedback');
-    await sendCustomer(phone, `Thank you, ${first} — I've got this and I'll personally look into it. We want to make it right. — Teddy, TN Appliance`, 'satisfaction_feedback_ack');
+    await sendCustomer(phone, P.ack(first), 'satisfaction_feedback_ack');
     await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'done', job_id: st.job_id, first, outcome: 'feedback_captured', at_ms: Date.now() });
     return { matched: true, stage: 'feedback_captured' };
   }
@@ -97,25 +99,19 @@ async function handleInbound(phone, body) {
   if (st.stage === 'awaiting_rating') {
     const c = classify(body);
     if (c === 'pos') {
-      const nd = await nextdoorSuffix();
+      const en = (st.lang || 'en') === 'en';
+      const nd = en ? await nextdoorSuffix() : '';   // Nextdoor is English-centric — English only
       const tech = String(st.tech || '').trim();
       const appl = String(st.appliance || '').trim().toLowerCase();
       const city = String(st.city || '').trim();
-      // Opener names the tech + appliance when we know them (honest, specific).
-      let opener;
-      if (tech && appl) opener = `So glad ${tech} got your ${appl} sorted, ${first}! 🙏`;
-      else if (tech) opener = `So glad ${tech} took good care of you, ${first}! 🙏`;
-      else if (appl) opener = `So glad we got your ${appl} sorted, ${first}! 🙏`;
-      else opener = `So glad to hear it, ${first}! 🙏`;
-      // Gentle (non-incentivized) nudge to mention tech + city → richer, more findable reviews.
-      const bits = [tech, city].filter(Boolean);
-      const hint = bits.length ? ` — a mention of ${bits.join(' and ')} helps neighbors find us` : '';
-      await sendCustomer(phone, `${opener} If you've got 30 seconds, a quick Google review would mean the world to our small team${hint}: ${REVIEW_URL}${nd}`, 'satisfaction_review_link');
-      await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'done', job_id: st.job_id, first, outcome: nd ? 'positive_review_link_g+nd' : 'positive_review_link', at_ms: Date.now() });
+      // In-language review-link message — including the "write it in your language" nudge.
+      const msg = P.pos(first, tech, appl, city, REVIEW_URL) + nd;
+      await sendCustomer(phone, msg, 'satisfaction_review_link');
+      await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'done', job_id: st.job_id, first, lang: st.lang || 'en', outcome: nd ? 'positive_review_link_g+nd' : 'positive_review_link', at_ms: Date.now() });
       return { matched: true, stage: 'positive' };
     }
     if (c === 'neg') {
-      await sendCustomer(phone, `I'm sorry we didn't get it right, ${first}. What could we have done better? Your reply comes straight to me — I want to make it right. — Teddy, TN Appliance`, 'satisfaction_ask_feedback');
+      await sendCustomer(phone, P.neg(first), 'satisfaction_ask_feedback');
       await sendOwner(`👎 ${first}${st.job_id ? (' · job #' + st.job_id) : ''} (${d10(phone)}) was NOT happy — asked them what we could've done better. Their reply will come to you. Consider a personal call.`, 'satisfaction_negative');
       await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'awaiting_feedback', job_id: st.job_id, first, at_ms: Date.now() });
       return { matched: true, stage: 'negative' };

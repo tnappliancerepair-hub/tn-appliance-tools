@@ -14,6 +14,7 @@
 const crud = require('./_lib/xano/metadata-crud');
 const { sendSms } = require('./_lib/sms');
 const satisfaction = require('./_lib/satisfaction');
+const reviewI18n = require('./_lib/review-i18n');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
@@ -56,7 +57,7 @@ exports.handler = async function (event) {
   // 2) resolve each job's customer, dedup, send
   const sent = [], skipped = [];
   for (const jid of jobIds.slice(0, MAX_PER_RUN)) {
-    let cust = {}, applType = '', techName = '', cityName = '', liveDone = false;
+    let cust = {}, applType = '', techName = '', cityName = '', liveDone = false, custLang = 'en';
     try {
       const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jid }), signal: AbortSignal.timeout(10000) }).then((r) => r.json());
       cust = (d && d.customer) || {};
@@ -75,6 +76,8 @@ exports.handler = async function (event) {
       const jss = String((d && d.job && d.job.scheduling_status) || '').toLowerCase();
       const jcs = String((d && d.job && d.job.current_status) || '').toLowerCase();
       liveDone = (jss === 'completed' || jcs === 'completed');
+      // customer's language is flagged into customer_preference_text at intake
+      custLang = reviewI18n.langFromPref((d && d.job && d.job.customer_preference_text) || '');
     } catch (_) {}
     const custId = Number(cust.id || 0);
     const phone = e164(cust.phone);
@@ -83,12 +86,12 @@ exports.handler = async function (event) {
     if (await askedRecently(custId)) { skipped.push({ job_id: jid, customer: custId, why: 'asked < 60d' }); continue; }
     const first = cust.first_name || 'there';
     const appl = applType.toLowerCase();
-    const body = `Hi ${first}, thanks for letting TN Appliance Exchange take care of your${appl ? (' ' + appl) : ''} repair! Quick question — how'd we do? Reply 👍 if we did great, or 👎 if we missed the mark.`;
-    if (dry) { sent.push({ job_id: jid, customer: custId, phone, first }); continue; }
+    const body = reviewI18n.pack(custLang).ask(first, appl);
+    if (dry) { sent.push({ job_id: jid, customer: custId, phone, first, lang: custLang }); continue; }
     let ok = false;
     try { await sendSms(phone, body, 'customer', 'satisfaction_check'); ok = true; } catch (_) {}
     if (ok) {
-      try { await satisfaction.arm(phone, { job_id: jid, cust_id: custId, first, tech: techName, appliance: applType, city: cityName }); } catch (_) {}
+      try { await satisfaction.arm(phone, { job_id: jid, cust_id: custId, first, tech: techName, appliance: applType, city: cityName, lang: custLang }); } catch (_) {}
       try { await crud.logEvent('google_review_asked_customer_' + custId, { job_id: jid, via: 'sweep', at_ms: Date.now() }); } catch (_) {}
       sent.push({ job_id: jid, customer: custId, first });
     } else skipped.push({ job_id: jid, why: 'send failed (gate?)' });

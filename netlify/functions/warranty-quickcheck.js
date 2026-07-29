@@ -105,7 +105,7 @@ exports.handler = async function (event) {
   }
 
   const lang = String(m.language || 'en').toLowerCase();
-  const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ar: 'Arabic', hi: 'Hindi', fr: 'French' };
+  const LANGNAME = { es: 'Spanish', vi: 'Vietnamese', ru: 'Russian', ar: 'Arabic', zh: 'Chinese', hi: 'Hindi', fr: 'French' };
   const availability = String(m.availability || '').trim();
   // Availability + language both land in customer_preference_text (the routing/
   // scheduling layer reads it). Availability first — it's what gets them scheduled.
