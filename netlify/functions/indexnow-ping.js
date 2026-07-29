@@ -40,7 +40,9 @@ exports.handler = async function (event) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ host: HOST, key: KEY, keyLocation: KEY_LOC, urlList }),
-      signal: AbortSignal.timeout(15000),
+      // 7s — must stay under Netlify's 10s sync-function wall, or a slow IndexNow
+      // response gets the whole function killed ("Internal Error") before it returns.
+      signal: AbortSignal.timeout(7000),
     });
     const t = await r.text().catch(() => '');
     // IndexNow returns 200 (accepted) or 202 (received, pending) on success.
