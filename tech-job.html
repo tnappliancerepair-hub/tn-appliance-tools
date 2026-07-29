@@ -1352,23 +1352,49 @@ function pushSP(statusKey,notes){
       body:JSON.stringify({job_id:JOB_ID,status:statusKey,notes:notes||undefined})}).catch(()=>{});
   }catch(_){}
 }
+// In-flight guard: Jimmy 2026-07-30 — "half the time hit Start way too many times to
+// get it to start." The old handler only showed a tiny "Sending…" toast, never disabled
+// the button, and didn't flip the UI until the (cold-start / weak-cell) call returned —
+// so the tech saw nothing happen and tapped 3-5 more times, firing that many requests.
+// Now: ONE tap locks all three buttons instantly + shows "Working…" on the tapped one,
+// repeat taps are ignored while in flight, and we restore/re-enable on failure so he can
+// retry. Success reloads (loadJob re-renders the buttons in their correct state).
+let _lifecycleBusy=false;
 async function lifecycle(ep,okMsg,spStatus){
+  if(_lifecycleBusy) return;                 // swallow repeat taps mid-request
+  _lifecycleBusy=true;
+  const otw=document.getElementById('a-otw'), st=document.getElementById('a-start'), dn=document.getElementById('a-done');
+  const active = ep==='tech_on_the_way'?otw : ep==='tech_job_started'?st : null;
+  const savedLbl = active?active.innerHTML:'';
+  const lock=b=>{ if(b){ b.disabled=true; b.style.opacity='0.55'; b.style.pointerEvents='none'; } };
+  const unlock=b=>{ if(b){ b.disabled=false; b.style.opacity=''; b.style.pointerEvents=''; } };
+  [otw,st,dn].forEach(lock);                 // instant visual: taps register, no double-fire
+  if(active) active.innerHTML='<span class="ic">⏳</span>Working…';
   toast('Sending…');
   try{
     // Via tech-lifecycle: a return trip auto-clears the prior visit's stale flag so
     // "On my way" / "Start" work + re-notify the customer on every 2nd/3rd/4th trip.
     const d=await fetchT('/.netlify/functions/tech-lifecycle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,action:ep})}).then(r=>r.json()).catch(()=>({}));
-    if(d.success){ toast(okMsg); if(spStatus) pushSP(spStatus); loadJob(); }
+    if(d.success){ toast(okMsg); if(spStatus) pushSP(spStatus); await loadJob(); }   // loadJob re-renders buttons
     else {
       const e=String(d.error||'failed');
-      // Don't scare the tech with raw state-machine errors. A repeat/out-of-order
-      // tap (already on-my-way / already started) is harmless — say so plainly.
-      const friendly = /illegal_transition|terminal|already/i.test(e)
-        ? "👍 You're already past that step — the job's moving. Tap Complete when you're done."
-        : ('⚠ '+e);
-      toast(friendly);
+      // A repeat/out-of-order tap (already on-my-way / already started) is harmless —
+      // it means the step already landed, so treat it as success + resync the UI.
+      if(/illegal_transition|terminal|already/i.test(e)){
+        toast("👍 You're already past that step — the job's moving. Tap Complete when you're done.");
+        await loadJob();
+      } else {
+        toast('⚠ '+e);
+        if(active) active.innerHTML=savedLbl;               // restore label + re-enable for a retry
+        [otw,st,dn].forEach(unlock); applyLifecycleButtons();
+      }
     }
-  }catch(_){ toast('⚠ connection error'); }
+  }catch(_){
+    toast('⚠ connection hiccup — tap again');
+    if(active) active.innerHTML=savedLbl;
+    [otw,st,dn].forEach(unlock); applyLifecycleButtons();
+  }
+  finally{ _lifecycleBusy=false; }
 }
 
 // Grey out lifecycle buttons that aren't a valid next step, so a tech can't trip
