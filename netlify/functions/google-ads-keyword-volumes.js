@@ -29,7 +29,7 @@ const KW = {
   fr: ['réparation réfrigérateur', 'réparation lave-linge', 'réparation sèche-linge', 'réparation lave-vaisselle', 'réparation électroménager', 'dépannage réfrigérateur'],
 };
 
-async function metrics(cid, c, token, langId, keywords, geos) {
+async function metrics(cid, c, token, langId, keywords, geos, loginCid) {
   const url = `https://googleads.googleapis.com/${c.version}/customers/${cid}:generateKeywordHistoricalMetrics`;
   const body = {
     keywords,
@@ -38,8 +38,16 @@ async function metrics(cid, c, token, langId, keywords, geos) {
     keywordPlanNetwork: 'GOOGLE_SEARCH',
     includeAdultKeywords: false,
   };
-  const r = await fetch(url, { method: 'POST', headers: ga.apiHeaders(token, c), body: JSON.stringify(body) });
-  const d = await r.json().catch(() => ({}));
+  // Keyword Planner is picky about login-customer-id — try manager, then the
+  // account itself, then no login header; use whichever the API accepts.
+  const ladder = loginCid != null ? [loginCid] : [c.managerId, cid, ''];
+  let r, d;
+  for (const lc of ladder) {
+    r = await fetch(url, { method: 'POST', headers: ga.apiHeaders(token, c, lc), body: JSON.stringify(body) });
+    d = await r.json().catch(() => ({}));
+    if (r.ok) { d._login = lc || '(none)'; break; }
+    if (r.status !== 403 && r.status !== 401) break; // only fall through on auth errors
+  }
   if (!r.ok) return { ok: false, status: r.status, error: (d.error && (d.error.message || d.error.status)) || d };
   const rows = (d.results || []).map((x) => ({
     kw: x.text,
@@ -47,7 +55,7 @@ async function metrics(cid, c, token, langId, keywords, geos) {
     competition: (x.keywordMetrics && x.keywordMetrics.competition) || 'UNSPECIFIED',
   })).sort((a, b) => b.monthly - a.monthly);
   const total = rows.reduce((s, x) => s + x.monthly, 0);
-  return { ok: true, total, rows };
+  return { ok: true, login_used: d._login, total, rows };
 }
 
 exports.handler = async function (event) {
