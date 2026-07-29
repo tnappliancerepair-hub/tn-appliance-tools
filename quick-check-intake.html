@@ -53,12 +53,12 @@
   <div class="orb-wrap"><div class="orb"></div><div class="ant">🐜</div></div>
   <div class="kicker">TN Appliance Exchange</div>
   <h1 data-i18n="h1">The <span class="a">$50 Quick Check</span></h1>
-  <div class="sub" data-i18n="sub">Skip the wait. A real tech gives you an honest diagnosis from a short video — usually within a couple hours.</div>
+  <div class="sub" data-i18n="sub">Skip the wait. A real tech who actually knows appliances gives you an honest diagnosis from a short video — usually within a couple hours.</div>
 
   <div class="valuebox">
-    ✅ <b data-i18n="v1a">Faster + easier</b><span data-i18n="v1b"> — a straight answer today, no waiting on a house call.</span><br>
-    ✅ <b data-i18n="v2a">The $50 comes off your repair</b><span data-i18n="v2b"> — and if you'd rather a tech come out, it credits toward the trip fee. You never pay twice.</span><br>
-    ✅ <b data-i18n="v3a">DIY-friendly</b><span data-i18n="v3b"> — if it's a simple fix, we'll even point you to the exact part.</span>
+    ✅ <b data-i18n="v1a">The exact part — no wrong-part guessing</b><span data-i18n="v1b"> — a real appliance tech (not a handyman) tells you the one right part, so you never buy it twice.</span><br>
+    ✅ <b data-i18n="v2a">The $50 becomes your part</b><span data-i18n="v2b"> — it credits to the part or the repair. Buy from us and the diagnosis was basically free — you never pay twice.</span><br>
+    ✅ <b data-i18n="v3a">Fix it yourself, or we do</b><span data-i18n="v3b"> — we ship the exact part anywhere in the US with how-to help, or we install it (TN &amp; LA).</span>
   </div>
 
   <div class="card" id="card">
@@ -108,10 +108,10 @@ const PARTNER=(QS.get('partner')||QS.get('socio')||'').trim(); // 🤝 community
 // ── i18n (Spanish; extend by adding a lang block) ──────────────────────────
 const I18N={ es:{
   h1:'La <span class="a">Revisión Rápida de $50</span>',
-  sub:'Evita la espera. Un técnico de verdad te da un diagnóstico honesto a partir de un video corto — normalmente en un par de horas.',
-  v1a:'Más rápido y fácil', v1b:' — una respuesta clara hoy, sin esperar una visita a domicilio.',
-  v2a:'Los $50 se descuentan de tu reparación', v2b:' — y si prefieres que vaya un técnico, se acreditan a la tarifa de visita. Nunca pagas dos veces.',
-  v3a:'Ideal para hacerlo tú mismo', v3b:' — si es algo simple, hasta te indicamos la pieza exacta.',
+  sub:'Evita la espera. Un técnico de verdad que sí sabe de electrodomésticos te da un diagnóstico honesto a partir de un video corto — normalmente en un par de horas.',
+  v1a:'La pieza exacta — sin adivinar', v1b:' — un técnico de electrodomésticos de verdad (no un handyman) te dice la única pieza correcta, para que no la compres dos veces.',
+  v2a:'Los $50 se convierten en tu pieza', v2b:' — se acreditan a la pieza o a la reparación. Compra con nosotros y el diagnóstico prácticamente fue gratis — nunca pagas dos veces.',
+  v3a:'Lo haces tú o lo hacemos nosotros', v3b:' — te enviamos la pieza exacta a cualquier parte de EE. UU. con ayuda paso a paso, o la instalamos (TN y LA).',
   l_name:'Tu nombre', l_phone:'Mejor número de celular (te enviamos tu respuesta aquí)',
   l_email:'Correo electrónico <span style="color:var(--gray2)">(opcional)</span>',
   l_addr:'Dirección', l_city:'Ciudad', l_zip:'Código postal',
@@ -125,10 +125,10 @@ const I18N={ es:{
   ph_name:'Nombre y apellido', ph_email:'tu@correo.com', ph_addr:'123 Calle Principal', ph_city:'Ciudad', ph_prob:'ej. el refrigerador dejó de enfriar, el congelador sí funciona',
 }, ru:{
   h1:'Быстрая <span class="a">Проверка за $50</span>',
-  sub:'Не ждите визита. Настоящий мастер даёт честный диагноз по короткому видео — обычно за пару часов.',
-  v1a:'Быстрее и проще', v1b:' — ясный ответ сегодня, без ожидания выезда на дом.',
-  v2a:'Эти $50 засчитываются в ремонт', v2b:' — а если предпочтёте выезд мастера, они идут в счёт стоимости визита. Вы никогда не платите дважды.',
-  v3a:'Отлично, если делаете сами', v3b:' — если поломка простая, мы подскажем точную деталь.',
+  sub:'Не ждите визита. Настоящий мастер, который действительно разбирается в технике, даёт честный диагноз по короткому видео — обычно за пару часов.',
+  v1a:'Точная деталь — без угадывания', v1b:' — настоящий мастер по технике (а не «мастер на все руки») называет ту самую нужную деталь, чтобы вы не купили её дважды.',
+  v2a:'Эти $50 становятся вашей деталью', v2b:' — засчитываются в деталь или ремонт. Купите у нас — и диагностика фактически бесплатна. Вы никогда не платите дважды.',
+  v3a:'Почините сами или сделаем мы', v3b:' — отправим точную деталь в любую точку США с инструкцией, или установим сами (TN и LA).',
   l_name:'Ваше имя', l_phone:'Лучший номер мобильного (пришлём ответ сюда)',
   l_email:'Эл. почта <span style="color:var(--gray2)">(необязательно)</span>',
   l_addr:'Адрес', l_city:'Город', l_zip:'Почтовый индекс (ZIP)',
@@ -142,10 +142,10 @@ const I18N={ es:{
   ph_name:'Имя и фамилия', ph_email:'vy@pochta.com', ph_addr:'ул. Главная, 123', ph_city:'Город', ph_prob:'напр. холодильник перестал холодить, морозилка работает',
 }, vi:{
   h1:'Kiểm Tra Nhanh <span class="a">$50</span>',
-  sub:'Khỏi phải chờ. Một kỹ thuật viên thật đưa ra chẩn đoán trung thực từ một video ngắn — thường trong vài giờ.',
-  v1a:'Nhanh hơn và dễ hơn', v1b:' — câu trả lời rõ ràng hôm nay, không phải chờ đến tận nhà.',
-  v2a:'$50 được trừ vào tiền sửa', v2b:' — và nếu quý vị muốn kỹ thuật viên đến, số tiền đó được tính vào phí đến nhà. Không bao giờ trả hai lần.',
-  v3a:'Rất hợp nếu quý vị tự làm', v3b:' — nếu đơn giản, chúng tôi còn chỉ đúng linh kiện cần thay.',
+  sub:'Khỏi phải chờ. Một kỹ thuật viên thật sự rành thiết bị đưa ra chẩn đoán trung thực từ một video ngắn — thường trong vài giờ.',
+  v1a:'Đúng linh kiện — không đoán mò', v1b:' — một thợ sửa thiết bị thật (không phải thợ tay ngang) cho biết đúng một linh kiện cần thay, để quý vị không mua nhầm hai lần.',
+  v2a:'$50 trở thành linh kiện của quý vị', v2b:' — được trừ vào linh kiện hoặc tiền sửa. Mua của chúng tôi thì coi như chẩn đoán miễn phí — không bao giờ trả hai lần.',
+  v3a:'Quý vị tự làm, hoặc chúng tôi làm', v3b:' — gửi đúng linh kiện đến mọi nơi ở Mỹ kèm hướng dẫn, hoặc chúng tôi lắp (TN & LA).',
   l_name:'Tên của quý vị', l_phone:'Số di động tốt nhất (chúng tôi gửi câu trả lời về đây)',
   l_email:'Email <span style="color:var(--gray2)">(không bắt buộc)</span>',
   l_addr:'Địa chỉ', l_city:'Thành phố', l_zip:'Mã ZIP',
@@ -159,10 +159,10 @@ const I18N={ es:{
   ph_name:'Họ và tên', ph_email:'ban@email.com', ph_addr:'123 Đường Chính', ph_city:'Thành phố', ph_prob:'vd. tủ lạnh ngừng làm lạnh, ngăn đá vẫn chạy',
 }, ar:{
   h1:'الفحص السريع <span class="a">بـ$50</span>',
-  sub:'لا تنتظر الزيارة. فني حقيقي يعطيك تشخيصًا صادقًا من فيديو قصير — عادةً خلال ساعتين.',
-  v1a:'أسرع وأسهل', v1b:' — إجابة واضحة اليوم، دون انتظار زيارة منزلية.',
-  v2a:'الـ$50 تُخصم من تصليحك', v2b:' — وإذا فضّلت زيارة فني، تُحتسب ضمن رسوم الزيارة. لا تدفع مرتين أبدًا.',
-  v3a:'مثالي إن أردت التصليح بنفسك', v3b:' — إذا كان العطل بسيطًا، نخبرك بالقطعة المطلوبة بالضبط.',
+  sub:'لا تنتظر الزيارة. فنّي حقيقي يعرف الأجهزة فعلاً يعطيك تشخيصًا صادقًا من فيديو قصير — عادةً خلال ساعتين.',
+  v1a:'القطعة الصحيحة بالضبط — بلا تخمين', v1b:' — فنّي أجهزة حقيقي (وليس عامل تصليح عام) يخبرك بالقطعة الصحيحة الوحيدة، حتى لا تشتريها مرتين.',
+  v2a:'الـ$50 تتحوّل إلى قطعتك', v2b:' — تُحتسب على القطعة أو التصليح. اشترِ منّا ويكون التشخيص مجانيًا عمليًا. لا تدفع مرتين أبدًا.',
+  v3a:'صلّحها بنفسك أو نصلّحها نحن', v3b:' — نشحن لك القطعة الصحيحة إلى أي مكان في أمريكا مع شرح، أو نركّبها لك (TN و LA).',
   l_name:'اسمك', l_phone:'أفضل رقم جوال (نرسل لك الإجابة هنا)',
   l_email:'البريد الإلكتروني <span style="color:var(--gray2)">(اختياري)</span>',
   l_addr:'العنوان', l_city:'المدينة', l_zip:'الرمز البريدي (ZIP)',
@@ -176,10 +176,10 @@ const I18N={ es:{
   ph_name:'الاسم الكامل', ph_email:'you@email.com', ph_addr:'123 الشارع الرئيسي', ph_city:'المدينة', ph_prob:'مثال: الثلاجة توقفت عن التبريد، الفريزر يعمل',
 }, zh:{
   h1:'50美元<span class="a">快速检测</span>',
-  sub:'不用等上门。真正的技师看一段短视频，就给出诚实的诊断——通常几小时内。',
-  v1a:'更快更简单', v1b:' —— 今天就有清晰答案，不用等上门。',
-  v2a:'这50美元可抵扣维修费', v2b:' —— 如果您希望技师上门，也会计入上门费。绝不重复收费。',
-  v3a:'想自己修也很合适', v3b:' —— 如果问题简单，我们会告诉您需要的具体零件。',
+  sub:'不用等上门。真正懂家电的技师看一段短视频，就给出诚实的诊断——通常几小时内。',
+  v1a:'精准的零件——不再瞎猜', v1b:' —— 真正懂家电的技师（不是打杂师傅）告诉您唯一正确的零件，不用买错两次。',
+  v2a:'这50美元变成您的零件', v2b:' —— 可抵扣零件或维修费。在我们这买，诊断基本等于免费——绝不重复收费。',
+  v3a:'自己修，或我们来修', v3b:' —— 把精准零件寄到全美任何地方并附教程，或由我们上门安装（TN 和 LA）。',
   l_name:'您的姓名', l_phone:'最佳手机号码（我们把答复发到这里）',
   l_email:'电子邮箱 <span style="color:var(--gray2)">（可选）</span>',
   l_addr:'地址', l_city:'城市', l_zip:'邮编（ZIP）',
@@ -193,10 +193,10 @@ const I18N={ es:{
   ph_name:'姓名', ph_email:'you@email.com', ph_addr:'主街 123 号', ph_city:'城市', ph_prob:'例如：冰箱不制冷了，冷冻室还能用',
 }, hi:{
   h1:'$50 <span class="a">क्विक चेक</span>',
-  sub:'इंतज़ार छोड़िए। एक असली तकनीशियन छोटे वीडियो से ईमानदार जाँच देता है — आमतौर पर कुछ घंटों में।',
-  v1a:'तेज़ और आसान', v1b:' — आज ही साफ़ जवाब, घर पर आने का इंतज़ार नहीं।',
-  v2a:'ये $50 आपकी रिपेयर में घटते हैं', v2b:' — और अगर आप तकनीशियन चाहें, तो ये विज़िट फ़ीस में जुड़ जाते हैं। कभी दो बार पैसे नहीं।',
-  v3a:'खुद ठीक करना हो तो भी बढ़िया', v3b:' — अगर आसान है, तो हम सही पार्ट भी बता देते हैं।',
+  sub:'इंतज़ार छोड़िए। एक असली तकनीशियन जो सच में अप्लायंस जानता है, छोटे वीडियो से ईमानदार जाँच देता है — आमतौर पर कुछ घंटों में।',
+  v1a:'बिलकुल सही पार्ट — बिना अंदाज़े', v1b:' — असली अप्लायंस तकनीशियन (हैंडीमैन नहीं) आपको वही एक सही पार्ट बताता है, ताकि आप दो बार न खरीदें।',
+  v2a:'ये $50 आपके पार्ट में बदल जाते हैं', v2b:' — पार्ट या रिपेयर में घटते हैं। हमसे लें तो डायग्नोसिस लगभग मुफ़्त — कभी दो बार पैसे नहीं।',
+  v3a:'खुद ठीक करें, या हम करें', v3b:' — सही पार्ट पूरे अमेरिका में भेजते हैं गाइड के साथ, या हम लगा देते हैं (TN और LA)।',
   l_name:'आपका नाम', l_phone:'बेहतरीन मोबाइल नंबर (हम जवाब यहीं भेजते हैं)',
   l_email:'ईमेल <span style="color:var(--gray2)">(वैकल्पिक)</span>',
   l_addr:'पता', l_city:'शहर', l_zip:'ज़िप कोड',
@@ -210,10 +210,10 @@ const I18N={ es:{
   ph_name:'पूरा नाम', ph_email:'you@email.com', ph_addr:'123 मेन स्ट्रीट', ph_city:'शहर', ph_prob:'जैसे फ्रिज ठंडा करना बंद, फ्रीज़र चल रहा',
 }, fr:{
   h1:'Le <span class="a">Diagnostic Rapide à 50 $</span>',
-  sub:'Évitez l’attente. Un vrai technicien vous donne un diagnostic honnête à partir d’une courte vidéo — généralement en quelques heures.',
-  v1a:'Plus rapide et plus simple', v1b:' — une réponse claire aujourd’hui, sans attendre une visite.',
-  v2a:'Les 50 $ sont déduits de votre réparation', v2b:' — et si vous préférez une visite, ils sont crédités sur les frais de déplacement. Jamais deux fois.',
-  v3a:'Idéal si vous bricolez', v3b:' — si c’est simple, on vous indique même la pièce exacte.',
+  sub:'Évitez l’attente. Un vrai technicien qui connaît vraiment l’électroménager vous donne un diagnostic honnête à partir d’une courte vidéo — en quelques heures.',
+  v1a:'La pièce exacte — sans deviner', v1b:' — un vrai technicien en électroménager (pas un bricoleur) vous dit la seule bonne pièce, pour ne pas l’acheter deux fois.',
+  v2a:'Les 50 $ deviennent votre pièce', v2b:' — crédités sur la pièce ou la réparation. Achetez chez nous et le diagnostic est quasi gratuit — jamais deux fois.',
+  v3a:'Réparez vous-même, ou on le fait', v3b:' — on expédie la pièce exacte partout aux É.-U. avec un guide, ou on l’installe (TN et LA).',
   l_name:'Votre nom', l_phone:'Meilleur numéro de portable (on vous répond ici)',
   l_email:'Courriel <span style="color:var(--gray2)">(facultatif)</span>',
   l_addr:'Adresse', l_city:'Ville', l_zip:'Code postal (ZIP)',
