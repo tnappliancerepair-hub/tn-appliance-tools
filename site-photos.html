@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Add Website Photos · TN Appliance</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b0b0c;color:#ececec;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5;padding:20px 16px 60px;-webkit-text-size-adjust:100%}
+.wrap{max-width:520px;margin:0 auto}
+h1{font-size:24px;margin-bottom:4px}
+h1 b{color:#ff6200}
+.sub{color:#a0a0a6;font-size:14px;margin-bottom:22px}
+.lab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#a0a0a6;margin:20px 0 9px}
+.chips{display:flex;flex-wrap:wrap;gap:9px}
+.chip{border:1px solid #2a2a2e;background:#141416;color:#ececec;border-radius:999px;padding:11px 16px;font-size:15px;cursor:pointer;user-select:none}
+.chip.on{background:#ff6200;color:#0b0b0c;border-color:#ff6200;font-weight:700}
+.pick{display:block;width:100%;text-align:center;background:#ff6200;color:#0b0b0c;font-weight:800;font-size:17px;border:none;border-radius:14px;padding:18px;margin:24px 0 8px;cursor:pointer}
+.pick:disabled{opacity:.4;cursor:not-allowed}
+.hint{color:#7a7a80;font-size:12.5px;text-align:center}
+#status{margin-top:18px;font-size:14px}
+.row{display:flex;align-items:center;gap:10px;background:#111114;border:1px solid #1e1e22;border-radius:11px;padding:10px 12px;margin:8px 0}
+.row .ic{width:24px;text-align:center;flex:0 0 auto}
+.ok{color:#39d353}.err{color:#ff5f56}.busy{color:#f5b301}
+.done{margin-top:22px;padding:16px;background:#0f1a0f;border:1px solid #1f3a1f;border-radius:13px;color:#bde5bd;font-size:14px;display:none}
+.done.show{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📸 Add <b>Website</b> Photos</h1>
+  <div class="sub">Snap or choose photos, tap who/what it is, and they upload straight to the shop. Text Teddy/Claude when you're done and they go on the site.</div>
+
+  <div class="lab">1 · What is this photo?</div>
+  <div class="chips" id="chips">
+    <div class="chip" data-l="Teddy">Teddy</div>
+    <div class="chip" data-l="Jimmy">Jimmy</div>
+    <div class="chip" data-l="Andre">Andre</div>
+    <div class="chip" data-l="Lee">Lee</div>
+    <div class="chip" data-l="John">John</div>
+    <div class="chip" data-l="Truck">🚚 Truck</div>
+    <div class="chip" data-l="Job">🔧 A repair / job</div>
+    <div class="chip" data-l="Crew">👥 Crew</div>
+  </div>
+
+  <div class="lab">2 · Add the photos</div>
+  <button class="pick" id="pick" disabled>📷 Take or choose photos</button>
+  <div class="hint">You can pick more than one. Camera or your photo library both work.</div>
+  <input id="file" type="file" accept="image/*" multiple style="display:none">
+
+  <div id="status"></div>
+  <div class="done" id="done">✅ Uploaded! Tap another label to add more, or you're all set — just tell Teddy/Claude and they'll land on the pages.</div>
+</div>
+
+<script>
+var label = null;
+var chips = document.getElementById('chips');
+var pick = document.getElementById('pick');
+var file = document.getElementById('file');
+var statusEl = document.getElementById('status');
+var doneEl = document.getElementById('done');
+
+chips.addEventListener('click', function(e){
+  var c = e.target.closest('.chip'); if(!c) return;
+  [].forEach.call(chips.querySelectorAll('.chip'), function(x){ x.classList.remove('on'); });
+  c.classList.add('on'); label = c.getAttribute('data-l');
+  pick.disabled = false;
+});
+pick.addEventListener('click', function(){ if(label) file.click(); });
+
+file.addEventListener('change', async function(){
+  var files = [].slice.call(file.files || []); file.value = '';
+  if(!files.length) return;
+  doneEl.classList.remove('show');
+  var okCount = 0;
+  for (var i=0; i<files.length; i++){
+    var row = addRow('busy', '⏳', files[i].name + ' — uploading…');
+    try {
+      var b64 = await downscale(files[i]);
+      var up = await fetch('/.netlify/functions/photo-upload', {
+        method:'POST', headers:{'content-type':'application/json'},
+        body: JSON.stringify({ image_base64: b64, conversation_id: 'sitephoto_' + label.toLowerCase(), uploaded_by: 'owner' })
+      }).then(function(r){ return r.json(); });
+      if(!up || !up.ok || !up.s3_key) throw new Error((up && up.error) || 'upload failed');
+      // tag it so it can be found + placed correctly
+      await fetch('/.netlify/functions/gbp-photo-log', {
+        method:'POST', headers:{'content-type':'application/json'},
+        body: JSON.stringify({ s3_key: up.s3_key, caption: 'SITEPHOTO: ' + label })
+      }).catch(function(){});
+      setRow(row, 'ok', '✓', label + ' photo uploaded');
+      okCount++;
+    } catch (err) {
+      setRow(row, 'err', '✕', 'Failed — ' + (err.message || 'try again') );
+    }
+  }
+  if(okCount) doneEl.classList.add('show');
+});
+
+function addRow(cls, ic, txt){
+  var d = document.createElement('div'); d.className='row';
+  d.innerHTML = '<span class="ic '+cls+'">'+ic+'</span><span>'+esc(txt)+'</span>';
+  statusEl.appendChild(d); return d;
+}
+function setRow(row, cls, ic, txt){
+  row.querySelector('.ic').className = 'ic '+cls; row.querySelector('.ic').textContent = ic;
+  row.querySelector('span:last-child').textContent = txt;
+}
+function esc(s){ return String(s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+
+// Client-side downscale -> JPEG base64 (kills oversized/HEIC upload failures)
+function downscale(f){
+  return new Promise(function(resolve, reject){
+    var img = new Image(); var url = URL.createObjectURL(f);
+    img.onload = function(){
+      URL.revokeObjectURL(url);
+      var max = 1600, w = img.width, h = img.height;
+      if (w > max || h > max){ if (w >= h){ h = Math.round(h*max/w); w = max; } else { w = Math.round(w*max/h); h = max; } }
+      var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      var q = 0.85, out;
+      do { out = cv.toDataURL('image/jpeg', q); q -= 0.1; } while (out.length > 8*1024*1024 && q > 0.3);
+      resolve(out.split(',')[1]);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('couldn’t read that image')); };
+    img.src = url;
+  });
+}
+</script>
+</body>
+</html>

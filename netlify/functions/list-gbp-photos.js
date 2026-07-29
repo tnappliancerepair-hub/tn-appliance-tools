@@ -41,7 +41,7 @@ exports.handler = async function (event) {
     if (!key || (m.at_ms && m.at_ms < since)) continue;
     let url = '';
     try { url = await getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: 3600 }); } catch (_) {}
-    photos.push({ s3_key: key, view_url: url, tech_id: m.tech_id || null, at_ms: m.at_ms || null });
+    photos.push({ s3_key: key, view_url: url, tech_id: m.tech_id || null, caption: m.caption || '', at_ms: m.at_ms || null });
   }
 
   return json(200, { ok: true, count: photos.length, photos });
