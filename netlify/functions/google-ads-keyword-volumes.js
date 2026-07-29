@@ -72,6 +72,9 @@ exports.handler = async function (event) {
 
   const langs = q.lang && q.lang !== 'all' && LANG[q.lang] ? [q.lang] : Object.keys(LANG);
   const geoMode = q.geo || 'both';
+  // force a specific login-customer-id to skip the slow 403 ladder (Keyword Planner
+  // wants the account itself). ?login=self uses the customer id.
+  const forceLogin = q.login === 'self' ? cid : (q.login != null ? q.login : null);
   const out = {};
   const grand = { local: 0, us: 0 };
 
@@ -79,11 +82,11 @@ exports.handler = async function (event) {
     const L = LANG[lk];
     const rec = { language: L.name };
     if (geoMode === 'local' || geoMode === 'both') {
-      rec.local = await metrics(cid, c, token, L.id, KW[lk], GEO.local);
+      rec.local = await metrics(cid, c, token, L.id, KW[lk], GEO.local, forceLogin);
       if (rec.local.ok) grand.local += rec.local.total;
     }
     if (geoMode === 'us' || geoMode === 'both') {
-      rec.us = await metrics(cid, c, token, L.id, KW[lk], GEO.us);
+      rec.us = await metrics(cid, c, token, L.id, KW[lk], GEO.us, forceLogin);
       if (rec.us.ok) grand.us += rec.us.total;
     }
     out[lk] = rec;
