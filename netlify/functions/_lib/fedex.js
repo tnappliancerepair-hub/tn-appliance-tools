@@ -87,11 +87,12 @@ async function pickupAvailability({ date, readyTime, closeTime, carriers, reques
 }
 
 // ---- Schedule a pickup ----
-async function schedulePickup({ date, readyTime, closeTime, packageCount, weightLbs, carrierCode, remarks }) {
+async function schedulePickup({ date, readyTime, closeTime, packageCount, weightLbs, carrierCode, remarks, packageLocation }) {
   const c = await cfg();
   const ready = `${date}T${(readyTime || '10:00:00')}`;   // local ISO, no offset (FedEx accepts naive-local)
   const body = {
     originDetail: {
+      packageLocation: packageLocation || 'FRONT',   // where the boxes are for the driver (required)
       pickupLocation: {
         contact: { companyName: SHOP.companyName, personName: SHOP.personName, phoneNumber: SHOP.phoneNumber },
         address: {
