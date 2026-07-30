@@ -33,6 +33,7 @@ exports.handler = async function (event) {
 
   const action = String(q.action || b.action || 'availability').toLowerCase();
   try {
+    if (action === 'diag') return json(200, { ok: true, ...(await fedex.diag()) });
     if (action === 'availability') {
       const r = await fedex.pickupAvailability({ date: q.date || b.date, readyTime: b.readyTime, closeTime: b.closeTime });
       return json(200, { ok: r.ok, configured: true, action, result: r.data, status: r.status });

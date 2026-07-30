@@ -63,11 +63,12 @@ async function api(path, body, method) {
   return { ok: r.ok, status: r.status, data: d, raw: raw.slice(0, 500) };
 }
 
+async function diag() { const c = await cfg(); return { configured: !!(c.id && c.secret), has_account: !!c.account, env: c.env }; }
+
 // ---- Pickup availability ----
 async function pickupAvailability({ date, readyTime, closeTime }) {
   const c = await cfg();
-  return api('/pickup/v1/pickups/availabilities', {
-    associatedAccountNumber: { value: c.account || '' },
+  const body = {
     pickupAddress: {
       streetLines: SHOP.streetLines, city: SHOP.city, stateOrProvinceCode: SHOP.stateOrProvinceCode,
       postalCode: SHOP.postalCode, countryCode: SHOP.countryCode, residential: false,
@@ -75,18 +76,20 @@ async function pickupAvailability({ date, readyTime, closeTime }) {
     dispatchDate: date,                       // YYYY-MM-DD
     packageReadyTime: readyTime || '10:00:00',
     customerCloseTime: closeTime || '17:00:00',
-    pickupRequestType: ['FUTURE_DAY', 'SAME_DAY'],
-    carriers: ['FDXG', 'FDXE'],
+    pickupRequestType: ['FUTURE_DAY'],
+    numberOfBusinessDays: 5,
+    carriers: ['FDXG'],
     countryRelationship: 'DOMESTIC',
-  });
+  };
+  if (c.account) body.associatedAccountNumber = { value: c.account };   // omit if empty (empty = invalid input)
+  return api('/pickup/v1/pickups/availabilities', body);
 }
 
 // ---- Schedule a pickup ----
 async function schedulePickup({ date, readyTime, closeTime, packageCount, weightLbs, carrierCode, remarks }) {
   const c = await cfg();
   const ready = `${date}T${(readyTime || '10:00:00')}`;   // local ISO, no offset (FedEx accepts naive-local)
-  return api('/pickup/v1/pickups', {
-    associatedAccountNumber: { value: c.account || '' },
+  const body = {
     originDetail: {
       pickupLocation: {
         contact: { companyName: SHOP.companyName, personName: SHOP.personName, phoneNumber: SHOP.phoneNumber },
@@ -103,7 +106,9 @@ async function schedulePickup({ date, readyTime, closeTime, packageCount, weight
     carrierCode: carrierCode || 'FDXG',          // Ground = typical for warranty returns
     remarks: remarks || 'Warranty parts returns',
     countryRelationship: 'DOMESTIC',
-  });
+  };
+  if (c.account) body.associatedAccountNumber = { value: c.account };
+  return api('/pickup/v1/pickups', body);
 }
 
 // ---- Cancel a pickup ----
@@ -128,4 +133,4 @@ async function track(trackingNumbers) {
   });
 }
 
-module.exports = { configured, cfg, token, api, pickupAvailability, schedulePickup, cancelPickup, track, SHOP };
+module.exports = { configured, diag, cfg, token, api, pickupAvailability, schedulePickup, cancelPickup, track, SHOP };
