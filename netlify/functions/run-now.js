@@ -30,6 +30,7 @@ const TARGETS = {
   'tdr-gap-watch': require('./tdr-gap-watch'),
   'parts-arrival-watch': require('./parts-arrival-watch'),
   'payout-ready-notify': require('./payout-ready-notify'),
+  'indexnow-ping': require('./indexnow-ping'),
 };
 
 function json(code, body) { return { statusCode: code, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body, null, 2) }; }
