@@ -32,16 +32,25 @@ async function phoneSnapshot(adminSec) {
 
 // Count event_log rows for an action within the window; capture the newest ts.
 async function footprint(action, sinceMs) {
+  // Deep-paginate (was a single 250-row page, which capped every high-volume action at
+  // exactly 250 and undercounted the real total). Rows come id-desc (≈ newest first), so
+  // once a full page falls entirely outside the window everything after is older too — stop.
+  let n = 0, last = 0;
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, 250);
-    const list = Array.isArray(rows) ? rows : (rows && rows.items) || [];
-    let n = 0, last = 0;
-    for (const r of list) {
-      const t = Number(r.created_at || (r.metadata && r.metadata.at_ms) || 0);
-      if (t && t >= sinceMs) { n++; if (t > last) last = t; }
+    for (let page = 1; page <= 40; page++) {   // up to 20k rows — ample for a ≤30-day window
+      const rows = await crud.searchPageN(crud.TABLES.event_log, { action }, { id: 'desc' }, 500, page);
+      const list = Array.isArray(rows) ? rows : (rows && rows.items) || [];
+      if (!list.length) break;
+      let anyInWindow = false;
+      for (const r of list) {
+        const t = Number(r.created_at || (r.metadata && r.metadata.at_ms) || 0);
+        if (t && t >= sinceMs) { n++; if (t > last) last = t; anyInWindow = true; }
+      }
+      if (list.length < 500) break;   // exhausted
+      if (!anyInWindow) break;         // whole page older than the window → done
     }
-    return { n, last };
-  } catch (_) { return { n: 0, last: 0 }; }
+  } catch (_) {}
+  return { n, last };
 }
 
 async function openCallbacks(adminSec) {
