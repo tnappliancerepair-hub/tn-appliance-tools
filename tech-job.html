@@ -430,22 +430,49 @@ async function loadMachines(){
   try{
     const d=await fetch('/.netlify/functions/get-stop-machines?job_id='+encodeURIComponent(JOB_ID),{cache:'no-store'}).then(r=>r.json());
     const machines=(d&&d.machines)||[];
-    // With only this one machine and no siblings, keep it quiet but still offer "add".
-    const chips=machines.map(function(m){
-      const cur=Number(m.job_id)===Number(JOB_ID);
-      const label=applIcon(m.appliance)+' '+esc(m.brand?(m.brand+' '+m.appliance):m.appliance)+(m.has_report?' ✓':'');
-      if(cur) return '<span class="mchip cur">'+label+'</span>';
-      return '<a class="mchip" href="tech-job.html?job_id='+encodeURIComponent(m.job_id)+'&tech_id='+encodeURIComponent(TECH_ID)+'">'+label+'</a>';
-    }).join('');
     const many=machines.length>1;
-    el.innerHTML='<div class="card mach" style="border:1px solid #cdbdf0;background:#f7f2ff">'
-      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
-      +'<span style="font-size:11px;font-weight:800;color:#6b46c1;letter-spacing:.02em">'+(many?('🧩 '+machines.length+' MACHINES ON THIS STOP'):'🧩 MACHINE')+'</span>'
-      +'</div>'
-      +'<div class="mchips">'+chips+'<button class="mchip add" onclick="__antAddMachine()">＋ Add machine</button></div>'
-      +(many?'<div style="font-size:11px;color:#7c5db5;margin-top:6px">Each machine has its own report — tap a chip to switch. A ✓ means its report is started.</div>':'')
-      +'</div>';
-    el.style.display='';
+    if(many){
+      // MULTIPLE APPLIANCES — make it impossible to miss (Teddy 2026-07-30:
+      // "techs need it super obvious there's multiple machines").
+      const done=machines.filter(function(m){return m.has_report;}).length;
+      const rows=machines.map(function(m){
+        const cur=Number(m.job_id)===Number(JOB_ID);
+        const icon=applIcon(m.appliance);
+        const name=esc(m.brand?(m.brand+' '+m.appliance):m.appliance);
+        const stat=m.has_report
+          ? '<span style="color:#15803d;font-weight:800">✓ report started</span>'
+          : '<span style="color:#b45309;font-weight:800">⬜ still needs a report</span>';
+        if(cur){
+          return '<div style="display:flex;align-items:center;gap:10px;padding:13px;border-radius:12px;background:#fff;border:2px solid #ea6a00;margin-top:9px">'
+            +'<span style="font-size:26px">'+icon+'</span>'
+            +'<div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:900">'+name+'</div>'
+            +'<div style="font-size:12px">'+stat+' · <b>you’re on this one now</b></div></div></div>';
+        }
+        return '<a href="tech-job.html?job_id='+encodeURIComponent(m.job_id)+'&tech_id='+encodeURIComponent(TECH_ID)+'" '
+          +'style="display:flex;align-items:center;gap:10px;padding:13px;border-radius:12px;background:#fff;border:1px solid #f3ca9a;margin-top:9px;text-decoration:none;color:#111">'
+          +'<span style="font-size:26px">'+icon+'</span>'
+          +'<div style="flex:1;min-width:0"><div style="font-size:16px;font-weight:900">'+name+'</div>'
+          +'<div style="font-size:12px">'+stat+' · tap to open</div></div>'
+          +'<span style="font-size:22px;color:#ea6a00;font-weight:900">→</span></a>';
+      }).join('');
+      el.innerHTML='<div class="card" style="border:3px solid #ea6a00;background:#fff4e5;padding:15px;box-shadow:0 3px 14px rgba(234,106,0,.22)">'
+        +'<div style="font-size:19px;font-weight:900;color:#b45309;line-height:1.15">🧩 THIS STOP HAS '+machines.length+' APPLIANCES</div>'
+        +'<div style="font-size:13px;font-weight:800;color:#92400e;margin-top:5px">Do all '+machines.length+' while you’re here — each one needs its own report. '
+        +'<span style="color:#b45309">'+done+' of '+machines.length+' started.</span></div>'
+        +rows
+        +'<button class="mchip add" style="margin-top:11px;font-size:13px" onclick="__antAddMachine()">＋ Add another machine</button>'
+        +'</div>';
+      el.style.display='';
+    } else {
+      // Single machine — keep it quiet.
+      const m=machines[0]||{};
+      const label=applIcon(m.appliance||'')+' '+esc(m.brand?(m.brand+' '+m.appliance):(m.appliance||'this machine'));
+      el.innerHTML='<div class="card mach" style="border:1px solid #cdbdf0;background:#f7f2ff">'
+        +'<div style="font-size:11px;font-weight:800;color:#6b46c1;letter-spacing:.02em">🧩 MACHINE</div>'
+        +'<div class="mchips"><span class="mchip cur">'+label+'</span><button class="mchip add" onclick="__antAddMachine()">＋ Add machine</button></div>'
+        +'</div>';
+      el.style.display='';
+    }
   }catch(_){ el.style.display='none'; }
 }
 async function __antAddMachine(){
