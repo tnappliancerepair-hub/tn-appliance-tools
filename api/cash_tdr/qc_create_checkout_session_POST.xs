@@ -448,9 +448,10 @@ query qc_create_checkout_session verb=POST {
           value = $idx|to_text
         }
       
-        // Quick Check Credit is per-TDR (0 when the Quick Check was waived/free).
+        // Quick Check Credit = what the customer actually paid (job stamp), TDR
+        // override wins, legacy $50 default for pre-stamp TDRs. 0 when waived/free.
         var $qc_credit_cents {
-          value = ($tdr.labor_credit_cents ?? 5000)
+          value = ($tdr.labor_credit_cents ?? ($job.quick_check_credit_cents ?? 5000))
         }
 
         var $adjusted_labor {
@@ -553,14 +554,20 @@ query qc_create_checkout_session verb=POST {
     // AND the Quick Check wasn't waived (labor_credit_cents > 0). Install/mixed
     // orders keep the labor-line credit above (no double-credit).
     var $diy_credit_cents {
-      value = ($tdr.labor_credit_cents ?? 5000)
+      value = ($tdr.labor_credit_cents ?? ($job.quick_check_credit_cents ?? 5000))
+    }
+    // Pick the coupon that matches what they paid: >= $50 -> qc_credit_50, else
+    // qc_credit_25 (Ant's Gift / church / partner). Below $25 (test/free) -> no
+    // coupon, so we never over-credit a DIY part.
+    var $diy_coupon {
+      value = (($diy_credit_cents >= 5000) ? "qc_credit_50" : "qc_credit_25")
     }
     conditional {
       if ($total_labor_cents == 0) {
         conditional {
-          if ($diy_credit_cents > 0) {
+          if ($diy_credit_cents >= 2500) {
             var.update $params {
-              value = $params|set:"discounts[0][coupon]":"qc_credit_50"
+              value = $params|set:"discounts[0][coupon]":$diy_coupon
             }
           }
         }

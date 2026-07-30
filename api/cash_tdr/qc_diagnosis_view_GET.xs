@@ -143,9 +143,11 @@ query qc_diagnosis_view verb=GET {
       return = {type: "list"}
     } as $failure_rows
   
-    // Constant labor credit (frontend applies once across multi-failure totals).
+    // Labor credit = what the customer actually paid for the Quick Check (stamped on
+    // the job at payment: Ant's Gift $25 / church-partner $25 / full $50 / $0 waived).
+    // Falls back to the job stamp, then the legacy $50 default for pre-stamp TDRs.
     var $credit {
-      value = ($tdr.labor_credit_cents ?? 5000)
+      value = ($tdr.labor_credit_cents ?? ($job.quick_check_credit_cents ?? 5000))
     }
   
     // Build failures array via foreach + var.update + |push.

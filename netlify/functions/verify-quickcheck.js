@@ -130,7 +130,13 @@ exports.handler = async function (event) {
   // office. payment_collected (bool) is the reliable signal; payment_status:'paid'
   // is best-effort (no-ops if the enum lacks it). Teddy 2026-06-27.
   if (jobId) {
-    try { await crud.update(crud.TABLES.jobs, jobId, { payment_status: 'paid', payment_collected: true, stripe_payment_reference: sessionId }); } catch (_) {}
+    // Stamp the Quick Check credit = what the customer ACTUALLY paid, so the part
+    // credit later tracks it (Ant's Gift $25, church/partner $25, full $50, $0 if
+    // waived) instead of a flat $50. Quick-check service only — in_home ($100 trip
+    // fee) is left to the existing $50 default, not credited dollar-for-dollar.
+    const jobUpd = { payment_status: 'paid', payment_collected: true, stripe_payment_reference: sessionId };
+    if (service !== 'in_home') jobUpd.quick_check_credit_cents = Math.round(amtPaid * 100);
+    try { await crud.update(crud.TABLES.jobs, jobId, jobUpd); } catch (_) {}
   }
 
   // record the payment + the idempotency marker
