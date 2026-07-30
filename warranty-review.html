@@ -469,7 +469,7 @@
   async function __verifyOfficePassword(pw) {
     if (!pw) return false;
     try {
-      const r = await fetch(`${XANO_BASE}/verify_office_password`, {
+      const r = await fetch(`/.netlify/functions/office-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw }),

@@ -167,7 +167,7 @@
   const XANO_BASE      = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA";
   const LIST_ENDPOINT  = XANO_BASE + "/list_warranty_jobs?days_back=30";  // completed warranty jobs, incl. already-submitted
   const SUBMIT_ENDPOINT= XANO_BASE + "/mark_warranty_submitted";          // POST {job_id, submitted}
-  const VERIFY_PW_ENDPOINT = XANO_BASE + "/verify_office_password";       // POST {password} — server checks $env.OFFICE_PASSWORD
+  const VERIFY_PW_ENDPOINT = "/.netlify/functions/office-verify";       // POST {password} — server checks $env.OFFICE_PASSWORD
   const POLL_MS        = 30000;
 
   const TECHS = {1:"Teddy",2:"Jimmy",3:"Andre",4:"Lee",6:"John"};

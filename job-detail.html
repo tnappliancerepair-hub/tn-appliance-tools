@@ -669,7 +669,7 @@ function initAuth() {
 async function __verifyOfficePassword(pw) {
   if (!pw) return false;
   try {
-    const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_office_password', {
+    const r = await fetch('/.netlify/functions/office-verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pw }),

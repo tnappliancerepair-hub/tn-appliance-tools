@@ -118,7 +118,7 @@
   const AUTH_KEY = 'tn_office_auth_v1';
     const POLL_MS = 60000;
 
-  async function __verifyOfficePassword(pw){if(!pw)return false;try{const r=await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch{return false;}}
+  async function __verifyOfficePassword(pw){if(!pw)return false;try{const r=await fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch{return false;}}
 const $ = (id) => document.getElementById(id);
   const auth = $('auth');
   const app = $('app');

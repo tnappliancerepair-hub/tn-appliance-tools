@@ -1005,7 +1005,7 @@ function __initCalendar() {
   // unlock threw and the page stayed blank.
   async function __verifyOfficePassword(pw) {
     try {
-      const r = await fetch(`${XANO_BASE}/verify_office_password`, {
+      const r = await fetch(`/.netlify/functions/office-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw }),

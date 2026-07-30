@@ -110,7 +110,7 @@ async function verifyGate() {
 // office-search.js?v=20260703i injects this function — fallback inline if not present
 async function __verifyOfficePassword(p) {
   try {
-    const r = await fetch(XANO_BASE + '/verify_office_password', {
+    const r = await fetch('/.netlify/functions/office-verify', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: p }),
       signal: AbortSignal.timeout(10_000),

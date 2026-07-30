@@ -102,7 +102,7 @@ async function submitAuth(){
   const v=(document.getElementById('pw').value||'').trim();const err=document.getElementById('auth-err');
   if(!v){err.textContent='Enter password';return;}
   try{
-    const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
+    const r=await fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
     const d=await r.json();
     if(d&&d.success){pw=v;localStorage.setItem(OFFICE_AUTH_KEY,'1');try{localStorage.setItem('tn_office_auth','1');}catch(_){}document.getElementById('auth').classList.add('hidden');load();}
     else err.textContent='Wrong password.';

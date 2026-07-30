@@ -156,7 +156,7 @@ const TECH={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
 let JOBS=[], FILTER='gaps', TECHF='';
 
 function authOk(){try{return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem('tn_office_auth')==='1'||(window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}catch(_){return false;}}
-async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
+async function verify(pw){try{const r=await fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
 document.getElementById('pwBtn').onclick=async function(){
   const e=document.getElementById('autherr');const v=document.getElementById('pw').value.trim();
   if(!v){e.textContent='Enter the office password';return;} e.textContent='Checking…';

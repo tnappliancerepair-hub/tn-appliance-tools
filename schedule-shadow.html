@@ -67,7 +67,7 @@
 const FN='/.netlify/functions';
 function unlock(){
   const pw=document.getElementById('pw').value.trim();
-  fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
+  fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
     .then(r=>r.json()).then(d=>{ if(d&&(d.valid||d.success||d.ok)){ localStorage.setItem('ant_office_pw',pw); show(); } else document.getElementById('gerr').textContent='Wrong password'; })
     .catch(()=>document.getElementById('gerr').textContent='Connection error');
 }

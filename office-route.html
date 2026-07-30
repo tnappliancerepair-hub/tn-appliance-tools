@@ -87,7 +87,7 @@ const TECHS=[{id:1,name:'Teddy'},{id:2,name:'Jimmy'},{id:3,name:'Andre'},{id:4,n
 
 // auth
 const authGate=document.getElementById('authGate'),authInput=document.getElementById('authInput'),app=document.getElementById('app');
-async function tryAuth(p){try{const r=await fetch(`${XANO}/verify_office_password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});const d=await r.json();return d&&d.success===true;}catch(e){return false;}}
+async function tryAuth(p){try{const r=await fetch(`/.netlify/functions/office-verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});const d=await r.json();return d&&d.success===true;}catch(e){return false;}}
 function unlock(){authGate.style.display='none';app.style.display='block';load();}
 const cached=localStorage.getItem(OFFICE_AUTH_KEY);
 if((window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(cached&&Date.now()-parseInt(cached,10)<12*3600*1000))unlock();

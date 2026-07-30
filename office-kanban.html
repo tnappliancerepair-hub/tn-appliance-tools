@@ -281,7 +281,7 @@ const COLUMNS = [
 const previousColumn = new Map(); // job_id -> column key
 
 async function verifyPassword(pw) {
-  const r = await fetch(XANO_BASE + '/verify_office_password', {
+  const r = await fetch('/.netlify/functions/office-verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: pw }),

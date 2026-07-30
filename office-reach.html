@@ -70,12 +70,12 @@ const FN='/.netlify/functions';
 let PW='';
 function unlock(){
   const pw=document.getElementById('pw').value.trim();
-  fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
+  fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
     .then(r=>r.json()).then(d=>{ if(d&&(d.valid||d.success||d.ok)){ PW=pw; localStorage.setItem('ant_office_pw',pw); show(); } else document.getElementById('gerr').textContent='Wrong password'; })
     .catch(()=>document.getElementById('gerr').textContent='Connection error');
 }
 (function cached(){ const c=localStorage.getItem('ant_office_pw'); if(!c) return;
-  fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:c})})
+  fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:c})})
     .then(r=>r.json()).then(d=>{ if(d&&(d.valid||d.success||d.ok)){ PW=c; show(); } }).catch(()=>{}); })();
 function show(){ document.getElementById('gate').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); call('status'); }
 // Already logged in on another office page? Skip the gate (one shared login).

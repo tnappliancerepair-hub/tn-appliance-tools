@@ -226,7 +226,7 @@ function dbg(m){
 /* ---------- gate ---------- */
 function unlock(){
   const pw = document.getElementById('pw').value.trim();
-  fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
+  fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
     .then(r=>r.json()).then(d=>{
       if(d && (d.valid||d.success||d.ok)){ PW=pw; localStorage.setItem('ant_office_pw',pw); showApp(); }
       else document.getElementById('gerr').textContent='Wrong password';
@@ -243,7 +243,7 @@ function setAutoAns(on){ autoAnswer = !!on; localStorage.setItem('ant_office_pho
 (function tryCached(){
   const cached = localStorage.getItem('ant_office_pw');
   if(!cached) return;
-  fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:cached})})
+  fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:cached})})
     .then(r=>r.json()).then(d=>{ if(d&&(d.valid||d.success||d.ok)){ PW=cached; showApp(); } }).catch(()=>{});
 })();
 

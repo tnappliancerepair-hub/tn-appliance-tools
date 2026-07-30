@@ -68,7 +68,7 @@
 <script>
 const FN='/.netlify/functions';
 function pw(){ try{ return localStorage.getItem('ant_office_pw')||''; }catch(_){ return ''; } }
-async function verify(p){ try{ const r=await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})}); const d=await r.json(); return d&&d.success===true; }catch(_){ return false; } }
+async function verify(p){ try{ const r=await fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})}); const d=await r.json(); return d&&d.success===true; }catch(_){ return false; } }
 async function unlock(){ const v=document.getElementById('pw').value.trim(); if(!v)return; document.getElementById('gerr').textContent='Checking…'; if(await verify(v)){ try{localStorage.setItem('ant_office_pw',v);}catch(_){}; show(); } else document.getElementById('gerr').textContent='Wrong password'; }
 function show(){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='block'; const d=new Date(Date.now()+86400000); document.getElementById('date').value=d.toISOString().slice(0,10); cfgCheck(); envCheck(); }
 let ENV='';

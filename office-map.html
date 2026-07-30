@@ -68,7 +68,7 @@ let MAP, MARKERS = [], ALL = [], SCOPE = 'current', OFF = new Set();
 // ── office auth (shared key with the calendar) ──
 function authed() { return localStorage.getItem('tn_office_auth') === '1'; }
 async function tryAuth(pw) {
-  try { const r = await fetch(`${XANO}/verify_office_password`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) }); const d = await r.json().catch(()=>({})); return !!(d && (d.valid || d.ok || d.success)); } catch(_) { return false; }
+  try { const r = await fetch(`/.netlify/functions/office-verify`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) }); const d = await r.json().catch(()=>({})); return !!(d && (d.valid || d.ok || d.success)); } catch(_) { return false; }
 }
 function showGate() { $('gate').classList.add('show'); $('pw').focus(); }
 $('pwBtn').onclick = async () => { const v = $('pw').value; $('pwErr').textContent = 'checking…'; if (await tryAuth(v)) { localStorage.setItem('tn_office_auth','1'); $('gate').classList.remove('show'); boot(); } else { $('pwErr').textContent = 'wrong password'; } };

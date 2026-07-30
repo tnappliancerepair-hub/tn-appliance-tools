@@ -190,7 +190,7 @@
   const SEARCH_ENDPOINT = XANO_BASE + "/search_customers";   // POST { query }
   const SEND_ENDPOINT   = XANO_BASE + "/send_sms";           // #32, POST { to, body }
   const PORTAL_BASE     = "https://tnapplianceexchange.net/customer-portal.html";
-  const VERIFY_PW_ENDPOINT = XANO_BASE + "/verify_office_password"; // POST {password} — server checks $env.OFFICE_PASSWORD
+  const VERIFY_PW_ENDPOINT = "/.netlify/functions/office-verify"; // POST {password} — server checks $env.OFFICE_PASSWORD
 
   // Default message template. {name} and {link} are filled in.
   const TEMPLATE = "Hi {name}, this is TN Appliance Exchange. You can track your repair and see updates anytime here: {link}  Reply STOP to opt out.";

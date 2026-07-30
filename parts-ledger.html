@@ -163,7 +163,7 @@
   let currentDays = 30;
   let lastData = null;
 
-  async function __verifyOfficePassword(pw){if(!pw)return false;try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch{return false;}}
+  async function __verifyOfficePassword(pw){if(!pw)return false;try{const r=await fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch{return false;}}
   const $ = (id) => document.getElementById(id);
   const auth = $('auth'), app = $('app');
   const pwInput = $('pw'), pwBtn = $('pwBtn'), pwErr = $('pwErr');

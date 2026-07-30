@@ -137,7 +137,7 @@ async function submitAuth() {
   err.textContent = '';
   if (!pwd) { err.textContent = 'Enter password'; return; }
   try {
-    const r = await fetch(XANO_BASE + '/verify_office_password', {
+    const r = await fetch('/.netlify/functions/office-verify', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pwd }),
     });

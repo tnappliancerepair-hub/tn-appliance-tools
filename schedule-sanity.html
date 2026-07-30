@@ -65,7 +65,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 async function auth(){
   const pw=document.getElementById('pw').value.trim(); if(!pw)return;
   try{
-    const r=await fetch(`${XANO}/verify_office_password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    const r=await fetch(`/.netlify/functions/office-verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
     const d=await r.json();
     if(d&&(d.valid||d.success||d.ok)){localStorage.setItem(AUTH_KEY,'1');unlock();}
     else document.getElementById('gerr').textContent='Wrong password';

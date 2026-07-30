@@ -84,7 +84,7 @@
 <script>
 const XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 function authOk(){try{return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem('tn_office_auth')==='1'||(window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}catch(_){return false;}}
-async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
+async function verify(pw){try{const r=await fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
 async function doAuth(){const v=document.getElementById('pw').value.trim();if(!v)return;document.getElementById('autherr').textContent='Checking…';if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');}catch(_){ }document.getElementById('auth').style.display='none';load();}else{document.getElementById('autherr').textContent='Wrong password';}}
 let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200);}
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}

@@ -969,7 +969,7 @@
   // fails. Read-only view either way.
   async function verifyOfficePassword(pw) {
     try {
-      const res = await fetchT(`${XANO_BASE}/verify_office_password`, {
+      const res = await fetchT(`/.netlify/functions/office-verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: pw })
