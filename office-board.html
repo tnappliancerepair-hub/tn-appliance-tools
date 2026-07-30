@@ -12,7 +12,7 @@
 <script>
 // Who's doing the action — their signed-in identity, or the historical default
 // until someone signs in (so nothing changes for the current session).
-function officeActor(){ try{ return (window.OfficeStaff&&OfficeStaff.name())||'Danielle'; }catch(_){ return 'Danielle'; } }
+function officeActor(){ try{ return (window.OfficeStaff&&OfficeStaff.name())||'office'; }catch(_){ return 'office'; } }
 </script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
@@ -504,8 +504,25 @@ function jobRegion(j){
 // A tech may VIEW the board only when read-only mode is active (office-readonly.js
 // set OFFICE_READONLY + installed the write-block first). Never write access.
 function authValid(){return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem(OFFICE_AUTH_KEY)==='1'||localStorage.getItem('tn_office_auth')==='1'||(window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}
+// Per-person sign-in: after the shared office password unlocks the board, capture WHO
+// is working so every action is credited to them (not a generic default). One tap +
+// PIN per device per 30 days (office-identity.js + office-staff-verify). A "👤 Name ·
+// switch" chip lets the next person take over on a shared computer.
+function renderStaffChip(){
+  try{
+    var n=(window.OfficeStaff&&OfficeStaff.name())||'';
+    var host=document.getElementById('office-staff-chip');
+    if(!host){host=document.createElement('div');host.id='office-staff-chip';host.style.cssText='position:fixed;top:6px;right:8px;z-index:9997;background:#0f1626;border:1px solid #26314c;border-radius:999px;padding:5px 11px;font:12px -apple-system,"Segoe UI",Roboto,Arial,sans-serif';document.body.appendChild(host);}
+    if(!n){ host.innerHTML='<a href="#" id="os-signin" style="color:#ff6200;text-decoration:none">👤 sign in</a>'; var si=document.getElementById('os-signin'); if(si)si.onclick=function(e){e.preventDefault(); if(window.OfficeStaff)OfficeStaff.signIn(true);}; return; }
+    host.innerHTML='<span style="color:#9fb0d0">👤 '+n+' · <a href="#" id="os-switch" style="color:#ff6200;text-decoration:none">switch</a></span>';
+    var sw=document.getElementById('os-switch'); if(sw)sw.onclick=function(e){e.preventDefault(); if(window.OfficeStaff)OfficeStaff.signIn(true);};
+  }catch(_){}
+}
+function promptOfficeIdentity(){
+  try{ window.__onOfficeIdentity=function(){ renderStaffChip(); }; if(window.OfficeStaff&&OfficeStaff.signIn) OfficeStaff.signIn(); renderStaffChip(); }catch(_){}
+}
 function initAuth(){
-  if(authValid()){document.getElementById('auth').classList.add('hidden');loadBoard();return;}
+  if(authValid()){document.getElementById('auth').classList.add('hidden');promptOfficeIdentity();loadBoard();return;}
   document.getElementById('pw').focus();
 }
 async function submitAuth(){
@@ -514,7 +531,7 @@ async function submitAuth(){
   try{
     const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
     const d=await r.json();
-    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');try{localStorage.setItem('tn_office_auth','1');}catch(_){}document.getElementById('auth').classList.add('hidden');loadBoard();}
+    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');try{localStorage.setItem('tn_office_auth','1');}catch(_){}document.getElementById('auth').classList.add('hidden');promptOfficeIdentity();loadBoard();}
     else{err.textContent='Wrong password.';}
   }catch(_){err.textContent='Connection error.';}
 }

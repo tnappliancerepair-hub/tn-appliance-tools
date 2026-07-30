@@ -30,12 +30,13 @@ async function phoneSnapshot(adminSec) {
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
-// Count event_log rows for an action within the window; capture the newest ts.
+// Count event_log rows for an action within the window; capture the newest ts + who did it.
 async function footprint(action, sinceMs) {
   // Deep-paginate (was a single 250-row page, which capped every high-volume action at
   // exactly 250 and undercounted the real total). Rows come id-desc (≈ newest first), so
   // once a full page falls entirely outside the window everything after is older too — stop.
   let n = 0, last = 0;
+  const byActor = {};   // actor name → count (per-person attribution once staff sign in)
   try {
     for (let page = 1; page <= 40; page++) {   // up to 20k rows — ample for a ≤30-day window
       const rows = await crud.searchPageN(crud.TABLES.event_log, { action }, { id: 'desc' }, 500, page);
@@ -44,13 +45,18 @@ async function footprint(action, sinceMs) {
       let anyInWindow = false;
       for (const r of list) {
         const t = Number(r.created_at || (r.metadata && r.metadata.at_ms) || 0);
-        if (t && t >= sinceMs) { n++; if (t > last) last = t; anyInWindow = true; }
+        if (t && t >= sinceMs) {
+          n++; if (t > last) last = t; anyInWindow = true;
+          const md = r.metadata || {};
+          const who = (md.actor || md.by || md.sender || md.staff || 'office').toString().trim() || 'office';
+          byActor[who] = (byActor[who] || 0) + 1;
+        }
       }
       if (list.length < 500) break;   // exhausted
       if (!anyInWindow) break;         // whole page older than the window → done
     }
   } catch (_) {}
-  return { n, last };
+  return { n, last, byActor };
 }
 
 async function openCallbacks(adminSec) {
@@ -87,6 +93,27 @@ exports.handler = async function (event) {
 
   const lastActive = Math.max(sched.last, moves.last, invoices.last, texts.last, checks.last, 0);
 
+  // Roll each metric's per-actor counts up into one who-did-what map. Until staff sign in
+  // (per-person office logins), everything lands under "office" — that's the shared-login
+  // baseline. As Teddy/Danielle/Sofia/Alec sign in, their names split out here.
+  const byActor = {};
+  const bump = (metricKey, m) => {
+    for (const [who, c] of Object.entries(m.byActor || {})) {
+      (byActor[who] = byActor[who] || { total: 0 }).total += c;
+      byActor[who][metricKey] = (byActor[who][metricKey] || 0) + c;
+    }
+  };
+  bump('schedules_saved', sched);
+  bump('board_moves', moves);
+  bump('invoices_logged', invoices);
+  bump('customer_texts', texts);
+  bump('tdrs_filed', tdrs);
+  bump('checklist_ticks', checks);
+  // Sort people by total activity, most first.
+  const byActorSorted = Object.fromEntries(
+    Object.entries(byActor).sort((a, b) => b[1].total - a[1].total)
+  );
+
   return json(200, {
     ok: true,
     generated_ms: Date.now(),
@@ -102,6 +129,7 @@ exports.handler = async function (event) {
       checklist_ticks: checks.n,
       last_active_ms: lastActive,
     },
-    note: 'phone_today = last 24h from Vapi; office_footprint = last N days from the system log. Transfers were OFF until 2026-07-21, so pre-fix "transferred" reads 0 — clean baseline starts now.',
+    office_footprint_by_actor: byActorSorted,
+    note: 'phone_today = last 24h from Vapi; office_footprint = last N days from the system log. office_footprint_by_actor splits activity per signed-in person — until staff sign in it all reads "office" (shared login baseline). Transfers were OFF until 2026-07-21.',
   });
 };
