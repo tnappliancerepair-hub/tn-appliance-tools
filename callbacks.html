@@ -103,7 +103,31 @@ const DROP_REASONS=['silence-timed-out','no-answer','customer-did-not-answer','c
 const TOLLFREE=/^\+?1?(800|888|866|877|855|844|833)/;
 function authOk(){try{return (window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||localStorage.getItem('tn_office_auth')==='1'||(window.OfficeAuth&&window.OfficeAuth.isLoggedIn())||(window.OFFICE_READONLY&&window.TechAuth&&window.TechAuth.session());}catch(_){return false;}}
 async function verify(pw){try{const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});const d=await r.json();return d&&d.success===true;}catch(_){return false;}}
-async function doAuth(){const v=document.getElementById('pw').value.trim();if(!v)return;document.getElementById('autherr').textContent='Checking…';if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');}catch(_){ }document.getElementById('auth').style.display='none';load();}else{document.getElementById('autherr').textContent='Wrong password';}}
+async function doAuth(){const v=document.getElementById('pw').value.trim();if(!v)return;document.getElementById('autherr').textContent='Checking…';if(await verify(v)){try{localStorage.setItem('tn_office_auth','1');localStorage.setItem('ant_office_pw',v);}catch(_){ }document.getElementById('auth').style.display='none';load();}else{document.getElementById('autherr').textContent='Wrong password';}}
+// Return a call to a customer. Phone: native dialer (tel:). Desktop: click-to-call
+// BRIDGE — Telnyx rings this person's office cell first, then dials + connects the
+// customer (shop # as caller ID). Fixes the dead `tel:` link on a Windows desktop.
+// The number stays visible on the button as a fallback, so nobody is ever stuck.
+function _isTouch(){try{return matchMedia('(pointer:coarse)').matches||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);}catch(_){return false;}}
+async function callOut(tel, disp, ev){
+  if(_isTouch()) return true;                       // let href="tel:" work natively on a phone
+  if(ev&&ev.preventDefault) ev.preventDefault();
+  var btn = ev&&ev.currentTarget, orig = btn?btn.textContent:'';
+  var pw='';
+  try{ pw=(window.OfficeAuth&&OfficeAuth.password&&OfficeAuth.password())||localStorage.getItem('ant_office_pw')||''; }catch(_){}
+  if(!pw){ pw=(prompt('Office password (to connect the call):')||'').trim(); if(!pw)return false; try{localStorage.setItem('ant_office_pw',pw);}catch(_){}}
+  var who='danielle';
+  try{ var n=(window.OfficeStaff&&OfficeStaff.name&&OfficeStaff.name())||''; if(/teddy/i.test(n)) who='teddy'; }catch(_){}
+  if(btn) btn.textContent='📞 Ringing your phone…';
+  try{
+    var r=await fetch('/.netlify/functions/office-callout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw,to:tel,who:who})});
+    var d=await r.json().catch(function(){return{};});
+    if(d&&d.ok){ if(btn){ btn.textContent='📞 Answer your phone — connecting '+disp; setTimeout(function(){if(btn)btn.textContent=orig;},15000); } }
+    else if(d&&d.error==='unauthorized'){ try{localStorage.removeItem('ant_office_pw');}catch(_){} if(btn)btn.textContent='📞 Wrong password — tap again'; }
+    else { if(btn)btn.textContent='📞 Couldn’t connect — dial '+disp; }
+  }catch(_){ if(btn)btn.textContent='📞 Couldn’t connect — dial '+disp; }
+  return false;
+}
 let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2200);}
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function ago(ms){ms=Number(ms)||0;if(!ms)return '';var s=Math.floor((Date.now()-ms)/1000);if(s<3600)return Math.max(1,Math.floor(s/60))+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
@@ -187,7 +211,7 @@ function dropCard(x,isTech){
     : '<span class="tag t-other">dead air / dropped</span>';
   const nm=(x.name||'').trim();
   const textBtn=isTech?'':'<button class="call" style="background:#0a7d33" onclick="textDrop(\''+ph+'\',\''+esc((nm.split(/\s+/)[0]||'')).replace(/'/g,"\\'")+'\')">💬 Text</button>';
-  const callBtn=isTech?'':'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(disp)+'</a>';
+  const callBtn=isTech?'':'<a class="call" href="tel:'+esc(tel)+'" onclick="return callOut(\''+esc(tel)+'\',\''+esc(disp)+'\',event)">📞 Call '+esc(disp)+'</a>';
   const openJobBtn='<button class="call" style="background:#37414f" onclick="openJob(\''+esc(tel)+'\','+(x.job||0)+')">🗂 Open job</button>';
   // Header: customer NAME front + center (phone underneath) when we know them.
   const who=nm?('<div class="who">'+esc(nm)+'</div><div style="font-size:13px;color:#667">'+esc(disp)+'</div>'):('<div class="who">'+esc(disp)+'</div>');
@@ -267,7 +291,7 @@ function render(){
       '<div class="sum">'+esc(r.summary||'(no summary)')+'</div>'+
       '<div class="acts">'+
         '<button class="openjob" onclick="openJob(\''+esc(tel)+'\','+jid+')" style="background:#37414f;color:#fff;border:0;border-radius:8px;padding:11px 13px;font-weight:800;font-size:13px;cursor:pointer">🗂 Open job</button>'+
-        (tel?'<a class="call" href="tel:'+esc(tel)+'">📞 Call '+esc(r.phone)+'</a>':'<span style="flex:1;color:#c0392b;font-weight:700;text-align:center;padding:11px">no number</span>')+
+        (tel?'<a class="call" href="tel:'+esc(tel)+'" onclick="return callOut(\''+esc(tel)+'\',\''+esc(r.phone)+'\',event)">📞 Call '+esc(r.phone)+'</a>':'<span style="flex:1;color:#c0392b;font-weight:700;text-align:center;padding:11px">no number</span>')+
         (tel?'<button class="tb-btn" onclick="textBack('+r.id+',this)">📲 Text back</button>':'')+
         (r.handled?'':'<button class="done-btn" onclick="handled('+r.id+',this)">✓ Handled</button>')+
       '</div>'+
