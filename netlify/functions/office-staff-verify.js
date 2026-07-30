@@ -13,12 +13,16 @@ const { getSecret, setSecret } = require('./_lib/secrets');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 
-const ROSTER = [ // seed identities (roles: owner / manager / office)
+const ROSTER = [ // seed identities (roles: owner / finance / manager / office)
   { name: 'Teddy', role: 'owner' },
+  { name: 'Alyse', role: 'finance' },   // books access (money.html) — NOT the board default
   { name: 'Danielle', role: 'manager' },
   { name: 'Sofia', role: 'office' },
   { name: 'Alec', role: 'office' },
 ];
+// Roles allowed into the books (money.html). Deliberately excludes manager/office
+// so Danielle + office staff can't open the P&L.
+const FINANCE_ROLES = new Set(['owner', 'finance']);
 function pin4() { return String(Math.floor(1000 + Math.random() * 9000)); }
 
 async function loadStaff() {
@@ -36,7 +40,14 @@ exports.handler = async function (event) {
     if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
     let staff = await loadStaff();
     if (!staff || q.reset === '1') staff = ROSTER.map((r) => ({ ...r, pin: pin4(), active: true }));
-    else staff = staff.map((r) => ({ ...r, pin: r.pin || pin4(), active: r.active !== false })); // fill any missing pins
+    else {
+      // Merge: keep everyone's existing PIN, fill any missing, then APPEND any new
+      // ROSTER member not already present (e.g. Alyse) with a fresh PIN — so re-seeding
+      // never churns Sofia/Danielle/Teddy's PINs.
+      staff = staff.map((r) => ({ ...r, pin: r.pin || pin4(), active: r.active !== false }));
+      const have = new Set(staff.map((r) => String(r.name).toLowerCase()));
+      for (const r of ROSTER) if (!have.has(r.name.toLowerCase())) staff.push({ ...r, pin: pin4(), active: true });
+    }
     try { await setSecret('OFFICE_STAFF', JSON.stringify(staff)); } catch (e) { return json(200, { ok: false, error: 'vault write failed: ' + String((e && e.message) || e) }); }
     return json(200, { ok: true, staff: staff.map((r) => ({ name: r.name, role: r.role, pin: r.pin, active: r.active })) });
   }
@@ -47,10 +58,20 @@ exports.handler = async function (event) {
     return json(200, { ok: true, staff: staff.filter((r) => r.active !== false).map((r) => ({ name: r.name, role: r.role })) });
   }
 
-  // POST → verify name + pin
+  // POST → verify
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
   const name = String(b.name || '').trim();
   const pin = String(b.pin || '').trim();
+
+  // Books gate (money.html): PIN alone, must belong to a finance-capable role.
+  // No name needed — the money page just asks "enter your PIN".
+  if (b.finance) {
+    if (!pin) return json(400, { ok: false, error: 'pin required' });
+    const rec = staff.find((r) => r.active !== false && String(r.pin) === pin && FINANCE_ROLES.has(r.role));
+    if (!rec) return json(200, { ok: false, error: 'no finance access for that PIN' });
+    return json(200, { ok: true, name: rec.name, role: rec.role, finance: true });
+  }
+
   if (!name || !pin) return json(400, { ok: false, error: 'name and pin required' });
   const rec = staff.find((r) => r.active !== false && String(r.name).toLowerCase() === name.toLowerCase() && String(r.pin) === pin);
   if (!rec) return json(200, { ok: false, error: 'wrong name or PIN' });

@@ -93,7 +93,7 @@
 <div class="auth" id="auth">
   <div class="auth-card">
     <h2>🐜 Money</h2>
-    <div class="sub">Owner only · enter your PIN</div>
+    <div class="sub">Owner &amp; finance only · enter your PIN</div>
     <input id="pw" type="tel" inputmode="numeric" maxlength="6" autocomplete="off">
     <button onclick="submitAuth()">Open</button>
     <div class="err" id="auth-err"></div>
@@ -156,13 +156,23 @@ async function verifyPin(pin,silent){
   if(pin.length<4){ if(!silent)err.textContent='Enter your PIN'; return; }
   if(!silent)err.textContent='Verifying…';
   try{
+    // 1) Teddy's owner tech-PIN (technician_id 1)
     const r=await fetch('/.netlify/functions/verify-pin-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:OWNER_TECH_ID,pin:pin})});
     const d=await r.json();
     if(d&&d.success===true&&Number(d.technician_id)===OWNER_TECH_ID){
-      sessionStorage.setItem('tn_owner_pin',pin);
-      document.getElementById('auth').classList.add('hidden');startPeriod();load();
-    }else{ sessionStorage.removeItem('tn_owner_pin'); err.textContent='Wrong PIN.'; document.getElementById('pw').value=''; }
-  }catch(_){err.textContent='Connection error.';}
+      sessionStorage.setItem('tn_owner_pin',pin);sessionStorage.setItem('tn_finance_actor','Teddy');
+      document.getElementById('auth').classList.add('hidden');startPeriod();load();return;
+    }
+    // 2) Finance-role PIN (e.g. Alyse) via the office roster — owner/finance only, never Danielle/office
+    const r2=await fetch('/.netlify/functions/office-staff-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pin,finance:1})});
+    const d2=await r2.json().catch(()=>({}));
+    if(d2&&d2.ok===true){
+      sessionStorage.setItem('tn_owner_pin',pin);sessionStorage.setItem('tn_finance_actor',d2.name||'finance');
+      document.getElementById('auth').classList.add('hidden');startPeriod();load();return;
+    }
+    sessionStorage.removeItem('tn_owner_pin');sessionStorage.removeItem('tn_finance_actor');
+    if(!silent){ err.textContent='Wrong PIN.'; document.getElementById('pw').value=''; }
+  }catch(_){ if(!silent) err.textContent='Connection error.';}
 }
 function initAuth(){
   const saved=sessionStorage.getItem('tn_owner_pin');
