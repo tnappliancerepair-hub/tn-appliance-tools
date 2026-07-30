@@ -1000,15 +1000,33 @@ function renderTechAddons(){
     if(a.inquire){
       btns='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="inquire" data-status="requested" data-price="0" data-disc="0" data-cut="0" data-cost="0" style="background:#fff;border:1px solid var(--line,#e3e8ef)">Flag for quote</button>';
     } else {
-      btns='<button class="btn primary" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="installed" data-status="fulfilled" data-price="'+a.price+'" data-disc="'+(a.discount||0)+'" data-cut="'+(a.tech_cut||0)+'" data-cost="'+(a.cost||0)+'">Install now · +$'+(a.tech_cut||0)+'</button>';
-      if(a.ship_price) btns+='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="ship" data-status="requested" data-price="'+a.ship_price+'" data-disc="0" data-cut="'+(a.ship_cut||0)+'" data-cost="'+(a.cost||0)+'" style="background:#fff;border:1px solid var(--line,#e3e8ef);margin-left:6px">Ship it · +$'+(a.ship_cut||0)+'</button>';
+      // Text the customer a tap-to-pay link (net = menu price − $10), crediting the tech.
+      btns='<button class="btn primary" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="textlink" data-net="'+net+'" data-cut="'+(a.tech_cut||0)+'">💬 Text pay link · +$'+(a.tech_cut||0)+'</button>';
+      // Or just put it on the job so the office collects it (old "Install now").
+      btns+='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="installed" data-status="fulfilled" data-price="'+a.price+'" data-disc="'+(a.discount||0)+'" data-cut="'+(a.tech_cut||0)+'" data-cost="'+(a.cost||0)+'" style="background:#fff;border:1px solid var(--line,#e3e8ef);margin-left:6px">🧾 On the bill</button>';
+      if(a.ship_price) btns+='<button class="btn" data-k="'+esc(a.key)+'" data-n="'+esc(a.name)+'" data-mode="ship" data-status="requested" data-price="'+a.ship_price+'" data-disc="0" data-cut="'+(a.ship_cut||0)+'" data-cost="'+(a.cost||0)+'" style="background:#fff;border:1px solid var(--line,#e3e8ef);margin-left:6px">📦 Ship it · +$'+(a.ship_cut||0)+'</button>';
     }
     return '<div class="ao-row" style="padding:9px 0;border-top:1px solid var(--line,#e3e8ef)">'
       +'<div style="font-weight:700;font-size:14px">'+esc(a.name)+(a.inquire?'':(' · $'+net))+'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;align-items:center">'+btns+'<span class="ao-stat" style="font-size:12px;color:var(--ok,#1aa260);font-weight:700;margin-left:4px"></span></div>'
       +'</div>';
   }).join('');
-  list.querySelectorAll('button[data-k]').forEach(b=>{ b.onclick=()=>logTechAddon(b); });
+  list.querySelectorAll('button[data-k]').forEach(b=>{ b.onclick=()=> (b.dataset.mode==='textlink' ? techAddonTextLink(b) : logTechAddon(b)); });
+}
+// Tech taps "Text pay link" — server resolves the customer's number, builds the
+// add-on Stripe link, credits the tech, and texts the customer the pay-now link.
+async function techAddonTextLink(b){
+  const row=b.closest('.ao-row'); const stat=row?row.querySelector('.ao-stat'):null;
+  const cut=parseFloat(b.dataset.cut)||0;
+  row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=true);
+  if(stat) stat.textContent='texting the customer a pay link…';
+  try{
+    const r=await fetch('/.netlify/functions/tech-addon-pay-link',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ job_id:JOB_ID, tech_id:TECH_ID, addon_key:b.dataset.k, name:b.dataset.n, price:parseFloat(b.dataset.net)||0, tech_cut:cut })});
+    const d=await r.json();
+    if(d&&d.ok&&d.texted){ if(stat) stat.textContent='✓ pay link texted to '+(d.to_masked||'the customer')+' — +$'+cut+' to your pay when they pay'; }
+    else { if(stat) stat.textContent='⚠ '+((d&&d.error)||'could not text'); row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=false); }
+  }catch(_){ if(stat) stat.textContent='⚠ connection error'; row.querySelectorAll('button[data-k]').forEach(x=>x.disabled=false); }
 }
 async function logTechAddon(b){
   const row=b.closest('.ao-row'); const stat=row?row.querySelector('.ao-stat'):null;
