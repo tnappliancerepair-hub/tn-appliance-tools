@@ -17,7 +17,7 @@ function H() { const t = process.env.XANO_METADATA_TOKEN; if (!t) throw new Erro
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function m(r) { let x = r && r.metadata; if (typeof x === 'string') { try { x = JSON.parse(x); } catch (_) { x = {}; } } return x || {}; }
 function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
-function whenOf(row, mm) { return num(mm.at_ms) || num(mm.recorded_at_ms) || num(mm.logged_at_ms) || (row.created_at ? Date.parse(row.created_at) : 0); }
+function whenOf(row, mm) { return num(mm.at_ms) || num(mm.recorded_at_ms) || num(mm.logged_at_ms) || num(row.created_at) || (typeof row.created_at === 'string' ? (Date.parse(row.created_at) || 0) : 0); }
 async function byAction(action, pages) {
   const out = [];
   for (let p = 1; p <= (pages || 10); p++) {
