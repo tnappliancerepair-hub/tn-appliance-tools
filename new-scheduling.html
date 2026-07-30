@@ -2211,7 +2211,7 @@ function __initCalendar() {
     if (_nsMap) { try { _nsMap.remove(); } catch (_) {} _nsMap = null; }
     _nsMap = L.map(el).setView([35.9, -87.5], 6);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(_nsMap);
-    const status = $('ns-map-status'); const bounds = []; let done = 0, plotted = 0, approxN = 0; const unplotted = [];
+    const status = $('ns-map-status'); const bounds = []; let done = 0, plotted = 0, approxN = 0; const unplotted = []; const _plotSeen = {};
     if (!sched.length && status) status.textContent = (_nsMapDay || _nsMapTech) ? 'No stops for this day/tech — pick another chip above.' : 'No scheduled jobs with an address to plot.';
     for (const j of sched) {
       if (_nsMapGen !== myGen) return;   // a newer filter/view superseded us — stop
@@ -2220,14 +2220,22 @@ function __initCalendar() {
       done++;
       if (g) {
         plotted++; if (g.approx) approxN++;
+        // Spread STACKED stops: warranty jobs with placeholder streets ("1, City")
+        // all resolve to the same ZIP/city centroid, so several real stops land on
+        // ONE dot and read as a single pin (Danielle's "3 scheduled, shows 1"). Fan
+        // duplicates out in a small ring (~50–110m) so every stop is its own dot.
+        let plat = g.lat, plng = g.lng;
+        const stackKey = plat.toFixed(4) + ',' + plng.toFixed(4);
+        const dup = (_plotSeen[stackKey] = (_plotSeen[stackKey] || 0)); _plotSeen[stackKey]++;
+        if (dup > 0) { const ang = dup * (Math.PI / 4); const rad = 0.00045 * (1 + Math.floor(dup / 8)); plat = g.lat + rad * Math.sin(ang); plng = g.lng + rad * Math.cos(ang); }
         const color = techColor[Number(j.technician_id)] || '#666';
         const cust = [j.customer_first_name, j.customer_last_name].filter(Boolean).join(' ') || 'Customer';
         const day = j.scheduled_start ? new Date(Number(j.scheduled_start)).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : '';
         // Approx pins (placed by ZIP/city because the street was missing/placeholder)
         // are drawn hollow + dashed so it's honest they're not an exact address.
-        const m = L.circleMarker([g.lat, g.lng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: g.approx ? 0.5 : 0.95, dashArray: g.approx ? '3' : null }).addTo(_nsMap);
+        const m = L.circleMarker([plat, plng], { radius: 9, color: '#fff', weight: 2, fillColor: color, fillOpacity: g.approx ? 0.5 : 0.95, dashArray: g.approx ? '3' : null }).addTo(_nsMap);
         m.bindPopup(`<div style="font-size:13px;line-height:1.45"><b>${escapeHtml(cust)}</b><br>${escapeHtml(j.appliance_type || 'appliance')}${j.brand ? ' · ' + escapeHtml(j.brand) : ''}<br><b style="color:${color}">${escapeHtml(techName[Number(j.technician_id)] || '')}</b> · ${escapeHtml(day)}<br>${escapeHtml(addr)}${g.approx ? '<br><i style="color:#b45309">≈ placed by ZIP/city — no street address on file</i>' : ''}<br><a href="/office-board.html?job=${j.id}" style="color:#2c6fb0;font-weight:700;text-decoration:none">Open job tile →</a></div>`);
-        bounds.push([g.lat, g.lng]);
+        bounds.push([plat, plng]);
         if (bounds.length >= 2) { try { _nsMap.fitBounds(bounds, { padding: [34, 34], maxZoom: 12 }); } catch (_) {} }
         else { try { _nsMap.setView([g.lat, g.lng], 10); } catch (_) {} }
       } else { unplotted.push(j); }
