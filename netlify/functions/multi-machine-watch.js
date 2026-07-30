@@ -118,7 +118,11 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (!scheduled && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
-  const autoEnv = String(process.env.MULTI_MACHINE_AUTOADD || '').toLowerCase() === 'true';
+  // Auto-add flag — env first, else the vault (so it can be flipped without a
+  // Netlify env change). Teddy 2026-07-30: turn auto-add on so multi-appliance
+  // claims land on one linked ticket instead of Danielle catching each by hand.
+  let autoEnv = String(process.env.MULTI_MACHINE_AUTOADD || '').toLowerCase() === 'true';
+  if (!autoEnv) { try { autoEnv = String((await getSecret('MULTI_MACHINE_AUTOADD')) || '').toLowerCase() === 'true'; } catch (_) {} }
   const live = q.confirm === '1' || (scheduled && autoEnv);
   const days = Math.min(parseInt(q.days, 10) || 21, 120);
   const cap = Math.min(parseInt(q.limit, 10) || 400, 2000);
