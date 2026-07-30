@@ -65,9 +65,10 @@ async function api(path, body, method) {
 
 async function diag() { const c = await cfg(); return { configured: !!(c.id && c.secret), has_account: !!c.account, env: c.env }; }
 
-// ---- Pickup availability ----
-async function pickupAvailability({ date, readyTime, closeTime }) {
+// ---- Pickup availability ----  (opts tunable while we dial in FedEx sandbox)
+async function pickupAvailability({ date, readyTime, closeTime, carriers, requestType, businessDays }) {
   const c = await cfg();
+  const reqType = requestType ? [requestType] : ['FUTURE_DAY'];
   const body = {
     pickupAddress: {
       streetLines: SHOP.streetLines, city: SHOP.city, stateOrProvinceCode: SHOP.stateOrProvinceCode,
@@ -76,13 +77,13 @@ async function pickupAvailability({ date, readyTime, closeTime }) {
     dispatchDate: date,                       // YYYY-MM-DD
     packageReadyTime: readyTime || '10:00:00',
     customerCloseTime: closeTime || '17:00:00',
-    pickupRequestType: ['FUTURE_DAY'],
-    numberOfBusinessDays: 5,
-    carriers: ['FDXG'],
+    pickupRequestType: reqType,
+    carriers: carriers ? (Array.isArray(carriers) ? carriers : String(carriers).split(',')) : ['FDXE'],
     countryRelationship: 'DOMESTIC',
   };
+  if (reqType.includes('FUTURE_DAY')) body.numberOfBusinessDays = Number(businessDays) || 5;
   if (c.account) body.associatedAccountNumber = { value: c.account };   // omit if empty (empty = invalid input)
-  return api('/pickup/v1/pickups/availabilities', body);
+  return { req: body, ...(await api('/pickup/v1/pickups/availabilities', body)) };
 }
 
 // ---- Schedule a pickup ----

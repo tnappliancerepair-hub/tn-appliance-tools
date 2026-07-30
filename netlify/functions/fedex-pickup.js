@@ -35,8 +35,8 @@ exports.handler = async function (event) {
   try {
     if (action === 'diag') return json(200, { ok: true, ...(await fedex.diag()) });
     if (action === 'availability') {
-      const r = await fedex.pickupAvailability({ date: q.date || b.date, readyTime: b.readyTime, closeTime: b.closeTime });
-      return json(200, { ok: r.ok, configured: true, action, result: r.data, status: r.status });
+      const r = await fedex.pickupAvailability({ date: q.date || b.date, readyTime: q.ready || b.readyTime, closeTime: q.close || b.closeTime, carriers: q.carriers || b.carriers, requestType: q.reqtype || b.requestType, businessDays: q.days || b.businessDays });
+      return json(200, { ok: r.ok, configured: true, action, result: r.data, status: r.status, sent: (q.echo === '1' ? r.req : undefined) });
     }
     if (action === 'schedule') {
       const r = await fedex.schedulePickup({ date: b.date, readyTime: b.readyTime, closeTime: b.closeTime, packageCount: b.packageCount, weightLbs: b.weightLbs, remarks: b.remarks });
