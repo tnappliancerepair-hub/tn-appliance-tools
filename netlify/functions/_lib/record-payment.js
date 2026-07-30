@@ -30,20 +30,30 @@ async function smsCustomer(jobId, kind, amount) {
 
 const OWNER = '+16154855795';    // Teddy
 const DANIELLE = '+16154850713'; // office
+// Field techs (id -> cell). On payment the job's tech also gets the "paid" text so
+// they know their cut landed (Teddy 2026-07-30: "Danielle and me and Lee should get
+// a group text once paid"). Owner (id 1) is omitted — they already get the OWNER text.
+const TECH_PHONES = { 2: '+16159671304', 3: '+15049099413', 4: '+16158291654', 6: '+18133527686' };
 
 // Let the shop know the moment money lands (Teddy 2026-07-27: "make the invoice let
 // us know once paid"). Fires once — recordPaidSession is idempotent per session.
-async function notifyOffice(jobId, kind, amount) {
+// techHint = the tech who did the work (from the pay-link metadata); falls back to
+// the job's assigned tech so the right person is looped into the "paid" text.
+async function notifyOffice(jobId, kind, amount, techHint) {
   const amt = '$' + Number(amount).toFixed(2);
-  let name = '', appliance = '';
+  let name = '', appliance = '', jobTech = 0;
   try {
     const r = await fetch(`${META}/table/${JOBS_TABLE}/content/${jobId}`, { headers: headers() });
-    if (r.ok) { const j = await r.json(); name = [(j.customer_first || ''), (j.customer_last || '')].join(' ').trim(); appliance = String(j.appliance_type || '').trim(); }
+    if (r.ok) { const j = await r.json(); name = [(j.customer_first || ''), (j.customer_last || '')].join(' ').trim(); appliance = String(j.appliance_type || '').trim(); jobTech = parseInt(j.technician_id, 10) || 0; }
   } catch (_) {}
   const label = kind === 'tip' ? '💵 TIP PAID' : (kind === 'addon' ? '💵 ADD-ON PAID' : '💵 INVOICE PAID');
   const msg = label + ' ' + amt + (name ? ' · ' + name : '') + (appliance ? ' ' + appliance : '') + ' · job #' + jobId + ' (paid online) — marked paid on the board.';
   try { await sendSms(OWNER, msg, 'owner', 'payment_received'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'office', 'payment_received'); } catch (_) {}
+  // Loop the job's tech in too (skip if it's the owner — already texted above).
+  const techId = parseInt(techHint, 10) || jobTech;
+  const techPhone = TECH_PHONES[techId];
+  if (techPhone) { try { await sendSms(techPhone, msg, 'technician', 'payment_received'); } catch (_) {} }
 }
 
 function headers() {
@@ -113,7 +123,7 @@ async function recordPaidSession(session) {
       source: 'customer_paid', requested_at_ms: Date.now(),
     });
   }
-  await notifyOffice(jobId, kind, amount);                          // tell the shop money came in
+  await notifyOffice(jobId, kind, amount, md.technician_id);        // tell the shop (+ the tech) money came in
   await smsCustomer(jobId, kind, kind === 'addon' ? base : amount); // best-effort receipt SMS
   return { recorded: true, duplicate: false, kind, amount, job_id: jobId };
 }

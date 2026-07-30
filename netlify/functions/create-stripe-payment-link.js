@@ -96,6 +96,10 @@ exports.handler = async function (event) {
   const m = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
   for (const k of Object.keys(m)) { if (m[k] != null) extraMeta[k] = String(m[k]); }
   const kind = String(body.kind || extraMeta.kind || 'invoice');
+  // Stamp the tech who did the work onto the link so the "paid" text reaches them
+  // (Teddy 2026-07-30: tech gets looped into the paid group text). Explicit wins;
+  // else fall back to the job's assigned tech below.
+  if (body.technician_id != null && !extraMeta.technician_id) extraMeta.technician_id = String(body.technician_id);
 
   // Invoice payment with no amount passed -> resolve server-side (warranty guard
   // + amount from the logged invoice).
