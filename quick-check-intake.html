@@ -296,6 +296,37 @@ else if(PARTNER){
   }
 }
 
+// 🎁 Ant's Gift launch promo (only when NO church/partner code — those show their own
+// $25 banner). Reads the live promo state from the server (same source of truth as the
+// charge) so the page can never show $25 while Stripe bills $50. 50% off, credited to
+// the part, all sales final (a defective part is still replaced).
+if(!CHURCH && !PARTNER){
+  (async function(){
+    try{
+      const r=await fetch(FN+'/create-quickcheck-payment?price=1',{cache:'no-store'});
+      const d=await r.json(); if(!d||!d.promo_active) return;
+      const BTN={es:'Pagar $25 y continuar →',vi:'Thanh toán $25 và tiếp tục →',ru:'Оплатить $25 и продолжить →',zh:'支付 $25 并继续 →',ar:'ادفع $25 وتابع ←',hi:'$25 भुगतान करें और आगे बढ़ें →',fr:'Payer 25 $ et continuer →'};
+      const pb3=document.getElementById('payBtn'); if(pb3) pb3.textContent=BTN[LANG]||'Pay $25 & continue →';
+      const BAN={es:"🎁 <b>Regalo de Ant</b> · 50% de descuento hoy — pagas <b>$25</b> (antes $50), y se acredita a tu pieza.",
+        vi:"🎁 <b>Quà của Ant</b> · giảm 50% hôm nay — bạn trả <b>$25</b> (trước $50), được trừ vào linh kiện.",
+        ru:"🎁 <b>Подарок Ant</b> · сегодня −50% — вы платите <b>$25</b> (было $50), засчитывается в деталь.",
+        zh:"🎁 <b>Ant 礼物</b> · 今日五折 — 支付 <b>$25</b>（原 $50），可抵扣零件。",
+        ar:"🎁 <b>هدية Ant</b> · خصم 50٪ اليوم — تدفع <b>$25</b> (بدل $50)، وتُحتسب على قطعتك.",
+        hi:"🎁 <b>Ant का गिफ्ट</b> · आज 50% छूट — आप <b>$25</b> देते हैं ($50 की जगह), जो आपके पार्ट में घटता है।",
+        fr:"🎁 <b>Cadeau d'Ant</b> · 50% aujourd'hui — vous payez <b>25 $</b> (au lieu de 50 $), crédité sur votre pièce."};
+      const vb3=document.querySelector('.valuebox');
+      if(vb3){ const x=document.createElement('div');
+        x.style.cssText='background:rgba(255,98,0,.12);border:1px solid var(--orange,#ff6200);border-radius:12px;padding:12px 14px;margin-bottom:14px;color:#ffe9d6;font-size:14px;font-weight:600;text-align:center';
+        x.innerHTML=BAN[LANG]||"🎁 <b>Ant's Gift</b> · 50% off today — you pay <b>$25</b> (was $50), credited toward your part.";
+        vb3.parentNode.insertBefore(x, vb3);
+      }
+      // Flip any "$50" the page shows (value bullets + terms fine print) to $25 so
+      // nothing contradicts the banner — generic, language-agnostic.
+      document.querySelectorAll('.valuebox, [data-i18n="guar"]').forEach(el=>{ el.innerHTML=el.innerHTML.replace(/\$50/g,'$25'); });
+    }catch(_){}
+  })();
+}
+
 let appliance=pre.appliance||'';
 document.querySelectorAll('#applOpts .applopt').forEach(el=>{
   if(appliance && el.getAttribute('data-a')===appliance) el.classList.add('sel');

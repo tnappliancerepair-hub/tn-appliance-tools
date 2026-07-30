@@ -16,6 +16,11 @@ const PRICE_CENTS = 5000; // LIVE $50 Quick Check (was $1 during testing). ?qc=<
 // full flow end-to-end without flipping the live price (real customers stay $50).
 const QC_TEST_TOKEN = 'tn-qc-test-2026';
 const TEST_PRICE_CENTS = 100; // $1
+// 🎁 Ant's Gift — launch promo: 50% off the Quick Check for EVERYONE (time-limited).
+// LAUNCH_DEFAULT = on out of the box; end it anytime by setting vault ANTS_GIFT_LAUNCH=false
+// (or flip this to false). The $25 credits toward the part; all sales final (defective
+// parts still replaced). Respects COMMUNITY_GIFT_PAUSED. (Teddy 2026-07-30.)
+const LAUNCH_DEFAULT = true;
 const SITE = 'https://tnapplianceexchange.net';
 
 function s(v, max) { return String(v == null ? '' : v).slice(0, max || 480); }
@@ -30,6 +35,18 @@ const CORS = {
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  // GET ?price=1 → the page asks what to show. Same source of truth as the charge, so
+  // "$25 (was $50)" on the page can never disagree with what Stripe actually bills.
+  if (event.httpMethod === 'GET') {
+    const q = event.queryStringParameters || {};
+    if (q.price) {
+      const paused = String((await getSecret('COMMUNITY_GIFT_PAUSED')) || '').toLowerCase() === 'true';
+      const lf = String((await getSecret('ANTS_GIFT_LAUNCH')) ?? '').toLowerCase();
+      const on = !paused && (lf === 'true' || (lf === '' && LAUNCH_DEFAULT));
+      return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, promo: 'ants_gift_50', promo_active: on, quick_check_cents: on ? 2500 : 5000, in_home_cents: on ? 5000 : 10000, regular_quick_check_cents: 5000, regular_in_home_cents: 10000 }) };
+    }
+    return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
+  }
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
 
@@ -57,14 +74,20 @@ exports.handler = async function (event) {
   // and every church/partner code stops discounting (charges full $50). Flip back
   // to re-open. (Cards already handed out just won't discount while paused.)
   const giftPaused = String((await getSecret('COMMUNITY_GIFT_PAUSED')) || '').toLowerCase() === 'true';
-  const churchApplies = !isTest && !giftPaused && church.length >= 2;
+  // 🎁 Ant's Gift launch promo: 50% off for everyone (time-limited, reversible via
+  // vault ANTS_GIFT_LAUNCH=false). Applied to the base price BEFORE church/partner and
+  // never stacks with them (it already gives ≥ their $25). The $25 credits to the part.
+  const launchFlag = String((await getSecret('ANTS_GIFT_LAUNCH')) ?? '').toLowerCase();
+  const antsGiftApplies = !isTest && !giftPaused && (launchFlag === 'true' || (launchFlag === '' && LAUNCH_DEFAULT));
+  if (antsGiftApplies) priceCents = Math.max(100, Math.round(baseCents * 0.5));
+  const churchApplies = !isTest && !giftPaused && !antsGiftApplies && church.length >= 2;
   if (churchApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
   // 🤝 Community partner program: same $25 gift extended to ANY community org that
   // helps its people — food banks, senior centers, immigrant/refugee groups,
   // shelters, apartment communities, schools, nonprofits. Same mechanism as the
   // church code, but neutral wording on the receipt. Never stacks with a church code.
   const partner = s(b.partner, 40).trim().toUpperCase().replace(/[^A-Z0-9 .-]/g, '');
-  const partnerApplies = !isTest && !giftPaused && !churchApplies && partner.length >= 2;
+  const partnerApplies = !isTest && !giftPaused && !antsGiftApplies && !churchApplies && partner.length >= 2;
   if (partnerApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
   let productName = isTest
     ? (service === 'in_home' ? 'In-Home Diagnostic — TEST ($1)' : 'Appliance Quick Check — TEST ($1)')
@@ -100,7 +123,13 @@ exports.handler = async function (event) {
           ? 'Диагностика на дому — мастер приедет к вам ($100, засчитывается в ремонт)'
           : 'Быстрая проверка техники — честная диагностика ($50, засчитывается в ремонт)');
   }
-  if (churchApplies) {
+  if (antsGiftApplies) {
+    productName += lang === 'es' ? " — 🎁 Regalo de Ant: 50% de descuento (pagas $25, se acredita a tu pieza)"
+      : lang === 'zh' ? " — 🎁 Ant 礼物：五折（支付 $25，可抵扣零件）"
+      : lang === 'ru' ? " — 🎁 Подарок Ant: скидка 50% ($25, засчитывается в деталь)"
+      : lang === 'vi' ? " — 🎁 Quà của Ant: giảm 50% (trả $25, trừ vào linh kiện)"
+      : " — 🎁 Ant's Gift: 50% off (you pay $25, credited to your part)";
+  } else if (churchApplies) {
     productName += lang === 'es' ? ' — Descuento de iglesia (−$25)' : ' — Church discount (−$25)';
   } else if (partnerApplies) {
     productName += lang === 'es' ? ' — Descuento comunitario (−$25)' : lang === 'zh' ? ' — 社区优惠 (−$25)' : lang === 'ru' ? ' — Скидка для сообщества (−$25)' : ' — Community discount (−$25)';
@@ -143,6 +172,7 @@ exports.handler = async function (event) {
         conv_id: s(b.conv_id, 40),
         church_code: churchApplies ? church : '',
         partner_code: partnerApplies ? partner : '',
+        ants_gift: antsGiftApplies ? 'yes' : 'no',
         has_video: b.has_video ? 'yes' : 'no',
         has_model: b.has_model ? 'yes' : 'no',
         source: 'appliance_ai_quick_check',
