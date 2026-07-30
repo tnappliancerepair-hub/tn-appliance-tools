@@ -13,6 +13,26 @@
 // Who's doing the action — their signed-in identity, or the historical default
 // until someone signs in (so nothing changes for the current session).
 function officeActor(){ try{ return (window.OfficeStaff&&OfficeStaff.name())||'office'; }catch(_){ return 'office'; } }
+// Call a customer: native dialer on a phone, click-to-call BRIDGE on desktop
+// (Telnyx rings your cell, then connects the customer — shop # as caller ID), so a
+// dead tel: link on a Windows desktop never blocks a callout.
+function _isTouch(){ try{ return matchMedia('(pointer:coarse)').matches||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }catch(_){ return false; } }
+async function callOut(tel, disp, ev){
+  if(_isTouch()){ try{ location.href='tel:'+String(tel).replace(/[^\d+]/g,''); }catch(_){} return; }
+  if(ev&&ev.preventDefault) ev.preventDefault();
+  var btn=ev&&ev.currentTarget, orig=btn?btn.textContent:'';
+  var pw=''; try{ pw=(window.OfficeAuth&&OfficeAuth.password&&OfficeAuth.password())||localStorage.getItem('ant_office_pw')||''; }catch(_){}
+  if(!pw){ pw=(prompt('Office password (to connect the call):')||'').trim(); if(!pw)return; try{localStorage.setItem('ant_office_pw',pw);}catch(_){}}
+  var who='danielle'; try{ var n=officeActor(); if(/teddy/i.test(n)) who='teddy'; }catch(_){}
+  if(btn) btn.textContent='📞 Ringing…';
+  try{
+    var r=await fetch('/.netlify/functions/office-callout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw,to:tel,who:who,actor:officeActor()})});
+    var d=await r.json().catch(function(){return{};});
+    if(d&&d.ok){ if(btn){ btn.textContent='📞 Answer your phone'; setTimeout(function(){if(btn)btn.textContent=orig;},15000); } }
+    else if(d&&d.error==='unauthorized'){ try{localStorage.removeItem('ant_office_pw');}catch(_){} if(btn)btn.textContent='📞 Wrong pw — retry'; }
+    else { if(btn)btn.textContent='📞 Failed — dial '+disp; }
+  }catch(_){ if(btn)btn.textContent='📞 Failed — dial '+disp; }
+}
 </script>
 <script src="/tech-auth.js?v=20260703-1"></script>
 <script src="/office-readonly.js?v=20260703-1"></script>
@@ -531,7 +551,7 @@ async function submitAuth(){
   try{
     const r=await fetch(XANO+'/verify_office_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:v})});
     const d=await r.json();
-    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');try{localStorage.setItem('tn_office_auth','1');}catch(_){}document.getElementById('auth').classList.add('hidden');promptOfficeIdentity();loadBoard();}
+    if(d&&d.success){localStorage.setItem(OFFICE_AUTH_KEY,'1');try{localStorage.setItem('tn_office_auth','1');localStorage.setItem('ant_office_pw',v);}catch(_){}document.getElementById('auth').classList.add('hidden');promptOfficeIdentity();loadBoard();}
     else{err.textContent='Wrong password.';}
   }catch(_){err.textContent='Connection error.';}
 }
@@ -2055,7 +2075,7 @@ function renderDrawer(d){
       <div class="kv">
         <div class="k">Customer</div><div class="v" id="jf-name-cell">${esc(name)} <button onclick='editCustomerNameInline(${jid}, ${JSON.stringify(name)})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit</button></div>
         <div class="k">Address</div><div class="v">${esc(addr||'—')} <button onclick='editCustomerInfo(${jid})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit all</button></div>
-        <div class="k">Phone</div><div class="v" id="jf-phone-cell">${c.phone?`${esc(c.phone)} <button onclick='editPhoneInline(${jid}, ${JSON.stringify(c.phone||'')})' style="margin-left:6px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit</button>`:`<button onclick='editPhoneInline(${jid}, "")' style="padding:4px 11px;border:0;border-radius:7px;background:#1f8f3a;color:#fff;font-weight:800;font-size:12px;cursor:pointer">+ Add phone</button>`}</div>
+        <div class="k">Phone</div><div class="v" id="jf-phone-cell">${c.phone?`${esc(c.phone)} <button onclick='callOut(${JSON.stringify(c.phone)}, ${JSON.stringify(c.phone)}, event)' title="Ring your cell, then connect the customer" style="margin-left:6px;padding:4px 11px;border:0;border-radius:7px;background:#2c6fb0;color:#fff;font-weight:800;font-size:12px;cursor:pointer">📞 Call</button> <button onclick='editPhoneInline(${jid}, ${JSON.stringify(c.phone||'')})' style="margin-left:2px;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card2,#eef2f7);color:var(--ink2);font-size:11px;font-weight:700;cursor:pointer">✎ edit</button>`:`<button onclick='editPhoneInline(${jid}, "")' style="padding:4px 11px;border:0;border-radius:7px;background:#1f8f3a;color:#fff;font-weight:800;font-size:12px;cursor:pointer">+ Add phone</button>`}</div>
         <div class="k">Warranty</div><div class="v">${esc(j.warranty_company||'—')}</div>
         <div class="k">Claim #</div><div class="v mono">${esc(j.claim_number||'—')}</div>
         <div class="k">Dispatch #</div><div class="v mono">${esc(j.dispatch_source_id||'—')}</div>

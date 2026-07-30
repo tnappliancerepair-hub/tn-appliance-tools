@@ -103,7 +103,26 @@ async function load(days){
       <div class="row"><span>Checklist ticks</span><b>${f.checklist_ticks}</b></div>
     </div>`;
 
-  body.innerHTML=phoneCard+cbCard+footCard+`<div class="muted">${d.note||''}</div>`;
+  // 👥 Who did what — per signed-in person (shared-login rows show as "office").
+  const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const byA=d.office_footprint_by_actor||{}; const names=Object.keys(byA);
+  let peopleCard='';
+  if(names.length){
+    peopleCard=`<div class="sec">👥 Who did what — last ${d.window_days} days</div>`;
+    peopleCard+=names.map(function(nm){
+      const p=byA[nm]||{}, bits=[];
+      if(p.schedules_saved)bits.push(p.schedules_saved+' scheduled');
+      if(p.board_moves)bits.push(p.board_moves+' moves');
+      if(p.invoices_logged)bits.push(p.invoices_logged+' invoices');
+      if(p.customer_texts)bits.push(p.customer_texts+' texts');
+      if(p.tdrs_filed)bits.push(p.tdrs_filed+' TDRs');
+      if(p.checklist_ticks)bits.push(p.checklist_ticks+' ticks');
+      const label=(nm==='office')?'office (nobody signed in)':esc(nm);
+      return `<div class="card"><div class="row"><span><b>${label}</b></span><b>${p.total}</b></div><div class="muted" style="font-size:12px;margin-top:2px">${bits.join(' · ')||'—'}</div></div>`;
+    }).join('');
+    peopleCard+=`<div class="muted" style="font-size:11px;margin-top:2px">Real per-person split starts once each person signs in with their PIN — until then their work reads "office".</div>`;
+  }
+  body.innerHTML=phoneCard+cbCard+peopleCard+footCard+`<div class="muted">${d.note||''}</div>`;
 }
 
 (function(){const s=localStorage.getItem('tn_owner_sec');if(s){document.getElementById('sec').value=s;save();}})();
