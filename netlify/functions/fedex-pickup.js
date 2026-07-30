@@ -42,7 +42,7 @@ exports.handler = async function (event) {
       const r = await fedex.schedulePickup({ date: b.date, readyTime: b.readyTime, closeTime: b.closeTime, packageCount: b.packageCount, weightLbs: b.weightLbs, remarks: b.remarks, packageLocation: b.packageLocation || q.location });
       const conf = r.data && (r.data.output && (r.data.output.pickupConfirmationCode || r.data.output.confirmationNumber));
       if (r.ok) { try { await crud.logEvent('fedex_pickup_scheduled', { date: b.date, packages: b.packageCount, confirmation: conf, actor: b.actor || 'office', at_ms: Date.now() }); } catch (_) {} }
-      return json(200, { ok: r.ok, configured: true, action, confirmation: conf || null, result: r.data, status: r.status });
+      return json(200, { ok: r.ok, configured: true, action, confirmation: conf || null, result: r.data, status: r.status, sent: ((q.echo === '1' || b.echo) ? r.req : undefined) });
     }
     if (action === 'cancel') {
       const r = await fedex.cancelPickup({ confirmationNumber: b.confirmationNumber, scheduledDate: b.date });

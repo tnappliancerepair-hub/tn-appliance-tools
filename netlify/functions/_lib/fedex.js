@@ -110,7 +110,7 @@ async function schedulePickup({ date, readyTime, closeTime, packageCount, weight
     countryRelationship: 'DOMESTIC',
   };
   if (c.account) body.associatedAccountNumber = { value: c.account };
-  return api('/pickup/v1/pickups', body);
+  return { req: body, ...(await api('/pickup/v1/pickups', body)) };
 }
 
 // ---- Cancel a pickup ----
