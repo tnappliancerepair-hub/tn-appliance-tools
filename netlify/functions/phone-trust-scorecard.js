@@ -126,3 +126,8 @@ exports.handler = async function (event) {
 
   return json(200, { ok: true, date: todayDate, ...today, prior: prior || null, delta, trend: trendLine.concat([{ date: todayDate, score: today.score }]), texted, readout });
 };
+
+// Export the scorer so the non-scheduled companion (phone-score) can recompute on
+// demand — Netlify blocks manual HTTP to this scheduled function (403), so the live
+// pull moved to phone-score.js. (2026-07-30)
+exports.scoreWindow = scoreWindow;
