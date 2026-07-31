@@ -22,12 +22,13 @@ const NAME_SETS = [
   { client: 'AMAZON_SP_API_CLIENT_ID', secret: 'AMAZON_SP_API_CLIENT_SECRET', refresh: 'AMAZON_SP_API_REFRESH_TOKEN' },
   { client: 'AMAZON_SELLER_CLIENT_ID', secret: 'AMAZON_SELLER_CLIENT_SECRET', refresh: 'AMAZON_SELLER_REFRESH_TOKEN' },
   { client: 'AMAZON_SP_CLIENT_ID', secret: 'AMAZON_SP_CLIENT_SECRET', refresh: 'AMAZON_SP_REFRESH_TOKEN' },
-  // same LWA app as the buyer, but a seller-scoped refresh token vaulted separately:
+  // same LWA app as the buyer, but a SELLER-scoped refresh token vaulted separately:
   { client: 'AMAZON_LWA_CLIENT_ID', secret: 'AMAZON_LWA_CLIENT_SECRET', refresh: 'AMAZON_SPAPI_REFRESH_TOKEN' },
   { client: 'AMAZON_LWA_CLIENT_ID', secret: 'AMAZON_LWA_CLIENT_SECRET', refresh: 'AMAZON_SELLER_REFRESH_TOKEN' },
-  // LAST RESORT: the buyer LWA trio itself — tests whether that token was ALSO
-  // authorized with SP-API/seller scopes (marked so callers know it's the buyer token).
-  { client: 'AMAZON_LWA_CLIENT_ID', secret: 'AMAZON_LWA_CLIENT_SECRET', refresh: 'AMAZON_LWA_REFRESH_TOKEN', note: 'buyer-token-fallback' },
+  // NOTE: we deliberately do NOT fall back to AMAZON_LWA_REFRESH_TOKEN — that is the
+  // BUYER (Amazon Business, currently sandbox) token. Trying it against the seller API
+  // mints a token but 403s (no seller scopes), which reads like "we have a buyer token"
+  // when we don't. The seller diagnostic must say "no seller refresh token" honestly.
 ];
 
 async function resolveCreds() {
