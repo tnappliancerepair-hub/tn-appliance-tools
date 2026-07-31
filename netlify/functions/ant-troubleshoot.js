@@ -17,6 +17,7 @@ const { runBrainTurn } = require('./_lib/ant/brain-core');
 const faultCodes = require('./fault-code-lookup');
 const playbook = require('./_lib/ant/playbook-lookup');
 const modelIntel = require('./get-model-intel');
+const modelKnowledge = require('./_lib/ant/model-knowledge');
 const crud = require('./_lib/xano/metadata-crud');
 
 const XANO_INTAKE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -47,9 +48,13 @@ function detectCode(text) {
   return cand ? cand.replace(/\s/g, '') : '';
 }
 
-async function getCommonFailures(brand, appliance, model) {
+// Pull the brand+appliance POOL of past TDR failures (NOT model-filtered — Xano's
+// model filter is exact-match and returns 0 on a real SKU like WTW5000DW1). The
+// pool is what model-knowledge family-matches against (WTW5000DW1 -> WTW5000DW*),
+// and it also feeds the broader [common-failures] context block.
+async function getCommonFailures(brand, appliance) {
   try {
-    const url = `${XANO_INTAKE}/get_common_failures?brand=${encodeURIComponent(brand)}&appliance_type=${encodeURIComponent(appliance)}&model_number=${encodeURIComponent(model)}&per_page=8`;
+    const url = `${XANO_INTAKE}/get_common_failures?brand=${encodeURIComponent(brand)}&appliance_type=${encodeURIComponent(appliance)}&per_page=60`;
     const r = await fetch(url);
     if (!r.ok) return [];
     const d = await r.json();
@@ -113,8 +118,8 @@ exports.handler = async function (event) {
 
   // ── gather context (parallel) ──────────────────────────────────────────────
   const fcRes = code ? faultCodes.lookup(brand, code, appliance) : { match: null };
-  let [commonFailures, similarJobs, intelHit, archive] = await Promise.all([
-    getCommonFailures(brand, appliance, model),
+  let [commonPool, similarJobs, intelHit, archive] = await Promise.all([
+    getCommonFailures(brand, appliance),
     getSimilarJobs([brand, appliance, model, symptom].filter(Boolean).join(' '), jobId),
     (model || brand) ? modelIntel.readModelIntel({ brand, model }).catch(() => null) : Promise.resolve(null),
     (model || brand) ? getArchiveHistory(brand, model, appliance) : Promise.resolve({ jobs: [] }),
@@ -123,7 +128,13 @@ exports.handler = async function (event) {
   // Strip cross-appliance grounding so a fridge TDR never bleeds into a washer
   // (or vice-versa handled by the appliance check inside).
   similarJobs = dropForeignAppliance(similarJobs, appliance);
-  commonFailures = dropForeignAppliance(commonFailures, appliance);
+  let commonFailures = dropForeignAppliance(commonPool, appliance).slice(0, 8);
+
+  // ── ANCHOR: model-specific recall. "On THIS exact model / platform family, here
+  // is what fails + the part." Pure, reliable, family-matched over the pool + the
+  // bundled base. This is the highest-trust structured source after the playbook.
+  const modelRecall = model ? modelKnowledge.recall({ brand, appliance, model, entries: commonPool }) : { matched_on: null, failures: [] };
+  const hasModelRecall = !!(modelRecall.failures && modelRecall.failures.length);
 
   const faultMatch = fcRes.match || null;
   // Owner-curated playbook (repair-playbook.json) — matched on the customer's own
@@ -149,7 +160,7 @@ exports.handler = async function (event) {
   const recalls = (intel && intel.recalls) || [];
   const bulletins = (intel && intel.bulletins) || [];
 
-  const grounded = !!(pbMatches.length || faultMatch || commonFailures.length || similarJobs.length || recalls.length || bulletins.length || archiveJobs.length);
+  const grounded = !!(hasModelRecall || pbMatches.length || faultMatch || commonFailures.length || similarJobs.length || recalls.length || bulletins.length || archiveJobs.length);
 
   // ── build the grounded context block for Claude ─────────────────────────────
   const ctxParts = [];
@@ -162,6 +173,16 @@ exports.handler = async function (event) {
       return `- ${e.brand} ${e.appliance}${e.config ? ' (' + e.config + ')' : ''} — "${sym}": ${e.likely_cause}. Fix: ${e.fix}${flags ? ' [' + flags + ']' : ''}${e.note ? ' NOTE: ' + e.note : ''}`;
     });
     ctxParts.push("[playbook] TN Appliance owner's proven fixes for this exact symptom — LEAD WITH THIS, it's our most-trusted source:\n" + lines.join('\n'));
+  }
+  if (hasModelRecall) {
+    const tierLabel = modelRecall.matched_on === 'model' ? 'this EXACT model' : modelRecall.matched_on === 'family' ? `this platform family (${modelRecall.family}*)` : modelRecall.matched_on === 'platform' ? 'this platform line' : 'the trade record for this model';
+    const isCust = role === 'customer';
+    const lines = modelRecall.failures.map((f) => {
+      const src = f.base ? 'trade pattern' : `${f.count} job${f.count === 1 ? '' : 's'}`;
+      if (isCust) return `- ${f.component}${f.cause ? ' (' + f.cause + ')' : ''}`;
+      return `- ${f.component}${f.cause ? ' — ' + f.cause : ''}${f.part ? ' → part ' + f.part : ''} [${src}${f.jobs && f.jobs.length ? ', job #' + f.jobs[0] : ''}]`;
+    });
+    ctxParts.push(`[model-history] What actually fails on ${tierLabel} — our verified record, ranked by how often. LEAD WITH THIS for a model-specific answer; the top item is the first thing to check and the part to pre-order:\n` + lines.join('\n'));
   }
   if (recalls.length || bulletins.length) {
     const lines = [];
@@ -195,7 +216,8 @@ exports.handler = async function (event) {
     `THE UNIT IS A ${(appliance || 'appliance').toUpperCase()}. Stay strictly within THIS appliance. A washer, dryer, dishwasher, oven, range, or microwave has NO compressor, refrigerant, sealed system, condenser, or evaporator — NEVER name those for a non-refrigeration appliance. If any CONTEXT item is clearly a different appliance, IGNORE it and say the grounding is thin rather than forcing a wrong-appliance part.`,
     'Answer ONLY from the CONTEXT provided (owner playbook, fault-code DB, this shop\'s past jobs, common failures).',
     'When [playbook] is present, LEAD WITH IT — it is the shop owner\'s proven diagnosis for this exact symptom; trust it above the other sources.',
-    'Cite every claim inline with the bracket tag it came from: [playbook], [fault-code], [common-failures], or [job #N].',
+    'When [model-history] is present, it is our verified record of what actually fails on THIS exact model/platform — lead your ranked causes with it and name the part to pre-order from its top item. It outranks generic [common-failures] because it is model-specific.',
+    'Cite every claim inline with the bracket tag it came from: [playbook], [model-history], [fault-code], [common-failures], or [job #N].',
     'If the context is thin or empty, SAY SO plainly and give the best general next diagnostic step — do not fabricate specifics.',
     'NEVER invent a part number. If a part is implicated, name the component and say "confirm exact part via the parts lookup". Real part numbers come from the live Marcone/Amazon lookup + the cited TDRs only.',
     isCustomer
@@ -237,6 +259,7 @@ exports.handler = async function (event) {
   // citations the UI can render as chips
   const citations = [];
   if (pbMatches.length) citations.push({ type: 'playbook', label: 'shop playbook' });
+  if (hasModelRecall) citations.push({ type: 'model-history', label: modelRecall.matched_on === 'model' ? `${model} record` : `${modelRecall.family}* record`, matched_on: modelRecall.matched_on });
   if (recalls.length) citations.push({ type: 'recall', label: 'recall' });
   if (bulletins.length) citations.push({ type: 'bulletin', label: 'bulletin/TSB' });
   if (faultMatch) citations.push({ type: 'fault-code', label: `${brand} ${faultMatch.code}` });
@@ -250,6 +273,7 @@ exports.handler = async function (event) {
       ok: true,
       grounded,
       answer_md: answer,
+      model_recall: hasModelRecall ? { matched_on: modelRecall.matched_on, family: modelRecall.family, seen_n: modelRecall.seen_n, failures: modelRecall.failures } : null,
       playbook_matches: pbMatches.map((m) => ({ brand: m.entry.brand, appliance: m.entry.appliance, likely_cause: m.entry.likely_cause, fix: m.entry.fix, easy: !!m.entry.easy, smarthq: !!m.entry.smarthq, matched: m.matched })),
       fault_code: faultMatch,
       recalls,

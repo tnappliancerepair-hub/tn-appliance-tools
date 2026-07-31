@@ -39,9 +39,10 @@ exports.handler = async function (event) {
   if (!scheduled && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
   // static KB depth (bundled, no I/O)
-  let codes = 0, components = 0;
+  let codes = 0, components = 0, models = 0, distilledJobs = 0;
   try { codes = (require('./_lib/ant/fault-codes.json').codes || []).length; } catch (_) {}
   try { const ck = require('./_lib/ant/component-knowledge'); components = (ck.COMPONENTS || []).length; } catch (_) {}
+  try { const mk = require('./_lib/ant/model-knowledge'); const cov = mk.baseCoverage(); models = cov.models || 0; distilledJobs = cov.distilled_from || 0; } catch (_) {}
 
   // live signals
   const [brain, gapStats, embed] = await Promise.all([
@@ -59,7 +60,7 @@ exports.handler = async function (event) {
 
   const now = Date.now();
   const today = isoDateCT(now);
-  const score = { date: today, at_ms: now, accuracy, graded, predictions, corpus, codes, components, gaps_open: gapsOpen, gaps_filled: gapsFilled };
+  const score = { date: today, at_ms: now, accuracy, graded, predictions, corpus, codes, components, models, distilled_jobs: distilledJobs, gaps_open: gapsOpen, gaps_filled: gapsFilled };
 
   // prior score for the trend (last stored, different day)
   let trend = null, prior = null;
@@ -74,17 +75,18 @@ exports.handler = async function (event) {
   try { await crud.logEvent('knowledge_score', score); } catch (_) {}
 
   // ── compose readout ──────────────────────────────────────────────
-  const dCorpus = prior ? corpus - (prior.corpus || 0) : 0;
+  const dModels = prior ? models - (prior.models || 0) : 0;
   const dCodes = prior ? codes - (prior.codes || 0) : 0;
   const dAcc = prior && accuracy != null && prior.accuracy != null ? accuracy - prior.accuracy : 0;
   const accStr = accuracy == null ? 'n/a' : `${accuracy}% (${graded} graded)`;
   const lines = [
     `🧠 Ant Knowledge — ${dayCT(now)}`,
+    `Models known: ${models.toLocaleString()} ${arrow(dModels)}${distilledJobs ? ` (from ${distilledJobs.toLocaleString()} distilled jobs)` : ''}`,
     `First-guess accuracy: ${accStr}${prior && accuracy != null && prior.accuracy != null ? ' ' + arrow(dAcc) : ''}`,
-    `Recall corpus: ${corpus.toLocaleString()} real jobs ${arrow(dCorpus)}`,
     `Fault codes: ${codes} ${arrow(dCodes)} · Components: ${components}`,
     `Open gaps: ${gapsOpen}${gapsFilled ? ` · filled today: ${gapsFilled}` : ''}`,
   ];
+  if (corpus) lines.push(`Semantic recall corpus: ${corpus.toLocaleString()} jobs`);
   if (predictions && !graded) lines.push(`${predictions} predictions awaiting outcome (grade them by closing TDRs)`);
   if (topGaps.length) lines.push('Fill next: ' + topGaps.slice(0, 3).map((g) => `${g.brand || '?'} ${g.code || g.model || ''} (×${g.count})`.trim()).join(' · '));
   lines.push('Goal: the most advanced troubleshooting brain in appliance repair.');
@@ -94,5 +96,5 @@ exports.handler = async function (event) {
   if (scheduled || q.text === '1') {
     try { await sendSms(OWNER, readout, 'owner', 'knowledge_score'); texted = true; } catch (_) {}
   }
-  return json(200, { ok: true, score, prior_date: prior && prior.date, deltas: { accuracy: dAcc, corpus: dCorpus, codes: dCodes }, top_gaps: topGaps, trend, readout, texted });
+  return json(200, { ok: true, score, prior_date: prior && prior.date, deltas: { accuracy: dAcc, models: dModels, codes: dCodes }, top_gaps: topGaps, trend, readout, texted });
 };

@@ -1,0 +1,17 @@
+{
+  "version": "2026-07-31",
+  "updated": "2026-07-31",
+  "distilled_from": 0,
+  "note": "model -> what fails + the part. Keys are normalized (uppercase, no dashes) model or platform-FAMILY keys. Grown by hcp-distill.js from the 49k-job archive; seeded from verified TDR fixes. Bundled = zero-I/O, never-down read path for the anchor capability (model-specific recall).",
+  "models": {
+    "WTW5000DW": { "brand": "Whirlpool", "appliance": "washer", "seen_n": 1, "failures": [
+      { "component": "suspension rod kit", "part": "W11130362", "cause": "worn suspension rods, walking/loud spin", "count": 1 }
+    ]},
+    "WTW8040DW": { "brand": "Whirlpool", "appliance": "washer", "seen_n": 2, "failures": [
+      { "component": "water inlet valve", "part": "W11220230", "cause": "won't fill / slow fill", "count": 2 }
+    ]},
+    "WTW4957PW": { "brand": "Whirlpool", "appliance": "washer", "seen_n": 2, "failures": [
+      { "component": "electronic control board", "part": "W11608056", "cause": "no power / won't start / dead panel", "count": 2 }
+    ]}
+  }
+}
