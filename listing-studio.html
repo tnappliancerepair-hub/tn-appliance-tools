@@ -33,6 +33,12 @@
   .mod b{font-size:12.5px}
   .err{color:var(--brand);font-size:13.5px;margin-top:12px}
   .cnt{color:var(--muted);font-weight:500}
+  .mlrow{grid-column:1/-1;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+  .mlrow input{width:auto}
+  .langbar{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 4px}
+  .langb{padding:7px 12px;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:20px;font-size:13px;font-weight:650;cursor:pointer}
+  .langb.on{background:var(--brand);color:#111;border-color:var(--brand)}
+  .note{color:var(--muted);font-size:13px;font-style:italic;padding:8px}
 </style>
 </head>
 <body>
@@ -47,6 +53,7 @@
     <div><label>Appliance</label><input id="appliance" placeholder="refrigerator"></div>
     <div><label>Tier</label><select id="tier"><option value="oem">OEM</option><option value="aftermarket">Aftermarket</option><option value="reman">Remanufactured</option></select></div>
     <div style="grid-column:1/-1"><label>Fits models (comma-separated, optional)</label><input id="fits" placeholder="WRS325SDHZ, WRS588FIHZ"></div>
+    <div class="mlrow"><input type="checkbox" id="ml"><label for="ml" style="margin:0">🌐 Also generate multilingual — Amazon (EN + ES) + website (all 7 languages)</label></div>
     <button class="go" id="go">Generate both surfaces</button>
   </div>
   <div id="out"></div>
@@ -66,9 +73,10 @@
     parent.appendChild(d);
   }
   $('go').onclick=async function(){
-    var body={component:$('component').value.trim(),part_number:$('pn').value.trim(),brand:$('brand').value.trim(),appliance:$('appliance').value.trim(),tier:$('tier').value,model_fits:$('fits').value.split(',').map(function(s){return s.trim()}).filter(Boolean)};
+    var ml=$('ml').checked;
+    var body={component:$('component').value.trim(),part_number:$('pn').value.trim(),brand:$('brand').value.trim(),appliance:$('appliance').value.trim(),tier:$('tier').value,model_fits:$('fits').value.split(',').map(function(s){return s.trim()}).filter(Boolean),translate:ml};
     if(!body.component){$('out').innerHTML='<div class="err">Enter a component name.</div>';return}
-    var btn=$('go');btn.disabled=true;var old=btn.textContent;btn.textContent='Generating…';$('out').innerHTML='';
+    var btn=$('go');btn.disabled=true;var old=btn.textContent;btn.textContent=ml?'Generating + translating…':'Generating…';$('out').innerHTML='';
     try{
       var r=await fetch('/.netlify/functions/listing-generator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       var d=await r.json();
@@ -77,28 +85,43 @@
     }catch(e){$('out').innerHTML='<div class="err">Error — try again.</div>'}
     btn.disabled=false;btn.textContent=old;
   };
-  function render(d){
+  function renderColsInto(container,a,w){
+    container.innerHTML='';
     var cols=document.createElement('div');cols.className='cols';
-    // AMAZON
     var az=document.createElement('div');az.className='col az';az.innerHTML='<h2>🅰️ Amazon listing</h2>';
-    var a=d.amazon;
-    fld(az,'Title',a.title);
-    var bd=document.createElement('div');bd.className='fld';bd.innerHTML='<div class="lab"><span>5 Bullets</span></div>';
-    var ul=document.createElement('ul');ul.className='bul';(a.bullets||[]).forEach(function(x){var li=document.createElement('li');li.textContent=x;li.appendChild(document.createTextNode(' '));li.appendChild(copyBtn(x));ul.appendChild(li)});bd.appendChild(ul);az.appendChild(bd);
-    fld(az,'Description',a.description,true);
-    var md=document.createElement('div');md.className='fld';md.innerHTML='<div class="lab"><span>A+ Modules</span></div>';
-    (a.aplus_modules||[]).forEach(function(m){var mm=document.createElement('div');mm.className='mod';mm.innerHTML='<b>'+esc(m.heading)+'</b>';mm.appendChild(copyBtn(m.heading+'\n\n'+m.body));var bx=document.createElement('div');bx.className='val';bx.style.marginTop='4px';bx.textContent=m.body;mm.appendChild(bx);md.appendChild(mm)});az.appendChild(md);
-    fld(az,'Backend search terms',a.backend_search_terms);
-    fld(az,'Fitment note',a.fitment_note);
-    // WEBSITE
+    if(!a){var n=document.createElement('div');n.className='note';n.textContent='Amazon US offers English + Spanish only — this language is website-only.';az.appendChild(n);}
+    else{
+      fld(az,'Title',a.title);
+      var bd=document.createElement('div');bd.className='fld';bd.innerHTML='<div class="lab"><span>5 Bullets</span></div>';
+      var ul=document.createElement('ul');ul.className='bul';(a.bullets||[]).forEach(function(x){var li=document.createElement('li');li.textContent=x;li.appendChild(document.createTextNode(' '));li.appendChild(copyBtn(x));ul.appendChild(li)});bd.appendChild(ul);az.appendChild(bd);
+      fld(az,'Description',a.description,true);
+      var md=document.createElement('div');md.className='fld';md.innerHTML='<div class="lab"><span>A+ Modules</span></div>';
+      (a.aplus_modules||[]).forEach(function(m){var mm=document.createElement('div');mm.className='mod';mm.innerHTML='<b>'+esc(m.heading)+'</b>';mm.appendChild(copyBtn(m.heading+'\n\n'+m.body));var bx=document.createElement('div');bx.className='val';bx.style.marginTop='4px';bx.textContent=m.body;mm.appendChild(bx);md.appendChild(mm)});az.appendChild(md);
+      fld(az,'Backend search terms',a.backend_search_terms);
+      fld(az,'Fitment note',a.fitment_note);
+    }
     var web=document.createElement('div');web.className='col web';web.innerHTML='<h2>🌐 Website /fix</h2>';
-    var w=d.website;
     fld(web,'Meta title',w.meta_title);fld(web,'Meta description',w.meta_description);
     fld(web,'HTML content block',w.html_block,true);
     fld(web,'FAQ schema (JSON-LD)',JSON.stringify(w.faq_schema,null,2),true);
     fld(web,'HowTo schema (JSON-LD)',JSON.stringify(w.howto_schema,null,2),true);
     cols.appendChild(az);cols.appendChild(web);
-    $('out').innerHTML='';$('out').appendChild(cols);
+    container.appendChild(cols);
+  }
+  function render(d){
+    var names={en:'English',es:'Español',ru:'Русский',vi:'Tiếng Việt',ar:'العربية',zh:'中文',hi:'हिन्दी',fr:'Français'};
+    var pkgs={en:{amazon:d.amazon,website:d.website}},order=['en'];
+    if(d.translations){
+      var w=d.translations.website||{},a=d.translations.amazon||{};
+      Object.keys(w).forEach(function(lc){pkgs[lc]={amazon:a[lc]||null,website:w[lc]};order.push(lc)});
+    }
+    var html='';
+    if(order.length>1){html+='<div class="langbar">'+order.map(function(lc,i){return '<button class="langb'+(i===0?' on':'')+'" data-lc="'+lc+'">'+(names[lc]||lc)+'</button>'}).join('')+'</div>';}
+    html+='<div id="pkgview"></div>';
+    $('out').innerHTML=html;
+    function show(lc){var p=pkgs[lc];renderColsInto($('pkgview'),p.amazon,p.website);Array.prototype.forEach.call(document.querySelectorAll('.langb'),function(b){b.classList.toggle('on',b.getAttribute('data-lc')===lc)});}
+    Array.prototype.forEach.call(document.querySelectorAll('.langb'),function(b){b.onclick=function(){show(b.getAttribute('data-lc'))}});
+    show('en');
   }
 })();
 </script>

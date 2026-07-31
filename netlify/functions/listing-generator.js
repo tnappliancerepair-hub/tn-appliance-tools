@@ -17,6 +17,41 @@ function titleCase(s) { return String(s || '').replace(/\b\w/g, (m) => m.toUpper
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 const SITE = 'https://tnapplianceexchange.net';
 
+// Amazon US shopper languages worth doing ourselves = English + Spanish.
+// Our website ranks in all 7 — so Website gets the full set.
+const LANG_NAMES = { es: 'Spanish', ru: 'Russian', vi: 'Vietnamese', ar: 'Arabic', zh: 'Chinese (Simplified)', hi: 'Hindi', fr: 'French' };
+const AMAZON_LANGS = ['es'];
+const WEBSITE_LANGS = ['es', 'ru', 'vi', 'ar', 'zh', 'hi', 'fr'];
+
+// Localize a flat {key:text} bundle into one language via a single Claude call.
+// Preserves part/model numbers, brands, URLs, HTML tags, emojis, JSON structure.
+// Fail-safe: returns null on any error so the caller keeps English for that language.
+async function translateBundle(enFlat, langName) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  try {
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 18000);
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 4000,
+        system: `You localize e-commerce appliance-parts listing content into ${langName}. You receive a JSON object of English strings. Return a JSON object with the SAME keys, translating ONLY the human-readable text into natural, on-brand ${langName}. Preserve EXACTLY (never translate/alter): all part numbers, model numbers, brand names (Whirlpool, GE, Samsung, LG, Maytag, etc.), URLs, HTML tags and attributes, emojis, and "TN Appliance". Output ONLY the JSON object — no prose, no code fences.`,
+        messages: [{ role: 'user', content: JSON.stringify(enFlat) }],
+      }),
+      signal: ctl.signal,
+    });
+    clearTimeout(tm);
+    const d = await r.json();
+    let raw = (d && d.content && d.content[0] && d.content[0].text) || '';
+    raw = raw.replace(/```json|```/g, '').trim();
+    const out = JSON.parse(raw);
+    return (out && typeof out === 'object') ? out : null;
+  } catch (_) { return null; }
+}
+
+exports.config = { timeout: 26 };
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return json(405, { ok: false, error: 'POST only' });
@@ -102,9 +137,45 @@ ${linkAs}
   const meta_title = cap(`${compName} Symptoms & How to Test | ${appliance} | TN Appliance`, 60);
   const meta_description = cap(`Signs of a bad ${compName.toLowerCase()} and how to test it, from real appliance techs. ${(info.symptoms || [])[0] || ''}`, 155);
 
-  return json(200, {
-    ok: true, found: true, component: c.key, appliance, brand, part_number: pn, tier,
-    amazon: { title, bullets, description, aplus_modules: aplus, backend_search_terms: backend, fitment_note: fits.length ? `Fits: ${fits.join(', ')}` : 'Send model number to confirm fitment.' },
-    website: { html_block, faq_schema: faq, howto_schema: howto, meta_title, meta_description, suggested_fix_pages: info.links },
-  });
+  const amazonEN = { title, bullets, description, aplus_modules: aplus, backend_search_terms: backend, fitment_note: fits.length ? `Fits: ${fits.join(', ')}` : 'Send model number to confirm fitment.' };
+  const websiteEN = { html_block, faq_schema: faq, howto_schema: howto, meta_title, meta_description, suggested_fix_pages: info.links };
+
+  const resp = { ok: true, found: true, component: c.key, appliance, brand, part_number: pn, tier, amazon: amazonEN, website: websiteEN };
+
+  // ---------- MULTILINGUAL (opt-in) ----------
+  // Amazon US = English + Spanish; website = all 7. One Claude call per language,
+  // run in parallel; each falls back to English on failure.
+  const wantML = b.translate === true || (Array.isArray(b.languages) && b.languages.length);
+  if (wantML && process.env.ANTHROPIC_API_KEY) {
+    const langs = Array.isArray(b.languages) && b.languages.length ? b.languages : WEBSITE_LANGS;
+    // flatten every translatable string into one keyed bundle
+    const flat = { title, description, fitment_note: amazonEN.fitment_note, backend, meta_title, meta_description, html_block };
+    bullets.forEach((x, i) => (flat['b' + i] = x));
+    aplus.forEach((m, i) => { flat['m' + i + 'h'] = m.heading; flat['m' + i + 'b'] = m.body; });
+    (faq.mainEntity || []).forEach((qa, i) => { flat['fq' + i] = qa.name; flat['fa' + i] = qa.acceptedAnswer.text; });
+    (howto.step || []).forEach((s, i) => (flat['ht' + i] = s.text));
+
+    const done = await Promise.all(langs.map(async (lc) => {
+      const t = await translateBundle(flat, LANG_NAMES[lc] || lc);
+      return { lc, t };
+    }));
+
+    const azOut = {}, webOut = {};
+    for (const { lc, t } of done) {
+      if (!t) continue;
+      const g = (k) => (t[k] != null ? t[k] : flat[k]);
+      const bl = bullets.map((_, i) => g('b' + i));
+      const mods = aplus.map((_, i) => ({ heading: g('m' + i + 'h'), body: g('m' + i + 'b') }));
+      if (AMAZON_LANGS.includes(lc)) {
+        azOut[lc] = { title: g('title'), bullets: bl, description: g('description'), aplus_modules: mods, backend_search_terms: g('backend'), fitment_note: g('fitment_note') };
+      }
+      const rtl = lc === 'ar';
+      const faqT = { '@context': 'https://schema.org', '@type': 'FAQPage', inLanguage: lc, mainEntity: (faq.mainEntity || []).map((qa, i) => ({ '@type': 'Question', name: g('fq' + i), acceptedAnswer: { '@type': 'Answer', text: g('fa' + i) } })) };
+      const howtoT = { '@context': 'https://schema.org', '@type': 'HowTo', inLanguage: lc, name: g('ht0') ? undefined : howto.name, step: (howto.step || []).map((s, i) => ({ '@type': 'HowToStep', position: i + 1, text: g('ht' + i) })) };
+      webOut[lc] = { html_block: rtl ? g('html_block').replace('<section ', '<section dir="rtl" ') : g('html_block'), meta_title: g('meta_title'), meta_description: g('meta_description'), faq_schema: faqT, howto_schema: howtoT, suggested_fix_pages: info.links };
+    }
+    resp.translations = { amazon: azOut, website: webOut, note: 'Amazon = EN + ES (US Spanish shoppers). Website = all requested languages.' };
+  }
+
+  return json(200, resp);
 };
