@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Listing Studio — write once, both surfaces</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{--bg:#0f1218;--card:#171c24;--ink:#eef1f5;--muted:#9aa4b2;--line:#28303b;--brand:#ff9027;--brand-ink:#ffb865;--ok:#4ade80;--az:#febd69;--web:#7dd3fc}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;padding:18px}
+  .wrap{max-width:1100px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 2px}.sub{color:var(--muted);margin:0 0 16px;font-size:13.5px}
+  .form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+  label{display:block;font-size:12px;color:var(--muted);font-weight:650;margin-bottom:4px}
+  input,select{width:100%;padding:10px;font-size:15px;border:1.5px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink)}
+  input:focus,select:focus{outline:none;border-color:var(--brand)}
+  .go{grid-column:1/-1;padding:13px;font-size:16px;font-weight:800;color:#111;background:var(--brand);border:none;border-radius:10px;cursor:pointer}
+  .go:disabled{opacity:.5}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+  @media(max-width:800px){.cols{grid-template-columns:1fr}}
+  .col{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .col h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .az h2{color:var(--az)}.web h2{color:var(--web)}
+  .fld{margin-bottom:12px}
+  .fld .lab{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:flex;justify-content:space-between}
+  .val{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13.5px;white-space:pre-wrap;word-break:break-word}
+  textarea.val{width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:120px;resize:vertical}
+  .cp{cursor:pointer;color:var(--brand-ink);font-weight:700;font-size:11.5px;border:none;background:none}
+  .cp:active{color:var(--ok)}
+  .bul{margin:0;padding-left:18px}.bul li{margin:5px 0;font-size:13px}
+  .mod{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+  .mod b{font-size:12.5px}
+  .err{color:var(--brand);font-size:13.5px;margin-top:12px}
+  .cnt{color:var(--muted);font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛠️ Listing Studio</h1>
+  <p class="sub">Write once → matched content for <b style="color:var(--az)">Amazon</b> and <b style="color:var(--web)">our website</b>, from the curated component knowledge. Grounded, not guessed.</p>
+
+  <div class="form">
+    <div><label>Component / part name</label><input id="component" placeholder="evaporator motor" value="evaporator motor"></div>
+    <div><label>Part number</label><input id="pn" placeholder="WPW10450210"></div>
+    <div><label>Brand</label><input id="brand" placeholder="Whirlpool"></div>
+    <div><label>Appliance</label><input id="appliance" placeholder="refrigerator"></div>
+    <div><label>Tier</label><select id="tier"><option value="oem">OEM</option><option value="aftermarket">Aftermarket</option><option value="reman">Remanufactured</option></select></div>
+    <div style="grid-column:1/-1"><label>Fits models (comma-separated, optional)</label><input id="fits" placeholder="WRS325SDHZ, WRS588FIHZ"></div>
+    <button class="go" id="go">Generate both surfaces</button>
+  </div>
+  <div id="out"></div>
+</div>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  function esc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+  function copyBtn(text){var b=document.createElement('button');b.className='cp';b.textContent='Copy';b.onclick=function(){navigator.clipboard.writeText(text);b.textContent='Copied ✓';setTimeout(function(){b.textContent='Copy'},1200)};return b}
+  function fld(parent,label,text,mono){
+    var d=document.createElement('div');d.className='fld';
+    var lab=document.createElement('div');lab.className='lab';
+    var sp=document.createElement('span');sp.innerHTML=esc(label)+' <span class="cnt">('+String(text).length+')</span>';
+    lab.appendChild(sp);lab.appendChild(copyBtn(text));d.appendChild(lab);
+    if(mono){var ta=document.createElement('textarea');ta.className='val';ta.value=text;d.appendChild(ta)}
+    else{var v=document.createElement('div');v.className='val';v.textContent=text;d.appendChild(v)}
+    parent.appendChild(d);
+  }
+  $('go').onclick=async function(){
+    var body={component:$('component').value.trim(),part_number:$('pn').value.trim(),brand:$('brand').value.trim(),appliance:$('appliance').value.trim(),tier:$('tier').value,model_fits:$('fits').value.split(',').map(function(s){return s.trim()}).filter(Boolean)};
+    if(!body.component){$('out').innerHTML='<div class="err">Enter a component name.</div>';return}
+    var btn=$('go');btn.disabled=true;var old=btn.textContent;btn.textContent='Generating…';$('out').innerHTML='';
+    try{
+      var r=await fetch('/.netlify/functions/listing-generator',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      var d=await r.json();
+      if(!d.ok){$('out').innerHTML='<div class="err">'+esc(d.note||'No curated knowledge for that component yet — add it to component-knowledge.js.')+'</div>';btn.disabled=false;btn.textContent=old;return}
+      render(d);
+    }catch(e){$('out').innerHTML='<div class="err">Error — try again.</div>'}
+    btn.disabled=false;btn.textContent=old;
+  };
+  function render(d){
+    var cols=document.createElement('div');cols.className='cols';
+    // AMAZON
+    var az=document.createElement('div');az.className='col az';az.innerHTML='<h2>🅰️ Amazon listing</h2>';
+    var a=d.amazon;
+    fld(az,'Title',a.title);
+    var bd=document.createElement('div');bd.className='fld';bd.innerHTML='<div class="lab"><span>5 Bullets</span></div>';
+    var ul=document.createElement('ul');ul.className='bul';(a.bullets||[]).forEach(function(x){var li=document.createElement('li');li.textContent=x;li.appendChild(document.createTextNode(' '));li.appendChild(copyBtn(x));ul.appendChild(li)});bd.appendChild(ul);az.appendChild(bd);
+    fld(az,'Description',a.description,true);
+    var md=document.createElement('div');md.className='fld';md.innerHTML='<div class="lab"><span>A+ Modules</span></div>';
+    (a.aplus_modules||[]).forEach(function(m){var mm=document.createElement('div');mm.className='mod';mm.innerHTML='<b>'+esc(m.heading)+'</b>';mm.appendChild(copyBtn(m.heading+'\n\n'+m.body));var bx=document.createElement('div');bx.className='val';bx.style.marginTop='4px';bx.textContent=m.body;mm.appendChild(bx);md.appendChild(mm)});az.appendChild(md);
+    fld(az,'Backend search terms',a.backend_search_terms);
+    fld(az,'Fitment note',a.fitment_note);
+    // WEBSITE
+    var web=document.createElement('div');web.className='col web';web.innerHTML='<h2>🌐 Website /fix</h2>';
+    var w=d.website;
+    fld(web,'Meta title',w.meta_title);fld(web,'Meta description',w.meta_description);
+    fld(web,'HTML content block',w.html_block,true);
+    fld(web,'FAQ schema (JSON-LD)',JSON.stringify(w.faq_schema,null,2),true);
+    fld(web,'HowTo schema (JSON-LD)',JSON.stringify(w.howto_schema,null,2),true);
+    cols.appendChild(az);cols.appendChild(web);
+    $('out').innerHTML='';$('out').appendChild(cols);
+  }
+})();
+</script>
+</body>
+</html>
