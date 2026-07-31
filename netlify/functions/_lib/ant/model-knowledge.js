@@ -104,19 +104,25 @@ function recall(opts) {
   // component — they add coverage, tagged so the brain knows they're trade-pattern
   // rather than our-own-job evidence.
   const baseKey = (nm && BASE_MODELS[nm]) ? nm : (BASE_MODELS[fam] ? fam : null);
+  let baseSymptoms = [], baseSeen = 0;
   if (baseKey) {
     const known = new Set(failures.map((f) => norm(f.component)));
     for (const bf of (BASE_MODELS[baseKey].failures || [])) {
       if (known.has(norm(bf.component))) continue;
       failures.push({ component: bf.component, part: bf.part || '', cause: bf.cause || '', count: bf.count || 0, jobs: [], base: true });
     }
+    baseSymptoms = BASE_MODELS[baseKey].symptoms || [];
+    baseSeen = BASE_MODELS[baseKey].seen_n || 0;
     if (!matched_on) matched_on = 'base';
     sources.push('base');
   }
 
   failures = failures.slice(0, 6);
-  const seen_n = rows.length + (baseKey ? (BASE_MODELS[baseKey].seen_n || 0) : 0);
-  return { matched_on, model, family: fam, failures, seen_n, sources };
+  const seen_n = rows.length + baseSeen;
+  // hasSignal: a model is "known" if we have ranked failures OR real archive breadth
+  // (we've been out to this model N times with common complaints) even absent a part.
+  const known = failures.length || (baseSeen && baseSymptoms.length);
+  return { matched_on: known ? matched_on : null, model, family: fam, failures, base_symptoms: baseSymptoms, base_seen: baseSeen, seen_n, sources };
 }
 
 // Coverage for the scorecard: how many distinct models/families the bundled base
