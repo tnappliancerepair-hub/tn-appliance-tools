@@ -33,6 +33,21 @@ function partKey(p) {
 function normModel(m) { return normAlnum(m); }
 function normComp(c) { return String(c || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 
+// Canonical appliance category from any text (an appliance_type field OR a free
+// symptom like "bad evaporator motor on a fridge"). Used to HARD-GATE predictions
+// so a fridge question can never return an oven/washer part (the cross-appliance
+// contamination bug — an oven control board for a fridge evaporator motor).
+function canonAppliance(s) {
+  const t = String(s || '').toLowerCase();
+  if (/(refriger|fridge|freezer|ice ?maker|evapor|condenser|not cooling|won'?t cool|cooling)/.test(t)) return 'refrigerator';
+  if (/(dishwash)/.test(t)) return 'dishwasher';
+  if (/(\bdryer\b|not drying|won'?t dry|no heat.*dry)/.test(t)) return 'dryer';
+  if (/(washer|washing machine|won'?t spin|won'?t drain|won'?t agitate)/.test(t)) return 'washer';
+  if (/(\boven\b|\brange\b|stove|cooktop|\bbake\b|broil|burner|not heating)/.test(t)) return 'oven';
+  if (/(microwave)/.test(t)) return 'microwave';
+  return '';
+}
+
 // Does historical model H match query model Q? exact-normalized OR prefix either
 // way (handles trailing /A2-01, -01 suffixes).
 function modelMatch(h, q) {
@@ -66,10 +81,21 @@ exports.handler = async function (event) {
     symptom = symptom || j.problem_summary || j.problem_description || '';
   }
 
+  // Determine the appliance category to gate on — explicit field, else inferred
+  // from the symptom ("evaporator motor on a fridge" -> refrigerator).
+  const applQ = canonAppliance(appliance) || canonAppliance(symptom) || canonAppliance(model);
+  if (!appliance && applQ) appliance = applQ; // surface the inference back to the caller
+
   // Pull the whole (small) failure corpus and match client-side, widening scope
-  // until we have signal: exact model -> brand+appliance -> appliance -> brand.
+  // until we have signal: exact model -> brand+appliance -> appliance. We do NOT
+  // fall back to brand-only when the appliance is known — that's what returned an
+  // oven board for a fridge. Brand-only is allowed ONLY when appliance is unknown.
   const raw = await jfetch(`${XANO}/get_common_failures?per_page=1000`);
-  const all = (raw && raw.entries) || [];
+  let all = (raw && raw.entries) || [];
+
+  // HARD APPLIANCE GATE: once we know the appliance, drop any entry that is a
+  // DIFFERENT known appliance. A fridge query can never surface an oven part.
+  if (applQ) all = all.filter((e) => { const ea = canonAppliance(e.appliance_type) || canonAppliance(e.failed_component); return !ea || ea === applQ; });
 
   const byModel = model ? all.filter((e) => modelMatch(e.model_number, model)) : [];
   const byBrandAppl = (brand && appliance) ? all.filter((e) => normAlnum(e.brand).includes(normAlnum(brand)) && normComp(e.appliance_type).includes(normComp(appliance))) : [];
@@ -79,7 +105,9 @@ exports.handler = async function (event) {
   let matched = byModel, scope = 'exact_model';
   if (matched.length < 2) { matched = byBrandAppl; scope = 'brand+appliance'; }
   if (matched.length < 2) { matched = byAppl; scope = 'appliance'; }
-  if (matched.length < 2 && byBrand.length) { matched = byBrand; scope = 'brand'; }
+  // brand-only fallback ONLY when we don't know the appliance (else it leaks parts
+  // from other appliance categories — the oven-board-for-a-fridge bug).
+  if (matched.length < 2 && !applQ && byBrand.length) { matched = byBrand; scope = 'brand'; }
   if (!matched.length) scope = 'none';
 
   // Aggregate by part (primary key) — count how often each part actually fixed a

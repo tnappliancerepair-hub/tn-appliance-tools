@@ -67,9 +67,15 @@ exports.handler = async function (event) {
 
   // 2. predict the failing part + fault code for this model+symptom
   const pred = machine.model ? await callFn(brainPredict, { brand: machine.brand, model: machine.model, appliance_type: machine.appliance, symptom: b.symptom || '' }) : null;
-  const predictions = (pred && pred.ok && Array.isArray(pred.predictions)) ? pred.predictions : [];
-  const basedOnN = (pred && pred.based_on_n) || 0;
+  // brand-only / no-scope matches are too weak to name a part (that's the path that
+  // returned an oven board for a fridge) — treat them as no prediction.
+  const scope = (pred && pred.scope) || 'none';
+  const reliableScope = scope === 'exact_model' || scope === 'brand+appliance' || scope === 'appliance';
+  const predictions = (pred && pred.ok && reliableScope && Array.isArray(pred.predictions)) ? pred.predictions : [];
+  const basedOnN = reliableScope ? ((pred && pred.based_on_n) || 0) : 0;
   const top = predictions[0] || null;
+  // adopt the appliance the predictor inferred (e.g. "fridge" from the symptom)
+  if (pred && pred.appliance && !machine.appliance) machine.appliance = pred.appliance;
 
   // 3. resolve the part in question: the one they're checking, else our top pick
   const queryPart = b.part_number ? String(b.part_number).trim() : (top ? String(top.part || '').split(/[\s(—-]/)[0] : '');
