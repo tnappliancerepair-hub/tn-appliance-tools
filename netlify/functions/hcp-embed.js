@@ -20,6 +20,10 @@ const PAGE = 96; // jobs per page = one OpenAI batch + one Supabase insert
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Grind does a live OpenAI embed + Supabase insert per page — needs the full 26s
+// window or Netlify kills it at the default cap (empty response, cursor stuck).
+exports.config = { timeout: 26 };
+
 function bodyText(r) {
   const parts = [r.title, r.d, r.n].map((x) => String(x || '').trim()).filter(Boolean);
   return parts.join(' — ').replace(/\s+/g, ' ').slice(0, 2000);
