@@ -21,6 +21,7 @@
 const brainPredict = require('./ant-brain-predict');
 const ocrExtract = require('./ocr-model-extract');
 const marconeLookup = require('./marcone-lookup');
+const kb = require('./_lib/ant/component-knowledge');
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -128,6 +129,11 @@ exports.handler = async function (event) {
   } : null;
   const alternates = (store && nameable) ? predictions.slice(1, 4).map((p) => ({ component: p.component, part: p.part_display || p.part, confidence: pct(p.confidence), seen_n: p.seen_n || 0 })) : [];
 
+  // Curated failure symptoms + how-to-test for the component in play — ground-truth
+  // knowledge (not a guess). Helps the customer CONFIRM the failure before buying.
+  const kbQuery = [b.component, b.symptom, (recommended && recommended.component), machine.appliance].filter(Boolean).join(' ');
+  const knowledge = kb.withLinks(kb.match(kbQuery));
+
   return json(200, {
     ok: true, mode, machine, resolved_from: resolvedFrom,
     query_part: b.part_number ? queryPart : '',
@@ -137,5 +143,6 @@ exports.handler = async function (event) {
     fault_code: (pred && pred.fault_code) || null,
     availability, evidence, needs_human: needsHuman,
     based_on_n: basedOnN,
+    knowledge,
   });
 };
