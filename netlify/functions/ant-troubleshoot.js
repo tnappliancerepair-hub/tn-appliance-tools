@@ -25,18 +25,30 @@ const FUNCTIONS_BASE = 'https://tnapplianceexchange.net/.netlify/functions';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function s(v, m) { return String(v == null ? '' : v).slice(0, m || 200); }
 
+// Give the brain the full window — Claude + grounding needs more than the default cap.
+exports.config = { timeout: 26 };
+
+// Every external grounding fetch MUST time out and degrade to empty — the brain can
+// NEVER hang because one dependency (the MSA daemon tunnel, semantic search, the
+// archive) is slow or down. A missing source makes the answer thinner, not absent.
+// (Teddy 2026-07-31: the troubleshooting brain is the thing that can't hiccup.)
+async function fetchJSON(url, opts, ms) {
+  try {
+    const r = await fetch(url, { ...(opts || {}), signal: AbortSignal.timeout(ms || 6000) });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (_) { return null; }
+}
+
 // Live MSA/Whirlpool intel straight off the Mac daemon via the fast tunnel
 // (parts-lookup-direct, path=intel). Returns {recalls, bulletins, tech_sheets}
 // or null if the tunnel/daemon is unavailable (caller falls back to the cache).
 async function liveModelIntel(brand, model) {
-  try {
-    const u = `${FUNCTIONS_BASE}/parts-lookup-direct?path=intel&source=msa&brand=${encodeURIComponent(brand || '')}&model=${encodeURIComponent(model || '')}`;
-    const r = await fetch(u);
-    const d = await r.json().catch(() => null);
-    const data = (d && d.ok && d.data) ? d.data : null;
-    if (!data) return null;
-    return { recalls: data.recalls || [], bulletins: data.bulletins || [], tech_sheets: data.tech_sheets || [], source: data.source, final_url: data.final_url, live: true };
-  } catch (_) { return null; }
+  const u = `${FUNCTIONS_BASE}/parts-lookup-direct?path=intel&source=msa&brand=${encodeURIComponent(brand || '')}&model=${encodeURIComponent(model || '')}`;
+  const d = await fetchJSON(u, null, 5000); // the Mac-daemon tunnel — tight timeout, must never hang the brain
+  const data = (d && d.ok && d.data) ? d.data : null;
+  if (!data) return null;
+  return { recalls: data.recalls || [], bulletins: data.bulletins || [], tech_sheets: data.tech_sheets || [], source: data.source, final_url: data.final_url, live: true };
 }
 
 // Pull a code-looking token out of free text ("getting a 4C", "F5 E2", "OE error")
@@ -53,36 +65,27 @@ function detectCode(text) {
 // pool is what model-knowledge family-matches against (WTW5000DW1 -> WTW5000DW*),
 // and it also feeds the broader [common-failures] context block.
 async function getCommonFailures(brand, appliance) {
-  try {
-    const url = `${XANO_INTAKE}/get_common_failures?brand=${encodeURIComponent(brand)}&appliance_type=${encodeURIComponent(appliance)}&per_page=60`;
-    const r = await fetch(url);
-    if (!r.ok) return [];
-    const d = await r.json();
-    return (d && d.entries) || [];
-  } catch (_) { return []; }
+  const url = `${XANO_INTAKE}/get_common_failures?brand=${encodeURIComponent(brand)}&appliance_type=${encodeURIComponent(appliance)}&per_page=60`;
+  const d = await fetchJSON(url, null, 6000);
+  return (d && d.entries) || [];
 }
 
 async function getSimilarJobs(query, jobId) {
-  try {
-    const r = await fetch(`${FUNCTIONS_BASE}/ask-ant-semantic`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, namespace: 'tdr', top_k: 5 }),
-    });
-    const d = await r.json();
-    let rows = (d && d.results) || [];
-    if (jobId) rows = rows.filter((x) => Number(x.source_row_id) !== Number(jobId));
-    return rows.slice(0, 4);
-  } catch (_) { return []; }
+  const d = await fetchJSON(`${FUNCTIONS_BASE}/ask-ant-semantic`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, namespace: 'tdr', top_k: 5 }),
+  }, 6000);
+  let rows = (d && d.results) || [];
+  if (jobId) rows = rows.filter((x) => Number(x.source_row_id) !== Number(jobId));
+  return rows.slice(0, 4);
 }
 
 // The 24k-job HCP archive — real history for this machine (model first, then
 // brand+appliance). Job notes carry complaints + sometimes the part delivered.
 async function getArchiveHistory(brand, model, appliance) {
-  try {
-    const u = `${FUNCTIONS_BASE}/hcp-recall?model=${encodeURIComponent(model || '')}&brand=${encodeURIComponent(brand || '')}&appliance=${encodeURIComponent(appliance || '')}&limit=5`;
-    const d = await fetch(u).then((r) => r.json());
-    return (d && d.ok && d.jobs) ? { matched_on: d.matched_on, jobs: d.jobs } : { jobs: [] };
-  } catch (_) { return { jobs: [] }; }
+  const u = `${FUNCTIONS_BASE}/hcp-recall?model=${encodeURIComponent(model || '')}&brand=${encodeURIComponent(brand || '')}&appliance=${encodeURIComponent(appliance || '')}&limit=5`;
+  const d = await fetchJSON(u, null, 6000);
+  return (d && d.ok && d.jobs) ? { matched_on: d.matched_on, jobs: d.jobs } : { jobs: [] };
 }
 
 // Keep grounding ON the appliance. The semantic store returns the most similar
@@ -134,7 +137,7 @@ exports.handler = async function (event) {
   // is what fails + the part." Pure, reliable, family-matched over the pool + the
   // bundled base. This is the highest-trust structured source after the playbook.
   const modelRecall = model ? modelKnowledge.recall({ brand, appliance, model, entries: commonPool }) : { matched_on: null, failures: [] };
-  const hasModelRecall = !!(modelRecall.failures && modelRecall.failures.length);
+  const hasModelRecall = !!((modelRecall.failures && modelRecall.failures.length) || (modelRecall.base_seen && modelRecall.base_symptoms && modelRecall.base_symptoms.length));
 
   const faultMatch = fcRes.match || null;
   // Owner-curated playbook (repair-playbook.json) — matched on the customer's own
@@ -182,6 +185,9 @@ exports.handler = async function (event) {
       if (isCust) return `- ${f.component}${f.cause ? ' (' + f.cause + ')' : ''}`;
       return `- ${f.component}${f.cause ? ' — ' + f.cause : ''}${f.part ? ' → part ' + f.part : ''} [${src}${f.jobs && f.jobs.length ? ', job #' + f.jobs[0] : ''}]`;
     });
+    if (modelRecall.base_seen && modelRecall.base_symptoms && modelRecall.base_symptoms.length) {
+      lines.push(`- (we've been out to this model ${modelRecall.base_seen} time${modelRecall.base_seen === 1 ? '' : 's'}; common complaints: ${modelRecall.base_symptoms.join(', ')})`);
+    }
     ctxParts.push(`[model-history] What actually fails on ${tierLabel} — our verified record, ranked by how often. LEAD WITH THIS for a model-specific answer; the top item is the first thing to check and the part to pre-order:\n` + lines.join('\n'));
   }
   if (recalls.length || bulletins.length) {
