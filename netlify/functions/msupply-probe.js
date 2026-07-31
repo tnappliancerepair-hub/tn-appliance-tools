@@ -50,5 +50,18 @@ exports.handler = async function (event) {
       results.push({ ep: a.ep, body_fields: Object.keys(a.body), status: r.status, ok: r.ok, preview: preview(r.data), raw_snip: (r.raw || '').slice(0, 160) });
     } catch (e) { results.push({ ep: a.ep, body_fields: Object.keys(a.body), error: String((e && e.message) || e).slice(0, 160) }); }
   }
-  return json(200, { ok: true, model, results });
+
+  // DECISIVE: does a PART lookup carry a compatible-models / fitment list?
+  let fitment = null;
+  try {
+    const pn = q.part || 'WPW10503278';
+    const r = await msupply.api('POST', '/parts/lookup', { partNumber: pn, make: make || 'WPL', custNo, lookupType: 'Default' });
+    const list = (r.data && (r.data.partResults || r.data.parts)) || [];
+    const part = Array.isArray(list) ? list[0] : (r.data && r.data.part) || r.data || {};
+    const allKeys = part && typeof part === 'object' ? Object.keys(part) : [];
+    const fitKeys = allKeys.filter((k) => /model|fit|compat|applic/i.test(k));
+    fitment = { part_number: pn, status: r.status, all_part_keys: allKeys, fitment_like_keys: fitKeys, fitment_values: fitKeys.reduce((o, k) => (o[k] = part[k], o), {}) };
+  } catch (e) { fitment = { error: String((e && e.message) || e).slice(0, 160) }; }
+
+  return json(200, { ok: true, model, results, fitment_check: fitment });
 };
