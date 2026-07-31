@@ -32,23 +32,21 @@ exports.handler = async function (event) {
     return d;
   }
 
+  // CORRECT schema: productlistlookup takes { lookupType, items:[{itemId, make, skuType}] }
   const attempts = [
-    { ep: '/parts/productlistlookup', body: { model, custNo } },
-    { ep: '/parts/productlistlookup', body: { modelNumber: model, custNo } },
-    { ep: '/parts/productlistlookup', body: { searchString: model, custNo } },
-    { ep: '/parts/productlistlookup', body: { keyword: model, custNo } },
-    { ep: '/parts/productlistlookup', body: { productList: [model], custNo } },
-    { ep: '/parts/productlistlookup', body: { partNumbers: [model], custNo } },
-    // does /parts/lookup fuzzy-return a LIST when given a model in partNumber?
-    { ep: '/parts/lookup', body: { partNumber: model, make, custNo, lookupType: 'Model' } },
+    { ep: '/parts/productlistlookup', label: 'SANITY part# as itemId', body: { lookupType: 'Default', custNo, items: [{ itemId: 'WPW10503278', make: 'WPL' }] } },
+    { ep: '/parts/productlistlookup', label: 'MODEL as itemId', body: { lookupType: 'Default', custNo, items: [{ itemId: model }] } },
+    { ep: '/parts/productlistlookup', label: 'MODEL as itemId + skuType=Model', body: { lookupType: 'Default', custNo, items: [{ itemId: model, skuType: 'Model' }] } },
+    { ep: '/parts/productlistlookup', label: 'MODEL + skuType=model', body: { lookupType: 'Default', custNo, items: [{ itemId: model, skuType: 'model' }] } },
+    { ep: '/parts/productlistlookup', label: 'MODEL + make + skuType=Model', body: { lookupType: 'Default', custNo, items: [{ itemId: model, make: make || 'WPL', skuType: 'Model' }] } },
   ];
 
   const results = [];
   for (const a of attempts) {
     try {
       const r = await msupply.api('POST', a.ep, a.body);
-      results.push({ ep: a.ep, body_fields: Object.keys(a.body), status: r.status, ok: r.ok, preview: preview(r.data), raw_snip: (r.raw || '').slice(0, 160) });
-    } catch (e) { results.push({ ep: a.ep, body_fields: Object.keys(a.body), error: String((e && e.message) || e).slice(0, 160) }); }
+      results.push({ label: a.label, ep: a.ep, status: r.status, ok: r.ok, preview: preview(r.data), raw_snip: (r.raw || '').slice(0, 500) });
+    } catch (e) { results.push({ label: a.label, ep: a.ep, error: String((e && e.message) || e).slice(0, 160) }); }
   }
 
   // DECISIVE: does a PART lookup carry a compatible-models / fitment list?
