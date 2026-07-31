@@ -778,12 +778,15 @@
 [functions."phone-trust-scorecard"]
   schedule = "0 0 * * *"
 
-# knowledge-scorecard — the daily scoreboard for THE goal: be the most advanced
-# troubleshooting brain in appliance repair. ~7:10PM CT it measures the brain's
-# depth (fault codes, components, real jobs in the recall corpus) + first-guess
-# accuracy (self-grading loop) + open knowledge gaps, tracks the trend, and texts
-# the owner. "Getting smarter" becomes a number that must climb. (Teddy 2026-07-31.)
-[functions."knowledge-scorecard"]
+# knowledge-scorecard-cron — fires the daily scoreboard for THE goal: be the most
+# advanced troubleshooting brain in appliance repair. ~7:10PM CT it invokes the
+# HTTP-callable knowledge-scorecard core with text=1, so the core measures the
+# brain's depth (fault codes, components, recall corpus) + first-guess accuracy +
+# open gaps, tracks the trend, and texts the owner. The core stays HTTP-pullable
+# (?secret=&text=0) so Teddy can check "how smart are we right now" anytime — a
+# schedule-registered function is 403 on direct HTTP, hence the wrapper split.
+# "Getting smarter" becomes a number that must climb. (Teddy 2026-07-31.)
+[functions."knowledge-scorecard-cron"]
   schedule = "10 0 * * *"
 
 # phone-accuracy-audit — daily proof that Ann reads the record correctly. Runs her
