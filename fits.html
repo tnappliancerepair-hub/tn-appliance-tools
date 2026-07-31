@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Will this part fit? — TN Appliance</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --ink:#12151b; --muted:#5a6472; --line:#e4e7ec;
+    --brand:#e8760c; --brand-ink:#8a4400;
+    --ok:#1a8f4a; --ok-bg:#e7f6ec; --warn:#b7791f; --warn-bg:#fdf6e3; --gray:#4b5563; --gray-bg:#eef1f4;
+    --shadow:0 6px 24px rgba(20,25,40,.08);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#0e1116; --card:#171b22; --ink:#eef1f5; --muted:#9aa4b2; --line:#262c36;
+      --brand:#ff9027; --brand-ink:#ffb865;
+      --ok:#4ade80; --ok-bg:#12281c; --warn:#facc15; --warn-bg:#2a2410; --gray:#9aa4b2; --gray-bg:#1c222b; --shadow:0 6px 24px rgba(0,0,0,.4); }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;padding:max(env(safe-area-inset-top),16px) 16px 40px}
+  .wrap{max-width:520px;margin:0 auto}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.2px;margin:6px 2px 14px}
+  .brand .ant{font-size:22px}
+  .brand small{font-weight:600;color:var(--muted);letter-spacing:0}
+  h1{font-size:23px;line-height:1.25;margin:0 0 4px;text-wrap:balance}
+  .sub{color:var(--muted);margin:0 0 18px;font-size:14.5px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px}
+  label{display:block;font-weight:650;font-size:13px;margin:14px 0 6px;letter-spacing:.2px}
+  label:first-of-type{margin-top:2px}
+  input[type=text]{width:100%;padding:13px 14px;font-size:16px;border:1.5px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink)}
+  input[type=text]:focus{outline:none;border-color:var(--brand)}
+  .row{display:flex;gap:10px}.row>*{flex:1}
+  .snap{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;margin-top:8px;border:1.5px dashed var(--line);border-radius:11px;background:transparent;color:var(--muted);font-weight:600;font-size:14.5px;cursor:pointer}
+  .snap:active{border-color:var(--brand);color:var(--brand)}
+  .adv{margin-top:12px;font-size:13.5px;color:var(--brand-ink);font-weight:650;cursor:pointer;user-select:none}
+  @media (prefers-color-scheme:dark){.adv{color:var(--brand-ink)}}
+  .hidden{display:none}
+  .go{margin-top:18px;width:100%;padding:15px;font-size:16.5px;font-weight:800;color:#fff;background:var(--brand);border:none;border-radius:12px;cursor:pointer;letter-spacing:.3px}
+  .go:disabled{opacity:.55}
+  .go:active{transform:translateY(1px)}
+  .result{margin-top:16px}
+  .badge{display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:13px;font-weight:750;font-size:16px}
+  .badge .ic{font-size:22px;line-height:1}
+  .b-ok{background:var(--ok-bg);color:var(--ok)} .b-warn{background:var(--warn-bg);color:var(--warn)} .b-gray{background:var(--gray-bg);color:var(--gray)}
+  .machine{font-size:13.5px;color:var(--muted);margin:12px 2px 0}
+  .part{margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+  .part .pn{font-weight:800;font-size:18px;letter-spacing:.4px}
+  .part .cmp{color:var(--muted);font-size:13.5px;margin-top:2px}
+  .conf{margin-top:10px}
+  .bar{height:8px;border-radius:6px;background:var(--line);overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--brand);border-radius:6px}
+  .conf small{display:block;color:var(--muted);font-size:12.5px;margin-top:5px}
+  .stock{margin-top:10px;font-size:13.5px;font-weight:650}
+  .stock.in{color:var(--ok)} .stock.out{color:var(--warn)}
+  .evi{margin-top:12px;font-size:13px;color:var(--muted);font-style:italic}
+  .cta{margin-top:14px;display:flex;gap:10px}
+  .cta a{flex:1;text-align:center;padding:13px;border-radius:11px;font-weight:750;font-size:15px;text-decoration:none}
+  .cta .buy{background:var(--brand);color:#fff}
+  .cta .tech{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+  .alts{margin-top:14px}.alts summary{cursor:pointer;color:var(--muted);font-size:13.5px;font-weight:650}
+  .alt{display:flex;justify-content:space-between;padding:9px 2px;border-top:1px solid var(--line);font-size:14px}
+  .foot{margin-top:22px;text-align:center;color:var(--muted);font-size:12.5px}
+  .spin{display:inline-block;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite;vertical-align:-2px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .err{margin-top:14px;padding:12px 14px;border-radius:11px;background:var(--warn-bg);color:var(--warn);font-size:14px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="ant">🐜</span> TN Appliance <small>&nbsp;·&nbsp;Confirmed by real techs</small></div>
+  <h1>Will this part fit your machine?</h1>
+  <p class="sub">Tell us your model — or snap the sticker — and our techs' repair history confirms the exact part. No guessing, no wrong-part returns.</p>
+
+  <div class="card">
+    <label for="model">Appliance model number</label>
+    <input type="text" id="model" placeholder="e.g. WTW5000DW2" autocapitalize="characters" autocomplete="off">
+    <label class="snap" for="photo">📷 or snap the model/serial sticker</label>
+    <input type="file" id="photo" accept="image/*" capture="environment" class="hidden">
+    <div id="photoNote" class="conf hidden"><small></small></div>
+
+    <div class="adv" id="advToggle">＋ Add a symptom or a part number to check</div>
+    <div id="adv" class="hidden">
+      <label for="symptom">What's it doing? (optional)</label>
+      <input type="text" id="symptom" placeholder="e.g. won't drain, not cooling, F5E2">
+      <label for="pn">Have a part number to check? (optional)</label>
+      <input type="text" id="pn" placeholder="e.g. W10503278" autocapitalize="characters" autocomplete="off">
+    </div>
+
+    <button class="go" id="go">Confirm the part</button>
+    <div id="out"></div>
+  </div>
+
+  <div class="foot">Backed by TN Appliance Exchange — repair techs since 2012 · 1,081 five-star reviews</div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var q=new URLSearchParams(location.search);
+  if(q.get('model'))$('model').value=q.get('model');
+  if(q.get('pn')){$('pn').value=q.get('pn');show()}
+  if(q.get('symptom')){$('symptom').value=q.get('symptom');show()}
+  function show(){$('adv').classList.remove('hidden');$('advToggle').classList.add('hidden')}
+  $('advToggle').onclick=show;
+
+  var photoB64='',photoType='';
+  $('photo').onchange=function(e){
+    var f=e.target.files&&e.target.files[0]; if(!f)return;
+    var note=$('photoNote'); note.classList.remove('hidden'); note.querySelector('small').textContent='📷 Reading '+f.name+'…';
+    var r=new FileReader();
+    r.onload=function(){ photoB64=String(r.result).split(',')[1]||''; photoType=f.type||'image/jpeg';
+      note.querySelector('small').textContent='📷 Sticker attached — we\'ll read your exact model.'; };
+    r.readAsDataURL(f);
+  };
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+
+  $('go').onclick=async function(){
+    var model=$('model').value.trim(), pn=$('pn').value.trim(), symptom=$('symptom').value.trim();
+    if(!model && !pn && !photoB64){ $('out').innerHTML='<div class="err">Enter your model number, snap the sticker, or type a part number.</div>'; return; }
+    var btn=$('go'); btn.disabled=true; var old=btn.innerHTML; btn.innerHTML='<span class="spin"></span> Checking…';
+    $('out').innerHTML='';
+    var body={mode:'store',model:model,part_number:pn,symptom:symptom};
+    if(photoB64){body.image_b64=photoB64;body.media_type=photoType}
+    try{
+      var res=await fetch('/.netlify/functions/fitment-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      var d=await res.json();
+      render(d);
+    }catch(err){ $('out').innerHTML='<div class="err">Something hiccupped — try again, or text us a photo and we\'ll confirm it by hand.</div>'; }
+    btn.disabled=false; btn.innerHTML=old;
+  };
+
+  function render(d){
+    if(!d||!d.ok){ $('out').innerHTML='<div class="err">'+esc((d&&d.message)||'Enter your model or a part number to check.')+'</div>'; return; }
+    var vClass=d.verdict==='confirmed'?'b-ok':(d.verdict==='likely'?'b-warn':'b-gray');
+    var vIc=d.verdict==='confirmed'?'✅':(d.verdict==='likely'?'⚠️':'🔧');
+    var h='<div class="result">';
+    h+='<div class="badge '+vClass+'"><span class="ic">'+vIc+'</span><span>'+esc(d.verdict_label||'')+'</span></div>';
+    if(d.machine&&(d.machine.model||d.machine.brand))
+      h+='<div class="machine">Your machine: '+esc([d.machine.brand,d.machine.model,d.machine.appliance].filter(Boolean).join(' · '))+(d.resolved_from==='photo'?' &nbsp;📷 read from your photo':'')+'</div>';
+
+    var rec=d.recommended, checking=d.query_part;
+    var pn = checking || (rec&&rec.part) || '';
+    if(pn){
+      h+='<div class="part"><div class="pn">'+esc(pn)+(d.superseded_to&&d.superseded_to!==pn?' → '+esc(d.superseded_to):'')+'</div>';
+      if(rec&&rec.component)h+='<div class="cmp">'+esc(rec.component)+'</div>';
+      if(rec&&rec.confidence){
+        h+='<div class="conf"><div class="bar"><i style="width:'+Math.max(6,Math.min(100,rec.confidence))+'%"></i></div>';
+        h+='<small>'+rec.confidence+'% confidence'+(rec.seen_n?' · matched on '+rec.seen_n+' repair'+(rec.seen_n===1?'':'s'):'')+'</small></div>';
+      }
+      if(d.availability){
+        h+=d.availability.discontinued?'<div class="stock out">Discontinued — we\'ll source the current replacement</div>':
+          (d.availability.in_stock?'<div class="stock in">✔ In stock — ships fast</div>':'<div class="stock out">Temporarily out — we\'ll get an ETA</div>');
+      }
+      h+='</div>';
+    }
+    if(d.evidence)h+='<div class="evi">'+esc(d.evidence)+'</div>';
+
+    h+='<div class="cta">';
+    if(d.verdict==='confirmed'||d.verdict==='likely') h+='<a class="buy" href="#" onclick="return false">Add to cart</a>';
+    h+='<a class="tech" href="sms:+16158578800?&body='+encodeURIComponent('Hi — can you confirm the right part for my '+((d.machine&&d.machine.model)||'appliance')+'?')+'">Talk to a tech</a>';
+    h+='</div>';
+
+    if(d.alternates&&d.alternates.length){
+      h+='<details class="alts"><summary>Other parts we see on this model</summary>';
+      d.alternates.forEach(function(a){ h+='<div class="alt"><span>'+esc(a.part||a.component||'')+'</span><span style="color:var(--muted)">'+(a.confidence||0)+'%</span></div>'; });
+      h+='</details>';
+    }
+    h+='</div>';
+    $('out').innerHTML=h;
+  }
+})();
+</script>
+</body>
+</html>
