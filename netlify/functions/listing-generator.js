@@ -27,15 +27,16 @@ const WEBSITE_LANGS = ['es', 'ru', 'vi', 'ar', 'zh', 'hi', 'fr'];
 // Preserves part/model numbers, brands, URLs, HTML tags, emojis, JSON structure.
 // Fail-safe: returns null on any error so the caller keeps English for that language.
 async function translateBundle(enFlat, langName) {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return null;
+  const { getSecret } = require('./_lib/secrets');
+  const key = process.env.ANTHROPIC_API_KEY || (await getSecret('ANTHROPIC_API_KEY').catch(() => ''));
+  if (!key) return { __err: 'no_key' };
   try {
-    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 18000);
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 20000);
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 4000,
+        model: 'claude-haiku-4-5-20251001', max_tokens: 8000,
         system: `You localize e-commerce appliance-parts listing content into ${langName}. You receive a JSON object of English strings. Return a JSON object with the SAME keys, translating ONLY the human-readable text into natural, on-brand ${langName}. Preserve EXACTLY (never translate/alter): all part numbers, model numbers, brand names (Whirlpool, GE, Samsung, LG, Maytag, etc.), URLs, HTML tags and attributes, emojis, and "TN Appliance". Output ONLY the JSON object — no prose, no code fences.`,
         messages: [{ role: 'user', content: JSON.stringify(enFlat) }],
       }),
@@ -43,11 +44,14 @@ async function translateBundle(enFlat, langName) {
     });
     clearTimeout(tm);
     const d = await r.json();
+    if (d && d.error) return { __err: 'api:' + (d.error.type || '') + ':' + String(d.error.message || '').slice(0, 80) };
     let raw = (d && d.content && d.content[0] && d.content[0].text) || '';
     raw = raw.replace(/```json|```/g, '').trim();
+    const a = raw.indexOf('{'), b = raw.lastIndexOf('}');       // robust: slice to the JSON body
+    if (a >= 0 && b > a) raw = raw.slice(a, b + 1);
     const out = JSON.parse(raw);
-    return (out && typeof out === 'object') ? out : null;
-  } catch (_) { return null; }
+    return (out && typeof out === 'object') ? out : { __err: 'not_object' };
+  } catch (e) { return { __err: 'exc:' + String((e && e.message) || e).slice(0, 80) }; }
 }
 
 exports.config = { timeout: 26 };
@@ -160,9 +164,9 @@ ${linkAs}
       return { lc, t };
     }));
 
-    const azOut = {}, webOut = {};
+    const azOut = {}, webOut = {}, dbg = {};
     for (const { lc, t } of done) {
-      if (!t) continue;
+      if (!t || t.__err) { dbg[lc] = (t && t.__err) || 'null'; continue; }
       const g = (k) => (t[k] != null ? t[k] : flat[k]);
       const bl = bullets.map((_, i) => g('b' + i));
       const mods = aplus.map((_, i) => ({ heading: g('m' + i + 'h'), body: g('m' + i + 'b') }));
@@ -175,6 +179,7 @@ ${linkAs}
       webOut[lc] = { html_block: rtl ? g('html_block').replace('<section ', '<section dir="rtl" ') : g('html_block'), meta_title: g('meta_title'), meta_description: g('meta_description'), faq_schema: faqT, howto_schema: howtoT, suggested_fix_pages: info.links };
     }
     resp.translations = { amazon: azOut, website: webOut, note: 'Amazon = EN + ES (US Spanish shoppers). Website = all requested languages.' };
+    if (Object.keys(dbg).length) resp.translations._debug = dbg;
   }
 
   return json(200, resp);
