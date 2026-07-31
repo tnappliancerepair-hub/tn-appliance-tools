@@ -25,6 +25,9 @@ const NAME_SETS = [
   // same LWA app as the buyer, but a seller-scoped refresh token vaulted separately:
   { client: 'AMAZON_LWA_CLIENT_ID', secret: 'AMAZON_LWA_CLIENT_SECRET', refresh: 'AMAZON_SPAPI_REFRESH_TOKEN' },
   { client: 'AMAZON_LWA_CLIENT_ID', secret: 'AMAZON_LWA_CLIENT_SECRET', refresh: 'AMAZON_SELLER_REFRESH_TOKEN' },
+  // LAST RESORT: the buyer LWA trio itself — tests whether that token was ALSO
+  // authorized with SP-API/seller scopes (marked so callers know it's the buyer token).
+  { client: 'AMAZON_LWA_CLIENT_ID', secret: 'AMAZON_LWA_CLIENT_SECRET', refresh: 'AMAZON_LWA_REFRESH_TOKEN', note: 'buyer-token-fallback' },
 ];
 
 async function resolveCreds() {
