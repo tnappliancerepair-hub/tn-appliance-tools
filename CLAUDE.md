@@ -1,5 +1,16 @@
 # Appliance Ant
 
+## 🧠 THE #1 GOAL — BE THE MOST ADVANCED TROUBLESHOOTING BRAIN IN APPLIANCE REPAIR (standing north star, Teddy 2026-07-31)
+**"The most powerful troubleshooting brain is what's gonna dominate this market. My goal is to be that most advanced troubleshooting brain."** — Teddy. This is THE goal above all others. We are in the appliance-repair business trying to be *the source* — so being the **most educated servicer alive** is the daily work, not a project with an end. **Improve the repair knowledge base EVERY day.** The moat is knowledge nobody else has: 49k real HCP jobs + every TDR our techs close + the deepest fault-code/component/tech-sheet library in the trade, fused into one grounded brain (`ant-troubleshoot.js`).
+
+### The daily flywheel (this is the job)
+1. **Every "I don't know" becomes a permanent "now I know."** The brain logs each unconfident answer to the **`knowledge-gap.js`** ledger (unknown fault code, ungrounded model/symptom). Recurring gaps rise to the top → fill them first (add the code to `_lib/ant/fault-codes.json`, the part to `_lib/ant/component-knowledge.js`, or the tech-sheet), then `?fill=<key>` drops it.
+2. **Every closed job teaches it.** Real-time `get_common_failures` (TDR aggregate) + the HCP recall corpus (`hcp-recall.js` over `hcp_vectors`) + similar-job vectors all feed the diagnosis. Grade first-guess part accuracy via the self-grading loop (`ant-brain-score.js`).
+3. **Measure it or it's a vibe.** **`knowledge-scorecard.js`** texts Teddy nightly (~7:10PM CT): first-guess accuracy, recall-corpus size, fault codes known, components known, open gaps + what to fill next. The numbers must climb. Trend ▲ is the scoreboard.
+4. **Tap external authority** (MSA World tech sheets, brand service bulletins, CPSC recalls, MarconeAI) to close gaps faster than we hit them.
+
+**When choosing what to build: anything that makes the brain deeper, more grounded, or more accurate wins.** Deepening the knowledge base IS the business.
+
 ## 📋 THE OPERATING PLAN — canonical business plan (READ + BUILD ON THIS)
 **`docs/ant-operating-plan.md`** is the living business plan (v1, 2026-07-03) — the
 full three-layer arc: **L1 TN Appliance (proving ground) → L2 Ant SaaS for shops →
