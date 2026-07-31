@@ -3,13 +3,21 @@
 ## 🧠 THE #1 GOAL — BE THE MOST ADVANCED TROUBLESHOOTING BRAIN IN APPLIANCE REPAIR (standing north star, Teddy 2026-07-31)
 **"The most powerful troubleshooting brain is what's gonna dominate this market. My goal is to be that most advanced troubleshooting brain."** — Teddy. This is THE goal above all others. We are in the appliance-repair business trying to be *the source* — so being the **most educated servicer alive** is the daily work, not a project with an end. **Improve the repair knowledge base EVERY day.** The moat is knowledge nobody else has: 49k real HCP jobs + every TDR our techs close + the deepest fault-code/component/tech-sheet library in the trade, fused into one grounded brain (`ant-troubleshoot.js`).
 
-### The daily flywheel (this is the job)
-1. **Every "I don't know" becomes a permanent "now I know."** The brain logs each unconfident answer to the **`knowledge-gap.js`** ledger (unknown fault code, ungrounded model/symptom). Recurring gaps rise to the top → fill them first (add the code to `_lib/ant/fault-codes.json`, the part to `_lib/ant/component-knowledge.js`, or the tech-sheet), then `?fill=<key>` drops it.
-2. **Every closed job teaches it.** Real-time `get_common_failures` (TDR aggregate) + the HCP recall corpus (`hcp-recall.js` over `hcp_vectors`) + similar-job vectors all feed the diagnosis. Grade first-guess part accuracy via the self-grading loop (`ant-brain-score.js`).
-3. **Measure it or it's a vibe.** **`knowledge-scorecard.js`** texts Teddy nightly (~7:10PM CT): first-guess accuracy, recall-corpus size, fault codes known, components known, open gaps + what to fill next. The numbers must climb. Trend ▲ is the scoreboard.
-4. **Tap external authority** (MSA World tech sheets, brand service bulletins, CPSC recalls, MarconeAI) to close gaps faster than we hit them.
+### The architecture (reconfigured 2026-07-31 — reliability-first, the brain can't hiccup)
+The core answer is **structured-first, semantic-optional** — it must stay confident even when a flaky store (Supabase/vectors/the MSA daemon tunnel) is down.
+- **THE ANCHOR = model-specific recall** (`_lib/ant/model-knowledge.js`): *"on THIS exact model / platform FAMILY, here's what fails + the part."* Model-**family** matching is the key fix — `WTW5000DW1` learns from every `WTW5000DW*` job (exact SKUs never repeat, platforms do; the old exact-match returned 0). Three tiers, best-first: exact model → platform family → bundled base. Pure read path (the brain feeds it the TDR pool it already fetched), degrades to the base or empty, **never throws**.
+- **The live flywheel needs no embedding:** real-time `get_common_failures` (Xano TDR aggregate, fetched as the brand+appliance POOL — NOT the exact model, which Xano matches 0) IS "every closed job teaches it." Every TDR a tech closes instantly enriches model recall.
+- **The 49k HCP archive is BREADTH, not foundation:** `hcp-distill.js` (read-only, resumable, offline-operated) distills it into `model-knowledge.json` — reviewed before commit so noisy extraction never reaches the live brain. `hcp-recall.js`/vectors are optional flavor. Supabase being down blocks the distiller, **not the brain**.
+- **Every external fetch in `ant-troubleshoot.js` is timeout-guarded (5-6s) + degrades to empty** — a down dependency makes the answer thinner, never absent (this was the real 504-hang hiccup, fixed).
 
-**When choosing what to build: anything that makes the brain deeper, more grounded, or more accurate wins.** Deepening the knowledge base IS the business.
+### The daily flywheel (this is the job)
+1. **Every "I don't know" becomes a permanent "now I know."** The brain logs each unconfident answer to the **`knowledge-gap.js`** ledger. Recurring gaps rise to the top → fill them first (add the code to `_lib/ant/fault-codes.json`, the part/model to `_lib/ant/component-knowledge.js` / `model-knowledge.json`, or the tech-sheet), then `?fill=<key>` drops it.
+2. **Every closed job teaches it** (live, via `get_common_failures` — no embed). Grade first-guess part accuracy via the self-grading loop (`ant-brain-score.js`).
+3. **Grow model coverage** — run `hcp-distill.js` when Supabase reads are healthy → review → commit into `model-knowledge.json` (Models-known must climb).
+4. **Measure it or it's a vibe.** **`knowledge-scorecard.js`** texts Teddy nightly (~7:10PM CT, via `knowledge-scorecard-cron`; core is HTTP-pullable `?secret=&text=0`): **Models known**, first-guess accuracy, fault codes, components, open gaps + what to fill next. Trend ▲ is the scoreboard.
+5. **Tap external authority** (MSA World tech sheets, brand bulletins, CPSC recalls, MarconeAI) to close gaps faster than we hit them.
+
+**When choosing what to build: anything that makes the brain deeper, more grounded, more accurate, or more RELIABLE wins.** Deepening the knowledge base IS the business.
 
 ## 📋 THE OPERATING PLAN — canonical business plan (READ + BUILD ON THIS)
 **`docs/ant-operating-plan.md`** is the living business plan (v1, 2026-07-03) — the
