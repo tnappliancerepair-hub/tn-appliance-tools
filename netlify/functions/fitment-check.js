@@ -116,14 +116,17 @@ exports.handler = async function (event) {
   const needsHuman = verdict === 'verify';
   const evidence = basedOnN > 0 ? `Based on ${basedOnN} matching repair${basedOnN === 1 ? '' : 's'} in our history.` : `New model for us — human confirm keeps it accurate.`;
 
-  // customer-safe recommended object (store shows the part#; service hides it)
-  const recommended = top ? {
+  // Only NAME a part when we actually stand behind it (confirmed/likely). On a
+  // 'verify' verdict we show NO part — a low-confidence single-occurrence guess is
+  // exactly what surfaced the mislabeled oven board. "Tech will confirm" = no part.
+  const nameable = verdict === 'confirmed' || verdict === 'likely';
+  const recommended = (top && nameable) ? {
     component: top.component || '',
     part: store ? (top.part_display || top.part || '') : undefined,
     confidence: pct(top.confidence),
     seen_n: top.seen_n || 0,
   } : null;
-  const alternates = store ? predictions.slice(1, 4).map((p) => ({ component: p.component, part: p.part_display || p.part, confidence: pct(p.confidence), seen_n: p.seen_n || 0 })) : [];
+  const alternates = (store && nameable) ? predictions.slice(1, 4).map((p) => ({ component: p.component, part: p.part_display || p.part, confidence: pct(p.confidence), seen_n: p.seen_n || 0 })) : [];
 
   return json(200, {
     ok: true, mode, machine, resolved_from: resolvedFrom,

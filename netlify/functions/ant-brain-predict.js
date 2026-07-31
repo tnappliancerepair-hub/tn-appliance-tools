@@ -93,9 +93,17 @@ exports.handler = async function (event) {
   const raw = await jfetch(`${XANO}/get_common_failures?per_page=1000`);
   let all = (raw && raw.entries) || [];
 
-  // HARD APPLIANCE GATE: once we know the appliance, drop any entry that is a
-  // DIFFERENT known appliance. A fridge query can never surface an oven part.
-  if (applQ) all = all.filter((e) => { const ea = canonAppliance(e.appliance_type) || canonAppliance(e.failed_component); return !ea || ea === applQ; });
+  // HARD APPLIANCE GATE: once we know the appliance, drop any entry where EITHER
+  // the appliance_type OR the failed_component text names a DIFFERENT appliance.
+  // Checking both catches mislabeled TDRs (appliance_type=Refrigerator but
+  // failed_component="oven control board") — the row that leaked an oven part.
+  if (applQ) all = all.filter((e) => {
+    const eaType = canonAppliance(e.appliance_type);
+    const eaComp = canonAppliance(e.failed_component);
+    if (eaType && eaType !== applQ) return false;
+    if (eaComp && eaComp !== applQ) return false;
+    return true;
+  });
 
   const byModel = model ? all.filter((e) => modelMatch(e.model_number, model)) : [];
   const byBrandAppl = (brand && appliance) ? all.filter((e) => normAlnum(e.brand).includes(normAlnum(brand)) && normComp(e.appliance_type).includes(normComp(appliance))) : [];
