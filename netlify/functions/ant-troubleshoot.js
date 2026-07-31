@@ -17,6 +17,7 @@ const { runBrainTurn } = require('./_lib/ant/brain-core');
 const faultCodes = require('./fault-code-lookup');
 const playbook = require('./_lib/ant/playbook-lookup');
 const modelIntel = require('./get-model-intel');
+const crud = require('./_lib/xano/metadata-crud');
 
 const XANO_INTAKE = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const FUNCTIONS_BASE = 'https://tnapplianceexchange.net/.netlify/functions';
@@ -223,6 +224,15 @@ exports.handler = async function (event) {
   } catch (e) {
     answer = '';
   }
+
+  // ── Knowledge Engine: record what we could NOT confidently answer, so the daily
+  // loop fills it and it never recurs. A fault code with no DB match, or a
+  // model/symptom with zero grounding, is a gap worth closing. Best-effort only.
+  try {
+    const g = { brand, appliance, code, model, symptom, role, at_ms: Date.now() };
+    if (code && !faultMatch) { g.kind = 'fault_code'; await crud.logEvent('knowledge_gap', g); }
+    else if (!grounded && (model || symptom)) { g.kind = 'model'; await crud.logEvent('knowledge_gap', g); }
+  } catch (_) {}
 
   // citations the UI can render as chips
   const citations = [];

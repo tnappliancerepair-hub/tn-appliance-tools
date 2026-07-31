@@ -778,6 +778,14 @@
 [functions."phone-trust-scorecard"]
   schedule = "0 0 * * *"
 
+# knowledge-scorecard — the daily scoreboard for THE goal: be the most advanced
+# troubleshooting brain in appliance repair. ~7:10PM CT it measures the brain's
+# depth (fault codes, components, real jobs in the recall corpus) + first-guess
+# accuracy (self-grading loop) + open knowledge gaps, tracks the trend, and texts
+# the owner. "Getting smarter" becomes a number that must climb. (Teddy 2026-07-31.)
+[functions."knowledge-scorecard"]
+  schedule = "10 0 * * *"
+
 # phone-accuracy-audit — daily proof that Ann reads the record correctly. Runs her
 # real status-tool path across ~30 live jobs each morning and scores right-tech /
 # right-day / no-invented-time vs the source record. Regression guard alongside the
