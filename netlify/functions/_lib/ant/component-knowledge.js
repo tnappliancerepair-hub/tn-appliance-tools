@@ -12,6 +12,243 @@ const SITE = 'https://tnapplianceexchange.net';
 
 const COMPONENTS = [
   {
+    key: 'defrost_heater', appliance: 'refrigerator',
+    names: ['defrost heater', 'defrost element', 'defrost heater assembly'],
+    symptoms: [
+      'Heavy frost/ice builds up on the evaporator coil behind the freezer back panel, then the fridge slowly warms.',
+      'The evaporator fan ices up and jams — many LG/Samsung units throw a fan error (Er FF) that is really a defrost failure.',
+      'Cooling returns for a day or two after a manual defrost, then the same warming comes back.',
+    ],
+    how_to_test: [
+      'Unplug the unit and remove the freezer rear evaporator cover. Heavy ice on the coil points straight at the defrost system.',
+      'Ohm the defrost heater across its terminals — an open (no continuity) reading means the heater is bad.',
+      'Force a defrost in service/diagnostic mode and confirm the heater warms the coil.',
+    ],
+    safety: '', fix_pages: ['/fix/refrigerator-not-cooling.html', '/refrigerator-repair.html'],
+  },
+  {
+    key: 'defrost_bimetal_thermostat', appliance: 'refrigerator',
+    names: ['defrost thermostat', 'bi-metal thermostat', 'bimetal', 'defrost bi-metal', 'defrost bimetal thermostat'],
+    symptoms: [
+      'Same picture as a bad defrost heater: frost packs the evaporator coil and the fridge warms.',
+      'The heater tests good but never actually powers because the bi-metal never closes.',
+    ],
+    how_to_test: [
+      'Unplug the unit. The bi-metal clips onto the evaporator coil. When cold (below ~freezing) it should show continuity.',
+      'No continuity while iced-cold = the bi-metal is open and blocking the heater; replace it (usually replaced with the heater).',
+    ],
+    safety: '', fix_pages: ['/fix/refrigerator-not-cooling.html', '/refrigerator-repair.html'],
+  },
+  {
+    key: 'defrost_sensor', appliance: 'refrigerator',
+    names: ['defrost sensor', 'defrost thermistor', 'defrost temperature sensor'],
+    symptoms: [
+      'Defrost cycles run at the wrong time or not long enough, so frost slowly wins and the coil ices over.',
+      'Control may log a sensor/defrost error; cooling is intermittent.',
+    ],
+    how_to_test: [
+      'Unplug the unit. Find the defrost thermistor on the evaporator.',
+      'Ohm it and compare against the resistance/temperature chart on the tech sheet — out of spec = replace.',
+    ],
+    safety: '', fix_pages: ['/fix/refrigerator-not-cooling.html', '/refrigerator-repair.html'],
+  },
+  {
+    key: 'compressor', appliance: 'refrigerator',
+    names: ['compressor', 'linear compressor', 'sealed system compressor'],
+    symptoms: [
+      'Whole fridge is warm; the compressor is silent, or hums/clicks and shuts off (after the start relay is ruled out).',
+      'Compressor is hot to the touch but never pumps; freezer and fridge both warm.',
+    ],
+    how_to_test: [
+      'First rule out the start relay/overload (a cheap common failure that mimics a dead compressor).',
+      'Unplug. Check the three compressor windings for continuity/resistance per spec; check winding-to-case for a short.',
+      'A seized or shorted compressor is a sealed-system repair — pro-only, and often a replace-the-fridge decision.',
+    ],
+    safety: 'Sealed-system / refrigerant work is EPA-certified pro-only. Never open the sealed system as a DIY.',
+    fix_pages: ['/fix/refrigerator-not-cooling.html'],
+  },
+  {
+    key: 'refrigerator_thermistor', appliance: 'refrigerator',
+    names: ['fridge thermistor', 'refrigerator temp sensor', 'freezer sensor', 'refrigerator thermistor', 'temperature sensor fridge'],
+    symptoms: [
+      'One section runs too warm or too cold; the compressor cycles oddly because the control reads a false temperature.',
+      'Control may show a sensor error (LG Er FS/rS, etc.).',
+    ],
+    how_to_test: [
+      'Unplug. Locate the thermistor in the affected section.',
+      'Ohm it and compare to the resistance/temperature chart — a reading far off spec = replace.',
+    ],
+    safety: '', fix_pages: ['/fix/refrigerator-not-cooling.html', '/refrigerator-repair.html'],
+  },
+  {
+    key: 'dryer_cycling_thermostat', appliance: 'dryer',
+    names: ['cycling thermostat', 'hi-limit thermostat', 'high limit', 'operating thermostat', 'thermostat dryer'],
+    symptoms: [
+      'Dryer heats but never shuts the heat off (clothes too hot / overheats), or heats weakly then quits.',
+      'Often trips together with a restricted vent — a blocked vent overheats and opens the hi-limit.',
+    ],
+    how_to_test: [
+      'Unplug. Clean/verify the full vent run first — a clogged vent is the usual root cause.',
+      'Ohm the cycling thermostat and hi-limit at room temp: both should read closed (continuity). Open = replace.',
+    ],
+    safety: '', fix_pages: ['/fix/dryer-not-heating.html', '/dryer-repair.html'],
+  },
+  {
+    key: 'dryer_idler_pulley', appliance: 'dryer',
+    names: ['idler pulley', 'tension pulley', 'pulley bearing', 'idler', 'dryer pulley'],
+    symptoms: [
+      'Loud squeal, chirp, rumble, or grinding that grows as the pulley bearing wears out — often described as a bellowing/roaring noise.',
+      'Belt may squeak or eventually snap once the seized pulley chews it.',
+    ],
+    how_to_test: [
+      'Unplug and open the cabinet. Spin the idler pulley by hand — it should turn smooth and quiet.',
+      'Roughness, wobble, or noise from the pulley bearing = replace the idler (do the belt at the same time).',
+    ],
+    safety: '', fix_pages: ['/dryer-repair.html'],
+  },
+  {
+    key: 'dryer_belt', appliance: 'dryer',
+    names: ['dryer belt', 'drum belt', 'drive belt dryer'],
+    symptoms: [
+      'Motor hums/runs but the drum does not turn (broken or slipped belt).',
+      'A thump or the drum spins freely by hand with no resistance.',
+    ],
+    how_to_test: [
+      'Unplug and open the cabinet. A snapped belt is obvious; reach in and feel/inspect it.',
+      'Check the idler pulley and drum rollers while you are in there — they usually wear together.',
+    ],
+    safety: '', fix_pages: ['/dryer-repair.html'],
+  },
+  {
+    key: 'dryer_drum_roller', appliance: 'dryer',
+    names: ['drum roller', 'drum support roller', 'drum glide', 'roller dryer'],
+    symptoms: [
+      'Loud rumbling/thumping that changes with drum rotation; the noise is worst when the drum is loaded.',
+      'Drum may drag or sit unevenly.',
+    ],
+    how_to_test: [
+      'Unplug, remove the belt, and spin the drum by hand — rough or noisy rollers need replacing (replace as a set).',
+    ],
+    safety: '', fix_pages: ['/dryer-repair.html'],
+  },
+  {
+    key: 'dryer_moisture_sensor', appliance: 'dryer',
+    names: ['moisture sensor', 'moisture bars', 'auto-dry sensor'],
+    symptoms: [
+      'Auto/sensor cycles stop after only a few minutes with clothes still wet, or run far too long.',
+      'Timed dry works fine but sensor cycles misbehave.',
+    ],
+    how_to_test: [
+      'Unplug. Find the two metal moisture bars inside the drum/front.',
+      'Clean the bars (fabric-softener film fools them). Bridge them with a wet cloth in a sensor cycle — the control should read wet.',
+    ],
+    safety: '', fix_pages: ['/dryer-repair.html'],
+  },
+  {
+    key: 'washer_drive_belt', appliance: 'washer',
+    names: ['drive belt washer', 'washer belt', 'drive belt'],
+    symptoms: [
+      'Washer fills and drains but the drum does not spin/agitate, or spins weakly.',
+      'Burning-rubber smell or a belt squeal under load.',
+    ],
+    how_to_test: [
+      'Unplug. Access the belt (rear panel or underneath). A snapped, glazed, or loose belt = replace.',
+      'Confirm the pulley turns freely and the motor runs.',
+    ],
+    safety: '', fix_pages: ['/fix/washer-not-spinning.html', '/washer-repair.html'],
+  },
+  {
+    key: 'washer_shock_absorber', appliance: 'washer',
+    names: ['shock absorber', 'suspension rod', 'damper', 'strut washer', 'suspension washer'],
+    symptoms: [
+      'Front-load washer bangs, walks, or shakes violently on spin; loud knocking against the cabinet.',
+      'Worn dampers let the tub slam around during high-speed spin.',
+    ],
+    how_to_test: [
+      'Unplug. Push the tub down by hand — it should resist and return slowly. If it bounces freely, the shocks/struts are worn (replace as a set).',
+    ],
+    safety: '', fix_pages: ['/fix/washer-not-spinning.html', '/washer-repair.html'],
+  },
+  {
+    key: 'washer_tub_bearing', appliance: 'washer',
+    names: ['tub bearing', 'drum bearing', 'rear bearing washer', 'spin bearing'],
+    symptoms: [
+      'Very loud roaring/grinding that gets worse on spin — sounds like a jet engine as the drum speeds up.',
+      'Play/wobble in the drum; rusty water streaks from the bearing seal.',
+    ],
+    how_to_test: [
+      'Unplug. Spin the drum by hand and rock it — grinding or in/out play means the bearing is shot.',
+      'Bearing jobs are labor-heavy (often a full tear-down); weigh repair-vs-replace on older machines.',
+    ],
+    safety: '', fix_pages: ['/fix/washer-not-spinning.html', '/washer-repair.html'],
+  },
+  {
+    key: 'dishwasher_circulation_pump', appliance: 'dishwasher',
+    names: ['circulation pump', 'wash pump', 'wash motor', 'circulation motor'],
+    symptoms: [
+      'Dishes come out dirty; the wash arms are not spraying with force even though the cycle runs.',
+      'Humming with no water movement, or unusual grinding from the pump.',
+    ],
+    how_to_test: [
+      'Confirm the arms are not clogged and the unit is getting water first.',
+      'Unplug. Check the circulation motor for continuity/seized rotor per the tech sheet.',
+    ],
+    safety: '', fix_pages: ['/dishwasher-repair.html'],
+  },
+  {
+    key: 'dishwasher_heating_element', appliance: 'dishwasher',
+    names: ['dishwasher heating element', 'dishwasher element', 'heat element dishwasher'],
+    symptoms: [
+      'Dishes and the tub are cold/wet at the end; poor drying and weak cleaning.',
+      'On some models a heater fault shows as a cycle that will not advance.',
+    ],
+    how_to_test: [
+      'Unplug. Ohm the heating element across its two terminals — open circuit (no continuity) = bad element.',
+      'Inspect for visible burns/cracks on the element.',
+    ],
+    safety: '', fix_pages: ['/dishwasher-repair.html'],
+  },
+  {
+    key: 'oven_temp_sensor', appliance: 'oven',
+    names: ['oven temp sensor', 'oven sensor', 'rtd sensor', 'temperature sensor oven', 'oven thermistor'],
+    symptoms: [
+      'Oven runs too hot or too cold, will not hold the set temp, or throws a sensor fault (Whirlpool F3E1/F3E2).',
+      'Baking is uneven or the oven never reaches temperature.',
+    ],
+    how_to_test: [
+      'Unplug/kill power. The RTD sensor is at the rear oven wall.',
+      'Ohm it at room temp — it should read about 1080-1100 ohms (~1.08-1.1k). Far off = replace the sensor.',
+    ],
+    safety: '', fix_pages: ['/fix/oven-not-heating.html', '/oven-repair.html'],
+  },
+  {
+    key: 'range_surface_element', appliance: 'range',
+    names: ['surface element', 'burner element', 'coil element', 'radiant element', 'infinite switch'],
+    symptoms: [
+      'One electric burner does not heat, or only stays on high (the infinite switch controls the power level).',
+      'A radiant/coil element may show a burn spot or a broken coil.',
+    ],
+    how_to_test: [
+      'Kill power. On coil ranges, swap the suspect element with a known-good same-size one — if the problem follows, it is the element.',
+      'Ohm the element for continuity; check the infinite switch if the burner only runs full-on.',
+    ],
+    safety: 'Electric ranges are 240V — kill the breaker before working on elements/switches.',
+    fix_pages: ['/oven-repair.html'],
+  },
+  {
+    key: 'oven_control_board', appliance: 'oven',
+    names: ['oven control board', 'electronic oven control', 'eoc', 'clock control', 'control board oven'],
+    symptoms: [
+      'Random function codes (Whirlpool F1/GE F1), a dead or scrambled display, or the oven ignoring commands.',
+      'Bake/broil relays that stick on or never fire.',
+    ],
+    how_to_test: [
+      'Reseat the touchpad ribbon and harness first — a loose ribbon mimics a bad board.',
+      'If a control fault code returns after a power reset and the sensor tests good, the EOC/control is the likely failure.',
+    ],
+    safety: '', fix_pages: ['/fix/oven-not-heating.html', '/oven-repair.html'],
+  },
+  {
     key: 'evaporator_fan_motor', appliance: 'refrigerator',
     names: ['evaporator motor', 'evaporator fan', 'evap fan', 'evap motor', 'freezer fan', 'evaporator fan motor'],
     symptoms: [
@@ -243,7 +480,7 @@ const COMPONENTS = [
 
 // Build alias index once.
 const INDEX = [];
-for (const c of COMPONENTS) for (const n of c.names) INDEX.push({ alias: n.toLowerCase(), c });
+for (const c of COMPONENTS) for (const n of c.names) INDEX.push({ alias: norm(n), c }); // norm() so hyphenated aliases (bi-metal, hi-limit) match a normalized query
 
 function norm(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); }
 

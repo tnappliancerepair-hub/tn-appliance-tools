@@ -28,6 +28,13 @@ function normCode(c) { return String(c || '').toUpperCase().replace(/[\s\-_.]/g,
 // NOT so "84C" collapses into "4C". "4E"->"4", "84C"->"84", "21C"->"21".
 function canonCode(c) { const n = normCode(c); return n.replace(/[EC]$/, ''); }
 
+// strip the ZERO-PADDING of a letter-prefixed digit group so the padded DISPLAY
+// form and the tech-sheet form resolve to each other: "F03E01" <-> "F3E1",
+// "E01" -> "E1". Only removes zeros that sit between a LETTER and a digit, so
+// "F20"/"E10"/"F09" keep their trailing/standalone zeros. Used as a last-resort
+// match only (Whirlpool/Maytag F#E# split codes are the reason this exists).
+function splitCanon(c) { return normCode(c).replace(/([A-Z])0+(?=\d)/g, '$1'); }
+
 function lookup(brand, code, appliance) {
   const fam = familyOf(brand);
   const nc = normCode(code);
@@ -39,6 +46,7 @@ function lookup(brand, code, appliance) {
   const cn = canonCode(code);
   let match = codes.find((r) => normCode(r.code) === nc);                    // exact
   if (!match && cn) match = codes.find((r) => canonCode(r.code) === cn);     // E/C suffix equivalence only
+  if (!match) { const sc = splitCanon(code); if (sc) match = codes.find((r) => splitCanon(r.code) === sc); } // F03E01<->F3E1
   return { fam, match, brand_codes: all.map((r) => ({ code: r.code, appliance: r.appliance, meaning: r.meaning })) };
 }
 

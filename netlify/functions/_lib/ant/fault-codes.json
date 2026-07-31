@@ -1,5 +1,5 @@
 {
-  "version": "2026-07-25",
+  "version": "2026-07-31",
   "note": "INTERNAL troubleshooting corpus — factory fault/error codes with meaning + likely causes + the confirming test. Powers Ann's diagnose tool + the tech app 🧠 button. Part numbers are intentionally omitted — they come from the live Marcone/Amazon lookup + this shop's TDR history, never guessed. Samsung shows the SAME fault as '__E' on older displays and '__C' on newer (C = Check); both forms are stored so a tech's exact typing always resolves. For board-variant families (GE/LG ranges) the meaning says to confirm against the model tech sheet.",
   "families": {
     "whirlpool": [
@@ -1899,6 +1899,983 @@
         "child/control lock engaged"
       ],
       "test": "Hold the lock button ~3 seconds to toggle it off."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F3E1",
+      "meaning": "Water-level (pressure) sensor signal out of range — control can't read the water level",
+      "likely_causes": [
+        "water-level pressure sensor",
+        "clogged or kinked pressure hose / air-dome tube",
+        "wiring/connector to the sensor",
+        "main control (CCU)",
+        "drain pump skewing the reading"
+      ],
+      "test": "Clear the clear pressure hose of soap sludge/kinks and reseat both ends; reseat the sensor connector; ohm the sensor per the tech sheet. On front-load MHW models this is the F03 E01."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F3E2",
+      "meaning": "Incoming water-temperature sensor (NTC) out of range",
+      "likely_causes": [
+        "water temp thermistor",
+        "wiring to the sensor",
+        "mixing valve"
+      ],
+      "test": "Ohm the temperature thermistor cold vs spec; reseat its connector."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F3E3",
+      "meaning": "Inlet water flow-meter / turbidity or flow sensor fault",
+      "likely_causes": [
+        "flow meter",
+        "turbidity sensor",
+        "wiring"
+      ],
+      "test": "Check the flow-meter/turbidity sensor connector and ohm per tech sheet."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F5E1",
+      "meaning": "Lid switch not sensed (control never sees the lid state)",
+      "likely_causes": [
+        "lid switch",
+        "wiring/connector to lid switch",
+        "lid strike/alignment"
+      ],
+      "test": "Ohm the lid switch open/closed; confirm the strike engages it."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F8E2",
+      "meaning": "Detergent/dispenser system fault",
+      "likely_causes": [
+        "dispenser motor/actuator",
+        "dispenser wiring",
+        "main control"
+      ],
+      "test": "Run the dispenser in diagnostics; check the actuator and connector."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F0E5",
+      "meaning": "Excessive suds / over-sudsing detected",
+      "likely_causes": [
+        "too much detergent (non-HE soap)",
+        "drain restriction holding suds",
+        "pressure sensor reading suds"
+      ],
+      "test": "Advise HE detergent only; run a clean cycle; verify drain flow."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F7E5",
+      "meaning": "Shift actuator / basket-drive fault",
+      "likely_causes": [
+        "shift actuator",
+        "actuator wiring",
+        "transmission/basket hub"
+      ],
+      "test": "Run the actuator in service mode; ohm the actuator; check for a slipping basket."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F2E3",
+      "meaning": "Stuck user-interface key / touchpad",
+      "likely_causes": [
+        "console/user-interface board",
+        "stuck button"
+      ],
+      "test": "Replace/free the UI; confirm no button held in."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F6E3",
+      "meaning": "Serial communication error (UI ↔ main control)",
+      "likely_causes": [
+        "harness UI↔CCU",
+        "user interface board",
+        "main control"
+      ],
+      "test": "Reseat the communication harness; swap the suspect board per tech sheet."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F20",
+      "meaning": "No water detected entering the tub (or pressure switch trip not sensed) — same as FH",
+      "likely_causes": [
+        "water faucets not fully open / kinked fill hoses",
+        "clogged inlet-valve screens",
+        "low house water pressure",
+        "water inlet valve failed",
+        "clogged/kinked pressure (air-dome) hose or pressure switch",
+        "drain hose pushed too far down (siphoning)"
+      ],
+      "test": "Open both faucets fully, unkink hoses; clean the inlet-valve screens; clear the pressure hose; ohm the valve coils; confirm the drain hose isn't inserted >6\"."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "FH",
+      "meaning": "No water / insufficient water detected entering the machine (Duet, = F20)",
+      "likely_causes": [
+        "water supply off / kinked hose",
+        "clogged inlet screens",
+        "inlet valve",
+        "pressure hose/switch",
+        "drain siphoning"
+      ],
+      "test": "Same as F20: verify supply + screens + inlet valve + pressure hose."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F21",
+      "meaning": "Long drain — water not pumped out in the allotted time",
+      "likely_causes": [
+        "clogged drain-pump filter / coin trap",
+        "kinked or clogged drain hose",
+        "house drain clog",
+        "failed drain pump"
+      ],
+      "test": "Clean the coin trap/pump filter; check the drain hose and standpipe; ohm the drain pump."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F24",
+      "meaning": "Water-temperature sensor (NTC) out of range (Duet)",
+      "likely_causes": [
+        "water temp thermistor",
+        "wiring to sensor"
+      ],
+      "test": "Ohm the NTC cold vs spec; reseat its connector."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F28",
+      "meaning": "Serial communication error — CCU cannot talk to the motor control (MCU)",
+      "likely_causes": [
+        "CCU↔MCU harness",
+        "MCU (motor control)",
+        "CCU (main control)"
+      ],
+      "test": "Reseat the CCU↔MCU harness; check for power to the MCU; swap per tech sheet."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F30",
+      "meaning": "Dispenser system fault (Duet)",
+      "likely_causes": [
+        "dispenser motor/actuator",
+        "dispenser wiring"
+      ],
+      "test": "Run the dispenser in diagnostics; check the actuator."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F31",
+      "meaning": "Motor control unit (MCU) fault (Duet)",
+      "likely_causes": [
+        "MCU",
+        "drive motor",
+        "wiring MCU↔motor"
+      ],
+      "test": "Inspect the MCU for damage; ohm the motor windings; reseat connectors."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F33",
+      "meaning": "Pump-drive / analog pressure system fault (Duet)",
+      "likely_causes": [
+        "drain pump circuit",
+        "analog pressure sensor",
+        "wiring"
+      ],
+      "test": "Check the pump and pressure-sensor circuits per tech sheet."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "Sud",
+      "meaning": "Excessive suds detected — cycle paused to dissipate",
+      "likely_causes": [
+        "too much / non-HE detergent",
+        "drain restriction",
+        "over-sudsing load"
+      ],
+      "test": "Use HE detergent only; verify drain flow; run a clean cycle."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F06",
+      "meaning": "Drive-motor tachometer error — MCU can't read motor speed",
+      "likely_causes": [
+        "motor tach / rotor position sensor",
+        "MCU",
+        "motor wiring/connector"
+      ],
+      "test": "Check the tach/hall sensor and motor harness; spin the basket by hand for drag."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F08",
+      "meaning": "Water-heater element circuit fault (Duet)",
+      "likely_causes": [
+        "wash heater element",
+        "heater relay on CCU",
+        "wiring"
+      ],
+      "test": "Ohm the heater element; check the relay/heater circuit."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F09",
+      "meaning": "Overflow condition — unit drains continuously",
+      "likely_causes": [
+        "pressure hose/switch stuck reading high",
+        "drain siphoning",
+        "inlet valve stuck open"
+      ],
+      "test": "Check the pressure hose/switch; verify the inlet valve fully closes."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "F11",
+      "meaning": "Serial communication error (Duet)",
+      "likely_causes": [
+        "CCU↔MCU harness",
+        "MCU",
+        "CCU"
+      ],
+      "test": "Reseat harness; verify MCU power."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "dryer",
+      "code": "F24",
+      "meaning": "Inlet/outlet thermistor resistance out of range",
+      "likely_causes": [
+        "exhaust/inlet thermistor",
+        "wiring to thermistor",
+        "restricted airflow skewing temp"
+      ],
+      "test": "Ohm the thermistor cold vs spec; clean the vent; reseat the connector."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "dryer",
+      "code": "F30",
+      "meaning": "Restricted airflow / exhaust or gas-ignition timing fault",
+      "likely_causes": [
+        "clogged vent / lint",
+        "gas igniter or valve coils (gas)",
+        "exhaust thermistor"
+      ],
+      "test": "Clean the full vent run; on gas, check igniter glow and valve coils."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "range",
+      "code": "F3E2",
+      "meaning": "Oven temperature sensor (RTD) shorted",
+      "likely_causes": [
+        "oven temp sensor (RTD)",
+        "sensor wiring shorted",
+        "control (EOC)"
+      ],
+      "test": "Ohm the RTD (~1080–1100Ω at room temp); inspect wiring for a short."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "range",
+      "code": "F5E0",
+      "meaning": "Door-latch / self-clean latch fault",
+      "likely_causes": [
+        "door latch motor/switch",
+        "latch wiring",
+        "control"
+      ],
+      "test": "Run the latch in diagnostics; check the latch switches."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "range",
+      "code": "F6E0",
+      "meaning": "Communication error (UI ↔ control)",
+      "likely_causes": [
+        "UI↔control harness",
+        "user interface",
+        "control (EOC)"
+      ],
+      "test": "Reseat the ribbon/harness; swap the suspect board."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "dishwasher",
+      "code": "F6E1",
+      "meaning": "No water detected entering the dishwasher",
+      "likely_causes": [
+        "water supply/valve",
+        "clogged inlet screen",
+        "float stuck",
+        "turbidity/flow sensor"
+      ],
+      "test": "Confirm supply; check the fill valve and flow meter; free the float."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "dishwasher",
+      "code": "F8E1",
+      "meaning": "Water inlet problem — slow/low fill",
+      "likely_causes": [
+        "fill valve",
+        "low water pressure",
+        "clogged inlet screen"
+      ],
+      "test": "Check inlet valve flow and screen; verify supply pressure."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "dishwasher",
+      "code": "F9E1",
+      "meaning": "Long fill / heater or diverter fault",
+      "likely_causes": [
+        "fill valve",
+        "flow meter",
+        "heater or diverter",
+        "wiring"
+      ],
+      "test": "Check fill/flow, heater continuity, and diverter operation per tech sheet."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "FF",
+      "meaning": "Freezer evaporator fan not running normally (short form of Er FF)",
+      "likely_causes": [
+        "evap fan blade iced/jammed (defrost failure)",
+        "freezer evap fan motor",
+        "wiring to fan",
+        "main board"
+      ],
+      "test": "Pull the freezer evap cover — if iced, diagnose the defrost circuit (heater/sensor/thermostat); else spin/ohm the fan motor."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "rF",
+      "meaning": "Refrigerator (fresh-food) evaporator fan not running normally (Er rF)",
+      "likely_causes": [
+        "FF-section evap fan iced/jammed",
+        "fresh-food evap fan motor",
+        "wiring",
+        "main board"
+      ],
+      "test": "Check the fresh-food evap fan for ice/obstruction; ohm the motor."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "CF",
+      "meaning": "Condenser fan not running normally (Er CF)",
+      "likely_causes": [
+        "condenser fan motor",
+        "debris/obstruction at condenser fan",
+        "wiring",
+        "main board"
+      ],
+      "test": "Clear the condenser area; spin and ohm the condenser fan motor."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "IF",
+      "meaning": "Ice-maker fan fault (Er IF)",
+      "likely_causes": [
+        "ice-room fan motor iced/jammed",
+        "fan wiring",
+        "main board"
+      ],
+      "test": "Check the ice-room fan for frost/obstruction; ohm the motor."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "dH",
+      "meaning": "Defrost fault — defrost not completing (Er dH)",
+      "likely_causes": [
+        "defrost heater open",
+        "defrost sensor/thermistor",
+        "defrost bi-metal thermostat",
+        "main board"
+      ],
+      "test": "Ohm the defrost heater and defrost thermistor; check the bi-metal for continuity cold."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "gF",
+      "meaning": "Water-flow sensor fault to the ice maker (Er gF)",
+      "likely_causes": [
+        "flow sensor",
+        "water line kinked / low pressure",
+        "inlet valve"
+      ],
+      "test": "Confirm water supply/pressure; check the flow sensor and inlet valve."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "FS",
+      "meaning": "Freezer temperature sensor fault (short form of Er FS)",
+      "likely_causes": [
+        "freezer thermistor",
+        "sensor wiring",
+        "main board"
+      ],
+      "test": "Ohm the freezer thermistor vs spec; reseat the connector."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "rS",
+      "meaning": "Refrigerator (fresh-food) temperature sensor fault (Er rS)",
+      "likely_causes": [
+        "fresh-food thermistor",
+        "sensor wiring",
+        "main board"
+      ],
+      "test": "Ohm the fresh-food thermistor vs spec; reseat the connector."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "ER 1F",
+      "meaning": "Ice-room fan fault",
+      "likely_causes": [
+        "ice-room fan motor iced/jammed",
+        "wiring",
+        "main board"
+      ],
+      "test": "Inspect the ice-room fan for frost; ohm the motor."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "ER IS",
+      "meaning": "Ice-maker sensor fault",
+      "likely_causes": [
+        "ice-maker thermistor",
+        "wiring",
+        "ice-maker assembly"
+      ],
+      "test": "Ohm the ice-maker sensor; check the ice-maker harness."
+    },
+    {
+      "family": "lg",
+      "appliance": "refrigerator",
+      "code": "ER GF",
+      "meaning": "Water-flow sensor (ice maker) fault",
+      "likely_causes": [
+        "flow sensor",
+        "low water pressure / kinked line",
+        "inlet valve"
+      ],
+      "test": "Verify supply and flow sensor operation."
+    },
+    {
+      "family": "lg",
+      "appliance": "washer",
+      "code": "PF",
+      "meaning": "Power failure occurred during the cycle",
+      "likely_causes": [
+        "momentary power loss",
+        "loose main power connection",
+        "control"
+      ],
+      "test": "Press start to resume; check for loose power/inlet connections."
+    },
+    {
+      "family": "lg",
+      "appliance": "washer",
+      "code": "SUD",
+      "meaning": "Excessive suds detected",
+      "likely_causes": [
+        "too much / non-HE detergent",
+        "drain restriction"
+      ],
+      "test": "Use HE detergent only; verify the drain and pump filter."
+    },
+    {
+      "family": "lg",
+      "appliance": "washer",
+      "code": "dE1",
+      "meaning": "Door will not lock (door open error)",
+      "likely_causes": [
+        "door lock assembly",
+        "door not fully latched",
+        "wiring to lock"
+      ],
+      "test": "Confirm the door shuts fully; ohm the door lock; reseat the connector."
+    },
+    {
+      "family": "lg",
+      "appliance": "washer",
+      "code": "dE2",
+      "meaning": "Door-lock circuit fault",
+      "likely_causes": [
+        "door lock assembly",
+        "lock wiring",
+        "main PCB"
+      ],
+      "test": "Check the lock switch circuit per service manual."
+    },
+    {
+      "family": "lg",
+      "appliance": "washer",
+      "code": "CD",
+      "meaning": "Cool-down indicator (not a fault) — end-of-cycle tumble",
+      "likely_causes": [
+        "normal end-of-cycle cool down"
+      ],
+      "test": "Informational; no repair unless it never clears."
+    },
+    {
+      "family": "lg",
+      "appliance": "dryer",
+      "code": "tE1",
+      "meaning": "Outlet (exhaust) thermistor out of range",
+      "likely_causes": [
+        "exhaust thermistor",
+        "restricted vent skewing temp",
+        "wiring"
+      ],
+      "test": "Ohm the exhaust thermistor; clean the vent run."
+    },
+    {
+      "family": "lg",
+      "appliance": "dryer",
+      "code": "tE2",
+      "meaning": "Inlet/heater thermistor out of range",
+      "likely_causes": [
+        "inlet thermistor",
+        "heater assembly",
+        "wiring"
+      ],
+      "test": "Ohm the inlet thermistor; check the heater circuit."
+    },
+    {
+      "family": "lg",
+      "appliance": "dishwasher",
+      "code": "HE",
+      "meaning": "Heater / heating fault",
+      "likely_causes": [
+        "heating element",
+        "heater relay",
+        "wiring"
+      ],
+      "test": "Ohm the heater; check the relay on the main PCB."
+    },
+    {
+      "family": "lg",
+      "appliance": "dishwasher",
+      "code": "CE",
+      "meaning": "Communication error (PCB ↔ display)",
+      "likely_causes": [
+        "display↔main harness",
+        "display board",
+        "main PCB"
+      ],
+      "test": "Reseat the communication harness; swap the suspect board."
+    },
+    {
+      "family": "lg",
+      "appliance": "dishwasher",
+      "code": "E1",
+      "meaning": "Water leak detected (float/leak sensor)",
+      "likely_causes": [
+        "leak in tub/hoses",
+        "float/leak sensor tripped",
+        "overfill"
+      ],
+      "test": "Find and dry the leak; the sensor won't reset until dry."
+    },
+    {
+      "family": "lg",
+      "appliance": "range",
+      "code": "CL",
+      "meaning": "Control lock is ON (not a fault)",
+      "likely_causes": [
+        "control-lock feature enabled"
+      ],
+      "test": "Hold the lock button ~3s to disable; informational only."
+    },
+    {
+      "family": "samsung",
+      "appliance": "washer",
+      "code": "nF",
+      "meaning": "Water not filling — no/low fill detected",
+      "likely_causes": [
+        "water faucets off / kinked hoses",
+        "clogged inlet-valve mesh screens",
+        "inlet valve failed",
+        "low water pressure"
+      ],
+      "test": "Open both faucets; clean the inlet screens; ohm the valve coils."
+    },
+    {
+      "family": "samsung",
+      "appliance": "washer",
+      "code": "1C",
+      "meaning": "Water-level (pressure) sensor fault",
+      "likely_causes": [
+        "pressure sensor",
+        "clogged/kinked pressure hose",
+        "wiring"
+      ],
+      "test": "Clear the pressure hose; check the sensor connector."
+    },
+    {
+      "family": "samsung",
+      "appliance": "washer",
+      "code": "AC",
+      "meaning": "Communication error (main ↔ sub PCB)",
+      "likely_causes": [
+        "inter-board harness",
+        "sub PCB",
+        "main PCB"
+      ],
+      "test": "Reseat the communication harness; swap the suspect board."
+    },
+    {
+      "family": "samsung",
+      "appliance": "washer",
+      "code": "8C",
+      "meaning": "Vibration/acceleration (MEMS) sensor fault",
+      "likely_causes": [
+        "MEMS vibration sensor",
+        "sensor wiring",
+        "unbalanced install"
+      ],
+      "test": "Confirm the unit is level; check the MEMS sensor per manual."
+    },
+    {
+      "family": "samsung",
+      "appliance": "dryer",
+      "code": "dE",
+      "meaning": "Door not sensed closed",
+      "likely_causes": [
+        "door switch",
+        "door alignment",
+        "wiring"
+      ],
+      "test": "Ohm the door switch; confirm the door latches."
+    },
+    {
+      "family": "samsung",
+      "appliance": "dryer",
+      "code": "FT",
+      "meaning": "Thermistor (temperature sensor) out of range",
+      "likely_causes": [
+        "dryer thermistor",
+        "restricted vent",
+        "wiring"
+      ],
+      "test": "Ohm the thermistor; clean the vent run."
+    },
+    {
+      "family": "samsung",
+      "appliance": "dishwasher",
+      "code": "9E",
+      "meaning": "Low water level in the sump",
+      "likely_causes": [
+        "insufficient fill",
+        "leak/drain issue",
+        "float/level sensor"
+      ],
+      "test": "Check fill valve and for leaks; verify the level sensor."
+    },
+    {
+      "family": "samsung",
+      "appliance": "dishwasher",
+      "code": "bE",
+      "meaning": "Stuck button / touchpad key",
+      "likely_causes": [
+        "button board",
+        "stuck key"
+      ],
+      "test": "Free/replace the button board; confirm no key held."
+    },
+    {
+      "family": "samsung",
+      "appliance": "dishwasher",
+      "code": "tE",
+      "meaning": "Temperature (thermistor) sensor fault",
+      "likely_causes": [
+        "dishwasher thermistor",
+        "wiring"
+      ],
+      "test": "Ohm the thermistor; reseat the connector."
+    },
+    {
+      "family": "ge",
+      "appliance": "range",
+      "code": "F1",
+      "meaning": "Control (EOC) failure or stuck key",
+      "likely_causes": [
+        "electronic oven control (EOC)",
+        "stuck touchpad key",
+        "ribbon connector"
+      ],
+      "test": "Reseat the touchpad ribbon; if it returns, replace the EOC/control."
+    },
+    {
+      "family": "ge",
+      "appliance": "range",
+      "code": "F9",
+      "meaning": "Door-lock / self-clean latch fault",
+      "likely_causes": [
+        "door latch motor/switch",
+        "latch wiring",
+        "control"
+      ],
+      "test": "Run the latch; check the latch switches and wiring."
+    },
+    {
+      "family": "ge",
+      "appliance": "range",
+      "code": "F5",
+      "meaning": "Control board / self-clean sensing fault",
+      "likely_causes": [
+        "electronic oven control",
+        "door latch feedback",
+        "wiring"
+      ],
+      "test": "Verify the latch feedback; swap the control per service data."
+    },
+    {
+      "family": "ge",
+      "appliance": "dishwasher",
+      "code": "C5",
+      "meaning": "Water inlet / fill fault",
+      "likely_causes": [
+        "fill valve",
+        "low supply pressure",
+        "flow meter"
+      ],
+      "test": "Check the fill valve and flow meter; verify supply."
+    },
+    {
+      "family": "ge",
+      "appliance": "dishwasher",
+      "code": "LEAK",
+      "meaning": "Leak detected — leak/float sensor tripped",
+      "likely_causes": [
+        "leak in tub/hose/pump seal",
+        "float tripped",
+        "overfill"
+      ],
+      "test": "Find and dry the leak; sensor resets when dry."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "washer",
+      "code": "E23",
+      "meaning": "Drain-pump relay / drain circuit fault",
+      "likely_causes": [
+        "drain pump",
+        "pump relay on control",
+        "wiring"
+      ],
+      "test": "Ohm the drain pump; check the pump relay/circuit."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "washer",
+      "code": "E41",
+      "meaning": "Door will not lock (control senses door open)",
+      "likely_causes": [
+        "door lock/latch",
+        "door not fully shut",
+        "wiring"
+      ],
+      "test": "Confirm the door shuts; ohm the door lock."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "washer",
+      "code": "E42",
+      "meaning": "Door will not unlock",
+      "likely_causes": [
+        "door lock assembly",
+        "lock jammed",
+        "wiring"
+      ],
+      "test": "Cycle the lock; inspect for a bound latch."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "washer",
+      "code": "E44",
+      "meaning": "Motor control board fault",
+      "likely_causes": [
+        "motor control board",
+        "wiring",
+        "drive motor"
+      ],
+      "test": "Inspect the motor control board; ohm the motor."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "washer",
+      "code": "E47",
+      "meaning": "Motor-control door-lock feedback fault",
+      "likely_causes": [
+        "door lock",
+        "motor control board",
+        "wiring"
+      ],
+      "test": "Check the lock feedback to the motor control board."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "washer",
+      "code": "E58",
+      "meaning": "Motor high-current draw",
+      "likely_causes": [
+        "drive motor drag/bearing",
+        "motor control board",
+        "wiring"
+      ],
+      "test": "Spin the basket for drag; check bearings; test the motor/control."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "dryer",
+      "code": "E5B",
+      "meaning": "Thermistor open (temperature sensor)",
+      "likely_causes": [
+        "dryer thermistor open",
+        "wiring/connector"
+      ],
+      "test": "Ohm the thermistor; reseat the connector."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "dryer",
+      "code": "E61",
+      "meaning": "Heater relay / heating circuit fault",
+      "likely_causes": [
+        "heater relay on control",
+        "heater element",
+        "wiring"
+      ],
+      "test": "Check the heater relay and element continuity."
+    },
+    {
+      "family": "bosch",
+      "appliance": "dishwasher",
+      "code": "E01",
+      "meaning": "Control / relay fault on the main board",
+      "likely_causes": [
+        "main control board",
+        "relay",
+        "wiring"
+      ],
+      "test": "Power-reset; if it returns, service the control board."
+    },
+    {
+      "family": "bosch",
+      "appliance": "dishwasher",
+      "code": "E02",
+      "meaning": "Motor or heater relay fault",
+      "likely_causes": [
+        "circulation motor",
+        "heater relay",
+        "control board"
+      ],
+      "test": "Check the motor and heater relay per service data."
+    },
+    {
+      "family": "bosch",
+      "appliance": "dishwasher",
+      "code": "E14",
+      "meaning": "Flow sensor / flow-meter fault",
+      "likely_causes": [
+        "flow meter",
+        "water supply",
+        "wiring"
+      ],
+      "test": "Verify supply and the flow meter signal."
+    },
+    {
+      "family": "bosch",
+      "appliance": "dishwasher",
+      "code": "E23",
+      "meaning": "Drain-pump fault",
+      "likely_causes": [
+        "drain pump",
+        "clogged filter",
+        "wiring"
+      ],
+      "test": "Clean the filter; ohm the drain pump."
+    },
+    {
+      "family": "bosch",
+      "appliance": "washer",
+      "code": "F16",
+      "meaning": "Door not closed / door-lock open",
+      "likely_causes": [
+        "door not latched",
+        "door lock assembly",
+        "wiring"
+      ],
+      "test": "Confirm the door shuts; check the door lock."
+    },
+    {
+      "family": "bosch",
+      "appliance": "washer",
+      "code": "F17",
+      "meaning": "Water intake time exceeded (slow/no fill)",
+      "likely_causes": [
+        "faucet off / kinked hose",
+        "clogged inlet screen",
+        "inlet valve",
+        "low pressure"
+      ],
+      "test": "Open the faucet; clean the inlet screen; check the valve."
+    },
+    {
+      "family": "bosch",
+      "appliance": "washer",
+      "code": "F21",
+      "meaning": "Drive-motor fault",
+      "likely_causes": [
+        "drive motor",
+        "motor control",
+        "wiring"
+      ],
+      "test": "Check the motor and control board per service data."
     }
   ]
 }
