@@ -69,6 +69,7 @@ exports.handler = async function () {
     const isPaid = !!p || String(j.payment_status || '').toLowerCase() === 'paid';
     let lane;
     if (done) lane = isPaid ? 'paid' : 'collect';
+    else if (ss === 'awaiting_parts' || cs === 'awaiting_parts' || ss === 'held' || cs === 'held') lane = 'parts';  // waiting on parts ≠ needs scheduling
     else if (ss === 'in_progress' || cs === 'in_progress') lane = 'working';
     else if (hasDate) lane = 'scheduled';
     else lane = isPaid ? 'new_paid' : 'new';
