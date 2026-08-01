@@ -108,12 +108,16 @@ async function handleInbound(phone, body) {
       const msg = P.pos(first, tech, appl, city, REVIEW_URL) + nd;
       await sendCustomer(phone, msg, 'satisfaction_review_link');
       await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'done', job_id: st.job_id, first, lang: st.lang || 'en', outcome: nd ? 'positive_review_link_g+nd' : 'positive_review_link', at_ms: Date.now() });
+      // Fixed-action funnel row so the review-velocity scorecard can count 👍 by
+      // exact-match (the satisfaction_state_<phone> rows are per-phone-unique = uncountable).
+      try { await crud.logEvent('review_thumb', { outcome: 'up', job_id: st.job_id, lang: st.lang || 'en', at_ms: Date.now() }); } catch (_) {}
       return { matched: true, stage: 'positive' };
     }
     if (c === 'neg') {
       await sendCustomer(phone, P.neg(first), 'satisfaction_ask_feedback');
       await sendOwner(`👎 ${first}${st.job_id ? (' · job #' + st.job_id) : ''} (${d10(phone)}) was NOT happy — asked them what we could've done better. Their reply will come to you. Consider a personal call.`, 'satisfaction_negative');
       await crud.logEvent('satisfaction_state_' + st.ph, { stage: 'awaiting_feedback', job_id: st.job_id, first, at_ms: Date.now() });
+      try { await crud.logEvent('review_thumb', { outcome: 'down', job_id: st.job_id, at_ms: Date.now() }); } catch (_) {}
       return { matched: true, stage: 'negative' };
     }
     // unclear — let the normal flow answer; the gate stays armed for a clear reply.
