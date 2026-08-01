@@ -73,11 +73,28 @@ exports.handler = async function () {
     };
   });
 
+  // Stripe payments that couldn't be auto-linked (guest Link, no phone/job_id) — the
+  // office assigns these to a job with one tap. Logged by stripe-reconcile; drop any
+  // already matched/reconciled. This is how a paid buyer like Carol gets credited.
+  let unmatchedPayments = [];
+  try {
+    const [um, mt, rec] = await Promise.all([
+      crud.searchPage(crud.TABLES.event_log, { action: 'stripe_payment_unmatched' }, { id: 'desc' }, 200),
+      crud.searchPage(crud.TABLES.event_log, { action: 'stripe_payment_matched' }, { id: 'desc' }, 200),
+      crud.searchPage(crud.TABLES.event_log, { action: 'stripe_payment_reconciled' }, { id: 'desc' }, 400),
+    ]);
+    const done = new Set();
+    for (const r of (mt || [])) { const m = meta(r); if (m.charge_id) done.add(String(m.charge_id)); }
+    for (const r of (rec || [])) { const m = meta(r); if (m.charge_id) done.add(String(m.charge_id)); }
+    const seen = new Set();
+    for (const r of (um || [])) { const m = meta(r); const cid = String(m.charge_id || ''); if (!cid || done.has(cid) || seen.has(cid)) continue; seen.add(cid); unmatchedPayments.push({ charge_id: cid, amount: Number(m.amount || 0), name: m.name || '', email: m.email || '', phone: m.phone || '', created: Number(m.created || m.at_ms || 0) }); }
+  } catch (_) {}
+
   // Most-urgent first: paid-and-waiting, then new, then scheduled/working/collect/paid.
   const order = { new_paid: 0, new: 1, scheduled: 2, working: 3, collect: 4, paid: 5 };
   out.sort((a, b) => (order[a.lane] - order[b.lane]) || (b.paid_amount - a.paid_amount) || (a.created_at - b.created_at));
   const counts = {}; out.forEach((j) => { counts[j.lane] = (counts[j.lane] || 0) + 1; });
   // "needs attention" = paying customers not yet scheduled + any unpaid new lead.
-  const attention = (counts.new_paid || 0) + (counts.new || 0) + (counts.collect || 0);
-  return json(200, { ok: true, total: out.length, counts, attention, jobs: out });
+  const attention = (counts.new_paid || 0) + (counts.new || 0) + (counts.collect || 0) + unmatchedPayments.length;
+  return json(200, { ok: true, total: out.length, counts, attention, unmatched_payments: unmatchedPayments, jobs: out });
 };
