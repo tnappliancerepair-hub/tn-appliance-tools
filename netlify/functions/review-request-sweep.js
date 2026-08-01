@@ -93,6 +93,8 @@ exports.handler = async function (event) {
     if (ok) {
       try { await satisfaction.arm(phone, { job_id: jid, cust_id: custId, first, tech: techName, appliance: applType, city: cityName, lang: custLang }); } catch (_) {}
       try { await crud.logEvent('google_review_asked_customer_' + custId, { job_id: jid, via: 'sweep', at_ms: Date.now() }); } catch (_) {}
+      // Fixed-action funnel row (exact-match countable) for the review-velocity scorecard.
+      try { await crud.logEvent('review_ask_sent', { cust_id: custId, job_id: jid, via: 'sweep', lang: custLang, at_ms: Date.now() }); } catch (_) {}
       sent.push({ job_id: jid, customer: custId, first });
     } else skipped.push({ job_id: jid, why: 'send failed (gate?)' });
   }

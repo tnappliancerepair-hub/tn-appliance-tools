@@ -697,6 +697,16 @@
 [functions."review-request-sweep"]
   schedule = "30 23 * * *"
 
+# review-velocity-scorecard-cron — instruments the review FLYWHEEL, the hinge of the
+# whole map-pack + organic strategy. Weekly (Mon ~7:20am CT) it invokes the HTTP-
+# callable review-velocity-scorecard core with text=1: measures the funnel
+# (completions → asks → 👍/👎 → posted reviews), diffs the authoritative Google
+# review count for true velocity, names WHERE it's leaking, and texts Teddy. Pull
+# anytime on demand: review-velocity-scorecard?secret=<admin>[&days=7]. Split because
+# a schedule-registered fn is 403 on direct HTTP (same as knowledge/phone scorecards).
+[functions."review-velocity-scorecard-cron"]
+  schedule = "20 12 * * 1"
+
 # Content post watcher — texts the owner a one-tap approve link when a finished, punched-up
 # clip is ready to post everywhere. 9am + 2pm CT. Kill: vault CONTENT_POST_WATCH=false.
 [functions."content-post-watch"]
