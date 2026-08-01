@@ -75,3 +75,14 @@
     else if (/\/(appliance-ai|book-repair)\b/.test(href) || (a.id === 'ant-launcher')) fire('intake_click', { target: href || 'launcher' });
   }, true);
 })();
+
+// Load the swappable Amazon-equivalent link layer. It self-gates (enabled flag +
+// page-type denylist), so this is a no-op on app pages and stays invisible until
+// the Associates tag is set and enabled:true is flipped in ant-amazon.js.
+(function () {
+  try {
+    var s = document.createElement('script');
+    s.src = '/ant-amazon.js'; s.defer = true;
+    (document.head || document.documentElement).appendChild(s);
+  } catch (e) {}
+})();
