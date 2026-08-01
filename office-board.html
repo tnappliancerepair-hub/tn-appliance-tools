@@ -1339,13 +1339,15 @@ function cardHtml(j){
   // 💵 quick paid/unpaid chip from the data we already have (no extra call) — full
   // detail + actions live in the drawer. Warranty with nothing owed shows no chip.
   const _ctl=String(j.customer_type||'').toLowerCase();
-  // Cash / out-of-pocket = self-pay. The kanban feed STRIPS customer_type, so also
-  // derive it from the signals the feed DOES carry: a job with NO warranty company
-  // AND no claim# AND no dispatch id has no warranty entity behind it = cash.
-  // (Teddy 2026-08-01 — Carol's cash job was showing as "Warranty" because
-  // customer_type was absent from the feed.)
-  const _selfPay=(_ctl==='self_pay'||_ctl==='cash'||_ctl==='customer_pay')
-    || (!(j.warranty_company||'').trim() && !(j.claim_number||'').trim() && !(j.dispatch_source_id||'').trim());
+  // Cash / out-of-pocket detection. WARRANTY WINS so early warranty jobs with a blank
+  // warranty_company never get mislabeled cash (Teddy 2026-08-01): a warranty entity OR
+  // a warranty intake source disqualifies. Otherwise a positive cash signal (self_pay
+  // type or a cash intake source) marks it cash. The feed strips customer_type but
+  // carries intake_source, which is the reliable discriminator.
+  const _src=String(j.intake_source||'').toLowerCase();
+  const _warrSig=!!((j.warranty_company||'').trim()||(j.claim_number||'').trim()||(j.dispatch_source_id||'').trim()||/ahs|service.?power|servicepower|allstate|\bnsa\b|square.?trade|frontdoor|dispatch|email_/i.test(_src));
+  const _cashSig=(_ctl==='self_pay'||_ctl==='cash'||_ctl==='customer_pay')||/web.?chat|appliance.?ai|quick.?check|self.?pay|in.?home|customer.?pay|\bcash\b/i.test(_src);
+  const _selfPay=_cashSig && !_warrSig;
   const _paid=(String(j.payment_status||'').toLowerCase()==='paid')||j.payment_collected===true;
   if(_paid) tags.push('<span class="tag" style="background:#e7f6ec;color:#0a7d33;border:1px solid #b7e3c6">💵 Paid</span>');
   else if(_selfPay) tags.push('<span class="tag" style="background:#fdecea;color:#c0392b;border:1px solid #f3c0b7">🔴 Unpaid</span>');
