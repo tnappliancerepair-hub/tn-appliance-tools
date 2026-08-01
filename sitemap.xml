@@ -7693,6 +7693,10 @@
     <priority>0.75</priority>
   </url>
     <url><loc>https://tnapplianceexchange.net/zh/</loc><lastmod>2026-08-01</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+    <url><loc>https://tnapplianceexchange.net/ta/</loc><lastmod>2026-08-01</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+    <url><loc>https://tnapplianceexchange.net/te/</loc><lastmod>2026-08-01</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+    <url><loc>https://tnapplianceexchange.net/ml/</loc><lastmod>2026-08-01</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+    <url><loc>https://tnapplianceexchange.net/kn/</loc><lastmod>2026-08-01</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
   <url>
     <loc>https://tnapplianceexchange.net/zh/kuai-su-jian-cha.html</loc>
     <changefreq>weekly</changefreq>
