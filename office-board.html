@@ -1056,8 +1056,13 @@ function placeOf(j){
   // (danielle_schedule sets the date+tech but the status flip can trail). Her manual
   // office_stage move still wins (checked above), so this is only the default.
   if(!_started && (ss==='scheduled'||_reallyScheduled)) return 'scheduled';
-  if(hasTech) return 'rep-'+t;                                 // started/active with a tech -> tech Report
-  return 'schedule';                                           // accepted/untimed/callback
+  // Only a job the tech has actually STARTED belongs in his Report folder. An
+  // UNSCHEDULED job (no real day, not started) belongs in Needs Scheduled — even if
+  // a fallback tech (often the owner, Teddy=1) was pre-assigned at intake. Otherwise
+  // a cash Quick Check auto-assigned to Teddy hides in his Report folder instead of
+  // the scheduling queue where it needs to be. (Teddy 2026-08-01 — Carol #20961)
+  if(_started && hasTech) return 'rep-'+t;                     // actually working it -> tech Report
+  return 'schedule';                                           // unscheduled (even with a fallback tech) -> Needs Scheduled
 }
 
 // Per-tech "solo" filter (Teddy 7/3): office picks a tech chip → the board shows
@@ -1317,7 +1322,13 @@ function cardHtml(j){
   // 💵 quick paid/unpaid chip from the data we already have (no extra call) — full
   // detail + actions live in the drawer. Warranty with nothing owed shows no chip.
   const _ctl=String(j.customer_type||'').toLowerCase();
-  const _selfPay=(_ctl==='self_pay'||_ctl==='cash'||_ctl==='customer_pay');
+  // Cash / out-of-pocket = self-pay. The kanban feed STRIPS customer_type, so also
+  // derive it from the signals the feed DOES carry: a job with NO warranty company
+  // AND no claim# AND no dispatch id has no warranty entity behind it = cash.
+  // (Teddy 2026-08-01 — Carol's cash job was showing as "Warranty" because
+  // customer_type was absent from the feed.)
+  const _selfPay=(_ctl==='self_pay'||_ctl==='cash'||_ctl==='customer_pay')
+    || (!(j.warranty_company||'').trim() && !(j.claim_number||'').trim() && !(j.dispatch_source_id||'').trim());
   const _paid=(String(j.payment_status||'').toLowerCase()==='paid')||j.payment_collected===true;
   if(_paid) tags.push('<span class="tag" style="background:#e7f6ec;color:#0a7d33;border:1px solid #b7e3c6">💵 Paid</span>');
   else if(_selfPay) tags.push('<span class="tag" style="background:#fdecea;color:#c0392b;border:1px solid #f3c0b7">🔴 Unpaid</span>');
@@ -1365,12 +1376,19 @@ function cardHtml(j){
     _machineChips='<div class="jc-machines" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px" title="Each machine has its own TDR">'+chips+'</div>';
   }
   const _replace=(_vss==='no_fix_possible'||_vss==='no_fix'||_vcs==='no_fix_possible');
-  return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}${_pin?' partin':''}" draggable="true" data-id="${j.id}"${_pin?` style="box-shadow:0 0 0 2px ${partsInColor(_pin)}66;border-color:${partsInColor(_pin)}"`:''}>
+  // 💵 CASH job = out-of-pocket / self-pay. Make it UNMISTAKABLE so it never blends
+  // into the warranty pile in Needs Scheduled (Teddy 2026-08-01): solid green CASH
+  // badge in the header + a green left-edge on the whole tile.
+  const _cashEdge = (_selfPay && !_pin) ? ` style="border-left:4px solid #0a7d33"` : '';
+  const _coBadge = _selfPay
+    ? '<span class="tag" style="background:#0a7d33;color:#fff;font-weight:800;border:1px solid #0a7d33">💵 CASH</span>'
+    : ('<span class="tag warr">'+esc(_coLabel)+'</span>');
+  return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}${_pin?' partin':''}${_selfPay?' cashjob':''}" draggable="true" data-id="${j.id}"${_pin?` style="box-shadow:0 0 0 2px ${partsInColor(_pin)}66;border-color:${partsInColor(_pin)}"`:_cashEdge}>
     ${_pin?partsInRibbon(_pin):''}
     ${_af?addrFlagRibbon(_af,j.id):''}
     <div class="jc-status-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">${_statusPill}${_wait}</div>
     <div class="jc-name">${esc(name)}</div>
-    <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}<span class="tag warr">${esc(_coLabel)}</span>${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
+    <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}${_coBadge}${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
     <div class="jc-meta" style="margin-top:5px">${esc(appl||'appliance')}</div>
     ${_machineChips}
     ${_availCard}
