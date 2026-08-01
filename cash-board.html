@@ -118,6 +118,7 @@ const LANES=[
   {id:'new',      h:'🆕 New — needs scheduling', cls:'urgent'},
   {id:'collect',  h:'💰 Done — collect payment', cls:'urgent'},
   {id:'scheduled',h:'📅 Scheduled', cls:''},
+  {id:'parts',    h:'⏳ Waiting on parts', cls:''},
   {id:'working',  h:'🔧 Tech working it', cls:''},
   {id:'paid',     h:'✅ Paid & done', cls:'paidcard'},
 ];
@@ -154,7 +155,7 @@ async function load(){
   let html='';
   for(const L of LANES){
     const list=byLane[L.id]||[];
-    if(!list.length && (L.id==='working'||L.id==='paid')) continue; // hide quiet lanes when empty
+    if(!list.length && (L.id==='working'||L.id==='paid'||L.id==='parts')) continue; // hide quiet lanes when empty
     html+='<div class="lane"><div class="lane-h">'+L.h+'<span class="ct">'+list.length+'</span></div>'
       +(list.length?list.map(j=>tile(j,L.cls)).join(''):'<div class="empty">None right now.</div>')+'</div>';
   }
