@@ -412,7 +412,8 @@ async function callOut(tel, disp, ev){
     <a href="schedule-sanity.html">🗓️ Schedule Check</a>
     <a href="office-ready.html">📞 Phone-Ready</a>
     <a href="office-reach.html">📲 Reach Me</a>
-    <a href="cash-pipeline.html">💵 Cash Pipeline</a>
+    <a href="cash-board.html" style="font-weight:800;color:#0a7d33">💵 Cash Customers</a>
+    <a href="cash-pipeline.html">📈 Cash Pipeline</a>
   </nav>
 </div>
 
@@ -423,6 +424,7 @@ async function callOut(tel, disp, ev){
 
 <div id="msg-banner" style="padding:0 12px"></div>
 <div id="audit-banner" style="padding:0 12px"></div>
+<div id="cash-banner" style="padding:0 12px"></div>
 <div id="stranded-banner" style="padding:0 12px"></div>
 <div id="addons-banner"></div>
 
@@ -765,6 +767,7 @@ async function loadBoard(){
     loadMessages();
     loadStranded();
     loadAudit();
+    loadCashBanner();
     loadPartsIn();
     loadAddrFlags();
   }catch(e){
@@ -858,6 +861,20 @@ function closeStrandedThenOpen(id){ openDrawer(String(id)); }
 // everything (and stop keeping MeisterTask as a shadow copy). This is the check-and-balance.
 let __auditOpen=false;         // default collapsed — the headline count is the alarm
 let __auditLastMs=0, __auditCache=null;
+// 💵 Cash-customer banner — paying customers get lost in the warranty sea, so surface
+// them LOUDLY at the top of the board with a one-tap jump to the Cash Customers command
+// center. Shows only when real buyers need attention (paid-but-unscheduled / new / collect).
+async function loadCashBanner(){
+  const host=document.getElementById('cash-banner'); if(!host) return;
+  let d; try{ d=await fetch('/.netlify/functions/cash-jobs',{cache:'no-store'}).then(r=>r.json()); }catch(_){ return; }
+  if(!d||!d.ok){ host.innerHTML=''; return; }
+  const c=d.counts||{}; const paidWait=(c.new_paid||0); const attention=Number(d.attention||0);
+  if(!attention){ host.innerHTML=''; return; }
+  const bits=[]; if(paidWait)bits.push('💵 '+paidWait+' PAID & waiting to schedule'); if(c.new)bits.push((c.new)+' new'); if(c.collect)bits.push((c.collect)+' to collect');
+  host.innerHTML='<div onclick="location.href=\'cash-board.html\'" style="cursor:pointer;margin:6px 0;padding:11px 14px;border-radius:12px;background:'+(paidWait?'#0a7d33':'#127a4a')+';color:#fff;font-weight:800;display:flex;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 2px 8px rgba(10,125,51,.25)">'
+    +'<span>💵 '+attention+' cash customer'+(attention===1?'':'s')+' need attention — '+bits.join(' · ')+'</span>'
+    +'<span style="background:rgba(255,255,255,.22);border-radius:8px;padding:5px 10px;font-size:13px;white-space:nowrap">Open →</span></div>';
+}
 async function loadAudit(force){
   const el=document.getElementById('audit-banner'); if(!el)return;
   // Throttle: the audit does several full-table scans, so run it at most every ~3 min
