@@ -1,6 +1,8 @@
-// tech-review-request — the tech-initiated review ask. After a job is completed,
-// the tech taps one button and we text the customer a warm, in-their-language
-// "so glad we fixed your <appliance> — here's the Google link" message.
+// tech-review-request — the tech-initiated review ask. After a job is completed and
+// the customer seemed happy, the tech taps one button and we text the customer a warm,
+// in-their-language "How'd we do? 👍/👎" message. The reply routes itself: 👍 -> the
+// Google review link follows IMMEDIATELY; 👎 -> private "what could we do better?" +
+// Teddy alert. The gate keeps an unhappy customer off the public rating.
 //
 // WHY THIS IS ALLOWED WHEN PROACTIVE CUSTOMER TEXTS ARE OFF: this is NOT automation.
 // It's a human tech choosing to text his own just-completed customer — the same open
@@ -16,6 +18,7 @@
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
 const reviewI18n = require('./_lib/review-i18n');
+const satisfaction = require('./_lib/satisfaction');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
@@ -68,11 +71,14 @@ exports.handler = async function (event) {
   if (!liveDone && !force) return json(200, { ok: false, sent: false, reason: 'not_completed', hint: 'This job isn\'t marked complete yet — finish it first, then send the review ask.' });
   if (!force && await askedRecently(custId)) return json(200, { ok: false, sent: false, reason: 'already_asked', hint: 'This customer was already asked for a review in the last 60 days.' });
 
-  // Warm, in-their-language review message (goes straight to the Google link — the
-  // tech already knows the customer's happy; no 👍/👎 gate needed in person).
+  // Send the satisfaction ask ("How'd we do? 👍/👎") in the customer's language.
+  // The reply routes itself via _lib/satisfaction (customer-sms-inbound): 👍 -> the
+  // Google review link follows IMMEDIATELY; 👎 -> private "what could we do better?"
+  // + Teddy alert, so an unhappy customer never lands on the public rating. The tech
+  // sends this when the customer seemed happy; the gate is the safety net. (Teddy 2026-08-01)
   const first = String(cust.first_name || 'there').trim().split(/\s+/)[0] || 'there';
   const pack = reviewI18n.pack(custLang);
-  const message = pack.pos(first, techFirst, applType.toLowerCase(), cityName, REVIEW_URL);
+  const message = pack.ask(first, applType.toLowerCase());
 
   // Send on the open HUMAN lane (857-8800) — a tech texting his own job's customer.
   const SITE = process.env.URL || process.env.DEPLOY_PRIME_URL || 'https://tnapplianceexchange.net';
@@ -88,6 +94,9 @@ exports.handler = async function (event) {
   } catch (e) { reason = String((e && e.message) || e); }
 
   if (sent) {
+    // Arm the satisfaction gate so the customer's 👍/👎 reply routes itself:
+    // 👍 -> Google review link immediately, 👎 -> private feedback + Teddy alert.
+    try { await satisfaction.arm('+1' + phone10, { job_id: jobId, cust_id: custId, first, tech: techFirst, appliance: applType, city: cityName, lang: custLang }); } catch (_) {}
     // Fixed-action funnel row (scorecard counts this) + the sweep's dedup row.
     try { await crud.logEvent('review_ask_sent', { cust_id: custId, job_id: jobId, via: 'tech', tech_id: techId, lang: custLang, at_ms: Date.now() }); } catch (_) {}
     try { await crud.logEvent('google_review_asked_customer_' + custId, { job_id: jobId, via: 'tech', tech_id: techId, at_ms: Date.now() }); } catch (_) {}

@@ -739,8 +739,8 @@ function render(){
         <a id="release-btn" href="waiver.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn primary" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:12px;background:#7a4ed9;font-size:15px;padding:12px">✍️ Customer signs release of liability</a>
         <div id="release-status" style="text-align:center;font-size:12px;margin-top:6px;min-height:15px;color:var(--ink2)"></div>
         ${job.job_completed_at ? `<a href="sign.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:10px;background:#127a4a;color:#fff;font-size:15px;padding:12px">✍️ Customer sign-off — repair complete</a>` : ''}
-        ${(job.job_completed_at || job.scheduling_status==='completed') ? `<button id="a-review" class="btn" style="display:block;width:100%;box-sizing:border-box;margin-top:10px;background:#f5a623;color:#2a1a00;font-size:15px;padding:12px;font-weight:800;border:none;border-radius:10px;cursor:pointer">⭐ Send this customer a review request</button>
-        <div id="review-status" style="text-align:center;font-size:12px;margin-top:6px;min-height:15px;color:var(--ink2)">While you're standing here — the best time to ask.</div>` : ''}
+        ${(job.job_completed_at || job.scheduling_status==='completed') ? `<button id="a-review" class="btn" style="display:block;width:100%;box-sizing:border-box;margin-top:10px;background:#f5a623;color:#2a1a00;font-size:15px;padding:12px;font-weight:800;border:none;border-radius:10px;cursor:pointer">⭐ Send "How'd we do?" to the customer</button>
+        <div id="review-status" style="text-align:center;font-size:12px;margin-top:6px;min-height:15px;color:var(--ink2)">Happy customer? Send it — a 👍 back gets them the Google review link automatically.</div>` : ''}
       </div>
 
       <div class="card" id="ant-tdr-live" style="display:none"></div>
@@ -932,14 +932,14 @@ async function _moveStopTech(tid,name){
 async function sendReviewAsk(){
   const st=document.getElementById('review-status'); const btn=document.getElementById('a-review');
   if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
-  if(st) st.textContent='Sending the review link…';
+  if(st) st.textContent='Sending "How\'d we do?"…';
   try{
     const r=await fetch('/.netlify/functions/tech-review-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,tech_id:TECH_ID})});
     const d=await r.json();
     if(d&&d.sent){
-      if(btn){ btn.textContent='⭐ Review request sent ✓'; btn.style.background='#127a4a'; btn.style.color='#fff'; }
-      if(st) st.textContent='Sent to '+(d.to_first||'the customer')+' at '+(d.to_masked||'their number')+'. Ask them to tap it while you\'re there!';
-      toast('Review link sent ✓');
+      if(btn){ btn.textContent='⭐ "How\'d we do?" sent ✓'; btn.style.background='#127a4a'; btn.style.color='#fff'; }
+      if(st) st.textContent='Sent to '+(d.to_first||'the customer')+' at '+(d.to_masked||'their number')+'. A 👍 back sends them the Google link automatically.';
+      toast('How\'d-we-do sent ✓');
     } else {
       const reason=(d&&d.reason)||'send_failed';
       const hint=(d&&d.hint)|| (reason==='already_asked'?'Already asked in the last 60 days.':reason==='no_customer_phone'?'No phone on file for this customer.':reason==='not_completed'?'Finish the job first, then send.':'Could not send — try again.');
