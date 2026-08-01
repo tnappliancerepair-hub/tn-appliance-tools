@@ -19,7 +19,7 @@
 
   // ---- CONFIG (Teddy pastes the Associates tag; flip enabled=true to go live) ----
   var CFG = {
-    enabled: false,              // master switch — stays off until the tag is set
+    enabled: true,               // LIVE 2026-08-01 — Associates account approved, StoreID tnappliance-20
     mode: 'associates',          // 'associates' (phase 1) | 'brb' (phase 2, our listings)
     tag: 'tnappliance-20',       // ← Amazon Associates store id (placeholder until real one)
     // phase 2 only: map component-key -> our Amazon listing (ASIN/URL) + attribution tag
