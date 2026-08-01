@@ -707,6 +707,13 @@
 [functions."review-velocity-scorecard-cron"]
   schedule = "20 12 * * 1"
 
+# stripe-reconcile — links Stripe payments back to cash jobs so paid buyers show PAID
+# and jump to the top of the Cash Customers board. Auto-matches strong cases (job_id,
+# phone); guest Link payments it can't auto-link are surfaced on the cash board for
+# one-tap assignment. Runs a few times a day (CT business hours) to keep it current.
+[functions."stripe-reconcile"]
+  schedule = "0 14,17,20,23 * * *"
+
 # Content post watcher — texts the owner a one-tap approve link when a finished, punched-up
 # clip is ready to post everywhere. 9am + 2pm CT. Kill: vault CONTENT_POST_WATCH=false.
 [functions."content-post-watch"]

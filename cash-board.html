@@ -60,6 +60,7 @@
     <div class="bar"><a class="back" href="office-board.html">← Board</a><button class="rf" onclick="load()">↻ refresh</button></div>
   </div>
   <div class="kpis" id="kpis"></div>
+  <div id="unmatched"></div>
   <div id="lanes"></div>
   <div id="foot" style="color:var(--dim);font-size:11px;text-align:center;margin-top:18px"></div>
 </div>
@@ -80,6 +81,36 @@ async function unlock(){
     if(d&&(d.ok||d.valid||d.success)){try{localStorage.setItem('tn_office_auth','1');localStorage.setItem('ant_office_pw',v);}catch(_){}start();}
     else document.getElementById('gerr').textContent='Wrong password';
   }catch(_){document.getElementById('gerr').textContent='Error — try again';}
+}
+
+let CURJOBS=[];
+function officePw(){let p='';try{p=localStorage.getItem('ant_office_pw')||'';}catch(_){}if(!p){p=(prompt('Office password:')||'').trim();if(p){try{localStorage.setItem('ant_office_pw',p);}catch(_){}}}return p;}
+
+// 💳 Stripe payments that couldn't auto-link (guest Link, no phone) — assign to a job in one tap.
+function renderUnmatched(list){
+  const host=document.getElementById('unmatched'); if(!host)return;
+  if(!list||!list.length){host.innerHTML='';return;}
+  const opts=CURJOBS.map(j=>'<option value="'+j.id+'">'+esc(j.name)+' · '+esc(j.appliance||'')+' (#'+j.id+')</option>').join('');
+  host.innerHTML='<div class="lane"><div class="lane-h" style="color:#8a6410">💳 Payments to match<span class="ct">'+list.length+'</span></div>'
+    +'<div style="font-size:11.5px;color:var(--dim);margin:-4px 0 8px">Real Stripe payments we couldn\'t auto-link to a job. Assign each to the right customer so they show PAID.</div>'
+    +list.map(p=>'<div class="card paidwait" style="cursor:default">'
+      +'<div class="row1"><span class="nm">'+esc(p.name||'(no name)')+'</span><span class="chip c-paid">💵 $'+Number(p.amount||0).toFixed(0)+'</span></div>'
+      +'<div class="chips">'+(p.email?'<span class="chip c-city">✉ '+esc(p.email)+'</span>':'')+(p.phone?'<span class="chip c-city">📞 '+esc(p.phone)+'</span>':'')+(p.created?'<span class="chip c-city">'+esc(fmtDay(p.created))+'</span>':'')+'</div>'
+      +'<div class="acts" style="gap:6px"><select id="up_'+p.charge_id+'" style="flex:1;min-width:0;padding:9px;border-radius:9px;border:1px solid var(--line);font-size:13px"><option value="">— assign to a job —</option>'+opts+'</select>'
+      +'<button class="btn go" style="flex:0 0 auto" onclick="linkPayment(\''+p.charge_id+'\','+Number(p.amount||0)+',this)">Assign</button></div>'
+      +'</div>').join('')+'</div>';
+}
+async function linkPayment(chargeId,amount,btn){
+  const sel=document.getElementById('up_'+chargeId); const jobId=sel&&sel.value; if(!jobId){alert('Pick a job first');return;}
+  const pw=officePw(); if(!pw)return;
+  const name=sel.options[sel.selectedIndex].text;
+  btn.disabled=true; btn.textContent='…';
+  try{
+    const r=await fetch(FN+'/stripe-reconcile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'link',charge_id:chargeId,job_id:parseInt(jobId,10),amount:amount,name:name,office_pw:pw})});
+    const d=await r.json();
+    if(d&&d.ok){btn.textContent='✓ linked';setTimeout(load,600);}
+    else{btn.disabled=false;btn.textContent='Assign';alert('Could not link: '+((d&&d.error)||'error'));}
+  }catch(_){btn.disabled=false;btn.textContent='Assign';alert('Error — try again');}
 }
 
 const LANES=[
@@ -117,6 +148,8 @@ async function load(){
      '<div class="kpi'+(attention?' urgent':'')+'"><div class="n">'+attention+'</div><div class="l">Need attention</div></div>'
     +'<div class="kpi paid"><div class="n">'+paidCount+'</div><div class="l">Paid</div></div>'
     +'<div class="kpi"><div class="n">'+(d.total||0)+'</div><div class="l">Total cash jobs</div></div>';
+  CURJOBS=d.jobs||[];
+  renderUnmatched(d.unmatched_payments||[]);
   const byLane={}; (d.jobs||[]).forEach(j=>{(byLane[j.lane]=byLane[j.lane]||[]).push(j);});
   let html='';
   for(const L of LANES){
