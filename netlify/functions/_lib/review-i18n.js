@@ -1,11 +1,11 @@
 // review-i18n — in-language "How'd we do?" + Google-review messages.
 // The star is the review-link nudge: it asks happy customers to write the review
 // IN THEIR LANGUAGE, so other in-language families find us (the trust flywheel).
-// Languages: en, es, ru, vi, fr, ar, zh, hi.  Falls back to en.
+// Languages: en, es, ru, vi, fr, ar, zh, hi, ta, te, ml, kn.  Falls back to en.
 
 // Parse the "⚑ Customer language: Spanish" flag (written into customer_preference_text
 // at intake) back to a code. Also accepts a raw code.
-const NAME2CODE = { spanish: 'es', vietnamese: 'vi', russian: 'ru', french: 'fr', arabic: 'ar', chinese: 'zh', hindi: 'hi', english: 'en' };
+const NAME2CODE = { spanish: 'es', vietnamese: 'vi', russian: 'ru', french: 'fr', arabic: 'ar', chinese: 'zh', hindi: 'hi', tamil: 'ta', telugu: 'te', malayalam: 'ml', kannada: 'kn', english: 'en' };
 function langFromPref(pref) {
   const m = /⚑\s*Customer language:\s*([A-Za-z]+)/.exec(String(pref || ''));
   if (m) return NAME2CODE[m[1].toLowerCase()] || 'en';
@@ -21,7 +21,8 @@ function normLang(x) {
 function hintOf(lang, tech, city) {
   const bits = [tech, city].filter(Boolean);
   if (!bits.length) return '';
-  const j = bits.join(lang === 'ar' ? ' و' : (lang === 'zh' ? '、' : (lang === 'ru' ? ' и ' : (lang === 'fr' ? ' et ' : (lang === 'es' ? ' y ' : (lang === 'vi' ? ' và ' : (lang === 'hi' ? ' और ' : ' and ')))))));
+  const joiner = { ar: ' و', zh: '、', ru: ' и ', fr: ' et ', es: ' y ', vi: ' và ', hi: ' और ', ta: ' மற்றும் ', te: ' మరియు ', ml: ' ഒപ്പം ', kn: ' ಮತ್ತು ' }[lang] || ' and ';
+  const j = bits.join(joiner);
   return { en: ` — a mention of ${j} helps neighbors find us`,
            es: ` — mencionar a ${j} ayuda a que tus vecinos te encuentren`,
            ru: ` — упоминание ${j} помогает соседям нас найти`,
@@ -29,7 +30,11 @@ function hintOf(lang, tech, city) {
            fr: ` — mentionner ${j} aide vos voisins à nous trouver`,
            ar: ` — ذكر ${j} يساعد جيرانك على إيجادنا`,
            zh: `（提到 ${j} 能帮邻居找到我们）`,
-           hi: ` — ${j} का ज़िक्र पड़ोसियों को हमें ढूंढने में मदद करता है` }[lang] || '';
+           hi: ` — ${j} का ज़िक्र पड़ोसियों को हमें ढूंढने में मदद करता है`,
+           ta: ` — ${j} பற்றி குறிப்பிட்டால் அண்டை வீட்டார் எங்களைக் கண்டுபிடிக்க உதவும்`,
+           te: ` — ${j} గురించి చెబితే పొరుగువారు మమ్మల్ని కనుగొనడానికి సహాయపడుతుంది`,
+           ml: ` — ${j} പരാമർശിച്ചാൽ അയൽക്കാർക്ക് ഞങ്ങളെ കണ്ടെത്താൻ സഹായകമാകും`,
+           kn: ` — ${j} ಅನ್ನು ಉಲ್ಲೇಖಿಸಿದರೆ ನೆರೆಹೊರೆಯವರಿಗೆ ನಮ್ಮನ್ನು ಹುಡುಕಲು ಸಹಾಯವಾಗುತ್ತದೆ` }[lang] || '';
 }
 
 const M = {
@@ -80,6 +85,30 @@ const M = {
     pos: (f, tech, appl, city, url) => { const o = tech && appl ? `बहुत खुशी हुई कि ${tech} ने आपका ${appl} ठीक कर दिया, ${f}! 🙏` : tech ? `बहुत खुशी हुई कि ${tech} ने आपका अच्छे से ध्यान रखा, ${f}! 🙏` : `बहुत खुशी हुई, ${f}! 🙏`; return `${o} अगर 30 सेकंड हों, तो Google पर एक समीक्षा हमारी छोटी टीम के लिए बहुत मायने रखेगी${hintOf('hi', tech, city)}: ${url}\n\nआप इसे हिंदी में लिख सकते हैं — इससे दूसरे भारतीय परिवारों को हमें ढूंढना आसान होता है। 🙌`; },
     neg: (f) => `माफ़ करें कि हम सही नहीं कर पाए, ${f}। हम क्या बेहतर कर सकते थे? आपका जवाब सीधे मुझे आता है — मैं इसे ठीक करना चाहता हूँ। — Teddy, TN Appliance`,
     ack: (f) => `धन्यवाद, ${f} — मैं ख़ुद इसे देखूंगा। हम इसे सही करना चाहते हैं। — Teddy, TN Appliance`,
+  },
+  ta: {
+    ask: (f, a) => `வணக்கம் ${f}, உங்கள்${a ? ' ' + a : ''} பழுதை TN Appliance Exchange-இடம் ஒப்படைத்ததற்கு நன்றி! ஒரு சிறிய கேள்வி — நாங்கள் எப்படி செய்தோம்? திருப்தியாக இருந்தால் 👍, குறையிருந்தால் 👎 பதிலளியுங்கள்.`,
+    pos: (f, tech, appl, city, url) => { const o = tech && appl ? `${tech} உங்கள் ${appl}-ஐ சரிசெய்ததில் மகிழ்ச்சி, ${f}! 🙏` : tech ? `${tech} உங்களை நன்றாகக் கவனித்ததில் மகிழ்ச்சி, ${f}! 🙏` : `மகிழ்ச்சி, ${f}! 🙏`; return `${o} 30 வினாடி இருந்தால், Google-இல் ஒரு மதிப்புரை எங்கள் சிறிய குழுவிற்கு மிகப் பெரிது${hintOf('ta', tech, city)}: ${url}\n\nதமிழில் எழுதலாம் — அப்போது மற்ற தமிழ் குடும்பங்கள் எங்களை எளிதாகக் கண்டுபிடிப்பார்கள். 🙌`; },
+    neg: (f) => `சரியாகச் செய்யாததற்கு மன்னிக்கவும், ${f}. நாங்கள் இன்னும் என்ன சிறப்பாகச் செய்திருக்கலாம்? உங்கள் பதில் நேரடியாக எனக்கே வரும் — அதைச் சரிசெய்ய விரும்புகிறேன். — Teddy, TN Appliance`,
+    ack: (f) => `நன்றி, ${f} — நானே நேரில் கவனிக்கிறேன். அதைச் சரிசெய்ய விரும்புகிறோம். — Teddy, TN Appliance`,
+  },
+  te: {
+    ask: (f, a) => `నమస్కారం ${f}, మీ${a ? ' ' + a : ''} మరమ్మతును TN Appliance Exchange-కి అప్పగించినందుకు ధన్యవాదాలు! ఒక చిన్న ప్రశ్న — మేము ఎలా చేశాము? సంతృప్తిగా ఉంటే 👍, ఏదైనా తక్కువైతే 👎 అని జవాబివ్వండి.`,
+    pos: (f, tech, appl, city, url) => { const o = tech && appl ? `${tech} మీ ${appl}ని బాగుచేసినందుకు సంతోషం, ${f}! 🙏` : tech ? `${tech} మిమ్మల్ని బాగా చూసుకున్నందుకు సంతోషం, ${f}! 🙏` : `సంతోషం, ${f}! 🙏`; return `${o} 30 సెకన్లు ఉంటే, Googleలో ఒక సమీక్ష మా చిన్న బృందానికి ఎంతో విలువైనది${hintOf('te', tech, city)}: ${url}\n\nతెలుగులో రాయవచ్చు — అప్పుడు ఇతర తెలుగు కుటుంబాలు మమ్మల్ని సులభంగా కనుగొంటాయి. 🙌`; },
+    neg: (f) => `సరిగ్గా చేయలేకపోయినందుకు క్షమించండి, ${f}. మేము ఇంకా ఏమి బాగా చేయగలిగేవాళ్లం? మీ జవాబు నేరుగా నాకే వస్తుంది — దాన్ని సరిచేయాలనుకుంటున్నాను. — Teddy, TN Appliance`,
+    ack: (f) => `ధన్యవాదాలు, ${f} — నేనే స్వయంగా చూస్తాను. దాన్ని సరిచేయాలనుకుంటున్నాం. — Teddy, TN Appliance`,
+  },
+  ml: {
+    ask: (f, a) => `നമസ്കാരം ${f}, നിങ്ങളുടെ${a ? ' ' + a : ''} അറ്റകുറ്റപ്പണി TN Appliance Exchange-നെ ഏൽപ്പിച്ചതിന് നന്ദി! ഒരു ചെറിയ ചോദ്യം — ഞങ്ങൾ എങ്ങനെ ചെയ്തു? സംതൃപ്തരാണെങ്കിൽ 👍, കുറവുണ്ടെങ്കിൽ 👎 എന്ന് മറുപടി നൽകൂ.`,
+    pos: (f, tech, appl, city, url) => { const o = tech && appl ? `${tech} നിങ്ങളുടെ ${appl} ശരിയാക്കിയതിൽ സന്തോഷം, ${f}! 🙏` : tech ? `${tech} നിങ്ങളെ നന്നായി പരിചരിച്ചതിൽ സന്തോഷം, ${f}! 🙏` : `സന്തോഷം, ${f}! 🙏`; return `${o} 30 സെക്കൻഡ് ഉണ്ടെങ്കിൽ, Google-ലെ ഒരു റിവ്യൂ ഞങ്ങളുടെ ചെറിയ ടീമിന് വളരെ വിലപ്പെട്ടതാണ്${hintOf('ml', tech, city)}: ${url}\n\nമലയാളത്തിൽ എഴുതാം — അപ്പോൾ മറ്റ് മലയാളി കുടുംബങ്ങൾക്ക് ഞങ്ങളെ എളുപ്പം കണ്ടെത്താം. 🙌`; },
+    neg: (f) => `ശരിയായി ചെയ്യാൻ കഴിയാത്തതിൽ ക്ഷമിക്കണം, ${f}. ഞങ്ങൾക്ക് എന്ത് കൂടുതൽ നന്നായി ചെയ്യാമായിരുന്നു? നിങ്ങളുടെ മറുപടി നേരിട്ട് എനിക്ക് വരും — അത് ശരിയാക്കാൻ ഞാൻ ആഗ്രഹിക്കുന്നു. — Teddy, TN Appliance`,
+    ack: (f) => `നന്ദി, ${f} — ഞാൻ തന്നെ നേരിട്ട് നോക്കാം. അത് ശരിയാക്കാൻ ഞങ്ങൾ ആഗ്രഹിക്കുന്നു. — Teddy, TN Appliance`,
+  },
+  kn: {
+    ask: (f, a) => `ನಮಸ್ಕಾರ ${f}, ನಿಮ್ಮ${a ? ' ' + a : ''} ದುರಸ್ತಿಯನ್ನು TN Appliance Exchange-ಗೆ ವಹಿಸಿದ್ದಕ್ಕೆ ಧನ್ಯವಾದಗಳು! ಒಂದು ಸಣ್ಣ ಪ್ರಶ್ನೆ — ನಾವು ಹೇಗೆ ಮಾಡಿದೆವು? ತೃಪ್ತರಾಗಿದ್ದರೆ 👍, ಏನಾದರೂ ಕೊರತೆಯಿದ್ದರೆ 👎 ಎಂದು ಉತ್ತರಿಸಿ.`,
+    pos: (f, tech, appl, city, url) => { const o = tech && appl ? `${tech} ನಿಮ್ಮ ${appl} ಸರಿಪಡಿಸಿದ್ದಕ್ಕೆ ಸಂತೋಷ, ${f}! 🙏` : tech ? `${tech} ನಿಮ್ಮನ್ನು ಚೆನ್ನಾಗಿ ನೋಡಿಕೊಂಡಿದ್ದಕ್ಕೆ ಸಂತೋಷ, ${f}! 🙏` : `ಸಂತೋಷ, ${f}! 🙏`; return `${o} 30 ಸೆಕೆಂಡ್ ಇದ್ದರೆ, Google-ನಲ್ಲಿ ಒಂದು ವಿಮರ್ಶೆ ನಮ್ಮ ಚಿಕ್ಕ ತಂಡಕ್ಕೆ ತುಂಬಾ ಮೌಲ್ಯಯುತ${hintOf('kn', tech, city)}: ${url}\n\nಕನ್ನಡದಲ್ಲಿ ಬರೆಯಬಹುದು — ಆಗ ಇತರ ಕನ್ನಡ ಕುಟುಂಬಗಳು ನಮ್ಮನ್ನು ಸುಲಭವಾಗಿ ಹುಡುಕುತ್ತಾರೆ. 🙌`; },
+    neg: (f) => `ಸರಿಯಾಗಿ ಮಾಡಲಾಗದ್ದಕ್ಕೆ ಕ್ಷಮಿಸಿ, ${f}. ನಾವು ಇನ್ನೇನು ಚೆನ್ನಾಗಿ ಮಾಡಬಹುದಿತ್ತು? ನಿಮ್ಮ ಉತ್ತರ ನೇರವಾಗಿ ನನಗೇ ಬರುತ್ತದೆ — ಅದನ್ನು ಸರಿಪಡಿಸಲು ಬಯಸುತ್ತೇನೆ. — Teddy, TN Appliance`,
+    ack: (f) => `ಧನ್ಯವಾದಗಳು, ${f} — ನಾನೇ ಖುದ್ದಾಗಿ ನೋಡಿಕೊಳ್ಳುತ್ತೇನೆ. ಅದನ್ನು ಸರಿಪಡಿಸಲು ಬಯಸುತ್ತೇವೆ. — Teddy, TN Appliance`,
   },
 };
 
