@@ -707,11 +707,11 @@
 [functions."review-velocity-scorecard-cron"]
   schedule = "20 12 * * 1"
 
-# stripe-reconcile — links Stripe payments back to cash jobs so paid buyers show PAID
-# and jump to the top of the Cash Customers board. Auto-matches strong cases (job_id,
-# phone); guest Link payments it can't auto-link are surfaced on the cash board for
-# one-tap assignment. Runs a few times a day (CT business hours) to keep it current.
-[functions."stripe-reconcile"]
+# stripe-reconcile-cron — fires the reconciler a few times a day. The logic lives in
+# the HTTP-callable stripe-reconcile core (a schedule-registered fn is 403 on direct
+# HTTP, which would also break the office's one-tap "assign payment" button). This thin
+# wrapper is the only thing on the cron; the core stays callable for manual runs + POST.
+[functions."stripe-reconcile-cron"]
   schedule = "0 14,17,20,23 * * *"
 
 # Content post watcher — texts the owner a one-tap approve link when a finished, punched-up

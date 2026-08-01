@@ -86,6 +86,7 @@ exports.handler = async function (event) {
 
   const { reconciled, paidJobs, unmatchedLogged } = await loadHandled();
   const matched = [], unmatched = [];
+  let lookups = 0; const LOOKUP_CAP = 30;   // bound sequential Xano phone lookups so the 26s budget holds
 
   for (const ch of charges) {
     if (ch.status !== 'succeeded' || ch.refunded) continue;
@@ -100,7 +101,7 @@ exports.handler = async function (event) {
     const phone = bd.phone || (pi.metadata && pi.metadata.phone) || '';
 
     let jobId = mdJob; let matchedBy = mdJob ? 'metadata_job_id' : '';
-    if (!jobId) { const jp = await jobByPhone(phone); if (jp) { jobId = jp; matchedBy = 'phone'; } }
+    if (!jobId && d10(phone) && lookups < LOOKUP_CAP) { lookups++; const jp = await jobByPhone(phone); if (jp) { jobId = jp; matchedBy = 'phone'; } }
 
     if (jobId) {
       if (paidJobs.has(String(jobId))) { try { await crud.logEvent('stripe_payment_reconciled', { charge_id: chargeId, job_id: jobId, amount: amount.toFixed(2), source: 'already_paid', at_ms: Date.now() }); } catch (_) {} continue; }
