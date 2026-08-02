@@ -30,6 +30,22 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜📋 2026-08-02 (Sat) — E-MYTH: ORG CHART + POSITION CONTRACTS, WEEKLY SCOREBOARD (thinking-first, NOT built yet) — READ FIRST
+
+Strategy/thinking session with Teddy (no live code shipped — two internal planning docs + two private Artifacts). Sparked by Teddy asking about **The E-Myth** (Gerber: work ON the business; the Franchise Prototype where systems run the business + people run the systems; org chart + position contracts before you hire).
+
+### ✅ Shipped (docs on `main`; Artifacts private)
+- **`docs/emyth-org-chart.md`** + private Artifact `https://claude.ai/code/artifact/e8bf4f40-935c-492c-97c7-257ef9930f6b` — the org chart built around the WORK the business does, every box color-coded by how far Ant has automated it (🤖 automated / 🤝 human+Ant / 🧍 human / ⚠️ depends-on-Teddy). Tiers: Owner → **President/COO ⚠️ (Teddy today — the seat to design out first)** → 3 divisions (Operations / Marketing / Finance) with a 4th **Knowledge & Moat** band (the #1 goal). Each box has a **position contract**: accountable-for (single result) · standard (E-Myth quantification) · key accountabilities · **path to remove Teddy**. Draft **Primary Aim** + **Strategic Objective** at top (Teddy edits in his words). "Read the colors as a to-do list" — turn every 🧍/⚠️ into 🤝 then 🤖.
+- **`docs/weekly-scoreboard.md`** + private Artifact `https://claude.ai/code/artifact/bdc221a2-f651-4719-83b9-9a167e9d752a` — the management-system companion (the instrument that runs the President/COO seat OFF NUMBERS). Shape: **one north number** (draft = cash *collected*) · **one auto-picked red number** + single action + owner-by-Friday (the decision layer, the whole point) · **4 bands of vital signs** (Ops/Marketing/Finance/Knowledge) each card mapped to an EXISTING Ant feed (phone-trust-scorecard, ant-brain-score, knowledge-scorecard, board-audit, lead-report, list-invoices, claims-sync, digits-pnl, parts ledger, etc.) · **the 5-min Monday ritual** (red number → one action → who owns it by Friday). Values are SAMPLE; targets are drafts.
+
+### ⏸️ PACE — Teddy set it twice: "develop over the next month" → then "**This should be thought out over several weeks**"
+**This is a THINKING effort, not a build sprint. NO code until the design is settled.** I over-indexed on building (spawned a feed-mapping Explore agent, was about to build `weekly-scoreboard.js`) — **stopped it**, reframed the doc to a thinking cadence. The `docs/weekly-scoreboard.md` "Development approach" section is the living plan: 7 questions to reason through, Teddy drives tempo — (1) purpose & the one number, (2) the right *few* metrics [test: "if it went red, what would we DO?" — cut vanity], (3) **perverse incentives** [how is each metric gamed? design so honest = winning], (4) definitions & data honesty, (5) targets from REAL baselines (only after watching a couple weeks), (6) the ritual & who owns the seat (Teddy / a lead / Ant), (7) THEN build. Recommended start = #1 the one number.
+
+### ⏭️ NEXT / OPEN
+- Await Teddy to think out loud on **#1 (the one number: collected vs booked)** — capture each decision INTO `docs/weekly-scoreboard.md` as it lands (it's the spine across sessions).
+- Teddy to edit the Primary Aim / Strategic Objective / every "held by" name on the org chart in his own words.
+- **DO NOT** build `weekly-scoreboard.js` yet — design first. When it's time, mirror the nightly-scorecard pattern (observe-mode first → colors/targets → decision layer → 7AM Mon cron + `?secret=&text=0`).
+
 ## 🗓️🐜📦💳 2026-07-28 (Mon) — SQUARETRADE RETURN-LABEL FINDER (snap→print, multi-part matched, REAL label PNG) + INVOICE TEXT/PAY-NOW BUTTONS + AUTO-MARK-PAID — READ FIRST
 
 Teddy + Alec printing down a **150-pile of SquareTrade parts returns**. Built the finder end-to-end into a "snap the box → print the right label → next" tool, then fixed the invoice/payment loop. All LIVE (Netlify auto-deploy on `main`).
