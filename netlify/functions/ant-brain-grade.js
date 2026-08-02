@@ -8,6 +8,7 @@
 'use strict';
 
 const crud = require('./_lib/xano/metadata-crud');
+const brainEval = require('./_lib/brain-eval');   // forward-eval harness (Supabase, no-op-safe)
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
@@ -57,6 +58,12 @@ exports.handler = async function (event) {
     }
 
     try { await crud.logEvent('ant_brain_outcome', { job_id: jid, hit, basis, predicted_part: pred.part, actual_part: actualPart, predicted_component: pred.component, actual_component: actualComp, confidence: pred.confidence, appliance: pred.appliance || '', at_ms: Date.now() }); } catch (_) {}
+
+    // FORWARD-EVAL: grade the Supabase brain_predictions row(s) for this job with the
+    // same actual outcome (top-1 / top-3 / component, leak-proof). No-op-safe if
+    // Supabase is unset. This is what fills brain_eval_rollup for the nightly scorecard.
+    try { await brainEval.gradeJob(jid, { actual_part: actualPart, actual_component: actualComp, source: 'tdr' }); } catch (_) {}
+
     results.push({ job_id: jid, hit, basis, predicted: pred.part || pred.component, actual: actualPart || actualComp });
   }
 

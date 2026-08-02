@@ -20,6 +20,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/
 const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
 
 let faultCodes = null; try { faultCodes = require('./fault-code-lookup'); } catch (_) {}
+const brainEval = require('./_lib/brain-eval');   // forward-eval harness (Supabase, no-op-safe)
 
 async function jfetch(url, opts) { try { const r = await fetch(url, opts); return await r.json(); } catch (_) { return null; } }
 
@@ -151,6 +152,25 @@ exports.handler = async function (event) {
   // fixed the job. This is the loop that makes accuracy climb.
   if (jobId && top) {
     try { await crud.logEvent('ant_brain_prediction', { job_id: jobId, part: top.part, part_display: top.part_display, component: top.component, confidence: top.confidence, scope, based_on_n: distinctJobs, brand, model, appliance, at_ms: Date.now() }); } catch (_) {}
+  }
+
+  // FORWARD-EVAL (the linchpin): mirror the prediction into Supabase brain_predictions
+  // BEFORE the job closes — leak-proof by construction; ant-brain-grade back-fills the
+  // outcome. Best-effort/no-op-safe: never blocks the brain if Supabase is unset/down.
+  // Fires whenever we have a job_id (even with an empty prediction) so COVERAGE is
+  // measurable, not just accuracy. Spec: docs/intelligence-architecture.md §Layer 4.
+  if (jobId) {
+    try {
+      await brainEval.logPrediction({
+        job_id: jobId,
+        context: inp.context || 'pre_diagnosis',
+        appliance, brand, model, symptom,
+        pred_parts: ranked.map((r) => ({ part: r.part, part_display: r.part_display, component: r.component, confidence: r.confidence })),
+        pred_component: top ? top.component : null,
+        top_confidence: top ? top.confidence : null,
+        grounded: matched.length >= 2,
+      });
+    } catch (_) {}
   }
 
   return ok({
