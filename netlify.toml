@@ -141,6 +141,13 @@
 [functions."ant-brain-sweep"]
   schedule = "*/20 * * * *"
 
+# Ant Brain grade — closes the accuracy loop. For every prediction whose job now
+# has a real TDR outcome, compares predicted vs actual (logs ant_brain_outcome AND
+# grades the Supabase forward-eval rows -> brain_eval_rollup). Idempotent (grades
+# each job once). Hourly — jobs close throughout the day.
+[functions."ant-brain-grade"]
+  schedule = "17 * * * *"
+
 # Auto-IndexNow — resubmit the priority cash-lead pages (homepage + service hubs +
 # TN/LA city hubs) to Bing/Yandex daily so content changes get re-crawled without
 # anyone pinging by hand. 8:10am CT. (Google ignores IndexNow — for Google we lean on
