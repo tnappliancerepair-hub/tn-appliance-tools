@@ -27,9 +27,9 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
   const cid = String(q.cid || '9267688121').replace(/\D/g, '');
-  const ver = 'v21';
   try {
     const c = await ads.creds();
+    const ver = c.version || 'v24';  // was hard-coded 'v21' (Google Ads API v21 sunsets 2026-08-05); use the connector's resolved version
     const token = await ads.accessToken(c);
 
     // 1) account-level settings
