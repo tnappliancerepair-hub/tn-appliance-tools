@@ -46,6 +46,28 @@ Strategy/thinking session with Teddy (no live code shipped — two internal plan
 - Teddy to edit the Primary Aim / Strategic Objective / every "held by" name on the org chart in his own words.
 - **DO NOT** build `weekly-scoreboard.js` yet — design first. When it's time, mirror the nightly-scorecard pattern (observe-mode first → colors/targets → decision layer → 7AM Mon cron + `?secret=&text=0`).
 
+## 🗓️🐜🧠 2026-08-02 (Sat PM) — FORWARD-EVAL HARNESS LIVE (the intelligence linchpin) + ANT OPS Supabase crash→recovery — READ FIRST
+
+Executed Day 1 of the Week 1 intelligence-architecture schedule with Teddy live. **The forward-eval harness — "measure the brain or it's a vibe" — is now LIVE and fully autonomous.** No ongoing action needed.
+
+### ✅ What shipped (all on `main`, Netlify auto-deployed)
+- **`brain_predictions` table + `brain_eval_rollup` view LIVE in the ANT OPS Supabase project** (`docs/sql/001_brain_eval.sql`, run in the SQL editor). Table + 3 indexes + weekly rollup view all created; verified via `brain-eval-check?secret=<admin>` → `{supabase_connected:true, brain_predictions_table:true, "ready — eval harness is live"}`.
+- **`netlify/functions/_lib/brain-eval.js`** (forward-eval module, best-effort/no-op-safe): `normalizePart`/`normalizeComponent` (kills case/dash/space false-mismatches + "ice maker"=="icemaker"), `gradeAgainstOutcome` (pure, unit-tested — top-1/top-3/component), `logPrediction`, `gradeJob`. 12/12 tests green (`tests/brain-eval.test.js`).
+- **Wired end-to-end into the EXISTING brain loop (zero new moving parts):**
+  - `ant-brain-predict.js` → now ALSO mirrors every prediction into Supabase `brain_predictions` **before the job closes** (leak-proof); fires on any `job_id` so COVERAGE is measurable, not just accuracy.
+  - `ant-brain-grade.js` → now ALSO calls `gradeJob()` to back-fill top-1/top-3/component on the Supabase rows → fills `brain_eval_rollup`.
+  - **`ant-brain-sweep` (already scheduled */20min)** auto-predicts every new job → so the Supabase harness **auto-fills with no extra wiring**.
+  - **Scheduled `ant-brain-grade` HOURLY** (`netlify.toml`, was on-demand only) → closes the loop: predict on intake → grade against the actual fix → rollup → nightly scorecard.
+- Both mirrors are **no-op-safe**: if Supabase is unset/down they silently skip — can NEVER break the brain's hot path.
+
+### 🔥 The ANT OPS Supabase crash (root-caused + fixed)
+Running the eval SQL kept failing with **`FATAL 57P03: the database system is not accepting connections`** (survived a restart). Root cause: the project was on the **Nano compute tier** and the archive loads (hcp_archive ~49k rows + embeddings + meistertask) had **pegged CPU 100% + DISK IO 100%** (NOT disk space — only 1.94/8 GB used) → the instance couldn't finish Postgres recovery. **Fix: bumped compute Nano → Small** (Settings → Infrastructure → Compute and Disk; +$5.15/mo, $9.68→$14.83, Pro credit already applied). Reprovision cleared the wedge. **The org is on the Pro plan** (clears the free-tier Aug-17 quota-restriction risk).
+- **⚠️ STANDING NOTE for Phase 2:** the "exhausting multiple resources" banner is autovacuum catching up post-crash (settles on its own). But this project now carries the archives AND will host the high-churn colony queue in Phase 2 — **watch the compute headroom; may need another bump before the queue moves over** (this was exactly the "don't run the queue on a throttled tier" concern, surfacing early). Disk-modification is rate-limited to 4×/24h; compute changes are separate.
+- **FOOTGUN:** a wedged 57P03 survives a plain restart — the fix is a compute bump (reprovision), not a restart. Check Infrastructure metrics (CPU/DISK IO) before assuming disk-full; disk SPACE and disk IO are different limits.
+
+### ⏭️ Next (my autonomous queue — no Teddy action)
+Confirm real rows land after a sweep cycle; then continue the Week 1 build: Sentry error-wrapper + `/health`, Postgres queue schema + `store.js` pg adapter + tee (Phase 2 — needs the compute headroom above), dead-agent archive (VERIFIED pass, protect the 127 live + computed-name families), decision-diff harness + compounding scoreboard, the backtest script. Canonical plans: `docs/compounding-engine.md`, `docs/intelligence-architecture.md`, `docs/loop-redesign-postgres-migration.md` (has the 5 LOCKED decisions + Week 1 schedule).
+
 ## 🗓️🐜📦💳 2026-07-28 (Mon) — SQUARETRADE RETURN-LABEL FINDER (snap→print, multi-part matched, REAL label PNG) + INVOICE TEXT/PAY-NOW BUTTONS + AUTO-MARK-PAID — READ FIRST
 
 Teddy + Alec printing down a **150-pile of SquareTrade parts returns**. Built the finder end-to-end into a "snap the box → print the right label → next" tool, then fixed the invoice/payment loop. All LIVE (Netlify auto-deploy on `main`).
