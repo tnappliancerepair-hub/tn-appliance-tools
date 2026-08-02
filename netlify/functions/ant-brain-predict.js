@@ -76,10 +76,18 @@ exports.handler = async function (event) {
   if (jobId) {
     const d = await jfetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }) });
     const j = (d && d.job) || {}; const a = (d && d.appliance) || {};
-    brand = brand || j.appliance_brand || j.brand || a.brand || '';
-    model = model || j.appliance_model || j.model_number || a.model_number || '';
-    appliance = appliance || j.appliance_type || a.appliance_type || '';
-    symptom = symptom || j.problem_summary || j.problem_description || '';
+    // get_job_for_dashboard returns the appliance under d.appliance as
+    // {type, brand, model_number, problem_summary, problem_description} — NOT
+    // appliance_type, and the problem lives on the appliance obj, not the job.
+    // Reading the wrong keys left `appliance` + `symptom` BLANK, which skipped the
+    // hard appliance-gate and fell through to brand-only matching → cross-appliance
+    // parts (a fridge water filter on a dryer, an oven control board on everything).
+    // Read the real fields (a.type / a.problem_*) first. (Same field-placement
+    // gotcha as the tech={id,name} / customer.state ones in this endpoint.)
+    brand = brand || a.brand || j.appliance_brand || j.brand || '';
+    model = model || a.model_number || a.model || j.appliance_model || j.model_number || '';
+    appliance = appliance || a.type || a.appliance_type || j.appliance_type || '';
+    symptom = symptom || a.problem_summary || a.problem_description || j.problem_summary || j.problem_description || '';
   }
 
   // Determine the appliance category to gate on — explicit field, else inferred
