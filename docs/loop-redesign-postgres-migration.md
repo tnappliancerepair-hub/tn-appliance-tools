@@ -127,12 +127,14 @@ Do the cleanup *before* moving, so we migrate a lean, correct system:
 
 ---
 
-## Open decisions for Teddy
-- **Confirm Railway is paused (0 replicas) right now** — before any shadow deploy, so we never have two actors.
-- **Store = Supabase Postgres** (queue + dedup + event_log together). ✅ recommended.
-- **Marcone browser daemon** — retire in favor of the live mSupply API (preferred), containerize headless, or leave on a dedicated box?
-- **Cut aggressiveness** — archive-then-delete (recommended) vs straight delete.
-- Anything currently running on Railway we need to avoid colliding with?
+## Decisions — LOCKED 2026-08-02
+1. **Store = Supabase Postgres** ✅ — queue + dedup + event_log together. Most autonomous long-term: one managed store, one backup regime, and the same Postgres we'd consolidate onto when retiring XanoScript.
+2. **Dead agents = archive first, delete later** ✅ — move to `colony-loop/agents/_archive/` (reversible, CI stays green); delete after the migration is proven stable.
+3. **Marcone browser daemon = retire → mSupply API** ✅ — Claude verifies the live mSupply/Marcone API covers the lookups first; the daemon keeps running until that's confirmed, then it's removed.
+4. **Railway paused? = Teddy confirms before the Day-5 shadow deploy** ⏳ — all code work proceeds; the Railway deploy is gated on Teddy eyeballing 0 replicas (never two live actors).
+5. **Railway collisions? = Teddy checks with #4** ⏳ — Claude builds the shadow fully isolated (own service, own env) by default, so there's nothing to collide with regardless.
+
+**Autonomy boundary (Teddy busy all week):** Claude builds + commits the entire code side (inert until wired). Teddy's one-sitting checklist = vault Supabase creds + Sentry DSN, confirm Railway paused + deploy the shadow, restart the Mac loop after the prune. Nothing customer-facing flips without Teddy.
 
 ## Status
 - [x] Phase 0 — audit complete (this doc)
