@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "TN Appliance Exchange Netlify functions",
   "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "git ls-files netlify/functions colony-loop | grep '\\.js$' | xargs -P4 -n1 node --check"
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.620.0",
     "@aws-sdk/client-ses": "^3.1045.0",

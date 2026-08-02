@@ -1,0 +1,53 @@
+name: CI
+
+# Safety net for a system that auto-deploys to production on every push.
+# Two gates, both fast + dependency-free:
+#   1. syntax — node --check every Netlify function + colony-loop agent
+#      (catches the "broken require / syntax error shipped live" class)
+#   2. tests  — node --test on the money/i18n logic (grows over time)
+# Advisory at first (Netlify still deploys); flip on branch protection to
+# require these green before merge once we trust them.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  syntax:
+    name: Syntax check (functions + agents)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: node --check every function + agent
+        run: |
+          fail=0
+          count=0
+          files=$(git ls-files netlify/functions colony-loop | grep '\.js$' || true)
+          for f in $files; do
+            count=$((count + 1))
+            if ! node --check "$f" 2>/tmp/err; then
+              echo "::error file=$f::syntax error"
+              sed 's/^/    /' /tmp/err
+              fail=1
+            fi
+          done
+          echo "Checked $count JS files."
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more files failed node --check"
+            exit 1
+          fi
+
+  tests:
+    name: Unit tests (money + i18n logic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: node --test
+        run: node --test tests/*.test.js
