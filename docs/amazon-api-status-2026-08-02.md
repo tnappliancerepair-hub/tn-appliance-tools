@@ -56,7 +56,8 @@ on every page (`ant-amazon.js`, store id `tnappliance-20`).
 
 - Reviewer: **Prashanth Chintamaduka** (`chintamp@amazon.com`) + `ab-api-access-approvals@amazon.com`.
 - Jul 28: Prashanth confirmed the request is **"currently under review"** and asked whether we have an existing Amazon Business contact (Account Manager / Solutions Consultant / Sales rep).
-- **Teddy answered Jul 28** (newest message in thread): no dedicated contact, account set up self-serve, open to working with a rep if recommended. → **Ball is in Amazon's court.**
+- **Teddy answered Jul 28**: no dedicated contact, account set up self-serve, open to working with a rep if recommended. → **Ball is in Amazon's court.**
+- **Aug 2: keep-warm follow-up SENT** — reaffirmed the narrow first-party use case, said we're ready for a **sandbox test order**, and asked for anything-else-needed + a rough review timeline (offered a call / to be connected with a rep). Awaiting Prashanth's response.
 
 **⏭️ When production access is granted:**
 - Vault `AMAZON_BUSINESS_GROUP_ID`, `AMAZON_BUSINESS_BUYER_EMAIL`, `AMAZON_BUSINESS_PAYMENT_REF` + flip `AMAZON_BUSINESS_ENV=production`.
