@@ -140,3 +140,50 @@ Do the cleanup *before* moving, so we migrate a lean, correct system:
 - [ ] Phase 2 — shadow stack on Railway + Postgres
 - [ ] Phase 3 — shadow-diff validation to bulletproof
 - [ ] Phase 4 — flip + retain rollback
+
+---
+
+## Week 1 execution schedule
+*The goal for the week: **lean, measured, and in motion — with the first real
+accuracy number in hand.** A week does NOT reach the flip — the bulletproof soak
+is calendar-bound (2–4 weeks) by design. Every step starts only on Teddy's go and
+flexes around the shop. "You" = Teddy (decisions + a few dashboard steps +
+verification); "Me" = Claude (build).*
+
+### Day 1 (Mon) — Decisions + start the zero-risk compounding pieces
+- **You (~15 min):** lock the 5 decisions — Railway paused? Supabase as the store? Marcone daemon (retire→API / containerize / keep on a box)? archive-vs-delete for dead agents? anything already on Railway to avoid?
+- **Me:** begin Phase 1 dead-agent archive (reversible, ~429 → `_archive/`, CI proves registry stays green) + stand up the forward-eval table (Supabase) + write-at-predict logging.
+- **End of day:** prune underway; the brain starts logging its own predictions (compounding data begins immediately).
+
+### Day 2 (Tue) — Finish the prune + first accuracy number
+- **Me:** finish the archive; merge redundant paths (4 EOD digests → 1, 4 parts-arrival paths → 1); fix the marker-mismatch bugs (past text-storm cause); wire grading-on-close (extend `ant-brain-score`); run the backtest.
+- **You:** react to the number.
+- **End of day:** system is lean; **first honest first-guess accuracy per brand/model** — the baseline everything improves against.
+
+### Day 3 (Wed) — Observability + shrink the loop
+- **You (~15 min):** create a Sentry project + UptimeRobot account; give me the DSN (vault).
+- **Me:** wire the Sentry error-wrapper + `/health` endpoint; move pure timer-jobs (BI/watchdog/digests) from loop → Netlify crons (shrinks the loop to its reactive core before the move).
+- **End of day:** breakage surfaces to a dashboard, not a customer; the thing we're migrating is now small.
+
+### Day 4 (Thu) — Build the new spine (shadow prep, nothing live)
+- **You:** confirm Supabase creds vaulted.
+- **Me:** create the Postgres schema (`loop_signals` + `fired_markers` + `loop_events` — queue + dedup + event_log together); build the `store.js` `pg` adapter + the tee (mirror live emits → PG, read-only, never drains the live queue).
+- **End of day:** the new spine exists; zero production impact.
+
+### Day 5 (Fri) — Deploy the shadow on Railway → soak clock starts ⏱️
+- **You + me (dashboard, I guide):** deploy the lean loop on Railway in `DRY_RUN=true`, `COLONY_NAME=cloud-shadow`, `LOOP_STORE=pg`, reading the tee'd stream. Verify a clean `loop_tick` and **zero sends**.
+- **End of day — milestone:** shadow running beside live (current system untouched); the bulletproof validation soak begins.
+
+### Days 6–7 (weekend) — Instrument the proof + soak
+- **Me:** decision-diff harness (shadow's would-do vs live's did) + compounding-scoreboard v1.
+- **You:** watch the first shadow numbers + the eval trend.
+
+### End-of-week state (honest)
+- ✅ Dead weight gone · observable · **eval running with a baseline** · loop shrunk + timer-jobs on crons · **shadow soaking on Railway** with the diff harness.
+- ⏳ **Not flipped** — shadow soaks 2–4 more weeks to ~100% match, then the one-toggle flip with the old system as hot rollback. The wait *is* the safety.
+
+### Control knobs
+- **Busy week:** do only Days 1–2 (prune + eval) — pure upside, needs almost nothing from you; the migration shadow slips a few days with zero harm.
+- **Faster:** run Days 1–5 in parallel — shadow soaking by Wednesday.
+
+*Every step passes the commandment (`compounding-engine.md`): make every interaction a labeled example, keep one brain on every surface, drop the marginal cost of the next unit. Build only what compounds.*
