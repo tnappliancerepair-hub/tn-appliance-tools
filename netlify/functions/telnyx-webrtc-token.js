@@ -25,18 +25,28 @@
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const TELNYX = 'https://api.telnyx.com/v2';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretPreferVault } = require('./_lib/secrets');
 
 function json(code, body) {
   return { statusCode: code, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) };
 }
 
+// Verify the office password the SAME way the office-verify gate does: vault-first
+// (OFFICE_PASSWORD), and only fall back to the legacy Xano check while the vault is
+// EMPTY. The gate moved to the vault 2026-07-30 (Teddy couldn't get into Xano), but
+// this endpoint still checked Xano directly — so the current password passed the
+// gate yet failed here → "Line server said: unauthorized." on flip-On.
 async function verifyOffice(password) {
-  if (!password) return false;
+  const pw = String(password || '').trim();
+  if (!pw) return false;
+  try {
+    const vaultPw = String((await getSecretPreferVault('OFFICE_PASSWORD')) || '').trim();
+    if (vaultPw) return pw === vaultPw;   // vault is authoritative once set
+  } catch (_) {}
   try {
     const r = await fetch(`${XANO}/verify_office_password`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000),
+      body: JSON.stringify({ password: pw }), signal: AbortSignal.timeout(8000),
     });
     const d = await r.json().catch(() => ({}));
     return !!(d && (d.valid || d.success || d.ok));
