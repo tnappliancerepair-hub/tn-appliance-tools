@@ -15,7 +15,7 @@
 //   GET ?secret=<admin>&dry=1[&days=14]   parse + match, write nothing
 //   GET ?secret=<admin>[&days=14]         record new supplied parts
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const { readMany } = require('./_lib/gmail-accounts');
 const crud = require('./_lib/xano/metadata-crud');
 const partNotify = require('./_lib/part-notify');
@@ -141,17 +141,21 @@ exports.handler = async function (event) {
 
   // Auto-text the customer "we've ordered your part" + ask availability — ONCE per job
   // (notifyPartOrdered dedupes one-per-job across runs, and guardedSend enforces opt-out
-  // + quiet-hours + caps). Wrapped so a text failure never blocks part recording.
-  let customer_texts = 0;
-  for (const jid of notifyJobs) {
-    try { const r = await partNotify.notifyPartOrdered({ job_id: jid }); if (r && r.ok) customer_texts++; } catch (_) {}
+  // + quiet-hours + caps). HELD by default: sends nothing until the vault flag
+  // WARRANTY_PARTS_AUTOTEXT is 'on'/'true' (Teddy 2026-08-03 — flip it on when ready).
+  // The office's existing MANUAL part-ordered text is unaffected by this flag.
+  const autotextOn = ['on', 'true', '1'].includes(String(await getSecretFresh('WARRANTY_PARTS_AUTOTEXT') || '').trim().toLowerCase());
+  let customer_texts = 0, retry_texts = 0;
+  if (autotextOn) {
+    for (const jid of notifyJobs) {
+      try { const r = await partNotify.notifyPartOrdered({ job_id: jid }); if (r && r.ok) customer_texts++; } catch (_) {}
+    }
+    // Retry net: re-attempt any recently-supplied job whose text was deferred (quiet hours).
+    try { const rn = await partNotify.notifyRecentSupplied({}); retry_texts = rn.sent || 0; } catch (_) {}
   }
-  // Retry net: re-attempt any recently-supplied job whose text was deferred (quiet hours)
-  // and never sent — so an overnight part order gets its customer text the next day.
-  let retry_texts = 0;
-  try { const rn = await partNotify.notifyRecentSupplied({}); retry_texts = rn.sent || 0; } catch (_) {}
 
   out.recorded_parts = recorded;
+  out.autotext = autotextOn ? 'live' : 'held';
   out.customer_texts = customer_texts;
   out.retry_texts = retry_texts;
   out.unmatched = unmatched;
