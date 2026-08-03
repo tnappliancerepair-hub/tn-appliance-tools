@@ -770,6 +770,7 @@ async function loadBoard(){
     loadCashBanner();
     loadPartsIn();
     loadAddrFlags();
+    loadPartNums();
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
   }
@@ -1258,6 +1259,20 @@ async function loadInvoices(){
     }
   }catch(_){}
 }
+// 🔧 Part # overlay (Teddy 2026-08-03): the office needs the part number ON the tile
+// so they submit the warranty report without opening the drawer. The kanban feed drops
+// verified_part_number, so this reads it (+ failed part) off the TDR table via a small
+// overlay. Throttled to ~3 min (it scans several TDR pages; the board polls every 30s)
+// and MERGES so a briefly-empty read can't blink a part # off a tile.
+let PART_NUM_MAP={};   // job_id -> { part, component }
+let __partNumsLast=0;
+async function loadPartNums(){
+  if((Date.now()-__partNumsLast)<180000 && Object.keys(PART_NUM_MAP).length) return;
+  try{
+    const d=await (await fetch('/.netlify/functions/board-part-numbers',{cache:'no-store'})).json();
+    if(d&&d.ok&&d.parts){ __partNumsLast=Date.now(); PART_NUM_MAP=Object.assign({}, PART_NUM_MAP, d.parts); renderBoard(); }
+  }catch(_){}
+}
 // refOf — the reference number Danielle works EVERY job by. Picks the best
 // external number (warranty claim / dispatch), and ALWAYS falls back to the Ant
 // job # so there is never a blank. (Danielle 2026-06-30: "those numbers need to
@@ -1276,6 +1291,10 @@ function cardHtml(j){
   const appl=[j.brand,j.appliance].filter(Boolean).join(' ');
   const _ref=refOf(j);
   const _refHtml='<div class="jc-ref'+(_ref.ant?' ant':'')+'" onclick="copyRef(event,\''+esc(_ref.num).replace(/'/g,"\\'")+'\')" title="Tap to copy" style="display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:3px 9px;border-radius:6px;font-family:ui-monospace,monospace;font-size:13px;font-weight:800;letter-spacing:.02em;white-space:nowrap;cursor:pointer;'+(_ref.ant?'background:#eef1f5;color:#3f4a5c;border:1px solid #d0d7e2':'background:#e6f0ff;color:#08417f;border:1px solid #adccf2')+'">'+esc(_ref.label)+' '+esc(_ref.num)+' <span style="opacity:.55;font-size:11px">⧉</span></div>';
+  // 🔧 Part # chip — the verified OEM part (off the TDR), copyable in one tap so the
+  // office can grab it for the warranty portal without opening the drawer.
+  const _pn=PART_NUM_MAP[j.id]||PART_NUM_MAP[String(j.id)];
+  const _partChip=(_pn&&String(_pn.part||'').trim())?('<div class="jc-ref" onclick="copyRef(event,\''+esc(String(_pn.part).trim()).replace(/'/g,"\\'")+'\')" title="Part # — tap to copy for the warranty portal" style="display:inline-flex;align-items:center;gap:5px;margin-top:3px;padding:3px 9px;border-radius:6px;font-family:ui-monospace,monospace;font-size:13px;font-weight:800;letter-spacing:.02em;white-space:nowrap;cursor:pointer;background:#e7f6ec;color:#0a6b39;border:1px solid #9fe0bd">🔧 '+esc(String(_pn.part).trim())+' <span style="opacity:.55;font-size:11px">⧉</span></div>'):'';
   const tags=[];
   // Visit type at a glance — so the office can tell a first-look DIAGNOSIS from a
   // COMPLETION (return visit), and see when a job is DONE. (Jimmy + Danielle,
@@ -1407,7 +1426,7 @@ function cardHtml(j){
     ${_af?addrFlagRibbon(_af,j.id):''}
     <div class="jc-status-row" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">${_statusPill}${_wait}</div>
     <div class="jc-name">${esc(name)}</div>
-    <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}${_coBadge}${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
+    <div class="jc-hdr" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px">${_refHtml}${_partChip}${_coBadge}${_area?('<span class="jc-area">📍'+esc(_area)+'</span>'):''}</div>
     <div class="jc-meta" style="margin-top:5px">${esc(appl||'appliance')}</div>
     ${_machineChips}
     ${_availCard}
