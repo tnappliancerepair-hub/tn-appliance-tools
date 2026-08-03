@@ -481,6 +481,19 @@
     {
       "family": "samsung",
       "appliance": "washer",
+      "code": "3CA",
+      "meaning": "Motor / hall sensor error (3C family — seen on all-in-one washer/dryer combos)",
+      "likely_causes": [
+        "hall sensor (most common)",
+        "motor wiring / connector at motor and at the main/inverter PCB",
+        "drive motor",
+        "main control (inverter) PCB"
+      ],
+      "test": "Power-cycle first (1-2 min) to clear a one-off. If it returns under spin: check the hall sensor + its connector, then the motor harness at both ends, then ohm the motor windings; PCB last. Confirm the exact sub-part against the model tech sheet."
+    },
+    {
+      "family": "samsung",
+      "appliance": "washer",
       "code": "3E",
       "meaning": "Motor / hall sensor error (older display)",
       "likely_causes": [
