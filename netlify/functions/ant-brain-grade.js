@@ -14,9 +14,6 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/
 const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
 
 function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
-function normAlnum(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
-function partKey(p) { return normAlnum(String(p || '').trim().split(/[\s(—\-]/)[0]); }
-function compTokens(c) { return new Set(String(c || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length >= 4)); }
 async function jfetch(url, opts) { try { const r = await fetch(url, opts); return await r.json(); } catch (_) { return null; } }
 
 exports.handler = async function (event) {
@@ -47,17 +44,21 @@ exports.handler = async function (event) {
     const done = tdr && (/complete|done/i.test(String(tdr.status || '')) || tdr.repair_completed || actualPart);
     if (!tdr || !done || (!actualPart && !actualComp)) continue;   // no real outcome yet → still pending
 
-    // Hit if the predicted part matches the actual part, OR (no part on either
-    // side) the component tokens overlap.
-    const pP = partKey(pred.part), aP = partKey(actualPart);
-    let hit = false, basis = '';
-    if (pP && aP) { hit = pP === aP; basis = 'part'; }
-    else {
-      const a = compTokens(pred.component), b = compTokens(actualComp);
-      hit = [...a].some((w) => b.has(w)); basis = 'component';
-    }
+    // Grade with the shared honest grader: pull the real part# out of a free-text
+    // fix, match the guess against ANY part in a multi-part note, and fall to the
+    // component tier when there's no part# (a bare "compressor" was being scored a
+    // part-miss before). Ungradeable outcomes ("No part needed") record gradeable
+    // false so they're not retried and don't count against accuracy.
+    const g = brainEval.gradeAgainstOutcome(
+      { pred_parts: [pred.part], pred_component: pred.component },
+      { actual_part: actualPart, actual_component: actualComp },
+    );
+    let gradeable, hit, basis;
+    if (g.part_gradeable) { gradeable = true; hit = !!g.hit_top1; basis = 'part'; }
+    else if (brainEval.normalizeComponent(actualComp)) { gradeable = true; hit = !!g.component_hit; basis = 'component'; }
+    else { gradeable = false; hit = false; basis = 'ungradeable'; }
 
-    try { await crud.logEvent('ant_brain_outcome', { job_id: jid, hit, basis, predicted_part: pred.part, actual_part: actualPart, predicted_component: pred.component, actual_component: actualComp, confidence: pred.confidence, appliance: pred.appliance || '', at_ms: Date.now() }); } catch (_) {}
+    try { await crud.logEvent('ant_brain_outcome', { job_id: jid, hit, gradeable, basis, predicted_part: pred.part, actual_part: actualPart, predicted_component: pred.component, actual_component: actualComp, confidence: pred.confidence, appliance: pred.appliance || '', at_ms: Date.now() }); } catch (_) {}
 
     // FORWARD-EVAL: grade the Supabase brain_predictions row(s) for this job with the
     // same actual outcome (top-1 / top-3 / component, leak-proof). No-op-safe if
