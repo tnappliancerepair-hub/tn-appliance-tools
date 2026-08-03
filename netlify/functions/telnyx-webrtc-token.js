@@ -62,7 +62,7 @@ exports.handler = async function (event) {
   // credential; anyone else gets the default. Falls back to the default credential
   // if a person-specific one isn't provisioned yet (nothing breaks pre-provision).
   const who = String(body.who || '').toLowerCase();
-  const suffix = who === 'danielle' ? '_DANIELLE' : '';
+  const suffix = who === 'danielle' ? '_DANIELLE' : (who === 'sofia' ? '_SOFIA' : '');
   let user = await getSecret('TELNYX_SIP_USERNAME' + suffix);
   let pass = await getSecret('TELNYX_SIP_PASSWORD' + suffix);
   if (!user || !pass) { user = await getSecret('TELNYX_SIP_USERNAME'); pass = await getSecret('TELNYX_SIP_PASSWORD'); }

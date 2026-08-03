@@ -579,9 +579,18 @@ exports.handler = async function (event) {
     }
 
     if (action === 'create') {
+      // Each office-phone person gets their OWN SIP login (sharing one credential
+      // caused the WebSocket thrash that dropped calls). Teddy = default (no suffix),
+      // everyone else gets a name-suffixed vault key that telnyx-webrtc-token reads.
+      const PEOPLE = {
+        teddy:    { label: 'Teddy',    suffix: '' },
+        danielle: { label: 'Danielle', suffix: '_DANIELLE' },
+        sofia:    { label: 'Sofia',    suffix: '_SOFIA' },
+      };
       const who = String(q.who || '').toLowerCase();
-      if (who !== 'teddy' && who !== 'danielle') return json(400, { ok: false, error: 'pass &who=teddy or &who=danielle' });
-      const name = 'Ant Office Phone - ' + (who === 'danielle' ? 'Danielle' : 'Teddy');
+      const person = PEOPLE[who];
+      if (!person) return json(400, { ok: false, error: 'pass &who= one of: ' + Object.keys(PEOPLE).join(', ') });
+      const name = 'Ant Office Phone - ' + person.label;
       const r = await fetch(`${TELNYX}/telephony_credentials`, {
         method: 'POST', headers: H, body: JSON.stringify({ connection_id: connId, name }), signal: AbortSignal.timeout(12000),
       });
@@ -589,13 +598,13 @@ exports.handler = async function (event) {
       if (!r.ok) return json(200, { ok: false, status: r.status, error: (d.errors && JSON.stringify(d.errors)) || JSON.stringify(d).slice(0, 300) });
       const c = d.data || {};
       if (!c.sip_username || !c.sip_password) return json(200, { ok: false, error: 'no sip_username/password returned', raw: c });
-      const suffix = who === 'danielle' ? '_DANIELLE' : '';
+      const suffix = person.suffix;
       await setSecret('TELNYX_SIP_USERNAME' + suffix, c.sip_username);
       await setSecret('TELNYX_SIP_PASSWORD' + suffix, c.sip_password);
       return json(200, {
         ok: true, who, credential_id: c.id, sip_username: c.sip_username,
         vaulted: ['TELNYX_SIP_USERNAME' + suffix, 'TELNYX_SIP_PASSWORD' + suffix],
-        note: who + "'s login is created and saved. Their app will use it on next On.",
+        note: person.label + "'s login is created and saved. Their app will use it on next On.",
       });
     }
 

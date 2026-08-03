@@ -99,6 +99,7 @@
         <div class="who">
           <button id="who-teddy" onclick="setWho('Teddy')">Teddy</button>
           <button id="who-danielle" onclick="setWho('Danielle')">Danielle</button>
+          <button id="who-sofia" onclick="setWho('Sofia')">Sofia</button>
         </div>
       </div>
       <div class="switch">
@@ -252,6 +253,7 @@ function setWho(name, silent){
   who = name; localStorage.setItem('ant_office_phone_who', name);
   document.getElementById('who-teddy').classList.toggle('on', name==='Teddy');
   document.getElementById('who-danielle').classList.toggle('on', name==='Danielle');
+  document.getElementById('who-sofia').classList.toggle('on', name==='Sofia');
 }
 
 /* ---------- presence on/off ---------- */
