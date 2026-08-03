@@ -78,10 +78,43 @@ async function notifyPartOrdered({ job_id, eta_date }) {
   // gate — the exact fix for the audit's silent drop. Teddy re-armed this one text
   // deliberately (valuable) while everything else stays gated. 2026-07-17.
   const res = await guard.guardedSend({ phone, message, tag: 'part_ordered_availability_request', kind: 'status_update' });
-  if (res.reason !== 'send_failed') {
+  // Write the one-per-job dedup marker ONLY on a TERMINAL outcome — an actual send,
+  // or a permanent skip (opted out / just-sent duplicate). A transient block
+  // (quiet_hours, send_failed, global pause) must NOT dedupe, so notifyRecentSupplied
+  // retries it on the next daytime run — otherwise a part detected overnight (these
+  // watchers run 24/7) would be silently suppressed forever. Teddy 2026-08-03.
+  const terminal = res.sent || res.reason === 'opted_out' || res.reason === 'duplicate_suppressed';
+  if (terminal) {
     try { await crud.logEvent('proactive_parts_notified', { job_id, phone: guard.toE164(phone), eta: String(eta || ''), at_ms: Date.now(), reason: res.reason, via: 'order_hook' }); } catch (_) {}
   }
-  return { ok: res.sent, reason: res.reason };
+  return { ok: res.sent, reason: res.reason, deferred: !terminal && !res.sent };
+}
+
+// Retry safety-net: text any job that got a warranty part supplied in the recent
+// lookback but has NOT yet been notified (e.g. its notify was deferred by quiet
+// hours). Called each run by the parts watchers. Efficient — pulls the supplied +
+// already-notified sets ONCE, then only attempts the genuinely-pending jobs.
+async function notifyRecentSupplied({ lookbackMs } = {}) {
+  const cutoff = Date.now() - (lookbackMs || 2 * 86400000); // default: last 2 days
+  let supplied = [], notified = [];
+  try {
+    supplied = await crud.searchPage(crud.TABLES.event_log, { action: 'warranty_part_supplied' }, { id: 'desc' }, 500);
+    notified = await crud.searchPage(crud.TABLES.event_log, { action: 'proactive_parts_notified' }, { id: 'desc' }, 2000);
+  } catch (_) { return { attempted: 0, sent: 0 }; }
+  const done = new Set(notified.map((r) => String(metaOf(r).job_id || '')).filter(Boolean));
+  const jobs = new Set();
+  for (const r of supplied) {
+    const m = metaOf(r);
+    if (Number(m.at_ms || 0) < cutoff) continue; // within the lookback window only
+    const jid = String(m.job_id || '');
+    if (jid && !done.has(jid)) jobs.add(m.job_id);
+  }
+  let sent = 0, attempted = 0;
+  for (const jid of jobs) {
+    attempted++;
+    try { const res = await notifyPartOrdered({ job_id: jid }); if (res && res.ok) sent++; } catch (_) {}
+  }
+  return { attempted, sent };
 }
 
 // ── Part ARRIVED (Teddy 2026-07-17) ──────────────────────────────────────────
@@ -141,4 +174,4 @@ async function notifyPartArrived({ job_id, via, haveAvailability }) {
   return { ok: res.sent, reason: res.reason, flagged: true };
 }
 
-module.exports = { notifyPartOrdered, notifyPartArrived, ensureArrivedFlag, orderMessage, arrivedMessage, etaPhrase, LIVE };
+module.exports = { notifyPartOrdered, notifyRecentSupplied, notifyPartArrived, ensureArrivedFlag, orderMessage, arrivedMessage, etaPhrase, LIVE };

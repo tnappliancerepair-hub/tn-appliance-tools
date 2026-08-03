@@ -18,6 +18,7 @@
 const { getSecret } = require('./_lib/secrets');
 const { readMany } = require('./_lib/gmail-accounts');
 const crud = require('./_lib/xano/metadata-crud');
+const partNotify = require('./_lib/part-notify');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -165,7 +166,7 @@ exports.handler = async function (event) {
   const out = { ok: true, dry, messages_scanned: msgs.length, new_messages: fresh.length, work_orders: plan.length };
   if (dry) { out.plan = plan.slice(0, 25); return json(200, out); }
 
-  let recorded = 0, etas = 0; const processedIds = new Set(); const unmatched = [];
+  let recorded = 0, etas = 0; const processedIds = new Set(); const unmatched = []; const notifyJobs = new Set();
   for (const wo of plan) {
     if (!wo.job_id) { unmatched.push({ wo: wo.wo, part: wo.part, distributor: wo.distributor, eta: wo.eta }); processedIds.add(wo.msg_id); continue; }
     // Record a supplied part the tech accounts for. New AHS format carries a real part #
@@ -187,12 +188,28 @@ exports.handler = async function (event) {
     if (wo.eta) {
       try { await crud.update(crud.TABLES.jobs, wo.job_id, { parts_status: 'awaiting_parts', parts_eta_date: wo.eta }); etas++; } catch (_) {}
     }
+    notifyJobs.add(wo.job_id);
     processedIds.add(wo.msg_id);
   }
   if (processedIds.size) { try { await crud.logEvent('ahs_parts_watch_done', { ids: [...processedIds], count: processedIds.size, recorded, etas, at_ms: Date.now() }); } catch (_) {} }
 
+  // Auto-text the customer "we've ordered your part" + ask availability — ONCE per job.
+  // notifyPartOrdered reads the parts_eta_date we just set (so the message carries the
+  // ETA), dedupes one-per-job across runs, and guardedSend enforces opt-out/quiet-hours/
+  // caps. Wrapped so a text failure never blocks part recording.
+  let customer_texts = 0;
+  for (const jid of notifyJobs) {
+    try { const r = await partNotify.notifyPartOrdered({ job_id: jid }); if (r && r.ok) customer_texts++; } catch (_) {}
+  }
+  // Retry net: re-attempt any recently-supplied job whose text was deferred (quiet hours)
+  // and never sent — so an overnight part order gets its customer text the next day.
+  let retry_texts = 0;
+  try { const rn = await partNotify.notifyRecentSupplied({}); retry_texts = rn.sent || 0; } catch (_) {}
+
   out.recorded_parts = recorded;
   out.etas_set = etas;
+  out.customer_texts = customer_texts;
+  out.retry_texts = retry_texts;
   out.unmatched = unmatched;
   if (unmatched.length) out.note = unmatched.length + ' work order(s) had no matching job — listed under unmatched, not lost.';
   return json(200, out);
