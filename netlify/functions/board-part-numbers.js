@@ -17,6 +17,24 @@ const MAX_PAGES = 4; // ~2000 most-recent TDRs — covers the jobs live on the b
 function authH() { const t = process.env.XANO_METADATA_TOKEN; if (!t) throw new Error('no metadata token'); return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }; }
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(b) }; }
 
+// verified_part_number is a free-text field — usually a clean OEM number (W10876537,
+// 241798224), but sometimes a whole sentence, several parts, or a test value. Turn it
+// into just the part number(s) the office pastes into the portal: drop test junk; a
+// clean single token passes through; otherwise pull the part-number-looking tokens
+// (has a digit, 5+ chars — e.g. EBR31002601, PS16878834, MDS66290827). '' = nothing to show.
+function cleanPartNumber(raw) {
+  const s = String(raw || '').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  if (/zz?test|test[\s\-]|\bLOC-\d/i.test(s)) return '';            // test / placeholder junk
+  if (!/\s/.test(s) && s.length <= 20 && /\d/.test(s)) return s;     // already a clean single part #
+  const toks = (s.match(/[A-Za-z0-9][A-Za-z0-9.\-]{4,}/g) || [])
+    .filter((t) => /\d/.test(t) && !/^\d{1,4}$/.test(t));            // has a digit; skip bare small numbers (qty/year)
+  const seen = [];
+  toks.forEach((t) => { if (seen.indexOf(t) < 0 && seen.length < 3) seen.push(t); });
+  if (seen.length) return seen.join(', ');
+  return '';                                                        // prose with no real part token
+}
+
 exports.handler = async function () {
   const map = {};
   try {
@@ -35,7 +53,7 @@ exports.handler = async function () {
       for (const t of rows) {
         const jid = Number(t.job_id || 0);
         if (!jid) continue;
-        const part = String(t.verified_part_number || '').trim();
+        const part = cleanPartNumber(t.verified_part_number);
         const comp = String(t.failed_component || '').trim();
         if (!part && !comp) continue;
         // rows are id-desc → the first time we see a job is its newest TDR (wins);
