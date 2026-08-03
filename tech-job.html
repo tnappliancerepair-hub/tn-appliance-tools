@@ -1534,7 +1534,19 @@ function completeFlow(){
   const types=[['repair_complete','✅ Fixed it — done'],['parts_needed','🔩 Needs parts — coming back'],['no_repair','🔁 Recommend replacement'],['reassignment_needed','🙋 Pass off — 2nd opinion'],['cancel_job','🚫 Cancel this job']];
   const out=document.getElementById('lc-stamp');
   out.innerHTML='How did THIS visit end?<div style="font-size:12px;color:#8a93a1;margin:3px 0 2px">“Fixed it” closes the job out. Diagnostic / parts keeps it open and comes back — it won’t mark the job done.</div><div class="acts" style="margin-top:8px">'+types.map(t=>`<button class="act" data-ct="${t[0]}">${t[1]}</button>`).join('')+'</div>';
+  let _completing=false;
   out.querySelectorAll('[data-ct]').forEach(b=>b.onclick=async()=>{
+    // LOCK while a completion is in flight. A slow Complete with no "working" feedback
+    // got mashed 8× on a real job (Timmy Malone #20831, Jimmy 2026-08-03) and spawned 8
+    // empty TDRs in ~2 seconds. Ignore re-taps + dim the buttons until it resolves; a
+    // FAILED attempt re-enables so the tech can fix + retry, a success leaves them
+    // locked (the page reloads). This is the "took forever to complete" fix.
+    if(_completing) return;
+    _completing=true;
+    const _cbtns=Array.prototype.slice.call(out.querySelectorAll('[data-ct]'));
+    _cbtns.forEach(function(x){ try{ x.disabled=true; x.style.opacity='0.55'; }catch(_){}});
+    let _cok=false;
+    try{
     // Gate: a "Repair complete" must carry a report (what you found + fixed + labor),
     // or the office can't bill or authorize it. Block clearly BEFORE submitting.
     if(b.dataset.ct==='repair_complete'){
@@ -1611,6 +1623,7 @@ function completeFlow(){
       // stale stamp from a prior trip is cleared so a return visit completes cleanly.
       const d=await fetchT('/.netlify/functions/tech-complete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,completion_type:b.dataset.ct})}).then(r=>r.json()).catch(()=>({success:false,error:'connection error'}));
       if(d.success){
+        _cok=true;
         toast('Job completed ✓');
         const rpt=(document.getElementById('notes')||{}).value||'';
         pushSP('completed', rpt ? ('Job completed. '+rpt).slice(0,240) : 'Job completed.');
@@ -1629,6 +1642,10 @@ function completeFlow(){
       }
       else { toast('⚠ '+(d.error||'blocked')); }
     }catch(_){ toast('⚠ connection error'); }
+    } finally {
+      // Re-enable the buttons unless it completed (a success reloads the page).
+      if(!_cok){ _completing=false; _cbtns.forEach(function(x){ try{ x.disabled=false; x.style.opacity=''; }catch(_){}}); }
+    }
   });
 }
 
