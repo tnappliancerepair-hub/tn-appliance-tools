@@ -387,8 +387,14 @@ exports.handler = async function (event) {
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const RING = '+16155889591';
     const DANIELLE = '+16154850713';
-    // Read the live reach switches — Danielle's direct (AHS) line + the office ring
-    // only appear when they're ON the phones; field techs are ALWAYS reachable.
+    // Read the live reach switches — Danielle's DIRECT (AHS) line appears only when
+    // she's ON the phones; field techs are ALWAYS reachable for their own homeowners.
+    // The office RING is ALWAYS present as the general/fallback destination (it points
+    // at office-texml, which SELF-GATES on these same flags: it dials only whoever is
+    // On and <Reject/>s when both are off). Making it always-present is the safety fix
+    // for the "both flags off → general callers dumped onto the first tech (Jimmy)"
+    // bug (2026-08-03): a general/"speak to a person" caller must NEVER have techs as
+    // the only choice — there must always be an office destination for them to land on.
     const danielleOn = String((await getSecretFresh('OFFICE_REACH_DANIELLE')) || '').trim().toLowerCase() !== 'off';
     const teddyOn = String((await getSecretFresh('OFFICE_REACH_TEDDY')) || '').trim().toLowerCase() !== 'off';
     const TECHS = [
@@ -398,9 +404,12 @@ exports.handler = async function (event) {
       { name: 'John', num: '+18133527686' },
       { name: 'Teddy', num: '+16154855795' },
     ];
-    const dests = TECHS.map((t) => ({ type: 'number', number: t.num, message: `One moment — connecting you with ${t.name}.`, description: `Transfer here when the caller's assigned technician is ${t.name}. This is their own tech — use it for arrival ("when is he coming"), job, or status questions from a customer on one of ${t.name}'s jobs.` }));
+    const dests = TECHS.map((t) => ({ type: 'number', number: t.num, message: `One moment — connecting you with ${t.name}.`, description: `Transfer here ONLY when the caller is a HOMEOWNER whose assigned technician is ${t.name} — for an arrival ("when is he coming"), job, or status question on one of ${t.name}'s own jobs. NEVER send a general caller, a "speak to a person/office" request, or a warranty rep here.` }));
     if (danielleOn) dests.push({ type: 'number', number: DANIELLE, message: 'One moment — connecting you with Danielle.', description: "Danielle (office manager), her DIRECT line. ALWAYS transfer American Home Shield / AHS and any other warranty or insurance company REP here. Homeowners do NOT go here." });
-    if (teddyOn || danielleOn) dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: "The office ring. Use for general questions or complaints, or when you can't tell which tech is on the caller's job. NOT for a specific homeowner's tech (they have their own destination) and NOT for warranty reps when Danielle's direct line is present." });
+    // ALWAYS present (self-gating). This is the destination for a general caller,
+    // a complaint, anyone asking for "a person"/"the office", or when you can't tell
+    // which tech is on the caller's job — it rings Teddy + Danielle.
+    dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: "THE OFFICE (rings Teddy + Danielle). Transfer here for ANY general caller, a complaint, anyone asking to speak to a person / the office / Teddy / Danielle, or when you can't tell which tech is on the caller's job. This is the DEFAULT for a human handoff. NOT for a homeowner asking about a specific tech's job (they have their own destination) and NOT for a warranty rep when Danielle's direct line is present." });
     // HARD business-hours gate: off-hours we REMOVE the transferCall tool entirely
     // so Ann literally has no way to ring a human — she takes a message instead.
     // On-hours we (re)attach it. This flips automatically via the phone-hours-gate
