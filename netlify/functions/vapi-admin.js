@@ -400,6 +400,20 @@ exports.handler = async function (event) {
     dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: "THE OFFICE — rings Teddy and Danielle. This is the DEFAULT and FIRST stop for EVERY live human handoff: general questions, complaints, anyone asking to speak to a person / the office / Teddy / Danielle, AND a homeowner asking about their appointment, their tech, or when he's coming. Bring the caller to us first — the office loops in the technician if needed. NEVER transfer a caller straight to a tech." });
     // Warranty/insurance reps → Danielle's direct line (only when she's on the phones).
     if (danielleOn) dests.push({ type: 'number', number: DANIELLE, message: 'One moment — connecting you with Danielle.', description: "Danielle (office manager), her DIRECT line — for American Home Shield / AHS and any other warranty or insurance company REP only. Homeowners and general callers go to the office, NOT here." });
+    // TEMPORARY "someone is covering the phones" OVERRIDE. When the vault flag
+    // OFFICE_TRANSFER_OVERRIDE holds {number, name, until_ms} and until_ms is still in
+    // the future, EVERY human handoff (only the calls Ann can't handle herself) goes to
+    // that ONE person instead of the office ring. Self-expiring: the phone-hours-gate
+    // cron re-runs wiretechs every 15 min, and once until_ms passes this drops and the
+    // normal office-first routing comes back automatically — no manual revert needed.
+    let ovr = null;
+    try { ovr = JSON.parse((await getSecretFresh('OFFICE_TRANSFER_OVERRIDE')) || 'null'); } catch (_) { ovr = null; }
+    const ovrActive = !!(ovr && ovr.number && Number(ovr.until_ms) > Date.now());
+    if (ovrActive) {
+      const nm = String(ovr.name || 'the office').trim();
+      dests.length = 0; // during the override, the office IS this one person
+      dests.push({ type: 'number', number: ovr.number, message: `One moment — connecting you with ${nm}.`, description: `THE OFFICE right now — ${nm} is covering the phones. Connect ANY caller who needs a live person here: general questions, complaints, a homeowner asking about their tech or appointment, and warranty/insurance reps. This is the destination for EVERY human handoff until further notice. NEVER transfer a caller straight to a tech.` });
+    }
     // HARD business-hours gate: off-hours we REMOVE the transferCall tool entirely
     // so Ann literally has no way to ring a human — she takes a message instead.
     // On-hours we (re)attach it. This flips automatically via the phone-hours-gate
@@ -423,7 +437,7 @@ exports.handler = async function (event) {
     const vm = (verify.json || {}).model || {};
     const vt = (vm.tools || []).find((t) => t.type === 'transferCall');
     const sysNow = (vm.messages || []).find((m) => m.role === 'system');
-    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, assistant: got.json.name, business_hours_open: openNow, transfer_enabled: !!vt, note: openNow ? 'OPEN — transfer wired to humans' : 'CLOSED — transfer removed, Ann takes messages only', block_applied: String((sysNow && sysNow.content) || '').includes(MARK), transfer_destinations: (vt && vt.destinations) ? vt.destinations.map((d) => ({ number: d.number, who: (d.description || '').slice(0, 30) })) : null, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, assistant: got.json.name, business_hours_open: openNow, transfer_enabled: !!vt, note: openNow ? 'OPEN — transfer wired to humans' : 'CLOSED — transfer removed, Ann takes messages only', override_active: ovrActive ? { name: ovr.name, number: ovr.number, until: new Date(Number(ovr.until_ms)).toISOString() } : null, block_applied: String((sysNow && sysNow.content) || '').includes(MARK), transfer_destinations: (vt && vt.destinations) ? vt.destinations.map((d) => ({ number: d.number, who: (d.description || '').slice(0, 30) })) : null, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
   // Lookup guidance — from call review (Phil Minge, 7/1): Ant couldn't find a
