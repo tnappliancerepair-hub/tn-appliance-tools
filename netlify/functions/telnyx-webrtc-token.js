@@ -59,7 +59,12 @@ exports.handler = async function (event) {
   let body = {};
   try { body = JSON.parse(event.body || '{}'); } catch (_) {}
 
-  const okPw = await verifyOffice(body.password);
+  // The office phone is passwordless (Teddy 2026-08-03) — the page arms the line
+  // with a fixed app token instead of a typed password. Accept that token, OR the
+  // office password (back-compat / any other caller). Keeps the raw endpoint from
+  // being fully anonymous while asking the user for nothing.
+  const APP_TOKEN = 'tnp-office-phone-open-9x4k2m7q';
+  const okPw = String(body.password || '') === APP_TOKEN || await verifyOffice(body.password);
   if (!okPw) return json(401, { ok: false, reason: 'unauthorized' });
 
   // Read from env-first, then the runtime vault (app_config) — Netlify's 4KB

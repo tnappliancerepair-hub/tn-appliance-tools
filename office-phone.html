@@ -76,13 +76,8 @@
 </head>
 <body>
 
-<!-- gate -->
-<div id="gate" class="gate">
-  <h1>📲 Office Phone</h1>
-  <input id="pw" type="password" placeholder="Office password" />
-  <button onclick="unlock()">Unlock</button>
-  <div id="gerr" style="color:#ff6b6b;font-size:12px;margin-top:8px;"></div>
-</div>
+<!-- gate removed — the office phone opens straight to the dialer (no password) -->
+<div id="gate" class="gate hidden"></div>
 
 <!-- app -->
 <div id="app" class="wrap hidden">
@@ -167,7 +162,11 @@
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const FN = '/.netlify/functions';
 
-let PW = '';
+// No typed password (Teddy 2026-08-03: "we don't need a password"). The app arms
+// the line with this fixed app token instead — invisible to the user, but it keeps
+// the raw telephony endpoint from being wide-open to anyone/anything on the internet.
+const APP_TOKEN = 'tnp-office-phone-open-9x4k2m7q';
+let PW = APP_TOKEN;
 let client = null;       // TelnyxRTC instance
 let activeCall = null;   // current call object
 let callerNumber = '';   // our outbound caller ID (from token endpoint)
@@ -224,15 +223,7 @@ function dbg(m){
   }catch(_){}
 }
 
-/* ---------- gate ---------- */
-function unlock(){
-  const pw = document.getElementById('pw').value.trim();
-  fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})})
-    .then(r=>r.json()).then(d=>{
-      if(d && (d.valid||d.success||d.ok)){ PW=pw; localStorage.setItem('ant_office_pw',pw); showApp(); }
-      else document.getElementById('gerr').textContent='Wrong password';
-    }).catch(()=>document.getElementById('gerr').textContent='Connection error');
-}
+/* ---------- open straight in (no password) ---------- */
 function showApp(){
   document.getElementById('gate').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
@@ -240,13 +231,8 @@ function showApp(){
   const a = document.getElementById('autoans'); if(a) a.checked = autoAnswer;
 }
 function setAutoAns(on){ autoAnswer = !!on; localStorage.setItem('ant_office_phone_autoans', on ? '1' : '0'); }
-// auto-unlock if we already have a cached password that still verifies
-(function tryCached(){
-  const cached = localStorage.getItem('ant_office_pw');
-  if(!cached) return;
-  fetch('/.netlify/functions/office-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:cached})})
-    .then(r=>r.json()).then(d=>{ if(d&&(d.valid||d.success||d.ok)){ PW=cached; showApp(); } }).catch(()=>{});
-})();
+// No gate — open the dialer immediately.
+(function openNow(){ showApp(); })();
 
 /* ---------- identity ---------- */
 function setWho(name, silent){
