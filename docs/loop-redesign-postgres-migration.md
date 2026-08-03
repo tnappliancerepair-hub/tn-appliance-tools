@@ -167,8 +167,8 @@ Do the cleanup *before* moving, so we migrate a lean, correct system:
 
 ## Status
 - [x] Phase 0 — audit complete (this doc)
-- [ ] Phase 1 — tighten in place (awaiting go)
-- [ ] Phase 2 — shadow stack on Railway + Postgres
+- [~] Phase 1 — tighten in place: **dead-agent archive DONE** (2026-08-03 — 556→318 agents, 238 dead moved to `agents/archive/`, registry regen 318, validateRegistry green, reversible, inert until Mac pull). Remaining: merge redundant paths, marker-mismatch fixes, Mac-ism removal.
+- [~] Phase 2 — shadow stack: **Postgres spine BUILT** (2026-08-03 — schema + `pg.js` + `store.js` tee, inert). Remaining: deploy the shadow on Railway (Day 5).
 - [ ] Phase 3 — shadow-diff validation to bulletproof
 - [ ] Phase 4 — flip + retain rollback
 
