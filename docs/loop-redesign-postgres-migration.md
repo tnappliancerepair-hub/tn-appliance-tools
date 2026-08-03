@@ -196,10 +196,15 @@ verification); "Me" = Claude (build).*
 - **Me:** wire the Sentry error-wrapper + `/health` endpoint; move pure timer-jobs (BI/watchdog/digests) from loop → Netlify crons (shrinks the loop to its reactive core before the move).
 - **End of day:** breakage surfaces to a dashboard, not a customer; the thing we're migrating is now small.
 
-### Day 4 (Thu) — Build the new spine (shadow prep, nothing live)
+### Day 4 (Thu) — Build the new spine (shadow prep, nothing live) — ✅ BUILT 2026-08-03
 - **You:** confirm Supabase creds vaulted.
 - **Me:** create the Postgres schema (`loop_signals` + `fired_markers` + `loop_events` — queue + dedup + event_log together); build the `store.js` `pg` adapter + the tee (mirror live emits → PG, read-only, never drains the live queue).
 - **End of day:** the new spine exists; zero production impact.
+- **✅ Shipped (all inert until env flips — default path unchanged, 15/15 tests green):**
+  - `docs/sql/003_loop_spine.sql` — the three tables (unix-ms bigints = byte-for-byte drop-in for `db.js`; RLS on = service-key-only). **Run once when the shadow deploys.**
+  - `colony-loop/pg.js` — dependency-free PostgREST adapter mirroring `db.js`'s exact interface + return shapes; no-op-safe when `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` unset. Guarded in CI by `tests/pg-store.test.js`.
+  - `colony-loop/store.js` — generalized local→alt; `LOOP_STORE=pg` mode + the **tee** (`LOOP_PG_TEE=true` mirrors live emits → PG, detached/fire-and-forget, never blocks or throws into the live path).
+  - **Day-5 activation (nothing today):** (1) run `003_loop_spine.sql` in ANT OPS; (2) set `LOOP_PG_TEE=true` on the live loop (git pull + restart) so PG starts catching the stream; (3) deploy the shadow with `LOOP_STORE=pg` + `COLONY_NAME=cloud-shadow` + `DRY_RUN=true`, verify a clean `loop_tick` reading `loop_signals` + **zero sends**. First real integration run = the shadow deploy (adapter is structurally tested; live behavior proves on Day 5).
 
 ### Day 5 (Fri) — Deploy the shadow on Railway → soak clock starts ⏱️
 - **You + me (dashboard, I guide):** deploy the lean loop on Railway in `DRY_RUN=true`, `COLONY_NAME=cloud-shadow`, `LOOP_STORE=pg`, reading the tee'd stream. Verify a clean `loop_tick` and **zero sends**.
