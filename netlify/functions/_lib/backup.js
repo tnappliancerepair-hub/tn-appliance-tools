@@ -36,6 +36,12 @@ const CHUNK_ROWS = 500;    // rows per Supabase insert
 const HEAVY_PER_PAGE = { 47: 50 };
 const MAX_PAGES = 8000;    // runaway backstop (1.6M rows/table)
 const BACKUP_TABLE = 'xano_backup_chunks';
+// Retention window (days). Without pruning, every night's full snapshot
+// accumulated forever — the table hit ~26k chunks / 978 MB, over half the ops
+// DB, and became the #1 autovacuum-churn source that helped melt the Nano tier.
+// Keep a rolling N days of point-in-time snapshots; older ones are pruned after
+// each run. Tunable via BACKUP_RETENTION_DAYS.
+const RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS) > 0 ? Number(process.env.BACKUP_RETENTION_DAYS) : 7;
 
 // Known table ids → friendly names. Unknown discovered ids fall back to table-<id>.
 const NAME_MAP = { 3: 'event_log', 6: 'customer', 7: 'jobs', 15: 'technicians', 46: 'warranty_submissions', 47: 'parts_orders' };
@@ -179,6 +185,21 @@ async function clearSnapshot(date) {
   }).catch(() => {});
 }
 
+// Prune snapshots older than the retention window so the backup table can't grow
+// unbounded. Deletes by snapshot_date (bounded, no row enumeration). Best-effort:
+// a prune failure must never fail the backup itself.
+async function pruneOldSnapshots(keepDays = RETENTION_DAYS) {
+  const c = await sb.cfg();
+  if (!c.url || !c.key) return { pruned: false, reason: 'not_configured' };
+  const cutoff = new Date(Date.now() - keepDays * 86400000).toISOString().slice(0, 10);
+  const r = await fetch(`${c.url}/rest/v1/${BACKUP_TABLE}?snapshot_date=lt.${cutoff}`, {
+    method: 'DELETE',
+    headers: { apikey: c.key, Authorization: 'Bearer ' + c.key, Prefer: 'return=minimal' },
+    signal: AbortSignal.timeout(20000),
+  });
+  return { pruned: r.ok, cutoff, keepDays };
+}
+
 // Run a backup. opts.only = [ids] for a scoped run (probe/verify); else core+discovered.
 async function backupTables(opts = {}) {
   if (!(await sb.isConnected())) throw new Error('supabase_not_configured (set SUPABASE_URL + SUPABASE_SERVICE_KEY)');
@@ -223,6 +244,11 @@ async function backupTables(opts = {}) {
   // manifest row for this snapshot (table_name='_manifest')
   await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: '_manifest', table_id: null, part: 0, row_count: summary.tables.length, rows: summary });
 
+  // Retention: prune snapshots older than the window (keeps the backup table
+  // bounded — it had grown to ~1GB with no pruning). Best-effort — never fail the
+  // backup on a prune error.
+  try { summary.pruned = await pruneOldSnapshots(); } catch (e) { summary.prune_error = String((e && e.message) || e).slice(0, 200); }
+
   if (opts.writeAudit) {
     try {
       await fetch(`${META}/table/${EVENT_LOG_TABLE}/content`, {
@@ -237,4 +263,4 @@ async function backupTables(opts = {}) {
   return summary;
 }
 
-module.exports = { backupTables };
+module.exports = { backupTables, pruneOldSnapshots };
