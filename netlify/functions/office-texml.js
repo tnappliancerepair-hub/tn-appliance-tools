@@ -1,14 +1,19 @@
 // office-texml — TeXML that rings the office when a caller is transferred to a human.
-// PRIORITY ORDER (Teddy 2026-08-03): ring the DISPATCHERS (Danielle + Sofia)
-// together first; only if neither of them answers does it fall back to TEDDY.
-// Danielle + Sofia are the office answerers, Teddy is the backup. Each person has
-// their own availability flag (OFFICE_REACH_DANIELLE / _SOFIA / _TEDDY) read FRESH
-// so a toggle applies on the next call; anyone Off is skipped. Nobody On -> Reject
-// (Ann took a message).
 //
-// How the sequence works: leg 1 dials the on-duty dispatchers with an `action`
-// webhook back here (?leg=2). When that Dial ends Telnyx POSTs DialCallStatus — if
-// one of them answered (completed) we hang up; otherwise leg 2 rings Teddy.
+// PRIORITY (Teddy 2026-08-03): ring the DISPATCHERS (Danielle + Sofia) first, then
+// fall back to TEDDY. Two ways to be reached, independent:
+//   • CELL   — gated by OFFICE_REACH_<NAME> ("off" = don't ring my cell).
+//   • COMPUTER APP (office-phone.html WebRTC) — rings whenever that person is On in
+//     the app (registered on the "Ant office phone" credential connection). Reached
+//     by dialing sip:<sip_username>@sip.telnyx.com. Not gated by the reach flag, so
+//     e.g. Sofia can take calls on her computer with her CELL turned off. If the app
+//     isn't On, that SIP leg just doesn't answer — harmless.
+// One <Dial> mixes <Number> (cells) + <Sip> (apps); they ring in parallel, first to
+// answer wins. Leg 1 rings the dispatchers with an action webhook (?leg=2); if none
+// answer, leg 2 rings Teddy.
+//
+// SAFETY: the computer-app (SIP) legs are behind OFFICE_PHONE_WEBRTC_INBOUND — set it
+// to "off" to instantly revert to the known-good cell-only ring.
 'use strict';
 
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
@@ -16,16 +21,18 @@ const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const SELF = 'https://tnapplianceexchange.net/.netlify/functions/office-texml';
 function esc(s) { return String(s || '').replace(/[<&>"]/g, (c) => ({ '<': '&lt;', '&': '&amp;', '>': '&gt;', '"': '&quot;' }[c])); }
 function isOff(v) { return String(v || '').trim().toLowerCase() === 'off'; }
+function sipUri(username) { const u = String(username || '').trim(); return u ? `sip:${u}@sip.telnyx.com` : ''; }
 function xmlResp(inner) {
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n' + inner + '\n</Response>';
   return { statusCode: 200, headers: { 'content-type': 'text/xml; charset=utf-8' }, body: xml };
 }
-// One <Dial> with one-or-more <Number> children rings them ALL AT ONCE; first to
-// answer wins the bridge. actionUrl (optional) gets the DialCallStatus webhook.
-function dialMany(nums, callerId, timeout, actionUrl) {
+// legs: array of { number } (cell) or { sip } (computer app). Rings all in parallel.
+function dialLegs(legs, callerId, timeout, actionUrl) {
   const action = actionUrl ? ` action="${esc(actionUrl)}" method="POST"` : '';
-  const numbers = nums.map((n) => `    <Number>${esc(n)}</Number>`).join('\n');
-  return `  <Dial callerId="${esc(callerId)}" timeout="${timeout}" answerOnBridge="true"${action}>\n${numbers}\n  </Dial>`;
+  const inner = legs
+    .map((l) => (l.sip ? `    <Sip>${esc(l.sip)}</Sip>` : `    <Number>${esc(l.number)}</Number>`))
+    .join('\n');
+  return `  <Dial callerId="${esc(callerId)}" timeout="${timeout}" answerOnBridge="true"${action}>\n${inner}\n  </Dial>`;
 }
 // Telnyx posts the action webhook form-encoded; pull DialCallStatus out of the body.
 function dialStatus(event) {
@@ -44,22 +51,43 @@ exports.handler = async function (event) {
   const teddyOn = !isOff(await getSecretFresh('OFFICE_REACH_TEDDY'));
   const danielleOn = !isOff(await getSecretFresh('OFFICE_REACH_DANIELLE'));
   const sofiaOn = !isOff(await getSecretFresh('OFFICE_REACH_SOFIA'));
+
+  // Computer-app (WebRTC) inbound: ON by default; set OFFICE_PHONE_WEBRTC_INBOUND=off
+  // to revert to cell-only. Each person's app leg only exists if their SIP login is
+  // vaulted (created via telnyx-provision create who=…).
+  const webrtcOn = !isOff(await getSecretFresh('OFFICE_PHONE_WEBRTC_INBOUND'));
+  const teddySip = webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME')) : '';
+  const danielleSip = webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_DANIELLE')) : '';
+  const sofiaSip = webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_SOFIA')) : '';
+
   const leg = ((event && event.queryStringParameters) || {}).leg || '1';
 
-  // Leg 2 — the dispatcher ring finished. If someone answered, we're done; else Teddy.
+  // Leg 2 — the dispatcher ring finished. If someone answered, done; else Teddy
+  // (cell if he's on + his computer app if registered).
   if (leg === '2') {
     const status = dialStatus(event);
     const answered = status === 'completed' || status === 'answered' || status === 'bridged';
-    if (answered || !teddyOn) return xmlResp('  <Hangup/>');
-    return xmlResp(dialMany([teddyNum], callerId, 25, null));
+    if (answered) return xmlResp('  <Hangup/>');
+    const legs2 = [];
+    if (teddyOn) legs2.push({ number: teddyNum });
+    if (teddySip) legs2.push({ sip: teddySip });
+    if (!legs2.length) return xmlResp('  <Hangup/>');
+    return xmlResp(dialLegs(legs2, callerId, 25, null));
   }
 
-  // Leg 1 — ring the on-duty dispatchers (Danielle + Sofia) together first.
-  const dispatchers = [];
-  if (danielleOn) dispatchers.push(danielleNum);
-  if (sofiaOn) dispatchers.push(sofiaNum);
-  if (dispatchers.length) return xmlResp(dialMany(dispatchers, callerId, 20, `${SELF}?leg=2`));
-  // No dispatcher on — go straight to Teddy if he's on, else nobody's available.
-  if (teddyOn) return xmlResp(dialMany([teddyNum], callerId, 25, null));
+  // Leg 1 — dispatchers: cell (reach-gated) + computer app (rings if they're On in
+  // the app). Sofia's cell is off but her computer still rings.
+  const legs = [];
+  if (danielleOn) legs.push({ number: danielleNum });
+  if (danielleSip) legs.push({ sip: danielleSip });
+  if (sofiaOn) legs.push({ number: sofiaNum });
+  if (sofiaSip) legs.push({ sip: sofiaSip });
+  if (legs.length) return xmlResp(dialLegs(legs, callerId, 20, `${SELF}?leg=2`));
+
+  // No dispatcher reachable — go straight to Teddy (cell + his app), else nobody.
+  const legsT = [];
+  if (teddyOn) legsT.push({ number: teddyNum });
+  if (teddySip) legsT.push({ sip: teddySip });
+  if (legsT.length) return xmlResp(dialLegs(legsT, callerId, 25, null));
   return xmlResp('  <Reject/>');
 };
