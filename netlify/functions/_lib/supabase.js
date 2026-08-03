@@ -149,4 +149,23 @@ async function del(table, filters = {}) {
   return { ok: true };
 }
 
-module.exports = { cfg, isConnected, insert, select, update, del, recordEvent };
+// Call a Postgres function exposed via PostgREST RPC (POST /rest/v1/rpc/<fn>).
+// args = JSON body. Used for things PostgREST can't do directly (e.g. reading
+// pg_stat_user_tables for table sizes via a SECURITY DEFINER function).
+async function rpc(fn, args = {}) {
+  const c = await cfg();
+  if (!c.url || !c.key) throw new Error('supabase_not_configured');
+  const r = await fetch(`${c.url}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    headers: headers(c),
+    body: JSON.stringify(args || {}),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`supabase rpc ${fn} -> ${r.status}: ${t.slice(0, 200)}`);
+  }
+  return r.json();
+}
+
+module.exports = { cfg, isConnected, insert, select, update, del, recordEvent, rpc };
