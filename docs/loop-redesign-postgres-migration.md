@@ -127,6 +127,35 @@ Do the cleanup *before* moving, so we migrate a lean, correct system:
 
 ---
 
+## Phase 5 (horizon) — automate Xano → Supabase (what the loop migration pilots)
+*Teddy asked 2026-08-03: "what's the possibility of automation building what we have on Xano onto Supabase and improving our idea?" This section is the answer, captured alongside the locked decisions. It is the ENDGAME the loop migration (Phases 0–4) is the contained pilot for. It does NOT start until the queue pilot proves the pattern.*
+
+**Verdict: high possibility, and the right long-term direction — as an automation-*assisted*, shadow-verified, INCREMENTAL rebuild, not a push-button "port Xano to Supabase" transpile.**
+
+**Two layers, very different difficulty:**
+- **Data — easy, largely already flowing.** Tables + rows are schema + JSON. We already mirror Xano → Supabase nightly (`xano_backup_chunks`). Turning that into a continuous dual-write is straightforward automation. Data is not the hard part.
+- **Logic — the real work.** The value locked in Xano is the ~724 XanoScript endpoints. There is **no automatic XS→Postgres transpiler** (XS is proprietary). Automation here = an LLM rewrites each *live* endpoint as a Postgres function or a plain JS handler, then a human reviews + tests it. Semi-automated, not magic. **The 724 is misleading** — per our own audit most are dead; the real surface is the ~127 live paths, migrated a subsystem at a time.
+
+**Why it improves the idea (not just cheaper infra):**
+1. **One brain-adjacent database instead of three** (Xano ops + Supabase intel + SQLite queue). The intelligence layer — embeddings, `brain_predictions`, the eval rollup — ALREADY lives on Supabase. Put ops data next to it and the brain can join a **live job against every similar past job + its outcome + its embedding + its eval score in ONE query.** The compounding-engine thesis made physically possible (impossible today, split across platforms).
+2. **Kills the entire XanoScript footgun class** — em-dashes, silent field drops, multi-line ternaries, Mac-only `xano workspace push`. Postgres functions + plain JS + git-push deploys erase all of it.
+3. **Reliability + control + cost.** Real SQL (indexes, views, EXPLAIN, RPCs) instead of the XS black box; predictable Postgres under load (today's right-sizing lesson); ~$25 Supabase + compute vs $249/mo Xano Pro.
+
+**What automation actually does (the honest split):**
+- **Data layer → automatable:** schema introspection + continuous row sync (extends the backup we already run).
+- **Scaffolding → automatable:** generate PG tables / indexes / RLS + stub JS/Edge handlers per endpoint from Xano metadata.
+- **Logic → LLM-assisted + human-reviewed + test-covered** (exactly why CI + the eval harness were built first).
+- **Verification → the highest-value automation:** the **decision-diff harness** (the same one built for the loop) runs both systems on real traffic and only flips a subsystem when outputs match 100%. Automation's biggest job here isn't writing code — it's continuously *proving* the new matches the old.
+
+**The safe sequence (never big-bang — it runs a live business):**
+1. **Pilot = the loop/queue (Phases 0–4 above).** Prove the whole machine on one contained subsystem: Supabase-Postgres store + dual-write tee + shadow + decision-diff + one-toggle flip + old-system-as-hot-rollback.
+2. **Then expand the same machinery subsystem by subsystem** — event_log → intake → scheduling → TDR → warranty → invoicing — each a parallel-run until provably identical on real traffic, then flipped, with Xano standing by for instant rollback.
+3. **Xano is decommissioned LAST**, only after every live path has soaked green on Supabase.
+
+**Honest constraints:** multi-week arc; every subsystem must parallel-run (a botched cutover = lost jobs + angry customers); sequenced *after* the queue pilot proves the pattern, not before. The enablers are what we've already been building — **CI + tests** (regression safety), the **eval harness** (measures correctness), the **Supabase offload** (proven on archives + eval + `brain_predictions`), **`db-size-check`** (watch DB health before load moves over), and the **decision-diff harness** (the safety mechanism). We are already on this path.
+
+---
+
 ## Decisions — LOCKED 2026-08-02
 1. **Store = Supabase Postgres** ✅ — queue + dedup + event_log together. Most autonomous long-term: one managed store, one backup regime, and the same Postgres we'd consolidate onto when retiring XanoScript.
 2. **Dead agents = archive first, delete later** ✅ — move to `colony-loop/agents/_archive/` (reversible, CI stays green); delete after the migration is proven stable.
