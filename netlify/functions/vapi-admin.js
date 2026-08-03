@@ -309,7 +309,7 @@ exports.handler = async function (event) {
       + `You do NOT have an arrival clock time from our routing, and you NEVER make one up. Never read back our internal scheduled time-of-day (it's a routing placeholder, not a promise), and never say "around 3," "this afternoon," "in a few minutes," "soon." If you don't have an exact time, SAY SO plainly — "I don't have an exact arrival time for you" — then give them the accurate ways to get one below. A wrong time breaks trust; "I don't know that exactly, but here's how you can find out" builds it.\n`
       + `THE TIMES WE CAN STAND BEHIND (use these):\n`
       + `1. WARRANTY-COMPANY WINDOW: If the customer's warranty company already gave them a time or window, THAT is the time we'll be there. If they mention one, affirm it warmly: "If your warranty company gave you that window, that's the window we'll be there for." Do NOT invent a window they didn't mention.\n`
-      + `2. TALK TO THEIR TECH DAY-OF: For a real-time answer they can call back the day of and ask for their technician. During business hours (Mon–Fri 9 AM–6 PM Central — confirm with get_business_hours) transfer them to their tech (transferCall → that tech's destination); he can tell them how many stops are ahead and when he'll accurately be there. If he doesn't answer, relay_to_tech texts him to call them back.\n`
+      + `2. CHECK WITH THE OFFICE: For a real-time answer during business hours (Mon–Fri 9 AM–6 PM Central — confirm with get_business_hours), transfer them to the OFFICE (transferCall → the office, which rings Teddy + Danielle); the office can reach their technician and give an accurate update. Do NOT transfer the caller straight to the tech. You can also use relay_to_tech to text the tech to call the customer back.\n`
       + `3. FOLLOW-THE-TECH LINK: When their technician taps "on my way," they'll get a text link to follow him live on their phone and see an accurate, specific arrival time. Let them know that's coming so they watch for it.\n`
       + `ALWAYS FINE: confirm the DAY they're scheduled, and collect the customer's OWN availability. Outside business hours, never ring or transfer anyone — take a message with capture_callback.\n${MARK}\n\n`;
     // strip EVERY prior copy of this block (global, whitespace-tolerant — collapses any
@@ -342,7 +342,7 @@ exports.handler = async function (event) {
     if (!String(msgs[si].content || '').includes(MARK)) {
       const BLOCK = `${MARK}\n## REACHING THEIR TECH — if he doesn't pick up, take a message and you'll text it to him [high priority]\n`
         + `When a caller needs their specific technician (something only the tech can answer, a gate code, "tell him I have to leave," etc.):\n`
-        + `- If live transfer to that tech is enabled and it's business hours, you may connect them.\n`
+        + `- We do NOT transfer callers straight to a tech's phone. During business hours, bring them to the OFFICE first (it rings Teddy + Danielle and can reach him). Otherwise use relay_to_tech below.\n`
         + `- If he DOESN'T answer, isn't available, or the caller just wants to leave word: never leave them hanging. Say warmly: "He's out on calls so he may not grab it live — but tell me what you'd like him to know and your best callback number, and I'll text it straight to him and flag it so he gets right back to you." Then CALL relay_to_tech with the tech (tech_id or tech_name from the job lookup), the caller's name + phone, the appliance, and their message. It texts the tech and alerts the office that he missed the call. Then confirm to the caller you've sent it.\n${MARK}\n\n`;
       msgs[si].content = BLOCK + String(msgs[si].content || '');
     }
@@ -387,29 +387,19 @@ exports.handler = async function (event) {
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const RING = '+16155889591';
     const DANIELLE = '+16154850713';
-    // Read the live reach switches — Danielle's DIRECT (AHS) line appears only when
-    // she's ON the phones; field techs are ALWAYS reachable for their own homeowners.
-    // The office RING is ALWAYS present as the general/fallback destination (it points
-    // at office-texml, which SELF-GATES on these same flags: it dials only whoever is
-    // On and <Reject/>s when both are off). Making it always-present is the safety fix
-    // for the "both flags off → general callers dumped onto the first tech (Jimmy)"
-    // bug (2026-08-03): a general/"speak to a person" caller must NEVER have techs as
-    // the only choice — there must always be an office destination for them to land on.
+    // CALLS COME TO THE OFFICE FIRST (Teddy 2026-08-03). Every live human handoff
+    // rings the OFFICE (Teddy + Danielle) — Ann does NOT transfer a caller straight
+    // to a technician; the office decides whether to loop the tech in. Techs are
+    // reached via relay_to_tech (a text) or by the office. The office RING points at
+    // office-texml, which self-gates on the reach flags (dials whoever's On, Rejects
+    // when both are off). Danielle's DIRECT line stays only for warranty/AHS reps.
     const danielleOn = String((await getSecretFresh('OFFICE_REACH_DANIELLE')) || '').trim().toLowerCase() !== 'off';
     const teddyOn = String((await getSecretFresh('OFFICE_REACH_TEDDY')) || '').trim().toLowerCase() !== 'off';
-    const TECHS = [
-      { name: 'Jimmy', num: '+16159671304' },
-      { name: 'Andre', num: '+15049099413' },
-      { name: 'Lee', num: '+16158291654' },
-      { name: 'John', num: '+18133527686' },
-      { name: 'Teddy', num: '+16154855795' },
-    ];
-    const dests = TECHS.map((t) => ({ type: 'number', number: t.num, message: `One moment — connecting you with ${t.name}.`, description: `Transfer here ONLY when the caller is a HOMEOWNER whose assigned technician is ${t.name} — for an arrival ("when is he coming"), job, or status question on one of ${t.name}'s own jobs. NEVER send a general caller, a "speak to a person/office" request, or a warranty rep here.` }));
-    if (danielleOn) dests.push({ type: 'number', number: DANIELLE, message: 'One moment — connecting you with Danielle.', description: "Danielle (office manager), her DIRECT line. ALWAYS transfer American Home Shield / AHS and any other warranty or insurance company REP here. Homeowners do NOT go here." });
-    // ALWAYS present (self-gating). This is the destination for a general caller,
-    // a complaint, anyone asking for "a person"/"the office", or when you can't tell
-    // which tech is on the caller's job — it rings Teddy + Danielle.
-    dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: "THE OFFICE (rings Teddy + Danielle). Transfer here for ANY general caller, a complaint, anyone asking to speak to a person / the office / Teddy / Danielle, or when you can't tell which tech is on the caller's job. This is the DEFAULT for a human handoff. NOT for a homeowner asking about a specific tech's job (they have their own destination) and NOT for a warranty rep when Danielle's direct line is present." });
+    const dests = [];
+    // PRIMARY / DEFAULT — the office, rings Teddy + Danielle. First stop for every handoff.
+    dests.push({ type: 'number', number: RING, message: 'One moment — connecting you with our office.', description: "THE OFFICE — rings Teddy and Danielle. This is the DEFAULT and FIRST stop for EVERY live human handoff: general questions, complaints, anyone asking to speak to a person / the office / Teddy / Danielle, AND a homeowner asking about their appointment, their tech, or when he's coming. Bring the caller to us first — the office loops in the technician if needed. NEVER transfer a caller straight to a tech." });
+    // Warranty/insurance reps → Danielle's direct line (only when she's on the phones).
+    if (danielleOn) dests.push({ type: 'number', number: DANIELLE, message: 'One moment — connecting you with Danielle.', description: "Danielle (office manager), her DIRECT line — for American Home Shield / AHS and any other warranty or insurance company REP only. Homeowners and general callers go to the office, NOT here." });
     // HARD business-hours gate: off-hours we REMOVE the transferCall tool entirely
     // so Ann literally has no way to ring a human — she takes a message instead.
     // On-hours we (re)attach it. This flips automatically via the phone-hours-gate
@@ -418,12 +408,12 @@ exports.handler = async function (event) {
     let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
     if (openNow) tools.push({ type: 'transferCall', destinations: dests });
     const MARK = '<!-- TECH-TRANSFER -->';
-    const BLOCK = `${MARK}\n## TRANSFER ROUTING — LIVE CALLS TO A HUMAN ARE MON–FRI 9–6 CENTRAL ONLY [high priority]\n`
-      + `CALL get_business_hours before ANY transfer. We connect a caller to a live person — a tech, Danielle, or the office — ONLY Monday–Friday, 9 AM–6 PM Central. Outside that (after 6 PM, before 9 AM, all weekend): transfer NO ONE. Handle it yourself, take a message with capture_callback, and tell them we follow up when we open. Never ring OR text a tech, Danielle, or the office off-hours.\n`
-      + `DURING business hours only:\n`
-      + `• HOMEOWNER who wants their tech / asks when he's coming: look up their job, transferCall straight to THAT tech's own destination. If the tech doesn't answer, call relay_to_tech to text him to call the customer back.\n`
+    const BLOCK = `${MARK}\n## TRANSFER ROUTING — CALLS COME TO THE OFFICE FIRST, MON–FRI 9–6 CENTRAL [high priority]\n`
+      + `CALL get_business_hours before ANY transfer. We connect a caller to a live person ONLY Monday–Friday, 9 AM–6 PM Central. Outside that (after 6 PM, before 9 AM, all weekend): transfer NO ONE. Handle it yourself, take a message with capture_callback, and tell them we follow up when we open.\n`
+      + `DURING business hours, when a caller needs a live person:\n`
+      + `• DEFAULT — transfer to THE OFFICE (it rings Teddy + Danielle). This is the FIRST stop for essentially every handoff: general questions, complaints, "let me speak to someone," AND a homeowner asking about their appointment, their tech, or when he's coming. We bring the caller to US first; the office loops in the technician if needed. NEVER transfer a caller straight to a technician.\n`
       + `• AMERICAN HOME SHIELD / AHS or ANY warranty/insurance REP: if a "Danielle" destination is present, transfer them DIRECTLY to Danielle. If not (she's off the phones), take their dispatch/claim + callback with capture_callback.\n`
-      + `• The office ring is only for general questions/complaints, or when you can't tell who the caller's tech is.\n${MARK}\n\n`;
+      + `• To get a message to a specific tech WITHOUT transferring the caller, use relay_to_tech — it texts the tech and alerts the office. Use this instead of ever sending the caller to a tech's phone.\n${MARK}\n\n`;
     {
       const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
       msgs[si].content = BLOCK + cur;
@@ -572,7 +562,7 @@ exports.handler = async function (event) {
       + `Send it: existing job → voice_followup_send_links(job_id) · brand-new warranty → start_new_intake(...) then voice_followup_send_links(job_id) · out-of-pocket/price-shopper → send_quickcheck_link(phone, first_name). Confirm the cell can text, then "Sent — check your texts."\n`
       + `IF THEY CAN'T OR WON'T TEXT: take their AVAILABILITY right on the call — the days that work for them — and save it with save_availability(job_id, ...). Then say: "Perfect — I'm sending this over to scheduling and they'll reach out shortly to lock in your day." Do NOT pick a day/time yourself.\n\n`
       + `### STEP 3 — VERIFY AN APPOINTMENT ("am I scheduled / when / who")\n`
-      + `Call get_job_arrival_status and read back EXACTLY what it returns — the DAY and the tech name ("You're set with John for Monday"). No tech name → say "your technician," never guess. TIMES: never invent one; the real times are their warranty company's window (if they were given one), their tech day-of (transfer during business hours), or the follow-the-tech link once he's on the way.\n\n`
+      + `Call get_job_arrival_status and read back EXACTLY what it returns — the DAY and the tech name ("You're set with John for Monday"). No tech name → say "your technician," never guess. TIMES: never invent one; the real times are their warranty company's window (if they were given one), checking with the office day-of (transfer to the office during business hours; the office reaches the tech), or the follow-the-tech link once he's on the way.\n\n`
       + `### STEP 4 — PARTS UPDATE ("where are my parts / when's it coming")\n`
       + `Check the job (get_parts_status, or the parts_status + parts_eta_date on the lookup tile). If there's an ETA, give it plainly, and if the tool shows where it's coming from, name the source: "Your part's on order, expected {parts_eta_date}." If there's NO ETA, be honest: "It's on order — I don't have an exact date yet, but we'll text you the moment it ships." NEVER invent an ETA.\n${MARK}`;
     let content = String(msgs[si].content || '');
@@ -631,7 +621,7 @@ exports.handler = async function (event) {
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const MARK = '<!-- NO-PRECISE-TIME -->';
     const BLOCK = `${MARK}\n## ON ARRIVAL TIMES (reinforces the arrival-times policy above)\n`
-      + `Never invent a clock time, and never read our internal scheduled time-of-day back as a promise — it's a routing placeholder, not an appointment. If you don't have an exact time, say so honestly ("I don't know that exactly") and give them the REAL ways to know: their warranty company's window if they were given one (that's the time we'll be there), talking to their technician the day of (transfer during business hours), and the follow-the-tech link they get once he's on the way. You may always confirm the DAY. Never cave and guess a specific time.\n${MARK}\n\n`;
+      + `Never invent a clock time, and never read our internal scheduled time-of-day back as a promise — it's a routing placeholder, not an appointment. If you don't have an exact time, say so honestly ("I don't know that exactly") and give them the REAL ways to know: their warranty company's window if they were given one (that's the time we'll be there), checking with the office the day of (transfer to the office during business hours; they reach the tech), and the follow-the-tech link they get once he's on the way. You may always confirm the DAY. Never cave and guess a specific time.\n${MARK}\n\n`;
     // Strip EVERY prior copy (global, whitespace-tolerant — collapses duplicates),
     // then prepend the current one so edits go live on re-run.
     {
