@@ -95,7 +95,21 @@ async function notifyPartOrdered({ job_id, eta_date }) {
 // hours). Called each run by the parts watchers. Efficient — pulls the supplied +
 // already-notified sets ONCE, then only attempts the genuinely-pending jobs.
 async function notifyRecentSupplied({ lookbackMs } = {}) {
-  const cutoff = Date.now() - (lookbackMs || 2 * 86400000); // default: last 2 days
+  const now = Date.now();
+  // FORWARD-ONLY guard (codebase rule: no backlog text blasts). On the very first
+  // run, stamp an epoch and notify NOTHING retroactively — every part supplied
+  // before the feature went live is backlog and never gets a retro-text. From then
+  // on we only ever retry parts supplied AFTER the epoch.
+  let epoch = 0;
+  try {
+    const er = await crud.searchPage(crud.TABLES.event_log, { action: 'parts_notify_epoch' }, { id: 'desc' }, 1);
+    epoch = (er && er[0]) ? Number(metaOf(er[0]).at_ms || 0) : 0;
+  } catch (_) {}
+  if (!epoch) {
+    try { await crud.logEvent('parts_notify_epoch', { at_ms: now }); } catch (_) {}
+    return { attempted: 0, sent: 0, epoch_set: true };
+  }
+  const cutoff = Math.max(now - (lookbackMs || 2 * 86400000), epoch); // last 2 days, never before the epoch
   let supplied = [], notified = [];
   try {
     supplied = await crud.searchPage(crud.TABLES.event_log, { action: 'warranty_part_supplied' }, { id: 'desc' }, 500);
