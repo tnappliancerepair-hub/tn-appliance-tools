@@ -8235,4 +8235,29 @@
   <url><loc>https://tnapplianceexchange.net/fr/fix/oven-not-heating.html</loc><lastmod>2026-07-29</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://tnapplianceexchange.net/vi/fix/</loc><lastmod>2026-07-29</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://tnapplianceexchange.net/fr/fix/</loc><lastmod>2026-07-29</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url>
+    <loc>https://tnapplianceexchange.net/churches.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/community-partners.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/es/iglesias.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.55</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/es/aliados-comunitarios.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.55</priority>
+  </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/ru/partnery-soobshchestva.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
 </urlset>
