@@ -148,17 +148,29 @@ exports.handler = async function (event) {
   const gmail = await gmailClient();
   if (!gmail) return json(200, { ok: true, ocr, labels: [], note: 'Gmail is not connected — cannot pull the label.' });
 
-  // 2) Find the RMA label email(s) — claim # first (precise), then customer last name.
+  // 2) Find the RMA label email(s). These come from SquareTrade (rma_request@squaretrade.com)
+  //    AND from Allstate Protection Plans — a DIFFERENT sender. Locking the search to the
+  //    SquareTrade sender made every Allstate-branded RMA email invisible ("no label found").
+  //    So: try the precise SquareTrade sender first, then a sender-AGNOSTIC claim + label-terms
+  //    search that catches Allstate (and any other plan administrator), then the same by last name.
+  const LABEL_TERMS = '("print my label" OR "return label" OR "RMA #" OR "Return Description")';
   const queries = [];
-  if (claim) queries.push(`from:rma_request@squaretrade.com ${claim}`);
-  if (cust) queries.push(`from:rma_request@squaretrade.com ${cust.split(/\s+/).slice(-1)[0]}`);
+  if (claim) {
+    queries.push({ q: `from:rma_request@squaretrade.com ${claim}`, via: 'claim' });
+    queries.push({ q: `${claim} ${LABEL_TERMS}`, via: 'claim' });
+  }
+  if (cust) {
+    const last = cust.split(/\s+/).slice(-1)[0];
+    queries.push({ q: `from:rma_request@squaretrade.com ${last}`, via: 'customer' });
+    queries.push({ q: `${last} ${LABEL_TERMS}`, via: 'customer' });
+  }
   let msgs = [], via = '';
   for (let i = 0; i < queries.length; i++) {
-    try { const list = await gmail.users.messages.list({ userId: 'me', q: queries[i], maxResults: 10 }); if (list.data.messages && list.data.messages.length) { msgs = list.data.messages; via = i === 0 ? 'claim' : 'customer'; break; } } catch (_) {}
+    try { const list = await gmail.users.messages.list({ userId: 'me', q: queries[i].q, maxResults: 10 }); if (list.data.messages && list.data.messages.length) { msgs = list.data.messages; via = queries[i].via; break; } } catch (_) {}
   }
-  const gmail_search = claim ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent('from:rma_request@squaretrade.com ' + claim)}`
-    : (cust ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent('from:rma_request@squaretrade.com ' + cust)}` : '');
-  if (!msgs.length) return json(200, { ok: true, ocr, labels: [], gmail_search, note: 'No RMA label email found for this box yet — it may not have been issued. Check the Gmail search, or the SquareTrade portal.' });
+  const gmail_search = claim ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent(claim + ' ' + LABEL_TERMS)}`
+    : (cust ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent(cust + ' ' + LABEL_TERMS)}` : '');
+  if (!msgs.length) return json(200, { ok: true, ocr, labels: [], gmail_search, note: 'No RMA label email found for this box yet — it may not have been issued. Check the Gmail search, or the SquareTrade/Allstate portal.' });
 
   // 3) Pull the PRINT MY LABEL link + the part each is for (in parallel, capped
   //    higher so multi-part claims — Tovar had 4, Fleming 5 — all come back).
