@@ -43,7 +43,7 @@ Rule: **generic/nationwide intent** ("help me fix it / buy the part," anywhere).
 ## Phased plan (each step gated on Teddy's approval; nothing live until "go")
 1. ✅ **Split map + this doc** (done — read-only).
 2. ✅ **Stand up applianceant.com on Netlify** — **LIVE 2026-08-04.** `https://applianceant.com` serves the Appliance Ant consumer homepage with SSL. See "Live infrastructure" below.
-3. **Move the ~200 nationwide/DIY pages** over + build the parts/Amazon-link layer + cross-links. *(next)*
+3. **Move the ~200 nationwide/DIY pages** over + build the parts/Amazon-link layer + cross-links. *(IN PROGRESS — batch 1 shipped 2026-08-04, see below)*
 4. **301-redirect** the old URLs on the repair site → applianceant.com; register applianceant.com in Search Console; submit its sitemap.
 5. **Repair-site local consolidation** (the 1,170 city landers → metro hubs) — separate, careful cleanup to end cannibalization.
 
@@ -61,6 +61,27 @@ Rule: **generic/nationwide intent** ("help me fix it / buy the part," anywhere).
 ## What only Teddy can do
 - **GoDaddy DNS** — point applianceant.com at Netlify (records handed over at Phase 2).
 - **GBP category** — remove any "Appliance store / Used appliance store" (kills the "used appliance" ghost that still mis-ranks the repair site).
+
+## Phase 3 progress — the DIY symptom pages (started 2026-08-04)
+**Generator:** `tools/applianceant-build/build-symptoms.js` (Node, no deps) — lives OUTSIDE the publish folder, WRITES static HTML into `applianceant/`. Data-driven: edit the `SYMPTOMS` array, run `node tools/applianceant-build/build-symptoms.js`, commit the output + bump `applianceant/sitemap.xml`. Push to `main` → auto-deploys.
+
+**Batch 1 LIVE (6 flagship symptom pages, one per appliance type)** — dryer-not-heating · washer-not-draining · refrigerator-not-cooling · dishwasher-not-draining · oven-not-heating · freezer-not-freezing. Homepage grid + sitemap wired to them.
+
+**The page template (Teddy-approved shape):** straight-talk disclaimer (diagnostic help, NOT a guarantee) → most-likely causes → **Test → Estimate → Test** methodology → **Tools to test/fix with** (Amazon: multimeter, nut drivers, screwdrivers) → **the parts, two options each**: 🔧 *Genuine OEM through us* (→ `/order-oem` request form) + 🔎 *Budget on Amazon* → safe/risk/pro safety gates → repair-vs-replace → TN/LA cross-link to the repair site → FAQ → related. Schema: FAQPage + HowTo + BreadcrumbList.
+
+**Teddy's rules for these pages (2026-08-04):** (1) assistance, NOT guaranteed results — no over-promising; (2) preach test→estimate→test + sell the testing tools; (3) give BOTH part options (OEM + aftermarket); (4) OEM = "order through us" (sourced via TN's Marcone account, our markup — the repair-TDR model on the DIY site), NOT a link-out.
+
+**✅ Amazon Associates tag = `tnappliance-20`** (found in tnappliancerepair@gmail Associates email; set as `AMAZON_TAG` in the generator → all 43 Amazon links across batch 1 are affiliate-tagged and earning).
+
+**OEM order capture:** `applianceant/order-oem.html` = a Netlify Form (no backend) capturing part/model/shipping, pre-filled per part via `?part=&appliance=&from=`, branded inline thank-you, noindex.
+
+### ⏭️ OPEN / NEXT SESSION (Phase 3)
+1. **TEDDY TO DO — Netlify Forms notifications:** applianceant site → Forms → add an email notification, or OEM requests just sit in the dashboard. (Offered to walk him through with screenshots.)
+2. **Build OEM fulfillment:** turn an `order-oem` request → quote + ship via Marcone + collect via existing Stripe payment links. Manual to start (test-est-test), automate once demand proves.
+3. **Batch 2:** remaining ~20 root symptom pages (add to `SYMPTOMS` array, regenerate). List them from the repo root `*-not-*.html` / `*-wont-*.html`.
+4. **Batch 3:** 25 `/fix/` brand-specific guides + 45 brand pages (`/brands/` + root `*-appliance-repair.html`, minus same-day which stays local).
+5. **Batch 4:** 40 out-of-area `/repair/` cities (Tampa/Miami/Atlanta/etc → DIY + find-a-pro + parts).
+6. **Then Phase 4:** 301 the old repair-site generic URLs → applianceant; register applianceant.com in Search Console + submit sitemap. (Do NOT 301 yet — let applianceant index + prove first.)
 
 ## Long-term
 applianceant.com IS the consumer/DIY "Ant" brand from the operating plan (L3). Start as the DIY/parts site; grows into the full consumer platform. The local repair site funds it + is the proving ground; the DIY site builds nationwide reach + parts revenue + feeds the platform.

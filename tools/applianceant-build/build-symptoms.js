@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 
 const OUT = path.join(__dirname, '..', '..', 'applianceant');
-const AMAZON_TAG = ''; // e.g. 'applianceant-20' once the Associates account is approved
+const AMAZON_TAG = 'tnappliance-20'; // Amazon Associates/Influencer tracking ID (live 2026-08)
 const REPAIR = 'https://tnapplianceexchange.net';
 
 // ---- helpers ---------------------------------------------------------------
