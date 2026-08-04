@@ -329,6 +329,12 @@
 [functions."gbp-post-generator"]
   schedule = "0 14 * * 1,4"
 
+# Auto-reply to every Google review, twice daily (~8am + ~4pm CT). 4-5★ replies
+# auto-post via the GBP API; 1-3★ are drafted + texted to the owner (human touch).
+# Idempotent — skips reviews that already have a reply. GBP_REVIEW_RESPONDER=false to stop.
+[functions."gbp-review-responder"]
+  schedule = "0 13,21 * * *"
+
 # Spanish GBP posts — rotating pool, Mon/Wed/Fri ~11am CT (offset from the English
 # poster). Several times a week, common-sense Spanish help posts. GBP_SPANISH_POSTS=false to stop.
 [functions."gbp-post-spanish"]
