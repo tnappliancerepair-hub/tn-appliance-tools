@@ -139,12 +139,17 @@ exports.handler = async function (event) {
 
   const claimRaw = String(ocr.claim_number || '').replace(/[^0-9]/g, '');
   const custRaw = String(ocr.customer_name || '').trim();
-  if (!claimRaw && !custRaw) {
-    return json(200, { ok: true, ocr, labels: [], note: 'Could not read this label — retake the photo a bit closer and flatter (avoid glare), or type the claim # in.' });
+  const partRaw = String(ocr.part_number || '').trim();
+  // A part number ALONE is enough now — many boxes arrive with no RMA label / no claim
+  // on them, but the distributor sticker always has the part #. All these returns are
+  // Allstate, so we can find the RMA email by the part it names. (Teddy 2026-08-04)
+  if (!claimRaw && !custRaw && !partRaw) {
+    return json(200, { ok: true, ocr, labels: [], note: 'Could not read this box — retake the photo closer/flatter (avoid glare), or type the claim # or part # in.' });
   }
 
   const claim = String(ocr.claim_number || '').replace(/[^0-9]/g, '');
   const cust = String(ocr.customer_name || '').trim();
+  const part = partRaw;
   const gmail = await gmailClient();
   if (!gmail) return json(200, { ok: true, ocr, labels: [], note: 'Gmail is not connected — cannot pull the label.' });
 
@@ -159,6 +164,13 @@ exports.handler = async function (event) {
     queries.push({ q: `from:rma_request@squaretrade.com ${claim}`, via: 'claim' });
     queries.push({ q: `${claim} ${LABEL_TERMS}`, via: 'claim' });
   }
+  // Part-number search — for boxes with no label/claim on them. Date-bounded so an old
+  // return of the same part doesn't surface; the part token is quoted so it matches the
+  // exact "Part Number: <part>" line in the RMA email.
+  if (part) {
+    queries.push({ q: `"${part}" "Part Number" newer_than:120d`, via: 'part' });
+    queries.push({ q: `"${part}" ${LABEL_TERMS} newer_than:120d`, via: 'part' });
+  }
   if (cust) {
     const last = cust.split(/\s+/).slice(-1)[0];
     queries.push({ q: `from:rma_request@squaretrade.com ${last}`, via: 'customer' });
@@ -169,7 +181,8 @@ exports.handler = async function (event) {
     try { const list = await gmail.users.messages.list({ userId: 'me', q: queries[i].q, maxResults: 10 }); if (list.data.messages && list.data.messages.length) { msgs = list.data.messages; via = queries[i].via; break; } } catch (_) {}
   }
   const gmail_search = claim ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent(claim + ' ' + LABEL_TERMS)}`
-    : (cust ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent(cust + ' ' + LABEL_TERMS)}` : '');
+    : (part ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent('"' + part + '" "Part Number"')}`
+    : (cust ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent(cust + ' ' + LABEL_TERMS)}` : ''));
   if (!msgs.length) return json(200, { ok: true, ocr, labels: [], gmail_search, note: 'No RMA label email found for this box yet — it may not have been issued. Check the Gmail search, or the SquareTrade/Allstate portal.' });
 
   // 3) Pull the PRINT MY LABEL link + the part each is for (in parallel, capped

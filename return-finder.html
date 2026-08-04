@@ -27,12 +27,12 @@
 </style>
 <body>
   <h1>📦 Return Label Finder <a href="#" onclick="resetPw();return false;" style="float:right;font-size:12px;color:var(--ink2);text-decoration:none;font-weight:400">🔑 password</a></h1>
-  <div class="sub">Snap the box → get the prepaid label to print. If a photo won’t read, type the claim # below.</div>
+  <div class="sub">Snap the box → get the prepaid label to print. No label on the box? Type the <b>claim #</b> or the <b>part #</b> below.</div>
 
   <button class="big" id="shoot">📷 Take a photo of the box</button>
   <input type="file" id="cam" accept="image/*" capture="environment">
   <div style="display:flex;gap:8px;margin-top:10px">
-    <input id="typed" placeholder="…or type: claim # (and part # for multi-part)" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--line);background:#0f141c;color:var(--ink);font-size:16px">
+    <input id="typed" placeholder="…or type a claim # OR a part # (e.g. W10721967)" style="flex:1;padding:14px;border-radius:12px;border:1px solid var(--line);background:#0f141c;color:var(--ink);font-size:16px">
     <button class="big" id="find" style="width:auto;padding:14px 18px;font-size:16px">Find</button>
   </div>
   <div id="spin">🔎 Looking…</div>
