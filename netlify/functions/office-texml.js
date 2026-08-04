@@ -44,50 +44,40 @@ function dialStatus(event) {
 }
 
 exports.handler = async function (event) {
-  const teddyNum = (await getSecret('OFFICE_CELL_TEDDY')) || '+16154855795';
-  const danielleNum = (await getSecret('OFFICE_CELL_DANIELLE')) || '+16154850713';
-  const sofiaNum = (await getSecret('OFFICE_CELL_SOFIA')) || '+16292594602';
   const callerId = (await getSecret('TELNYX_OFFICE_CALLER_NUMBER')) || '+16155889591';
-  const teddyOn = !isOff(await getSecretFresh('OFFICE_REACH_TEDDY'));
-  const danielleOn = !isOff(await getSecretFresh('OFFICE_REACH_DANIELLE'));
-  const sofiaOn = !isOff(await getSecretFresh('OFFICE_REACH_SOFIA'));
-
   // Computer-app (WebRTC) inbound: ON by default; set OFFICE_PHONE_WEBRTC_INBOUND=off
-  // to revert to cell-only. Each person's app leg only exists if their SIP login is
+  // to revert to cell-only. A person's app leg only exists if their SIP login is
   // vaulted (created via telnyx-provision create who=…).
   const webrtcOn = !isOff(await getSecretFresh('OFFICE_PHONE_WEBRTC_INBOUND'));
-  const teddySip = webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME')) : '';
-  const danielleSip = webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_DANIELLE')) : '';
-  const sofiaSip = webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_SOFIA')) : '';
 
-  const leg = ((event && event.queryStringParameters) || {}).leg || '1';
+  // PRIORITY (Teddy 2026-08-04): Sofia FIRST, Danielle SECOND, Teddy last-resort.
+  // Each tier rings that person's cell (gated by OFFICE_REACH_<NAME>="off") AND their
+  // computer app (if their SIP login is vaulted). A tier with nobody reachable is
+  // skipped to the next. A tier that doesn't answer in ~20s chains to the next via the
+  // action webhook (?leg=N). Teddy's SIP falls back to the legacy TELNYX_SIP_USERNAME.
+  const tiers = [
+    { name: 'Sofia',    cell: (await getSecret('OFFICE_CELL_SOFIA')) || '+16292594602',    on: !isOff(await getSecretFresh('OFFICE_REACH_SOFIA')),    sip: webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_SOFIA')) : '' },
+    { name: 'Danielle', cell: (await getSecret('OFFICE_CELL_DANIELLE')) || '+16154850713', on: !isOff(await getSecretFresh('OFFICE_REACH_DANIELLE')), sip: webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_DANIELLE')) : '' },
+    { name: 'Teddy',    cell: (await getSecret('OFFICE_CELL_TEDDY')) || '+16154855795',     on: !isOff(await getSecretFresh('OFFICE_REACH_TEDDY')),     sip: webrtcOn ? sipUri((await getSecret('TELNYX_SIP_USERNAME_TEDDY')) || (await getSecret('TELNYX_SIP_USERNAME'))) : '' },
+  ];
+  const legsFor = (t) => { const a = []; if (t.on && t.cell) a.push({ number: t.cell }); if (t.sip) a.push({ sip: t.sip }); return a; };
 
-  // Leg 2 — the dispatcher ring finished. If someone answered, done; else Teddy
-  // (cell if he's on + his computer app if registered).
-  if (leg === '2') {
-    const status = dialStatus(event);
-    const answered = status === 'completed' || status === 'answered' || status === 'bridged';
-    if (answered) return xmlResp('  <Hangup/>');
-    const legs2 = [];
-    if (teddyOn) legs2.push({ number: teddyNum });
-    if (teddySip) legs2.push({ sip: teddySip });
-    if (!legs2.length) return xmlResp('  <Hangup/>');
-    return xmlResp(dialLegs(legs2, callerId, 25, null));
+  let leg = parseInt(((event && event.queryStringParameters) || {}).leg, 10);
+  if (!(leg >= 1)) leg = 1;
+
+  // A prior tier's ring already connected → done.
+  if (leg > 1) {
+    const st = dialStatus(event);
+    if (st === 'completed' || st === 'answered' || st === 'bridged') return xmlResp('  <Hangup/>');
   }
 
-  // Leg 1 — dispatchers: cell (reach-gated) + computer app (rings if they're On in
-  // the app). Sofia's cell is off but her computer still rings.
-  const legs = [];
-  if (danielleOn) legs.push({ number: danielleNum });
-  if (danielleSip) legs.push({ sip: danielleSip });
-  if (sofiaOn) legs.push({ number: sofiaNum });
-  if (sofiaSip) legs.push({ sip: sofiaSip });
-  if (legs.length) return xmlResp(dialLegs(legs, callerId, 20, `${SELF}?leg=2`));
-
-  // No dispatcher reachable — go straight to Teddy (cell + his app), else nobody.
-  const legsT = [];
-  if (teddyOn) legsT.push({ number: teddyNum });
-  if (teddySip) legsT.push({ sip: teddySip });
-  if (legsT.length) return xmlResp(dialLegs(legsT, callerId, 25, null));
+  // Ring the first reachable tier at or after `leg`; chain to the next if it doesn't answer.
+  for (let i = leg - 1; i < tiers.length; i++) {
+    const legs = legsFor(tiers[i]);
+    if (!legs.length) continue;
+    const moreAhead = tiers.slice(i + 1).some((t) => legsFor(t).length);
+    const action = moreAhead ? `${SELF}?leg=${i + 2}` : null;
+    return xmlResp(dialLegs(legs, callerId, moreAhead ? 20 : 25, action));
+  }
   return xmlResp('  <Reject/>');
 };
