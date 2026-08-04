@@ -74,7 +74,7 @@ footer{border-top:1px solid var(--border);padding:26px 24px 36px;text-align:cent
   <div id="formview">
     <div class="eyebrow">🔧 Genuine OEM — sourced through us</div>
     <h1>Order the Genuine OEM Part</h1>
-    <p class="lede">We source the <b>manufacturer's original part</b> through our distributor and ship it to your door. Tell us what you need and we'll send a quote — <b>no payment now.</b></p>
+    <p class="lede">We source the <b>manufacturer's original part</b> through our distributor and ship it to your door. Genuine OEM — it carries the <b>manufacturer's warranty</b>. Tell us what you need and we'll send a quote — <b>no payment now.</b></p>
 
     <div class="reqline" id="reqline" style="display:none">
       <span class="ri-ic">📦</span>
@@ -146,14 +146,14 @@ footer{border-top:1px solid var(--border);padding:26px 24px 36px;text-align:cent
       </div>
 
       <button type="submit" id="submitbtn">Request my OEM quote →</button>
-      <p class="fineprint">We reply with a price + shipping, usually within one business day. No charge until you approve the quote. We never share your info.</p>
+      <p class="fineprint">We reply with a price + shipping, usually within one business day, and a one-tap link to pay when you're ready. No charge until you approve the quote. Genuine OEM parts carry the manufacturer's warranty. We never share your info.</p>
     </form>
   </div>
 
   <div class="success" id="successview">
     <div class="ic">🐜✅</div>
     <h2>Request received</h2>
-    <p>We've got it. We'll source the genuine OEM part through our distributor and email you a quote with shipping — usually within one business day. No charge until you say go.</p>
+    <p>We've got it. We'll source the genuine OEM part through our distributor and send you a quote with shipping — plus a one-tap link to pay — usually within one business day. No charge until you say go. The part carries the manufacturer's warranty.</p>
     <a href="/">← Back to Appliance Ant</a>
   </div>
 
@@ -175,17 +175,31 @@ footer{border-top:1px solid var(--border);padding:26px 24px 36px;text-align:cent
   if (appliance) document.getElementById('f-appliance').value = appliance;
   document.getElementById('f-source').value = from || document.referrer || '';
 
-  // AJAX submit for a branded inline thank-you; native POST is the fallback if JS/fetch fails.
+  // Submit -> the office worklist (quote-then-pay). Falls back to Netlify Forms
+  // capture, then native POST, so a lead is never lost if the cross-site call fails.
   var form = document.getElementById('oemform');
+  var ENDPOINT = 'https://tnapplianceexchange.net/.netlify/functions/oem-request';
+  function done(){ document.getElementById('formview').classList.add('hidden'); document.getElementById('successview').classList.add('on'); window.scrollTo(0,0); }
+  function nativeForms(){ // Netlify Forms fallback so the lead is captured no matter what
+    var data = new URLSearchParams(new FormData(form)).toString();
+    return fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: data });
+  }
   form.addEventListener('submit', function(e){
-    if (!window.fetch) return; // let the native Netlify POST happen
     e.preventDefault();
     var btn = document.getElementById('submitbtn');
     btn.disabled = true; btn.textContent = 'Sending…';
-    var data = new URLSearchParams(new FormData(form)).toString();
-    fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: data })
-      .then(function(){ document.getElementById('formview').classList.add('hidden'); document.getElementById('successview').classList.add('on'); window.scrollTo(0,0); })
-      .catch(function(){ btn.disabled = false; btn.textContent = 'Request my OEM quote →'; form.submit(); });
+    var g = function(id){ var el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+    var payload = {
+      part: g('f-part'), appliance: g('f-appliance'), brand: g('f-brand'), model: g('f-model'),
+      name: g('f-name'), phone: g('f-phone'), email: g('f-email'),
+      address: g('f-address'), city: g('f-city'), state_zip: g('f-statezip'),
+      notes: g('f-notes'), source_page: (document.getElementById('f-source').value || document.referrer || '')
+    };
+    if (!window.fetch) { form.submit(); return; }
+    fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(function(r){ return r.json().catch(function(){ return { ok: false }; }); })
+      .then(function(d){ if (d && d.ok) { done(); } else { throw new Error('save_failed'); } })
+      .catch(function(){ nativeForms().then(done).catch(function(){ btn.disabled = false; btn.textContent = 'Request my OEM quote →'; form.submit(); }); });
   });
 })();
 </script>

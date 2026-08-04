@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OEM Part Orders — Office</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0b0e14;--card:#141a24;--card2:#1b2330;--line:#26303f;--ink:#eef2f7;--dim:#93a1b3;--orange:#ff7a1a;--green:#28c76f;--amber:#f5a623;--blue:#2c8fff;--red:#ff5252}
+body{background:var(--bg);color:var(--ink);font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:14px;line-height:1.5}
+.wrap{max-width:920px;margin:0 auto;padding:20px 16px 80px}
+h1{font-size:22px;font-weight:800;letter-spacing:.02em;margin-bottom:2px}
+.sub{color:var(--dim);font-size:12.5px;margin-bottom:18px}
+.gate{max-width:340px;margin:60px auto;text-align:center}
+.gate input{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:13px;color:var(--ink);font-family:inherit;font-size:16px;margin:12px 0}
+button{background:var(--orange);color:#000;border:0;border-radius:9px;padding:12px 16px;font-family:inherit;font-weight:800;font-size:13px;cursor:pointer;transition:.15s}
+button:hover{filter:brightness(1.08)}
+button:disabled{opacity:.55;cursor:default}
+button.ghost{background:var(--card2);color:var(--ink);border:1px solid var(--line)}
+button.danger{background:transparent;color:var(--red);border:1px solid #5a2530}
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.pill{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid}
+.p-req{color:var(--amber);border-color:#5a4a1e;background:#2a230f}
+.p-quo{color:var(--blue);border-color:#204a75;background:#0f2035}
+.p-paid{color:var(--green);border-color:#1e5a3a;background:#0f2a1c}
+.p-placed{color:var(--dim);border-color:var(--line);background:var(--card2)}
+.p-dec{color:var(--red);border-color:#5a2530;background:#2a0f14}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.chd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+.title{font-size:16px;font-weight:800}
+.meta{color:var(--dim);font-size:12.5px;line-height:1.7}
+.meta b{color:var(--ink);font-weight:700}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin:10px 0}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
+.field label{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.field input{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:9px 11px;color:var(--ink);font-family:inherit;font-size:14px}
+.field input:focus{outline:none;border-color:var(--orange)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1.4fr .8fr .8fr;gap:12px}
+.quotebox{background:var(--card2);border:1px dashed var(--line);border-radius:10px;padding:12px 14px;margin:10px 0;font-size:13px}
+.quotebox .big{font-size:20px;font-weight:800;color:var(--green)}
+.acts{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px}
+.msg{font-size:12.5px;color:var(--dim);margin-top:8px;min-height:16px}
+.msg.err{color:var(--red)}.msg.ok{color:var(--green)}
+a{color:var(--blue);word-break:break-all}
+.empty{color:var(--dim);text-align:center;padding:50px 0}
+.refresh{margin-left:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="gate" class="gate">
+    <h1>OEM Part Orders</h1>
+    <div class="sub">Office access</div>
+    <input id="pw" type="password" placeholder="Office password" autocomplete="current-password">
+    <button onclick="unlock()" style="width:100%">Unlock →</button>
+    <div id="gmsg" class="msg"></div>
+  </div>
+
+  <div id="app" style="display:none">
+    <div class="bar">
+      <div><h1>🔧 OEM Part Orders</h1><div class="sub">Quote → send pay link → drop-ship. 30% margin, manufacturer warranty.</div></div>
+      <button class="ghost refresh" onclick="load()">↻ Refresh</button>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<script>
+var PW = '';
+var EP = '/.netlify/functions/oem-orders';
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function post(body){ return fetch(EP,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({password:PW},body))}).then(function(r){return r.json();}); }
+function parseStateZip(sz){ sz=String(sz||'').trim(); var m=sz.match(/([A-Za-z]{2})\s*,?\s*(\d{5})/); if(m)return{state:m[1].toUpperCase(),zip:m[2]}; var z=(sz.match(/\d{5}/)||[])[0]||''; var st=(sz.match(/[A-Za-z]{2}/)||[])[0]||''; return{state:st.toUpperCase(),zip:z}; }
+
+function unlock(){
+  PW = document.getElementById('pw').value.trim();
+  document.getElementById('gmsg').textContent='Checking…';
+  load(function(ok){
+    if(ok){ try{localStorage.setItem('oem_office_pw',PW);}catch(_){ } document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='block'; }
+    else { document.getElementById('gmsg').textContent='Wrong password.'; document.getElementById('gmsg').className='msg err'; }
+  });
+}
+function load(cb){
+  fetch(EP+'?password='+encodeURIComponent(PW)).then(function(r){return r.json();}).then(function(d){
+    if(!d||!d.ok){ if(cb)cb(false); return; }
+    if(cb)cb(true);
+    render(d.requests||[]);
+  }).catch(function(){ if(cb)cb(false); });
+}
+function badge(st){ var map={requested:['p-req','Needs quote'],quoted:['p-quo','Quote sent'],paid:['p-paid','PAID — ship it'],placed:['p-placed','Shipped'],declined:['p-dec','Declined']}; var b=map[st]||['p-req',st]; return '<span class="pill '+b[0]+'">'+b[1]+'</span>'; }
+
+function render(rs){
+  var host=document.getElementById('list');
+  if(!rs.length){ host.innerHTML='<div class="empty">No part requests yet. They land here when a customer submits the order-OEM form on applianceant.com.</div>'; return; }
+  host.innerHTML = rs.map(function(r){ return cardHtml(r); }).join('');
+}
+
+function cardHtml(r){
+  var sz=parseStateZip(r.state_zip);
+  var head='<div class="chd"><div><div class="title">'+esc(r.part||r.appliance||'Part request')+'</div>'
+    +'<div class="meta">'+esc([r.brand,r.model].filter(Boolean).join(' '))+(r.appliance?' · '+esc(r.appliance):'')+'</div></div>'+badge(r.status)+'</div>';
+  var who='<div class="meta"><b>'+esc(r.name||'—')+'</b> · '+esc(r.phone||'')+(r.email?' · '+esc(r.email):'')+'<br>'
+    +esc([r.address,r.city,r.state_zip].filter(Boolean).join(', '))+'</div>';
+  var notes = r.notes ? '<div class="meta" style="margin-top:6px">📝 '+esc(r.notes)+'</div>' : '';
+  var body='';
+  var id=r.request_id;
+
+  if(r.status==='requested'){
+    body='<div class="kv" style="margin-top:12px"></div>'
+      +'<div class="row3">'
+        +'<div class="field"><label>OEM part #</label><input id="pn-'+id+'" placeholder="e.g. WPW10300024"></div>'
+        +'<div class="field"><label>Marcone make (opt)</label><input id="mk-'+id+'" placeholder="WPL"></div>'
+        +'<div class="field"><label>Qty</label><input id="qy-'+id+'" value="1"></div>'
+      +'</div>'
+      +'<div class="acts" style="margin-top:2px"><button class="ghost" onclick="lookup(\''+id+'\')">🔎 Look up live cost</button><span id="lk-'+id+'" class="msg" style="margin-top:6px"></span></div>'
+      +'<div class="row3" style="margin-top:8px">'
+        +'<div class="field"><label>Part name (on receipt)</label><input id="nm-'+id+'" value="'+esc(r.part||'')+'"></div>'
+        +'<div class="field"><label>Your cost $ (item)</label><input id="ct-'+id+'" placeholder="0.00"></div>'
+        +'<div class="field"><label>Customer price $</label><input id="pp-'+id+'" placeholder="auto"></div>'
+      +'</div>'
+      +'<div class="field"><label>Ship to — name</label><input id="sn-'+id+'" value="'+esc(r.name||'')+'"></div>'
+      +'<div class="field"><label>Address</label><input id="sa-'+id+'" value="'+esc(r.address||'')+'"></div>'
+      +'<div class="row3">'
+        +'<div class="field"><label>City</label><input id="sc-'+id+'" value="'+esc(r.city||'')+'"></div>'
+        +'<div class="field"><label>State</label><input id="ss-'+id+'" value="'+esc(sz.state)+'"></div>'
+        +'<div class="field"><label>ZIP</label><input id="sz-'+id+'" value="'+esc(sz.zip)+'"></div>'
+      +'</div>'
+      +'<div class="row2"><div class="field"><label>Text pay link to</label><input id="ph-'+id+'" value="'+esc(r.phone||'')+'"></div>'
+        +'<div class="field"><label>Email (optional)</label><input id="em-'+id+'" value="'+esc(r.email||'')+'"></div></div>'
+      +'<div class="acts"><button onclick="sendQuote(\''+id+'\')">💳 Send pay link →</button>'
+        +'<button class="danger" onclick="decline(\''+id+'\')">Decline</button></div>'
+      +'<div id="qm-'+id+'" class="msg"></div>';
+  } else if(r.status==='quoted'){
+    var q=r.quote||{};
+    body='<div class="quotebox">Quote sent · <span class="big">$'+((q.total_cents||0)/100).toFixed(2)+'</span> total'
+      +' <span style="color:var(--dim)">(part $'+Number(q.part_price||0).toFixed(2)+' + ship + tax)</span><br>'
+      +'<a href="'+esc(q.pay_url||'')+'" target="_blank">'+esc(q.pay_url||'')+'</a></div>'
+      +'<div class="acts"><button class="ghost" onclick="copy(\''+esc(q.pay_url||'')+'\')">📋 Copy pay link</button>'
+      +'<button class="danger" onclick="decline(\''+id+'\')">Decline</button></div><div class="msg">Waiting on the customer to pay. They were texted the link.</div>';
+  } else if(r.status==='paid'){
+    var p=r.paid||{}, q2=r.quote||{};
+    body='<div class="quotebox" style="border-color:#1e5a3a"><span class="big">✓ PAID $'+Number(p.amount||0).toFixed(2)+'</span> — ready to drop-ship from Marcone.</div>'
+      +'<div class="acts"><button onclick="place(\''+id+'\')">📦 Place drop-ship order →</button></div>'
+      +'<div id="pl-'+id+'" class="msg">Places the Marcone order to the customer\'s address.</div>';
+  } else if(r.status==='placed'){
+    var pl=r.placed||{};
+    body='<div class="quotebox p-placed" style="border-style:solid">📦 Shipped · order '+esc(JSON.stringify(pl.order_numbers||pl.order_number||'—'))+'</div>';
+  } else if(r.status==='declined'){
+    body='<div class="meta">Declined'+(r.declined&&r.declined.reason?': '+esc(r.declined.reason):'')+'</div>';
+  }
+  return '<div class="card">'+head+who+notes+body+'</div>';
+}
+
+function val(id){ var e=document.getElementById(id); return e?String(e.value||'').trim():''; }
+function lookup(id){
+  var el=document.getElementById('lk-'+id); el.textContent='Looking up…'; el.className='msg';
+  post({action:'lookup',part_number:val('pn-'+id),make:val('mk-'+id),zip:val('sz-'+id)}).then(function(d){
+    if(!d||!d.ok){ el.textContent='✗ '+((d&&d.error)||'not found'); el.className='msg err'; return; }
+    el.className='msg ok';
+    el.textContent='✓ '+ (d.description||d.part_number) +' · your cost $'+Number(d.cost).toFixed(2)+' · '+(d.in_stock?('in stock '+d.total_qty+(d.eta_days!=null?', ~'+d.eta_days+'d':'')):'BACKORDER')+' · suggested price $'+Number(d.suggested_price).toFixed(2);
+    if(!val('ct-'+id)) document.getElementById('ct-'+id).value=Number(d.cost).toFixed(2);
+    document.getElementById('pp-'+id).value=Number(d.suggested_price).toFixed(2);
+    if(!val('nm-'+id)&&d.description) document.getElementById('nm-'+id).value=d.description;
+  }).catch(function(){ el.textContent='✗ lookup error'; el.className='msg err'; });
+}
+function sendQuote(id){
+  var m=document.getElementById('qm-'+id); m.textContent='Creating pay link…'; m.className='msg';
+  post({action:'quote', request_id:id, part_number:val('pn-'+id), make:val('mk-'+id), quantity:Number(val('qy-'+id))||1,
+    part_name:val('nm-'+id), item_cost:Number(val('ct-'+id))||0,
+    ship_to:{name:val('sn-'+id),address1:val('sa-'+id),city:val('sc-'+id),state:val('ss-'+id),zip:val('sz-'+id)},
+    customer_phone:val('ph-'+id), customer_email:val('em-'+id)}).then(function(d){
+    if(!d||!d.ok){ m.textContent='✗ '+((d&&d.error)||'failed'); m.className='msg err'; return; }
+    m.textContent='✓ Pay link sent ($'+((d.total_cents||0)/100).toFixed(2)+' total).'; m.className='msg ok';
+    setTimeout(load,700);
+  }).catch(function(){ m.textContent='✗ error'; m.className='msg err'; });
+}
+function place(id){
+  if(!confirm('Place the real Marcone drop-ship order to the customer?')) return;
+  var m=document.getElementById('pl-'+id); m.textContent='Placing…'; m.className='msg';
+  post({action:'place',request_id:id}).then(function(d){
+    if(!d||!d.ok){ m.textContent='✗ '+((d&&d.error)||'failed'); m.className='msg err'; return; }
+    m.textContent='✓ Order placed.'; m.className='msg ok'; setTimeout(load,700);
+  }).catch(function(){ m.textContent='✗ error'; m.className='msg err'; });
+}
+function decline(id){ if(!confirm('Decline this request?'))return; post({action:'decline',request_id:id,reason:''}).then(function(){ load(); }); }
+function copy(t){ if(navigator.clipboard) navigator.clipboard.writeText(t); }
+
+(function(){ var saved=''; try{saved=localStorage.getItem('oem_office_pw')||'';}catch(_){}
+  if(saved){ PW=saved; load(function(ok){ if(ok){ document.getElementById('gate').style.display='none'; document.getElementById('app').style.display='block'; } }); }
+})();
+</script>
+</body>
+</html>

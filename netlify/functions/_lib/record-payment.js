@@ -5,6 +5,7 @@
 'use strict';
 
 const { sendSms } = require('./sms');
+const { getSecret } = require('./secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const JOBS_TABLE = 7;
@@ -101,6 +102,40 @@ async function recordPaidSession(session) {
     addon_key: md.addon_key || null,
     source: md.source || 'customer_portal_pay', paid_at_ms: Date.now(),
   });
+  // An OEM parts drop-ship (applianceant.com). No job — everything's in the
+  // session metadata. Log oem_order_paid (flips the worklist to PAID), tell the
+  // office it's ready to drop-ship, and receipt the customer with the
+  // manufacturer-warranty note. Auto-placement is OFF by default (office taps
+  // "Place" in oem-orders.html); flip OEM_AUTO_SHIP=true + vault
+  // OEM_OFFICE_PASSWORD to auto-ship on payment once the flow is proven.
+  if (kind === 'oem_part') {
+    const reqId = md.request_id || '';
+    await logRow('oem_order_paid', {
+      request_id: reqId, session_id: sessionId, part_number: md.part_number || '', part_name: md.part_name || '',
+      amount: amount.toFixed(2), ship_state: md.ship_state || md.region || '',
+      ship_to: { name: md.ship_name || '', address1: md.ship_address1 || '', address2: md.ship_address2 || '', city: md.ship_city || '', state: md.ship_state || '', zip: md.ship_zip || '' },
+      customer_phone: md.customer_phone || '', customer_email: md.customer_email || '', paid_at_ms: Date.now(),
+    });
+    const amt = '$' + Number(amount).toFixed(2);
+    const line = '🔧💵 OEM PART PAID ' + amt + ' · ' + (md.part_name || md.part_number || 'part')
+      + (md.ship_name ? ' · ' + md.ship_name : '') + ' → ' + [md.ship_city, md.ship_state].filter(Boolean).join(', ')
+      + ' — place the drop-ship: tnapplianceexchange.net/oem-orders.html';
+    try { await sendSms(OWNER, line, 'owner', 'oem_paid'); } catch (_) {}
+    try { await sendSms(DANIELLE, line, 'office', 'oem_paid'); } catch (_) {}
+    const ph = String(md.customer_phone || '').replace(/[^\d]/g, '');
+    if (ph) {
+      const e164 = ph.length === 10 ? '+1' + ph : (ph.length === 11 ? '+' + ph : md.customer_phone);
+      try { await sendSms(e164, 'TN Appliance / Appliance Ant: payment received, ' + amt + ' — thank you! We\'re getting your ' + (md.part_name || 'part') + ' shipped and will follow up with tracking. It carries the manufacturer\'s warranty. 🐜', 'customer', 'oem_paid_receipt'); } catch (_) {}
+    }
+    if (String(process.env.OEM_AUTO_SHIP || '').toLowerCase() === 'true') {
+      try {
+        const base = process.env.URL || 'https://tnapplianceexchange.net';
+        const pw = await getSecret('OEM_OFFICE_PASSWORD');
+        if (pw) await fetch(base + '/.netlify/functions/oem-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'place', password: pw, request_id: reqId }), signal: AbortSignal.timeout(25000) });
+      } catch (_) {}
+    }
+    return { recorded: true, duplicate: false, kind, amount, job_id: 0, request_id: reqId };
+  }
   // A tip: 100% to the tech (shop absorbs the Stripe fee). Credits their pay.
   if (kind === 'tip' && md.technician_id) {
     await logRow('tech_tip_paid', {
