@@ -32,7 +32,10 @@ exports.handler = async function () {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
           // Edge-cache, shared across all office users; serve stale instantly.
-          'Netlify-CDN-Cache-Control': 'public, durable, s-maxage=25, stale-while-revalidate=240',
+          // s-maxage=45 = Xano runs the heavy 688-row query ~once per 45s TOTAL
+          // (not per-user-per-30s), leaving compute headroom so SAVES don't time out.
+          // stale-while-revalidate serves the last-good feed instantly meanwhile.
+          'Netlify-CDN-Cache-Control': 'public, durable, s-maxage=45, stale-while-revalidate=300',
           'Cache-Control': 'public, max-age=0, must-revalidate', // browser revalidates; edge serves the cache
         },
         body: text,
