@@ -1996,13 +1996,13 @@ async function loadAttachments(){
           <span class="vbadge">video</span>
         </a>`;
       } else if(sk.indexOf('cfimg:')===0){ const iu=sk.slice(6);
-        inner=`<a href="${esc(iu)}" target="_blank" rel="noopener"><img src="${esc(iu)}" loading="lazy" alt=""></a>`;
+        inner=`<a href="${esc(iu)}" onclick="return openVid(event,'image','${esc(iu)}')"><img src="${esc(iu)}" loading="lazy" alt=""></a>`;
       } else {
         const u=urlMap[a.s3_key]||''; const isVid=(a.file_type==='video')||/\.(mp4|mov)$/i.test(a.s3_key);
         if(!u) inner='<a><div class="up">…</div></a>';
         else inner = isVid
-          ? `<a href="${esc(u)}" target="_blank" rel="noopener"><video src="${esc(u)}" muted playsinline preload="metadata"></video><span class="vbadge">▶ video</span></a>`
-          : `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" loading="lazy" alt=""></a>`;
+          ? `<a href="${esc(u)}" onclick="return openVid(event,'video','${esc(u)}')" style="position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:9/16;background:#0c0f15;border-radius:8px;overflow:hidden"><video src="${esc(u)}#t=0.1" muted playsinline preload="metadata" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none"></video><span style="position:relative;z-index:2;width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:19px;color:#fff">▶</span><span class="vbadge">video</span></a>`
+          : `<a href="${esc(u)}" onclick="return openVid(event,'image','${esc(u)}')"><img src="${esc(u)}" loading="lazy" alt=""></a>`;
       }
       // 🗑 delete button so a wrong photo can be removed (Lee, 2026-06-23).
       return `<div style="position:relative">${inner}<button onclick="delAtt(event,${a.id})" aria-label="Delete" title="Delete this photo/video" style="position:absolute;top:5px;right:5px;width:30px;height:30px;border:0;border-radius:50%;background:rgba(190,25,25,0.92);color:#fff;font-size:14px;line-height:30px;text-align:center;padding:0;cursor:pointer;z-index:5;box-shadow:0 1px 5px rgba(0,0,0,0.45)">🗑</button></div>`;
@@ -2023,19 +2023,47 @@ async function delAtt(ev, attId){
   }catch(e){ toast('⚠ delete failed — check signal'); }
 }
 
-// Tap a video poster → check its real Cloudflare state, then play it inline (ready) or
-// show the honest reason (still processing / didn't finish uploading) instead of the
-// scary black "An unknown error occurred" iframe. Falls back to the player if status
-// can't be read (never worse than before).
+// ---- Full-screen media viewer. Tap any photo/video → it opens BIG with real
+// playback controls, so the whole crew (not just young eyes) can actually watch it.
+// Old behavior: Stream played in a tiny grid cell; S3 videos didn't open at all
+// because the inner <video> swallowed the tap. Now everything opens full-screen.
+function ensureLightbox(){
+  let lb=document.getElementById('vlb');
+  if(lb) return lb;
+  lb=document.createElement('div'); lb.id='vlb';
+  lb.style.cssText='display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.94);align-items:center;justify-content:center;padding:14px';
+  lb.innerHTML='<button id="vlb-x" aria-label="Close video" style="position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);right:16px;width:50px;height:50px;border:0;border-radius:50%;background:rgba(255,255,255,0.18);color:#fff;font-size:26px;line-height:50px;text-align:center;cursor:pointer;z-index:3">✕</button><div id="vlb-body" style="width:100%;max-width:560px;max-height:90vh;display:flex;align-items:center;justify-content:center"></div>';
+  document.body.appendChild(lb);
+  lb.addEventListener('click',e=>{ if(e.target===lb) closeLightbox(); });
+  document.getElementById('vlb-x').addEventListener('click',closeLightbox);
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeLightbox(); });
+  return lb;
+}
+function closeLightbox(){ const lb=document.getElementById('vlb'); if(!lb) return; document.getElementById('vlb-body').innerHTML=''; lb.style.display='none'; document.body.style.overflow=''; }
+// Tap a photo or an S3 video → open it big. src is set as a DOM property (no HTML
+// parsing) so signed URLs with & never break. <video controls> means even if autoplay
+// is blocked, one more tap plays it.
+function openVid(ev,type,src){
+  if(ev){ ev.preventDefault(); ev.stopPropagation(); }
+  const lb=ensureLightbox(); const body=document.getElementById('vlb-body'); body.innerHTML='';
+  let el;
+  if(type==='image'){ el=document.createElement('img'); el.style.cssText='max-width:100%;max-height:90vh;border-radius:10px;object-fit:contain'; }
+  else { el=document.createElement('video'); el.controls=true; el.autoplay=true; el.setAttribute('playsinline',''); el.playsInline=true; el.style.cssText='width:100%;max-height:90vh;border-radius:10px;background:#000'; }
+  el.src=src; body.appendChild(el);
+  lb.style.display='flex'; document.body.style.overflow='hidden';
+  return false;
+}
+// Cloudflare Stream video → confirm it's ready, then play BIG in the viewer (or show
+// the honest "still processing / didn't finish uploading" reason instead of a broken player).
 async function playStream(ev, el, uid){
   if(ev){ ev.preventDefault(); ev.stopPropagation(); }
   const u=String(uid).replace(/[^0-9a-zA-Z]/g,'');
-  const wrap=document.createElement('div');
-  wrap.style.cssText='position:relative;aspect-ratio:9/16;background:#000;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#cbd3e0;font-size:12px;text-align:center';
-  wrap.textContent='⏳ checking…';
-  el.replaceWith(wrap);
-  const player=()=>{ wrap.innerHTML='<iframe src="https://iframe.cloudflarestream.com/'+u+'?autoplay=true&preload=metadata" style="width:100%;height:100%;border:0" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe>'; };
-  const msg=(icon,t,s)=>{ wrap.innerHTML='<div style="padding:14px"><div style="font-size:26px">'+icon+'</div><div style="font-weight:800;color:#fff;font-size:13px;margin-top:4px">'+t+'</div><div style="font-size:11px;color:#9fb0c8;margin-top:3px">'+s+'</div></div>'; };
+  const lb=ensureLightbox(); const body=document.getElementById('vlb-body');
+  const show=(h)=>{ body.innerHTML=h; };
+  show('<div style="color:#cbd3e0;font-size:13px;padding:24px">⏳ loading…</div>');
+  lb.style.display='flex'; document.body.style.overflow='hidden';
+  const player=()=>show('<iframe src="https://iframe.cloudflarestream.com/'+u+'?autoplay=true&preload=metadata" style="width:100%;aspect-ratio:9/16;max-height:90vh;border:0;border-radius:10px;background:#000" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;fullscreen" allowfullscreen></iframe>');
+  const msg=(icon,t,s)=>show('<div style="padding:24px;text-align:center;color:#cbd3e0"><div style="font-size:36px">'+icon+'</div><div style="font-weight:800;color:#fff;font-size:15px;margin-top:8px">'+t+'</div><div style="font-size:12px;color:#9fb0c8;margin-top:5px">'+s+'</div></div>');
   let v=null;
   try{ const r=await fetch('/.netlify/functions/stream-status?uids='+u,{cache:'no-store'}); const d=await r.json(); v=d&&d.videos&&d.videos[u]; }catch(_){}
   if(!v || v.ready) player();
