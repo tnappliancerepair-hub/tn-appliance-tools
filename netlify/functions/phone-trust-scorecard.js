@@ -31,10 +31,19 @@ function categorize(c) {
   const fl = c.flags || [];
   const s = String(c.summary || '').toLowerCase();
   const ended = String(c.ended || '').toLowerCase();
-  // Carrier/transport faults are NOT our accuracy — the network never connected.
-  if (/transport-never-connected|provider|transport/.test(ended)) return 'carrier_drop';
+  const said = String(c.last_user || '').trim();
+  // Carrier/transport/AUDIO faults are NOT our accuracy — the network or the
+  // caller's mic never delivered audio to us (nothing to look up, nothing we can fix).
+  if (/transport-never-connected|provider|transport|did-not-receive-customer-audio|customer-did-not|pipeline-error-|no-microphone/.test(ended)) return 'carrier_drop';
   if (/\bspam\b|robocall|directory listing|google listing|verification if action/.test(s)) return 'spam';
-  if (fl.includes('dropped_or_failed')) return 'lookup_drop';           // silence/timeout mid-lookup — the thing we fixed
+  if (fl.includes('dropped_or_failed')) {
+    // A drop with NO caller speech = they never engaged (silence at the greeting),
+    // not our lookup failing. Only a drop AFTER the caller gave us something to look
+    // up is a real lookup_drop (Ann went quiet mid-pull). This stops audio-faults +
+    // no-answer silences from inflating the lookup_drop count. (2026-08-04)
+    if (!said) return 'no_response';
+    return 'lookup_drop';                                                // silence/timeout mid-lookup — the real thing
+  }
   if (/unable to (find|locate)|could ?n[o']t (find|locate)|no match|not able to (find|locate)|we don'?t have/.test(s)) return 'cant_find';
   if (fl.includes('hung_up_fast')) return 'instant_hangup';             // hung up at greeting — not our accuracy
   if (fl.includes('asked_for_human_or_upset') || fl.includes('repeated_human_requests')) return 'human_transfer'; // wanted a person — correct to route
@@ -45,13 +54,14 @@ function categorize(c) {
 // actually affect. Noise (spam, instant hangups) + correct human transfers + carrier
 // faults are excluded from the denominator so the score reflects real handling.
 const REAL_FAIL = new Set(['lookup_drop', 'cant_find', 'wrong_info']);
-const NOISE = new Set(['spam', 'instant_hangup', 'carrier_drop']);
+const NOISE = new Set(['spam', 'instant_hangup', 'carrier_drop', 'no_response']);
 const FIX_HINT = {
   lookup_drop: 'lookup drops — keep-warm + timeout guard should cut these; watch they fall',
   cant_find: "couldn't find the caller — lean on name+city + claim lookup, never say \"not in system\"",
   wrong_info: 'wrong info stated — reinforce read-the-tools / never-guess',
   human_transfer: 'many asked for a person — tighten verify/schedule so more self-serve',
   instant_hangup: 'hang-ups at the greeting — consider a shorter opening line',
+  no_response: 'caller went silent at the greeting (never engaged) — informational only',
   spam: 'spam volume — informational only',
 };
 

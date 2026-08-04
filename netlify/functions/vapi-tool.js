@@ -37,7 +37,13 @@ const SHOP_DIGITS = new Set(['6152802949', '8662680111', '8882688998', '61585788
 // (The COMPLETE fix is a "one moment, let me pull that up" filler on the Vapi
 // tools so Ant never goes silent during a lookup — that's a live-assistant
 // change, applied separately.)
-const TOOL_TIMEOUT_MS = 4500;
+// 2026-08-04: 4500 → 3500. Healthy Xano lookups return in ~0.1–0.3s, so 3.5s still
+// clears every real lookup; it just caps DEAD AIR sooner. Paired with the new
+// request-start "one moment" fillers on the Vapi lookup tools (vapi-admin
+// action=tool_fillers) — Ann now SPEAKS while the lookup runs, so even if this
+// fallback fires she's already mid-sentence, never silent. (AHS dispatch-lookup
+// silence-timeouts in the 8/3 log = this path going quiet during the pull.)
+const TOOL_TIMEOUT_MS = 3500;
 // Post-lookup audit/capture/alert writes hit the (flaky) metadata API. Cap how
 // long they may block the tool response so they can never re-introduce silence.
 const BOOKKEEPING_CAP_MS = 2500;
@@ -47,15 +53,15 @@ const SLOW_FALLBACK = {
   say: "I'm having a little trouble pulling that up this second — let me grab your details so we get you taken care of.",
   instruction: "The lookup backend did not respond in time. Do NOT go silent and do NOT end the call. Briefly apologize, then ask the caller for their name and the best callback number, confirm what they need, and log it with capture_callback so the office follows up right away.",
 };
-async function getJson(url) {
+async function getJson(url, timeoutMs) {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(TOOL_TIMEOUT_MS) });
+    const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs || TOOL_TIMEOUT_MS) });
     return await r.json();
   } catch (_) { return SLOW_FALLBACK; }
 }
-async function postJson(url, body) {
+async function postJson(url, body, timeoutMs) {
   try {
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(TOOL_TIMEOUT_MS) });
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs || TOOL_TIMEOUT_MS) });
     return await r.json();
   } catch (_) { return SLOW_FALLBACK; }
 }
@@ -159,15 +165,15 @@ function businessHoursNow() {
   };
 }
 
-async function callBackend(name, a) {
+async function callBackend(name, a, timeoutMs) {
   a = a || {};
   if (!name) return { error: 'no tool name' };
   if (name === 'get_business_hours') return businessHoursNow();
   if (STATUS_LENS[name]) return jobTruthAnswer(name, a);
-  if (NETLIFY_TOOLS[name]) return postJson(`${NETLIFY}/${NETLIFY_TOOLS[name]}`, a);
+  if (NETLIFY_TOOLS[name]) return postJson(`${NETLIFY}/${NETLIFY_TOOLS[name]}`, a, timeoutMs);
   const path = ENDPOINT_OVERRIDE[name] || name;
-  if (GET_TOOLS.has(name)) return getJson(`${XANO}/${path}${qs(a)}`);
-  return postJson(`${XANO}/${path}`, a);
+  if (GET_TOOLS.has(name)) return getJson(`${XANO}/${path}${qs(a)}`, timeoutMs);
+  return postJson(`${XANO}/${path}`, a, timeoutMs);
 }
 
 // Shape sensitive read results down to what the assistant needs — and strip
@@ -452,6 +458,9 @@ exports.handler = async function (event) {
     // still inside the tool budget (warm lookups are ~0.3s, so the common case is 1 try).
     const t0 = Date.now();
     const budgetLeft = () => (Date.now() - t0) < (TOOL_TIMEOUT_MS - 400);
+    // Each recognition retry gets only the time LEFT in the shared budget, so 2–3
+    // variant attempts can never stack into longer dead air than a single lookup.
+    const remaining = () => Math.max(700, TOOL_TIMEOUT_MS - (Date.now() - t0));
     if (c.name === 'lookup_customer_by_phone') {
       // Recognize the caller by number. Try the REAL caller ID FIRST (direct customers),
       // then any number the agent was given (a warranty rep / toll-free relay dials in
@@ -466,7 +475,7 @@ exports.handler = async function (event) {
       data = null;
       for (let i = 0; i < cands.length; i++) {
         if (i > 0 && !budgetLeft()) break;
-        try { const d = await callBackend(c.name, { ...a, phone: cands[i] }); if (d && d.found) { data = d; break; } data = d; }
+        try { const d = await callBackend(c.name, { ...a, phone: cands[i] }, remaining()); if (d && d.found) { data = d; break; } data = d; }
         catch (e) { data = { error: String((e && e.message) || e) }; }
       }
     } else if (c.name === 'lookup_by_claim_number') {
@@ -479,7 +488,7 @@ exports.handler = async function (event) {
       data = null;
       for (let i = 0; i < tries.length; i++) {
         if (i > 0 && !budgetLeft()) break;
-        try { const d = await callBackend(c.name, { ...a, claim_or_dispatch_number: tries[i] }); if (d && (d.match_count || 0) > 0) { data = d; break; } data = d; }
+        try { const d = await callBackend(c.name, { ...a, claim_or_dispatch_number: tries[i] }, remaining()); if (d && (d.match_count || 0) > 0) { data = d; break; } data = d; }
         catch (e) { data = { error: String((e && e.message) || e) }; }
       }
     } else {

@@ -140,6 +140,49 @@ exports.handler = async function (event) {
     }, null, 2) };
   }
 
+  // Anti-drop (the COMPLETE fix): give every backend LOOKUP tool a "request-start"
+  // filler so Ann SPEAKS the instant she calls it ("one moment, let me pull that up")
+  // — she can no longer go silent during a lookup, which is what rolled AHS-dispatch
+  // and scheduling calls into silence-timeout (8/3 log). Additive: only adds a
+  // `messages` array to the matching tools already on the assistant; never touches
+  // their function/server. Idempotent. (Teddy 2026-08-04: "tighten what's timing out.")
+  //   ?action=tool_fillers
+  if (action === 'tool_fillers') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const tools = Array.isArray(model.tools) ? model.tools.map((t) => Object.assign({}, t)) : [];
+    // Lookup/status tools that hit a backend and can take a beat — keep Ann talking.
+    const FILL = {
+      lookup_by_claim_number: 'Sure — let me pull that up for you, one moment.',
+      lookup_customer_by_phone: 'Let me pull up your account real quick.',
+      get_job_status_for_warranty: 'One moment while I pull up that dispatch.',
+      get_job_arrival_status: 'Let me check on that for you, one second.',
+      get_parts_status: 'Let me check on your parts, one moment.',
+      search_customers: 'Let me look that up for you, one moment.',
+      check_service_zone: 'Let me check that area for you, one second.',
+    };
+    const touched = [];
+    for (const t of tools) {
+      const nm = tname(t);
+      if (!FILL[nm]) continue;
+      t.messages = [
+        { type: 'request-start', content: FILL[nm] },
+        { type: 'request-response-delayed', content: 'Thanks for your patience — still pulling that up.', timingMilliseconds: 3000 },
+      ];
+      touched.push(nm);
+    }
+    if (!touched.length) {
+      return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no matching lookup tools inline on the assistant (they may be referenced by toolId)', tools_present: tools.map(tname) }, null, 2) };
+    }
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { tools }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const vtools = (((verify.json || {}).model || {}).tools) || [];
+    const withFillers = vtools.filter((t) => Array.isArray(t.messages) && t.messages.some((m) => m.type === 'request-start')).map(tname);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, touched, tools_with_fillers_now: withFillers, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   if (action === 'calldetail') {
     const cid = String(q.call_id || '').trim();
     if (!cid) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'pass &call_id=' }) };
