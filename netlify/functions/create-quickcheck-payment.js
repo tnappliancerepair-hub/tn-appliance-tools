@@ -20,7 +20,12 @@ const TEST_PRICE_CENTS = 100; // $1
 // LAUNCH_DEFAULT = on out of the box; end it anytime by setting vault ANTS_GIFT_LAUNCH=false
 // (or flip this to false). The $25 credits toward the part; all sales final (defective
 // parts still replaced). Respects COMMUNITY_GIFT_PAUSED. (Teddy 2026-07-30.)
-const LAUNCH_DEFAULT = true;
+// ENDED 2026-08-04 (Teddy): back to a straight $50 Quick Check — no $25 off anywhere.
+const LAUNCH_DEFAULT = false;
+// 🛑 Master kill for ALL discounts (Ant's Gift 50% + church/partner −$25). While
+// false, everyone pays the full $50/$100 regardless of any code or vault flag. Flip
+// to true only if a discount program is deliberately brought back. (Teddy 2026-08-04.)
+const DISCOUNTS_ON = false;
 const SITE = 'https://tnapplianceexchange.net';
 
 function s(v, max) { return String(v == null ? '' : v).slice(0, max || 480); }
@@ -42,7 +47,7 @@ exports.handler = async function (event) {
     if (q.price) {
       const paused = String((await getSecret('COMMUNITY_GIFT_PAUSED')) || '').toLowerCase() === 'true';
       const lf = String((await getSecret('ANTS_GIFT_LAUNCH')) ?? '').toLowerCase();
-      const on = !paused && (lf === 'true' || (lf === '' && LAUNCH_DEFAULT));
+      const on = DISCOUNTS_ON && !paused && (lf === 'true' || (lf === '' && LAUNCH_DEFAULT));
       return { statusCode: 200, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, promo: 'ants_gift_50', promo_active: on, quick_check_cents: on ? 2500 : 5000, in_home_cents: on ? 5000 : 10000, regular_quick_check_cents: 5000, regular_in_home_cents: 10000 }) };
     }
     return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
@@ -78,16 +83,16 @@ exports.handler = async function (event) {
   // vault ANTS_GIFT_LAUNCH=false). Applied to the base price BEFORE church/partner and
   // never stacks with them (it already gives ≥ their $25). The $25 credits to the part.
   const launchFlag = String((await getSecret('ANTS_GIFT_LAUNCH')) ?? '').toLowerCase();
-  const antsGiftApplies = !isTest && !giftPaused && (launchFlag === 'true' || (launchFlag === '' && LAUNCH_DEFAULT));
+  const antsGiftApplies = DISCOUNTS_ON && !isTest && !giftPaused && (launchFlag === 'true' || (launchFlag === '' && LAUNCH_DEFAULT));
   if (antsGiftApplies) priceCents = Math.max(100, Math.round(baseCents * 0.5));
-  const churchApplies = !isTest && !giftPaused && !antsGiftApplies && church.length >= 2;
+  const churchApplies = DISCOUNTS_ON && !isTest && !giftPaused && !antsGiftApplies && church.length >= 2;
   if (churchApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
   // 🤝 Community partner program: same $25 gift extended to ANY community org that
   // helps its people — food banks, senior centers, immigrant/refugee groups,
   // shelters, apartment communities, schools, nonprofits. Same mechanism as the
   // church code, but neutral wording on the receipt. Never stacks with a church code.
   const partner = s(b.partner, 40).trim().toUpperCase().replace(/[^A-Z0-9 .-]/g, '');
-  const partnerApplies = !isTest && !giftPaused && !antsGiftApplies && !churchApplies && partner.length >= 2;
+  const partnerApplies = DISCOUNTS_ON && !isTest && !giftPaused && !antsGiftApplies && !churchApplies && partner.length >= 2;
   if (partnerApplies) priceCents = Math.max(100, priceCents - CHURCH_OFF);
   let productName = isTest
     ? (service === 'in_home' ? 'In-Home Diagnostic — TEST ($1)' : 'Appliance Quick Check — TEST ($1)')

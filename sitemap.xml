@@ -7669,21 +7669,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://tnapplianceexchange.net/es/iglesias.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.75</priority>
-  </url>
-  <url>
-    <loc>https://tnapplianceexchange.net/churches.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.75</priority>
-  </url>
-  <url>
-    <loc>https://tnapplianceexchange.net/community-partners.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.75</priority>
-  </url>
-  <url>
     <loc>https://tnapplianceexchange.net/tools/fault-code-lookup.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -7692,11 +7677,6 @@
     <loc>https://tnapplianceexchange.net/vi/kiem-tra-nhanh.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://tnapplianceexchange.net/es/aliados-comunitarios.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.75</priority>
   </url>
     <url><loc>https://tnapplianceexchange.net/zh/</loc><lastmod>2026-08-01</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
     <url><loc>https://tnapplianceexchange.net/ta/</loc><lastmod>2026-08-01</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
@@ -7772,11 +7752,6 @@
     <loc>https://tnapplianceexchange.net/ru/o-nas.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://tnapplianceexchange.net/ru/partnery-soobshchestva.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.75</priority>
   </url>
   <url>
     <loc>https://tnapplianceexchange.net/ru/fix/</loc>
