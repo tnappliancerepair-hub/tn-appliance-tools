@@ -25,37 +25,51 @@ exports.handler = async function (event) {
   try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'web_funnel' }, { id: 'desc' }, 500); } catch (e) { return j(200, { ok: false, error: String((e && e.message) || e) }); }
 
   const cutoff = Date.now() - days * 86400000;
+  // The full drop-off ladder, in order.
+  const ORDER = ['open', 'started', 'problem', 'video', 'model', 'contact', 'reached_pay', 'paid'];
+  const LABEL = { open: 'Opened the page', started: 'Picked an appliance', problem: 'Described the problem', video: 'Reached the video step', model: 'Reached the model-photo step', contact: 'Reached the contact step', reached_pay: 'Saw the pay screen', paid: 'Paid' };
+  const newSets = () => { const o = {}; for (const s of ORDER) o[s] = new Set(); return o; };
   // per day -> per step -> Set of unique keys (conv_id, or row id when conv_id blank)
   const byDay = {};
+  const all = newSets();
   for (const r of rows) {
     const m = meta(r);
     const step = m.step;
-    if (!step) continue;
+    if (!step || ORDER.indexOf(step) < 0) continue;
     const ms = Number(m.at_ms) || Date.parse(r.created_at || '') || 0;
     if (!ms || ms < cutoff) continue;
     const day = ctDay(ms);
     const key = (m.conv_id && String(m.conv_id)) || ('row' + r.id);
-    byDay[day] = byDay[day] || { open: new Set(), started: new Set(), reached_pay: new Set(), paid: new Set() };
-    if (byDay[day][step]) byDay[day][step].add(key);
+    byDay[day] = byDay[day] || newSets();
+    byDay[day][step].add(key);
+    all[step].add(key);
   }
 
+  const pct = (n, base) => base > 0 ? Math.round((n / base) * 1000) / 10 : null;
   const out = Object.keys(byDay).sort().reverse().map((day) => {
     const d = byDay[day];
     const open = d.open.size, started = d.started.size, reached = d.reached_pay.size, paid = d.paid.size;
-    const pct = (n, base) => base > 0 ? Math.round((n / base) * 1000) / 10 : null;
-    return { day, opened: open, started, reached_pay: reached, paid,
-      close_rate_pct: pct(paid, reached),      // of those who hit pay, how many paid
-      started_to_paid_pct: pct(paid, started), // of those who began, how many paid
-    };
+    return { day, opened: open, started, video: d.video.size, model: d.model.size, contact: d.contact.size, reached_pay: reached, paid,
+      close_rate_pct: pct(paid, reached), started_to_paid_pct: pct(paid, started) };
   });
 
-  // totals across the window
-  const sum = (k) => out.reduce((a, r) => a + r[k], 0);
-  const tReached = sum('reached_pay'), tPaid = sum('paid'), tStarted = sum('started');
+  // The drop-off ladder across the whole window: count at each step, % of everyone
+  // who opened, and % who survived the PREVIOUS step (so the biggest leak is obvious).
+  const openN = all.open.size;
+  let prev = null;
+  const ladder = ORDER.map((s) => {
+    const n = all[s].size;
+    const row = { step: s, label: LABEL[s], count: n, pct_of_opened: pct(n, openN), kept_from_prev: prev == null ? null : pct(n, prev), dropped_from_prev: prev == null ? null : (prev - n) };
+    prev = n; return row;
+  });
+  // biggest single drop-off (where we lose the most people between two steps)
+  let biggest = null;
+  for (let i = 1; i < ladder.length; i++) { const dr = ladder[i].dropped_from_prev || 0; if (!biggest || dr > biggest.dropped) biggest = { from: ladder[i - 1].label, to: ladder[i].label, dropped: dr, kept_pct: ladder[i].kept_from_prev }; }
+
+  const tReached = all.reached_pay.size, tPaid = all.paid.size, tStarted = all.started.size;
   const totals = {
-    opened: sum('opened'), started: tStarted, reached_pay: tReached, paid: tPaid,
-    close_rate_pct: tReached > 0 ? Math.round((tPaid / tReached) * 1000) / 10 : null,
-    started_to_paid_pct: tStarted > 0 ? Math.round((tPaid / tStarted) * 1000) / 10 : null,
+    opened: openN, started: tStarted, reached_pay: tReached, paid: tPaid,
+    close_rate_pct: pct(tPaid, tReached), started_to_paid_pct: pct(tPaid, tStarted),
   };
-  return j(200, { ok: true, days, totals, by_day: out });
+  return j(200, { ok: true, days, totals, biggest_dropoff: biggest, ladder, by_day: out });
 };

@@ -5,7 +5,8 @@
 'use strict';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
-const STEPS = new Set(['open', 'started', 'reached_pay', 'paid']);
+// Full drop-off ladder: open → started → problem → video → model → contact → reached_pay → paid
+const STEPS = new Set(['open', 'started', 'problem', 'video', 'model', 'contact', 'reached_pay', 'paid']);
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };

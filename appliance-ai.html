@@ -411,7 +411,7 @@ function askProblem(){
 function askProblemTyped(){ antMsg('Okay — I\'ve got the gist. One quick thing first:'); think(500, askPayer); }
 
 // ── STEP: warranty vs cash ──
-function askPayer(){
+function askPayer(){ track('problem');
   setHead('Quick question.','This decides the fastest path for you.');
   antMsg('Do you have a <b>home warranty</b> on this appliance (AHS, ServicePower, Frontdoor, Choice, 2-10, etc.)? If so your repair is <b>100% FREE — you pay nothing.</b> Or are you paying out of pocket (no warranty)?');
   choices([{emo:'🛡️',label:'I have a warranty'},{emo:'💵',label:'I\'m paying myself'}], it=>{
@@ -497,7 +497,7 @@ function captureStatus(barEl, txtEl){
     else if(phase==='failed'){ barEl.style.width='100%'; barEl.classList.add('warn'); txtEl.textContent='Saved — we’ll grab it automatically when your signal’s back.'; }
   };
 }
-function capVideo(){
+function capVideo(){ track('video');
   setHead('The last thing you want is a tech showing up <span class="accent">not knowing what you have.</span>','Shoot a quick 10-second video and give your tech the heads-up.');
   antMsg('The last thing you want is a technician showing up <b>not knowing what you have or the situation you’re in.</b> So do this one easy thing: shoot a quick <b>10-second video</b> of your '+esc(state.appliance.toLowerCase())+' and give your tech a heads-up — talk me through what it <b>is and isn’t doing</b> and what you’re seeing or hearing. That way he rolls up <b>better prepared</b>, with the right part and the right tools. (Want to say more? Take as long as you like — the more I know, the more ready he is.) 🐜');
   const w=document.createElement('div'); w.className='capture';
@@ -523,7 +523,7 @@ function capVideo(){
   document.getElementById('vfile-cam').onchange=onVideo;
   document.getElementById('vfile-up').onchange=onVideo;
 }
-function capModel(){
+function capModel(){ track('model');
   setHead('Now the <span class="accent">model number.</span>','Usually on a sticker inside the door or on the back.');
   antMsg('Snap a photo of the model sticker — that\'s how I get you the exact part and the real price.');
   const w=document.createElement('div'); w.className='capture';
@@ -631,7 +631,7 @@ function consentGate(){
   document.getElementById('cy').onclick=()=>{ state.smsConsent=true; clearFlow(); collectContact(); };
   document.getElementById('cn').onclick=()=>{ state.smsConsent=false; clearFlow(); antMsg('No problem — we\'ll call you instead. What\'s the best number + your ZIP?'); collectContact(); };
 }
-function collectContact(){
+function collectContact(){ track('contact');
   setHead('Almost done.','Where’s the appliance — and how do we reach you?');
   const f=document.createElement('div'); f.className='field';
   f.innerHTML='<input id="f-name" placeholder="Your name" autocomplete="name">'
@@ -705,6 +705,7 @@ function askAvailability(){
 // linked, and if it didn't, the customer gets a one-tap finish-upload text.
 function submitFree(){
   setHead('One tap and <span class="accent">you\'re done.</span>','Free — honest answer within 2 business hours.');
+  track('reached_pay');
   const p=document.createElement('div'); p.className='pay';
   p.innerHTML='<div class="amt" style="font-size:28px">Free Quick Check</div><div class="amtsub">No charge · honest answer within 2 business hours</div>'
     +'<button class="go" id="free-go">Get my honest answer →</button>';
@@ -754,6 +755,7 @@ function payStep(){
   const svc = isInHome ? 'in_home' : 'quick_check';
   if(isInHome){ setHead('Lock in your <span class="accent">in-home visit.</span>','$100 — credited to your repair. We schedule once it\'s paid.'); }
   else { setHead('Lock in your <span class="accent">Quick Check.</span>','$'+amt+' now — credited to your repair.'); }
+  track('reached_pay');
   const p=document.createElement('div'); p.className='pay';
   const sub = isInHome ? 'Credited to your repair · a tech comes to you' : 'Credited to your repair · honest answer within 2 business hours';
   const cta = isInHome ? ('Pay $'+amt+' &amp; get scheduled →') : ('Pay $'+amt+' &amp; get my answer →');
@@ -808,6 +810,7 @@ function done(){
 // free-quickcheck path so it lands in Needs-Scheduled, marked as in-home.
 function submitInHome(){
   setHead('One tap and <span class="accent">you\'re on the schedule.</span>','We\'ll text you a day. Just confirm the diagnostic fee below.');
+  track('reached_pay');
   const p=document.createElement('div'); p.className='pay';
   // Firm $100 disclosure + a REQUIRED acknowledgment so "it's understood" is recorded
   // (Teddy 2026-07-17). Skipped only under the ?free= token (comped / waived trip fee).
