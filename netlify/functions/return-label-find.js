@@ -162,26 +162,32 @@ exports.handler = async function (event) {
   //    So: try the precise SquareTrade sender first, then a sender-AGNOSTIC claim + label-terms
   //    search that catches Allstate (and any other plan administrator), then the same by last name.
   const LABEL_TERMS = '("print my label" OR "return label" OR "RMA #" OR "Return Description")';
+  const last = cust ? cust.split(/\s+/).slice(-1)[0] : '';
   const queries = [];
   if (claim) {
     queries.push({ q: `from:rma_request@squaretrade.com ${claim}`, via: 'claim' });
     queries.push({ q: `${claim} ${LABEL_TERMS}`, via: 'claim' });
   }
-  // Part-number search — for boxes with no label/claim on them. Date-bounded so an old
-  // return of the same part doesn't surface; the part token is quoted so it matches the
-  // exact "Part Number: <part>" line in the RMA email.
+  // Part + NAME together (type "W10721967 Long") — the surgical case: the same part is
+  // returned by several customers to different distributors, so narrow to THIS person.
+  // Wide window since one person's RMA can be older and there's no ambiguity to fear.
+  if (part && last) {
+    queries.push({ q: `"${part}" ${last} "Part Number" newer_than:400d`, via: 'part' });
+    queries.push({ q: `"${part}" ${last} newer_than:400d`, via: 'part' });
+  }
+  // Part alone — boxes with no label/claim/name on them. The part token is quoted so it
+  // matches the exact "Part Number: <part>" line; wider window so nothing recent is missed.
   if (part) {
-    queries.push({ q: `"${part}" "Part Number" newer_than:120d`, via: 'part' });
-    queries.push({ q: `"${part}" ${LABEL_TERMS} newer_than:120d`, via: 'part' });
+    queries.push({ q: `"${part}" "Part Number" newer_than:180d`, via: 'part' });
+    queries.push({ q: `"${part}" ${LABEL_TERMS} newer_than:180d`, via: 'part' });
   }
   if (cust) {
-    const last = cust.split(/\s+/).slice(-1)[0];
     queries.push({ q: `from:rma_request@squaretrade.com ${last}`, via: 'customer' });
     queries.push({ q: `${last} ${LABEL_TERMS}`, via: 'customer' });
   }
   let msgs = [], via = '';
   for (let i = 0; i < queries.length; i++) {
-    try { const list = await gmail.users.messages.list({ userId: 'me', q: queries[i].q, maxResults: 10 }); if (list.data.messages && list.data.messages.length) { msgs = list.data.messages; via = queries[i].via; break; } } catch (_) {}
+    try { const list = await gmail.users.messages.list({ userId: 'me', q: queries[i].q, maxResults: 20 }); if (list.data.messages && list.data.messages.length) { msgs = list.data.messages; via = queries[i].via; break; } } catch (_) {}
   }
   const gmail_search = claim ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent(claim + ' ' + LABEL_TERMS)}`
     : (part ? `https://mail.google.com/mail/u/${GMAIL_ACCT}/#search/${encodeURIComponent('"' + part + '" "Part Number"')}`
@@ -191,7 +197,7 @@ exports.handler = async function (event) {
   // 3) Pull the PRINT MY LABEL link + the part each is for (in parallel, capped
   //    higher so multi-part claims — Tovar had 4, Fleming 5 — all come back).
   const boxPart = normPart(ocr.part_number);
-  let labels = await Promise.all(msgs.slice(0, 8).map(async (msg) => {
+  let labels = await Promise.all(msgs.slice(0, 12).map(async (msg) => {
     const info = await labelFromMessage(gmail, msg.id);
     const part_match = !!(boxPart && info.part_number && normPart(info.part_number) === boxPart);
     const rawImg = await resolveLabelImage(info.label_url);            // the real printable PNG (S3, octet-stream)
