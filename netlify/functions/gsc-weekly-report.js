@@ -168,3 +168,14 @@ exports.handler = async function (event) {
   if (!q.dryrun) { try { await sendSms(OWNER, digest, 'owner', 'gsc_weekly_report'); sms = 'sent'; } catch (e) { sms = String(e.message || e); } }
   return json(200, { ok: true, snapshot_date: todayCT(), tracked: curRows.length, pages, pages_prior: prevPages, langs, langs_prior: prevLangs, sms, digest, movement });
 };
+
+// Exported so the non-scheduled companion (gsc-report) can recompute on demand —
+// Netlify blocks manual HTTP to this scheduled function (403). (2026-08-04)
+exports.buildCurrent = buildCurrent;
+exports.buildPages = buildPages;
+exports.buildLanguages = buildLanguages;
+exports.diff = diff;
+exports.smsDigest = smsDigest;
+exports.posMap = posMap;
+exports.todayCT = todayCT;
+exports.ACTION = ACTION;
