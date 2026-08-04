@@ -3,12 +3,16 @@
 // 
 //  Returns a flat list of every job that should appear on the board:
 //    * scheduling_status in (not_ready, needs_scheduled, scheduled,
-//      in_progress, awaiting_parts, held)  -- all active states
-//    * OR scheduling_status=completed AND job_completed_at within the
-//      last 45 days  (MeisterTask keeps finished jobs in each tech's
-//      Invoice column until PAID, so the board must load them too. A
-//      7-day window dropped the whole invoice backlog and the board
-//      could never match MeisterTask counts. 2026-07-13.)
+//      in_progress, awaiting_parts, held, no_fix_possible)  -- active states
+//      (no_fix_possible = "recommend replacement"; placeOf routes it to the
+//      tech's Report folder, so the feed MUST load it or it goes invisible.)
+//    * OR scheduling_status=completed AND (job_completed_at OR created_at)
+//      within the window. The created_at fallback fixes the bug where a job
+//      marked completed but with job_completed_at=null (completion flow never
+//      stamped it) failed "null >= cutoff" and vanished from the board even
+//      after Danielle filed it to a folder (Teddy 2026-08-04, job #20697).
+//      (MeisterTask keeps finished jobs in each tech's Invoice column until
+//      PAID, so the board must load them too. 2026-07-13.)
 //
 //  Capped at 800 rows (was 300; the small cap squeezed out finished
 //  jobs so Lee/Jimmy under-counted vs MeisterTask). The page buckets
@@ -37,7 +41,7 @@ query get_office_kanban verb=GET {
     }
   
     db.query jobs {
-      where = $db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "scheduled" || $db.jobs.scheduling_status == "in_progress" || $db.jobs.scheduling_status == "awaiting_parts" || $db.jobs.scheduling_status == "held" || ($db.jobs.scheduling_status == "completed" && $db.jobs.job_completed_at >= $window_cutoff_ms)
+      where = $db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "scheduled" || $db.jobs.scheduling_status == "in_progress" || $db.jobs.scheduling_status == "awaiting_parts" || $db.jobs.scheduling_status == "held" || $db.jobs.scheduling_status == "no_fix_possible" || ($db.jobs.scheduling_status == "completed" && ($db.jobs.job_completed_at >= $window_cutoff_ms || $db.jobs.created_at >= $window_cutoff_ms))
       sort = {jobs.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 800}}
     } as $job_rows
