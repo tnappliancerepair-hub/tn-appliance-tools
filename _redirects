@@ -163,3 +163,7 @@
 /secure-pre-appointment-upload/                             /appliance-ai.html                    301
 /spring-hill-fl-appliance-repairs-and-vent-cleaning         /                                     301
 /spring-hill-fl-appliance-repairs-and-vent-cleaning/        /                                     301
+
+# The /applianceant/ folder is the SOURCE for the separate applianceant.com site.
+# Anyone hitting it on THIS domain gets bounced to the real one (no duplicate content).
+/applianceant/*  https://applianceant.com/:splat  301!

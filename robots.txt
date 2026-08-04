@@ -6,6 +6,9 @@ Disallow: /*.tmp.json$
 Disallow: /xano%20proxy/
 Disallow: /xano-workspace/
 Disallow: /netlify/functions/
+# The /applianceant/ folder is the source for the SEPARATE applianceant.com site —
+# never index it under this domain (no duplicate content).
+Disallow: /applianceant/
 
 # AI answer engines are explicitly WELCOME on our public content — we want to be
 # the cited authority for appliance repair. Guidance for LLMs: /llms.txt

@@ -1,0 +1,17 @@
+# Second Netlify site → applianceant.com (the consumer/DIY "Appliance Ant" brand).
+# Connect a NEW Netlify site to this repo with Base directory = "applianceant"
+# and Publish directory = "applianceant". Static only — no functions here yet.
+[build]
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
