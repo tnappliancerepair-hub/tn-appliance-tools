@@ -49,7 +49,7 @@ exports.handler = async function (event) {
   const results = [];
   for (const t of CREW) {
     const link = UPLOAD_BASE + '?tech_id=' + t.id;
-    const body = 'Hey ' + t.name + ' — quick one: snap 2-3 photos from a job this week for our Google page (helps us show up for "appliance repair near me" = more work). Tap, add the pics, done: ' + link;
+    const body = 'Hey ' + t.name + ' — 30-second favor that literally puts more jobs on your board: snap 2-3 pics on a job this week (before/after, the appliance, a clean fix). Photos are one of the BIGGEST things that push us to the top of Google for "appliance repair near me" — top of Google = more calls = more work for you. Tap, add the pics, done: ' + link;
     if (dry) { results.push({ tech: t.name, phone: t.phone, link, body }); continue; }
     const ok = await sendSms(t.phone, body, 'technician', 'gbp_photo_request');
     results.push({ tech: t.name, sent: ok });
