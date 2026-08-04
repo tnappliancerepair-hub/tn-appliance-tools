@@ -362,6 +362,7 @@ async function loadJob(){
     loadOfficeNotes();
     loadMachines();
     loadReturnTrip();
+    loadFlags();
   }catch(e){
     // If we already painted from cache, keep it — a slow refresh must NEVER blank a
     // job the tech is looking at. Only show the error when we have nothing to show.
@@ -425,6 +426,33 @@ async function loadReturnTrip(){
     el.style.display='';
   }catch(_){ /* linker not available / not a return trip — stay hidden */ }
 }
+// Job flags (2-man / time-consuming) — stored via event_log, no Mac push.
+function paintFlagBtn(id,on){
+  const b=document.getElementById(id); if(!b) return;
+  if(on){ b.style.background='#fff4e6'; b.style.borderColor='#ea6a00'; b.style.color='#9a4a00'; b.dataset.on='1'; if(b.dataset.base&&b.textContent.indexOf('✓')<0){ b.textContent='✓ '+b.dataset.base; } }
+  else { b.style.background='#fff'; b.style.borderColor='var(--line,#d4d9e0)'; b.style.color='var(--ink)'; b.dataset.on='0'; if(b.dataset.base){ b.textContent=b.dataset.base; } }
+}
+async function loadFlags(){
+  const t=document.getElementById('flag-twoman'), c=document.getElementById('flag-time');
+  if(t&&!t.dataset.base) t.dataset.base='👥 2-man job';
+  if(c&&!c.dataset.base) c.dataset.base='🕐 Time-consuming';
+  try{
+    const d=await fetch('/.netlify/functions/job-flags?job_id='+encodeURIComponent(JOB_ID),{cache:'no-store'}).then(r=>r.json());
+    if(d&&d.ok){ paintFlagBtn('flag-twoman',!!d.two_man); paintFlagBtn('flag-time',!!d.time_consuming); }
+  }catch(_){}
+}
+async function toggleFlag(flag){
+  const id=flag==='two_man'?'flag-twoman':'flag-time';
+  const b=document.getElementById(id); if(!b) return;
+  const on=b.dataset.on!=='1';
+  paintFlagBtn(id,on);   // optimistic
+  try{
+    const d=await fetch('/.netlify/functions/job-flags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,flag:flag,on:on,actor:('tech:'+TECH_ID)})}).then(r=>r.json());
+    if(d&&d.ok){ paintFlagBtn('flag-twoman',!!d.two_man); paintFlagBtn('flag-time',!!d.time_consuming); toast(on?'Flagged ✓ — office notified':'Flag cleared'); }
+    else { paintFlagBtn(id,!on); toast('Could not save — try again'); }
+  }catch(_){ paintFlagBtn(id,!on); toast('Could not save — try again'); }
+}
+
 async function loadMachines(){
   const el=document.getElementById('machine-switcher'); if(!el) return;
   try{
@@ -696,6 +724,15 @@ function render(){
           ${navUrl?`<a href="${esc(navUrl)}" target="_blank" rel="noopener" style="flex:2;background:#1f6fed;color:#fff;text-align:center;text-decoration:none;padding:13px;border-radius:10px;font-weight:800;font-size:15px">🧭 Navigate</a>`:''}
           ${e164?`<a href="tel:${esc(e164)}" style="flex:1;background:#fff;border:1px solid var(--line,#d4d9e0);color:var(--ink);text-align:center;text-decoration:none;padding:13px;border-radius:10px;font-weight:800;font-size:15px">📞 Call</a>`:''}
         </div>
+      </div>
+
+      <div class="card" style="padding:11px 12px">
+        <div style="font-size:12.5px;font-weight:800;color:var(--ink2);margin-bottom:8px">Flag this job for the office</div>
+        <div style="display:flex;gap:8px">
+          <button type="button" id="flag-twoman" onclick="toggleFlag('two_man')" style="flex:1;border:1px solid var(--line,#d4d9e0);background:#fff;color:var(--ink);padding:12px 8px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer">👥 2-man job</button>
+          <button type="button" id="flag-time" onclick="toggleFlag('time_consuming')" style="flex:1;border:1px solid var(--line,#d4d9e0);background:#fff;color:var(--ink);padding:12px 8px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer">🕐 Time-consuming</button>
+        </div>
+        <div style="font-size:11.5px;color:#5a6a85;margin-top:7px">Tap to flag — the office sees it on the board so they can send a helper or block extra time.</div>
       </div>
 
       <div class="card" id="office-notes-card" style="display:none;border:1px solid #f0c674;background:#fff8e8">

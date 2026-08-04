@@ -634,6 +634,15 @@ async function loadStages(){
     CHECK_MAP=(d&&d.checklists)||{};
   }catch(_){STAGE_MAP={};CHECK_MAP={};}
 }
+// Job flags (2-man / time-consuming) set by techs or office — shown as tile badges.
+let FLAG_MAP={};
+async function loadFlags(){
+  try{
+    const r=await fetch('/.netlify/functions/job-flags',{cache:'no-store'});
+    const d=await r.json();
+    FLAG_MAP=(d&&d.flags)||{};
+  }catch(_){FLAG_MAP={};}
+}
 // Which jobs have an office note (so the tile shows a "📋 note" flag — Danielle's
 // proof she sent it, without opening the drawer). (Teddy 2026-07-03)
 let OFFICE_NOTE_JOBS=new Set();
@@ -778,7 +787,7 @@ function saveBoardCache(){
   try{
     localStorage.setItem(BOARD_CACHE_KEY, JSON.stringify({
       ts:Date.now(), items:allItems, stageMap:STAGE_MAP, checkMap:CHECK_MAP,
-      noteJobs:[...OFFICE_NOTE_JOBS], secondOp:[...SECOND_OPINION_JOBS], cancelReq:[...CANCEL_REQUEST_JOBS], holdMap:HOLD_MAP, slotsMap:SLOTS_MAP, partsIn:PARTS_IN, addrFlags:ADDR_FLAGS, stopKids:STOP_KIDS, machineChildOf:MACHINE_CHILD_OF
+      noteJobs:[...OFFICE_NOTE_JOBS], secondOp:[...SECOND_OPINION_JOBS], cancelReq:[...CANCEL_REQUEST_JOBS], holdMap:HOLD_MAP, slotsMap:SLOTS_MAP, partsIn:PARTS_IN, addrFlags:ADDR_FLAGS, stopKids:STOP_KIDS, machineChildOf:MACHINE_CHILD_OF, flagMap:FLAG_MAP
     }));
   }catch(_){}
 }
@@ -789,7 +798,7 @@ function renderFromCache(){
     if(!s||!Array.isArray(s.items)||!s.items.length) return false;
     if(!s.ts||(Date.now()-s.ts)>86400000) return false;  // ignore snapshots >1 day old
     allItems=s.items; STAGE_MAP=s.stageMap||{}; CHECK_MAP=s.checkMap||{};
-    OFFICE_NOTE_JOBS=new Set(s.noteJobs||[]); SECOND_OPINION_JOBS=new Set(s.secondOp||[]); CANCEL_REQUEST_JOBS=new Set(s.cancelReq||[]); HOLD_MAP=s.holdMap||{}; SLOTS_MAP=s.slotsMap||{}; PARTS_IN=s.partsIn||{}; ADDR_FLAGS=s.addrFlags||{}; STOP_KIDS=s.stopKids||{}; MACHINE_CHILD_OF=s.machineChildOf||{};
+    OFFICE_NOTE_JOBS=new Set(s.noteJobs||[]); SECOND_OPINION_JOBS=new Set(s.secondOp||[]); CANCEL_REQUEST_JOBS=new Set(s.cancelReq||[]); HOLD_MAP=s.holdMap||{}; SLOTS_MAP=s.slotsMap||{}; PARTS_IN=s.partsIn||{}; ADDR_FLAGS=s.addrFlags||{}; STOP_KIDS=s.stopKids||{}; MACHINE_CHILD_OF=s.machineChildOf||{}; FLAG_MAP=s.flagMap||{};
     stageReconcile();                 // a pending drop still wins over the cached snapshot
     renderBoard();
     return true;
@@ -802,7 +811,7 @@ async function loadBoard(){
   const _cached=renderFromCache();
   if(!_cached) document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap()]);
+    const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadFlags(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap()]);
     const d=await r.json();
     allItems=(d&&d.items)||[];
     stageReconcile();                 // keep just-dropped cards pinned until the server catches up
@@ -1478,6 +1487,11 @@ function cardHtml(j){
   const _coBadge = _selfPay
     ? '<span class="tag" style="background:#0a7d33;color:#fff;font-weight:800;border:1px solid #0a7d33">💵 CASH</span>'
     : ('<span class="tag warr">'+esc(_coLabel)+'</span>');
+  // 👥/🕐 crew + time-consuming flags raised by a tech or the office.
+  const _flag=FLAG_MAP[j.id]||{};
+  let _flagTags='';
+  if(_flag.two_man) _flagTags+='<span class="tag" style="background:#fff4e6;color:#9a4a00;font-weight:800;border:1px solid #f0a45a">👥 2-MAN</span>';
+  if(_flag.time_consuming) _flagTags+='<span class="tag" style="background:#eef1ff;color:#3737a3;font-weight:800;border:1px solid #a9b0f0">🕐 LONG JOB</span>';
   return `<div class="jcard${_over?' over':''}${_replace?' siren':''}${_secondOp?' siren2':''}${_cancelReq?' siren3':''}${_pin?' partin':''}${_selfPay?' cashjob':''}" draggable="true" data-id="${j.id}"${_pin?` style="box-shadow:0 0 0 2px ${partsInColor(_pin)}66;border-color:${partsInColor(_pin)}"`:_cashEdge}>
     ${_pin?partsInRibbon(_pin):''}
     ${_af?addrFlagRibbon(_af,j.id):''}
@@ -1487,7 +1501,7 @@ function cardHtml(j){
     <div class="jc-meta" style="margin-top:5px">${esc(appl||'appliance')}</div>
     ${_machineChips}
     ${_availCard}
-    <div class="jc-tags">${tags.join('')}</div>
+    <div class="jc-tags">${_flagTags}${tags.join('')}</div>
     ${_completeBtn}
     ${_reportBtn}
   </div>`;
@@ -1610,6 +1624,31 @@ async function onDrop(colId,techId,colEl){
   setTimeout(loadBoard,800); // quiet resync to confirm server truth
 }
 
+// ── job flags (2-man / time-consuming) — drawer controls ──
+function paintDFlag(id,on,base){
+  const b=document.getElementById(id); if(!b) return;
+  b.dataset.on=on?'1':'0';
+  if(on){ b.style.background='#fff4e6'; b.style.borderColor='#ea6a00'; b.style.color='#9a4a00'; b.textContent='✓ '+base; }
+  else { b.style.background='var(--card2,#eef2f7)'; b.style.borderColor='var(--line,#d4d9e0)'; b.style.color='var(--ink2)'; b.textContent=base; }
+}
+function paintDrawerFlags(jid){
+  const f=FLAG_MAP[jid]||{};
+  paintDFlag('d-flag-twoman',!!f.two_man,'👥 2-man job');
+  paintDFlag('d-flag-time',!!f.time_consuming,'🕐 Time-consuming');
+}
+async function drawerToggleFlag(jid,flag){
+  const id=flag==='two_man'?'d-flag-twoman':'d-flag-time';
+  const b=document.getElementById(id); if(!b) return;
+  const on=b.dataset.on!=='1';
+  const base=flag==='two_man'?'👥 2-man job':'🕐 Time-consuming';
+  paintDFlag(id,on,base);   // optimistic
+  try{
+    const d=await fetch('/.netlify/functions/job-flags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,flag:flag,on:on,actor:officeActor()})}).then(r=>r.json());
+    if(d&&d.ok){ FLAG_MAP[jid]={two_man:!!d.two_man,time_consuming:!!d.time_consuming}; paintDrawerFlags(jid); renderBoard(); toast(on?'Flagged ✓':'Flag cleared'); }
+    else { paintDFlag(id,!on,base); toast('Could not save — try again'); }
+  }catch(_){ paintDFlag(id,!on,base); toast('Could not save — try again'); }
+}
+
 // ── card drawer (the file + checklist + jumps) ──
 async function openDrawer(id){
   document.getElementById('scrim').classList.add('open');
@@ -1652,6 +1691,7 @@ async function openDrawer(id){
       if(!Number(d.job.scheduled_start) && Number(src.scheduled_start)) d.job.scheduled_start=src.scheduled_start;
     }
     renderDrawer(d);
+    paintDrawerFlags(parseInt(id,10));
     loadDrawerMedia(parseInt(id,10));
     loadReturnTripBadge(parseInt(id,10));
   }catch(e){
@@ -2196,6 +2236,15 @@ function renderDrawer(d){
         <div class="k">Model #</div><div class="v mono">${esc(ap.model_number||'—')}</div>
         <div class="k">Status</div><div class="v">${esc((j.scheduling_status||'').replace(/_/g,' ')||'—')}</div>
         <div class="k">Problem</div><div class="v">${esc(ap.problem_summary||ap.problem_description||'—')}</div>
+      </div>
+    </div>
+
+    <div class="dcard">
+      <h4>🚩 Crew &amp; time flags</h4>
+      <p style="color:var(--dim,#8a93a1);font-size:12.5px;margin:4px 0 9px">Flag a heavy 2-person job or a job that eats the day so scheduling routes a helper and blocks extra time.</p>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="d-flag-twoman" onclick="drawerToggleFlag(${jid},'two_man')" style="flex:1;border:1px solid var(--line,#d4d9e0);background:var(--card2,#eef2f7);color:var(--ink2);padding:11px 8px;border-radius:9px;font-weight:800;font-size:13.5px;cursor:pointer">👥 2-man job</button>
+        <button type="button" id="d-flag-time" onclick="drawerToggleFlag(${jid},'time_consuming')" style="flex:1;border:1px solid var(--line,#d4d9e0);background:var(--card2,#eef2f7);color:var(--ink2);padding:11px 8px;border-radius:9px;font-weight:800;font-size:13.5px;cursor:pointer">🕐 Time-consuming</button>
       </div>
     </div>
 
