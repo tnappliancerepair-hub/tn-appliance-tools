@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Cash Funnel — TN Appliance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--black:#050505;--surface:#0e0e0e;--surf2:#141414;--border:#1e1e1e;--bord2:#282828;--orange:#ff6200;--oran2:#ff7c28;--green:#39ff14;--red:#ff4747;--white:#f0f0f0;--gray:#9a9a9a;--gray2:#555;--mono:'Geist Mono',ui-monospace,monospace;--block:'Bebas Neue',sans-serif}
+html,body{background:var(--black);color:var(--white);font-family:var(--mono);-webkit-text-size-adjust:100%}
+body{padding:0 16px calc(48px + env(safe-area-inset-bottom));max-width:680px;margin:0 auto}
+a{color:var(--orange);text-decoration:none}
+/* gate */
+#gate{position:fixed;inset:0;background:var(--black);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;z-index:50}
+#gate h1{font-family:var(--block);font-size:34px;letter-spacing:.04em;color:var(--white)}
+#gate p{color:var(--gray);font-size:13px;text-align:center}
+#gate input{width:100%;max-width:320px;background:var(--surf2);border:1px solid var(--bord2);border-radius:12px;padding:15px;color:var(--white);font-size:16px;font-family:var(--mono);text-align:center}
+#gate input:focus{outline:none;border-color:var(--orange)}
+#gate button{width:100%;max-width:320px;background:var(--orange);color:#000;border:0;border-radius:12px;padding:15px;font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:.04em;cursor:pointer}
+/* header */
+header{display:flex;align-items:center;justify-content:space-between;padding:20px 0 14px;position:sticky;top:0;background:linear-gradient(180deg,var(--black) 70%,transparent);z-index:10}
+.brand{display:flex;align-items:center;gap:9px}
+.brand .ant{font-size:22px}
+.brand h1{font-family:var(--block);font-size:20px;letter-spacing:.05em;line-height:1}
+.brand .u{font-size:9px;color:var(--gray);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+.refresh{background:var(--surf2);border:1px solid var(--bord2);border-radius:10px;color:var(--white);padding:9px 12px;font-family:var(--mono);font-size:12px;cursor:pointer}
+.refresh:active{transform:scale(.96)}
+/* stat cards */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 16px 14px}
+.stat.hero{grid-column:1 / -1;border-color:rgba(57,255,20,.28);background:linear-gradient(135deg,rgba(57,255,20,.07),rgba(57,255,20,.01))}
+.stat .n{font-family:var(--block);font-size:44px;line-height:.9;letter-spacing:.02em;color:var(--white)}
+.stat.hero .n{color:var(--green);font-size:54px}
+.stat .l{font-size:11px;color:var(--gray);letter-spacing:.05em;text-transform:uppercase;margin-top:8px;line-height:1.4}
+.stat .sub{font-size:12px;color:#cfe9dd;margin-top:6px;line-height:1.5}
+/* section */
+.sec{margin-top:22px}
+.sec-t{font-family:var(--block);font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
+/* ladder */
+.rung{margin-bottom:11px}
+.rung-top{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:5px}
+.rung-top .lab{color:var(--white)}
+.rung-top .val{color:var(--gray);font-family:var(--block);font-size:16px;letter-spacing:.02em}
+.rung-top .val b{color:var(--white)}
+.bar{height:12px;background:var(--surf2);border-radius:7px;overflow:hidden}
+.bar span{display:block;height:100%;border-radius:7px;background:linear-gradient(90deg,var(--orange),var(--oran2));transition:width .5s ease}
+.rung.paid .bar span{background:linear-gradient(90deg,var(--green),#2fd80f)}
+.rung.leak .lab{color:var(--red)}
+.leak-tag{font-size:10px;color:var(--red);border:1px solid rgba(255,71,71,.4);border-radius:20px;padding:2px 8px;margin-left:7px;letter-spacing:.04em}
+.leakbanner{background:linear-gradient(135deg,rgba(255,71,71,.1),rgba(255,71,71,.02));border:1px solid rgba(255,71,71,.35);border-radius:14px;padding:16px 18px;margin-top:14px}
+.leakbanner .t{font-size:11px;color:var(--red);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.leakbanner .b{font-size:14px;color:var(--white);line-height:1.5}
+.leakbanner .b b{color:var(--red)}
+/* source rows */
+.src{display:flex;justify-content:space-between;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 14px;margin-bottom:8px}
+.src .k{font-size:13px;color:var(--white)}
+.src .k small{display:block;color:var(--gray);font-size:11px;margin-top:2px}
+.src .c{text-align:right;white-space:nowrap}
+.src .c .cash{font-family:var(--block);font-size:20px;color:var(--green);letter-spacing:.02em}
+.src .c small{display:block;font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:.05em}
+.note{font-size:11.5px;color:var(--gray);line-height:1.6;margin-top:10px}
+.err{background:rgba(255,71,71,.08);border:1px solid rgba(255,71,71,.3);border-radius:12px;padding:14px;color:#ffb3b3;font-size:13px;margin-top:16px}
+.loading{color:var(--gray);text-align:center;padding:40px 0;font-size:13px}
+.foot{text-align:center;color:var(--gray2);font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin:28px 0 8px}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>🐜 Cash Funnel</h1>
+  <p>Owner access. Enter the admin passcode.</p>
+  <input id="gpw" type="password" placeholder="passcode" autocomplete="current-password" enterkeyhint="go">
+  <button id="gbtn">See the funnel →</button>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <div class="brand"><span class="ant">🐜</span><div><h1>Cash Funnel</h1><div class="u" id="upd">loading…</div></div></div>
+    <button class="refresh" id="refresh">↻ Refresh</button>
+  </header>
+  <div id="body"><div class="loading">Loading your numbers…</div></div>
+  <div class="foot">TN Appliance Exchange · free-lead conversion</div>
+</div>
+
+<script>
+const FN='/.netlify/functions';
+const LS='tn_funnel_secret';
+let SECRET=new URLSearchParams(location.search).get('secret')||localStorage.getItem(LS)||'';
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function niceChannel(k){const m={direct:'Direct / typed us in',google:'Google (organic search)',bing:'Bing',social:'Social',referral:'Referral',email:'Email',sms:'Text'};return m[k]||k;}
+function nicePage(k){if(k==='/')return'Homepage';return k.replace(/^\//,'').replace(/\.html$/,'').replace(/-/g,' ');}
+
+function showApp(){document.getElementById('gate').style.display='none';document.getElementById('app').style.display='block';load();}
+
+document.getElementById('gbtn').onclick=()=>{
+  const v=document.getElementById('gpw').value.trim();if(!v)return;
+  SECRET=v;localStorage.setItem(LS,v);showApp();
+};
+document.getElementById('gpw').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('gbtn').click();});
+document.getElementById('refresh').onclick=load;
+
+async function load(){
+  const body=document.getElementById('body');
+  body.innerHTML='<div class="loading">Loading your numbers…</div>';
+  try{
+    const [pfR,lrR]=await Promise.all([
+      fetch(FN+'/pay-funnel?secret='+encodeURIComponent(SECRET)+'&days=14'),
+      fetch(FN+'/lead-report?secret='+encodeURIComponent(SECRET)+'&days=30')
+    ]);
+    if(pfR.status===401||lrR.status===401){localStorage.removeItem(LS);body.innerHTML='<div class="err">Wrong passcode. <a href="#" onclick="location.reload()">Try again</a>.</div>';return;}
+    const pf=await pfR.json(), lr=await lrR.json();
+    render(pf,lr);
+    document.getElementById('upd').textContent='updated '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  }catch(e){ body.innerHTML='<div class="err">Couldn\'t load — check signal and tap Refresh.</div>'; }
+}
+
+function render(pf,lr){
+  const t=pf.totals||{}; const lt=(lr&&lr.totals)||{};
+  const cash30=lt.cash||0;
+  let h='';
+
+  // hero + stat cards
+  h+='<div class="stats">';
+  h+='<div class="stat hero"><div class="n">'+cash30+'</div><div class="l">Cash jobs from free channels · last 30 days</div>'
+    +'<div class="sub">'+(cash30>0?'Free IS converting — proof below. 🐜':'No cash from free yet this window.')+'</div></div>';
+  h+='<div class="stat"><div class="n">'+(t.opened||0)+'</div><div class="l">Opened the Quick Check (14d)</div></div>';
+  h+='<div class="stat"><div class="n">'+(t.paid||0)+'</div><div class="l">Paid Quick Checks (14d)</div></div>';
+  h+='</div>';
+
+  // ladder
+  h+='<div class="sec"><div class="sec-t">Where people drop off (14d)</div>';
+  const big=pf.biggest_dropoff;
+  (pf.ladder||[]).forEach((r,i)=>{
+    const isLeak=big&&i>0&&(pf.ladder[i-1].label===big.from&&r.label===big.to);
+    const w=Math.max(2,r.pct_of_opened||0);
+    h+='<div class="rung'+(r.step==='paid'?' paid':'')+(isLeak?' leak':'')+'">'
+      +'<div class="rung-top"><span class="lab">'+esc(r.label)+(isLeak?'<span class="leak-tag">biggest leak</span>':'')+'</span>'
+      +'<span class="val"><b>'+r.count+'</b> '+(r.pct_of_opened==null?'':'· '+r.pct_of_opened+'%')+'</span></div>'
+      +'<div class="bar"><span style="width:'+w+'%"></span></div></div>';
+  });
+  if(big&&big.dropped>0){
+    h+='<div class="leakbanner"><div class="t">⚠ Biggest leak</div><div class="b"><b>'+big.dropped+' people</b> lost between “'+esc(big.from)+'” and “'+esc(big.to)+'.” Only '+(big.kept_pct==null?'—':big.kept_pct+'%')+' made it through.</div></div>';
+  }
+  h+='<div class="note">The middle rungs (problem → video → model → contact → pay screen) were just wired up — they fill in as new visitors flow through, then this shows the exact step that bleeds the most cash.</div>';
+  h+='</div>';
+
+  // cash from free — by source (the proof)
+  const chans=(lr&&lr.by_channel||[]).filter(c=>(c.cash||0)>0);
+  const lands=(lr&&lr.by_landing||[]).filter(c=>(c.cash||0)>0);
+  h+='<div class="sec"><div class="sec-t">Cash jobs — where they came from (30d)</div>';
+  if(chans.length){ chans.forEach(c=>{ h+='<div class="src"><div class="k">'+esc(niceChannel(c.key))+'<small>channel</small></div><div class="c"><span class="cash">'+c.cash+'</span><small>cash job'+(c.cash===1?'':'s')+'</small></div></div>'; }); }
+  if(lands.length){ lands.forEach(c=>{ h+='<div class="src"><div class="k">'+esc(nicePage(c.key))+'<small>landing page</small></div><div class="c"><span class="cash">'+c.cash+'</span><small>cash job'+(c.cash===1?'':'s')+'</small></div></div>'; }); }
+  if(!chans.length&&!lands.length){ h+='<div class="note">No attributed cash jobs in the last 30 days yet.</div>'; }
+  h+='</div>';
+
+  document.getElementById('body').innerHTML=h;
+}
+
+// auto-open if we already have a secret
+if(SECRET){ showApp(); }
+</script>
+</body>
+</html>
