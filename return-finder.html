@@ -96,13 +96,21 @@ function render(d){
   // one card per label — part # is the big heading, distributor is the "return-to"
   // chip (each part goes back to a DIFFERENT place), so Alec can eyeball the box,
   // match it, print, and move on.
-  function labelCard(l,isMatch){
+  function labelCard(l,isMatch,leadName){
     var ribbon = isMatch ? '<div class="ribbon">✅ Matches your box — print this one</div>' : '';
     var cls = isMatch ? 'card" style="border:2px solid var(--grn)' : 'card';
-    var partLine = l.part_number ? '<div class="part">'+esc(l.part_number)+'</div>' : '<div class="part" style="color:var(--ink2)">Part not listed</div>';
+    // leadName: same part # across several customers — the NAME is the distinguishing
+    // field, so lead with it and drop the part # to a sub-line.
+    var partLine;
+    if(leadName){
+      partLine = '<div class="part">'+esc(l.customer_name||o.customer_name||'(no name on label)')+'</div>'
+        +'<div class="muted">Part '+esc(l.part_number||'')+(l.claim?' · Claim '+esc(l.claim):'')+'</div>';
+    } else {
+      partLine = l.part_number ? '<div class="part">'+esc(l.part_number)+'</div>' : '<div class="part" style="color:var(--ink2)">Part not listed</div>';
+    }
     var distChip = l.distributor ? '<div class="dist">↩ Return to '+esc(l.distributor)+'</div>' : '';
     var whoBits=[];
-    if(l.customer_name||o.customer_name) whoBits.push(esc(l.customer_name||o.customer_name));
+    if(!leadName && (l.customer_name||o.customer_name)) whoBits.push(esc(l.customer_name||o.customer_name));
     if(l.return_desc) whoBits.push(esc(l.return_desc));
     if(l.rma) whoBits.push('RMA '+esc(l.rma));
     // Prefer the real label PNG (prints clean). Fall back to SquareTrade's viewer,
@@ -137,7 +145,20 @@ function render(d){
   var withLink=labels.filter(function(l){return l.has_label;});
   var noLink=labels.filter(function(l){return !l.has_label;});
 
-  if(match.length){
+  if(d.matched_on==='part' && labels.length>1){
+    // Same part number, several different customers returning it. The part is the same
+    // on every card, so lead each with the CUSTOMER NAME. Tell Teddy whether they're
+    // interchangeable (all one distributor → identical unused parts) or must be matched.
+    var dset={}; labels.forEach(function(l){ if(l.distributor) dset[l.distributor.toUpperCase().trim()]=1; });
+    var sameDist=Object.keys(dset).length<=1;
+    var pnum=esc(d.box_part||o.part_number||'this part');
+    body+='<div class="warn"><b>'+labels.length+' returns for part '+pnum+'</b> — different customers.'
+      +(sameDist
+        ? ' Same part, same distributor, so the parts are identical — print all '+labels.length+', put <b>one label on each box</b>, and ship. It doesn’t matter which of these boxes gets which label; just use each label once and ship the right count.'
+        : ' ⚠️ These go to <b>different distributors</b> — match each box to the right label by the distributor + customer name shown on each.')
+      +'</div>';
+    body+=labels.map(function(l){return labelCard(l,false,true);}).join('');
+  } else if(match.length){
     // We know exactly which label goes with this box.
     body+=match.map(function(l){return labelCard(l,true);}).join('');
     if(others.length){
