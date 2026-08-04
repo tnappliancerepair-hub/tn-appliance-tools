@@ -830,3 +830,8 @@
 # Splits activity by the person who did it (actor). Objective record during the handoff.
 [functions."office-daily-recap"]
   schedule = "0 3 * * *"
+
+# Completeness watchdog — auto-heal recoverable part-# gaps every 2h so a part
+# number a tech wrote in the report always reaches the office field, hands-off.
+[functions."tech-report-gaps"]
+  schedule = "20 */2 * * *"

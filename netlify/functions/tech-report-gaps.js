@@ -48,7 +48,12 @@ exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
   const qp = event.queryStringParameters || {};
-  const heal = qp.heal === '1' && qp.secret === ADMIN;
+  // Scheduled runs (netlify.toml cron) send {next_run} and no query string — they
+  // self-authorize and auto-heal so recoverable part #s reach the office with ZERO
+  // human taps. Manual heal still needs the owner secret.
+  let scheduled = false;
+  try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  const heal = scheduled || (qp.heal === '1' && qp.secret === ADMIN);
   const gaps = [];
   const seen = {};
   try {
