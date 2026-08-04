@@ -121,8 +121,11 @@ exports.handler = async function (event) {
     // or "claim part#", or just a name — a part-looking token (letters+digits)
     // still drives the per-part match.
     const tokens = typed.split(/[\s,]+/).filter(Boolean);
-    const claimTok = tokens.map((t) => t.replace(/[^0-9]/g, '')).find((d) => d.length >= 8) || '';
+    // A PART has letters+digits (W10721967, DA97-22162A); a CLAIM is all digits.
+    // Match parts first so a part number isn't mistaken for a claim just because it
+    // has 8+ digits after the letter (W10721967 -> the digits 10721967).
     const partTok = tokens.find((t) => /[A-Za-z]/.test(t) && /[0-9]/.test(t) && t.replace(/[^A-Za-z0-9]/g, '').length >= 5) || '';
+    const claimTok = (tokens.find((t) => !/[A-Za-z]/.test(t) && t.replace(/[^0-9]/g, '').length >= 8) || '').replace(/[^0-9]/g, '');
     if (claimTok) ocr.claim_number = claimTok;
     if (partTok) ocr.part_number = partTok;
     if (!claimTok && !partTok) ocr.customer_name = typed;
