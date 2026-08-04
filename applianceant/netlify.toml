@@ -1,3 +1,4 @@
+# deploy: applianceant.com consumer site (base=applianceant, serves this folder)
 # Second Netlify site → applianceant.com (the consumer/DIY "Appliance Ant" brand).
 # Connect a NEW Netlify site to this repo with Base directory = "applianceant"
 # and Publish directory = "applianceant". Static only — no functions here yet.
