@@ -87,6 +87,20 @@ h2{font-family:var(--block);font-size:clamp(28px,5vw,42px);letter-spacing:.03em;
 .part-free{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--green);border:1px solid rgba(57,255,20,.25);border-radius:10px;padding:11px 14px;margin-top:auto;letter-spacing:.02em}
 .part-note{font-size:11.5px;color:var(--gray);line-height:1.55;margin-top:11px}
 .disclosure{font-size:11px;color:var(--gray2);line-height:1.6;margin-top:16px;letter-spacing:.02em}
+.disclaimer-top{font-size:12.5px;color:var(--gray);line-height:1.7;margin-top:16px;padding:14px 18px;border-left:3px solid var(--orange);background:rgba(255,98,0,.04);border-radius:0 8px 8px 0}
+.disclaimer-top b{color:var(--white)}
+.part-btns{display:flex;flex-direction:column;gap:8px;margin-top:auto}
+.btn-oem{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--orange);color:#000;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:12px 16px;border-radius:10px;text-decoration:none;transition:all .2s}
+.btn-oem:hover{background:var(--oran2);transform:translateY(-1px);box-shadow:0 6px 18px rgba(255,98,0,.28)}
+.btn-amz{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:transparent;color:var(--white);border:1px solid var(--bord2);font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:11px 16px;border-radius:10px;text-decoration:none;transition:all .2s}
+.btn-amz:hover{border-color:var(--orange);color:var(--orange)}
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.tool{background:var(--surface);border:1px solid var(--bord2);border-radius:12px;padding:20px;display:flex;flex-direction:column}
+.tool h3{font-family:var(--block);font-size:16px;color:var(--white);letter-spacing:.03em;margin-bottom:7px}
+.tool p{font-size:12.5px;color:var(--gray);line-height:1.6;margin-bottom:14px}
+.tool-btn{margin-top:auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;border:1px solid var(--bord2);color:var(--white);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:10px 14px;border-radius:9px;text-decoration:none;transition:all .2s}
+.tool-btn:hover{border-color:var(--orange);color:var(--orange)}
+.teststeps .cause h3{color:var(--orange)}
 /* local cross-link */
 .local{background:linear-gradient(135deg,rgba(255,98,0,.08),rgba(255,98,0,.02));border:1px solid rgba(255,98,0,.28);border-radius:18px;padding:34px 30px;text-align:center}
 .local h3{font-family:var(--block);font-size:27px;letter-spacing:.03em;color:var(--white);margin-bottom:10px}
@@ -109,7 +123,7 @@ footer{border-top:1px solid var(--border);padding:30px 32px 42px;text-align:cent
 .foot-links a{font-size:11px;color:var(--gray);text-decoration:none;letter-spacing:.04em;transition:color .2s}
 .foot-links a:hover{color:var(--orange)}
 .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase;line-height:1.7}
-@media(max-width:760px){.parts{grid-template-columns:1fr}.related-grid{grid-template-columns:1fr}.hero{padding:44px 20px 30px}.content{padding:0 20px 54px}nav{padding:14px 18px}.nav-tag{display:none}}
+@media(max-width:760px){.parts{grid-template-columns:1fr}.related-grid{grid-template-columns:1fr}.tools{grid-template-columns:1fr}.hero{padding:44px 20px 30px}.content{padding:0 20px 54px}nav{padding:14px 18px}.nav-tag{display:none}}
 </style>
 </head>
 <body>
@@ -125,61 +139,99 @@ footer{border-top:1px solid var(--border);padding:30px 32px 42px;text-align:cent
   <div class="breadcrumb"><a href="/">Home</a><span>›</span><a href="/">Dryer</a><span>›</span>Dryer Not Heating</div>
   <span class="hero-icon">🔥</span>
   <div class="hero-label">Dryer · DIY Diagnosis</div>
-  <h1>Dryer Not Heating?<em>Here's the Honest Fix.</em></h1>
+  <h1>Dryer Not Heating?<em>Here's How to Diagnose It.</em></h1>
   <div class="quick"><p>A dryer that tumbles but won't heat has power to the motor but not the heat circuit. On electric dryers it's usually a burned-out heating element or a blown thermal fuse; on gas, a weak igniter. The silent root cause is a clogged vent — clear it first, or the new part blows again.</p></div>
+  <p class="disclaimer-top">🐜 <b>Straight talk:</b> this is diagnostic help to point you at the likely cause — it's not a guarantee, and every machine is different. Always cut the power (and shut off gas or water) before you touch anything, test to confirm the part is actually bad before you buy, and if it's beyond you, get a pro. No shame in that.</p>
 </div>
 
 <div class="content">
 
   <section class="section">
-    <div class="klabel">What's actually wrong</div>
+    <div class="klabel">What's usually wrong</div>
     <h2>The Most Likely Causes</h2>
-    <p class="prose">Listed in rough order of how often they're the culprit. Work top-down — the cheap, free checks first, the parts after.</p>
+    <p class="prose">Listed in rough order of how often they turn out to be the culprit — not a diagnosis of your specific machine. Work top-down: the cheap, free checks first, then test before you buy anything.</p>
     <div class="cause-list"><div class="cause"><h3>Clogged vent or lint blockage</h3><p>Heat needs somewhere to go. A packed or kinked vent line traps heat until a safety fuse pops. Clear the whole run to the outside flap first — it's free and it's the #1 repeat cause.</p></div><div class="cause"><h3>Blown thermal fuse</h3><p>A one-shot safety device. Once it blows, no power reaches the heat circuit. Cheap and quick to swap — but fix the airflow that blew it or the new one goes too.</p></div><div class="cause"><h3>Failed heating element (electric)</h3><p>The metal coil that makes the heat burns through over time. This is the most common no-heat fix on electric dryers.</p></div><div class="cause"><h3>Bad thermostat / thermal cutoff</h3><p>These regulate temperature. When they fail open the heat circuit stays off. They often fail alongside a thermal fuse from the same airflow root cause — many buy the kit.</p></div><div class="cause"><h3>Weak or failed gas igniter (gas dryers)</h3><p>On gas dryers the igniter glows weak or won't light the burner. Different part entirely from electric — the model number tells us which path you're on.</p></div></div>
   </section>
 
+  <section class="section teststeps">
+    <div class="klabel">Do it the pro way</div>
+    <h2>Test → Estimate → Test</h2>
+    <p class="prose">Good techs don't swap parts and hope. They test, price it out, then confirm. Do the same and you won't buy the wrong part — or pour money into a machine that isn't worth it.</p>
+    <div class="cause-list">
+      <div class="cause"><h3>1 · Test before you buy</h3><p>Confirm the suspect part is actually bad — a multimeter continuity check, or a clear visual like a split element or a cracked gasket. Never replace on a guess; that's how the returns pile up.</p></div>
+      <div class="cause"><h3>2 · Estimate honestly</h3><p>Add up the parts plus your time and compare to a new unit. A cheap part in a well-built machine is a yes. A pricey control board in an old one may not be. Be honest with yourself here.</p></div>
+      <div class="cause"><h3>3 · Test again after</h3><p>Once it's installed, run a full cycle and confirm the fix <em>before</em> you button everything back up. Two minutes now beats taking it apart twice.</p></div>
+    </div>
+  </section>
+
   <section class="section">
-    <div class="klabel">Get the part</div>
-    <h2>The Exact Parts — Shipped to Your Door</h2>
-    <p class="parts-intro">Here's the honest part list for this symptom, cheapest-and-easiest first. We name it, tell you the DIY difficulty and typical price, and link you straight to it. <b>Always confirm the part fits your exact model number before buying</b> — same part name, many variants.</p>
+    <div class="klabel">The kit</div>
+    <h2>The Tools to Test + Fix With</h2>
+    <p class="prose">You don't need a shop full of tools — you need these. The multimeter is the one that pays for itself the first time it stops you buying the wrong part.</p>
+    <div class="tools">
+      <div class="tool"><h3>Digital multimeter</h3><p>Test a suspect part for continuity BEFORE you buy — the single best way to avoid replacing the wrong thing.</p><a class="tool-btn" href="https://www.amazon.com/s?k=digital+multimeter" target="_blank" rel="noopener sponsored">🔎 On Amazon →</a></div>
+      <div class="tool"><h3>Nut driver set (¼&quot; + 5⁄16&quot;)</h3><p>Most appliance panels are held on with ¼&quot; and 5⁄16&quot; hex screws.</p><a class="tool-btn" href="https://www.amazon.com/s?k=appliance+nut+driver+set+1%2F4+5%2F16" target="_blank" rel="noopener sponsored">🔎 On Amazon →</a></div>
+      <div class="tool"><h3>Screwdriver set (Phillips/flat/Torx)</h3><p>Covers the odd panel screw and Torx fasteners many brands use.</p><a class="tool-btn" href="https://www.amazon.com/s?k=screwdriver+set+torx+phillips+flat" target="_blank" rel="noopener sponsored">🔎 On Amazon →</a></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="klabel">Get the part — two honest options</div>
+    <h2>The Likely Parts — Test First, Then Buy</h2>
+    <p class="parts-intro">These are the usual suspects for this symptom, cheapest-and-easiest first — <b>not a diagnosis of your exact unit.</b> Test to confirm the part's actually bad first. For each one you get <b>both options</b>: the <b>genuine OEM part sourced through us</b> and shipped to your door, or a <b>budget aftermarket part</b> you grab on Amazon. Your call.</p>
     <div class="parts">
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#39ff14;border-color:#39ff1455">Easy DIY</span><span class="part-price">$15–30</span></div>
         <h3>Dryer vent cleaning kit</h3>
         
-        <a class="part-btn" href="https://www.amazon.com/s?k=dryer+vent+cleaning+kit+brush" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">A rod-and-brush kit clears the wall duct any element swap can't fix.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Dryer%20vent%20cleaning%20kit&appliance=Dryer&from=dryer-not-heating">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=dryer+vent+cleaning+kit+brush" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#ff9d28;border-color:#ff9d2855">Moderate DIY</span><span class="part-price">$8–20</span></div>
         <h3>Dryer thermal fuse</h3>
         <p class="part-sku">Common fit: Whirlpool/Kenmore 3392519 fits many 29&quot; models</p>
-        <a class="part-btn" href="https://www.amazon.com/s?k=dryer+thermal+fuse" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">Confirm the part number against your model before buying.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Dryer%20thermal%20fuse&appliance=Dryer&from=dryer-not-heating">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=dryer+thermal+fuse" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#ff9d28;border-color:#ff9d2855">Moderate DIY</span><span class="part-price">$20–60</span></div>
         <h3>Dryer heating element</h3>
         <p class="part-sku">Common fit: Whirlpool 279838 fits many Whirlpool/Kenmore/Roper 29&quot; dryers</p>
-        <a class="part-btn" href="https://www.amazon.com/s?k=dryer+heating+element" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">Match to your exact model — same part name, many variants.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Dryer%20heating%20element&appliance=Dryer&from=dryer-not-heating">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=dryer+heating+element" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#ff9d28;border-color:#ff9d2855">Moderate DIY</span><span class="part-price">$12–35</span></div>
         <h3>Dryer thermostat / cutoff kit</h3>
         
-        <a class="part-btn" href="https://www.amazon.com/s?k=dryer+thermostat+thermal+cutoff+kit" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">Kits bundle the fuse + thermostats for the common failure.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Dryer%20thermostat%20%2F%20cutoff%20kit&appliance=Dryer&from=dryer-not-heating">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=dryer+thermostat+thermal+cutoff+kit" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#ff3b30;border-color:#ff3b3055">Call a pro</span><span class="part-price">$20–45</span></div>
         <h3>Dryer gas igniter</h3>
         
-        <a class="part-btn" href="https://www.amazon.com/s?k=dryer+gas+igniter" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">Gas work: if you're not confident with the gas valve, get a pro.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Dryer%20gas%20igniter&appliance=Dryer&from=dryer-not-heating">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=dryer+gas+igniter" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
     </div>
-    <p class="disclosure">Prices are typical ranges and vary by brand/model. Amazon links open a search for the part so you can match it to your model. As an Amazon Associate, Appliance Ant may earn from qualifying purchases — at no extra cost to you.</p>
+    <p class="disclosure">Prices shown are typical aftermarket ranges and vary by brand and model — genuine OEM is priced by quote when you request it. Amazon links open a search so you can match your exact model number before buying; as an Amazon Associate, Appliance Ant may earn from qualifying purchases at no extra cost to you. Always confirm the part fits your model.</p>
   </section>
 
   <section class="section">
@@ -196,7 +248,7 @@ footer{border-top:1px solid var(--border);padding:30px 32px 42px;text-align:cent
   <section class="section">
     <div class="klabel">Is it worth fixing?</div>
     <h2>The Honest Call</h2>
-    <p class="prose">Almost always worth it. The common no-heat parts run $8–60 and 30–60 minutes of your time — versus $500+ for a new dryer. A well-built 10-year-old dryer with an available part is worth fixing twice. Only a newer machine with a discontinued control board is a real &quot;maybe.&quot;</p>
+    <p class="prose">Often worth it — but confirm the diagnosis first. The common no-heat parts run $8–60 and 30–60 minutes of your time — versus $500+ for a new dryer. A well-built 10-year-old dryer with an available part is worth fixing twice. Only a newer machine with a discontinued control board is a real &quot;maybe.&quot;</p>
   </section>
 
   <section class="section">

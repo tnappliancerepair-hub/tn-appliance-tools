@@ -30,12 +30,21 @@ const amz = (terms) => {
   return `https://www.amazon.com/s?k=${q}${AMAZON_TAG ? `&tag=${AMAZON_TAG}` : ''}`;
 };
 const DIFF = { easy: ['Easy DIY', '#39ff14'], moderate: ['Moderate DIY', '#ff9d28'], pro: ['Call a pro', '#ff3b30'] };
+const orderOem = (partName, appliance, slug) => `/order-oem?part=${encodeURIComponent(partName)}&appliance=${encodeURIComponent(appliance)}&from=${slug}`;
+
+// Tools we recommend on every page — the honest "test before you buy" kit. These are
+// Amazon links (tool revenue) AND they back the test→estimate→test methodology.
+const UNIVERSAL_TOOLS = [
+  { name: 'Digital multimeter', why: 'Test a suspect part for continuity BEFORE you buy — the single best way to avoid replacing the wrong thing.', terms: 'digital multimeter' },
+  { name: 'Nut driver set (¼" + 5⁄16")', why: 'Most appliance panels are held on with ¼" and 5⁄16" hex screws.', terms: 'appliance nut driver set 1/4 5/16' },
+  { name: 'Screwdriver set (Phillips/flat/Torx)', why: 'Covers the odd panel screw and Torx fasteners many brands use.', terms: 'screwdriver set torx phillips flat' },
+];
 
 // ---- the data: 6 flagship symptoms, one per appliance type -----------------
 const SYMPTOMS = [
   {
     slug: 'dryer-not-heating', appliance: 'Dryer', icon: '🔥',
-    h1: 'Dryer Not Heating?', h1em: "Here's the Honest Fix.",
+    h1: 'Dryer Not Heating?', h1em: "Here's How to Diagnose It.",
     title: 'Dryer Not Heating? The Real Cause + the Exact Part to Buy',
     desc: "Dryer tumbles but won't heat? It's almost always one of three cheap parts. Ant names the exact one, links you to it, and tells you when to call a pro instead.",
     keywords: 'dryer not heating, dryer no heat, dryer heating element, dryer thermal fuse, how to fix dryer not heating, dryer won\'t get hot',
@@ -50,7 +59,7 @@ const SYMPTOMS = [
     safe: ['Clean the full lint/vent run to the outside flap — the #1 root cause.', 'Check the breaker: electric dryers use a double 240V breaker; one half can trip and kill heat while the drum still turns. Flip it fully off, then on.', 'Confirm you\'re not on Air Fluff / No-Heat / Timed-Dry-cool.'],
     risk: ['Thermal fuse, heating element, or thermostat swap — all testable with a $10 multimeter and replaceable, but the cabinet comes apart and the dryer must be UNPLUGGED first.'],
     pro: ['Anything on a gas dryer — igniter, gas valve, or a gas smell.', 'The 240V cord, outlet, or internal wiring.', 'A control board not sending power to the element.'],
-    worth: 'Almost always worth it. The common no-heat parts run $8–60 and 30–60 minutes of your time — versus $500+ for a new dryer. A well-built 10-year-old dryer with an available part is worth fixing twice. Only a newer machine with a discontinued control board is a real "maybe."',
+    worth: 'Often worth it — but confirm the diagnosis first. The common no-heat parts run $8–60 and 30–60 minutes of your time — versus $500+ for a new dryer. A well-built 10-year-old dryer with an available part is worth fixing twice. Only a newer machine with a discontinued control board is a real "maybe."',
     faq: [
       { q: 'Why is my dryer not heating but still running?', a: 'The motor circuit is fine but the heat circuit isn\'t getting power or has a broken part — usually a thermal fuse, heating element, or thermostat. A blocked vent is what blows the fuse in the first place.' },
       { q: 'What\'s the most common reason a dryer stops heating?', a: 'On electric dryers, a burned-out heating element or a thermal fuse blown by a clogged vent. Clear the vent, then test the fuse and element with a multimeter.' },
@@ -75,7 +84,7 @@ const SYMPTOMS = [
     safe: ['Clean the front-load pump filter (coin trap) — towel down first.', 'Pull the machine out and check the drain hose for kinks or clogs at the standpipe.', 'Run a drain/spin-only cycle to confirm the symptom before buying anything.'],
     risk: ['Drain pump or lid-switch replacement — very doable, but UNPLUG the washer and turn off the water first. Expect leftover water in the tub.'],
     pro: ['Any repair that means tipping the machine and you don\'t have help — front-loaders are heavy.', 'A leak you can\'t trace, or water reaching the motor/control board.'],
-    worth: 'Very worth it. A pump filter clean is free; a drain pump is $25–70 and about an hour. A new washer is $600+. Unless the drum bearing is also gone (a loud repair), draining issues are among the most cost-effective DIY fixes there are.',
+    worth: 'Usually worth it. A pump filter clean is free; a drain pump is $25–70 and about an hour. A new washer is $600+. Unless the drum bearing is also gone (a loud repair), draining issues are among the most cost-effective DIY fixes there are.',
     faq: [
       { q: 'Why is my washer full of water and not draining?', a: 'The water can\'t get past the pump. Check the front-load pump filter first (free), then the drain hose, then the drain pump itself. Top-loaders can also stop draining on a bad lid switch.' },
       { q: 'Where is the drain pump filter on a front-load washer?', a: 'Behind a small access panel at the bottom front. Twist the cap counter-clockwise to open — keep a towel and shallow pan ready, water will come out.' },
@@ -126,7 +135,7 @@ const SYMPTOMS = [
     safe: ['Twist out and rinse the filter; scoop the sump.', 'If a disposal was just installed, confirm the knockout plug was removed.', 'Check the drain hose under the sink for kinks and clogs.'],
     risk: ['Drain pump or check-valve replacement — doable, but shut off power at the breaker and the water supply, and expect water in the base pan.'],
     pro: ['A leak reaching the control board or the wiring under the tub.', 'Any repair where you can\'t safely cut power and water first.'],
-    worth: 'Almost always worth it. The top causes are free (filter, knockout plug) and the drain pump is $30–90. A new dishwasher is $500+ plus install. Draining problems are the cheapest, most beginner-friendly dishwasher repair.',
+    worth: 'Usually worth it. The top causes are free (filter, knockout plug) and the drain pump is $30–90. A new dishwasher is $500+ plus install. Draining problems are the cheapest, most beginner-friendly dishwasher repair.',
     faq: [
       { q: 'Why is there standing water in my dishwasher?', a: 'The water isn\'t reaching the drain — usually a clogged filter, a kinked drain hose, a disposal knockout plug left in, or a failed drain pump. Clear the filter first.' },
       { q: 'I just installed a garbage disposal and now my dishwasher won\'t drain — why?', a: 'The disposal ships with a knockout plug in its dishwasher inlet that must be punched out. If it wasn\'t removed, the dishwasher physically can\'t drain.' },
@@ -206,24 +215,32 @@ function howToSchema(s) {
 }
 
 // ---- page renderer ---------------------------------------------------------
-function renderPart(p) {
+function renderPart(p, slug, appliance) {
   const [label, color] = DIFF[p.diff];
   const isFree = /free/i.test(p.price);
-  const btn = isFree
-    ? `<span class="part-free">✅ No part needed — DIY it free</span>`
-    : `<a class="part-btn" href="${amz(p.terms)}" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>`;
+  const action = isFree
+    ? `<span class="part-free">✅ No part needed — you can DIY this free</span>`
+    : `<div class="part-btns">
+          <a class="btn-oem" href="${orderOem(p.name, appliance, slug)}">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="${amz(p.terms)}" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>`;
   return `<div class="part">
         <div class="part-top"><span class="part-diff" style="color:${color};border-color:${color}55">${label}</span><span class="part-price">${esc(p.price)}</span></div>
         <h3>${esc(p.name)}</h3>
         ${p.sku ? `<p class="part-sku">Common fit: ${esc(p.sku)}</p>` : ''}
-        ${btn}
         <p class="part-note">${esc(p.note)}</p>
+        ${action}
       </div>`;
+}
+
+function renderTools() {
+  return UNIVERSAL_TOOLS.map((t) => `<div class="tool"><h3>${esc(t.name)}</h3><p>${esc(t.why)}</p><a class="tool-btn" href="${amz(t.terms)}" target="_blank" rel="noopener sponsored">🔎 On Amazon →</a></div>`).join('\n      ');
 }
 
 function renderPage(s) {
   const causeCards = s.causes.map((c) => `<div class="cause"><h3>${esc(c.h3)}</h3><p>${esc(c.p)}</p></div>`).join('');
-  const partCards = s.causes.filter((c) => c.part).map((c) => renderPart(c.part)).join('\n      ');
+  const partCards = s.causes.filter((c) => c.part).map((c) => renderPart(c.part, s.slug, s.appliance)).join('\n      ');
+  const toolCards = renderTools();
   const li = (arr, bord) => `<div class="cause" style="border-left:3px solid ${bord}"><ul>${arr.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
   const faq = s.faq.map((f) => `<div class="faq-item"><div class="faq-q">${esc(f.q)}</div><div class="faq-a">${esc(f.a)}</div></div>`).join('');
   const related = s.related.map(([slug, label]) => `<a href="/${slug}" class="related-link">${esc(label)}</a>`).join('');
@@ -317,6 +334,20 @@ h2{font-family:var(--block);font-size:clamp(28px,5vw,42px);letter-spacing:.03em;
 .part-free{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--green);border:1px solid rgba(57,255,20,.25);border-radius:10px;padding:11px 14px;margin-top:auto;letter-spacing:.02em}
 .part-note{font-size:11.5px;color:var(--gray);line-height:1.55;margin-top:11px}
 .disclosure{font-size:11px;color:var(--gray2);line-height:1.6;margin-top:16px;letter-spacing:.02em}
+.disclaimer-top{font-size:12.5px;color:var(--gray);line-height:1.7;margin-top:16px;padding:14px 18px;border-left:3px solid var(--orange);background:rgba(255,98,0,.04);border-radius:0 8px 8px 0}
+.disclaimer-top b{color:var(--white)}
+.part-btns{display:flex;flex-direction:column;gap:8px;margin-top:auto}
+.btn-oem{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--orange);color:#000;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:12px 16px;border-radius:10px;text-decoration:none;transition:all .2s}
+.btn-oem:hover{background:var(--oran2);transform:translateY(-1px);box-shadow:0 6px 18px rgba(255,98,0,.28)}
+.btn-amz{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:transparent;color:var(--white);border:1px solid var(--bord2);font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:11px 16px;border-radius:10px;text-decoration:none;transition:all .2s}
+.btn-amz:hover{border-color:var(--orange);color:var(--orange)}
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.tool{background:var(--surface);border:1px solid var(--bord2);border-radius:12px;padding:20px;display:flex;flex-direction:column}
+.tool h3{font-family:var(--block);font-size:16px;color:var(--white);letter-spacing:.03em;margin-bottom:7px}
+.tool p{font-size:12.5px;color:var(--gray);line-height:1.6;margin-bottom:14px}
+.tool-btn{margin-top:auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;border:1px solid var(--bord2);color:var(--white);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:10px 14px;border-radius:9px;text-decoration:none;transition:all .2s}
+.tool-btn:hover{border-color:var(--orange);color:var(--orange)}
+.teststeps .cause h3{color:var(--orange)}
 /* local cross-link */
 .local{background:linear-gradient(135deg,rgba(255,98,0,.08),rgba(255,98,0,.02));border:1px solid rgba(255,98,0,.28);border-radius:18px;padding:34px 30px;text-align:center}
 .local h3{font-family:var(--block);font-size:27px;letter-spacing:.03em;color:var(--white);margin-bottom:10px}
@@ -339,7 +370,7 @@ footer{border-top:1px solid var(--border);padding:30px 32px 42px;text-align:cent
 .foot-links a{font-size:11px;color:var(--gray);text-decoration:none;letter-spacing:.04em;transition:color .2s}
 .foot-links a:hover{color:var(--orange)}
 .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase;line-height:1.7}
-@media(max-width:760px){.parts{grid-template-columns:1fr}.related-grid{grid-template-columns:1fr}.hero{padding:44px 20px 30px}.content{padding:0 20px 54px}nav{padding:14px 18px}.nav-tag{display:none}}
+@media(max-width:760px){.parts{grid-template-columns:1fr}.related-grid{grid-template-columns:1fr}.tools{grid-template-columns:1fr}.hero{padding:44px 20px 30px}.content{padding:0 20px 54px}nav{padding:14px 18px}.nav-tag{display:none}}
 </style>
 </head>
 <body>
@@ -357,25 +388,46 @@ footer{border-top:1px solid var(--border);padding:30px 32px 42px;text-align:cent
   <div class="hero-label">${esc(s.appliance)} · DIY Diagnosis</div>
   <h1>${esc(s.h1)}<em>${esc(s.h1em)}</em></h1>
   <div class="quick"><p>${esc(s.quick)}</p></div>
+  <p class="disclaimer-top">🐜 <b>Straight talk:</b> this is diagnostic help to point you at the likely cause — it's not a guarantee, and every machine is different. Always cut the power (and shut off gas or water) before you touch anything, test to confirm the part is actually bad before you buy, and if it's beyond you, get a pro. No shame in that.</p>
 </div>
 
 <div class="content">
 
   <section class="section">
-    <div class="klabel">What's actually wrong</div>
+    <div class="klabel">What's usually wrong</div>
     <h2>The Most Likely Causes</h2>
-    <p class="prose">Listed in rough order of how often they're the culprit. Work top-down — the cheap, free checks first, the parts after.</p>
+    <p class="prose">Listed in rough order of how often they turn out to be the culprit — not a diagnosis of your specific machine. Work top-down: the cheap, free checks first, then test before you buy anything.</p>
     <div class="cause-list">${causeCards}</div>
   </section>
 
+  <section class="section teststeps">
+    <div class="klabel">Do it the pro way</div>
+    <h2>Test → Estimate → Test</h2>
+    <p class="prose">Good techs don't swap parts and hope. They test, price it out, then confirm. Do the same and you won't buy the wrong part — or pour money into a machine that isn't worth it.</p>
+    <div class="cause-list">
+      <div class="cause"><h3>1 · Test before you buy</h3><p>Confirm the suspect part is actually bad — a multimeter continuity check, or a clear visual like a split element or a cracked gasket. Never replace on a guess; that's how the returns pile up.</p></div>
+      <div class="cause"><h3>2 · Estimate honestly</h3><p>Add up the parts plus your time and compare to a new unit. A cheap part in a well-built machine is a yes. A pricey control board in an old one may not be. Be honest with yourself here.</p></div>
+      <div class="cause"><h3>3 · Test again after</h3><p>Once it's installed, run a full cycle and confirm the fix <em>before</em> you button everything back up. Two minutes now beats taking it apart twice.</p></div>
+    </div>
+  </section>
+
   <section class="section">
-    <div class="klabel">Get the part</div>
-    <h2>The Exact Parts — Shipped to Your Door</h2>
-    <p class="parts-intro">Here's the honest part list for this symptom, cheapest-and-easiest first. We name it, tell you the DIY difficulty and typical price, and link you straight to it. <b>Always confirm the part fits your exact model number before buying</b> — same part name, many variants.</p>
+    <div class="klabel">The kit</div>
+    <h2>The Tools to Test + Fix With</h2>
+    <p class="prose">You don't need a shop full of tools — you need these. The multimeter is the one that pays for itself the first time it stops you buying the wrong part.</p>
+    <div class="tools">
+      ${toolCards}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="klabel">Get the part — two honest options</div>
+    <h2>The Likely Parts — Test First, Then Buy</h2>
+    <p class="parts-intro">These are the usual suspects for this symptom, cheapest-and-easiest first — <b>not a diagnosis of your exact unit.</b> Test to confirm the part's actually bad first. For each one you get <b>both options</b>: the <b>genuine OEM part sourced through us</b> and shipped to your door, or a <b>budget aftermarket part</b> you grab on Amazon. Your call.</p>
     <div class="parts">
       ${partCards}
     </div>
-    <p class="disclosure">Prices are typical ranges and vary by brand/model. Amazon links open a search for the part so you can match it to your model. As an Amazon Associate, Appliance Ant may earn from qualifying purchases — at no extra cost to you.</p>
+    <p class="disclosure">Prices shown are typical aftermarket ranges and vary by brand and model — genuine OEM is priced by quote when you request it. Amazon links open a search so you can match your exact model number before buying; as an Amazon Associate, Appliance Ant may earn from qualifying purchases at no extra cost to you. Always confirm the part fits your model.</p>
   </section>
 
   <section class="section">

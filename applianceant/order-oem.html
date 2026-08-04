@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Order the Genuine OEM Part — Appliance Ant</title>
+<meta name="description" content="Request the genuine OEM part sourced through our distributor and shipped to your door. Tell us your appliance, model number, and the part — we'll send a quote.">
+<link rel="canonical" href="https://applianceant.com/order-oem">
+<meta name="robots" content="noindex, follow">
+<meta name="theme-color" content="#050505">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist+Mono:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--black:#050505;--surface:#0c0c0c;--surf2:#111;--border:#1a1a1a;--bord2:#252525;--orange:#ff6200;--oran2:#ff7c28;--green:#39ff14;--white:#f0f0f0;--gray:#9a9a9a;--gray2:#333;--mono:'Geist Mono',monospace;--block:'Bebas Neue',sans-serif}
+html,body{background:#050505 !important;color:#f0f0f0;font-family:var(--mono);overflow-x:hidden}
+.bg{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.bg-orb{position:absolute;border-radius:50%;filter:blur(160px)}
+.orb1{width:760px;height:760px;background:radial-gradient(circle,rgba(255,98,0,.08),transparent 70%);top:-300px;left:-200px}
+.shell{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;background:#050505}
+nav{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid var(--border);background:rgba(5,5,5,.9);backdrop-filter:blur(24px);position:sticky;top:0;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-ant{font-size:24px}
+.nav-name{font-family:var(--block);font-size:18px;letter-spacing:.08em;color:var(--white);line-height:1}
+.nav-tag{font-size:9px;color:var(--gray);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+.wrap{max-width:640px;margin:0 auto;width:100%;padding:48px 24px 70px}
+.eyebrow{font-size:11px;color:var(--orange);letter-spacing:.13em;text-transform:uppercase;margin-bottom:14px}
+h1{font-family:var(--block);font-size:clamp(34px,6.5vw,52px);letter-spacing:.02em;line-height:.98;color:var(--white);margin-bottom:16px}
+.lede{font-size:14px;color:#cfcfcf;line-height:1.75;margin-bottom:10px}
+.lede b{color:var(--white)}
+.reqline{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,rgba(255,98,0,.1),rgba(255,98,0,.02));border:1px solid rgba(255,98,0,.3);border-radius:12px;padding:16px 18px;margin:22px 0 6px}
+.reqline .ri-ic{font-size:22px}
+.reqline .ri-lab{font-size:10px;color:var(--gray);letter-spacing:.1em;text-transform:uppercase}
+.reqline .ri-val{font-family:var(--block);font-size:20px;color:var(--white);letter-spacing:.03em;line-height:1.1}
+.note{font-size:12px;color:var(--gray);line-height:1.7;margin:14px 0 26px;padding:13px 16px;border-left:3px solid var(--green);background:rgba(57,255,20,.03);border-radius:0 8px 8px 0}
+.note b{color:var(--green)}
+form{display:flex;flex-direction:column;gap:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{display:flex;flex-direction:column;gap:6px}
+label{font-size:11px;color:var(--gray);letter-spacing:.06em;text-transform:uppercase}
+label .req{color:var(--orange)}
+input,textarea{background:var(--surf2);border:1px solid var(--bord2);border-radius:10px;padding:13px 14px;color:var(--white);font-family:var(--mono);font-size:15px;transition:border-color .2s;width:100%}
+input:focus,textarea:focus{outline:none;border-color:var(--orange)}
+textarea{min-height:80px;resize:vertical}
+.hp{position:absolute;left:-9999px}
+button{background:var(--orange);color:#000;font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:16px;border:none;border-radius:11px;cursor:pointer;transition:all .2s;margin-top:6px}
+button:hover{background:var(--oran2);transform:translateY(-1px);box-shadow:0 8px 24px rgba(255,98,0,.3)}
+button:disabled{opacity:.6;cursor:default;transform:none}
+.fineprint{font-size:11px;color:var(--gray2);line-height:1.6;margin-top:4px}
+.success{display:none;text-align:center;padding:40px 20px}
+.success.on{display:block}
+.success .ic{font-size:52px;margin-bottom:16px}
+.success h2{font-family:var(--block);font-size:34px;color:var(--white);letter-spacing:.03em;margin-bottom:12px}
+.success p{font-size:14px;color:#cfcfcf;line-height:1.75;max-width:440px;margin:0 auto 22px}
+.success a{display:inline-block;color:var(--orange);text-decoration:none;border:1px solid var(--bord2);border-radius:10px;padding:13px 22px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;transition:all .2s}
+.success a:hover{border-color:var(--orange)}
+.hidden{display:none}
+footer{border-top:1px solid var(--border);padding:26px 24px 36px;text-align:center;background:#050505;margin-top:auto}
+.foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase;line-height:1.7}
+@media(max-width:600px){.row{grid-template-columns:1fr}nav{padding:14px 18px}.nav-tag{display:none}}
+</style>
+</head>
+<body>
+<div class="bg"><div class="bg-orb orb1"></div></div>
+<div class="shell">
+
+<nav>
+<a href="/" class="nav-brand"><span class="nav-ant">🐜</span><div><div class="nav-name">APPLIANCE ANT</div><div class="nav-tag">Fix it honestly.</div></div></a>
+</nav>
+
+<div class="wrap">
+
+  <div id="formview">
+    <div class="eyebrow">🔧 Genuine OEM — sourced through us</div>
+    <h1>Order the Genuine OEM Part</h1>
+    <p class="lede">We source the <b>manufacturer's original part</b> through our distributor and ship it to your door. Tell us what you need and we'll send a quote — <b>no payment now.</b></p>
+
+    <div class="reqline" id="reqline" style="display:none">
+      <span class="ri-ic">📦</span>
+      <div><div class="ri-lab">You're requesting</div><div class="ri-val" id="reqval">—</div></div>
+    </div>
+
+    <div class="note"><b>Test first.</b> Make sure the part is actually the problem before you order — a quick multimeter or visual check saves a return. Not sure? Add a note below and we'll help you confirm.</div>
+
+    <form name="oem-request" method="POST" data-netlify="true" netlify-honeypot="bot-field" id="oemform">
+      <input type="hidden" name="form-name" value="oem-request">
+      <input type="hidden" name="source-page" id="f-source" value="">
+      <p class="hp"><label>Don't fill this out: <input name="bot-field"></label></p>
+
+      <div class="field">
+        <label for="f-part">Part you need <span class="req">*</span></label>
+        <input id="f-part" name="part" required placeholder="e.g. Dryer heating element">
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="f-appliance">Appliance <span class="req">*</span></label>
+          <input id="f-appliance" name="appliance" required placeholder="Dryer">
+        </div>
+        <div class="field">
+          <label for="f-brand">Brand</label>
+          <input id="f-brand" name="brand" placeholder="Whirlpool">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-model">Model number <span class="req">*</span> — on the sticker inside the door/frame</label>
+        <input id="f-model" name="model" required placeholder="e.g. WED4815EW1">
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="f-name">Your name <span class="req">*</span></label>
+          <input id="f-name" name="name" required autocomplete="name">
+        </div>
+        <div class="field">
+          <label for="f-phone">Phone</label>
+          <input id="f-phone" name="phone" type="tel" autocomplete="tel">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-email">Email <span class="req">*</span> — where we send the quote</label>
+        <input id="f-email" name="email" type="email" required autocomplete="email">
+      </div>
+
+      <div class="field">
+        <label for="f-address">Shipping address <span class="req">*</span></label>
+        <input id="f-address" name="address" required autocomplete="street-address" placeholder="Street address">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="f-city">City <span class="req">*</span></label>
+          <input id="f-city" name="city" required autocomplete="address-level2">
+        </div>
+        <div class="field">
+          <label for="f-statezip">State + ZIP <span class="req">*</span></label>
+          <input id="f-statezip" name="state_zip" required autocomplete="postal-code" placeholder="TN 37013">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-notes">Anything else? (symptom, what you've tested)</label>
+        <textarea id="f-notes" name="notes" placeholder="Dryer tumbles but no heat. Tested the thermal fuse — reads open."></textarea>
+      </div>
+
+      <button type="submit" id="submitbtn">Request my OEM quote →</button>
+      <p class="fineprint">We reply with a price + shipping, usually within one business day. No charge until you approve the quote. We never share your info.</p>
+    </form>
+  </div>
+
+  <div class="success" id="successview">
+    <div class="ic">🐜✅</div>
+    <h2>Request received</h2>
+    <p>We've got it. We'll source the genuine OEM part through our distributor and email you a quote with shipping — usually within one business day. No charge until you say go.</p>
+    <a href="/">← Back to Appliance Ant</a>
+  </div>
+
+</div>
+
+<footer>
+  <div class="foot-tag">🐜 Appliance Ant · built by the family behind TN Appliance Exchange · in the trade since 2012 · genuine OEM parts, sourced + shipped</div>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  var qs = new URLSearchParams(location.search);
+  var part = qs.get('part') || '';
+  var appliance = qs.get('appliance') || '';
+  var from = qs.get('from') || '';
+  if (part) { document.getElementById('f-part').value = part; document.getElementById('reqval').textContent = part; document.getElementById('reqline').style.display = 'flex'; }
+  if (appliance) document.getElementById('f-appliance').value = appliance;
+  document.getElementById('f-source').value = from || document.referrer || '';
+
+  // AJAX submit for a branded inline thank-you; native POST is the fallback if JS/fetch fails.
+  var form = document.getElementById('oemform');
+  form.addEventListener('submit', function(e){
+    if (!window.fetch) return; // let the native Netlify POST happen
+    e.preventDefault();
+    var btn = document.getElementById('submitbtn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    var data = new URLSearchParams(new FormData(form)).toString();
+    fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: data })
+      .then(function(){ document.getElementById('formview').classList.add('hidden'); document.getElementById('successview').classList.add('on'); window.scrollTo(0,0); })
+      .catch(function(){ btn.disabled = false; btn.textContent = 'Request my OEM quote →'; form.submit(); });
+  });
+})();
+</script>
+</body>
+</html>

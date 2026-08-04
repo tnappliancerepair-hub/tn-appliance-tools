@@ -87,6 +87,20 @@ h2{font-family:var(--block);font-size:clamp(28px,5vw,42px);letter-spacing:.03em;
 .part-free{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--green);border:1px solid rgba(57,255,20,.25);border-radius:10px;padding:11px 14px;margin-top:auto;letter-spacing:.02em}
 .part-note{font-size:11.5px;color:var(--gray);line-height:1.55;margin-top:11px}
 .disclosure{font-size:11px;color:var(--gray2);line-height:1.6;margin-top:16px;letter-spacing:.02em}
+.disclaimer-top{font-size:12.5px;color:var(--gray);line-height:1.7;margin-top:16px;padding:14px 18px;border-left:3px solid var(--orange);background:rgba(255,98,0,.04);border-radius:0 8px 8px 0}
+.disclaimer-top b{color:var(--white)}
+.part-btns{display:flex;flex-direction:column;gap:8px;margin-top:auto}
+.btn-oem{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--orange);color:#000;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:12px 16px;border-radius:10px;text-decoration:none;transition:all .2s}
+.btn-oem:hover{background:var(--oran2);transform:translateY(-1px);box-shadow:0 6px 18px rgba(255,98,0,.28)}
+.btn-amz{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:transparent;color:var(--white);border:1px solid var(--bord2);font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:11px 16px;border-radius:10px;text-decoration:none;transition:all .2s}
+.btn-amz:hover{border-color:var(--orange);color:var(--orange)}
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px}
+.tool{background:var(--surface);border:1px solid var(--bord2);border-radius:12px;padding:20px;display:flex;flex-direction:column}
+.tool h3{font-family:var(--block);font-size:16px;color:var(--white);letter-spacing:.03em;margin-bottom:7px}
+.tool p{font-size:12.5px;color:var(--gray);line-height:1.6;margin-bottom:14px}
+.tool-btn{margin-top:auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;background:transparent;border:1px solid var(--bord2);color:var(--white);font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:10px 14px;border-radius:9px;text-decoration:none;transition:all .2s}
+.tool-btn:hover{border-color:var(--orange);color:var(--orange)}
+.teststeps .cause h3{color:var(--orange)}
 /* local cross-link */
 .local{background:linear-gradient(135deg,rgba(255,98,0,.08),rgba(255,98,0,.02));border:1px solid rgba(255,98,0,.28);border-radius:18px;padding:34px 30px;text-align:center}
 .local h3{font-family:var(--block);font-size:27px;letter-spacing:.03em;color:var(--white);margin-bottom:10px}
@@ -109,7 +123,7 @@ footer{border-top:1px solid var(--border);padding:30px 32px 42px;text-align:cent
 .foot-links a{font-size:11px;color:var(--gray);text-decoration:none;letter-spacing:.04em;transition:color .2s}
 .foot-links a:hover{color:var(--orange)}
 .foot-tag{font-size:10px;color:var(--gray2);letter-spacing:.08em;text-transform:uppercase;line-height:1.7}
-@media(max-width:760px){.parts{grid-template-columns:1fr}.related-grid{grid-template-columns:1fr}.hero{padding:44px 20px 30px}.content{padding:0 20px 54px}nav{padding:14px 18px}.nav-tag{display:none}}
+@media(max-width:760px){.parts{grid-template-columns:1fr}.related-grid{grid-template-columns:1fr}.tools{grid-template-columns:1fr}.hero{padding:44px 20px 30px}.content{padding:0 20px 54px}nav{padding:14px 18px}.nav-tag{display:none}}
 </style>
 </head>
 <body>
@@ -127,59 +141,97 @@ footer{border-top:1px solid var(--border);padding:30px 32px 42px;text-align:cent
   <div class="hero-label">Refrigerator · DIY Diagnosis</div>
   <h1>Fridge Not Cooling?<em>Start Cheap, Stay Safe.</em></h1>
   <div class="quick"><p>If the fridge is running but warm, work from cheapest to hardest: dirty condenser coils choke cooling and are free to clean; a dead evaporator fan stops cold air moving to the fridge section; a failed defrost part lets frost bury the coil. If the compressor is silent or the sealed system leaked refrigerant, that's a pro job — don't chase it.</p></div>
+  <p class="disclaimer-top">🐜 <b>Straight talk:</b> this is diagnostic help to point you at the likely cause — it's not a guarantee, and every machine is different. Always cut the power (and shut off gas or water) before you touch anything, test to confirm the part is actually bad before you buy, and if it's beyond you, get a pro. No shame in that.</p>
 </div>
 
 <div class="content">
 
   <section class="section">
-    <div class="klabel">What's actually wrong</div>
+    <div class="klabel">What's usually wrong</div>
     <h2>The Most Likely Causes</h2>
-    <p class="prose">Listed in rough order of how often they're the culprit. Work top-down — the cheap, free checks first, the parts after.</p>
+    <p class="prose">Listed in rough order of how often they turn out to be the culprit — not a diagnosis of your specific machine. Work top-down: the cheap, free checks first, then test before you buy anything.</p>
     <div class="cause-list"><div class="cause"><h3>Dirty condenser coils</h3><p>Coils caked in dust can't shed heat, so the fridge runs and runs but never gets cold. Vacuum them (back or underneath) — free and often the whole fix.</p></div><div class="cause"><h3>Failed evaporator fan motor</h3><p>The evaporator fan (behind the freezer back panel) pushes cold air into the fridge. If it's dead or noisy, the freezer may stay cold while the fridge goes warm.</p></div><div class="cause"><h3>Defrost system failure (frost buildup)</h3><p>A bad defrost heater, thermostat, or timer/control lets frost cake the evaporator coil until air can't move. Tell-tale: thick ice on the freezer back panel.</p></div><div class="cause"><h3>Bad condenser fan motor</h3><p>On coil-underneath models a condenser fan cools the compressor. If it seizes, the system overheats and cooling drops.</p></div><div class="cause"><h3>Start relay or compressor (sealed system)</h3><p>A clicking-then-quiet compressor can be a cheap start relay — or a failed compressor / refrigerant leak, which is a licensed job. Know the line.</p></div></div>
   </section>
 
+  <section class="section teststeps">
+    <div class="klabel">Do it the pro way</div>
+    <h2>Test → Estimate → Test</h2>
+    <p class="prose">Good techs don't swap parts and hope. They test, price it out, then confirm. Do the same and you won't buy the wrong part — or pour money into a machine that isn't worth it.</p>
+    <div class="cause-list">
+      <div class="cause"><h3>1 · Test before you buy</h3><p>Confirm the suspect part is actually bad — a multimeter continuity check, or a clear visual like a split element or a cracked gasket. Never replace on a guess; that's how the returns pile up.</p></div>
+      <div class="cause"><h3>2 · Estimate honestly</h3><p>Add up the parts plus your time and compare to a new unit. A cheap part in a well-built machine is a yes. A pricey control board in an old one may not be. Be honest with yourself here.</p></div>
+      <div class="cause"><h3>3 · Test again after</h3><p>Once it's installed, run a full cycle and confirm the fix <em>before</em> you button everything back up. Two minutes now beats taking it apart twice.</p></div>
+    </div>
+  </section>
+
   <section class="section">
-    <div class="klabel">Get the part</div>
-    <h2>The Exact Parts — Shipped to Your Door</h2>
-    <p class="parts-intro">Here's the honest part list for this symptom, cheapest-and-easiest first. We name it, tell you the DIY difficulty and typical price, and link you straight to it. <b>Always confirm the part fits your exact model number before buying</b> — same part name, many variants.</p>
+    <div class="klabel">The kit</div>
+    <h2>The Tools to Test + Fix With</h2>
+    <p class="prose">You don't need a shop full of tools — you need these. The multimeter is the one that pays for itself the first time it stops you buying the wrong part.</p>
+    <div class="tools">
+      <div class="tool"><h3>Digital multimeter</h3><p>Test a suspect part for continuity BEFORE you buy — the single best way to avoid replacing the wrong thing.</p><a class="tool-btn" href="https://www.amazon.com/s?k=digital+multimeter" target="_blank" rel="noopener sponsored">🔎 On Amazon →</a></div>
+      <div class="tool"><h3>Nut driver set (¼&quot; + 5⁄16&quot;)</h3><p>Most appliance panels are held on with ¼&quot; and 5⁄16&quot; hex screws.</p><a class="tool-btn" href="https://www.amazon.com/s?k=appliance+nut+driver+set+1%2F4+5%2F16" target="_blank" rel="noopener sponsored">🔎 On Amazon →</a></div>
+      <div class="tool"><h3>Screwdriver set (Phillips/flat/Torx)</h3><p>Covers the odd panel screw and Torx fasteners many brands use.</p><a class="tool-btn" href="https://www.amazon.com/s?k=screwdriver+set+torx+phillips+flat" target="_blank" rel="noopener sponsored">🔎 On Amazon →</a></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="klabel">Get the part — two honest options</div>
+    <h2>The Likely Parts — Test First, Then Buy</h2>
+    <p class="parts-intro">These are the usual suspects for this symptom, cheapest-and-easiest first — <b>not a diagnosis of your exact unit.</b> Test to confirm the part's actually bad first. For each one you get <b>both options</b>: the <b>genuine OEM part sourced through us</b> and shipped to your door, or a <b>budget aftermarket part</b> you grab on Amazon. Your call.</p>
     <div class="parts">
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#39ff14;border-color:#39ff1455">Easy DIY</span><span class="part-price">$8–15</span></div>
         <h3>Coil cleaning brush</h3>
         
-        <a class="part-btn" href="https://www.amazon.com/s?k=refrigerator+condenser+coil+cleaning+brush" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">A long coil brush + vacuum does it. No replacement part needed.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Coil%20cleaning%20brush&appliance=Refrigerator&from=refrigerator-not-cooling">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=refrigerator+condenser+coil+cleaning+brush" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#ff9d28;border-color:#ff9d2855">Moderate DIY</span><span class="part-price">$25–75</span></div>
         <h3>Evaporator fan motor</h3>
         
-        <a class="part-btn" href="https://www.amazon.com/s?k=refrigerator+evaporator+fan+motor" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">Listen for a whirring/chirping fan; silence with a cold freezer points here.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Evaporator%20fan%20motor&appliance=Refrigerator&from=refrigerator-not-cooling">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=refrigerator+evaporator+fan+motor" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#ff9d28;border-color:#ff9d2855">Moderate DIY</span><span class="part-price">$15–50</span></div>
         <h3>Defrost thermostat / heater</h3>
         
-        <a class="part-btn" href="https://www.amazon.com/s?k=refrigerator+defrost+thermostat+kit" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">If you see heavy frost on the coil, this is your path.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Defrost%20thermostat%20%2F%20heater&appliance=Refrigerator&from=refrigerator-not-cooling">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=refrigerator+defrost+thermostat+kit" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#ff9d28;border-color:#ff9d2855">Moderate DIY</span><span class="part-price">$25–70</span></div>
         <h3>Condenser fan motor</h3>
         
-        <a class="part-btn" href="https://www.amazon.com/s?k=refrigerator+condenser+fan+motor" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">Found near the compressor at the bottom-back.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Condenser%20fan%20motor&appliance=Refrigerator&from=refrigerator-not-cooling">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=refrigerator+condenser+fan+motor" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
       <div class="part">
         <div class="part-top"><span class="part-diff" style="color:#ff3b30;border-color:#ff3b3055">Call a pro</span><span class="part-price">$10–40</span></div>
         <h3>Compressor start relay</h3>
         
-        <a class="part-btn" href="https://www.amazon.com/s?k=refrigerator+compressor+start+relay" target="_blank" rel="noopener sponsored">🔎 Find it on Amazon →</a>
         <p class="part-note">The relay is cheap; anything into the sealed system needs a pro.</p>
+        <div class="part-btns">
+          <a class="btn-oem" href="/order-oem?part=Compressor%20start%20relay&appliance=Refrigerator&from=refrigerator-not-cooling">🔧 Genuine OEM — through us →</a>
+          <a class="btn-amz" href="https://www.amazon.com/s?k=refrigerator+compressor+start+relay" target="_blank" rel="noopener sponsored">🔎 Budget on Amazon →</a>
+        </div>
       </div>
     </div>
-    <p class="disclosure">Prices are typical ranges and vary by brand/model. Amazon links open a search for the part so you can match it to your model. As an Amazon Associate, Appliance Ant may earn from qualifying purchases — at no extra cost to you.</p>
+    <p class="disclosure">Prices shown are typical aftermarket ranges and vary by brand and model — genuine OEM is priced by quote when you request it. Amazon links open a search so you can match your exact model number before buying; as an Amazon Associate, Appliance Ant may earn from qualifying purchases at no extra cost to you. Always confirm the part fits your model.</p>
   </section>
 
   <section class="section">
