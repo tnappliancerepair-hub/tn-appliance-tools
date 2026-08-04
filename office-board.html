@@ -571,6 +571,61 @@ document.getElementById('region-seg').addEventListener('click',e=>{
 // Server-side placement map {id:{office_stage,service_state}} so a card STAYS
 // where she dropped it on EVERY device (not just the browser that moved it).
 let STAGE_MAP={}, CHECK_MAP={};
+// ── STOPGAP (2026-08-04): pull in jobs the office FILED to a folder that the kanban
+// feed didn't load (a completed job with a null completed-timestamp, or no_fix_possible).
+// The proper fix is server-side in get_office_kanban (staged, needs a Mac push); until
+// that lands, this fetches those placed-but-missing jobs client-side so Danielle can
+// work them. Throttled to refetch at most every 4 min so the 30s poll never storms Xano.
+// Fully guarded — if anything fails, the board renders exactly as before. Once the feed
+// fix ships, these jobs load normally and dedupe out (harmless).
+let PLACED_EXTRA=[], PLACED_FETCH_AT=0, PLACED_FETCHING=false;
+function mergePlacedExtra(){
+  try{
+    if(!PLACED_EXTRA.length) return;
+    const have=new Set(allItems.map(x=>String(x.id)));
+    PLACED_EXTRA.forEach(it=>{ if(!have.has(String(it.id))){ allItems.push(it); have.add(String(it.id)); } });
+  }catch(_){}
+}
+function placedItemFrom(d, sm){
+  const j=d.job||{}, a=d.appliance||{}, t=d.tech||{}, c=d.customer||{};
+  return { id:j.id, customer_id:(c.id||0),
+    customer_first:(c.first_name||''), customer_last:(c.last_name||''), customer_phone:(c.phone||''),
+    appliance:(a.type||''), brand:(a.brand||''), problem_summary:(a.problem_description||a.problem_summary||''),
+    scheduling_status:(j.scheduling_status||''), current_status:(j.current_status||''),
+    parts_status:(j.parts_status||''), parts_eta_date:(j.parts_eta_date||''),
+    warranty_company:(j.warranty_company||''), claim_number:(j.claim_number||''),
+    dispatch_source_id:(j.dispatch_source_id||''), intake_source:(j.intake_source||''), parallel_mode:false,
+    scheduled_start:(j.scheduled_start||0), service_eta_window:(j.service_eta_window||''),
+    customer_preference_text:(j.customer_preference_text||''),
+    technician_id:(t.id||j.technician_id||null),
+    service_city:(c.city||''), service_zip:(c.zip||''), service_state:(c.state||''),
+    office_stage:((sm&&sm.office_stage)||j.office_stage||''),
+    job_completed_at:(j.job_completed_at||0), created_at:(j.created_at||0), _placedExtra:true };
+}
+async function loadPlacedMissing(){
+  try{
+    if(PLACED_FETCHING) return;
+    if(!STAGE_MAP || !Object.keys(STAGE_MAP).length) return;
+    const feed=new Set(allItems.map(x=>String(x.id)));
+    const SKIP=/^(paid|schedule)$/;   // 'paid' = archived (don't clutter); 'schedule'/'' = not a real placement
+    let missing=Object.keys(STAGE_MAP).filter(k=>{
+      const os=STAGE_MAP[k]&&(''+((STAGE_MAP[k].office_stage)||'')).trim();
+      return os && !SKIP.test(os) && !feed.has(String(k));
+    });
+    if(!missing.length){ PLACED_EXTRA=[]; return; }
+    missing=missing.slice(0,40);                                   // bound the fetch
+    if(PLACED_EXTRA.length && (Date.now()-PLACED_FETCH_AT)<240000){ mergePlacedExtra(); return; }  // throttle: reuse cache <4min
+    PLACED_FETCHING=true;
+    const out=[], q=missing.slice();
+    async function worker(){ while(q.length){ const id=q.shift();
+      try{ const r=await fetch(XANO+'/get_job_for_dashboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10)})});
+        const d=await r.json(); if(d&&d.job){ out.push(placedItemFrom(d, STAGE_MAP[id])); } }catch(_){}
+    } }
+    await Promise.all([worker(),worker(),worker()]);              // 3-wide, never storms Xano
+    PLACED_EXTRA=out; PLACED_FETCH_AT=Date.now(); PLACED_FETCHING=false;
+    mergePlacedExtra(); renderBoard();
+  }catch(_){ PLACED_FETCHING=false; }
+}
 async function loadStages(){
   try{
     const r=await fetch('/.netlify/functions/office-stage',{cache:'no-store'});
@@ -771,6 +826,7 @@ async function loadBoard(){
     loadPartsIn();
     loadAddrFlags();
     loadPartNums();
+    loadPlacedMissing();   // stopgap: pull in filed-but-unloaded jobs so Danielle can work them (fire-and-forget, throttled)
   }catch(e){
     document.getElementById('board-host').innerHTML='<div class="loading">⚠️ Could not load board — '+esc(e.message)+'</div>';
   }
@@ -1091,6 +1147,7 @@ try{soloTech=localStorage.getItem('tn_board_solo_tech')||'';}catch(_){}
 function chipStyle(a){return 'font:700 12px/1 system-ui;padding:7px 12px;border-radius:999px;cursor:pointer;border:1px solid #c8d2e0;'+(a?'background:#1f6feb;color:#fff;border-color:#1f6feb':'background:#fff;color:#33415c');}
 function setBoardSolo(t){soloTech=String(t||'');try{localStorage.setItem('tn_board_solo_tech',soloTech);}catch(_){}renderBoard();}
 function renderBoard(){
+  mergePlacedExtra();   // fold in any placed-but-missing jobs (stopgap; dedupes by id)
   const allRegTechs=REGION_TECHS[region];
   const techs=soloTech?allRegTechs.filter(t=>Number(t)===Number(soloTech)):allRegTechs;
   // Column flow mirrors the MeisterTask TN Jobs board (Teddy 2026-07-04):
