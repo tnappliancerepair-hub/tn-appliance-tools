@@ -811,9 +811,19 @@ async function loadBoard(){
   const _cached=renderFromCache();
   if(!_cached) document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    const [r]=await Promise.all([fetchT(XANO+'/get_office_kanban',20000,{cache:'no-store'}),loadStages(),loadFlags(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap()]);
-    const d=await r.json();
-    allItems=(d&&d.items)||[];
+    // Cached shared feed (board-feed): served from Netlify's edge so every office
+    // user hits ONE cached copy instead of each hammering the 9-24s Xano query —
+    // which is what was saturating Xano and timing out saves. Falls back to the
+    // direct feed if the proxy errors; keeps the current cache if a fetch is empty.
+    let d=null;
+    try{ const r=await fetchT('/.netlify/functions/board-feed',22000); if(r.ok) d=await r.json(); }catch(_){}
+    if(!(d&&Array.isArray(d.items))){ try{ const r2=await fetchT(XANO+'/get_office_kanban',22000,{cache:'no-store'}); d=await r2.json(); }catch(_){ d=null; } }
+    await Promise.all([loadStages(),loadFlags(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap()]);
+    const _items=(d&&Array.isArray(d.items))?d.items:null;
+    // Only overwrite the board if we got a real feed; a briefly-empty/failed read
+    // must NEVER blank a board that already has jobs.
+    if(_items && (_items.length || !allItems.length)) allItems=_items;
+    else if(!allItems.length) allItems=[];
     stageReconcile();                 // keep just-dropped cards pinned until the server catches up
     // 🦉 Owl post — a NEW job arrived since the last load. Skip the very first paint.
     try{
