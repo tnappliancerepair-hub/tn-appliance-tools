@@ -16,6 +16,8 @@ const { sendSms } = require('./_lib/sms');
 
 const OWNER = '+16154855795';
 const ACTION = 'gsc_snapshot';
+// New-language folders to track week-over-week (the multilingual SEO push).
+const LANGS = [['es', 'Spanish'], ['vi', 'Vietnamese'], ['fr', 'French'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['zh', 'Chinese'], ['ru', 'Russian']];
 // repair-intent we WANT to grow; exclude used/buy-intent (don't celebrate the legacy)
 const REPAIR_RE = /\b(repair|installation|install|vent|fix|technician|repairman)\b/i;
 const BUY_RE = /\b(used|scratch|dent|for ?sale|\bbuy\b|\bsell\b)\b/i;
@@ -77,13 +79,41 @@ function pagesLine(pages, prev) {
   const dS = prev ? pages.surfacing - prev.surfacing : null;
   const dP = prev ? pages.page1 - prev.page1 : null;
   const sgn = (n) => (n > 0 ? `+${n}` : `${n}`);
-  return `🔎 Pages on Google: ${pages.surfacing} surfacing${dS != null ? ` (${sgn(dS)})` : ''} · ${pages.page1} on page 1${dP != null ? ` (${sgn(dP)})` : ''}`;
+  // Headline: the indexing count Teddy watches climb. "surfacing" = pages Google
+  // indexed AND showed in 90d (the reliable indexed floor).
+  return `🔎 Indexed & showing on Google: ${pages.surfacing} pages${dS != null ? ` (${sgn(dS)} this wk)` : ''} · ${pages.page1} on page 1${dP != null ? ` (${sgn(dP)})` : ''}`;
 }
 
-function smsDigest(d, pages, prevPages) {
+// New-language coverage: bucket non-English pages by folder so the multilingual
+// push is trackable in the same weekly text.
+async function buildLanguages() {
+  const res = await gsc.query({ days: 28, dimensions: ['page'], rowLimit: 5000 });
+  const rows = res.rows || [];
+  const by = {}; for (const [c] of LANGS) by[c] = { impr: 0, pages: 0 };
+  let total_impr = 0, total_pages = 0;
+  for (const r of rows) {
+    const url = (r.keys && r.keys[0]) || '';
+    const i = r.impressions || 0;
+    for (const [c] of LANGS) {
+      if (url.includes('/' + c + '/')) { by[c].impr += i; if (i > 0) { by[c].pages++; total_impr += i; total_pages++; } break; }
+    }
+  }
+  return { by, total_impr, total_pages };
+}
+function langLine(langs, prev) {
+  if (!langs) return null;
+  const d = prev ? langs.total_impr - prev.total_impr : null;
+  const sgn = (n) => (n > 0 ? `+${n}` : `${n}`);
+  const parts = LANGS.map(([c]) => { const x = langs.by[c]; return x && x.impr > 0 ? `${c} ${x.impr}` : null; }).filter(Boolean).slice(0, 6);
+  return `🌐 New-language pages: ${langs.total_impr} impr${d != null ? ` (${sgn(d)})` : ''} · ${langs.total_pages} pages ranking${parts.length ? ' — ' + parts.join(' · ') : ''}`;
+}
+
+function smsDigest(d, pages, prevPages, langs, prevLangs) {
   const lines = ['📊 Weekly SEO movement — TN Appliance'];
   const pl = pagesLine(pages, prevPages);
   if (pl) lines.push(pl);
+  const ll = langLine(langs, prevLangs);
+  if (ll) lines.push(ll);
   if (d.climbers.length) lines.push('📈 Up: ' + d.climbers.slice(0, 5).map((x) => `${x.q} ${x.prev}→${x.pos} (+${x.delta})`).join(' · '));
   if (d.newPage1.length) lines.push('⭐ New page-1: ' + d.newPage1.slice(0, 4).map((x) => `${x.q} #${x.pos}`).join(' · '));
   if (d.striking.length) lines.push('🎯 Almost pg-1: ' + d.striking.slice(0, 4).map((x) => `${x.q} #${x.pos}`).join(' · '));
@@ -104,7 +134,7 @@ exports.handler = async function (event) {
     const cur = meta(snaps[0]);
     const prevSnap = snaps[1] ? meta(snaps[1]) : null;
     const prevMap = prevSnap ? posMap(prevSnap) : {};
-    return json(200, { ok: true, latest_date: cur.date, prior_date: prevSnap ? prevSnap.date : null, tracked: (cur.rows || []).length, pages: cur.pages || null, pages_prior: prevSnap ? (prevSnap.pages || null) : null, movement: diff(cur.rows || [], prevMap), all: cur.rows });
+    return json(200, { ok: true, latest_date: cur.date, prior_date: prevSnap ? prevSnap.date : null, tracked: (cur.rows || []).length, pages: cur.pages || null, pages_prior: prevSnap ? (prevSnap.pages || null) : null, langs: cur.langs || null, langs_prior: prevSnap ? (prevSnap.langs || null) : null, movement: diff(cur.rows || [], prevMap), all: cur.rows });
   }
 
   // ----- RUN: snapshot + diff + SMS (weekly; skip if <5 days since last unless force) -----
@@ -123,15 +153,18 @@ exports.handler = async function (event) {
   try { curRows = await buildCurrent(); } catch (e) { return json(200, { ok: false, error: 'gsc query failed: ' + String((e && e.message) || e) }); }
   let pages = null;
   try { pages = await buildPages(); } catch (_) {}
+  let langs = null;
+  try { langs = await buildLanguages(); } catch (_) {}
   const prevMap = last ? posMap(last) : {};
   const prevPages = last ? (last.pages || null) : null;
+  const prevLangs = last ? (last.langs || null) : null;
   const movement = diff(curRows, prevMap);
 
-  // write the new snapshot (rows = ranking terms, pages = coverage counts)
-  try { await crud.logEvent(ACTION, { date: todayCT(), rows: curRows, pages }); } catch (_) {}
+  // write the new snapshot (rows = ranking terms, pages = coverage counts, langs = new-language coverage)
+  try { await crud.logEvent(ACTION, { date: todayCT(), rows: curRows, pages, langs }); } catch (_) {}
 
-  const digest = smsDigest(movement, pages, prevPages);
+  const digest = smsDigest(movement, pages, prevPages, langs, prevLangs);
   let sms = 'skipped';
   if (!q.dryrun) { try { await sendSms(OWNER, digest, 'owner', 'gsc_weekly_report'); sms = 'sent'; } catch (e) { sms = String(e.message || e); } }
-  return json(200, { ok: true, snapshot_date: todayCT(), tracked: curRows.length, pages, pages_prior: prevPages, sms, digest, movement });
+  return json(200, { ok: true, snapshot_date: todayCT(), tracked: curRows.length, pages, pages_prior: prevPages, langs, langs_prior: prevLangs, sms, digest, movement });
 };
