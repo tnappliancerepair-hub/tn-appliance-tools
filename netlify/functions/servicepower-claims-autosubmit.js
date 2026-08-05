@@ -65,6 +65,22 @@ exports.handler = async function (event) {
     seen.add(jid); jobIds.push(jid);
   }
 
+  // BACKUP TRIGGER — the pipeline was starved: techs START jobs in Ant but FINISH them
+  // elsewhere, so tech_job_complete barely fires (0 in 14 days) while the whole warranty-
+  // claim pipeline hangs off it. A warranty job the office has INVOICED is done in
+  // practice, so also assemble its claim. Still shadow — the per-job build's still_needed
+  // list flags anything genuinely missing (e.g. no job_completed_at stamp), so a
+  // not-truly-done job simply shows "blocked" on the board instead of filing. This is what
+  // makes the API actually stream tech TDRs into claims. (Teddy 2026-08-04.)
+  try {
+    const di = await jget(`${XANO}/list_recent_event_log?action=office_invoice_logged&days_back=${LOOKBACK_DAYS}&limit=300`);
+    for (const r of (di.items || [])) {
+      const jid = Number(mdOf(r).job_id || 0);
+      if (!jid || seen.has(jid)) continue;
+      seen.add(jid); jobIds.push(jid);
+    }
+  } catch (_) {}
+
   // 2) dedupe sets (one fetch each)
   const submitted = await markerMap('sp_claim_submitted', 45);   // already FILED — never re-file
   const lastShadow = await markerMap('sp_claim_autosubmit', 3);   // shadow cooldown
