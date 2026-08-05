@@ -276,6 +276,38 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // FIND-BEFORE-FAIL — the #1 phone-trust miss (2026-08-04 scorecard: "cant_find"
+  // was 6 of 10 real misses). Most callers ARE in the system; a miss is a mistyped
+  // phone / masked caller ID / mis-heard name, not a missing customer. This block
+  // makes Ann exhaust phone -> claim -> name+city -> address before EVER saying
+  // "not in our system," and take a callback instead of declaring not-found.
+  // Replace-in-place (strips the old block first) so re-running updates cleanly.
+  if (action === 'find_before_fail') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- FIND-BEFORE-FAIL -->';
+    const BLOCK = `${MARK}\n## FIND THE CALLER BEFORE EVER SAYING "NOT IN OUR SYSTEM" (highest priority)\n`
+      + `Most callers ARE in our system. A miss is almost always a mistyped phone number, a masked/forwarded caller ID, or a name spelled differently — NOT a missing customer. Do NOT tell a caller "I can't find you," "you're not in our system," "there's no record," or "no match" until you have genuinely tried EVERY handle below. Work them in order, asking warmly for whatever you don't have yet:\n`
+      + `1. PHONE — look them up by the number they're calling from AND any other number they give (cell, home, the number on the account).\n`
+      + `2. CLAIM / WORK-ORDER # — for warranty callers this is the surest hit. Ask: "Do you have your claim or work-order number handy?" then look it up.\n`
+      + `3. NAME + CITY — ask for the full name AND the city or town, then search by name (spell it back if you're unsure — voice mis-hears names). The city separates two people with the same name.\n`
+      + `4. ADDRESS — if still nothing, ask for the service street address and search on that.\n`
+      + `A lookup tool returning nothing means try the NEXT handle — it does NOT mean the person doesn't exist. Only after all four come up empty do you stop: never declare them "not in the system." Say warmly instead: "I want to get you to the right place — let me take your info, have our team pull your account, and we'll text you right back." Then use capture_callback with their name, number, and what they need. A caller who IS in our system must never be told we can't find them.\n${MARK}\n\n`;
+    const esc = MARK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const strip = new RegExp(esc + '[\\s\\S]*?' + esc + '\\s*', 'g');
+    msgs[si].content = BLOCK + String(msgs[si].content || '').replace(strip, '');
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   // Date guard: never read back a scheduled date that has already passed as if
   // it is upcoming (Ant told a customer "you're scheduled for June 24" a week
   // after June 24). Idempotent, prepended to Ant Inbound.
