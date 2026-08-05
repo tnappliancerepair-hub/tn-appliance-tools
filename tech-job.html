@@ -952,42 +952,56 @@ function openMoveStop(){
 }
 function _closeMoveStop(){var o=document.getElementById('move-stop-ov'); if(o)o.remove();}
 function _moveStopPicked(){var el=document.getElementById('move-date'); var v=el&&el.value; if(!v){alert('Pick a date first');return;} var p=v.split('-'); var d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),8,0,0); _moveStopDay(d.getTime());}
-async function _moveStopDay(ms){
-  if(!confirm('Move this stop to '+_dayLabel(ms)+'? The customer stays scheduled for that day.'))return;
-  _closeMoveStop();
-  toast('Moving…');
-  var techId=parseInt(TECH_ID,10)||Number(job.technician_id)||0;
+// A stop can be several appliances on one visit (multi-machine claim). Moving or
+// handing off must carry ALL of them, or siblings strand on the old day/tech (the
+// confusion that hit us twice on 2026-08-04). Get every machine job on this stop.
+async function _stopMachineIds(){
+  var self=parseInt(JOB_ID,10);
   try{
-    var r;
-    // Use the SAME self-healing path the office uses (danielle_schedule_parallel_job with
-    // terminal_locked reopen+retry). Bare reschedule_job had no recovery, so a job in a
-    // slightly stuck state (the Arta Farhangi case, 2026-08-04) just refused to move here
-    // even though the office could move it. Keep the current tech; day-only 8am placeholder.
-    if(window.AntSchedule && AntSchedule.schedule && techId){
-      r=await AntSchedule.schedule({jobId:parseInt(JOB_ID,10),techId:techId,startMs:ms,actor:'tech:'+TECH_ID});
-    } else {
-      var d=await xanoPost('reschedule_job',{job_id:parseInt(JOB_ID,10),new_start_ms:ms});
-      r={ok:!!(d&&d.success),error:(d&&d.error)};
-    }
-    if(r&&r.ok){ toast('Moved to '+_dayLabel(ms)+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
-    else{ toast('⚠ '+((r&&r.error)||'could not move')); }
-  }catch(_){ toast('⚠ failed — try again'); }
+    var d=await fetch('/.netlify/functions/get-stop-machines?job_id='+encodeURIComponent(JOB_ID),{cache:'no-store'}).then(r=>r.json());
+    var ids=((d&&d.machines)||[]).map(function(m){return parseInt(m.job_id,10);}).filter(Boolean);
+    if(ids.indexOf(self)<0) ids.unshift(self);
+    return ids.length?ids:[self];
+  }catch(_){ return [self]; }
+}
+// Self-healing schedule of ONE job (danielle_schedule_parallel_job with terminal_locked
+// reopen+retry — the same path the office uses; bare reschedule_job had no recovery).
+async function _scheduleOne(jobId, techId, ms){
+  try{
+    if(window.AntSchedule && AntSchedule.schedule && techId) return await AntSchedule.schedule({jobId:jobId,techId:techId,startMs:ms,actor:'tech:'+TECH_ID});
+    var d=await xanoPost('reschedule_job',{job_id:jobId,new_start_ms:ms});
+    return {ok:!!(d&&d.success),error:(d&&d.error)};
+  }catch(_){ return {ok:false,error:'error'}; }
+}
+async function _reassignOne(jobId, tid){
+  try{
+    if(window.AntSchedule && AntSchedule.reassign) return await AntSchedule.reassign({jobId:jobId,techId:parseInt(tid,10),actor:'tech:'+TECH_ID});
+    var d=await xanoPost('reassign_job',{job_id:jobId,technician_id:parseInt(tid,10)});
+    return {ok:!!(d&&d.success),error:(d&&d.error)};
+  }catch(_){ return {ok:false,error:'error'}; }
+}
+async function _moveStopDay(ms){
+  _closeMoveStop();
+  var ids=await _stopMachineIds(); var n=ids.length;
+  if(!confirm('Move '+(n>1?('all '+n+' appliances on this stop'):'this stop')+' to '+_dayLabel(ms)+'? The customer stays scheduled for that day.')){ return; }
+  toast(n>1?('Moving '+n+' machines…'):'Moving…');
+  var techId=parseInt(TECH_ID,10)||Number(job.technician_id)||0;
+  var done=0, fail=0, lastErr='';
+  for(var i=0;i<ids.length;i++){ var r=await _scheduleOne(ids[i],techId,ms); if(r&&r.ok) done++; else { fail++; lastErr=(r&&r.error)||''; } }
+  if(done && !fail){ toast('Moved '+(n>1?(done+' machines'):'')+' to '+_dayLabel(ms)+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
+  else if(done){ toast('⚠ Moved '+done+' of '+n+' — '+fail+" didn't move, check the stop"); }
+  else { toast('⚠ '+(lastErr||'could not move')); }
 }
 async function _moveStopTech(tid,name){
-  if(!confirm('Hand this stop to '+name+'? It moves off your day onto theirs.'))return;
   _closeMoveStop();
-  toast('Handing off…');
-  try{
-    var r;
-    if(window.AntSchedule && AntSchedule.reassign){
-      r=await AntSchedule.reassign({jobId:parseInt(JOB_ID,10),techId:parseInt(tid,10),actor:'tech:'+TECH_ID});
-    } else {
-      var d=await xanoPost('reassign_job',{job_id:parseInt(JOB_ID,10),technician_id:parseInt(tid,10)});
-      r={ok:!!(d&&d.success),error:(d&&d.error)};
-    }
-    if(r&&r.ok){ toast('Handed to '+name+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
-    else{ toast('⚠ '+((r&&r.error)||'could not hand off')); }
-  }catch(_){ toast('⚠ failed — try again'); }
+  var ids=await _stopMachineIds(); var n=ids.length;
+  if(!confirm('Hand '+(n>1?('all '+n+' appliances on this stop'):'this stop')+' to '+name+'? It moves off your day onto theirs.')){ return; }
+  toast(n>1?('Handing off '+n+' machines…'):'Handing off…');
+  var done=0, fail=0, lastErr='';
+  for(var i=0;i<ids.length;i++){ var r=await _reassignOne(ids[i],tid); if(r&&r.ok) done++; else { fail++; lastErr=(r&&r.error)||''; } }
+  if(done && !fail){ toast('Handed '+(n>1?(done+' machines'):'')+' to '+name+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
+  else if(done){ toast('⚠ Handed '+done+' of '+n+' — '+fail+" didn't move, check the stop"); }
+  else { toast('⚠ '+(lastErr||'could not hand off')); }
 }
 // Tech-initiated review ask — texts the customer the Google review link (in their
 // language), from the open human lane, at the moment of the fix. This is a human
