@@ -115,9 +115,11 @@ export async function run(signal, ctx) {
   for (const t of techPool) {
     const techPhone = normalizeE164(t.phone);
     const techFirst = (t.first_name || 'tech').trim();
+    // Carry the tech's id on their link → the Teddy Tool pre-selects THEIR day in the
+    // self-schedule box, so they can book the customer onto their own day in one tap.
     const techBody =
       `[ant] 🏁 ${techFirst} — new intake in your area: ${cn}, ${appl}.${mediaTag} ${desc} ` +
-      `Beat Teddy, pre-diagnose it first: ${tdrToolUrl}`;
+      `Beat Teddy, pre-diagnose it first: ${tdrToolUrl}&tech_id=${t.id}`;
     try {
       const r = await sms.toTech(techPhone, techBody, {
         action: 'intake_teddy_tool_tech', job_id: jobId, technician_id: t.id, reason: t._reason, signal_id: signal.id,
