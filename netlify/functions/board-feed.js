@@ -32,10 +32,16 @@ exports.handler = async function () {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
           // Edge-cache, shared across all office users; serve stale instantly.
-          // s-maxage=45 = Xano runs the heavy 688-row query ~once per 45s TOTAL
-          // (not per-user-per-30s), leaving compute headroom so SAVES don't time out.
-          // stale-while-revalidate serves the last-good feed instantly meanwhile.
-          'Netlify-CDN-Cache-Control': 'public, durable, s-maxage=45, stale-while-revalidate=300',
+          // s-maxage=75 = Xano runs the heavy ~700-row 7-status-OR query at most ~once
+          // per 75s TOTAL (not per-user-per-30s), which is the real relief for write
+          // STARVATION (that 24s query saturating compute is what makes tech/office
+          // SAVES time out). Raised 45->75 to cut heavy-query executions ~40% more.
+          // stale-while-revalidate serves the last-good feed instantly meanwhile, and
+          // the board's own optimistic pins + 30s poll keep it feeling live. The deeper
+          // query-level fix (indexable status filter) is blocked by XS: "in [...]" isn't
+          // proven, so the OR can't become an index-friendly IN — that needs deliberate
+          // Mac-side testing, not a blind push. (2026-08-04)
+          'Netlify-CDN-Cache-Control': 'public, durable, s-maxage=75, stale-while-revalidate=300',
           'Cache-Control': 'public, max-age=0, must-revalidate', // browser revalidates; edge serves the cache
         },
         body: text,
