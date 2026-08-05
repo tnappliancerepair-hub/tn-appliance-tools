@@ -540,6 +540,13 @@
 [functions."parts-return-reminder"]
   schedule = "0 14,21 * * *"
 
+# FedEx returns auto-close — asks FedEx if each open return's tracking # was delivered to
+# the distributor; the delivered ones close themselves + capture proof-of-delivery. SHADOW
+# by default (reports, closes nothing) until FEDEX_AUTOCLOSE_LIVE=true. Twice/day (minute 35
+# is free of the heavy-cron stagger). ?dry=1 to inspect.
+[functions."fedex-returns-autoclose"]
+  schedule = "35 14,20 * * *"
+
 # Office action digest — Danielle's reliable EMAIL channel (she asked: add-on alerts
 # get buried in SMS, "I need an email"). Emails her the open add-ons to install when
 # a NEW one appears (dedup'd, no spam). Hourly 8a-6p CT. DORMANT until email is turned
