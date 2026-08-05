@@ -13,4 +13,5 @@ Allow: /
 User-agent: Google-Extended
 Allow: /
 
+# AI authority profile (who we are, why cite us): https://applianceant.com/llms.txt
 Sitemap: https://applianceant.com/sitemap.xml
