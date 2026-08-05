@@ -62,6 +62,13 @@ async function loadOpenReturns(opts = {}) {
   const suppliedMeta = {};
   for (const r of suppliedRows) { const m = metaOf(r); const k = keyOf(m.job_id, m.part); if (!suppliedMeta[k]) suppliedMeta[k] = m; }
 
+  // Normalized part/claim (kills case/dash/format mismatches) + an index of emitted
+  // label rows. The supplied-parts email gives us part # + claim; this lets a tech's
+  // Unused flag find its RMA label by those, even when the raw job/part keys differ.
+  const normP = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const normC = (s) => String(s || '').replace(/[^0-9]/g, '');
+  const byNorm = {};
+
   const seen = new Set(); const open = [];
   // (1) Emailed RMA labels — the return is ready to print.
   for (const r of labels) {
@@ -85,6 +92,7 @@ async function loadOpenReturns(opts = {}) {
       issued_ms: issuedMs || null, label_ms: anchorMs, due_ms: dueMs, deadline_source: source, deadline_text: m.deadline_text || '',
       has_label: true, label_pending: false, tech_confirmed: !!(latestStatus[k] && latestStatus[k].status === 'to_return'), status: 'ready',
     });
+    const _np = normP(m.part); if (_np) { (byNorm[_np] = byNorm[_np] || []).push({ claimN: normC(m.claim), row: open[open.length - 1] }); }
   }
   // (2) Tech flagged UNUSED at the stop, no label emailed yet → start the return NOW so
   // the office isn't blind until an email arrives. Enriched from the supplied-part record.
@@ -92,10 +100,18 @@ async function loadOpenReturns(opts = {}) {
     for (const k of Object.keys(latestStatus)) {
       if (latestStatus[k].status !== 'to_return') continue;
       if (seen.has(k) || closed.has(k)) continue;
-      seen.add(k);
       const sm = suppliedMeta[k] || {};
-      const jobId = Number(k.split('::')[0]) || (sm.job_id || null);
       const partName = sm.part || (k.split('::')[1] || '');
+      // FULL CIRCLE: use the supplied-parts email's identifiers (part # + claim) to match
+      // this flagged part to an already-received RMA label — even if the job/part keys
+      // differ. If found, that label row already carries the printable label; flag it
+      // tech-confirmed and DON'T emit a duplicate. Only a true no-label part stays pending.
+      const np = normP(partName), pendClaim = normC(sm.claim);
+      let linked = null;
+      if (np && byNorm[np]) linked = byNorm[np].find((c) => !c.claimN || !pendClaim || c.claimN === pendClaim) || null;
+      seen.add(k);
+      if (linked) { linked.row.tech_confirmed = true; continue; }
+      const jobId = Number(k.split('::')[0]) || (sm.job_id || null);
       const markMs = Number(latestStatus[k].at_ms) || Date.now();
       const dueMs = markMs + windowDays * 86400000;
       open.push({
