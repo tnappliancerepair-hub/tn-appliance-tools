@@ -81,8 +81,13 @@ exports.handler = async function (event) {
         if (!hasReport) continue;
         const partField = cleanPart(t.verified_part_number);
         if (partField) continue;                   // office can see a part # → fine
-        const blob = [diagnosis, notes, failed].join('  ');
-        const involvesPart = PART_WORDS.test(blob) || partTokens(blob).length > 0;
+        // ALSO recover from the broken parts_needed column — the JSON/array column whose
+        // writes the office view never reads (save_part_from_photo + voice landed parts
+        // here). It can be a string OR an array Xano renders blank, so normalize both,
+        // and treat any content in it as proof this was a parts job. (2026-08-04)
+        const partsCol = Array.isArray(t.parts_needed) ? t.parts_needed.filter(Boolean).join(' ') : String(t.parts_needed || '');
+        const blob = [partsCol, diagnosis, notes, failed].join('  ');   // parts_needed first → its tokens heal first
+        const involvesPart = !!partsCol.trim() || PART_WORDS.test(blob) || partTokens(blob).length > 0;
         if (!involvesPart) continue;               // genuinely a no-parts job → fine
         const tokens = partTokens(blob);
         gaps.push({
