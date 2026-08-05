@@ -215,6 +215,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/ant-schedule.js"></script>
 <script src="/ant-constraints.js"></script>
 <script src="/ant-addons.js"></script>
 <script src="/ant-video-upload.js"></script>
@@ -954,19 +955,38 @@ function _moveStopPicked(){var el=document.getElementById('move-date'); var v=el
 async function _moveStopDay(ms){
   if(!confirm('Move this stop to '+_dayLabel(ms)+'? The customer stays scheduled for that day.'))return;
   _closeMoveStop();
+  toast('Moving…');
+  var techId=parseInt(TECH_ID,10)||Number(job.technician_id)||0;
   try{
-    var d=await xanoPost('reschedule_job',{job_id:parseInt(JOB_ID,10),new_start_ms:ms});
-    if(d&&d.success){ toast('Moved to '+_dayLabel(ms)+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
-    else{ toast('⚠ '+((d&&d.error)||'could not move')); }
+    var r;
+    // Use the SAME self-healing path the office uses (danielle_schedule_parallel_job with
+    // terminal_locked reopen+retry). Bare reschedule_job had no recovery, so a job in a
+    // slightly stuck state (the Arta Farhangi case, 2026-08-04) just refused to move here
+    // even though the office could move it. Keep the current tech; day-only 8am placeholder.
+    if(window.AntSchedule && AntSchedule.schedule && techId){
+      r=await AntSchedule.schedule({jobId:parseInt(JOB_ID,10),techId:techId,startMs:ms,actor:'tech:'+TECH_ID});
+    } else {
+      var d=await xanoPost('reschedule_job',{job_id:parseInt(JOB_ID,10),new_start_ms:ms});
+      r={ok:!!(d&&d.success),error:(d&&d.error)};
+    }
+    if(r&&r.ok){ toast('Moved to '+_dayLabel(ms)+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
+    else{ toast('⚠ '+((r&&r.error)||'could not move')); }
   }catch(_){ toast('⚠ failed — try again'); }
 }
 async function _moveStopTech(tid,name){
   if(!confirm('Hand this stop to '+name+'? It moves off your day onto theirs.'))return;
   _closeMoveStop();
+  toast('Handing off…');
   try{
-    var d=await xanoPost('reassign_job',{job_id:parseInt(JOB_ID,10),technician_id:parseInt(tid,10)});
-    if(d&&d.success){ toast('Handed to '+name+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
-    else{ toast('⚠ '+((d&&d.error)||'could not hand off')); }
+    var r;
+    if(window.AntSchedule && AntSchedule.reassign){
+      r=await AntSchedule.reassign({jobId:parseInt(JOB_ID,10),techId:parseInt(tid,10),actor:'tech:'+TECH_ID});
+    } else {
+      var d=await xanoPost('reassign_job',{job_id:parseInt(JOB_ID,10),technician_id:parseInt(tid,10)});
+      r={ok:!!(d&&d.success),error:(d&&d.error)};
+    }
+    if(r&&r.ok){ toast('Handed to '+name+' ✓'); location.href='tech-daily-dashboard.html?tech_id='+TECH_ID; }
+    else{ toast('⚠ '+((r&&r.error)||'could not hand off')); }
   }catch(_){ toast('⚠ failed — try again'); }
 }
 // Tech-initiated review ask — texts the customer the Google review link (in their
