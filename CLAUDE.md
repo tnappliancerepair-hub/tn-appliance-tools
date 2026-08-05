@@ -30,6 +30,35 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜⚡ 2026-08-05 (Wed) — TECH SELF-SCHEDULING (grab-and-go, opt-in) + SERVICEPOWER CLAIMS OFFICE REVIEW-&-FILE LIVE + PHONE VERIFY — READ FIRST
+
+All on `main` (Netlify auto-deploys). Egress this session: Xano + applianceant.com reachable; **403 on tnapplianceexchange.net + *.netlify.app** (org policy) — couldn't invoke Netlify to live-test; verified via Xano `list_recent_event_log`. Live verification is crew/office-side.
+
+### ⚡ TECH SELF-SCHEDULING — the tech as an ADDITIONAL decision-maker (Teddy's vision)
+Teddy: "a tech in Nashville at a customer's house sees a job come in nearby, goes 'I'll grab a heating element while I'm here, add it to my schedule today.' Not the SOLE decision-maker — an ADDITIONAL one, to get to jobs quicker + speed it up for the customer. **They can do it themselves OR just leave it alone and let the office schedule it.**"
+- **`teddy-tdr-tool.html`** (where the pre-diag link lands after a customer's video+pic): new **"📅 Book it on your day"** section under the availability card. Shows the customer's stated availability above it; tech picks **Today / Tomorrow / In 2 / In 3 / Next week / any date** → confirms → books **EVERY appliance on the stop** via **AntSchedule** (the office's own self-healing `danielle_schedule_parallel_job` path — NOT a new fragile write). **Day-only, no clock time** (matches how we schedule). Tech is pre-selected from the link's `tech_id`, else picks from the roster (Jimmy/Andre/Lee/John/Teddy).
+- **"Today" is smart** — 8am but never in the past (`schedTodayMs`/`_todayMs` = `Math.max(8am, now+15min)`), so an afternoon "grab it today" books today, not a slot that reads already-missed.
+- **`customer_intake_bundle_ready.js`**: each area tech's Teddy-Tool link now carries **`&tech_id=<id>`** so the tool pre-selects THEIR day. (The intake ping already fans out to every tech whose cluster covers the zip — that's the "job in your area" signal; now they can act on it.)
+- **`tech-job.html`**: the existing move modal (already booked a day to the tech) relabeled **"Schedule on my day · move · hand off"** + "Today" chip added, so it's discoverable for unscheduled jobs too.
+- **OPT-IN + CONVERGENT (the key design):** it's an ADDED section — if the tech ignores it, the job stays in the office Needs-Scheduled queue exactly as today (nothing removed from the office). When a tech DOES book, it writes the same path the office uses → lands on the office board identically, fires **APPOINTMENT_SCHEDULED → customer gets the day-confirmation text automatically**. Both paths converge; office is never blind; no double-booking.
+- **Deliberately NOT added** (Teddy: "don't crowd it up"): distance/mileage cue, per-day load count. Just the open door.
+- sw-tech.js CACHE_VERSION → **v46** (crew reopen once).
+- **⏭️ Live-verify (crew-side):** book one real job from a pre-diag link → confirm it shows on that tech's dashboard + the customer got the day-text; multi-machine stop books both siblings.
+
+### ✅ SERVICEPOWER CLAIMS — office Review-&-file is LIVE + FED (accuracy-testing phase)
+The invoice-trigger from 8/04 WORKED overnight: the hourly driver went **`candidates:0` all week → `candidates:66`**, assembling claims in shadow (10/run) — real claims now queue on `warranty-claims.html`.
+- **`warranty-claims.html`**: every **ready** claim has a green **"Review & file →"** → opens the EXACT claim field-by-field (customer/address, brand/model/serial, complaint+defect code, service performed+repair code/category, fixed-this-trip, labor $, each part keep/↩return) → office confirms accuracy → one tap files via the live ServiceClaims API (with a confirm). Owner-secret prompt only on preview/file. Not-fileable claims show what's missing instead of a File button.
+- Framed office-first: page copy "review each claim, confirm it's right, then file it" + "○ office reviews & files — accuracy check" pill; `office-today.html` warranty header links "Review & file claims →".
+- `SP_CLAIM_AUTOSUBMIT_LIVE` stays **OFF** — office taps-to-file to prove accuracy; graduate to hands-off (one vault flag) after a batch files clean + codes hold. `sp_claim_submitted:0` so far (nothing filed live yet — correct).
+- **⏭️ Office runs Review & file → report any wrong field (defect/repair code, labor, keep-vs-return) → fix CODE_MAP / supplied-parts read; any SquareTrade rejection → load their official code lists to refine.**
+
+### 📞 PHONE VERIFY (no code shipped — verification + open items)
+- Confirmed the transfer routing (from `office-texml.js`): rings **Sofia first `(629) 259-4602` → Danielle `(615) 485-0713` → Teddy**, first pickup wins; each cell gated by `OFFICE_REACH_<NAME>="off"` (default unset = ON); business-hours gate (Mon–Fri 9–6 CT) strips transfer entirely off-hours. Teddy confirmed "phones turned on to a live person."
+- **Can't read live phone state from this env** — vault flags + Vapi config need the metadata token / Vapi key (not local); status endpoints are Netlify (403). Nothing in Xano reflects it.
+- **⚠️ Reach-Me toggle page (`office-reach-toggle.js`) only manages Teddy + Danielle — NO Sofia switch** (her cell reach is the raw `OFFICE_REACH_SOFIA` flag, defaults ON).
+- **Today's calls (Xano callback_request read):** 2 "want a live person to schedule" came in **8:07 AM — before the 9 AM gate** (Ann took messages, correct) → those 2 need a callback to book. Phone trust score last night **89** (top_fix `cant_find`).
+- **OFFERED, NOT BUILT (Teddy's call):** (1) log phone-transfer OUTCOMES to Xano (which tier answered / rang out) so a morning check is a Xano read + the scorecard can grade human answer-rate — the fix for "are the humans answering?"; (2) add a Sofia switch to the Reach-Me page.
+
 ## 🗓️🐜📦 2026-08-04 (Mon eve) — RETURNS FULL-CIRCLE (never lose a supplied part) + SERVICEPOWER CLAIM API ACTIVATED (office review-and-file) — READ FIRST
 
 Continuation of the 8/04 session. All on `main` (Netlify auto-deploys). Two arcs: closed the parts-return loop end-to-end, then discovered the ServicePower claim-submission API was fully built but starved+gated, and turned it into an office-driven tool.
