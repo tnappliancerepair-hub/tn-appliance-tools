@@ -21,8 +21,13 @@ const EVENT_LOG = 3;
 const OWNER = '+16154855795';
 
 const QUERY = 'newer_than:45d '
-  + '("status api" OR "api access" OR "api integration" OR "api credentials" OR "developer portal" OR "developer token" OR "api key" OR "services agreement" OR marconeai OR "api request" OR "integration request" OR "write access" OR "update access" OR "read-only" OR "read only" OR spdservice OR updatecallinfo OR "api enabled" OR "enabled write") '
-  + '(frontdoor OR "american home shield" OR ahs OR servicepower OR "service power" OR "reliable parts" OR reliable OR marcone) '
+  + '("status api" OR "api access" OR "api integration" OR "api credentials" OR "developer portal" OR "developer token" OR "api key" OR "services agreement" OR marconeai OR "api request" OR "integration request" OR "write access" OR "update access" OR "read-only" OR "read only" OR spdservice OR updatecallinfo OR "api enabled" OR "enabled write" '
+  //  + distributor-ACCOUNT onboarding phrases so a wholesale/distributor approval (ERP,
+  //    CoreCentric, etc.) pings us too — those replies have no "API" phrase. (2026-08-05)
+  + ' OR "account approved" OR "application approved" OR "account number" OR "wholesale account" OR "new account" OR "distributor account" OR "account is now active" OR "account setup") '
+  + '(frontdoor OR "american home shield" OR ahs OR servicepower OR "service power" OR "reliable parts" OR reliable OR marcone '
+  //  + the in-flight parts distributors we applied to (ERP, CoreCentric, Supco). (2026-08-05)
+  + ' OR "exact replacement" OR erp OR corecentric OR servicerparts OR supco) '
   // Exclude the already-handled mSupply/Marcone PARTS-API credential email (vaulted +
   // live, order #74992380). A future MarconeAI email has a different subject, so this
   // won't hide the real one we're still waiting on.
