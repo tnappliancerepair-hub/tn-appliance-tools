@@ -30,6 +30,32 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜📦 2026-08-04 (Mon eve) — RETURNS FULL-CIRCLE (never lose a supplied part) + SERVICEPOWER CLAIM API ACTIVATED (office review-and-file) — READ FIRST
+
+Continuation of the 8/04 session. All on `main` (Netlify auto-deploys). Two arcs: closed the parts-return loop end-to-end, then discovered the ServicePower claim-submission API was fully built but starved+gated, and turned it into an office-driven tool.
+
+### ✅ RETURNS FULL CIRCLE (chargeback-killer, now leak-proof)
+The loop: **supplied-parts email → part on the tech's tile → tech taps Unused at the stop → tracked return starts immediately → RMA label auto-matched → office ships it.** Shipped this session:
+- **`_lib/returns.js`**: `includePending` — surfaces returns the TECH flagged Unused before any RMA label emails in; builds a `byNorm` (normalized part#) index so a flagged part **auto-links to its already-received label** (matched by part# + claim, even when job/part keys differ) → no duplicate, `tech_confirmed=true`. `parts-return-reminder.js` passes `includePending:false` (only escalates on printable labels). `returns.html` gained a "🔖 Tech flagged at the stop — label pending" section.
+- **Never lose a supplied part**: `servicepower-parts-watch.js` + `ahs-parts-watch.js` — broadened `matchJob` to numeric-core variants (strips leading zeros AND non-digits), and when still unmatched they record a durable **`warranty_part_unmatched`** event per part (vendor/call/claim/part/desc/tracking/eta) instead of dropping it. New **`unmatched-parts.js`** (GET lists open unmatched deduped by `keyOf=vendor::call||claim::normP(part)` minus resolved; POST {key,job_id} → records it as `warranty_part_supplied` on that job + logs `warranty_part_unmatched_resolved`). `returns.html` gained a "🧩 Supplied — no matching job" office section: type the job # + tap Link.
+- sw-tech.js CACHE_VERSION → **v44** (techs reopen once).
+
+### ✅ SERVICEPOWER CLAIM API — it was BUILT, just starved + gated (now an office tool)
+Teddy: "we have the ServicePower API and aren't using it to streamline techs' TDRs to submit their reports." **Investigated: the whole pipeline already existed and runs in shadow** — `servicepower-claims-build.js` (finished TDR → full SQUARE TRADE claim: customer/appliance, defect/repair codes mapped from the tech's plain words via CODE_MAP, labor $150/$105 by fixed-this-trip, parts with keep/return flag from the supplied-parts emails) → `servicepower-claims-submit.js` (shadow/live gate) → `_lib/servicepower-claims.js submitClaims` (**real POST to the live ServiceClaims `/submission` endpoint**) → `servicepower-claims-autosubmit.js` (hourly driver, shadow) → `warranty-claims.html` + `warranty-claims-board.js` (office control tower: blocked→ready→filed→paid) → `servicepower-claims-sync.js` (twice-daily payment reconcile).
+- **WHY it produced nothing** (measured via Xano `list_recent_event_log`): the driver only wakes on **`tech_job_complete` (repair_complete) — 0 events in 14 days.** Techs START jobs in Ant (`tech_job_started` firing) but FINISH elsewhere. Driver ran hourly all week with `candidates:0`. Also gated off live by design (`SP_CLAIM_AUTOSUBMIT_LIVE` off; codes seeded from one MONAHAN claim).
+- **FIX 1 — feed it (shadow-safe):** `servicepower-claims-autosubmit.js` now ALSO assembles claims from **`office_invoice_logged`** warranty jobs (a signal that IS flowing), deduped with the completion feed. Still shadow — files nothing; the build's `still_needed` flags anything missing so a not-truly-done job shows "blocked" on the board instead of filing. This is what makes real assembled claims appear for review.
+- **FIX 2 — one-tap Review & file (`warranty-claims.html`):** every **ready** claim gets a green "Review & file →" button → opens the EXACT claim we'd submit (shadow build, field-by-field: customer/address, brand/model/serial, complaint + defect code, service performed + repair code/category, fixed-this-trip, labor $, and each part with keep/↩return) → office checks accuracy → one tap inside the sheet files it via the live API (with a confirm). Owner-secret prompt (shared `tn_social_secret`) only on preview/file. Not-fileable claims show exactly what's missing instead of a File button.
+- **Framed office-first:** page copy now "review each claim, confirm it's right, then file it" + "○ office reviews & files — accuracy check" pill; `office-today.html` "Warranty submissions due" header links "Review & file claims →" to the board. **`SP_CLAIM_AUTOSUBMIT_LIVE` stays OFF** — this is the office-tap-to-file accuracy phase before hands-off.
+
+### ⏭️ OPEN / NEXT
+1. **Office runs Review & file on real claims** → report back: any field wrong (defect/repair code, labor, keep-vs-return) → I fix CODE_MAP / the supplied-parts read; any SquareTrade rejection → send me the reason (usually a code → load their official code lists to refine).
+2. **Graduate to hands-off**: after a batch files clean + codes hold, flip vault `SP_CLAIM_AUTOSUBMIT_LIVE=true` (Teddy's call) → the hourly sweep files ready claims by itself.
+3. **Tech behavior**: get techs to press **Complete** in Ant — it's the cleanest completion signal (carries the real repair-done data); the invoice-logged trigger is a backstop.
+4. **Watch** the new invoice-trigger populate `warranty-claims.html` within the hour; watch `unmatched-parts` capture on the next parts-watch cron.
+
+### ⚠️ NOTE — egress this session
+Local network reached **Xano** (`xbtp-g9bh-ditq...`) + applianceant.com but **403 on tnapplianceexchange.net + *.netlify.app** (org egress policy). Couldn't invoke Netlify functions to live-test; used Xano `list_recent_event_log?action=&days_back=` for full metadata payloads (NOT `get_event_log_by_action`, which only returns exists+last_at). All work syntax-checked + shipped; live verification is Teddy-side.
+
 ## 🗓️🐜📋 2026-08-02 (Sat) — E-MYTH: ORG CHART + POSITION CONTRACTS, WEEKLY SCOREBOARD (thinking-first, NOT built yet) — READ FIRST
 
 Strategy/thinking session with Teddy (no live code shipped — two internal planning docs + two private Artifacts). Sparked by Teddy asking about **The E-Myth** (Gerber: work ON the business; the Franchise Prototype where systems run the business + people run the systems; org chart + position contracts before you hire).
