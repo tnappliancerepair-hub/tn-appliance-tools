@@ -39,6 +39,33 @@
   .loading{text-align:center;color:var(--muted);padding:40px;font-family:var(--mono)}
   .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:6px}
   .foot a{color:var(--blue);text-decoration:none;font-weight:700}
+  /* Review & file */
+  .review{flex:0 0 auto;background:rgba(0,214,143,0.14);color:var(--green);border:1px solid rgba(0,214,143,0.45);
+    font-size:12px;font-weight:800;padding:8px 11px;border-radius:10px;cursor:pointer;font-family:var(--mono)}
+  .review:active{transform:scale(0.97)}
+  .modal{position:fixed;inset:0;background:rgba(3,6,12,0.72);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+  .modal[hidden]{display:none}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;width:100%;max-width:660px;
+    max-height:90vh;overflow:auto;padding:18px 16px 26px}
+  @media(min-width:560px){.modal{align-items:center}.sheet{border-radius:18px}}
+  .sheet h3{margin:0 0 3px;font-size:18px;font-weight:900}
+  .sheet .who{color:var(--muted);font-size:13px;margin-bottom:14px;font-family:var(--mono)}
+  .fld{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .fld .k{color:var(--muted);flex:0 0 42%}
+  .fld .v{text-align:right;font-weight:700;word-break:break-word}
+  .parts{margin:12px 0 4px}
+  .parts .ph{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:800;margin-bottom:6px}
+  .prow{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line)}
+  .ret-y{color:var(--gold);font-weight:800}.ret-n{color:var(--muted)}
+  .warn{background:rgba(255,203,69,0.12);border:1px solid rgba(255,203,69,0.4);color:var(--gold);
+    border-radius:11px;padding:11px 12px;font-size:13px;margin:14px 0}
+  .acts{display:flex;gap:10px;margin-top:18px}
+  .btn{flex:1;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:900;cursor:pointer;font-family:inherit}
+  .btn-file{background:var(--green);color:#052a1c}
+  .btn-file:disabled{opacity:0.55}
+  .btn-cancel{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .msg{font-size:13px;margin-top:12px;text-align:center;font-weight:700}
+  .msg-ok{color:var(--green)}.msg-err{color:var(--red)}
 </style>
 </head>
 <body>
@@ -49,27 +76,43 @@
   <div class="foot"><a href="warranty-review.html">Warranty review</a> · <a href="office-board.html">Board</a></div>
 </div>
 
+<div class="modal" id="modal" hidden>
+  <div class="sheet" id="sheet"></div>
+</div>
+
 <script>
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  const esc = (s) => String(s == null ? '' : s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
   const TECH_Q = new URLSearchParams(location.search);
+
+  // Owner secret (shared with the other owner pages) — only needed to preview/file a claim.
+  let SECRET = localStorage.getItem('tn_social_secret') || '';
+  function need() { if (SECRET) return true; const s = prompt('Enter the password:'); if (!s) return false; SECRET = s.trim(); localStorage.setItem('tn_social_secret', SECRET); return true; }
 
   const DOT = { blocked: 'var(--gold)', ready: 'var(--green)', filed: 'var(--blue)', paid: 'var(--green)', rejected: 'var(--red)' };
 
   function item(it) {
     const url = 'teddy-tdr-tool.html?job_id=' + it.job_id;
+    let meta = esc(it.appliance || 'appliance');
+    if (it.claim_number) meta += ' · #' + esc(it.claim_number);
+    if (it.state === 'blocked' && it.blockers.length) meta = '<span class="blk">Missing: ' + esc(it.blockers.join(', ')) + '</span>';
+    const bodyInner = '<span class="body"><span class="nm">' + esc(it.customer || ('Job #' + it.job_id)) + '</span><span class="meta">' + meta + '</span></span>';
+
+    // READY → a Review & file button (opens the exact assembled claim, then files on a tap).
+    // The name still links to the TDR tool; the button never navigates the row.
+    if (it.state === 'ready') {
+      return '<div class="item"><span class="dot" style="background:' + DOT.ready + '"></span>'
+        + '<a href="' + url + '" style="flex:1;min-width:0;text-decoration:none;color:inherit">' + bodyInner + '</a>'
+        + '<button class="review" data-job="' + it.job_id + '" data-name="' + esc(it.customer || ('Job #' + it.job_id)) + '">Review &amp; file →</button></div>';
+    }
+
     let right = '';
     if (it.state === 'paid') right = '<span class="badge b-paid">$' + Math.round(it.paid_total) + '</span>';
     else if (it.state === 'rejected') right = '<span class="badge b-rej">' + esc(it.status_name || 'Rejected') + '</span>';
     else if (it.state === 'filed') right = '<span class="badge b-filed">' + esc(it.status_name || 'Filed') + '</span>';
-    else if (it.state === 'ready') right = '<span class="badge b-ready">ready</span>';
     else right = '<span class="badge b-block">needs a fix</span>';
-    let meta = esc(it.appliance || 'appliance');
-    if (it.claim_number) meta += ' · #' + esc(it.claim_number);
-    if (it.state === 'blocked' && it.blockers.length) meta = '<span class="blk">Missing: ' + esc(it.blockers.join(', ')) + '</span>';
     return '<a class="item" href="' + url + '"><span class="dot" style="background:' + DOT[it.state] + '"></span>'
-      + '<span class="body"><span class="nm">' + esc(it.customer || ('Job #' + it.job_id)) + '</span><span class="meta">' + meta + '</span></span>'
-      + '<span class="right">' + right + '</span></a>';
+      + bodyInner + '<span class="right">' + right + '</span></a>';
   }
 
   function section(title, emoji, list, emptyMsg) {
@@ -103,10 +146,97 @@
       const done = by('paid').concat(by('rejected'));
       h += section('Paid / closed', '💰', done, 'None yet.');
       $('board').innerHTML = h;
+      $('board').querySelectorAll('.review').forEach((b) => { b.onclick = () => openReview(Number(b.dataset.job), b.dataset.name); });
     } catch (_) {
       $('board').innerHTML = '<div class="loading">Couldn\'t load — try again in a sec.</div>';
     }
   }
+
+  // ── Review & file ────────────────────────────────────────────────
+  // Opens the EXACT claim we'd submit (shadow build), field by field, so the office can
+  // check accuracy before anything is sent. Then one tap files it via the live API.
+  const F = '/.netlify/functions';
+  function closeModal() { $('modal').hidden = true; $('sheet').innerHTML = ''; }
+  function money(n) { return '$' + Number(n || 0).toFixed(2); }
+  function fld(k, v) { return '<div class="fld"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v || '—') + '</span></div>'; }
+
+  async function openReview(jobId, name) {
+    if (!need()) return;
+    $('sheet').innerHTML = '<div class="loading">Assembling the claim…</div>';
+    $('modal').hidden = false;
+    let d;
+    try {
+      d = await fetch(F + '/servicepower-claims-submit?secret=' + encodeURIComponent(SECRET) + '&job_id=' + jobId, { cache: 'no-store' }).then((r) => r.json());
+    } catch (_) { $('sheet').innerHTML = '<div class="loading">Couldn\'t assemble — close and retry.</div>' + closeBtn(); wireClose(); return; }
+    if (d && d.error === 'unauthorized — ?secret=') { localStorage.removeItem('tn_social_secret'); SECRET = ''; $('sheet').innerHTML = '<div class="warn">Password wasn\'t right. Close and tap Review again.</div>' + closeBtn(); wireClose(); return; }
+    if (!d || !d.ok || !d.would_submit) { $('sheet').innerHTML = '<div class="warn">Couldn\'t build this claim: ' + esc((d && d.error) || 'unknown') + '</div>' + closeBtn(); wireClose(); return; }
+
+    const c = (d.would_submit.claims || [])[0] || {};
+    const blockers = (d.blockers || []);
+    const parts = c.parts || [];
+    let h = '<h3>' + esc(name || ('Job #' + jobId)) + '</h3>'
+      + '<div class="who">SQUARE TRADE · call #' + esc(c.callNumber || '—') + ' · review every field before filing</div>';
+    h += fld('Customer', ((c.customerFirstName || '') + ' ' + (c.customerLastName || '')).trim());
+    h += fld('Address', [c.customerAddress1, c.customerCity, c.customerState, c.customerZipCode].filter(Boolean).join(', '));
+    h += fld('Brand / model', [c.brandName, c.modelNumber].filter(Boolean).join(' · '));
+    h += fld('Serial', c.serialNumber);
+    h += fld('Complaint', c.defectOrComplaintDescription);
+    h += fld('Defect code', c.eiaDefectOrComplaintCode);
+    h += fld('Service performed', c.servicePerformedDescription);
+    h += fld('Repair code / category', [c.eiaRepairCode1, c.repairCategory].filter(Boolean).join(' · '));
+    h += fld('Fixed this trip', c.fixed_this_trip ? 'Yes' : 'No');
+    h += fld('Labor', money(c.laborAmount) + (c.serviceHours ? ('  (' + c.serviceHours + ' hr)') : ''));
+    h += fld('Completed', c.dateCompleted ? String(c.dateCompleted) : '—');
+    if (parts.length) {
+      h += '<div class="parts"><div class="ph">Parts (' + parts.length + ') · returns are what SquareTrade checks hardest</div>';
+      for (const p of parts) {
+        h += '<div class="prow"><span>' + esc(p.number || '—') + (p.description ? (' · ' + esc(p.description)) : '') + '  ×' + (p.quantity || 1) + '</span>'
+          + '<span class="' + (p.returned === 'Y' ? 'ret-y' : 'ret-n') + '">' + (p.returned === 'Y' ? '↩ return' : 'keep') + '</span></div>';
+      }
+      h += '</div>';
+    } else {
+      h += '<div class="warn">No parts on this claim — confirm none were supplied for this job.</div>';
+    }
+
+    if (blockers.length) {
+      h += '<div class="warn">⛔ Not fileable yet — fix first: ' + esc(blockers.join('; ')) + '</div>';
+      h += '<div class="acts"><button class="btn btn-cancel" id="mc">Close</button></div>';
+    } else {
+      h += '<div class="warn">Filing sends this to SquareTrade for real. Check it reads right, then file.</div>';
+      h += '<div class="acts"><button class="btn btn-cancel" id="mc">Cancel</button>'
+        + '<button class="btn btn-file" id="mf" data-job="' + jobId + '">📤 File this claim</button></div>';
+      h += '<div class="msg" id="mmsg"></div>';
+    }
+    $('sheet').innerHTML = h;
+    wireClose();
+    const mf = $('mf'); if (mf) mf.onclick = () => fileClaim(jobId, mf);
+  }
+  function closeBtn() { return '<div class="acts"><button class="btn btn-cancel" id="mc">Close</button></div>'; }
+  function wireClose() { const c = $('mc'); if (c) c.onclick = closeModal; $('modal').onclick = (e) => { if (e.target === $('modal')) closeModal(); }; }
+
+  async function fileClaim(jobId, btn) {
+    if (!confirm('File this claim to SquareTrade now? This sends it for real.')) return;
+    btn.disabled = true; btn.textContent = 'Filing…';
+    const msg = $('mmsg');
+    try {
+      const d = await fetch(F + '/servicepower-claims-submit?secret=' + encodeURIComponent(SECRET) + '&job_id=' + jobId + '&live=1&confirm=1', { cache: 'no-store' }).then((r) => r.json());
+      if (d && d.ok && d.mode === 'live') {
+        if (msg) { msg.className = 'msg msg-ok'; msg.textContent = '✅ Filed' + (d.transaction_id ? (' · txn ' + d.transaction_id) : '') + '. Reloading…'; }
+        setTimeout(() => { closeModal(); load(); }, 1400);
+      } else if (d && d.mode === 'live-blocked') {
+        if (msg) { msg.className = 'msg msg-err'; msg.textContent = 'Blocked: ' + ((d.blockers || []).join('; ') || 'fix the report first'); }
+        btn.disabled = false; btn.textContent = '📤 File this claim';
+      } else {
+        const why = (d && (d.messages && d.messages.join('; '))) || (d && d.error) || (d && d.response_code) || 'try again';
+        if (msg) { msg.className = 'msg msg-err'; msg.textContent = 'Not filed: ' + why; }
+        btn.disabled = false; btn.textContent = '📤 File this claim';
+      }
+    } catch (_) {
+      if (msg) { msg.className = 'msg msg-err'; msg.textContent = 'Network error — try again.'; }
+      btn.disabled = false; btn.textContent = '📤 File this claim';
+    }
+  }
+
   load();
   setInterval(load, 60000);
 </script>
