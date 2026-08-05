@@ -1191,7 +1191,7 @@ function renderSectionsView(d) {
 
   if ((d.warranty_submissions_due||[]).length > 0) {
     blocks.push(`<div class="section full-width" id="section-warranty">
-      <div class="section-head"><span class="title">📋 Warranty submissions due</span><span class="badge">${d.warranty_submissions_due.length} items</span></div>
+      <div class="section-head"><span class="title">📋 Warranty submissions due</span><span class="badge">${d.warranty_submissions_due.length} items</span><a href="/warranty-claims.html" style="margin-left:auto;font-size:12px;font-weight:800;color:#39d98a;text-decoration:none">Review &amp; file claims →</a></div>
       ${renderWarrantyBatchBar(d.warranty_submissions_due)}
       ${d.warranty_submissions_due.map(renderWarrantyCard).join('')}
     </div>`);

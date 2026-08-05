@@ -71,7 +71,7 @@
 <body>
 <div class="wrap">
   <h1>📦 Warranty Claims</h1>
-  <div class="sub" id="sub">the claim files itself when the report's complete</div>
+  <div class="sub" id="sub">review each claim, confirm it's right, then file it</div>
   <div id="board"><div class="loading">Loading the pipeline…</div></div>
   <div class="foot"><a href="warranty-review.html">Warranty review</a> · <a href="office-board.html">Board</a></div>
 </div>
@@ -130,8 +130,8 @@
       const c = d.counts || {};
       const autoPill = d.auto_live
         ? '<span class="autopill auto-on">● AUTO-FILE ON</span>'
-        : '<span class="autopill auto-off">○ shadow — review then flip on</span>';
-      $('sub').innerHTML = 'the claim files itself when the report\'s complete &nbsp; ' + autoPill;
+        : '<span class="autopill auto-off">○ office reviews &amp; files — accuracy check</span>';
+      $('sub').innerHTML = 'review each claim, confirm it\'s right, then file it &nbsp; ' + autoPill;
 
       let h = '<div class="stats">'
         + '<div class="stat"><div class="n" style="color:var(--gold)">' + (c.blocked || 0) + '</div><div class="l">Needs fix</div></div>'
@@ -140,8 +140,8 @@
         + '<div class="stat"><div class="n" style="color:var(--green)">' + (c.paid || 0) + '</div><div class="l">Paid</div></div>'
         + '</div>';
 
-      h += section('Needs a fix — finish the report, it auto-files', '🛠', by('blocked'), 'Nothing blocked — nice. 🐜');
-      h += section('Ready to file', '🟢', by('ready'), 'Nothing waiting.');
+      h += section('Needs a fix — finish the report to make it fileable', '🛠', by('blocked'), 'Nothing blocked — nice. 🐜');
+      h += section('Ready to review & file', '🟢', by('ready'), 'Nothing waiting.');
       h += section('Filed — waiting on payment', '📤', by('filed'), 'None in flight.');
       const done = by('paid').concat(by('rejected'));
       h += section('Paid / closed', '💰', done, 'None yet.');
