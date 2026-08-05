@@ -106,7 +106,7 @@ function waitBadge(j){var c=Number(j.created_at)||0;if(!c)return '';var days=Mat
 async function load(){
   DONE=0;IDX=0;
   try{
-    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
+    let r=await fetch('/.netlify/functions/board-feed').catch(function(){return null;}); if(!(r&&r.ok)) r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
     const d=await r.json();
     const jobs=(d&&d.items)||[];
     const q=[];

@@ -161,7 +161,7 @@ async function load(){
   content.innerHTML='<div class="loading-screen"><div class="spinner"></div>Loading John &amp; Andre\'s jobs…</div>';
   let items=[];
   try{
-    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
+    let r=await fetch('/.netlify/functions/board-feed').catch(function(){return null;}); if(!(r&&r.ok)) r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
     const d=await r.json();
     items=d.items||d.jobs||(Array.isArray(d)?d:[]);
   }catch(e){ content.innerHTML='<div class="empty">Couldn\'t load right now. Tap ↻ Refresh in a moment.</div>'; return; }

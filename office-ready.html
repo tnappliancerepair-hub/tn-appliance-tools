@@ -190,7 +190,7 @@ function assess(j){
 
 async function load(){
   try{
-    const r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
+    let r=await fetch('/.netlify/functions/board-feed').catch(function(){return null;}); if(!(r&&r.ok)) r=await fetch(XANO+'/get_office_kanban',{cache:'no-store'});
     const d=await r.json();
     JOBS=((d&&d.items)||[]).map(j=>({...j,_a:assess(j)}));
     render();

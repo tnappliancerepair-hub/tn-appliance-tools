@@ -178,7 +178,7 @@
 # Denorm sweep — keep the kanban fast by filling customer_first/last/phone on any NEW
 # job that hasn't been denormed yet (scheduled invocation runs mode=sweep). Every 30 min.
 [functions."denorm-job-customer"]
-  schedule = "*/30 * * * *"
+  schedule = "13,43 * * * *"
 
 # Address-confirm sweep (Teddy 2026-07-17) — finds RECENT active jobs where the customer
 # has two addresses (job's service address ≠ our customer record) and texts them to
@@ -461,7 +461,7 @@
 # business hours (8a-8p CT guard in the fn), per-run cap, opt-out + engaged skips, tag
 # intake_collect so it clears the send gate today. Kill with env INTAKE_GUARANTEE_LIVE=false.
 [functions."intake-link-guarantee"]
-  schedule = "5,20,35,50 13-23 * * *"
+  schedule = "25,55 13-23 * * *"
 
 # servicepower-contact-backfill (Teddy 2026-07-24: "we have a ServicePower API but
 # struggle with ServicePower jobs"). SP dispatch EMAILS carry only the claim #, not the
@@ -471,7 +471,7 @@
 # hour; kill with env SP_CONTACT_BACKFILL_LIVE=false. Must run BEFORE intake-link-guarantee
 # reads (offset so the phone is on file first).
 [functions."servicepower-contact-backfill"]
-  schedule = "0,15,30,45 13-23 * * *"
+  schedule = "10,40 13-23 * * *"
 
 # Over-texting tripwire (Teddy 2026-07-13) — scans EVERY customer text by phone,
 # alerts Teddy + AUTO-PAUSES intake outreach the moment anyone crosses the line, so
@@ -789,7 +789,11 @@
 # Every 10 min, but a NO-OP until env TECH_PREP_LINK_LIVE=true (dry by default). Sends
 # from the approved line, forward-only, deduped, capped, business-hours. (Teddy 2026-07-24)
 [functions."tech-prep-link"]
-  schedule = "*/10 * * * *"
+  # Staggered off round minutes + thinned 6/hr→3/hr (2026-08-05 perf): this + denorm +
+  # the two backfills below were all colliding on :00/:30 with the office board polls,
+  # stacking heavy get_office_kanban queries → the "everything's slow" pileup. Distinct
+  # minutes so no two heavy sweeps ever run the ~700-job query at the same time.
+  schedule = "7,27,47 * * * *"
 
 # warm-phone — keep the phone's lookup path HOT 24/7 so a cold start never hangs a
 # live call. Pings job-truth (status brain) + vapi-tool (tool proxy) every 5 min; a

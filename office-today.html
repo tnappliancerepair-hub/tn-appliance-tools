@@ -370,7 +370,7 @@
 <script>
 (function(){
   var PW=/(awaiting_parts|ordered|on_order|parts_needed|pending|backorder)/i, DONE=/completed|canceled|cancelled|no_fix/i;
-  fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/get_office_kanban',{cache:'no-store'})
+  fetch('/.netlify/functions/board-feed',{cache:'no-store'})
     .then(function(r){return r.json();}).then(function(d){
       var items=(d&&d.items)||[],gaps=0;
       items.forEach(function(j){
