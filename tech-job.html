@@ -932,13 +932,16 @@ function lifecycleStamp(){
 // the day's placeholder; the board shows stop position, not a clock time.
 var MOVE_ROSTER={1:'Teddy',2:'Jimmy',3:'Andre',4:'Lee',6:'John'};
 function _dayMs(offset){var d=new Date();d.setDate(d.getDate()+offset);d.setHours(8,0,0,0);return d.getTime();}
+// Today = 8am, never in the past — so an afternoon "grab it today" books today, not a
+// slot that reads as already-missed. (Teddy 2026-08-05: grab a nearby job same-day.)
+function _todayMs(){var d=new Date();d.setHours(8,0,0,0);return Math.max(d.getTime(),Date.now()+15*60000);}
 function _dayLabel(ms){try{return fmtDay(ms);}catch(_){return new Date(ms).toLocaleDateString();}}
 function openMoveStop(){
   _closeMoveStop();
   var ov=document.createElement('div'); ov.id='move-stop-ov';
   ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(10,14,22,.55);display:flex;align-items:flex-end;justify-content:center';
   ov.onclick=function(e){ if(e.target===ov) _closeMoveStop(); };
-  var days=[['Tomorrow',_dayMs(1)],['In 2 days',_dayMs(2)],['In 3 days',_dayMs(3)],['In a week',_dayMs(7)]];
+  var days=[['Today',_todayMs()],['Tomorrow',_dayMs(1)],['In 2 days',_dayMs(2)],['In 3 days',_dayMs(3)],['In a week',_dayMs(7)]];
   var dayChips=days.map(function(x){return '<button onclick="_moveStopDay('+x[1]+')" style="flex:1;min-width:46%;padding:12px;border:1px solid #cdd6e2;border-radius:10px;background:#fff;color:#1f2d45;font-weight:800;font-size:14px;cursor:pointer">'+x[0]+'<br><span style="font-weight:600;font-size:11px;color:#68758a">'+_dayLabel(x[1])+'</span></button>';}).join('');
   var techBtns=Object.keys(MOVE_ROSTER).filter(function(id){return Number(id)!==Number(TECH_ID);}).map(function(id){return '<button onclick="_moveStopTech('+id+',\''+MOVE_ROSTER[id]+'\')" style="flex:1;min-width:30%;padding:12px;border:1px solid #cdd6e2;border-radius:10px;background:#fff;color:#1f2d45;font-weight:800;font-size:14px;cursor:pointer">'+MOVE_ROSTER[id]+'</button>';}).join('');
   ov.innerHTML='<div style="width:100%;max-width:520px;background:#fff;border-radius:16px 16px 0 0;padding:18px 16px 26px;box-shadow:0 -8px 30px rgba(0,0,0,.25)">'
