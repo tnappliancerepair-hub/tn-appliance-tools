@@ -133,8 +133,49 @@ exports.handler = async function (event) {
     taxCents = Math.round(amountCents * rate);
   }
 
+  const stripe = new Stripe(key);
+  // Shared metadata for BOTH link types so verify-payment / the webhook record + fulfill
+  // the same way regardless of which we send.
+  const sharedMeta = Object.assign({
+    job_id: String(jobId), kind: kind, base_cents: String(amountCents), tax_cents: String(taxCents),
+    tax_rate: String(rate), region: region, amount_cents: String(amountCents + taxCents),
+    source: extraMeta.source || 'customer_portal_pay',
+  }, extraMeta);
+
+  // DURABLE (non-expiring) links — Stripe Payment Links instead of a 24h Checkout Session,
+  // so a "I'll pay tonight/this weekend" customer never hits a dead link (Teddy 2026-08-05:
+  // Jennifer Roher's links expired before she could pay). Opt-in: body.durable OR the vault
+  // flag PAYMENT_LINKS_DURABLE=true (flip on AFTER testing one link end-to-end). ANY failure
+  // falls through to the proven Checkout Session below, so this can never produce a bad link.
+  const durable = body.durable === true || body.durable === 'true'
+    || String((await getSecret('PAYMENT_LINKS_DURABLE')) || '').toLowerCase() === 'true';
+  if (durable) {
+    try {
+      const items = [];
+      const baseP = await stripe.prices.create({ currency: 'usd', unit_amount: amountCents, product_data: { name: description } });
+      items.push({ price: baseP.id, quantity: 1 });
+      if (taxCents > 0) {
+        const taxP = await stripe.prices.create({ currency: 'usd', unit_amount: taxCents, product_data: { name: 'Sales tax (' + region + ' ' + (rate * 100).toFixed(2) + '%)' } });
+        items.push({ price: taxP.id, quantity: 1 });
+      }
+      const link = await stripe.paymentLinks.create({
+        line_items: items,
+        metadata: sharedMeta,                          // copied onto the Checkout Session it creates
+        payment_intent_data: { metadata: sharedMeta }, // belt-and-suspenders onto the PaymentIntent
+        restrictions: { completed_sessions: { limit: 1 } }, // one-time: can't be paid twice
+        after_completion: { type: 'redirect', redirect: { url: process.env.STRIPE_SUCCESS_URL || DEFAULT_SUCCESS } },
+      });
+      return jsonResp(200, {
+        ok: true, url: link.url, payment_link_id: link.id, durable: true,
+        amount_cents: amountCents, tax_cents: taxCents, total_cents: amountCents + taxCents,
+      });
+    } catch (e) {
+      console.error('[create-stripe-payment-link] durable link failed, falling back to checkout session:', e.message);
+      // fall through to the Checkout Session (known-good) so we never return no link
+    }
+  }
+
   try {
-    const stripe = new Stripe(key);
     const lineItems = [{
       price_data: { currency: 'usd', product_data: { name: description }, unit_amount: amountCents },
       quantity: 1,
@@ -151,16 +192,7 @@ exports.handler = async function (event) {
       success_url: process.env.STRIPE_SUCCESS_URL || DEFAULT_SUCCESS,
       cancel_url: process.env.STRIPE_CANCEL_URL || DEFAULT_CANCEL,
       customer_email: customerEmail || undefined,
-      metadata: Object.assign({
-        job_id: String(jobId),
-        kind: kind,
-        base_cents: String(amountCents),
-        tax_cents: String(taxCents),
-        tax_rate: String(rate),
-        region: region,
-        amount_cents: String(amountCents + taxCents),
-        source: extraMeta.source || 'customer_portal_pay',
-      }, extraMeta),
+      metadata: sharedMeta,
     });
 
     return jsonResp(200, {
