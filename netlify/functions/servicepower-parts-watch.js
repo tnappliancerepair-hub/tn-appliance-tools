@@ -67,7 +67,7 @@ function pickJobId(d) {
   return null;
 }
 async function matchJob(call) {
-  const variants = Array.from(new Set([call, String(call).replace(/^0+/, '')].filter(Boolean)));
+  const variants = Array.from(new Set([call, String(call).replace(/^0+/, ''), String(call).replace(/\D/g, ''), String(call).replace(/\D/g, '').replace(/^0+/, '')].filter(Boolean)));
   for (const v of variants) {
     try {
       const d = await (await fetch(`${XANO}/find_job_by_claim_number?claim_number=${encodeURIComponent(v)}`, { signal: AbortSignal.timeout(10000) })).json();
@@ -122,7 +122,14 @@ exports.handler = async function (event) {
   // record matched parts; flag unmatched (don't lose them)
   let recorded = 0; const processedIds = new Set(); const unmatched = []; const notifyJobs = new Set();
   for (const wo of plan) {
-    if (!wo.job_id) { unmatched.push({ call: wo.call, parts: wo.parts.map((p) => p.part) }); processedIds.add(wo.msg_id); continue; }
+    if (!wo.job_id) {
+      unmatched.push({ call: wo.call, parts: wo.parts.map((p) => p.part) });
+      // NEVER DROP: the email named a part we couldn't tie to a job. Record it durably so
+      // the office can link it (and its return later), instead of it vanishing once the
+      // message is marked done. (Teddy 2026-08-04 — the supplied email is the join key.)
+      if (!dry) { for (const p of wo.parts) { try { await crud.logEvent('warranty_part_unmatched', { vendor: 'SquareTrade', call: wo.call, claim: wo.call, part: p.part || '', description: p.desc || '', distributor: '', tracking: p.tracking || '', provider: p.provider || '', qty: p.qty || 1, requires_return: !!p.requires_return, msg_id: wo.msg_id, source: 'servicepower_email', at_ms: Date.now() }); } catch (_) {} } }
+      processedIds.add(wo.msg_id); continue;
+    }
     for (const p of wo.parts) {
       try {
         await crud.logEvent('warranty_part_supplied', {

@@ -27,6 +27,8 @@
   .print { display:inline-block; margin-top:6px; padding:9px 12px; border-radius:9px; background:var(--grn); color:#052; font-weight:800; font-size:13px; text-decoration:none; }
   .ship { margin-top:6px; margin-left:7px; padding:9px 12px; border-radius:9px; background:transparent; color:var(--grn); border:1px solid var(--grn); font-weight:800; font-size:13px; cursor:pointer; }
   .ship:disabled { opacity:.7; }
+  .linkbtn { padding:9px 12px; border-radius:9px; background:var(--blu); color:#031; font-weight:800; font-size:13px; border:none; cursor:pointer; }
+  .linkbtn:disabled { opacity:.7; }
   .muted { color:var(--ink2); font-size:13px; padding:14px 4px; }
   #spin { text-align:center; padding:40px; color:var(--ink2); }
   a.link { color:var(--blu); text-decoration:none; }
@@ -37,6 +39,7 @@
   <div id="spin">📊 Loading the scoreboard…</div>
   <div id="out"></div>
   <div id="techflag"></div>
+  <div id="unmatched"></div>
 
 <script>
 var F='/.netlify/functions';
@@ -55,6 +58,7 @@ async function load(){
   }catch(e){ out.innerHTML='<div class="muted">Couldn\'t load — try refresh.</div>'; }
   spin.style.display='none';
   loadTechFlagged();   // additive — the tech's at-stop Unused flags, before any email
+  loadUnmatched();     // additive — supplied-parts emails we couldn't tie to a job
 }
 
 function findLink(i){ return '/return-finder.html?v=6&q='+encodeURIComponent(i.claim+(i.part?(' '+i.part):'')); }
@@ -145,6 +149,50 @@ async function loadTechFlagged(){
     el.innerHTML=h;
     el.querySelectorAll('.ship').forEach(function(b){ b.onclick=function(){ markShipped(b); }; });
   }catch(_){ el.innerHTML=''; }
+}
+
+// Unmatched supplied parts — the safety net. The parts watchers now record a
+// warranty_part_unmatched event for any part in a supplied email they couldn't tie to
+// a job (instead of silently dropping it). List them here so the office types the job #
+// and taps Link — which records it as a supplied part on that job (lands on the tile,
+// its return auto-links later). Nothing sent to us ever vanishes. (Teddy 2026-08-04)
+async function loadUnmatched(){
+  var el=document.getElementById('unmatched'); if(!el) return;
+  try{
+    var r=await fetch(F+'/unmatched-parts?secret='+encodeURIComponent(SECRET));
+    if(!r.ok){ el.innerHTML=''; return; }
+    var d=await r.json();
+    var items=(d&&d.items)||[];
+    if(!items.length){ el.innerHTML=''; return; }
+    var h='<h2 style="margin-top:24px">🧩 Supplied — no matching job <span class="pill" style="background:#3a1620;color:var(--red)">'+items.length+'</span></h2>'
+      +'<div class="muted" style="margin:-4px 0 8px">A parts email named these but we couldn\'t auto-match the job. Type the job # and tap <b>Link</b> — it lands on that job\'s tile (and its return links itself later). None are lost.</div>';
+    h+=items.map(function(i){
+      var who=[i.vendor||'', i.call?('call '+i.call):'', i.distributor?('↩ '+i.distributor):''].filter(Boolean).join(' · ');
+      return '<div class="row">'
+        +'<div style="flex:1"><div class="part">'+esc(i.part||'—')+(i.description?(' <span class="meta">'+esc(i.description)+'</span>'):'')+'</div>'
+        +'<div class="meta">'+esc(who)+(i.tracking?(' · '+esc(i.tracking)):'')+'</div>'
+        +'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px">'
+        +'<a class="print" href="'+findLink({claim:i.call,part:i.part})+'" target="_blank" rel="noopener">🔎 Find in emails</a>'
+        +'<input class="jobin" data-key="'+esc(i.key)+'" inputmode="numeric" placeholder="job #" style="width:88px;padding:8px;border-radius:8px;border:1px solid var(--line,#2a2f3a);background:#111827;color:#e5e7eb;font-size:15px">'
+        +'<button class="linkbtn" data-key="'+esc(i.key)+'">🔗 Link</button>'
+        +'</div></div></div>';
+    }).join('');
+    el.innerHTML=h;
+    el.querySelectorAll('.linkbtn').forEach(function(b){ b.onclick=function(){ linkUnmatched(b); }; });
+  }catch(_){ el.innerHTML=''; }
+}
+async function linkUnmatched(b){
+  var row=b.closest('.row'); var inp=row&&row.querySelector('.jobin');
+  var job=(inp&&inp.value||'').replace(/[^0-9]/g,'');
+  if(!job){ if(inp) inp.focus(); return; }
+  b.disabled=true; b.textContent='Linking…';
+  try{
+    var r=await fetch(F+'/unmatched-parts',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({secret:SECRET,key:b.dataset.key,job_id:Number(job),by:'office'})});
+    var d=await r.json();
+    if(d&&d.ok){ if(row) row.style.opacity=.4; b.textContent='✅ Linked to #'+job; b.style.background='var(--grn)'; b.style.color='#052'; setTimeout(loadUnmatched,900); }
+    else { b.disabled=false; b.textContent='🔗 Link — retry'; }
+  }catch(_){ b.disabled=false; b.textContent='🔗 Link — retry'; }
 }
 load();
 </script>

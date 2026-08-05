@@ -119,7 +119,7 @@ function pickJobId(d) {
   return null;
 }
 async function matchJob(wo) {
-  const variants = Array.from(new Set([wo, String(wo).replace(/^0+/, '')].filter(Boolean)));
+  const variants = Array.from(new Set([wo, String(wo).replace(/^0+/, ''), String(wo).replace(/\D/g, ''), String(wo).replace(/\D/g, '').replace(/^0+/, '')].filter(Boolean)));
   for (const v of variants) {
     try {
       const d = await (await fetch(`${XANO}/find_job_by_claim_number?claim_number=${encodeURIComponent(v)}`, { signal: AbortSignal.timeout(10000) })).json();
@@ -168,7 +168,13 @@ exports.handler = async function (event) {
 
   let recorded = 0, etas = 0; const processedIds = new Set(); const unmatched = []; const notifyJobs = new Set();
   for (const wo of plan) {
-    if (!wo.job_id) { unmatched.push({ wo: wo.wo, part: wo.part, distributor: wo.distributor, eta: wo.eta }); processedIds.add(wo.msg_id); continue; }
+    if (!wo.job_id) {
+      unmatched.push({ wo: wo.wo, part: wo.part, distributor: wo.distributor, eta: wo.eta });
+      // NEVER DROP: the email named a part we couldn't tie to a job. Record it durably so
+      // the office can link it, instead of it vanishing once the message is marked done.
+      try { await crud.logEvent('warranty_part_unmatched', { vendor: 'AHS', call: wo.wo, claim: wo.wo, dispatch: wo.wo, part: wo.part || '', description: wo.description || '', distributor: wo.distributor || '', tracking: '', eta: wo.eta || '', qty: wo.qty || 1, msg_id: wo.msg_id, source: 'ahs_email', at_ms: Date.now() }); } catch (_) {}
+      processedIds.add(wo.msg_id); continue;
+    }
     // Record a supplied part the tech accounts for. New AHS format carries a real part #
     // (+ description/supplier); older prose format has only a distributor. Status
     // 'requested' = ordered + on the way (AHS ships to the shop, no return / no tracking).
