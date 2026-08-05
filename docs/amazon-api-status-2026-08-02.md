@@ -1,3 +1,24 @@
+# UPDATE 2026-08-05 — SP-API case CLOSED by Amazon support (park it)
+
+Nicole M. (Amazon Solution Provider Support) **closed case 21424102471**: "resolving this
+case, no further actions from the Solution Provider Support side." She did NOT link the
+seller account to the dev profile; she pointed to the `register-as-a-public-developer` doc
+and cited "a limitation on public developer registration." No-reply address — a follow-up
+means a NEW case.
+
+**Read:** support won't fix the seller-not-linked wall. "Public developer" is for building
+apps for OTHER sellers (heavy vetting) — wrong tool for selling our OWN listings (that's a
+private developer). Amazon is sending us in a circle.
+
+**DECISION: PARK SP-API.** It's the lower-value program (sell-our-own-listings for the
+referral bonus). The Amazon Associates link already monetizes the Amazon-equivalent angle
+live + earning. Do NOT chase the public-developer path. The **Business Ordering API**
+(drop-ship parts — the operationally valuable one) is a SEPARATE track, still under review,
+our side done — unaffected by this closure. Revisit SP-API only if we later want a real
+Amazon storefront, and then via a fresh private-developer registration, not this dead case.
+
+---
+
 # Amazon API status — where both threads stand (2026-08-02)
 
 Snapshot so the next session (or Teddy in a week) picks up cleanly. **Two
