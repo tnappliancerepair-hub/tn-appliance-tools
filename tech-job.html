@@ -1342,7 +1342,7 @@ async function wpSet(row,part,status){
     const r=await fetch('/.netlify/functions/warranty-parts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'status',job_id:JOB_ID,part:part,status:status,by:'tech',technician_id:TECH_ID})});
     const d=await r.json();
     if(d&&d.ok){
-      if(s){s.style.color='#127a4a';s.textContent=status==='used'?'✓ marked used':'✓ marked unused — goes back';}
+      if(s){s.style.color='#127a4a';s.textContent=status==='used'?'✓ marked used':'✓ unused — going back, office has it, you’re covered';}
       if(status==='unused'){ returnFlow(row,part); }         // get the label to the tech right here
       else { setTimeout(renderJobParts,700); }
     }

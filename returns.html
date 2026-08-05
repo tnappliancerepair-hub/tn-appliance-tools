@@ -36,6 +36,7 @@
   <div class="sub">Work it down: <b>🖨 print</b> the label, box it, tap <b>✓ Shipped it</b> → watch Owed drop. Pulled from the weekly Allstate RMA report. <a class="link" href="/return-finder.html?v=6" target="_blank">open finder →</a> · <a class="link" href="#" onclick="load();return false;">refresh</a></div>
   <div id="spin">📊 Loading the scoreboard…</div>
   <div id="out"></div>
+  <div id="techflag"></div>
 
 <script>
 var F='/.netlify/functions';
@@ -53,6 +54,7 @@ async function load(){
     render(await r.json());
   }catch(e){ out.innerHTML='<div class="muted">Couldn\'t load — try refresh.</div>'; }
   spin.style.display='none';
+  loadTechFlagged();   // additive — the tech's at-stop Unused flags, before any email
 }
 
 function findLink(i){ return '/return-finder.html?v=6&q='+encodeURIComponent(i.claim+(i.part?(' '+i.part):'')); }
@@ -76,7 +78,7 @@ async function markShipped(b){
   b.disabled=true; b.textContent='Saving…';
   try{
     var r=await fetch(F+'/mark-return-shipped',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({secret:SECRET,claim:b.dataset.claim,part:b.dataset.part,distributor:b.dataset.dist,rma:b.dataset.rma,by:'office'})});
+      body:JSON.stringify({secret:SECRET,job_id:b.dataset.job||undefined,claim:b.dataset.claim,part:b.dataset.part,distributor:b.dataset.dist,rma:b.dataset.rma,by:'office'})});
     var d=await r.json();
     if(d&&d.ok){
       var row=b.closest('.row'); if(row) row.style.opacity=.4;
@@ -113,6 +115,36 @@ function render(d){
   }
   out.innerHTML=h;
   out.querySelectorAll('.ship').forEach(function(b){ b.onclick=function(){ markShipped(b); }; });
+}
+// Tech-flagged returns (Unused at the stop) that don't have an emailed label yet —
+// pulled from the connected returns loader so the office acts on the tech's real-time
+// knowledge instead of waiting on the RMA email. Guarded so it can never break the
+// main board. (Teddy 2026-08-04: "the tech knows what he isn't using.")
+async function loadTechFlagged(){
+  var el=document.getElementById('techflag'); if(!el) return;
+  try{
+    var r=await fetch(F+'/parts-returns?all=1&secret='+encodeURIComponent(SECRET));
+    if(!r.ok){ el.innerHTML=''; return; }
+    var d=await r.json();
+    var pend=((d&&d.returns)||[]).filter(function(i){return i.label_pending;});
+    if(!pend.length){ el.innerHTML=''; return; }
+    var h='<h2 style="margin-top:24px">🔖 Tech flagged at the stop — label pending <span class="pill" style="background:#20262f;color:var(--ink2)">'+pend.length+'</span></h2>'
+      +'<div class="muted" style="margin:-4px 0 8px">A tech marked these <b>Unused</b> in the field. Pull the label (finder), box it, ship it — before the vendor even emails one.</div>';
+    h+=pend.map(function(i){
+      var who=[i.customer||'', i.distributor?('↩ '+i.distributor):''].filter(Boolean).join(' · ') || ('job #'+(i.job_id||'?'));
+      var dleft=(i.days_left==null?0:i.days_left);
+      return '<div class="row">'
+        +'<div style="flex:1"><div class="part">'+esc(i.part||'—')+'</div>'
+        +'<div class="meta">'+esc(who)+(i.tech_id?(' · tech '+esc(i.tech_id)):'')+'</div>'
+        +'<div style="display:flex;flex-wrap:wrap;align-items:center">'
+        +'<a class="print" href="'+findLink(i)+'" target="_blank" rel="noopener">🔎 Find label</a>'
+        +'<button class="ship" data-job="'+esc(i.job_id||'')+'" data-claim="'+esc(i.claim||'')+'" data-part="'+esc(i.part||'')+'" data-dist="'+esc(i.distributor||'')+'" data-rma="'+esc(i.rma||'')+'">✓ Shipped it</button>'
+        +'</div></div>'
+        +'<div class="age"><div class="d'+(dleft<0?' hot':'')+'">'+dleft+'</div><div class="meta">days left</div></div></div>';
+    }).join('');
+    el.innerHTML=h;
+    el.querySelectorAll('.ship').forEach(function(b){ b.onclick=function(){ markShipped(b); }; });
+  }catch(_){ el.innerHTML=''; }
 }
 load();
 </script>

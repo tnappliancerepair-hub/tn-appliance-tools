@@ -40,7 +40,10 @@ exports.handler = async function (event) {
   const dry = q.dry === '1' || !enabled;   // not enabled → shadow (no texts, no warn records)
 
   let data;
-  try { data = await loadOpenReturns({}); } catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
+  // includePending:false — only escalate "ship it by X" on returns that actually have a
+  // printable label. A tech-flagged-but-label-pending return isn't shippable yet, so
+  // nagging the tech about it would be unfair (he already did his part). (2026-08-04)
+  try { data = await loadOpenReturns({ includePending: false }); } catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
   const open = data.returns;
 
   // what we've already warned (dedup by key:stage) + already congratulated

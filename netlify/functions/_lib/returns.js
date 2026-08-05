@@ -39,17 +39,31 @@ async function loadOpenReturns(opts = {}) {
     : (Number(process.env.RETURN_WINDOW_DAYS) > 0 ? Number(process.env.RETURN_WINDOW_DAYS) : DEFAULT_WINDOW_DAYS);
   const max = opts.max || 400;
 
-  const [labels, closedRows] = await Promise.all([
+  // includePending (default true): also surface returns the TECH flagged Unused at the
+  // stop even before an RMA label has emailed in — so the office starts the return from
+  // the tech's real-time knowledge, not from waiting on an email. The reminder engine
+  // passes includePending:false so it only escalates "ship it" on actually-printable
+  // labels. (Teddy 2026-08-04: "the tech knows what he isn't using — simplify it.")
+  const includePending = opts.includePending !== false;
+  const [labels, statusRows, suppliedRows] = await Promise.all([
     crud.searchPage(crud.TABLES.event_log, { action: 'parts_return_label' }, { id: 'desc' }, max).catch(() => []),
     crud.searchPage(crud.TABLES.event_log, { action: 'warranty_part_status' }, { id: 'desc' }, max).catch(() => []),
+    crud.searchPage(crud.TABLES.event_log, { action: 'warranty_part_supplied' }, { id: 'desc' }, max).catch(() => []),
   ]);
 
-  // returns that have been marked shipped/returned → closed
+  // Latest tech/office status per (job, part) — newest wins.
+  const latestStatus = {};
+  for (const r of statusRows) { const m = metaOf(r); const k = keyOf(m.job_id, m.part); if (latestStatus[k]) continue; latestStatus[k] = { status: String(m.status || '').toLowerCase(), at_ms: Number(m.at_ms || r.created_at || 0) }; }
+  // Closed = marked shipped/returned.
   const closed = new Set();
-  for (const r of closedRows) { const m = metaOf(r); if (['returned', 'shipped'].includes(String(m.status || '').toLowerCase())) closed.add(keyOf(m.job_id, m.part)); }
+  for (const k of Object.keys(latestStatus)) { if (['returned', 'shipped'].includes(latestStatus[k].status)) closed.add(k); }
+  // Supplied-part metadata (distributor/claim/customer/tracking) to enrich a
+  // tech-flagged return that has no emailed label yet. Newest per (job, part).
+  const suppliedMeta = {};
+  for (const r of suppliedRows) { const m = metaOf(r); const k = keyOf(m.job_id, m.part); if (!suppliedMeta[k]) suppliedMeta[k] = m; }
 
-  // newest label per (job, part); drop closed ones
   const seen = new Set(); const open = [];
+  // (1) Emailed RMA labels — the return is ready to print.
   for (const r of labels) {
     const m = metaOf(r); const k = keyOf(m.job_id, m.part);
     if (seen.has(k)) continue; seen.add(k);
@@ -69,7 +83,29 @@ async function loadOpenReturns(opts = {}) {
       distributor: m.distributor || '', customer: m.customer || '', return_desc: m.return_desc || '', claim: m.claim || '',
       email_id: m.email_id || '', // source RMA email → lets us pull the prepaid label PDF
       issued_ms: issuedMs || null, label_ms: anchorMs, due_ms: dueMs, deadline_source: source, deadline_text: m.deadline_text || '',
+      has_label: true, label_pending: false, tech_confirmed: !!(latestStatus[k] && latestStatus[k].status === 'to_return'), status: 'ready',
     });
+  }
+  // (2) Tech flagged UNUSED at the stop, no label emailed yet → start the return NOW so
+  // the office isn't blind until an email arrives. Enriched from the supplied-part record.
+  if (includePending) {
+    for (const k of Object.keys(latestStatus)) {
+      if (latestStatus[k].status !== 'to_return') continue;
+      if (seen.has(k) || closed.has(k)) continue;
+      seen.add(k);
+      const sm = suppliedMeta[k] || {};
+      const jobId = Number(k.split('::')[0]) || (sm.job_id || null);
+      const partName = sm.part || (k.split('::')[1] || '');
+      const markMs = Number(latestStatus[k].at_ms) || Date.now();
+      const dueMs = markMs + windowDays * 86400000;
+      open.push({
+        key: k, job_id: jobId, part: partName, rma: sm.rma || '', tracking: sm.tracking || '',
+        distributor: sm.distributor || '', customer: sm.customer || '', return_desc: sm.return_desc || 'Unused — tech flagged at the stop', claim: sm.claim || '',
+        email_id: '',
+        issued_ms: null, label_ms: markMs, due_ms: dueMs, deadline_source: 'tech_flagged+window', deadline_text: '',
+        has_label: false, label_pending: true, tech_confirmed: true, status: 'label_pending',
+      });
+    }
   }
 
   // attribute to tech (cached) unless caller opts out
