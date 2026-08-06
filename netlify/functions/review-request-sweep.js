@@ -40,19 +40,37 @@ exports.handler = async function (event) {
   const hours = Math.min(parseInt(q.hours || '26', 10) || 26, 168);
   const since = Date.now() - hours * 3600000;
 
-  // 1) recent completions (job actually done — new_scheduling_status === 'completed')
-  let rows = [];
-  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'tech_job_complete' }, { id: 'desc' }, 120); } catch (e) { return j(200, { ok: false, error: 'event scan failed' }); }
+  // 1) recent completions. ROOT-CAUSE FIX (2026-08-06): the sweep only watched
+  // tech_job_complete, which fires ~0 times (techs finish jobs elsewhere) — so it was
+  // starved and asked 0 customers for months. The signal that ACTUALLY flows when a job
+  // reaches its end is office_invoice_logged (~14/day). Feed from BOTH, dedup by job.
+  // SAFETY: the per-job LIVE status recheck below (must be scheduling/current ===
+  // 'completed') still gates every send, so an invoice logged on an awaiting-parts job
+  // (first-trip labor billed, parts trip pending) is correctly skipped — only truly-done
+  // jobs get "how'd we do?". Same starvation + backup-trigger pattern as the SP claims fix.
   const jobIds = [];
   const seen = new Set();
-  for (const r of rows) {
-    const at = Number(r.created_at || 0);
-    if (at && at < since) continue;                 // forward-only: skip old completions
-    const m = meta(r);
-    if (String(m.new_scheduling_status || '') !== 'completed') continue;  // only truly-done jobs
-    const jid = Number(m.job_id || 0);
-    if (jid && !seen.has(jid)) { seen.add(jid); jobIds.push(jid); }
-  }
+  const srcOf = {};
+  // a) explicit completion events (kept — usually empty today, harmless)
+  try {
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'tech_job_complete' }, { id: 'desc' }, 120);
+    for (const r of rows || []) {
+      if (Number(r.created_at || 0) < since) continue;        // forward-only
+      const m = meta(r);
+      if (String(m.new_scheduling_status || '') !== 'completed') continue;
+      const jid = Number(m.job_id || 0);
+      if (jid && !seen.has(jid)) { seen.add(jid); jobIds.push(jid); srcOf[jid] = 'complete'; }
+    }
+  } catch (_) {}
+  // b) invoiced jobs — the real end-of-job signal that's flowing. liveDone recheck filters.
+  try {
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'office_invoice_logged' }, { id: 'desc' }, 300);
+    for (const r of rows || []) {
+      if (Number(r.created_at || 0) < since) continue;        // forward-only
+      const jid = Number(meta(r).job_id || 0);
+      if (jid && !seen.has(jid)) { seen.add(jid); jobIds.push(jid); srcOf[jid] = 'invoice'; }
+    }
+  } catch (_) {}
 
   // 2) resolve each job's customer, dedup, send
   const sent = [], skipped = [];
@@ -92,12 +110,13 @@ exports.handler = async function (event) {
     try { await sendSms(phone, body, 'customer', 'satisfaction_check'); ok = true; } catch (_) {}
     if (ok) {
       try { await satisfaction.arm(phone, { job_id: jid, cust_id: custId, first, tech: techName, appliance: applType, city: cityName, lang: custLang }); } catch (_) {}
-      try { await crud.logEvent('google_review_asked_customer_' + custId, { job_id: jid, via: 'sweep', at_ms: Date.now() }); } catch (_) {}
+      try { await crud.logEvent('google_review_asked_customer_' + custId, { job_id: jid, via: 'sweep', source: srcOf[jid] || 'complete', at_ms: Date.now() }); } catch (_) {}
       // Fixed-action funnel row (exact-match countable) for the review-velocity scorecard.
-      try { await crud.logEvent('review_ask_sent', { cust_id: custId, job_id: jid, via: 'sweep', lang: custLang, at_ms: Date.now() }); } catch (_) {}
+      try { await crud.logEvent('review_ask_sent', { cust_id: custId, job_id: jid, via: 'sweep', source: srcOf[jid] || 'complete', lang: custLang, at_ms: Date.now() }); } catch (_) {}
       sent.push({ job_id: jid, customer: custId, first });
     } else skipped.push({ job_id: jid, why: 'send failed (gate?)' });
   }
 
-  return j(200, { ok: true, mode: dry ? 'dryrun' : 'live', lookback_hours: hours, completions_found: jobIds.length, asked: sent.length, skipped: skipped.length, sent, skipped: skipped.slice(0, 10) });
+  const bySrc = jobIds.reduce((a, jid) => { const s = srcOf[jid] || 'complete'; a[s] = (a[s] || 0) + 1; return a; }, {});
+  return j(200, { ok: true, mode: dry ? 'dryrun' : 'live', lookback_hours: hours, completions_found: jobIds.length, sources: bySrc, asked: sent.length, skipped: skipped.length, sent, skipped: skipped.slice(0, 10) });
 };
