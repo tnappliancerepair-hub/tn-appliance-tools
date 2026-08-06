@@ -37,7 +37,11 @@ const MAX_LOOKUPS = 20;
 
 exports.config = { timeout: 26 };
 
-function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
+function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(b, null, 2) }; }
+async function verifyOffice(password) {
+  if (!password) return false;
+  try { const r = await fetch(`${XANO}/verify_office_password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000) }); if (!r.ok) return false; const d = await r.json().catch(() => ({})); return !!(d && (d.ok || d.valid || d.authorized || d === true)); } catch (_) { return false; }
+}
 function dayMs(v) { const t = typeof v === 'number' ? v : Date.parse(String(v || '')); return isFinite(t) ? t : 0; }
 function daysBetween(aMs, bMs) { return Math.round((bMs - aMs) / 86400000); }
 
@@ -58,7 +62,7 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
-  if (!scheduled && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
+  if (!scheduled && q.secret !== admin && !(q.office && await verifyOffice(q.office))) return json(401, { ok: false, error: 'unauthorized — ?secret= or ?office=' });
   if (String(await getSecret('PARTS_BEAT_TECH') || '').toLowerCase() === 'false') return json(200, { ok: true, disabled: true });
 
   // Candidates: jobs a pre-diagnosis flagged as needing a part (flag-parts-to-order

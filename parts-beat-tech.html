@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Beat the Tech — Parts Queue</title>
+<style>
+  :root{ --bg:#0f1318; --card:#171d24; --ink:#e8edf2; --ink2:#93a1ad; --line:#28313a;
+    --green:#2fa35a; --amber:#d79a3a; --red:#e0655f; --accent:#3fb9c0; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'Segoe UI',system-ui,Roboto,Arial,sans-serif;line-height:1.5}
+  .wrap{max-width:720px;margin:0 auto;padding:18px 14px 60px}
+  h1{font-size:20px;margin:2px 0 2px} .sub{color:var(--ink2);font-size:13px;margin-bottom:14px}
+  .mode{display:inline-block;font-size:12px;font-weight:800;padding:3px 10px;border-radius:999px;margin-left:6px}
+  .mode.shadow{background:#d79a3a22;color:var(--amber)} .mode.live{background:#2fa35a22;color:var(--green)}
+  .bar{display:flex;gap:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px}
+  .bar b{font-size:19px;display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin-bottom:11px}
+  .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .who{font-weight:700;font-size:15px} .appl{color:var(--ink2);font-size:13px}
+  .part{margin:8px 0;font-size:14px} .part b{font-variant-numeric:tabular-nums}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--ink2);margin-top:4px}
+  .badge{font-size:12px;font-weight:800;padding:2px 9px;border-radius:999px}
+  .b-beat{background:#2fa35a22;color:var(--green)} .b-miss{background:#e0655f22;color:var(--red)} .b-none{background:#3fb9c022;color:var(--accent)}
+  button.order{margin-top:11px;width:100%;padding:12px;border:0;border-radius:10px;background:var(--green);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  button.order[disabled]{opacity:.5;cursor:default}
+  button.order.blocked{background:#2a333c;color:var(--ink2)}
+  .res{margin-top:9px;font-size:13px;font-weight:600}
+  .ok{color:var(--green)} .warn{color:var(--amber)} .err{color:var(--red)}
+  .empty{text-align:center;color:var(--ink2);padding:40px 10px}
+  input{padding:11px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:16px;width:100%}
+  .gate{max-width:320px;margin:60px auto;text-align:center}
+  .gate button{margin-top:10px;width:100%;padding:12px;border:0;border-radius:9px;background:var(--accent);color:#04252a;font-weight:800;font-size:15px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="gate" id="gate">
+    <h1>🛒 Beat the Tech</h1>
+    <p class="sub">Office password</p>
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <button onclick="unlock()">Unlock</button>
+    <p class="sub" id="gerr" style="color:var(--red)"></p>
+  </div>
+  <div id="main" style="display:none">
+    <h1>🛒 Beat the Tech <span id="modechip"></span></h1>
+    <p class="sub">Cash jobs pre-diagnosed with a part — order it to land before the tech. Warranty parts are vendor-supplied (not shown here).</p>
+    <div class="bar" id="bar"></div>
+    <div id="list"></div>
+  </div>
+</div>
+<script>
+var FN='/.netlify/functions'; var PW='';
+function esc(s){return String(s==null?'':s).replace(/[<&>"]/g,function(x){return{'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[x];});}
+function unlock(){ PW=document.getElementById('pw').value.trim(); if(!PW)return; localStorage.setItem('tn_office_pw',PW); load(); }
+window.addEventListener('DOMContentLoaded',function(){ var s=localStorage.getItem('tn_office_pw'); if(s){PW=s; load();} });
+
+function load(){
+  fetch(FN+'/parts-beat-tech?office='+encodeURIComponent(PW))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d||d.error){ document.getElementById('gerr').textContent = d&&d.error?('Wrong password or error: '+d.error):'Error'; return; }
+      document.getElementById('gate').style.display='none'; document.getElementById('main').style.display='';
+      var live = d.note && d.note.indexOf('SHADOW')===-1; // parts-beat-tech read is always shadow-identify; order endpoint holds the live flag
+      document.getElementById('modechip').innerHTML='<span class="mode shadow">identify</span>';
+      document.getElementById('bar').innerHTML=
+        '<div><b>'+(d.cash_candidates||0)+'</b>cash candidates</div>'
+       +'<div><b class="ok">'+(d.beats_visit||0)+'</b>beat the visit</div>'
+       +'<div><b class="warn">'+(d.will_miss_visit||0)+'</b>will miss</div>'
+       +'<div><b>'+(d.warranty_skipped||0)+'</b>warranty (vendor supplies)</div>';
+      var plan=d.plan||[];
+      if(!plan.length){ document.getElementById('list').innerHTML='<div class="empty">No cash parts to order right now.<br>They appear here once a job is pre-diagnosed with a human-picked part #.</div>'; return; }
+      document.getElementById('list').innerHTML=plan.map(card).join('');
+    })
+    .catch(function(){ document.getElementById('gerr').textContent='Network error'; });
+}
+
+function card(p){
+  var badge = p.beats_visit===true?'<span class="badge b-beat">✓ beats the visit</span>'
+            : p.beats_visit===false?'<span class="badge b-miss">✗ will miss — order + move day</span>'
+            : '<span class="badge b-none">not scheduled yet</span>';
+  var eta = p.eta_days!=null?('ETA ~'+p.eta_days+'d'+(p.in_stock?' · in stock':'')):'ETA unknown';
+  var canOrder = !!p.part && p.has_ship_address;
+  var btn = canOrder
+    ? '<button class="order" id="ob'+p.job_id+'" onclick="doOrder('+p.job_id+')">📦 Order to beat the tech</button>'
+    : '<button class="order blocked" disabled>'+(!p.part?'needs a part #':'no ship address')+'</button>';
+  return '<div class="card" id="c'+p.job_id+'">'
+    +'<div class="top"><span class="who">'+esc(p.who||'Customer')+'</span>'+badge+'</div>'
+    +'<div class="appl">'+esc(p.appliance||'')+(p.brand?' · '+esc(p.brand):'')+' · job #'+p.job_id+(p.ship_city?' · '+esc(p.ship_city):'')+'</div>'
+    +'<div class="part">Part: <b>'+esc(p.part||'—')+'</b></div>'
+    +'<div class="meta"><span>'+eta+'</span>'+(p.scheduled?'<span>visit '+esc(String(p.scheduled).slice(0,10))+'</span>':'')+'</div>'
+    +btn+'<div class="res" id="r'+p.job_id+'"></div></div>';
+}
+
+function doOrder(jid){
+  var btn=document.getElementById('ob'+jid), res=document.getElementById('r'+jid);
+  if(!confirm('Order the part for job #'+jid+' to drop-ship to the customer?')) return;
+  btn.disabled=true; btn.textContent='Ordering…';
+  fetch(FN+'/parts-beat-tech-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,password:PW})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d&&d.ok&&d.mode==='live'&&d.ordered){ res.className='res ok'; res.textContent='✅ Ordered'+(d.order_reference?' (#'+d.order_reference+')':'')+(d.reschedule_flagged?' — ⚠ move the visit, part lands after':' — beats the tech'); btn.textContent='✅ Ordered'; }
+      else if(d&&d.ok&&d.mode==='shadow'){ res.className='res warn'; res.textContent='SHADOW — would order '+esc((d.would_order&&d.would_order.part)||'')+' (nothing bought). Flip PARTS_BEAT_TECH_LIVE=true to place for real.'; btn.disabled=false; btn.textContent='📦 Order to beat the tech'; }
+      else { res.className='res err'; res.textContent='⚠ '+((d&&(d.note||d.error))||'could not order'); btn.disabled=false; btn.textContent='📦 Order to beat the tech'; }
+    })
+    .catch(function(){ res.className='res err'; res.textContent='Network error'; btn.disabled=false; btn.textContent='📦 Order to beat the tech'; });
+}
+</script>
+</body>
+</html>
