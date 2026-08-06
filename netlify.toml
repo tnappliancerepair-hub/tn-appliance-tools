@@ -759,6 +759,14 @@
 [functions."parts-autoplace"]
   schedule = "*/15 * * * *"
 
+# parts-beat-tech (Teddy 2026-08-06) - the first-visit-fix lever. Finds CASH jobs that were
+# pre-diagnosed with a confident part #, pulls the live Marcone ETA, and decides whether that
+# part will BEAT the tech to the customer's door. SHADOW-only for now (identifies + times,
+# orders nothing). Warranty excluded by design (vendor supplies those). Off-round minute so it
+# doesn't pile onto the heavy board query. Manual: ?secret=<admin>.
+[functions."parts-beat-tech"]
+  schedule = "18 13-23 * * *"
+
 # Warranty duplicate combiner (Teddy 2026-07-15) - SquareTrade/ServicePower/AHS send the
 # same job as multiple emails -> multiple tickets. This combines same-customer+same-appliance
 # dups into the one furthest along, carries every WO number onto it (searchable), soft-cancels
