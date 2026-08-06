@@ -2102,12 +2102,58 @@
     try { const r = await fetchT('/.netlify/functions/tech-complete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: tid, completion_type: ct }) }); done = await r.json().catch(() => ({})); } catch (_) {}
     if (done && done.success) {
       if (msg) { msg.style.color = '#4ad991'; msg.textContent = '✓ Done + report filed — nice work.'; }
-      setTimeout(loadDashboard, 1200);
+      // 🚚 Catch the moment he's leaving for the next stop — the #1 spot techs forget to
+      // tap "On my way," so their next customer gets no heads-up (Danielle 8/6). One tap.
+      const nxt = nextStopAfter(jobId);
+      if (nxt && host) {
+        const nj = nxt.job || {}, nc = nxt.customer || {};
+        const nm = String(nc.first_name || nj.customer_first || 'your next customer').trim();
+        const first = nm.split(' ')[0] || 'them';
+        const city = String(nj.service_city || nc.city || '').trim();
+        host.innerHTML =
+          '<div class="tile-report" style="border:1px solid rgba(245,166,35,.5);background:rgba(245,166,35,.08)">'
+          + '<div style="font-weight:800;font-size:14px;margin-bottom:9px">🚚 Heading to ' + _she(nm) + (city ? ' in ' + _she(city) : '') + ' next?</div>'
+          + '<button class="done" style="background:#f5a623;color:#201400" onclick="event.stopPropagation();otwNext(this,' + nj.id + ')">📲 Let ' + _she(first) + ' know I\'m on the way</button>'
+          + '<button class="parts" style="margin-top:7px" onclick="event.stopPropagation();loadDashboard()">Not yet — done for now</button>'
+          + '</div>';
+        host.dataset.open = '1';
+      } else {
+        setTimeout(loadDashboard, 1200);
+      }
     } else {
       if (host) host.querySelectorAll('button').forEach(b => b.disabled = false);
       const err = (done && done.error) || 'try again';
       if (msg) { msg.style.color = '#ff8a82'; msg.textContent = /tdr|incomplete|labor|repair|diagnos|required/i.test(String(err)) ? 'Office needs a bit more to bill it — add the part / what you fixed.' : ('⚠ ' + err); }
     }
+  };
+
+  // The next stop after a given job in the current route (skips terminal ones), so a
+  // just-finished tech can one-tap "on my way" to whoever's next.
+  function nextStopAfter(jobId) {
+    const jobs = (LAST_RENDER && LAST_RENDER.jobs) || [];
+    const idx = jobs.findIndex((it) => it && it.job && Number(it.job.id) === Number(jobId));
+    if (idx < 0) return null;
+    const TERM = new Set(['completed', 'complete', 'canceled', 'cancelled', 'no_fix_possible']);
+    for (let k = idx + 1; k < jobs.length; k++) {
+      const j = (jobs[k] || {}).job || {};
+      const st = String(j.scheduling_status || j.current_status || '').toLowerCase();
+      if (j.id && !TERM.has(st)) return jobs[k];
+    }
+    return null;
+  }
+  // One tap → tell the next customer he's on the way (same gateless lifecycle path).
+  window.otwNext = async function (btn, jobId) {
+    const tid = parseInt(localStorage.getItem('tn_tech_id') || '0', 10);
+    if (!tid) { alert('Missing tech id — reopen from your Ant link.'); return; }
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await fetch('/.netlify/functions/tech-lifecycle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, technician_id: tid, action: 'tech_on_the_way' }),
+      });
+      btn.textContent = '✓ They know you\'re on the way';
+    } catch (_) { btn.textContent = '⚠ tap to retry'; btn.disabled = false; return; }
+    setTimeout(loadDashboard, 1100);
   };
 
   // ── 🎯 Part showdown on the tile — you vs Ant vs Danielle (Teddy 7/5).
