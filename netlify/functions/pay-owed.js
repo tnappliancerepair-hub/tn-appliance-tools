@@ -26,7 +26,15 @@ function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'applic
 function money(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
 async function tokenSecret() { return (await getSecret('PAY_LINK_SECRET')) || (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5'; }
 async function payToken(jobId) { return crypto.createHmac('sha256', await tokenSecret()).update('pay:' + jobId).digest('hex').slice(0, 12); }
-async function getJSON(url, opts) { try { const r = await fetch(url, Object.assign({ signal: AbortSignal.timeout(9000) }, opts || {})); return await r.json(); } catch (_) { return null; } }
+// Hard-timeout every internal read (race a manual timer) so a slow/hanging
+// dependency (e.g. addons-for-job stalling on some jobs) can NEVER stall the pay
+// page — it degrades to null and the page still loads.
+async function getJSON(url, opts, ms) {
+  ms = ms || 6000;
+  const fetchP = fetch(url, Object.assign({ signal: AbortSignal.timeout(ms) }, opts || {})).then((r) => r.json()).catch(() => null);
+  const timer = new Promise((res) => setTimeout(() => res(null), ms + 200));
+  return Promise.race([fetchP, timer]);
+}
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};

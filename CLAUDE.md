@@ -30,6 +30,16 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜💳 2026-08-06 (Thu PM) — PAYMENT PHASE 1: DURABLE PAY LINK (pay.html) SHIPPED — READ FIRST
+
+Executed the payment-strategy plan's Phase 1 (Teddy on the road: "keep working nonstop"; picked Payment first). Fixes the "sloppy, expiring Stripe link" pain (Jennifer Roher's `cs_live_` links died in 24h).
+- **THE IDEA:** stop texting a raw `checkout.stripe.com` URL. Send ONE stable **`tnapplianceexchange.net/pay.html?job=&t=`** link that NEVER expires — the Stripe session is minted FRESH when they tap Pay, so the customer never hits a dead link.
+- **`pay-owed.js`** (resolver) — token-gated (`t` = 12-hex HMAC of `pay:<job>`, keyed by vault `PAY_LINK_SECRET`||admin; shareable, not guessable). Reuses the proven **warranty-safe** reads: `get-invoice-status` (self_pay only — NEVER a covered repair), `addons-for-job` (out-of-pocket unpaid add-ons), `get-job-invoice` (itemization). Returns `{owed_cents, items[], pay_kind, paid, ...}`. **Never exposes part numbers.** `&mint=1&secret=<admin>` returns the durable link to copy+send (works TODAY for the office).
+- **`pay.html`** — clean mobile-first branded page: greeting, itemized amount due, one **Pay** button → mints a fresh Stripe checkout (card + Apple Pay). "Paid in full" / "No balance due" states; reopenable anytime.
+- **WARRANTY-SAFE:** self-pay → `kind:invoice` (amount resolved server-side, warranty-blocked in the minter); warranty jobs can ONLY charge out-of-pocket add-ons (`kind:addon`). Reuses `create-stripe-payment-link` + the existing verify/webhook recording — NO new payment plumbing.
+- **⏭️ Before wide use:** run one **$1 test** end-to-end (mint a link on a self-pay job → pay → confirm it records + flips paid). Then it's the send-anywhere link. **Phase 2** (per `docs/payment-strategy-2026-08-05.md`): one-tap "💳 Send pay link" button on the office drawer + tech job page; retire the raw-checkout-URL texts.
+- Office usage now: `pay-owed?job=<id>&mint=1&secret=<admin>` → copy the returned URL → text it to the customer. Durable, itemized, warranty-safe.
+
 ## 🗓️🐜🔎 2026-08-06 (Thu PM) — SEO/LOCAL STRATEGY LOCKED + EXECUTED (map-pack-first; /ru+/zh pruned; GBP verified clean) — READ FIRST
 
 Teddy: "do we have a solid strategy moving forward" → "execute this plan." Articulated + began executing the local-search strategy. All on `main`.
