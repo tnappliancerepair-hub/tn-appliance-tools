@@ -717,6 +717,14 @@
 [functions."review-request-sweep"]
   schedule = "30 23 * * *"
 
+# job-completion-watch (Teddy 2026-08-06) - the canonical "job is done" signal. tech_job_complete
+# fires ~0 times, so it watches the office_set_job_status→completed transition (the signal that
+# actually flows, ~7 jobs/day) and emits ONE job_completed event per job — the backbone the review
+# sweep (and future pipelines) consume. Internal event only; forward-only + per-job dedup + capped.
+# Hourly so completions are eventized before the nightly review sweep. Kill: JOB_COMPLETION_WATCH=false.
+[functions."job-completion-watch"]
+  schedule = "23 * * * *"
+
 # review-velocity-scorecard-cron — instruments the review FLYWHEEL, the hinge of the
 # whole map-pack + organic strategy. Weekly (Mon ~7:20am CT) it invokes the HTTP-
 # callable review-velocity-scorecard core with text=1: measures the funnel

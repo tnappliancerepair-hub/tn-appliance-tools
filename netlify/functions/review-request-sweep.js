@@ -62,7 +62,18 @@ exports.handler = async function (event) {
       if (jid && !seen.has(jid)) { seen.add(jid); jobIds.push(jid); srcOf[jid] = 'complete'; }
     }
   } catch (_) {}
-  // b) invoiced jobs — the real end-of-job signal that's flowing. liveDone recheck filters.
+  // b) canonical job_completed — the completion backbone (job-completion-watch emits it
+  // off the office_set_job_status→completed transition, the signal that actually flows).
+  // This is the primary source now; it catches jobs whether or not they were invoiced.
+  try {
+    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'job_completed' }, { id: 'desc' }, 300);
+    for (const r of rows || []) {
+      if (Number(r.created_at || 0) < since) continue;        // forward-only
+      const jid = Number(meta(r).job_id || 0);
+      if (jid && !seen.has(jid)) { seen.add(jid); jobIds.push(jid); srcOf[jid] = 'completed'; }
+    }
+  } catch (_) {}
+  // c) invoiced jobs — a second end-of-job signal (some finish via billing). liveDone recheck filters.
   try {
     const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'office_invoice_logged' }, { id: 'desc' }, 300);
     for (const r of rows || []) {
