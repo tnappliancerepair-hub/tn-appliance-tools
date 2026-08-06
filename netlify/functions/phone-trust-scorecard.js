@@ -86,6 +86,35 @@ async function scoreWindow(admin, hours) {
   return { total, actionable, failures, score, buckets, topFix, outbound_excluded };
 }
 
+// HUMANS-ANSWERING — reads the phone_transfer_outcome events (logged by office-texml
+// on every transferred call) and aggregates who caught vs missed. Answers "are the
+// humans answering the phones?" with per-person attribution (Sofia X, Danielle Y).
+// A single call can produce several events (Sofia missed -> Danielle answered), so we
+// dedup by call_sid for the transfer/answered totals, and count per-person catches
+// directly. NOTE: the last tier (usually Teddy) has no callback webhook, so a call
+// answered ONLY by the final tier isn't captured — Sofia + Danielle (always earlier
+// tiers) are exact; the "answered N of M" denominator can slightly undercount.
+async function humanAnswerWindow(hours) {
+  const since = Date.now() - hours * 3600000;
+  let rows = [];
+  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'phone_transfer_outcome' }, { id: 'desc' }, 400); } catch (_) { rows = []; }
+  const answeredBy = {}, missedBy = {};
+  const calls = {}; // call_sid -> { answered:bool }
+  let events = 0;
+  for (const row of (rows || [])) {
+    let m = row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+    if (!m || !(Number(m.at_ms) >= since)) continue;
+    events++;
+    const key = String(m.call_sid || `${m.caller || ''}@${Math.floor(Number(m.at_ms) / 60000)}`);
+    if (!calls[key]) calls[key] = { answered: false };
+    if (m.outcome === 'answered' && m.answered_by) { answeredBy[m.answered_by] = (answeredBy[m.answered_by] || 0) + 1; calls[key].answered = true; }
+    else if (m.outcome === 'missed' && m.missed_by) { missedBy[m.missed_by] = (missedBy[m.missed_by] || 0) + 1; }
+  }
+  const transfers = Object.keys(calls).length;
+  const answered = Object.values(calls).filter((c) => c.answered).length;
+  return { events, transfers, answered, missed_all: Math.max(0, transfers - answered), answered_by: answeredBy, missed_by: missedBy };
+}
+
 exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
   const scheduled = !!(event && event.body && (() => { try { return JSON.parse(event.body).next_run; } catch (_) { return false; } })());
@@ -95,6 +124,10 @@ exports.handler = async function (event) {
   let today;
   try { today = await scoreWindow(admin, 24); }
   catch (e) { return json(200, { ok: false, error: 'score_failed: ' + String((e && e.message) || e) }); }
+
+  // Are the humans answering? (Sofia / Danielle catch counts from the transfer log.)
+  let human = { events: 0, transfers: 0, answered: 0, missed_all: 0, answered_by: {}, missed_by: {} };
+  try { human = await humanAnswerWindow(24); } catch (_) {}
 
   const now = Date.now();
   const todayDate = isoDateCT(now);
@@ -112,18 +145,26 @@ exports.handler = async function (event) {
   trendLine = trendLine.slice(0, Math.max(0, (Number(q.days) || 7) - 1)).reverse();
 
   // Store today's score (append-only; prior-day reads filter by date so dupes are harmless).
-  try { await crud.logEvent('phone_trust_score', { date: todayDate, at_ms: now, score: today.score, total: today.total, actionable: today.actionable, failures: today.failures, buckets: today.buckets, top_fix: today.topFix }); } catch (_) {}
+  try { await crud.logEvent('phone_trust_score', { date: todayDate, at_ms: now, score: today.score, total: today.total, actionable: today.actionable, failures: today.failures, buckets: today.buckets, top_fix: today.topFix, human_answer: human }); } catch (_) {}
 
   const delta = prior ? today.score - prior.score : null;
   const arrow = delta == null ? '—' : (delta > 0 ? `▲ +${delta}` : (delta < 0 ? `▼ ${delta}` : '● even'));
   const b = today.buckets;
   const noiseBits = [b.instant_hangup ? `${b.instant_hangup} hangups` : '', b.spam ? `${b.spam} spam` : '', b.carrier_drop ? `${b.carrier_drop} carrier` : ''].filter(Boolean).join(' · ');
   const failBits = Object.entries(b).filter(([k]) => REAL_FAIL.has(k)).map(([k, v]) => `${v} ${k.replace('_', ' ')}`).join(' · ') || 'none';
+  // Humans-answering line: per-person catches (Sofia X, Danielle Y) — exact for the
+  // early tiers. Only shown when at least one call was transferred to a person today.
+  let humanLine = '';
+  if (human.transfers > 0) {
+    const catches = Object.entries(human.answered_by).sort((a, b2) => b2[1] - a[1]).map(([n, v]) => `${n} ${v}`).join(', ');
+    humanLine = `📲 Humans answered ${human.answered}/${human.transfers} transfers${catches ? ` — ${catches}` : ''}`;
+  }
   const lines = [
     `📞 Phone Trust — ${dayCT(now)}`,
     `Score: ${today.score}/100  ${arrow}${prior ? ` vs ${prior.date} (${prior.score})` : ''}`,
     `Handled right ${today.actionable - today.failures}/${today.actionable} actionable calls (of ${today.total} total)`,
     `Real misses: ${failBits}`,
+    humanLine,
     noiseBits ? `Noise (not us): ${noiseBits}` : '',
     today.topFix ? `👉 Fix next: ${FIX_HINT[today.topFix] || today.topFix}` : `✅ No real misses today — hold the line.`,
   ].filter(Boolean);
@@ -134,10 +175,11 @@ exports.handler = async function (event) {
     try { await sendSms(OWNER, readout, 'owner', 'phone_trust_score'); texted = true; } catch (_) {}
   }
 
-  return json(200, { ok: true, date: todayDate, ...today, prior: prior || null, delta, trend: trendLine.concat([{ date: todayDate, score: today.score }]), texted, readout });
+  return json(200, { ok: true, date: todayDate, ...today, human_answer: human, prior: prior || null, delta, trend: trendLine.concat([{ date: todayDate, score: today.score }]), texted, readout });
 };
 
-// Export the scorer so the non-scheduled companion (phone-score) can recompute on
-// demand — Netlify blocks manual HTTP to this scheduled function (403), so the live
-// pull moved to phone-score.js. (2026-07-30)
+// Export the scorer + the humans-answering aggregator so the non-scheduled companion
+// (phone-score) can recompute on demand — Netlify blocks manual HTTP to this scheduled
+// function (403), so the live pull moved to phone-score.js. (2026-07-30)
 exports.scoreWindow = scoreWindow;
+exports.humanAnswerWindow = humanAnswerWindow;

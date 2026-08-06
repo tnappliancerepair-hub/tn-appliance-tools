@@ -28,6 +28,7 @@ exports.handler = async function (event) {
   const hist = rows.map((r) => { const m = meta(r); return {
     date: m.date || null, score: m.score, total: m.total, actionable: m.actionable,
     failures: m.failures, top_fix: m.top_fix || m.topFix || null,
+    human_answer: m.human_answer || null,   // Sofia/Danielle catch counts (if captured that day)
     at_ms: Number(m.at_ms || 0) || Date.parse(r.created_at) || 0,
   }; }).filter((x) => x.score != null);
 
@@ -40,11 +41,12 @@ exports.handler = async function (event) {
     note: latest ? undefined : 'No stored score yet — the scheduled scorecard runs ~7PM CT daily. Use &live=1 to compute now.',
   };
 
-  // Live recompute (imports the scorer the scheduled function exports).
+  // Live recompute (imports the scorer + humans-answering aggregator the scheduled fn exports).
   if (q.live === '1') {
     try {
-      const { scoreWindow } = require('./phone-trust-scorecard');
+      const { scoreWindow, humanAnswerWindow } = require('./phone-trust-scorecard');
       out.live = await scoreWindow(admin, 24);
+      try { out.live.human_answer = await humanAnswerWindow(24); } catch (_) {}
     } catch (e) { out.live_error = String((e && e.message) || e); }
   }
 
