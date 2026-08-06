@@ -26,6 +26,13 @@
   .row b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
   .row.tot{border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-size:16px}
   .row.tot span,.row.tot b{color:var(--ink);font-weight:800}
+  .tip{margin-top:18px;border-top:1px solid var(--line);padding-top:14px;text-align:left}
+  .tip-h{font-size:14px;font-weight:700;color:var(--ink)}
+  .tip-h span{display:block;font-size:12px;font-weight:600;color:var(--green);margin-top:1px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{flex:1 1 auto;min-width:62px;padding:11px 8px;border:1.5px solid var(--line);border-radius:11px;
+    background:var(--card);color:var(--ink);font-size:15px;font-weight:700;cursor:pointer;font-variant-numeric:tabular-nums}
+  .chip.on{border-color:var(--green);background:var(--green);color:#fff}
   .pay{display:block;width:100%;margin-top:20px;padding:16px;border:0;border-radius:13px;
     background:linear-gradient(var(--green),var(--green2));color:#fff;font-size:18px;font-weight:800;
     cursor:pointer;box-shadow:0 6px 18px #137a4340}
@@ -69,25 +76,57 @@
   function stateOK(msg,sub){ card.innerHTML='<div class="state"><div class="big-ok">✅</div><div class="msg">'+msg+'</div>'+(sub?'<div class="muted">'+sub+'</div>':'')+'</div>'; }
   function stateErr(msg){ card.innerHTML='<div class="state"><div class="big-ok">🔗</div><div class="msg">'+msg+'</div><div class="muted">If you think this is a mistake, text us at 615-588-9500 and we\'ll send a fresh link.</div></div>'; }
 
+  var tipCents=0, PAYDATA=null;
+  function updatePayBtn(){
+    var btn=document.getElementById('payBtn'); if(!btn||!PAYDATA) return;
+    var total=(PAYDATA.owed_cents||0)+(tipCents>0?tipCents:0);
+    btn.innerHTML='<span class="lock">🔒</span>Pay '+fmt(total);
+  }
+  function selectTip(cents,el){
+    if(cents===-1){ var v=prompt('Tip amount (dollars):','10'); if(v==null) return; var n=Math.round(parseFloat(String(v).replace(/[^0-9.]/g,''))*100); if(!(n>0)) return; cents=n; }
+    tipCents=cents>0?cents:0;
+    var chips=card.querySelectorAll('.chip'); for(var i=0;i<chips.length;i++) chips[i].classList.remove('on');
+    if(el){ el.classList.add('on'); if(cents>0 && el.getAttribute('data-c')==='-1') el.textContent='$'+(cents/100).toFixed(0); }
+    updatePayBtn();
+  }
+
   function render(d){
     if(d.paid){ stateOK('Paid in full','Thank you — nothing else is due on this job.'); return; }
     if(d.nothing_due){ stateOK('No balance due','There\'s nothing to pay on this job right now.'); return; }
+    PAYDATA=d; tipCents=0;
     var rows=(d.items||[]).map(function(it){ return '<div class="row"><span>'+esc(it.label)+'</span><b>'+fmt(it.cents)+'</b></div>'; }).join('');
+    var techName=d.tech_first?esc(d.tech_first):'your tech';
+    var tipHtml=d.technician_id ? (
+        '<div class="tip">'
+      +   '<div class="tip-h">💚 Add a tip for '+techName+'?<span>100% goes straight to them</span></div>'
+      +   '<div class="chips">'
+      +     '<button type="button" class="chip on" data-c="0">No tip</button>'
+      +     '<button type="button" class="chip" data-c="500">$5</button>'
+      +     '<button type="button" class="chip" data-c="1000">$10</button>'
+      +     '<button type="button" class="chip" data-c="2000">$20</button>'
+      +     '<button type="button" class="chip" data-c="-1">Other</button>'
+      +   '</div>'
+      + '</div>'
+    ) : '';
     card.innerHTML=''
       +'<p class="hi">Hi '+esc(d.first)+'</p>'
       +'<p class="lead">Here\'s the balance for your'+(d.appliance?' '+esc(d.appliance):'')+' repair.</p>'
       +'<div class="due-label">Amount due</div>'
       +'<div class="due">'+fmt(d.owed_cents)+'</div>'
       +'<div class="items">'+rows+'<div class="row tot"><span>Total</span><b>'+fmt(d.owed_cents)+'</b></div></div>'
+      +tipHtml
       +'<button class="pay" id="payBtn"><span class="lock">🔒</span>Pay '+fmt(d.owed_cents)+'</button>'
       +'<div class="sub">You\'ll go to a secure Stripe checkout. This link doesn\'t expire — come back and pay anytime.</div>';
-    document.getElementById('payBtn').addEventListener('click',function(){ pay(d); });
+    document.getElementById('payBtn').addEventListener('click',function(){ pay(PAYDATA); });
+    var chips=card.querySelectorAll('.chip');
+    for(var i=0;i<chips.length;i++){ (function(c){ c.addEventListener('click',function(){ selectTip(parseInt(c.getAttribute('data-c'),10),c); }); })(chips[i]); }
   }
 
   function pay(d){
     var btn=document.getElementById('payBtn'); btn.disabled=true; btn.innerHTML='Opening secure checkout…';
     var body={ job_id:Number(JOB), kind:d.pay_kind, metadata:{ source:'pay_link' } };
     if(d.pay_kind==='addon') body.amount_cents=d.addon_base_cents;
+    if(tipCents>0){ body.tip_cents=tipCents; if(d.technician_id) body.technician_id=d.technician_id; if(d.tech_first) body.tech_first=d.tech_first; }
     fetch(FN+'/create-stripe-payment-link',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) })
       .then(function(r){return r.json();})
       .then(function(j){

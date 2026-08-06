@@ -86,8 +86,10 @@ async function alreadyRecorded(sessionId) {
 async function recordPaidSession(session) {
   const md = (session && session.metadata) || {};
   const sessionId = session && session.id;
-  const amount = (session && session.amount_total != null) ? session.amount_total / 100 : 0; // total charged (incl. tax)
-  const base = md.base_cents != null ? Number(md.base_cents) / 100 : amount; // pre-tax (the add-on price / margin basis)
+  const amount = (session && session.amount_total != null) ? session.amount_total / 100 : 0; // total charged (incl. tax + any tip)
+  const tip = md.tip_cents != null ? Number(md.tip_cents) / 100 : 0; // customer tip (100% to tech) folded into this checkout
+  const netAmount = Math.max(0, amount - tip); // the repair/add-on payment — tip excluded so it's never counted as revenue
+  const base = md.base_cents != null ? Number(md.base_cents) / 100 : netAmount; // pre-tax (the add-on price / margin basis)
   const tax = md.tax_cents != null ? Number(md.tax_cents) / 100 : 0;
   const region = md.region || '';
   const jobId = Number(md.job_id) || 0;
@@ -98,7 +100,7 @@ async function recordPaidSession(session) {
 
   await logRow('customer_payment_received', {
     session_id: sessionId, job_id: jobId, kind,
-    amount: amount.toFixed(2), base: base.toFixed(2), tax: tax.toFixed(2), region,
+    amount: netAmount.toFixed(2), base: base.toFixed(2), tax: tax.toFixed(2), tip: tip.toFixed(2), region,
     addon_key: md.addon_key || null,
     source: md.source || 'customer_portal_pay', paid_at_ms: Date.now(),
   });
@@ -137,10 +139,18 @@ async function recordPaidSession(session) {
     return { recorded: true, duplicate: false, kind, amount, job_id: 0, request_id: reqId };
   }
   // A tip: 100% to the tech (shop absorbs the Stripe fee). Credits their pay.
+  // Two shapes: a pure tip checkout (kind === 'tip', whole amount is the tip), OR a tip
+  // folded into an invoice/add-on checkout (tip_cents > 0) — split back out here so the
+  // tech gets it and it never counts as repair revenue.
   if (kind === 'tip' && md.technician_id) {
     await logRow('tech_tip_paid', {
       session_id: sessionId, job_id: jobId, technician_id: Number(md.technician_id),
       amount: amount.toFixed(2), tech_first: md.tech_first || '', source: 'customer_tip', at_ms: Date.now(),
+    });
+  } else if (tip > 0 && md.technician_id) {
+    await logRow('tech_tip_paid', {
+      session_id: sessionId, job_id: jobId, technician_id: Number(md.technician_id),
+      amount: tip.toFixed(2), tech_first: md.tech_first || '', source: 'customer_tip_with_payment', at_ms: Date.now(),
     });
   }
   // A paid add-on lands as a REQUEST flagged paid — so the office still sees it
@@ -158,9 +168,9 @@ async function recordPaidSession(session) {
       source: 'customer_paid', requested_at_ms: Date.now(),
     });
   }
-  await notifyOffice(jobId, kind, amount, md.technician_id);        // tell the shop (+ the tech) money came in
-  await smsCustomer(jobId, kind, kind === 'addon' ? base : amount); // best-effort receipt SMS
-  return { recorded: true, duplicate: false, kind, amount, job_id: jobId };
+  await notifyOffice(jobId, kind, netAmount, md.technician_id);        // tell the shop (+ the tech) money came in (tip excluded)
+  await smsCustomer(jobId, kind, kind === 'addon' ? base : netAmount); // best-effort receipt SMS
+  return { recorded: true, duplicate: false, kind, amount, tip, job_id: jobId };
 }
 
 module.exports = { recordPaidSession };

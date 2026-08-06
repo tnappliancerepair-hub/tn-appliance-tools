@@ -64,6 +64,9 @@ exports.handler = async function (event) {
   const first = cust.first_name || 'there';
   const appl = String((dash && dash.appliance && dash.appliance.type) || (dash && dash.job && dash.job.appliance_type) || '').trim();
   const selfPay = !!(inv && inv.self_pay);
+  // The tech who did the work — so a tip credits the right person (100% to them).
+  const techId = parseInt((dash && dash.tech && dash.tech.id) || (dash && dash.job && dash.job.technician_id), 10) || 0;
+  const techFirst = String((dash && dash.tech && (dash.tech.first_name || (dash.tech.name || '').split(' ')[0])) || '').trim();
 
   const items = [];
   let owedCents = 0, paid = false, payKind = 'invoice', addonBaseCents = 0;
@@ -102,6 +105,7 @@ exports.handler = async function (event) {
     ok: true, job_id: jobId, first, appliance: appl,
     self_pay: selfPay, pay_kind: payKind, addon_base_cents: addonBaseCents,
     items, owed_cents: owedCents, paid, nothing_due: owedCents <= 0 && !paid,
+    technician_id: techId, tech_first: techFirst,
   });
 };
 

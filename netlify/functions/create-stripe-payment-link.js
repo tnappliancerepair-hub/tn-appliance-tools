@@ -100,6 +100,11 @@ exports.handler = async function (event) {
   // (Teddy 2026-07-30: tech gets looped into the paid group text). Explicit wins;
   // else fall back to the job's assigned tech below.
   if (body.technician_id != null && !extraMeta.technician_id) extraMeta.technician_id = String(body.technician_id);
+  if (body.tech_first != null && !extraMeta.tech_first) extraMeta.tech_first = String(body.tech_first);
+  // Optional tip added by the customer on the pay page — 100% goes to the tech (shop
+  // eats the ~3% fee). Rides the SAME checkout as the balance; recorded + split back
+  // out server-side (record-payment) so it never counts as repair revenue. Not taxed.
+  const tipCents = Math.max(0, Math.round(Number(body.tip_cents || 0)) || 0);
 
   // Invoice payment with no amount passed -> resolve server-side (warranty guard
   // + amount from the logged invoice).
@@ -139,6 +144,7 @@ exports.handler = async function (event) {
   const sharedMeta = Object.assign({
     job_id: String(jobId), kind: kind, base_cents: String(amountCents), tax_cents: String(taxCents),
     tax_rate: String(rate), region: region, amount_cents: String(amountCents + taxCents),
+    tip_cents: String(tipCents),
     source: extraMeta.source || 'customer_portal_pay',
   }, extraMeta);
 
@@ -157,6 +163,10 @@ exports.handler = async function (event) {
       if (taxCents > 0) {
         const taxP = await stripe.prices.create({ currency: 'usd', unit_amount: taxCents, product_data: { name: 'Sales tax (' + region + ' ' + (rate * 100).toFixed(2) + '%)' } });
         items.push({ price: taxP.id, quantity: 1 });
+      }
+      if (tipCents > 0) {
+        const tipP = await stripe.prices.create({ currency: 'usd', unit_amount: tipCents, product_data: { name: 'Tip for your technician (100% to them)' } });
+        items.push({ price: tipP.id, quantity: 1 });
       }
       const link = await stripe.paymentLinks.create({
         line_items: items,
@@ -183,6 +193,12 @@ exports.handler = async function (event) {
     if (taxCents > 0) {
       lineItems.push({
         price_data: { currency: 'usd', product_data: { name: 'Sales tax (' + region + ' ' + (rate * 100).toFixed(2) + '%)' }, unit_amount: taxCents },
+        quantity: 1,
+      });
+    }
+    if (tipCents > 0) {
+      lineItems.push({
+        price_data: { currency: 'usd', product_data: { name: 'Tip for your technician (100% to them)' }, unit_amount: tipCents },
         quantity: 1,
       });
     }
