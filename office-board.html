@@ -2455,7 +2455,7 @@ function renderDrawer(d){
       </div>
       ${c.phone?`<div style="display:flex;gap:8px;margin-top:9px">
         <button id="inv-textbtn" style="flex:1;padding:14px;border-radius:10px;background:#16a34a;color:#fff;border:0;font-weight:800;font-size:15px;cursor:pointer" onclick="textInvoice(${jid},'${(''+c.phone).replace(/\\D/g,'')}')">📱 Text invoice</button>
-        <button id="inv-paybtn" style="flex:1;padding:14px;border-radius:10px;background:#7c3aed;color:#fff;border:0;font-weight:800;font-size:15px;cursor:pointer" onclick="textPayLink(${jid},'${(''+c.phone).replace(/\\D/g,'')}')">💳 Text pay-now link</button>
+        <button id="inv-paybtn" style="flex:1;padding:14px;border-radius:10px;background:#7c3aed;color:#fff;border:0;font-weight:800;font-size:15px;cursor:pointer" onclick="textPayLink(${jid},'${(''+c.phone).replace(/\\D/g,'')}')">💳 Text pay link</button>
       </div>`:`<div style="font-size:11px;color:var(--ink2);margin-top:8px">No customer phone on file — add one to text the invoice.</div>`}
       <div id="inv-note" style="font-size:11px;color:var(--ink2);margin-top:6px"></div>
     </div>
@@ -2576,13 +2576,11 @@ async function payMarkCash(jid,bal){
     toast((d&&(d.success!==false))?'Recorded ✓':'⚠ failed'); loadPayStatus(jid); }catch(_){toast('⚠ failed');}
 }
 async function payTextLink(jid,bal){
-  const def=bal>0?bal.toFixed(2):'';
-  const v=prompt('Amount for the pay link ($):',def); if(v==null) return;
-  const amt=parseFloat(v); if(!(amt>0)){toast('Enter an amount');return;}
-  try{ const d=await (await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,amount_cents:Math.round(amt*100),description:'TN Appliance — Job #'+jid})})).json();
-    if(!d||!d.url){ toast('⚠ '+((d&&d.error)||'could not create link')); return; }
-    await postJSON('send_customer_payment_link',{job_id:jid,url:d.url,amount:amt.toFixed(2),note:'Job #'+jid}).catch(()=>null);
-    toast('Pay link texted ✓'); }catch(_){toast('⚠ failed');}
+  if(!confirm('Text the customer a secure pay link for job #'+jid+'?\n\nIt never expires and shows their itemized balance (card / Apple Pay).')) return;
+  try{ const r=await fetch('/.netlify/functions/send-pay-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,sender:'office'})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d&&d.sent){ toast('Pay link texted ✓ — never expires'); }
+    else { toast('⚠ '+((d&&(d.reason||d.error))||'could not send')); } }catch(_){toast('⚠ failed');}
 }
 // 📍 Where are the parts? — parts WE ordered (distributor pickup vs shipped to home).
 async function loadPartsLocation(jid){
@@ -3391,29 +3389,26 @@ async function textInvoice(jid, phoneDigits){
   }catch(e){ const b2=document.getElementById('inv-textbtn'), n2=document.getElementById('inv-note'); if(n2){n2.style.color='#c0392b';n2.textContent='Network error — try again.';} if(b2){b2.disabled=false;b2.textContent='📱 Text invoice to customer';} }
 }
 
-// One-tap: text the customer a secure Stripe pay-now link (card/Apple Pay). Amount +
-// warranty guard resolved server-side from the logged invoice. When they pay, the
-// board auto-marks it paid and texts Teddy + Danielle.
+// One-tap: text the customer a DURABLE secure pay link (pay.html) — never expires,
+// card/Apple Pay, itemized + warranty-safe, resolved server-side. When they pay, the
+// board auto-marks it paid and texts Teddy + Danielle. (Phase 2, 2026-08-06: replaced
+// the old EXPIRING Stripe-checkout send that died in 24h.)
 async function textPayLink(jid, phoneDigits){
   const note=document.getElementById('inv-note'), btn=document.getElementById('inv-paybtn');
   const digits=(''+(phoneDigits||'')).replace(/\D/g,'');
   if(digits.length<10){ if(note){note.style.color='#c0392b';note.textContent='No customer phone on file — can\'t text.';} return; }
-  const ten=digits.slice(-10), e164='+1'+ten;
+  const ten=digits.slice(-10);
   const total=((document.getElementById('inv-total')||{}).textContent||'$0.00').trim();
-  if(!confirm('Text a pay-now link ('+total+') to the customer at '+ten+'?')) return;
-  if(btn){btn.disabled=true;btn.textContent='Saving + creating…';}
+  if(!confirm('Text a secure pay link ('+total+') to the customer at '+ten+'?\n\nThis link never expires — they can pay anytime.')) return;
+  if(btn){btn.disabled=true;btn.textContent='Saving + sending…';}
   try{ await saveInvoice(jid); }catch(_){}
+  const b2=()=>document.getElementById('inv-paybtn'), n2=()=>document.getElementById('inv-note');
   try{
-    const pr=await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,kind:'invoice',customer_phone:e164})});
-    const pd=await pr.json().catch(()=>({}));
-    const b2=()=>document.getElementById('inv-paybtn'), n2=()=>document.getElementById('inv-note');
-    if(!pr.ok||!pd||!pd.url){ const reason=(pd&&pd.error)?' ('+pd.error+')':''; if(n2()){n2().style.color='#c0392b';n2().textContent='Couldn\'t create pay link'+reason+'.';} const b=b2(); if(b){b.disabled=false;b.textContent='💳 Text pay-now link';} return; }
-    const msg="Hi, this is TN Appliance Exchange. You can pay your "+total+" invoice securely online here (card or Apple Pay): "+pd.url+"  Thank you!";
-    const r=await fetch('/.netlify/functions/human-line-send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:e164,message:msg,job_id:jid,sender:'office'})});
+    const r=await fetch('/.netlify/functions/send-pay-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jid,sender:'office'})});
     const d=await r.json().catch(()=>({}));
-    if(r.ok&&d&&d.sent){ if(n2()){n2().style.color='#16a34a';n2().textContent='✅ Pay-now link texted to '+ten+' — auto-marks paid when they pay.';} const b=b2(); if(b){b.textContent='✅ Pay link sent';} }
-    else { const reason=(d&&(d.reason||d.error))?' ('+(d.reason||d.error)+')':''; if(n2()){n2().style.color='#c0392b';n2().textContent='Could not send'+reason+'.';} const b=b2(); if(b){b.disabled=false;b.textContent='💳 Text pay-now link';} }
-  }catch(e){ const n=document.getElementById('inv-note'), b=document.getElementById('inv-paybtn'); if(n){n.style.color='#c0392b';n.textContent='Network error — try again.';} if(b){b.disabled=false;b.textContent='💳 Text pay-now link';} }
+    if(r.ok&&d&&d.sent){ if(n2()){n2().style.color='#16a34a';n2().textContent='✅ Secure pay link texted to '+ten+' — never expires; auto-marks paid when they pay.';} const b=b2(); if(b){b.textContent='✅ Pay link sent';} }
+    else { const reason=(d&&(d.reason||d.error))?' ('+(d.reason||d.error)+')':''; if(n2()){n2().style.color='#c0392b';n2().textContent='Could not send'+reason+' — open 💬 Messages to text manually.';} const b=b2(); if(b){b.disabled=false;b.textContent='💳 Text pay link';} }
+  }catch(e){ if(n2()){n2().style.color='#c0392b';n2().textContent='Network error — try again.';} const b=b2(); if(b){b.disabled=false;b.textContent='💳 Text pay link';} }
 }
 
 async function saveInvoice(jid){
