@@ -57,7 +57,7 @@ function unlock(){ PW=document.getElementById('pw').value.trim(); if(!PW)return;
 window.addEventListener('DOMContentLoaded',function(){ var s=localStorage.getItem('tn_office_pw'); if(s){PW=s; load();} });
 
 function load(){
-  fetch(FN+'/parts-beat-tech?office='+encodeURIComponent(PW))
+  fetch(FN+'/parts-beat-tech-queue?office='+encodeURIComponent(PW))
     .then(function(r){return r.json();})
     .then(function(d){
       if(!d||d.error){ document.getElementById('gerr').textContent = d&&d.error?('Wrong password or error: '+d.error):'Error'; return; }

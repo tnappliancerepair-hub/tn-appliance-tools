@@ -58,13 +58,9 @@ function pickPart(ctx) {
   return (f && (f.oem_part_number || f.verified_part_number || '')).toString().trim();
 }
 
-exports.handler = async function (event) {
-  const q = event.queryStringParameters || {};
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
-  if (!scheduled && q.secret !== admin && !(q.office && await verifyOffice(q.office))) return json(401, { ok: false, error: 'unauthorized — ?secret= or ?office=' });
-  if (String(await getSecret('PARTS_BEAT_TECH') || '').toLowerCase() === 'false') return json(200, { ok: true, disabled: true });
-
+// The identify logic, shared by the scheduled handler AND the non-scheduled office
+// reader (parts-beat-tech-queue) — because Netlify 403s manual HTTP to a scheduled fn.
+async function buildQueue() {
   // Candidates: jobs a pre-diagnosis flagged as needing a part (flag-parts-to-order
   // sets parts_status='to_order' and skips once an ETA/order exists — so this set is
   // exactly "pre-diagnosed, has a part, not yet ordered").
@@ -150,6 +146,20 @@ exports.handler = async function (event) {
     lookups_used: lookups,
     plan: plan.slice(0, 30),
   };
-  try { await crud.logEvent('parts_beat_tech_run', { mode: 'shadow', cash_candidates: plan.length, beats: willBeat, miss: willMiss, warranty_skipped: skipped.warranty, at_ms: Date.now() }); } catch (_) {}
+  return out;
+}
+
+exports.handler = async function (event) {
+  const q = event.queryStringParameters || {};
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  if (!scheduled && q.secret !== admin && !(q.office && await verifyOffice(q.office))) return json(401, { ok: false, error: 'unauthorized — ?secret= or ?office=' });
+  if (String(await getSecret('PARTS_BEAT_TECH') || '').toLowerCase() === 'false') return json(200, { ok: true, disabled: true });
+  let out;
+  try { out = await buildQueue(); } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
+  try { await crud.logEvent('parts_beat_tech_run', { mode: 'shadow', cash_candidates: out.cash_candidates, beats: out.beats_visit, miss: out.will_miss_visit, warranty_skipped: out.warranty_skipped, at_ms: Date.now() }); } catch (_) {}
   return json(200, out);
 };
+
+module.exports.buildQueue = buildQueue;
+module.exports.verifyOffice = verifyOffice;
