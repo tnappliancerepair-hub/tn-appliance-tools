@@ -717,6 +717,17 @@
 [functions."review-request-sweep"]
   schedule = "30 23 * * *"
 
+# review-backfill (Teddy 2026-08-06) - ONE-TIME "thank you for the opportunity + how'd we do?"
+# catch-up to every eligible customer whose job completed in the last 14 days (the engine was
+# starved for months). PACED across a few fires (6:12/6:26/6:42/6:56pm CDT = 23:xx UTC) because
+# the SMS breaker halts at ~50/10min and there are ~100+ eligible. Cursor-based so it walks the
+# whole window without re-texting anyone; reuses every gate + the 60-day dedup marker; self-
+# terminates when the window is walked. Kill: vault REVIEW_BACKFILL=off. Remove this block once
+# the backlog is cleared. Newest-first, so it also covers today's completions (the 6:30 sweep
+# then no-ops on them).
+[functions."review-backfill"]
+  schedule = "12,26,42,56 23 * * *"
+
 # job-completion-watch (Teddy 2026-08-06) - the canonical "job is done" signal. tech_job_complete
 # fires ~0 times, so it watches the office_set_job_status→completed transition (the signal that
 # actually flows, ~7 jobs/day) and emits ONE job_completed event per job — the backbone the review

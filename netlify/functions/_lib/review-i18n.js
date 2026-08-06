@@ -39,7 +39,7 @@ function hintOf(lang, tech, city) {
 
 const M = {
   en: {
-    ask: (f, a) => `Hi ${f}, thanks for letting TN Appliance Exchange take care of your${a ? ' ' + a : ''} repair! Quick question — how'd we do? Reply 👍 if we did great, or 👎 if we missed the mark.`,
+    ask: (f, a) => `Hi ${f} — thank you for the opportunity to take care of your${a ? ' ' + a : ''} repair! Quick question, how'd we do? Reply 👍 if we did great, or 👎 if we missed the mark.`,
     pos: (f, tech, appl, city, url) => { const o = tech && appl ? `So glad ${tech} got your ${appl} sorted, ${f}! 🙏` : tech ? `So glad ${tech} took good care of you, ${f}! 🙏` : appl ? `So glad we got your ${appl} sorted, ${f}! 🙏` : `So glad to hear it, ${f}! 🙏`; return `${o} If you've got 30 seconds, a quick Google review would mean the world to our small team${hintOf('en', tech, city)}: ${url}`; },
     neg: (f) => `I'm sorry we didn't get it right, ${f}. What could we have done better? Your reply comes straight to me — I want to make it right. — Teddy, TN Appliance`,
     ack: (f) => `Thank you, ${f} — I've got this and I'll personally look into it. We want to make it right. — Teddy, TN Appliance`,
