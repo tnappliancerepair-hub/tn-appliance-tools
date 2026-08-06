@@ -30,6 +30,12 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜📅 2026-08-06 (Thu, home PM) — DANIELLE'S 2 COMMS COMPLAINTS: scheduled-day text RE-ENABLED + on-the-way is a coaching item — READ FIRST
+
+Danielle texted Teddy two customer-comms complaints. Diagnosed both against code + live event_log.
+- **#2 "the scheduled-day text stopped" — FIXED (needs Mac loop restart to activate).** The "you're scheduled for [day]" confirmation was killed 7/22 (wrong-day/stale then) + gated behind `APPT_CONFIRM_CUSTOMER=true` which was never flipped on. Root cause = JUST that flag — the send_sms intake-gate was NOT blocking it (the confirmation body always carries the finish-upload link, which the gate allows). **Fix = re-enabled it ON BY DEFAULT in code** (`colony-loop/agents/appointment_scheduled.js`: gate now `=== 'false'` kills it, else on). It's the SAFE version: DAY ONLY (no clock time), deduped per (job, start_ms), skips tech_claim placeholders, valid-phone required. **⏭️ ACTIVATE ON THE MAC: `cd ~/tn-appliance-tools && git pull origin main && launchctl kickstart -k gui/$UID/com.tnappliance.colony-loop`** (colony loop is Mac-run; the code change doesn't take effect until pulled + restarted).
+- **#1 "customers not knowing when tech is otw" — NOT a code break (coaching item).** Verified live: the on-the-way customer text path is intact + un-gated (gate allows `en_route` tag + "on the way" body), and ALL techs ARE tapping it — but **Andre tapped only 4× in 4 days** (≈1/day; should be once per stop), so his customers don't get the heads-up on most jobs. Teddy's call: **coach the techs to hit "On my way" every stop** — no code change. (The text is day-only "on his way, see you soon," no time window, by the standing no-clock-times rule.)
+
 ## 🗓️🐜🚪 2026-08-06 (Thu, home PM) — AHS/FRONTDOOR API PLAN + STATUS PUSH WIRED (shadow) + TDR-TO-PORTAL + Brian note · AMAZON API STATUS READ — READ FIRST
 
 Teddy: plan the AHS/Frontdoor API ("what we can + what we'll use it for") → prioritize wiring the status push for the **8/11 dev start** → "possibility to send the TDR directly to the portal via our API?" → drafted the note to Brian. Then pivoted to Amazon API (assessed, both tracks Amazon-blocked). All on `main`.
