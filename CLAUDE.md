@@ -30,6 +30,32 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🔎 2026-08-06 (Thu PM) — SEO/LOCAL STRATEGY LOCKED + EXECUTED (map-pack-first; /ru+/zh pruned; GBP verified clean) — READ FIRST
+
+Teddy: "do we have a solid strategy moving forward" → "execute this plan." Articulated + began executing the local-search strategy. All on `main`.
+
+### 📐 THE STRATEGY (thesis + priority stack — the reference going forward)
+**For a local repair business, leads come from the MAP PACK, not organic blue links.** Live proof: we rank #6 organically for "refrigerator repair" (474 impr) and get **1 click** — the 3-pack above us takes it. So: **win the map pack, keep organic as supporting cast, stop diluting the domain with thin pages.**
+- **Tier 1 — Map pack (the money):** (a) **Reviews velocity = #1 lever** (was 0; fixed this session — completion trigger + backfill). (b) GBP hygiene. (c) **LA + Clarksville visibility** (invisible/SAB-hidden — the geo-expansion gap).
+- **Tier 2 — Convert existing visibility:** striking-distance terms (appliance repair nashville #5.2/324impr, refrigerator repair #6.1) → reviews + light on-page → top-3.
+- **Tier 3 — Quality hygiene (the noindex question):** prune thin/translated dead mass so it stops dragging domain quality. Supports Tier 1-2, doesn't replace it.
+- **Tier 4 — Content moat (slow):** `/fix/` authority content + unique local content; feeds AI/voice search.
+
+### ✅ EXECUTED THIS SESSION
+- **Tier 3 — /ru + /zh pruned (164 pages).** Live `gsc-dead-pages`: **698 of 837 sitemap URLs = 0 impressions/90d (83%)**, ~568 of them machine-translated language pages. /ru (98) + /zh (66) target languages with NO local community (rule = only es/vi/ar/hi/fr) → set `noindex,follow` on all 164 + removed all 164 from `sitemap.xml` (837→673, still valid XML). Did NOT add robots.txt Disallow (would block the crawl that reads the noindex).
+- **Tier 1 — GBP category VERIFIED CLEAN** (live `gbp-profile`): primary "Appliance repair service" + "Dryer vent cleaning service", **no used-store category**. The "used appliance store" organic ghost is legacy brand-name ("Exchange") + old off-site citations, NOT GBP — lower-priority off-site citation cleanup, not a category fix.
+- **Tier 1 — Reviews: EXECUTING** (completion trigger live, backfill fires tonight — see the AM entry).
+
+### 🔎 LIVE RANKING FACTS (pulled from Google APIs this session, not cache)
+- **Indexed floor: 792 pages** shown-in-90d (+49 since Aug 3), 139 on page 1. Organic climbing 383→792 over weeks.
+- **Only brand terms earn clicks** ("tn appliance exchange" #3.7/21clk); all repair terms 0-2 clicks (map pack eats them).
+- **Used-appliance ghost** still pulls wrong-intent (scratch-and-dent / used-store terms rank + get the few non-brand clicks).
+
+### ⏭️ OPEN / NEXT (the honest gaps)
+1. **LA + Clarksville map pack (Tier 1, OFF-SITE = Teddy):** listings are invisible (SAB-hidden, 0 of grid). Needs GBP service-area verification + local reviews. Can't be done in code — Teddy's Google-account action. Biggest remaining Tier-1 lever after reviews.
+2. **es/fr/vi/hi/ar dead pages (Tier 3, DECISION):** ~410 pages, most 0-impr BUT these are REAL target communities (es has 29 ranking, fr 5…). Judgment call on prune aggressiveness — keep ranking pages + per-language home/top-service, noindex the dead deep permutations. Awaiting Teddy's call on how hard to prune real-community pages.
+3. **Sustain reviews:** watch velocity climb post-backfill; it's now self-sustaining via the completion trigger.
+
 ## 🗓️🐜📞🛒🔎 2026-08-06 (Thu) — PHONE-TRANSFER-OUTCOME LOGGING (Sofia/Danielle catch-rate) + "BEAT-THE-TECH" PARTS ORCHESTRATOR (shadow) + SEO/MAP-PACK READ + REVIEW-ENGINE STARVATION ROOT-FIXED — READ FIRST
 
 All on `main` (Netlify auto-deploys). Egress this session: Xano + applianceant.com reachable; **403 on tnapplianceexchange.net + *.netlify.app** — verified everything via Xano public reads (`list_recent_event_log?action=&days_back=&limit=`) + code; live invokes are Teddy-side.
