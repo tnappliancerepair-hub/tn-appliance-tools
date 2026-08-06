@@ -134,7 +134,7 @@ exports.handler = async function (event) {
     return j(200, {
       ok: true, mode: 'dry-run', window_days: days, completed_in_window: allJobs.length,
       examined: examine.length, would_text: eligible.length, skipped: skipped.length,
-      note: `DRY-RUN — sends nothing. ${allJobs.length} completed in ${days}d. Scheduled fires (6:18/6:36/6:54pm CT) send paced batches of ≤${max} until all eligible are asked. Manual send: &confirm=SEND (9am–7pm CT).`,
+      note: `DRY-RUN — sends nothing. ${allJobs.length} completed in ${days}d. Paced scheduled fires (6:12–6:56pm CT) send batches of ≤${max} until all eligible are asked. Manual send: &confirm=SEND (9am–7pm CT).`,
       would_text_list: eligible.slice(0, 40).map((r) => ({ job_id: r.job_id, first: r.first, phone: mask(r.phone), appliance: r.appl, city: r.city, lang: r.lang })),
     });
   }
