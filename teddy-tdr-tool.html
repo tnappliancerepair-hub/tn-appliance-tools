@@ -1350,6 +1350,13 @@ function renderReview() {
         '<div id="oemHintWrap">' + oemHint + '</div>' +
       '</div>' +
 
+      // 🔧 One-tap: tell the office this job needs this part (obvious alert — board
+      // column + 📋 note + texts Danielle & Sofia). Additive; does not affect submit.
+      '<button type="button" id="needPartBtn" onclick="flagNeedPart()" ' +
+        'style="width:100%;margin:2px 0 4px;padding:14px;border:none;border-radius:9px;background:#c2410c;color:#fff;font-size:15px;font-weight:800;font-family:var(--sans);cursor:pointer;box-shadow:0 3px 10px rgba(194,65,12,.28);">' +
+        '🔧 Office — I need this part' + '</button>' +
+      '<div id="needPartOut" style="font-size:13px;font-weight:700;margin:4px 0 12px;text-align:center;"></div>' +
+
       '<div class="part-block">' +
         '<div class="part-row-label amazon">AMAZON EQUIVALENT</div>' +
         '<div class="part-row">' +
@@ -1547,6 +1554,24 @@ window.teddyFindPart = function (i) {
   var url = (s.url.slice(-1) === '=') ? (s.url + encodeURIComponent(q)) : s.url;
   try { window.open(url, '_blank', 'noopener'); } catch (_) { location.href = url; }
 };
+
+// 🔧 One-tap "office, I need this part" — flags the job + notifies the office (board
+// column + 📋 note + texts Danielle & Sofia). Reads whichever part # is filled in.
+async function flagNeedPart(){
+  const part=((document.getElementById('oemPartInput')||{}).value||(document.getElementById('amazonPartInput')||{}).value||state.oemPartNumber||state.amazonPartNumber||'').trim();
+  const out=document.getElementById('needPartOut'), btn=document.getElementById('needPartBtn');
+  if(!part){ if(out){out.style.color='#c2410c';out.textContent='Type the part number first, then tap.';} return; }
+  if(!state.jobId){ if(out){out.style.color='#c2410c';out.textContent='No job loaded.';} return; }
+  if(btn){btn.disabled=true;btn.textContent='Alerting the office…';}
+  try{
+    const r=await fetch('/.netlify/functions/flag-part-needed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(state.jobId,10),part:part,by:'Teddy'})});
+    const d=await r.json().catch(function(){return {};});
+    if(r.ok&&d&&d.ok){
+      if(out){out.style.color='#1f7a3f';out.textContent='✅ Office alerted — '+(d.part||part)+(d.texted&&d.texted.length?(' (texted '+d.texted.join(' & ')+')'):(d.already_alerted?' (already sent earlier)':''));}
+      if(btn){btn.textContent='✅ Office notified';}
+    } else { if(out){out.style.color='#c2410c';out.textContent='Could not alert — '+((d&&d.error)||'try again');} if(btn){btn.disabled=false;btn.textContent='🔧 Office — I need this part';} }
+  }catch(e){ if(out){out.style.color='#c2410c';out.textContent='Network error — try again.';} if(btn){btn.disabled=false;btn.textContent='🔧 Office — I need this part';} }
+}
 
 async function marconePrice(){
   const pn=(document.getElementById('oemPartInput').value||'').trim();

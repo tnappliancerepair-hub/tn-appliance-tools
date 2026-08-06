@@ -409,6 +409,11 @@
         html += '<div class="ant-tdr-field-empty-prompt">' + escapeHtml(f.prompt) + '</div>';
       }
       html += '</div></div>';
+      // 🔧 One-tap: tell the office this job needs this part (board column + 📋 note +
+      // texts Danielle & Sofia). Sits right under the part field. Additive.
+      if (isParts && canEdit) {
+        html += '<button onclick="window.__antTdrNeedPart()" style="width:100%;margin:2px 0 8px;padding:12px;border:none;border-radius:9px;background:#c2410c;color:#fff;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 3px 9px rgba(194,65,12,.28)">🔧 Office — I need this part</button>';
+      }
     });
     // Photos + signature are intentionally NOT on the TDR (Teddy 2026-07-07): they
     // flow into the system on their own (media → database, signature → sign flow),
@@ -1268,6 +1273,31 @@
     var q = el ? String(el.value || '').trim() : '';
     var url = (s.url.slice(-1) === '=') ? (s.url + encodeURIComponent(q)) : s.url;
     try { window.open(url, '_blank', 'noopener'); } catch (_) { location.href = url; }
+  };
+
+  // 🔧 One-tap "Office, I need this part" — the pre-diagnosis alert. Tech/owner watches
+  // the video, knows the part, taps this → the office board lights up (Needs-Parts column
+  // + 📋 note) AND Danielle + Sofia get a text. Order it to beat the tech to the door.
+  // PURELY ADDITIVE — does not touch the TDR save or the video→text→owner flow.
+  window.__antTdrNeedPart = function () {
+    if (!jobId) { alert('Open this from the job first.'); return; }
+    var preset = usedPartsList().join(', ');
+    var part = window.prompt('Part the office needs to order for this job\n(name + number, e.g. "Heating element WPW10295370"):', preset);
+    if (part == null) return;
+    part = String(part).trim();
+    if (!part) { alert('Enter the part first.'); return; }
+    fetch('/.netlify/functions/flag-part-needed', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: Number(jobId), part: part, by: (role === 'tech' ? 'tech' : 'office') })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d && d.ok) {
+        alert(d.already_alerted
+          ? '✅ Already flagged — the office was told about "' + (d.part || part) + '".'
+          : '✅ Sent to the office — texted ' + ((d.texted || []).join(' & ') || 'Danielle & Sofia') + '. They\'ll order "' + (d.part || part) + '" to beat you to the door.');
+      } else {
+        alert('⚠ Could not send it: ' + ((d && (d.error || d.note)) || 'try again'));
+      }
+    }).catch(function () { alert('⚠ Network error — try again on better signal.'); });
   };
 
   // ── Part(s) used — MULTI-PART editor (Teddy 2026-07-07). One box per part, name +
