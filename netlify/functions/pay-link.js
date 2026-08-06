@@ -15,6 +15,7 @@
 //   POST { job_id, amount? }  ->  { ok, url, qr_svg, owed_cents, items, paid, pay_kind, ... }
 'use strict';
 const qrcode = require('qrcode-generator');
+const { getSecret } = require('./_lib/secrets');
 const { payToken } = require('./pay-owed');
 
 const FN = 'https://tnapplianceexchange.net/.netlify/functions';
@@ -32,6 +33,17 @@ async function getJSON(url, opts, ms) {
 function qrSvg(text) {
   try { const qr = qrcode(0, 'M'); qr.addData(String(text)); qr.make(); return qr.createSvgTag({ cellSize: 6, margin: 2 }); }
   catch (_) { return ''; }
+}
+// Fee-free "they paid you directly" wallets — only surfaced when the shop's receiving
+// handle is set in the vault (SHOP_ZELLE / SHOP_VENMO / SHOP_CASHAPP), so a tech never
+// sees a method the shop can't actually take. These are public receiving handles.
+async function wallets() {
+  const [z, v, c] = await Promise.all([getSecret('SHOP_ZELLE'), getSecret('SHOP_VENMO'), getSecret('SHOP_CASHAPP')]);
+  const w = {};
+  if (z) w.zelle = String(z).trim();
+  if (v) w.venmo = String(v).trim();
+  if (c) w.cashapp = String(c).trim();
+  return w;
 }
 
 exports.handler = async function (event) {
@@ -65,5 +77,6 @@ exports.handler = async function (event) {
     owed_cents: owed.owed_cents || 0, items: owed.items || [], paid: !!owed.paid,
     nothing_due: !!owed.nothing_due, pay_kind: owed.pay_kind || 'invoice',
     self_pay: !!owed.self_pay, first: owed.first || 'there', appliance: owed.appliance || '',
+    wallets: await wallets(),
   });
 };

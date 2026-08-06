@@ -1428,21 +1428,36 @@ function renderGetPaid(){
   const owed=(d.owed_cents||0)/100;
   const amtVal=owed>0?owed.toFixed(2):'';
   const itemsHtml=(d.items||[]).length? '<div style="font-size:12.5px;color:var(--ink2,#555);margin:2px 0 10px">'+d.items.map(function(it){return esc(it.label)+' $'+(it.cents/100).toFixed(2);}).join(' · ')+'</div>':'';
+  const w=(d.wallets)||{};
+  const HD='font-weight:800;font-size:11px;color:var(--dim);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.05em';
+  const CHIP='flex:1 1 auto;min-width:calc(33% - 6px);padding:11px 6px;border:1px solid var(--line,#d4d9e0);background:#fff;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer';
+  // "Paid you directly" chips — cash/check always; Zelle/Venmo/Cash App only when the
+  // shop's handle is configured in the vault (so a tech never sees a method we can't take).
+  let directChips='<button type="button" class="gp-rec" data-m="cash" style="'+CHIP+'">💵 Cash</button>'
+    +'<button type="button" class="gp-rec" data-m="check" style="'+CHIP+'">🧾 Check</button>';
+  if(w.zelle)   directChips+='<button type="button" class="gp-rec" data-m="zelle"   data-h="'+esc(w.zelle)+'" style="'+CHIP+'">Zelle</button>';
+  if(w.venmo)   directChips+='<button type="button" class="gp-rec" data-m="venmo"   data-h="'+esc(w.venmo)+'" style="'+CHIP+'">Venmo</button>';
+  if(w.cashapp) directChips+='<button type="button" class="gp-rec" data-m="cashapp" data-h="'+esc(w.cashapp)+'" style="'+CHIP+'">Cash App</button>';
   body.innerHTML=
-     '<div style="font-size:13px;color:var(--dim);margin-bottom:8px">Get '+esc(d.first||'the customer')+' paid — every option opens the same secure page (card &amp; Apple Pay), and the link never expires.</div>'
+     '<div style="font-size:13px;color:var(--dim);margin-bottom:8px">Get '+esc(d.first||'the customer')+' paid — however works for them. The card options open the same secure page (card · Apple Pay · Google Pay) and the link never expires.</div>'
     +'<label style="font-size:12px;color:var(--dim)">Amount due ($)</label>'
     +'<input id="gp-amt" inputmode="decimal" value="'+amtVal+'" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:18px;font-weight:700;margin:4px 0 10px">'
     +itemsHtml
+    +'<div style="'+HD+'">Card · Apple Pay · Google Pay</div>'
     +'<button class="btn primary" id="gp-qr" style="width:100%;background:#127a4a;margin-bottom:8px;font-size:16px;padding:14px">📱 Show QR — they scan &amp; pay</button>'
-    +'<button class="btn" id="gp-text" style="width:100%;background:#fff;border:1px solid #bfe3cf;color:#127a4a;margin-bottom:8px">📲 Text them the link</button>'
-    +'<button class="btn" id="gp-cash" style="width:100%;background:#fff;border:1px solid var(--line,#d4d9e0);margin-bottom:8px">💵 Cash / check collected</button>'
+    +'<div style="display:flex;gap:6px;margin-bottom:8px"><button class="btn" id="gp-text" style="flex:1;background:#fff;border:1px solid #bfe3cf;color:#127a4a">📲 Text link</button>'
+      +'<button class="btn" id="gp-copy" style="flex:1;background:#fff;border:1px solid var(--line,#d4d9e0)">📋 Copy link</button></div>'
     +'<button class="btn" id="gp-charge" style="width:100%;background:#fff;border:1px solid var(--line,#d4d9e0)">💳 Charge on my phone</button>'
+    +'<div style="'+HD+'">Paid you directly — mark it collected</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+directChips+'</div>'
     +'<div id="gp-qrbox" style="display:none;text-align:center;margin-top:14px;padding:16px;background:#fff;border:1px solid var(--line,#d4d9e0);border-radius:12px"></div>'
-    +'<div id="gp-out" style="font-size:12.5px;margin-top:9px;min-height:14px"></div>';
+    +'<div id="gp-out" style="font-size:12.5px;margin-top:10px;min-height:14px"></div>';
   document.getElementById('gp-qr').onclick=showQR;
   document.getElementById('gp-text').onclick=textDurableLink;
-  document.getElementById('gp-cash').onclick=markCashCollected;
+  document.getElementById('gp-copy').onclick=copyDurableLink;
   document.getElementById('gp-charge').onclick=chargeOnPhone;
+  const recs=body.querySelectorAll('.gp-rec');
+  for(let i=0;i<recs.length;i++){ (function(el){ el.onclick=function(){ recordPaid(el.getAttribute('data-m'),el.getAttribute('data-h')||''); }; })(recs[i]); }
 }
 // Confirm/record the self-pay amount + refresh the durable url/qr so every option charges
 // exactly what the tech typed (warranty add-on amount is resolved server-side, untouched).
@@ -1481,18 +1496,33 @@ async function chargeOnPhone(){
   if(d&&d.url){ window.location.href=d.url; }   // durable page on the tech's phone — hand it over
   else if(out){ out.style.color='#c0392b'; out.textContent='Could not open — try the QR or Text.'; }
 }
-async function markCashCollected(){
+async function copyDurableLink(){
+  const out=document.getElementById('gp-out'), btn=document.getElementById('gp-copy');
+  if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Getting the link…'; }
+  const d=await syncPayAmount();
+  if(!d||!d.url){ if(out){out.style.color='#c0392b';out.textContent='Could not build the link — try Text or QR.';} return; }
+  try{ await navigator.clipboard.writeText(d.url); if(out){out.style.color='#127a4a';out.innerHTML='✅ Link copied — paste it in a text, email, or WhatsApp.';} }
+  catch(_){ window.prompt('Copy this pay link:', d.url); if(out) out.textContent=''; }
+}
+// Record a payment the customer made directly (cash / check / Zelle / Venmo / Cash App).
+// For a digital wallet, show them WHERE to send first, then record on confirm. Marks paid.
+const PAY_LABEL={cash:'Cash',check:'Check',zelle:'Zelle',venmo:'Venmo',cashapp:'Cash App'};
+async function recordPaid(method,handle){
   const out=document.getElementById('gp-out'), inp=document.getElementById('gp-amt');
   const amt=inp?parseFloat(String(inp.value||'').replace(/[^0-9.]/g,'')):0;
   if(!amt||amt<=0){ if(out){out.style.color='#c2691c';out.textContent='Enter the amount first.';} if(inp)inp.focus(); return; }
-  const method=(prompt('Cash or check?','cash')||'cash').trim().toLowerCase();
-  const btn=document.getElementById('gp-cash'); if(btn) btn.disabled=true;
+  const label=PAY_LABEL[method]||method;
+  const who=(_payData&&_payData.first)||'them';
+  const ok=handle
+    ? confirm('Have '+who+' send $'+amt.toFixed(2)+' to our '+label+':\n\n'+handle+'\n\nTap OK once it comes through.')
+    : confirm('Mark $'+amt.toFixed(2)+' collected — '+label+'?');
+  if(!ok) return;
   if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Recording…'; }
   try{
-    const d=await xanoPost('record_payment_received',{job_id:JOB_ID,amount:amt,method:method,reference:'Service payment',recorded_by:TECH_ID||0});
-    if(d&&(d.success!==false)){ if(out){out.style.color='#127a4a';out.innerHTML='✅ Recorded <b>$'+amt.toFixed(2)+'</b> ('+esc(method)+') — marked paid.';} loadGetPaid(); }
-    else { if(out){out.style.color='#c0392b';out.textContent='⚠ '+((d&&d.error)||'failed');} if(btn) btn.disabled=false; }
-  }catch(_){ if(out){out.style.color='#c0392b';out.textContent='⚠ connection error.';} if(btn) btn.disabled=false; }
+    const d=await xanoPost('record_payment_received',{job_id:JOB_ID,amount:amt,method:method,reference:label+' payment',recorded_by:TECH_ID||0});
+    if(d&&(d.success!==false)){ if(out){out.style.color='#127a4a';out.innerHTML='✅ Recorded <b>$'+amt.toFixed(2)+'</b> ('+esc(label)+') — marked paid.';} loadGetPaid(); }
+    else { if(out){out.style.color='#c0392b';out.textContent='⚠ '+((d&&d.error)||'failed');} }
+  }catch(_){ if(out){out.style.color='#c0392b';out.textContent='⚠ connection error.';} }
 }
 
 // 🔁 ServicePower dispatch status push — SHADOW by default (servicepower-push.js logs what
