@@ -17,6 +17,7 @@
 'use strict';
 
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
+const crud = require('./_lib/xano/metadata-crud');
 
 const SELF = 'https://tnapplianceexchange.net/.netlify/functions/office-texml';
 function esc(s) { return String(s || '').replace(/[<&>"]/g, (c) => ({ '<': '&lt;', '&': '&amp;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -34,13 +35,44 @@ function dialLegs(legs, callerId, timeout, actionUrl) {
     .join('\n');
   return `  <Dial callerId="${esc(callerId)}" timeout="${timeout}" answerOnBridge="true"${action}>\n${inner}\n  </Dial>`;
 }
-// Telnyx posts the action webhook form-encoded; pull DialCallStatus out of the body.
-function dialStatus(event) {
+// Telnyx posts the action webhook form-encoded; pull one field out of the body.
+function formField(event, name) {
   try {
     const body = event && event.body ? event.body : '';
-    const m = /(?:^|&)DialCallStatus=([^&]*)/i.exec(body);
-    return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')).toLowerCase() : '';
+    const re = new RegExp('(?:^|&)' + name + '=([^&]*)', 'i');
+    const m = re.exec(body);
+    return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
   } catch (_) { return ''; }
+}
+function dialStatus(event) { return String(formField(event, 'DialCallStatus')).toLowerCase(); }
+
+// PHONE-TRANSFER-OUTCOME LOGGING (Teddy 2026-08-06). Pure measurement, additive —
+// records who answered vs missed each transferred call so we can answer "are the
+// humans answering the phones?" and attribute call-catching to Sofia/Danielle/Teddy.
+// Wrapped in a short race so a slow Xano can NEVER delay the caller's next ring
+// (crud.logEvent already has its own retry/timeout; this is the hard on-call cap).
+function raceLog(action, metadata, capMs) {
+  const cap = capMs || 1200;
+  return Promise.race([
+    crud.logEvent(action, metadata),
+    new Promise((r) => setTimeout(r, cap)),
+  ]).catch(() => null);
+}
+async function logTransferOutcome({ tier, answered, status, event, leg }) {
+  if (!tier) return;
+  await raceLog('phone_transfer_outcome', {
+    outcome: answered ? 'answered' : 'missed',
+    answered_by: answered ? tier.name : '',
+    missed_by: answered ? '' : tier.name,
+    tier: tier.name,
+    tier_index: (leg - 2),
+    dial_status: status || '',
+    caller: formField(event, 'From') || '',
+    to: formField(event, 'To') || '',
+    call_sid: formField(event, 'CallSid') || '',
+    leg,
+    at_ms: Date.now(),
+  });
 }
 
 exports.handler = async function (event) {
@@ -65,10 +97,15 @@ exports.handler = async function (event) {
   let leg = parseInt(((event && event.queryStringParameters) || {}).leg, 10);
   if (!(leg >= 1)) leg = 1;
 
-  // A prior tier's ring already connected → done.
+  // A prior tier's ring already reported back. The action was set to ?leg=<i+2> for the
+  // tier at index i, so the tier just rung = tiers[leg-2]. Log whether it answered or was
+  // missed (measurement only — never changes the ring behavior below).
   if (leg > 1) {
     const st = dialStatus(event);
-    if (st === 'completed' || st === 'answered' || st === 'bridged') return xmlResp('  <Hangup/>');
+    const answered = st === 'completed' || st === 'answered' || st === 'bridged';
+    const rung = tiers[leg - 2];
+    await logTransferOutcome({ tier: rung, answered, status: st, event, leg });
+    if (answered) return xmlResp('  <Hangup/>');
   }
 
   // Ring the first reachable tier at or after `leg`; chain to the next if it doesn't answer.
