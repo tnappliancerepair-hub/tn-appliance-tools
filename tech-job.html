@@ -813,7 +813,7 @@ function render(){
       </div>
 
       <div class="card" id="pay-card" style="display:none">
-        <h3>💳 Collect payment</h3>
+        <h3>💳 Get paid <span id="gp-status" style="font-size:12px;font-weight:800;margin-left:auto"></span></h3>
         <div id="pay-body"></div>
       </div>
 
@@ -874,21 +874,8 @@ function render(){
       </div>
 
       <details class="more-fold" style="margin-top:6px">
-        <summary style="cursor:pointer;padding:13px 14px;background:#f4f6f9;border:1px solid var(--line,#d4d9e0);border-radius:12px;font-weight:800;font-size:15px;color:#33415c">🧰 More — payment &amp; customer info</summary>
+        <summary style="cursor:pointer;padding:13px 14px;background:#f4f6f9;border:1px solid var(--line,#d4d9e0);border-radius:12px;font-weight:800;font-size:15px;color:#33415c">🧰 More — customer info</summary>
         <div style="margin-top:8px">
-          <div class="card" id="takepay-card">
-            <h3>💳 Take a payment <span id="tp-status" style="font-size:12px;font-weight:800;margin-left:auto"></span></h3>
-            <div style="font-size:12px;color:var(--ink2,#555);margin:-2px 0 9px;line-height:1.5">See if they've paid, and collect what's owed — card, cash/check, or text them a link. Works on any job (out-of-pocket extras count even on warranty).</div>
-            <label style="font-size:12px;color:var(--dim)">What's it for?</label>
-            <input id="tp-note" placeholder="e.g. coil cleaning, diagnostic fee" style="width:100%;padding:11px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:15px;margin:4px 0 9px">
-            <label style="font-size:12px;color:var(--dim)">Amount ($)</label>
-            <input id="tp-amt" inputmode="decimal" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:16px;margin:4px 0 11px">
-            <button class="btn primary" id="tp-charge" style="width:100%;background:#127a4a;margin-bottom:8px">💳 Charge a card now</button>
-            <button class="btn" id="tp-cash" style="width:100%;background:#fff;border:1px solid var(--line,#d4d9e0);margin-bottom:8px">💵 Mark cash/check collected</button>
-            <button class="btn" id="tp-text" style="width:100%;background:#fff;border:1px solid #bfe3cf;color:#127a4a">📲 Text them a pay link</button>
-            <div id="tp-note-out" style="font-size:12.5px;margin-top:9px"></div>
-          </div>
-
           <div class="card">
             <h3>👤 Customer</h3>
             <div class="cust-name">${esc(name)}</div>
@@ -1064,10 +1051,9 @@ function wireActions(){
   renderCustomerAddons();
   renderPartsLocation();
   renderJobParts();
-  wireTakePayment();
   mountConvo();
   applyLifecycleButtons();   // grey out steps already done (no more scary "illegal_transition")
-  loadPayment();             // self-pay jobs: let the tech text the customer a card-pay link from the field
+  loadGetPaid();             // ONE "Get paid" card — QR / text / cash / charge, all via the durable pay page
   // Ant Diagnose card removed for simplicity (Teddy 2026-06-23: "we don't need three talk-to-Ant buttons").
 }
 
@@ -1420,71 +1406,93 @@ async function nudgePendingReturns(){
   }catch(_){}
 }
 
-// ── 💳 Take a payment (on-the-spot, any job incl. warranty) ────
-// The everyday "the customer is paying me now" tool. Charges via Stripe
-// kind:'addon' (NOT warranty-gated) so it works on warranty jobs too.
-function wireTakePayment(){
-  const charge=document.getElementById('tp-charge'), txt=document.getElementById('tp-text'), cash=document.getElementById('tp-cash');
-  if(charge) charge.onclick=()=>takePayment('charge');
-  if(txt) txt.onclick=()=>takePayment('text');
-  if(cash) cash.onclick=markCashCollected;
-  loadPayStatusTech();
+// 💳 ONE "Get paid" card — the DURABLE pay page (pay.html, never expires) behind every
+// option: 📱 QR the customer scans · 📲 text the durable link · 💵 cash/check · 💳 charge
+// on my phone. pay-link mints the link + reads what's owed via pay-owed, which charges
+// out-of-pocket add-ons ONLY on a covered warranty job — so a covered repair never bills.
+let _payData=null;
+async function loadGetPaid(){
+  const card=document.getElementById('pay-card'); if(!card||!JOB_ID) return;
+  try{ _payData=await fetch('/.netlify/functions/pay-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID})}).then(r=>r.json()); }
+  catch(_){ _payData=null; }
+  renderGetPaid();
 }
-// Show paid / balance-due at a glance — auto from real payments.
-async function loadPayStatusTech(){
-  const el=document.getElementById('tp-status'); if(!el||!JOB_ID) return;
-  try{
-    const d=await (await fetch('/.netlify/functions/job-payment?job_id='+JOB_ID,{cache:'no-store'})).json();
-    if(!d||!d.ok) return;
-    const color={paid:'#127a4a',partial:'#c2691c',unpaid:'#c0392b',covered:'#2c6fb0',warranty_pending:'#9a7b2e',none:'#8a96a8'}[d.status]||'#8a96a8';
-    const icon={paid:'💵 ',partial:'⚠️ ',unpaid:'🔴 ',covered:'🛡️ ',warranty_pending:'🏦 ',none:''}[d.status]||'';
-    // A warranty bill that's ALSO carrying a customer add-on: show the warranty
-    // amount muted (waiting on the vendor) under the red add-on-due line.
-    const warrLine=(Number(d.warranty_billed||0)>0 && d.status!=='warranty_pending' && d.status!=='paid') ? '<div style="color:#9a7b2e;font-size:12.5px;opacity:.85;margin-top:2px">🏦 Warranty billed $'+Number(d.warranty_billed).toFixed(2)+' · awaiting payment</div>' : '';
-    // What the tech made on this job — straight off the office's logged invoice.
-    const made=Number(d.tech_pay||0)>0 ? '<div style="color:#127a4a;font-weight:800;font-size:15px;margin-top:4px">💰 You made $'+Number(d.tech_pay).toFixed(2)+' on this job'+(d.status==='paid'?' — paid ✅':'')+'</div>' : '';
-    el.style.color=color; el.innerHTML='<span>'+icon+(d.label||'')+'</span>'+warrLine+made;
-    // prefill the amount with the balance due so collecting is one tap
-    const amtIn=document.getElementById('tp-amt');
-    if(amtIn && !amtIn.value && Number(d.balance||d.due)>0) amtIn.value=Number(d.balance||d.due).toFixed(2);
-  }catch(_){}
+function renderGetPaid(){
+  const card=document.getElementById('pay-card'), body=document.getElementById('pay-body'), st=document.getElementById('gp-status');
+  const d=_payData;
+  if(!card||!body||!d||!d.ok){ if(card) card.style.display='none'; return; }
+  card.style.display='';
+  if(d.paid){ if(st){st.style.color='#127a4a';st.textContent='✅ Paid';} body.innerHTML='<div style="color:#127a4a;font-weight:800;font-size:16px">✅ Paid in full — nothing to collect.</div>'; return; }
+  if(d.nothing_due && !d.self_pay){ if(st){st.style.color='#2c6fb0';st.textContent='🛡️ Covered';} body.innerHTML='<div style="color:#2c6fb0;font-size:14px">🛡️ Covered by warranty — nothing to collect from the customer.</div>'; return; }
+  if(st) st.textContent='';
+  const owed=(d.owed_cents||0)/100;
+  const amtVal=owed>0?owed.toFixed(2):'';
+  const itemsHtml=(d.items||[]).length? '<div style="font-size:12.5px;color:var(--ink2,#555);margin:2px 0 10px">'+d.items.map(function(it){return esc(it.label)+' $'+(it.cents/100).toFixed(2);}).join(' · ')+'</div>':'';
+  body.innerHTML=
+     '<div style="font-size:13px;color:var(--dim);margin-bottom:8px">Get '+esc(d.first||'the customer')+' paid — every option opens the same secure page (card &amp; Apple Pay), and the link never expires.</div>'
+    +'<label style="font-size:12px;color:var(--dim)">Amount due ($)</label>'
+    +'<input id="gp-amt" inputmode="decimal" value="'+amtVal+'" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:18px;font-weight:700;margin:4px 0 10px">'
+    +itemsHtml
+    +'<button class="btn primary" id="gp-qr" style="width:100%;background:#127a4a;margin-bottom:8px;font-size:16px;padding:14px">📱 Show QR — they scan &amp; pay</button>'
+    +'<button class="btn" id="gp-text" style="width:100%;background:#fff;border:1px solid #bfe3cf;color:#127a4a;margin-bottom:8px">📲 Text them the link</button>'
+    +'<button class="btn" id="gp-cash" style="width:100%;background:#fff;border:1px solid var(--line,#d4d9e0);margin-bottom:8px">💵 Cash / check collected</button>'
+    +'<button class="btn" id="gp-charge" style="width:100%;background:#fff;border:1px solid var(--line,#d4d9e0)">💳 Charge on my phone</button>'
+    +'<div id="gp-qrbox" style="display:none;text-align:center;margin-top:14px;padding:16px;background:#fff;border:1px solid var(--line,#d4d9e0);border-radius:12px"></div>'
+    +'<div id="gp-out" style="font-size:12.5px;margin-top:9px;min-height:14px"></div>';
+  document.getElementById('gp-qr').onclick=showQR;
+  document.getElementById('gp-text').onclick=textDurableLink;
+  document.getElementById('gp-cash').onclick=markCashCollected;
+  document.getElementById('gp-charge').onclick=chargeOnPhone;
 }
-async function markCashCollected(){
-  const out=document.getElementById('tp-note-out');
-  const amt=parseFloat(String((document.getElementById('tp-amt')||{}).value||'').replace(/[^0-9.]/g,''));
-  const note=String((document.getElementById('tp-note')||{}).value||'').trim()||'Service payment';
-  if(!amt||amt<=0){ if(out){out.style.color='#c2691c';out.textContent='Enter the amount first.';} const i=document.getElementById('tp-amt'); if(i)i.focus(); return; }
-  const method=(prompt('Cash or check?','cash')||'cash').trim().toLowerCase();
-  const btn=document.getElementById('tp-cash'); if(btn) btn.disabled=true;
-  if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Recording…'; }
+// Confirm/record the self-pay amount + refresh the durable url/qr so every option charges
+// exactly what the tech typed (warranty add-on amount is resolved server-side, untouched).
+async function syncPayAmount(){
+  const inp=document.getElementById('gp-amt');
+  const amt=inp?parseFloat(String(inp.value||'').replace(/[^0-9.]/g,'')):0;
+  if(_payData && _payData.self_pay && amt>0 && Math.round(amt*100)!==(_payData.owed_cents||0)){
+    try{ const fresh=await fetch('/.netlify/functions/pay-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,amount:amt,technician_id:TECH_ID})}).then(r=>r.json()); if(fresh&&fresh.ok) _payData=fresh; }catch(_){}
+  }
+  return _payData;
+}
+async function showQR(){
+  const box=document.getElementById('gp-qrbox'), out=document.getElementById('gp-out');
+  if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Building the code…'; }
+  const d=await syncPayAmount();
+  if(!d||!d.qr_svg){ if(out){out.style.color='#c0392b';out.textContent='Could not build the QR — use Text or Charge instead.';} return; }
+  if(out) out.textContent='';
+  box.style.display=''; box.innerHTML='<div style="display:inline-block;max-width:240px">'+d.qr_svg+'</div><div style="font-size:14px;font-weight:800;color:#182028;margin-top:10px">Point their phone camera here</div><div style="font-size:12px;color:#5c6672;margin-top:2px">Opens a secure page — card or Apple Pay.</div>';
+  box.scrollIntoView({behavior:'smooth',block:'center'});
+}
+async function textDurableLink(){
+  const out=document.getElementById('gp-out'), btn=document.getElementById('gp-text');
+  if(btn) btn.disabled=true; if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Texting the customer their link…'; }
+  await syncPayAmount();
   try{
-    const d=await xanoPost('record_payment_received',{job_id:JOB_ID,amount:amt,method:method,reference:note,recorded_by:TECH_ID||0});
-    if(d&&(d.success!==false)){ if(out){out.style.color='#127a4a';out.innerHTML='✅ Recorded <b>$'+amt.toFixed(2)+'</b> ('+esc(method)+').';} loadPayStatusTech(); }
-    else { if(out){out.style.color='#c0392b';out.textContent='⚠ '+((d&&d.error)||'failed');} }
-  }catch(_){ if(out){out.style.color='#c0392b';out.textContent='⚠ connection error.';} }
+    const d=await fetch('/.netlify/functions/send-pay-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,sender:'tech'})}).then(r=>r.json());
+    if(d&&d.sent){ if(out){ out.style.color='#127a4a'; out.innerHTML='✅ Texted — they can pay from their phone anytime (the link never expires).'; } }
+    else { const why=(d&&d.reason==='no_phone')?'no phone on file for this customer':(d&&d.reason==='opted_out')?'they replied STOP — texting is off':((d&&d.reason)||'could not text'); if(out){ out.style.color='#c0392b'; out.textContent='⚠ '+why+'. Try the QR or Charge instead.'; } }
+  }catch(_){ if(out){ out.style.color='#c0392b'; out.textContent='⚠ connection error — try again.'; } }
   if(btn) btn.disabled=false;
 }
-async function takePayment(how){
-  const out=document.getElementById('tp-note-out');
-  const amt=parseFloat(String((document.getElementById('tp-amt')||{}).value||'').replace(/[^0-9.]/g,''));
-  const note=String((document.getElementById('tp-note')||{}).value||'').trim() || 'Service payment';
-  if(!amt||amt<=0){ if(out){ out.style.color='#c2691c'; out.textContent='Enter the amount first.'; } const i=document.getElementById('tp-amt'); if(i)i.focus(); return; }
-  const ch=document.getElementById('tp-charge'), tx=document.getElementById('tp-text');
-  if(ch) ch.disabled=true; if(tx) tx.disabled=true;
-  if(out){ out.style.color='var(--ink2,#555)'; out.textContent=how==='charge'?'Opening secure checkout…':'Texting the customer a pay link…'; }
+async function chargeOnPhone(){
+  const out=document.getElementById('gp-out');
+  if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Opening the secure page…'; }
+  const d=await syncPayAmount();
+  if(d&&d.url){ window.location.href=d.url; }   // durable page on the tech's phone — hand it over
+  else if(out){ out.style.color='#c0392b'; out.textContent='Could not open — try the QR or Text.'; }
+}
+async function markCashCollected(){
+  const out=document.getElementById('gp-out'), inp=document.getElementById('gp-amt');
+  const amt=inp?parseFloat(String(inp.value||'').replace(/[^0-9.]/g,'')):0;
+  if(!amt||amt<=0){ if(out){out.style.color='#c2691c';out.textContent='Enter the amount first.';} if(inp)inp.focus(); return; }
+  const method=(prompt('Cash or check?','cash')||'cash').trim().toLowerCase();
+  const btn=document.getElementById('gp-cash'); if(btn) btn.disabled=true;
+  if(out){ out.style.color='var(--ink2,#555)'; out.textContent='Recording…'; }
   try{
-    const r=await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ job_id:JOB_ID, amount_cents:Math.round(amt*100), description:note, kind:'addon',
-        metadata:{ addon_key:'tech_charge', name:note, mode:'service', technician_id:String(TECH_ID||''), source:'tech_collect' } })});
-    const d=await r.json();
-    if(!(d&&d.ok&&d.url&&!d.placeholder)){ if(out){ out.style.color='#c0392b'; out.textContent='⚠ '+((d&&d.error)||'could not start payment'); } if(ch)ch.disabled=false; if(tx)tx.disabled=false; return; }
-    if(how==='charge'){ window.location.href=d.url; return; } // same-tab = reliable on mobile; hand them the phone
-    // text: send the customer the checkout link
-    const sr=await xanoPost('send_customer_payment_link',{job_id:JOB_ID,url:d.url,amount:amt.toFixed(2),note:note}).catch(()=>null);
-    if(sr&&(sr.success||sr.sent)){ if(out){ out.style.color='#127a4a'; out.innerHTML='✅ Pay link texted — <b>$'+amt.toFixed(2)+'</b> for '+esc(note)+'.'; } }
-    else { if(out){ out.style.color='#127a4a'; out.innerHTML='Link ready — <a href="'+esc(d.url)+'" target="_blank" rel="noopener" style="font-weight:800">open it here</a> or copy to send. (Auto-text not available on this job.)'; } }
-    if(tx) tx.disabled=false;
-  }catch(_){ if(out){ out.style.color='#c0392b'; out.textContent='⚠ connection error — try again.'; } if(ch)ch.disabled=false; if(tx)tx.disabled=false; }
+    const d=await xanoPost('record_payment_received',{job_id:JOB_ID,amount:amt,method:method,reference:'Service payment',recorded_by:TECH_ID||0});
+    if(d&&(d.success!==false)){ if(out){out.style.color='#127a4a';out.innerHTML='✅ Recorded <b>$'+amt.toFixed(2)+'</b> ('+esc(method)+') — marked paid.';} loadGetPaid(); }
+    else { if(out){out.style.color='#c0392b';out.textContent='⚠ '+((d&&d.error)||'failed');} if(btn) btn.disabled=false; }
+  }catch(_){ if(out){out.style.color='#c0392b';out.textContent='⚠ connection error.';} if(btn) btn.disabled=false; }
 }
 
 // 🔁 ServicePower dispatch status push — SHADOW by default (servicepower-push.js logs what
@@ -1566,43 +1574,6 @@ function applyLifecycleButtons(){
   if(completed) mark(dn,'Done');
 }
 
-// 💳 Field payment — only for SELF-PAY jobs (get-invoice-status enforces it server-side,
-// so warranty jobs never show this). Tech sets/confirms the amount and texts the customer
-// a secure card-pay link right from the stop — no office step.
-async function loadPayment(){
-  const card=document.getElementById('pay-card'), body=document.getElementById('pay-body');
-  if(!card||!body||!JOB_ID) return;
-  let d={};
-  try{ d=await fetch('/.netlify/functions/get-invoice-status?job_id='+JOB_ID).then(r=>r.json()); }catch(_){ card.style.display='none'; return; }
-  if(!d||!d.self_pay){ card.style.display='none'; return; }   // warranty → never show payment
-  card.style.display='';
-  const full=(cust&&(cust.name||((cust.first_name||'')+' '+(cust.last_name||'')).trim()))||'the customer';
-  const first=full.split(' ')[0]||'them';
-  if(d.paid){
-    body.innerHTML='<div style="color:#127a4a;font-weight:800;font-size:16px">✅ Paid'+(d.amount?(' — $'+Number(d.amount).toFixed(2)):'')+'</div>';
-    return;
-  }
-  const amt=d.amount?Number(d.amount).toFixed(2):'';
-  body.innerHTML=
-    '<div style="font-size:13px;color:var(--dim);margin-bottom:8px">Self-pay job — text '+esc(full)+' a secure link to pay by card.</div>'
-    +'<label style="font-size:12px;color:var(--dim)">Amount due ($)</label>'
-    +'<input id="pay-amt" inputmode="decimal" value="'+amt+'" placeholder="0.00" style="width:100%;padding:12px;border:1px solid var(--line,#d4d9e0);border-radius:9px;font-size:16px;margin:4px 0 10px">'
-    +'<button class="btn primary" id="pay-send" style="width:100%;background:#127a4a">💳 Text '+esc(first)+' a pay link</button>'
-    +'<div id="pay-note" style="font-size:12.5px;margin-top:8px"></div>';
-  document.getElementById('pay-send').onclick=sendPayLink;
-}
-async function sendPayLink(){
-  const note=document.getElementById('pay-note'), btn=document.getElementById('pay-send'), inp=document.getElementById('pay-amt');
-  const amt=parseFloat(String(inp.value||'').replace(/[^0-9.]/g,''));
-  if(!amt||amt<=0){ note.style.color='#c2691c'; note.textContent='Enter the amount first.'; inp.focus(); return; }
-  btn.disabled=true; btn.textContent='Sending…';
-  try{
-    await xanoPost('record_job_invoice',{job_id:JOB_ID,technician_id:TECH_ID,amount_invoiced:amt.toFixed(2)});
-    const d=await xanoPost('send_customer_portal_link',{job_id:JOB_ID});
-    if(d&&(d.success||d.sms_body)){ note.style.color='#127a4a'; note.innerHTML='✅ Pay link texted — <b>$'+amt.toFixed(2)+'</b>. They can pay by card now; you\'ll see it flip to Paid.'; btn.textContent='✓ Sent'; }
-    else { note.style.color='#c0392b'; note.textContent='Could not send — try again.'; btn.disabled=false; btn.textContent='💳 Text a pay link'; }
-  }catch(_){ note.style.color='#c0392b'; note.textContent='Connection error — try again.'; btn.disabled=false; btn.textContent='💳 Text a pay link'; }
-}
 
 function completeFlow(){
   const types=[['repair_complete','✅ Fixed it — done'],['parts_needed','🔩 Needs parts — coming back'],['no_repair','🔁 Recommend replacement'],['reassignment_needed','🙋 Pass off — 2nd opinion'],['cancel_job','🚫 Cancel this job']];
