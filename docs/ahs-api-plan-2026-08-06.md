@@ -97,6 +97,33 @@ An `ncc` event (non-covered cost accepted) → surface the out-of-pocket amount 
 
 ---
 
+## 5b. The full automation menu — everything the API unlocks
+Beyond the prioritized stack above, here's the whole surface, grouped. ✅ = wired/ready · 🔨 = clear next build · 🕐 = later/bigger.
+
+**Inbound (Frontdoor → us) — react to what AHS does, no portal watching:**
+- 🔨 **Auto-intake + auto-route** every new dispatch (Schedule) — real-time, richer than email.
+- 🔨 **Auto-sync AHS status changes** — AHS reschedules/cancels/holds a dispatch → the Ant board updates itself + notifies the tech/office (no more surprise cancellations discovered on arrival).
+- 🔨 **Authorization gate** — autho approved/denied/limited (codes 350/360/370) → auto-unblock (or block) scheduling + invoicing, and alert the office. Enforces "autho before invoice" automatically.
+- 🔨 **NCC → auto out-of-pocket billing** — AHS accepts a non-covered cost → auto-create the charge → fire the **durable pay link** we just built. Warranty covered, the extra billed clean.
+- 🔨 **Expedited / medical-urgent dispatch → instant alert** + auto-prioritize on the board.
+- 🕐 **Auto-attach AHS notes** to the job thread so the office sees vendor comms inline.
+- 🕐 **Streem video-diagnosis link** — the Schedule payload can carry a `streamLink` (Frontdoor owns Streem). Surface it to the tech pre-visit = a real **pre-diagnosis** input → feeds first-visit-fix + the troubleshooting brain (#1 goal).
+
+**Outbound (us → Frontdoor) — stop typing into the portal:**
+- ✅ **Lifecycle status push** (on-my-way / start / complete + notes) — WIRED today, shadow until live. *(This build.)*
+- 🔨 **Office-board status push** — when Danielle moves a job on the board, push the matching status too (so it's not only tech-app-driven). Server-side, covers every path.
+- 🔨 **Parts lifecycle push** — PARTS_ORDERED / PARTS_ARRIVED / RETURN_SET fire automatically off the parts-watch feeds (no manual SmartPart typing).
+- 🕐 **Auto-submit SmartAutho** (the estimate) — when the TDR has diagnosis + parts + labor, compose + push the authorization. Gated on TDR completeness.
+- 🕐 **Auto-submit the invoice** on completion (how we get paid) — `frontdoor-queue.js` already composes the fields; the API turns paste-into-portal into a push. Gated on autho-approved + full TDR.
+
+**Loop / safety-net (both directions):**
+- 🔨 **Reconciliation audit** — nightly, compare Ant's job states vs Frontdoor's dispatch states via the API → flag drift (AHS thinks it's open, we completed it — or vice versa). The "nothing falls through" net; replaces manual portal auditing.
+- 🔨 **Part-return 5-day watchdog** — auto-track each returnable part's deadline, escalate before it lapses (miss it → AHS deducts the cost).
+- 🕐 **Warranty beat-the-tech (Phase 2)** — early part-push to the vendor via this write API (the piece that was gated on the Frontdoor API in the parts-order project). Now unblocked once inbound is live.
+- 🕐 **Full hands-off dispatch lifecycle** — dispatch lands → auto-route → tech works → status auto-pushes → autho auto-submits → parts auto-order → invoice auto-submits → payment reconciles. Humans only on exceptions. This is the end state.
+
+**Sequencing recommendation:** ship the lifecycle push (done) → auto-intake → status-sync + autho-gate + NCC-billing (the reactive inbound trio) → reconciliation audit → then the money-loop auto-submit (autho/invoice) once TDR completeness is solved. The autho/invoice auto-submit is the highest-$ but depends on techs finishing TDRs — so it rides on the TDR-quality work, not just the API.
+
 ## 6. Why this matters beyond the labor savings (the big-vision frame)
 Frontdoor Inc. (NASDAQ: FTDR) owns AHS, 2-10, and Streem (video/AR diagnosis). That makes them simultaneously our **biggest distribution channel**, our **most natural acquirer**, and our **most dangerous build-it-themselves competitor**. Running deep on their rails is the wedge — but keep independent legs and don't hand over "the how" (the dual-tier/confidence model). Full framing: `docs/big-vision-home-os-frontdoor-2026-06-09.md`.
 
