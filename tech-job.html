@@ -1535,10 +1535,25 @@ function isSPJob(){
   return /SERVICEPOWER DISPATCH/i.test(ni) || !!(job&&job.claim_number);
 }
 function pushSP(statusKey,notes){
+  pushFD(statusKey,notes);   // Frontdoor/AHS push too — self-gates server-side, no-ops if not an AHS job
   try{
     if(!JOB_ID || !isSPJob()) return;
     fetch('/.netlify/functions/servicepower-push',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({job_id:JOB_ID,status:statusKey,notes:notes||undefined})}).catch(()=>{});
+  }catch(_){}
+}
+// 🔁 Frontdoor/AHS status push — SHADOW until FRONTDOOR_PUSH_LIVE=1 + the key is authorized.
+// Same idea as pushSP: fires as the tech moves the job so the AHS portal updates itself
+// (kills Danielle's manual status typing). frontdoor-push-job resolves the dispatch # +
+// vendor server-side and no-ops for any non-AHS job. Maps our lifecycle keys → FD statuses.
+const FD_STATUS_MAP={en_route:'EN_ROUTE',in_progress:'IN_PROGRESS',completed:'COMPLETE',arrived:'ARRIVED',parts_ordered:'PARTS_ORDERED',parts_on_order:'PARTS_ON_ORDER',return_set:'RETURN_SET',on_hold:'ON_HOLD'};
+function isFDJob(){ return /ahs|american home shield|frontdoor|home shield|hsa|2-?10|two-?ten/i.test(String((job&&job.warranty_company)||'')); }
+function pushFD(statusKey,notes){
+  try{
+    if(!JOB_ID || !isFDJob()) return;
+    const sk=FD_STATUS_MAP[statusKey]; if(!sk) return;
+    fetch('/.netlify/functions/frontdoor-push-job',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:JOB_ID,status_key:sk,note:notes||undefined,technician_id:TECH_ID})}).catch(()=>{});
   }catch(_){}
 }
 // In-flight guard: Jimmy 2026-07-30 — "half the time hit Start way too many times to
