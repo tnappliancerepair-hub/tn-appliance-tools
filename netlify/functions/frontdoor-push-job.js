@@ -11,8 +11,10 @@
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
+const { composeTdrNote } = require('./_lib/frontdoor-tdr');
 
 const FN = 'https://tnapplianceexchange.net/.netlify/functions';
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'content-type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 const FD_RE = /ahs|american home shield|frontdoor|home shield|hsa|2-?10|two-?ten/i;
@@ -53,11 +55,29 @@ exports.handler = async function (event) {
   const vendorId = resolveVendor(job, b.technician_id);
   const secret = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
 
+  // On COMPLETE, send the WHOLE TDR to the portal as the dispatch note (diagnosis, failed
+  // part + #, work performed, labor, parts-to-return) — composed server-side from the saved
+  // TDR so it's complete + consistent regardless of what the tech typed. This is the "the
+  // TDR files itself to the portal" step; the full structured estimate/invoice auto-submit
+  // is Phase 2 (waits on Frontdoor confirming a claims-submission API — see the plan doc).
+  let note = String(b.note || '').trim();
+  if (statusKey === 'COMPLETE') {
+    try {
+      const br = await fetch(`${XANO}/get_warranty_card_bundle_for_jobs`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_ids_csv: String(jobId) }), signal: AbortSignal.timeout(9000),
+      }).then((x) => x.json()).catch(() => null);
+      const bundle = ((br && br.bundles) || []).find((x) => String(x.job_id) === String(jobId)) || ((br && br.bundles) || [])[0];
+      const tdrNote = bundle ? composeTdrNote(bundle) : '';
+      if (tdrNote) note = tdrNote + (b.note ? ' — ' + String(b.note).trim() : '');
+    } catch (_) {}
+  }
+
   // Hand off to the single push path (it owns shadow/live + logging). Secret stays server-side.
   try {
     const r = await fetch(`${FN}/frontdoor-push-status`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret, dispatch_number: dispatchNumber, status_key: statusKey, note: b.note || undefined, vendor_id: vendorId, tenant: 'AHS' }),
+      body: JSON.stringify({ secret, dispatch_number: dispatchNumber, status_key: statusKey, note: note || undefined, vendor_id: vendorId, tenant: 'AHS' }),
       signal: AbortSignal.timeout(12000),
     });
     const d = await r.json().catch(() => ({}));

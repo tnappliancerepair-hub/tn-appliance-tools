@@ -89,7 +89,8 @@ An `ncc` event (non-covered cost accepted) → surface the out-of-pocket amount 
 
 ## 5. Open decisions (for Teddy / to raise with Brian 8/11)
 1. **Confirm the contractor account gets this API at all.** The make-or-break: the ProConnect program is real-estate/DTC-heavy — Brian/BD must confirm our contractor account is provisioned for the dispatch/case-lifecycle status API. *(Ask first.)*
-2. **Which inbound endpoint are we authorized for** — `/dispatch-connector/v1/webhook` or `/{routingId}/v1/case-lifecycle/...`? If the latter, we need our `FRONTDOOR_ROUTING_ID`.
+2. **Is there a claims/estimate/invoice SUBMISSION API** (beyond Status/Note)? This is what decides whether the **TDR can file itself** as a structured estimate + invoice (Level 2 above) vs. only ride along as a note. ServicePower has one; if Frontdoor does too, it's the biggest single automation. *(Ask early — it gates the whole money loop.)*
+3. **Which inbound endpoint are we authorized for** — `/dispatch-connector/v1/webhook` or `/{routingId}/v1/case-lifecycle/...`? If the latter, we need our `FRONTDOOR_ROUTING_ID`.
 3. **The authoritative status-code list** — get Appendix A / the live reference so our STATUS map matches theirs exactly (codes go to ~590, incl. NCC/quote/autho states).
 4. **Lead order — recommend: auto-intake (Use case 1) first** (outbound, nearly ready, low risk), then the status-push Danielle-killer (Use case 2), then the money loop. Confirm you agree.
 5. **Legacy vendor IDs** — portal lists 5 vendor IDs; we've mapped the 3 active ones (822418 John · 822218 Andre · 839828 TN crew). Confirm 1373302 + 120868 are dead, or map them.
@@ -108,6 +109,10 @@ Beyond the prioritized stack above, here's the whole surface, grouped. ✅ = wir
 - 🔨 **Expedited / medical-urgent dispatch → instant alert** + auto-prioritize on the board.
 - 🕐 **Auto-attach AHS notes** to the job thread so the office sees vendor comms inline.
 - 🕐 **Streem video-diagnosis link** — the Schedule payload can carry a `streamLink` (Frontdoor owns Streem). Surface it to the tech pre-visit = a real **pre-diagnosis** input → feeds first-visit-fix + the troubleshooting brain (#1 goal).
+
+**Send the TDR to the portal (the big one Teddy asked about) — two levels:**
+- ✅ **Level 1 — TDR as a dispatch note (WIRED today, shadow).** On Complete, we compose the WHOLE TDR — diagnosis, failed part + #, work-performed prose, labor, parts-to-return — server-side from the saved report and push it onto the dispatch as the note via the Status/Note API. So the tech's report lands in the AHS portal automatically, no retyping. Shared composer `_lib/frontdoor-tdr.js` (same voice as `frontdoor-queue`). Goes live with `FRONTDOOR_PUSH_LIVE=1`.
+- 🕐 **Level 2 — the TDR files itself as the structured claim (estimate + invoice).** We ALREADY do this for the other big vendor: `servicepower-claims-build.js` turns a completed TDR into a structured SQUARE TRADE claim and `servicepower-claims-submit.js` POSTs it to the live ServiceClaims **submission API**. For AHS/Frontdoor, `frontdoor-queue.js` already assembles the identical structured fields (SmartAutho estimate + invoice: item/model/serial/failed-component/part/labor/tax/work-performed). **The only missing piece is transport** — whether Frontdoor exposes a claims/estimate/invoice **submission** API (the docs we have cover only Status/Note). **→ #1 question for Brian on 8/11.** If yes, we mirror the ServicePower builder→submit and the TDR auto-files with zero portal typing.
 
 **Outbound (us → Frontdoor) — stop typing into the portal:**
 - ✅ **Lifecycle status push** (on-my-way / start / complete + notes) — WIRED today, shadow until live. *(This build.)*
