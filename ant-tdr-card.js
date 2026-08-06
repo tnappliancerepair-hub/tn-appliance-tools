@@ -1291,9 +1291,10 @@
       body: JSON.stringify({ job_id: Number(jobId), part: part, by: (role === 'tech' ? 'tech' : 'office') })
     }).then(function (r) { return r.json(); }).then(function (d) {
       if (d && d.ok) {
-        alert(d.already_alerted
+        var head = d.already_alerted
           ? '✅ Already flagged — the office was told about "' + (d.part || part) + '".'
-          : '✅ Sent to the office — texted ' + ((d.texted || []).join(' & ') || 'Danielle & Sofia') + '. They\'ll order "' + (d.part || part) + '" to beat you to the door.');
+          : '✅ Sent to the office — texted ' + ((d.texted || []).join(' & ') || 'Danielle & Sofia') + '. They\'ll order "' + (d.part || part) + '" to beat you to the door.';
+        alert(head + (d.timing ? '\n\n' + d.timing : ''));
       } else {
         alert('⚠ Could not send it: ' + ((d && (d.error || d.note)) || 'try again'));
       }

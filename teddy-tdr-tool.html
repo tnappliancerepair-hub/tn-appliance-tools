@@ -1567,7 +1567,7 @@ async function flagNeedPart(){
     const r=await fetch('/.netlify/functions/flag-part-needed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(state.jobId,10),part:part,by:'Teddy'})});
     const d=await r.json().catch(function(){return {};});
     if(r.ok&&d&&d.ok){
-      if(out){out.style.color='#1f7a3f';out.textContent='✅ Office alerted — '+(d.part||part)+(d.texted&&d.texted.length?(' (texted '+d.texted.join(' & ')+')'):(d.already_alerted?' (already sent earlier)':''));}
+      if(out){out.style.color='#1f7a3f';out.innerHTML='✅ Office alerted — '+escapeHtml(d.part||part)+(d.texted&&d.texted.length?(' (texted '+d.texted.join(' & ')+')'):(d.already_alerted?' (already sent earlier)':''))+(d.timing?('<div style="color:#555;font-weight:600;margin-top:3px;">'+escapeHtml(d.timing)+'</div>'):'');}
       if(btn){btn.textContent='✅ Office notified';}
     } else { if(out){out.style.color='#c2410c';out.textContent='Could not alert — '+((d&&d.error)||'try again');} if(btn){btn.disabled=false;btn.textContent='🔧 Office — I need this part';} }
   }catch(e){ if(out){out.style.color='#c2410c';out.textContent='Network error — try again.';} if(btn){btn.disabled=false;btn.textContent='🔧 Office — I need this part';} }
