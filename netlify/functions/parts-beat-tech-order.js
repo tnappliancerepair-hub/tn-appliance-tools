@@ -34,7 +34,7 @@ async function verifyOffice(password) {
   if (!password) return false;
   try {
     const r = await fetch(`${XANO}/verify_office_password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000) });
-    if (!r.ok) return false; const d = await r.json().catch(() => ({})); return !!(d && (d.ok || d.valid || d.authorized || d === true));
+    if (!r.ok) return false; const d = await r.json().catch(() => ({})); return !!(d && (d.success || d.ok || d.valid || d.authorized || d === true));
   } catch (_) { return false; }
 }
 

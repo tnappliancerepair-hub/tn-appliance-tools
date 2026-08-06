@@ -40,7 +40,7 @@ exports.config = { timeout: 26 };
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(b, null, 2) }; }
 async function verifyOffice(password) {
   if (!password) return false;
-  try { const r = await fetch(`${XANO}/verify_office_password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000) }); if (!r.ok) return false; const d = await r.json().catch(() => ({})); return !!(d && (d.ok || d.valid || d.authorized || d === true)); } catch (_) { return false; }
+  try { const r = await fetch(`${XANO}/verify_office_password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000) }); if (!r.ok) return false; const d = await r.json().catch(() => ({})); return !!(d && (d.success || d.ok || d.valid || d.authorized || d === true)); } catch (_) { return false; }
 }
 function dayMs(v) { const t = typeof v === 'number' ? v : Date.parse(String(v || '')); return isFinite(t) ? t : 0; }
 function daysBetween(aMs, bMs) { return Math.round((bMs - aMs) / 86400000); }
