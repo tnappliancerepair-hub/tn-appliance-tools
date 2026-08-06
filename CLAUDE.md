@@ -30,6 +30,16 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🔧 2026-08-06 (Thu, on the road) — PRE-DIAGNOSIS "I NEED THIS PART" ONE-TAP (feeds Beat-the-Tech) — READ FIRST
+
+Teddy's exact ask: *"they watch the video and go 'I need a heating element for this' — once the tech puts that part number in, a pre-diagnosis button in the TDR that alerts the office that the tech needs a heating element for that particular job."* + *"Let's go both. And the office alert should be obvious."* Built PURELY ADDITIVE (his hard constraint: *"I like the way our current system is"* — the video→text→owner flow, the deep-link, and the TDR submit are all untouched).
+- **`flag-part-needed.js` (NEW, LIVE, verified):** `POST {job_id, part, component?, by?}` → does 3 obvious things at once: (1) sets `jobs.parts_status='to_order'` + logs **`parts_to_order_flagged`** (skips if already ORDERED / has an ETA — same guard as flag-parts-to-order) → the job jumps into the office board's pulsing **"🔩 Pre-Diagnosed · Needs Parts ASAP"** column; (2) logs an **`office_note`** "🔧 NEEDS PART: <part>" → the 📋 badge on the tile carries the exact part; (3) **texts Danielle + Sofia** (`OFFICE_CELL_DANIELLE`/`OFFICE_CELL_SOFIA`, defaults 485-0713 / 629-259-4602) the part → hits their phones. Deduped per **job+part_key 24h** (`part_needed_alert` event) so a re-tap can't re-spam. Public endpoint (no secret, like flag-parts-to-order). Best-effort throughout — never blocks. Verified live: 400 on `{job_id}` w/o part (no text fired). **⚠️ Any valid `{job_id, part}` texts the office for real — do NOT test the happy path with a bogus job.**
+- **Wired the "🔧 Office — I need this part" button into BOTH TDR surfaces (the "both"):**
+  - **`teddy-tdr-tool.html`** — orange button under the OEM part block; `flagNeedPart()` reads whichever part # is filled (`oemPartInput`||`amazonPartInput`||state), inline result line, `by:'Teddy'`.
+  - **`ant-tdr-card.js`** — orange button under the Part(s)-used field for tech + office (`isParts && canEdit`); `window.__antTdrNeedPart` prompts for the part (pre-filled from `usedPartsList()`), `by:'tech'|'office'`, alerts the result.
+- **THE POINT (why this matters):** the **Beat-the-Tech parts queue** (`parts-beat-tech.js`/`.html`, shipped earlier today) was reading **0 candidates** because its upstream signal `parts_to_order_flagged` had fired **0/90d** — nothing turned a pre-diagnosis into the flag. This button IS that missing producer. Now: watch video → tap "I need this part" → office board lights up + Danielle/Sofia texted → (once `PARTS_BEAT_TECH_LIVE=true`) the queue can order it to beat the tech to the door. **First-visit-fix loop is now closed end to end.**
+- **⏭️ Next:** eyeball the board column + a real tap in the field → then flip `PARTS_BEAT_TECH_LIVE=true` so the queue's one-tap order goes live.
+
 ## 🗓️🐜💳 2026-08-06 (Thu PM) — PAYMENT PHASE 1: DURABLE PAY LINK (pay.html) SHIPPED — READ FIRST
 
 Executed the payment-strategy plan's Phase 1 (Teddy on the road: "keep working nonstop"; picked Payment first). Fixes the "sloppy, expiring Stripe link" pain (Jennifer Roher's `cs_live_` links died in 24h).
