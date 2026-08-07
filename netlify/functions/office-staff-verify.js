@@ -19,6 +19,7 @@ const ROSTER = [ // seed identities (roles: owner / finance / manager / office)
   { name: 'Danielle', role: 'manager' },
   { name: 'Sofia', role: 'office' },
   { name: 'Alec', role: 'office' },
+  { name: 'Carrie', role: 'office' },
 ];
 // Roles allowed into the books (money.html). Deliberately excludes manager/office
 // so Danielle + office staff can't open the P&L.

@@ -2501,6 +2501,12 @@ function renderDrawer(d){
       </div>
     </div>
 
+    <div class="dcard" id="crew-card">
+      <h4>👥 Two-man job (2nd tech)</h4>
+      <div style="font-size:12px;color:var(--ink2);margin-bottom:8px">Send a second tech to this same stop (heavy fridge/stacked units). It shows on <b>both</b> techs' days — the lead stays whoever's scheduled above; this just adds a helper.</div>
+      <div id="crew-body" style="font-size:12.5px;color:var(--dim)">Loading…</div>
+    </div>
+
     <div class="dcard">
       <h4>📂 Move to folder</h4>
       <div style="display:flex;gap:8px;align-items:center">
@@ -2528,6 +2534,7 @@ function renderDrawer(d){
   hydrateChecklistFromServer(jid);
   loadWarrantyParts(jid, j.claim_number||'');
   loadStopMachines(jid);
+  loadCrew(jid, Number(j.technician_id)||0);
   loadOfficeNoteStatus(jid);
   loadPartsLocation(jid);
   loadPayStatus(jid);
@@ -2619,6 +2626,34 @@ async function loadStopMachines(jid){
     +'<h4>🔧 '+ms.length+' machines on this stop — each has its own TDR</h4>'
     +'<p style="color:var(--dim,#8a93a1);font-size:12.5px;margin:2px 0 9px">This customer added more than one machine to the claim. Tap a machine to open its job + report. A ✓ means that machine\'s report is filed.</p>'
     +'<div style="display:flex;flex-wrap:wrap;gap:7px">'+chips+'</div></div>';
+}
+// ── Two-man job: add/remove a SECOND tech on the same stop ──────────
+// Backed by /crew (stores in jobs.accepted_by_tech_id). The helper shows on
+// BOTH techs' daily dashboards as "👥 2-man w/ <lead>". Lead tech = whoever's
+// scheduled in the card above; this only adds/clears the helper.
+async function loadCrew(jid, leadId){
+  const el=document.getElementById('crew-body'); if(!el) return;
+  let cur=0;
+  try{ const d=await fetch('/.netlify/functions/crew?action=get&job_id='+encodeURIComponent(jid)).then(r=>r.json()); if(d&&d.ok) cur=Number(d.helper_tech_id)||0; }catch(_){}
+  // Pick from active techs, never the lead (can't be his own 2nd man).
+  const pool=SCHED_TECHS.filter(t=>Number(t)!==Number(leadId));
+  const opts='<option value="">— none (one tech) —</option>'+pool.map(t=>`<option value="${t}"${cur===Number(t)?' selected':''}>${esc(TECH_NAME[t]||('Tech '+t))}</option>`).join('');
+  const curLine = cur? `<div style="font-size:12.5px;font-weight:800;color:#127a4a;background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.4);border-radius:8px;padding:7px 10px;margin-bottom:8px">👥 2nd tech: ${esc(TECH_NAME[cur]||('Tech '+cur))} — showing on his day too.</div>` : '';
+  el.innerHTML = curLine
+    + '<div style="display:flex;gap:8px;align-items:center">'
+    + `<select id="schCrew" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fff;color:var(--ink)">${opts}</select>`
+    + `<button onclick="setCrewFromDrawer(${jid})" style="padding:10px 16px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">Save</button>`
+    + '</div>';
+}
+async function setCrewFromDrawer(jid){
+  const sel=document.getElementById('schCrew'); if(!sel) return;
+  const helper=Number(sel.value)||0;
+  try{
+    const payload = helper>0 ? {action:'set',job_id:parseInt(jid,10),helper_tech_id:helper} : {action:'clear',job_id:parseInt(jid,10)};
+    const d=await fetch('/.netlify/functions/crew',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json());
+    if(d&&d.ok){ toast(helper>0?('👥 2nd tech set — '+(TECH_NAME[helper]||('Tech '+helper))):'2nd tech removed'); const leadEl=document.getElementById('schTech'); loadCrew(jid, leadEl?Number(leadEl.value)||0:0); }
+    else{ toast('⚠ '+((d&&d.error)||'failed')); }
+  }catch(_){ toast('⚠ connection error'); }
 }
 async function loadWarrantyParts(jid, claim){
   const el=document.getElementById('warr-parts'); if(!el) return;

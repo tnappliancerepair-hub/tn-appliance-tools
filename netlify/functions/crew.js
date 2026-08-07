@@ -11,6 +11,7 @@
 // dedicated helper_tech_id column is added later (Xano UI/Mac), swap CREW_FIELD.
 //
 //   GET  ?action=list&tech_id=4&date=2026-06-17   -> jobs where you're the 2nd tech
+//   GET  ?action=get&job_id=123                    -> current 2nd tech on a job
 //   POST {action:'set',  job_id, helper_tech_id}  -> mark a job two-man
 //   POST {action:'clear',job_id}                  -> remove the 2nd tech
 'use strict';
@@ -51,6 +52,16 @@ exports.handler = async function (event) {
       if (action === 'set' && !(helper > 0)) return j(400, { ok: false, error: 'helper_tech_id required' });
       await md.update(JOBS, jobId, { [CREW_FIELD]: helper });
       return j(200, { ok: true, job_id: jobId, helper_tech_id: helper });
+    }
+
+    // ── read the current 2nd tech on a job (for the office drawer) ───
+    if (action === 'get') {
+      const jobId = Number(body.job_id || qp.job_id);
+      if (!jobId) return j(400, { ok: false, error: 'job_id required' });
+      let job = {};
+      try { job = (await md.searchOne(JOBS, { id: jobId })) || {}; } catch (_) {}
+      const helper = Number(job[CREW_FIELD]) || 0;
+      return j(200, { ok: true, job_id: jobId, helper_tech_id: helper, helper_name: helper ? (ROSTER[helper] || ('Tech ' + helper)) : '' });
     }
 
     // ── list jobs where this tech is the SECOND man (for the date) ───
