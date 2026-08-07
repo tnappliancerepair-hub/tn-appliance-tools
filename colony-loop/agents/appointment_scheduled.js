@@ -85,14 +85,19 @@ function slotFromStart(ms) {
 // questions?" and a video-catch link if they still owe their tech a video. DAY ONLY,
 // never a clock time (day-of routing; the live window is a separate morning-of text
 // that stays paused for now). Tech named only when FIRMLY assigned.
-function customerBody({ first, appliance, apptStr, techFirst, slot, finishLink }) {
+function customerBody({ first, appliance, apptStr, techFirst, slot, finishLink, phone }) {
   const name = (first || '').trim() || 'there';
   const techPart = techFirst ? `Your tech is ${techFirst}, coming ${apptStr}` : `It's scheduled for ${apptStr}`;
   const slotPart = slot ? `, and you're stop ${slot} of the day` : '';
+  const callNum = phone || '615-280-2949';
   const lines = [
     `Hi ${name}, good news — your ${appliance} repair is scheduled.`,
     `${techPart}${slotPart}.`,
-    `We run day-of routing (no set time slots) — your tech will reach out when he's on his way. Any questions, just reply here or call 866-268-0111.`,
+    `We run day-of routing (no set time slots) — your tech will reach out when he's on his way.`,
+    // Teddy 2026-08-06: give time-constrained customers a real path to a specific time —
+    // call in, ask for their tech, and our phone system connects them; the tech knows
+    // exactly when he can be there and can adjust to fit their schedule.
+    `Need a specific time? Call ${callNum} and ask for your tech — he knows exactly when he can get there and can work around your schedule if you're tight on time. Any questions, just reply here.`,
   ];
   if (finishLink) lines.push(`Haven't sent your tech a video yet? Tap here so he shows up ready: ${finishLink}`);
   return lines.join(' ');
@@ -197,7 +202,12 @@ export async function run(signal, ctx) {
     // Video-catch link: the no-form finish-upload page works for warranty + cash.
     // Always offered so a customer who still owes their tech a video has it right here.
     const finishLink = `https://${bareDomain()}/finish-upload.html?job_id=${jobId}`;
-    const body = customerBody({ first: custFirst, appliance, apptStr, techFirst, slot, finishLink });
+    // Region-aware number so "call and ask for your tech" reaches the right line.
+    // LA jobs → 504-355-9111, everything else → 615-280-2949. Both ring Ann, who
+    // transfers to the assigned tech during business hours.
+    const st = String(job.service_state || '').trim().toUpperCase();
+    const phone = (st === 'LA' || st === 'LOUISIANA') ? '504-355-9111' : '615-280-2949';
+    const body = customerBody({ first: custFirst, appliance, apptStr, techFirst, slot, finishLink, phone });
     const res = await sms.toCustomer(custPhone, body, {
       action: 'appointment_confirmation',
       job_id: jobId,
