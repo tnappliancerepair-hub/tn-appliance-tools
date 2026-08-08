@@ -774,6 +774,8 @@ function render(){
         </div>
         <div class="stamp" id="lc-stamp">${lifecycleStamp()}</div>
         <button id="a-move" style="display:block;width:100%;box-sizing:border-box;margin-top:10px;background:#eef1f5;color:#33415c;border:1px solid #d0d7e2;border-radius:10px;font-size:14px;padding:11px;font-weight:800;cursor:pointer">📅 Schedule on my day · move · hand off</button>
+        <button id="a-undo" style="display:block;width:100%;box-sizing:border-box;margin-top:8px;background:#fff5f5;color:#b03a2e;border:1px solid #f1c9c4;border-radius:10px;font-size:13px;padding:10px;font-weight:800;cursor:pointer">↩️ Made a mistake? Reopen &amp; change how this ended</button>
+        <div id="undo-status" style="text-align:center;font-size:12px;margin-top:5px;min-height:14px;color:var(--ink2)"></div>
         <a id="release-btn" href="waiver.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn primary" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:12px;background:#7a4ed9;font-size:15px;padding:12px">✍️ Customer signs release of liability</a>
         <div id="release-status" style="text-align:center;font-size:12px;margin-top:6px;min-height:15px;color:var(--ink2)"></div>
         ${job.job_completed_at ? `<a href="sign.html?job_id=${JOB_ID}&tech_id=${TECH_ID}" target="_blank" rel="noopener" class="btn" style="display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin-top:10px;background:#127a4a;color:#fff;font-size:15px;padding:12px">✍️ Customer sign-off — repair complete</a>` : ''}
@@ -1022,6 +1024,7 @@ function wireActions(){
   { const rv=document.getElementById('a-review'); if(rv) rv.onclick=sendReviewAsk; }
   { const sk=document.getElementById('a-review-skip'); if(sk) sk.onclick=()=>{ const row=document.getElementById('review-ask-row'); if(row){ row.style.opacity='.5'; const s=document.getElementById('review-status'); if(s) s.textContent='Skipped — no review text sent.'; const b=document.getElementById('a-review'); if(b){ b.disabled=true; b.style.background='#9aa5b1'; } sk.disabled=true; } }; }
   var _mv=document.getElementById('a-move'); if(_mv) _mv.onclick=openMoveStop;
+  var _un=document.getElementById('a-undo'); if(_un) _un.onclick=undoCompletion;
   document.getElementById('save-notes').onclick=saveNotes;
   const sa=document.getElementById('save-appl'); if(sa) sa.onclick=saveBasics;
   document.getElementById('refresh-media').onclick=loadAttachments;
@@ -1619,6 +1622,29 @@ function applyLifecycleButtons(){
   if(completed) mark(dn,'Done');
 }
 
+
+// ↩️ Fix a mis-tap. Reopens the job (server-side override clears the terminal lock +
+// the "done" stamp), re-enables Complete, and drops the tech straight into the
+// disposition picker so he can pick the right one — or hand it off with 📅 above.
+async function undoCompletion(){
+  if(!confirm('Reopen this job so you can change how it ended?\n\nUse this if you tapped the wrong button (like Recommend replacement instead of Pass off). It puts the job back so you can pick the right one — or hand it to another tech.')) return;
+  const btn=document.getElementById('a-undo'), st=document.getElementById('undo-status');
+  if(btn){ btn.disabled=true; btn.style.opacity='0.55'; }
+  if(st){ st.textContent='Reopening…'; st.style.color='var(--ink2)'; }
+  try{
+    const d=await fetchT('/.netlify/functions/tech-undo-completion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,reason:'tech mis-tap'})}).then(r=>r.json()).catch(()=>({ok:false,error:'connection error'}));
+    if(d&&d.ok){
+      if(st){ st.textContent='✓ Reopened — pick how it really ended below, or 📅 hand it off.'; st.style.color='#127a4a'; }
+      // Re-enable Complete + show the disposition picker immediately.
+      const dn=document.getElementById('a-done'); if(dn){ dn.disabled=false; dn.style.opacity=''; dn.style.pointerEvents=''; dn.innerHTML='<span class="ic">✅</span>Complete'; }
+      completeFlow();
+      try{ document.getElementById('lc-stamp').scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
+    } else {
+      if(st){ st.textContent='⚠ '+((d&&d.error)||'could not reopen — call the office'); st.style.color='#b03a2e'; }
+      if(btn){ btn.disabled=false; btn.style.opacity=''; }
+    }
+  }catch(_){ if(st){ st.textContent='⚠ connection error — try again'; st.style.color='#b03a2e'; } if(btn){ btn.disabled=false; btn.style.opacity=''; } }
+}
 
 function completeFlow(){
   const types=[['repair_complete','✅ Fixed it — done'],['parts_needed','🔩 Needs parts — coming back'],['no_repair','🔁 Recommend replacement'],['reassignment_needed','🙋 Pass off — 2nd opinion'],['cancel_job','🚫 Cancel this job']];
