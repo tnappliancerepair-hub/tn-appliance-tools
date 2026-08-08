@@ -101,12 +101,31 @@ exports.handler = async function (event) {
     try {
       const actionUrl = String(body.action_url || (SITE + '/appliance-ai.html'));
       const res = await gbp.createLocalPost({ summary: caption, actionType: 'LEARN_MORE', actionUrl, mediaUrl });
-      const postName = (res && (res.name || (res.result && res.result.name))) || '';
+      // gbp.api returns {ok,status,data} and does NOT throw on non-2xx — check it.
+      if (!res || !res.ok) {
+        const err = (res && res.data && res.data.error && (res.data.error.message || JSON.stringify(res.data.error))) || (res && res.raw) || 'post rejected';
+        return json(200, { ok: false, posted: false, status: res && res.status, error: String(err).slice(0, 300) });
+      }
+      const postName = (res.data && res.data.name) || '';
       await crud.logEvent('gbp_fixed_this_week_posted', { s3_key: s3Key, post_name: postName, at_ms: Date.now() });
-      return json(200, { ok: true, posted: true, post_name: postName });
+      return json(200, { ok: true, posted: true, post_name: postName, search_url: (res.data && res.data.searchUrl) || '' });
     } catch (e) {
-      return json(200, { ok: false, error: String((e && e.message) || e) });
+      return json(200, { ok: false, posted: false, error: String((e && e.message) || e) });
     }
+  }
+
+  // ── VERIFY: list what's actually live on the profile ────────────────
+  if (q.listposts === '1') {
+    try {
+      const { accountId, locationId } = await gbp.resolveAccountLocation();
+      const url = 'https://mybusiness.googleapis.com/v4/accounts/' + accountId + '/locations/' + locationId + '/localPosts';
+      const res = await gbp.api('GET', url);
+      const posts = (res.data && res.data.localPosts) || [];
+      return json(200, {
+        ok: res.ok, status: res.status, count: posts.length,
+        posts: posts.slice(0, 12).map((p) => ({ name: p.name, state: p.state, createTime: p.createTime, hasMedia: !!(p.media && p.media.length), summary: String(p.summary || '').slice(0, 70) })),
+      });
+    } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
   }
 
   // ── LIST candidates (default, no posting) ───────────────────────────
