@@ -95,8 +95,11 @@ function page(item) {
   // Only pair hreflang/"In English" with an English page that actually exists on
   // disk (the original 6 use English slugs). Spanish-only topics use Spanish slugs
   // and stand alone (self-canonical), so we never link to a 404.
-  const hasEn = fs.existsSync(path.join(ROOT, 'fix', item.slug + '.html'));
-  const enUrl = hasEn ? `${BASE}/fix/${item.slug}.html` : '';
+  // Pair to the English page: original topics share the slug; Spanish-slug topics
+  // declare an explicit enSlug (e.g. congelador-no-enfria -> freezer-not-freezing).
+  const enSlug = item.enSlug || item.slug;
+  const hasEn = fs.existsSync(path.join(ROOT, 'fix', enSlug + '.html'));
+  const enUrl = hasEn ? `${BASE}/fix/${enSlug}.html` : '';
   const related = ITEMS.filter((x) => x.slug !== item.slug).slice(0, 3);
 
   const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', inLanguage: 'es', mainEntity: item.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) };

@@ -81,6 +81,11 @@ function howToSteps(item) {
 
 function page(item, idx) {
   const url = `${BASE}/fix/${item.slug}.html`;
+  // Spanish counterpart: use an explicit esSlug when the ES page lives under a
+  // Spanish slug (e.g. freezer-not-freezing -> congelador-no-enfria). Only emit
+  // the hreflang when the ES page actually exists, so we never point at a 404.
+  const esSlug = item.esSlug || item.slug;
+  const hasEs = fs.existsSync(path.join(ROOT, 'es', 'fix', esSlug + '.html'));
   const svc = SERVICE_PAGE[item.appliance];
   const related = ITEMS.filter((x) => x.slug !== item.slug).slice(0, 3);
 
@@ -114,7 +119,7 @@ function page(item, idx) {
 <meta name="description" content="${esc(item.metaDesc)}">
 <link rel="canonical" href="${url}">
 <link rel="alternate" hreflang="en" href="${url}">
-<link rel="alternate" hreflang="es" href="${BASE}/es/fix/${item.slug}.html">
+${hasEs ? `<link rel="alternate" hreflang="es" href="${BASE}/es/fix/${esSlug}.html">` : ''}
 <link rel="alternate" hreflang="x-default" href="${url}">
 <meta property="og:title" content="${esc(item.metaTitle)}">
 <meta property="og:description" content="${esc(item.metaDesc)}">

@@ -146,6 +146,7 @@ module.exports = [
   },
   {
     slug: 'freezer-not-freezing',
+    esSlug: 'congelador-no-enfria',
     appliance: 'Freezer',
     question: 'My freezer isn\'t freezing — what do I do?',
     metaTitle: 'Freezer Not Freezing? Causes & Fixes From a Real Technician',
@@ -168,6 +169,7 @@ module.exports = [
   },
   {
     slug: 'ice-maker-not-working',
+    esSlug: 'no-hace-hielo',
     appliance: 'Refrigerator',
     question: 'My ice maker isn\'t working — what do I do?',
     metaTitle: 'Ice Maker Not Working? Causes & Fixes From a Real Technician',
@@ -190,6 +192,7 @@ module.exports = [
   },
   {
     slug: 'refrigerator-leaking-water',
+    esSlug: 'refrigerador-gotea-agua',
     appliance: 'Refrigerator',
     question: 'My refrigerator is leaking water — what do I do?',
     metaTitle: 'Refrigerator Leaking Water? Causes & Fixes From a Real Technician',
@@ -212,6 +215,7 @@ module.exports = [
   },
   {
     slug: 'dryer-wont-start',
+    esSlug: 'secadora-no-enciende',
     appliance: 'Dryer',
     question: 'My dryer won\'t start — what do I do?',
     metaTitle: 'Dryer Won\'t Start? Causes & Fixes From a Real Technician',

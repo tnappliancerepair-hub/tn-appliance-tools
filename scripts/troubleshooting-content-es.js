@@ -190,6 +190,7 @@ module.exports = [
 
   {
     slug: 'secadora-no-enciende',
+    enSlug: 'dryer-wont-start',
     appliance: 'Secadora',
     question: 'Mi secadora no enciende — ¿qué hago?',
     metaTitle: '¿La secadora no enciende? Qué revisar primero',
@@ -259,6 +260,7 @@ module.exports = [
 
   {
     slug: 'refrigerador-gotea-agua',
+    enSlug: 'refrigerator-leaking-water',
     appliance: 'Refrigerador',
     question: 'Mi refrigerador gotea agua — ¿qué hago?',
     metaTitle: '¿El refrigerador gotea agua? Adentro o afuera — causas y solución',
@@ -282,6 +284,7 @@ module.exports = [
 
   {
     slug: 'no-hace-hielo',
+    enSlug: 'ice-maker-not-working',
     appliance: 'Refrigerador',
     question: 'Mi refrigerador no hace hielo — ¿qué hago?',
     metaTitle: '¿La fábrica de hielo no funciona? Causas y qué revisar',
@@ -374,6 +377,7 @@ module.exports = [
 
   {
     slug: 'congelador-no-enfria',
+    enSlug: 'freezer-not-freezing',
     appliance: 'Congelador',
     question: 'Mi congelador no enfría lo suficiente — ¿qué hago?',
     metaTitle: '¿El congelador no congela? Causas y qué revisar',
