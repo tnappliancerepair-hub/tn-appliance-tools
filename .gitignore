@@ -20,3 +20,7 @@ node_modules/
 !**/.env.example
 .indexnow-key
 .claude/scheduled_tasks.lock
+
+# Generated build artifacts (SEO builders write URL lists)
+scripts/.es-lander-urls.txt
+scripts/.*-urls.txt
