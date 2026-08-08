@@ -102,21 +102,44 @@ exports.handler = async function (event) {
   const days = Math.max(1, Math.min(30, parseInt(q.days, 10) || 7));
   const limit = Math.max(1, Math.min(60, parseInt(q.limit, 10) || 24));
   const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
+  // created_at may be ms or seconds depending on the column; normalize to ms.
+  const normMs = (v) => { const n = Number(v || 0); return n > 0 && n < 1e12 ? n * 1000 : n; };
+  const isPhoto = (r) => {
+    const ft = String(r.file_type || '').toLowerCase();
+    const mt = String(r.mime_type || '').toLowerCase();
+    const k = String(r.s3_key || '').toLowerCase();
+    if (/video|cfstream:/.test(ft) || /video/.test(mt) || k.indexOf('cfstream:') === 0) return false;
+    return ft === 'photo' || ft === 'image' || mt.indexOf('image/') === 0 || /\.(jpe?g|png|heic|webp)$/.test(k) || k.indexOf('cfimg:') === 0 || ft === '';
+  };
 
+  // Pull recent rows unfiltered (single-field search is unreliable for file_type
+  // variants), then classify in JS.
   let rows = [];
-  try { rows = await crud.searchPage(JOB_ATTACHMENTS, { file_type: 'photo' }, { id: 'desc' }, 300); } catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
+  try { rows = await crud.searchPage(JOB_ATTACHMENTS, {}, { id: 'desc' }, 400); } catch (e) { return json(200, { ok: false, error: String(e.message || e) }); }
+
+  // Debug: see exactly what's in the table so we can tune filters.
+  if (q.debug === '1') {
+    const ftCount = {};
+    let inWin = 0;
+    for (const r of rows) { const ft = String(r.file_type || '(empty)'); ftCount[ft] = (ftCount[ft] || 0) + 1; if (normMs(r.created_at || r.at_ms) >= sinceMs) inWin++; }
+    return json(200, {
+      ok: true, debug: true, total_rows_pulled: rows.length, in_window: inWin, window_days: days,
+      file_type_breakdown: ftCount,
+      newest5: rows.slice(0, 5).map((r) => ({ id: r.id, job_id: r.job_id, file_type: r.file_type, mime: r.mime_type, created_at: r.created_at, created_ms_norm: normMs(r.created_at || r.at_ms), s3_prefix: String(r.s3_key || '').slice(0, 16) })),
+    });
+  }
 
   // Newest photo per job within the window (one representative shot per job keeps
   // the batch varied + the context lookups cheap). Skip videos + intake selfies.
   const seenJob = new Set();
   const picks = [];
   for (const r of rows || []) {
-    const created = Number(r.created_at || r.at_ms || 0);
+    const created = normMs(r.created_at || r.at_ms || 0);
     if (created && created < sinceMs) continue;
     const jid = Number(r.job_id || 0);
     if (!jid || seenJob.has(jid)) continue;
     const key = String(r.s3_key || '');
-    if (!key || /^cfstream:/i.test(key) || /video/i.test(String(r.file_type || ''))) continue;
+    if (!key || !isPhoto(r)) continue;
     seenJob.add(jid);
     picks.push({ attachment_id: r.id, job_id: jid, s3_key: key, uploaded_by: r.uploaded_by || '', created_at: created });
     if (picks.length >= limit) break;
