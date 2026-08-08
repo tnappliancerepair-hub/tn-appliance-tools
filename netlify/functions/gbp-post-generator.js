@@ -177,7 +177,9 @@ exports.handler = async function (event) {
   const custom = (q.summary || '').trim();
   if (es || custom) {
     const url = (q.url || '').trim() || 'https://tnapplianceexchange.net/es/';
-    const summary = custom || '¿Se te descompuso un electrodoméstico? 🔧 En TN Appliance Exchange te ayudamos — atención en español. Con nuestra Revisión Rápida de $50 envías un video corto y una foto del número de modelo, y un técnico de verdad te dice exactamente qué está mal y tus opciones — y los $50 se acreditan a tu reparación. ¿Es algo simple? Te decimos la pieza exacta para que lo hagas tú mismo. Servicio a domicilio en el centro de Tennessee y el área de Baton Rouge; ayuda por video en todo EE. UU. Familia reparando electrodomésticos desde 2012. Llámanos o escríbenos: 1-888-268-8998.';
+    // NO phone number in the body — Google's Local Post policy rejects contact
+    // info in post text (that killed the Spanish posts). Book button carries it.
+    const summary = custom || '¿Se te descompuso un electrodoméstico? 🔧 En TN Appliance Exchange te ayudamos — atención en español. Con nuestra Revisión Rápida de $50 envías un video corto y una foto del número de modelo, y un técnico de verdad te dice exactamente qué está mal y tus opciones — y los $50 se acreditan a tu reparación. ¿Es algo simple? Te decimos la pieza exacta para que lo hagas tú mismo. Servicio a domicilio en el centro de Tennessee y el área de Baton Rouge; ayuda por video en todo EE. UU. Familia reparando electrodomésticos desde 2012. Toca Reservar y te contestamos rápido.';
     if (dry) return json(200, { ok: true, mode: 'es_dryrun', url, post: summary });
     const r = await gbp.createLocalPost({ summary, actionType: 'BOOK', actionUrl: url });
     if (r.ok) { try { await crud.logEvent('gbp_post_published', { bucket: 'es:' + Date.now(), topic: es ? 'spanish' : 'custom', post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {} }
