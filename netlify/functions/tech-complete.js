@@ -31,7 +31,7 @@ const NONTERMINAL = new Set(['parts_needed', 'warranty_auth_needed', 'reassignme
 // which is a board blind spot the office board never renders (the job would vanish). 'held'
 // is in the board feed and routes to the tech's Report folder, and the second_opinion_
 // requested marker (logged below) drives the ORANGE siren so the office jumps on it.
-const STATUS_MAP = { repair_complete: 'completed', no_repair: 'no_fix_possible', parts_needed: 'awaiting_parts', warranty_auth_needed: 'held', reassignment_needed: 'held' };
+const STATUS_MAP = { repair_complete: 'completed', no_repair: 'no_fix_possible', parts_needed: 'awaiting_parts', warranty_auth_needed: 'held', reassignment_needed: 'held', no_fault_found: 'completed' };
 
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST,OPTIONS' }, body: JSON.stringify(b) }; }
 
@@ -49,6 +49,24 @@ exports.handler = async function (event) {
   const techId = parseInt(b.technician_id || 0, 10);
   const ct = String(b.completion_type || '');
   if (!jobId || !techId || !ct) return j(400, { success: false, error: 'job_id, technician_id, completion_type required' });
+
+  // ☑️ NO FAILURE FOUND — a real outcome (appliance tested fine, user error, no
+  // problem found). There's no part to enter, so the XS tech_job_complete gate that
+  // requires a part# / full TDR on warranty jobs would wrongly TRAP the tech. Handle
+  // it here with a direct write (bypasses that gate + the state machine), stamp the
+  // job completed, and log the NFF marker so the office can file the diagnostic/
+  // service-call claim. The tech's reason note is saved TDR-side by the client.
+  if (ct === 'no_fault_found') {
+    const now = Date.now();
+    try {
+      await crud.update(TABLES.jobs, jobId, { scheduling_status: 'completed', current_status: 'completed', job_completed_at: now });
+    } catch (e) {
+      return j(200, { success: false, error: 'complete failed: ' + String((e && e.message) || e).slice(0, 120) });
+    }
+    try { await crud.logEvent('tech_job_complete', { job_id: jobId, technician_id: techId, completion_type: 'no_fault_found', at_ms: now }); } catch (_) {}
+    try { await crud.logEvent('no_fault_found', { job_id: jobId, technician_id: techId, at_ms: now }); } catch (_) {}
+    return j(200, { success: true, completion_type: 'no_fault_found', no_fault: true });
+  }
 
   // Look at the job's real state; clear a stale/blocking "done" stamp if the job isn't
   // actually terminal, so this visit's completion isn't refused.

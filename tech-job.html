@@ -1647,7 +1647,7 @@ async function undoCompletion(){
 }
 
 function completeFlow(){
-  const types=[['repair_complete','✅ Fixed it — done'],['parts_needed','🔩 Needs parts — coming back'],['no_repair','🔁 Recommend replacement'],['reassignment_needed','🙋 Pass off — 2nd opinion'],['cancel_job','🚫 Cancel this job']];
+  const types=[['repair_complete','✅ Fixed it — done'],['no_fault_found','☑️ No failure found — done'],['parts_needed','🔩 Needs parts — coming back'],['no_repair','🔁 Recommend replacement'],['reassignment_needed','🙋 Pass off — 2nd opinion'],['cancel_job','🚫 Cancel this job']];
   const out=document.getElementById('lc-stamp');
   out.innerHTML='How did THIS visit end?<div style="font-size:12px;color:#8a93a1;margin:3px 0 2px">“Fixed it” closes the job out. Diagnostic / parts keeps it open and comes back — it won’t mark the job done.</div><div class="acts" style="margin-top:8px">'+types.map(t=>`<button class="act" data-ct="${t[0]}">${t[1]}</button>`).join('')+'</div>';
   let _completing=false;
@@ -1699,6 +1699,16 @@ function completeFlow(){
     if(b.dataset.ct==='reassignment_needed'){
       const ok=await secondOpinionGate();
       if(!ok) return;
+    }
+    // ☑️ No failure found: no part to enter, so it skips the part-# gate. Still capture a
+    // short reason (what you checked, why nothing's wrong) — the office needs it to bill
+    // the diagnostic/service call and the warranty company needs it to accept the claim.
+    // Write it as the TDR so the job shows a real report, then complete normally.
+    if(b.dataset.ct==='no_fault_found'){
+      const reason=(prompt('No failure found — quick note for the office & warranty:\n\nWhat did you check, and why is there no failure?\n(e.g. "Tested fridge, holding 37°F, cooling fine — door was left ajar")')||'').trim();
+      if(!reason){ toast('Add a quick note so the office can bill the visit'); return; }
+      if(reason.length<8){ alert('Add a little more detail (a sentence) so the office can bill the visit and the warranty company accepts it.'); return; }
+      try{ await xanoPost('create_tdr',{job_id:JOB_ID,technician_id:TECH_ID,diagnosis:'No failure found',repair_completed:'No fault found — no repair needed',technician_notes:'☑️ NO FAILURE FOUND — '+reason}); }catch(_){}
     }
     // 🚫 Cancel this job: a separate path — don't "complete" it. Capture the tech's
     // reason, park it in his Report folder with a BLUE siren, and let the office decide
