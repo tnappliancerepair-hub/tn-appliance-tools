@@ -108,6 +108,11 @@
     <changefreq>weekly</changefreq>
     <priority>0.95</priority>
   </url>
+  <url>
+    <loc>https://tnapplianceexchange.net/freezer-repair</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.95</priority>
+  </url>
 
   <!-- Dryer vent cleaning -->
   <url>
