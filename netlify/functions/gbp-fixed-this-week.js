@@ -41,7 +41,7 @@ async function viewUrl(s3Key) {
       body: JSON.stringify({ s3_keys: [s3Key] }), signal: AbortSignal.timeout(8000),
     });
     const d = await r.json();
-    const row = (d && d.results && d.results[0]) || (d && d[0]) || null;
+    const row = (d && d.signed_urls && d.signed_urls[0]) || (d && d.results && d.results[0]) || (Array.isArray(d) && d[0]) || null;
     return row && row.view_url ? row.view_url : '';
   } catch (_) { return ''; }
 }
