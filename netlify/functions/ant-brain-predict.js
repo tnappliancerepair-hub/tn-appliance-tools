@@ -21,6 +21,7 @@ const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
 
 let faultCodes = null; try { faultCodes = require('./fault-code-lookup'); } catch (_) {}
 const brainEval = require('./_lib/brain-eval');   // forward-eval harness (Supabase, no-op-safe)
+const mk = require('./_lib/ant/model-knowledge'); // the ANCHOR: model-specific recall (1,299 distilled models)
 
 async function jfetch(url, opts) { try { const r = await fetch(url, opts); return await r.json(); } catch (_) { return null; } }
 
@@ -28,7 +29,11 @@ async function jfetch(url, opts) { try { const r = await fetch(url, opts); retur
 // count as the SAME part, and "MOED6027LZ00" matches "moed6027lz00".
 function normAlnum(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function partKey(p) {
-  const first = String(p || '').trim().split(/[\s(—\-]/)[0];   // leading token before space / "(" / dash
+  // leading token before a space / "(" / em-dash annotation. Do NOT split on a
+  // plain hyphen — it's part of the number (Samsung DC97-16350P, LG parts, Frigidaire).
+  // The old split on "-" truncated every dash-format part to a useless prefix (DC97),
+  // mangling all Samsung/LG/Frigidaire matching. normAlnum strips the hyphen for compare.
+  const first = String(p || '').trim().split(/[\s(—]/)[0];
   return normAlnum(first);
 }
 function normModel(m) { return normAlnum(m); }
@@ -132,7 +137,7 @@ exports.handler = async function (event) {
   const agg = {}; const seenPairs = new Set();
   for (const e of matched) {
     const pk = partKey(e.verified_part_number);
-    if (!pk) continue;
+    if (!pk || !/[0-9]/.test(pk)) continue;   // a real part# always has a digit — drops junk like "REFRIGERATOR"/"WASHER"
     const pair = (e.job_id || '?') + '|' + pk;
     if (seenPairs.has(pair)) continue;    // ignore the duplicate TDR rows
     seenPairs.add(pair);
@@ -140,10 +145,37 @@ exports.handler = async function (event) {
     agg[pk].n += 1;
   }
   const distinctJobs = new Set(matched.map((e) => e.job_id)).size || matched.length;
-  const ranked = Object.values(agg).sort((a, b) => b.n - a.n).slice(0, 3).map((p) => ({
+  let ranked = Object.values(agg).sort((a, b) => b.n - a.n).slice(0, 3).map((p) => ({
     component: p.component, part: p.part, part_display: p.part_display,
     seen_n: p.n, confidence: Math.round((p.n / Math.max(1, distinctJobs)) * 100),
   }));
+
+  // MODEL-SPECIFIC beats appliance-wide. Unless we already have a strong exact-model
+  // live match, consult the distilled model/family knowledge (1,299 models). If it
+  // knows THIS model, its parts lead — "what actually fails on THIS model" wins over
+  // a generic "most common washer part." recall() merges our live TDR (exact/family)
+  // with the distilled base and is pure/no-network. Additive: never discards the
+  // appliance-wide ranking, just re-orders model-specific to the front.
+  if (model && scope !== 'exact_model') {
+    try {
+      const rec = mk.recall({ brand, appliance, model, entries: all });
+      if (rec && rec.matched_on && rec.matched_on !== 'platform') {   // model | family | base
+        const recPreds = (rec.failures || [])
+          .filter((f) => f.part && /[0-9]/.test(partKey(f.part)))
+          .map((f) => ({
+            component: f.component || '', part: partKey(f.part), part_display: f.part,
+            seen_n: f.count || 0,
+            // live model/family evidence rates high; distilled base is trade-pattern, capped.
+            confidence: f.base ? Math.min(55, 25 + (f.count || 0) * 8) : Math.min(90, (f.count || 0) * 20 + 40),
+          }));
+        if (recPreds.length) {
+          const seen = new Set(recPreds.map((p) => p.part));
+          ranked = recPreds.concat(ranked.filter((p) => !seen.has(p.part))).slice(0, 3);
+          scope = rec.matched_on === 'base' ? 'model_base' : 'model_' + rec.matched_on;
+        }
+      }
+    } catch (_) { /* base optional — never break the guess */ }
+  }
 
   // Fault-code layer (if the symptom carries a code).
   let fault = null;
