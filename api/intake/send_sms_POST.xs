@@ -328,7 +328,7 @@ query send_sms verb=POST {
     }
 
     var $tag_intake_ok {
-      value = $body_is_intake || $body_is_status || ($tag_l|contains:"en_route") || ($tag_l|contains:"arriv") || ($tag_l|contains:"intake") || ($tag_l|contains:"availab") || ($tag_l|contains:"quick") || ($tag_l|contains:"finish") || ($tag_l|contains:"media") || ($tag_l|contains:"model") || ($tag_l|contains:"video") || ($tag_l|contains:"resume") || ($tag_l|contains:"reply") || ($tag_l|contains:"translated") || ($tag_l|contains:"inbound") || ($tag_l|contains:"new_lead") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($tag_l|contains:"tech_field")
+      value = $body_is_intake || $body_is_status || ($tag_l|contains:"en_route") || ($tag_l|contains:"arriv") || ($tag_l|contains:"intake") || ($tag_l|contains:"availab") || ($tag_l|contains:"quick") || ($tag_l|contains:"finish") || ($tag_l|contains:"media") || ($tag_l|contains:"model") || ($tag_l|contains:"video") || ($tag_l|contains:"resume") || ($tag_l|contains:"reply") || ($tag_l|contains:"translated") || ($tag_l|contains:"inbound") || ($tag_l|contains:"new_lead") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($tag_l|contains:"tech_field") || ($tag_l|contains:"satisfaction") || ($tag_l|contains:"review")
     }
 
     conditional {
