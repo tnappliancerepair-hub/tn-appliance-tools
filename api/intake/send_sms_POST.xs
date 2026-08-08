@@ -142,9 +142,16 @@ query send_sms verb=POST {
     var $is_danielle {
       value = ($p10 == "6154850713")
     }
-  
+
+    // Office staff (not field techs, so not in the technicians table): Carrie
+    // (handles all returns, helps the LA guys) + Sofia. Internal recipients —
+    // their alerts (returns, board, welcome) must bypass the customer gate.
+    var $is_office_staff {
+      value = ($p10 == "2258035669") || ($p10 == "6292594602")
+    }
+
     var $is_internal {
-      value = ($is_tech_phone == true) || ($is_owner == true) || ($is_danielle == true)
+      value = ($is_tech_phone == true) || ($is_owner == true) || ($is_danielle == true) || ($is_office_staff == true)
     }
   
     // ============================================================
