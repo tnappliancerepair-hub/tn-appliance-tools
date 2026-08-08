@@ -16,7 +16,7 @@ const DEFAULTS = [
   '/',
   '/same-day-appliance-repair',
   '/appliance-repair-cost',
-  '/dryer-repair', '/washer-repair', '/refrigerator-repair', '/dishwasher-repair', '/oven-repair', '/dryer-vent-cleaning',
+  '/dryer-repair', '/washer-repair', '/refrigerator-repair', '/freezer-repair', '/dishwasher-repair', '/oven-repair', '/dryer-vent-cleaning',
   '/nashville', '/antioch', '/la-vergne', '/murfreesboro', '/smyrna', '/franklin', '/brentwood', '/clarksville', '/hendersonville', '/hermitage', '/mt-juliet', '/gallatin', '/lebanon', '/spring-hill',
   '/new-orleans', '/baton-rouge', '/hammond', '/metairie', '/kenner', '/slidell', '/covington', '/mandeville',
 ];
