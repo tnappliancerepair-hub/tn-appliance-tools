@@ -65,6 +65,11 @@ exports.handler = async function (event) {
     }
     try { await crud.logEvent('tech_job_complete', { job_id: jobId, technician_id: techId, completion_type: 'no_fault_found', at_ms: now }); } catch (_) {}
     try { await crud.logEvent('no_fault_found', { job_id: jobId, technician_id: techId, at_ms: now }); } catch (_) {}
+    // Emit the canonical job_completed event (normally produced by job-completion-watch
+    // off the office_set_job_status transition, which this direct write skips). Without
+    // it, an NFF visit never reaches the review sweep — a happy "came out, honest, nothing
+    // wrong" customer wouldn't get the "How'd we do?" ask. Sweep dedups per job + 60d.
+    try { await crud.logEvent('job_completed', { job_id: jobId, actor: 'tech:' + techId, via: 'no_fault_found', at_ms: now }); } catch (_) {}
     return j(200, { success: true, completion_type: 'no_fault_found', no_fault: true });
   }
 
