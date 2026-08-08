@@ -133,10 +133,24 @@ exports.handler = async function (event) {
     const ftCount = {};
     let inWin = 0;
     for (const r of rows) { const ft = String(r.file_type || '(empty)'); ftCount[ft] = (ftCount[ft] || 0) + 1; if (normMs(r.created_at || r.at_ms) >= sinceMs) inWin++; }
+    // Pipeline trace: pick the first few in-window photos and run each stage.
+    const dpicks = []; const seenD = new Set();
+    for (const r of rows) {
+      if (normMs(r.created_at || r.at_ms) < sinceMs) continue;
+      const jid = Number(r.job_id || 0); if (!jid || seenD.has(jid) || !isPhoto(r)) continue;
+      seenD.add(jid); dpicks.push(r); if (dpicks.length >= 4) break;
+    }
+    const trace = [];
+    for (const r of dpicks) {
+      const ctx = await jobCtx(r.job_id);
+      const view = await viewUrl(r.s3_key);
+      trace.push({ job_id: r.job_id, appliance: ctx.appliance || '(none)', city: ctx.city || '', status: ctx.status || '', completed: !!ctx.completed, view_ok: !!view, view_prefix: String(view).slice(0, 40) });
+    }
     return json(200, {
       ok: true, debug: true, total_rows_pulled: rows.length, in_window: inWin, window_days: days,
-      file_type_breakdown: ftCount,
-      newest5: rows.slice(0, 5).map((r) => ({ id: r.id, job_id: r.job_id, file_type: r.file_type, mime: r.mime_type, created_at: r.created_at, created_ms_norm: normMs(r.created_at || r.at_ms), s3_prefix: String(r.s3_key || '').slice(0, 16) })),
+      file_type_breakdown: ftCount, unique_job_picks: seenD.size,
+      pipeline_trace: trace,
+      newest5: rows.slice(0, 5).map((r) => ({ id: r.id, job_id: r.job_id, file_type: r.file_type, created_ms_norm: normMs(r.created_at || r.at_ms), s3_prefix: String(r.s3_key || '').slice(0, 16) })),
     });
   }
 
