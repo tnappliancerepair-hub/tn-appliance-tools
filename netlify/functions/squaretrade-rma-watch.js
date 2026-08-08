@@ -11,6 +11,7 @@
 
 const { google } = require('googleapis');
 const { sendSms } = require('./_lib/sms');
+const { getSecret } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
 
 const OWNER = '+16154855795';
@@ -173,6 +174,8 @@ exports.handler = async function (event) {
     const lines = fresh.slice(0, 8).map((p) => `• ${p.part} (${p.return_desc || 'return'}) → ${p.distributor} · ${p.customer || p.claim} · FedEx ${p.tracking}`);
     const body = `[ant] 📦 ${fresh.length} part(s) to RETURN (SquareTrade chargeback risk):\n\n${lines.join('\n')}\n\nLabel emails are in the inbox (from rma_request@squaretrade.com). Print + ship each so we get paid + avoid the core charge.`;
     try { await sendSms(OWNER, body, 'owner', 'sp_rma_watch'); } catch (_) {}
+    // Carrie runs all returns — send her the new-label digest too (internal, gate-bypassing).
+    try { const carrie = (await getSecret('OFFICE_CELL_CARRIE')) || '+12258035669'; await sendSms(carrie, body, 'office', 'sp_rma_watch'); } catch (_) {}
   }
 
   return json(200, { ok: true, parsed: parsed.length, new_labels: fresh.length, recorded: fresh.map((p) => ({ part: p.part, claim: p.claim, rma: p.rma, job_id: p.job_id || null })) });

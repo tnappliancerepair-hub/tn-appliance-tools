@@ -53,6 +53,10 @@ exports.handler = async function (event) {
   const clearedRows = await crud.searchPage(crud.TABLES.event_log, { action: 'parts_return_cleared_notified' }, { id: 'desc' }, 500).catch(() => []);
   const clearedDone = new Set(clearedRows.map((r) => metaOf(r).key).filter(Boolean));
 
+  // Carrie runs all returns — she gets the OVERDUE chase list (office-side), deduped
+  // by the same per-stage guard as the tech nag so she's alerted once per part.
+  const carrieCell = (await getSecret('OFFICE_CELL_CARRIE')) || '+12258035669';
+
   const out = { ok: true, enabled, dry, window_days: data.window_days, open: open.length, sent: { new: 0, due_soon: 0, overdue: 0, cleared: 0 }, items: [] };
 
   // --- warnings on OPEN returns ---
@@ -71,6 +75,8 @@ exports.handler = async function (event) {
     out.items.push({ tech: t.n, stage, part: o.part, who, due, job_id: o.job_id });
     if (!dry) {
       await sms(t.p, msg, 'parts_return');
+      // Carrie (returns owner) gets the overdue ones so she can chase/ship from the office.
+      if (stage === 'overdue') { try { await sms(carrieCell, `[ant] 📦 OVERDUE return — ${o.part} for ${who} (tech ${t.n}). Was due ${due}. FedEx ${o.tracking} → ${o.distributor || 'distributor'}. Ship today to avoid the chargeback.`, 'parts_return'); } catch (_) {} }
       try { await crud.logEvent('parts_return_warned', { key: o.key, stage, tech_id: o.tech_id, job_id: o.job_id, part: o.part, customer: o.customer, due_ms: o.due_ms, at_ms: Date.now() }); } catch (_) {}
     }
     out.sent[stage]++;
