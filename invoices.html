@@ -173,17 +173,21 @@ async function payLink(jobId){
   const i=INV.find(x=>x.job_id===jobId)||{};
   document.getElementById('m-pay').classList.add('on');
   const msg=document.getElementById('p-msg'), act=document.getElementById('p-actions');
-  msg.textContent='Creating secure Stripe link for '+(i.customer||'customer')+'…'; act.innerHTML='';
+  // Sends the DURABLE pay.html link (never expires) from the office line — NOT a raw
+  // Stripe checkout link. The old flow texted an expiring cs_live_ URL that died in
+  // 24h and left customers on the "checkout session timed out" dead page (Jennifer
+  // Roher's hoses). send-pay-link records nothing new; it mints the stable link for
+  // whatever's owed and texts it. Warranty jobs with no out-of-pocket balance no-op.
+  msg.textContent='Texting a secure pay link to '+(i.customer||'customer')+'…'; act.innerHTML='';
   try{
-    const d=await(await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId,kind:'invoice',description:'TN Appliance Exchange — Job #'+jobId+' invoice'})})).json();
-    if(d&&d.error==='covered_by_warranty'){msg.innerHTML='<span style="color:var(--warn)">This is a warranty job — nothing to charge the customer.</span>';return;}
-    if(!d||!d.ok||!d.url||d.placeholder){msg.innerHTML='<span style="color:var(--red)">'+esc((d&&d.error)||'Could not create link. Make sure the invoice amount is saved first.')+'</span>';return;}
-    const url=d.url;
-    const txt='Hi '+(i.customer?i.customer.split(' ')[0]:'there')+', here is your invoice for '+money(i.amount)+' from TN Appliance Exchange. Pay securely here: '+url;
-    msg.innerHTML='<span style="color:var(--ok)">Link ready for '+esc(i.customer)+' — '+money(i.amount)+'</span>';
-    act.innerHTML='<a class="btn g" style="text-decoration:none;display:inline-block" href="sms:+1'+esc(i.phone)+'?&body='+encodeURIComponent(txt)+'">📱 Text it to '+esc(i.customer.split(' ')[0])+'</a> '
-      +'<button class="btn ghost" onclick="navigator.clipboard&&navigator.clipboard.writeText(\''+url.replace(/'/g,"\\'")+'\');this.textContent=\'Copied ✓\'">Copy link</button>'
-      +'<div class="meta" style="margin-top:8px;word-break:break-all">'+esc(url)+'</div>';
+    const d=await(await fetch('/.netlify/functions/send-pay-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:jobId,sender:'office'})})).json();
+    if(d&&d.sent){
+      msg.innerHTML='<span style="color:var(--ok)">✓ Durable pay link texted to '+esc(i.customer)+' — '+money(i.amount)+'. It never expires.</span>';
+    } else {
+      const why=(d&&d.reason)||(d&&d.error)||'could not send';
+      const nice = why==='no_phone' ? 'No phone on file — add one on the office board first.' : (why==='opted_out' ? 'This customer replied STOP — texts are blocked.' : ('Could not send: '+why));
+      msg.innerHTML='<span style="color:var(--red)">'+esc(nice)+'</span>';
+    }
   }catch(_){ msg.innerHTML='<span style="color:var(--red)">connection error</span>'; }
 }
 load();

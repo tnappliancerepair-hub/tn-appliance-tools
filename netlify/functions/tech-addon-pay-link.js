@@ -12,6 +12,7 @@
 'use strict';
 
 const crud = require('./_lib/xano/metadata-crud');
+const { payToken } = require('./pay-owed');   // durable pay.html HMAC token (never expires)
 const JOBS = crud.TABLES.jobs;         // 7
 const CUSTOMER = crud.TABLES.customer; // 6
 const SITE = process.env.PUBLIC_SITE_BASE || 'https://tnapplianceexchange.net';
@@ -65,25 +66,12 @@ exports.handler = async function (event) {
   const { phone10, first } = await resolveCustomer(jobId);
   if (!phone10) return json(200, { ok: false, error: 'no phone on file for this job — add one on the office board first' });
 
-  // 1) create the add-on pay link (technician_id rides it so the "paid" text
-  //    reaches this tech; kind:'addon' is never warranty-gated).
-  let url = '';
-  try {
-    const r = await fetch(`${SITE}/.netlify/functions/create-stripe-payment-link`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        job_id: jobId, amount_cents: Math.round(price * 100), description: name, kind: 'addon', technician_id: techId,
-        metadata: { addon_key: addonKey, name, mode: 'installed', tech_cut: String(techCut), technician_id: String(techId), source: 'tech_addon' },
-      }),
-    });
-    const d = await r.json();
-    if (d && d.ok && d.url && !d.placeholder) url = d.url;
-    else return json(200, { ok: false, error: (d && d.error) || 'could not create pay link' });
-  } catch (_) { return json(200, { ok: false, error: 'pay-link error' }); }
-
-  // 2) record the add-on fulfilled -> credits the tech now (the work is done);
-  //    paid flips when the customer pays the link. addons-for-job dedupes so it
-  //    never double-bills against the office worksheet.
+  // 1) RECORD the add-on FIRST — this is the fix for the "dead link" trap. The old
+  //    flow texted a raw create-stripe-payment-link checkout URL that expired in 24h
+  //    (Jennifer Roher's hoses: link died, balance vanished, endless "resend"). Now
+  //    the charge is a RECORDED add-on on the job, so it exists independent of any
+  //    link. Fulfilled -> credits the tech (work is done); paid flips on payment.
+  //    addons-for-job dedupes so it never double-bills the office worksheet.
   try {
     await fetch(`${SITE}/.netlify/functions/record-addon`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -91,9 +79,16 @@ exports.handler = async function (event) {
     });
   } catch (_) {}
 
-  // 3) text the customer the pay-now link, identified as the tech.
+  // 2) mint the DURABLE pay.html link — never expires, mints a fresh Stripe session
+  //    on each tap (no more "checkout session timed out" dead page), and shows the
+  //    real recorded balance (this add-on + any other unpaid add-ons + tax).
+  let url = '';
+  try { url = `${SITE}/pay.html?job=${jobId}&t=${await payToken(jobId)}`; }
+  catch (_) { return json(200, { ok: false, error: 'could not mint pay link' }); }
+
+  // 3) text the customer the durable pay link, identified as the tech.
   const who = TECH_NAME[techId] ? TECH_NAME[techId] + ' (TN Appliance)' : 'TN Appliance';
-  const msg = `${who}: here's your ${name.toLowerCase()} — $${price.toFixed(0)} (tax added at checkout). Tap to pay and you're all set: ${url}`;
+  const msg = `${who}: added your ${name.toLowerCase()} — $${price.toFixed(0)} (tax added at checkout). Tap to pay whenever you're ready — this link won't expire: ${url}`;
   let texted = false, sendErr = '';
   try {
     const sr = await fetch(`${SITE}/.netlify/functions/human-line-send`, {
