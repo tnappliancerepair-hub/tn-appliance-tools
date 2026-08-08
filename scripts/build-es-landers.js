@@ -37,6 +37,9 @@ const APPLIANCES = [
   { key: 'estufa', label: 'estufas y hornos', h: 'estufa u horno', slug: 'estufa',
     intro: 'Estufas, hornos y microondas — de gas o eléctricos. Reparamos con seguridad y te decimos la verdad sobre si vale la pena arreglarlo.',
     fixes: [ ['oven-not-heating','El horno no calienta'], ['estufa-gas-no-enciende','El quemador de gas no enciende'], ['estufa-electrica-no-calienta','El quemador eléctrico no calienta'], ['horno-no-mantiene-temperatura','El horno no mantiene la temperatura'], ['microondas-no-calienta','El microondas no calienta'] ] },
+  { key: 'congelador', label: 'congeladores', h: 'congelador', slug: 'congelador',
+    intro: 'Un congelador que no enfría es una carrera contra el reloj — tu comida. La mayoría de las fallas (el sistema de deshielo, el relé de arranque, el termostato) son arreglos económicos. Sea horizontal, vertical o empotrado, te decimos con honestidad qué necesita antes de tocarlo.',
+    fixes: [ ['congelador-no-enfria','El congelador no enfría'], ['no-hace-hielo','La fábrica de hielo no funciona'], ['refrigerador-gotea-agua','Fugas o charcos de agua'] ] },
 ];
 
 const BRANDS = ['Whirlpool', 'Samsung', 'LG', 'GE', 'Frigidaire', 'Maytag', 'Kenmore', 'KitchenAid', 'Amana', 'Bosch'];
