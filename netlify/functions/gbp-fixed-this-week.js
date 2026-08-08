@@ -46,19 +46,26 @@ async function viewUrl(s3Key) {
   } catch (_) { return ''; }
 }
 
-// Job context (appliance/brand/city) from the reliable dashboard endpoint.
+// Job context (appliance/brand/city) — get_job_for_dashboard is POST {job_id}.
 async function jobCtx(jobId) {
   try {
-    const r = await fetch(`${XANO}/get_job_for_dashboard?job_id=${encodeURIComponent(jobId)}`, { signal: AbortSignal.timeout(6000) });
+    const r = await fetch(`${XANO}/get_job_for_dashboard`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: Number(jobId) }), signal: AbortSignal.timeout(7000),
+    });
     const d = await r.json();
-    const a = (d && d.appliance) || {};
-    const cust = (d && d.customer) || {};
+    if (!d || !d.success) return {};
+    const a = d.appliance || {};
+    const cust = d.customer || {};
+    const job = d.job || {};
+    const status = String(job.scheduling_status || job.current_status || '').toLowerCase();
     return {
-      appliance: String(a.type || a.appliance_type || '').trim(),
+      appliance: String(a.type || '').trim(),
       brand: String(a.brand || '').trim(),
-      city: String(cust.city || d.service_city || (d.job && d.job.service_city) || '').trim(),
-      state: String(cust.state || d.service_state || '').trim(),
-      status: String((d.job && d.job.scheduling_status) || d.scheduling_status || '').trim(),
+      city: String(cust.city || job.service_city || '').trim(),
+      state: String(cust.state || job.service_state || '').trim(),
+      status,
+      completed: status === 'completed' || String(job.current_status || '').toLowerCase() === 'completed',
     };
   } catch (_) { return {}; }
 }
@@ -68,7 +75,11 @@ function composeCaption(ctx, i) {
   const appl = (ctx.appliance || 'appliance').toLowerCase();
   const where = ctx.city ? ` in ${cap(ctx.city)}${ctx.state ? ', ' + ctx.state.toUpperCase() : ''}` : '';
   const opener = OPENERS[i % OPENERS.length];
-  return `${opener} ${brand}${appl} back up and running${where} this week. 🐜 Same-day, honest appliance repair across Middle Tennessee & Louisiana — text us and a real tech texts you right back. 4.5★, 1,000+ reviews. Family-owned since 2012.`;
+  // Only claim "fixed" on a completed job; otherwise an honest "on the job" line.
+  const line = ctx.completed
+    ? `${opener} ${brand}${appl} back up and running${where} this week.`
+    : `On a ${brand}${appl}${where} this week.`;
+  return `${line} 🐜 Same-day, honest appliance repair across Middle Tennessee & Louisiana — text us and a real tech texts you right back. 4.5★, 1,000+ reviews. Family-owned since 2012.`;
 }
 
 exports.handler = async function (event) {
@@ -145,21 +156,26 @@ exports.handler = async function (event) {
     if (picks.length >= limit) break;
   }
 
-  // Enrich with job context + caption + view URL (bounded concurrency).
-  const out = [];
+  // Enrich with job context + caption + view URL.
+  const enriched = [];
   for (const p of picks) {
     const ctx = await jobCtx(p.job_id);
     // Only surface real repair jobs that have an appliance we can name.
     if (!ctx.appliance) continue;
     const view = await viewUrl(p.s3_key);
     if (!view) continue;
-    out.push({
-      ...p, appliance: ctx.appliance, brand: ctx.brand, city: ctx.city, state: ctx.state, status: ctx.status,
-      view_url: view,
-      action_url: SITE + (HUB[(ctx.appliance || '').toLowerCase()] || '/appliance-ai.html'),
-      caption: composeCaption(ctx, out.length),
-    });
+    enriched.push({ ...p, ctx, view });
   }
+  // Completed jobs first (best "fixed this week" material), newest within each.
+  enriched.sort((a, b) => (b.ctx.completed ? 1 : 0) - (a.ctx.completed ? 1 : 0) || b.created_at - a.created_at);
+  const out = enriched.map((e, i) => ({
+    attachment_id: e.attachment_id, job_id: e.job_id, s3_key: e.s3_key, uploaded_by: e.uploaded_by, created_at: e.created_at,
+    appliance: e.ctx.appliance, brand: e.ctx.brand, city: e.ctx.city, state: e.ctx.state,
+    status: e.ctx.status, completed: e.ctx.completed,
+    view_url: e.view,
+    action_url: SITE + (HUB[(e.ctx.appliance || '').toLowerCase()] || '/appliance-ai.html'),
+    caption: composeCaption(e.ctx, i),
+  }));
 
-  return json(200, { ok: true, days, count: out.length, candidates: out });
+  return json(200, { ok: true, days, count: out.length, completed_count: out.filter((c) => c.completed).length, candidates: out });
 };

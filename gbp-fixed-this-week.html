@@ -72,7 +72,7 @@ function renderCard(c){
   el.innerHTML=`
     <img src="${esc(c.view_url)}" alt="repaired appliance" loading="lazy" onerror="this.style.opacity=.3;this.alt='(photo could not load)'">
     <div class="body">
-      <div class="meta"><b>${esc((c.brand?c.brand+' ':'')+(c.appliance||'appliance'))}</b>${where?' · '+esc(where):''} · job #${esc(String(c.job_id))}${c.uploaded_by?' · by '+esc(c.uploaded_by):''}</div>
+      <div class="meta">${c.completed?'<span style="color:var(--green);font-weight:800">✓ COMPLETED</span> · ':'<span style="color:#e0b22a;font-weight:800">'+esc((c.status||'in progress').toUpperCase())+'</span> · '}<b>${esc((c.brand?c.brand+' ':'')+(c.appliance||'appliance'))}</b>${where?' · '+esc(where):''} · job #${esc(String(c.job_id))}${c.uploaded_by?' · by '+esc(c.uploaded_by):''}</div>
       <textarea>${esc(c.caption)}</textarea>
       <button class="btn-post">🚀 Post to Google</button>
       <button class="btn-skip">Skip</button>
