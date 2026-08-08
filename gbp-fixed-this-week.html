@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Fixed This Week → Google Posts</title>
+<style>
+  :root{--bg:#0b0e13;--card:#141a22;--line:#232c3a;--ink:#eef2f8;--dim:#9fb0c8;--orange:#ff6200;--green:#2ecc71;--blue:#1f6fed}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;padding:16px;max-width:860px;margin:0 auto}
+  h1{font-size:21px;font-weight:800;margin-bottom:2px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:16px}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+  .btn-load{background:var(--blue);color:#fff}
+  .btn-post{background:var(--green);color:#052b14;width:100%;margin-top:8px}
+  .btn-skip{background:transparent;color:var(--dim);border:1px solid var(--line)}
+  select,input{font:inherit;background:#0f141c;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:9px}
+  .grid{display:grid;grid-template-columns:1fr;gap:14px}
+  @media(min-width:640px){.grid{grid-template-columns:1fr 1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .card img{width:100%;height:220px;object-fit:cover;background:#0a0d12;display:block}
+  .body{padding:12px 13px;display:flex;flex-direction:column;gap:8px}
+  .meta{font-size:12px;color:var(--dim)}
+  .meta b{color:var(--ink)}
+  textarea{width:100%;min-height:118px;background:#0f141c;color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:10px;font:13px/1.5 inherit;resize:vertical}
+  .msg{font-size:12px;min-height:16px}
+  .ok{color:var(--green)} .err{color:#ff6b6b}
+  .posted{opacity:.55}
+  .empty{color:var(--dim);padding:30px 0;text-align:center}
+  .note{background:rgba(255,98,0,.08);border:1px solid rgba(255,98,0,.3);border-radius:10px;padding:10px 12px;font-size:12.5px;color:#ffd9bd;margin-bottom:14px}
+</style>
+</head>
+<body>
+<h1>📸 Fixed This Week → Google</h1>
+<div class="sub">Turn this week's job photos into Google Business posts. Fresh photos + posts push you up the map pack.</div>
+<div class="note">⚠️ These photos come off real jobs — <b>check each one before posting</b>: no faces, no house interiors you wouldn't share, no visible model/serial stickers, no customer paperwork. Only the clean "nice repaired appliance" shots. Edit the caption if you like, then Post.</div>
+<div class="bar">
+  <label class="meta">Window:
+    <select id="days"><option value="7" selected>Last 7 days</option><option value="14">Last 14 days</option><option value="3">Last 3 days</option></select>
+  </label>
+  <button class="btn-load" id="load">Load photos</button>
+  <span class="msg" id="status"></span>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+const F='/.netlify/functions';
+function secret(){ let s=localStorage.getItem('tn_admin_secret'); if(!s){ s=prompt('Owner password:')||''; if(s) localStorage.setItem('tn_admin_secret',s);} return s; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function load(){
+  const st=document.getElementById('status'); const grid=document.getElementById('grid');
+  st.textContent='Loading…'; st.className='msg'; grid.innerHTML='';
+  const days=document.getElementById('days').value;
+  let d;
+  try{ d=await fetch(`${F}/gbp-fixed-this-week?secret=${encodeURIComponent(secret())}&days=${days}`).then(r=>r.json()); }
+  catch(e){ st.textContent='Network error'; st.className='msg err'; return; }
+  if(d&&d.error&&/unauthorized/i.test(d.error)){ localStorage.removeItem('tn_admin_secret'); st.textContent='Wrong password — tap Load again.'; st.className='msg err'; return; }
+  if(!d||!d.ok){ st.textContent='⚠ '+((d&&d.error)||'failed'); st.className='msg err'; return; }
+  const c=d.candidates||[];
+  st.textContent=`${c.length} photo${c.length===1?'':'s'} from the last ${d.days} days`;
+  if(!c.length){ grid.innerHTML='<div class="empty">No job photos in this window yet.</div>'; return; }
+  c.forEach(renderCard);
+}
+
+function renderCard(c){
+  const grid=document.getElementById('grid');
+  const el=document.createElement('div'); el.className='card';
+  const where=[c.city,(c.state||'').toUpperCase()].filter(Boolean).join(', ');
+  el.innerHTML=`
+    <img src="${esc(c.view_url)}" alt="repaired appliance" loading="lazy" onerror="this.style.opacity=.3;this.alt='(photo could not load)'">
+    <div class="body">
+      <div class="meta"><b>${esc((c.brand?c.brand+' ':'')+(c.appliance||'appliance'))}</b>${where?' · '+esc(where):''} · job #${esc(String(c.job_id))}${c.uploaded_by?' · by '+esc(c.uploaded_by):''}</div>
+      <textarea>${esc(c.caption)}</textarea>
+      <button class="btn-post">🚀 Post to Google</button>
+      <button class="btn-skip">Skip</button>
+      <div class="msg"></div>
+    </div>`;
+  const ta=el.querySelector('textarea'), postBtn=el.querySelector('.btn-post'), skipBtn=el.querySelector('.btn-skip'), msg=el.querySelector('.msg');
+  skipBtn.onclick=()=>{ el.classList.add('posted'); postBtn.disabled=true; skipBtn.disabled=true; msg.textContent='skipped'; msg.className='msg'; };
+  postBtn.onclick=async()=>{
+    const caption=ta.value.trim(); if(!caption){ msg.textContent='caption is empty'; msg.className='msg err'; return; }
+    postBtn.disabled=true; msg.textContent='Posting…'; msg.className='msg';
+    try{
+      const r=await fetch(`${F}/gbp-fixed-this-week`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:secret(),s3_key:c.s3_key,caption,action_url:c.action_url})});
+      const d=await r.json();
+      if(d&&d.ok){ msg.textContent='✅ Posted to Google'; msg.className='msg ok'; el.classList.add('posted'); skipBtn.disabled=true; }
+      else{ msg.textContent='⚠ '+((d&&d.error)||'failed'); msg.className='msg err'; postBtn.disabled=false; }
+    }catch(e){ msg.textContent='network error'; msg.className='msg err'; postBtn.disabled=false; }
+  };
+  grid.appendChild(el);
+}
+document.getElementById('load').onclick=load;
+</script>
+</body>
+</html>
