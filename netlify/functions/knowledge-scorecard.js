@@ -84,8 +84,11 @@ exports.handler = async function (event) {
   // Honest breakdown: exact part is the strict number; right-component shows the brain
   // often knows WHAT failed even when the SKU differs; useful = either (the trip-saver).
   const dPart = prior && partAcc != null && prior.part_accuracy != null ? partAcc - prior.part_accuracy : (accuracy != null && prior && prior.accuracy != null ? dAcc : 0);
+  // Two clean numbers: strict exact-SKU part, and the right failed component (the
+  // brain usually knows WHAT failed well before it nails the exact SKU). 'useful'
+  // stays in the API but off the text — its cross-denominator value reads confusing.
   const accStr = partAcc == null ? 'n/a'
-    : `part ${partAcc}%${compAcc != null ? ` · component ${compAcc}%` : ''}${usefulAcc != null ? ` · useful ${usefulAcc}%` : ''} (${graded} graded)`;
+    : `part ${partAcc}%${compAcc != null ? ` · component ${compAcc}%` : ''} (${graded} graded)`;
   const lines = [
     `🧠 Ant Knowledge — ${dayCT(now)}`,
     `Models known: ${models.toLocaleString()} ${arrow(dModels)}${distilledJobs ? ` (from ${distilledJobs.toLocaleString()} distilled jobs)` : ''}`,
