@@ -87,7 +87,26 @@ function page(item, idx) {
   const esSlug = item.esSlug || item.slug;
   const hasEs = fs.existsSync(path.join(ROOT, 'es', 'fix', esSlug + '.html'));
   const svc = SERVICE_PAGE[item.appliance];
-  const related = ITEMS.filter((x) => x.slug !== item.slug).slice(0, 3);
+  // Relevance-ranked related links (was: same first-3 on every page). Same symptom
+  // stem (base <-> brand variants, e.g. ice-maker-not-working <-> samsung-ice-maker-
+  // not-working) ranks highest, then same appliance, then shared keyword. Builds a
+  // real topical cluster Google can crawl + rank, and gives readers relevant next-reads.
+  const BRAND_RE = /^(whirlpool|samsung|lg|ge|bosch|frigidaire|maytag|kitchenaid|electrolux)-/;
+  const stemOf = (s) => s.replace(BRAND_RE, '');
+  const myStem = stemOf(item.slug);
+  const myKw = myStem.split('-').filter((w) => w.length > 3);
+  const relScore = (x) => {
+    let s = 0;
+    if (stemOf(x.slug) === myStem) s += 3;              // base <-> brand variant / same symptom
+    if (x.appliance === item.appliance) s += 2;         // same appliance cluster
+    if (s === 0 && myKw.some((w) => x.slug.includes(w))) s += 1; // shared keyword
+    return s;
+  };
+  const related = ITEMS.filter((x) => x.slug !== item.slug)
+    .map((x) => ({ x, s: relScore(x) }))
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 4)
+    .map((o) => o.x);
 
   const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: item.faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) };
   const bc = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
