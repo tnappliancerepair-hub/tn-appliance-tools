@@ -196,10 +196,21 @@ ${faqHtml}
 function hub() {
   const byAppliance = {};
   for (const it of ITEMS) { (byAppliance[it.appliance] = byAppliance[it.appliance] || []).push(it); }
-  const cards = ITEMS.map((it) => `      <a class="card" href="/fix/${it.slug}.html">
+  // Grouped by appliance so a 29-guide list scans instead of walling. Common
+  // appliances first; any not in the order list get appended alphabetically.
+  const ORDER = ['Refrigerator', 'Washer', 'Dryer', 'Dishwasher', 'Oven', 'Range', 'Freezer', 'Microwave'];
+  const appls = Object.keys(byAppliance).sort((a, b) => {
+    const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+  const card = (it) => `      <a class="card" href="/fix/${it.slug}.html">
         <span class="ap">${esc(it.appliance)}</span>
         <span class="q">${esc(it.question.replace(/ — what do I do\?$/, ''))}</span>
-      </a>`).join('\n');
+      </a>`;
+  const cards = appls.map((ap) => `    <h2 class="grp">${esc(ap)}</h2>
+    <div class="grid">
+${byAppliance[ap].map(card).join('\n')}
+    </div>`).join('\n');
   const itemList = { '@context': 'https://schema.org', '@type': 'ItemList', name: 'Appliance troubleshooting guides', itemListElement: ITEMS.map((it, i) => ({ '@type': 'ListItem', position: i + 1, url: `${BASE}/fix/${it.slug}.html`, name: it.question })) };
   const bc = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [ { '@type': 'ListItem', position: 1, name: 'Home', item: BASE + '/' }, { '@type': 'ListItem', position: 2, name: 'Appliance Fix Guides', item: BASE + '/fix/' } ] };
   return `<!doctype html>
@@ -222,7 +233,8 @@ function hub() {
 .card{display:flex;flex-direction:column;gap:6px;background:var(--surf);border:1px solid var(--bord);border-radius:14px;padding:18px;text-decoration:none}
 .card:hover{border-color:var(--orange)}
 .card .ap{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--orange);font-weight:700}
-.card .q{font-size:17px;color:var(--ink);font-weight:600;line-height:1.3}</style>
+.card .q{font-size:17px;color:var(--ink);font-weight:600;line-height:1.3}
+.grp{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--orange);font-weight:700;margin:26px 0 2px;border-bottom:1px solid var(--bord);padding-bottom:8px}</style>
 </head>
 <body>
   <div class="wrap">
@@ -233,9 +245,7 @@ function hub() {
     <nav class="bc"><a href="/">Home</a> › Appliance Fix Guides</nav>
     <h1>Appliance Fix Guides</h1>
     <p class="lede">Straight, honest answers to the most common appliance problems — from technicians who fix these every day. What's likely wrong, what's safe to check yourself, and whether it's worth repairing. Stuck? Send us a video anytime and we'll tell you exactly what's going on.</p>
-    <div class="grid">
 ${cards}
-    </div>
     <div class="cta">
       <h2>Can't find your problem?</h2>
       <p>Describe it or send a 10-second video — 24/7, from anywhere in the U.S. A real technician answers, and we can ship you the exact part even if you're outside our in-home service area.</p>
