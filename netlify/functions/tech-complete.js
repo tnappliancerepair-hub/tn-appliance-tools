@@ -70,6 +70,24 @@ exports.handler = async function (event) {
     // it, an NFF visit never reaches the review sweep — a happy "came out, honest, nothing
     // wrong" customer wouldn't get the "How'd we do?" ask. Sweep dedups per job + 60d.
     try { await crud.logEvent('job_completed', { job_id: jobId, actor: 'tech:' + techId, via: 'no_fault_found', at_ms: now }); } catch (_) {}
+    // WARRANTY NFF still bills — the vendor pays a diagnostic/service-call fee even
+    // when nothing failed. If nobody files it, the shop eats the trip. On a warranty
+    // NFF, alert the office (Danielle + Carrie) to file the claim. Best-effort; never
+    // blocks completion. Self-pay NFF has no claim to file, so it's skipped.
+    try {
+      const job = await crud.searchOne(TABLES.jobs, { id: jobId });
+      const vendor = String((job && (job.warranty_company || job.warranty_vendor)) || '').trim();
+      if (vendor) {
+        const cust = [job.customer_first, job.customer_last].filter(Boolean).join(' ').trim() || 'the customer';
+        const appl = String(job.appliance_type || 'appliance').trim();
+        const claim = String(job.claim_number || job.dispatch_source_id || '').trim();
+        const note = `☑️ NO FAILURE FOUND (warranty) — Job #${jobId}, ${cust}, ${appl}${claim ? ' · claim ' + claim : ''} (${vendor}). Nothing failed, but file the diagnostic/service-call claim so we still get paid for the trip.`;
+        for (const cell of ['+16154850713', '+12258035669']) {   // Danielle, Carrie (internal, gate-allowed)
+          try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: cell, message: note, context_tag: 'nff_warranty_claim' }), signal: AbortSignal.timeout(8000) }); } catch (_) {}
+        }
+        try { await crud.logEvent('nff_warranty_needs_claim', { job_id: jobId, vendor, claim, at_ms: now }); } catch (_) {}
+      }
+    } catch (_) { /* alert is best-effort — completion already succeeded */ }
     return j(200, { success: true, completion_type: 'no_fault_found', no_fault: true });
   }
 
