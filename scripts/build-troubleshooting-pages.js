@@ -150,7 +150,7 @@ ${causesHtml}
       <h2>Get a real answer — anytime, anywhere</h2>
       <p>In Middle Tennessee or the Baton Rouge area? We'll come to you, same-day. Anywhere else in the U.S.? Send a 10-second video, a real technician tells you exactly what's wrong for $50 (credited toward the repair), and we ship you the exact part. 24/7 — text, call, or upload anytime.</p>
       <div class="btnrow">
-        <a class="btn p" href="/">Start now — send a video</a>
+        <a class="btn p" href="/?appliance=${encodeURIComponent(String(item.appliance || '').toLowerCase())}&src=fix">Start your $50 Quick Check →</a>
         <a class="btn s" href="tel:+16152802949">Text or call ${PHONE}</a>
       </div>
     </div>
@@ -221,7 +221,7 @@ ${cards}
       <h2>Can't find your problem?</h2>
       <p>Describe it or send a 10-second video — 24/7, from anywhere in the U.S. A real technician answers, and we can ship you the exact part even if you're outside our in-home service area.</p>
       <div class="btnrow">
-        <a class="btn p" href="/">Ask a technician now</a>
+        <a class="btn p" href="/?src=fix">Ask a technician now</a>
         <a class="btn s" href="tel:+16152802949">Text or call ${PHONE}</a>
       </div>
     </div>
