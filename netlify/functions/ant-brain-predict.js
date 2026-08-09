@@ -194,6 +194,17 @@ exports.handler = async function (event) {
     try { await crud.logEvent('ant_brain_prediction', { job_id: jobId, part: top.part, part_display: top.part_display, component: top.component, confidence: top.confidence, scope, based_on_n: distinctJobs, brand, model, appliance, at_ms: Date.now() }); } catch (_) {}
   }
 
+  // KNOWLEDGE-GAP LEDGER (the flywheel): when we CAN'T confidently predict — no
+  // grounded model/family hit and thin history — that's a "we don't know what fails
+  // here" gap worth capturing so it rises up the fill-next list (knowledge-gap dedups
+  // by brand|appliance|model and counts recurrences). ant-troubleshoot already logs
+  // gaps it hits; the predictor fires on every job (via the sweep), so it's the
+  // highest-signal source of real, fillable gaps. Best-effort, real jobs only.
+  const thinPredict = !top || (top.seen_n < 2 && scope !== 'exact_model' && !String(scope).startsWith('model'));
+  if (jobId && thinPredict && (model || appliance)) {
+    try { await crud.logEvent('knowledge_gap', { kind: 'model', brand, appliance, model, symptom, source: 'predict', job_id: jobId, at_ms: Date.now() }); } catch (_) {}
+  }
+
   // FORWARD-EVAL (the linchpin): mirror the prediction into Supabase brain_predictions
   // BEFORE the job closes — leak-proof by construction; ant-brain-grade back-fills the
   // outcome. Best-effort/no-op-safe: never blocks the brain if Supabase is unset/down.
