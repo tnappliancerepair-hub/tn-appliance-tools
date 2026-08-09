@@ -30,6 +30,12 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜⚠️ 2026-08-09 (Sat/Sun) — FOOTGUN: Netlify SCHEDULED functions now edge-403 on ANY external HTTP call — READ FIRST
+**Netlify changed behavior: a function with a `schedule = "..."` block in `netlify.toml` returns an edge-level `HTTP/2 403` (content-length 0, `cache-status: "Netlify Edge"; fwd-status=403`) on EVERY external HTTP invocation — GET *and* POST, secret or not.** They now run ONLY via Netlify's internal cron scheduler. So **every `?dryrun=1` / `?secret=…` verify-command in this file that targets a scheduled function is DEAD** (review-request-sweep, job-completion-watch, indexnow-ping, ahs-address-backfill, denorm-job-customer, all the crons — they 403). Non-scheduled on-demand functions still work fine (knowledge-scorecard, pay-owed, gbp-profile, tech-complete, etc.).
+- **Confirmed live 08-09:** `knowledge-scorecard` (not scheduled) → 200; `review-request-sweep`/`job-completion-watch`/`indexnow-ping` (scheduled) → 403 on GET and on POST `{next_run:true}`.
+- **The workaround pattern (already used, copy it):** keep the LOGIC in a non-scheduled HTTP-callable **core** function, and add a thin **scheduled wrapper** that just calls the core. Live example: `knowledge-scorecard` (core, HTTP-callable, `?secret=&text=0`) + `knowledge-scorecard-cron` (scheduled, fires the core). When you need a scheduled job to ALSO be manually testable, split it this way.
+- **Consequence for verification:** you can't manually dry-run a scheduled sweep anymore — verify its OUTPUT instead (read the event_log it writes, e.g. `list_recent_event_log?action=review_ask_sent&days_back=1`). Verified this session that the review lever is healthy off its cron: **27 `review_ask_sent` on 08-07** (post XS-gate-fix) and **0 `sms_blocked_non_intake` in the last 24h** (was 304 pre-fix) — the satisfaction/review gate fix is holding.
+
 ## 🗓️🐜📅 2026-08-06 (Thu, home PM) — DANIELLE'S 2 COMMS COMPLAINTS: scheduled-day text RE-ENABLED + on-the-way is a coaching item — READ FIRST
 
 Danielle texted Teddy two customer-comms complaints. Diagnosed both against code + live event_log.
