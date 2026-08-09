@@ -857,6 +857,13 @@
 [functions."knowledge-scorecard-cron"]
   schedule = "10 0 * * *"
 
+# embed-tdr-sweep-cron — keeps the brain's semantic "similar jobs" vector store fed
+# from every completed TDR WITHOUT depending on the Mac colony loop (which can be down).
+# Kicks the non-scheduled background worker every 6h; the worker is idempotent + dedups
+# against the loop's own embeds, so it's safe to run alongside the loop.
+[functions."embed-tdr-sweep-cron"]
+  schedule = "40 */6 * * *"
+
 # phone-accuracy-audit — daily proof that Ann reads the record correctly. Runs her
 # real status-tool path across ~30 live jobs each morning and scores right-tech /
 # right-day / no-invented-time vs the source record. Regression guard alongside the
