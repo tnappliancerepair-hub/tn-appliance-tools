@@ -44,12 +44,18 @@ exports.handler = async function (event) {
   const cd = await jfetch(`${XANO}/list_recent_event_log?action=job_completed&days_back=${days}&limit=500`);
   completed = (cd && (cd.items || (Array.isArray(cd) ? cd : []))) || [];
 
-  // 2) dedup set — both this fn's marker AND the Mac loop's marker
-  let mineDone = [], loopDone = [];
-  try { mineDone = await crud.searchPage(crud.TABLES.event_log, { action: 'tdr_embedded' }, { id: 'desc' }, 1000); } catch (_) {}
-  try { loopDone = await crud.searchPage(crud.TABLES.event_log, { action: 'embed_tdr_handled' }, { id: 'desc' }, 1000); } catch (_) {}
+  // 2) dedup set — both this fn's marker AND the Mac loop's marker. Read from the
+  // LIVE list_recent_event_log endpoint (not crud.searchPage / metadata content-search,
+  // which LAGS new writes — the documented index-lag footgun — so it returned empty for
+  // just-written markers and every run re-embedded). Live reader caps ~50 rows, which is
+  // why the cron window is kept small (days=4: ~7 completions/day → well under the cap,
+  // so the whole window's markers are seen). save_embedding upserts by
+  // (source_table, source_row_id), so any marker we miss re-embeds harmlessly (no dupes).
   const done = new Set();
-  for (const r of [...mineDone, ...loopDone]) { const j = Number(metaOf(r).job_id); if (j) done.add(j); }
+  for (const act of ['tdr_embedded', 'embed_tdr_handled']) {
+    const dd = await jfetch(`${XANO}/list_recent_event_log?action=${act}&days_back=${days + 3}&limit=500`);
+    for (const r of (dd && (dd.items || (Array.isArray(dd) ? dd : []))) || []) { const j = Number(metaOf(r).job_id); if (j) done.add(j); }
+  }
 
   // 3) unique, not-yet-embedded job ids
   const seen = new Set(); const cands = [];

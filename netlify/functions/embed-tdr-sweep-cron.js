@@ -14,7 +14,7 @@ exports.handler = async function () {
     await fetch(`${SITE}/.netlify/functions/embed-tdr-sweep-background`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: admin, days: 10 }),
+      body: JSON.stringify({ secret: admin, days: 4 }),
       signal: AbortSignal.timeout(8000),   // background returns 202 fast; we don't wait on the work
     });
   } catch (_) { /* background is fire-and-forget; the run logs itself to event_log */ }
