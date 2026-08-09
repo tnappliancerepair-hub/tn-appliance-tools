@@ -85,7 +85,7 @@ exports.handler = async function (event) {
     for (const o of res) tally[o] = (tally[o] || 0) + 1;
   }
 
-  const summary = { ok: true, window_days: days, candidates: cands.length, processed: batch.length, remaining: Math.max(0, cands.length - batch.length), embedded: tally.embedded || 0, tally };
+  const summary = { ok: true, code: 'live-dedup-v2', window_days: days, done_seen: done.size, candidates: cands.length, processed: batch.length, remaining: Math.max(0, cands.length - batch.length), embedded: tally.embedded || 0, tally };
   try { await crud.logEvent('embed_tdr_sweep_run', Object.assign({ at_ms: Date.now() }, summary)); } catch (_) {}
   // Background fns can't return a body to the caller; the run is recorded to event_log.
   return { statusCode: 200, body: JSON.stringify(summary) };
