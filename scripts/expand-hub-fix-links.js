@@ -26,8 +26,9 @@ const SETS = {
     ['lg-washer-ue-error-code', 'LG UE code'],
     ['samsung-washer-4c-error-code', 'Samsung 4C code'],
     ['samsung-washer-5c-error-code', 'Samsung 5C code'],
+    ['samsung-washer-sud-error-code', 'Samsung Sud code'],
     ['whirlpool-washer-f21-error-code', 'Whirlpool F21 code'],
-    ['samsung-washer-wont-drain', "Samsung won't drain"],
+    ['whirlpool-washer-f8e1-lf-error-code', 'Whirlpool LF / F8E1 code'],
   ],
   'refrigerator-repair.html': [
     ['refrigerator-not-cooling', 'Not cooling'],
@@ -45,7 +46,8 @@ const SETS = {
     ['dishwasher-not-cleaning', 'Not cleaning'],
     ['dishwasher-wont-start', "Won't start"],
     ['bosch-dishwasher-e15-error-code', 'Bosch E15 code'],
-    ['bosch-dishwasher-wont-drain', "Bosch won't drain"],
+    ['bosch-dishwasher-e24-error-code', 'Bosch E24 code'],
+    ['ge-dishwasher-c1-error-code', 'GE C1 code'],
     ['samsung-dishwasher-wont-drain', "Samsung won't drain"],
     ['lg-dishwasher-wont-drain', "LG won't drain"],
     ['whirlpool-dishwasher-wont-drain', "Whirlpool won't drain"],
@@ -53,6 +55,7 @@ const SETS = {
   'oven-repair.html': [
     ['oven-not-heating', 'Oven not heating'],
     ['gas-range-wont-light', "Gas range won't light"],
+    ['lg-range-f9-error-code', 'LG range F9 code'],
   ],
 };
 
