@@ -51,6 +51,9 @@ exports.handler = async function (event) {
     getJSON(`${BASE}/hcp-embed?status=1&secret=${encodeURIComponent(admin)}`),
   ]);
   const accuracy = brain && Number.isFinite(brain.accuracy_pct) ? brain.accuracy_pct : null;
+  const partAcc = brain && Number.isFinite(brain.part_accuracy_pct) ? brain.part_accuracy_pct : accuracy;
+  const compAcc = brain && Number.isFinite(brain.component_accuracy_pct) ? brain.component_accuracy_pct : null;
+  const usefulAcc = brain && Number.isFinite(brain.useful_accuracy_pct) ? brain.useful_accuracy_pct : null;
   const graded = (brain && brain.graded_total) || 0;
   const predictions = (brain && brain.predictions_made) || 0;
   const corpus = (embed && embed.embed && embed.embed.embedded) || 0;
@@ -60,7 +63,7 @@ exports.handler = async function (event) {
 
   const now = Date.now();
   const today = isoDateCT(now);
-  const score = { date: today, at_ms: now, accuracy, graded, predictions, corpus, codes, components, models, distilled_jobs: distilledJobs, gaps_open: gapsOpen, gaps_filled: gapsFilled };
+  const score = { date: today, at_ms: now, accuracy, part_accuracy: partAcc, component_accuracy: compAcc, useful_accuracy: usefulAcc, graded, predictions, corpus, codes, components, models, distilled_jobs: distilledJobs, gaps_open: gapsOpen, gaps_filled: gapsFilled };
 
   // prior score for the trend (last stored, different day)
   let trend = null, prior = null;
@@ -78,11 +81,15 @@ exports.handler = async function (event) {
   const dModels = prior ? models - (prior.models || 0) : 0;
   const dCodes = prior ? codes - (prior.codes || 0) : 0;
   const dAcc = prior && accuracy != null && prior.accuracy != null ? accuracy - prior.accuracy : 0;
-  const accStr = accuracy == null ? 'n/a' : `${accuracy}% (${graded} graded)`;
+  // Honest breakdown: exact part is the strict number; right-component shows the brain
+  // often knows WHAT failed even when the SKU differs; useful = either (the trip-saver).
+  const dPart = prior && partAcc != null && prior.part_accuracy != null ? partAcc - prior.part_accuracy : (accuracy != null && prior && prior.accuracy != null ? dAcc : 0);
+  const accStr = partAcc == null ? 'n/a'
+    : `part ${partAcc}%${compAcc != null ? ` · component ${compAcc}%` : ''}${usefulAcc != null ? ` · useful ${usefulAcc}%` : ''} (${graded} graded)`;
   const lines = [
     `🧠 Ant Knowledge — ${dayCT(now)}`,
     `Models known: ${models.toLocaleString()} ${arrow(dModels)}${distilledJobs ? ` (from ${distilledJobs.toLocaleString()} distilled jobs)` : ''}`,
-    `First-guess accuracy: ${accStr}${prior && accuracy != null && prior.accuracy != null ? ' ' + arrow(dAcc) : ''}`,
+    `First-guess accuracy: ${accStr}${prior && partAcc != null && (prior.part_accuracy != null || prior.accuracy != null) ? ' ' + arrow(dPart) : ''}`,
     `Fault codes: ${codes} ${arrow(dCodes)} · Components: ${components}`,
     `Open gaps: ${gapsOpen}${gapsFilled ? ` · filled today: ${gapsFilled}` : ''}`,
   ];

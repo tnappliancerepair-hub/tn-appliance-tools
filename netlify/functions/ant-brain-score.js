@@ -21,9 +21,17 @@ function regrade(r) {
     { pred_parts: [r.predicted_part], pred_component: r.predicted_component },
     { actual_part: r.actual_part, actual_component: r.actual_component },
   );
-  if (g.part_gradeable) return { gradeable: true, hit: !!g.hit_top1, basis: 'part' };
-  if (brainEval.normalizeComponent(r.actual_component)) return { gradeable: true, hit: !!g.component_hit, basis: 'component' };
-  return { gradeable: false, hit: false, basis: 'ungradeable' };
+  const bothComp = !!brainEval.normalizeComponent(r.predicted_component) && !!brainEval.normalizeComponent(r.actual_component);
+  // Base hit = exact part (top-1) when there's a part to grade, else right component.
+  let gradeable = false, hit = false, basis = 'ungradeable';
+  if (g.part_gradeable) { gradeable = true; hit = !!g.hit_top1; basis = 'part'; }
+  else if (brainEval.normalizeComponent(r.actual_component)) { gradeable = true; hit = !!g.component_hit; basis = 'component'; }
+  // "Useful" = the brain pointed the tech right: exact part OR the right failed
+  // component (a right-component/wrong-SKU guess still saves the trip). Honest and
+  // fairer than exact-SKU-only — a Whirlpool W11400156 vs W11614514 near-miss still
+  // named the right part family.
+  const useful = gradeable && (hit || !!g.component_hit);
+  return { gradeable, hit, basis, part_gradeable: !!g.part_gradeable, component_hit: !!g.component_hit, both_comp: bothComp, useful };
 }
 
 exports.handler = async function () {
@@ -40,6 +48,18 @@ exports.handler = async function () {
   const hits = rows.filter((r) => r.hit).length;
   const acc = total ? Math.round((hits / total) * 100) : 0;
 
+  // Fairer breakdown (honest scoreboard): exact-part top-1, right-component, and a
+  // combined "useful" number. Exact part is the strict headline; component shows the
+  // brain often knows WHAT failed even when the exact SKU differs; useful = either.
+  const partRows = rows.filter((r) => r.part_gradeable);
+  const partHits = partRows.filter((r) => r.hit).length;
+  const partAcc = partRows.length ? Math.round((partHits / partRows.length) * 100) : 0;
+  const compRows = rows.filter((r) => r.both_comp);
+  const compHits = compRows.filter((r) => r.component_hit).length;
+  const compAcc = compRows.length ? Math.round((compHits / compRows.length) * 100) : 0;
+  const usefulHits = rows.filter((r) => r.useful).length;
+  const usefulAcc = total ? Math.round((usefulHits / total) * 100) : 0;
+
   // by appliance
   const byAppl = {};
   for (const r of rows) { const a = (r.appliance || 'other').toLowerCase(); if (!byAppl[a]) byAppl[a] = { n: 0, hit: 0 }; byAppl[a].n++; if (r.hit) byAppl[a].hit++; }
@@ -55,6 +75,10 @@ exports.handler = async function () {
   return ok({
     ok: true,
     accuracy_pct: acc, graded_total: total, hits, misses: total - hits,
+    // honest breakdown
+    part_accuracy_pct: partAcc, part_graded: partRows.length,        // exact SKU, top-1 (the strict number)
+    component_accuracy_pct: compAcc, component_graded: compRows.length, // right failed component (any SKU)
+    useful_accuracy_pct: usefulAcc,                                   // exact part OR right component
     ungradeable,   // outcomes with no part# to grade against (excluded, not counted as misses)
     accuracy_last20: acc20,
     predictions_made: distinctPredJobs, pending_grade: Math.max(0, distinctPredJobs - outcomeJobs),
