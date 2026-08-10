@@ -2889,6 +2889,78 @@
         "wiring"
       ],
       "test": "Check the motor and control board per service data."
+    },
+    {
+      "family": "samsung",
+      "appliance": "range",
+      "code": "SE",
+      "meaning": "Touchpad/control ribbon shorted or a key stuck (also shows as 5E on some models)",
+      "likely_causes": [
+        "ribbon cable from touchpad to control shorted or moisture-damaged",
+        "stuck/failed touchpad key",
+        "control board"
+      ],
+      "test": "Unplug 5 min. If SE/5E returns, inspect the touchpad ribbon connector at the control for corrosion/moisture; a shorted touchpad or ribbon is the usual fix."
+    },
+    {
+      "family": "samsung",
+      "appliance": "range",
+      "code": "E-08",
+      "meaning": "Oven temperature sensor open or shorted",
+      "likely_causes": [
+        "oven temperature sensor (probe)",
+        "sensor wiring/connector",
+        "control board"
+      ],
+      "test": "Check the oven sensor resistance (~1080-1090 ohms at room temp for most Samsung ovens) and its connector; out-of-range or open reads = replace the sensor."
+    },
+    {
+      "family": "samsung",
+      "appliance": "range",
+      "code": "C-d0",
+      "meaning": "Door lock stuck — the self-clean lock did not release",
+      "likely_causes": [
+        "door lock motor/assembly jammed",
+        "lock switch",
+        "control board"
+      ],
+      "test": "Let the oven fully cool, then unplug 5 min to reset the lock cycle. If the door stays locked or C-d0 stays, the lock motor/assembly is the fix."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "range",
+      "code": "F10",
+      "meaning": "Runaway temperature — the control shut the oven off for safety (it read a too-high or out-of-range temp)",
+      "likely_causes": [
+        "oven temperature sensor (RTD) drifted/shorted",
+        "control (EOC) relay stuck",
+        "sensor wiring"
+      ],
+      "test": "Unplug 5 min. If F10 returns, check the oven sensor resistance (~1080 ohms at room temp); a drifted sensor is the common cause, a stuck control relay the next."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "range",
+      "code": "F30",
+      "meaning": "Open oven temperature sensor (RTD) circuit",
+      "likely_causes": [
+        "oven temperature sensor (RTD)",
+        "sensor connector unplugged or corroded",
+        "wiring break"
+      ],
+      "test": "With the oven cool, check the sensor resistance and its plug at the back; an open reading or unplugged connector = reseat or replace the sensor."
+    },
+    {
+      "family": "frigidaire",
+      "appliance": "range",
+      "code": "F31",
+      "meaning": "Shorted oven temperature sensor (RTD) circuit",
+      "likely_causes": [
+        "oven temperature sensor (RTD) shorted",
+        "pinched/melted sensor wire",
+        "connector"
+      ],
+      "test": "Check the oven sensor resistance and wiring for a short to ground; a shorted sensor or pinched wire is the fix."
     }
   ]
 }

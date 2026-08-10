@@ -25,6 +25,7 @@ const SETS = {
   'washer-repair.html': [
     ['whirlpool-washer-f5e2-error-code', 'Whirlpool F5E2 (lid lock)'],
     ['washer-shaking-or-walking', 'Shaking / walking'],
+    ['washer-leaking-from-bottom', 'Leaking from bottom'],
     ['washer-wont-drain', "Won't drain"],
     ['washer-not-spinning', "Won't spin"],
     ['washer-leaking-water', 'Leaking water'],
@@ -69,6 +70,10 @@ const SETS = {
     ['lg-range-f9-error-code', 'LG range F9 code'],
     ['ge-oven-f2-error-code', 'GE oven F2 code'],
     ['whirlpool-oven-f2e1-error-code', 'Whirlpool F2E1 code'],
+    ['samsung-range-se-code', 'Samsung SE / 5E code'],
+    ['frigidaire-oven-f10-code', 'Frigidaire F10 code'],
+    ['frigidaire-oven-f30-code', 'Frigidaire F30 / F31 code'],
+    ['oven-door-wont-unlock', "Door won't unlock"],
   ],
 };
 
