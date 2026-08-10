@@ -9,6 +9,7 @@ const ALL = `<a href="/fix/" style="color:#ff6200;text-decoration:none;border:1p
 
 const SETS = {
   'dryer-repair.html': [
+    ['dryer-making-loud-noise', 'Making loud noise'],
     ['dryer-not-heating', 'Not heating'],
     ['dryer-wont-start', "Won't start"],
     ['dryer-not-drying', 'Takes forever to dry'],
@@ -21,6 +22,7 @@ const SETS = {
     ['samsung-dryer-not-heating', 'Samsung not heating'],
   ],
   'washer-repair.html': [
+    ['washer-shaking-or-walking', 'Shaking / walking'],
     ['washer-wont-drain', "Won't drain"],
     ['washer-not-spinning', "Won't spin"],
     ['washer-leaking-water', 'Leaking water'],
@@ -33,6 +35,7 @@ const SETS = {
     ['whirlpool-washer-f8e1-lf-error-code', 'Whirlpool LF / F8E1 code'],
   ],
   'refrigerator-repair.html': [
+    ['refrigerator-running-constantly', 'Runs constantly'],
     ['refrigerator-not-cooling', 'Not cooling'],
     ['refrigerator-freezing-food', 'Freezing food'],
     ['refrigerator-leaking-water', 'Leaking water'],
@@ -55,6 +58,7 @@ const SETS = {
     ['whirlpool-dishwasher-wont-drain', "Whirlpool won't drain"],
   ],
   'oven-repair.html': [
+    ['oven-temperature-not-accurate', 'Temp off / runs hot-cold'],
     ['oven-not-heating', 'Oven not heating'],
     ['gas-range-wont-light', "Gas range won't light"],
     ['lg-range-f9-error-code', 'LG range F9 code'],
