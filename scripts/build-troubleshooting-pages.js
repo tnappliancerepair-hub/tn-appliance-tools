@@ -245,6 +245,7 @@ ${byAppliance[ap].map(card).join('\n')}
     <nav class="bc"><a href="/">Home</a> › Appliance Fix Guides</nav>
     <h1>Appliance Fix Guides</h1>
     <p class="lede">Straight, honest answers to the most common appliance problems — from technicians who fix these every day. What's likely wrong, what's safe to check yourself, and whether it's worth repairing. Stuck? Send us a video anytime and we'll tell you exactly what's going on.</p>
+    <p style="margin:-6px 0 18px"><a href="/error-codes.html" style="color:var(--orange);font-weight:700;text-decoration:none">🔤 Got an error code? Look it up by brand →</a></p>
 ${cards}
     <div class="cta">
       <h2>Can't find your problem?</h2>
