@@ -11,6 +11,7 @@ const SETS = {
   'dryer-repair.html': [
     ['dryer-stops-mid-cycle', 'Stops mid-cycle'],
     ['dryer-drum-not-turning', "Drum won't turn"],
+    ['dryer-smells-like-burning', 'Burning smell'],
     ['dryer-making-loud-noise', 'Making loud noise'],
     ['dryer-not-heating', 'Not heating'],
     ['dryer-wont-start', "Won't start"],
@@ -27,6 +28,7 @@ const SETS = {
     ['whirlpool-washer-f5e2-error-code', 'Whirlpool F5E2 (lid lock)'],
     ['washer-shaking-or-walking', 'Shaking / walking'],
     ['washer-leaking-from-bottom', 'Leaking from bottom'],
+    ['front-load-washer-door-wont-open', "Door won't open"],
     ['washer-wont-drain', "Won't drain"],
     ['washer-not-spinning', "Won't spin"],
     ['washer-leaking-water', 'Leaking water'],
@@ -39,6 +41,7 @@ const SETS = {
     ['whirlpool-washer-f8e1-lf-error-code', 'Whirlpool LF / F8E1 code'],
   ],
   'refrigerator-repair.html': [
+    ['refrigerator-warm-but-freezer-cold', 'Warm fridge, cold freezer'],
     ['refrigerator-making-noise', 'Making noise'],
     ['refrigerator-running-constantly', 'Runs constantly'],
     ['refrigerator-not-cooling', 'Not cooling'],
@@ -52,6 +55,7 @@ const SETS = {
     ['samsung-ice-maker-not-working', 'Samsung ice maker'],
   ],
   'dishwasher-repair.html': [
+    ['dishwasher-leaving-white-film', 'White film on dishes'],
     ['dishwasher-not-drying-dishes', 'Not drying'],
     ['dishwasher-wont-drain', "Won't drain"],
     ['dishwasher-not-cleaning', 'Not cleaning'],
@@ -65,6 +69,7 @@ const SETS = {
   ],
   'oven-repair.html': [
     ['electric-stove-burner-not-heating', 'Burner not heating'],
+    ['gas-stove-igniter-keeps-clicking', 'Igniter keeps clicking'],
     ['oven-temperature-not-accurate', 'Temp off / runs hot-cold'],
     ['oven-not-heating', 'Oven not heating'],
     ['gas-range-wont-light', "Gas range won't light"],

@@ -3009,6 +3009,32 @@
         "control board"
       ],
       "test": "Unplug 5 min. If SE/5E returns, the touchpad ribbon or membrane is shorting — a tech reseats or replaces the touchpad. Do NOT open the cabinet; the microwave capacitor holds a dangerous charge."
+    },
+    {
+      "family": "samsung",
+      "appliance": "refrigerator",
+      "code": "25C",
+      "meaning": "Defrost sensor fault — the defrost sensor reads open or shorted, so the defrost system can't run correctly (also shows as 25E)",
+      "likely_causes": [
+        "defrost sensor",
+        "defrost heater",
+        "sensor wiring/connector",
+        "control board"
+      ],
+      "test": "Check the defrost sensor resistance and its connector; an open/shorted reading = replace the sensor. If frost is building on the evaporator, check the defrost heater too."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "dishwasher",
+      "code": "F7E1",
+      "meaning": "Flow meter fault — the control is not getting a valid water-flow signal",
+      "likely_causes": [
+        "flow meter",
+        "water inlet valve",
+        "low water supply / kinked fill line",
+        "wiring to the flow meter"
+      ],
+      "test": "Confirm the house water supply is on and the fill line is not kinked, then a tech checks the flow meter and inlet valve."
     }
   ]
 }
