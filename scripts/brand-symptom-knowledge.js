@@ -235,4 +235,85 @@ module.exports = {
       forceReset: 'Hold the Start button ~3 seconds to cancel/drain; if that won\'t clear it, cut power 1 minute, clean the filter and pump cover, and retry.',
     },
   },
+  'washer-not-spinning': {
+    'Samsung': {
+      lede: 'Samsung washers — especially the front-load WF-series — most often won\'t spin because they can\'t drain first: the machine won\'t go into a high-speed spin with water still in the tub. The usual culprit is a clogged pump filter. After that it\'s an unbalanced load (UB) stopping the spin, or worn suspension.',
+      causes: [
+        { name: 'Won\'t drain (clogged pump filter)', why: 'A washer won\'t spin until the water is out. Lint, coins, and hairpins collect in the pump filter behind the lower-front door and block the drain, so the spin never starts.', diy: 'Open the small filter door at the lower front, have a pan and towels ready, and slowly open the drain filter to clear it. Then run a spin-only cycle.', difficulty: 'Moderate' },
+        { name: 'Unbalanced load (UB/UE)', why: 'A single heavy item or a tiny load bunches to one side; the washer senses it thumping and refuses to ramp up to spin.', diy: 'Redistribute the load evenly and add a couple towels to balance a bulky item. Restart the spin.', difficulty: 'Easy' },
+        { name: 'Door not locked (front-load)', why: 'A front-loader won\'t spin unless the door lock confirms the door is shut. A failing lock stops the spin.', diy: 'Make sure the door clicks fully shut. If it won\'t lock (or throws a door code), the door lock assembly is the fix.', difficulty: 'Pro' },
+        { name: 'Worn suspension or drive belt', why: 'Worn shock absorbers let the drum swing and trip UB; a stretched/broken belt means the motor turns but the drum doesn\'t.', diy: 'Repeated UB on balanced loads = worn shocks; a motor that runs with no drum spin = belt. Both are affordable tech repairs.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'UB / UE', meaning: 'Unbalanced load — redistribute and re-spin' },
+        { code: '4C / 5C', meaning: 'Water supply / drain issue — check the pump filter and hoses' },
+        { code: 'dC / DC', meaning: 'Door won\'t lock (front-load) — check the door lock' },
+      ],
+      knownIssue: 'On Samsung front-loaders the #1 "won\'t spin" cause is a clogged pump filter — it can\'t drain, so it never spins. Clean that filter first; many "dead" spins come right back to life.',
+      forceReset: 'Run a Spin Only cycle after clearing the pump filter. To reset: unplug for 1 minute, confirm the door latches, and restart.',
+    },
+    'LG': {
+      lede: 'LG washers use a direct-drive motor with no belt, so the motor itself rarely fails. When an LG won\'t spin it\'s almost always because it can\'t drain (OE) or the load is unbalanced (UE) — or the door didn\'t lock. The classic is a clogged drain pump filter blocking the drain, so the spin never begins.',
+      causes: [
+        { name: 'Won\'t drain (OE — clogged pump filter)', why: 'LG won\'t spin with water in the tub. The drain pump filter behind the lower-front door clogs and stops the drain, so the machine can\'t proceed to spin. Shows as OE.', diy: 'Open the lower-front filter door, drain via the small hose or cap (pan ready), and clean the filter. Run a spin-only cycle.', difficulty: 'Moderate' },
+        { name: 'Unbalanced load (UE)', why: 'A bulky single item or small load bunches up; LG stops rather than spin off-balance. Shows as UE.', diy: 'Redistribute, add towels to balance, and re-spin. Confirm the washer is level.', difficulty: 'Easy' },
+        { name: 'Door not locked (dE)', why: 'A front-load LG won\'t spin unless the door lock confirms shut. A failing lock (dE) stops it.', diy: 'Ensure the door shuts fully; if it won\'t lock, the door lock assembly is the fix.', difficulty: 'Pro' },
+        { name: 'Motor lock / overload (LE) or rotor bolt', why: 'LE means the motor is overloaded or jammed; rarely a loose rotor bolt lets the motor spin without the drum.', diy: 'If it\'s not drain/balance/door, a tech checks the rotor bolt and the motor (Hall sensor). LG\'s direct-drive motor is usually covered by a long warranty.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'OE', meaning: 'Not draining — clean the pump filter and check the hose' },
+        { code: 'UE', meaning: 'Unbalanced load — redistribute and re-spin' },
+        { code: 'dE', meaning: 'Door not locked (front-load)' },
+        { code: 'LE', meaning: 'Motor locked / overloaded' },
+      ],
+      knownIssue: 'LG direct-drive motors are reliable and often carry a 10-year warranty, so don\'t assume the motor. Nine times out of ten an LG "won\'t spin" is a drain (OE) or balance (UE) issue — check the pump filter first.',
+      forceReset: 'Clear the drain pump filter, then run Spin Only. Reset by unplugging 1 minute and confirming the door latches.',
+    },
+    'Whirlpool': {
+      lede: 'Whirlpool top-loaders (the VMW / vertical modular washer) usually won\'t spin for one of three reasons: the lid won\'t lock, the machine can\'t drain, or the shift actuator has failed. On front-loaders it\'s the door lock, a drain clog, or the belt. Whirlpool won\'t spin with the lid unlocked or water still in the tub.',
+      causes: [
+        { name: 'Lid won\'t lock (F5E2) — top-load', why: 'A modern Whirlpool top-loader won\'t spin until the lid locks. A failing lid-lock assembly stops the spin and often throws F5E2.', diy: 'Listen for the lock to click at the start of a cycle. A silent or failed lock is an affordable, common part.', difficulty: 'Pro' },
+        { name: 'Won\'t drain (F9E1 — clogged pump)', why: 'No drain, no spin. A clogged drain pump or hose leaves water in the tub, so the spin never starts (F9E1).', diy: 'Check the drain pump/hose for a clog (coins, socks). Clearing it often restores the spin.', difficulty: 'Moderate' },
+        { name: 'Shift actuator failed (VMW)', why: 'The shift actuator switches the transmission between agitate and spin. When it fails, the washer fills and drains but won\'t spin or agitate — a signature VMW failure.', diy: 'A common, affordable tech part on VMW top-loaders when it won\'t spin AND won\'t agitate.', difficulty: 'Pro' },
+        { name: 'Door lock or drive belt (front-load)', why: 'A front-load Whirlpool won\'t spin with a failed door lock, and a stretched/broken belt means the motor turns but the drum doesn\'t.', diy: 'Confirm the door locks; a motor that runs with no drum motion points to the belt.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'F5E2', meaning: 'Lid won\'t lock (top-load) — check the lid lock assembly' },
+        { code: 'F9E1', meaning: 'Long drain — clogged pump or hose' },
+        { code: 'F7E1', meaning: 'Motor / drive fault' },
+      ],
+      knownIssue: 'On Whirlpool VMW top-loaders, "won\'t spin and won\'t agitate" points straight at the shift actuator; "won\'t spin but the lid clicks" points at drain or the lid lock. Both are affordable, common parts.',
+      forceReset: 'Cancel the cycle, then run Drain & Spin. Reset by unplugging 1 minute; confirm the lid locks at the start.',
+    },
+    'Maytag': {
+      lede: 'Maytag washers are built by Whirlpool, so a Maytag that won\'t spin comes down to the same handful of causes: the lid won\'t lock, it can\'t drain, or (on the top-load Bravos/Centennial) the shift actuator or drive has failed. It won\'t spin with the lid unlocked or water still in the tub.',
+      causes: [
+        { name: 'Lid won\'t lock (top-load)', why: 'A modern Maytag top-loader won\'t spin until the lid locks. A failing lid-lock assembly stops the spin and often throws a lid-lock code (F5E2).', diy: 'Listen for the lock to click when a cycle starts. A silent lock is an affordable, common part.', difficulty: 'Pro' },
+        { name: 'Won\'t drain (clogged pump)', why: 'No drain, no spin. A clogged drain pump or hose leaves water in the tub so the spin never starts.', diy: 'Check the drain pump and hose for a clog. Clearing it often restores the spin.', difficulty: 'Moderate' },
+        { name: 'Shift actuator / drive (Bravos, Centennial)', why: 'The shift actuator switches between agitate and spin; when it fails the washer fills and drains but won\'t spin or agitate — a signature Maytag/Whirlpool top-load failure.', diy: 'A common, affordable tech part when it won\'t spin AND won\'t agitate.', difficulty: 'Pro' },
+        { name: 'Door lock or belt (front-load)', why: 'A front-load Maytag won\'t spin with a failed door lock; a worn belt means the motor turns but the drum doesn\'t.', diy: 'Confirm the door locks; no drum motion with a running motor points to the belt.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'F5E2', meaning: 'Lid won\'t lock (top-load)' },
+        { code: 'F9E1', meaning: 'Long drain — clogged pump or hose' },
+        { code: 'Sd / Sud', meaning: 'Excess suds delaying the spin' },
+      ],
+      knownIssue: 'Maytag Bravos/Centennial top-loaders share Whirlpool\'s VMW platform — "won\'t spin and won\'t agitate" is the shift actuator; "won\'t spin, lid clicks" is drain or the lid lock. Affordable, common repairs.',
+      forceReset: 'Run Drain & Spin. Reset by unplugging 1 minute and confirming the lid locks at cycle start.',
+    },
+    'GE': {
+      lede: 'GE top-loaders most often won\'t spin because of the lid switch, the drain, or — on older belt-less GE models — the motor coupler or mode shifter. GE won\'t spin with the lid up or water still in the tub. The lid switch is one of the most common, cheapest fixes.',
+      causes: [
+        { name: 'Lid switch failed (top-load)', why: 'GE top-loaders won\'t spin if the lid switch doesn\'t confirm the lid is down. A worn lid switch is the #1 "won\'t spin" cause and a very cheap part.', diy: 'If the washer fills and agitates but won\'t spin, the lid switch is the prime suspect — an inexpensive, common fix.', difficulty: 'Moderate' },
+        { name: 'Won\'t drain (clogged pump)', why: 'No drain, no spin. A clogged pump or hose leaves water in the tub so the spin never starts.', diy: 'Check the drain pump and hose for a clog and clear it.', difficulty: 'Moderate' },
+        { name: 'Mode shifter / motor coupler', why: 'On many GE top-loaders a failed mode shifter (or worn motor coupler on older models) stops the spin while other functions still work.', diy: 'If the lid switch and drain are good, a tech checks the mode shifter/coupler — common, affordable parts.', difficulty: 'Pro' },
+        { name: 'Door lock or belt (front-load)', why: 'A front-load GE won\'t spin with a failed door lock, and a worn belt lets the motor run without turning the drum.', diy: 'Confirm the door locks; no drum motion with a running motor points to the belt.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: '—', meaning: 'Most GE top-loaders show few spin codes; diagnose by symptom (lid switch, drain, shifter)' },
+      ],
+      knownIssue: 'The GE top-load lid switch is one of the cheapest, most common appliance fixes there is — if a GE fills and agitates but won\'t spin, start there before anything else.',
+      forceReset: 'Confirm the lid closes fully and try a Drain & Spin. Reset by unplugging 1 minute.',
+    },
+  },
 };
