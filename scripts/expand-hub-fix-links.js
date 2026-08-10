@@ -9,6 +9,7 @@ const ALL = `<a href="/fix/" style="color:#ff6200;text-decoration:none;border:1p
 
 const SETS = {
   'dryer-repair.html': [
+    ['dryer-stops-mid-cycle', 'Stops mid-cycle'],
     ['dryer-making-loud-noise', 'Making loud noise'],
     ['dryer-not-heating', 'Not heating'],
     ['dryer-wont-start', "Won't start"],
@@ -22,6 +23,7 @@ const SETS = {
     ['samsung-dryer-not-heating', 'Samsung not heating'],
   ],
   'washer-repair.html': [
+    ['whirlpool-washer-f5e2-error-code', 'Whirlpool F5E2 (lid lock)'],
     ['washer-shaking-or-walking', 'Shaking / walking'],
     ['washer-wont-drain', "Won't drain"],
     ['washer-not-spinning', "Won't spin"],
@@ -35,6 +37,7 @@ const SETS = {
     ['whirlpool-washer-f8e1-lf-error-code', 'Whirlpool LF / F8E1 code'],
   ],
   'refrigerator-repair.html': [
+    ['refrigerator-making-noise', 'Making noise'],
     ['refrigerator-running-constantly', 'Runs constantly'],
     ['refrigerator-not-cooling', 'Not cooling'],
     ['refrigerator-freezing-food', 'Freezing food'],
@@ -47,6 +50,7 @@ const SETS = {
     ['samsung-ice-maker-not-working', 'Samsung ice maker'],
   ],
   'dishwasher-repair.html': [
+    ['dishwasher-not-drying-dishes', 'Not drying'],
     ['dishwasher-wont-drain', "Won't drain"],
     ['dishwasher-not-cleaning', 'Not cleaning'],
     ['dishwasher-wont-start', "Won't start"],
@@ -58,6 +62,7 @@ const SETS = {
     ['whirlpool-dishwasher-wont-drain', "Whirlpool won't drain"],
   ],
   'oven-repair.html': [
+    ['electric-stove-burner-not-heating', 'Burner not heating'],
     ['oven-temperature-not-accurate', 'Temp off / runs hot-cold'],
     ['oven-not-heating', 'Oven not heating'],
     ['gas-range-wont-light', "Gas range won't light"],
