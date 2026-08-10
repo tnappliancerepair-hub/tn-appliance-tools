@@ -10,6 +10,7 @@ const ALL = `<a href="/fix/" style="color:#ff6200;text-decoration:none;border:1p
 const SETS = {
   'dryer-repair.html': [
     ['dryer-stops-mid-cycle', 'Stops mid-cycle'],
+    ['dryer-drum-not-turning', "Drum won't turn"],
     ['dryer-making-loud-noise', 'Making loud noise'],
     ['dryer-not-heating', 'Not heating'],
     ['dryer-wont-start', "Won't start"],
@@ -74,6 +75,8 @@ const SETS = {
     ['frigidaire-oven-f10-code', 'Frigidaire F10 code'],
     ['frigidaire-oven-f30-code', 'Frigidaire F30 / F31 code'],
     ['oven-door-wont-unlock', "Door won't unlock"],
+    ['bosch-oven-e011-code', 'Bosch E011 code'],
+    ['bosch-oven-e101-code', 'Bosch E101 code'],
   ],
 };
 

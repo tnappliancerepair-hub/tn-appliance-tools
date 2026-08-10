@@ -2961,6 +2961,54 @@
         "connector"
       ],
       "test": "Check the oven sensor resistance and wiring for a short to ground; a shorted sensor or pinched wire is the fix."
+    },
+    {
+      "family": "bosch",
+      "appliance": "range",
+      "code": "E011",
+      "meaning": "Oven door lock fault — the self-clean lock motor did not reach its locked/unlocked position",
+      "likely_causes": [
+        "door lock motor/assembly jammed or failed",
+        "door lock switch",
+        "wiring to the lock"
+      ],
+      "test": "Let the oven fully cool, then unplug 5 min. If the door stays locked or E011 returns, the door lock motor/assembly is the usual fix."
+    },
+    {
+      "family": "bosch",
+      "appliance": "range",
+      "code": "E101",
+      "meaning": "Oven temperature sensor (NTC) fault — reads open or shorted",
+      "likely_causes": [
+        "oven temperature sensor (NTC)",
+        "sensor connector/wiring",
+        "control board"
+      ],
+      "test": "With the oven cool, check the NTC sensor resistance and its connector; an open/shorted or out-of-range reading = replace the sensor."
+    },
+    {
+      "family": "bosch",
+      "appliance": "range",
+      "code": "E305",
+      "meaning": "A control-panel key is stuck or the touch control reads a constant press",
+      "likely_causes": [
+        "stuck/jammed touch key",
+        "moisture on the control panel",
+        "control/touch board"
+      ],
+      "test": "Unplug 5 min and wipe the control panel dry. If E305 returns, a stuck key or the touch control board is the fix."
+    },
+    {
+      "family": "samsung",
+      "appliance": "microwave",
+      "code": "SE",
+      "meaning": "Touchpad/control ribbon shorted or a stuck key (also shows as 5E) — the microwave controls lock up",
+      "likely_causes": [
+        "touchpad ribbon cable shorted (often from steam/moisture)",
+        "stuck/failed touchpad key",
+        "control board"
+      ],
+      "test": "Unplug 5 min. If SE/5E returns, the touchpad ribbon or membrane is shorting — a tech reseats or replaces the touchpad. Do NOT open the cabinet; the microwave capacitor holds a dangerous charge."
     }
   ]
 }
