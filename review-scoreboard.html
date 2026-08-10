@@ -1,0 +1,150 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Review Scoreboard — TN Appliance</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#12151b; --ink2:#5c6470; --line:#e6e8ec;
+    --orange:#ff6200; --green:#1aa251; --amber:#e08a00; --red:#d1435b; --star:#f5a623;
+    --shadow:0 6px 26px rgba(20,25,35,.08);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#0e1117; --card:#171b22; --ink:#eef1f5; --ink2:#9aa4b2; --line:#262c36;
+    --shadow:0 8px 30px rgba(0,0,0,.35);
+  }}
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  body{ background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased; padding:20px 16px 60px; }
+  .wrap{ max-width:640px; margin:0 auto; }
+  header{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:6px; }
+  h1{ font-size:20px; font-weight:800; letter-spacing:-.01em; }
+  .refresh{ font-size:12px; color:var(--ink2); text-decoration:none; border:1px solid var(--line); border-radius:8px; padding:5px 10px; background:var(--card); }
+  .lede{ color:var(--ink2); font-size:13px; margin-bottom:16px; line-height:1.5; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:18px 18px; margin-bottom:14px; }
+  .hero{ text-align:center; padding:22px 18px; }
+  .stars{ color:var(--star); font-size:30px; letter-spacing:3px; }
+  .rating{ font-size:46px; font-weight:800; line-height:1; margin-top:8px; }
+  .rating small{ font-size:20px; color:var(--ink2); font-weight:700; }
+  .total{ font-size:14px; color:var(--ink2); margin-top:6px; }
+  .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  .stat{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 12px; text-align:center; box-shadow:var(--shadow); }
+  .stat .n{ font-size:28px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
+  .stat .l{ font-size:11px; color:var(--ink2); text-transform:uppercase; letter-spacing:.05em; margin-top:6px; }
+  .stat .sub{ font-size:11px; color:var(--ink2); margin-top:3px; }
+  .funnel{ margin-top:4px; }
+  .frow{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .frow:last-child{ border-bottom:none; }
+  .frow .lab{ flex:1; font-size:14px; }
+  .frow .lab b{ font-weight:700; }
+  .frow .val{ font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .bar{ height:8px; border-radius:5px; background:var(--line); overflow:hidden; margin-top:5px; }
+  .bar > i{ display:block; height:100%; background:var(--orange); border-radius:5px; }
+  .leak{ margin-top:2px; border-radius:14px; padding:14px 16px; font-size:14px; line-height:1.5; }
+  .leak.healthy{ background:rgba(26,162,81,.10); border:1px solid rgba(26,162,81,.35); }
+  .leak.warn{ background:rgba(224,138,0,.10); border:1px solid rgba(224,138,0,.35); }
+  .leak b{ font-weight:800; }
+  .leak .tag{ display:inline-block; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; padding:2px 8px; border-radius:999px; margin-bottom:7px; }
+  .leak.healthy .tag{ background:var(--green); color:#fff; }
+  .leak.warn .tag{ background:var(--amber); color:#fff; }
+  .move{ background:linear-gradient(135deg, rgba(255,98,0,.12), rgba(255,98,0,.04)); border:1px solid rgba(255,98,0,.35); border-radius:16px; padding:16px 18px; }
+  .move h3{ font-size:15px; font-weight:800; margin-bottom:6px; }
+  .move p{ font-size:13.5px; color:var(--ink2); line-height:1.55; }
+  .move a{ display:inline-block; margin-top:12px; background:var(--orange); color:#fff; font-weight:800; font-size:14px; text-decoration:none; padding:11px 18px; border-radius:11px; }
+  .spark{ display:flex; align-items:flex-end; gap:5px; height:52px; margin-top:10px; }
+  .spark .b{ flex:1; background:var(--line); border-radius:4px 4px 0 0; position:relative; min-height:3px; }
+  .spark .b.on{ background:var(--orange); }
+  .caption{ font-size:11px; color:var(--ink2); text-transform:uppercase; letter-spacing:.06em; margin-bottom:2px; }
+  .muted{ color:var(--ink2); font-size:13px; text-align:center; padding:14px; }
+  .updated{ text-align:center; font-size:11px; color:var(--ink2); margin-top:8px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>⭐ Review Scoreboard</h1>
+    <a class="refresh" href="#" onclick="load();return false;">↻ Refresh</a>
+  </header>
+  <p class="lede">Reviews win the Google map pack — the thing sitting above our organic results and eating our clicks. This is the flywheel: jobs done → asks sent → customers reply → reviews land.</p>
+
+  <div class="card hero" id="hero"><div class="muted">Loading reviews…</div></div>
+
+  <div class="row3" id="week"></div>
+
+  <div class="card">
+    <div class="caption">This week — where the flywheel is turning</div>
+    <div class="funnel" id="funnel"></div>
+  </div>
+
+  <div id="leakwrap"></div>
+
+  <div class="card">
+    <div class="caption">Reviews landed — recent weeks</div>
+    <div class="spark" id="spark"></div>
+  </div>
+
+  <div class="move">
+    <h3>🎯 The move: reviews at the door</h3>
+    <p>Our text-ask goes out to lots of customers, but most don't tap the reply — the leak is <b>engagement</b>. The fix that converts far better: the tech asks in person and shows the <b>QR code</b> right there, while the customer's happy. Print it for the truck + invoices.</p>
+    <a href="/review-qr" target="_blank">📲 Open the review QR →</a>
+  </div>
+
+  <div class="updated" id="updated"></div>
+</div>
+
+<script>
+var XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+function el(id){return document.getElementById(id);}
+function esc(s){return String(s==null?'':s);}
+async function jget(u){ try{ var c=new AbortController(); var t=setTimeout(function(){c.abort();},12000); var r=await fetch(u,{signal:c.signal}); clearTimeout(t); return await r.json(); }catch(e){ return null; } }
+
+function leakMsg(k, m){
+  var map={
+    healthy:{cls:'healthy',tag:'Turning',t:'The hinge is turning — reviews are landing. Keep the asks flowing.'},
+    engagement:{cls:'warn',tag:'Engagement leak',t:'Plenty of customers are getting asked, but few tap the 👍/👎 reply — so few reviews land. In-person asks with the QR convert way better than the text.'},
+    conversion:{cls:'warn',tag:'Conversion leak',t:'Customers tap 👍 and get the Google link, but the review doesn\'t get posted. Make it one tap — the QR opens straight to the review box.'},
+    ask_throughput:{cls:'warn',tag:'Ask leak',t:'Completed jobs aren\'t all getting asked. Check the sweep / dedup so every finished job gets the ask.'},
+    no_throughput:{cls:'warn',tag:'No throughput',t:'No completed jobs in the window to ask. Upstream job-flow issue.'},
+    baseline:{cls:'warn',tag:'Baseline',t:'Baseline set — velocity shows once there\'s a prior week to compare.'}
+  };
+  return map[k]||{cls:'warn',tag:'Status',t:m||'Watching the funnel.'};
+}
+
+async function load(){
+  el('updated').textContent='';
+  // headline reviews
+  var g=await jget('/.netlify/functions/get-google-reviews');
+  var rating=(g&&g.rating)||null, count=(g&&(g.review_count||g.total))||null;
+  // velocity snapshots (public event log)
+  var v=await jget(XANO+'/list_recent_event_log?action=review_velocity_score&days_back=90&limit=20');
+  var snaps=(v&&(v.items||[])).map(function(e){ var m=e.metadata; if(typeof m==='string'){try{m=JSON.parse(m);}catch(_){m={};}} return m||{}; }).filter(function(m){return m&&m.date;});
+  // newest first from the API; keep chronological for the spark
+  var latest=snaps[0]||{};
+  if(rating==null) rating=latest.rating||null;
+  if(count==null) count=latest.review_count||null;
+
+  el('hero').innerHTML='<div class="stars">★★★★★</div><div class="rating">'+(rating!=null?Number(rating).toFixed(1):'—')+' <small>/ 5</small></div><div class="total">'+(count!=null?Number(count).toLocaleString()+' total Google reviews':'reviews loading…')+'</div>';
+
+  var asks=Number(latest.asks_sent||0), up=Number(latest.thumbs_up||0), down=Number(latest.thumbs_down||0), replies=up+down, landed=Number(latest.reviews_landed||0), comps=Number(latest.completions||0);
+  el('week').innerHTML=
+    '<div class="stat"><div class="n">'+asks+'</div><div class="l">Asks sent</div><div class="sub">last 7 days</div></div>'+
+    '<div class="stat"><div class="n">'+replies+'</div><div class="l">Replied 👍👎</div><div class="sub">'+up+' up · '+down+' down</div></div>'+
+    '<div class="stat"><div class="n" style="color:'+(landed>0?'var(--green)':'var(--ink)')+'">+'+landed+'</div><div class="l">Reviews landed</div><div class="sub">this week</div></div>';
+
+  function frow(lab,val,pct){ return '<div class="frow"><div class="lab">'+lab+'<div class="bar"><i style="width:'+Math.max(2,Math.min(100,pct))+'%"></i></div></div><div class="val">'+val+'</div></div>'; }
+  var base=Math.max(asks, comps, replies, 1);
+  el('funnel').innerHTML=
+    frow('<b>Jobs completed</b>', comps, comps/base*100)+
+    frow('Review asks sent', asks, asks/base*100)+
+    frow('Customers replied 👍/👎', replies, replies/base*100)+
+    frow('New reviews landed', landed, landed/base*100);
+
+  var lk=leakMsg(latest.top_leak, latest.leak_msg);
+  el('leakwrap').innerHTML='<div class="leak '+lk.cls+'"><span class="tag">'+lk.tag+'</span><br><b>What\'s happening:</b> '+lk.t+'</div>';
+
+  // spark: reviews landed over recent weeks (chronological)
+  var chron=snaps.slice(0,10).reverse();
+  var maxL=Math.max.apply(null, chron.map(function(m){return Number(m.reviews_landed||0);}).concat([1]));
+  el('spark').innerHTML=chron.map(function(m){ var lv=Number(m.reviews_landed||0); var h=Math.max(3, lv/maxL*100); return '<div class="b'+(lv>0?' on':'')+'" style="height:'+h+'%" title="'+esc(m.date)+': +'+lv+'"></div>'; }).join('') || '<div class="muted">building trend…</div>';
+
+  el('updated').textContent='Updated '+new Date().toLocaleString()+(latest.date?(' · latest snapshot '+latest.date):'');
+}
+load();
+</script>

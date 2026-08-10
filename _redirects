@@ -167,3 +167,4 @@
 # The /applianceant/ folder is the SOURCE for the separate applianceant.com site.
 # Anyone hitting it on THIS domain gets bounced to the real one (no duplicate content).
 /applianceant/*  https://applianceant.com/:splat  301!
+/review-qr   /.netlify/functions/review-qr   200
