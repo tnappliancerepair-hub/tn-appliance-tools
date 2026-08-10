@@ -3035,6 +3035,29 @@
         "wiring to the flow meter"
       ],
       "test": "Confirm the house water supply is on and the fill line is not kinked, then a tech checks the flow meter and inlet valve."
+    },
+    {
+      "family": "samsung",
+      "appliance": "washer",
+      "code": "tE",
+      "meaning": "Temperature sensor (thermistor) error — the control reads an invalid water-temperature signal",
+      "likely_causes": [
+        "temperature sensor/thermistor",
+        "sensor wiring/connector",
+        "heating element circuit",
+        "control board"
+      ],
+      "test": "Check the thermistor resistance and its connector; an open/shorted or out-of-range reading = replace the sensor."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "washer",
+      "code": "rL",
+      "meaning": "Items detected in the tub during a Clean Washer cycle — remove the load and restart (not a fault)",
+      "likely_causes": [
+        "laundry left in the drum during the self-clean cycle"
+      ],
+      "test": "Empty the drum completely and restart the Clean Washer cycle with nothing inside; the code clears."
     }
   ]
 }

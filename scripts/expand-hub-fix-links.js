@@ -29,6 +29,8 @@ const SETS = {
     ['washer-shaking-or-walking', 'Shaking / walking'],
     ['washer-leaking-from-bottom', 'Leaking from bottom'],
     ['front-load-washer-door-wont-open', "Door won't open"],
+    ['washer-wont-fill-with-water', "Won't fill"],
+    ['samsung-washer-ub-ue-error-code', 'Samsung UB / UE code'],
     ['washer-wont-drain', "Won't drain"],
     ['washer-not-spinning', "Won't spin"],
     ['washer-leaking-water', 'Leaking water'],
@@ -56,6 +58,7 @@ const SETS = {
   ],
   'dishwasher-repair.html': [
     ['dishwasher-leaving-white-film', 'White film on dishes'],
+    ['samsung-dishwasher-lc-error-code', 'Samsung LC / LE code'],
     ['dishwasher-not-drying-dishes', 'Not drying'],
     ['dishwasher-wont-drain', "Won't drain"],
     ['dishwasher-not-cleaning', 'Not cleaning'],
@@ -70,6 +73,7 @@ const SETS = {
   'oven-repair.html': [
     ['electric-stove-burner-not-heating', 'Burner not heating'],
     ['gas-stove-igniter-keeps-clicking', 'Igniter keeps clicking'],
+    ['oven-wont-turn-off', "Won't turn off"],
     ['oven-temperature-not-accurate', 'Temp off / runs hot-cold'],
     ['oven-not-heating', 'Oven not heating'],
     ['gas-range-wont-light', "Gas range won't light"],
