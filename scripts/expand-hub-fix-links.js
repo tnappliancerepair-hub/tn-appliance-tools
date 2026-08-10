@@ -12,11 +12,13 @@ const SETS = {
     ['dryer-not-heating', 'Not heating'],
     ['dryer-wont-start', "Won't start"],
     ['dryer-not-drying', 'Takes forever to dry'],
+    ['whirlpool-dryer-l2-error-code', 'Whirlpool L2 (no heat)'],
+    ['whirlpool-dryer-af-error-code', 'Whirlpool AF (airflow)'],
+    ['frigidaire-dryer-e64-error-code', 'Frigidaire E64 code'],
     ['lg-dryer-d80-d90-d95-error-code', 'LG d80/d90/d95 code'],
     ['samsung-dryer-he-error-code', 'Samsung HE code'],
     ['whirlpool-dryer-not-heating', 'Whirlpool not heating'],
     ['samsung-dryer-not-heating', 'Samsung not heating'],
-    ['lg-dryer-not-heating', 'LG not heating'],
   ],
   'washer-repair.html': [
     ['washer-wont-drain', "Won't drain"],
@@ -56,6 +58,8 @@ const SETS = {
     ['oven-not-heating', 'Oven not heating'],
     ['gas-range-wont-light', "Gas range won't light"],
     ['lg-range-f9-error-code', 'LG range F9 code'],
+    ['ge-oven-f2-error-code', 'GE oven F2 code'],
+    ['whirlpool-oven-f2e1-error-code', 'Whirlpool F2E1 code'],
   ],
 };
 
