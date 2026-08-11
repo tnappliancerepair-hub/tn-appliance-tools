@@ -363,6 +363,73 @@ query send_sms verb=POST {
     }
 
     // ============================================================
+    // 5e. TECH-SMS CUTOFF (Teddy 2026-08-11: "no texts to techs except the new
+    //     TDR / pre-diagnosis link that replaced the Teddy Tool text. All others
+    //     eliminated starting now"). Field techs are internal, so they bypass the
+    //     customer + intake gates above — gate them HERE. A field-tech recipient
+    //     (in the technicians table, and NOT owner / Danielle / office staff) may
+    //     ONLY receive a text that carries the TDR link (teddy-tdr-tool or the new
+    //     cash-tdr page). Every other system->tech text is DROPPED regardless of
+    //     source (Netlify fn, tech-app tap, colony loop, XS). Owner/office/Danielle
+    //     alerts (money-in, etc.) are UNAFFECTED. Flip OFF via company_settings
+    //     key "tech_sms_gate" = "false".
+    // ============================================================
+    var $is_field_tech {
+      value = ($is_tech_phone == true) && ($is_owner == false) && ($is_danielle == false) && ($is_office_staff == false)
+    }
+
+    db.query company_settings {
+      where = $db.company_settings.company_id == 1 && $db.company_settings.setting_key == "tech_sms_gate"
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $tech_gate_rows
+
+    var $tech_gate_row {
+      value = (($tech_gate_rows.items|first) ?? null)
+    }
+
+    var $tech_gate_on {
+      value = ($tech_gate_row != null) ? ((($tech_gate_row.setting_value ?? "")|trim|to_lower) != "false") : true
+    }
+
+    // The one allowed tech text = the pre-diagnosis / TDR link (current
+    // teddy-tdr-tool.html, or the new cash-tdr.html it is being replaced with).
+    // Body-based so it survives the repoint and can't be spoofed by a tag.
+    var $tech_send_ok {
+      value = ($body_l|contains:"teddy-tdr-tool") || ($body_l|contains:"cash-tdr")
+    }
+
+    conditional {
+      if ($is_field_tech == true && $tech_gate_on == true && $tech_send_ok == false) {
+        db.add event_log {
+          data = {
+            action  : "sms_blocked_tech"
+            metadata: {
+              recipient_last4: ($p10 != "") ? ($p10|substr:6:4) : "?"
+              context_tag    : ($input.context_tag ?? "")
+              body_preview   : (($sms_body ?? "")|substr:0:80)
+              reason         : "tech_sms_gate: only TDR link allowed to techs"
+            }
+          }
+        } as $tech_blk_log
+
+        return {
+          value = ```
+            {
+              success            : false
+              provider           : "blocked_tech"
+              provider_message_id: null
+              provider_status    : null
+              twilio_sid         : null
+              twilio_status      : 0
+              error              : "only_tdr_link_allowed_to_techs"
+              gated              : true
+            }
+            ```
+        }
+      }
+    }
+
+    // ============================================================
     // 6. Initialize response vars (success-shaped default so the gated
     //    path returns the same contract as the live path).
     // ============================================================
