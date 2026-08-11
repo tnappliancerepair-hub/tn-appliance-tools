@@ -47,9 +47,10 @@
     labor_hours:      { label: 'Labor hours',   col: 'labor_time_hours', multiline: false, ph: 'e.g. 1.5', numeric: true },
     // Free-form situational notes the tech types on site (Teddy 2026-08-11: "the tech
     // needs to be able to add notes to the situation they're seeing"). Optional — does
-    // NOT count toward the required-5 completion. Saves to customer_notes (round-trips
-    // in this card) and is mirrored to technician_notes so the office board sees it.
-    customer_notes:   { label: 'Notes',         col: 'customer_notes',   multiline: true,  ph: "What you're seeing on site — anything the office should know" },
+    // NOT count toward the required-5 completion. Saves straight to technician_notes
+    // (the reliable text column the OFFICE board reads) via set-tdr-field — NOT
+    // customer_notes, whose string writes silently no-op (a JSON/list column).
+    technician_notes: { label: 'Notes',         col: 'technician_notes', multiline: true,  ph: "What you're seeing on site — anything the office should know" },
   };
   // The two outcome choices for the Job-status field.
   var OUTCOME_COMPLETE = 'Job complete';
@@ -214,7 +215,22 @@
       lastData = d;
       renderButton(d);
       renderModal(d);
+      loadTechNotes();   // patch in technician_notes (not returned by get_unified) — see below
     } catch (e) {}
+  }
+  // get_unified_tdr_status returns customer_notes (a JSON column whose writes no-op),
+  // NOT technician_notes — the reliable column the Notes field writes to + the office
+  // reads. Fetch it separately and patch the Notes field in without blocking the render.
+  async function loadTechNotes() {
+    try {
+      var nr = await fetch('/.netlify/functions/get-tdr-notes?job_id=' + encodeURIComponent(jobId), { cache: 'no-store' });
+      var nd = await nr.json();
+      var tn = (nd && nd.ok) ? String(nd.technician_notes || '') : '';
+      if (!lastData) return;
+      lastData.fields = lastData.fields || {};
+      lastData.fields.technician_notes = { value: tn, filled: !!tn.trim(), required: false };
+      if (editKey === null && !recordingNow) renderModal(lastData);
+    } catch (_) {}
   }
 
   function renderButton(d) {
@@ -337,7 +353,7 @@
       {key: 'parts_needed',     label: 'Part & part #',icon: '📦', prompt: 'The part you used + its number'},
       {key: 'repair_completed', label: 'Job status',   icon: '🔧', prompt: 'Complete, or second trip needed?'},
       {key: 'labor_hours',      label: 'Labor hours',  icon: '⏱️', prompt: 'Total time on the job'},
-      {key: 'customer_notes',   label: 'Notes',        icon: '📝', prompt: "What you're seeing on site — anything the office should know"},
+      {key: 'technician_notes', label: 'Notes',        icon: '📝', prompt: "What you're seeing on site — anything the office should know"},
     ];
 
     var html = '';
@@ -1162,10 +1178,10 @@
     lines.push('');
     lines.push('LABOR');
     lines.push('  ' + (val('labor_hours') || '?') + ' hours');
-    if (val('customer_notes')) {
+    if (val('technician_notes')) {
       lines.push('');
-      lines.push('CUSTOMER NOTES');
-      lines.push('  ' + val('customer_notes'));
+      lines.push('NOTES');
+      lines.push('  ' + val('technician_notes'));
     }
     if (extras.problem_summary) {
       lines.push('');
@@ -1835,33 +1851,39 @@
     var btns = document.querySelectorAll('.ant-tdr-save-btn');
     btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
     try {
-      // update_tdr_field_from_voice upserts the in-progress TDR by (job_id,
-      // technician_id) and writes via db.edit — no TDR_SUBMITTED signal, so
-      // editing a field never autonomously moves the job. It takes the same
-      // field keys this card uses (diagnosis / failed_component / labor_hours /
-      // repair_completed / parts_needed).
-      var body = { job_id: Number(jobId), field: key, value: val };
-      if (techId) body.technician_id = Number(techId);
-      var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      var wd = await wr.json();
-      if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
-      // The tech's situational Notes must ALSO reach the office board, which reads
-      // technician_notes (the office feed doesn't return customer_notes). Mirror it
-      // there best-effort via ensure-tdr (get-or-create, no folder-move signal) +
-      // set-tdr-field, resolving the SAME (job, tech) TDR row we just wrote. A mirror
-      // failure never blocks the save — the note is already in customer_notes.
-      if (key === 'customer_notes') {
-        try {
-          var _tid = Number((lastData && lastData.tdr_id) || 0);
-          if (!(_tid > 0)) {
-            var _er = await fetch('/.netlify/functions/ensure-tdr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0 }) });
-            _tid = Number(((await _er.json()) || {}).tdr_id || 0);
-          }
-          if (_tid > 0) await fetch('/.netlify/functions/set-tdr-field', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tdr_id: _tid, field: 'technician_notes', value: val }) });
-        } catch (_) {}
+      if (key === 'technician_notes') {
+        // Notes save STRAIGHT to technician_notes via the reliable Metadata-API path
+        // (set-tdr-field). We do NOT use update_tdr_field_from_voice for notes: it
+        // writes customer_notes, a JSON/list column whose string writes silently no-op
+        // (that's exactly why the Notes field looked like it "wasn't saving").
+        // technician_notes is a real text column AND the column the OFFICE board reads,
+        // so this both persists and reaches the office. ensure-tdr guarantees a row.
+        var _tid = Number((lastData && lastData.tdr_id) || 0);
+        if (!(_tid > 0)) {
+          var _er = await fetch('/.netlify/functions/ensure-tdr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0 }) });
+          _tid = Number(((await _er.json()) || {}).tdr_id || 0);
+        }
+        if (!(_tid > 0)) throw new Error('could not open the report to save notes');
+        var sr = await fetch('/.netlify/functions/set-tdr-field', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tdr_id: _tid, field: 'technician_notes', value: val }) });
+        var sd = await sr.json();
+        if (!sd || !sd.ok) throw new Error((sd && sd.error) || 'save failed');
+        // Optimistic: show it back immediately (get_unified doesn't return
+        // technician_notes; refresh() re-reads it via get-tdr-notes).
+        if (lastData) { lastData.fields = lastData.fields || {}; lastData.fields.technician_notes = { value: val, filled: !!val, required: false }; if (!lastData.tdr_id) lastData.tdr_id = _tid; }
+      } else {
+        // update_tdr_field_from_voice upserts the in-progress TDR by (job_id,
+        // technician_id) and writes via db.edit — no TDR_SUBMITTED signal, so
+        // editing a field never autonomously moves the job. It takes the same
+        // field keys this card uses (diagnosis / failed_component / labor_hours /
+        // repair_completed / parts_needed).
+        var body = { job_id: Number(jobId), field: key, value: val };
+        if (techId) body.technician_id = Number(techId);
+        var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        var wd = await wr.json();
+        if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
       }
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
