@@ -2504,6 +2504,7 @@ function renderDrawer(d){
           <button onclick="scheduleFromDrawer(${jid})" style="flex:2;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">${scheduled?'🔄 Reschedule':'📅 Schedule'}</button>
           <button onclick="holdFromDrawer(${jid})" title="Hold this day tentatively while you wait on the customer" style="flex:1;padding:11px;border-radius:9px;background:rgba(224,178,42,0.15);color:#a67c10;border:1px solid #e0b22a;font-weight:800;cursor:pointer">⏳ Hold</button>
         </div>
+        ${scheduled?`<button onclick="askMoveFromDrawer(${jid})" title="Text the customer to APPROVE the new day BEFORE moving them. Only moves if they say yes; keeps their current day if they decline or don't reply. Records their OK." style="width:100%;margin-top:2px;padding:11px;border-radius:9px;background:rgba(31,111,237,0.12);color:#1f6fed;border:1px solid rgba(31,111,237,0.45);font-weight:800;cursor:pointer">📲 Ask customer first (approve the move)</button>`:''}
         ${HOLD_MAP[jid]?`<div style="margin-top:4px;padding:9px 11px;border:1px dashed #e0b22a;border-radius:9px;background:rgba(224,178,42,0.10)">
           <div style="font-size:12.5px;font-weight:800;color:#8a6410">⏳ Held for ${esc(TECH_NAME[HOLD_MAP[jid].tech_id]||('tech '+HOLD_MAP[jid].tech_id))} on ${esc(HOLD_MAP[jid].date)} — waiting on the customer</div>
           <div style="display:flex;gap:8px;margin-top:7px">
@@ -3239,6 +3240,24 @@ async function scheduleFromDrawer(id){
       toast('Scheduled ✓ — moved to Scheduled'+(jobSlots>1?' ('+jobSlots+' slots)':'')+capNote);closeDrawer();loadBoard();
     } else toast('⚠ '+(r.error||'failed'));
   }catch(_){toast('⚠ connection error');}
+}
+// 📲 Ask the customer to APPROVE a new day BEFORE moving them (Teddy 2026-08-11). Reads
+// the day (+ tech) Danielle picked in the Schedule card, texts the customer to confirm,
+// and HOLDS the move — it only applies when the customer replies YES (customer-sms-inbound
+// -> _lib/schedule-move). Keeps their current day if they decline or don't reply, and
+// records their approval. Does NOT reschedule here.
+async function askMoveFromDrawer(id){
+  const dEl=document.getElementById('schDay'); const tEl=document.getElementById('schTech');
+  const toDay=dEl?String(dEl.value||'').trim():''; const techId=tEl?parseInt(tEl.value||'0',10):0;
+  if(!toDay){ toast('Pick the new day first'); if(dEl){dEl.style.outline='2px solid #c0392b';dEl.focus();setTimeout(()=>{dEl.style.outline='';},2200);} return; }
+  if(!confirm('Text this customer to ask if '+toDay+' works? It will NOT move them unless they reply YES.')) return;
+  toast('Asking the customer…');
+  try{
+    const d=await (await fetch('/.netlify/functions/propose-schedule-move',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(id,10),to_day:toDay,tech_id:techId,by:officeActor()})})).json();
+    if(d&&d.ok){ toast('📲 Asked — we’ll move them to '+(d.day||toDay)+' only if they say yes.'); }
+    else if(d&&d.error==='no_phone'){ toast('⚠ No phone on file — can’t ask. Reschedule directly + call them.'); }
+    else { toast('⚠ '+((d&&d.error)||'could not send')); }
+  }catch(_){ toast('⚠ connection error'); }
 }
 async function moveJobFromDrawer(id){
   const sel=document.getElementById('moveSel'); if(!sel)return;

@@ -619,6 +619,19 @@ exports.handler = async function (event) {
     else console.warn('[customer-sms-inbound] extra_yes error:', e.message);
   }
 
+  // ─── SCHEDULE-MOVE consent reply (Teddy 2026-08-11) ────────────────
+  // If we asked this customer "can we move you to <day>?", their reply decides it:
+  // clear YES applies the move + records approval; clear NO keeps their current day +
+  // flags Danielle; anything unclear falls through to normal handling (no move). Only
+  // fires for a customer with an active proposal, so blast radius is just those.
+  try {
+    const sm = await require('./_lib/schedule-move').handleInbound(parsed.from, parsed.body);
+    if (sm && sm.matched) {
+      console.log('[customer-sms-inbound] schedule_move matched:', sm.stage);
+      return providerAck(provider);
+    }
+  } catch (e) { console.warn('[customer-sms-inbound] schedule_move error:', e.message); }
+
   // ─── "How'd we do?" satisfaction gate ─────────────────────────────
   // If this customer was just asked 👍/👎 (or their follow-up feedback), the
   // satisfaction handler replies + alerts itself. Short-circuit on match so the
