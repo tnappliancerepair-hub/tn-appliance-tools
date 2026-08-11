@@ -38,6 +38,60 @@ exports.handler = async function (event) {
     // has its texts silently dropped by US carriers — so this shows which of our lines
     // are actually APPROVED to text customers (Teddy 2026-07-16: "we have approved
     // numbers, we need to use them — let's check").
+    // Cost visibility (Teddy 2026-08-11: "we're being charged 2x/day for Telnyx —
+    // are we doing something wrong / can we cut costs?"). Read-only spend picture.
+    // &action=balance  -> current balance + available credit (auto-recharge tops this up)
+    // &action=numbers  -> how many DIDs we rent (monthly recurring)
+    // &action=spend    -> voice + messaging usage cost over the last N days (&days=)
+    if (action === 'balance') {
+      const r = await fetch(`${TELNYX}/balance`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const d = await r.json().catch(() => ({}));
+      return json(200, { ok: r.ok, status: r.status, balance: (d && d.data) || d });
+    }
+
+    if (action === 'numbers') {
+      let page = 1, all = [];
+      for (let i = 0; i < 8; i++) {
+        const r = await fetch(`${TELNYX}/phone_numbers?page[size]=250&page[number]=${page}`, { headers: H, signal: AbortSignal.timeout(12000) });
+        const d = await r.json().catch(() => ({}));
+        const rows = Array.isArray(d && d.data) ? d.data : [];
+        all = all.concat(rows);
+        const meta = d && d.meta;
+        if (!rows.length || (meta && meta.total_pages && page >= meta.total_pages)) break;
+        page++;
+      }
+      const byType = {};
+      for (const n of all) { const k = (n.phone_number_type || n.number_type || 'unknown'); byType[k] = (byType[k] || 0) + 1; }
+      const messagingEnabled = all.filter((n) => n.messaging_profile_id || (n.features && (n.features.sms || (Array.isArray(n.features) && n.features.includes('sms'))))).length;
+      return json(200, {
+        ok: true, total_numbers: all.length, by_type: byType, messaging_enabled: messagingEnabled,
+        note: 'each DID is a small monthly rental; messaging-enabled + 10DLC numbers may carry extra monthly fees',
+        sample: all.slice(0, 8).map((n) => ({ number: n.phone_number, type: n.phone_number_type || n.number_type, status: n.status, messaging: !!n.messaging_profile_id })),
+      });
+    }
+
+    if (action === 'spend') {
+      const days = Math.min(31, Math.max(1, parseInt(q.days, 10) || 7));
+      const start = new Date(Date.now() - days * 86400000).toISOString();
+      const pull = async (recordType) => {
+        try {
+          const url = `${TELNYX}/detail_records?filter[record_type]=${recordType}&filter[date_range][gte]=${encodeURIComponent(start)}&page[size]=250`;
+          const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) });
+          const d = await r.json().catch(() => ({}));
+          const rows = Array.isArray(d && d.data) ? d.data : [];
+          let cost = 0; for (const x of rows) { cost += parseFloat(x.cost || x.total_cost || x.rate || 0) || 0; }
+          return { ok: r.ok, status: r.status, count: rows.length, cost_usd: Math.round(cost * 100) / 100, capped_at_250: rows.length >= 250 };
+        } catch (e) { return { ok: false, status: 0, count: 0, cost_usd: 0, error: String(e.message || e) }; }
+      };
+      const voice = await pull('voice');
+      const messaging = await pull('messaging');
+      return json(200, {
+        ok: true, days, since: start, voice, messaging,
+        total_cost_usd: Math.round((voice.cost_usd + messaging.cost_usd) * 100) / 100,
+        note: 'sampled from Telnyx detail_records (capped 250/type). If capped, real spend is higher — check the Telnyx portal Billing > Usage for the exact total.',
+      });
+    }
+
     if (action === 'tendlc') {
       // Telnyx 10DLC endpoints return TCR-style bodies (rows under `records`), not `data`.
       const rows = (d) => (Array.isArray(d && d.records) ? d.records : (Array.isArray(d && d.data) ? d.data : (Array.isArray(d) ? d : [])));
