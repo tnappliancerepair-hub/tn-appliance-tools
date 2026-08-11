@@ -1,5 +1,5 @@
 {
-  "version": "2026-07-31",
+  "version": "2026-08-11",
   "note": "INTERNAL troubleshooting corpus — factory fault/error codes with meaning + likely causes + the confirming test. Powers Ann's diagnose tool + the tech app 🧠 button. Part numbers are intentionally omitted — they come from the live Marcone/Amazon lookup + this shop's TDR history, never guessed. Samsung shows the SAME fault as '__E' on older displays and '__C' on newer (C = Check); both forms are stored so a tech's exact typing always resolves. For board-variant families (GE/LG ranges) the meaning says to confirm against the model tech sheet.",
   "families": {
     "whirlpool": [
@@ -3070,6 +3070,54 @@
         "control board"
       ],
       "test": "Check the oven sensor resistance and wiring for a short; out-of-range or shorted = replace the sensor."
+    },
+    {
+      "family": "samsung",
+      "appliance": "microwave",
+      "code": "5E",
+      "meaning": "Touchpad/control ribbon shorted or a stuck key (same fault Samsung shows as SE on other displays) — the buttons stop responding or the unit beeps on its own",
+      "likely_causes": [
+        "touchpad ribbon cable shorted (often from steam/moisture above the range)",
+        "stuck or failed touchpad key",
+        "control board"
+      ],
+      "test": "Unplug 5 minutes. If 5E/SE returns, the touchpad ribbon or membrane is shorting — a tech reseats or replaces the touchpad. Do NOT open the cabinet yourself — a microwave capacitor holds a dangerous charge even unplugged; this is a technician job."
+    },
+    {
+      "family": "samsung",
+      "appliance": "microwave",
+      "code": "C-d0",
+      "meaning": "Door sensing fault — the control does not see the door as properly closed, so it won't start or stops mid-cycle",
+      "likely_causes": [
+        "misaligned or sagging door / worn hinges",
+        "failed door interlock (monitor) switch",
+        "harness or control board"
+      ],
+      "test": "Confirm the door closes flush and latches. Unplug 5 minutes; if C-d0 persists, a door interlock switch has failed. Do NOT open the cabinet yourself — a microwave capacitor holds a dangerous charge even unplugged; this is a technician job."
+    },
+    {
+      "family": "whirlpool",
+      "appliance": "microwave",
+      "code": "F2",
+      "meaning": "Stuck key / shorted touchpad on the control (Whirlpool, Maytag, KitchenAid, Amana over-the-range models) — controls lock up or beep",
+      "likely_causes": [
+        "stuck or shorted touchpad key",
+        "touchpad ribbon shorted by moisture",
+        "control board"
+      ],
+      "test": "Unplug 5 minutes. If F2 returns, the touchpad (keypad) is the usual fix; the control board is the fallback. Do NOT open the cabinet yourself — a microwave capacitor holds a dangerous charge even unplugged; this is a technician job."
+    },
+    {
+      "family": "ge",
+      "appliance": "microwave",
+      "code": "F3",
+      "meaning": "Shorted touchpad / membrane switch on the control (GE over-the-range models; exact F-number varies by model) — a key reads as stuck",
+      "likely_causes": [
+        "shorted or stuck touchpad key",
+        "touchpad ribbon connector corroded by steam",
+        "control board"
+      ],
+      "test": "Unplug 5 minutes. If it returns, inspect the touchpad ribbon connector at the control for moisture/corrosion; a shorted touchpad is the usual fix. Confirm the F-number against your model tech sheet. Do NOT open the cabinet yourself — a microwave capacitor holds a dangerous charge even unplugged; this is a technician job."
     }
   ]
 }
