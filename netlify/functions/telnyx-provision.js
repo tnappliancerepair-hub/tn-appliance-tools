@@ -116,7 +116,22 @@ exports.handler = async function (event) {
         }
         for (const kk of ['d1', 'd7', 'd30', 'all']) { b[kk].cost_usd = Math.round(b[kk].cost_usd * 100) / 100; b[kk].minutes = Math.round(b[kk].minutes * 10) / 10; }
         const oldestT = all.length ? ts(all[all.length - 1]) : 0;
-        return { ok: true, pulled: all.length, capped: all.length >= pages * 250, oldest_record: oldestT ? new Date(oldestT).toISOString().slice(0, 10) : null, windows: b, sample_keys: all[0] ? Object.keys(all[0]) : [] };
+        // 24h breakdown: direction (inbound vs outbound) + by our from-number + by profile
+        const d1cut = nowMs - 86400000;
+        const dir = {}, byFrom = {}, byProfile = {};
+        const dCost = {}, fCost = {};
+        for (const x of all) {
+          if (ts(x) < d1cut) continue;
+          const dr = (x.direction || 'unknown'); const cost = num(x, ['cost', 'total_cost', 'rate']) + num(x, ['carrier_fee']);
+          const from = x.cli || x.from || '?'; const prof = x.profile_name || '?';
+          dir[dr] = (dir[dr] || 0) + 1; dCost[dr] = (dCost[dr] || 0) + cost;
+          byFrom[from] = (byFrom[from] || 0) + 1; fCost[from] = (fCost[from] || 0) + cost;
+          byProfile[prof] = (byProfile[prof] || 0) + 1;
+        }
+        const topFrom = Object.keys(byFrom).sort((a, c) => byFrom[c] - byFrom[a]).slice(0, 8)
+          .map((k) => ({ from: k, count: byFrom[k], cost_usd: Math.round(fCost[k] * 100) / 100 }));
+        const dirOut = {}; for (const k of Object.keys(dir)) dirOut[k] = { count: dir[k], cost_usd: Math.round((dCost[k] || 0) * 100) / 100 };
+        return { ok: true, pulled: all.length, capped: all.length >= pages * 250, oldest_record: oldestT ? new Date(oldestT).toISOString().slice(0, 10) : null, windows: b, last24h_by_direction: dirOut, last24h_by_from: topFrom, last24h_by_profile: byProfile, sample_keys: all[0] ? Object.keys(all[0]) : [] };
       };
       const voice = await pull('voice');
       const messaging = await pull('messaging');

@@ -212,6 +212,38 @@ exports.handler = async function (event) {
   // Day's calls at a glance — pull today's inbound calls, summarize each, and
   // FLAG the ones that likely upset the caller (asked for a human, frustrated
   // language, transfer/callback, abrupt end) so we can review them fast.
+  // Voice cost picture (Teddy 2026-08-11 cost strategy). Pull recent calls, sum
+  // Vapi cost + minutes, bucket 1d/7d. GET ?action=costsum[&days=7]
+  if (action === 'costsum') {
+    const days = Math.max(1, Math.min(30, Number(q.days) || 7));
+    const sinceMs = Date.now() - days * 86400000;
+    let all = [], cursor = new Date().toISOString();
+    for (let i = 0; i < 10; i++) {
+      const got = await vapi('GET', `/call?createdAtLt=${encodeURIComponent(cursor)}&limit=100`, key);
+      if (!got.ok) break;
+      const calls = Array.isArray(got.json) ? got.json : (got.json.results || []);
+      if (!calls.length) break;
+      all = all.concat(calls);
+      const last = calls[calls.length - 1];
+      const lastAt = last.createdAt || last.startedAt;
+      if (!lastAt || new Date(lastAt).getTime() < sinceMs) break;
+      cursor = lastAt;
+    }
+    const wins = { d1: Date.now() - 86400000, d7: Date.now() - 7 * 86400000 };
+    const b = { d1: { calls: 0, cost: 0, min: 0 }, d7: { calls: 0, cost: 0, min: 0 } };
+    let inbound = 0, outbound = 0;
+    for (const c of all) {
+      const t = new Date(c.createdAt || c.startedAt || 0).getTime();
+      const cost = Number(c.cost || 0) || 0;
+      const dur = c.startedAt && c.endedAt ? (new Date(c.endedAt) - new Date(c.startedAt)) / 1000 : 0;
+      if (/outbound/i.test(String(c.type || ''))) outbound++; else inbound++;
+      for (const k of ['d1', 'd7']) { if (t >= wins[k]) { b[k].calls++; b[k].cost += cost; b[k].min += dur / 60; } }
+    }
+    for (const k of ['d1', 'd7']) { b[k].cost = Math.round(b[k].cost * 100) / 100; b[k].min = Math.round(b[k].min); b[k].avg_per_call = b[k].calls ? Math.round(b[k].cost / b[k].calls * 100) / 100 : 0; }
+    const oldest = all.length ? (all[all.length - 1].createdAt || all[all.length - 1].startedAt) : null;
+    return { statusCode: 200, body: JSON.stringify({ ok: true, pulled: all.length, oldest: oldest ? String(oldest).slice(0, 10) : null, inbound, outbound, last24h: b.d1, last7d: b.d7, projected_monthly_usd: b.d1.cost ? Math.round(b.d1.cost * 30) : null }, null, 2) };
+  }
+
   // GET ?action=daycalls[&hours=24][&flagged=1]
   if (action === 'daycalls') {
     const hours = Math.max(1, Math.min(72, Number(q.hours) || 24));
