@@ -25,8 +25,8 @@ const QC = '/quick-check-intake.html';
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function slugify(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 
-const APPLIANCE_OF = { 'refrigerator-not-cooling': 'refrigerator', 'dryer-not-heating': 'dryer', 'washer-wont-drain': 'washer', 'dishwasher-wont-drain': 'dishwasher', 'washer-not-spinning': 'washer', 'oven-not-heating': 'oven', 'dishwasher-not-cleaning': 'dishwasher' };
-const SYMPTOM_PHRASE = { 'refrigerator-not-cooling': 'not cooling', 'dryer-not-heating': "not heating", 'washer-wont-drain': "won't drain", 'dishwasher-wont-drain': "won't drain", 'washer-not-spinning': "won't spin", 'oven-not-heating': 'not heating', 'dishwasher-not-cleaning': 'not cleaning' };
+const APPLIANCE_OF = { 'refrigerator-not-cooling': 'refrigerator', 'dryer-not-heating': 'dryer', 'washer-wont-drain': 'washer', 'dishwasher-wont-drain': 'dishwasher', 'washer-not-spinning': 'washer', 'oven-not-heating': 'oven', 'dishwasher-not-cleaning': 'dishwasher', 'refrigerator-making-noise': 'refrigerator' };
+const SYMPTOM_PHRASE = { 'refrigerator-not-cooling': 'not cooling', 'dryer-not-heating': "not heating", 'washer-wont-drain': "won't drain", 'dishwasher-wont-drain': "won't drain", 'washer-not-spinning': "won't spin", 'oven-not-heating': 'not heating', 'dishwasher-not-cleaning': 'not cleaning', 'refrigerator-making-noise': 'making noise' };
 
 const CSS = `*{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0b0b0c;--surf:#141416;--bord:#26262a;--ink:#ececec;--dim:#a0a0a6;--orange:#ff6200;--green:#39ff14}
@@ -103,7 +103,8 @@ function page(symptomSlug, brand, data, base, siblings) {
   const applCap = appliance.charAt(0).toUpperCase() + appliance.slice(1);
   const phraseCap = tc(phrase);
   const h1 = `${brand} ${applCap} ${phraseCap}?`;
-  const title = `${brand} ${applCap} ${phraseCap} — Causes, Fault Codes & Fixes`;
+  const hasCodes = !!(data.faultCodes && data.faultCodes.length);
+  const title = `${brand} ${applCap} ${phraseCap} — Causes${hasCodes ? ', Fault Codes' : ''} & Fixes`;
   const metaDesc = `${brand} ${appliance} ${phrase}? A real technician explains the exact ${brand} causes, fault codes, and safe fixes — and the known ${brand} issue to check first. Free guide + get the part shipped. ${PHONE}.`;
 
   const brandCauses = (data.causes || []).map((c) => `      <div class="cause"><h3>${esc(c.name)} ${c.difficulty ? `<span class="tag ${c.difficulty}">${c.difficulty}</span>` : ''}</h3><div class="why">${esc(c.why)}</div>${c.diy ? `<div class="diy"><b>What you can check:</b> ${esc(c.diy)}</div>` : ''}</div>`).join('\n');

@@ -506,4 +506,66 @@ module.exports = {
       forceReset: 'Hold Start/Cancel to drain a stuck cycle, then cut power at the breaker for a minute to clear the control.',
     },
   },
+  'refrigerator-making-noise': {
+    'Samsung': {
+      lede: 'The classic Samsung refrigerator noise is a loud buzzing, humming, or knocking from the back — and on French-door RF models it\'s almost always the evaporator fan hitting ICE. When the defrost system can\'t keep up, ice builds around the fan blade behind the rear freezer panel; the blade clips it and you get a rattle or buzz that comes and goes, usually loudest after the doors have been open a lot. It\'s a defrost problem showing up as noise.',
+      causes: [
+        { name: 'Evaporator fan hitting ice (the classic Samsung noise)', why: 'On RF/RS models a defrost sensor or heater fault lets frost build around the evap fan behind the back freezer panel; the blade strikes the ice and buzzes, rattles, or grinds — often worse after heavy door use.', diy: 'Run a Force Defrost (below) or empty the freezer and unplug 24–48 hrs to melt the ice. If the noise stops then returns in a few days, the defrost part needs replacing — a tech job.', difficulty: 'Moderate' },
+        { name: 'Ice maker cycling', why: 'Samsung ice makers click, whir, and drop ice on a cycle — normal — but a frosted-up ice maker can grind or clunk harder than it should.', diy: 'If the noise is a periodic click/drop from the ice-maker area, that\'s largely normal. Persistent grinding points to ice-maker frosting (a known Samsung issue).', difficulty: 'Easy' },
+        { name: 'Condenser fan (debris or dust)', why: 'A humming or rattling low at the back can be the condenser fan clogged with dust or something caught in the blade.', diy: 'Unplug, pull the fridge out, and vacuum the condenser area at the lower back. Free and safe.', difficulty: 'Easy' },
+        { name: 'Compressor / inverter noise', why: 'A steady hum is normal; loud rattling or a repeated click-and-stop can be the compressor or inverter board.', diy: 'If both compartments are also warming with the noise, have a tech check the compressor/inverter.', difficulty: 'Pro' },
+      ],
+      faultCodes: [],
+      knownIssue: 'The Samsung RF French-door evaporator-fan-icing noise is one of the most-reported complaints on these fridges — a buzzing or knocking from the upper back that a Force Defrost temporarily silences. If yours does exactly that, the root fix is the defrost repair, and it\'s a common, worthwhile one.',
+      forceReset: 'Force Defrost: with the doors open, press and hold Freezer + Fridge (or Energy Saver + Fridge on some models) for ~8 seconds until the display blanks, then press until you see "Fd." This melts the ice off the evap fan — if the noise stops, you\'ve found it.',
+    },
+    'LG': {
+      lede: 'An LG refrigerator has a normal gentle hum from its linear compressor, so a NEW loud noise usually means something else: a rattling or humming at the lower back is typically the condenser fan (dust or debris), a buzzing from behind the freezer panel is the evaporator fan icing up, and a repeated click-and-stop can be the linear compressor itself — which carries a 10-year warranty.',
+      causes: [
+        { name: 'Condenser fan (dust/debris)', why: 'A rattle or loud hum low at the back is often the condenser fan clogged with dust or catching on debris.', diy: 'Unplug, pull the fridge out, and vacuum the condenser coils and fan at the lower back. Free, safe, and a common fix.', difficulty: 'Easy' },
+        { name: 'Evaporator fan icing (buzz from the freezer)', why: 'A buzzing or ticking from behind the back freezer panel is the evap fan clipping frost when defrost falls behind.', diy: 'Empty the freezer and unplug 24–48 hrs to melt the ice; if the buzz returns in days, the defrost part needs replacing.', difficulty: 'Moderate' },
+        { name: 'Linear compressor clicking (known LG issue)', why: 'A repeated click-then-silence with the fridge warming points at the linear compressor or its inverter — LG\'s well-documented failure.', diy: 'Check your model/serial against LG\'s 10-year compressor warranty and the settlement; diagnosis and replacement are a tech job.', difficulty: 'Pro' },
+        { name: 'Ice maker cycling', why: 'Periodic whirring and ice dropping is normal; harder grinding can mean a frosted ice maker.', diy: 'Occasional clicks/drops are normal. Constant grinding is worth a tech look.', difficulty: 'Easy' },
+      ],
+      faultCodes: [],
+      knownIssue: 'On an LG, a normal fridge purrs quietly — so a loud NEW hum or rattle is most often just the condenser fan needing a vacuum, an easy free fix. But a repeated click-and-stop with warming is the linear-compressor signature, which is frequently covered under LG\'s 10-year compressor warranty.',
+      forceReset: 'Unplug for 5 minutes to clear a control glitch. For a suspected evap-fan-ice buzz, unplug 24–48 hrs with the freezer emptied to melt the ice and confirm the source.',
+    },
+    'Whirlpool': {
+      lede: 'A Whirlpool refrigerator (and Maytag/KitchenAid) making noise usually traces to one of the two fans or the ice maker: a loud hum or rattle at the lower back is the condenser fan (often just dust or debris), a chirping or squealing from behind the freezer panel is the evaporator fan, and periodic clunks are the ice maker. Most are cheap, checkable causes.',
+      causes: [
+        { name: 'Condenser fan (dust/debris) — start here', why: 'A humming, rattling, or buzzing low at the back is commonly the condenser fan clogged with dust or catching on debris or the drain pan.', diy: 'Unplug, pull the fridge out, and vacuum the condenser coils and fan at the bottom/back. Free, safe, and the most common fix.', difficulty: 'Easy' },
+        { name: 'Evaporator fan squeal/chirp', why: 'A chirping or squealing from behind the rear freezer panel is a worn evap fan motor or one clipping frost from a defrost issue.', diy: 'If it\'s a squeal, the evap fan motor is a known wear part; if it\'s a buzz that a defrost cycle stops, it\'s frost on the blade.', difficulty: 'Pro' },
+        { name: 'Ice maker cycling', why: 'Periodic clunks and water-fill sounds from the ice maker are normal; constant grinding is not.', diy: 'Occasional clunks are normal. If it grinds continuously, shut the ice maker off and have it checked.', difficulty: 'Easy' },
+        { name: 'Compressor hum', why: 'A steady low hum is normal operation; loud knocking is rare and points at the compressor.', diy: 'If a loud knock comes with warming, have a tech check the compressor.', difficulty: 'Pro' },
+      ],
+      faultCodes: [],
+      knownIssue: 'On Whirlpool-family fridges the #1 noise fix is the cheapest one: vacuuming the condenser fan and coils at the back. Dust and pet hair pack the blade and make it hum or rattle — clean it and the noise very often just goes away, no parts needed.',
+      forceReset: 'Unplug for 5 minutes to clear a control glitch. For a fan-ice buzz, empty the freezer and unplug 24–48 hrs to melt the frost and confirm the source.',
+    },
+    'GE': {
+      lede: 'A GE refrigerator making noise is most often a fan: a loud hum or rattle at the lower back is the condenser fan (dust or debris), and a buzzing or knocking from behind the freezer panel — common on GE bottom-freezer models — is the evaporator fan clipping ice when defrost falls behind. The ice maker and compressor round out the usual suspects.',
+      causes: [
+        { name: 'Condenser fan (dust/debris)', why: 'A rattling hum low at the back is usually the condenser fan clogged with dust or catching on the drain pan or debris.', diy: 'Unplug, pull the fridge out, vacuum the condenser coils and fan at the bottom/back. Free and safe.', difficulty: 'Easy' },
+        { name: 'Evaporator fan icing (GE bottom-freezer)', why: 'GE bottom-freezer models are known for a buzzing/knocking evap fan when frost builds behind the rear panel from a defrost fault.', diy: 'Empty the freezer and unplug 24–48 hrs to melt the ice; if the noise returns in days, the defrost part or fan needs replacing.', difficulty: 'Moderate' },
+        { name: 'Ice maker cycling', why: 'Periodic fill and drop sounds are normal; a frosted or failing ice maker grinds.', diy: 'Occasional clicks are normal; constant grinding warrants a look.', difficulty: 'Easy' },
+        { name: 'Compressor', why: 'A steady hum is normal; loud knocking points at the compressor.', diy: 'Loud knocking with warming = have a tech check the compressor.', difficulty: 'Pro' },
+      ],
+      faultCodes: [],
+      knownIssue: 'GE bottom-freezer refrigerators have a well-known evaporator-fan-icing noise — a buzz or knock from the back that a full 24–48 hour defrost silences temporarily. If that describes yours, the fix is the defrost/fan repair; if the noise is at the very bottom-back instead, start with a free condenser-fan cleaning.',
+      forceReset: 'Unplug for 5 minutes to clear a control glitch; for a suspected fan-ice buzz, empty the freezer and unplug 24–48 hrs to melt the frost.',
+    },
+    'Frigidaire': {
+      lede: 'A Frigidaire (or Electrolux) refrigerator making noise usually comes down to the condenser fan, the evaporator fan, or the ice maker. A loud hum or rattle at the lower back is typically the condenser fan clogged with dust; a buzzing from behind the freezer panel on side-by-sides is the evap fan clipping ice from a defrost issue. Both start with simple checks.',
+      causes: [
+        { name: 'Condenser fan (dust/debris) — check first', why: 'A humming or rattling low at the back is most often the condenser fan packed with dust or catching debris.', diy: 'Unplug, pull the fridge out, and vacuum the condenser coils and fan at the bottom/back. Free, safe, and the most common cause.', difficulty: 'Easy' },
+        { name: 'Evaporator fan icing (side-by-side)', why: 'A buzzing or knocking from behind the freezer wall is the evap fan hitting frost when the defrost system falls behind.', diy: 'Empty the freezer and unplug 24–48 hrs to melt the ice; if the noise returns in days, the defrost part or fan needs replacing.', difficulty: 'Moderate' },
+        { name: 'Ice maker cycling', why: 'Periodic fill/drop sounds are normal; continuous grinding is not.', diy: 'Occasional clicks are normal; shut the ice maker off if it grinds nonstop and have it checked.', difficulty: 'Easy' },
+        { name: 'Compressor', why: 'A steady hum is normal operation; loud knocking is rare and points at the compressor.', diy: 'Loud knocking with warming = a tech checks the compressor.', difficulty: 'Pro' },
+      ],
+      faultCodes: [],
+      knownIssue: 'On a Frigidaire the most common noise fix is free: vacuum the condenser fan and coils at the lower back. They pack with dust and pet hair and start to hum or rattle — cleaning them out quiets most Frigidaires without any parts.',
+      forceReset: 'Unplug for 5 minutes to clear a control glitch; for a fan-ice buzz, empty the freezer and unplug 24–48 hrs to melt the frost and confirm the source.',
+    },
+  },
 };
