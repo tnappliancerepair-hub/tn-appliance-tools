@@ -1981,7 +1981,11 @@
         // photos/video, parts finder, lifecycle, + Ask Ant). This is the
         // screen the guys work from per-job now (replaces tech-simple as the
         // primary; tech-simple/tech-ant-chat still reachable from inside).
-        window.location.href = `tech-job.html?job_id=${jobId}&tech_id=${TECH_ID}&v=${Date.now()}`;
+        // Carry the day the tech is VIEWING into the job so "back" returns to that
+        // same day, not today (Teddy 2026-08-11: techs looking at a past day had to
+        // re-navigate to it every time they backed out of a stop).
+        const _dparam = (currentDateStr && currentDateStr !== serverTodayCT) ? ('&date=' + encodeURIComponent(currentDateStr)) : '';
+        window.location.href = `tech-job.html?job_id=${jobId}&tech_id=${TECH_ID}${_dparam}&v=${Date.now()}`;
       });
     });
     // Fetch attachment view URLs in batch and inject thumbnails

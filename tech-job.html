@@ -232,6 +232,10 @@ const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const params = new URLSearchParams(location.search);
 const JOB_ID = parseInt(params.get('job_id'), 10);
 const TECH_ID = parseInt(params.get('tech_id'), 10) || 0;
+// The day the tech was viewing on his dashboard — carried through so "back" returns
+// to that same day instead of jumping to today. (Teddy 2026-08-11)
+const VIEW_DATE = (params.get('date') || '').trim();
+const _backDay = VIEW_DATE ? ('&date=' + encodeURIComponent(VIEW_DATE)) : '';
 let waiverSigned = false, waiverOverride = false;  // release-of-liability gate state
 const TECH_AUTH_KEY = 'tn_tech_auth_' + TECH_ID;
 let job=null, cust=null, tech=null, tdr=null, appliance=null, allTdrs=[], dayJobs=[];
@@ -576,10 +580,10 @@ async function loadDayJobs(){
 }
 function go(id){ location.href='tech-job.html?job_id='+id+'&tech_id='+TECH_ID; }
 
-document.getElementById('back-btn').onclick=()=>{ location.href = TECH_ID ? ('tech-daily-dashboard.html?tech_id='+TECH_ID) : 'office-dashboard.html'; };
+document.getElementById('back-btn').onclick=()=>{ location.href = TECH_ID ? ('tech-daily-dashboard.html?tech_id='+TECH_ID+_backDay) : 'office-dashboard.html'; };
 // Wire the job-flow row (Day · Job · TDR · Teddy Tool) — carries tech_id/job_id.
 (function(){
-  var day=document.getElementById('jf-day'); if(day) day.href = TECH_ID?('tech-daily-dashboard.html?tech_id='+TECH_ID):'tech-daily-dashboard.html';
+  var day=document.getElementById('jf-day'); if(day) day.href = TECH_ID?('tech-daily-dashboard.html?tech_id='+TECH_ID+_backDay):'tech-daily-dashboard.html';
   var ted=document.getElementById('jf-teddy'); if(ted) ted.href = 'teddy-tdr-tool.html?job_id='+JOB_ID+(TECH_ID?('&tech_id='+TECH_ID):'');
   var tdr=document.getElementById('jf-tdr'); if(tdr) tdr.onclick=function(){ if(typeof window.antTdrOpen==='function') window.antTdrOpen(); else { location.hash='#tdr'; } };
 })();
