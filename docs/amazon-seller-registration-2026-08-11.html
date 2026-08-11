@@ -1,0 +1,185 @@
+<title>Amazon Seller Registration Sheet — TN Appliance Exchange</title>
+<style>
+  :root{
+    --bg:#f7f5f1; --card:#ffffff; --ink:#1b2230; --muted:#6a7385; --line:#e6e2da;
+    --accent:#e07d0a; --accent-soft:#fbedd7; --ok:#1a8f63; --ok-soft:#e0f2e9;
+    --warn:#b45309; --mono-bg:#f3f1ec;
+  }
+  :root:not([data-theme="light"]){}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#101319; --card:#191d26; --ink:#e9ecf2; --muted:#98a1b3; --line:#2a303c;
+      --accent:#f39423; --accent-soft:#33261685; --ok:#3ecf92; --ok-soft:#173a2c;
+      --warn:#f0a83c; --mono-bg:#0d1017;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#101319; --card:#191d26; --ink:#e9ecf2; --muted:#98a1b3; --line:#2a303c;
+    --accent:#f39423; --accent-soft:#33261685; --ok:#3ecf92; --ok-soft:#173a2c;
+    --warn:#f0a83c; --mono-bg:#0d1017;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;margin:0;padding:0 16px 64px;-webkit-text-size-adjust:100%}
+  .wrap{max-width:660px;margin:0 auto}
+  header{padding:26px 0 10px}
+  .kicker{font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:23px;line-height:1.2;margin:6px 0 4px;text-wrap:balance}
+  .sub{color:var(--muted);font-size:14px;margin:0}
+  .plan{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 4px}
+  .pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700}
+  .pill b{color:var(--accent)}
+  section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 16px 8px;margin:18px 0}
+  h2{font-size:15px;margin:0 0 3px;display:flex;align-items:center;gap:8px}
+  .note{color:var(--muted);font-size:13px;margin:0 0 12px}
+  .field{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .field:first-of-type{border-top:0}
+  .fl{flex:0 0 42%;min-width:0}
+  .fl .lab{font-size:12px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .fv{flex:1 1 auto;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:14.5px;font-weight:600;word-break:break-word}
+  .copy{flex:0 0 auto;border:1px solid var(--line);background:var(--bg);color:var(--ink);
+    font-weight:700;font-size:12px;border-radius:9px;padding:7px 11px;cursor:pointer;transition:.15s}
+  .copy:hover{border-color:var(--accent);color:var(--accent)}
+  .copy.done{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+  .have{border-top:1px solid var(--line)}
+  .have li{list-style:none}
+  ul.checks{margin:0;padding:0}
+  ul.checks li{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:14.5px}
+  ul.checks li:first-child{border-top:0}
+  .bx{flex:0 0 20px;height:20px;border:2px solid var(--muted);border-radius:6px;margin-top:1px}
+  .fill{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:6px;
+    padding:1px 7px;font-size:11.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;vertical-align:1px}
+  ol.steps{margin:0;padding-left:0;counter-reset:s}
+  ol.steps li{list-style:none;position:relative;padding:10px 0 10px 38px;border-top:1px solid var(--line);font-size:14.5px}
+  ol.steps li:first-child{border-top:0}
+  ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:9px;
+    width:24px;height:24px;border-radius:999px;background:var(--accent);color:#fff;
+    font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .gotcha{border-left:3px solid var(--warn);padding:4px 0 4px 12px;margin:10px 0;font-size:14px}
+  .gotcha b{color:var(--warn)}
+  code{background:var(--mono-bg);border-radius:5px;padding:1px 6px;font-size:13px}
+  footer{color:var(--muted);font-size:12.5px;text-align:center;margin-top:24px}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);
+    background:var(--ok);color:#fff;font-weight:700;font-size:13px;padding:9px 16px;border-radius:10px;
+    opacity:0;pointer-events:none;transition:.2s}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="kicker">🐜 Ant · internal setup sheet</div>
+  <h1>Amazon Professional Seller — registration sheet</h1>
+  <p class="sub">Tap <b>Copy</b> on each field and paste it into Amazon's sign-up. Fields marked <span class="fill">have ready</span> are things only you can enter (bank, card, ID).</p>
+  <div class="plan">
+    <span class="pill">Plan: <b>Professional</b> · $39.99/mo</span>
+    <span class="pill">Start at: <b>sell.amazon.com</b></span>
+    <span class="pill">Login: <b>tnappliance@gmail</b></span>
+  </div>
+</header>
+
+<section>
+  <h2>🏢 Business information</h2>
+  <p class="note">Amazon's "Business information" step. Business type = <b>Privately-owned business</b>.</p>
+  <div class="field"><div class="fl"><div class="lab">Legal business name</div></div><div class="fv" data-copy>TN Appliance Exchange LLC</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Business (EIN) tax ID</div></div><div class="fv" data-copy>38-3886067</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Registered address</div></div><div class="fv" data-copy>3137 Skinner Dr, Antioch, TN 37013</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">State / country of registration</div></div><div class="fv" data-copy>Tennessee, United States</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Business phone</div></div><div class="fv" data-copy>615-280-2949</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Year established</div></div><div class="fv" data-copy>2012</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Industry code (NAICS)</div></div><div class="fv" data-copy>811412</div><button class="copy">Copy</button></div>
+</section>
+
+<section>
+  <h2>👤 Primary contact / beneficial owner</h2>
+  <p class="note">You, as 100% owner. Amazon runs a KYC check on this person.</p>
+  <div class="field"><div class="fl"><div class="lab">Full legal name</div></div><div class="fv" data-copy>James Pivacek</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Title</div></div><div class="fv" data-copy>Owner / Managing Member</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Ownership</div></div><div class="fv" data-copy>100%</div><button class="copy">Copy</button></div>
+  <ul class="checks">
+    <li><span class="bx"></span><div><b>Residential address</b> <span class="fill">have ready</span> — Amazon wants the owner's home address for KYC (not the shop address).</div></li>
+    <li><span class="bx"></span><div><b>Date of birth</b> <span class="fill">have ready</span></div></li>
+    <li><span class="bx"></span><div><b>Government ID</b> <span class="fill">have ready</span> — driver's license or passport, to upload + a quick photo/video verification.</div></li>
+  </ul>
+</section>
+
+<section>
+  <h2>🧾 Tax interview (Amazon's built-in W-9)</h2>
+  <p class="note">Amazon walks you through a W-9. These are the exact answers — it matches the substitute W-9 already on file.</p>
+  <div class="field"><div class="fl"><div class="lab">Federal tax classification</div></div><div class="fv" data-copy>Individual / sole proprietor or single-member LLC</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Name (line 1)</div></div><div class="fv" data-copy>James Pivacek</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Business / disregarded-entity name (line 2)</div></div><div class="fv" data-copy>TN Appliance Exchange LLC</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">TIN type</div></div><div class="fv" data-copy>EIN</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">Taxpayer ID (EIN)</div></div><div class="fv" data-copy>38-3886067</div><button class="copy">Copy</button></div>
+</section>
+
+<section>
+  <h2>🛒 Store &amp; products</h2>
+  <p class="note">The public-facing store name is your call — suggestions below.</p>
+  <div class="field"><div class="fl"><div class="lab">Store name (suggested)</div></div><div class="fv" data-copy>TN Appliance Exchange</div><button class="copy">Copy</button></div>
+  <div class="field"><div class="fl"><div class="lab">What you'll sell</div></div><div class="fv" data-copy>Appliance replacement parts</div><button class="copy">Copy</button></div>
+  <ul class="checks">
+    <li><span class="bx"></span><div>Do you have UPCs / are products branded? → <b>No brand of our own yet</b> — parts sold by manufacturer part number. (Brand Registry is a later step, needs a trademark — not required to start.)</div></li>
+  </ul>
+</section>
+
+<section>
+  <h2>💳 Bank &amp; billing <span class="fill">have ready</span></h2>
+  <p class="note">Only you can enter these — kept off this sheet on purpose.</p>
+  <ul class="checks">
+    <li><span class="bx"></span><div><b>Deposit bank account</b> — business checking routing + account number, in the LLC name (where Amazon pays out your sales; they verify it).</div></li>
+    <li><span class="bx"></span><div><b>Billing credit card</b> — the US Bank / Exchange business card, for the monthly plan fee.</div></li>
+  </ul>
+</section>
+
+<section>
+  <h2>📎 Documents Amazon may ask to upload <span class="fill">have ready</span></h2>
+  <ul class="checks">
+    <li><span class="bx"></span><div><b>Business license or Articles of Organization</b> (TN LLC formation doc).</div></li>
+    <li><span class="bx"></span><div><b>Bank or credit-card statement</b> showing the LLC name + the Antioch address (address verification).</div></li>
+    <li><span class="bx"></span><div><b>Government ID</b> — same license/passport as above.</div></li>
+  </ul>
+</section>
+
+<section>
+  <h2>✅ The order of operations</h2>
+  <ol class="steps">
+    <li>Go to <code>sell.amazon.com</code> → <b>Sign up</b> → choose the <b>Professional</b> plan.</li>
+    <li>Sign in with the existing <b>tnappliance@gmail</b> Amazon login (keeps buyer + seller under one roof).</li>
+    <li>Enter <b>Business information</b> (copy the fields above) → business type = privately-owned.</li>
+    <li>Add the <b>beneficial owner</b> (you) → residential address + DOB.</li>
+    <li>Enter the <b>billing card</b>.</li>
+    <li>Do the <b>Tax interview</b> (the W-9 answers above).</li>
+    <li>Add the <b>deposit bank account</b>.</li>
+    <li><b>Identity verification</b> — upload ID + a document, do the quick photo/video check.</li>
+    <li>Account goes <b>"under review"</b> → live once verified (usually a few days).</li>
+  </ol>
+</section>
+
+<section>
+  <h2>⚠️ Heads-ups</h2>
+  <div class="gotcha"><b>This account is the whole blocker.</b> Once it's live, wiring the SP-API app + authorization is the easy part on our side — that's exactly the piece Amazon closed the last case over (no seller account to point at).</div>
+  <div class="gotcha"><b>Seller ≠ buyer/Amazon Pay.</b> Those don't carry over. This is a separate registration, even on the same login.</div>
+  <div class="gotcha"><b>Don't rush Brand Registry.</b> It needs a registered trademark and isn't required to start selling. Do it later for a TN-branded parts line.</div>
+</section>
+
+<footer>TN Appliance Exchange LLC · internal reference · not for distribution</footer>
+</div>
+
+<div class="toast" id="toast">Copied ✓</div>
+<script>
+  var toast=document.getElementById('toast'),tt;
+  document.querySelectorAll('.field').forEach(function(f){
+    var val=f.querySelector('[data-copy]'),btn=f.querySelector('.copy');
+    if(!val||!btn)return;
+    btn.addEventListener('click',function(){
+      var text=val.textContent.trim();
+      var done=function(){btn.textContent='Copied';btn.classList.add('done');
+        toast.classList.add('show');clearTimeout(tt);
+        tt=setTimeout(function(){btn.textContent='Copy';btn.classList.remove('done');toast.classList.remove('show');},1400);};
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,done);}
+      else{var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);done();}
+    });
+  });
+</script>
