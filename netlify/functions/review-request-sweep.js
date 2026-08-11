@@ -115,7 +115,10 @@ exports.handler = async function (event) {
     if (await askedRecently(custId)) { skipped.push({ job_id: jid, customer: custId, why: 'asked < 60d' }); continue; }
     const first = cust.first_name || 'there';
     const appl = applType.toLowerCase();
-    const body = reviewI18n.pack(custLang).ask(first, appl);
+    // Direct-link ask (one tap to Google, private catch for anything that fell short)
+    // for the languages we've written it in; safe fallback to the 👍/👎 flow otherwise.
+    const rp = reviewI18n.pack(custLang);
+    const body = rp.askDirect ? rp.askDirect(first, appl, REVIEW_URL) : rp.ask(first, appl);
     if (dry) { sent.push({ job_id: jid, customer: custId, phone, first, lang: custLang }); continue; }
     let ok = false;
     try { await sendSms(phone, body, 'customer', 'satisfaction_check'); ok = true; } catch (_) {}

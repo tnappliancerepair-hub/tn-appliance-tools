@@ -73,7 +73,8 @@
   function fmt(c){ return '$'+(c/100).toFixed(2); }
   function esc(s){ return String(s==null?'':s).replace(/[<&>"]/g,function(x){return{'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[x];}); }
 
-  function stateOK(msg,sub){ card.innerHTML='<div class="state"><div class="big-ok">✅</div><div class="msg">'+msg+'</div>'+(sub?'<div class="muted">'+sub+'</div>':'')+'</div>'; }
+  function reviewCTA(){ return '<a href="https://g.page/r/CRt-vo--eAJ3EBM/review" target="_blank" rel="noopener" style="display:block;margin-top:22px;text-decoration:none;background:linear-gradient(135deg,#ffb300,#ff8a00);color:#1a1f2c;font-weight:800;border-radius:12px;padding:15px 18px;font-size:15px">⭐ Loved the service? Leave us a quick Google review</a><div class="muted" style="margin-top:8px;font-size:12.5px">It takes 30 seconds and means the world to our small team.</div>'; }
+  function stateOK(msg,sub){ card.innerHTML='<div class="state"><div class="big-ok">✅</div><div class="msg">'+msg+'</div>'+(sub?'<div class="muted">'+sub+'</div>':'')+reviewCTA()+'</div>'; }
   function stateErr(msg){ card.innerHTML='<div class="state"><div class="big-ok">🔗</div><div class="msg">'+msg+'</div><div class="muted">If you think this is a mistake, text us at 615-588-9500 and we\'ll send a fresh link.</div></div>'; }
 
   var tipCents=0, PAYDATA=null;

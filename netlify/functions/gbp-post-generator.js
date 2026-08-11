@@ -19,7 +19,29 @@ const gbp = require('./_lib/gbp');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OWNER = '+16154855795';
 const GBP_POSTS_URL = 'https://business.google.com/posts';
-const BOOK_URL = 'https://tnapplianceexchange.net/';
+const SITE = 'https://tnapplianceexchange.net/';
+const BOOK_URL = SITE;
+
+// The Thursday (slot 'b') scheduled post is a FIX-GUIDE post — it drives real traffic
+// to our free /fix troubleshooting library (unique, ranking content = the SEO moat) and
+// gives searchers a genuine reason to tap ("here's how to tell what's wrong yourself").
+// Action button is LEARN_MORE → the guide, not BOOK — a softer, trust-building post.
+// Curated to high-search, universal, non-scary symptoms (no gas-only angles here).
+const FIX_GUIDES = [
+  { slug: 'refrigerator-not-cooling', hook: 'refrigerator not cooling but the light is on' },
+  { slug: 'dryer-not-heating', hook: 'dryer runs but the clothes come out cold' },
+  { slug: 'washer-wont-drain', hook: 'washer left standing water in the drum' },
+  { slug: 'dishwasher-not-cleaning', hook: 'dishwasher runs but the dishes come out dirty' },
+  { slug: 'ice-maker-not-working', hook: 'ice maker suddenly stopped making ice' },
+  { slug: 'oven-not-heating', hook: 'oven won\'t heat even though everything lights up' },
+  { slug: 'washer-not-spinning', hook: 'washer won\'t spin and leaves clothes soaking wet' },
+  { slug: 'dryer-making-loud-noise', hook: 'dryer squealing or thumping while it runs' },
+  { slug: 'refrigerator-leaking-water', hook: 'refrigerator leaking water onto the floor' },
+  { slug: 'freezer-frost-buildup', hook: 'frost building up in the freezer' },
+  { slug: 'refrigerator-warm-but-freezer-cold', hook: 'fridge warm but the freezer is still cold' },
+  { slug: 'washer-shaking-or-walking', hook: 'washer shaking hard or walking across the floor' },
+];
+function pickFixGuide(wk) { return FIX_GUIDES[wk % FIX_GUIDES.length]; }
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -59,9 +81,11 @@ const PHOTO_POOL = [
 ];
 function pickPhoto(wk, slot) { return PHOTO_POOL[(wk * 2 + (slot === 'b' ? 1 : 0)) % PHOTO_POOL.length]; }
 // Post with a photo; if Google rejects the image, retry text-only so the post still lands.
-async function postWithPhoto(gbp, summary, mediaUrl, actionUrl) {
-  let r = await gbp.createLocalPost({ summary, mediaUrl, actionType: 'BOOK', actionUrl });
-  if ((!r || !r.ok) && mediaUrl) r = await gbp.createLocalPost({ summary, actionType: 'BOOK', actionUrl });
+// actionType defaults to BOOK (demand posts); fix-guide posts pass LEARN_MORE.
+async function postWithPhoto(gbp, summary, mediaUrl, actionUrl, actionType) {
+  const at = actionType || 'BOOK';
+  let r = await gbp.createLocalPost({ summary, mediaUrl, actionType: at, actionUrl });
+  if ((!r || !r.ok) && mediaUrl) r = await gbp.createLocalPost({ summary, actionType: at, actionUrl });
   return r;
 }
 
@@ -197,13 +221,26 @@ exports.handler = async function (event) {
 
   // Vary the pair: slot b is offset half the list so the two weekly posts never match.
   // ?theme=alwayson (or the manual publish default) forces the core 24/7 post (idx 1).
-  const topicIdx = (publish || q.theme === 'alwayson') ? 1 : ((wk + (slot === 'b' ? 4 : 0)) % TOPICS.length);
-  const topic = TOPICS[topicIdx];
+  // Monday (slot 'a') = a demand/booking post from TOPICS. Thursday (slot 'b') = a
+  // FIX-GUIDE post (LEARN_MORE → the /fix library) so the two weekly posts alternate
+  // between "book us" and "here's free help" — the second feeds the SEO/brain moat.
+  const wantFixGuide = !publish && q.theme !== 'alwayson' && slot === 'b';
+  let postAction = 'BOOK', postUrl = BOOK_URL, fixGuide = null, topic, topicIdx = -1;
+  if (wantFixGuide) {
+    fixGuide = pickFixGuide(wk);
+    postUrl = SITE + 'fix/' + fixGuide.slug + '.html';
+    postAction = 'LEARN_MORE';
+    topic = `A genuinely HELPFUL how-to post based on our free troubleshooting guide about: "${fixGuide.hook}". Teach the reader the top one or two things they can safely check themselves before calling anyone — real, useful, honest, no scare tactics. Make it clear we publish free repair guides on our site and they can read the full one. If it's a simple safe check, encourage them to try it; if it needs a pro, note we're one text away. This is a TRUST and helpfulness post, NOT a hard sell — do not push booking. End with words leading into "read the full free guide."`;
+  } else {
+    topicIdx = (publish || q.theme === 'alwayson') ? 1 : ((wk + (slot === 'b' ? 4 : 0)) % TOPICS.length);
+    topic = TOPICS[topicIdx];
+  }
   const post = await draftPost(topic, anthropic);
   if (!post || !post.body) return json(200, { ok: false, error: 'draft failed' });
 
-  const fullPost = `${post.body}\n\nBook: ${BOOK_URL}  ·  Call/text 615-280-2949`;
-  if (dry) return json(200, { ok: true, mode: 'dryrun', bucket, topic, title: post.title, post: fullPost });
+  const ctaLabel = wantFixGuide ? 'Read the full guide' : 'Book';
+  const fullPost = `${post.body}\n\n${ctaLabel}: ${postUrl}  ·  Call/text 615-280-2949`;
+  if (dry) return json(200, { ok: true, mode: 'dryrun', bucket, topic, fix_guide: fixGuide ? fixGuide.slug : null, action: postAction, url: postUrl, title: post.title, post: fullPost });
 
   // TEST: publish then immediately delete — proves the API path without leaving a post.
   if (test) {
@@ -217,7 +254,7 @@ exports.handler = async function (event) {
   // PUBLISH: fire one real post NOW and keep it (admin on-demand). Logged with a manual
   // bucket so it never blocks a scheduled Mon/Thu slot.
   if (publish) {
-    const r = await postWithPhoto(gbp, post.body, pickPhoto(wk, slot), BOOK_URL);
+    const r = await postWithPhoto(gbp, post.body, pickPhoto(wk, slot), postUrl, postAction);
     if (r.ok) {
       try { await crud.logEvent('gbp_post_published', { bucket: 'manual:' + Date.now(), title: post.title || '', topic, post_name: (r.data && r.data.name) || '', manual: true, at_ms: Date.now() }); } catch (_) {}
     }
@@ -227,9 +264,9 @@ exports.handler = async function (event) {
   // LIVE: auto-publish via the API; fall back to texting Teddy the draft on any failure.
   if (autopost) {
     try {
-      const r = await postWithPhoto(gbp, post.body, pickPhoto(wk, slot), BOOK_URL);
+      const r = await postWithPhoto(gbp, post.body, pickPhoto(wk, slot), postUrl, postAction);
       if (r.ok) {
-        try { await crud.logEvent('gbp_post_published', { bucket, iso_week: wk, slot, title: post.title || '', topic, post_name: (r.data && r.data.name) || '', at_ms: Date.now() }); } catch (_) {}
+        try { await crud.logEvent('gbp_post_published', { bucket, iso_week: wk, slot, title: post.title || '', topic, post_type: wantFixGuide ? 'fix_guide' : 'demand', fix_guide: fixGuide ? fixGuide.slug : '', action: postAction, url: postUrl, post_name: (r.data && r.data.name) || '', at_ms: Date.now() }); } catch (_) {}
         try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: `✅ Auto-posted your Google Business update:\n\n${post.title ? '“' + post.title + '”\n' : ''}${String(post.body).slice(0, 180)}…\n\nLive now on your profile. (2×/week: Mon + Thu.)`, force_send: true, context_tag: 'gbp_post_published' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
         return json(200, { ok: true, mode: 'autopost', bucket, title: post.title, post_name: (r.data && r.data.name) || null });
       }
