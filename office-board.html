@@ -2335,6 +2335,19 @@ function renderDrawer(d){
         ${tdrLabel('Tech notes','td-notes')}
         <textarea id="td-notes" rows="2" placeholder="paste / type the tech's findings here" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical">${esc(tdr.technician_notes||'')}</textarea>
         <button type="button" onclick="fillTdrFromNotes(${jid})" style="padding:9px;border-radius:8px;background:rgba(74,158,255,0.14);color:#2a6fd6;border:1px solid rgba(74,158,255,0.5);font-size:12.5px;font-weight:800;cursor:pointer">✨ Fill diagnosis + part from the notes</button>
+        <details style="margin-top:2px">
+          <summary style="cursor:pointer;font-size:12.5px;color:#3355cc;font-weight:800;list-style:none">➕ Second part &amp; extra notes <span style="font-weight:600;color:var(--ink2)">— only if the job needs another part</span></summary>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding:10px;border:1px dashed #99a8e0;border-radius:9px;background:#f7f9ff">
+            ${tdrLabel('2nd part #','td-part2')}
+            <div style="display:flex;gap:6px">
+              <input id="td-part2" value="" placeholder="second OEM part number (optional)" style="flex:1;min-width:0;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:var(--mono,monospace)">
+              <button type="button" onclick="copyField('td-part2',this)" title="Copy the 2nd part number for the warranty portal" style="flex-shrink:0;padding:9px 14px;border:1px solid #2a6fd6;border-radius:8px;background:rgba(74,158,255,0.14);color:#2a6fd6;font-weight:800;font-size:13px;cursor:pointer">📋 Copy</button>
+            </div>
+            ${tdrLabel('Additional notes','td-notes2')}
+            <textarea id="td-notes2" rows="2" placeholder="anything extra — a second finding, another part, a note for the office" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px;resize:vertical"></textarea>
+            <div style="font-size:11px;color:var(--ink2)">The 2nd part # shows on the tile next to the first, and both go to the warranty portal. Save adds it — it doesn't replace the first part.</div>
+          </div>
+        </details>
         <div style="font-size:12px;color:var(--ink2)">Parts status: <b>${esc((j.parts_status||'—').replace(/_/g,' '))}</b>${tdr.labor_time_hours!=null?(' · Labor '+esc(String(tdr.labor_time_hours))+' hr'):''}</div>
         <button onclick="saveTdr(${tdr.id||0},${jid},${j.technician_id||0})" style="margin-top:2px;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">${tdr.id?'💾 Save TDR':'💾 File report'}</button>
       </div>
@@ -2860,7 +2873,16 @@ function copyTdrAll(){
 // FILES one via create_tdr so a "no report" job isn't a dead end. (Teddy 7/3)
 async function saveTdr(tdrId, jid, techId){
   const g=(x)=>{const el=document.getElementById(x);return el?el.value.trim():'';};
-  const fields={diagnosis:g('td-diag'),repair_completed:g('td-status'),failed_component:g('td-comp'),verified_part_number:g('td-part'),technician_notes:g('td-notes')};
+  // Optional second part # + additional notes (Teddy 2026-08-11): a job that needs
+  // another part or an extra finding. The 2nd part folds INTO verified_part_number
+  // (comma-joined) so it rides the SAME reliable field the tile chip + warranty
+  // portal already read — the second part shows on the tile automatically, no backend
+  // change. Extra notes append to the tech notes. Both blank = no-op (nothing changes).
+  const part1=g('td-part'), part2=g('td-part2');
+  const combinedPart=[part1,part2].filter(Boolean).join(', ');
+  const note1=g('td-notes'), note2=g('td-notes2');
+  const combinedNotes=[note1,note2].filter(Boolean).join('\n\n');
+  const fields={diagnosis:g('td-diag'),repair_completed:g('td-status'),failed_component:g('td-comp'),verified_part_number:combinedPart,technician_notes:combinedNotes};
   if(!tdrId){
     // No report on this job yet — create one from what Danielle typed.
     if(!Object.values(fields).some(v=>v)){ toast('Type at least one field first'); return; }
