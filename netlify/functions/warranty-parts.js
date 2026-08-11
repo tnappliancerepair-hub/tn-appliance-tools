@@ -68,6 +68,11 @@ function normStatus(s) {
   if (x === 'we_ordering' || x === 'we_order' || x === 'self_order' || x === 'we_ordered') return 'we_ordering';
   // requested = we've asked the WARRANTY CO to ship this part; awaiting their ETA.
   if (x === 'requested' || x === 'ordered' || x === 'request') return 'requested';
+  // for_claim = the part number is documented FOR THE WARRANTY CLAIM ONLY — we are NOT
+  // ordering it and it is NOT in hand (often it's discontinued / no substitute, so we
+  // recommend replacing the unit). Keeps it OFF the order list AND the return worklist;
+  // it's pure notation the warranty co needs to process the claim. (Teddy 2026-08-11)
+  if (x === 'for_claim' || x === 'claim' || x === 'note' || x === 'note_only' || x === 'recommend_replace' || x === 'recommend_replacement') return 'for_claim';
   return 'to_return';
 }
 

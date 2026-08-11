@@ -526,7 +526,12 @@
       html += '<div style="font-size:12px;color:#b8bfd0;margin-bottom:6px;line-height:1.4">' + (loaded ? 'No parts came from the warranty for this job. Add any part you used below.' : 'Checking for parts the warranty sent…') + '</div>';
     }
     parts.forEach(function (p) {
-      var enc = encodeURIComponent(p.part || '');
+      // encodeURIComponent does NOT escape the apostrophe (or ! ~ * ( )), so a part
+      // string like "...there's no substitute part" broke out of the single-quoted JS
+      // string inside every onclick — the Used/Return/Not-here/Order buttons silently
+      // did nothing on that part. Escape the onclick-breaking chars so the buttons work
+      // no matter what's in the part text. (Teddy 2026-08-11 — "buttons not working")
+      var enc = encodeURIComponent(p.part || '').replace(/'/g, '%27').replace(/[!~*()]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); });
       var st = p.status || 'to_return';
       var name = (p.part || '') + (p.description ? ' — ' + p.description : '');
       function btn(label, val, activeColor) {
@@ -542,6 +547,12 @@
       // Used/Return/Not-here stay below for when it arrives + gets installed.
       var _isReq = st === 'to_order';
       html += '<button onclick="window.__antTdrPartStatus(decodeURIComponent(\'' + enc + '\'),\'to_order\')" style="width:100%;margin-top:8px;background:' + (_isReq ? '#f5c266' : '#241d0f') + ';color:' + (_isReq ? '#0e1118' : '#f5c266') + ';border:1px solid #f5c266;border-radius:9px;padding:11px;font-size:13.5px;font-weight:800;cursor:pointer">' + (_isReq ? '📦 On the order list ✓ — office notified' : '📦 Please order this part') + '</button>';
+      // 📋 For the claim only (Teddy 2026-08-11): the part # is being documented for the
+      // warranty claim but we are NOT ordering it and it isn't here — often it's
+      // discontinued/no-substitute so we recommend replacing the unit. Keeps it off BOTH
+      // the order list and the return worklist; it's pure notation for the claim.
+      var _isClaim = st === 'for_claim';
+      html += '<button onclick="window.__antTdrPartStatus(decodeURIComponent(\'' + enc + '\'),\'for_claim\')" style="width:100%;margin-top:8px;background:' + (_isClaim ? '#a99be6' : '#191830') + ';color:' + (_isClaim ? '#0e1118' : '#b3a7f0') + ';border:1px solid #8b7bd8;border-radius:9px;padding:11px;font-size:13px;font-weight:800;cursor:pointer">' + (_isClaim ? '📋 On the claim ✓ — not ordered, recommend replacement' : '📋 Just the part # for the claim (not ordered)') + '</button>';
       html += '<div style="font-size:11px;color:#8a92a6;margin:7px 0 4px">Once it arrives + you install it:</div>';
       html += '<div style="display:flex;gap:6px">' + btn('✅ Used', 'used', '#4ad991') + btn('↩️ Return', 'to_return', '#f5a623') + btn('❌ Not here', 'missing', '#ff8a8a') + '</div>';
       if (st === 'to_return') {
@@ -572,7 +583,8 @@
     // For SquareTrade a sent part may need to go back no matter how it got here.
     // Add a part the tech DIAGNOSED but doesn't have → goes straight on the to-order
     // list (status 'to_order' — office picks the source). Diagnose-in-person → order flow. (Teddy 7/12)
-    html += '<button onclick="window.__antTdrAddOrderPart()" style="width:100%;margin-top:10px;background:#241d0f;color:#f5c266;border:1px dashed #f5c266;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">📦 Add a part to ORDER (diagnosed, not here yet)</button>';
+    html += '<button onclick="window.__antTdrAddClaimPart()" style="width:100%;margin-top:10px;background:#191830;color:#b3a7f0;border:1px dashed #8b7bd8;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">📋 Add a part # for the claim (not ordered — recommend replacement)</button>';
+    html += '<button onclick="window.__antTdrAddOrderPart()" style="width:100%;margin-top:8px;background:#241d0f;color:#f5c266;border:1px dashed #f5c266;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">📦 Add a part to ORDER (diagnosed, not here yet)</button>';
     html += '<button onclick="window.__antTdrAddSentPart()" style="width:100%;margin-top:8px;background:#1a2233;color:#8fc0ff;border:1px dashed #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">➕ Add a part they SENT (in hand, not listed)</button>';
     html += '</div>';
     return html;
@@ -621,6 +633,30 @@
       await fetch('/.netlify/functions/warranty-parts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'add', job_id: Number(jobId), part: part, description: desc, vendor: vendor, source: 'tech_to_order', status: 'to_order' }),
+      });
+    } catch (_) {}
+    loadSuppliedParts();
+  };
+  // Add a part the tech is DOCUMENTING for the warranty claim but is NOT ordering and
+  // does NOT have — often it's discontinued / no substitute, so we recommend replacing
+  // the unit. Pure notation for the claim: stays off the order + return worklists, but
+  // the part # is on record so the warranty co can process the claim. (Teddy 2026-08-11)
+  window.__antTdrAddClaimPart = async function () {
+    if (!jobId) { alert('Open this from the job so the part lands on the right one.'); return; }
+    var part = window.prompt('Part number to document for the claim (we are NOT ordering it):');
+    if (part === null) return;
+    part = String(part).trim(); if (!part) return;
+    var desc = window.prompt('Short description (optional — e.g. "tub & drum assembly — discontinued, no substitute"):', '');
+    if (desc === null) desc = '';
+    desc = String(desc).trim();
+    var vendor = String((lastData && (lastData.warranty_company || lastData.vendor)) || '');
+    suppliedParts = suppliedParts || [];
+    suppliedParts.push({ part: part, description: desc, vendor: vendor, source: 'tech_for_claim', status: 'for_claim', checked: true, photos: [] });
+    if (lastData && editKey === null) renderModal(lastData);
+    try {
+      await fetch('/.netlify/functions/warranty-parts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', job_id: Number(jobId), part: part, description: desc, vendor: vendor, source: 'tech_for_claim', status: 'for_claim' }),
       });
     } catch (_) {}
     loadSuppliedParts();
