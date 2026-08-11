@@ -94,6 +94,14 @@ exports.handler = async function (event) {
   ];
   const legsFor = (t) => { const a = []; if (t.on && t.cell) a.push({ number: t.cell }); if (t.sip) a.push({ sip: t.sip }); return a; };
 
+  // Per-tier ring length (seconds). Danielle reported her cell "rang once then went
+  // away" — a 20s timeout is too short once the carrier's call-setup delay (often 5–10s
+  // before the phone audibly rings) is subtracted, so a tier could move on after ~1 ring.
+  // Give each cell a full ~30s ring (≈5 rings) to actually grab it. Vault-tunable via
+  // OFFICE_RING_SECONDS (clamped 15–45) so the cadence can change without a redeploy.
+  let ringSecs = parseInt(await getSecret('OFFICE_RING_SECONDS'), 10);
+  if (!(ringSecs >= 15 && ringSecs <= 45)) ringSecs = 30;
+
   let leg = parseInt(((event && event.queryStringParameters) || {}).leg, 10);
   if (!(leg >= 1)) leg = 1;
 
@@ -114,7 +122,8 @@ exports.handler = async function (event) {
     if (!legs.length) continue;
     const moreAhead = tiers.slice(i + 1).some((t) => legsFor(t).length);
     const action = moreAhead ? `${SELF}?leg=${i + 2}` : null;
-    return xmlResp(dialLegs(legs, callerId, moreAhead ? 20 : 25, action));
+    // Final reachable tier gets a slightly longer ring (last chance before it falls through).
+    return xmlResp(dialLegs(legs, callerId, moreAhead ? ringSecs : Math.min(ringSecs + 5, 45), action));
   }
   return xmlResp('  <Reject/>');
 };
