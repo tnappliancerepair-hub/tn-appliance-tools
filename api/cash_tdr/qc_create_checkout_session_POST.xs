@@ -334,9 +334,13 @@ query qc_create_checkout_session verb=POST {
             var.update $non_skip_count {
               value = $non_skip_count + 1
             }
+
+            var.update $oem_ship_count {
+              value = $oem_ship_count + 1
+            }
           }
         }
-      
+
         conditional {
           if ($opt == "install_amazon") {
             var $name {

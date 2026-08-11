@@ -122,7 +122,7 @@
     <section>
       <h2>💳 The 4 options (what the customer gets)</h2>
       <div class="opts" id="opts"></div>
-      <div class="note">30% markup baked in · $50 Quick Check credit off the we-install options · $15 delivery on the OEM/Marcone shipped option only (Amazon = free Prime).</div>
+      <div class="note">30% markup baked in · $50 Quick Check credit off the we-install options · $15 Marcone delivery on BOTH OEM options (Amazon = free Prime).</div>
     </section>
 
     <button class="btn ghost" onclick="preview()">👁 Preview exactly what the customer sees</button>
@@ -246,7 +246,7 @@
       {nm:'Amazon · shipped to you',pr:amzSell,bd:amzSell!=null?('part '+money(amzSell)+' · FREE delivery'):'—'},
       {nm:'OEM · shipped to you',pr:oemSell!=null?oemSell+SHIP_CENTS:null,bd:oemSell!=null?('part '+money(oemSell)+' + $15 delivery'):'—'},
       {nm:'Amazon · we install',pr:amzSell!=null?Math.max(0,amzSell+labor-CREDIT_CENTS):null,bd:amzSell!=null?('part '+money(amzSell)+' + labor '+money(labor)+' − $50 QC'):'—'},
-      {nm:'OEM · we install',pr:oemSell!=null?Math.max(0,oemSell+labor-CREDIT_CENTS):null,bd:oemSell!=null?('part '+money(oemSell)+' + labor '+money(labor)+' − $50 QC'):'—'}
+      {nm:'OEM · we install',pr:oemSell!=null?Math.max(0,oemSell+labor-CREDIT_CENTS)+SHIP_CENTS:null,bd:oemSell!=null?('part '+money(oemSell)+' + labor '+money(labor)+' − $50 QC + $15 delivery'):'—'}
     ];
     $('opts').innerHTML=opts.map(function(o){
       return '<div class="opt"><div class="nm">'+o.nm+'</div><div class="pr">'+(o.pr!=null?money(o.pr):'—')+'</div><div class="bd">'+o.bd+'</div></div>';
