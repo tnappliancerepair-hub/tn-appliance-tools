@@ -560,32 +560,9 @@ query qc_create_checkout_session verb=POST {
       }
     }
 
-    // Quick Check Credit on a DIY (part-only) order: there's no labor line to
-    // absorb the $50, so the credit was being lost for DIYers. Apply it as a
-    // session-level coupon so the $50 comes off the PART. Only when the order is
-    // pure-DIY ($total_labor_cents == 0, i.e. all non-skip selections were diy_*)
-    // AND the Quick Check wasn't waived (labor_credit_cents > 0). Install/mixed
-    // orders keep the labor-line credit above (no double-credit).
-    var $diy_credit_cents {
-      value = ($tdr.labor_credit_cents ?? ($job.quick_check_credit_cents ?? 5000))
-    }
-    // Pick the coupon that matches what they paid: >= $50 -> qc_credit_50, else
-    // qc_credit_25 (Ant's Gift / church / partner). Below $25 (test/free) -> no
-    // coupon, so we never over-credit a DIY part.
-    var $diy_coupon {
-      value = (($diy_credit_cents >= 5000) ? "qc_credit_50" : "qc_credit_25")
-    }
-    conditional {
-      if ($total_labor_cents == 0) {
-        conditional {
-          if ($diy_credit_cents >= 2500) {
-            var.update $params {
-              value = $params|set:"discounts[0][coupon]":$diy_coupon
-            }
-          }
-        }
-      }
-    }
+    // Quick Check Credit is "A" (Teddy 2026-08-11): the $50 comes off the WE-INSTALL
+    // labor line ONLY (handled above). A DIY / ship-the-part order does NOT get the
+    // $50 off the part - the customer pays the price shown. No DIY coupon.
 
     // Session-level params.
     var $cancel_url {
