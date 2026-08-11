@@ -2961,7 +2961,11 @@ function ptRowHtml(idx, part, name){
   const inp='padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px';
   return `<div class="pt-row" style="border:1px solid var(--line);border-radius:9px;padding:8px;display:flex;flex-direction:column;gap:6px;position:relative;margin-bottom:6px;background:#fafbff">
     <input class="pt-num" placeholder="Part # (required)" value="${esc(part||'')}" style="${inp}">
-    <input class="pt-name" placeholder="Part name (optional)" value="${esc(name||'')}" style="${inp}">
+    <div style="display:flex;gap:6px;align-items:center">
+      <input class="pt-name" placeholder="Part name (optional)" value="${esc(name||'')}" style="flex:1;min-width:0;${inp}">
+      <span style="font-size:12px;color:var(--ink2);font-weight:800;white-space:nowrap">Qty</span>
+      <input class="pt-qty" type="number" inputmode="numeric" min="1" step="1" value="1" oninput="ptQty(this)" title="How many of this part are needed" style="width:58px;text-align:center;${inp}">
+    </div>
     <select class="pt-source" style="${inp};background:#fff">${sel}</select>
     <div style="display:flex;gap:6px">
       <input class="pt-cost" inputmode="decimal" oninput="ptCost(this)" placeholder="Our cost $" style="flex:1;${inp}">
@@ -2984,15 +2988,28 @@ function ahsMarkup(cost){
 }
 // Cost typed/filled → auto-compute the AHS charge + show margin. Only fills the charge if
 // the office hasn't hand-edited it (so a manual override sticks).
+// Qty per part row (Danielle 2026-08-11: "add amount needed for parts, sometimes
+// multiple needed"). Defaults to 1. Cost/charge are entered PER UNIT; the stored
+// order line + the AHS bill are per-unit × qty, and the part name carries "(×N)" so
+// the quantity is visible on the order board, the tile, and the warranty submission.
+function ptQtyOf(row){ const q=row&&row.querySelector('.pt-qty'); const n=parseInt(q&&q.value,10); return (n>=1)?n:1; }
+function ptQty(el){ const row=el.closest('.pt-row'); if(!row)return; const c=row.querySelector('.pt-cost'); if(c)ptCost(c); }
 function ptCost(el){
   const row=el.closest('.pt-row'); if(!row)return;
-  const m=ahsMarkup(parseFloat(el.value));
+  const cost=parseFloat(el.value);
+  const m=ahsMarkup(cost);
   const chargeEl=row.querySelector('.pt-charge'), hint=row.querySelector('.pt-hint');
   if(!m){ if(hint)hint.textContent=''; return; }
   if(chargeEl && chargeEl.dataset.manual!=='1'){ chargeEl.value=m.charge.toFixed(2); }
-  if(hint) hint.textContent='→ bill AHS $'+m.charge.toFixed(2)+' · margin $'+m.margin.toFixed(2)+' ('+m.rule+')';
+  const qty=ptQtyOf(row);
+  const perCharge=parseFloat(chargeEl&&chargeEl.value)||m.charge;
+  if(hint){
+    hint.textContent = qty>1
+      ? ('→ $'+perCharge.toFixed(2)+' ea · ×'+qty+' = bill AHS $'+(perCharge*qty).toFixed(2)+' · total margin $'+((perCharge-cost)*qty).toFixed(2))
+      : ('→ bill AHS $'+m.charge.toFixed(2)+' · margin $'+m.margin.toFixed(2)+' ('+m.rule+')');
+  }
 }
-function ptChargeEdited(el){ el.dataset.manual='1'; }
+function ptChargeEdited(el){ el.dataset.manual='1'; const row=el.closest('.pt-row'); const c=row&&row.querySelector('.pt-cost'); if(c)ptCost(c); }
 // One-tap live Marcone cost for the row's part # → fills cost → auto-fills the AHS charge.
 async function ptMarcone(btn){
   const row=btn.closest('.pt-row'); if(!row)return;
@@ -3020,6 +3037,7 @@ async function orderParts(id){
   const rows=[...document.querySelectorAll('#pt-rows .pt-row')].map(r=>({
     pn:g(r,'.pt-num'), nm:g(r,'.pt-name'), src:g(r,'.pt-source'),
     cost:parseFloat(g(r,'.pt-cost')), charge:parseFloat(g(r,'.pt-charge')),
+    qty:Math.max(1, parseInt(g(r,'.pt-qty'),10)||1),
   })).filter(x=>x.pn);
   if(!rows.length){toast('Enter at least one part # to order');return;}
   // ETA is REQUIRED — it's the trigger that moves the job to Waiting Parts AND
@@ -3028,10 +3046,14 @@ async function orderParts(id){
   toast('Ordering '+rows.length+' part'+(rows.length>1?'s':'')+'…');
   let ok=0, fail=0;
   for(const p of rows){
-    const body={job_id:parseInt(id,10),part_number:p.pn,part_name:p.nm,parts_eta_date:eta,order_status:'ordered',source:'office'};
+    // Fold the quantity into the part NAME (record_parts_order has no qty column) so
+    // "(×N)" travels to the order board, the tile, and the warranty submission. Cost +
+    // AHS charge are stored per-unit × qty so the order line + margin are correct.
+    const nameQ = p.qty>1 ? ((p.nm?p.nm+' ':'')+'(×'+p.qty+')') : p.nm;
+    const body={job_id:parseInt(id,10),part_number:p.pn,part_name:nameQ,parts_eta_date:eta,order_status:'ordered',source:'office',quantity:p.qty};
     if(p.src)body.supplier=p.src;   // where it's coming from / pickup -> parts_orders.supplier
-    if(!isNaN(p.cost))body.cost_cents=Math.round(p.cost*100);
-    if(!isNaN(p.charge))body.sold_to_customer_cents=Math.round(p.charge*100);
+    if(!isNaN(p.cost))body.cost_cents=Math.round(p.cost*p.qty*100);
+    if(!isNaN(p.charge))body.sold_to_customer_cents=Math.round(p.charge*p.qty*100);
     try{const d=await postJSON('record_parts_order',body); if(d&&!d.error)ok++; else fail++;}catch(_){fail++;}
   }
   if(!ok){ toast('⚠ none ordered — try again'); return; }
