@@ -568,4 +568,82 @@ module.exports = {
       forceReset: 'Unplug for 5 minutes to clear a control glitch; for a fan-ice buzz, empty the freezer and unplug 24–48 hrs to melt the frost and confirm the source.',
     },
   },
+  'dryer-wont-start': {
+    'Samsung': {
+      lede: 'A Samsung dryer that won\'t start is most often one of three quick things before any real part: the door isn\'t latched hard enough for the switch to register, Child Lock is on, or the Start button needs a firm press-and-hold. If those are clear, the usual part is a blown thermal fuse — and on a Samsung that almost always means the vent is clogged and the dryer overheated.',
+      causes: [
+        { name: 'Door not fully latched (check first)', why: 'Samsung dryer doors need a firm push to trip the door switch; if the switch doesn\'t see the door closed, the dryer stays dead.', diy: 'Open and close the door firmly and listen for the click, then try Start. A door that feels loose or a worn strike is a common, cheap fix.', difficulty: 'Easy' },
+        { name: 'Child Lock is on', why: 'Child Lock (a key/lock icon) disables the controls so the dryer won\'t respond or start.', diy: 'Look for a lock icon on the display. Press and hold the Child Lock button (often ~3 seconds) to clear it, then start.', difficulty: 'Easy' },
+        { name: 'Blown thermal fuse (usually a clogged vent)', why: 'When the exhaust vent clogs, the dryer overheats and the thermal fuse blows to protect it — on many Samsung models that cuts the motor so it won\'t start at all.', diy: 'Clean the full vent line first (a clogged vent is the root cause). The blown fuse itself is an affordable part a tech replaces — and if you don\'t clear the vent, the new one blows again.', difficulty: 'Pro' },
+        { name: 'Start button / control', why: 'A worn Start button or the main control can stop the dryer from responding.', diy: 'If door, Child Lock, and vent are all good and it still won\'t start, a tech checks the start circuit and control.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'dE / dC', meaning: 'Door not sensed closed — latch, door switch, or strike' },
+      ],
+      knownIssue: 'On Samsung dryers, "won\'t start" is a loose door or Child Lock far more often than a real failure — check both before anything. When it IS a part, a thermal fuse blown from a clogged vent is the classic cause; always clean the vent or the replacement fuse will blow again.',
+      forceReset: 'Clear Child Lock (hold the lock button ~3 sec), close the door firmly, and hold Start. To clear a control glitch, unplug the dryer for 5 minutes.',
+    },
+    'LG': {
+      lede: 'An LG dryer that won\'t start usually comes down to the door not latching, the Child Lock being on, or needing a firm press-and-hold on Start — then a blown thermal fuse from a clogged vent. LG door alignment is a common culprit: if the door feels like it doesn\'t seat squarely, the switch may not register.',
+      causes: [
+        { name: 'Door not latched / misaligned (check first)', why: 'LG dryer doors can sag or not seat square, so the door switch never registers "closed" and the dryer stays dead.', diy: 'Close the door firmly and listen for the click; if it feels loose or crooked, the latch/switch is a common fix.', difficulty: 'Easy' },
+        { name: 'Child Lock is on', why: 'Child Lock disables the controls; the dryer ignores Start.', diy: 'Look for the lock icon and hold the Child Lock button (~3 sec) to clear it.', difficulty: 'Easy' },
+        { name: 'Blown thermal fuse (clogged vent)', why: 'A clogged exhaust vent overheats the dryer and blows the thermal fuse; on many LG models that stops the dryer from starting.', diy: 'Clean the entire vent line — that\'s the real cause. The fuse is an affordable part, but it re-blows if the vent isn\'t cleared.', difficulty: 'Pro' },
+        { name: 'Start switch / control', why: 'A worn Start button or main control board can stop it responding.', diy: 'If door, Child Lock, and vent are good, a tech checks the start circuit and control.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'dE', meaning: 'Door not sensed closed — latch, door switch, or alignment' },
+      ],
+      knownIssue: 'LG dryer "won\'t start" complaints are very often just a door that isn\'t seating square or Child Lock left on — both free to rule out. If it\'s a part, a thermal fuse blown by a clogged vent is the usual one, so clean the vent as part of the repair.',
+      forceReset: 'Clear Child Lock (hold the lock button ~3 sec), shut the door firmly, hold Start. Unplug 5 minutes to clear a control glitch.',
+    },
+    'Whirlpool': {
+      lede: 'A Whirlpool dryer (and Maytag/KitchenAid) that won\'t start has one classic cause above all: the door switch. Whirlpool door switches are a well-known wear point — when it fails you press Start and get nothing (or just a hum). After that it\'s the thermal fuse, the start switch, or Control Lock.',
+      causes: [
+        { name: 'Failed door switch (the classic Whirlpool cause)', why: 'The door switch tells the dryer the door is closed. On Whirlpool-family dryers it\'s a common failure — a bad one means Start does nothing even with the door shut.', diy: 'Open and close the door firmly and listen for the switch click. No click, or "won\'t start with the door clearly shut," points right at the door switch — an affordable, common part.', difficulty: 'Moderate' },
+        { name: 'Blown thermal fuse (clogged vent)', why: 'A clogged vent overheats the dryer and blows the thermal fuse; on Whirlpool models a blown fuse commonly kills the motor so it won\'t start.', diy: 'Clean the full vent line (the root cause). The fuse is a cheap part, but it re-blows if the vent stays clogged.', difficulty: 'Pro' },
+        { name: 'Control Lock is on', why: 'Control Lock (a lock icon) disables the buttons.', diy: 'Hold the Control Lock button (~3 sec) to clear the lock, then start.', difficulty: 'Easy' },
+        { name: 'Start switch or belt switch', why: 'A worn push-to-start switch, or the broken-belt switch, will stop the dryer from starting.', diy: 'If the door switch, fuse, and lock are all good, a tech checks the start switch and belt switch.', difficulty: 'Pro' },
+      ],
+      faultCodes: [],
+      knownIssue: 'On a Whirlpool, Maytag, or KitchenAid dryer that won\'t start, bet on the door switch first — it\'s one of the most common failures in the whole dryer line. Press Start and get nothing with the door clearly shut? That\'s the door switch until proven otherwise, and it\'s an affordable fix.',
+      forceReset: 'Clear Control Lock (hold the lock button ~3 sec), close the door hard enough to click, and hold Start. Unplug 5 minutes to clear a control glitch.',
+    },
+    'GE': {
+      lede: 'A GE dryer that won\'t start is usually the door switch, a worn push-to-start switch, or a blown thermal fuse from a clogged vent. GE push-to-start switches wear out with use — you press Start and the dryer does nothing or only hums. Control Lock is worth ruling out first since it\'s free.',
+      causes: [
+        { name: 'Control Lock on (check first)', why: 'Control Lock disables the buttons so nothing responds.', diy: 'Look for a lock icon and hold the lock button (~3 sec) to clear it.', difficulty: 'Easy' },
+        { name: 'Failed door switch', why: 'If the door switch doesn\'t register the door as closed, the dryer won\'t start.', diy: 'Close the door firmly and listen for the click; no click points at the door switch — a common, affordable part.', difficulty: 'Moderate' },
+        { name: 'Worn push-to-start switch', why: 'GE start switches wear with use; a bad one means Start does nothing even with the door shut and lock off.', diy: 'If the door and lock are good but Start is dead, the start switch is the usual GE culprit — a tech replaces it.', difficulty: 'Pro' },
+        { name: 'Blown thermal fuse (clogged vent)', why: 'A clogged vent overheats the dryer and blows the thermal fuse, which can stop it starting on many models.', diy: 'Clean the full vent line; the fuse is a cheap part but re-blows if the vent stays clogged.', difficulty: 'Pro' },
+      ],
+      faultCodes: [],
+      knownIssue: 'On GE dryers a dead Start button with the door clearly shut is often the push-to-start switch wearing out — one of the more common GE dryer repairs. Rule out Control Lock and the door switch first, then it\'s the start switch.',
+      forceReset: 'Clear Control Lock (hold the lock button ~3 sec), close the door firmly, and hold Start. Unplug 5 minutes to clear a control glitch.',
+    },
+    'Frigidaire': {
+      lede: 'A Frigidaire (or Electrolux) dryer that won\'t start is most often the door switch, a worn start switch, or a blown thermal fuse from a clogged vent. Start with the free checks — door latched firmly and Control Lock off — before assuming a part.',
+      causes: [
+        { name: 'Door not latched / door switch (check first)', why: 'If the door switch doesn\'t sense the door closed, the dryer won\'t start.', diy: 'Close the door firmly and listen for the click; a loose door or no click points at the latch/door switch.', difficulty: 'Moderate' },
+        { name: 'Control Lock is on', why: 'Control Lock disables the buttons.', diy: 'Hold the lock button (~3 sec) to clear it, then start.', difficulty: 'Easy' },
+        { name: 'Blown thermal fuse (clogged vent)', why: 'A clogged vent overheats the dryer and blows the thermal fuse, which can cut the motor so it won\'t start.', diy: 'Clean the entire vent line (the root cause); the fuse is an affordable part but re-blows if the vent stays clogged.', difficulty: 'Pro' },
+        { name: 'Start switch / control', why: 'A worn push-to-start switch or the main control can stop it responding.', diy: 'If door, lock, and vent are all good, a tech checks the start switch and control.', difficulty: 'Pro' },
+      ],
+      faultCodes: [],
+      knownIssue: 'A Frigidaire dryer that hums or does nothing when you press Start — with the door clearly shut and Control Lock off — is usually the door switch or start switch, both affordable parts. And any "won\'t start" tied to overheating means a clogged vent blew the thermal fuse: clean the vent or it happens again.',
+      forceReset: 'Clear Control Lock (hold the lock button ~3 sec), shut the door firmly, and hold Start. Unplug 5 minutes to clear a control glitch.',
+    },
+    'Maytag': {
+      lede: 'Maytag dryers are built on the Whirlpool platform, so a Maytag that won\'t start points at the same classic cause first: the door switch. A worn door switch means Start does nothing even with the door shut. After that it\'s the thermal fuse (clogged vent), Control Lock, or the start switch.',
+      causes: [
+        { name: 'Failed door switch (the classic cause)', why: 'The door switch is a well-known Whirlpool-family wear point; a bad one leaves the dryer dead when you press Start.', diy: 'Close the door firmly and listen for the click. No click, or dead Start with the door clearly shut, points right at the door switch — an affordable, common part.', difficulty: 'Moderate' },
+        { name: 'Control Lock is on', why: 'Control Lock disables the buttons.', diy: 'Hold the lock button (~3 sec) to clear it, then start.', difficulty: 'Easy' },
+        { name: 'Blown thermal fuse (clogged vent)', why: 'A clogged vent overheats the dryer and blows the thermal fuse, which commonly stops the motor from starting.', diy: 'Clean the full vent line; the fuse is a cheap part but re-blows if the vent stays clogged.', difficulty: 'Pro' },
+        { name: 'Start switch or belt switch', why: 'A worn push-to-start switch or the broken-belt switch will stop it starting.', diy: 'If the door switch, fuse, and lock are good, a tech checks the start and belt switches.', difficulty: 'Pro' },
+      ],
+      faultCodes: [],
+      knownIssue: 'Like its Whirlpool siblings, a Maytag dryer that won\'t start is a failed door switch more often than anything — press Start, get nothing, door clearly shut = door switch until proven otherwise. It\'s an affordable, satisfying fix.',
+      forceReset: 'Clear Control Lock (hold the lock button ~3 sec), close the door firmly, and hold Start. Unplug 5 minutes to clear a control glitch.',
+    },
+  },
 };
