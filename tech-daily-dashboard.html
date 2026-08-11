@@ -1460,16 +1460,23 @@
         if (!painted) showError(data && data.error ? data.error : 'failed to load');
         return;
       }
+      // If the fresh day is IDENTICAL to the cached day we already painted, do NOT
+      // rebuild the DOM — rebuilding reset the scroll position + re-ran the image/
+      // thumbnail hydration mid-scroll, which is exactly the "shaky, keeps pulling
+      // back to the top" the tech felt. Skip the redundant re-render entirely.
+      const sameAsPaint = painted && cached && JSON.stringify(cached.jobs || []) === JSON.stringify(data.jobs || []) && (cached.date_ct === data.date_ct);
       saveSchedCache(data);
-      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
-      mapMarkers = [];
       dashboardData = data;
       serverTodayCT = data.today_ct;
       currentDateStr = data.date_ct;
       highlightDayStrip();  // keep the day-jumper's active chip in sync
-      // Paint the day's schedule NOW — don't make the tech wait on the optional
-      // two-man crew overlay (up to 6s on weak cell for data most days don't have).
-      render(data);
+      if (!sameAsPaint) {
+        if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+        mapMarkers = [];
+        // Paint the day's schedule NOW — don't make the tech wait on the optional
+        // two-man crew overlay (up to 6s on weak cell for data most days don't have).
+        render(data);
+      }
       loading.style.display = 'none';
       // TWO-MAN jobs: pull any job where this tech is the SECOND man and merge it in.
       // Runs AFTER first paint; only re-renders if it actually adds a job. A crew
@@ -1549,6 +1556,7 @@
     renderJobs(data.jobs || []);
     renderMap(data.jobs || []);
     hydrateOfficeNotes(data.jobs || []);
+    hydrateLeaveBy(data.jobs || []);            // "🕐 Must leave by X" — don't miss the window
     hydrateScheduleReceipts(data.jobs || []);   // "Scheduled by Danielle · time" — the shared record
     loadEarnings(data);
   }
@@ -1685,6 +1693,29 @@
           }).join('')
         + '</div>';
     }
+  }
+
+  // "🕐 Must leave by 2:00 PM" ON each stop — the customer told us a hard cutoff
+  // (has to leave for work/pickup). Bold red so the tech routes around it instead of
+  // showing up after they're gone. Set by the office on the board. (Teddy 2026-08-11)
+  async function hydrateLeaveBy(jobs) {
+    const list = (jobs || []).filter((it) => it && it.job && it.job.id);
+    if (!list.length) return;
+    const ids = list.map((it) => it.job.id);
+    let byJob = {};
+    try { const d = await fetch('/.netlify/functions/leave-by?job_ids=' + ids.join(','), { cache: 'no-store' }).then((r) => r.json()); byJob = (d && d.by_job) || {}; } catch (_) { return; }
+    (jobs || []).forEach(function (it, i) {
+      if (!it || !it.job || !it.job.id) return;
+      const lb = byJob[it.job.id];
+      if (!lb) return;
+      const card = $('card-' + i); if (!card) return;
+      if (card.querySelector('.leave-by-chip')) return; // don't double-inject on re-render
+      const el = document.createElement('div');
+      el.className = 'leave-by-chip';
+      el.style.cssText = 'background:#ffe3e3;border:1px solid #ff8c8c;border-radius:9px;padding:8px 11px;margin:9px 0 2px;font-size:14px;color:#a11212;font-weight:800;line-height:1.35';
+      el.innerHTML = '🕐 Customer must leave by ' + escapeHtml(String(lb));
+      card.insertBefore(el, card.firstChild); // top of the stop — it's a hard cutoff
+    });
   }
 
   // "📋 Scheduled by Danielle · Thu 10:33am" ON each job card (Teddy 2026-07-17, the
@@ -1933,7 +1964,11 @@
     // original array index so the click/crew/thumbnail wiring below is untouched.
     let html = '<div class="ant-built-note">🐜 Ant builds your day around your profile + each customer\'s availability. Something not work? Tap 🚩 on any stop and I\'ll fix it — no problem.</div>';
     html += jobs.map((it, i) => renderCard(it, i)).join('');
+    // Preserve the tech's scroll spot across a re-render so a background refresh
+    // (crew overlay / visit-override) never yanks him back to the top mid-scroll.
+    const _prevScroll = window.scrollY || document.documentElement.scrollTop || 0;
     jobsHost.innerHTML = html;
+    if (_prevScroll > 0) { try { window.scrollTo(0, _prevScroll); } catch (_) {} }
     // Hook up click handlers
     jobs.forEach((it, i) => {
       const card = $(`card-${i}`);

@@ -654,6 +654,16 @@ async function loadOfficeNoteFlags(){
     OFFICE_NOTE_JOBS=new Set(Object.keys(byJob).map(Number));
   }catch(_){ OFFICE_NOTE_JOBS=new Set(); }
 }
+// 🕐 "Must leave by" — the customer told us a hard cutoff (has to leave for work/
+// pickup). Set on the drawer; shown as a bold red chip on the tile AND the tech's
+// daily stop so a customer never gets missed because they had to run. (Teddy 2026-08-11)
+let LEAVE_BY_MAP={};
+async function loadLeaveBy(){
+  try{
+    const d=await fetch('/.netlify/functions/leave-by',{cache:'no-store'}).then(r=>r.json());
+    LEAVE_BY_MAP=(d&&d.by_job)||{};
+  }catch(_){ LEAVE_BY_MAP={}; }
+}
 // 🙋 Jobs a tech passed off for a SECOND OPINION → orange siren on the board. (Teddy 2026-07-16)
 let SECOND_OPINION_JOBS=new Set();
 async function loadSecondOpinions(){
@@ -819,7 +829,7 @@ async function loadBoard(){
     let d=null;
     try{ const r=await fetchT('/.netlify/functions/board-feed',22000); if(r.ok) d=await r.json(); }catch(_){}
     if(!(d&&Array.isArray(d.items))){ try{ const r2=await fetchT(XANO+'/get_office_kanban',22000,{cache:'no-store'}); d=await r2.json(); }catch(_){ d=null; } }
-    await Promise.all([loadStages(),loadFlags(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap()]);
+    await Promise.all([loadStages(),loadFlags(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap(),loadLeaveBy()]);
     const _items=(d&&Array.isArray(d.items))?d.items:null;
     // Only overwrite the board if we got a real feed; a briefly-empty/failed read
     // must NEVER blank a board that already has jobs.
@@ -1504,6 +1514,11 @@ function cardHtml(j){
     const _tm=_sd.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/Chicago'});
     const _win=String(j.service_eta_window||'').trim();
     _availCard='<div class="jc-avail" title="'+esc(String(j.warranty_company||'Warranty'))+' promised the customer this full window — the tech must arrive inside it" style="margin-top:6px;padding:9px 11px;border-radius:9px;background:rgba(37,99,235,.14);border:2px solid rgba(37,99,235,.6);color:#1d4ed8;font-size:13.5px;font-weight:900;line-height:1.45">🔒 Customer available '+esc(_day)+': <span style="font-size:15px">'+esc(_win||_tm)+'</span></div>';
+  }
+  // 🕐 "Must leave by" hard cutoff — bold red so it's impossible to miss on the tile.
+  const _leaveBy=String(LEAVE_BY_MAP[j.id]||'').trim();
+  if(_leaveBy){
+    _availCard+='<div class="jc-leaveby" title="Customer has a hard cutoff — has to leave by this time" style="margin-top:6px;padding:6px 9px;border-radius:8px;background:rgba(220,38,38,.10);border:1px solid rgba(220,38,38,.45);color:#b91c1c;font-size:12.5px;font-weight:800;line-height:1.4">🕐 Must leave by '+esc(_leaveBy.slice(0,40))+'</div>';
   }
   // 🧩 Multi-machine stop (Danielle 2026-07-22): one claim, several linked machines,
   // each its OWN TDR/warranty. Show them as ONE tile with a chip per machine — tap a
@@ -2417,6 +2432,16 @@ function renderDrawer(d){
     <div class="dcard">
       <h4>📝 Tech notes</h4>
       <div class="notes-box ${techNote?'':'muted'}">${techNote?esc(techNote):'No tech notes yet — they flow here automatically once the tech writes them.'}</div>
+    </div>
+
+    <div class="dcard">
+      <h4>🕐 Customer must leave by</h4>
+      <div style="font-size:12px;color:var(--ink2);margin:-2px 0 8px">If the customer has a hard cutoff — has to leave for work, a pickup, etc. Shows as a bold red chip on this tile <b>and</b> on the tech's daily stop so they never get missed.</div>
+      <div style="display:flex;gap:8px">
+        <input id="leave-by-input" type="text" value="${esc(String(LEAVE_BY_MAP[jid]||''))}" placeholder="e.g. 2:00 PM" style="flex:1;padding:10px;border:1px solid var(--line,#d5dae2);border-radius:8px;background:#fff;color:#1a2230;font-family:inherit;font-size:14px">
+        <button onclick="saveLeaveBy(${jid})" style="padding:10px 14px;border:0;border-radius:9px;background:#dc2626;color:#fff;font-weight:800;font-size:14px;cursor:pointer;white-space:nowrap">Save</button>
+      </div>
+      <div id="leave-by-status" style="font-size:12px;font-weight:700;margin-top:6px"></div>
     </div>
 
     <div class="dcard">
@@ -3798,6 +3823,21 @@ async function saveOfficeNote(jid){
     if(!d.ok&&!d.success)throw new Error(d.error||'save failed');
     ta.value=''; toast('Office note saved ✓'); openDrawer(parseInt(jid,10));
   }catch(e){ if(btn){ btn.disabled=false; btn.textContent='＋ Add office note'; } toast('⚠ '+(e.message||'save failed')); }
+}
+// 🕐 Save the customer's hard "must leave by" cutoff. Blank clears it. Shows as a red
+// chip on the tile + the tech's daily stop. (Teddy 2026-08-11)
+async function saveLeaveBy(jid){
+  const inp=document.getElementById('leave-by-input'); if(!inp)return;
+  const val=(inp.value||'').trim();
+  const st=document.getElementById('leave-by-status'); if(st){ st.style.color='var(--ink2)'; st.textContent='Saving…'; }
+  try{
+    const r=await fetch('/.netlify/functions/leave-by',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:parseInt(jid,10),leave_by:val,by:officeActor()})});
+    const d=await r.json().catch(()=>({}));
+    if(!d.ok)throw new Error(d.error||'save failed');
+    LEAVE_BY_MAP[jid]=val; if(!val)delete LEAVE_BY_MAP[jid];
+    if(st){ st.style.color='#1f8f3a'; st.textContent=val?('Saved ✓ — "'+val+'" now shows on the tile + the tech\'s stop'):'Cleared ✓'; }
+    renderBoard();
+  }catch(e){ if(st){ st.style.color='#c0392b'; st.textContent='⚠ '+(e.message||'save failed'); } }
 }
 // One-tap "confirm the add-on with the customer" — prewritten, leak-kit-aware.
 // Danielle opens the job, clicks once, previews the text, and it sends.
