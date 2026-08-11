@@ -44,7 +44,19 @@ exports.handler = async function (event) {
 
   const jobId = body.job_id;
   const tdrId = body.tdr_id;
-  const expirySeconds = typeof body.expiry_seconds === 'number' ? body.expiry_seconds : 604800;
+  let expirySeconds = typeof body.expiry_seconds === 'number' ? body.expiry_seconds : 604800;
+
+  // Durable customer links (Teddy 2026-08-11): "we don't want the link to expire
+  // so people can think about what they want to do." Any real customer send (the
+  // XS asks for >= 1 day) becomes effectively non-expiring so the TDR options link
+  // stays alive for days/weeks while the customer decides. The payment link never
+  // goes stale either: the Stripe checkout session is minted fresh when they click
+  // Confirm and Pay, so a durable TDR link keeps the whole flow reachable.
+  // Short-lived preview tokens (< 1 day, e.g. the 30-min Teddy preview) stay short.
+  const DURABLE_FLOOR_SECONDS = 315360000; // ~10 years
+  if (expirySeconds >= 86400) {
+    expirySeconds = DURABLE_FLOOR_SECONDS;
+  }
 
   if (typeof jobId !== 'number' || typeof tdrId !== 'number') {
     return json(400, { error: 'job_id and tdr_id (numbers) required' });
