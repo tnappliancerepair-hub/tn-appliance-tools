@@ -658,6 +658,13 @@
   # email with a days-long wait, so 8h detection lag is fine and cuts ~63 runs/day.
   schedule = "0 13,18,23 * * *"
 
+# "Money in" backstop — texts Teddy a distinct 💰 CASH IN alert the moment a genuine cash
+# Quick Check is paid, catching the case where the instant siren was skipped (customer
+# closed the Stripe tab → webhook-only). Filters out $1 tests + owner test payments +
+# warranty; dedupes via cash_in_ping_<job> so it never double-texts the siren. (2026-08-11)
+[functions."cash-in-notify"]
+  schedule = "*/5 * * * *"
+
 # Google API-access email watcher — scans Gmail every 30 min for the Business Profile
 # API allowlist decision (support case 4-9470000004382) AND the Google Ads API Basic
 # Access decision, and texts Teddy the moment one lands so he doesn't babysit his

@@ -164,6 +164,10 @@ exports.handler = async function (event) {
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
   if (jobId) { try { await sendAreaTechTeddyTool(areaTech, { link, customer: m.name, appliance: m.machine || 'appliance', city: m.town || m.city || '', jobId, kind: 'cash_qc' }); } catch (_) {} }
+  // Mark this job as money-in-notified so the cash-in-notify backstop sweep doesn't
+  // double-text Teddy. The instant siren above is the fast path; the sweep only fires
+  // when THIS redirect path was skipped (customer closed the tab → webhook-only). (2026-08-11)
+  if (jobId) { try { await crud.logEvent('cash_in_ping_' + jobId, { amount, name: m.name || '', machine: m.machine || '', source: 'siren', at_ms: Date.now() }); } catch (_) {} }
 
   // ── Never lose the media ──────────────────────────────────────────────────
   // If the video/photo didn't land (low signal that never recovered before the
