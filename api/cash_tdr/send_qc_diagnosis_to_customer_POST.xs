@@ -207,13 +207,13 @@ query send_qc_diagnosis_to_customer verb=POST {
     api.request {
       url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
       method = "POST"
-      params = {to: $bill_to.phone, message: $sms_body}
+      params = {to: $bill_to.phone, message: $sms_body, context_tag: "quick_check_diagnosis"}
       headers = ["Content-Type: application/json"]
       timeout = 30
     } as $sms_resp
-  
+
     var $sms_result {
-      value = ($sms_resp.response.result ?? {})
+      value = ($sms_resp.response.result ?? ($sms_resp.response ?? {}))
     }
   
     // 10. SMS failure path: log + return without state changes
