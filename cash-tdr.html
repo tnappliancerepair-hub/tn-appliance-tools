@@ -122,7 +122,7 @@
     <section>
       <h2>💳 The 4 options (what the customer gets)</h2>
       <div class="opts" id="opts"></div>
-      <div class="note">30% markup baked in · $50 Quick Check credit comes off the we-install options · DIY options ship to their door.</div>
+      <div class="note">30% markup baked in · $50 Quick Check credit off the we-install options · $15 Marcone delivery on the shipped options (drops onto their bill).</div>
     </section>
 
     <button class="btn ghost" onclick="preview()">👁 Preview exactly what the customer sees</button>
@@ -135,7 +135,7 @@
 
 <script>
   var XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-  var MARKUP=1.30, CREDIT_CENTS=5000;
+  var MARKUP=1.30, CREDIT_CENTS=5000, SHIP_CENTS=1500;  // 30% markup · $50 QC credit · $15 Marcone delivery
   var params=new URLSearchParams(location.search);
   var JOB_ID=parseInt(params.get('job_id'),10);
   var TECH_ID=parseInt(params.get('tech_id'),10)||1;
@@ -243,8 +243,8 @@
     var oemSell=sell(toCents($('marconeCost').value));
     var labor=toCents($('labor').value)||0;
     var opts=[
-      {nm:'Amazon · shipped to you',pr:amzSell,bd:amzSell!=null?'part + shipping · you install':'—'},
-      {nm:'OEM · shipped to you',pr:oemSell,bd:oemSell!=null?'part + shipping · you install':'—'},
+      {nm:'Amazon · shipped to you',pr:amzSell!=null?amzSell+SHIP_CENTS:null,bd:amzSell!=null?('part '+money(amzSell)+' + $15 delivery'):'—'},
+      {nm:'OEM · shipped to you',pr:oemSell!=null?oemSell+SHIP_CENTS:null,bd:oemSell!=null?('part '+money(oemSell)+' + $15 delivery'):'—'},
       {nm:'Amazon · we install',pr:amzSell!=null?Math.max(0,amzSell+labor-CREDIT_CENTS):null,bd:amzSell!=null?('part '+money(amzSell)+' + labor '+money(labor)+' − $50 QC'):'—'},
       {nm:'OEM · we install',pr:oemSell!=null?Math.max(0,oemSell+labor-CREDIT_CENTS):null,bd:oemSell!=null?('part '+money(oemSell)+' + labor '+money(labor)+' − $50 QC'):'—'}
     ];
