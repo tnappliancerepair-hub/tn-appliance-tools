@@ -316,4 +316,81 @@ module.exports = {
       forceReset: 'Confirm the lid closes fully and try a Drain & Spin. Reset by unplugging 1 minute.',
     },
   },
+  'oven-not-heating': {
+    'Samsung': {
+      lede: 'Samsung ovens have one cause that fools almost everyone first: DEMO mode. If the oven lights up, the controls work, but it never gets hot, it\'s very often stuck in the store-display "demo" mode — a free fix. After that, an electric Samsung is usually a failed bake element or the control relay; a gas model, a weak igniter.',
+      causes: [
+        { name: 'Demo / display mode is ON (check this first — it\'s free)', why: 'Samsung ovens ship and sometimes reset into a store-demo mode where everything lights and beeps but the heat is disabled. This fools people into buying parts they don\'t need.', diy: 'Look for a "demo" or "d" indicator. Exit it per your model (often hold Cook Time + a second button for 3 sec, or unplug 5 min then check settings). If it heats after, that was it — no parts.', difficulty: 'Easy' },
+        { name: 'Failed bake element (electric)', why: 'The lower bake element burns out — often with a visible blister or break. The oven won\'t reach temperature or won\'t heat at all.', diy: 'With the oven cool, look at the bake element for a broken/blistered spot. A visibly damaged element is a straightforward, affordable replacement.', difficulty: 'Pro' },
+        { name: 'Weak igniter (gas)', why: 'On a gas Samsung the igniter glows but weakens over time until it can\'t get hot enough to open the gas valve — so it glows but never lights.', diy: 'If the igniter glows orange but no flame comes, it\'s worn out (a common, affordable gas-oven part). A tech confirms and replaces it.', difficulty: 'Pro' },
+        { name: 'Control board or temperature sensor', why: 'A failed control relay won\'t power the element, and a shorted oven sensor can make the control refuse to heat.', diy: 'If demo mode is off and the element/igniter test good, a tech checks the control board and oven sensor.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'E-08 / E-27', meaning: 'Oven temperature sensor open (E-08) or shorted (E-27)' },
+        { code: 'C-d0', meaning: 'Door lock stuck (won\'t heat while locked)' },
+      ],
+      knownIssue: 'The #1 "Samsung oven won\'t heat but everything else works" cause is DEMO mode — check it before you spend a dime. It\'s enabled far more often than people expect (a reset or a store setting can trigger it).',
+      forceReset: 'Exit demo mode (hold the button combo for your model, or unplug 5 minutes and re-check settings). If that doesn\'t restore heat, unplug 5 minutes to clear a control glitch.',
+    },
+    'LG': {
+      lede: 'On an LG oven, electric models that won\'t heat are usually a burned-out bake element or the control; gas models are almost always a weakening igniter. LG also has a display/demo mode that disables heat — worth ruling out first since it\'s free.',
+      causes: [
+        { name: 'Demo / display mode (check first — free)', why: 'Like Samsung, LG ovens have a demo mode that lights everything but disables the heat.', diy: 'Check for a demo indicator and exit it per your model (or unplug 5 min and re-check). If it heats after, no parts needed.', difficulty: 'Easy' },
+        { name: 'Weak igniter (gas — the classic)', why: 'The gas igniter glows but degrades until it can\'t reach the temperature needed to open the safety gas valve — glows, no flame, no heat.', diy: 'Igniter glows orange but no flame = worn igniter, an affordable common gas-oven part. A tech confirms and replaces it.', difficulty: 'Pro' },
+        { name: 'Failed bake element (electric)', why: 'The lower element burns out, often with a visible break or blister.', diy: 'Inspect the bake element cold for damage; a broken one is an affordable replacement.', difficulty: 'Pro' },
+        { name: 'Control board or sensor', why: 'A failed control relay won\'t energize the element; a bad oven sensor can block heating.', diy: 'If demo is off and the element/igniter are good, a tech tests the control and sensor.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'F9', meaning: 'Oven not reaching temperature in time — heating circuit / sensor' },
+        { code: 'F3', meaning: 'Oven temperature sensor fault' },
+      ],
+      knownIssue: 'LG gas igniters are a slow-fade failure — the oven takes longer and longer to heat over months, then quits. If yours has been getting slower to preheat, the igniter is almost certainly the fix.',
+      forceReset: 'Exit demo mode if shown; otherwise unplug 5 minutes to clear a control glitch, then run a bake test.',
+    },
+    'Whirlpool': {
+      lede: 'Whirlpool (and Maytag / KitchenAid) ovens that won\'t heat are usually the simplest fix in the business on electric models — a burned-out bake element you can often see. On gas models it\'s the igniter. Rule out the control lock and settings first.',
+      causes: [
+        { name: 'Burned-out bake element (electric — #1)', why: 'The lower bake element is the classic Whirlpool no-heat — it burns through, often with a visible blister or break, and the oven won\'t heat or won\'t reach temp.', diy: 'With the oven cool, look at the bake element for a broken/blistered spot. A visibly bad element is an affordable, common replacement.', difficulty: 'Pro' },
+        { name: 'Weak igniter (gas)', why: 'The gas igniter weakens until it can\'t open the gas valve — glows but no flame.', diy: 'Igniter glows but no flame = worn igniter, a common affordable part.', difficulty: 'Pro' },
+        { name: 'Control lock or wrong setting (check first)', why: 'Control lock, a timer/delay-bake set, or Sabbath mode can make it seem like the oven won\'t heat.', diy: 'Make sure control lock and Sabbath mode are off and no delayed bake is set. Free to rule out.', difficulty: 'Easy' },
+        { name: 'Control board or sensor (F3E1)', why: 'A failed control relay won\'t power the element; a shorted oven sensor (F3E1) blocks heating.', diy: 'If the element/igniter and settings are good, a tech checks the control and sensor.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'F3E1', meaning: 'Oven temperature sensor open/shorted' },
+        { code: 'F2E1', meaning: 'Stuck touchpad key' },
+      ],
+      knownIssue: 'A Whirlpool electric oven that won\'t heat is a burned-out bake element more often than anything else — and you can usually see the damage. It\'s one of the cheapest, most satisfying oven repairs there is.',
+      forceReset: 'Turn off control lock / Sabbath mode and clear any delay bake, then unplug 5 minutes to clear a glitch.',
+    },
+    'GE': {
+      lede: 'GE ovens split hard by fuel: an electric GE that won\'t heat is usually a bake element or control, but a GAS GE is famous for one thing — a weak oven igniter. It\'s one of the most common appliance failures there is.',
+      causes: [
+        { name: 'Weak oven igniter (gas — THE classic GE failure)', why: 'GE gas oven igniters are notorious: the igniter glows orange but degrades until it can\'t draw enough current to open the gas valve, so no flame and no heat. Extremely common.', diy: 'If the igniter glows but the burner never lights, it\'s worn out — an affordable, very common part. If it doesn\'t glow at all, still likely the igniter (or its circuit).', difficulty: 'Pro' },
+        { name: 'Failed bake element (electric)', why: 'On an electric GE the bake element burns out, often visibly.', diy: 'Inspect the bake element cold for a break/blister; replace if damaged.', difficulty: 'Pro' },
+        { name: 'Check the breaker (electric)', why: 'An electric oven runs on 240V (two legs). If one breaker leg trips, the oven can power the display and lights on 120V but not heat.', diy: 'Flip the double oven breaker fully off then on. If the display works but no heat, a lost 240V leg is a real possibility.', difficulty: 'Easy' },
+        { name: 'Control board or sensor', why: 'A failed control relay or oven sensor can block heat once the igniter/element are ruled out.', diy: 'A tech tests the control and sensor last.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'F2 / F3', meaning: 'Oven temperature sensor or control fault' },
+        { code: 'F7', meaning: 'Stuck touchpad / control key' },
+      ],
+      knownIssue: 'If you\'ve got a GE GAS oven that won\'t heat, bet on the igniter first — it\'s one of the single most common repairs in the whole trade. Glows but won\'t light = worn igniter, affordable fix.',
+      forceReset: 'Electric: cycle the double breaker (rules out a lost 240V leg). Any model: unplug 5 minutes to clear a control glitch.',
+    },
+    'Frigidaire': {
+      lede: 'Frigidaire (and Electrolux) ovens that won\'t heat come down to the bake element or igniter first — but Frigidaire has one extra suspect worth knowing: the electronic oven control board (EOC) is a known weak point on these, so if the heating parts test good, the control is the usual culprit.',
+      causes: [
+        { name: 'Failed bake element (electric)', why: 'The lower bake element burns out, often visibly, and the oven won\'t heat or reach temp.', diy: 'Inspect the bake element cold for a break/blister; a damaged one is an affordable replacement.', difficulty: 'Pro' },
+        { name: 'Weak igniter (gas)', why: 'The gas igniter weakens until it can\'t open the valve — glows, no flame.', diy: 'Glows but no flame = worn igniter, a common affordable part.', difficulty: 'Pro' },
+        { name: 'Electronic oven control (EOC) — known Frigidaire weak point', why: 'Frigidaire EOC boards fail more than most. A bad relay on the EOC won\'t power the element even though everything lights up.', diy: 'If the element and igniter test good, the EOC is the usual Frigidaire culprit — a tech confirms and replaces it.', difficulty: 'Pro' },
+        { name: 'Oven temperature sensor (F30/F31)', why: 'An open (F30) or shorted (F31) oven sensor makes the control refuse to heat correctly.', diy: 'A tech checks the sensor resistance; out-of-range = replace it, an inexpensive part.', difficulty: 'Pro' },
+      ],
+      faultCodes: [
+        { code: 'F30 / F31', meaning: 'Oven temperature sensor open (F30) or shorted (F31)' },
+        { code: 'F10', meaning: 'Runaway temperature — control shut the oven off' },
+      ],
+      knownIssue: 'Frigidaire\'s electronic oven control (EOC) board is a well-known failure point. If your Frigidaire oven won\'t heat but the bake element and igniter check out fine, the EOC is very likely the answer.',
+      forceReset: 'Check the double breaker on an electric model, then unplug 5 minutes to clear a control glitch before condemning the EOC.',
+    },
+  },
 };

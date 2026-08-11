@@ -3058,6 +3058,18 @@
         "laundry left in the drum during the self-clean cycle"
       ],
       "test": "Empty the drum completely and restart the Clean Washer cycle with nothing inside; the code clears."
+    },
+    {
+      "family": "samsung",
+      "appliance": "range",
+      "code": "E-27",
+      "meaning": "Oven temperature sensor shorted (pairs with E-08 open)",
+      "likely_causes": [
+        "oven temperature sensor (probe)",
+        "sensor wiring shorted",
+        "control board"
+      ],
+      "test": "Check the oven sensor resistance and wiring for a short; out-of-range or shorted = replace the sensor."
     }
   ]
 }
