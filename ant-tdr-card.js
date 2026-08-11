@@ -45,6 +45,11 @@
     parts_needed:     { label: 'Part & part #', col: 'parts_needed',     multiline: true,  ph: 'Part name + number', parts: true },
     repair_completed: { label: 'Job status',    col: 'repair_completed', multiline: true,  ph: 'Complete, or second trip needed?', outcome: true },
     labor_hours:      { label: 'Labor hours',   col: 'labor_time_hours', multiline: false, ph: 'e.g. 1.5', numeric: true },
+    // Free-form situational notes the tech types on site (Teddy 2026-08-11: "the tech
+    // needs to be able to add notes to the situation they're seeing"). Optional — does
+    // NOT count toward the required-5 completion. Saves to customer_notes (round-trips
+    // in this card) and is mirrored to technician_notes so the office board sees it.
+    customer_notes:   { label: 'Notes',         col: 'customer_notes',   multiline: true,  ph: "What you're seeing on site — anything the office should know" },
   };
   // The two outcome choices for the Job-status field.
   var OUTCOME_COMPLETE = 'Job complete';
@@ -332,6 +337,7 @@
       {key: 'parts_needed',     label: 'Part & part #',icon: '📦', prompt: 'The part you used + its number'},
       {key: 'repair_completed', label: 'Job status',   icon: '🔧', prompt: 'Complete, or second trip needed?'},
       {key: 'labor_hours',      label: 'Labor hours',  icon: '⏱️', prompt: 'Total time on the job'},
+      {key: 'customer_notes',   label: 'Notes',        icon: '📝', prompt: "What you're seeing on site — anything the office should know"},
     ];
 
     var html = '';
@@ -1806,6 +1812,21 @@
       });
       var wd = await wr.json();
       if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
+      // The tech's situational Notes must ALSO reach the office board, which reads
+      // technician_notes (the office feed doesn't return customer_notes). Mirror it
+      // there best-effort via ensure-tdr (get-or-create, no folder-move signal) +
+      // set-tdr-field, resolving the SAME (job, tech) TDR row we just wrote. A mirror
+      // failure never blocks the save — the note is already in customer_notes.
+      if (key === 'customer_notes') {
+        try {
+          var _tid = Number((lastData && lastData.tdr_id) || 0);
+          if (!(_tid > 0)) {
+            var _er = await fetch('/.netlify/functions/ensure-tdr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0 }) });
+            _tid = Number(((await _er.json()) || {}).tdr_id || 0);
+          }
+          if (_tid > 0) await fetch('/.netlify/functions/set-tdr-field', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tdr_id: _tid, field: 'technician_notes', value: val }) });
+        } catch (_) {}
+      }
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
       alert('Could not save: ' + (e && e.message ? e.message : e));
