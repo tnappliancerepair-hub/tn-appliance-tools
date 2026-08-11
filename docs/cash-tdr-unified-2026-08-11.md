@@ -44,8 +44,8 @@ Teddy's example: Amazon **$5**, OEM **$10**, labor **$100** → **$105** (Amazon
 
 - Prices shown are **customer prices** — markup already baked in (see markup note below).
 - **Labor** = the one rate Teddy types per job.
-- **$50 Quick Check credit** comes off the **we-install** options only ("A"). *(Confirm this
-  still applies in the simplified view — Teddy's example didn't show it.)*
+- **$50 Quick Check credit** comes off the **we-install** options only ("A"). **CONFIRMED
+  2026-08-11 — keep it.**
 
 ## What the system does
 Teddy punches in: the **part #**, the **Amazon cost**, the **Marcone/OEM cost**, the **labor
@@ -59,8 +59,17 @@ customer the options** (never the part number).
 ## Open item — markup number
 The markup lives server-side (`qc_diagnosis_view`). The current system charges **30% markup**
 (cost × 1.30). Danielle's documented rule is **cost ÷ 0.75** (25% margin ≈ 33% markup).
-Building the preview to match the **current 30%** so the quote never mismatches the bill;
-switching to cost ÷ 0.75 is a one-line server change + a Mac push. **Teddy to decide.**
+Building the preview to match the **current 30%** so the quote never mismatches the bill.
+**CONFIRMED 2026-08-11 — keep 30% markup.** (Switching to cost ÷ 0.75 later is a one-line
+server change + a Mac push if ever wanted.)
+
+## The text-to-tech/owner notification (CONFIRMED 2026-08-11 — must keep working)
+The siren that fires to the tech + Teddy as a customer fills in their info has been working
+and is NOT to be lost. Only change: it texts the **new cash TDR page** instead of the Teddy
+Tool link. **Type-aware:** the Teddy Tool link is ALSO texted on warranty jobs (pre-diagnosis,
+brand-intelligence, warranty QC) — those stay pointed where they are; only the **cash** sirens
+(`verify-quickcheck`, `cash-in-notify`, `free-quickcheck`, `quick_check_submitted`) repoint to
+the cash TDR page. Repoint happens AFTER the page is proven on a real cash job (Norman).
 
 ## Build approach — don't break what works
 1. Add the **cash fork onto the real TDR card** (`ant-tdr-card.js`) — the **warranty path
