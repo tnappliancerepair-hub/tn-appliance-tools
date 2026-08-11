@@ -74,8 +74,16 @@ exports.handler = async function (event) {
       const nowMs = Date.now();
       const num = (x, keys) => { for (const k of keys) { const v = parseFloat(x[k]); if (!isNaN(v)) return v; } return 0; };
       const ts = (x) => { for (const k of ['created_at', 'started_at', 'sent_at', 'occurred_at']) { if (x[k]) { const t = Date.parse(x[k]); if (!isNaN(t)) return t; } } return 0; };
+      // Unfiltered probe: what record types does Telnyx actually bill us for?
+      if (q.types === '1') {
+        const r = await fetch(`${TELNYX}/detail_records?page[size]=250&sort=-created_at`, { headers: H, signal: AbortSignal.timeout(15000) });
+        const d = await r.json().catch(() => ({}));
+        const rows = Array.isArray(d && d.data) ? d.data : [];
+        const byType = {}; for (const x of rows) { const k = x.record_type || 'unknown'; byType[k] = (byType[k] || 0) + 1; }
+        return json(200, { ok: r.ok, status: r.status, pulled: rows.length, by_record_type: byType, first: rows[0] || null });
+      }
       const pull = async (recordType) => {
-        let all = [], pages = (q.debug ? 1 : 5);
+        let all = [], pages = (q.debug ? 1 : 20);
         for (let p = 1; p <= pages; p++) {
           try {
             const url = `${TELNYX}/detail_records?filter[record_type]=${recordType}&page[size]=250&page[number]=${p}&sort=-created_at`;
@@ -84,8 +92,8 @@ exports.handler = async function (event) {
             const rows = Array.isArray(d && d.data) ? d.data : [];
             if (p === 1 && !rows.length) return { ok: r.ok, status: r.status, note: 'no rows', sample_keys: Object.keys(d || {}).slice(0, 10), body: JSON.stringify(d).slice(0, 200) };
             all = all.concat(rows);
-            if (rows.length < 250) break;
-          } catch (e) { return { ok: false, error: String(e.message || e) }; }
+            if (rows.length < 40) break; // Telnyx messaging pages cap ~50; stop when a short page arrives
+          } catch (e) { break; }
         }
         // bucket windows
         const wins = { d1: nowMs - 86400000, d7: nowMs - 7 * 86400000, d30: nowMs - 30 * 86400000 };
