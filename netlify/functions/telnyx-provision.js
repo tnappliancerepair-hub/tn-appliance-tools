@@ -71,25 +71,45 @@ exports.handler = async function (event) {
     }
 
     if (action === 'spend') {
-      const days = Math.min(31, Math.max(1, parseInt(q.days, 10) || 7));
-      const start = new Date(Date.now() - days * 86400000).toISOString();
+      const nowMs = Date.now();
+      const num = (x, keys) => { for (const k of keys) { const v = parseFloat(x[k]); if (!isNaN(v)) return v; } return 0; };
+      const ts = (x) => { for (const k of ['created_at', 'started_at', 'sent_at', 'occurred_at']) { if (x[k]) { const t = Date.parse(x[k]); if (!isNaN(t)) return t; } } return 0; };
       const pull = async (recordType) => {
-        try {
-          const url = `${TELNYX}/detail_records?filter[record_type]=${recordType}&filter[date_range][gte]=${encodeURIComponent(start)}&page[size]=250`;
-          const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) });
-          const d = await r.json().catch(() => ({}));
-          const rows = Array.isArray(d && d.data) ? d.data : [];
-          let cost = 0; for (const x of rows) { cost += parseFloat(x.cost || x.total_cost || x.rate || 0) || 0; }
-          return { ok: r.ok, status: r.status, count: rows.length, cost_usd: Math.round(cost * 100) / 100, capped_at_250: rows.length >= 250 };
-        } catch (e) { return { ok: false, status: 0, count: 0, cost_usd: 0, error: String(e.message || e) }; }
+        let all = [], pages = (q.debug ? 1 : 5);
+        for (let p = 1; p <= pages; p++) {
+          try {
+            const url = `${TELNYX}/detail_records?filter[record_type]=${recordType}&page[size]=250&page[number]=${p}&sort=-created_at`;
+            const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) });
+            const d = await r.json().catch(() => ({}));
+            const rows = Array.isArray(d && d.data) ? d.data : [];
+            if (p === 1 && !rows.length) return { ok: r.ok, status: r.status, note: 'no rows', sample_keys: Object.keys(d || {}).slice(0, 10), body: JSON.stringify(d).slice(0, 200) };
+            all = all.concat(rows);
+            if (rows.length < 250) break;
+          } catch (e) { return { ok: false, error: String(e.message || e) }; }
+        }
+        // bucket windows
+        const wins = { d1: nowMs - 86400000, d7: nowMs - 7 * 86400000, d30: nowMs - 30 * 86400000 };
+        const b = { d1: {}, d7: {}, d30: {}, all: {} };
+        for (const kk of ['d1', 'd7', 'd30', 'all']) b[kk] = { count: 0, cost_usd: 0, minutes: 0, segments: 0 };
+        for (const x of all) {
+          const t = ts(x);
+          const cost = num(x, ['cost', 'total_cost', 'rate']);
+          const durSec = num(x, ['duration_seconds', 'duration_secs', 'billed_seconds', 'call_sec_duration']);
+          const seg = num(x, ['parts', 'segment_count', 'number_of_segments']) || 1;
+          for (const kk of ['d1', 'd7', 'd30', 'all']) {
+            if (kk === 'all' || t >= wins[kk]) {
+              b[kk].count += 1; b[kk].cost_usd += cost;
+              b[kk].minutes += durSec / 60; b[kk].segments += seg;
+            }
+          }
+        }
+        for (const kk of ['d1', 'd7', 'd30', 'all']) { b[kk].cost_usd = Math.round(b[kk].cost_usd * 100) / 100; b[kk].minutes = Math.round(b[kk].minutes * 10) / 10; }
+        const oldestT = all.length ? ts(all[all.length - 1]) : 0;
+        return { ok: true, pulled: all.length, capped: all.length >= pages * 250, oldest_record: oldestT ? new Date(oldestT).toISOString().slice(0, 10) : null, windows: b, sample_keys: all[0] ? Object.keys(all[0]) : [] };
       };
       const voice = await pull('voice');
       const messaging = await pull('messaging');
-      return json(200, {
-        ok: true, days, since: start, voice, messaging,
-        total_cost_usd: Math.round((voice.cost_usd + messaging.cost_usd) * 100) / 100,
-        note: 'sampled from Telnyx detail_records (capped 250/type). If capped, real spend is higher — check the Telnyx portal Billing > Usage for the exact total.',
-      });
+      return json(200, { ok: true, generated: new Date(nowMs).toISOString(), voice, messaging });
     }
 
     if (action === 'tendlc') {
