@@ -115,7 +115,11 @@ query qc_create_checkout_session verb=POST {
     var $non_skip_count {
       value = 0
     }
-  
+
+    var $oem_ship_count {
+      value = 0
+    }
+
     var $any_pending {
       value = false
     }
@@ -218,9 +222,13 @@ query qc_create_checkout_session verb=POST {
             var.update $non_skip_count {
               value = $non_skip_count + 1
             }
+
+            var.update $oem_ship_count {
+              value = $oem_ship_count + 1
+            }
           }
         }
-      
+
         conditional {
           if ($opt == "diy_amazon") {
             var $name {
@@ -509,7 +517,10 @@ query qc_create_checkout_session verb=POST {
       }
     }
   
-    // Shipping line — flat $15 per checkout.
+    // Delivery line - $15 Marcone delivery, ONLY when the OEM part ships to the
+    // customer (diy_oem). Amazon ships free (Prime); install parts ride with the tech.
+    conditional {
+      if ($oem_ship_count > 0) {
     var $idx_str_s {
       value = $idx|to_text
     }
@@ -536,7 +547,7 @@ query qc_create_checkout_session verb=POST {
   
     var.update $params {
       value = $params
-        |set:$key_name_s:"Shipping and parts sourcing"
+        |set:$key_name_s:"Delivery"
     }
   
     var.update $params {
@@ -546,7 +557,9 @@ query qc_create_checkout_session verb=POST {
     var.update $params {
       value = $params|set:$key_qty_s:"1"
     }
-  
+      }
+    }
+
     // Quick Check Credit on a DIY (part-only) order: there's no labor line to
     // absorb the $50, so the credit was being lost for DIYers. Apply it as a
     // session-level coupon so the $50 comes off the PART. Only when the order is

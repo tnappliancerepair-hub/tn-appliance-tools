@@ -375,7 +375,12 @@ function renderSummary() {
     shipping = (hasOemShip ? (shipCfg.oem_cents || 0) : 0) + (hasAmzShip ? (shipCfg.amazon_cents || 0) : 0);
     shipLabel = 'Delivery';
   } else {
-    shipping = anyNonSkip ? SHIPPING_CENTS : 0;
+    // Delivery: $15 ONLY when the OEM part ships to the customer (diy_oem).
+    // Amazon ships free (Prime); install parts ride with the tech. Matches the
+    // qc_create_checkout_session charge so the displayed total = the Stripe bill.
+    const hasOemShipFb = failures.some(f => sels[f.id] === 'diy_oem');
+    shipping = hasOemShipFb ? SHIPPING_CENTS : 0;
+    shipLabel = 'Delivery';
   }
   const total = partsSubtotal + laborAfterCredit + shipping;
 
