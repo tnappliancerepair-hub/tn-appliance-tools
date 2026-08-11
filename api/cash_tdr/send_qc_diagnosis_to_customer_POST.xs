@@ -199,8 +199,11 @@ query send_qc_diagnosis_to_customer verb=POST {
       value = ($bill_to.first_name ?? "there")
     }
   
+    // GSM-7, no emoji / em-dash (Teddy 2026-08-11 cost cut): a single emoji forces
+    // the whole text into UCS-2 (70 chars/segment vs 160), and this text already
+    // carries a long token URL. Plain-ASCII copy keeps it to ~2 segments, not 5.
     var $sms_body {
-      value = "hi " ~ $first_name ~ " 🐜 — your tn appliance diagnosis is ready. here's what we found and your repair options: " ~ $url
+      value = "hi " ~ $first_name ~ ", your TN Appliance diagnosis and repair options are ready: " ~ $url
     }
   
     // 9. Send SMS (extended send_sms returns {success, twilio_sid, twilio_status, error})

@@ -550,11 +550,33 @@ function _isDuplicateSms(to, body) {
   return false;
 }
 
+// GSM-7 normalizer (Teddy 2026-08-11 cost cut): a single emoji or em-dash forces
+// the WHOLE text into UCS-2 encoding (70 chars/segment instead of 160), ~doubling
+// the segment count + cost. Strip emoji + transliterate the common smart-punctuation
+// so texts encode as GSM-7 and bill ~half the segments. URLs are untouched (GSM-7 safe).
+export function toGsm7(s) {
+  if (!s) return s;
+  let m = String(s)
+    .replace(/[—–]/g, '-')       // em/en dash -> hyphen
+    .replace(/[‘’′]/g, "'") // curly/prime single quotes -> '
+    .replace(/[“”″]/g, '"') // curly/prime double quotes -> "
+    .replace(/…/g, '...')             // ellipsis
+    .replace(/[   ]/g, ' ') // non-breaking / thin spaces
+    .replace(/[•●]/g, '-')       // bullets
+    // strip emoji + pictographs + symbols + variation selectors (the UCS-2 forcers)
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}‍]/gu, '')
+    .replace(/ {2,}/g, ' ')                // collapse doubled spaces left by stripped emoji
+    .replace(/ +([.,!?:;])/g, '$1');       // tidy space before punctuation
+  return m.trim();
+}
+
 export async function sendSms(to, message, context = {}) {
   if (config.dryRun) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
     return { success: true, dry_run: true };
   }
+  // Normalize to GSM-7 so a stray emoji/em-dash does not double the segment cost.
+  message = toGsm7(message);
   // ── INTERNAL SMS CUTOFF (Teddy 2026-07-07: "the only text I need is Teddy Tool
   // links; I don't know why we'd text the technicians"). The team lives in the app
   // (tech dashboard + office board + web push), so every INTERNAL-direction text
