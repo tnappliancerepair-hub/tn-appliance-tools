@@ -82,17 +82,20 @@ exports.handler = async function (event) {
         const byType = {}; for (const x of rows) { const k = x.record_type || 'unknown'; byType[k] = (byType[k] || 0) + 1; }
         return json(200, { ok: r.ok, status: r.status, pulled: rows.length, by_record_type: byType, first: rows[0] || null });
       }
+      const cutoff = nowMs - 30 * 86400000; // only need up to 30d for buckets
       const pull = async (recordType) => {
-        let all = [], pages = (q.debug ? 1 : 20);
+        let all = [], pages = (q.debug ? 1 : 12);
         for (let p = 1; p <= pages; p++) {
           try {
             const url = `${TELNYX}/detail_records?filter[record_type]=${recordType}&page[size]=250&page[number]=${p}&sort=-created_at`;
-            const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) });
+            const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(9000) });
             const d = await r.json().catch(() => ({}));
             const rows = Array.isArray(d && d.data) ? d.data : [];
             if (p === 1 && !rows.length) return { ok: r.ok, status: r.status, note: 'no rows', sample_keys: Object.keys(d || {}).slice(0, 10), body: JSON.stringify(d).slice(0, 200) };
             all = all.concat(rows);
             if (rows.length < 40) break; // Telnyx messaging pages cap ~50; stop when a short page arrives
+            const lastT = ts(rows[rows.length - 1]);
+            if (lastT && lastT < cutoff) break; // reached >30d old, stop paging
           } catch (e) { break; }
         }
         // bucket windows
