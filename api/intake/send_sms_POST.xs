@@ -160,8 +160,18 @@ query send_sms verb=POST {
     //    Everyone else ships from the customer Telnyx number.
     //    No LA routing in Phase 1.
     // ============================================================
+    // Teddy 2026-08-12: "use the approved line." TELNYX_FROM_TECH (the Xano env
+    // var) was +16157575500 — an UNREGISTERED 10DLC line (carriers can throttle
+    // it + it costs ~3x/text). Pin internal sends to the APPROVED line +16158578800
+    // so the pre-diagnosis links ship from a registered number (better delivery,
+    // ~70% cheaper). Still honors the env var if it is set to a real approved
+    // number; only falls back to the hardcoded approved line otherwise.
+    var $internal_from {
+      value = ((($env.TELNYX_FROM_TECH ?? "")|trim) == "+16158578800") ? $env.TELNYX_FROM_TECH : "+16158578800"
+    }
+
     var $from_number_telnyx {
-      value = ($is_internal == true) ? $env.TELNYX_FROM_TECH : $env.TELNYX_FROM_CUSTOMER
+      value = ($is_internal == true) ? $internal_from : $env.TELNYX_FROM_CUSTOMER
     }
   
     // ============================================================
