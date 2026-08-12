@@ -42,6 +42,16 @@ function post(path, payload, ms = 12000) {
 // A tool reply: `result` is what the assistant SAYS; keep it short + spoken-natural.
 const say = (result, extra) => json(200, { ok: true, result, ...(extra || {}) });
 
+// Is a live person available RIGHT NOW? Office is staffed Mon–Fri 9am–6pm Central; Ann is
+// 24/7. Warm transfers only happen when the office is open — off-hours we take a message.
+function officeOpenCT() {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(new Date());
+  const wd = (parts.find((p) => p.type === 'weekday') || {}).value || '';
+  let hr = Number((parts.find((p) => p.type === 'hour') || {}).value); if (hr === 24) hr = 0;
+  const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd);
+  return isWeekday && hr >= 9 && hr < 18;
+}
+
 // Resolve a spoken day ("Friday", "tomorrow", "next Wednesday", "8/15") to a concrete
 // CT date — SERVER-SIDE so Ann never does date math (LLMs get it wrong; CLAUDE.md rule).
 const WKD = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -206,11 +216,20 @@ exports.handler = async function (event) {
       const claim = String(a.claim || a.work_order || a.wo || '').trim();
       const noteTxt = String(a.note || a.reason || a.summary || '').trim().slice(0, 120);
       const qs = claim ? `claim=${encodeURIComponent(claim)}` : (jobId ? `job_id=${jobId}` : '');
-      if (!qs) return say("Let me grab your info so I can get the right person to you.");
+      const open = officeOpenCT();
+      if (!qs) return say("Let me grab your info so I can get the right person to you.", { office_open: open });
+      // Pop the caller's whole story onto the office's screens (this IS the brief — the
+      // human sees who's on the line + why before they even answer).
       const r = await fetch(`${SITE}/.netlify/functions/caller-pop?${qs}${noteTxt ? `&note=${encodeURIComponent(noteTxt)}` : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), signal: AbortSignal.timeout(9000) }).then((x) => x.json()).catch(() => null);
-      return r && r.ok
-        ? say("Perfect — I've pulled everything up for the office and let them know you're on the line. Hang tight one moment.")
-        : say("Let me take down what you need so the office can jump right on it.", { alerted: false });
+      const alerted = !!(r && r.ok);
+      // Tell Ann whether to CONNECT (office open) or take a message (closed). She reads
+      // office_open and follows the warm-transfer flow in her instructions.
+      if (open) {
+        return say(alerted
+          ? "Perfect — I've pulled your whole call up on the office's screen so they can see exactly what's going on. Let me connect you now, one moment."
+          : "Let me connect you to the office now — one moment.", { office_open: true, alerted });
+      }
+      return say("I've made sure the office has your details for first thing — since we're outside office hours right now, let me take down anything you need so they jump right on it when they're back.", { office_open: false, alerted });
     }
 
     // 5) NEVER LOSE A CALL — authoritative outcome write + office alert on urgent/warranty.

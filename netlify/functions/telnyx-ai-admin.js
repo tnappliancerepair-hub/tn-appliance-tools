@@ -21,6 +21,8 @@ const VOICE_BROOKE = 'Telnyx.Ultra.e07c00bc-4134-4eae-9ea4-1a55fb45746b'; // "Br
 const MODEL_CLAUDE = 'anthropic/claude-haiku-4-5';
 const TOOL = `${SITE}/.netlify/functions/telnyx-ai-tool`;
 const PRECALL = `${SITE}/.netlify/functions/telnyx-precall-context`;
+const OFFICE_RING = '+16155889591';                    // dialing this cascades Sofia→Danielle→Teddy (office-texml)
+const TRANSFER_FROM = '+16158211400';                  // owned, voice-enabled line the transfer leg dials from
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -61,11 +63,14 @@ WARRANTY REPS vs HOMEOWNERS:
 - Warranty companies (American Home Shield, ServicePower, and others) sometimes call to check a claim and they transfer homeowners to us. If it is a warranty rep, give the whole status in one breath: has the tech been out, what we found, the part and ETA, and the return or scheduled day.
 - If a rep asks you to close out a claim for a recall, do not. We finish on the original claim, ask them to have the customer text us at 615-588-9500.
 
-HANDING OFF TO A HUMAN:
-- Our office is staffed Monday to Friday, 9am to 6pm Central. During those hours, if the caller genuinely wants a person, use alert_office to pull them up on the office's screens and let the office know they're on the line, then reassure the caller warmly ("I've got the office pulling you up right now, hang tight one moment"). If no one is available, capture a callback.
-- When a WARRANTY REP gives you a work-order or claim number to look up, use alert_office with that claim number so the office sees the full status instantly and can take the call.
-- Outside office hours, handle it yourself and take a message with capture_callback. Do not imply a live person will pick up.
-- For an upset caller demanding a person ("representative! representative!"), don't argue - acknowledge, use alert_office, and reassure them help is coming.
+WARM TRANSFER TO A HUMAN (do this smoothly - it is the heart of great service):
+Our office is staffed Monday to Friday, 9am to 6pm Central. When a caller genuinely wants a person - or is upset, or a warranty rep needs a scheduler - do a WARM transfer, never a cold dump:
+1) FIRST call alert_office (pass the job_id from context, or the work-order/claim number if a warranty rep gave one, plus a short note on why - e.g. "wants to reschedule", "upset about a no-show", "AHS checking claim status"). This pops the caller's WHOLE story onto the office's screens, so whoever answers already sees who is on the line and why - they never have to ask the customer to repeat anything. It also tells you office_open (whether a live person is available right now).
+2) READ office_open in the result:
+   - If office_open is TRUE: tell the caller warmly, "I'm connecting you now - and don't worry, they can already see everything about your call, so you won't have to start over. One moment." THEN use the transfer tool (Office) to connect them. The office rings the right people in order automatically.
+   - If office_open is FALSE (evening or weekend): do NOT use the transfer tool and do NOT imply anyone will pick up. Say warmly, "Our office is closed right now, but I've made sure they have everything - let me take down what you need so they call you first thing." Then capture_callback and set the expectation: "our team follows up Monday through Friday, 9 to 6."
+3) For an upset caller demanding a person ("representative! representative!"), do NOT argue or stall - acknowledge them, run this exact flow, and reassure them help is coming: "Absolutely - I'm getting you to a person right now."
+Never promise WHICH person will pick up (the office routes it). Never transfer outside office hours.
 
 NEVER LOSE A CALL: before the call ends, and any time something is urgent (medical, expedited, upset, no-show) or warranty related, use log_outcome to record what happened and flag it to the office. Every call leaves a trail.
 
@@ -92,6 +97,10 @@ const TOOLS = [
     { job_id: { type: 'integer', description: "the caller's job number, from context" }, claim: { type: 'string', description: 'work-order or claim number if a warranty rep gave one' }, note: { type: 'string', description: 'one short line on why — e.g. "wants to reschedule", "upset about no-show", "AHS checking claim status"' } }, []),
   webhookTool('log_outcome', 'Record what happened on this call so nothing is ever lost. Set urgent=true for medical/expedited/upset/no-show, warranty=true for warranty matters.', `${TOOL}?do=log_outcome`,
     { job_id: { type: 'integer' }, summary: { type: 'string' }, urgent: { type: 'boolean' }, warranty: { type: 'boolean' }, needs_office: { type: 'boolean' } }, ['summary']),
+  // WARM TRANSFER — connect the caller to a live person. Ann briefs the office first
+  // (alert_office pops the caller's whole story on their screens), THEN uses this to
+  // bridge the call into the Sofia→Danielle→Teddy ring cascade. Only during office hours.
+  { type: 'transfer', transfer: { from: TRANSFER_FROM, targets: [{ name: 'Office', to: OFFICE_RING }] } },
   { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
 ];
 
