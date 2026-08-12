@@ -6,9 +6,6 @@ exports.handler = async function(event) {
   try {
     const { job_id, customer_name, appliance, brand, problem } = JSON.parse(event.body);
 
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromNumber = "+16292840444";
     const teddyNumber = "+16154855795";
 
     const teddyToolUrl = `https://tnapplianceexchange.net/teddy-tdr-tool.html?job_id=${job_id}`;
@@ -51,19 +48,17 @@ exports.handler = async function(event) {
       }));
     }
 
+    // Consolidated 2026-08-12 (Teddy): was sending from the hardcoded, UNAPPROVED
+    // Twilio number +16292840444 — so Teddy got Teddy Tool links from two numbers.
+    // Route through send_sms so it ships from the ONE approved Telnyx line
+    // (TELNYX_FROM_TECH), same as every other internal text. Owner recipient
+    // bypasses the intake/tech gates; the teddy-tdr-tool link is allow-listed anyway.
     const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms",
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Authorization": "Basic " + Buffer.from(`${accountSid}:${authToken}`).toString("base64")
-        },
-        body: new URLSearchParams({
-          From: fromNumber,
-          To: teddyNumber,
-          Body: message
-        }).toString()
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: teddyNumber, message: message, context_tag: "teddy_tool_prediag" }),
       }
     );
 

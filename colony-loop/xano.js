@@ -575,8 +575,6 @@ export async function sendSms(to, message, context = {}) {
     console.log(`[DRY_RUN sendSms] to=${to} msg=${message.slice(0, 80)}`);
     return { success: true, dry_run: true };
   }
-  // Normalize to GSM-7 so a stray emoji/em-dash does not double the segment cost.
-  message = toGsm7(message);
   // ── INTERNAL SMS CUTOFF (Teddy 2026-07-07: "the only text I need is Teddy Tool
   // links; I don't know why we'd text the technicians"). The team lives in the app
   // (tech dashboard + office board + web push), so every INTERNAL-direction text
@@ -588,6 +586,10 @@ export async function sendSms(to, message, context = {}) {
   // to restore internal texting, or force_send a specific critical alert.
   const _role = String((context && context.recipient_role) || '').toLowerCase();
   const _isInternal = /owner|tech|warranty_handler|office|danielle/.test(_role);
+  // GSM-7 normalize INTERNAL alerts only, to cut their segment cost. Teddy 2026-08-12:
+  // do NOT touch customer-direction texts — the intake copy has been working and stays
+  // exactly as-is (emoji/wording untouched). Only internal alerts get de-emoji'd.
+  if (_isInternal) message = toGsm7(message);
   const _isTeddyToolLink = /teddy-tdr-tool/i.test(String(message || ''));
   const _internalOn = String(process.env.INTERNAL_SMS_ENABLED || '').toLowerCase() === 'true';
   if (_isInternal && !context.force_send && !_isTeddyToolLink && !_internalOn) {
