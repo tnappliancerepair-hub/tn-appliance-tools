@@ -288,13 +288,25 @@ exports.handler = async function (event) {
     // 4d) TEXT THE TECH THE MESSAGE — the fallback when the tech doesn't pick up (or the
     // caller just wants to leave him a note). Reuses relay-to-tech: texts the tech the
     // customer's EXACT words + callback number, and flags the owner he missed a live call.
+    // ALWAYS attach the callback number: if Ann didn't pass one, resolve the customer's
+    // number off the job so the tech is never left without a way to call back.
     if (doAction === 'relay_to_tech' || doAction === 'message_for_tech') {
+      let custPhone = String(a.customer_phone || a.phone || '').replace(/\D/g, '');
+      let custName = String(a.customer_name || a.name || '').trim();
+      if ((!custPhone || custPhone.length < 10) && jobId) {
+        try {
+          const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
+          const cu = (d && d.customer) || {}; const jb = (d && d.job) || {};
+          if (!custPhone || custPhone.length < 10) custPhone = String(cu.phone || jb.customer_phone || '').replace(/\D/g, '');
+          if (!custName) custName = (cu.first_name || '') + (cu.last_name ? ' ' + cu.last_name : '');
+        } catch (_) {}
+      }
       const r = await post('relay-to-tech', {
         tech_name: String(a.tech_name || a.tech || '').trim(),
         tech_id: a.tech_id || undefined,
         message: String(a.message || a.note || '').trim(),
-        customer_name: String(a.customer_name || a.name || '').trim(),
-        customer_phone: String(a.customer_phone || a.phone || '').trim(),
+        customer_name: custName,
+        customer_phone: custPhone,
         appliance: String(a.appliance || '').trim(),
         job_id: jobId || undefined,
       });
