@@ -84,8 +84,9 @@ exports.handler = async function (event) {
   // magic. This makes HIS calls to the shadow line demonstrate the full gold-standard
   // flow (greet by name, the "we've been trying to reach you" chase, gather availability
   // live, offer the waiver). Only affects his number; real customers get real data.
+  const demoCore = digits.length === 11 && digits[0] === '1' ? digits.slice(1) : digits;
   const DEMO = {
-    '16154855795': {
+    '6154855795': {
       known: true, caller_first: 'Teddy', caller_name: 'Teddy Pivacek',
       greeting: "Hi Teddy! I'm so glad you caught us — we've actually been trying to reach you to get your dryer repair on the schedule. Rather than keep going back and forth by text, let's just take care of it right now: what days work best for you this week, and are there any days that don't work?",
       situation: "we've been trying to reach you to schedule your dryer repair",
@@ -95,7 +96,7 @@ exports.handler = async function (event) {
       system_context: "DEMO CALL for the owner. Caller is Teddy about a dryer repair that is not scheduled yet. We have reached out 3 times and still have NO availability on file — warmly acknowledge we've been trying to reach them (never accusatory) and gather their available days LIVE with capture_availability. The service waiver is NOT signed — after getting their days, offer to text the waiver with send_waiver_link. Keep it warm and natural; this is a demo of closing the loop on the call.",
     },
   };
-  if (DEMO[digits]) return json(200, { dynamic_variables: DEMO[digits], matched: true, demo: true });
+  if (DEMO[demoCore]) return json(200, { dynamic_variables: DEMO[demoCore], matched: true, demo: true });
   // ─────────────────────────────────────────────────────────────────────────────────
 
   // Resolve the caller through the ONE brain (job-truth) AND pull the customer record
