@@ -77,7 +77,17 @@ async function resolve(q) {
     if (d && d.success && (d.matches || []).length) { job = d.matches[0]; tech = d.tech; cust = d.customer; }
   } else if (q.phone) {
     const d = await jfetch(`${XANO}/lookup_customer_by_phone?phone=${String(q.phone).replace(/\D/g, '')}`);
-    if (d && d.found) { cust = d.customer; job = (d.jobs && d.jobs[0]) || d.job || null; tech = d.tech; }
+    // lookup_customer_by_phone returns open_jobs[] + recent_jobs[] (NOT jobs/job — that
+    // typo made every phone lookup return nothing). Prefer a live (non-terminal) open
+    // job so we greet on the real active job, not a canceled dispatch shell; fall back
+    // to the newest recent job so a returning customer is still recognized by name.
+    if (d && d.found) {
+      cust = d.customer;
+      const pool = ((d.open_jobs && d.open_jobs.length) ? d.open_jobs : (d.recent_jobs || []));
+      job = pool.find((jj) => !term(jj.current_status || jj.scheduling_status)) || pool[0]
+        || (d.jobs && d.jobs[0]) || d.job || null;
+      tech = d.tech || d.technician || tech;
+    }
   }
   if (!job) return { job: null };
 
