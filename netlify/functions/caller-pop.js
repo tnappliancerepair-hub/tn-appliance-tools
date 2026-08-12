@@ -37,21 +37,35 @@ exports.handler = async function (event) {
   let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
   const q = event.queryStringParameters || {};
   const digits = String(callerFrom(body, q) || '').replace(/\D/g, '');
+  const claim = String((q.claim || q.wo || body.claim || body.work_order || '')).trim();
   const test = q.test === '1';
-  if (digits.length < 10) return json(200, { ok: false, reason: 'no_caller_id' });
+  if (!claim && digits.length < 10) return json(200, { ok: false, reason: 'no_caller_id' });
+  const dedupeKey = claim || digits;
 
   // Dedupe — don't fire twice for the same ringing call.
   try {
     const seen = await crud.searchOne(crud.TABLES.event_log, { action: 'caller_pop_sent' }, { id: 'desc' });
-    if (seen) { const m = typeof seen.metadata === 'string' ? JSON.parse(seen.metadata) : (seen.metadata || {}); if (String(m.phone || '').replace(/\D/g, '') === digits && Date.now() - Number(m.at_ms || 0) < DEDUPE_MS) return json(200, { ok: true, deduped: true }); }
+    if (seen) { const m = typeof seen.metadata === 'string' ? JSON.parse(seen.metadata) : (seen.metadata || {}); if (String(m.key || m.phone || '') === dedupeKey && Date.now() - Number(m.at_ms || 0) < DEDUPE_MS) return json(200, { ok: true, deduped: true }); }
   } catch (_) {}
 
-  // Resolve the whole story from the pre-call brain.
-  let dv = null;
-  try {
-    const r = await fetch(`${SITE}/.netlify/functions/telnyx-precall-context?phone=${digits}`, { signal: AbortSignal.timeout(6000) });
-    dv = (await r.json().catch(() => null) || {}).dynamic_variables || null;
-  } catch (_) {}
+  // Resolve the whole story: by CLAIM / work-order when a warranty rep calls (their number
+  // won't match a customer), otherwise by the caller's phone via the pre-call brain.
+  let dv = null, viaClaim = false;
+  if (claim) {
+    try {
+      const jt = await fetch(`${SITE}/.netlify/functions/job-truth?claim=${encodeURIComponent(claim)}&lens=all`, { signal: AbortSignal.timeout(6000) }).then((r) => r.json()).catch(() => null);
+      if (jt && jt.found) {
+        const f = jt.facts || {};
+        dv = { known: true, caller_name: f.customer_name || f.customer_first || '', caller_first: f.customer_first || '', appliance: /^appliance$/i.test(String(f.appliance || '')) ? '' : (f.appliance || ''), scheduled_day: f.scheduled_day || '', status: f.status || '', job_id: String(f.job_id || ''), is_warranty: !!f.is_warranty, needs_availability: false, needs_waiver: false, outreach_count: 0 };
+        viaClaim = true;
+      }
+    } catch (_) {}
+  } else {
+    try {
+      const r = await fetch(`${SITE}/.netlify/functions/telnyx-precall-context?phone=${digits}`, { signal: AbortSignal.timeout(6000) });
+      dv = (await r.json().catch(() => null) || {}).dynamic_variables || null;
+    } catch (_) {}
+  }
 
   const name = (dv && (dv.caller_name || dv.caller_first)) || 'Caller';
   const jobId = dv && dv.job_id ? String(dv.job_id) : '';
@@ -59,19 +73,23 @@ exports.handler = async function (event) {
   const day = (dv && dv.scheduled_day) || '';
   const outreach = Number(dv && dv.outreach_count) || 0;
 
-  // Build a crisp office one-liner (internal phrasing, not the customer greeting).
+  // Build a crisp office one-liner (internal phrasing).
   const bits = [];
   if (appliance) bits.push(appliance);
   if (day) bits.push(`scheduled ${day}`);
   else if (dv && dv.needs_availability) bits.push(outreach >= 2 ? `needs scheduling — reached out ${outreach}×, no availability` : 'needs scheduling');
   else if (dv && /await|part|order/.test(String(dv.status || ''))) bits.push('awaiting parts');
-  if (dv && dv.needs_waiver) bits.push('waiver unsigned');
-  const summary = bits.length ? bits.join(' · ') : (dv && dv.known ? 'existing customer' : 'not in our system yet');
+  if (dv && dv.needs_waiver && !viaClaim) bits.push('waiver unsigned');
+  const summary = bits.length ? bits.join(' · ') : (dv && dv.known ? 'existing customer' : (viaClaim ? 'claim not found — look it up' : 'not in our system yet'));
 
-  // The tap-link: STRAIGHT to the job (no search) when we have it; else phone search.
-  const link = jobId ? `${SITE}/job-detail.html?job_id=${jobId}` : `${SITE}/customer-search.html?phone=${digits}`;
-  const pretty = digits.length === 11 ? `${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}` : `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-  const msg = `📞 Incoming — ${name} (${pretty})\n${summary}\nTap to open → ${link}`;
+  // The tap-link: STRAIGHT to the job (no search) when we have it.
+  const link = jobId ? `${SITE}/job-detail.html?job_id=${jobId}`
+    : (viaClaim ? `${SITE}/warranty-review.html` : `${SITE}/customer-search.html?phone=${digits}`);
+  const pretty = digits.length === 11 ? `${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}` : (digits.length === 10 ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}` : digits);
+  const header = viaClaim
+    ? `📞 Warranty rep — WO/claim ${claim}${name ? ` · ${name}` : ''}`
+    : `📞 Incoming — ${name} (${pretty})`;
+  const msg = `${header}\n${summary}\nTap to open → ${link}`;
 
   if (q.dry === '1') return json(200, { ok: true, dry: true, caller: name, job_id: jobId, summary, link, message: msg });
 
@@ -83,7 +101,7 @@ exports.handler = async function (event) {
       catch (e) { results.push({ who: o.name, sent: false, err: String((e && e.message) || e).slice(0, 60) }); }
     }
   }
-  try { await crud.logEvent('caller_pop_sent', { phone: digits, job_id: jobId, name, summary, at_ms: Date.now() }); } catch (_) {}
+  try { await crud.logEvent('caller_pop_sent', { key: dedupeKey, phone: digits, claim, job_id: jobId, name, summary, at_ms: Date.now() }); } catch (_) {}
 
   return json(200, { ok: true, caller: name, job_id: jobId, summary, link, sent_to: results, message: msg });
 };
