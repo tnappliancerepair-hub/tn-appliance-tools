@@ -160,14 +160,20 @@ query send_sms verb=POST {
     //    Everyone else ships from the customer Telnyx number.
     //    No LA routing in Phase 1.
     // ============================================================
-    // Teddy 2026-08-12: "use the approved line." TELNYX_FROM_TECH (the Xano env
-    // var) was +16157575500 — an UNREGISTERED 10DLC line (carriers can throttle
-    // it + it costs ~3x/text). Pin internal sends to the APPROVED line +16158578800
-    // so the pre-diagnosis links ship from a registered number (better delivery,
-    // ~70% cheaper). Still honors the env var if it is set to a real approved
-    // number; only falls back to the hardcoded approved line otherwise.
+    // Teddy 2026-08-12: two approved Telnyx lines are the primaries — customer on
+    // TELNYX_FROM_CUSTOMER (+16155889500), techs/internal on TELNYX_FROM_TECH
+    // (the approved tech line +16158578800). Twilio stays as the FALLBACK
+    // (SMS_PROVIDER=twilio, section 8b) in case of issues with these numbers.
+    // Safety: if the tech env var is empty OR still the old UNREGISTERED penalty
+    // line (+16157575500), route from the approved +16158578800 so pre-diagnosis
+    // links never ship from a throttled/unregistered number. Any other value the
+    // env is set to (another approved line) is honored.
+    var $tech_env {
+      value = ($env.TELNYX_FROM_TECH ?? "")|trim
+    }
+
     var $internal_from {
-      value = ((($env.TELNYX_FROM_TECH ?? "")|trim) == "+16158578800") ? $env.TELNYX_FROM_TECH : "+16158578800"
+      value = (($tech_env == "") || ($tech_env == "+16157575500")) ? "+16158578800" : $tech_env
     }
 
     var $from_number_telnyx {
