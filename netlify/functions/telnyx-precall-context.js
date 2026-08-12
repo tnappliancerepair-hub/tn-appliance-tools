@@ -98,12 +98,15 @@ exports.handler = async function (event) {
 
   // A proactive one-liner the assistant leads with — derived from the customer lens
   // but phrased as a heads-up so it can open the call knowing the situation.
+  // Only lead with a situation when we're CONFIDENT (an active, current job). For
+  // ambiguous states (pending / needs_more_info / completed / canceled / no day) we
+  // just greet by name and ask open-ended — a wrong assumption ("in our queue" when
+  // the repair is actually done) is worse than none. The full status still rides in
+  // system_context so the AI knows it if the customer brings the old job up.
   let situation = '';
   if (/await|part|order/.test(status)) situation = `we've diagnosed ${ap} and we're waiting on the part${(day || eta) ? ', expected ' + (day || eta) : ''}`;
   else if (/in_progress|started/.test(status)) situation = `${tech || 'your tech'} is working on ${ap} right now`;
-  else if (/complete|done/.test(status)) situation = `${ap.charAt(0).toUpperCase() + ap.slice(1)} repair is completed in our records`;
-  else if (day) situation = `you're scheduled with ${tech || 'your tech'} for ${day}${appliance ? ' for your ' + appliance : ''}`;
-  else situation = `we've got ${ap} in our scheduling queue`;
+  else if (day && !/cancel|complete|done/.test(status)) situation = `you're scheduled with ${tech || 'your tech'} for ${day}${appliance ? ' for your ' + appliance : ''}`;
 
   const hi = first ? `Hi ${first}!` : 'Thanks for calling TN Appliance!';
   const greeting = situation
