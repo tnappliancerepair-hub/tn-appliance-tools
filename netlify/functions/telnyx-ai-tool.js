@@ -141,21 +141,22 @@ exports.handler = async function (event) {
       // 1) Place the TENTATIVE hold (by:customer) — shows on the office board as a hold.
       await post('schedule-hold', { action: 'hold', job_id: jobId, date: resolved.date, customer: name, appliance, by: 'customer', time_pref: timePref });
       const whenSpoken = `${resolved.label}${timePref ? `, ${timePref}` : ''}`;
-      // 2) Message the office (just like the customer gets a message) — approve/adjust.
+      // 2) Message the office — a CUSTOMER SCHEDULING REQUEST to approve, or call the
+      // customer back to adjust if the route can't make that day (Teddy 2026-08-12).
       if (sendSms) {
         const tile = `${SITE}/office-board.html?job=${jobId}`;
-        const line = `🗓️ SELF-SCHEDULED (hold) — ${name}${appliance ? ` · ${appliance}` : ''} asked for ${whenSpoken}. Approve or adjust → ${tile}`.slice(0, 320);
-        try { await sendSms('+16154850713', line, 'danielle', 'self_schedule_hold'); } catch (_) {}   // Danielle (scheduler)
-        try { await sendSms('+16292594602', line, 'office', 'self_schedule_hold'); } catch (_) {}      // Sofia (scheduler)
+        const line = `📋 CUSTOMER SCHEDULING REQUEST — ${name}${appliance ? ` · ${appliance}` : ''} wants ${whenSpoken}. Approve, or call them back to adjust → ${tile}`.slice(0, 320);
+        try { await sendSms('+16154850713', line, 'danielle', 'customer_schedule_request'); } catch (_) {}   // Danielle (scheduler)
+        try { await sendSms('+16292594602', line, 'office', 'customer_schedule_request'); } catch (_) {}      // Sofia (scheduler)
       }
-      // 3) Text the customer a tentative confirmation + where to change it.
+      // 3) Text the customer a tentative confirmation + the office-callback promise.
       if (to && to.length >= 10 && sendSms) {
         const last4 = to.slice(-4);
         const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
-        const cmsg = `Hi ${name} — you're tentatively on our schedule for ${whenSpoken}. Our office will confirm it shortly; if that exact time won't work we'll reach right out. Need to change it? ${portal}  — TN Appliance Exchange 🐜`;
-        try { await sendSms(to, cmsg, 'customer', 'self_schedule_hold'); } catch (_) {}
+        const cmsg = `Hi ${name} — we've got your scheduling request in for ${whenSpoken}. Our office will confirm it shortly; if our route can't make that day, we'll call you right back to find one that works. Need to change it? ${portal}  — TN Appliance Exchange 🐜`;
+        try { await sendSms(to, cmsg, 'customer', 'customer_schedule_request'); } catch (_) {}
       }
-      return say(`Perfect — I've got you tentatively down for ${whenSpoken}. Our office will lock it in, and if that exact time doesn't work they'll reach right back out to you. You've done your part — you're all set. Anything else I can help with?`);
+      return say(`Perfect — I've got your scheduling request in for ${whenSpoken}. Our office will confirm it, and if our route can't make that exact day they'll call you right back to find one that works. You've done your part — you're all set. Anything else I can help with?`);
     }
 
     // 2b) Send JUST the waiver link (when the service waiver isn't signed yet).
