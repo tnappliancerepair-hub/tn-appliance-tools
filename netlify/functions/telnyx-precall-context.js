@@ -23,6 +23,7 @@
 'use strict';
 
 const SITE = 'https://tnapplianceexchange.net';
+let crud = null; try { crud = require('./_lib/xano/metadata-crud'); } catch (_) {}
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 
@@ -53,6 +54,11 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const from = callerFrom(body, q);
   const digits = String(from || '').replace(/\D/g, '');
+
+  // Debug (fire-and-forget, non-blocking): capture exactly what Telnyx sends on the
+  // first real calls so we can confirm greet-by-name fires and fix the caller-ID field
+  // if their payload differs. Never awaited, never throws into the call path.
+  try { if (crud) crud.logEvent('telnyx_precall_hit', { body_keys: Object.keys(body || {}).slice(0, 20), from_resolved: from || '', digits_len: digits.length, at_ms: Date.now() }); } catch (_) {}
 
   // Generic, warm fallback — used for an unknown caller OR any lookup hiccup, so the
   // call NEVER waits on us. The assistant just asks who it's speaking with.
