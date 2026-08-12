@@ -17,8 +17,13 @@ const TELNYX = 'https://api.telnyx.com/v2';
 const SITE = 'https://tnapplianceexchange.net';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const SHADOW_NUMBER = '+16158211400';          // the spare line for the shadow pilot
-const VOICE_BROOKE = 'Telnyx.Ultra.e07c00bc-4134-4eae-9ea4-1a55fb45746b'; // "Brooke - Big Sister"
-const MODEL_CLAUDE = 'anthropic/claude-haiku-4-5';
+// Same "Brooke" persona Teddy likes, but on Inworld's top "Max" tier — smoother + more
+// natural than the Telnyx house voice. (Telnyx has no ElevenLabs/Cartesia.)
+const VOICE_BROOKE = 'Inworld.Max.Brooke';
+// gpt-4o = the real-time-voice gold standard: Sonnet-class intelligence (big jump over
+// Haiku, which felt less sharp) while staying fast enough to avoid lag. Telnyx-hosted, no
+// key needed. Bump to openai/gpt-4.1 or a gpt-5.x for even sharper if we want.
+const MODEL_CLAUDE = 'openai/gpt-4o';
 const TOOL = `${SITE}/.netlify/functions/telnyx-ai-tool`;
 const PRECALL = `${SITE}/.netlify/functions/telnyx-precall-context`;
 const OFFICE_RING = '+16155889591';                    // dialing this cascades Sofia→Danielle→Teddy (office-texml)
