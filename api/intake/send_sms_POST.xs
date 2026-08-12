@@ -708,6 +708,93 @@ query send_sms verb=POST {
         }
       
         // ------------------------------------------------------------
+        // 8b2. AUTO-FAILOVER (Teddy 2026-08-12): if the primary Telnyx send FAILED,
+        //      retry once on Twilio so the message still lands. Logs
+        //      sms_telnyx_failover so the failover-watch cron can alert Teddy to
+        //      go fix the Telnyx line. Only runs when telnyx was the provider, it
+        //      failed, and Twilio creds are configured.
+        // ------------------------------------------------------------
+        conditional {
+          if ($provider_used == "telnyx" && $is_success == false && ((($env.TWILIO_ACCOUNT_SID ?? "")|trim) != "")) {
+            var $telnyx_err_saved {
+              value = ($error_msg ?? "telnyx failed")
+            }
+
+            var $fo_auth_b64 {
+              value = ($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode
+            }
+
+            var $fo_auth_header {
+              value = "Basic " ~ $fo_auth_b64
+            }
+
+            api.request {
+              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              method = "POST"
+              params = {}
+                |set:"To":$target_phone
+                |set:"From":$env.TWILIO_FROM_NUMBER
+                |set:"Body":$sms_body
+              headers = [
+                "Content-Type: application/x-www-form-urlencoded"
+                "Authorization: " ~ $fo_auth_header
+              ]
+            } as $fo_resp
+
+            var $fo_http {
+              value = ($fo_resp.response.status ?? 0)
+            }
+
+            var $fo_sid {
+              value = ($fo_resp.response.result.sid ?? null)
+            }
+
+            conditional {
+              if ($fo_http == 201) {
+                var.update $is_success {
+                  value = true
+                }
+
+                var.update $provider_used {
+                  value = "twilio_failover"
+                }
+
+                var.update $provider_message_id {
+                  value = $fo_sid
+                }
+
+                var.update $twilio_sid {
+                  value = $fo_sid
+                }
+
+                var.update $twilio_status {
+                  value = $fo_http
+                }
+
+                var.update $error_msg {
+                  value = null
+                }
+
+                db.add event_log {
+                  data = {
+                    action  : "sms_telnyx_failover"
+                    metadata: {
+                    recipient      : $p_e164
+                    recipient_class: ($is_internal == true) ? "internal" : "customer"
+                    from_number    : $from_number_telnyx
+                    telnyx_error   : $telnyx_err_saved
+                    twilio_sid     : $fo_sid
+                    body_preview   : $sms_body|substr:0:120
+                    context_tag    : ($input.context_tag ?? null)
+                  }
+                  }
+                } as $fo_log
+              }
+            }
+          }
+        }
+
+        // ------------------------------------------------------------
         // 8d. Per-send audit log
         //     One row per send attempt (success or failure). Skipped sends
         //     already logged via sms_gated above.

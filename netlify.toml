@@ -665,6 +665,11 @@
 [functions."cash-in-notify"]
   schedule = "*/5 * * * *"
 
+# Alert Teddy when the Twilio backup kicks in (a Telnyx send failed + auto-failed-over),
+# throttled to one ping/hour so an outage does not spam him.
+[functions."telnyx-failover-watch"]
+  schedule = "*/10 * * * *"
+
 # Google API-access email watcher — scans Gmail every 30 min for the Business Profile
 # API allowlist decision (support case 4-9470000004382) AND the Google Ads API Basic
 # Access decision, and texts Teddy the moment one lands so he doesn't babysit his
