@@ -88,7 +88,7 @@ exports.handler = async function (event) {
   const DEMO = {
     '6154855795': {
       known: true, caller_first: 'Teddy', caller_name: 'Teddy Pivacek',
-      greeting: "Hi Teddy! I'm so glad you caught us — we've actually been trying to reach you to get your dryer repair on the schedule. Rather than keep going back and forth by text, let's just take care of it right now: what days work best for you this week, and are there any days that don't work?",
+      greeting: "Hi Teddy! I'm so glad you caught us — we've actually been trying to reach you to get your dryer repair scheduled. Instead of going back and forth by text, let's just take care of it right now. What days work best for you — and are you generally better in the mornings or the afternoons? And let me know any days or times that won't work, so we route it the best we can for you.",
       situation: "we've been trying to reach you to schedule your dryer repair",
       has_job: true, appliance: 'dryer', tech: '', scheduled_day: '', status: 'needs_more_info',
       is_warranty: false, warranty_company: '', job_id: '', claim_number: '',
@@ -157,11 +157,11 @@ exports.handler = async function (event) {
   if (chasing) {
     // Gold-standard open: acknowledge the chase WARMLY (relieved, never accusatory) and
     // pivot to closing it live on the call instead of another round of texts.
-    greeting = `${hi} I'm so glad you caught us — we've actually been trying to reach you to get ${ap} on the schedule. Instead of going back and forth by text, let's just take care of it right now: what days work best for you, and any days that don't?`;
+    greeting = `${hi} I'm so glad you caught us — we've been trying to reach you to get ${ap} scheduled. Instead of going back and forth by text, let's just take care of it right now. What days work best for you — and are you generally better mornings or afternoons? And any days or times that won't work?`;
   } else if (situation) {
     greeting = `${hi} Thanks for calling TN Appliance. I see ${situation} — is that what you're calling about, or is it something else?`;
   } else if (needsAvailability) {
-    greeting = `${hi} Thanks for calling TN Appliance. Let's get ${ap} on the schedule — what days work best for you?`;
+    greeting = `${hi} Thanks for calling TN Appliance. Let's get ${ap} scheduled — what days work best for you, and are you generally better in the mornings or the afternoons?`;
   } else {
     greeting = `${hi} Thanks for calling TN Appliance Exchange. How can I help you today?`;
   }

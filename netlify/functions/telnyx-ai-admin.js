@@ -33,7 +33,7 @@ The caller's job number is {{job_id}} (blank if we do not recognize them). Use t
 You already opened with a personalized greeting. Continue naturally from there.
 
 YOUR #1 JOB IS TO CLOSE THE LOOP ON THE CALL. Never end with a vague "someone will call you back." Do the next step right now, on the phone:
-- GATHER AVAILABILITY VERBALLY. If the job is not scheduled yet, ask what days work and what days do NOT work, then record it with the capture_availability tool. Do not make them do it by text, collect it live.
+- GATHER AVAILABILITY THE SMART WAY, LIVE ON THE CALL. We route the most efficient way and do NOT promise a specific arrival time, but we DO need their real constraints so we never show up at the wrong time. Ask it warmly and get the WHOLE picture: "What days work best for you - and are you generally better in the mornings or the afternoons? And are there any days or times that just won't work?" Capture BOTH the days AND the time-of-day (mornings, afternoons, "after 3", "not before noon", and so on) with capture_availability. Do not make them do this by text.
 - If we need a short video of the problem or a photo of the model-number sticker to move forward, tell them you are texting a link and use send_intake_link.
 - If the context says the service waiver is NOT signed, offer to text it and use send_waiver_link. It takes about 20 seconds.
 - If they need to pay, use send_pay_link to text a secure link.
@@ -41,9 +41,9 @@ YOUR #1 JOB IS TO CLOSE THE LOOP ON THE CALL. Never end with a vague "someone wi
 
 YOU KNOW THE WHOLE STORY, so use it. The context above tells you what is still open on this job and how many times we have already reached out. If we have been trying to reach them and still need something (like their availability), warmly acknowledge it - be relieved and glad they caught us, NEVER accusatory - and offer to just handle it right now on the call instead of more texts. Example: "I'm so glad you called, we've been trying to reach you to get your days locked in - let's just take care of it right now." Then gather what is missing and close it.
 
-HOW WE SCHEDULE (always say this correctly):
-- We schedule by DAY, not by a clock time. NEVER quote a specific arrival time like "2pm" or "this afternoon" or "in 40 minutes." You do not have one and it is not how we run.
-- Say: "You're set for [day]; we run day-of routing, so we text you a live arrival window the morning of."
+HOW WE SCHEDULE (always say this correctly, and never overpromise):
+- We schedule by DAY and route the most efficient way, so NEVER promise a specific arrival time ("2pm", "this afternoon", "in 40 minutes"). You genuinely do not have one.
+- But do NOT just tell them "I can't give you a time" and leave it there. Frame it positively: gather when they ARE and are NOT available - days AND mornings vs afternoons - then reassure them: "We'll route it the most efficient way around what works for you, and we text you a live arrival window the morning of." That respects their time without overpromising.
 - If a warranty company already gave them a window, that window stands.
 
 TRUTH AND ACCURACY (this matters more than sounding smart):
@@ -69,8 +69,8 @@ function webhookTool(name, description, url, properties, required) {
 }
 
 const TOOLS = [
-  webhookTool('capture_availability', 'Record the days the customer is available (and unavailable) for their repair, gathered on the call. Use the job number from context.', `${TOOL}?do=capture_availability`,
-    { job_id: { type: 'integer', description: "the caller's job number" }, available: { type: 'string', description: 'days that work, e.g. Monday or Tuesday' }, unavailable: { type: 'string', description: 'days that do not work (optional)' } }, ['available']),
+  webhookTool('capture_availability', 'Record the customer availability for their repair, gathered on the call: which days work, the time of day (mornings/afternoons or specific limits), and anything that does NOT work. Use the job number from context.', `${TOOL}?do=capture_availability`,
+    { job_id: { type: 'integer', description: "the caller's job number" }, available: { type: 'string', description: 'days that work, e.g. Tuesday or Thursday' }, time_notes: { type: 'string', description: 'time-of-day preference or limits, e.g. "mornings only", "after 3pm", "not before noon"' }, unavailable: { type: 'string', description: 'days or times that do NOT work (optional)' } }, ['available']),
   webhookTool('send_intake_link', 'Text the customer their pre-diagnosis link so they can send a short video of the problem and a photo of the model sticker. Use when we need media to schedule.', `${TOOL}?do=send_intake_link`,
     { job_id: { type: 'integer', description: "the caller's job number" } }, ['job_id']),
   webhookTool('send_waiver_link', 'Text the customer the service waiver to sign. Use when the context says the waiver is NOT signed yet.', `${TOOL}?do=send_waiver_link`,
@@ -91,7 +91,7 @@ function assistantBody() {
     instructions: INSTRUCTIONS,
     greeting: '{{greeting}}',
     description: 'TN Appliance Exchange phone AI — greets by name, knows the job, closes the loop.',
-    voice_settings: { voice: VOICE_BROOKE },
+    voice_settings: { voice: VOICE_BROOKE, voice_speed: 0.9 },   // a tick slower = calmer, clearer
     tools: TOOLS,
     dynamic_variables_webhook_url: PRECALL,
   };

@@ -68,14 +68,18 @@ exports.handler = async function (event) {
         : say("I tried to text your link but it didn't go through — I'll have the office send it to you right away.", { sent: false });
     }
 
-    // 2) Capture availability so scheduling can proceed (persist both places).
+    // 2) Capture availability — days AND time-of-day — so we route right and never
+    // show up at the wrong time. Fold the time-of-day into the saved availability.
     if (doAction === 'capture_availability') {
-      if (!jobId) return say("Got it — what days work best for you? I'll pass those to scheduling.");
-      const avail = String(a.available || a.availability_text || a.days || '').trim();
+      const timeNotes = String(a.time_notes || a.times || '').trim();
+      const availDays = String(a.available || a.availability_text || a.days || '').trim();
+      const avail = [availDays, timeNotes].filter(Boolean).join(' — ');   // e.g. "Tue or Thu — afternoons only"
       const unavail = String(a.unavailable || a.unavailable_text || '').trim();
+      const closer = `We'll route it the most efficient way around that and text you a live arrival window the morning of.`;
+      if (!jobId) return say(`Got it — ${avail || 'those days'}${unavail ? `, and avoiding ${unavail}` : ''}. ${closer} Anything else I can help with?`);
       await post('save-availability', { job_id: jobId, availability_text: avail, unavailable_text: unavail });
       await post('set-job-availability', { job_id: jobId, available: avail, unavailable: unavail, actor: 'ann_phone' });
-      return say(`Great — I've got you down as available ${avail || 'those days'}. Scheduling will lock in your day and text you to confirm.`);
+      return say(`Perfect — I've got you down for ${avail || 'those days'}${unavail ? `, avoiding ${unavail}` : ''}. ${closer} Anything else I can help with?`);
     }
 
     // 2b) Send JUST the waiver link (when the service waiver isn't signed yet).
