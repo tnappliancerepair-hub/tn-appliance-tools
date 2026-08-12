@@ -25,6 +25,7 @@ const OFFICE_RING = '+16155889591';                    // dialing this cascades 
 const TRANSFER_FROM = '+16158211400';                  // owned, voice-enabled line the transfer leg dials from
 // Field techs — transfer targets for the day-of "connect me to my tech" call.
 const TECH_TARGETS = [
+  { name: 'Teddy', to: '+16154855795' },   // owner-tech (id 1) + the test target
   { name: 'Jimmy', to: '+16159671304' },
   { name: 'Andre', to: '+15049099413' },
   { name: 'Lee', to: '+16158291654' },

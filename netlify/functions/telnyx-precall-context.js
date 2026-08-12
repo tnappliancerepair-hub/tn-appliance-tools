@@ -95,16 +95,20 @@ exports.handler = async function (event) {
   // live, offer the waiver). Only affects his number; real customers get real data.
   const demoCore = digits.length === 11 && digits[0] === '1' ? digits.slice(1) : digits;
   const DEMO = {
+    // TEST SCENARIO (Teddy 2026-08-12): the day-of "connect me to my tech" flow. Job 19065
+    // resolves to tech id 1 (Teddy) with his own cell, so connect_to_tech + the Teddy
+    // transfer target + message_for_tech all route to HIS phone — no real tech gets a test
+    // text, and his line being busy on the call naturally exercises the no-answer fallback
+    // (ring ~5×, then Ann takes the message and texts it to the tech).
     '6154855795': {
       known: true, caller_first: 'Teddy', caller_name: 'Teddy Pivacek',
-      greeting: "Hi Teddy! I'm so glad you caught us — we've actually been trying to reach you to get your dryer repair scheduled. Instead of going back and forth by text, let's just take care of it right now. What days work for you — and on those days, are you pretty wide open, or do you need mornings or afternoons? And just tell me anything that won't work, and we'll route it the best we can for you.",
-      situation: "we've been trying to reach you to schedule your repair",
-      has_job: true, appliance: 'dryer', tech: '', scheduled_day: '', status: 'needs_more_info',
-      // Point at Teddy's real resolvable job so the demo call's tools actually fire
-      // (save availability, TEXT the waiver/intake links to his cell) instead of no-opping.
+      greeting: "Hi Teddy! Thanks for calling TN Appliance Exchange. I see you're on our schedule for today — what can I help you with?",
+      situation: "you're on our schedule for today",
+      has_job: true, appliance: 'dryer', tech: 'Teddy', scheduled_day: 'today', status: 'scheduled',
       is_warranty: false, warranty_company: '', job_id: '19065', claim_number: '',
-      needs_availability: true, needs_waiver: true, outreach_count: 3, being_chased: true,
-      system_context: "DEMO CALL for the owner. Caller is Teddy about a dryer repair that is not scheduled yet. We have reached out 3 times and still have NO availability on file — warmly acknowledge we've been trying to reach them (never accusatory) and gather their available days LIVE with capture_availability. The service waiver is NOT signed — after getting their days, offer to text the waiver with send_waiver_link. Keep it warm and natural; this is a demo of closing the loop on the call.",
+      needs_availability: false, needs_waiver: false, outreach_count: 0, being_chased: false,
+      scheduled_today: true, can_connect_tech: true, tech_first: 'Teddy',
+      system_context: "TEST CALL for the owner — the day-of CONNECT-TO-TECH flow. Teddy is ON TODAY'S route with his tech (also Teddy). If he asks where his tech is, when he'll arrive, or just to check on today's appointment, OFFER TO CONNECT HIM: \"It looks like you're on Teddy's schedule today — would you like me to connect you with him? Give me just a minute.\" On yes: call connect_to_tech with job_id 19065, then use the transfer tool to the Teddy target. It rings about five times; on this test his own line is busy so it will not pick up — then come back warmly, take his message, use message_for_tech (tech_name Teddy, his message in his own words, his callback number), and confirm you texted it straight to Teddy. Never quote a clock time — day-of routing.",
     },
   };
   if (DEMO[demoCore]) return json(200, { dynamic_variables: DEMO[demoCore], matched: true, demo: true });
