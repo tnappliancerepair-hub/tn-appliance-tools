@@ -118,6 +118,21 @@ exports.handler = async function (event) {
       return say((r && r.say) || "You're all set — I've logged your callback and the office will reach out shortly. Anything else I can do?");
     }
 
+    // 4b) ALERT THE OFFICE — pop the caller onto the office's phones/laptops with a one-tap
+    // link straight to their tile (Teddy 2026-08-12: "she gets a text with a quick brief,
+    // taps it, the tile opens on her cell"). Ann calls this the moment a human is needed —
+    // a caller asking for a person, or a warranty rep who gave a work-order number.
+    if (doAction === 'alert_office') {
+      const claim = String(a.claim || a.work_order || a.wo || '').trim();
+      const noteTxt = String(a.note || a.reason || a.summary || '').trim().slice(0, 120);
+      const qs = claim ? `claim=${encodeURIComponent(claim)}` : (jobId ? `job_id=${jobId}` : '');
+      if (!qs) return say("Let me grab your info so I can get the right person to you.");
+      const r = await fetch(`${SITE}/.netlify/functions/caller-pop?${qs}${noteTxt ? `&note=${encodeURIComponent(noteTxt)}` : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), signal: AbortSignal.timeout(9000) }).then((x) => x.json()).catch(() => null);
+      return r && r.ok
+        ? say("Perfect — I've pulled everything up for the office and let them know you're on the line. Hang tight one moment.")
+        : say("Let me take down what you need so the office can jump right on it.", { alerted: false });
+    }
+
     // 5) NEVER LOSE A CALL — authoritative outcome write + office alert on urgent/warranty.
     if (doAction === 'log_outcome') {
       const summary = String(a.summary || a.notes || '').trim().slice(0, 600);

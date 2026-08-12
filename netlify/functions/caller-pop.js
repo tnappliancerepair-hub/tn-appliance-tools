@@ -38,9 +38,11 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const digits = String(callerFrom(body, q) || '').replace(/\D/g, '');
   const claim = String((q.claim || q.wo || body.claim || body.work_order || '')).trim();
+  const jobIdIn = String(q.job_id || body.job_id || '').replace(/\D/g, '');
+  const note = String(q.note || body.note || '').trim().slice(0, 120);   // why Ann is handing off, optional
   const test = q.test === '1';
-  if (!claim && digits.length < 10) return json(200, { ok: false, reason: 'no_caller_id' });
-  const dedupeKey = claim || digits;
+  if (!claim && !jobIdIn && digits.length < 10) return json(200, { ok: false, reason: 'no_caller_id' });
+  const dedupeKey = claim || jobIdIn || digits;
 
   // Dedupe — don't fire twice for the same ringing call.
   try {
@@ -48,17 +50,21 @@ exports.handler = async function (event) {
     if (seen) { const m = typeof seen.metadata === 'string' ? JSON.parse(seen.metadata) : (seen.metadata || {}); if (String(m.key || m.phone || '') === dedupeKey && Date.now() - Number(m.at_ms || 0) < DEDUPE_MS) return json(200, { ok: true, deduped: true }); }
   } catch (_) {}
 
-  // Resolve the whole story: by CLAIM / work-order when a warranty rep calls (their number
-  // won't match a customer), otherwise by the caller's phone via the pre-call brain.
-  let dv = null, viaClaim = false;
-  if (claim) {
+  // Resolve the whole story three ways: by CLAIM / work-order when a warranty rep calls
+  // (their number won't match a customer), by JOB_ID when Ann hands off a caller she's
+  // already resolved (she passes {{job_id}}), otherwise by the caller's phone via the
+  // pre-call brain.
+  let dv = null, viaClaim = false, viaJob = false;
+  if (claim || jobIdIn) {
     try {
-      const jt = await fetch(`${SITE}/.netlify/functions/job-truth?claim=${encodeURIComponent(claim)}&lens=all`, { signal: AbortSignal.timeout(6000) }).then((r) => r.json()).catch(() => null);
+      const qp = claim ? `claim=${encodeURIComponent(claim)}` : `job_id=${jobIdIn}`;
+      const jt = await fetch(`${SITE}/.netlify/functions/job-truth?${qp}&lens=all`, { signal: AbortSignal.timeout(6000) }).then((r) => r.json()).catch(() => null);
       if (jt && jt.found) {
         const f = jt.facts || {};
-        dv = { known: true, caller_name: f.customer_name || f.customer_first || '', caller_first: f.customer_first || '', appliance: /^appliance$/i.test(String(f.appliance || '')) ? '' : (f.appliance || ''), scheduled_day: f.scheduled_day || '', status: f.status || '', job_id: String(f.job_id || ''), is_warranty: !!f.is_warranty, needs_availability: false, needs_waiver: false, outreach_count: 0 };
-        viaClaim = true;
+        dv = { known: true, caller_name: f.customer_name || f.customer_first || '', caller_first: f.customer_first || '', appliance: /^appliance$/i.test(String(f.appliance || '')) ? '' : (f.appliance || ''), scheduled_day: f.scheduled_day || '', status: f.status || '', job_id: String(f.job_id || jobIdIn || ''), is_warranty: !!f.is_warranty, needs_availability: false, needs_waiver: false, outreach_count: 0 };
       }
+      viaClaim = !!claim;
+      viaJob = !claim && !!jobIdIn;
     } catch (_) {}
   } else {
     try {
@@ -86,9 +92,13 @@ exports.handler = async function (event) {
   const link = jobId ? `${SITE}/job-detail.html?job_id=${jobId}`
     : (viaClaim ? `${SITE}/warranty-review.html` : `${SITE}/customer-search.html?phone=${digits}`);
   const pretty = digits.length === 11 ? `${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}` : (digits.length === 10 ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}` : digits);
+  // Header: warranty-rep pop (by claim), an AI hand-off (Ann passes job_id + why),
+  // or a plain incoming ring.
   const header = viaClaim
     ? `📞 Warranty rep — WO/claim ${claim}${name ? ` · ${name}` : ''}`
-    : `📞 Incoming — ${name} (${pretty})`;
+    : (viaJob
+      ? `🤝 Ann needs a hand — ${name}${note ? `: ${note}` : ' wants a person'}`
+      : `📞 Incoming — ${name} (${pretty})`);
   const msg = `${header}\n${summary}\nTap to open → ${link}`;
 
   if (q.dry === '1') return json(200, { ok: true, dry: true, caller: name, job_id: jobId, summary, link, message: msg });

@@ -57,8 +57,10 @@ WARRANTY REPS vs HOMEOWNERS:
 - If a rep asks you to close out a claim for a recall, do not. We finish on the original claim, ask them to have the customer text us at 615-588-9500.
 
 HANDING OFF TO A HUMAN:
-- Our office is staffed Monday to Friday, 9am to 6pm Central. During those hours, if the caller wants a person, offer to connect them; if no one is available, capture a callback.
-- Outside those hours, handle it yourself and take a message with capture_callback. Do not imply a live person will pick up.
+- Our office is staffed Monday to Friday, 9am to 6pm Central. During those hours, if the caller genuinely wants a person, use alert_office to pull them up on the office's screens and let the office know they're on the line, then reassure the caller warmly ("I've got the office pulling you up right now, hang tight one moment"). If no one is available, capture a callback.
+- When a WARRANTY REP gives you a work-order or claim number to look up, use alert_office with that claim number so the office sees the full status instantly and can take the call.
+- Outside office hours, handle it yourself and take a message with capture_callback. Do not imply a live person will pick up.
+- For an upset caller demanding a person ("representative! representative!"), don't argue - acknowledge, use alert_office, and reassure them help is coming.
 
 NEVER LOSE A CALL: before the call ends, and any time something is urgent (medical, expedited, upset, no-show) or warranty related, use log_outcome to record what happened and flag it to the office. Every call leaves a trail.
 
@@ -79,6 +81,8 @@ const TOOLS = [
     { job_id: { type: 'integer', description: "the caller's job number" } }, ['job_id']),
   webhookTool('capture_callback', 'Log a callback so a human follows up. Use when you cannot resolve something now, or for anything needing office attention.', `${TOOL}?do=capture_callback`,
     { name: { type: 'string' }, phone: { type: 'string' }, summary: { type: 'string', description: 'what they need' }, caller_type: { type: 'string', description: 'customer or warranty_rep' } }, ['summary']),
+  webhookTool('alert_office', "Pull this caller up on the office's phones with a one-tap link to their tile, and let the office know they're on the line. Use the moment a human is genuinely needed: the caller asks for a person, or a warranty rep gives you a work-order/claim number to look up. Pass the caller's job number, or the work-order/claim number if a warranty rep gave one.", `${TOOL}?do=alert_office`,
+    { job_id: { type: 'integer', description: "the caller's job number, from context" }, claim: { type: 'string', description: 'work-order or claim number if a warranty rep gave one' }, note: { type: 'string', description: 'one short line on why — e.g. "wants to reschedule", "upset about no-show", "AHS checking claim status"' } }, []),
   webhookTool('log_outcome', 'Record what happened on this call so nothing is ever lost. Set urgent=true for medical/expedited/upset/no-show, warranty=true for warranty matters.', `${TOOL}?do=log_outcome`,
     { job_id: { type: 'integer' }, summary: { type: 'string' }, urgent: { type: 'boolean' }, warranty: { type: 'boolean' }, needs_office: { type: 'boolean' } }, ['summary']),
   { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
