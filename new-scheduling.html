@@ -1001,7 +1001,7 @@ function __initCalendar() {
   authInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
 
   // Self-contained password verify — this page does NOT define it inline
-  // elsewhere and office-search.js?v=20260703i doesn't provide it, so without this the
+  // elsewhere and office-search.js?v=20260812a doesn't provide it, so without this the
   // unlock threw and the page stayed blank.
   async function __verifyOfficePassword(pw) {
     try {
@@ -3157,7 +3157,7 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
 
 <script src="/office-nav.js?v=20260703f"></script>
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
-<script src="/office-search.js?v=20260703i"></script>
+<script src="/office-search.js?v=20260812a"></script>
 <script src="/office-caller-pop.js?v=20260812"></script>
 <script src="/office-map.js?v=20260703b"></script>
 <script src="/office-jobs-map.js?v=20260703-7"></script>

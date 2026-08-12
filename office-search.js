@@ -84,6 +84,12 @@
 
   let debounceTimer = null;
   let mountedInNav = false;
+  // The search endpoint runs ~7-8s, so keystrokes can resolve OUT OF ORDER — an earlier
+  // "Kar" request landing after "Karen" and stomping the good results with "No matches"
+  // (Teddy 2026-08-12: "it'll say nothing found, and then it'll find it"). A monotonic
+  // token makes only the LATEST query allowed to paint; every older one is discarded.
+  let searchSeq = 0;
+  let activeCtrl = null;
 
   // Try to drop the pill into the office-nav row. That row renders on
   // DOMContentLoaded, so poll briefly; fall back to a tiny standalone bar.
@@ -156,18 +162,28 @@
   }
 
   async function runSearch(q, resultsEl) {
+    // Claim the latest-query token, and abort whatever was still in flight so a slow
+    // older request can't come back and overwrite us.
+    const mySeq = ++searchSeq;
+    if (activeCtrl) { try { activeCtrl.abort(); } catch (_) {} }
+    const stale = () => mySeq !== searchSeq;           // a newer keystroke has taken over
+
     resultsEl.innerHTML = `<div class="ofc-search-status">Searching…</div>`;
     resultsEl.classList.add('show');
     // office_universal_search scans every job and now runs ~7-8s on the grown
     // board — right at the old 8s abort, so a real match (e.g. "Selvish Capers")
     // randomly showed "Server timeout." Give it real headroom. (Teddy 2026-07-07)
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 20000);
+    activeCtrl = ctrl;
+    let timedOut = false;
+    const t = setTimeout(() => { timedOut = true; ctrl.abort(); }, 20000);
     try {
       const r = await fetch(`${XANO_BASE}/office_universal_search?q=${encodeURIComponent(q)}`, { signal: ctrl.signal });
       clearTimeout(t);
+      if (stale()) return;                             // a newer query already owns the results box
       if (!r.ok) throw new Error('server ' + r.status);
       const d = await r.json();
+      if (stale()) return;
       if (!d.success || !d.items || d.items.length === 0) {
         resultsEl.innerHTML = `<div class="ofc-search-status">No matches.</div>`;
         return;
@@ -177,6 +193,7 @@
       // never surface a "canceled" that isn't the real story. (Teddy 2026-07-01.)
       let items = d.items.slice(0, 10);
       items = await Promise.all(items.map(resolveActive));
+      if (stale()) return;                             // resolveActive added awaits — re-check
       const seenJ = new Set();
       items = items.filter(it => { const k = String(it.job_id); if (seenJ.has(k)) return false; seenJ.add(k); return true; });
       resultsEl.innerHTML = items.map(it => {
@@ -202,8 +219,15 @@
       });
     } catch (e) {
       clearTimeout(t);
-      const msg = e && e.name === 'AbortError' ? 'Server timeout — try again.' : 'Search error.';
+      // A newer keystroke superseded us (its abort() landed here) — stay silent; the
+      // newer query owns the box. Only a REAL 20s timeout or error on the CURRENT query
+      // may paint a message.
+      if (stale()) return;
+      if (e && e.name === 'AbortError' && !timedOut) return;
+      const msg = (timedOut || (e && e.name === 'AbortError')) ? 'Server timeout — try again.' : 'Search error.';
       resultsEl.innerHTML = `<div class="ofc-search-status">${msg}</div>`;
+    } finally {
+      if (activeCtrl === ctrl) activeCtrl = null;
     }
   }
 
