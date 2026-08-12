@@ -23,7 +23,9 @@
 'use strict';
 
 const SITE = 'https://tnapplianceexchange.net';
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 let crud = null; try { crud = require('./_lib/xano/metadata-crud'); } catch (_) {}
+let intakeCap = null; try { intakeCap = require('./_lib/intake-cap'); } catch (_) {}
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 
@@ -77,19 +79,28 @@ exports.handler = async function (event) {
 
   if (!digits || digits.length < 10) return json(200, { dynamic_variables: generic, matched: false, reason: 'no_caller_id' });
 
-  // Resolve the caller through the ONE brain (job-truth), hard-capped so a slow
-  // lookup can't delay the greeting — fall back to the warm generic instead.
-  let f = null, customerLine = '';
+  // Resolve the caller through the ONE brain (job-truth) AND pull the customer record
+  // (for waiver status) IN PARALLEL, hard-capped so a slow lookup can't delay the
+  // greeting — fall back to the warm generic instead.
+  let f = null, customerLine = '', waiverSignedAt = null;
   try {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 4500);
-    const r = await fetch(`${SITE}/.netlify/functions/job-truth?phone=${digits}&lens=customer`, { signal: ctl.signal });
-    clearTimeout(timer);
-    const d = await r.json().catch(() => null);
+    const jtP = fetch(`${SITE}/.netlify/functions/job-truth?phone=${digits}&lens=customer`, { signal: AbortSignal.timeout(4500) }).then((r) => r.json()).catch(() => null);
+    const cxP = fetch(`${XANO}/lookup_customer_by_phone?phone=${digits}`, { signal: AbortSignal.timeout(2500) }).then((r) => r.json()).catch(() => null);
+    const [d, cust] = await Promise.all([jtP, cxP]);
     if (d && d.found) { f = d.facts || {}; customerLine = (d.lenses && d.lenses.customer) || ''; }
+    if (cust && cust.found && cust.customer) waiverSignedAt = Number(cust.customer.last_waiver_signed_at || 0);
   } catch (_) { /* fall through to generic */ }
 
   if (!f) return json(200, { dynamic_variables: generic, matched: false, reason: digits ? 'no_match' : 'no_caller_id' });
+
+  // THE WHOLE STORY — how many times we've reached out about this job (the "we've been
+  // trying to reach you" signal). Best-effort + time-boxed so it never delays the open.
+  let outreach = 0;
+  const jobIdNum = Number(f.job_id || 0);
+  if (jobIdNum && intakeCap) {
+    try { outreach = await Promise.race([intakeCap.outreachCount(jobIdNum), new Promise((res) => setTimeout(() => res(0), 1300))]); } catch (_) { outreach = 0; }
+    outreach = Number(outreach) || 0;
+  }
 
   const first = (f.customer_first || '').trim();
   // job-truth defaults a blank appliance to the literal word "appliance" — treat that
@@ -114,10 +125,26 @@ exports.handler = async function (event) {
   else if (/in_progress|started/.test(status)) situation = `${tech || 'your tech'} is working on ${ap} right now`;
   else if (day && !/cancel|complete|done/.test(status)) situation = `you're scheduled with ${tech || 'your tech'} for ${day}${appliance ? ' for your ' + appliance : ''}`;
 
+  // THE GAPS — what's still open on this job, so Ann closes exactly the right thing.
+  const availability = (f.availability || '').trim();
+  const activeJob = !!f.job_id && !/complete|done|cancel/i.test(status);
+  const needsAvailability = activeJob && !availability && !day;   // no days on file AND not already scheduled
+  const needsWaiver = activeJob && waiverSignedAt === 0;          // 0 = explicitly never signed; null = unknown, don't assume
+  const chasing = needsAvailability && outreach >= 2;            // we've asked 2+ times, still nothing → the Mrs. Jones move
+
   const hi = first ? `Hi ${first}!` : 'Thanks for calling TN Appliance!';
-  const greeting = situation
-    ? `${hi} Thanks for calling TN Appliance. I see ${situation} — is that what you're calling about, or is it something else?`
-    : `${hi} Thanks for calling TN Appliance Exchange. How can I help you today?`;
+  let greeting;
+  if (chasing) {
+    // Gold-standard open: acknowledge the chase WARMLY (relieved, never accusatory) and
+    // pivot to closing it live on the call instead of another round of texts.
+    greeting = `${hi} I'm so glad you caught us — we've actually been trying to reach you to get ${ap} on the schedule. Instead of going back and forth by text, let's just take care of it right now: what days work best for you, and any days that don't?`;
+  } else if (situation) {
+    greeting = `${hi} Thanks for calling TN Appliance. I see ${situation} — is that what you're calling about, or is it something else?`;
+  } else if (needsAvailability) {
+    greeting = `${hi} Thanks for calling TN Appliance. Let's get ${ap} on the schedule — what days work best for you?`;
+  } else {
+    greeting = `${hi} Thanks for calling TN Appliance Exchange. How can I help you today?`;
+  }
 
   // Full context injected into the assistant's instructions so it "already knows"
   // for the WHOLE call, not just the greeting.
@@ -130,6 +157,14 @@ exports.handler = async function (event) {
     eta && `Part ETA: ${eta}.`,
     f.is_warranty && `Warranty job${f.warranty_company ? ' (' + f.warranty_company + ')' : ''}.`,
     f.problem && `Reported problem: ${f.problem}.`,
+    // ── THE WHOLE STORY: outreach history + open gaps, so Ann closes the right thing ──
+    outreach > 0 && `Outreach so far: we've reached out ${outreach} time(s) about this job.`,
+    availability && `Availability on file: ${availability}.`,
+    needsAvailability && (outreach >= 2
+      ? `NO availability on file and we've texted ${outreach} times with no result — warmly acknowledge we've been trying to reach them (maybe texting isn't landing) and gather their days LIVE on this call with capture_availability.`
+      : `No availability on file yet — gather their available days live and record with capture_availability.`),
+    (waiverSignedAt === 0) && `Service waiver NOT signed yet — offer to text the waiver link (use send_waiver_link).`,
+    (waiverSignedAt > 0) && `Service waiver: signed.`,
     f.office_note && `Latest office note: ${f.office_note}.`,
     customerLine && `Say-it-straight status line: ${customerLine}`,
   ].filter(Boolean);
@@ -144,6 +179,9 @@ exports.handler = async function (event) {
     appliance, tech, scheduled_day: day, status, part_eta: eta,
     is_warranty: !!f.is_warranty, warranty_company: f.warranty_company || '',
     job_id: String(f.job_id || ''), claim_number: f.claim_number || '',
+    // gap flags — Ann uses these to close exactly what's open
+    needs_availability: needsAvailability, needs_waiver: waiverSignedAt === 0,
+    outreach_count: outreach, being_chased: chasing,
     system_context: ctxBits.join(' '),
   };
 

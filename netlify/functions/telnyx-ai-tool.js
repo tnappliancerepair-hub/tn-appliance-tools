@@ -20,6 +20,7 @@
 'use strict';
 
 const SITE = 'https://tnapplianceexchange.net';
+const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const crud = require('./_lib/xano/metadata-crud');
 let sendSms; try { ({ sendSms } = require('./_lib/sms')); } catch (_) { sendSms = null; }
 
@@ -75,6 +76,24 @@ exports.handler = async function (event) {
       await post('save-availability', { job_id: jobId, availability_text: avail, unavailable_text: unavail });
       await post('set-job-availability', { job_id: jobId, available: avail, unavailable: unavail, actor: 'ann_phone' });
       return say(`Great — I've got you down as available ${avail || 'those days'}. Scheduling will lock in your day and text you to confirm.`);
+    }
+
+    // 2b) Send JUST the waiver link (when the service waiver isn't signed yet).
+    if (doAction === 'send_waiver_link') {
+      if (!jobId) return say("Let me have the office text you the waiver link.");
+      let to = '', name = 'there';
+      try {
+        const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
+        to = String((d && d.customer && d.customer.phone) || (d && d.job && d.job.customer_phone) || '').replace(/\D/g, '');
+        name = (d && d.customer && d.customer.first_name) || name;
+      } catch (_) {}
+      if (!to || to.length < 10 || !sendSms) return say("I'll have the office get that waiver to you right away.", { sent: false });
+      const link = `${SITE}/waiver.html?job_id=${jobId}`;
+      const msg = `Hi ${name} — one quick step before your TN Appliance Exchange visit: please sign your service waiver here (takes about 20 seconds): ${link}`;
+      const sent = await sendSms(to, msg, 'customer', 'waiver_link');
+      return sent
+        ? say("Perfect — I just texted you the waiver link. It's quick, just tap it and sign, and you're all set for your visit.")
+        : say("I had trouble texting the waiver just now — the office will make sure you get it.", { sent: false });
     }
 
     // 3) Send the durable pay link mid-call.

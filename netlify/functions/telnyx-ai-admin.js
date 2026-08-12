@@ -35,8 +35,11 @@ You already opened with a personalized greeting. Continue naturally from there.
 YOUR #1 JOB IS TO CLOSE THE LOOP ON THE CALL. Never end with a vague "someone will call you back." Do the next step right now, on the phone:
 - GATHER AVAILABILITY VERBALLY. If the job is not scheduled yet, ask what days work and what days do NOT work, then record it with the capture_availability tool. Do not make them do it by text, collect it live.
 - If we need a short video of the problem or a photo of the model-number sticker to move forward, tell them you are texting a link and use send_intake_link.
+- If the context says the service waiver is NOT signed, offer to text it and use send_waiver_link. It takes about 20 seconds.
 - If they need to pay, use send_pay_link to text a secure link.
 - If you truly cannot resolve it now, use capture_callback so a human follows up. Never let a caller hang up unhandled.
+
+YOU KNOW THE WHOLE STORY, so use it. The context above tells you what is still open on this job and how many times we have already reached out. If we have been trying to reach them and still need something (like their availability), warmly acknowledge it - be relieved and glad they caught us, NEVER accusatory - and offer to just handle it right now on the call instead of more texts. Example: "I'm so glad you called, we've been trying to reach you to get your days locked in - let's just take care of it right now." Then gather what is missing and close it.
 
 HOW WE SCHEDULE (always say this correctly):
 - We schedule by DAY, not by a clock time. NEVER quote a specific arrival time like "2pm" or "this afternoon" or "in 40 minutes." You do not have one and it is not how we run.
@@ -69,6 +72,8 @@ const TOOLS = [
   webhookTool('capture_availability', 'Record the days the customer is available (and unavailable) for their repair, gathered on the call. Use the job number from context.', `${TOOL}?do=capture_availability`,
     { job_id: { type: 'integer', description: "the caller's job number" }, available: { type: 'string', description: 'days that work, e.g. Monday or Tuesday' }, unavailable: { type: 'string', description: 'days that do not work (optional)' } }, ['available']),
   webhookTool('send_intake_link', 'Text the customer their pre-diagnosis link so they can send a short video of the problem and a photo of the model sticker. Use when we need media to schedule.', `${TOOL}?do=send_intake_link`,
+    { job_id: { type: 'integer', description: "the caller's job number" } }, ['job_id']),
+  webhookTool('send_waiver_link', 'Text the customer the service waiver to sign. Use when the context says the waiver is NOT signed yet.', `${TOOL}?do=send_waiver_link`,
     { job_id: { type: 'integer', description: "the caller's job number" } }, ['job_id']),
   webhookTool('send_pay_link', 'Text the customer a secure link to pay their balance from their phone.', `${TOOL}?do=send_pay_link`,
     { job_id: { type: 'integer', description: "the caller's job number" } }, ['job_id']),
