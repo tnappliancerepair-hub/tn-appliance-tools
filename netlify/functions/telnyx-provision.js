@@ -49,9 +49,15 @@ exports.handler = async function (event) {
     if (action === 'ai') {
       const tryGet = async (path) => { try { const r = await fetch(`${TELNYX}${path}`, { headers: H, signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({})); const arr = Array.isArray(d && d.data) ? d.data : (Array.isArray(d) ? d : null); return { path, status: r.status, ok: r.ok, count: arr ? arr.length : null, sample: arr && arr[0] ? Object.keys(arr[0]).slice(0, 12) : (d && d.errors ? d.errors : Object.keys(d || {}).slice(0, 8)) }; } catch (e) { return { path, status: 0, ok: false, error: String((e && e.message) || e).slice(0, 80) }; } };
       const probes = [];
-      for (const p of ['/ai/assistants', '/ai/assistants?page[size]=5', '/ai/models']) probes.push(await tryGet(p));
+      for (const p of ['/ai/assistants', '/ai/models']) probes.push(await tryGet(p));
       const works = probes.find((x) => x.ok);
-      return json(200, { ok: !!works, can_manage_via_api: !!works, working_path: works ? works.path : null, probes });
+      // Which LLMs? Filter to Claude/Anthropic so we can match the brain.
+      let claude = null;
+      try { const r = await fetch(`${TELNYX}/ai/models`, { headers: H, signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({})); const m = Array.isArray(d && d.data) ? d.data : []; claude = m.map((x) => x.id).filter((id) => /claude|anthropic|sonnet|haiku|opus/i.test(String(id))); if (!claude.length) claude = { none_matched: true, all_ids: m.map((x) => x.id).slice(0, 30) }; } catch (e) { claude = { error: String((e && e.message) || e).slice(0, 80) }; }
+      // Which TTS voices/providers? Look for Cartesia / Brooke to match the current voice.
+      let voices = {};
+      for (const vp of ['/text-to-speech/voices', '/ai/voices']) { try { const r = await fetch(`${TELNYX}${vp}`, { headers: H, signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({})); const arr = Array.isArray(d && d.data) ? d.data : (Array.isArray(d) ? d : []); if (r.ok && arr.length) { const provs = {}; arr.forEach((v) => { const p = v.provider || (String(v.id || v.name || '').split('.')[0]) || '?'; provs[p] = (provs[p] || 0) + 1; }); const cart = arr.filter((v) => /cartesia|brooke/i.test(JSON.stringify(v))).slice(0, 5); voices[vp] = { status: r.status, total: arr.length, providers: provs, cartesia_or_brooke: cart }; } else { voices[vp] = { status: r.status, note: (d && d.errors) || 'no rows' }; } } catch (e) { voices[vp] = { error: String((e && e.message) || e).slice(0, 80) }; } }
+      return json(200, { ok: !!works, can_manage_via_api: !!works, working_path: works ? works.path : null, claude_models: claude, tts_voices: voices, probes });
     }
 
     if (action === 'balance') {
