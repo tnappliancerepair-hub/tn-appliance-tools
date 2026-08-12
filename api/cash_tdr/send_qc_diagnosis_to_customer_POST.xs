@@ -191,8 +191,16 @@ query send_qc_diagnosis_to_customer verb=POST {
     }
   
     // 8. Compose SMS body (locked copy per spec section 4)
+    // Prefer the SHORT branded link (Teddy 2026-08-11 SMS-cost: ~147-char token
+    // URL -> ~20 chars = 1 SMS segment instead of 2+). generate-qc-token returns
+    // short_url = /t/<job>-<tdr>-<sig>, which re-mints a fresh durable token on
+    // click. Fall back to the full token URL if short_url is absent.
+    var $short_url {
+      value = ($token_resp.response.result.short_url ?? null)
+    }
+
     var $url {
-      value = "https://tnapplianceexchange.net/cash-tdr-customer.html?token=" ~ $token
+      value = (($short_url ?? "") != "") ? $short_url : ("https://tnapplianceexchange.net/cash-tdr-customer.html?token=" ~ $token)
     }
   
     var $first_name {

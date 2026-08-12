@@ -68,8 +68,16 @@ exports.handler = async function (event) {
   const signature = crypto.createHmac('sha256', tokenSecret).update(payloadB64, 'utf8').digest('hex');
   const token = payloadB64 + '.' + signature;
 
+  // Short branded link (Teddy 2026-08-11 SMS-cost): /t/<jobId>-<tdrId>-<sig>.
+  // sig is a 10-hex HMAC over "sl:<jobId>-<tdrId>" so the code is unguessable but
+  // needs no storage; the shortlink fn re-mints a fresh durable token on click.
+  const SITE = 'https://tnapplianceexchange.net';
+  const shortSig = crypto.createHmac('sha256', tokenSecret).update(`sl:${jobId}-${tdrId}`, 'utf8').digest('hex').slice(0, 10);
+  const shortUrl = `${SITE}/t/${jobId}-${tdrId}-${shortSig}`;
+
   return json(200, {
     token,
+    short_url: shortUrl,
     expires_at: new Date(expiryUnix * 1000).toISOString(),
   });
 };
