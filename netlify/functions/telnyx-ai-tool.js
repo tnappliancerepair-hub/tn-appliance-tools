@@ -130,16 +130,19 @@ exports.handler = async function (event) {
         // Fall back to just capturing what they want so nothing is lost.
         return say(`No problem — tell me the day that works and I'll get you tentatively on the schedule.`);
       }
-      // Load name / appliance / phone once.
-      let name = 'there', appliance = '', to = '';
+      // Load name / appliance / phone / city / zip once so the office sees who + where.
+      let name = 'there', appliance = '', to = '', city = '', zip = '';
       try {
         const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
-        name = (d && d.customer && d.customer.first_name) || name;
-        appliance = String((d && d.appliance && (d.appliance.type || d.appliance.appliance_type)) || (d && d.job && d.job.appliance) || '').replace(/^appliance$/i, '');
-        to = String((d && d.customer && d.customer.phone) || (d && d.job && d.job.customer_phone) || '').replace(/\D/g, '');
+        const cu = (d && d.customer) || {}; const jb = (d && d.job) || {};
+        name = cu.first_name || name;
+        appliance = String((d && d.appliance && (d.appliance.type || d.appliance.appliance_type)) || jb.appliance || '').replace(/^appliance$/i, '');
+        to = String(cu.phone || jb.customer_phone || '').replace(/\D/g, '');
+        city = String(cu.city || jb.service_city || jb.city || '').trim();
+        zip = String(cu.zip || cu.zip_code || jb.service_zip || jb.zip || '').trim();
       } catch (_) {}
-      // 1) Place the TENTATIVE hold (by:customer) — shows on the office board as a hold.
-      await post('schedule-hold', { action: 'hold', job_id: jobId, date: resolved.date, customer: name, appliance, by: 'customer', time_pref: timePref });
+      // 1) File the CUSTOMER SCHEDULING REQUEST (by:customer) — shows on the office board.
+      await post('schedule-hold', { action: 'hold', job_id: jobId, date: resolved.date, customer: name, appliance, by: 'customer', time_pref: timePref, city, zip, phone: to });
       const whenSpoken = `${resolved.label}${timePref ? `, ${timePref}` : ''}`;
       // 2) Message the office — a CUSTOMER SCHEDULING REQUEST to approve, or call the
       // customer back to adjust if the route can't make that day (Teddy 2026-08-12).

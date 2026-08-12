@@ -43,7 +43,7 @@ exports.handler = async function (event) {
     for (const r of holds) {
       const m = asObj(r.metadata); const jid = Number(m.job_id || 0); if (!jid) continue;
       const at = Number(r.created_at) || Number(m.at_ms) || 0;
-      if (!latest[jid] || at > latest[jid].at) latest[jid] = { job_id: jid, tech_id: Number(m.tech_id || 0), date: String(m.date || ''), customer: String(m.customer || ''), appliance: String(m.appliance || ''), by: String(m.by || 'office'), time_pref: String(m.time_pref || ''), at };
+      if (!latest[jid] || at > latest[jid].at) latest[jid] = { job_id: jid, tech_id: Number(m.tech_id || 0), date: String(m.date || ''), customer: String(m.customer || ''), appliance: String(m.appliance || ''), by: String(m.by || 'office'), time_pref: String(m.time_pref || ''), city: String(m.city || ''), zip: String(m.zip || ''), phone: String(m.phone || ''), at };
     }
     const active = Object.values(latest).filter((h) => h.at > (clearedAt[h.job_id] || 0) && h.date);
     return j(200, { ok: true, holds: active });
@@ -62,7 +62,7 @@ exports.handler = async function (event) {
       // (Teddy 2026-08-12: "the customer's done their part; the office approves or reaches
       // back out"). time_pref carries what the customer asked for ("Friday afternoon").
       const by = String(b.by || 'office').slice(0, 20);
-      await writeEvent('schedule_hold', { job_id: jobId, tech_id: Number(b.tech_id || 0), date, customer: String(b.customer || '').slice(0, 80), appliance: String(b.appliance || '').slice(0, 40), by, time_pref: String(b.time_pref || '').slice(0, 40), at_ms: Date.now() });
+      await writeEvent('schedule_hold', { job_id: jobId, tech_id: Number(b.tech_id || 0), date, customer: String(b.customer || '').slice(0, 80), appliance: String(b.appliance || '').slice(0, 40), by, time_pref: String(b.time_pref || '').slice(0, 40), city: String(b.city || '').slice(0, 60), zip: String(b.zip || '').slice(0, 12), phone: String(b.phone || '').replace(/\D/g, '').slice(0, 11), at_ms: Date.now() });
       return j(200, { ok: true });
     }
     if (action === 'release') {
