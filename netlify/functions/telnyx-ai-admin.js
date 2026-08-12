@@ -46,6 +46,11 @@ HOW WE SCHEDULE (always say this correctly, and never overpromise):
 - But do NOT just tell them "I can't give you a time" and leave it there. Frame it positively: gather when they ARE and are NOT available - days AND mornings vs afternoons - then reassure them: "We'll route it the most efficient way around what works for you, and we text you a live arrival window the morning of." That respects their time without overpromising.
 - If a warranty company already gave them a window, that window stands.
 
+WHEN A CALLER WANTS ON THE SCHEDULE NOW ("I really need to get on the schedule"):
+- Don't make them wait for a callback. Ask which day works ("What day would you like - I'll go ahead and get you on"), and use place_hold with that day (and a time preference if they give one). This puts them TENTATIVELY on the schedule right on the call - they've done their part.
+- Then reassure them exactly this way: "I've got you tentatively down for [day]. Our office will lock it in, and if that exact time doesn't work they'll reach right back out to you." Never promise it's final - it's a hold the office confirms.
+- This is still day-based: if they offer a clock time, capture it as their preference (place_hold time) but do not promise we arrive at that time.
+
 TRUTH AND ACCURACY (this matters more than sounding smart):
 - Only say what you actually know from the context or a tool result. Never invent a technician, a day, a status, or a part.
 - If a lookup is empty or you are unsure, say so warmly and take a callback or text them. "Let me confirm that and text you right back" beats a confident wrong answer.
@@ -73,8 +78,10 @@ function webhookTool(name, description, url, properties, required) {
 const TOOLS = [
   webhookTool('capture_availability', 'Record the customer availability for their repair, gathered on the call: which days work, the time of day (mornings/afternoons or specific limits), and anything that does NOT work. Use the job number from context.', `${TOOL}?do=capture_availability`,
     { job_id: { type: 'integer', description: "the caller's job number" }, available: { type: 'string', description: 'days that work, e.g. Tuesday or Thursday' }, time_notes: { type: 'string', description: 'time-of-day preference or limits, e.g. "mornings only", "after 3pm", "not before noon"' }, unavailable: { type: 'string', description: 'days or times that do NOT work (optional)' } }, ['available']),
-  webhookTool('send_intake_link', 'Text the customer their pre-diagnosis link so they can send a short video of the problem and a photo of the model sticker. Use when we need media to schedule.', `${TOOL}?do=send_intake_link`,
+  webhookTool('send_intake_link', 'Text the customer their pre-diagnosis link so they can send a video of the problem (any length is fine) and a photo of the model-number sticker. Use when we need media to schedule.', `${TOOL}?do=send_intake_link`,
     { job_id: { type: 'integer', description: "the caller's job number" } }, ['job_id']),
+  webhookTool('place_hold', "Put the customer TENTATIVELY on the schedule for the day they want, right now on the call. Use when a caller says they need to get on the schedule and tells you a day (and optionally a time). This places a hold the office approves or adjusts - the customer has done their part. Pass the day as they said it ('Friday', 'tomorrow', 'next Wednesday', '8/15') and any time preference ('afternoon', '3pm', 'mornings').", `${TOOL}?do=place_hold`,
+    { job_id: { type: 'integer', description: "the caller's job number, from context" }, day: { type: 'string', description: "the day the customer wants, in their words: 'Friday', 'tomorrow', 'next Wednesday', '8/15'" }, time: { type: 'string', description: "time preference if they gave one: 'afternoon', 'mornings', '3pm' (optional)" } }, ['day']),
   webhookTool('send_waiver_link', 'Text the customer the service waiver to sign. Use when the context says the waiver is NOT signed yet.', `${TOOL}?do=send_waiver_link`,
     { job_id: { type: 'integer', description: "the caller's job number" } }, ['job_id']),
   webhookTool('send_pay_link', 'Text the customer a secure link to pay their balance from their phone.', `${TOOL}?do=send_pay_link`,

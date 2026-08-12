@@ -42,6 +42,42 @@ function post(path, payload, ms = 12000) {
 // A tool reply: `result` is what the assistant SAYS; keep it short + spoken-natural.
 const say = (result, extra) => json(200, { ok: true, result, ...(extra || {}) });
 
+// Resolve a spoken day ("Friday", "tomorrow", "next Wednesday", "8/15") to a concrete
+// CT date — SERVER-SIDE so Ann never does date math (LLMs get it wrong; CLAUDE.md rule).
+const WKD = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+function resolveDayCT(dayStr) {
+  const s = String(dayStr || '').trim().toLowerCase();
+  if (!s) return null;
+  // "now" in CT wall-clock, as a Date whose local fields equal Central time.
+  const base = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  base.setHours(12, 0, 0, 0);
+  const out = new Date(base);
+  let matched = false;
+  const mdy = s.match(/\b(\d{1,2})[\/\-](\d{1,2})\b/);
+  if (/\btoday\b/.test(s)) { matched = true; }
+  else if (/\btomorrow\b/.test(s)) { out.setDate(out.getDate() + 1); matched = true; }
+  else if (mdy) {
+    const mm = Number(mdy[1]) - 1, dd = Number(mdy[2]);
+    out.setMonth(mm, dd);
+    if (out.getTime() < base.getTime() - 3 * 864e5) out.setFullYear(out.getFullYear() + 1); // past → next year
+    matched = true;
+  } else {
+    for (let i = 0; i < 7; i++) {
+      if (s.includes(WKD[i])) {
+        let off = (i - base.getDay() + 7) % 7;                 // upcoming occurrence, today counts as 0
+        if (/\bnext\b/.test(s) && off < 7) off += 7;           // "next Friday" = the following week
+        out.setDate(out.getDate() + off);
+        matched = true; break;
+      }
+    }
+  }
+  if (!matched) return null;
+  const y = out.getFullYear(), m = out.getMonth() + 1, d = out.getDate();
+  const iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const label = out.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'America/Chicago' });
+  return { date: iso, label };
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   const q = event.queryStringParameters || {};
@@ -80,6 +116,46 @@ exports.handler = async function (event) {
       await post('save-availability', { job_id: jobId, availability_text: avail, unavailable_text: unavail });
       await post('set-job-availability', { job_id: jobId, available: avail, unavailable: unavail, actor: 'ann_phone' });
       return say(`Perfect — I've got you down for ${avail || 'those days'}${unavail ? `, avoiding ${unavail}` : ''}. ${closer} Anything else I can help with?`);
+    }
+
+    // 2a2) SELF-SCHEDULE HOLD — the customer says "just get me on the schedule." Ann puts a
+    // TENTATIVE hold on the day they want (the customer has done their part), the office is
+    // messaged to approve or adjust, and the customer gets a tentative confirmation. Closes
+    // the loop on the call and saves a phone tag. (Teddy 2026-08-12.)
+    if (doAction === 'place_hold') {
+      const dayReq = String(a.day || a.date || a.available || '').trim();
+      const timePref = String(a.time || a.time_pref || a.time_notes || '').trim();
+      const resolved = resolveDayCT(dayReq);
+      if (!jobId || !resolved) {
+        // Fall back to just capturing what they want so nothing is lost.
+        return say(`No problem — tell me the day that works and I'll get you tentatively on the schedule.`);
+      }
+      // Load name / appliance / phone once.
+      let name = 'there', appliance = '', to = '';
+      try {
+        const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
+        name = (d && d.customer && d.customer.first_name) || name;
+        appliance = String((d && d.appliance && (d.appliance.type || d.appliance.appliance_type)) || (d && d.job && d.job.appliance) || '').replace(/^appliance$/i, '');
+        to = String((d && d.customer && d.customer.phone) || (d && d.job && d.job.customer_phone) || '').replace(/\D/g, '');
+      } catch (_) {}
+      // 1) Place the TENTATIVE hold (by:customer) — shows on the office board as a hold.
+      await post('schedule-hold', { action: 'hold', job_id: jobId, date: resolved.date, customer: name, appliance, by: 'customer', time_pref: timePref });
+      const whenSpoken = `${resolved.label}${timePref ? `, ${timePref}` : ''}`;
+      // 2) Message the office (just like the customer gets a message) — approve/adjust.
+      if (sendSms) {
+        const tile = `${SITE}/office-board.html?job=${jobId}`;
+        const line = `🗓️ SELF-SCHEDULED (hold) — ${name}${appliance ? ` · ${appliance}` : ''} asked for ${whenSpoken}. Approve or adjust → ${tile}`.slice(0, 320);
+        try { await sendSms('+16154850713', line, 'danielle', 'self_schedule_hold'); } catch (_) {}   // Danielle (scheduler)
+        try { await sendSms('+16292594602', line, 'office', 'self_schedule_hold'); } catch (_) {}      // Sofia (scheduler)
+      }
+      // 3) Text the customer a tentative confirmation + where to change it.
+      if (to && to.length >= 10 && sendSms) {
+        const last4 = to.slice(-4);
+        const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
+        const cmsg = `Hi ${name} — you're tentatively on our schedule for ${whenSpoken}. Our office will confirm it shortly; if that exact time won't work we'll reach right out. Need to change it? ${portal}  — TN Appliance Exchange 🐜`;
+        try { await sendSms(to, cmsg, 'customer', 'self_schedule_hold'); } catch (_) {}
+      }
+      return say(`Perfect — I've got you tentatively down for ${whenSpoken}. Our office will lock it in, and if that exact time doesn't work they'll reach right back out to you. You've done your part — you're all set. Anything else I can help with?`);
     }
 
     // 2b) Send JUST the waiver link (when the service waiver isn't signed yet).
