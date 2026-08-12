@@ -76,7 +76,7 @@ const TOOLS = [
     { name: { type: 'string' }, phone: { type: 'string' }, summary: { type: 'string', description: 'what they need' }, caller_type: { type: 'string', description: 'customer or warranty_rep' } }, ['summary']),
   webhookTool('log_outcome', 'Record what happened on this call so nothing is ever lost. Set urgent=true for medical/expedited/upset/no-show, warranty=true for warranty matters.', `${TOOL}?do=log_outcome`,
     { job_id: { type: 'integer' }, summary: { type: 'string' }, urgent: { type: 'boolean' }, warranty: { type: 'boolean' }, needs_office: { type: 'boolean' } }, ['summary']),
-  { type: 'hangup' },
+  { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
 ];
 
 function assistantBody() {
