@@ -73,7 +73,9 @@ exports.handler = async function (event) {
   // needs no storage; the shortlink fn re-mints a fresh durable token on click.
   const SITE = 'https://tnapplianceexchange.net';
   const shortSig = crypto.createHmac('sha256', tokenSecret).update(`sl:${jobId}-${tdrId}`, 'utf8').digest('hex').slice(0, 10);
-  const shortUrl = `${SITE}/t/${jobId}-${tdrId}-${shortSig}`;
+  // Readable /quote/ prefix so the SMS link is understandable to the customer
+  // (their repair quote), not a cryptic /t/ code.
+  const shortUrl = `${SITE}/quote/${jobId}-${tdrId}-${shortSig}`;
 
   return json(200, {
     token,

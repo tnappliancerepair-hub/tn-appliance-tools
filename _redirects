@@ -2,8 +2,10 @@
 /pay  /.netlify/functions/pm-pay  200
 
 # Short cash-TDR link -> mints a fresh durable token + 302s to the options page.
-# Cuts the ~147-char token URL to ~20 chars so the SMS is 1 segment, not 2+.
-/t/*  /.netlify/functions/shortlink?code=:splat  200
+# Readable /quote/ prefix so the customer sees it's their repair quote (not a
+# spammy /t/ code). Cuts the ~147-char token URL to ~40 chars = 1 SMS segment.
+/quote/*  /.netlify/functions/shortlink?code=:splat  200
+/t/*      /.netlify/functions/shortlink?code=:splat  200
 
 # ── AI PAGE IS THE PRIMARY DOOR (2026-07-15, Teddy) ──
 # Teddy's call: the appliance-AI chat converts best, so every "Book a Repair"
