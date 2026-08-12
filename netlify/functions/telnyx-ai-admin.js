@@ -129,7 +129,7 @@ exports.handler = async function (event) {
 
     if (action === 'update') {
       if (!q.id) return json(200, { ok: false, error: 'need ?id=' });
-      const res = await call('PUT', `/ai/assistants/${q.id}`, assistantBody());
+      const res = await call('PATCH', `/ai/assistants/${q.id}`, assistantBody());
       return json(200, { ok: res.ok, status: res.status, response: res.data });
     }
 
