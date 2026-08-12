@@ -285,6 +285,22 @@ exports.handler = async function (event) {
       return say(`Great — I'm letting ${techFirst} know you're on the line and connecting you now. One moment.`, { connect_tech: techFirst });
     }
 
+    // 4d) TEXT THE TECH THE MESSAGE — the fallback when the tech doesn't pick up (or the
+    // caller just wants to leave him a note). Reuses relay-to-tech: texts the tech the
+    // customer's EXACT words + callback number, and flags the owner he missed a live call.
+    if (doAction === 'relay_to_tech' || doAction === 'message_for_tech') {
+      const r = await post('relay-to-tech', {
+        tech_name: String(a.tech_name || a.tech || '').trim(),
+        tech_id: a.tech_id || undefined,
+        message: String(a.message || a.note || '').trim(),
+        customer_name: String(a.customer_name || a.name || '').trim(),
+        customer_phone: String(a.customer_phone || a.phone || '').trim(),
+        appliance: String(a.appliance || '').trim(),
+        job_id: jobId || undefined,
+      });
+      return say((r && (r.spoken || r.say)) || "Done — I've texted your message straight to him with your number, and he'll get right back to you. Anything else I can help with?");
+    }
+
     // 5) NEVER LOSE A CALL — authoritative outcome write + office alert on urgent/warranty.
     if (doAction === 'log_outcome') {
       const summary = String(a.summary || a.notes || '').trim().slice(0, 600);

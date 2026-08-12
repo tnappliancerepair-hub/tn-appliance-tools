@@ -76,8 +76,9 @@ DAY-OF "WHERE'S MY TECH?" - CONNECT THEM STRAIGHT TO THE TECH (a huge time-saver
 When the caller is ON TODAY'S ROUTE (the context will say "ON TODAY'S ROUTE with <name>") and they're asking where their tech is, when he'll arrive, or just checking on today's appointment - do NOT route them through the office. Offer to connect them straight to their tech:
 1) Say it warmly, like the context tells you: "It looks like you're on <tech>'s schedule today - would you like me to connect you with him? Give me just a minute."
 2) On yes, call connect_to_tech (pass the job_id) - this texts <tech> a heads-up that they're on the line so he knows who's calling.
-3) Then use the transfer tool to the target whose name matches <tech> (Jimmy, Andre, Lee, or John).
-4) Never quote a clock time yourself - we run day-of routing; the tech gives them the live window. If they'd rather not be connected, reassure them their tech has them on today's route and will text a live arrival window, and offer to pass a message.
+3) Then use the transfer tool to the target whose name matches <tech> (Jimmy, Andre, Lee, or John). It rings his phone for about five rings.
+4) IF HE DOESN'T PICK UP (the connection doesn't go through - he's likely hands-deep in a repair): do NOT leave the caller hanging. Come back warmly: "Looks like <tech>'s hands are full on a job right now - let me take your message and I'll text it straight to his phone so he gets right back to you. What would you like me to tell him?" Get their message and their best callback number, then use message_for_tech (tech_name = <tech>, the message in their own words, their number). Confirm: "Got it - I just texted that straight to <tech> with your number, he'll get right back to you."
+5) Never quote a clock time yourself - we run day-of routing; the tech gives them the live window. If they'd rather not be connected at all, reassure them their tech has them on today's route and will text a live arrival window, and offer to pass a message with message_for_tech.
 Only do this when the context flags them ON TODAY'S ROUTE with a named tech. If they're NOT on today's route (scheduled another day, waiting on parts, etc.), handle it yourself or use the office warm transfer below.
 
 WARM TRANSFER TO A HUMAN (do this smoothly - it is the heart of great service):
@@ -118,11 +119,13 @@ const TOOLS = [
     { job_id: { type: 'integer' }, summary: { type: 'string' }, urgent: { type: 'boolean' }, warranty: { type: 'boolean' }, needs_office: { type: 'boolean' } }, ['summary']),
   webhookTool('connect_to_tech', "Connect the caller STRAIGHT to their technician. Use ONLY when the context says they are ON TODAY'S ROUTE and they're calling to check on arrival / where their tech is / when he'll get there. It texts the tech a heads-up that they're on the line. After it returns, use the transfer tool to the target whose name matches the tech (Jimmy, Andre, Lee, or John).", `${TOOL}?do=connect_to_tech`,
     { job_id: { type: 'integer', description: "the caller's job number, from context" } }, ['job_id']),
+  webhookTool('message_for_tech', "Text the caller's message straight to their technician's phone (his exact words + their callback number), and flag the office he missed a live call. Use when the tech does NOT pick up after you tried to connect them, or when the caller would rather just leave him a message. Pass the tech's first name from context and the customer's message verbatim.", `${TOOL}?do=message_for_tech`,
+    { tech_name: { type: 'string', description: 'the tech first name from context (Jimmy, Andre, Lee, John)' }, message: { type: 'string', description: "the customer's message, in their own words" }, customer_name: { type: 'string' }, customer_phone: { type: 'string', description: 'best callback number' }, appliance: { type: 'string' }, job_id: { type: 'integer' } }, ['tech_name', 'message']),
   // WARM TRANSFER — connect the caller to a live person (the office) OR straight to their
   // field tech. Ann briefs first (alert_office pops the office's screens; connect_to_tech
   // texts the tech), THEN uses this to bridge to the matching target. The office target
   // rings the Sofia→Danielle→Teddy cascade; tech targets ring that tech's cell.
-  { type: 'transfer', transfer: { from: TRANSFER_FROM, targets: [{ name: 'Office', to: OFFICE_RING }, ...TECH_TARGETS] } },
+  { type: 'transfer', transfer: { from: TRANSFER_FROM, timeout_secs: 30, targets: [{ name: 'Office', to: OFFICE_RING }, ...TECH_TARGETS] } },
   { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
 ];
 
