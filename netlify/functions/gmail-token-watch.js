@@ -14,23 +14,19 @@
 const { google } = require('googleapis');
 
 const TEDDY = '+16154855795';
-const TWILIO_FROM = '+16292840444';
 
+// Route through send_sms (Teddy 2026-08-12 line audit) so this owner alert ships from
+// the ONE approved internal line + inherits the Twilio auto-failover — instead of the
+// old hardcoded unapproved 629 Twilio number.
 async function textTeddy(body) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const tok = process.env.TWILIO_AUTH_TOKEN;
-  if (!sid || !tok) return { sent: false, error: 'no_twilio_creds' };
   try {
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: 'Basic ' + Buffer.from(`${sid}:${tok}`).toString('base64'),
-      },
-      body: new URLSearchParams({ From: TWILIO_FROM, To: TEDDY, Body: body }).toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: TEDDY, message: body, context_tag: 'gmail_token_alert' }),
     });
     const d = await r.json().catch(() => ({}));
-    return { sent: r.ok, sid: d.sid, status: d.status };
+    return { sent: d && d.success === true, provider: d && d.provider };
   } catch (e) {
     return { sent: false, error: String(e.message || e) };
   }
