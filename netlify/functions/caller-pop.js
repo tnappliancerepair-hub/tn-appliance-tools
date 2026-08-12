@@ -32,9 +32,15 @@ function callerFrom(body, q) {
   return '';
 }
 
+function rawBody(event) {
+  let b = event.body || '';
+  if (event.isBase64Encoded && b) { try { b = Buffer.from(b, 'base64').toString('utf8'); } catch (_) {} }
+  return b;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
-  let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
+  let body = {}; try { body = JSON.parse(rawBody(event) || '{}'); } catch (_) {}
   const q = event.queryStringParameters || {};
   const digits = String(callerFrom(body, q) || '').replace(/\D/g, '');
   const claim = String((q.claim || q.wo || body.claim || body.work_order || '')).trim();

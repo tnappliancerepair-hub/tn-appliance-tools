@@ -36,6 +36,13 @@ function argsOf(body) {
   for (const L of layers) { if (L && typeof L === 'object') for (const k of Object.keys(L)) if (out[k] === undefined && typeof L[k] !== 'object') out[k] = L[k]; }
   return out;
 }
+// Netlify base64-encodes POST bodies — decode before JSON.parse or Telnyx tool args
+// (job_id, day, etc.) come back empty and every tool silently no-ops.
+function rawBody(event) {
+  let b = event.body || '';
+  if (event.isBase64Encoded && b) { try { b = Buffer.from(b, 'base64').toString('utf8'); } catch (_) {} }
+  return b;
+}
 function post(path, payload, ms = 12000) {
   return fetch(`${SITE}/.netlify/functions/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(ms) }).then((r) => r.json()).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
 }
@@ -100,7 +107,35 @@ exports.handler = async function (event) {
 
   if (doAction === 'ping') return say('pong', { ts: Date.now() });
 
-  let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
+  // LOOK UP AN UNKNOWN CALLER — by phone / claim / name — so an unrecognized caller who
+  // gives their info isn't a dead end. Resolves through the ONE brain (job-truth).
+  if (doAction === 'lookup') {
+    try {
+      let b0 = {}; try { b0 = JSON.parse(rawBody(event) || '{}'); } catch (_) {}
+      const aa = argsOf(b0);
+      const ph = String(aa.phone || '').replace(/\D/g, '');
+      const claim = String(aa.claim || aa.work_order || aa.wo || '').trim();
+      const nm = String(aa.name || '').trim();
+      const qp = claim ? `claim=${encodeURIComponent(claim)}` : (ph.length >= 10 ? `phone=${ph}` : (nm ? `name=${encodeURIComponent(nm)}` : ''));
+      if (!qp) return say("No problem — what's the best phone number for you, and your name?");
+      const jt = await fetch(`${SITE}/.netlify/functions/job-truth?${qp}&lens=customer`, { signal: AbortSignal.timeout(6000) }).then((r) => r.json()).catch(() => null);
+      if (!jt || !jt.found) return say("I'm not finding you in our system yet — no worries, tell me what's going on with your appliance and I'll get you set up.", { found: false });
+      const f = jt.facts || {};
+      const first = f.customer_first || '';
+      const appl = String(f.appliance || '').replace(/^appliance$/i, '');
+      const day = f.scheduled_day || ''; const status = f.status || '';
+      const bits = [];
+      if (appl) bits.push(`your ${appl}`);
+      if (day && !/cancel|complete/.test(status)) bits.push(`scheduled for ${day}`);
+      else if (/await|part/.test(status)) bits.push(`waiting on the part`);
+      const line = bits.length ? ` — I see ${bits.join(', ')}` : '';
+      return say(`Got you${first ? `, ${first}` : ''}${line}. What can I help you with?`, { found: true, job_id: String(f.job_id || ''), caller_first: first });
+    } catch (_) {
+      return say("Let me take your name and number so I can pull you up.", { found: false });
+    }
+  }
+
+  let body = {}; try { body = JSON.parse(rawBody(event) || '{}'); } catch (_) {}
   const a = argsOf(body);
   const jobId = Number(a.job_id || a.jobId || 0) || 0;
 

@@ -34,6 +34,8 @@ The caller's job number is {{job_id}} (blank if we do not recognize them). Use t
 
 You already opened with a personalized greeting. Continue naturally from there.
 
+IF YOU DO NOT RECOGNIZE THE CALLER (the context says they are not identified): warmly get their phone number OR name OR claim number and immediately use the lookup_customer tool to pull them up - do this BEFORE asking them to explain everything, so they never have to repeat themselves. Only if lookup finds nothing do you ask them to tell you about the appliance from scratch. Never sit silent - always either ask one clear question or take an action.
+
 YOUR #1 JOB IS TO CLOSE THE LOOP ON THE CALL. Never end with a vague "someone will call you back." Do the next step right now, on the phone:
 - GATHER AVAILABILITY THE SMART WAY, LIVE ON THE CALL. We route the most efficient way and do NOT promise a specific arrival time, but we DO need their real openness so we never show up at the wrong time. Ask it warmly, in a way that invites the full picture PER DAY: "What days work for you - and on those days, are you pretty wide open, or do you need mornings or afternoons?" Customers will often answer per day (for example: "Wednesday I'm wide open, Thursday only afternoons, Friday mornings") - capture EXACTLY that in capture_availability, keeping each day's time-of-day, plus anything that won't work. Do not make them do this by text.
 - If we need a short video of the problem or a photo of the model-number sticker to move forward, tell them you are texting a link and use send_intake_link.
@@ -83,6 +85,8 @@ function webhookTool(name, description, url, properties, required) {
 const TOOLS = [
   webhookTool('capture_availability', 'Record the customer availability for their repair, gathered on the call: which days work, the time of day (mornings/afternoons or specific limits), and anything that does NOT work. Use the job number from context.', `${TOOL}?do=capture_availability`,
     { job_id: { type: 'integer', description: "the caller's job number" }, available: { type: 'string', description: 'days that work, e.g. Tuesday or Thursday' }, time_notes: { type: 'string', description: 'time-of-day preference or limits, e.g. "mornings only", "after 3pm", "not before noon"' }, unavailable: { type: 'string', description: 'days or times that do NOT work (optional)' } }, ['available']),
+  webhookTool('lookup_customer', "Look up who's calling when you don't already know them. Use the moment an unidentified caller gives you their phone number, name, or a work-order/claim number. Returns their name and the status of their repair so you can help right away. ALWAYS try this before asking a caller to repeat themselves or taking a message.", `${TOOL}?do=lookup`,
+    { phone: { type: 'string', description: "the caller's phone number, digits only if possible" }, name: { type: 'string', description: 'their name if that is what they gave' }, claim: { type: 'string', description: 'a work-order or claim number' } }, []),
   webhookTool('send_intake_link', 'Text the customer their pre-diagnosis link so they can send a video of the problem (any length is fine) and a photo of the model-number sticker. Use when we need media to schedule.', `${TOOL}?do=send_intake_link`,
     { job_id: { type: 'integer', description: "the caller's job number" } }, ['job_id']),
   webhookTool('place_hold', "File a CUSTOMER SCHEDULING REQUEST for the day they want, right now on the call. Use when a caller says they need to get on the schedule and tells you a day (and optionally a time). This puts them on tentatively for the office to approve or call back to adjust - the customer has done their part. Pass the day as they said it ('Friday', 'tomorrow', 'next Wednesday', '8/15') and any time preference ('afternoon', '3pm', 'mornings').", `${TOOL}?do=place_hold`,
@@ -114,6 +118,15 @@ function assistantBody() {
     voice_settings: { voice: VOICE_BROOKE, voice_speed: 0.9 },   // a tick slower = calmer, clearer
     tools: TOOLS,
     dynamic_variables_webhook_url: PRECALL,
+    // SAFETY NET: default values so {{greeting}} / {{system_context}} / {{job_id}} always
+    // render cleanly even if the pre-call webhook is slow or fails — the call never opens
+    // with a blank or a literal "{{greeting}}".
+    dynamic_variables: {
+      greeting: 'Thanks for calling TN Appliance Exchange! Who do I have the pleasure of speaking with?',
+      system_context: 'The caller is not yet identified. Warmly ask their name and how you can help, then use the lookup_customer tool with their phone number, name, or claim number to pull up their repair.',
+      job_id: '',
+      caller_first: '',
+    },
   };
 }
 

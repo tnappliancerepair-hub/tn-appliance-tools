@@ -49,18 +49,27 @@ function callerFrom(body, q) {
   return '';
 }
 
+// Netlify base64-encodes POST bodies (isBase64Encoded) — a raw JSON.parse on that returns
+// {} and we lose the caller ID. Decode first, then parse.
+function rawBody(event) {
+  let b = event.body || '';
+  if (event.isBase64Encoded && b) { try { b = Buffer.from(b, 'base64').toString('utf8'); } catch (_) {} }
+  return b;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
+  const raw = rawBody(event);
   let body = {};
-  try { body = JSON.parse(event.body || '{}'); } catch (_) {}
+  try { body = JSON.parse(raw || '{}'); } catch (_) {}
   const q = event.queryStringParameters || {};
   const from = callerFrom(body, q);
   const digits = String(from || '').replace(/\D/g, '');
 
-  // Debug (fire-and-forget, non-blocking): capture exactly what Telnyx sends on the
-  // first real calls so we can confirm greet-by-name fires and fix the caller-ID field
-  // if their payload differs. Never awaited, never throws into the call path.
-  try { if (crud) crud.logEvent('telnyx_precall_hit', { body_keys: Object.keys(body || {}).slice(0, 20), from_resolved: from || '', digits_len: digits.length, at_ms: Date.now() }); } catch (_) {}
+  // Debug (fire-and-forget, non-blocking): capture exactly what Telnyx sends so we can
+  // confirm greet-by-name fires and pinpoint the caller-ID field. Logs a truncated RAW
+  // body so we see the real payload shape. Never awaited, never throws into the call path.
+  try { if (crud) crud.logEvent('telnyx_precall_hit', { body_keys: Object.keys(body || {}).slice(0, 20), from_resolved: from || '', digits_len: digits.length, b64: !!event.isBase64Encoded, raw: String(raw || '').slice(0, 500), at_ms: Date.now() }); } catch (_) {}
 
   // Generic, warm fallback — used for an unknown caller OR any lookup hiccup, so the
   // call NEVER waits on us. The assistant just asks who it's speaking with.
