@@ -207,22 +207,15 @@ exports.handler = async function (event) {
       return say(`Perfect — I've got your scheduling request in for ${whenSpoken}. Our office will confirm it, and if our route can't make that exact day they'll call you right back to find one that works. You've done your part — you're all set. Anything else I can help with?`);
     }
 
-    // 2b) Send JUST the waiver link (when the service waiver isn't signed yet).
+    // 2b) Send JUST the waiver link (when the service waiver isn't signed yet). Reuse the
+    // proven send-waiver endpoint — its tag ("intake_waiver") clears the intake-only SMS
+    // gate; a hand-rolled "waiver_link" tag gets paused and silently fails to send.
     if (doAction === 'send_waiver_link') {
       if (!jobId) return say("Let me have the office text you the waiver link.");
-      let to = '', name = 'there';
-      try {
-        const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
-        to = String((d && d.customer && d.customer.phone) || (d && d.job && d.job.customer_phone) || '').replace(/\D/g, '');
-        name = (d && d.customer && d.customer.first_name) || name;
-      } catch (_) {}
-      if (!to || to.length < 10 || !sendSms) return say("I'll have the office get that waiver to you right away.", { sent: false });
-      const link = `${SITE}/waiver.html?job_id=${jobId}`;
-      const msg = `Hi ${name} — one quick step before your TN Appliance Exchange visit: please sign your service waiver here (takes about 20 seconds): ${link}`;
-      const sent = await sendSms(to, msg, 'customer', 'waiver_link');
-      return sent
+      const r = await post('send-waiver', { job_id: jobId });
+      return r && (r.ok || r.sms)
         ? say("Perfect — I just texted you the waiver link. It's quick, just tap it and sign, and you're all set for your visit.")
-        : say("I had trouble texting the waiver just now — the office will make sure you get it.", { sent: false });
+        : say("I'll have the office get that waiver to you right away.", { sent: false });
     }
 
     // 3) Send the durable pay link mid-call.

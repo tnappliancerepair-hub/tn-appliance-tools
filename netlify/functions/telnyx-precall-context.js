@@ -98,9 +98,11 @@ exports.handler = async function (event) {
     '6154855795': {
       known: true, caller_first: 'Teddy', caller_name: 'Teddy Pivacek',
       greeting: "Hi Teddy! I'm so glad you caught us — we've actually been trying to reach you to get your dryer repair scheduled. Instead of going back and forth by text, let's just take care of it right now. What days work for you — and on those days, are you pretty wide open, or do you need mornings or afternoons? And just tell me anything that won't work, and we'll route it the best we can for you.",
-      situation: "we've been trying to reach you to schedule your dryer repair",
+      situation: "we've been trying to reach you to schedule your repair",
       has_job: true, appliance: 'dryer', tech: '', scheduled_day: '', status: 'needs_more_info',
-      is_warranty: false, warranty_company: '', job_id: '', claim_number: '',
+      // Point at Teddy's real resolvable job so the demo call's tools actually fire
+      // (save availability, TEXT the waiver/intake links to his cell) instead of no-opping.
+      is_warranty: false, warranty_company: '', job_id: '19065', claim_number: '',
       needs_availability: true, needs_waiver: true, outreach_count: 3, being_chased: true,
       system_context: "DEMO CALL for the owner. Caller is Teddy about a dryer repair that is not scheduled yet. We have reached out 3 times and still have NO availability on file — warmly acknowledge we've been trying to reach them (never accusatory) and gather their available days LIVE with capture_availability. The service waiver is NOT signed — after getting their days, offer to text the waiver with send_waiver_link. Keep it warm and natural; this is a demo of closing the loop on the call.",
     },
