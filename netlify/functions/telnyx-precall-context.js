@@ -86,7 +86,11 @@ exports.handler = async function (event) {
   if (!f) return json(200, { dynamic_variables: generic, matched: false, reason: digits ? 'no_match' : 'no_caller_id' });
 
   const first = (f.customer_first || '').trim();
-  const appliance = (f.appliance || '').trim();
+  // job-truth defaults a blank appliance to the literal word "appliance" — treat that
+  // (and empty) as unknown so we never say "your appliance" or "Appliance: appliance".
+  const applianceRaw = (f.appliance || '').trim();
+  const appliance = /^appliance$/i.test(applianceRaw) ? '' : applianceRaw;
+  const ap = appliance ? `your ${appliance}` : 'your repair';
   const tech = (f.tech_name_safe || '').trim();
   const day = (f.scheduled_day || '').trim();
   const status = (f.status || '').trim();
@@ -95,11 +99,11 @@ exports.handler = async function (event) {
   // A proactive one-liner the assistant leads with — derived from the customer lens
   // but phrased as a heads-up so it can open the call knowing the situation.
   let situation = '';
-  if (/await|part|order/.test(status)) situation = eta ? `We've diagnosed your ${appliance} and we're waiting on the part, expected ${day || eta}.` : `We've diagnosed your ${appliance} and the part is on order.`;
-  else if (/in_progress|started/.test(status)) situation = `${tech || 'your tech'} is working on your ${appliance} right now.`;
-  else if (/complete|done/.test(status)) situation = `Your ${appliance} repair is completed in our records.`;
-  else if (day) situation = `you're scheduled with ${tech || 'your tech'} for ${day} for your ${appliance}`;
-  else if (appliance) situation = `we've got your ${appliance} in our scheduling queue`;
+  if (/await|part|order/.test(status)) situation = `we've diagnosed ${ap} and we're waiting on the part${(day || eta) ? ', expected ' + (day || eta) : ''}`;
+  else if (/in_progress|started/.test(status)) situation = `${tech || 'your tech'} is working on ${ap} right now`;
+  else if (/complete|done/.test(status)) situation = `${ap.charAt(0).toUpperCase() + ap.slice(1)} repair is completed in our records`;
+  else if (day) situation = `you're scheduled with ${tech || 'your tech'} for ${day}${appliance ? ' for your ' + appliance : ''}`;
+  else situation = `we've got ${ap} in our scheduling queue`;
 
   const hi = first ? `Hi ${first}!` : 'Thanks for calling TN Appliance!';
   const greeting = situation
