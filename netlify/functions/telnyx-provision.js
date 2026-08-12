@@ -43,6 +43,17 @@ exports.handler = async function (event) {
     // &action=balance  -> current balance + available credit (auto-recharge tops this up)
     // &action=numbers  -> how many DIDs we rent (monthly recurring)
     // &action=spend    -> voice + messaging usage cost over the last N days (&days=)
+    // &action=ai  -> read-only probe of the Telnyx Voice AI Assistants API, to confirm
+    // our key can create/manage assistants (so the shadow AI can be built via API, no
+    // portal). Teddy 2026-08-12. Tries the current + legacy paths; reports which works.
+    if (action === 'ai') {
+      const tryGet = async (path) => { try { const r = await fetch(`${TELNYX}${path}`, { headers: H, signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({})); const arr = Array.isArray(d && d.data) ? d.data : (Array.isArray(d) ? d : null); return { path, status: r.status, ok: r.ok, count: arr ? arr.length : null, sample: arr && arr[0] ? Object.keys(arr[0]).slice(0, 12) : (d && d.errors ? d.errors : Object.keys(d || {}).slice(0, 8)) }; } catch (e) { return { path, status: 0, ok: false, error: String((e && e.message) || e).slice(0, 80) }; } };
+      const probes = [];
+      for (const p of ['/ai/assistants', '/ai/assistants?page[size]=5', '/ai/models']) probes.push(await tryGet(p));
+      const works = probes.find((x) => x.ok);
+      return json(200, { ok: !!works, can_manage_via_api: !!works, working_path: works ? works.path : null, probes });
+    }
+
     if (action === 'balance') {
       const r = await fetch(`${TELNYX}/balance`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
