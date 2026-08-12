@@ -41,6 +41,10 @@ exports.handler = async function (event) {
   const jobIdIn = String(q.job_id || body.job_id || '').replace(/\D/g, '');
   const note = String(q.note || body.note || '').trim().slice(0, 120);   // why Ann is handing off, optional
   const test = q.test === '1';
+  // pop_only: write the caller_pop_sent event so the LAPTOP corner-card lights up, but
+  // do NOT text the office. Used by the inbound-call webhook so a live ring pops every
+  // office screen without double-texting (the colony inbound_call agent already SMSes).
+  const popOnly = q.pop_only === '1' || body.pop_only === true || q.no_sms === '1';
   if (!claim && !jobIdIn && digits.length < 10) return json(200, { ok: false, reason: 'no_caller_id' });
   const dedupeKey = claim || jobIdIn || digits;
 
@@ -103,7 +107,7 @@ exports.handler = async function (event) {
 
   if (q.dry === '1') return json(200, { ok: true, dry: true, caller: name, job_id: jobId, summary, link, message: msg });
 
-  const targets = test ? OFFICE.filter((o) => o.role === 'owner') : OFFICE;
+  const targets = popOnly ? [] : (test ? OFFICE.filter((o) => o.role === 'owner') : OFFICE);
   const results = [];
   if (sendSms) {
     for (const o of targets) {
@@ -111,7 +115,8 @@ exports.handler = async function (event) {
       catch (e) { results.push({ who: o.name, sent: false, err: String((e && e.message) || e).slice(0, 60) }); }
     }
   }
+  // Always log the pop — this is what the laptop corner-card widget polls.
   try { await crud.logEvent('caller_pop_sent', { key: dedupeKey, phone: digits, claim, job_id: jobId, name, summary, at_ms: Date.now() }); } catch (_) {}
 
-  return json(200, { ok: true, caller: name, job_id: jobId, summary, link, sent_to: results, message: msg });
+  return json(200, { ok: true, pop_only: popOnly, caller: name, job_id: jobId, summary, link, sent_to: results, message: msg });
 };

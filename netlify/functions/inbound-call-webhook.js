@@ -86,6 +86,23 @@ async function fireCustomerAutoAck(callerPhone) {
   }
 }
 
+// Fire the LAPTOP screen-pop for this ringing caller (Teddy 2026-08-12: the office
+// glances at a corner card and taps straight to the tile). pop_only=1 → it writes the
+// caller_pop_sent event the office widget polls, WITHOUT texting anyone (the colony
+// inbound_call agent already sends the phone SMS). Fire-and-forget; never blocks the ack.
+function fireCallerPop(from) {
+  try {
+    const digits = String(from || '').replace(/\D/g, '');
+    if (digits.length < 10) return;
+    fetch(`https://tnapplianceexchange.net/.netlify/functions/caller-pop?pop_only=1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: digits }),
+      signal: AbortSignal.timeout(7000),
+    }).catch(() => {});
+  } catch (_) {}
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -127,6 +144,10 @@ exports.handler = async function (event) {
 
   // FIRE-AND-FORGET customer auto-ack via emergency endpoint (dedup'd 6h)
   fireCustomerAutoAck(from);
+
+  // FIRE-AND-FORGET laptop screen-pop (writes the caller_pop_sent event the office
+  // corner-card widget polls; pop_only so it never texts — deduped 45s on its own side).
+  fireCallerPop(from);
 
   // Issue the Telnyx Call Control "transfer" command so the inbound
   // call rings Teddy's cell. Fire-and-await with short timeout so
