@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>SMS Opt-In — TN Appliance Exchange</title>
+<style>
+  :root{ --ink:#0f1720; --muted:#5b6b7a; --line:#e3e8ee; --brand:#e8622c; --brandink:#b8481c; --card:#ffffff; --bg:#f4f6f9; --ok:#127a3e; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; }
+  .wrap{ width:1040px; margin:0 auto; padding:34px 40px 44px; }
+  .evidence{ font-size:13px; letter-spacing:.02em; color:var(--muted); text-transform:uppercase; font-weight:700; margin-bottom:18px; }
+  .brandrow{ display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+  .ant{ width:40px; height:40px; border-radius:10px; background:var(--brand); color:#fff; display:flex; align-items:center; justify-content:center; font-size:24px; }
+  .brand{ font-size:26px; font-weight:800; letter-spacing:-.01em; }
+  .brand span{ color:var(--brandink); }
+  .sub{ color:var(--muted); font-size:15px; margin:2px 0 24px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:28px 30px; box-shadow:0 1px 3px rgba(16,24,32,.05); }
+  h1{ font-size:22px; margin:0 0 4px; }
+  .hint{ color:var(--muted); font-size:14px; margin:0 0 22px; }
+  label{ display:block; font-size:13px; font-weight:700; color:#33404d; margin:0 0 7px; }
+  .field{ margin-bottom:18px; }
+  .inp{ width:100%; border:1px solid var(--line); border-radius:10px; padding:13px 14px; font-size:16px; background:#fbfcfe; color:var(--ink); }
+  .placeholder{ color:#9aa7b4; }
+  .consent{ display:flex; gap:14px; align-items:flex-start; background:#fff7f3; border:1px solid #f6d3c2; border-radius:12px; padding:16px 18px; margin:6px 0 20px; }
+  .box{ width:24px; height:24px; border-radius:6px; background:var(--brand); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:900; flex:0 0 auto; margin-top:1px; }
+  .consent p{ margin:0; font-size:13.5px; line-height:1.5; color:#3a4753; }
+  .consent b{ color:var(--ink); }
+  .cta{ background:var(--brand); color:#fff; text-align:center; font-weight:800; font-size:17px; padding:15px; border-radius:11px; }
+  .links{ font-size:12.5px; color:var(--muted); margin-top:14px; text-align:center; }
+  .links a{ color:var(--brandink); text-decoration:none; }
+  .msgs{ margin-top:26px; }
+  .msgs h2{ font-size:15px; margin:0 0 12px; color:#33404d; }
+  .bubble{ background:#eef2f6; border-radius:14px 14px 14px 4px; padding:12px 15px; font-size:14px; line-height:1.45; color:#26313c; margin-bottom:10px; max-width:88%; }
+  .foot{ color:var(--muted); font-size:12.5px; margin-top:20px; line-height:1.6; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="evidence">SMS Opt-In / Consent Workflow &nbsp;·&nbsp; tnapplianceexchange.net</div>
+    <div class="brandrow">
+      <div class="ant">🐜</div>
+      <div class="brand">TN Appliance <span>Exchange</span></div>
+    </div>
+    <div class="sub">Appliance repair &nbsp;·&nbsp; Nashville &amp; Middle TN &nbsp;·&nbsp; (615) 280-2949</div>
+
+    <div class="card">
+      <h1>Book your repair</h1>
+      <p class="hint">Tell us what's going on and we'll get you scheduled.</p>
+
+      <div class="field"><label>Your name</label><div class="inp">Norman Giller</div></div>
+      <div class="field"><label>Mobile phone number</label><div class="inp">(615) 555-0142</div></div>
+      <div class="field"><label>Appliance &amp; problem</label><div class="inp placeholder">e.g. Frigidaire oven not heating</div></div>
+
+      <div class="consent">
+        <div class="box">✓</div>
+        <p><b>Yes, text me about my repair.</b> By checking this box and providing my mobile number, I agree to receive SMS text messages from TN Appliance Exchange about my service — appointment confirmations, arrival windows, parts updates, and replies to my questions. Message frequency varies. Msg &amp; data rates may apply. Reply <b>STOP</b> to opt out, <b>HELP</b> for help. Consent is not a condition of purchase.</p>
+      </div>
+
+      <div class="cta">Book my repair</div>
+      <div class="links">By continuing you agree to our <a>Terms &amp; Conditions</a> and <a>Privacy Policy</a>.</div>
+
+      <div class="msgs">
+        <h2>Example messages a customer receives after opting in</h2>
+        <div class="bubble">Hi Norman, this is TN Appliance Exchange — John is scheduled Thursday for your oven repair. Reply with any questions. Reply STOP to opt out.</div>
+        <div class="bubble">Your part arrived! We'll text you to set the install day. Reply STOP to opt out.</div>
+      </div>
+    </div>
+
+    <div class="foot">
+      Customers opt in at the point of a service request — on this web form (tnapplianceexchange.net), when they call our office, or through their home-warranty dispatch — and consent to receive service-related SMS about their repair. This is the consent screen a customer sees before submitting.
+    </div>
+  </div>
+</body>
+</html>
