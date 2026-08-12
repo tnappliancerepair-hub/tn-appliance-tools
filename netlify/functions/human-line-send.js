@@ -30,9 +30,16 @@ exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return json(405, { ok: false, error: 'POST only' });
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
   const to = e164(b.phone || b.to);
-  const message = String(b.message || b.body || '').trim();
+  const rawMessage = String(b.message || b.body || '').trim();
   if (!to || to.length < 12) return json(400, { ok: false, error: 'valid phone required' });
-  if (!message) return json(400, { ok: false, error: 'message required' });
+  if (!rawMessage) return json(400, { ok: false, error: 'message required' });
+
+  // Human marker (Teddy 2026-08-12): the AI texts carry 🐜 (Ant); every text a real
+  // PERSON sends on this human lane leads with 👤 so the customer can tell at a glance
+  // it's a human, not the bot. Skip if it already starts with 👤 (e.g. a re-send) so
+  // we never double it. Covers the office (sender:'office') AND techs (their message
+  // already carries their name, so it reads "👤 Lee (TN Appliance): …").
+  const message = /^\s*👤/.test(rawMessage) ? rawMessage : ('👤 ' + rawMessage);
 
   // Opt-out is absolute — never text a STOP'd number, even on the human line.
   try { if (await guard.isOptedOut(to)) return json(200, { ok: false, sent: false, reason: 'opted_out' }); } catch (_) {}
