@@ -133,6 +133,18 @@ exports.handler = async function (event) {
     outreach = Number(outreach) || 0;
   }
 
+  // ── ON TODAY'S ROUTE? — the day-of "where's my tech" call (Teddy 2026-08-12: connect
+  // them straight to their tech, cut out the office). Compare the scheduled day to today
+  // in Central; if it's today AND a tech is assigned (in-zone), Ann can offer to connect.
+  const ymdCT = (ms) => { try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date(ms)); } catch (_) { return ''; } };
+  const schedMs = Number(f.scheduled_start_ms || 0);
+  const scheduledToday = !!schedMs && ymdCT(schedMs) === ymdCT(Date.now());
+  const techSafe = (f.tech_name_safe || '').trim();
+  const techFirst = techSafe ? techSafe.split(/\s+/)[0] : '';
+  // Daytime only (techs are in the field ~7a–8p CT) — never ring a tech's cell at odd hours.
+  const nowHrCT = (function () { try { let h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).formatToParts(new Date()).find((p) => p.type === 'hour').value); return h === 24 ? 0 : h; } catch (_) { return 12; } })();
+  const canConnectTech = scheduledToday && !!techFirst && nowHrCT >= 7 && nowHrCT < 20;
+
   const first = (f.customer_first || '').trim();
   // job-truth defaults a blank appliance to the literal word "appliance" — treat that
   // (and empty) as unknown so we never say "your appliance" or "Appliance: appliance".
@@ -196,6 +208,7 @@ exports.handler = async function (event) {
       : `No availability on file yet — gather their available days live and record with capture_availability.`),
     (waiverSignedAt === 0) && `Service waiver NOT signed yet — offer to text the waiver link (use send_waiver_link).`,
     (waiverSignedAt > 0) && `Service waiver: signed.`,
+    canConnectTech && `ON TODAY'S ROUTE with ${techFirst}. If they're calling to check on arrival / where their tech is / when they'll be there, OFFER TO CONNECT THEM STRAIGHT TO ${techFirst}: "It looks like you're on ${techFirst}'s schedule today — would you like me to connect you with him? Give me just a minute." On yes, use connect_to_tech then transfer to ${techFirst}. Remember we run day-of routing — never quote a clock time yourself; ${techFirst} gives the live window.`,
     f.office_note && `Latest office note: ${f.office_note}.`,
     customerLine && `Say-it-straight status line: ${customerLine}`,
   ].filter(Boolean);
@@ -213,6 +226,8 @@ exports.handler = async function (event) {
     // gap flags — Ann uses these to close exactly what's open
     needs_availability: needsAvailability, needs_waiver: waiverSignedAt === 0,
     outreach_count: outreach, being_chased: chasing,
+    // day-of "where's my tech" — connect them straight to their tech
+    scheduled_today: scheduledToday, can_connect_tech: canConnectTech, tech_first: techFirst,
     system_context: ctxBits.join(' '),
   };
 

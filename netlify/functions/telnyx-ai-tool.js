@@ -260,6 +260,31 @@ exports.handler = async function (event) {
       return say("I've made sure the office has your details for first thing — since we're outside office hours right now, let me take down anything you need so they jump right on it when they're back.", { office_open: false, alerted });
     }
 
+    // 4c) CONNECT STRAIGHT TO THE TECH — the day-of "where's my tech?" call. Brief the tech
+    // (he sees who's ringing + why) so it's warm, then Ann transfers to his target. Cuts
+    // the office out of a high-volume, low-complexity call. (Teddy 2026-08-12.)
+    if (doAction === 'connect_to_tech') {
+      const TECH_CELL = { 1: '+16154855795', 2: '+16159671304', 3: '+15049099413', 4: '+16158291654', 6: '+18133527686' };
+      const TECH_FIRST = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
+      let techId = 0, techFirst = '', custName = '', city = '';
+      try {
+        const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
+        techId = Number((d && d.tech && d.tech.id) || (d && d.job && d.job.technician_id) || 0);
+        const cu = (d && d.customer) || {}; const jb = (d && d.job) || {};
+        custName = (cu.first_name || '') + (cu.last_name ? ' ' + cu.last_name : '');
+        city = String(cu.city || jb.service_city || jb.city || '').trim();
+      } catch (_) {}
+      techFirst = TECH_FIRST[techId] || '';
+      const cell = TECH_CELL[techId] || '';
+      if (!cell || !techFirst) return say("Let me connect you to the office so they can reach your tech for you.", { fallback_office: true });
+      // Brief the tech — he answers already knowing who's on the line.
+      if (sendSms) {
+        const line = `📞 Heads up — ${custName || 'your customer'}${city ? ' in ' + city : ''} is calling to check on arrival. Ann is connecting them to you now${jobId ? ` (job #${jobId})` : ''}. If you can't talk, let it ring out and we'll take a message.`;
+        try { await sendSms(cell, line, 'technician', 'tech_field'); } catch (_) {}
+      }
+      return say(`Great — I'm letting ${techFirst} know you're on the line and connecting you now. One moment.`, { connect_tech: techFirst });
+    }
+
     // 5) NEVER LOSE A CALL — authoritative outcome write + office alert on urgent/warranty.
     if (doAction === 'log_outcome') {
       const summary = String(a.summary || a.notes || '').trim().slice(0, 600);

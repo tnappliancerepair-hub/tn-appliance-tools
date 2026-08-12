@@ -23,6 +23,13 @@ const TOOL = `${SITE}/.netlify/functions/telnyx-ai-tool`;
 const PRECALL = `${SITE}/.netlify/functions/telnyx-precall-context`;
 const OFFICE_RING = '+16155889591';                    // dialing this cascades Sofia→Danielle→Teddy (office-texml)
 const TRANSFER_FROM = '+16158211400';                  // owned, voice-enabled line the transfer leg dials from
+// Field techs — transfer targets for the day-of "connect me to my tech" call.
+const TECH_TARGETS = [
+  { name: 'Jimmy', to: '+16159671304' },
+  { name: 'Andre', to: '+15049099413' },
+  { name: 'Lee', to: '+16158291654' },
+  { name: 'John', to: '+18133527686' },
+];
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -65,6 +72,14 @@ WARRANTY REPS vs HOMEOWNERS:
 - Warranty companies (American Home Shield, ServicePower, and others) sometimes call to check a claim and they transfer homeowners to us. If it is a warranty rep, give the whole status in one breath: has the tech been out, what we found, the part and ETA, and the return or scheduled day.
 - If a rep asks you to close out a claim for a recall, do not. We finish on the original claim, ask them to have the customer text us at 615-588-9500.
 
+DAY-OF "WHERE'S MY TECH?" - CONNECT THEM STRAIGHT TO THE TECH (a huge time-saver):
+When the caller is ON TODAY'S ROUTE (the context will say "ON TODAY'S ROUTE with <name>") and they're asking where their tech is, when he'll arrive, or just checking on today's appointment - do NOT route them through the office. Offer to connect them straight to their tech:
+1) Say it warmly, like the context tells you: "It looks like you're on <tech>'s schedule today - would you like me to connect you with him? Give me just a minute."
+2) On yes, call connect_to_tech (pass the job_id) - this texts <tech> a heads-up that they're on the line so he knows who's calling.
+3) Then use the transfer tool to the target whose name matches <tech> (Jimmy, Andre, Lee, or John).
+4) Never quote a clock time yourself - we run day-of routing; the tech gives them the live window. If they'd rather not be connected, reassure them their tech has them on today's route and will text a live arrival window, and offer to pass a message.
+Only do this when the context flags them ON TODAY'S ROUTE with a named tech. If they're NOT on today's route (scheduled another day, waiting on parts, etc.), handle it yourself or use the office warm transfer below.
+
 WARM TRANSFER TO A HUMAN (do this smoothly - it is the heart of great service):
 Our office is staffed Monday to Friday, 9am to 6pm Central. When a caller genuinely wants a person - or is upset, or a warranty rep needs a scheduler - do a WARM transfer, never a cold dump:
 1) FIRST call alert_office (pass the job_id from context, or the work-order/claim number if a warranty rep gave one, plus a short note on why - e.g. "wants to reschedule", "upset about a no-show", "AHS checking claim status"). This pops the caller's WHOLE story onto the office's screens, so whoever answers already sees who is on the line and why - they never have to ask the customer to repeat anything. It also tells you office_open (whether a live person is available right now).
@@ -101,10 +116,13 @@ const TOOLS = [
     { job_id: { type: 'integer', description: "the caller's job number, from context" }, claim: { type: 'string', description: 'work-order or claim number if a warranty rep gave one' }, note: { type: 'string', description: 'one short line on why — e.g. "wants to reschedule", "upset about no-show", "AHS checking claim status"' } }, []),
   webhookTool('log_outcome', 'Record what happened on this call so nothing is ever lost. Set urgent=true for medical/expedited/upset/no-show, warranty=true for warranty matters.', `${TOOL}?do=log_outcome`,
     { job_id: { type: 'integer' }, summary: { type: 'string' }, urgent: { type: 'boolean' }, warranty: { type: 'boolean' }, needs_office: { type: 'boolean' } }, ['summary']),
-  // WARM TRANSFER — connect the caller to a live person. Ann briefs the office first
-  // (alert_office pops the caller's whole story on their screens), THEN uses this to
-  // bridge the call into the Sofia→Danielle→Teddy ring cascade. Only during office hours.
-  { type: 'transfer', transfer: { from: TRANSFER_FROM, targets: [{ name: 'Office', to: OFFICE_RING }] } },
+  webhookTool('connect_to_tech', "Connect the caller STRAIGHT to their technician. Use ONLY when the context says they are ON TODAY'S ROUTE and they're calling to check on arrival / where their tech is / when he'll get there. It texts the tech a heads-up that they're on the line. After it returns, use the transfer tool to the target whose name matches the tech (Jimmy, Andre, Lee, or John).", `${TOOL}?do=connect_to_tech`,
+    { job_id: { type: 'integer', description: "the caller's job number, from context" } }, ['job_id']),
+  // WARM TRANSFER — connect the caller to a live person (the office) OR straight to their
+  // field tech. Ann briefs first (alert_office pops the office's screens; connect_to_tech
+  // texts the tech), THEN uses this to bridge to the matching target. The office target
+  // rings the Sofia→Danielle→Teddy cascade; tech targets ring that tech's cell.
+  { type: 'transfer', transfer: { from: TRANSFER_FROM, targets: [{ name: 'Office', to: OFFICE_RING }, ...TECH_TARGETS] } },
   { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
 ];
 
