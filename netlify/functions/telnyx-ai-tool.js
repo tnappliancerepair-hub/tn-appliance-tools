@@ -237,6 +237,37 @@ exports.handler = async function (event) {
       return say((r && r.say) || "You're all set — I've logged your callback and the office will reach out shortly. Anything else I can do?");
     }
 
+    // 4a1) OPEN A JOB FOR A NEW CALLER — the fresh cash lead we don't have yet. Completes the
+    // closer: without this, Ann could pitch + close but had no job to hang an intake link /
+    // hold on. Creates the job (lands in Needs-Scheduled) and returns the new job_id for the
+    // rest of the flow. (Teddy 2026-08-13: finish the phone system.)
+    if (doAction === 'create_job') {
+      const phone = String(a.phone || '').replace(/\D/g, '');
+      const first = String(a.first_name || a.name || '').trim();
+      const appliance = String(a.appliance_type || a.appliance || '').trim();
+      const zip = String(a.zip || '').replace(/\D/g, '').slice(0, 5);
+      const problem = String(a.problem || a.problem_summary || '').trim();
+      if (phone.length < 10) return say("What's the best phone number to reach you at?", { created: false });
+      if (!appliance) return say("What kind of appliance is giving you trouble?", { created: false });
+      if (zip.length < 5) return say("And what's the ZIP code for where we'd be coming out?", { created: false });
+      try {
+        const r = await fetch(`${XANO}/create_job_from_chat`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            first_name: first || 'Customer', last_name: String(a.last_name || '').trim(),
+            phone, zip, appliance_type: appliance, brand: String(a.brand || '').trim(),
+            problem_summary: problem, customer_type: 'self_pay', channel: 'ann_phone',
+          }),
+        });
+        const d = await r.json().catch(() => ({}));
+        const newId = (d && (d.id || d.job_id)) || null;
+        if (!newId) return say("Let me take your details and have the office get you set up right away.", { created: false });
+        if (a.address || a.city) { try { await crud.update(crud.TABLES.jobs, newId, { service_address: String(a.address || '').trim(), service_city: String(a.city || '').trim(), service_zip: zip }); } catch (_) {} }
+        if (sendSms) { try { await sendSms('+16154850713', `🆕 New cash lead via Ann — ${first || 'caller'} · ${appliance}${problem ? ' · ' + problem : ''} · ${phone}. Job #${newId} in Needs-Scheduled.`, 'danielle', 'ann_new_job'); } catch (_) {} }
+        return say("Perfect — I've got you set up in our system.", { created: true, job_id: String(newId) });
+      } catch (e) { return say("Let me take your details down so the office can get you set up.", { created: false }); }
+    }
+
     // 4a2) SAVE A WARRANTY REP — auto-learn (Teddy 2026-08-13). When a warranty-company rep
     // introduces herself and we don't already know her, Ann asks for her number and saves it
     // here so NEXT time she's greeted by name. Merges { digits: "Company::Rep" } into the
