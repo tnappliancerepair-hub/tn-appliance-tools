@@ -21,6 +21,22 @@
 
 const SITE = 'https://tnapplianceexchange.net';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+// Team directory so Ann can text ANY tech or the office directly (internal roles bypass
+// the customer intake gate). Names are matched loosely (first name, any case).
+const TECHS = [
+  { name: 'Teddy', to: '+16154855795' },
+  { name: 'Jimmy', to: '+16159671304' },
+  { name: 'Andre', to: '+15049099413' },
+  { name: 'Lee', to: '+16158291654' },
+  { name: 'John', to: '+18133527686' },
+];
+const OFFICE = [
+  { name: 'Danielle', to: '+16154850713' },
+  { name: 'Sofia', to: '+16292594602' },
+  { name: 'Teddy', to: '+16154855795' },
+];
+const findTech = (nm) => { const s = String(nm || '').trim().toLowerCase(); return TECHS.find((t) => t.name.toLowerCase() === s) || TECHS.find((t) => s && t.name.toLowerCase().startsWith(s.split(/\s+/)[0])); };
 const crud = require('./_lib/xano/metadata-crud');
 let sendSms; try { ({ sendSms } = require('./_lib/sms')); } catch (_) { sendSms = null; }
 let getSecret = null, setSecret = null; try { ({ getSecret, setSecret } = require('./_lib/secrets')); } catch (_) {}
@@ -252,10 +268,17 @@ exports.handler = async function (event) {
     // proven send-waiver endpoint — its tag ("intake_waiver") clears the intake-only SMS
     // gate; a hand-rolled "waiver_link" tag gets paused and silently fails to send.
     if (doAction === 'send_waiver_link') {
-      if (!jobId) return say("Let me have the office text you the waiver link.");
-      const r = await post('send-waiver', { job_id: jobId });
+      let jid = jobId;
+      if (!jid) {
+        const phone = String(a.phone || '').replace(/\D/g, '');
+        if (phone.length < 10) return say("Happy to text the waiver over — what's the best cell number for you?", { sent: false });
+        const opened = await openCashJob(a);
+        if (!opened.job_id) return say("Let me take your info and the office will text you the waiver right away.", { sent: false });
+        jid = opened.job_id;
+      }
+      const r = await post('send-waiver', { job_id: jid });
       return r && (r.ok || r.sms)
-        ? say("Perfect — I just texted you the waiver link. It's quick, just tap it and sign, and you're all set for your visit.")
+        ? say("Perfect — I just texted you the waiver link. It's quick, just tap it and sign, and you're all set for your visit. Anything else I can help with?", { sent: true, job_id: String(jid) })
         : say("I'll have the office get that waiver to you right away.", { sent: false });
     }
 
@@ -393,6 +416,72 @@ exports.handler = async function (event) {
         job_id: jobId || undefined,
       });
       return say((r && (r.spoken || r.say)) || "Done — I've texted your message straight to him with your number, and he'll get right back to you. Anything else I can help with?");
+    }
+
+    // 4e) MESSAGE A TECHNICIAN (or ALL of them) — free-form text straight to a tech's phone.
+    // For anything the caller/office needs a tech to know that isn't the day-of "where's my
+    // tech" relay. Internal role => bypasses the customer intake gate, always delivers.
+    // (Teddy 2026-08-13: "she needs to be able to message all of the technicians.")
+    if (doAction === 'message_tech') {
+      const msg = String(a.message || a.note || '').trim().slice(0, 600);
+      if (!msg) return say("What would you like me to send the tech?", { sent: false });
+      const who = String(a.tech_name || a.tech || a.name || '').trim();
+      const all = /\ball\b|everyone|every tech|whole crew|all techs/i.test(who) || a.all === true || a.all === 'true';
+      const body = `📣 From the office (via Ann): ${msg}`;
+      if (all) {
+        let n = 0; if (sendSms) for (const t of TECHS) { try { await sendSms(t.to, body, 'technician', 'ann_office_note'); n++; } catch (_) {} }
+        try { await crud.logEvent('ann_message_tech', { all: true, count: n, msg, at_ms: Date.now() }); } catch (_) {}
+        return say(`Done — I've sent that to the whole crew. Anything else?`, { sent: true, count: n });
+      }
+      const t = findTech(who);
+      if (!t) return say("Which tech should I send that to — Jimmy, Andre, Lee, John, or Teddy?", { sent: false });
+      if (sendSms) { try { await sendSms(t.to, body, 'technician', 'ann_office_note'); } catch (_) {} }
+      try { await crud.logEvent('ann_message_tech', { tech: t.name, msg, at_ms: Date.now() }); } catch (_) {}
+      return say(`Done — I've texted that to ${t.name}. Anything else I can help with?`, { sent: true, tech: t.name });
+    }
+
+    // 4f) MESSAGE THE OFFICE — free-form text to the office team (Danielle, Sofia; add Teddy
+    // if it's owner-level). Internal role => always delivers. Use when something needs a human
+    // on the office side but isn't a live-transfer moment.
+    if (doAction === 'message_office') {
+      const msg = String(a.message || a.note || '').trim().slice(0, 600);
+      if (!msg) return say("What should I pass along to the office?", { sent: false });
+      const urgent = a.urgent === true || a.urgent === 'true';
+      const includeTeddy = urgent || a.owner === true || a.owner === 'true' || /teddy|owner/i.test(String(a.to || ''));
+      const body = `${urgent ? '🚨 ' : '📨 '}From Ann: ${msg}`;
+      const targets = OFFICE.filter((o) => includeTeddy || o.name !== 'Teddy');
+      let n = 0; if (sendSms) for (const o of targets) { try { await sendSms(o.to, body, o.name === 'Teddy' ? 'owner' : (o.name === 'Danielle' ? 'danielle' : 'office'), 'ann_office_note'); n++; } catch (_) {} }
+      try { await crud.logEvent('ann_message_office', { count: n, urgent, msg, at_ms: Date.now() }); } catch (_) {}
+      return say(`Done — I've passed that along to the office. Anything else?`, { sent: true, count: n });
+    }
+
+    // 4g) TEXT THE CUSTOMER ANYTHING — a free-form text to the caller (or another customer by
+    // job). This is a REACTIVE reply to someone on the line, so it's tagged to clear the
+    // intake-only gate and quiet-hours (they're actively asking). Opt-out is still enforced.
+    // (Teddy 2026-08-13: "she needs the ability to message the customers, anything they need.")
+    if (doAction === 'message_customer') {
+      const msg = String(a.message || a.text || a.note || '').trim().slice(0, 600);
+      if (!msg) return say("What would you like me to text them?", { sent: false });
+      let to = String(a.phone || a.customer_phone || '').replace(/\D/g, '');
+      let first = String(a.first_name || a.name || '').trim();
+      if ((!to || to.length < 10) && jobId) {
+        try {
+          const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
+          const cu = (d && d.customer) || {}; const jb = (d && d.job) || {};
+          if (!to || to.length < 10) to = String(cu.phone || jb.customer_phone || '').replace(/\D/g, '');
+          if (!first) first = String(cu.first_name || '').trim();
+        } catch (_) {}
+      }
+      if (!to || to.length < 10) return say("What's the best cell number to text that to?", { sent: false });
+      // Reactive-reply tag (clears intake gate) + heads-up token (clears quiet hours) since
+      // the customer is on the line asking for it right now.
+      const body = `${first ? `Hi ${first} — ` : ''}${msg}\n— Tennessee Appliance Exchange 🐜`;
+      let sent = false;
+      if (sendSms) { try { const r = await sendSms(to, body, 'customer', 'ann_reply_heads_up'); sent = !(r && r.sent === false); } catch (_) {} }
+      try { await crud.logEvent('ann_message_customer', { job_id: jobId || 0, to: to.slice(-4), msg, sent, at_ms: Date.now() }); } catch (_) {}
+      return say(sent
+        ? "Done — I just texted that to you. Anything else I can help with?"
+        : "That didn't go through just now — I'll have the office send it. Anything else?", { sent });
     }
 
     // 5) NEVER LOSE A CALL — authoritative outcome write + office alert on urgent/warranty.
