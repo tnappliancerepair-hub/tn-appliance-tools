@@ -111,7 +111,9 @@ exports.handler = async function (event) {
       system_context: "TEST CALL for the owner — the day-of CONNECT-TO-TECH flow. Teddy is ON TODAY'S route with his tech (also Teddy). If he asks where his tech is, when he'll arrive, or just to check on today's appointment, OFFER TO CONNECT HIM: \"It looks like you're on Teddy's schedule today — would you like me to connect you with him? Give me just a minute.\" On yes: call connect_to_tech with job_id 19065, then use the transfer tool to the Teddy target. It rings about five times; on this test his own line is busy so it will not pick up — then come back warmly, take his message, use message_for_tech (tech_name Teddy, his message in his own words, his callback number), and confirm you texted it straight to Teddy. Never quote a clock time — day-of routing.",
     },
   };
-  if (DEMO[demoCore]) return json(200, { dynamic_variables: DEMO[demoCore], matched: true, demo: true });
+  // OFF for go-live — every caller (including Teddy) now gets their REAL data. Set env
+  // TELNYX_DEMO=1 to re-enable the owner test scenario for a demo/test session.
+  if (process.env.TELNYX_DEMO === '1' && DEMO[demoCore]) return json(200, { dynamic_variables: DEMO[demoCore], matched: true, demo: true });
   // ─────────────────────────────────────────────────────────────────────────────────
 
   // Resolve the caller through the ONE brain (job-truth) AND pull the customer record
