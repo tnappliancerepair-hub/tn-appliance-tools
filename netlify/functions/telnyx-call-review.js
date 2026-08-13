@@ -53,11 +53,13 @@ Return STRICT JSON only, no prose, no code fences:
 `;
 
 async function grade(AK, calls) {
-  const body = { model: GRADER, max_tokens: 1600, messages: [{ role: 'user', content: PROMPT + JSON.stringify(calls) }] };
-  const r = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'x-api-key': AK, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(21000) });
+  const body = { model: GRADER, max_tokens: 4000, messages: [{ role: 'user', content: PROMPT + JSON.stringify(calls) }] };
+  const r = await fetch(ANTHROPIC_URL, { method: 'POST', headers: { 'x-api-key': AK, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
   const d = await r.json();
   let t = ((d.content || []).map((b) => b.text || '').join('') || '').trim();
-  t = t.replace(/```json/gi, '').replace(/```/g, '').trim();
+  // Robustly isolate the JSON object even if the model wraps it in fences or a stray line.
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a >= 0 && b > a) t = t.slice(a, b + 1);
   return JSON.parse(t);
 }
 
@@ -74,7 +76,7 @@ exports.handler = async function (event) {
   if (!KEY) return json(200, { ok: false, error: 'no TELNYX_API_KEY in vault' });
 
   const hours = Math.min(168, parseInt(q.hours || '24', 10) || 24);
-  const limit = Math.min(40, parseInt(q.limit || '15', 10) || 15);
+  const limit = Math.min(40, parseInt(q.limit || '12', 10) || 12);
   const doText = q.text !== '0';
   const cutoff = Date.now() - hours * 3600000;
 
@@ -89,7 +91,9 @@ exports.handler = async function (event) {
   } catch (_) {}
 
   // 2) Pull each transcript in parallel (bounded by limit); detect the track from the
-  //    injected persona in the system prompt.
+  //    injected persona in the system prompt. Size each transcript to the call count so
+  //    the combined input stays bounded (~10k chars) no matter how busy the day was.
+  const perCap = Math.max(1200, Math.floor(10000 / Math.max(1, convos.length)));
   const calls = (await Promise.all(convos.map(async (c) => {
     let msgs = [];
     try { const m = await tx(KEY, `/ai/conversations/${c.id}/messages?page[size]=100`, 9000); msgs = m.data || []; } catch (_) {}
@@ -103,7 +107,7 @@ exports.handler = async function (event) {
     if (!lines.length) return null;
     const sp = c.system_prompt || '';
     const track = /CALL TRACK\D+WARRANTY/i.test(sp) ? 'warranty' : (/CALL TRACK\D+CASH/i.test(sp) ? 'cash' : 'unknown');
-    return { id: c.id, at: c.created_at, track, transcript: lines.join('\n').slice(0, 3500) };
+    return { id: c.id, at: c.created_at, track, transcript: lines.join('\n').slice(0, perCap) };
   }))).filter(Boolean);
 
   if (!calls.length) {
