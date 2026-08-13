@@ -284,6 +284,10 @@
     if (!out.length) {
       // server fallback (parts_needed) in case the column is ever fixed server-side
       splitParts((((lastData && lastData.fields || {}).parts_needed || {}).value || '').toString()).forEach(function (w) { if (w && out.indexOf(w) === -1) out.push(w); });
+      // verified_part_number is the RELIABLE text column we save to (board + Ann read it),
+      // so show it here too — a part saved over weak signal shows even if the parts-log
+      // write didn't land. (Jimmy 2026-08-13: "won't let me add the part numbers.")
+      splitParts((((lastData && lastData.fields || {}).verified_part_number || {}).value || (lastData && lastData.verified_part_number) || '').toString()).forEach(function (w) { if (w && out.indexOf(w) === -1) out.push(w); });
     }
     // NOTE: deliberately do NOT scrape part #s out of the "Failed part" free-text.
     // That text often carries TWO numbers — the FAILED core and the REPLACEMENT
@@ -1369,6 +1373,8 @@
     editKey = 'parts_needed';
     var host = document.getElementById('ant-tdr-content'); if (!host) return;
     var parts = usedPartsList().slice();   // from the warranty-parts log (persists)
+    // Bring back any part #s typed but not yet confirmed-saved (e.g. saved over dead signal).
+    try { var _dr = JSON.parse(localStorage.getItem('ant_parts_draft_' + jobId) || '[]'); if (Array.isArray(_dr)) _dr.forEach(function (v) { v = String(v == null ? '' : v).trim(); if (v && parts.indexOf(v) === -1) parts.push(v); }); } catch (_) {}
     if (!parts.length) parts = [''];
     parts.push('');   // one spare empty box ready to fill
     var html = '';
@@ -1438,32 +1444,63 @@
     });
     var btns = document.querySelectorAll('.ant-tdr-save-btn');
     btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
-    // Persist each part to the warranty-parts event_log (this STICKS — the parts_needed
-    // TDR column silently drops writes, which is why they used to vanish). Recorded as a
-    // "used" write-in part (source tdr_used) so it counts toward 100% + shows in the parts
-    // list. Only add parts not already on the list (dedup); removals are handled with the
-    // Used/Return/Not-here buttons on each part below. (Jimmy's 75%-stuck bug, 2026-07-09.)
+    // Stash on THIS phone first — a dropped signal (techs are often on 1 bar) can never
+    // lose what the tech typed. Cleared only after a confirmed server save.
+    try { localStorage.setItem('ant_parts_draft_' + jobId, JSON.stringify(vals)); } catch (_) {}
+
+    // Weak-signal-resilient POST: 3 tries, 15s each, backoff. Techs live on bad signal.
+    async function tryPost(url, body) {
+      var last;
+      for (var a = 0; a < 3; a++) {
+        try {
+          var ctl = new AbortController(); var to = setTimeout(function () { ctl.abort(); }, 15000);
+          var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
+          clearTimeout(to);
+          var d = await r.json().catch(function () { return {}; });
+          if (r.ok && (!d || d.ok !== false)) return d || {};
+          last = (d && d.error) || ('HTTP ' + r.status);
+        } catch (e) { last = (e && e.message) || String(e); }
+        await new Promise(function (res) { setTimeout(res, 800 * (a + 1)); });
+      }
+      throw new Error(last || 'save failed');
+    }
+
     var existing = usedPartsList();
     var toAdd = vals.filter(function (v) { return existing.indexOf(v) === -1; });
     try {
+      // (1) RELIABLE PRIMARY — land the part #(s) in verified_part_number, the TEXT column
+      // the office board + Ann actually read, via ensure-tdr + set-tdr-field. THIS is what
+      // makes a typed part stick + show, independent of the fragile warranty-parts log
+      // (that log write, or bad signal, used to be the whole save — so a hiccup meant the
+      // tech "couldn't add the part"). (Jimmy 2026-08-13.)
+      var _tid = Number((lastData && lastData.tdr_id) || 0);
+      if (!(_tid > 0)) {
+        var er = await tryPost('/.netlify/functions/ensure-tdr', { job_id: Number(jobId), technician_id: Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0 });
+        _tid = Number((er || {}).tdr_id || 0);
+      }
+      if (_tid > 0) {
+        await tryPost('/.netlify/functions/set-tdr-field', { tdr_id: _tid, field: 'verified_part_number', value: vals.join(', ') });
+        if (lastData) { lastData.tdr_id = _tid; lastData.fields = lastData.fields || {}; lastData.fields.verified_part_number = { value: vals.join(', '), filled: !!vals.length }; }
+      } else if (vals.length) {
+        throw new Error('could not open the report');
+      }
+      // (2) warranty-parts log (used/return tracking + the parts list) — per-part, now
+      // BEST-EFFORT since (1) already persisted the numbers; one failure no longer blocks.
       for (var i = 0; i < toAdd.length; i++) {
-        await fetch('/.netlify/functions/warranty-parts', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ job_id: Number(jobId), part: toAdd[i], status: 'used', source: 'tdr_used', by: role, technician_id: techId ? Number(techId) : 0 }),
-        });
+        try { await tryPost('/.netlify/functions/warranty-parts', { job_id: Number(jobId), part: toAdd[i], status: 'used', source: 'tdr_used', by: role, technician_id: techId ? Number(techId) : 0 }); } catch (_) {}
       }
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
-      alert('Could not save parts: ' + (e && e.message ? e.message : e));
+      alert("Couldn't reach the server on this signal — but your part numbers are saved on this phone. Tap Save again when you've got a bar or two and they'll go through.");
       return;
     }
-    // Best-effort: also write the legacy column (harmless no-op today; auto-populates if
-    // the column type is ever fixed server-side). Never block the save on it.
+    // (3) legacy column — harmless best-effort (auto-populates if the column is ever fixed).
     try {
       var body = { job_id: Number(jobId), field: 'parts_needed', value: vals.join('\n') };
       if (techId) body.technician_id = Number(techId);
       await fetch(XANO + '/update_tdr_field_from_voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     } catch (_) {}
+    try { localStorage.removeItem('ant_parts_draft_' + jobId); } catch (_) {}
     editKey = null;
     await loadSuppliedParts();   // pull the freshly-saved parts back
     await refresh();
