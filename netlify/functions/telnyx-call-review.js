@@ -78,7 +78,9 @@ exports.handler = async function (event) {
   if (!KEY) return json(200, { ok: false, error: 'no TELNYX_API_KEY in vault' });
 
   const hours = Math.min(168, parseInt(q.hours || '24', 10) || 24);
-  const limit = Math.min(40, parseInt(q.limit || '12', 10) || 12);
+  // Grade the most-recent N per run so the whole pass fits the 26s function budget. Low
+  // pilot volume makes this plenty; for very busy days the upgrade is a background function.
+  const limit = Math.min(40, parseInt(q.limit || '8', 10) || 8);
   const doText = q.text !== '0';
   const cutoff = Date.now() - hours * 3600000;
 
