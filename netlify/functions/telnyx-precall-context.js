@@ -26,7 +26,7 @@ const SITE = 'https://tnapplianceexchange.net';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 let crud = null; try { crud = require('./_lib/xano/metadata-crud'); } catch (_) {}
 let intakeCap = null; try { intakeCap = require('./_lib/intake-cap'); } catch (_) {}
-let getSecret = null; try { ({ getSecret } = require('./_lib/secrets')); } catch (_) {}
+let getSecret = null, getSecretFresh = null; try { ({ getSecret, getSecretFresh } = require('./_lib/secrets')); } catch (_) {}
 
 // Known warranty callers → company (and, when it's a specific rep we know, their NAME so
 // Ann greets them personally). Config lives in the vault (WARRANTY_CALLER_IDS = JSON map of
@@ -50,7 +50,10 @@ function parseCaller(v) {
 async function warrantyCallerFor(digits) {
   const core = digits.length === 11 && digits[0] === '1' ? digits.slice(1) : digits;
   let map = Object.assign({}, WARRANTY_CALLERS_SEED);
-  if (getSecret) { try { const raw = await getSecret('WARRANTY_CALLER_IDS'); if (raw) Object.assign(map, JSON.parse(raw)); } catch (_) {} }
+  // getSecretFresh (not getSecret) so a rep saved via auto-learn is recognized on her very
+  // next call — the cached read serves a stale-empty map right after a save.
+  const rd = getSecretFresh || getSecret;
+  if (rd) { try { const raw = await rd('WARRANTY_CALLER_IDS'); if (raw) Object.assign(map, JSON.parse(raw)); } catch (_) {} }
   return parseCaller(map[digits] || map[core] || map['1' + core] || '');
 }
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
