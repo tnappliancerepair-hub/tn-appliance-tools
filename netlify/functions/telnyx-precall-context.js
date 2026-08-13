@@ -28,19 +28,30 @@ let crud = null; try { crud = require('./_lib/xano/metadata-crud'); } catch (_) 
 let intakeCap = null; try { intakeCap = require('./_lib/intake-cap'); } catch (_) {}
 let getSecret = null; try { ({ getSecret } = require('./_lib/secrets')); } catch (_) {}
 
-// Known warranty-company caller IDs → company name. Config lives in the vault
-// (WARRANTY_CALLER_IDS = JSON map of digits->company) so the office can add numbers as we
-// learn them, with a small code seed. Big call centers rotate ANIs, so this catches the
-// consistent lines; the behavior-based rep flow in Ann's instructions catches the rest.
+// Known warranty callers → company (and, when it's a specific rep we know, their NAME so
+// Ann greets them personally). Config lives in the vault (WARRANTY_CALLER_IDS = JSON map of
+// digits -> value) so the office can add numbers as we learn them, plus a small code seed.
+// A value may be:  "American Home Shield"  (company only)
+//                  "NSA::Angie"            (company::rep)
+//                  {"company":"NSA","rep":"Angie"}
+// Big call centers rotate ANIs, so this catches the consistent lines / known reps; the
+// behavior-based rep flow in Ann's instructions catches the rest.
 const WARRANTY_CALLERS_SEED = {
+  // '16155551234': 'NSA::Angie',            // ← Angie @ National Service Alliance (add her real number)
   // '18005551234': 'American Home Shield',
-  // '18005555678': 'NSA',
 };
-async function warrantyCompanyFor(digits) {
+function parseCaller(v) {
+  if (!v) return null;
+  if (typeof v === 'object') return { company: v.company || '', rep: v.rep || '' };
+  const s = String(v);
+  const parts = s.split(/::|\|/);
+  return parts.length > 1 ? { company: parts[0].trim(), rep: parts[1].trim() } : { company: s.trim(), rep: '' };
+}
+async function warrantyCallerFor(digits) {
   const core = digits.length === 11 && digits[0] === '1' ? digits.slice(1) : digits;
   let map = Object.assign({}, WARRANTY_CALLERS_SEED);
   if (getSecret) { try { const raw = await getSecret('WARRANTY_CALLER_IDS'); if (raw) Object.assign(map, JSON.parse(raw)); } catch (_) {} }
-  return map[digits] || map[core] || map['1' + core] || '';
+  return parseCaller(map[digits] || map[core] || map['1' + core] || '');
 }
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -134,17 +145,21 @@ exports.handler = async function (event) {
   // ── KNOWN WARRANTY-COMPANY CALLER — greet by company + run the fast rep flow, routing to
   // the WARRANTY DESK (Danielle first). (Teddy 2026-08-13.) Short-circuits before the
   // customer lookup: the call center won't match a customer record anyway.
-  const wco = await warrantyCompanyFor(digits);
-  if (wco) {
+  const wc = await warrantyCallerFor(digits);
+  if (wc && wc.company) {
+    // Greet a known rep BY NAME (relationship touch); otherwise greet by company.
+    const hi = wc.rep
+      ? `${wc.rep}! So good to hear from you — happy to help.`
+      : `${wc.company}! You must be one of their representatives — happy to help.`;
     const repDv = {
-      known: true, caller_first: '', caller_name: '',
-      greeting: `${wco}! You must be one of their representatives — happy to help. Can you give me the work order number, and confirm the customer's name for me?`,
+      known: true, caller_first: wc.rep || '', caller_name: wc.rep || '',
+      greeting: `${hi} Can you give me the work order number, and confirm the customer's name for me?`,
       situation: '', has_job: false, appliance: '', tech: '', scheduled_day: '', status: '', part_eta: '',
-      is_warranty: true, warranty_company: wco, job_id: '', claim_number: '',
-      call_track: 'warranty', warranty_rep: true,
-      system_context: `WARRANTY REP CALL from ${wco} (recognized by their caller ID). Run the WARRANTY REP flow fast and efficiently: get the work order / claim number, look up and CONFIRM the customer, REPEAT the work order number and customer name back, then call alert_office with the claim, say "connecting you to our office manager Danielle," and use the transfer tool to the WARRANTY DESK target (rings Danielle first, then Sofia). Do NOT sell. Do NOT close out a recall claim.`,
+      is_warranty: true, warranty_company: wc.company, job_id: '', claim_number: '',
+      call_track: 'warranty', warranty_rep: true, rep_name: wc.rep || '',
+      system_context: `WARRANTY REP CALL from ${wc.company}${wc.rep ? ` — this is ${wc.rep}, a rep we know, so greet her warmly by name` : ''} (recognized by caller ID). Run the WARRANTY REP flow fast and efficiently: get the work order / claim number, look up and CONFIRM the customer, REPEAT the work order number and customer name back, then call alert_office with the claim, say "connecting you to our office manager Danielle," and use the transfer tool to the WARRANTY DESK target (rings Danielle first, then Sofia). Do NOT sell. Do NOT close out a recall claim.`,
     };
-    return json(200, { dynamic_variables: repDv, matched: true, warranty_rep: true, company: wco });
+    return json(200, { dynamic_variables: repDv, matched: true, warranty_rep: true, company: wc.company, rep: wc.rep || '' });
   }
 
   const DEMO = {
