@@ -50,6 +50,36 @@ function post(path, payload, ms = 12000) {
 // A tool reply: `result` is what the assistant SAYS; keep it short + spoken-natural.
 const say = (result, extra) => json(200, { ok: true, result, ...(extra || {}) });
 
+// Open a fresh CASH job for a caller we don't have yet (self_pay, ann_phone). Reused by
+// do=create_job AND the self-heal inside do=send_intake_link so a brand-new caller can get
+// their $50 Quick Check link on the spot. Returns { job_id } or { error }. Zip defaults to
+// the shop zip when unknown (per warranty-intake precedent) so a missing zip never blocks
+// the link — the real address is captured through the intake link itself.
+async function openCashJob(a) {
+  const phone = String(a.phone || '').replace(/\D/g, '');
+  if (phone.length < 10) return { error: 'no_phone' };
+  const first = String(a.first_name || a.name || '').trim();
+  const appliance = String(a.appliance_type || a.appliance || '').trim() || 'Appliance';
+  const zip = (String(a.zip || '').replace(/\D/g, '').slice(0, 5)) || '37013';
+  const problem = String(a.problem || a.problem_summary || '').trim();
+  try {
+    const r = await fetch(`${XANO}/create_job_from_chat`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        first_name: first || 'Customer', last_name: String(a.last_name || '').trim(),
+        phone, zip, appliance_type: appliance, brand: String(a.brand || '').trim(),
+        problem_summary: problem, customer_type: 'self_pay', channel: 'ann_phone',
+      }), signal: AbortSignal.timeout(12000),
+    });
+    const d = await r.json().catch(() => ({}));
+    const newId = (d && (d.id || d.job_id)) || null;
+    if (!newId) return { error: 'create_failed' };
+    if (a.address || a.city) { try { await crud.update(crud.TABLES.jobs, newId, { service_address: String(a.address || '').trim(), service_city: String(a.city || '').trim(), service_zip: zip }); } catch (_) {} }
+    if (sendSms) { try { await sendSms('+16154850713', `🆕 New cash lead via Ann — ${first || 'caller'} · ${appliance}${problem ? ' · ' + problem : ''} · ${phone}. Job #${newId} in Needs-Scheduled.`, 'danielle', 'ann_new_job'); } catch (_) {} }
+    return { job_id: newId };
+  } catch (e) { return { error: String((e && e.message) || e) }; }
+}
+
 // Is a live person available RIGHT NOW? Office is staffed Mon–Fri 9am–6pm Central; Ann is
 // 24/7. Warm transfers only happen when the office is open — off-hours we take a message.
 function officeOpenCT() {
@@ -141,12 +171,22 @@ exports.handler = async function (event) {
   const jobId = Number(a.job_id || a.jobId || 0) || 0;
 
   try {
-    // 1) THE PRIORITY — text the pre-diagnosis / intake link mid-call (feeds the chain).
+    // 1) THE PRIORITY — text the $50 Quick Check / pre-diagnosis link mid-call (feeds the
+    // chain). SELF-HEALS for a brand-new caller: if we don't have a job yet but she gave a
+    // phone number, open the cash job on the spot, then text the link — so Ann can always
+    // send the $50 Quick Check link (Teddy 2026-08-13: "she was unable to send me the link").
     if (doAction === 'send_intake_link') {
-      if (!jobId) return say("I couldn't find your job on file, so let me take your info and have the office text you that link.");
-      const r = await post('send-intake-link', { job_id: jobId, force: true });
+      let jid = jobId;
+      if (!jid) {
+        const phone = String(a.phone || '').replace(/\D/g, '');
+        if (phone.length < 10) return say("Happy to text that right over — what's the best cell number to send it to?", { sent: false });
+        const opened = await openCashJob(a);
+        if (!opened.job_id) return say("Let me take your info down and the office will text you that link right away.", { sent: false });
+        jid = opened.job_id;
+      }
+      const r = await post('send-intake-link', { job_id: jid, force: true });
       return r && r.ok
-        ? say("Perfect — I just texted you a link. Tap it, send a short video of the problem and a photo of the model sticker, and reply with the days that work. That's all we need to lock in your visit.")
+        ? say("Perfect — I just texted you the link for your fifty-dollar Quick Check. Tap it, send a short video of what it's doing and a photo of the model sticker, and that fifty goes straight toward your repair. Once I see it, I'll get you options fast. Anything else I can help with?", { sent: true, job_id: String(jid) })
         : say("I tried to text your link but it didn't go through — I'll have the office send it to you right away.", { sent: false });
     }
 
@@ -243,29 +283,14 @@ exports.handler = async function (event) {
     // rest of the flow. (Teddy 2026-08-13: finish the phone system.)
     if (doAction === 'create_job') {
       const phone = String(a.phone || '').replace(/\D/g, '');
-      const first = String(a.first_name || a.name || '').trim();
       const appliance = String(a.appliance_type || a.appliance || '').trim();
       const zip = String(a.zip || '').replace(/\D/g, '').slice(0, 5);
-      const problem = String(a.problem || a.problem_summary || '').trim();
       if (phone.length < 10) return say("What's the best phone number to reach you at?", { created: false });
       if (!appliance) return say("What kind of appliance is giving you trouble?", { created: false });
       if (zip.length < 5) return say("And what's the ZIP code for where we'd be coming out?", { created: false });
-      try {
-        const r = await fetch(`${XANO}/create_job_from_chat`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            first_name: first || 'Customer', last_name: String(a.last_name || '').trim(),
-            phone, zip, appliance_type: appliance, brand: String(a.brand || '').trim(),
-            problem_summary: problem, customer_type: 'self_pay', channel: 'ann_phone',
-          }),
-        });
-        const d = await r.json().catch(() => ({}));
-        const newId = (d && (d.id || d.job_id)) || null;
-        if (!newId) return say("Let me take your details and have the office get you set up right away.", { created: false });
-        if (a.address || a.city) { try { await crud.update(crud.TABLES.jobs, newId, { service_address: String(a.address || '').trim(), service_city: String(a.city || '').trim(), service_zip: zip }); } catch (_) {} }
-        if (sendSms) { try { await sendSms('+16154850713', `🆕 New cash lead via Ann — ${first || 'caller'} · ${appliance}${problem ? ' · ' + problem : ''} · ${phone}. Job #${newId} in Needs-Scheduled.`, 'danielle', 'ann_new_job'); } catch (_) {} }
-        return say("Perfect — I've got you set up in our system.", { created: true, job_id: String(newId) });
-      } catch (e) { return say("Let me take your details down so the office can get you set up.", { created: false }); }
+      const opened = await openCashJob(a);
+      if (!opened.job_id) return say("Let me take your details and have the office get you set up right away.", { created: false });
+      return say("Perfect — I've got you set up in our system.", { created: true, job_id: String(opened.job_id) });
     }
 
     // 4a2) SAVE A WARRANTY REP — auto-learn (Teddy 2026-08-13). When a warranty-company rep
