@@ -162,7 +162,10 @@ const TOOLS = [
   // field tech. Ann briefs first (alert_office pops the office's screens; connect_to_tech
   // texts the tech), THEN uses this to bridge to the matching target. The office target
   // rings the Sofia→Danielle→Teddy cascade; tech targets ring that tech's cell.
-  { type: 'transfer', transfer: { from: TRANSFER_FROM, timeout_secs: 30, targets: [{ name: 'Office', to: OFFICE_RING }, ...TECH_TARGETS] } },
+  // 90s answer window so the office cascade (Sofia ~20s -> Danielle ~20s -> Teddy ~20s,
+  // via office-texml on 588-9591) has time to ring all the way through before the transfer
+  // gives up — 30s would cut it off before it reached the last tier.
+  { type: 'transfer', transfer: { from: TRANSFER_FROM, timeout_secs: 90, targets: [{ name: 'Office', to: OFFICE_RING }, ...TECH_TARGETS] } },
   { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
 ];
 
