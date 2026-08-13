@@ -242,7 +242,7 @@ exports.handler = async function (event) {
       if (to && to.length >= 10 && sendSms) {
         const last4 = to.slice(-4);
         const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
-        const cmsg = `Hi ${name} — we've got your scheduling request in for ${whenSpoken}. Our office will confirm it shortly; if our route can't make that day, we'll call you right back to find one that works. Need to change it? ${portal}  — TN Appliance Exchange 🐜`;
+        const cmsg = `Hi ${name} — we've got your scheduling request in for ${whenSpoken}. Our office will confirm it shortly; if our route can't make that day, we'll call you right back to find one that works. Need to change it? ${portal}  — Tennessee Appliance Exchange 🐜`;
         try { await sendSms(to, cmsg, 'customer', 'customer_schedule_request'); } catch (_) {}
       }
       return say(`Perfect — I've got your scheduling request in for ${whenSpoken}. Our office will confirm it, and if our route can't make that exact day they'll call you right back to find one that works. You've done your part — you're all set. Anything else I can help with?`);

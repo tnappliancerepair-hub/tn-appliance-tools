@@ -116,7 +116,7 @@ exports.handler = async function (event) {
     known: false,
     caller_first: '',
     caller_name: '',
-    greeting: 'Thanks for calling TN Appliance Exchange! Who do I have the pleasure of speaking with?',
+    greeting: 'Thanks for calling Tennessee Appliance Exchange! Who do I have the pleasure of speaking with?',
     situation: '',
     has_job: false,
     appliance: '', tech: '', scheduled_day: '', status: '', part_eta: '',
@@ -173,7 +173,7 @@ exports.handler = async function (event) {
     // (ring ~5×, then Ann takes the message and texts it to the tech).
     '6154855795': {
       known: true, caller_first: 'Teddy', caller_name: 'Teddy Pivacek',
-      greeting: "Hi Teddy! Thanks for calling TN Appliance Exchange. I see you're on our schedule for today — what can I help you with?",
+      greeting: "Hi Teddy! Thanks for calling Tennessee Appliance Exchange. I see you're on our schedule for today — what can I help you with?",
       situation: "you're on our schedule for today",
       has_job: true, appliance: 'dryer', tech: 'Teddy', scheduled_day: 'today', status: 'scheduled',
       is_warranty: false, warranty_company: '', job_id: '19065', claim_number: '',
@@ -259,18 +259,18 @@ exports.handler = async function (event) {
   const needsWaiver = activeJob && waiverSignedAt === 0;          // 0 = explicitly never signed; null = unknown, don't assume
   const chasing = needsAvailability && outreach >= 2;            // we've asked 2+ times, still nothing → the Mrs. Jones move
 
-  const hi = first ? `Hi ${first}!` : 'Thanks for calling TN Appliance!';
+  const hi = first ? `Hi ${first}!` : 'Thanks for calling Tennessee Appliance!';
   let greeting;
   if (chasing) {
     // Gold-standard open: acknowledge the chase WARMLY (relieved, never accusatory) and
     // pivot to closing it live on the call instead of another round of texts.
     greeting = `${hi} I'm so glad you caught us — we've been trying to reach you to get ${ap} scheduled. Instead of going back and forth by text, let's just take care of it right now. What days work for you — and on those days, are you pretty wide open, or do you need mornings or afternoons?`;
   } else if (situation) {
-    greeting = `${hi} Thanks for calling TN Appliance. I see ${situation} — is that what you're calling about, or is it something else?`;
+    greeting = `${hi} Thanks for calling Tennessee Appliance. I see ${situation} — is that what you're calling about, or is it something else?`;
   } else if (needsAvailability) {
-    greeting = `${hi} Thanks for calling TN Appliance. Let's get ${ap} scheduled — what days work for you, and on those days are you pretty wide open, or do you need mornings or afternoons?`;
+    greeting = `${hi} Thanks for calling Tennessee Appliance. Let's get ${ap} scheduled — what days work for you, and on those days are you pretty wide open, or do you need mornings or afternoons?`;
   } else {
-    greeting = `${hi} Thanks for calling TN Appliance Exchange. How can I help you today?`;
+    greeting = `${hi} Thanks for calling Tennessee Appliance Exchange. How can I help you today?`;
   }
 
   // Full context injected into the assistant's instructions so it "already knows"
