@@ -106,6 +106,15 @@ exports.handler = async function (event) {
   // flow (greet by name, the "we've been trying to reach you" chase, gather availability
   // live, offer the waiver). Only affects his number; real customers get real data.
   const demoCore = digits.length === 11 && digits[0] === '1' ? digits.slice(1) : digits;
+
+  // ── TEST OVERRIDE — FORCE A FRESH, UNKNOWN CASH CALLER (Teddy 2026-08-13: "make sure my
+  // number isn't in there so it just greets me with the sale"). Teddy's cell is attached to
+  // a magnet job (19065), which would otherwise greet him by name. Listing a number here
+  // makes Ann open with the cash-closer flow instead. Runs BEFORE the demo + the lookup so
+  // it always wins. Remove the number to restore normal greet-by-name recognition.
+  const FORCE_UNKNOWN = new Set(['6154855795']);
+  if (FORCE_UNKNOWN.has(demoCore)) return json(200, { dynamic_variables: generic, matched: false, reason: 'forced_unknown_test' });
+
   const DEMO = {
     // TEST SCENARIO (Teddy 2026-08-12): the day-of "connect me to my tech" flow. Job 19065
     // resolves to tech id 1 (Teddy) with his own cell, so connect_to_tech + the Teddy
