@@ -23,6 +23,7 @@ const SITE = 'https://tnapplianceexchange.net';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const crud = require('./_lib/xano/metadata-crud');
 let sendSms; try { ({ sendSms } = require('./_lib/sms')); } catch (_) { sendSms = null; }
+let getSecret = null, setSecret = null; try { ({ getSecret, setSecret } = require('./_lib/secrets')); } catch (_) {}
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -234,6 +235,31 @@ exports.handler = async function (event) {
         summary: String(a.summary || a.reason || '').trim(), caller_type: String(a.caller_type || 'customer').trim(), ref: 'ann_phone',
       });
       return say((r && r.say) || "You're all set — I've logged your callback and the office will reach out shortly. Anything else I can do?");
+    }
+
+    // 4a2) SAVE A WARRANTY REP — auto-learn (Teddy 2026-08-13). When a warranty-company rep
+    // introduces herself and we don't already know her, Ann asks for her number and saves it
+    // here so NEXT time she's greeted by name. Merges { digits: "Company::Rep" } into the
+    // vault WARRANTY_CALLER_IDS map the pre-call brain reads.
+    if (doAction === 'save_warranty_rep') {
+      const phone = String(a.phone || '').replace(/\D/g, '');
+      const rep = String(a.rep_name || a.rep || a.name || '').trim().slice(0, 40);
+      const company = String(a.company || '').trim().slice(0, 60);
+      if (phone.length < 10 || !company) return say("I didn't quite catch the number — could you give me the best number to save for you?", { saved: false });
+      const key = phone.length === 10 ? '1' + phone : phone;
+      let saved = false;
+      if (getSecret && setSecret) {
+        try {
+          let map = {}; try { const raw = await getSecret('WARRANTY_CALLER_IDS'); if (raw) map = JSON.parse(raw); } catch (_) {}
+          map[key] = rep ? `${company}::${rep}` : company;
+          const ok = await setSecret('WARRANTY_CALLER_IDS', JSON.stringify(map));
+          saved = ok !== false;
+        } catch (_) { saved = false; }
+      }
+      try { await crud.logEvent('warranty_rep_learned', { phone: key, company, rep, saved, at_ms: Date.now() }); } catch (_) {}
+      return say(saved
+        ? `Perfect${rep ? `, ${rep}` : ''} — I've got your number saved, so I'll recognize you right away next time. What can I help you with?`
+        : `Got it${rep ? `, ${rep}` : ''} — I've made a note. What can I help you with?`, { saved });
     }
 
     // 4b) ALERT THE OFFICE — pop the caller onto the office's phones/laptops with a one-tap
