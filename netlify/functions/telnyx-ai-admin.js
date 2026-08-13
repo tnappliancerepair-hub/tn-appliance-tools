@@ -20,8 +20,10 @@ const SHADOW_NUMBER = '+16158211400';          // the spare line for the shadow 
 // Same "Brooke" persona Teddy likes, but on Inworld's top "Max" tier — smoother + more
 // natural than the Telnyx house voice. (Telnyx has no ElevenLabs/Cartesia.)
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
-// A/B: gpt-5.4 (Teddy wants to hear the higher tier vs 5.1). Revert to openai/gpt-5.1 if
-// there's any voice lag — that's the locked-in default. Telnyx-hosted, no key.
+// LOCKED IN (Teddy 2026-08-13: "this is impressive, I love it — lock it in"). gpt-5.4 =
+// the max-intelligence tier, our sharpest closer, which is exactly what the cash calls
+// need. Telnyx-hosted, no key. (If cost on warranty volume ever needs trimming, the lever
+// is a per-track model split via a Telnyx Conversation Workflow — not a change here.)
 const MODEL_CLAUDE = 'openai/gpt-5.4';
 const TOOL = `${SITE}/.netlify/functions/telnyx-ai-tool`;
 const PRECALL = `${SITE}/.netlify/functions/telnyx-precall-context`;
