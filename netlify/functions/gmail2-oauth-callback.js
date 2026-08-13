@@ -39,11 +39,22 @@ exports.handler = async function (event) {
     }
     let saved = false;
     try { await setSecret(TOKEN_KEY, d.refresh_token); saved = true; } catch (_) {}
+    // Capture WHICH address this slot is, so gmail-send can map a "from" to the right
+    // token, and confirm the send scope was actually granted.
+    let email = '', hasSend = /gmail\.send/.test(String(d.scope || ''));
+    try {
+      const pr = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', { headers: { Authorization: 'Bearer ' + d.access_token } });
+      const pj = await pr.json().catch(() => ({}));
+      email = pj.emailAddress || '';
+      if (email) { try { await setSecret('GMAIL' + n + '_ACCOUNT_EMAIL', email); } catch (_) {} }
+    } catch (_) {}
     return {
       statusCode: 200, headers: { 'Content-Type': 'text/html' },
-      body: page('✅ Inbox #' + n + ' connected',
+      body: page('✅ Inbox #' + n + ' connected' + (email ? ' — ' + email : ''),
         saved
-          ? '<p><b>Done.</b> Ant now reads this inbox too (slot ' + n + '). The search tool + the API watchers scan it from here on.</p>'
+          ? '<p><b>Done.</b> Ant can now read <b>and ' + (hasSend ? 'send/reply from' : 'read') + '</b> this inbox (slot ' + n + ')'
+            + (email ? ' — <b>' + email + '</b>' : '') + '.'
+            + (hasSend ? '' : '<br><span style="color:#b45309">⚠️ Send permission was NOT granted — make sure the gmail.send scope is on the OAuth consent screen, then run this link again.</span>') + '</p>'
           : ('<p>Connected, but auto-save failed. Add this to the vault as <b>' + TOKEN_KEY + '</b>:</p><textarea readonly style="width:100%;height:120px;font-family:monospace" onclick="this.select()">' + d.refresh_token + '</textarea>')),
     };
   } catch (err) {

@@ -17,7 +17,8 @@
 const { getSecretPreferVault } = require('./_lib/secrets');
 
 const REDIRECT = 'https://tnapplianceexchange.net/.netlify/functions/gmail2-oauth-callback';
-const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+// readonly (search/watchers) + send (so Ant can send/reply on your behalf, drafts-first).
+const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
 
 exports.handler = async function (event) {
   // ?n=<slot> picks which GMAIL{n}_REFRESH_TOKEN to fill (2..5). Default 2.
