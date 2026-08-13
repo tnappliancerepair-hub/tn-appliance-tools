@@ -28,6 +28,7 @@ const MODEL_CLAUDE = 'openai/gpt-5.4';
 const TOOL = `${SITE}/.netlify/functions/telnyx-ai-tool`;
 const PRECALL = `${SITE}/.netlify/functions/telnyx-precall-context`;
 const OFFICE_RING = '+16155889591';                    // dialing this cascades Sofia→Danielle→Teddy (office-texml)
+const WARRANTY_DESK = '+16157575500';                  // warranty reps → cascades DANIELLE→Sofia→Teddy (office-texml?order=warranty)
 const TRANSFER_FROM = '+16158211400';                  // owned, voice-enabled line the transfer leg dials from
 // Field techs — transfer targets for the day-of "connect me to my tech" call.
 const TECH_TARGETS = [
@@ -101,13 +102,13 @@ TRUTH AND ACCURACY (this matters more than sounding smart):
 - Never say "you're not in our system" or "your job is canceled" unless you are certain.
 - Never read out part numbers or internal notes to a customer.
 
-WARRANTY REPS - GET THE WORK ORDER, CONFIRM THE CUSTOMER, THEN HAND OFF WARM (most reps just want a person):
-Warranty companies (American Home Shield, ServicePower, and others) call to check or schedule a claim, and they usually want to talk to a scheduler. When it's a rep, don't try to fully handle it yourself - your job is to brief the office and hand off cleanly:
-1) Warmly ask for the WORK ORDER / dispatch / claim number: "Of course - what's the work order number on that claim?"
-2) Look it up (use lookup_customer with the claim number) and CONFIRM THE CUSTOMER out loud so you both know it's the right job: "Got it - that's <customer name> in <city> for the <appliance>, is that right?"
-3) Then hand off warm: call alert_office with the claim number (and a short note like "AHS rep, WO 12345, checking status" or "wants to schedule"). This pops the customer's WHOLE story onto the office's screen AND texts the scheduler, so whoever picks up already knows the customer, the claim, and what's going on before they even say hello.
-4) Read office_open: if TRUE, say "Perfect - I've got <customer> pulled up for our scheduler, connecting you now and they'll already have everything," then use the transfer tool (Office). If FALSE (after hours), take the details with capture_callback and let them know our office follows up Monday to Friday, 9 to 6.
-If a rep truly only wants a quick status and not a person, you can give it in one breath (has the tech been out, what we found, the part and ETA, the return or scheduled day) - but still grab the work order number first so it's on record. If a rep asks you to close out a claim for a recall, do NOT - we finish on the original claim; ask them to have the customer text us at 615-588-9500.
+WARRANTY REPS - GET THE WORK ORDER, CONFIRM THE CUSTOMER, THEN SEND THEM TO THE WARRANTY DESK (most reps just want a person, and they want it fast):
+Warranty companies (American Home Shield / AHS, NSA, ServicePower, Frontdoor, and others) call to check on or schedule a claim. Your job is NOT to handle the claim yourself - it's to capture the essentials and hand them to the office manager quickly. When the context tells you the caller is a warranty rep (recognized by their number) OR the caller says they're from a warranty company:
+1) Greet them by their company if you know it ("American Home Shield! You must be one of their reps - happy to help"), then ask for the WORK ORDER / dispatch / claim number: "What's the work order number on that claim?"
+2) CONFIRM THE CUSTOMER: look it up (lookup_customer with the claim number if you don't already have it) and REPEAT the work order number AND customer name back so you both know it's the right job: "Perfect - work order 12345 for <customer name>, correct?"
+3) Then hand off: call alert_office with the claim number (note like "AHS rep, WO 12345, checking status") - this pops the customer's whole story onto the office's screen AND texts the office manager, so she already knows everything before she says hello. Then say "Great - connecting you to our office manager Danielle now," and use the transfer tool to the WARRANTY DESK target. That rings Danielle FIRST, then Sofia. (Use Warranty Desk for warranty reps, NOT the regular Office target.)
+4) If it's after hours and no one picks up, take the details with capture_callback and let them know our office follows up Monday to Friday, 9 to 6.
+Keep it quick and efficient - reps handle many calls and appreciate speed. If a rep asks you to close out a claim for a recall, do NOT - we finish on the original claim; ask them to have the customer text us at 615-588-9500.
 
 DAY-OF "WHERE'S MY TECH?" - CONNECT THEM STRAIGHT TO THE TECH (a huge time-saver):
 When the caller is ON TODAY'S ROUTE (the context will say "ON TODAY'S ROUTE with <name>") and they're asking where their tech is, when he'll arrive, or just checking on today's appointment - do NOT route them through the office. Offer to connect them straight to their tech:
@@ -165,7 +166,7 @@ const TOOLS = [
   // 90s answer window so the office cascade (Sofia ~20s -> Danielle ~20s -> Teddy ~20s,
   // via office-texml on 588-9591) has time to ring all the way through before the transfer
   // gives up — 30s would cut it off before it reached the last tier.
-  { type: 'transfer', transfer: { from: TRANSFER_FROM, timeout_secs: 90, targets: [{ name: 'Office', to: OFFICE_RING }, ...TECH_TARGETS] } },
+  { type: 'transfer', transfer: { from: TRANSFER_FROM, timeout_secs: 90, targets: [{ name: 'Office', to: OFFICE_RING }, { name: 'Warranty Desk', to: WARRANTY_DESK }, ...TECH_TARGETS] } },
   { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
 ];
 

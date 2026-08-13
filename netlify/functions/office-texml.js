@@ -87,11 +87,16 @@ exports.handler = async function (event) {
   // computer app (if their SIP login is vaulted). A tier with nobody reachable is
   // skipped to the next. A tier that doesn't answer in ~20s chains to the next via the
   // action webhook (?leg=N). Teddy's SIP falls back to the legacy TELNYX_SIP_USERNAME.
-  const tiers = [
-    { name: 'Sofia',    cell: (await getSecret('OFFICE_CELL_SOFIA')) || '+16292594602',    on: !isOff(await getSecretFresh('OFFICE_REACH_SOFIA')),    sip: webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_SOFIA')) : '' },
-    { name: 'Danielle', cell: (await getSecret('OFFICE_CELL_DANIELLE')) || '+16154850713', on: !isOff(await getSecretFresh('OFFICE_REACH_DANIELLE')), sip: webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_DANIELLE')) : '' },
-    { name: 'Teddy',    cell: (await getSecret('OFFICE_CELL_TEDDY')) || '+16154855795',     on: !isOff(await getSecretFresh('OFFICE_REACH_TEDDY')),     sip: webrtcOn ? sipUri((await getSecret('TELNYX_SIP_USERNAME_TEDDY')) || (await getSecret('TELNYX_SIP_USERNAME'))) : '' },
-  ];
+  const SOFIA =    { name: 'Sofia',    cell: (await getSecret('OFFICE_CELL_SOFIA')) || '+16292594602',    on: !isOff(await getSecretFresh('OFFICE_REACH_SOFIA')),    sip: webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_SOFIA')) : '' };
+  const DANIELLE = { name: 'Danielle', cell: (await getSecret('OFFICE_CELL_DANIELLE')) || '+16154850713', on: !isOff(await getSecretFresh('OFFICE_REACH_DANIELLE')), sip: webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_DANIELLE')) : '' };
+  const TEDDY =    { name: 'Teddy',    cell: (await getSecret('OFFICE_CELL_TEDDY')) || '+16154855795',     on: !isOff(await getSecretFresh('OFFICE_REACH_TEDDY')),     sip: webrtcOn ? sipUri((await getSecret('TELNYX_SIP_USERNAME_TEDDY')) || (await getSecret('TELNYX_SIP_USERNAME'))) : '' };
+  // ORDER (Teddy 2026-08-13): warranty-company reps go to DANIELLE first, then Sofia, then
+  // Teddy — she handles warranty check-ups fastest. Everyone else keeps the Sofia-first
+  // order. Set by the "Warranty Desk" TeXML app whose voice_url carries ?order=warranty.
+  const order = String(((event && event.queryStringParameters) || {}).order || '').toLowerCase();
+  const warrantyFirst = order === 'warranty' || order === 'danielle';
+  const tiers = warrantyFirst ? [DANIELLE, SOFIA, TEDDY] : [SOFIA, DANIELLE, TEDDY];
+  const orderQS = warrantyFirst ? `order=${order}&` : '';
   const legsFor = (t) => { const a = []; if (t.on && t.cell) a.push({ number: t.cell }); if (t.sip) a.push({ sip: t.sip }); return a; };
 
   // Per-tier ring length (seconds). Danielle reported her cell "rang once then went
@@ -121,7 +126,7 @@ exports.handler = async function (event) {
     const legs = legsFor(tiers[i]);
     if (!legs.length) continue;
     const moreAhead = tiers.slice(i + 1).some((t) => legsFor(t).length);
-    const action = moreAhead ? `${SELF}?leg=${i + 2}` : null;
+    const action = moreAhead ? `${SELF}?${orderQS}leg=${i + 2}` : null;
     // Final reachable tier gets a slightly longer ring (last chance before it falls through).
     return xmlResp(dialLegs(legs, callerId, moreAhead ? ringSecs : Math.min(ringSecs + 5, 45), action));
   }
