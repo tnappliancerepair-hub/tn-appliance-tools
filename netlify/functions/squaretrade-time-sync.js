@@ -20,6 +20,12 @@ const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OWNER = '+16154855795';
+// This is a SCHEDULING task the office owns (fix a wrong arrival window) — route it to
+// the schedulers, not the owner. (Teddy 2026-08-12: "this should go to Danielle and Sofia.")
+const SCHEDULERS = [
+  { phone: '+16154850713', role: 'danielle' },   // Danielle
+  { phone: '+16292594602', role: 'office' },      // Sofia
+];
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function fmt(d) { const p = (n) => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; }
 function ctHourOf(ms) { try { return parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date(Number(ms))), 10); } catch (_) { return -1; } }
@@ -89,10 +95,11 @@ exports.handler = async function (event) {
   }
 
   // 3) No exceptions: if any job's scheduled time disagrees with the promised window, tell
-  //    the owner so it's fixed before the customer is blindsided.
+  //    the SCHEDULERS (Danielle + Sofia) so it's fixed before the customer is blindsided.
   if (!dry && out.mismatches.length) {
     const lines = out.mismatches.slice(0, 8).map((m) => `#${m.job_id} ${m.who}: promised ${m.agreed}, we have ${m.we_have}`).join('\n');
-    try { await sendSms(OWNER, `⚠️ Ant: ${out.mismatches.length} SquareTrade job(s) scheduled OUTSIDE the customer's agreed window — fix before they're blindsided:\n${lines}`, 'owner', 'squaretrade_time_mismatch'); } catch (_) {}
+    const msg = `⚠️ Ant: ${out.mismatches.length} SquareTrade job(s) scheduled OUTSIDE the customer's agreed window — fix before they're blindsided:\n${lines}`;
+    for (const r of SCHEDULERS) { try { await sendSms(r.phone, msg, r.role, 'squaretrade_time_mismatch'); } catch (_) {} }
   }
 
   return j(200, { ok: true, dry, ...out, mismatches: out.mismatches.slice(0, 40) });
