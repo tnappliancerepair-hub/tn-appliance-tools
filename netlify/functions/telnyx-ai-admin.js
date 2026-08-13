@@ -20,9 +20,8 @@ const SHADOW_NUMBER = '+16158211400';          // the spare line for the shadow 
 // Same "Brooke" persona Teddy likes, but on Inworld's top "Max" tier — smoother + more
 // natural than the Telnyx house voice. (Telnyx has no ElevenLabs/Cartesia.)
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
-// Testing gpt-5.1 (Teddy 2026-08-12: "let's test 5") — full gpt-5, the smartest tier that
-// still holds up for real-time voice. Telnyx-hosted, no key. If it feels laggy, drop to
-// openai/gpt-5.4-mini (Telnyx's voice-tuned 5) or back to openai/gpt-4o.
+// LOCKED IN: gpt-5.1 (Teddy 2026-08-12 — "sounds sharper, lock it in"). Full gpt-5, the
+// smartest tier that still holds up for real-time voice. Telnyx-hosted, no key.
 const MODEL_CLAUDE = 'openai/gpt-5.1';
 const TOOL = `${SITE}/.netlify/functions/telnyx-ai-tool`;
 const PRECALL = `${SITE}/.netlify/functions/telnyx-precall-context`;
