@@ -20,7 +20,9 @@ const crud = require('./_lib/xano/metadata-crud');
 
 const TELNYX = 'https://api.telnyx.com/v2';
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const GRADER = 'claude-sonnet-4-5-20250929';
+// Haiku 4.5: fast + cheap, and plenty for structured grading (classify outcome, flag
+// stumbles/gaps, name fixes). Fits the 26s function budget where Sonnet blew it at volume.
+const GRADER = 'claude-haiku-4-5-20251001';
 const OWNER = '+16154855795';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const SITE = 'https://tnapplianceexchange.net/.netlify/functions';
