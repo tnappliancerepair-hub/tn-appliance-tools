@@ -900,3 +900,11 @@
 # texts Teddy the top fixes. Pull anytime: telnyx-call-review?secret=&hours=24&text=0
 [functions."telnyx-call-review-cron"]
   schedule = "30 2 * * *"
+
+# part-recovery-cron — auto-recovers part numbers that leak into the parts_needed list
+# column (which the office board can't read) back into verified_part_number, so a tech's
+# entered part # never silently vanishes. Runs a few times a day; fires the HTTP-callable
+# backfill-part-numbers core (scheduled fns can't call external HTTP directly). Band-aid
+# until the write path is fixed to always stamp verified_part_number.
+[functions."part-recovery-cron"]
+  schedule = "23 1,13,21 * * *"
