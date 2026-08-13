@@ -20,10 +20,10 @@ const SHADOW_NUMBER = '+16158211400';          // the spare line for the shadow 
 // Same "Brooke" persona Teddy likes, but on Inworld's top "Max" tier — smoother + more
 // natural than the Telnyx house voice. (Telnyx has no ElevenLabs/Cartesia.)
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
-// gpt-4o = the real-time-voice gold standard: Sonnet-class intelligence (big jump over
-// Haiku, which felt less sharp) while staying fast enough to avoid lag. Telnyx-hosted, no
-// key needed. Bump to openai/gpt-4.1 or a gpt-5.x for even sharper if we want.
-const MODEL_CLAUDE = 'openai/gpt-4o';
+// Testing gpt-5.1 (Teddy 2026-08-12: "let's test 5") — full gpt-5, the smartest tier that
+// still holds up for real-time voice. Telnyx-hosted, no key. If it feels laggy, drop to
+// openai/gpt-5.4-mini (Telnyx's voice-tuned 5) or back to openai/gpt-4o.
+const MODEL_CLAUDE = 'openai/gpt-5.1';
 const TOOL = `${SITE}/.netlify/functions/telnyx-ai-tool`;
 const PRECALL = `${SITE}/.netlify/functions/telnyx-precall-context`;
 const OFFICE_RING = '+16155889591';                    // dialing this cascades Sofia→Danielle→Teddy (office-texml)
