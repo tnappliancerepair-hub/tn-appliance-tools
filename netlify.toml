@@ -892,3 +892,11 @@
 # number a tech wrote in the report always reaches the office field, hands-off.
 [functions."tech-report-gaps"]
   schedule = "20 */2 * * *"
+
+# telnyx-call-review-cron — Ann's self-teaching flywheel. ~8:30PM CT nightly (02:30 UTC),
+# fires the HTTP-callable telnyx-call-review core with text=1: reads the day's Telnyx call
+# transcripts, grades each (did she close the cash call / serve the warranty call cleanly,
+# where did she stumble, what did she not know), stores the scorecard trend + gaps, and
+# texts Teddy the top fixes. Pull anytime: telnyx-call-review?secret=&hours=24&text=0
+[functions."telnyx-call-review-cron"]
+  schedule = "30 2 * * *"
