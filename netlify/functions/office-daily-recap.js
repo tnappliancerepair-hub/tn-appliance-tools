@@ -6,6 +6,7 @@
 const crud = require('./_lib/xano/metadata-crud');
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const { officeTaskAlert } = require('./_lib/office-alert');
 
 const OWNER = '+16154855795'; // Teddy
 const CT_OFFSET = 5 * 3600 * 1000; // CDT (UTC-5)
@@ -88,6 +89,6 @@ exports.handler = async function (event) {
   const msg = compose(per, automated, sinceMs);
 
   const send = scheduled || q.text === '1';
-  if (send) { try { await sendSms(OWNER, msg, 'owner', 'office_recap'); } catch (_) {} }
+  if (send) { try { await officeTaskAlert(msg, 'office_recap'); } catch (_) {} }   // → Danielle+Sofia, biz hours
   return json(200, { ok: true, sent: send, since_ct: ctLabel(sinceMs), since_ms: sinceMs, per, automated, message: msg, ...(q.debug === '1' ? { dbg } : {}) });
 };

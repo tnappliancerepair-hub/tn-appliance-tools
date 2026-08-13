@@ -9,6 +9,7 @@
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const { officeTaskAlert } = require('./_lib/office-alert');
 const crud = require('./_lib/xano/metadata-crud');
 const OWNER = '+16154855795';
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -53,7 +54,7 @@ exports.handler = async function (event) {
     if (!recent) {
       const lines = hits.slice(0, 6).map((h) => `• tag "${h.tag}" → …${h.last4}: "${h.body}"`).join('\n');
       const body = `[ant] 🚨 ${hits.length} deal-closing lead text(s) were BLOCKED by the intake gate in the last ${hours}h — leads may be getting SILENCE. Fix the sender's context_tag:\n${lines}`;
-      try { await sendSms(OWNER, body, 'owner', 'lead_text_block_alert'); } catch (_) {}
+      try { await officeTaskAlert(body, 'lead_text_block_alert'); } catch (_) {}   // → Danielle+Sofia, biz hours
       try { await crud.logEvent('lead_text_block_alerted', { count: hits.length, at_ms: Date.now() }); } catch (_) {}
     }
   }

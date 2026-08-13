@@ -17,6 +17,7 @@
 const { google } = require('googleapis');
 const crud = require('./_lib/xano/metadata-crud');
 const { sendSms } = require('./_lib/sms');
+const { officeTaskAlert } = require('./_lib/office-alert');
 const SITE = 'https://tnapplianceexchange.net';
 const OWNER = '+16154855795';
 const CUSTOMER = crud.TABLES.customer; // 6
@@ -140,7 +141,7 @@ exports.handler = async function (event) {
   // the auto-fix is visible (not silent). Stays quiet when there's nothing to fix.
   if (scheduled && counts.FIXED) {
     const fixedList = results.filter((r) => r.status === 'FIXED').map((r) => `#${r.job_id} ${r.name} -> ${r.proposed}`).join('\n');
-    try { await sendSms(OWNER, `[ant] 🛠️ Auto-fixed ${counts.FIXED} job address${counts.FIXED > 1 ? 'es' : ''} from the dispatch:\n${fixedList}`, 'owner', 'address_autoheal'); } catch (_) {}
+    try { await officeTaskAlert(`[ant] 🛠️ Auto-fixed ${counts.FIXED} job address${counts.FIXED > 1 ? 'es' : ''} from the dispatch:\n${fixedList}`, 'address_autoheal'); } catch (_) {}   // → Danielle+Sofia, biz hours
   }
 
   return json(200, {

@@ -13,6 +13,7 @@ const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG = 3;
 const { sendSms } = require('./_lib/sms');
+const { officeTaskAlert } = require('./_lib/office-alert');
 const OWNER = '+16154855795';
 const RENUDGE_MS = 2 * 3600 * 1000; // re-nudge persistent unworked every 2h
 
@@ -83,7 +84,7 @@ exports.handler = async function () {
     lines.join('\n') +
     `\n\nCall these before they become bad reviews -> tnapplianceexchange.net/callbacks.html`;
 
-  try { await sendSms(OWNER, body, 'owner', 'callback_watch'); } catch (_) {}
+  try { await officeTaskAlert(body, 'callback_watch'); } catch (_) {}   // → Danielle+Sofia, biz hours
 
   if (hh) {
     try {
