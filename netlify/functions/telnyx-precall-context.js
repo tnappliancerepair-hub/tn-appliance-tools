@@ -29,6 +29,15 @@ let intakeCap = null; try { intakeCap = require('./_lib/intake-cap'); } catch (_
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 
+// ── CALL-TRACK PERSONAS (Teddy 2026-08-12: "the warranty calls are already ours so we can
+// go cheaper on the intelligence, but the cash calls need to be the sharpest and our best
+// effort to close jobs"). The persona rides in system_context PER CALL, so the same Ann
+// flips posture by who's calling — KNOWN WARRANTY caller → efficient service; EVERYONE
+// ELSE (cash / unknown) → sharp closer whose job is to WIN the work.
+const PERSONA_CASH = "CALL TRACK — CASH (self-pay): this is our best shot to WIN a job, so bring your sharpest, most consultative energy — your goal is to get them BOOKED, not just answer questions. Be warm, confident, and genuinely on their side, like the best advisor they've ever talked to. Guide them toward a decision. Be transparent on price: we offer up to four options — an OEM or an Amazon-equivalent part, and we-install or you-install — every option delivered by us (never read out part numbers). Lower the bar to yes: offer the quick $50 diagnostic, or a short video of the problem plus a photo of the model-number sticker so we can pre-diagnose and often bring the part the very first trip. Build momentum without pressure. NEVER let a cash caller hang up empty-handed — always land a concrete next step: booked, a scheduling hold (place_hold), or the intake link sent (send_intake_link).";
+const PERSONA_WARRANTY = "CALL TRACK — WARRANTY: this job is already ours, so serve it fast, warm, and accurate — do NOT sell. Confirm the claim, give status, scheduling, and parts clearly, gather availability if it's missing, and connect them straight to their tech if they're on today's route. Efficient and kind: handle it and get them off the phone happy.";
+function withPersona(track, ctx) { return `${track === 'warranty' ? PERSONA_WARRANTY : PERSONA_CASH} ${ctx || ''}`.trim(); }
+
 // Telnyx tucks the caller number in a few possible spots depending on the webhook
 // (AI assistant dynamic-vars vs call-control). Pull it from wherever it lands.
 function callerFrom(body, q) {
@@ -83,7 +92,10 @@ exports.handler = async function (event) {
     appliance: '', tech: '', scheduled_day: '', status: '', part_eta: '',
     is_warranty: false, warranty_company: '',
     job_id: '', claim_number: '',
-    system_context: 'This caller is not yet identified. Warmly ask for their name and how we can help, then use your lookup tools.',
+    // Unknown caller → default to the CASH CLOSER track ("everyone else → sharp closer").
+    // If the lookup later reveals a warranty job, the base instructions still handle it.
+    call_track: 'cash',
+    system_context: withPersona('cash', 'This caller is not yet identified. Warmly ask for their name and how we can help, then use your lookup tools.'),
   };
 
   if (!digits || digits.length < 10) return json(200, { dynamic_variables: generic, matched: false, reason: 'no_caller_id' });
@@ -226,6 +238,11 @@ exports.handler = async function (event) {
     customerLine && `Say-it-straight status line: ${customerLine}`,
   ].filter(Boolean);
 
+  // CALL TRACK: known warranty caller → efficient service (cheaper effort); everyone else
+  // → sharp cash closer. The persona rides at the FRONT of system_context so it frames the
+  // whole call.
+  const track = f.is_warranty ? 'warranty' : 'cash';
+
   const dv = {
     known: true,
     caller_first: first,
@@ -241,8 +258,9 @@ exports.handler = async function (event) {
     outreach_count: outreach, being_chased: chasing,
     // day-of "where's my tech" — connect them straight to their tech
     scheduled_today: scheduledToday, can_connect_tech: canConnectTech, tech_first: techFirst,
-    system_context: ctxBits.join(' '),
+    call_track: track,
+    system_context: withPersona(track, ctxBits.join(' ')),
   };
 
-  return json(200, { dynamic_variables: dv, matched: true, job_id: dv.job_id });
+  return json(200, { dynamic_variables: dv, matched: true, job_id: dv.job_id, call_track: track });
 };
