@@ -29,6 +29,9 @@ exports.handler = async function () {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: { toolCalls: [{ id: 'warm', function: { name: 'get_business_hours', arguments: '{}' } }] } }),
     }),
+    // telnyx-precall-context: the NEW Telnyx Ann's greet-by-name webhook. Keep it hot so
+    // Telnyx never times out the dynamic-variables call and speaks a raw "{{greeting}}".
+    ping(`${SITE}/telnyx-precall-context?phone=6155551212`),
   ]);
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, warmed: results }) };
 };
