@@ -117,25 +117,32 @@ exports.handler = async function (event) {
   // ─────────────────────────────────────────────────────────────────────────────────
 
   // Resolve the caller through the ONE brain (job-truth) AND pull the customer record
-  // (for waiver status) IN PARALLEL, hard-capped so a slow lookup can't delay the
-  // greeting — fall back to the warm generic instead.
+  // (for waiver status) IN PARALLEL — but HARD-CAPPED at ~2s total. Telnyx times out this
+  // dynamic-variables webhook in a couple seconds; if it doesn't get a value in time it
+  // speaks the literal "{{greeting}}". So the WHOLE lookup races a 2s deadline and, if it
+  // loses, we return the warm generic greeting immediately (a real greeting, never a
+  // placeholder). (Teddy 2026-08-12: "it said 'greeting'.")
   let f = null, customerLine = '', waiverSignedAt = null;
   try {
-    const jtP = fetch(`${SITE}/.netlify/functions/job-truth?phone=${digits}&lens=customer`, { signal: AbortSignal.timeout(4500) }).then((r) => r.json()).catch(() => null);
-    const cxP = fetch(`${XANO}/lookup_customer_by_phone?phone=${digits}`, { signal: AbortSignal.timeout(2500) }).then((r) => r.json()).catch(() => null);
-    const [d, cust] = await Promise.all([jtP, cxP]);
-    if (d && d.found) { f = d.facts || {}; customerLine = (d.lenses && d.lenses.customer) || ''; }
-    if (cust && cust.found && cust.customer) waiverSignedAt = Number(cust.customer.last_waiver_signed_at || 0);
+    const jtP = fetch(`${SITE}/.netlify/functions/job-truth?phone=${digits}&lens=customer`, { signal: AbortSignal.timeout(1900) }).then((r) => r.json()).catch(() => null);
+    const cxP = fetch(`${XANO}/lookup_customer_by_phone?phone=${digits}`, { signal: AbortSignal.timeout(1600) }).then((r) => r.json()).catch(() => null);
+    const TIMED_OUT = Symbol('timeout');
+    const raced = await Promise.race([Promise.all([jtP, cxP]), new Promise((res) => setTimeout(() => res(TIMED_OUT), 2000))]);
+    if (raced !== TIMED_OUT) {
+      const [d, cust] = raced;
+      if (d && d.found) { f = d.facts || {}; customerLine = (d.lenses && d.lenses.customer) || ''; }
+      if (cust && cust.found && cust.customer) waiverSignedAt = Number(cust.customer.last_waiver_signed_at || 0);
+    }
   } catch (_) { /* fall through to generic */ }
 
-  if (!f) return json(200, { dynamic_variables: generic, matched: false, reason: digits ? 'no_match' : 'no_caller_id' });
+  if (!f) return json(200, { dynamic_variables: generic, matched: false, reason: digits ? 'no_match_or_slow' : 'no_caller_id' });
 
   // THE WHOLE STORY — how many times we've reached out about this job (the "we've been
   // trying to reach you" signal). Best-effort + time-boxed so it never delays the open.
   let outreach = 0;
   const jobIdNum = Number(f.job_id || 0);
   if (jobIdNum && intakeCap) {
-    try { outreach = await Promise.race([intakeCap.outreachCount(jobIdNum), new Promise((res) => setTimeout(() => res(0), 1300))]); } catch (_) { outreach = 0; }
+    try { outreach = await Promise.race([intakeCap.outreachCount(jobIdNum), new Promise((res) => setTimeout(() => res(0), 600))]); } catch (_) { outreach = 0; }
     outreach = Number(outreach) || 0;
   }
 
