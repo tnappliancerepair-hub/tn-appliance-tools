@@ -122,9 +122,9 @@ exports.handler = async function (event) {
 
   const seen = live ? await loadCursor() : new Set();
   const candidates = allJobs.filter((jid) => !seen.has(jid) && !resp.jobs.has(jid));
-  const examine = candidates.slice(0, live ? 80 : 150);
+  const examine = candidates.slice(0, live ? 60 : 55);
 
-  const resolved = await pool(examine, 6, resolveJob);
+  const resolved = await pool(examine, 10, resolveJob);
   const eligible = [], skipped = [];
   for (const r of resolved) {
     if (!r || r.err) { skipped.push({ job_id: r && r.job_id, why: 'lookup failed' }); continue; }
