@@ -100,6 +100,13 @@ exports.handler = async function (event) {
   const live = scheduled || q.confirm === 'SEND';
   const enabledLive = ['on', 'true', '1', 'yes'].includes(String(await getSecret('REVIEW_RELINK') || '').toLowerCase());
   if (live && !enabledLive) return j(200, { ok: false, live_disabled: true, note: 'Live send is OFF. Set vault REVIEW_RELINK=on to arm. Dry-run (secret only, no confirm=SEND) works without it.' });
+  // Optional "don't send before" gate (Teddy wanted this backlog to go out a specific
+  // afternoon, not immediately). Vault REVIEW_RELINK_NOT_BEFORE = epoch ms; live sends
+  // no-op until then. Dry-run is unaffected.
+  if (live) {
+    const notBefore = Number(await getSecret('REVIEW_RELINK_NOT_BEFORE') || 0);
+    if (notBefore && Date.now() < notBefore) return j(200, { ok: true, waiting: true, note: 'Holding until the scheduled start time (REVIEW_RELINK_NOT_BEFORE).' });
+  }
   if (live) { const h = ctHour(); if (h < 9 || h >= 19) return j(200, { ok: false, error: 'outside send window — 9am–7pm CT (got ' + h + ':00 CT). Dry-run works anytime.' }); }
 
   const [completed, ex] = await Promise.all([completedFromBoard(), exclusionSets()]);

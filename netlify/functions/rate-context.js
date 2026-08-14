@@ -10,6 +10,11 @@ const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
+const NEXTDOOR_DEFAULT = 'https://nextdoor.com/page/tn-appliance-exchange-antioch-tn';
+async function nextdoorUrl() {
+  let u = ''; try { u = String((await getSecret('NEXTDOOR_RECOMMEND_URL')) || '').trim(); } catch (_) { u = ''; }
+  return /^https?:\/\/(www\.)?nextdoor\.com\//i.test(u) ? u : NEXTDOOR_DEFAULT;
+}
 
 function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(b) }; }
 function meta(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
@@ -41,5 +46,5 @@ exports.handler = async function (event) {
     appliance = String((ap && ap.type) || (d && d.job && d.job.appliance_type) || '').trim().toLowerCase();
   } catch (_) {}
 
-  return j(200, { ok: true, first, tech, appliance, google_url: REVIEW_URL, already, stars: priorStars });
+  return j(200, { ok: true, first, tech, appliance, google_url: REVIEW_URL, nextdoor_url: await nextdoorUrl(), already, stars: priorStars });
 };

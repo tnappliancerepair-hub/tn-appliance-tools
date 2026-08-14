@@ -125,25 +125,34 @@
   }
 
   function submit(stars, feedback){
-    // optimistic: for a happy rating, show the affirmation then hand off to Google
-    if(stars>=4){ state('<div class="big">🎉</div><div class="msg">Thank you!</div><div class="muted">Opening Google — it takes 20 seconds and means the world to us.</div>'); }
-    fetch(FN+'/rate-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({j:JOB,t:TOK,stars:stars,feedback:feedback})})
-      .then(function(r){return r.json();})
-      .then(function(d){
-        var url=(d&&d.google_url)||ctx.google_url;
-        if(stars>=4){ setTimeout(function(){ location.href=url; }, 650); }
-        else { thanks('low',false); }
-      })
-      .catch(function(){
-        if(stars>=4){ setTimeout(function(){ location.href=ctx.google_url; }, 400); }
-        else { thanks('low',false); }
-      });
+    // record in the background — don't make the customer wait on it
+    fetch(FN+'/rate-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({j:JOB,t:TOK,stars:stars,feedback:feedback})}).catch(function(){});
+    if(stars>=4){ shareScreen(); } else { thanks('low',false); }
+  }
+
+  // Happy path: one big obvious Google button (the priority for the map pack), with a small
+  // Nextdoor option underneath for folks who prefer it. Kept to ONE clear action = simplest.
+  function shareScreen(){
+    var g=ctx.google_url, nd=ctx.nextdoor_url;
+    card.innerHTML='<div class="state">'+
+      '<div class="big">🎉</div>'+
+      '<div class="msg">Thank you'+(ctx.first?(', '+esc(ctx.first)):'')+'!</div>'+
+      '<div class="muted" style="margin:2px 0 18px">One quick review helps our small family shop more than you know.</div>'+
+      '<a class="btn" style="text-decoration:none" href="'+esc(g)+'">★ Post a Google review</a>'+
+      (nd?'<div style="margin-top:16px"><a href="'+esc(nd)+'" style="color:var(--ink2);font-size:14px">or recommend us on Nextdoor →</a></div>':'')+
+      '<div class="muted" style="margin-top:14px;font-size:12.5px">Tap the button, then just tap the stars &amp; Post. Takes 20 seconds.</div>'+
+    '</div>';
   }
 
   function thanks(kind,already){
     if(kind==='high'){
-      state('<div class="big">🌟</div><div class="msg">Thanks for the love!</div>'+
-        '<div class="muted">'+(already?'You already rated this visit.':'')+' If you didn\'t get to post it, <a href="'+esc(ctx.google_url)+'" style="color:var(--green);font-weight:700">leave your Google review here</a>.</div>');
+      var nd=ctx.nextdoor_url;
+      card.innerHTML='<div class="state">'+
+        '<div class="big">🌟</div><div class="msg">Thanks for the love!</div>'+
+        '<div class="muted" style="margin:2px 0 16px">'+(already?'You already rated this visit — thank you!':'')+'</div>'+
+        '<a class="btn" style="text-decoration:none" href="'+esc(ctx.google_url)+'">★ Leave a Google review</a>'+
+        (nd?'<div style="margin-top:16px"><a href="'+esc(nd)+'" style="color:var(--ink2);font-size:14px">or recommend us on Nextdoor →</a></div>':'')+
+      '</div>';
     } else {
       state('<div class="big">🙏</div><div class="msg">Thank you — we\'ve got this.</div>'+
         '<div class="muted">Teddy will personally look into it and make it right. We appreciate the chance to fix it.</div>');
