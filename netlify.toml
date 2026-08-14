@@ -729,16 +729,22 @@
 [functions."review-request-sweep"]
   schedule = "30 23 * * *"
 
-# review-backfill (Teddy 2026-08-06) - ONE-TIME "thank you for the opportunity + how'd we do?"
-# catch-up to every eligible customer whose job completed in the last 14 days (the engine was
-# starved for months). PACED across a few fires (6:12/6:26/6:42/6:56pm CDT = 23:xx UTC) because
-# the SMS breaker halts at ~50/10min and there are ~100+ eligible. Cursor-based so it walks the
-# whole window without re-texting anyone; reuses every gate + the 60-day dedup marker; self-
-# terminates when the window is walked. Kill: vault REVIEW_BACKFILL=off. Remove this block once
-# the backlog is cleared. Newest-first, so it also covers today's completions (the 6:30 sweep
-# then no-ops on them).
-[functions."review-backfill"]
-  schedule = "12,26,42,56 23 * * *"
+# review-backfill — RETIRED 2026-08-14. It sent the OLD reply-based 👍/👎 ask (~4% reply
+# rate) and respected the 60-day dedup. Superseded by review-relink-campaign (below), which
+# sends the NEW one-tap rating link and re-reaches the non-responder backlog. Kept as an
+# on-demand function; cron disabled so both don't run.
+# [functions."review-backfill"]
+#   schedule = "12,26,42,56 23 * * *"
+
+# review-relink-campaign (Teddy 2026-08-14) - ONE-TIME re-engagement: text the NEW one-tap
+# rating link to every completed-but-never-responded customer (the backlog since we dropped
+# HCP). Sources the board's completed lane (fast), bypasses the 60-day dedup, but skips
+# responders + already-relinked + asked-in-last-7d. Paced batches of ≤40 under the SMS breaker;
+# business-hours only. LIVE send needs vault REVIEW_RELINK=on (armed). Fires a few times across
+# the CT business day (10:20a/12:20p/2:20p/4:20p CDT) and self-terminates when the backlog is
+# cleared. REMOVE this block once done. Kill: vault REVIEW_RELINK=off.
+[functions."review-relink-campaign"]
+  schedule = "20 15,17,19,21 * * *"
 
 # job-completion-watch (Teddy 2026-08-06; instant review ask 2026-08-14) - the canonical
 # "job is done" signal. tech_job_complete fires ~0 times, so it watches the
