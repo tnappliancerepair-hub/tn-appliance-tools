@@ -66,7 +66,7 @@ async function gradeConv(conv, KEY) {
   // and this keeps several grades inside the 26s function window.
   const res = await runBrainTurn({ systemPrompt: RUBRIC, userContent: 'TRANSCRIPT:\n' + transcript.slice(0, 9000), maxTokens: 500, model: 'claude-haiku-4-5-20251001', maxIterations: 1, claudeTimeoutMs: 12000, ctx: { brain: 'call_grader' } });
   const g = tryParseJsonReply(res.reply || '') || {};
-  if (typeof g.score !== 'number') return { skip: 'ungradeable (no score)', err: res.error };
+  if (typeof g.score !== 'number') return { skip: 'ungradeable (no score)', err: res.error || null, status: res.status, reply_snip: String(res.reply || '').slice(0, 200) };
   return { grade: { conv_id: conv.id, at: conv.created_at, score: Math.max(1, Math.min(10, Math.round(g.score))), outcome: g.outcome || '?', resolved: !!g.resolved, tools_ok: !!g.tools_ok, brand_voice_ok: !!g.brand_voice_ok, dead_air_or_error: !!g.dead_air_or_error, issues: Array.isArray(g.issues) ? g.issues.slice(0, 3) : [], one_line: String(g.one_line || '').slice(0, 240) } };
 }
 
@@ -108,7 +108,7 @@ exports.handler = async function (event) {
     if (done >= CAP) break;
     if (!dry) { try { const prior = await crud.searchOne(crud.TABLES.event_log, { action: 'ann_call_graded_' + c.id }, { id: 'desc' }); if (prior) { skipped.push({ id: c.id, why: 'already graded' }); continue; } } catch (_) {} }
     const r = await gradeConv(c, KEY); done++;
-    if (r.skip || !r.grade) { skipped.push({ id: c.id, why: r.skip || 'ungradeable' }); continue; }
+    if (r.skip || !r.grade) { skipped.push({ id: c.id, why: r.skip || 'ungradeable', err: r.err, status: r.status, reply_snip: r.reply_snip }); continue; }
     const g = r.grade;
     if (!dry) {
       try { await crud.logEvent('ann_call_grade', { ...g, at_ms: Date.now() }); } catch (_) {}
