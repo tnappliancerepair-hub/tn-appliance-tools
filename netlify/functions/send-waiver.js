@@ -24,7 +24,8 @@ exports.handler = async function (event) {
   if (!phone) return json(200, { ok: false, phone_present: false, error: 'no phone on file' });
 
   const link = `${SITE}/waiver.html?job_id=${jobId}`;
-  const body = `Hi ${first}, this is TN Appliance Exchange. Please sign our quick service waiver ahead of your visit so we're in and out fast — and take a look at the optional protection add-ons while you're there: ${link}`;
+  // GSM-7 (no em-dash) so it stays a single SMS segment. Add-ons are shown on the page.
+  const body = `Hi ${first}, Tennessee Appliance Exchange. Please sign our quick service waiver before your visit: ${link}`;
   let smsOk = false;
   try { smsOk = !!(await sendSms(phone, body, 'customer', 'intake_waiver')); } catch (_) {}
   try { await crud.logEvent('waiver_sent', { job_id: jobId, via: 'teddy_tool', phone_present: true, at_ms: Date.now() }); } catch (_) {}
