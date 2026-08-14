@@ -75,6 +75,10 @@ function callerFrom(body, q) {
   const b = body || {};
   const cands = [
     b.from, b.caller, b.telnyx_end_user_target,
+    // THE real Telnyx inbound field: data.payload.telnyx_end_user_target = the CALLER.
+    // (Without this the caller ID was never read -> greet-by-name never fired. 2026-08-13.)
+    b.data && b.data.payload && b.data.payload.telnyx_end_user_target,
+    b.payload && b.payload.telnyx_end_user_target,
     b.data && b.data.payload && b.data.payload.from,
     b.data && b.data.payload && b.data.payload.from && b.data.payload.from.phone_number,
     b.payload && b.payload.from,
