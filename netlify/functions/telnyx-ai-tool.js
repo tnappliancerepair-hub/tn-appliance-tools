@@ -91,7 +91,7 @@ async function openCashJob(a) {
     const newId = (d && (d.id || d.job_id)) || null;
     if (!newId) return { error: 'create_failed' };
     if (a.address || a.city) { try { await crud.update(crud.TABLES.jobs, newId, { service_address: String(a.address || '').trim(), service_city: String(a.city || '').trim(), service_zip: zip }); } catch (_) {} }
-    if (sendSms) { try { await sendSms('+16154850713', `New cash lead via Ann - ${first || 'caller'} - ${appliance}${problem ? ' - ' + problem : ''} - ${phone}. Job #${newId} in Needs-Scheduled.`, 'danielle', 'ann_new_job'); } catch (_) {} }
+    if (sendSms) { try { await sendSms('+16154850713', `🐜 New cash lead via Ann - ${first || 'caller'} - ${appliance}${problem ? ' - ' + problem : ''} - ${phone}. Job #${newId} in Needs-Scheduled.`, 'danielle', 'ann_new_job'); } catch (_) {} }
     return { job_id: newId };
   } catch (e) { return { error: String((e && e.message) || e) }; }
 }
@@ -258,7 +258,7 @@ exports.handler = async function (event) {
       if (to && to.length >= 10 && sendSms) {
         const last4 = to.slice(-4);
         const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
-        const cmsg = `Hi ${name}, your scheduling request is in for ${whenSpoken}. The office will confirm it; if our route can't make that day we'll call you right back. Change it: ${portal}`;
+        const cmsg = `Hi ${name}, your scheduling request is in for ${whenSpoken}. The office will confirm it; if our route can't make that day we'll call you right back. Change it: ${portal} - Tennessee Appliance Exchange 🐜`;
         try { await sendSms(to, cmsg, 'customer', 'customer_schedule_request'); } catch (_) {}
       }
       return say(`Perfect — I've got your scheduling request in for ${whenSpoken}. Our office will confirm it, and if our route can't make that exact day they'll call you right back to find one that works. You've done your part — you're all set. Anything else I can help with?`);
@@ -427,7 +427,7 @@ exports.handler = async function (event) {
       if (!msg) return say("What would you like me to send the tech?", { sent: false });
       const who = String(a.tech_name || a.tech || a.name || '').trim();
       const all = /\ball\b|everyone|every tech|whole crew|all techs/i.test(who) || a.all === true || a.all === 'true';
-      const body = `From the office (via Ann): ${msg}`;
+      const body = `From the office (via Ann): ${msg} 🐜`;
       if (all) {
         let n = 0; if (sendSms) for (const t of TECHS) { try { await sendSms(t.to, body, 'technician', 'ann_office_note'); n++; } catch (_) {} }
         try { await crud.logEvent('ann_message_tech', { all: true, count: n, msg, at_ms: Date.now() }); } catch (_) {}
@@ -448,7 +448,7 @@ exports.handler = async function (event) {
       if (!msg) return say("What should I pass along to the office?", { sent: false });
       const urgent = a.urgent === true || a.urgent === 'true';
       const includeTeddy = urgent || a.owner === true || a.owner === 'true' || /teddy|owner/i.test(String(a.to || ''));
-      const body = `${urgent ? 'URGENT - ' : ''}From Ann: ${msg}`;
+      const body = `${urgent ? 'URGENT - ' : ''}From Ann: ${msg} 🐜`;
       const targets = OFFICE.filter((o) => includeTeddy || o.name !== 'Teddy');
       let n = 0; if (sendSms) for (const o of targets) { try { await sendSms(o.to, body, o.name === 'Teddy' ? 'owner' : (o.name === 'Danielle' ? 'danielle' : 'office'), 'ann_office_note'); n++; } catch (_) {} }
       try { await crud.logEvent('ann_message_office', { count: n, urgent, msg, at_ms: Date.now() }); } catch (_) {}
@@ -475,7 +475,7 @@ exports.handler = async function (event) {
       if (!to || to.length < 10) return say("What's the best cell number to text that to?", { sent: false });
       // Reactive-reply tag (clears intake gate) + heads-up token (clears quiet hours) since
       // the customer is on the line asking for it right now.
-      const body = `${first ? `Hi ${first}, ` : ''}${msg}\n- Tennessee Appliance Exchange`;
+      const body = `${first ? `Hi ${first}, ` : ''}${msg}\n- Tennessee Appliance Exchange 🐜`;
       let sent = false;
       if (sendSms) { try { const r = await sendSms(to, body, 'customer', 'ann_reply_heads_up'); sent = !(r && r.sent === false); } catch (_) {} }
       try { await crud.logEvent('ann_message_customer', { job_id: jobId || 0, to: to.slice(-4), msg, sent, at_ms: Date.now() }); } catch (_) {}

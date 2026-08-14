@@ -45,8 +45,8 @@ exports.handler = async function (event) {
   // Mint the durable link (token stays here — never sent to the client).
   const url = `${SITE}/pay.html?job=${jobId}&t=${await payToken(jobId)}`;
   const first = cust.first_name || 'there';
-  // GSM-7 (no em-dash) => single SMS segment.
-  const msg = `Hi ${first}, secure link to pay for your${appl ? ' ' + appl : ''} repair - card or Apple Pay, never expires: ${url}`;
+  // Trimmed; 🐜 signature on every customer text (Teddy: "I want everyone to see it").
+  const msg = `Hi ${first}, Tennessee Appliance Exchange 🐜 secure link to pay for your${appl ? ' ' + appl : ''} repair - card or Apple Pay, never expires: ${url}`;
 
   const KEY = await getSecret('TELNYX_API_KEY');
   if (!KEY) return json(200, { ok: false, sent: false, reason: 'sms_not_configured' });

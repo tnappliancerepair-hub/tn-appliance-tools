@@ -62,8 +62,9 @@ exports.handler = async function (event) {
   const last4 = phoneRaw.slice(-4);
   if (!appl) appl = 'appliance';
   const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
-  // SMS kept in GSM-7 (no emoji / no em-dash) so it bills as few segments as possible.
-  const msg = `Hi ${cust}, Tennessee Appliance Exchange here. Let's get your ${appl} scheduled fast - about 2 minutes:\n` +
+  // Trimmed to as few segments as possible; the 🐜 is our signature so it rides on
+  // every customer text (Teddy: "I want everyone to see it").
+  const msg = `Hi ${cust}, Tennessee Appliance Exchange 🐜 Let's get your ${appl} scheduled fast - about 2 minutes:\n` +
     `1) Tap: ${portal}\n` +
     `2) Send a short video of the problem + a photo of the model-number sticker\n` +
     `3) Reply the days that work (and any you can't). That's all we need. Thanks!`;
