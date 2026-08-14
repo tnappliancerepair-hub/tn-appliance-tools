@@ -36,6 +36,15 @@ Return ONLY strict JSON, no prose:
 }
 Grade honestly and only from the transcript. A clean booking, hold, link-send, or warm human transfer is 8-10. A stall, a missed tool, a repeat-yourself loop, or a confused caller is 3-6.`;
 
+// Claude sometimes wraps JSON in a ```json fence that tryParseJsonReply doesn't strip.
+function extractJson(s) {
+  if (!s) return null;
+  let t = String(s).replace(/```json/gi, '').replace(/```/g, '').trim();
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a >= 0 && b > a) t = t.slice(a, b + 1);
+  try { return JSON.parse(t); } catch (_) { return null; }
+}
+
 function transcriptOf(msgs) {
   // messages come newest-first — reverse to chronological
   const ordered = msgs.slice().reverse();
@@ -65,7 +74,7 @@ async function gradeConv(conv, KEY) {
   // Haiku, single pass (no tool loop), short timeout — grading is a fast structured judgment,
   // and this keeps several grades inside the 26s function window.
   const res = await runBrainTurn({ systemPrompt: RUBRIC, userContent: 'TRANSCRIPT:\n' + transcript.slice(0, 9000), maxTokens: 500, model: 'claude-haiku-4-5-20251001', maxIterations: 1, claudeTimeoutMs: 12000, ctx: { brain: 'call_grader' } });
-  const g = tryParseJsonReply(res.reply || '') || {};
+  const g = extractJson(res.reply) || tryParseJsonReply(res.reply || '') || {};
   if (typeof g.score !== 'number') return { skip: 'ungradeable (no score)', err: res.error || null, status: res.status, reply_snip: String(res.reply || '').slice(0, 200) };
   return { grade: { conv_id: conv.id, at: conv.created_at, score: Math.max(1, Math.min(10, Math.round(g.score))), outcome: g.outcome || '?', resolved: !!g.resolved, tools_ok: !!g.tools_ok, brand_voice_ok: !!g.brand_voice_ok, dead_air_or_error: !!g.dead_air_or_error, issues: Array.isArray(g.issues) ? g.issues.slice(0, 3) : [], one_line: String(g.one_line || '').slice(0, 240) } };
 }
