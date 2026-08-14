@@ -1121,17 +1121,17 @@ query hcp_job_webhook verb=POST {
                 }
               
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {
-                    From: $env.TWILIO_FROM_NUMBER
-                    To  : $tech.phone
-                    Body: $sms_body
+                    from: $env.TELNYX_FROM_CUSTOMER
+                    to  : $tech.phone
+                    text: $sms_body
                   }
                 
                   headers = [
-                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                    "Content-Type: application/x-www-form-urlencoded"
+                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                    "Content-Type: application/json"
                   ]
                 } as $twilio_response
               

@@ -284,17 +284,17 @@ task daily_tech_summary {
                 }
               
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {
-                    From: "+17273508487"
-                    To  : "+1" ~ $tech.phone
-                    Body: $body
+                    from: $env.TELNYX_FROM_TECH
+                    to  : "+1" ~ $tech.phone
+                    text: $body
                   }
                 
                   headers = [
-                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                    "Content-Type: application/x-www-form-urlencoded"
+                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                    "Content-Type: application/json"
                   ]
                 } as $twilio_response
               

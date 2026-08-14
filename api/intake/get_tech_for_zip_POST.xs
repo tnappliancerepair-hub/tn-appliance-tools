@@ -90,16 +90,15 @@ query get_tech_for_zip verb=POST {
                 }
               
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {}
-                    |set:"To":$env.OWNER_PHONE_NUMBER
-                    |set:"From":$env.TWILIO_FROM_NUMBER
-                    |set:"Body":$gate37_body
+                    |set:"to":$env.OWNER_PHONE_NUMBER
+                    |set:"from":$env.TELNYX_FROM_TECH
+                    |set:"text":$gate37_body
                   headers = []
-                    |push:("Authorization: Basic %s"
-                      |sprintf:($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN|base64_encode)
-                    )
+                    |push:("Authorization: Bearer " ~ $env.TELNYX_API_KEY)
+                    |push:"Content-Type: application/json"
                 } as $sms_res
               }
             }
@@ -183,16 +182,15 @@ query get_tech_for_zip verb=POST {
                 }
               
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {}
-                    |set:"To":$env.OWNER_PHONE_NUMBER
-                    |set:"From":$env.TWILIO_FROM_NUMBER
-                    |set:"Body":$gate72_body
+                    |set:"to":$env.OWNER_PHONE_NUMBER
+                    |set:"from":$env.TELNYX_FROM_TECH
+                    |set:"text":$gate72_body
                   headers = []
-                    |push:("Authorization: Basic %s"
-                      |sprintf:($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN|base64_encode)
-                    )
+                    |push:("Authorization: Bearer " ~ $env.TELNYX_API_KEY)
+                    |push:"Content-Type: application/json"
                 } as $sms_res
               }
             }
@@ -352,16 +350,15 @@ query get_tech_for_zip verb=POST {
                 }
               
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {}
-                    |set:"To":$env.OWNER_PHONE_NUMBER
-                    |set:"From":$env.TWILIO_FROM_NUMBER
-                    |set:"Body":$gate183_body
+                    |set:"to":$env.OWNER_PHONE_NUMBER
+                    |set:"from":$env.TELNYX_FROM_TECH
+                    |set:"text":$gate183_body
                   headers = []
-                    |push:("Authorization: Basic %s"
-                      |sprintf:($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN|base64_encode)
-                    )
+                    |push:("Authorization: Bearer " ~ $env.TELNYX_API_KEY)
+                    |push:"Content-Type: application/json"
                 } as $sms_res
               }
             }

@@ -86,17 +86,17 @@ query feedback_reply_webhook verb=POST {
                 conditional {
                   if ($gate915_should_send) {
                     api.request {
-                      url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                      url = "https://api.telnyx.com/v2/messages"
                       method = "POST"
                       params = {
-                        From: "+16292840444"
-                        To  : $input.From
-                        Body: $ord_404_body
+                        from: $env.TELNYX_FROM_CUSTOMER
+                        to  : $input.From
+                        text: $ord_404_body
                       }
                     
                       headers = [
-                        "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                        "Content-Type: application/x-www-form-urlencoded"
+                        "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                        "Content-Type: application/json"
                       ]
                     } as $ord_404_sms
                   }
@@ -158,17 +158,17 @@ query feedback_reply_webhook verb=POST {
             conditional {
               if ($gate916_should_send) {
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {
-                    From: "+16292840444"
-                    To  : $input.From
-                    Body: $ord_ok_body
+                    from: $env.TELNYX_FROM_CUSTOMER
+                    to  : $input.From
+                    text: $ord_ok_body
                   }
                 
                   headers = [
-                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                    "Content-Type: application/x-www-form-urlencoded"
+                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                    "Content-Type: application/json"
                   ]
                 } as $ord_ok_sms
               }
@@ -245,17 +245,17 @@ query feedback_reply_webhook verb=POST {
                 conditional {
                   if ($gate917_should_send) {
                     api.request {
-                      url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                      url = "https://api.telnyx.com/v2/messages"
                       method = "POST"
                       params = {
-                        From: "+16292840444"
-                        To  : $input.From
-                        Body: $eta_404_body
+                        from: $env.TELNYX_FROM_CUSTOMER
+                        to  : $input.From
+                        text: $eta_404_body
                       }
                     
                       headers = [
-                        "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                        "Content-Type: application/x-www-form-urlencoded"
+                        "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                        "Content-Type: application/json"
                       ]
                     } as $eta_404_sms
                   }
@@ -292,17 +292,17 @@ query feedback_reply_webhook verb=POST {
             conditional {
               if ($gate918_should_send) {
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {
-                    From: "+16292840444"
-                    To  : $input.From
-                    Body: $eta_ok_body
+                    from: $env.TELNYX_FROM_CUSTOMER
+                    to  : $input.From
+                    text: $eta_ok_body
                   }
                 
                   headers = [
-                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                    "Content-Type: application/x-www-form-urlencoded"
+                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                    "Content-Type: application/json"
                   ]
                 } as $eta_ok_sms
               }
@@ -345,17 +345,17 @@ query feedback_reply_webhook verb=POST {
         conditional {
           if ($gate919_should_send) {
             api.request {
-              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              url = "https://api.telnyx.com/v2/messages"
               method = "POST"
               params = {
-                From: "+16292840444"
-                To  : $input.From
-                Body: $help_body
+                from: $env.TELNYX_FROM_CUSTOMER
+                to  : $input.From
+                text: $help_body
               }
             
               headers = [
-                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                "Content-Type: application/x-www-form-urlencoded"
+                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                "Content-Type: application/json"
               ]
             } as $help_sms
           }
@@ -430,17 +430,17 @@ query feedback_reply_webhook verb=POST {
             conditional {
               if ($gate913_should_send) {
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {
-                    From: "+16292840444"
-                    To  : $input.From
-                    Body: $no_prop_body
+                    from: $env.TELNYX_FROM_CUSTOMER
+                    to  : $input.From
+                    text: $no_prop_body
                   }
                 
                   headers = [
-                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                    "Content-Type: application/x-www-form-urlencoded"
+                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                    "Content-Type: application/json"
                   ]
                 } as $no_prop_sms
               }
@@ -512,17 +512,17 @@ query feedback_reply_webhook verb=POST {
             conditional {
               if ($gate914_should_send) {
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {
-                    From: "+16292840444"
-                    To  : $input.From
-                    Body: $bad_index_body
+                    from: $env.TELNYX_FROM_CUSTOMER
+                    to  : $input.From
+                    text: $bad_index_body
                   }
                 
                   headers = [
-                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                    "Content-Type: application/x-www-form-urlencoded"
+                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                    "Content-Type: application/json"
                   ]
                 } as $bad_index_sms
               }
@@ -666,17 +666,17 @@ query feedback_reply_webhook verb=POST {
             }
           
             api.request {
-              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              url = "https://api.telnyx.com/v2/messages"
               method = "POST"
               params = {
-                From: "+16292840444"
-                To  : $customer.phone
-                Body: $cust_body
+                from: $env.TELNYX_FROM_CUSTOMER
+                to  : $customer.phone
+                text: $cust_body
               }
             
               headers = [
-                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                "Content-Type: application/x-www-form-urlencoded"
+                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                "Content-Type: application/json"
               ]
             } as $cust_sms
           }
@@ -770,17 +770,17 @@ query feedback_reply_webhook verb=POST {
             }
           
             api.request {
-              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              url = "https://api.telnyx.com/v2/messages"
               method = "POST"
               params = {
-                From: "+16292840444"
-                To  : $gate911_recipient_e164
-                Body: $tech_body
+                from: $env.TELNYX_FROM_CUSTOMER
+                to  : $gate911_recipient_e164
+                text: $tech_body
               }
             
               headers = [
-                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                "Content-Type: application/x-www-form-urlencoded"
+                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                "Content-Type: application/json"
               ]
             } as $tech_sms
           }
@@ -858,17 +858,17 @@ query feedback_reply_webhook verb=POST {
             }
           
             api.request {
-              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              url = "https://api.telnyx.com/v2/messages"
               method = "POST"
               params = {
-                From: "+16292840444"
-                To  : $input.From
-                Body: $reply_body
+                from: $env.TELNYX_FROM_CUSTOMER
+                to  : $input.From
+                text: $reply_body
               }
             
               headers = [
-                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                "Content-Type: application/x-www-form-urlencoded"
+                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                "Content-Type: application/json"
               ]
             } as $reply_sms
           }
@@ -1011,17 +1011,17 @@ query feedback_reply_webhook verb=POST {
             }
           
             api.request {
-              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              url = "https://api.telnyx.com/v2/messages"
               method = "POST"
               params = {
-                From: "+16292840444"
-                To  : $input.From
-                Body: $pos_body
+                from: $env.TELNYX_FROM_CUSTOMER
+                to  : $input.From
+                text: $pos_body
               }
             
               headers = [
-                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                "Content-Type: application/x-www-form-urlencoded"
+                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                "Content-Type: application/json"
               ]
             }
           }
@@ -1091,17 +1091,17 @@ query feedback_reply_webhook verb=POST {
             }
           
             api.request {
-              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              url = "https://api.telnyx.com/v2/messages"
               method = "POST"
               params = {
-                From: "+16292840444"
-                To  : $input.From
-                Body: $neg_body
+                from: $env.TELNYX_FROM_CUSTOMER
+                to  : $input.From
+                text: $neg_body
               }
             
               headers = [
-                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                "Content-Type: application/x-www-form-urlencoded"
+                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                "Content-Type: application/json"
               ]
             }
           }
@@ -1181,17 +1181,17 @@ query feedback_reply_webhook verb=POST {
             }
           
             api.request {
-              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              url = "https://api.telnyx.com/v2/messages"
               method = "POST"
               params = {
-                From: "+16292840444"
-                To  : "+16154855795"
-                Body: $owner_msg
+                from: $env.TELNYX_FROM_CUSTOMER
+                to  : "+16154855795"
+                text: $owner_msg
               }
             
               headers = [
-                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                "Content-Type: application/x-www-form-urlencoded"
+                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                "Content-Type: application/json"
               ]
             }
           }

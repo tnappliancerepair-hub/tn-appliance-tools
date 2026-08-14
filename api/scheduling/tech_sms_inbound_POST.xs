@@ -1428,17 +1428,17 @@ query tech_sms_inbound verb=POST {
                                 }
                               
                                 api.request {
-                                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                                  url = "https://api.telnyx.com/v2/messages"
                                   method = "POST"
                                   params = {
-                                    From: "+17273508487"
-                                    To  : "+1" ~ $other.phone
-                                    Body: $other_body
+                                    from: $env.TELNYX_FROM_TECH
+                                    to  : "+1" ~ $other.phone
+                                    text: $other_body
                                   }
                                 
                                   headers = [
-                                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                    "Content-Type: application/x-www-form-urlencoded"
+                                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                    "Content-Type: application/json"
                                   ]
                                 } as $other_resp
                               }
@@ -1833,17 +1833,17 @@ query tech_sms_inbound verb=POST {
                         }
                       
                         api.request {
-                          url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                          url = "https://api.telnyx.com/v2/messages"
                           method = "POST"
                           params = {
-                            From: "+17273508487"
-                            To  : $env.OWNER_PHONE_NUMBER
-                            Body: $rs_unauth_body
+                            from: $env.TELNYX_FROM_TECH
+                            to  : $env.OWNER_PHONE_NUMBER
+                            text: $rs_unauth_body
                           }
                         
                           headers = [
-                            "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                            "Content-Type: application/x-www-form-urlencoded"
+                            "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                            "Content-Type: application/json"
                           ]
                         } as $rs_unauth_sms
                       }
@@ -1955,17 +1955,17 @@ query tech_sms_inbound verb=POST {
                     }
                   
                     api.request {
-                      url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                      url = "https://api.telnyx.com/v2/messages"
                       method = "POST"
                       params = {
-                        From: "+17273508487"
-                        To  : $env.OWNER_PHONE_NUMBER
-                        Body: $esc_body
+                        from: $env.TELNYX_FROM_TECH
+                        to  : $env.OWNER_PHONE_NUMBER
+                        text: $esc_body
                       }
                     
                       headers = [
-                        "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                        "Content-Type: application/x-www-form-urlencoded"
+                        "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                        "Content-Type: application/json"
                       ]
                     } as $esc_sms
                   }
@@ -2374,17 +2374,17 @@ query tech_sms_inbound verb=POST {
                             }
                           
                             api.request {
-                              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                              url = "https://api.telnyx.com/v2/messages"
                               method = "POST"
                               params = {
-                                From: "+17273508487"
-                                To  : "+1" ~ $orj_new_tech.phone
-                                Body: $orj_new_body
+                                from: $env.TELNYX_FROM_TECH
+                                to  : "+1" ~ $orj_new_tech.phone
+                                text: $orj_new_body
                               }
                             
                               headers = [
-                                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                "Content-Type: application/x-www-form-urlencoded"
+                                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                "Content-Type: application/json"
                               ]
                             } as $orj_new_sms
                           }
@@ -2457,17 +2457,17 @@ query tech_sms_inbound verb=POST {
                                 }
                               
                                 api.request {
-                                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                                  url = "https://api.telnyx.com/v2/messages"
                                   method = "POST"
                                   params = {
-                                    From: "+17273508487"
-                                    To  : "+1" ~ $orj_old_tech.phone
-                                    Body: $orj_old_body
+                                    from: $env.TELNYX_FROM_TECH
+                                    to  : "+1" ~ $orj_old_tech.phone
+                                    text: $orj_old_body
                                   }
                                 
                                   headers = [
-                                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                    "Content-Type: application/x-www-form-urlencoded"
+                                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                    "Content-Type: application/json"
                                   ]
                                 } as $orj_old_sms
                               }
@@ -2631,17 +2631,17 @@ query tech_sms_inbound verb=POST {
                             }
                           
                             api.request {
-                              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                              url = "https://api.telnyx.com/v2/messages"
                               method = "POST"
                               params = {
-                                From: "+17273508487"
-                                To  : "+1" ~ $ooa_target_tech.phone
-                                Body: $ooa_body
+                                from: $env.TELNYX_FROM_TECH
+                                to  : "+1" ~ $ooa_target_tech.phone
+                                text: $ooa_body
                               }
                             
                               headers = [
-                                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                "Content-Type: application/x-www-form-urlencoded"
+                                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                "Content-Type: application/json"
                               ]
                             } as $ooa_sms
                           }

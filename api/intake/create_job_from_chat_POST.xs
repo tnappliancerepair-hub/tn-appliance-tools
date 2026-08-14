@@ -406,17 +406,17 @@ query create_job_from_chat verb=POST {
     conditional {
       if ($gate_t2_should_send) {
         api.request {
-          url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+          url = "https://api.telnyx.com/v2/messages"
           method = "POST"
           params = {
-            From: "+16292840444"
-            To  : $env.OWNER_PHONE_NUMBER
-            Body: $teddy_sms_body
+            from: $env.TELNYX_FROM_TECH
+            to  : $env.OWNER_PHONE_NUMBER
+            text: $teddy_sms_body
           }
         
           headers = [
-            "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-            "Content-Type: application/x-www-form-urlencoded"
+            "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+            "Content-Type: application/json"
           ]
         } as $teddy_notify_sms
       }

@@ -114,17 +114,15 @@ query send_waiver_sms verb=POST {
             }
           
             api.request {
-              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+              url = "https://api.telnyx.com/v2/messages"
               method = "POST"
               params = {}
-                |set:"To":$target_phone
-                |set:"From":$env.TWILIO_FROM_NUMBER
-                |set:"Body":$sms_body
+                |set:"to":$target_phone
+                |set:"from":$env.TELNYX_FROM_CUSTOMER
+                |set:"text":$sms_body
               headers = []
-                |push:("Authorization: Basic %s"
-                  |sprintf:($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN|base64_encode)
-                )
-                |push:"Content-Type: application/x-www-form-urlencoded"
+                |push:("Authorization: Bearer " ~ $env.TELNYX_API_KEY)
+                |push:"Content-Type: application/json"
             } as $twilio_response
           }
         }

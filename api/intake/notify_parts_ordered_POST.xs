@@ -128,17 +128,17 @@ query notify_parts_ordered verb=POST {
     conditional {
       if ($gate_np_should_send) {
         api.request {
-          url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+          url = "https://api.telnyx.com/v2/messages"
           method = "POST"
           params = {
-            From: "+16292840444"
-            To  : "+16154850713"
-            Body: $danielle_sms_body
+            from: $env.TELNYX_FROM_CUSTOMER
+            to  : "+16154850713"
+            text: $danielle_sms_body
           }
         
           headers = [
-            "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-            "Content-Type: application/x-www-form-urlencoded"
+            "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+            "Content-Type: application/json"
           ]
         } as $danielle_sms
       }
