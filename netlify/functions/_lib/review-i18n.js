@@ -41,6 +41,7 @@ const M = {
   en: {
     ask: (f, a) => `Hi ${f}! 🐜 Thanks for letting Tennessee Appliance fix your${a ? ' ' + a : ''} repair. How'd we do? Reply 👍 great, or 👎 missed the mark.`,
     askDirect: (f, a, url) => `Hi ${f}! 🐜 Thanks from Tennessee Appliance! If we hit the mark, a 30-sec Google review means the world: ${url} If anything fell short, reply here and I'll make it right. - Teddy`,
+    askLink: (f, a, url) => `Hi ${f}! 🐜 Thanks for choosing Tennessee Appliance to fix your${a ? ' ' + a : ''}. How'd we do? Tap to rate your service — it takes 5 seconds: ${url} - Teddy`,
     pos: (f, tech, appl, city, url) => { const o = tech && appl ? `So glad ${tech} got your ${appl} sorted, ${f}! 🐜` : tech ? `So glad ${tech} took good care of you, ${f}! 🐜` : appl ? `So glad we got your ${appl} sorted, ${f}! 🐜` : `So glad to hear it, ${f}! 🐜`; return `${o} A quick 30-sec Google review would mean the world${hintOf('en', tech, city)}: ${url}`; },
     neg: (f) => `I'm sorry we didn't get it right, ${f}. What could we have done better? Your reply comes straight to me and I'll make it right. - Teddy 🐜`,
     ack: (f) => `Thank you, ${f}! I've got this and I'll personally look into it - we'll make it right. - Teddy 🐜`,
@@ -48,6 +49,7 @@ const M = {
   es: {
     ask: (f, a) => `Hola ${f}, ¡gracias por confiar en TN Appliance Exchange para tu reparación${a ? ' de ' + a : ''}! Una pregunta rápida — ¿cómo lo hicimos? Responde 👍 si quedaste contento, o 👎 si fallamos.`,
     askDirect: (f, a, url) => `Hola ${f}, ¡gracias por dejarnos reparar tu${a ? ' ' + a : ''}! Si quedaste contento, una reseña de 30 segundos en Google significaría muchísimo para nuestro pequeño equipo: ${url}\n\nPuedes escribirla en español. Y si algo no salió bien, respóndeme aquí — me llega directo y lo arreglo. — Teddy, TN Appliance`,
+    askLink: (f, a, url) => `Hola ${f} 🐜, ¡gracias por confiar en Tennessee Appliance para reparar tu${a ? ' ' + a : ''}! ¿Cómo lo hicimos? Toca para calificar — toma 5 segundos: ${url} — Teddy`,
     pos: (f, tech, appl, city, url) => { const o = tech && appl ? `¡Qué bueno que ${tech} arregló tu ${appl}, ${f}! 🙏` : tech ? `¡Qué bueno que ${tech} te atendió bien, ${f}! 🙏` : `¡Qué bueno, ${f}! 🙏`; return `${o} Si tienes 30 segundos, una reseña en Google significaría muchísimo para nuestro pequeño equipo${hintOf('es', tech, city)}: ${url}\n\nPuedes escribirla en español — así otras familias hispanas nos encuentran más fácil. 🙌`; },
     neg: (f) => `Lamento que no lo hiciéramos bien, ${f}. ¿Qué pudimos haber hecho mejor? Tu respuesta me llega directo a mí — quiero arreglarlo. — Teddy, TN Appliance`,
     ack: (f) => `Gracias, ${f} — yo me encargo personalmente. Queremos hacerlo bien. — Teddy, TN Appliance`,

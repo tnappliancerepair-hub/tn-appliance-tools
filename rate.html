@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Rate your service — TN Appliance Exchange</title>
+<style>
+  :root{ --bg:#f5f6f8; --card:#fff; --ink:#182028; --ink2:#5c6672; --line:#e6e9ee;
+    --green:#137a43; --green2:#0e6338; --gold:#f0a500; --gold2:#d98c00; --star-off:#d7dbe1;
+    --shadow:0 2px 4px #0b141d0d,0 12px 34px #0b141d12; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,'Segoe UI',system-ui,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:460px;margin:0 auto;padding:26px 16px 48px}
+  .brand{display:flex;align-items:center;gap:9px;justify-content:center;margin:6px 0 18px}
+  .brand .ant{font-size:26px}
+  .brand b{font-size:16px;letter-spacing:.02em}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:26px 20px;text-align:center}
+  .hi{color:var(--ink2);font-size:14px;margin:0 0 4px}
+  .lead{font-size:20px;font-weight:800;letter-spacing:-.01em;margin:0 0 22px;text-wrap:balance}
+  .stars{display:flex;justify-content:center;gap:6px;margin:6px 0 6px;touch-action:manipulation}
+  .star{font-size:44px;line-height:1;color:var(--star-off);cursor:pointer;-webkit-tap-highlight-color:transparent;
+    transition:transform .08s ease,color .12s ease;user-select:none}
+  .star:active{transform:scale(.88)}
+  .star.on{color:var(--gold)}
+  .starhint{font-size:12.5px;color:var(--ink2);margin-top:8px;min-height:16px}
+  .fb{margin-top:20px;text-align:left;display:none}
+  .fb.show{display:block;animation:rise .25s ease}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .fb-h{font-size:15px;font-weight:700;margin:0 0 8px}
+  .fb textarea{width:100%;min-height:96px;padding:12px;border:1.5px solid var(--line);border-radius:12px;
+    font:inherit;font-size:16px;color:var(--ink);background:var(--card);resize:vertical}
+  .fb textarea:focus{outline:none;border-color:var(--green)}
+  .btn{display:block;width:100%;margin-top:14px;padding:15px;border:0;border-radius:13px;
+    background:linear-gradient(var(--green),var(--green2));color:#fff;font-size:17px;font-weight:800;
+    cursor:pointer;box-shadow:0 6px 18px #137a4340}
+  .btn:active{transform:translateY(1px)}
+  .btn[disabled]{opacity:.55;cursor:default}
+  .state{padding:22px 8px}
+  .big{font-size:48px;line-height:1.1}
+  .msg{font-size:19px;font-weight:800;margin:12px 0 4px;text-wrap:balance}
+  .muted{color:var(--ink2);font-size:14.5px}
+  .spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--green);border-radius:50%;animation:s 1s linear infinite;margin:8px auto}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .foot{text-align:center;color:var(--ink2);font-size:12px;margin-top:22px;line-height:1.6}
+  .foot a{color:var(--green);text-decoration:none}
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#0e1216; --card:#161c22; --ink:#e9edf1; --ink2:#95a1ad; --line:#252d35; --star-off:#333c46;
+      --shadow:0 2px 4px #0007,0 12px 34px #0006; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="ant">🐜</span><b>Tennessee Appliance Exchange</b></div>
+  <div class="card" id="card">
+    <div class="state"><div class="spin"></div><div class="muted">Loading…</div></div>
+  </div>
+  <div class="foot">
+    Questions? Text us at <a href="sms:+16155889500">615-588-9500</a>
+  </div>
+</div>
+<script>
+(function(){
+  var FN='/.netlify/functions';
+  var qs=new URLSearchParams(location.search);
+  var JOB=qs.get('j')||''; var TOK=qs.get('t')||'';
+  var card=document.getElementById('card');
+  var ctx={google_url:'https://g.page/r/CRt-vo--eAJ3EBM/review'};
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function state(html){card.innerHTML='<div class="state">'+html+'</div>';}
+
+  function boot(){
+    if(!JOB||!TOK){ state('<div class="big">🐜</div><div class="msg">Link looks off</div><div class="muted">Text us at 615-588-9500 and we\'ll sort it out.</div>'); return; }
+    fetch(FN+'/rate-context?j='+encodeURIComponent(JOB)+'&t='+encodeURIComponent(TOK))
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(!d||!d.ok){ state('<div class="big">🐜</div><div class="msg">Thanks for stopping by</div><div class="muted">This rating link isn\'t active. Text 615-588-9500 if you\'d like to leave feedback.</div>'); return; }
+        ctx=d;
+        if(d.already){ thanks(d.stars>=4?'high':'low',true); return; }
+        render(d);
+      })
+      .catch(function(){ render({first:'there',tech:'',appliance:''}); });
+  }
+
+  function render(d){
+    var who=d.tech ? ('with '+esc(d.tech)) : 'with us';
+    var appl=d.appliance ? (' '+esc(d.appliance)) : '';
+    card.innerHTML=
+      '<p class="hi">Hi '+esc(d.first||'there')+' 🐜</p>'+
+      '<p class="lead">How was your'+appl+' service '+who+'?</p>'+
+      '<div class="stars" id="stars">'+
+        [1,2,3,4,5].map(function(n){return '<span class="star" data-n="'+n+'" role="button" aria-label="'+n+' star">★</span>';}).join('')+
+      '</div>'+
+      '<div class="starhint" id="hint">Tap a star</div>'+
+      '<div class="fb" id="fb">'+
+        '<p class="fb-h">We\'re sorry we fell short. What could we have done better?</p>'+
+        '<textarea id="fbtext" placeholder="Tell us what happened — it comes straight to Teddy."></textarea>'+
+        '<button class="btn" id="fbsend">Send to Teddy</button>'+
+      '</div>';
+    wireStars();
+  }
+
+  var picked=0;
+  function wireStars(){
+    var stars=[].slice.call(document.querySelectorAll('#stars .star'));
+    var hint=document.getElementById('hint');
+    var LAB={1:'Not good',2:'Below expectations',3:'Okay',4:'Great',5:'Excellent!'};
+    function paint(n){ stars.forEach(function(s){ s.classList.toggle('on', Number(s.dataset.n)<=n); }); }
+    stars.forEach(function(s){
+      s.addEventListener('mouseenter',function(){ if(!picked) paint(Number(s.dataset.n)); });
+      s.addEventListener('click',function(){ pick(Number(s.dataset.n)); });
+    });
+    document.getElementById('stars').addEventListener('mouseleave',function(){ if(!picked) paint(0); });
+    function pick(n){
+      picked=n; paint(n); hint.textContent=LAB[n]||'';
+      if(n>=4){ submit(n,''); }        // happy -> record + go to Google
+      else { document.getElementById('fb').classList.add('show');   // unhappy -> private feedback
+             setTimeout(function(){ try{document.getElementById('fbtext').focus();}catch(e){} },150);
+             document.getElementById('fbsend').onclick=function(){ this.disabled=true; submit(n, document.getElementById('fbtext').value||''); }; }
+    }
+  }
+
+  function submit(stars, feedback){
+    // optimistic: for a happy rating, show the affirmation then hand off to Google
+    if(stars>=4){ state('<div class="big">🎉</div><div class="msg">Thank you!</div><div class="muted">Opening Google — it takes 20 seconds and means the world to us.</div>'); }
+    fetch(FN+'/rate-submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({j:JOB,t:TOK,stars:stars,feedback:feedback})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var url=(d&&d.google_url)||ctx.google_url;
+        if(stars>=4){ setTimeout(function(){ location.href=url; }, 650); }
+        else { thanks('low',false); }
+      })
+      .catch(function(){
+        if(stars>=4){ setTimeout(function(){ location.href=ctx.google_url; }, 400); }
+        else { thanks('low',false); }
+      });
+  }
+
+  function thanks(kind,already){
+    if(kind==='high'){
+      state('<div class="big">🌟</div><div class="msg">Thanks for the love!</div>'+
+        '<div class="muted">'+(already?'You already rated this visit.':'')+' If you didn\'t get to post it, <a href="'+esc(ctx.google_url)+'" style="color:var(--green);font-weight:700">leave your Google review here</a>.</div>');
+    } else {
+      state('<div class="big">🙏</div><div class="msg">Thank you — we\'ve got this.</div>'+
+        '<div class="muted">Teddy will personally look into it and make it right. We appreciate the chance to fix it.</div>');
+    }
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

@@ -15,16 +15,24 @@
 // or opt-out drop leaves the backstop free to retry later (never a silent "asked but
 // never delivered").
 'use strict';
+const crypto = require('crypto');
 const crud = require('./xano/metadata-crud');
 const { sendSms } = require('./sms');
+const { getSecret } = require('./secrets');
 const satisfaction = require('./satisfaction');
 const reviewI18n = require('./review-i18n');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const SITE = 'https://tnapplianceexchange.net';
 const DEDUP_DAYS = 60;
 
 function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 function e164(p) { const d = String(p || '').replace(/\D/g, ''); if (d.length === 10) return '+1' + d; if (d.length === 11 && d[0] === '1') return '+' + d; if (String(p || '').startsWith('+')) return String(p); return null; }
+// HMAC token tying the rating link to the job (shareable, not guessable — matches pay-owed).
+async function rateToken(jobId) {
+  const secret = (await getSecret('PAY_LINK_SECRET')) || (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  return crypto.createHmac('sha256', secret).update('rate:' + jobId).digest('hex').slice(0, 12);
+}
 
 // Has this customer already been asked (via ANY path) inside the dedup window?
 async function askedRecently(custId) {
@@ -73,8 +81,14 @@ async function sendAskForJob(jobId, opts) {
   const first = cust.first_name || 'there';
   const appl = applType.toLowerCase();
   const rp = reviewI18n.pack(custLang);
-  // ALWAYS the gated ask ("How'd we do? 👍/👎") — never askDirect. 👍 → thank-you + link.
-  const body = rp.ask(first, appl);
+  // HCP-style one-tap flow (2026-08-14): the text carries a link to a rating page
+  // (rate.html). The customer taps a star — 4-5★ redirects straight to Google, ≤3★
+  // goes to a private feedback form + alerts Teddy. This removes the SMS-reply step
+  // that only ~4% of customers ever completed. The 👍/👎 reply gate is still ARMED
+  // below as a fallback for anyone who replies to the text instead of tapping.
+  const link = `${SITE}/rate.html?j=${jobId}&t=${await rateToken(jobId)}`;
+  const askLink = rp.askLink || reviewI18n.pack('en').askLink;
+  const body = askLink(first, appl, link);
 
   if (opts.dry) return { sent: false, would_send: true, cust_id: custId, first, lang: custLang };
 
@@ -82,7 +96,8 @@ async function sendAskForJob(jobId, opts) {
   try { okSent = await sendSms(phone, body, 'customer', 'satisfaction_check'); } catch (_) { okSent = false; }
   if (!okSent) return { sent: false, reason: 'send_blocked_or_failed', cust_id: custId };
 
-  // Arm the 👍/👎 gate so the reply routes itself (satisfaction.handleInbound).
+  // Fallback: arm the 👍/👎 reply gate too, so a customer who TEXTS BACK "great!"
+  // instead of tapping the link still routes to Google (satisfaction.handleInbound).
   try { await satisfaction.arm(phone, { job_id: jobId, cust_id: custId, first, tech: techName, appliance: applType, city: cityName, lang: custLang }); } catch (_) {}
   // Dedup marker (shared 60-day key) + fixed-action funnel row for the scorecard —
   // written ONLY after a real send, so a blocked send leaves the backstop free to retry.
