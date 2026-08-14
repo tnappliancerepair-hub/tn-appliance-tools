@@ -176,22 +176,10 @@ query tech_job_started verb=POST {
       value = ($job.appliance_type ?? "")|trim
     }
   
-    var $sms_body {
-      value = "[ant] " ~ $tech_first ~ " started job #" ~ ($input.job_id|to_text) ~ " - " ~ $cust_name ~ ", " ~ $appliance_str
-    }
-  
-    api.request {
-      url = "https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms"
-      method = "POST"
-      params = {
-        to     : ($env.OWNER_PHONE_NUMBER ?? "")
-        message: $sms_body
-      }
-    
-      headers = ["Content-Type: application/json"]
-      timeout = 30
-    } as $teddy_sms_resp
-  
+    // Owner "tech started job #X" SMS REMOVED (Teddy 2026-08-14): no value — the app
+    // already shows when a tech has started a job. Job status is still flipped below;
+    // only the owner notification text is eliminated.
+
     // Customer arrival SMS - "tech has arrived at your door".
     // Gated on $cust_id_val > 0 because $cust is only declared inside the
     // matching customer-load conditional above.
