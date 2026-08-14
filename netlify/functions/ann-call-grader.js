@@ -110,19 +110,21 @@ exports.handler = async function (event) {
   let convs = [];
   try { const d = await tx(KEY, '/ai/conversations?page[size]=100'); convs = ((d && d.data) || []).filter((c) => Date.parse(c.last_message_at || c.created_at || 0) >= since); } catch (e) { return j(200, { ok: false, error: String((e && e.message) || e) }); }
 
+  // dedup with ONE batched read (not a per-call Metadata lookup — those were timing the run out):
+  // build the set of conversation ids already graded, skip them.
+  const alreadyGraded = new Set();
+  if (!dry) { try { for (const r of await crud.searchPage(crud.TABLES.event_log, { action: 'ann_call_grade' }, { id: 'desc' }, 400)) { const cid = meta(r).conv_id; if (cid) alreadyGraded.add(cid); } } catch (_) {} }
+
   const graded = [], skipped = [];
-  const CAP = dry ? 2 : 5;   // per-run cap so several Haiku grades stay inside the 26s window; cron catches up
+  const CAP = dry ? 2 : 3;   // per-run cap so Haiku grades + writes stay inside the 26s window; cron catches up
   let done = 0;
   for (const c of convs) {
     if (done >= CAP) break;
-    if (!dry) { try { const prior = await crud.searchOne(crud.TABLES.event_log, { action: 'ann_call_graded_' + c.id }, { id: 'desc' }); if (prior) { skipped.push({ id: c.id, why: 'already graded' }); continue; } } catch (_) {} }
+    if (!dry && alreadyGraded.has(c.id)) { skipped.push({ id: c.id, why: 'already graded' }); continue; }
     const r = await gradeConv(c, KEY); done++;
     if (r.skip || !r.grade) { skipped.push({ id: c.id, why: r.skip || 'ungradeable', err: r.err, status: r.status, reply_snip: r.reply_snip }); continue; }
     const g = r.grade;
-    if (!dry) {
-      try { await crud.logEvent('ann_call_grade', { ...g, at_ms: Date.now() }); } catch (_) {}
-      try { await crud.logEvent('ann_call_graded_' + g.conv_id, { score: g.score, at_ms: Date.now() }); } catch (_) {}
-    }
+    if (!dry) { try { await crud.logEvent('ann_call_grade', { ...g, at_ms: Date.now() }); } catch (_) {} }   // single write
     graded.push(g);
   }
 
