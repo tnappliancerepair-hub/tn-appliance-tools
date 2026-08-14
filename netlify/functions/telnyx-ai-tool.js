@@ -60,7 +60,7 @@ function rawBody(event) {
   if (event.isBase64Encoded && b) { try { b = Buffer.from(b, 'base64').toString('utf8'); } catch (_) {} }
   return b;
 }
-function post(path, payload, ms = 12000) {
+function post(path, payload, ms = 4500) {   // fail fast — Telnyx drops a tool call at ~5s, so never hang past it
   return fetch(`${SITE}/.netlify/functions/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(ms) }).then((r) => r.json()).catch((e) => ({ ok: false, error: String((e && e.message) || e) }));
 }
 // A tool reply: `result` is what the assistant SAYS; keep it short + spoken-natural.
@@ -85,7 +85,7 @@ async function openCashJob(a) {
   // fast-timeout: if the check is slow/down we just create (never block the caller).
   try {
     const pk = phone.slice(-10);
-    const jt = await fetch(`${SITE}/.netlify/functions/job-truth?phone=${pk}&lens=office`, { signal: AbortSignal.timeout(4000) }).then((r) => r.json()).catch(() => null);
+    const jt = await fetch(`${SITE}/.netlify/functions/job-truth?phone=${pk}&lens=office`, { signal: AbortSignal.timeout(1800) }).then((r) => r.json()).catch(() => null);
     const f = jt && jt.found && jt.facts;
     if (f && f.job_id && !/cancel|complete|closed/i.test(String(f.status || ''))) {
       return { job_id: f.job_id, reused: true };
@@ -93,18 +93,19 @@ async function openCashJob(a) {
   } catch (_) {}
   try {
     const r = await fetch(`${XANO}/create_job_from_chat`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(4000),
       body: JSON.stringify({
         first_name: first || 'Customer', last_name: String(a.last_name || '').trim(),
         phone, zip, appliance_type: appliance, brand: String(a.brand || '').trim(),
         problem_summary: problem, customer_type: 'self_pay', channel: 'ann_phone',
-      }), signal: AbortSignal.timeout(12000),
+      }),
     });
     const d = await r.json().catch(() => ({}));
     const newId = (d && (d.id || d.job_id)) || null;
     if (!newId) return { error: 'create_failed' };
-    if (a.address || a.city) { try { await crud.update(crud.TABLES.jobs, newId, { service_address: String(a.address || '').trim(), service_city: String(a.city || '').trim(), service_zip: zip }); } catch (_) {} }
-    if (sendSms) { try { await sendSms('+16154850713', `🐜 New cash lead via Ann - ${first || 'caller'} - ${appliance}${problem ? ' - ' + problem : ''} - ${phone}. Job #${newId} in Needs-Scheduled.`, 'danielle', 'ann_new_job'); } catch (_) {} }
+    // Non-blocking side effects — never make Ann wait on the office alert / address sync.
+    if (a.address || a.city) { crud.update(crud.TABLES.jobs, newId, { service_address: String(a.address || '').trim(), service_city: String(a.city || '').trim(), service_zip: zip }).catch(() => {}); }
+    if (sendSms) { sendSms('+16154850713', `🐜 New cash lead via Ann - ${first || 'caller'} - ${appliance}${problem ? ' - ' + problem : ''} - ${phone}. Job #${newId} in Needs-Scheduled.`, 'danielle', 'ann_new_job').catch(() => {}); }
     return { job_id: newId };
   } catch (e) { return { error: String((e && e.message) || e) }; }
 }
@@ -252,7 +253,7 @@ exports.handler = async function (event) {
       // Load name / appliance / phone / city / zip once so the office sees who + where.
       let name = 'there', appliance = '', to = '', city = '', zip = '';
       try {
-        const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
+        const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(3500) }).then((r) => r.json());
         const cu = (d && d.customer) || {}; const jb = (d && d.job) || {};
         name = cu.first_name || name;
         appliance = String((d && d.appliance && (d.appliance.type || d.appliance.appliance_type)) || jb.appliance || '').replace(/^appliance$/i, '');
@@ -260,25 +261,23 @@ exports.handler = async function (event) {
         city = String(cu.city || jb.service_city || jb.city || '').trim();
         zip = String(cu.zip || cu.zip_code || jb.service_zip || jb.zip || '').trim();
       } catch (_) {}
-      // 1) File the CUSTOMER SCHEDULING REQUEST (by:customer) — shows on the office board.
-      await post('schedule-hold', { action: 'hold', job_id: jobId, date: resolved.date, customer: name, appliance, by: 'customer', time_pref: timePref, city, zip, phone: to });
       const whenSpoken = `${resolved.label}${timePref ? `, ${timePref}` : ''}`;
-      // 2) Message the office — a CUSTOMER SCHEDULING REQUEST to approve, or call the
-      // customer back to adjust if the route can't make that day (Teddy 2026-08-12).
+      // File the office record + fire all notifications CONCURRENTLY (never sequentially —
+      // that's what pushed this tool past Telnyx's 5s limit and left dead air on the call).
+      const jobs = [post('schedule-hold', { action: 'hold', job_id: jobId, date: resolved.date, customer: name, appliance, by: 'customer', time_pref: timePref, city, zip, phone: to })];
       if (sendSms) {
         const tile = `${SITE}/office-board.html?job=${jobId}`;
         const line = `📋 CUSTOMER SCHEDULING REQUEST — ${name}${appliance ? ` · ${appliance}` : ''} wants ${whenSpoken}. Approve, or call them back to adjust → ${tile}`.slice(0, 320);
-        try { await sendSms('+16154850713', line, 'danielle', 'customer_schedule_request'); } catch (_) {}   // Danielle (scheduler)
-        try { await sendSms('+16292594602', line, 'office', 'customer_schedule_request'); } catch (_) {}      // Sofia (scheduler)
+        jobs.push(sendSms('+16154850713', line, 'danielle', 'customer_schedule_request').catch(() => {}));   // Danielle
+        jobs.push(sendSms('+16292594602', line, 'office', 'customer_schedule_request').catch(() => {}));      // Sofia
+        if (to && to.length >= 10) {
+          const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${to.slice(-4)}`;
+          const cmsg = `Hi ${name}, your scheduling request is in for ${whenSpoken}. The office will confirm it; if our route can't make that day we'll call you right back. Change it: ${portal} - Tennessee Appliance Exchange 🐜`;
+          jobs.push(sendSms(to, cmsg, 'customer', 'customer_schedule_request').catch(() => {}));
+        }
       }
-      // 3) Text the customer a tentative confirmation + the office-callback promise.
-      if (to && to.length >= 10 && sendSms) {
-        const last4 = to.slice(-4);
-        const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
-        const cmsg = `Hi ${name}, your scheduling request is in for ${whenSpoken}. The office will confirm it; if our route can't make that day we'll call you right back. Change it: ${portal} - Tennessee Appliance Exchange 🐜`;
-        try { await sendSms(to, cmsg, 'customer', 'customer_schedule_request'); } catch (_) {}
-      }
-      return say(`Perfect — I've got your scheduling request in for ${whenSpoken}. Our office will confirm it, and if our route can't make that exact day they'll call you right back to find one that works. You've done your part — you're all set. Anything else I can help with?`);
+      try { await Promise.race([Promise.allSettled(jobs), new Promise((res) => setTimeout(res, 3800))]); } catch (_) {}
+      return say(`Perfect — I've got your scheduling request in for ${whenSpoken}. Our office will confirm it, and if our route can't make that exact day they'll call you right back. You've done your part — you're all set. Anything else I can help with?`);
     }
 
     // 2b) Send JUST the waiver link (when the service waiver isn't signed yet). Reuse the
