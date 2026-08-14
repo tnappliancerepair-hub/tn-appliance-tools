@@ -33,6 +33,8 @@ async function rateToken(jobId) {
   const secret = (await getSecret('PAY_LINK_SECRET')) || (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   return crypto.createHmac('sha256', secret).update('rate:' + jobId).digest('hex').slice(0, 12);
 }
+// Full one-tap rating-page URL for a job (the link the customer taps → rate.html).
+async function rateLink(jobId) { return `${SITE}/rate.html?j=${jobId}&t=${await rateToken(jobId)}`; }
 
 // Has this customer already been asked (via ANY path) inside the dedup window?
 async function askedRecently(custId) {
@@ -86,7 +88,7 @@ async function sendAskForJob(jobId, opts) {
   // goes to a private feedback form + alerts Teddy. This removes the SMS-reply step
   // that only ~4% of customers ever completed. The 👍/👎 reply gate is still ARMED
   // below as a fallback for anyone who replies to the text instead of tapping.
-  const link = `${SITE}/rate.html?j=${jobId}&t=${await rateToken(jobId)}`;
+  const link = await rateLink(jobId);
   const askLink = rp.askLink || reviewI18n.pack('en').askLink;
   const body = askLink(first, appl, link);
 
@@ -106,4 +108,4 @@ async function sendAskForJob(jobId, opts) {
   return { sent: true, cust_id: custId, first, lang: custLang };
 }
 
-module.exports = { sendAskForJob, askedRecently };
+module.exports = { sendAskForJob, askedRecently, rateLink };
