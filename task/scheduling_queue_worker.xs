@@ -8,7 +8,7 @@
 //  Phase 5 status:
 //    broadcast -> REAL handler
 //    book      -> STUB
-//    propose   -> REAL handler (sends to owner via +16292840444)
+//    propose   -> REAL handler (sends to owner via Telnyx TELNYX_FROM_TECH)
 //    wait      -> real no-op
 //    notify    -> STUB
 //    escalate  -> STUB
@@ -345,17 +345,17 @@ task scheduling_queue_worker {
                                 }
                               
                                 api.request {
-                                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                                  url = "https://api.telnyx.com/v2/messages"
                                   method = "POST"
                                   params = {
-                                    From: "+16292840444"
-                                    To  : "+1" ~ $qt.phone
-                                    Body: $sms_body
+                                    from: $env.TELNYX_FROM_TECH
+                                    to  : "+1" ~ $qt.phone
+                                    text: $sms_body
                                   }
                                 
                                   headers = [
-                                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                    "Content-Type: application/x-www-form-urlencoded"
+                                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                    "Content-Type: application/json"
                                   ]
                                 } as $tw_resp
                               
@@ -570,17 +570,17 @@ task scheduling_queue_worker {
                         conditional {
                           if ($gate901_should_send) {
                             api.request {
-                              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                              url = "https://api.telnyx.com/v2/messages"
                               method = "POST"
                               params = {
-                                From: "+16292840444"
-                                To  : $env.OWNER_PHONE_NUMBER
-                                Body: $no_cluster_body
+                                from: $env.TELNYX_FROM_TECH
+                                to  : $env.OWNER_PHONE_NUMBER
+                                text: $no_cluster_body
                               }
                             
                               headers = [
-                                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                "Content-Type: application/x-www-form-urlencoded"
+                                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                "Content-Type: application/json"
                               ]
                             } as $no_cluster_sms
                           }
@@ -970,17 +970,17 @@ task scheduling_queue_worker {
                             conditional {
                               if ($gate902_should_send) {
                                 api.request {
-                                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                                  url = "https://api.telnyx.com/v2/messages"
                                   method = "POST"
                                   params = {
-                                    From: "+16292840444"
-                                    To  : $env.OWNER_PHONE_NUMBER
-                                    Body: $no_options_body
+                                    from: $env.TELNYX_FROM_TECH
+                                    to  : $env.OWNER_PHONE_NUMBER
+                                    text: $no_options_body
                                   }
                                 
                                   headers = [
-                                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                    "Content-Type: application/x-www-form-urlencoded"
+                                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                    "Content-Type: application/json"
                                   ]
                                 } as $no_options_sms
                               }
@@ -1097,17 +1097,17 @@ task scheduling_queue_worker {
                             conditional {
                               if ($gate903_should_send) {
                                 api.request {
-                                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                                  url = "https://api.telnyx.com/v2/messages"
                                   method = "POST"
                                   params = {
-                                    From: "+16292840444"
-                                    To  : $env.OWNER_PHONE_NUMBER
-                                    Body: $proposal_body
+                                    from: $env.TELNYX_FROM_TECH
+                                    to  : $env.OWNER_PHONE_NUMBER
+                                    text: $proposal_body
                                   }
                                 
                                   headers = [
-                                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                    "Content-Type: application/x-www-form-urlencoded"
+                                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                    "Content-Type: application/json"
                                   ]
                                 } as $proposal_sms
                               }
@@ -1360,17 +1360,17 @@ task scheduling_queue_worker {
                                                         conditional {
                                                           if ($gate575_should_send) {
                                                             api.request {
-                                                              url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                                                              url = "https://api.telnyx.com/v2/messages"
                                                               method = "POST"
                                                               params = {
-                                                                From: "+16292840444"
-                                                                To  : $sd_cust.phone
-                                                                Body: $sd_cust_body
+                                                                from: $env.TELNYX_FROM_TECH
+                                                                to  : $sd_cust.phone
+                                                                text: $sd_cust_body
                                                               }
                                                             
                                                               headers = [
-                                                                "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                                                "Content-Type: application/x-www-form-urlencoded"
+                                                                "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                                                "Content-Type: application/json"
                                                               ]
                                                             } as $sd_cust_sms
                                                           
@@ -1431,17 +1431,17 @@ task scheduling_queue_worker {
                                                 conditional {
                                                   if ($gate667_should_send) {
                                                     api.request {
-                                                      url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                                                      url = "https://api.telnyx.com/v2/messages"
                                                       method = "POST"
                                                       params = {
-                                                        From: "+16292840444"
-                                                        To  : "+1" ~ $sick_tech.phone
-                                                        Body: $sd_tech_msg
+                                                        from: $env.TELNYX_FROM_TECH
+                                                        to  : "+1" ~ $sick_tech.phone
+                                                        text: $sd_tech_msg
                                                       }
                                                     
                                                       headers = [
-                                                        "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                                                        "Content-Type: application/x-www-form-urlencoded"
+                                                        "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                                                        "Content-Type: application/json"
                                                       ]
                                                     } as $sd_tech_sms
                                                   }

@@ -88,17 +88,17 @@ task parts_arrival_notify {
             conditional {
               if ($gate_pa_should_send) {
                 api.request {
-                  url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+                  url = "https://api.telnyx.com/v2/messages"
                   method = "POST"
                   params = {
-                    From: "+16292840444"
-                    To  : "+1" ~ $cust_phone_trimmed
-                    Body: $arrival_body
+                    from: $env.TELNYX_FROM_TECH
+                    to  : "+1" ~ $cust_phone_trimmed
+                    text: $arrival_body
                   }
                 
                   headers = [
-                    "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-                    "Content-Type: application/x-www-form-urlencoded"
+                    "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+                    "Content-Type: application/json"
                   ]
                 } as $arrival_sms
               

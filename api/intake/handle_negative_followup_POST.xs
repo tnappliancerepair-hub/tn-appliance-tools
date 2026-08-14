@@ -122,17 +122,17 @@ query handle_negative_followup verb=POST {
         }
       
         api.request {
-          url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+          url = "https://api.telnyx.com/v2/messages"
           method = "POST"
           params = {
-            From: "+16292840444"
-            To  : "+16154855795"
-            Body: $owner_msg
+            from: $env.TELNYX_FROM_TECH
+            to  : "+16154855795"
+            text: $owner_msg
           }
         
           headers = [
-            "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-            "Content-Type: application/x-www-form-urlencoded"
+            "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+            "Content-Type: application/json"
           ]
         }
       }
@@ -196,17 +196,17 @@ query handle_negative_followup verb=POST {
         }
       
         api.request {
-          url = "https://api.twilio.com/2010-04-01/Accounts/" ~ $env.TWILIO_ACCOUNT_SID ~ "/Messages.json"
+          url = "https://api.telnyx.com/v2/messages"
           method = "POST"
           params = {
-            From: "+16292840444"
-            To  : $input.From
-            Body: $cust_thanks_body
+            from: $env.TELNYX_FROM_TECH
+            to  : $input.From
+            text: $cust_thanks_body
           }
         
           headers = [
-            "Authorization: Basic " ~ (($env.TWILIO_ACCOUNT_SID ~ ":" ~ $env.TWILIO_AUTH_TOKEN)|base64_encode)
-            "Content-Type: application/x-www-form-urlencoded"
+            "Authorization: Bearer " ~ $env.TELNYX_API_KEY
+            "Content-Type: application/json"
           ]
         }
       }
