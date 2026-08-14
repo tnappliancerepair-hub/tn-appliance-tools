@@ -24,8 +24,16 @@ async function creds() {
   return (acct && token) ? { acct, token } : null;
 }
 
+function errText(d, status) {
+  const errs = (d && d.errors) || [];
+  const msg = errs.map((e) => (e && (e.message || e.code)) || '').filter(Boolean).join('; ');
+  return msg || ('http_' + status);
+}
+
+// Returns { uid, status, error }. uid is null on failure (callers check res.uid).
 async function copyFromUrl(url, meta) {
-  const c = await creds(); if (!c || !url) return null;
+  const c = await creds(); if (!c) return { uid: null, error: 'no_stream_creds' };
+  if (!url) return { uid: null, error: 'no_url' };
   try {
     const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${c.acct}/stream/copy`, {
       method: 'POST',
@@ -35,12 +43,13 @@ async function copyFromUrl(url, meta) {
     });
     const d = await r.json().catch(() => ({}));
     const uid = d && d.result && d.result.uid;
-    return (r.ok && uid) ? uid : null;
-  } catch (_) { return null; }
+    return { uid: (r.ok && uid) ? uid : null, status: r.status, error: (r.ok && uid) ? null : errText(d, r.status) };
+  } catch (e) { return { uid: null, error: String((e && e.message) || e) }; }
 }
 
 async function uploadBuffer(buf, filename, mime) {
-  const c = await creds(); if (!c || !buf || !buf.length) return null;
+  const c = await creds(); if (!c) return { uid: null, error: 'no_stream_creds' };
+  if (!buf || !buf.length) return { uid: null, error: 'empty_buffer' };
   try {
     const fd = new FormData();
     fd.append('file', new Blob([buf], { type: mime || 'video/mp4' }), filename || 'video.mp4');
@@ -52,8 +61,8 @@ async function uploadBuffer(buf, filename, mime) {
     });
     const d = await r.json().catch(() => ({}));
     const uid = d && d.result && d.result.uid;
-    return (r.ok && uid) ? uid : null;
-  } catch (_) { return null; }
+    return { uid: (r.ok && uid) ? uid : null, status: r.status, error: (r.ok && uid) ? null : errText(d, r.status) };
+  } catch (e) { return { uid: null, error: String((e && e.message) || e) }; }
 }
 
 module.exports = { copyFromUrl, uploadBuffer };

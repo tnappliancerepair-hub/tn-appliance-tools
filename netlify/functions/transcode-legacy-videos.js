@@ -57,13 +57,18 @@ exports.handler = async function (event) {
   for (const a of targets) {
     const url = await signedUrl(a.s3_key);
     if (!url) { results.push({ id: a.id, ok: false, why: 'no_signed_url' }); continue; }
-    const uid = await streamIngest.copyFromUrl(url, { job_id: jobId, from_attachment: a.id, name: 'legacy_' + a.id });
-    if (!uid) { results.push({ id: a.id, ok: false, why: 'stream_copy_failed' }); continue; }
+    // Download the stored bytes and push them straight into Stream (same code path
+    // inbound capture uses) — more reliable than Stream fetching the URL itself.
+    let buf;
+    try { const rr = await fetch(url, { signal: AbortSignal.timeout(15000) }); if (!rr.ok) { results.push({ id: a.id, ok: false, why: 'fetch_' + rr.status }); continue; } buf = Buffer.from(await rr.arrayBuffer()); }
+    catch (e) { results.push({ id: a.id, ok: false, why: 'download_err: ' + String((e && e.message) || e).slice(0, 60) }); continue; }
+    const res = await streamIngest.uploadBuffer(buf, 'legacy_' + a.id + '.' + (String(a.s3_key).split('.').pop() || 'mp4'), a.mime_type || 'video/mp4');
+    if (!res || !res.uid) { results.push({ id: a.id, ok: false, why: 'stream_upload_failed', detail: res && res.error, status: res && res.status }); continue; }
     try {
-      await crud.update(JOB_ATTACHMENTS, a.id, { s3_key: 'cfstream:' + uid });
-      try { await crud.logEvent('legacy_video_transcoded', { job_id: jobId, attachment_id: a.id, uid, old_key: a.s3_key, at_ms: Date.now() }); } catch (_) {}
-      results.push({ id: a.id, ok: true, uid });
-    } catch (e) { results.push({ id: a.id, ok: false, why: 'update_failed: ' + String((e && e.message) || e).slice(0, 80), uid }); }
+      await crud.update(JOB_ATTACHMENTS, a.id, { s3_key: 'cfstream:' + res.uid });
+      try { await crud.logEvent('legacy_video_transcoded', { job_id: jobId, attachment_id: a.id, uid: res.uid, old_key: a.s3_key, at_ms: Date.now() }); } catch (_) {}
+      results.push({ id: a.id, ok: true, uid: res.uid });
+    } catch (e) { results.push({ id: a.id, ok: false, why: 'update_failed: ' + String((e && e.message) || e).slice(0, 80), uid: res.uid }); }
   }
 
   return j(200, { ok: true, job_id: jobId, transcoded: results.filter((r) => r.ok).length, results, note: 'Stream is transcoding — thumbnails appear in ~30-90s; tech taps ↻ refresh.' });

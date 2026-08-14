@@ -64,7 +64,7 @@ async function captureOneMedia({ url, contentType, jobId, convId, fromPhone, idx
   // behavior), so a Stream hiccup never loses the customer's video.
   let attachKey = s3Key;
   if (ftype === 'video') {
-    try { const uid = await streamIngest.uploadBuffer(buf, 'sms_video.' + ext, mime); if (uid) attachKey = 'cfstream:' + uid; } catch (_) {}
+    try { const res = await streamIngest.uploadBuffer(buf, 'sms_video.' + ext, mime); if (res && res.uid) attachKey = 'cfstream:' + res.uid; } catch (_) {}
   }
 
   try {
