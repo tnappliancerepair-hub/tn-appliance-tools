@@ -62,7 +62,9 @@ async function gradeConv(conv, KEY) {
   if (msgs.length < 3) return { skip: 'too short' };
   const transcript = transcriptOf(msgs);
   if (transcript.length < 60) return { skip: 'no usable transcript' };
-  const res = await runBrainTurn({ systemPrompt: RUBRIC, userContent: 'TRANSCRIPT:\n' + transcript.slice(0, 9000), maxTokens: 500, ctx: { brain: 'call_grader' } });
+  // Haiku, single pass (no tool loop), short timeout — grading is a fast structured judgment,
+  // and this keeps several grades inside the 26s function window.
+  const res = await runBrainTurn({ systemPrompt: RUBRIC, userContent: 'TRANSCRIPT:\n' + transcript.slice(0, 9000), maxTokens: 500, model: 'claude-haiku-4-5-20251001', maxIterations: 1, claudeTimeoutMs: 12000, ctx: { brain: 'call_grader' } });
   const g = tryParseJsonReply(res.reply || '') || {};
   if (typeof g.score !== 'number') return { skip: 'ungradeable (no score)', err: res.error };
   return { grade: { conv_id: conv.id, at: conv.created_at, score: Math.max(1, Math.min(10, Math.round(g.score))), outcome: g.outcome || '?', resolved: !!g.resolved, tools_ok: !!g.tools_ok, brand_voice_ok: !!g.brand_voice_ok, dead_air_or_error: !!g.dead_air_or_error, issues: Array.isArray(g.issues) ? g.issues.slice(0, 3) : [], one_line: String(g.one_line || '').slice(0, 240) } };
@@ -100,7 +102,7 @@ exports.handler = async function (event) {
   try { const d = await tx(KEY, '/ai/conversations?page[size]=100'); convs = ((d && d.data) || []).filter((c) => Date.parse(c.last_message_at || c.created_at || 0) >= since); } catch (e) { return j(200, { ok: false, error: String((e && e.message) || e) }); }
 
   const graded = [], skipped = [];
-  const CAP = dry ? 8 : 15;
+  const CAP = dry ? 2 : 5;   // per-run cap so several Haiku grades stay inside the 26s window; cron catches up
   let done = 0;
   for (const c of convs) {
     if (done >= CAP) break;
