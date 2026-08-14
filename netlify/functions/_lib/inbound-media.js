@@ -8,6 +8,7 @@
 
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const crud = require('./xano/metadata-crud');
+const streamIngest = require('./stream-ingest');
 
 const JOB_ATTACHMENTS = 22;
 const MEDIA_FETCH_TIMEOUT_MS = 6000;
@@ -55,14 +56,25 @@ async function captureOneMedia({ url, contentType, jobId, convId, fromPhone, idx
     await s3.send(new PutObjectCommand({ Bucket: process.env.TN_AWS_S3_BUCKET, Key: s3Key, Body: buf, ContentType: mime }));
   } catch (e) { console.warn('[' + tag + '] media s3 store failed', String((e && e.message) || e)); return null; }
 
+  // Videos: run them through Cloudflare Stream so they PLAY on any device. MMS from
+  // older Android phones arrives as .3gp (video/3gpp), which iPhone can't play inline
+  // (black box). Stream accepts 3gp/mp4/mov and transcodes to HLS + a poster. If it
+  // succeeds we store the cfstream: key (the renderers play that everywhere); the raw
+  // S3 object stays as a durable backup. Any failure → keep the raw S3 key (unchanged
+  // behavior), so a Stream hiccup never loses the customer's video.
+  let attachKey = s3Key;
+  if (ftype === 'video') {
+    try { const uid = await streamIngest.uploadBuffer(buf, 'sms_video.' + ext, mime); if (uid) attachKey = 'cfstream:' + uid; } catch (_) {}
+  }
+
   try {
     await crud.insert(JOB_ATTACHMENTS, {
       job_id: jobId || null, conversation_id: convId || null, attachment_type: 'intake',
-      file_type: ftype, s3_key: s3Key, original_filename: 'sms_' + ftype + '.' + ext, mime_type: mime,
+      file_type: ftype, s3_key: attachKey, original_filename: 'sms_' + ftype + '.' + ext, mime_type: mime,
       uploaded_by: 'customer', uploaded_by_user_id: 0, upload_complete_at: ts, file_size_bytes: buf.length,
     });
   } catch (e) { console.warn('[' + tag + '] media attachment insert failed', String((e && e.message) || e)); }
-  return { s3Key, file_type: ftype, bytes: buf.length };
+  return { s3Key: attachKey, file_type: ftype, bytes: buf.length };
 }
 
 // media = [{url, content_type}]. jobId optional (null = keyed to phone; the thread
