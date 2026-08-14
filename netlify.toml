@@ -752,10 +752,12 @@
 # office_set_job_status→completed transition (the signal that actually flows, ~7 jobs/day),
 # emits ONE job_completed event per job AND fires the customer review ask (one-tap rating
 # link -> rate.html; 4-5★ routes to Google, ≤3★ to private feedback) shortly after the job
-# flips to completed. Hourly (Teddy 2026-08-14: "hourly is fine"). Forward-only + per-job
-# dedup + 60-day per-customer review dedup + per-run caps. Kill: JOB_COMPLETION_WATCH=false.
+# flips to completed. Every 2 min (Teddy 2026-08-14: "make it instant instead of hourly") —
+# this is the BACKSTOP for OFFICE-marked completions; the tech's Complete tap fires the ask
+# inline (tech-complete.js) with zero lag. Forward-only + per-job dedup + 60-day per-customer
+# review dedup + per-run caps make repeated runs safe. Kill: JOB_COMPLETION_WATCH=false.
 [functions."job-completion-watch"]
-  schedule = "17 * * * *"
+  schedule = "*/2 * * * *"
 
 # phone-test-blast (Teddy 2026-08-14) - ONE-TIME 9am CT text test to everyone on Ann's real
 # path. Fires 14:00 UTC = 9:00am CDT; date-gated to 2026-08-14 + done-flag so it self-terminates

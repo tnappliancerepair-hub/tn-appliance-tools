@@ -18,8 +18,17 @@
 //   POST { job_id, technician_id, completion_type }
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
+const reviewAsk = require('./_lib/review-ask');
 const TABLES = crud.TABLES;
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+
+// Fire the "How'd we do?" review ask the INSTANT a job is completed (Teddy 2026-08-14:
+// "make it instant instead of hourly"). Best-effort, never blocks/breaks completion;
+// gated + 60-day-deduped inside sendAskForJob, so the job-completion-watch backstop
+// can't double-send. Only fires when the outcome actually lands the job at 'completed'.
+async function fireInstantReviewAsk(jobId, source) {
+  try { await reviewAsk.sendAskForJob(jobId, { via: 'completion_instant', source: source || 'tech_complete' }); } catch (_) {}
+}
 const NONTERMINAL = new Set(['parts_needed', 'warranty_auth_needed', 'reassignment_needed']);
 // completion_type -> the scheduling_status the completion INTENDS (mirrors the XS map).
 // The XS delegates the scheduling_status write to the state machine, which can no-op
@@ -88,6 +97,8 @@ exports.handler = async function (event) {
         try { await crud.logEvent('nff_warranty_needs_claim', { job_id: jobId, vendor, claim, at_ms: now }); } catch (_) {}
       }
     } catch (_) { /* alert is best-effort — completion already succeeded */ }
+    // Honest "came out, nothing wrong" is still a happy customer → ask instantly.
+    await fireInstantReviewAsk(jobId, 'tech_complete_nff');
     return j(200, { success: true, completion_type: 'no_fault_found', no_fault: true });
   }
 
@@ -142,6 +153,13 @@ exports.handler = async function (event) {
         await crud.logEvent('tech_complete_status_reconciled', { job_id: jobId, completion_type: ct, from: have, to: want, at_ms: Date.now() });
       }
     } catch (_) { /* the office 'Not closed out' flag is still the backstop */ }
+
+    // Job is truly done (repair_complete → 'completed') → fire the review ask NOW,
+    // the moment the tech taps Complete. Non-terminal types (parts/held) land on a
+    // different status and are skipped. Deduped, so the watch backstop won't repeat it.
+    if ((STATUS_MAP[ct] || 'completed') === 'completed') {
+      await fireInstantReviewAsk(jobId, 'tech_complete');
+    }
   }
 
   return j(200, d && typeof d === 'object' ? d : { success: false, error: 'no response' });
