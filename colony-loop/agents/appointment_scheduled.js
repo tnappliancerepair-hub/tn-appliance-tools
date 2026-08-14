@@ -108,12 +108,30 @@ function techBody({ jobLabel, apptStr, custName, address }) {
   return `[ant] job #${jobLabel} confirmed for ${apptStr} - ${custName}${addrClause}`;
 }
 
+// Dedup the CUSTOMER confirmation per calendar DAY, not per exact start-ms.
+// David Derocher (2026-08-14) got 4 near-identical "you're scheduled for Friday"
+// texts because the office reshuffled his tech + stop-position several times the
+// same day — each write changed scheduled_start_ms and re-fired the confirmation.
+// A tech/stop change is internal; the customer only needs a fresh confirmation if
+// the actual DAY moves. Keying dedup on the CT calendar day (YYYYMMDD) collapses
+// all same-day reschedules to one confirmation, while a real different-day move
+// still sends. Read + marker both use this key, so no XS change is needed.
+function ctDayKey(ms) {
+  if (!ms) return 0;
+  try {
+    const s = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Number(ms)));
+    return Number(s.replace(/-/g, '')) || 0;
+  } catch (_) { return Math.floor(Number(ms) / 86400000); }
+}
+
 export async function run(signal, ctx) {
   const { xano, sms, log } = ctx;
   const payload = signal.payload || {};
 
   const jobId = Number(payload.job_id);
   const scheduledStartMs = Number(payload.scheduled_start_ms) || 0;
+  // Per-day dedup key (see ctDayKey above). Used for the confirmation dedup marker.
+  const confirmDayKey = ctDayKey(scheduledStartMs);
   const scheduledEndMs = payload.scheduled_end_ms ? Number(payload.scheduled_end_ms) : null;
   const technicianId = Number(payload.technician_id) || 0;
   const source = String(payload.source || '').toLowerCase();
@@ -124,10 +142,11 @@ export async function run(signal, ctx) {
     return { success: true, action: 'skipped_no_time', job_id: jobId };
   }
 
-  // Dedup: same job_id + scheduled_start_ms already confirmed → skip.
+  // Dedup: same job_id + same calendar DAY already confirmed → skip (a same-day
+  // tech/stop reshuffle must not re-text the customer). Different DAY still sends.
   let handled = null;
   try {
-    handled = await xano.getAppointmentConfirmationSent(jobId, scheduledStartMs);
+    handled = await xano.getAppointmentConfirmationSent(jobId, confirmDayKey);
   } catch (err) {
     log('appointment_scheduled_dedup_check_failed', { job_id: jobId, error: err.message });
     // Fail-open on dedup query failures — better to risk a rare duplicate
@@ -364,7 +383,10 @@ export async function run(signal, ctx) {
 
   const meta = {
     job_id: jobId,
-    scheduled_start_ms: scheduledStartMs,
+    // NOTE: this is the per-DAY dedup key (YYYYMMDD), not the raw ms — the
+    // dedup read above matches on it. Real ms kept separately for logs.
+    scheduled_start_ms: confirmDayKey,
+    scheduled_start_ms_real: scheduledStartMs,
     technician_id: technicianId,
     source,
     customer_sms: custResult,

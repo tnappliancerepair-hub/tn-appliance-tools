@@ -29,6 +29,27 @@ function breakerAllows() {
   return _sendTimes.length < SMS_BREAKER_MAX;
 }
 
+// ── Per-RECIPIENT proactive flood cap ────────────────────────────────────────
+// 2026-08-14, per Teddy: David Derocher got ~9 near-identical greeting/scheduling
+// texts in 90 min (the office reshuffled his tech/stop several times + overlapping
+// greeting senders). The global breaker guards TOTAL volume; this guards ONE person.
+// Hard ceiling of N PROACTIVE customer texts to the same phone per rolling window.
+// REACTIVE replies (to a customer who just texted us) are EXEMPT — we never go
+// silent on someone waiting on an answer. In-memory (the loop is one long-lived
+// process, so a burst like David's lives in a single lifetime). Tunable via env.
+const PER_PHONE_MAX = Number(process.env.CUSTOMER_PHONE_MAX_PER_WINDOW || 4);
+const PER_PHONE_WINDOW_MS = Number(process.env.CUSTOMER_PHONE_WINDOW_MIN || 60) * 60 * 1000;
+const _phoneSendTimes = new Map(); // e164 -> [ts,...]
+function perPhoneAllows(e164) {
+  const now = Date.now();
+  const arr = (_phoneSendTimes.get(e164) || []).filter((t) => now - t < PER_PHONE_WINDOW_MS);
+  _phoneSendTimes.set(e164, arr);
+  return arr.length < PER_PHONE_MAX;
+}
+function perPhoneRecord(e164) {
+  const arr = (_phoneSendTimes.get(e164) || []); arr.push(Date.now()); _phoneSendTimes.set(e164, arr);
+}
+
 async function dispatchSms(phone, body, context = {}) {
   if (!breakerAllows()) {
     const now = Date.now();
@@ -229,6 +250,16 @@ export async function toCustomer(phone, body, context = {}) {
       }
     } catch (_) { /* fail-open on read error — per-agent dedup still guards */ }
   }
+  // PER-RECIPIENT FLOOD CAP — a hard ceiling on PROACTIVE texts to one phone, so a
+  // reschedule storm / overlapping senders can never spam a customer again (David
+  // Derocher, 2026-08-14). Reactive replies (customer texted us) + force_send are
+  // exempt — we never go silent on someone waiting. Applied last, so all the
+  // intake/quiet/backlog logic still runs first.
+  const _isReactive = /reply|response|answer|translated|inbound/.test(_lbl);
+  if (!context.force_send && !_isReactive && !perPhoneAllows(e164)) {
+    xano.logLocal('customer_sms_phone_capped', { to: e164, action: _lbl, cap: PER_PHONE_MAX, window_min: Math.round(PER_PHONE_WINDOW_MS / 60000), body_preview: String(body || '').slice(0, 120) });
+    return { success: false, phone_capped: true, reason: 'per_recipient_flood_cap', action: _lbl };
+  }
   const res = await dispatchSms(e164, body, {
     ...context, recipient_role: 'customer', company_id: config.companyId,
   });
@@ -236,6 +267,8 @@ export async function toCustomer(phone, body, context = {}) {
   if (_isOutreach && res && res.success !== false) {
     try { await xano.recordEventLog('intake_outreach_sent', { job_id: Number(context.job_id), via: _act, at_ms: Date.now() }); } catch (_) {}
   }
+  // Record a successful PROACTIVE send toward the per-phone rolling window.
+  if (!_isReactive && res && res.success !== false) perPhoneRecord(e164);
   return res;
 }
 
