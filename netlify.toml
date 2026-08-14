@@ -763,6 +763,13 @@
 [functions."phone-test-blast"]
   schedule = "0 14 * * *"
 
+# ann-call-grader (Teddy 2026-08-14) - captures + Claude-grades Ann's live calls (Telnyx
+# conversations) into a readiness scorecard so we watch the new phone system improve in real
+# numbers. Every 3h: grades the day's new calls (dedup) + texts Teddy a digest when it catches
+# any. Pull the scorecard anytime: ?report=1&secret=. No kill needed (read-only + light).
+[functions."ann-call-grader"]
+  schedule = "0 */3 * * *"
+
 # review-velocity-scorecard-cron — instruments the review FLYWHEEL, the hinge of the
 # whole map-pack + organic strategy. Weekly (Mon ~7:20am CT) it invokes the HTTP-
 # callable review-velocity-scorecard core with text=1: measures the funnel
