@@ -39,6 +39,11 @@ const TECH = {
 };
 // Job is legitimately "not open" in these states — don't flag OPEN_AFTER_VISIT.
 const NOT_OPEN = new Set(['completed', 'canceled', 'cancelled', 'no_fix_possible', 'awaiting_parts', 'held', 'parts_ordered']);
+// TERMINAL — the tech is genuinely DONE and has moved on. A "finish your TDR" nudge
+// on one of these is a wasted text (Teddy 2026-08-14: Jimmy got nudged on a COMPLETED
+// job). We never text the tech on a terminal job; if the office still needs a warranty
+// TDR field filled, that's an office-board task, not a 30-min tech nag.
+const TERMINAL_CLOSED = new Set(['completed', 'complete', 'canceled', 'cancelled', 'no_fix_possible']);
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function meta(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
@@ -109,6 +114,10 @@ exports.handler = async function (event) {
 
     const incomplete = blank(tdr.diagnosis) || blank(tdr.failed_component);
     const status = String(job.scheduling_status || '').toLowerCase();
+    const cstatus = String(job.current_status || '').toLowerCase();
+    // Terminal/closed → tech is done, no nudge. Belt-and-suspenders on both status
+    // fields (a completed job can read complete on either), so a done job never nags.
+    if (TERMINAL_CLOSED.has(status) || TERMINAL_CLOSED.has(cstatus) || /complete|cancel/.test(status + ' ' + cstatus)) continue;
     const open = !NOT_OPEN.has(status);
     if (!incomplete && !open) continue; // all good
 
