@@ -417,7 +417,7 @@ exports.handler = async function (event) {
           already = !!(dd && (dd.count > 0 || (Array.isArray(dd.items) && dd.items.length > 0)));
         } catch (_) {}
         if (!already) {
-          const body = "TN Appliance Exchange — sorry we couldn't connect just now! No need to wait on hold. Just tell me what's going on right here and I'll get you taken care of (takes about 60 sec): https://tnapplianceexchange.net  — or text me back and I'll help you right here. (Reply STOP to opt out.)";
+          const body = "Tennessee Appliance Exchange 🐜 Sorry we missed you! No need to hold - just tell me what's going on right here and I'll take care of you: https://tnapplianceexchange.net (Reply STOP to opt out.)";
           await safePost(`${XANO_BASE}/send_sms`, { to: callerNumber, body, message: body, context_tag: 'hangup_intake_text' });
           await safePost(XANO_RECORD_EVENT, { action: `hangup_intake_texted_${callerLast10}`, metadata_json: JSON.stringify({ caller: callerNumber, ended_reason: endedReason, dur_sec: durSec, vapi_call_id: callId, at_ms: Date.now() }) });
         }

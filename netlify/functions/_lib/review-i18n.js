@@ -39,11 +39,11 @@ function hintOf(lang, tech, city) {
 
 const M = {
   en: {
-    ask: (f, a) => `Hi ${f} — thank you for the opportunity to take care of your${a ? ' ' + a : ''} repair! Quick question, how'd we do? Reply 👍 if we did great, or 👎 if we missed the mark.`,
-    askDirect: (f, a, url) => `Hi ${f} — thank you for letting us take care of your${a ? ' ' + a : ''} repair! If we hit the mark, a quick 30-second Google review would mean the world to our small team: ${url}\n\nAnd if anything fell short, just reply here — it comes straight to me and I'll make it right. — Teddy, TN Appliance`,
-    pos: (f, tech, appl, city, url) => { const o = tech && appl ? `So glad ${tech} got your ${appl} sorted, ${f}! 🙏` : tech ? `So glad ${tech} took good care of you, ${f}! 🙏` : appl ? `So glad we got your ${appl} sorted, ${f}! 🙏` : `So glad to hear it, ${f}! 🙏`; return `${o} If you've got 30 seconds, a quick Google review would mean the world to our small team${hintOf('en', tech, city)}: ${url}`; },
-    neg: (f) => `I'm sorry we didn't get it right, ${f}. What could we have done better? Your reply comes straight to me — I want to make it right. — Teddy, TN Appliance`,
-    ack: (f) => `Thank you, ${f} — I've got this and I'll personally look into it. We want to make it right. — Teddy, TN Appliance`,
+    ask: (f, a) => `Hi ${f}! 🐜 Thanks for letting Tennessee Appliance fix your${a ? ' ' + a : ''} repair. How'd we do? Reply 👍 great, or 👎 missed the mark.`,
+    askDirect: (f, a, url) => `Hi ${f}! 🐜 Thanks from Tennessee Appliance! If we hit the mark, a 30-sec Google review means the world: ${url} If anything fell short, reply here and I'll make it right. - Teddy`,
+    pos: (f, tech, appl, city, url) => { const o = tech && appl ? `So glad ${tech} got your ${appl} sorted, ${f}! 🐜` : tech ? `So glad ${tech} took good care of you, ${f}! 🐜` : appl ? `So glad we got your ${appl} sorted, ${f}! 🐜` : `So glad to hear it, ${f}! 🐜`; return `${o} A quick 30-sec Google review would mean the world${hintOf('en', tech, city)}: ${url}`; },
+    neg: (f) => `I'm sorry we didn't get it right, ${f}. What could we have done better? Your reply comes straight to me and I'll make it right. - Teddy 🐜`,
+    ack: (f) => `Thank you, ${f}! I've got this and I'll personally look into it - we'll make it right. - Teddy 🐜`,
   },
   es: {
     ask: (f, a) => `Hola ${f}, ¡gracias por confiar en TN Appliance Exchange para tu reparación${a ? ' de ' + a : ''}! Una pregunta rápida — ¿cómo lo hicimos? Responde 👍 si quedaste contento, o 👎 si fallamos.`,

@@ -210,7 +210,7 @@ function composeNewLeadReply(body, link) {
   else if (/\b(dishwasher|dish ?washer)\b/.test(text)) opener = 'Got it — dishwasher repair, perfect.';
   else if (/\b(oven|range|stove|cooktop|stovetop)\b/.test(text)) opener = 'Got it — oven/range repair, perfect.';
   else if (/\b(hvac|furnace|heat ?pump|air ?condition(er|ing)?|a\/?c unit)\b/.test(text)) opener = 'Got it — HVAC repair, perfect.';
-  return `${opener} Tap here to finish setting up in about 60 seconds: ${link || PUBLIC_SITE} — Ant walks you through it. Or just text us back here anytime. — TN Appliance Exchange`;
+  return `${opener} 🐜 Tap to finish in ~60 sec: ${link || PUBLIC_SITE} - or just text us back anytime. - Tennessee Appliance Exchange`;
 }
 
 // Resolve the RIGHT intake link for this phone (Teddy 2026-07-08): WARRANTY jobs get

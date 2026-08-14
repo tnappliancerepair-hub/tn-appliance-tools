@@ -57,17 +57,17 @@ function intakeMsg(n, cust, appl, link, isW) {
   // jumps when people know the reason. (Teddy 2026-07-13, Buc-ee's-simple.)
   if (n <= 0) {
     return isW
-      ? `Hi ${cust}! 🐜 TN Appliance — your ${appl} repair is covered, no charge. Two quick things and we've got you: (1) a 10-second video of your ${appl} doing — or NOT doing — its thing, and (2) a photo of the model-number sticker. That's exactly how we find the right part for YOUR machine, so your tech rolls up ready. Tap ${link} — takes about a minute. 🙌`
-      : `Hi ${cust}! 🐜 TN Appliance — let's get your ${appl} fixed fast. Two quick things: (1) a 10-second video of what it's doing — or NOT doing — and (2) a photo of the model-number sticker. That's how we find the right part for YOUR machine. Tap ${link} + pick your days. About 2 min. 🙌`;
+      ? `Hi ${cust}! 🐜 Tennessee Appliance covers your ${appl}, no charge. Send a 10-sec video + a model-sticker photo for the exact part: ${link}`
+      : `Hi ${cust}! 🐜 Tennessee Appliance - let's fix your ${appl}. Send a 10-sec video + a model-sticker photo, pick your days: ${link}`;
   }
   // Touch 1 = the EVENING reminder — warm "still here for you," never a nag.
   if (n === 1) {
-    return `Hey ${cust}! 🐜 Still here to get your ${appl} fixed fast. Whenever you've got a sec tonight, tap ${link} — a quick 10-second video + a pic of the model-number sticker, and we'll bring the exact part and lock in your day. Easiest repair you'll ever book. 🙌`;
+    return `Hey ${cust}! 🐜 Still here to fix your ${appl}. Tap ${link} - a 10-sec video + a model-sticker pic, and we'll bring the exact part and lock your day.`;
   }
   if (n === 2) {
-    return `Hi ${cust} — TN Appliance Exchange 🐜. To get your ${appl} on the schedule, just let us know your availability — what days work best for you, and any that don't? Reply right here. Thank you!`;
+    return `Hi ${cust}! 🐜 Tennessee Appliance - to get your ${appl} scheduled, what days work for you, and any that don't? Reply here. Thanks!`;
   }
-  return `Hi ${cust} — TN Appliance Exchange 🐜, last check-in on your ${appl}: what days work for you and any that don't? Reply here and we'll get you on the schedule. Thank you!`;
+  return `Hi ${cust}! 🐜 Tennessee Appliance - last check on your ${appl}: what days work, and any that don't? Reply here and we'll get you scheduled.`;
 }
 // Age cap is OPT-IN (Teddy: text ANY job that needs a day+time, incl. the
 // backlog). 0/unset = no cap → every unscheduled job gets ONE ask, drained

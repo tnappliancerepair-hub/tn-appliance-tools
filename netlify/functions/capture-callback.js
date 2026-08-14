@@ -37,9 +37,9 @@ function isInternal(phone) { const d = String(phone || '').replace(/\D/g, '').sl
 function customerAck(name, callerType) {
   const who = String(name || '').trim().split(/\s+/)[0] || 'there';
   if (callerType === 'warranty') {
-    return `Hi ${who}, it's Tennessee Appliance — thanks for calling! We've got your message and we're on it. We'll follow up shortly to get your warranty visit moving. Feel free to reply right here with anything that helps (like the days and times that work for you) and we'll take care of you.`;
+    return `Hi ${who}, it's Tennessee Appliance 🐜 Got your message and we're on it - we'll follow up shortly to get your warranty visit moving. Reply here with the days/times that work.`;
   }
-  return `Hi ${who}, it's Tennessee Appliance — thanks for calling! We've got your message and we're on it. Someone will reach out shortly. To speed things up, just reply right here with anything that helps — like the days and times that work best for you — and we'll get you taken care of.`;
+  return `Hi ${who}, it's Tennessee Appliance 🐜 Got your message and we're on it - someone will reach out shortly. Reply here with the days/times that work best and we'll take care of you.`;
 }
 
 function headers() {
