@@ -9,10 +9,14 @@
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
-const { sendSms } = require('./_lib/sms');
+const { sendFrom588 } = require('./_lib/sms');
 const guard = require('./_lib/sms-guard');
-const OWNER = '+16154855795';
+// Callbacks are DELEGATED to Danielle + Sofia (Teddy 2026-08-14: "urgent call backs
+// need to go to Danielle and Sofia not me — those are delegated"). The owner is no
+// longer texted here. Both go out from the 588 line so Sofia (a fresh number) is
+// sure to receive it — the 857 tech line doesn't reliably reach non-established numbers.
 const DANIELLE = '+16154850713';
+const SOFIA = process.env.SOFIA_PHONE_NUMBER || '+16292594602';
 
 // Never auto-text an internal caller (owner/Danielle/techs/shop lines) a
 // customer acknowledgment — a tech calling in shouldn't get the "thanks for
@@ -74,7 +78,7 @@ exports.handler = async function (event) {
     throw lastErr || new Error('failed');
   }
 
-  let logged = false, ownerSent = false, danielleSent = false;
+  let logged = false, danielleSent = false, sofiaSent = false;
   const h = headers();
   if (h) {
     try {
@@ -102,23 +106,24 @@ exports.handler = async function (event) {
   }
   const urgent = isUrgent();
   // Safety net: if the durable queue write failed, alert even a routine one so it
-  // is never silently lost.
-  const alertOwner = urgent || !logged;
+  // is never silently lost. Alerts go to the delegated dispatchers (Danielle +
+  // Sofia), never the owner.
+  const alertDispatchers = urgent || !logged;
 
   const tag = urgent ? '🚨 URGENT' : (!logged ? '(queue-write failed)' : (callerType === 'warranty' ? 'WARRANTY' : 'customer'));
   const alert = '[ant] 📞 callback (' + tag + '): ' + (name || '(no name)') + ' ' + (phone || '') +
     (ref ? (' · claim/WO ' + ref) : '') + ' — ' + (summary || 'see call') +
     '. Call back: https://tnapplianceexchange.net/callbacks.html';
 
-  // Fire in parallel to keep the live call snappy. Owner/Danielle get a text ONLY
+  // Fire in parallel to keep the live call snappy. Danielle + Sofia get a text ONLY
   // when it's urgent (routine callbacks live quietly in the queue). The immediate
   // customer acknowledgment always fires so the loop closes even if no human works
   // it. guardedSend enforces opt-out; internal callers are skipped so a tech
   // dialing in never gets the "thanks for calling" text.
   let customerAcked = false, customerAckReason = 'skipped';
   await Promise.allSettled([
-    alertOwner ? retry(() => sendSms(OWNER, alert, 'owner', 'vapi_callback_urgent'), 2).then(() => { ownerSent = true; }).catch(() => {}) : Promise.resolve(),
-    urgent ? retry(() => sendSms(DANIELLE, alert, 'warranty_handler', 'vapi_callback_urgent'), 2).then(() => { danielleSent = true; }).catch(() => {}) : Promise.resolve(),
+    alertDispatchers ? retry(() => sendFrom588(DANIELLE, alert, 'vapi_callback_urgent'), 2).then((ok) => { danielleSent = !!ok; }).catch(() => {}) : Promise.resolve(),
+    alertDispatchers ? retry(() => sendFrom588(SOFIA, alert, 'vapi_callback_urgent'), 2).then((ok) => { sofiaSent = !!ok; }).catch(() => {}) : Promise.resolve(),
     (async () => {
       if (!phone || isInternal(phone)) { customerAckReason = isInternal(phone) ? 'internal' : 'no_phone'; return; }
       try {
@@ -129,7 +134,7 @@ exports.handler = async function (event) {
     })(),
   ]);
 
-  const captured = logged || ownerSent || danielleSent;
+  const captured = logged || danielleSent || sofiaSent;
   // Last-ditch visibility if EVERYTHING failed — at least surface it in the
   // function logs with a clear marker so it can be recovered manually.
   if (!captured) {
@@ -142,5 +147,5 @@ exports.handler = async function (event) {
   const say = customerAcked
     ? "Got it — I've just sent a text to the number you're calling from so you have it in writing, and someone will follow up shortly. You can reply to that text anytime with the days and times that work for you. Anything else I can help with?"
     : "Got it — I've passed your info to our office and someone will reach out to you very shortly. Anything else I can help with in the meantime?";
-  return jsonResp(200, { ok: true, captured, logged, urgent, owner_alerted: ownerSent, customer_acked: customerAcked, customer_ack_reason: customerAckReason, say });
+  return jsonResp(200, { ok: true, captured, logged, urgent, danielle_alerted: danielleSent, sofia_alerted: sofiaSent, customer_acked: customerAcked, customer_ack_reason: customerAckReason, say });
 };

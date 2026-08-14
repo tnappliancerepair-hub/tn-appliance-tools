@@ -108,4 +108,24 @@ async function sendSms(recipient, body, role, tag) {
   return res.sent;
 }
 
-module.exports = { sendSms, toE164 };
+// Send an internal alert FROM the 588 customer line (the proven-deliverable one).
+// Used for delegated dispatcher alerts (Danielle + Sofia) where the 857 tech line
+// can't be trusted to land — Sofia is a fresh number, same failure class as the
+// crew. Honors opt-out; falls back to the Xano/857 path if the direct send fails.
+async function sendFrom588(recipient, body, tag) {
+  const to = toE164(recipient);
+  if (!to || to.length < 12 || !body) return false;
+  try { if (await guard.isOptedOut(to)) return false; } catch (_) {}
+  const cr = await _crewSendDirect(to, body, tag || 'ant_dispatch');
+  if (cr.ok) return true;
+  try {
+    const resp = await fetch(`${XANO}/send_sms`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, body, message: body, context_tag: tag || 'ant_dispatch' }),
+    });
+    const d = await resp.json().catch(() => ({}));
+    return !!(d && d.success);
+  } catch (_) { return false; }
+}
+
+module.exports = { sendSms, toE164, sendFrom588 };
