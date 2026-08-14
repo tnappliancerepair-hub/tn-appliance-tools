@@ -206,7 +206,14 @@ const TOOLS = [
   { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
 ];
 
-function assistantBody() {
+function assistantBody(toolKey) {
+  // When a tool key is set, bake &k=<key> onto every webhook tool URL so Telnyx sends it
+  // with each tool call — the tool endpoint then rejects any request without it.
+  const tools = toolKey
+    ? TOOLS.map((t) => (t.type === 'webhook' && t.webhook && t.webhook.url)
+      ? { ...t, webhook: { ...t.webhook, url: t.webhook.url + (t.webhook.url.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(toolKey) } }
+      : t)
+    : TOOLS;
   return {
     name: 'Ann (Telnyx shadow)',
     model: MODEL_CLAUDE,
@@ -214,7 +221,7 @@ function assistantBody() {
     greeting: '{{greeting}}',
     description: 'Tennessee Appliance Exchange phone AI — greets by name, knows the job, closes the loop.',
     voice_settings: { voice: VOICE_BROOKE, voice_speed: 1.0 },   // natural pace — snappier greeting (Teddy 2026-08-13)
-    tools: TOOLS,
+    tools,
     dynamic_variables_webhook_url: PRECALL,
     // SAFETY NET: default values so {{greeting}} / {{system_context}} / {{job_id}} always
     // render cleanly even if the pre-call webhook is slow or fails — the call never opens
@@ -252,16 +259,20 @@ exports.handler = async function (event) {
     if (action === 'get') return json(200, await call('GET', `/ai/assistants/${q.id}`));
     if (action === 'delete') return json(200, await call('DELETE', `/ai/assistants/${q.id}`));
 
+    // Tool key: explicit ?tool_key= wins (lets us bake the key in BEFORE storing it in the
+    // vault = zero-downtime rollout), else the vault value, else none (shadow, ungated).
+    const toolKey = q.tool_key || (await getSecret('TELNYX_TOOL_SECRET')) || '';
+
     if (action === 'create') {
-      const res = await call('POST', '/ai/assistants', assistantBody());
+      const res = await call('POST', '/ai/assistants', assistantBody(toolKey));
       const id = res.data && (res.data.id || (res.data.data && res.data.data.id));
-      return json(200, { ok: res.ok, status: res.status, assistant_id: id || null, response: res.data });
+      return json(200, { ok: res.ok, status: res.status, assistant_id: id || null, response: res.data, tool_gated: !!toolKey });
     }
 
     if (action === 'update') {
       if (!q.id) return json(200, { ok: false, error: 'need ?id=' });
-      const res = await call('PATCH', `/ai/assistants/${q.id}`, assistantBody());
-      return json(200, { ok: res.ok, status: res.status, response: res.data });
+      const res = await call('PATCH', `/ai/assistants/${q.id}`, assistantBody(toolKey));
+      return json(200, { ok: res.ok, status: res.status, response: res.data, tool_gated: !!toolKey });
     }
 
     if (action === 'bind') {

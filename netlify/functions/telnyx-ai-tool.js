@@ -78,6 +78,19 @@ async function openCashJob(a) {
   const appliance = String(a.appliance_type || a.appliance || '').trim() || 'Appliance';
   const zip = (String(a.zip || '').replace(/\D/g, '').slice(0, 5)) || '37013';
   const problem = String(a.problem || a.problem_summary || '').trim();
+  // DUP GUARD: if this phone already has an OPEN job, reuse it instead of spawning a
+  // second one (a caller who repeats their info, or an Ann retry, must never create a
+  // duplicate for Danielle to clean up). Only reuse a live job — a completed/canceled
+  // one means they're calling about something new, so make a fresh job. Best-effort +
+  // fast-timeout: if the check is slow/down we just create (never block the caller).
+  try {
+    const pk = phone.slice(-10);
+    const jt = await fetch(`${SITE}/.netlify/functions/job-truth?phone=${pk}&lens=office`, { signal: AbortSignal.timeout(4000) }).then((r) => r.json()).catch(() => null);
+    const f = jt && jt.found && jt.facts;
+    if (f && f.job_id && !/cancel|complete|closed/i.test(String(f.status || ''))) {
+      return { job_id: f.job_id, reused: true };
+    }
+  } catch (_) {}
   try {
     const r = await fetch(`${XANO}/create_job_from_chat`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -149,7 +162,11 @@ exports.handler = async function (event) {
 
   // Optional shared-token gate (fast, no vault round-trip). If TELNYX_TOOL_SECRET is
   // set we require ?k=, else we allow (shadow-pilot friendly). Harden before go-live.
-  const need = process.env.TELNYX_TOOL_SECRET || '';
+  // Shared-token gate so a random POST can't drive Ann's tools (create jobs, send texts).
+  // Reads env first (fast), then the vault. ENFORCED ONLY once the key is set — until then
+  // the shadow keeps working, so turning it on can never break a live call mid-flight.
+  let need = process.env.TELNYX_TOOL_SECRET || '';
+  if (!need && getSecret) { try { need = (await getSecret('TELNYX_TOOL_SECRET')) || ''; } catch (_) {} }
   if (need && q.k !== need && doAction !== 'ping') return json(200, { ok: false, result: "Sorry, I hit a snag on my end — let me take a note and have the office follow up." });
 
   if (doAction === 'ping') return say('pong', { ts: Date.now() });
