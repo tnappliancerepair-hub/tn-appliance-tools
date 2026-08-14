@@ -62,12 +62,11 @@ exports.handler = async function (event) {
   const last4 = phoneRaw.slice(-4);
   if (!appl) appl = 'appliance';
   const portal = `${SITE}/customer-portal.html?job_id=${jobId}&last4=${last4}`;
-  // Trimmed to as few segments as possible; the 🐜 is our signature so it rides on
-  // every customer text (Teddy: "I want everyone to see it").
-  const msg = `Hi ${cust}, Tennessee Appliance Exchange 🐜 Let's get your ${appl} scheduled fast - about 2 minutes:\n` +
-    `1) Tap: ${portal}\n` +
+  const msg = `Hi ${cust} — TN Appliance Exchange 🐜. Let's get your ${appl} scheduled fast. It takes about 2 minutes — just 3 easy steps:\n\n` +
+    `1) Tap your link: ${portal}\n` +
     `2) Send a short video of the problem + a photo of the model-number sticker\n` +
-    `3) Reply the days that work (and any you can't). That's all we need. Thanks!`;
+    `3) Reply here with the days that work for you (and any you can't do)\n\n` +
+    `That's all we need to lock in your visit. Thank you!`;
 
   const sent = await sendSms(phoneRaw, msg, 'customer', 'office_intake_link');
   if (!sent) return json(200, { ok: false, reason: 'texting is gated/failed — check the customer SMS gate' });
