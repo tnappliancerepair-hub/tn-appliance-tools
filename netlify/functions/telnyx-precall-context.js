@@ -165,7 +165,10 @@ async function _handle(event) {
   // a magnet job (19065), which would otherwise greet him by name. Listing a number here
   // makes Ann open with the cash-closer flow instead. Runs BEFORE the demo + the lookup so
   // it always wins. Remove the number to restore normal greet-by-name recognition.
-  const FORCE_UNKNOWN = new Set(['6154855795']);
+  // (Was Teddy's cell, forced-unknown so he could test the fresh cash-caller flow.
+  // Cleared 2026-08-13 so a known caller — including Teddy — is greeted BY NAME with
+  // their appliance/appointment, the real returning-customer experience.)
+  const FORCE_UNKNOWN = new Set([]);
   if (FORCE_UNKNOWN.has(demoCore)) return json(200, { dynamic_variables: generic, matched: false, reason: 'forced_unknown_test' });
 
   // ── KNOWN WARRANTY-COMPANY CALLER — greet by company + run the fast rep flow, routing to
