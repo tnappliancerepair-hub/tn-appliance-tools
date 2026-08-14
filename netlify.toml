@@ -757,6 +757,12 @@
 [functions."job-completion-watch"]
   schedule = "17 * * * *"
 
+# phone-test-blast (Teddy 2026-08-14) - ONE-TIME 9am CT text test to everyone on Ann's real
+# path. Fires 14:00 UTC = 9:00am CDT; date-gated to 2026-08-14 + done-flag so it self-terminates
+# (later days no-op). REMOVE this block after the test. Kill: vault PHONE_TEST_BLAST_DONE=1.
+[functions."phone-test-blast"]
+  schedule = "0 14 * * *"
+
 # review-velocity-scorecard-cron — instruments the review FLYWHEEL, the hinge of the
 # whole map-pack + organic strategy. Weekly (Mon ~7:20am CT) it invokes the HTTP-
 # callable review-velocity-scorecard core with text=1: measures the funnel
