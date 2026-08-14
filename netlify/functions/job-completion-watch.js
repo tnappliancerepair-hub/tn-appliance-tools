@@ -54,10 +54,15 @@ exports.handler = async function (event) {
     completedJobs.set(jid, { from: String(m.from || ''), actor: String(m.actor || ''), at });
   }
 
-  // 2) which of those already have a canonical job_completed (emit once ever)
+  // 2) which of those already have a canonical job_completed (emit once ever).
+  // CAP AT 500: the Metadata content/search endpoint 400s on per_page > ~500, and
+  // callXano THROWS on a 400 — which the catch here swallowed, leaving `already` empty
+  // so EVERY windowed job re-emitted forever (526 job_completed rows for 23 jobs / 2d,
+  // and — post-2026-08-14 — a wasted review lookup per re-emit). 500 keeps the read
+  // valid; real completion volume (~7-14/day) means 500 rows covers ~35+ days. (2026-08-14)
   const already = new Set();
   try {
-    const prior = await crud.searchPage(crud.TABLES.event_log, { action: 'job_completed' }, { id: 'desc' }, 600);
+    const prior = await crud.searchPage(crud.TABLES.event_log, { action: 'job_completed' }, { id: 'desc' }, 500);
     for (const r of prior) { const jid = Number(meta(r).job_id || 0); if (jid) already.add(jid); }
   } catch (_) {}
 
