@@ -740,13 +740,15 @@
 [functions."review-backfill"]
   schedule = "12,26,42,56 23 * * *"
 
-# job-completion-watch (Teddy 2026-08-06) - the canonical "job is done" signal. tech_job_complete
-# fires ~0 times, so it watches the office_set_job_status→completed transition (the signal that
-# actually flows, ~7 jobs/day) and emits ONE job_completed event per job — the backbone the review
-# sweep (and future pipelines) consume. Internal event only; forward-only + per-job dedup + capped.
-# Hourly so completions are eventized before the nightly review sweep. Kill: JOB_COMPLETION_WATCH=false.
+# job-completion-watch (Teddy 2026-08-06; instant review ask 2026-08-14) - the canonical
+# "job is done" signal. tech_job_complete fires ~0 times, so it watches the
+# office_set_job_status→completed transition (the signal that actually flows, ~7 jobs/day),
+# emits ONE job_completed event per job AND fires the customer "How'd we do? 👍/👎" review
+# ask the INSTANT the job flips to completed (👍 → thank-you + Google review link). Runs
+# every 3 min so "as soon as completed" is near-real-time. Forward-only + per-job dedup +
+# 60-day per-customer review dedup + per-run caps. Kill: JOB_COMPLETION_WATCH=false.
 [functions."job-completion-watch"]
-  schedule = "23 * * * *"
+  schedule = "*/3 * * * *"
 
 # review-velocity-scorecard-cron — instruments the review FLYWHEEL, the hinge of the
 # whole map-pack + organic strategy. Weekly (Mon ~7:20am CT) it invokes the HTTP-

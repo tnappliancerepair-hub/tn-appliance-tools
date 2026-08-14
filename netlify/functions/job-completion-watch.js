@@ -19,9 +19,12 @@
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
+const reviewAsk = require('./_lib/review-ask');
 
-const LOOKBACK_H = 36;   // overlap so an occasional missed hourly run still gets caught (dedup guards dupes)
+const LOOKBACK_H = 36;   // overlap so an occasional missed run still gets caught (dedup guards dupes)
 const MAX_EMIT = 60;     // per-run backstop so a bulk status sweep can't flood downstream
+const MAX_REVIEW_SEND = 15; // heavier work (get_job + SMS) — cap inline sends/run; rest caught next run + nightly sweep
+exports.config = { timeout: 26 };
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function meta(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 
@@ -61,13 +64,26 @@ exports.handler = async function (event) {
   const fresh = [...completedJobs.entries()].filter(([jid]) => !already.has(jid));
   const toEmit = fresh.slice(0, MAX_EMIT);
 
-  let emitted = 0;
+  let emitted = 0, reviewSent = 0, reviewSkipped = 0;
+  const reviewSample = [];
   if (!dry) {
     for (const [jid, info] of toEmit) {
+      // canonical job_completed event (the backbone other automations consume)
       try {
         await crud.logEvent('job_completed', { job_id: jid, from: info.from, actor: info.actor, via: 'completion_watch', status_event_at: info.at, at_ms: Date.now() });
         emitted++;
       } catch (_) {}
+      // INSTANT review ask — the moment a job is completed, text the customer
+      // "How'd we do? 👍/👎" (👍 → thank-you + Google review link, via satisfaction).
+      // The shared sender re-checks live-completed + 60-day dedup + phone, so this is
+      // safe to fire per completion; the nightly sweep is the backstop for the rest.
+      if (reviewSent < MAX_REVIEW_SEND) {
+        try {
+          const r = await reviewAsk.sendAskForJob(jid, { via: 'completion_instant', source: 'completion_watch' });
+          if (r.sent) { reviewSent++; reviewSample.push({ job_id: jid, cust_id: r.cust_id }); }
+          else { reviewSkipped++; if (reviewSample.length < 12) reviewSample.push({ job_id: jid, skipped: r.reason }); }
+        } catch (_) { reviewSkipped++; }
+      }
     }
   }
 
@@ -76,10 +92,12 @@ exports.handler = async function (event) {
     completed_transitions_in_window: completedJobs.size,
     already_emitted: completedJobs.size - fresh.length,
     fresh: fresh.length, emitted: dry ? 0 : emitted,
+    review_asks_sent: dry ? 0 : reviewSent, review_asks_skipped: dry ? 0 : reviewSkipped,
+    review_sample: dry ? [] : reviewSample,
     capped: fresh.length > MAX_EMIT ? (fresh.length - MAX_EMIT) : 0,
     sample: toEmit.slice(0, 12).map(([jid, i]) => ({ job_id: jid, from: i.from, actor: i.actor })),
   };
   if (dry) out.note = 'DRY — would emit job_completed for the fresh jobs above; nothing written.';
-  try { await crud.logEvent('job_completion_watch_run', { mode: out.mode, fresh: fresh.length, emitted: out.emitted, in_window: completedJobs.size, at_ms: Date.now() }); } catch (_) {}
+  try { await crud.logEvent('job_completion_watch_run', { mode: out.mode, fresh: fresh.length, emitted: out.emitted, review_asks_sent: out.review_asks_sent, in_window: completedJobs.size, at_ms: Date.now() }); } catch (_) {}
   return json(200, out);
 };
