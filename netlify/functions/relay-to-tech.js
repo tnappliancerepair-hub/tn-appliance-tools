@@ -14,6 +14,16 @@ const NAMES = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 const BY_NAME = { teddy: 1, jimmy: 2, andre: 3, lee: 4, john: 6 };
 
 function j(c, o) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) }; }
+// Bounded race — this runs as a LIVE-call Vapi tool. A slow carrier or Xano must
+// never hold the caller in silence: the SPOKEN reassurance is what matters, the
+// SMS + log are side effects. Cap them and let Ann reply regardless (mirrors the
+// keep-talking fallback pattern in vapi-tool.js). No dead air, ever.
+function cap(promise, ms, fallback) {
+  return Promise.race([
+    Promise.resolve(promise).catch(() => fallback),
+    new Promise((r) => setTimeout(() => r(fallback), ms)),
+  ]);
+}
 // Business hours (America/Chicago): we contact a human — even a text to a tech —
 // ONLY Mon–Fri 9 AM–6 PM Central. Off-hours we hold the message for the morning
 // and text NO ONE. (Teddy 2026-07-22: no calls OR texts to anyone off-hours.)
@@ -48,18 +58,18 @@ async function relay(a) {
   // OFF-HOURS: contact no one. Hold the message on the callback queue for the
   // morning so nothing is lost, and tell the caller we'll be right back at 9.
   if (!isBizHoursCT()) {
-    try { await crud.logEvent('tech_relay_afterhours', { tech_id: tech.id, tech: tech.name, customer_phone: custPhone, customer_name: custName, appliance: appl, message: msg.slice(0, 400), held_for_morning: true, at_ms: Date.now() }); } catch (_) {}
+    await cap(crud.logEvent('tech_relay_afterhours', { tech_id: tech.id, tech: tech.name, customer_phone: custPhone, customer_name: custName, appliance: appl, message: msg.slice(0, 400), held_for_morning: true, at_ms: Date.now() }), 1200, null);
     return { ok: true, after_hours: true, tech: tech.name, spoken: `We're closed for the evening, so I don't want to promise a call back tonight — but I've written down your message and your number for ${tech.name}, and he'll get right back to you first thing when we open at 9. Anything else I can note for him?` };
   }
 
   const toTech = `📞 Customer callback — ${custName} (${custPhone || 'no number given'}) wanted you${applPart}.` + (msg ? `\nThey said: "${msg}"` : '') + callBack;
   const toOwner = `⚠️ ${tech.name} missed a live customer call. ${custName} (${custPhone || 'no #'})${applPart} — I texted ${tech.name} the message + callback #.` + (msg ? `\nMsg: "${msg}"` : '');
 
-  const [techOk] = await Promise.all([
+  const techOk = await cap(Promise.all([
     sendSms(tech.cell, toTech, 'technician', 'tech_relay'),
     sendSms(OWNER, toOwner, 'owner', 'tech_no_answer'),
-  ]);
-  try { await crud.logEvent('tech_call_relayed', { tech_id: tech.id, tech: tech.name, customer_phone: custPhone, customer_name: custName, message: msg.slice(0, 400), tech_sms_ok: !!techOk, at_ms: Date.now() }); } catch (_) {}
+  ]).then((arr) => !!arr[0]), 2800, false);
+  await cap(crud.logEvent('tech_call_relayed', { tech_id: tech.id, tech: tech.name, customer_phone: custPhone, customer_name: custName, message: msg.slice(0, 400), tech_sms_ok: !!techOk, at_ms: Date.now() }), 1200, null);
 
   return { ok: true, tech: tech.name, spoken: `Done — I've texted ${tech.name} your message and your number, and let the office know he missed the call. He'll get back to you as soon as he can.` };
 }

@@ -21,7 +21,18 @@ const { techCoversState } = require('./_lib/zone-integrity');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
 
-async function jfetch(url, opts) { try { const r = await fetch(url, opts); return await r.json(); } catch (_) { return null; } }
+// Every hop is bounded. jfetch already degrades to null on error (resolve() and
+// buildFacts read defensively), but without a timeout a cold/slow Xano (comments
+// elsewhere cite 30s+ cold) could HANG the whole request for any non-phone caller
+// (portal, text surfaces, accuracy-audit). The phone path is separately capped at
+// 3500ms by vapi-tool's race; this protects everyone else. Fail SAFE → null.
+const JOB_TRUTH_FETCH_TIMEOUT_MS = Number(process.env.JOB_TRUTH_FETCH_TIMEOUT_MS || 6000);
+async function jfetch(url, opts, timeoutMs) {
+  try {
+    const r = await fetch(url, { ...(opts || {}), signal: AbortSignal.timeout(timeoutMs || JOB_TRUTH_FETCH_TIMEOUT_MS) });
+    return await r.json();
+  } catch (_) { return null; }
+}
 function post(path, body) { return jfetch(`${XANO}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
 
 // The scheduled DAY, always in America/Chicago. (Fixed 2026-07-22: a string-typed

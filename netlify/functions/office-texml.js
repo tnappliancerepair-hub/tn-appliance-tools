@@ -76,20 +76,42 @@ async function logTransferOutcome({ tier, answered, status, event, leg }) {
 }
 
 exports.handler = async function (event) {
-  const callerId = (await getSecret('TELNYX_OFFICE_CALLER_NUMBER')) || '+16155889591';
+  // Load EVERY secret CONCURRENTLY. This runs on the LIVE transfer path; reading
+  // these serially (12 awaits) meant a slow/hung metadata API could stack ~12×
+  // its per-read timeout of wall-time before Telnyx received any <Response> — the
+  // #1 dead-air SPOF on the human handoff. Firing them together caps the whole
+  // secret-load at ~one timeout, and every value has a hardcoded fail-safe default
+  // below so an empty/timed-out read still produces a valid ring (never dead air).
+  const g = (n) => getSecret(n).catch(() => '');
+  const gf = (n) => getSecretFresh(n).catch(() => '');
+  const [
+    callerIdRaw, webrtcRaw,
+    cellSofia, reachSofia, sipSofiaU,
+    cellDanielle, reachDanielle, sipDanielleU,
+    cellTeddy, reachTeddy, sipTeddyU, sipTeddyLegacyU,
+    ringRaw,
+  ] = await Promise.all([
+    g('TELNYX_OFFICE_CALLER_NUMBER'), gf('OFFICE_PHONE_WEBRTC_INBOUND'),
+    g('OFFICE_CELL_SOFIA'), gf('OFFICE_REACH_SOFIA'), g('TELNYX_SIP_USERNAME_SOFIA'),
+    g('OFFICE_CELL_DANIELLE'), gf('OFFICE_REACH_DANIELLE'), g('TELNYX_SIP_USERNAME_DANIELLE'),
+    g('OFFICE_CELL_TEDDY'), gf('OFFICE_REACH_TEDDY'), g('TELNYX_SIP_USERNAME_TEDDY'), g('TELNYX_SIP_USERNAME'),
+    g('OFFICE_RING_SECONDS'),
+  ]);
+
+  const callerId = callerIdRaw || '+16155889591';
   // Computer-app (WebRTC) inbound: ON by default; set OFFICE_PHONE_WEBRTC_INBOUND=off
   // to revert to cell-only. A person's app leg only exists if their SIP login is
   // vaulted (created via telnyx-provision create who=…).
-  const webrtcOn = !isOff(await getSecretFresh('OFFICE_PHONE_WEBRTC_INBOUND'));
+  const webrtcOn = !isOff(webrtcRaw);
 
   // PRIORITY (Teddy 2026-08-04): Sofia FIRST, Danielle SECOND, Teddy last-resort.
   // Each tier rings that person's cell (gated by OFFICE_REACH_<NAME>="off") AND their
   // computer app (if their SIP login is vaulted). A tier with nobody reachable is
   // skipped to the next. A tier that doesn't answer in ~20s chains to the next via the
   // action webhook (?leg=N). Teddy's SIP falls back to the legacy TELNYX_SIP_USERNAME.
-  const SOFIA =    { name: 'Sofia',    cell: (await getSecret('OFFICE_CELL_SOFIA')) || '+16292594602',    on: !isOff(await getSecretFresh('OFFICE_REACH_SOFIA')),    sip: webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_SOFIA')) : '' };
-  const DANIELLE = { name: 'Danielle', cell: (await getSecret('OFFICE_CELL_DANIELLE')) || '+16154850713', on: !isOff(await getSecretFresh('OFFICE_REACH_DANIELLE')), sip: webrtcOn ? sipUri(await getSecret('TELNYX_SIP_USERNAME_DANIELLE')) : '' };
-  const TEDDY =    { name: 'Teddy',    cell: (await getSecret('OFFICE_CELL_TEDDY')) || '+16154855795',     on: !isOff(await getSecretFresh('OFFICE_REACH_TEDDY')),     sip: webrtcOn ? sipUri((await getSecret('TELNYX_SIP_USERNAME_TEDDY')) || (await getSecret('TELNYX_SIP_USERNAME'))) : '' };
+  const SOFIA =    { name: 'Sofia',    cell: cellSofia || '+16292594602',    on: !isOff(reachSofia),    sip: webrtcOn ? sipUri(sipSofiaU) : '' };
+  const DANIELLE = { name: 'Danielle', cell: cellDanielle || '+16154850713', on: !isOff(reachDanielle), sip: webrtcOn ? sipUri(sipDanielleU) : '' };
+  const TEDDY =    { name: 'Teddy',    cell: cellTeddy || '+16154855795',     on: !isOff(reachTeddy),    sip: webrtcOn ? sipUri(sipTeddyU || sipTeddyLegacyU) : '' };
   // ORDER (Teddy 2026-08-13): warranty-company reps go to DANIELLE first, then Sofia, then
   // Teddy — she handles warranty check-ups fastest. Everyone else keeps the Sofia-first
   // order. Set by the "Warranty Desk" TeXML app whose voice_url carries ?order=warranty.
@@ -104,7 +126,7 @@ exports.handler = async function (event) {
   // before the phone audibly rings) is subtracted, so a tier could move on after ~1 ring.
   // Give each cell a full ~30s ring (≈5 rings) to actually grab it. Vault-tunable via
   // OFFICE_RING_SECONDS (clamped 15–45) so the cadence can change without a redeploy.
-  let ringSecs = parseInt(await getSecret('OFFICE_RING_SECONDS'), 10);
+  let ringSecs = parseInt(ringRaw, 10);
   if (!(ringSecs >= 15 && ringSecs <= 45)) ringSecs = 30;
 
   let leg = parseInt(((event && event.queryStringParameters) || {}).leg, 10);

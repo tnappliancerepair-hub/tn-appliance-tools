@@ -56,6 +56,7 @@ exports.handler = async function (event) {
         duration_seconds: durationSeconds,
         intent: intent,
       }),
+      signal: AbortSignal.timeout(8000),
     });
     const upstream = await r.json().catch(() => ({}));
     return {
@@ -63,9 +64,13 @@ exports.handler = async function (event) {
       body: JSON.stringify({ ok: true, upstream }),
     };
   } catch (e) {
+    // Return 200 even on failure: a 5xx makes Vapi RETRY the webhook, which
+    // re-inserts the same voicemail (duplicate rows). The transcript is already
+    // in Vapi's call record if this write is ever lost, so swallow + move on.
+    console.error('[vapi-voicemail] record failed:', String(e && e.message || e));
     return {
-      statusCode: 500,
-      body: JSON.stringify({ ok: false, error: String(e.message || e) }),
+      statusCode: 200,
+      body: JSON.stringify({ ok: false, recorded: false, error: String(e.message || e) }),
     };
   }
 };

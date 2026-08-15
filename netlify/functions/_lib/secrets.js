@@ -29,6 +29,18 @@ function headers() {
   return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
 }
 
+// Bounded fetch — a slow/hung Xano metadata API must never hang a caller. On a
+// LIVE call the human-transfer TeXML (office-texml.js) builds its ring from 5+
+// uncached secret reads; without this cap a slow metadata read = dead air on
+// "connecting you to the office". On timeout this throws, which every read path
+// (getSecret / getSecretFresh) already catches and degrades to env-or-empty, so
+// office-texml falls through to its hardcoded cell defaults. Fail SAFE, not open.
+const SECRET_READ_TIMEOUT_MS = Number(process.env.SECRET_READ_TIMEOUT_MS || 4000);
+const SECRET_WRITE_TIMEOUT_MS = Number(process.env.SECRET_WRITE_TIMEOUT_MS || 8000);
+async function fetchT(url, opts, ms) {
+  return fetch(url, { ...opts, signal: AbortSignal.timeout(ms || SECRET_READ_TIMEOUT_MS) });
+}
+
 // Find the app_config table id by probing candidates (content-scoped token
 // can't list tables, so we just hit each id's content endpoint — the real one
 // returns 2xx, wrong ids 4xx).
@@ -36,7 +48,7 @@ async function configTableId() {
   if (_tableIdCache) return _tableIdCache;
   for (const id of CANDIDATE_IDS) {
     try {
-      const r = await fetch(`${XANO_META}/table/${id}/content/search`, {
+      const r = await fetchT(`${XANO_META}/table/${id}/content/search`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ search: { name: '__probe__' }, per_page: 1, page: 1 }),
       });
@@ -48,7 +60,7 @@ async function configTableId() {
 
 async function fetchFromXano(name) {
   const tid = await configTableId();
-  const r = await fetch(`${XANO_META}/table/${tid}/content/search`, {
+  const r = await fetchT(`${XANO_META}/table/${tid}/content/search`, {
     method: 'POST', headers: headers(),
     body: JSON.stringify({ search: { name }, per_page: 5, page: 1 }),
   });
@@ -100,15 +112,15 @@ async function setSecret(name, value) {
   let lastErr = '';
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const sr = await fetch(`${XANO_META}/table/${tid}/content/search`, {
+      const sr = await fetchT(`${XANO_META}/table/${tid}/content/search`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ search: { name }, per_page: 5, page: 1 }),
-      });
+      }, SECRET_WRITE_TIMEOUT_MS);
       const sd = sr.ok ? await sr.json() : { items: [] };
       const existing = ((sd && sd.items) || []).find((x) => x && x.name === name);
       const wr = existing
-        ? await fetch(`${XANO_META}/table/${tid}/content/${existing.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify({ name, value }) })
-        : await fetch(`${XANO_META}/table/${tid}/content`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, value }) });
+        ? await fetchT(`${XANO_META}/table/${tid}/content/${existing.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify({ name, value }) }, SECRET_WRITE_TIMEOUT_MS)
+        : await fetchT(`${XANO_META}/table/${tid}/content`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, value }) }, SECRET_WRITE_TIMEOUT_MS);
       if (wr && wr.ok) { _secretCache[name] = value; return true; }
       lastErr = 'write ' + (wr ? wr.status : 'no-response');
     } catch (e) { lastErr = String((e && e.message) || e); }
