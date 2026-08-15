@@ -446,6 +446,92 @@ query send_sms verb=POST {
     }
 
     // ============================================================
+    // 5f. PER-RECIPIENT FLOOD CAP (Teddy 2026-08-16: "definitely handle the text
+    //     situation"). A hard ceiling on how many PROACTIVE texts one customer
+    //     number can get in a short window, so a reschedule storm or overlapping
+    //     senders can never spam a customer again (David Derocher got ~9 in 90 min).
+    //     UNIVERSAL: every sender (loop, Netlify, XS, Vapi) funnels through here, so
+    //     this catches them all. REACTIVE replies (the customer texted us and is
+    //     waiting) are EXEMPT so we never go silent. Internal staff already bypassed
+    //     above. Cap is read from company_settings "sms_flood_cap" (default 6 per
+    //     30 min); set it to "0" to disable instantly with no redeploy. Mirrors the
+    //     proven created_at window dedup in emergency_customer_sms_POST.
+    // ============================================================
+    var $flood_reactive {
+      value = ($tag_l|contains:"reply") || ($tag_l|contains:"inbound") || ($tag_l|contains:"translated") || ($tag_l|contains:"response") || ($tag_l|contains:"answer") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in")
+    }
+
+    var $flood_counter_action {
+      value = "cflood:" ~ $p10
+    }
+
+    db.query company_settings {
+      where = $db.company_settings.company_id == 1 && $db.company_settings.setting_key == "sms_flood_cap"
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $flood_cap_rows
+
+    var $flood_cap_row {
+      value = (($flood_cap_rows.items|first) ?? null)
+    }
+
+    var $flood_cap_str {
+      value = ($flood_cap_row != null) ? (($flood_cap_row.setting_value ?? "")|trim) : ""
+    }
+
+    var $flood_cap {
+      value = ($flood_cap_str != "") ? ($flood_cap_str|to_int) : 6
+    }
+
+    var $flood_since_ms {
+      value = (now|to_ms) - 1800000
+    }
+
+    conditional {
+      if ($is_internal == false && $flood_reactive == false && $flood_cap > 0 && $p10 != "") {
+        db.query event_log {
+          where = $db.event_log.action == $flood_counter_action && $db.event_log.created_at >= $flood_since_ms
+          return = {type: "list"}
+        } as $flood_recent_rows
+
+        var $flood_recent_count {
+          value = (($flood_recent_rows ?? [])|count)
+        }
+
+        conditional {
+          if ($flood_recent_count >= $flood_cap) {
+            db.add event_log {
+              data = {
+                action  : "sms_flood_capped"
+                metadata: {
+                  recipient_last4: ($p10|substr:6:4)
+                  context_tag    : ($input.context_tag ?? "")
+                  count_in_window: $flood_recent_count
+                  cap            : $flood_cap
+                  body_preview   : (($sms_body ?? "")|substr:0:80)
+                }
+              }
+            } as $flood_cap_log
+
+            return {
+              value = ```
+                {
+                  success            : false
+                  provider           : "flood_capped"
+                  provider_message_id: null
+                  provider_status    : null
+                  twilio_sid         : null
+                  twilio_status      : 0
+                  error              : "per_recipient_flood_cap"
+                  gated              : true
+                }
+                ```
+            }
+          }
+        }
+      }
+    }
+
+    // ============================================================
     // 6. Initialize response vars (success-shaped default so the gated
     //    path returns the same contract as the live path).
     // ============================================================
@@ -817,6 +903,23 @@ query send_sms verb=POST {
           }
           }
         } as $send_log
+
+        // Flood-cap counter (see 5f): record a successful customer-direction,
+        // non-reactive send so the per-recipient window count can see it. Reactive
+        // replies + internal sends are never counted (they're exempt from the cap).
+        conditional {
+          if ($is_internal == false && $flood_reactive == false && $is_success == true) {
+            db.add event_log {
+              data = {
+                action  : $flood_counter_action
+                metadata: {
+                  recipient_last4: ($p10|substr:6:4)
+                  context_tag    : ($input.context_tag ?? "")
+                }
+              }
+            } as $flood_counter_row
+          }
+        }
       }
     }
   }
