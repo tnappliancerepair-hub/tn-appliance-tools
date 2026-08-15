@@ -794,14 +794,23 @@ query send_sms verb=POST {
         }
       
         // ------------------------------------------------------------
-        // 8b2. AUTO-FAILOVER (Teddy 2026-08-12): if the primary Telnyx send FAILED,
-        //      retry once on Twilio so the message still lands. Logs
-        //      sms_telnyx_failover so the failover-watch cron can alert Teddy to
-        //      go fix the Telnyx line. Only runs when telnyx was the provider, it
-        //      failed, and Twilio creds are configured.
+        // 8b2. AUTO-FAILOVER: if the primary Telnyx send FAILED, retry once on
+        //      Twilio so the message still lands. Logs sms_telnyx_failover so the
+        //      failover-watch cron can alert Teddy to fix the Telnyx line.
+        //      GATED OFF by default (Teddy 2026-08-15, "kill 629"): the Twilio
+        //      from-number 629-284-0444 is unapproved for A2P and was leaking
+        //      "New job / Teddy Tool" texts to Teddy on every Telnyx hiccup;
+        //      customer sends from it get carrier-dropped anyway. Set env
+        //      SMS_TWILIO_FAILOVER=true to re-enable with an approved Twilio from.
+        //      When off, a failed Telnyx send just logs (failover-watch still
+        //      alerts) and nothing ships from 629.
         // ------------------------------------------------------------
+        var $twilio_failover_on {
+          value = ((($env.SMS_TWILIO_FAILOVER ?? "")|trim) == "true")
+        }
+
         conditional {
-          if ($provider_used == "telnyx" && $is_success == false && ((($env.TWILIO_ACCOUNT_SID ?? "")|trim) != "")) {
+          if ($provider_used == "telnyx" && $is_success == false && $twilio_failover_on == true && ((($env.TWILIO_ACCOUNT_SID ?? "")|trim) != "")) {
             var $telnyx_err_saved {
               value = ($error_msg ?? "telnyx failed")
             }
