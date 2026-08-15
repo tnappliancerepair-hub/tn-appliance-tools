@@ -875,6 +875,15 @@
   # 5-min pings. Tighter warming = smaller gap for a cold hang. Cheap benign GET.
   schedule = "*/3 * * * *"
 
+# phone-drop-watch — near-real-time PHONE-DOWN detector. The 7/3 outage (a cluster
+# of calls that NEVER connected — carrier/transport fault) took 3 DAYS to notice by
+# hand. This pages the owner + office within minutes when distinct callers cluster
+# on never-connected drops, and sends a "recovered" ping when the line is back.
+# Conservative (distinct callers, only never-connected drops, one alert per
+# incident). Kill switch: env PHONE_DROP_WATCH=off. (Bulletproof phone, 2026-08-15.)
+[functions."phone-drop-watch"]
+  schedule = "*/5 * * * *"
+
 # phone-trust-scorecard — "get better every day" made measurable. Daily ~7PM CT it
 # reads the day's calls, scores TRUST honestly (real misses vs noise), tracks the
 # day-over-day trend, names the #1 fix, and texts the owner. Improvement = a metric
