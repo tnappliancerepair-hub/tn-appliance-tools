@@ -131,7 +131,47 @@ days after**, not weeks — entirely because the second carrier is already live.
   live line (outward-facing). Internal Netlify functions (recovery hook, canary,
   cache) ship directly.
 
+## ✅ SHIPPED 2026-08-15 — "bulletproof it" execution pass (all internal, live on main)
+Red-team audit found `vapi-tool.js` was the ONLY function following the
+timeout+degrade-to-safe pattern; the rest of the phone path did not. Closed every
+live-call dead-air / dropped-call SPOF the audit ranked, plus the plan's #1 gap:
+- **#1 dead-air on human transfer — FIXED.** `_lib/secrets.js` now bounds every
+  metadata fetch (4s read / 8s write) → the transfer TeXML can't hang on slow
+  secret reads. `office-texml.js` loads all ~12 secrets CONCURRENTLY (was 12 serial
+  awaits ≈ up to 48s of stacked wall-time); hardcoded cell defaults carry the
+  Sofia→Danielle→Teddy ring even in a total metadata outage. Worst case ~48s → ~4s.
+- **`relay-to-tech` dead-air — FIXED.** "Text my tech" awaited two SMS with no cap;
+  now bounded (2.8s) and Ann always speaks.
+- **Dropped-customer rescue could be truncated — FIXED.** `vapi-webhook` ran the
+  missed/transfer-fail rescue LAST, after up to two 20s Claude scribes; hoisted it
+  to run FIRST + raised the function timeout to 26s.
+- **`job-truth` internal hangs — FIXED.** `jfetch` now has a 6s default cap for
+  non-phone callers (phone stays capped at 3.5s by vapi-tool).
+- **`vapi-voicemail-webhook` retry-dup — FIXED.** timeout + returns 200 on error.
+- **🕳️ THE 7/3 AHS VOID (plan build-item #1) — CLOSED.** `transport-never-connected`
+  / carrier / 0s no-connect drops now caught as their own class in the (now-first)
+  rescue, AHS-aware: warranty callers → office "keep the line clear" alert (no futile
+  callback); homeowners → urgent 60s auto-callback + Teddy alert. Guarded against
+  over-calling (error marker only counts on a <20s call).
+- **🐕 DETECTION (plan build-item #4, passive half) — SHIPPED.** New `phone-drop-watch`
+  cron (*/5) pages owner + office within minutes on a cluster of never-connected
+  calls, and sends a "recovered" ping when the line is back. Conservative (distinct
+  callers, only never-connected drops, one alert/incident, env-tunable, kill switch
+  `PHONE_DROP_WATCH=off`). Turns "3-day discovery" into a few-minute alert.
+
+### ⏭️ STILL OPEN (need Teddy)
+- **Vapi assistant/prompt items (build 2+3, OUTWARD-FACING → staged for approval):**
+  AHS rep-mode greeting, talk-while-working spoken filler, STT keyterm boost
+  (model#/part#/claim-digit/warranty-co vocab). Ready to stage via `vapi-admin`.
+- **Dual-carrier auto-reroute canary (build 4):** the ACTIVE synthetic-call watchdog
+  that detects a total-dark carrier/Vapi outage even with no real traffic, and
+  Telnyx↔Twilio failover. Needs Twilio voice-on confirmed + costs canary call
+  minutes → Teddy's go on the ~$/mo before building.
+
 ---
 *Changelog: 2026-07-06 created from the midnight "bulletproof the phone" brainstorm.
 Twilio confirmed live + API-connected → dual-carrier moved from "big external" to
-"buildable now." AHS-callback-is-futile insight reframed AHS to prevention + pre-answer.*
+"buildable now." AHS-callback-is-futile insight reframed AHS to prevention + pre-answer.
+2026-08-15 execution pass: closed every dead-air/drop SPOF + the 7/3 transport-drop
+void + shipped the passive drop-cluster watchdog. Remaining = Vapi prompt items
+(approval) + the active dual-carrier canary (call-minute cost).*
