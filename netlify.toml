@@ -884,6 +884,15 @@
 [functions."phone-drop-watch"]
   schedule = "*/5 * * * *"
 
+# telnyx-cutover-watch — SELF-RUNNING oversight of the Telnyx Ann cutover, so no session
+# or manual flip is needed (Teddy 2026-08-16: "automate the process"). Every 20 min it
+# reads the event_log and (1) AUTO-GRADUATES the dropped-call rescue — flips the vault flag
+# TELNYX_CALL_RESCUE_LIVE=true once it has verified the rescue against real Telnyx call
+# payloads; (2) reminds once/day if calls flow but the safety-net webhook is still unwired;
+# (3) alerts only on a REAL problem (precall errors spiking). Poke safely: ?dry=1.
+[functions."telnyx-cutover-watch"]
+  schedule = "*/20 * * * *"
+
 # phone-trust-scorecard — "get better every day" made measurable. Daily ~7PM CT it
 # reads the day's calls, scores TRUST honestly (real misses vs noise), tracks the
 # day-over-day trend, names the #1 fix, and texts the owner. Improvement = a metric

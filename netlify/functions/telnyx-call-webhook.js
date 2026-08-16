@@ -20,6 +20,7 @@
 // Always returns 200 so Telnyx never retries.
 'use strict';
 
+const { getSecretPreferVault } = require('./_lib/secrets');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const OWNER = '+16154855795';
 const DANIELLE = '+16154850713';
@@ -87,7 +88,12 @@ exports.handler = async function (event) {
     metadata_json: JSON.stringify({ from, hangup, dur_sec: durSec, event_type: eventType, is_b2b: isB2b, at_ms: Date.now() }),
   });
 
-  const rescueLive = String(process.env.TELNYX_CALL_RESCUE_LIVE || 'false').toLowerCase() === 'true';
+  // Read the flag from the vault FIRST (telnyx-cutover-watch auto-flips it there once
+  // it has verified the rescue against real call payloads), env as fallback. This is
+  // what makes the graduation hands-off — no redeploy, no manual env edit.
+  let rescueFlag = '';
+  try { rescueFlag = await getSecretPreferVault('TELNYX_CALL_RESCUE_LIVE'); } catch (_) {}
+  const rescueLive = String(rescueFlag || 'false').toLowerCase() === 'true';
   if (!rescueLive) {
     // Shadow: net is capturing + detecting, but we don't call anyone back until the
     // real payload shape is confirmed from a live call. No false callbacks.
