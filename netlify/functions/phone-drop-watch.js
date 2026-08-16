@@ -60,24 +60,48 @@ async function lastEvent(action) {
   } catch (_) { return null; }
 }
 
+// Telnyx-side drops (the new go-forward line). telnyx-call-webhook logs a
+// `telnyx_call_dropped` event_log row per dropped/never-connected inbound call;
+// we count DISTINCT callers of those in the window. Safe event_log read — no
+// extra Telnyx API polling. This is how the watchdog covers the Telnyx cutover.
+async function telnyxDrops(cutoff) {
+  try {
+    const r = await fetch(`${XANO}/list_recent_event_log?action=telnyx_call_dropped&days_back=1&limit=100`, { signal: AbortSignal.timeout(6000) });
+    const d = await r.json().catch(() => null);
+    const items = (d && (d.items || d)) || [];
+    const callers = new Set();
+    for (const row of (Array.isArray(items) ? items : [])) {
+      let m = row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
+      const at = Number((m && m.at_ms) || 0) || Date.parse(row.created_at) || 0;
+      if (at >= cutoff && m && m.from) callers.add(last10(m.from));
+    }
+    return callers.size;
+  } catch (_) { return 0; }
+}
+
 async function analyze(admin) {
-  // Pull the last 2h of calls (cheap) and window in-code to the last WINDOW_MIN.
+  const cutoff = Date.now() - WINDOW_MIN * 60 * 1000;
+  // Pull the last 2h of VAPI calls (cheap) and window in-code to the last WINDOW_MIN.
   const r = await fetch(`${SITE}/vapi-admin?secret=${encodeURIComponent(admin)}&action=daycalls&hours=2`, { signal: AbortSignal.timeout(20000) });
   const d = await r.json().catch(() => ({}));
   const all = ((d && d.calls) || []).filter((c) => c.dir !== 'outbound');
-  const cutoff = Date.now() - WINDOW_MIN * 60 * 1000;
   const win = all.filter((c) => { const t = Date.parse(c.at || 0); return t && t >= cutoff; });
   const droppedCallers = new Set();
   for (const c of win) { if (neverConnected(c)) droppedCallers.add(last10(c.from) || c.id); }
   // A demonstrably-healthy call = a real inbound conversation happened in the window.
   const healthy = win.some((c) => Number(c.dur_s || 0) > 25 && !neverConnected(c));
+  // Telnyx drops (go-forward line) counted from the receiver's event_log rows.
+  const telnyxDropped = await telnyxDrops(cutoff);
+  const totalDropped = droppedCallers.size + telnyxDropped;
   return {
     ok: d && d.ok !== false,
     window_min: WINDOW_MIN,
     window_calls: win.length,
-    dropped_distinct: droppedCallers.size,
+    dropped_distinct: totalDropped,
+    vapi_dropped: droppedCallers.size,
+    telnyx_dropped: telnyxDropped,
     healthy_call_seen: healthy,
-    alarm: droppedCallers.size >= THRESHOLD,
+    alarm: totalDropped >= THRESHOLD,
     sample: win.filter(neverConnected).slice(0, 6).map((c) => ({ from: c.from, dur_s: c.dur_s, ended: c.ended })),
   };
 }
