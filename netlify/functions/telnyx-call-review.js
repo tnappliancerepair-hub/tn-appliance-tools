@@ -127,8 +127,16 @@ exports.handler = async function (event) {
   const sc = result.scorecard || {};
   const fixes = (result.top_fixes || []).filter(Boolean).slice(0, 3);
 
-  // 4) Persist: the scorecard trend + each specific gap (so recurring gaps rise to the top).
-  try { await crud.logEvent('telnyx_call_review', { hours, reviewed: calls.length, scorecard: sc, top_fixes: fixes, at_ms: Date.now() }); } catch (_) {}
+  // TRUST score (0-100) — the "getting better every day" number for the primary line,
+  // the Telnyx equivalent of phone-trust-scorecard. Trust = of the ACTIONABLE calls
+  // (excluding spam/test), the share she handled well (closed the cash job OR served
+  // the warranty/info call cleanly). Persisted so the trend is a line, not a vibe.
+  const actionable = (result.calls || []).filter((c) => c && !/spam|test/i.test(String(c.outcome || '')));
+  const handledWell = actionable.filter((c) => c.closed_well === true || /booked|hold|intake_sent|transferred|info_only/i.test(String(c.outcome || ''))).length;
+  const trust = actionable.length ? Math.round((100 * handledWell) / actionable.length) : 100;
+
+  // 4) Persist: the scorecard + trust trend + each specific gap (so recurring gaps rise).
+  try { await crud.logEvent('telnyx_call_review', { hours, reviewed: calls.length, trust, actionable: actionable.length, scorecard: sc, top_fixes: fixes, at_ms: Date.now() }); } catch (_) {}
   for (const c of (result.calls || [])) {
     if (c && c.gap && String(c.gap).trim()) { try { await crud.logEvent('telnyx_ann_gap', { conversation_id: c.id, track: c.track, gap: String(c.gap).slice(0, 300), outcome: c.outcome, at_ms: Date.now() }); } catch (_) {} }
   }
@@ -136,7 +144,7 @@ exports.handler = async function (event) {
   // 5) Text Teddy the digest — the number + the top fixes to make her sharper.
   let texted = false;
   if (doText) {
-    const L = [`🐜 Ann nightly review (${hours}h): ${sc.total ?? calls.length} calls`];
+    const L = [`🐜 Ann nightly review (${hours}h): ${sc.total ?? calls.length} calls · Trust ${trust}/100`];
     L.push(`won ${sc.won ?? 0} · intake ${sc.intake_sent ?? 0} · to office ${sc.transferred ?? 0} · lost ${sc.lost ?? 0}${sc.cash != null ? ` · close ${sc.close_rate_pct ?? 0}% of ${sc.cash} cash` : ''}`);
     if (fixes.length) { L.push('Make her better:'); fixes.forEach((f, i) => L.push(`${i + 1}) ${f}`)); }
     L.push(`Pull full: ${SITE}/telnyx-call-review?secret=…`);

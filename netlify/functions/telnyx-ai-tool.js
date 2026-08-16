@@ -316,6 +316,28 @@ exports.handler = async function (event) {
       return say((r && r.say) || "You're all set — I've logged your callback and the office will reach out shortly. Anything else I can do?");
     }
 
+    // 4a0) RECALL — a PRIOR repair didn't hold. Reuses the SAME backend as old Ann's
+    // log_callback (callback-intake): opens a fresh recall ticket, CLONES the warranty
+    // company + claim from their last job, and texts the ONE warranty-intake link (video +
+    // model photo + availability). job_id/phone come from context. Never quote a time.
+    if (doAction === 'log_callback' || doAction === 'recall') {
+      const r = await post('callback-intake', {
+        job_id: jobId || undefined,
+        phone: String(a.phone || '').replace(/\D/g, '') || undefined,
+        appliance: String(a.appliance || '').trim() || undefined,
+        note: String(a.note || '').trim() || undefined,
+        send_link: true,
+        source: 'phone',
+      });
+      if (r && r.ok) {
+        return say(r.sent_link
+          ? "I've got you set up, and I'm texting you a quick link right now — just tap it to send a short video and a photo of the model-number sticker, and pick the days that work for you. As soon as that's in, we'll get you right back on the schedule. Anything else I can help with?"
+          : "I've got a fresh recall ticket in for you, and the office will text you a quick link to get you back on the schedule. Anything else I can help with?",
+        { recall_job: (r && r.job_id) || null, sent_link: !!(r && r.sent_link) });
+      }
+      return say("Let me take your name, best callback number, and exactly what's still wrong, and I'll get the office right on it.", { ok: false });
+    }
+
     // 4a1) OPEN A JOB FOR A NEW CALLER — the fresh cash lead we don't have yet. Completes the
     // closer: without this, Ann could pitch + close but had no job to hang an intake link /
     // hold on. Creates the job (lands in Needs-Scheduled) and returns the new job_id for the
