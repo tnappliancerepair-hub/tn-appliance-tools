@@ -134,6 +134,7 @@ TRUTH AND ACCURACY (this matters more than sounding smart):
 
 WARRANTY REPS - GET THE WORK ORDER, CONFIRM THE CUSTOMER, THEN SEND THEM TO THE WARRANTY DESK (most reps just want a person, and they want it fast):
 Warranty companies (American Home Shield / AHS, NSA, ServicePower, Frontdoor, and others) call to check on or schedule a claim. Your job is NOT to handle the claim yourself - it's to capture the essentials and hand them to the office manager quickly. When the context tells you the caller is a warranty rep (recognized by their number) OR the caller says they're from a warranty company:
+0) FAST OPEN: the moment a call reads as a warranty company (an 800 or 888 caller ID, they open with "I'm calling from [company]," or they cite a work order / dispatch / claim number), do NOT run the homeowner flow and do NOT ask "what's going on with your appliance" - skip straight to the work order number.
 1) Greet them by their company if you know it ("American Home Shield! You must be one of their reps - happy to help"), then ask for the WORK ORDER / dispatch / claim number: "What's the work order number on that claim?"
 2) CONFIRM THE CUSTOMER: look it up (lookup_customer with the claim number if you don't already have it) and REPEAT the work order number AND customer name back so you both know it's the right job: "Perfect - work order 12345 for <customer name>, correct?"
 3) Then hand off: call alert_office with the claim number (note like "AHS rep, WO 12345, checking status") - this pops the customer's whole story onto the office's screen AND texts the office manager, so she already knows everything before she says hello. Then say "Great - connecting you to our office manager Danielle now," and use the transfer tool to the WARRANTY DESK target. That rings Danielle FIRST, then Sofia. (Use Warranty Desk for warranty reps, NOT the regular Office target.)
@@ -173,6 +174,20 @@ Never promise WHICH person will pick up (the office routes it). Never transfer o
 NEVER LOSE A CALL: before the call ends, and any time something is urgent (medical, expedited, upset, no-show) or warranty related, use log_outcome to record what happened and flag it to the office. Every call leaves a trail.
 
 STYLE: brief, warm, human. One question at a time. Confirm what you did ("I just texted you that link," "I've got you down for Tuesday"). When they are done, wrap up kindly and use the hangup tool.`;
+
+// STT keyterm boost (Teddy 2026-08-15, pre-cutover). Deepgram nova-3 keyterm
+// prompting so Ann HEARS our vocabulary cleanly — warranty companies, brands,
+// appliance/symptom words, and our service towns. Up to 100 terms; each is a
+// plain word or multi-word phrase. nova-3 is English-only, which fits this
+// English-first line. (Model + part numbers are arbitrary alphanumerics that
+// keyterms can't help; smart_format handles claim/phone digits.)
+const KEYTERMS = [
+  'American Home Shield', 'AHS', 'ServicePower', 'Frontdoor', 'SquareTrade', 'Allstate', 'Cinch', 'First American', 'Choice', '2-10 Home Buyers Warranty', 'NSA', 'National Service Alliance',
+  'work order', 'dispatch number', 'claim number', 'warranty', 'recall', 'model number', 'serial number', 'part number',
+  'Whirlpool', 'Maytag', 'KitchenAid', 'Amana', 'Kenmore', 'Samsung', 'LG', 'GE', 'Frigidaire', 'Electrolux', 'Bosch', 'Thermador', 'Speed Queen', 'Sub-Zero',
+  'refrigerator', 'freezer', 'dryer', 'washer', 'dishwasher', 'oven', 'range', 'stove', 'microwave', 'ice maker', 'compressor', 'not cooling', 'not heating', 'leaking',
+  'Quick Check', 'Antioch', 'Nashville', 'Murfreesboro', 'Clarksville', 'Spring Hill', 'Hammond', 'Walker', 'Metairie',
+];
 
 function webhookTool(name, description, url, properties, required) {
   return { type: 'webhook', webhook: { name, description, url, method: 'POST', body_parameters: { type: 'object', properties, required: required || [] } } };
@@ -237,6 +252,10 @@ function assistantBody(toolKey) {
     greeting: '{{greeting}}',
     description: 'Tennessee Appliance Exchange phone AI — greets by name, knows the job, closes the loop.',
     voice_settings: { voice: VOICE_BROOKE, voice_speed: 1.0 },   // natural pace — snappier greeting (Teddy 2026-08-13)
+    // STT: nova-3 with keyterm boost so she hears warranty cos / brands / towns
+    // cleanly. nova-3 is English-only (fits this English-first line). smart_format
+    // keeps claim + phone digits clean. (Teddy 2026-08-15, pre-cutover.)
+    transcription: { model: 'deepgram/nova-3', language: 'en', keyterms: KEYTERMS },
     tools,
     dynamic_variables_webhook_url: PRECALL,
     // SAFETY NET: default values so {{greeting}} / {{system_context}} / {{job_id}} always
