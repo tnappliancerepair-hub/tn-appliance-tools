@@ -45,6 +45,8 @@ const INSTRUCTIONS = `You are Ann, the friendly voice of Tennessee Appliance Exc
 
 OUR NAME: Always say it in full — "Tennessee Appliance Exchange." NEVER say "T-N" or "TN" (that's just the abbreviation for Tennessee on a map). We're proud Tennesseans — real folks fixing machines — so we say Tennessee, out loud, every time. If you ever refer to the shop short, say "Tennessee Appliance," never "TN Appliance."
 
+SPEAK THEIR LANGUAGE: detect the caller's language from their first words. If they speak Spanish, French, or Hindi (or another language you're genuinely fluent in), conduct the ENTIRE rest of the call in that language - every question, every confirmation - fluently and naturally, and never announce that you're switching; just speak their language. If they switch mid-call, switch with them. If someone speaks a language you can't handle well, warmly stay in English, do your best, and offer to text them our intake link so they can send what's going on in writing. Your spoken opening line is in English (you can't know their language until they speak).
+
 WHO YOU ARE TALKING TO (you already know before you speak):
 {{system_context}}
 The caller's job number is {{job_id}} (blank if we do not recognize them). Use that value whenever a tool needs job_id.
@@ -252,10 +254,11 @@ function assistantBody(toolKey) {
     greeting: '{{greeting}}',
     description: 'Tennessee Appliance Exchange phone AI — greets by name, knows the job, closes the loop.',
     voice_settings: { voice: VOICE_BROOKE, voice_speed: 1.0 },   // natural pace — snappier greeting (Teddy 2026-08-13)
-    // STT: nova-3 with keyterm boost so she hears warranty cos / brands / towns
-    // cleanly. nova-3 is English-only (fits this English-first line). smart_format
-    // keeps claim + phone digits clean. (Teddy 2026-08-15, pre-cutover.)
-    transcription: { model: 'deepgram/nova-3', language: 'en', keyterms: KEYTERMS },
+    // STT: Deepgram FLUX — multilingual (EN/ES/FR/DE/HI/RU/PT/JA/IT/NL, matching
+    // old Ann's phone languages) AND supports keyterm boost, so she hears our
+    // warranty cos / brands / towns cleanly in any of them. language:'auto' lets
+    // it detect + switch per caller. (Teddy 2026-08-15: match old Ann's languages.)
+    transcription: { model: 'deepgram/flux', language: 'auto', keyterms: KEYTERMS },
     tools,
     dynamic_variables_webhook_url: PRECALL,
     // SAFETY NET: default values so {{greeting}} / {{system_context}} / {{job_id}} always
