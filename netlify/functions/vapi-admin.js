@@ -183,6 +183,88 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, touched, tools_with_fillers_now: withFillers, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
+  // ── STAGED 2026-08-15 for Teddy's approval (bulletproof-phone follow-on) ──
+  // These two actions are INERT until invoked with the admin secret. They apply
+  // the AHS rep-mode fast-open block + the expanded STT vocab to the live Ann
+  // assistant. Both are idempotent + reversible (see ahs_rep_mode_off / the `lang`
+  // english transcriber for revert). Talk-while-working filler is already live via
+  // `tool_fillers`, so it is NOT restaged here.
+
+  // (1) AHS / warranty-rep FAST OPEN. warranty_rep + warranty_dispatch cover HOW
+  //     to handle a rep once identified; this makes Ann pivot to rep-mode in the
+  //     FIRST breath (skip the homeowner flow, go straight to "what's the work
+  //     order number?") the instant a call reads as a warranty company. It is a
+  //     pure prompt block, so it needs no caller-ID plumbing — Ann recognizes the
+  //     rep pattern in-conversation. Replace-in-place (strips any prior copy).
+  //   ?action=ahs_rep_mode        (apply)   ?action=ahs_rep_mode&off=1  (remove)
+  if (action === 'ahs_rep_mode') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- AHS-REP-MODE -->';
+    const stripped = String(msgs[si].content || '').replace(new RegExp('\\n*' + MARK + '[\\s\\S]*?' + MARK + '\\n*', 'g'), '\n');
+    if (q.off === '1') {
+      msgs[si].content = stripped.trimStart();
+      const respOff = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+      return { statusCode: 200, body: JSON.stringify({ ok: respOff.ok, removed: true, status: respOff.status }, null, 2) };
+    }
+    const BLOCK = `${MARK}\n## WARRANTY-REP FAST OPEN (highest priority — applies the instant a call reads as a warranty company)\n`
+      + `Some inbound calls are a WARRANTY COMPANY dispatcher or CSR (American Home Shield / AHS, ServicePower, Frontdoor, SquareTrade, Allstate, 2-10, Cinch, First American, Choice), NOT a homeowner. You can tell in the first breath: an 800/888 caller ID, they open with "I'm calling from [company]," they cite a work order / dispatch / claim number, or they ask about a specific member by name or address. The MOMENT a call reads like that:\n`
+      + `1. Do NOT run the homeowner flow and do NOT ask "what's going on with your appliance." Go straight to: "Sure, what's the work order or dispatch number?"\n`
+      + `2. Take it, call lookup_by_claim_number, and answer their whole question in ONE breath: has the tech been out? what was found? part + ETA? completed + closed date? scheduled day + tech. Example: "Yes, John's been out, repair completed and closed Monday the 29th, part on order with an ETA of Thursday."\n`
+      + `3. Can't find it? Ask for the member's name + service address and try search_customers BEFORE saying you don't have it, then capture_callback with caller_type "warranty_rep" (put the claim/dispatch + member name + address in the summary).\n`
+      + `4. RECALL CLOSE-OUT: if a rep asks you to CLOSE OUT a claim for a recall, do NOT. Say "we'll finish that on the original claim; please have the member text us at 615-588-9500."\n`
+      + `Be crisp and professional with reps: they run many calls back to back, so skip the small talk and give the answer. If it turns out to be a homeowner after all, drop back to the normal warm flow.\n${MARK}\n\n`;
+    msgs[si].content = BLOCK + stripped.trimStart();
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
+  // (3) STT VOCAB BOOST — expand the Deepgram keyword/keyterm list so Ann hears
+  //     warranty companies, brands, appliance/symptom words, and our service
+  //     towns cleanly. Model-aware: nova-2 uses `keywords` (word:weight), nova-3
+  //     uses `keyterm` (phrases). Preserves provider/model/language/fallbackPlan.
+  //     (Model + part numbers are arbitrary alphanumerics — keyword boosting can't
+  //     help those; smartFormat already handles claim/phone digit formatting.)
+  //   ?action=stt_keyterms
+  if (action === 'stt_keyterms') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const tr = Object.assign({ provider: 'deepgram', model: 'nova-2-phonecall', language: 'en-US', smartFormat: true }, got.json.transcriber || {});
+    const isNova3 = /nova-3/i.test(String(tr.model || ''));
+    if (isNova3) {
+      tr.keyterm = [
+        'American Home Shield', 'AHS', 'ServicePower', 'Frontdoor', 'SquareTrade', 'Allstate', 'Cinch', 'First American', 'Choice', '2-10 Home Buyers Warranty',
+        'work order', 'dispatch number', 'claim number', 'warranty', 'recall', 'model number', 'serial number', 'part number',
+        'Whirlpool', 'Maytag', 'KitchenAid', 'Amana', 'Kenmore', 'Samsung', 'LG', 'GE', 'Frigidaire', 'Electrolux', 'Bosch', 'Thermador', 'Speed Queen', 'Sub-Zero',
+        'refrigerator', 'freezer', 'dryer', 'washer', 'dishwasher', 'oven', 'range', 'stove', 'microwave', 'ice maker', 'compressor', 'not cooling', 'not heating', 'leaking',
+        'Antioch', 'Nashville', 'Murfreesboro', 'Clarksville', 'Spring Hill', 'Hammond', 'Walker', 'Metairie',
+      ];
+      delete tr.keywords;
+    } else {
+      tr.keywords = [
+        'AHS:2', 'ServicePower:2', 'Frontdoor:2', 'SquareTrade:2', 'Allstate:2', 'Cinch:2', 'Choice', 'claim:2', 'dispatch:2', 'warranty:2', 'homeowner', 'recall:2',
+        'Whirlpool:2', 'Maytag:2', 'KitchenAid:2', 'Amana', 'Kenmore', 'Samsung:2', 'LG:2', 'GE', 'Frigidaire:2', 'Electrolux', 'Bosch', 'Thermador', 'Speed', 'Sub-Zero',
+        'fridge:2', 'refrigerator:2', 'freezer', 'dryer:2', 'washer:2', 'dishwasher:2', 'oven', 'range', 'stove', 'microwave', 'icemaker', 'compressor', 'model', 'serial', 'part',
+        'Antioch', 'Nashville:2', 'Murfreesboro', 'Clarksville', 'Hammond', 'Walker', 'Metairie', 'Vapi',
+      ];
+      delete tr.keyterm;
+    }
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { transcriber: tr });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const trNow = (verify.json || {}).transcriber || {};
+    const listNow = trNow.keyterm || trNow.keywords || [];
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok, model: trNow.model, field: isNova3 ? 'keyterm' : 'keywords', terms_now: listNow.length, sample: listNow.slice(0, 10), status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   if (action === 'calldetail') {
     const cid = String(q.call_id || '').trim();
     if (!cid) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'pass &call_id=' }) };
