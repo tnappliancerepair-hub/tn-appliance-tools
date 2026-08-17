@@ -900,6 +900,15 @@
 [functions."phone-trust-scorecard"]
   schedule = "0 0 * * *"
 
+# seo-scorecard-cron — the DAILY lead-machine improvement engine (Teddy 2026-08-17:
+# "make it better daily to get it to its potential"). ~9:12am CT it fires the
+# HTTP-callable seo-scorecard core with text=1: measures the machine (pages on Google,
+# page-1 count, DIY /fix conversions), ranks the highest-value levers, surfaces the
+# day's #1 not-yet-surfaced one (fresh each day, logged to a seo_gap ledger), and texts
+# the owner one thing to do. Pull anytime: seo-scorecard?secret=&text=0.
+[functions."seo-scorecard-cron"]
+  schedule = "12 14 * * *"
+
 # knowledge-scorecard-cron — fires the daily scoreboard for THE goal: be the most
 # advanced troubleshooting brain in appliance repair. ~7:10PM CT it invokes the
 # HTTP-callable knowledge-scorecard core with text=1, so the core measures the
