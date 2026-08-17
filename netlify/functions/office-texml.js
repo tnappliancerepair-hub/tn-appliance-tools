@@ -99,10 +99,13 @@ exports.handler = async function (event) {
   ]);
 
   const callerId = callerIdRaw || '+16155889591';
-  // Computer-app (WebRTC) inbound: ON by default; set OFFICE_PHONE_WEBRTC_INBOUND=off
-  // to revert to cell-only. A person's app leg only exists if their SIP login is
-  // vaulted (created via telnyx-provision create who=…).
-  const webrtcOn = !isOff(webrtcRaw);
+  // Computer-app (WebRTC) legs: OPT-IN, default OFF (Teddy 2026-08-17). The softphone
+  // SIP legs were returning an instant "busy" and poisoning the whole transfer —
+  // callers dropped even though the person's CELL was free. Proven in the transfer
+  // log: every failure dialed a sip: leg that went busy, every success dialed a CELL
+  // (Sofia even answers on her cell, not the app). So ring CELLS ONLY unless the app
+  // is explicitly re-enabled with OFFICE_PHONE_WEBRTC_INBOUND=on.
+  const webrtcOn = String(webrtcRaw || '').trim().toLowerCase() === 'on';
 
   // PRIORITY (Teddy 2026-08-04): Sofia FIRST, Danielle SECOND, Teddy last-resort.
   // DISPATCHERS ALWAYS REACHABLE (Teddy 2026-08-17): Sofia + Danielle's CELLS always
