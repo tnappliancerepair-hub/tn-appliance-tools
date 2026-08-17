@@ -64,6 +64,20 @@ function modelMatch(h, q) {
   return min >= 6 && (H.startsWith(Q) || Q.startsWith(H));
 }
 
+// Strip call-summary / note pollution that the office + phone flow appends to
+// problem_summary ("real symptom || [Phone call] the user called and asked for a
+// rep...") plus leading category placeholders ("OTHER ..."). A call-transfer summary
+// is not a symptom — feeding it to the predictor was tanking accuracy. Keep only the
+// real complaint. (Found 2026-08-17 in the gap ledger: models logged as gaps whose
+// symptom was mostly phone-call boilerplate.)
+function cleanSymptom(s) {
+  let t = String(s || '');
+  t = t.split(/\s*\|\|\s*/)[0];                                              // drop everything after "||" (appended summaries)
+  t = t.replace(/\[(phone call|call|note|voicemail|vm|sms|text|system)\][\s\S]*$/i, ''); // drop a bracketed machine tag + trailing
+  t = t.replace(/^\s*(other|general|n\/?a|misc(ellaneous)?)\b[:\-\s]*/i, '');  // drop leading category placeholder
+  return t.replace(/\s+/g, ' ').trim();
+}
+
 // Pull the biggest failure-code we can spot in free text (F5E2, LE, OE, 5E, E24…)
 function codeIn(text) {
   const t = String(text || '').toUpperCase();
@@ -94,6 +108,8 @@ exports.handler = async function (event) {
     appliance = appliance || a.type || a.appliance_type || j.appliance_type || '';
     symptom = symptom || a.problem_summary || a.problem_description || j.problem_summary || j.problem_description || '';
   }
+
+  symptom = cleanSymptom(symptom);   // strip appended call/note noise before predicting
 
   // Determine the appliance category to gate on — explicit field, else inferred
   // from the symptom ("evaporator motor on a fridge" -> refrigerator).
