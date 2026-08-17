@@ -66,7 +66,13 @@ details p{color:var(--dim);font-size:15px;padding:0 0 14px}
 .related a{font-size:14px;color:var(--ink);text-decoration:none;background:var(--surf);border:1px solid var(--bord);border-radius:999px;padding:9px 14px}
 .related a:hover{border-color:var(--orange)}
 footer{border-top:1px solid var(--bord);margin-top:44px;padding:22px 0;color:var(--dim);font-size:13px}
-footer a{color:var(--dim)}`;
+footer a{color:var(--dim)}
+.byline{font-size:13.5px;color:var(--dim,#a0a0a6);margin:2px 0 16px}
+.byline b{color:var(--ink,#ececec)}
+.qa{background:rgba(57,255,20,.06);border:1px solid rgba(57,255,20,.28);border-left:3px solid var(--green,#39ff14);border-radius:10px;padding:14px 16px;font-size:15.5px;margin:18px 0}
+.qa b{color:var(--green,#39ff14)}
+.proof{background:var(--surf,#141416);border:1px solid var(--bord,#26262a);border-radius:10px;padding:13px 15px;font-size:14.5px;color:var(--ink,#ececec);font-style:italic;margin:0 0 16px}
+.proof b{color:var(--orange,#ff6200);font-style:normal}`;
 
 function howToSteps(item) {
   const steps = item.causes.filter((c) => c.difficulty === 'Easy' || c.difficulty === 'Moderate')
@@ -77,6 +83,17 @@ function howToSteps(item) {
     about: item.appliance + ' repair',
     step: steps,
   } : null;
+}
+
+// Quick answer = the page's OWN first FAQ answer, distilled — the crisp, quotable
+// nugget AI Overviews / featured snippets lift. Nothing invented.
+function quickAnswer(item) {
+  const f = item.faqs || [];
+  if (!f.length) return '';
+  let a = String(f[0].a || '').trim();
+  if (a.length < 150 && f[1]) a = (a + ' ' + f[1].a).trim();
+  if (a.length > 330) { const cut = a.slice(0, 330); const p = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! ')); a = p > 120 ? cut.slice(0, p + 1) : cut.trim() + '…'; }
+  return a;
 }
 
 function page(item, idx) {
@@ -127,7 +144,15 @@ function page(item, idx) {
   const relatedHtml = related.map((r) => `<a href="/fix/${r.slug}.html">${esc(r.question.replace(/ — what do I do\?$/, ''))}</a>`).join('\n        ')
     + (svc ? `\n        <a href="/${svc}">${esc(item.appliance)} repair service →</a>` : '');
 
-  const schemas = [faqSchema, bc].concat(howto ? [howto] : []);
+  // Article + named-expert author + speakable — the E-E-A-T signal AI answer engines
+  // reward over high-authority parts sites. A real tech (since 2012) is the moat.
+  const article = { '@context': 'https://schema.org', '@type': 'Article', headline: item.question,
+    author: { '@type': 'Person', name: 'Teddy Pivacek', jobTitle: 'Owner & Lead Appliance Technician', worksFor: { '@type': 'LocalBusiness', name: 'TN Appliance Exchange' }, knowsAbout: ['appliance repair', 'home appliance diagnosis', 'appliance parts'] },
+    publisher: { '@type': 'Organization', name: 'TN Appliance Exchange', foundingDate: '2012' },
+    mainEntityOfPage: url, speakable: { '@type': 'SpeakableSpecification', cssSelector: ['.qa'] } };
+  const qa = quickAnswer(item);
+  const qaHtml = qa ? `\n    <div class="qa"><b>Quick answer:</b> ${esc(qa)}</div>` : '';
+  const schemas = [faqSchema, bc, article].concat(howto ? [howto] : []);
 
   return `<!doctype html>
 <html lang="en">
@@ -156,6 +181,7 @@ ${schemas.map((s) => `<script type="application/ld+json">${JSON.stringify(s)}</s
     </header>
     <nav class="bc"><a href="/">Home</a> › <a href="/fix/">Appliance Fix Guides</a> › ${esc(item.appliance)}</nav>
     <h1>${esc(item.question)}</h1>
+    <p class="byline">Answered by <b>Teddy Pivacek</b>, owner &amp; lead technician at TN Appliance Exchange — repairing appliances since 2012.</p>${qaHtml}
     <p class="lede">${esc(item.intro)}</p>
     <div class="safety"><b>⚠ Safety first:</b> ${esc(item.safety)}</div>
 
@@ -167,6 +193,7 @@ ${causesHtml}
 
     <div class="cta">
       <h2>Get a real answer — anytime, anywhere</h2>
+      <p class="proof">Last week a customer kept their appliance instead of replacing it — they installed the part <b>themselves</b> with the exact one we shipped, after a $50 Quick Check told them precisely what they needed. That's the whole idea: honest answer, right part, no upsell.</p>
       <p>In Middle Tennessee or the Baton Rouge area? We'll come to you, same-day. Anywhere else in the U.S.? Send a 10-second video, a real technician tells you exactly what's wrong for $50 (credited toward the repair), and we ship you the exact part. 24/7 — text, call, or upload anytime.</p>
       <div class="btnrow">
         <a class="btn p" href="/?appliance=${encodeURIComponent(String(item.appliance || '').toLowerCase())}&src=fix">Start your $50 Quick Check →</a>
