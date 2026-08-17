@@ -1,0 +1,7 @@
+{
+  "version": "1",
+  "updated": "2026-08-17",
+  "verified_by": "Teddy Pivacek (master tech, TN Appliance Exchange)",
+  "note": "The highest-trust layer of the troubleshooting brain: real symptom/model -> part fixes confirmed by an expert, not distilled from noisy archives. Outranks the distilled model-knowledge base when the brain answers. Grows daily as Teddy labels more. Each entry: what actually fixes that symptom (primary), plus the alternates a good tech checks, with the real part numbers where they're consistent. Part numbers are INTERNAL — never shown to customers.",
+  "entries": {}
+}
