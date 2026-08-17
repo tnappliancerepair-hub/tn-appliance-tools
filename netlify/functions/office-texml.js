@@ -114,9 +114,16 @@ exports.handler = async function (event) {
   // dialed (only her app leg, which returns busy). Their cells now always dial + their
   // computer app too (if their SIP login is vaulted). Teddy's tier still honors his own
   // OFFICE_REACH_TEDDY gate. A tier that doesn't answer in ~30s chains to the next.
-  const SOFIA =    { name: 'Sofia',    cell: cellSofia || '+16292594602',    on: true, sip: webrtcOn ? sipUri(sipSofiaU) : '' };
-  const DANIELLE = { name: 'Danielle', cell: cellDanielle || '+16154850713', on: true, sip: webrtcOn ? sipUri(sipDanielleU) : '' };
-  const TEDDY =    { name: 'Teddy',    cell: cellTeddy || '+16154855795',     on: !isOff(reachTeddy),    sip: webrtcOn ? sipUri(sipTeddyU || sipTeddyLegacyU) : '' };
+  // A dispatcher's cell must be their REAL mobile, never one of the shop's own DIDs.
+  // OFFICE_CELL_DANIELLE had been mis-set to the warranty-desk line (+16157575500),
+  // so the warranty cascade dialed that DID *as* "Danielle" → it rang a line nobody
+  // sits at, forever, and she never got the call. Guard: if a configured cell is a
+  // shop DID (or blank), fall back to the person's known mobile. (Teddy 2026-08-17.)
+  const SHOP_DIDS = ['+16157575500', '+16155889591', '+16155889500', '+16158578800', '+16158211400', '+16152802949', '+18662680111', '+18882688998', '+16292607111', '+16292477111', '+15043559111', '+17315031142'];
+  const realCell = (v, fallback) => { const c = String(v || '').replace(/[^\d+]/g, ''); return (c && c.startsWith('+') && !SHOP_DIDS.includes(c)) ? c : fallback; };
+  const SOFIA =    { name: 'Sofia',    cell: realCell(cellSofia, '+16292594602'),    on: true, sip: webrtcOn ? sipUri(sipSofiaU) : '' };
+  const DANIELLE = { name: 'Danielle', cell: realCell(cellDanielle, '+16154850713'), on: true, sip: webrtcOn ? sipUri(sipDanielleU) : '' };
+  const TEDDY =    { name: 'Teddy',    cell: realCell(cellTeddy, '+16154855795'),    on: !isOff(reachTeddy),    sip: webrtcOn ? sipUri(sipTeddyU || sipTeddyLegacyU) : '' };
   // ORDER (Teddy 2026-08-13): warranty-company reps go to DANIELLE first, then Sofia, then
   // Teddy — she handles warranty check-ups fastest. Everyone else keeps the Sofia-first
   // order. Set by the "Warranty Desk" TeXML app whose voice_url carries ?order=warranty.
