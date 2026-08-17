@@ -124,7 +124,12 @@ exports.handler = async function (event) {
   const warrantyFirst = order === 'warranty' || order === 'danielle';
   const tiers = warrantyFirst ? [DANIELLE, SOFIA, TEDDY] : [SOFIA, DANIELLE, TEDDY];
   const orderQS = warrantyFirst ? `order=${order}&` : '';
-  const legsFor = (t) => { const a = []; if (t.on && t.cell) a.push({ number: t.cell }); if (t.sip) a.push({ sip: t.sip }); return a; };
+  // CELLS ONLY (Teddy 2026-08-17): the softphone/app (SIP) legs returned an instant
+  // "busy" that both dropped the caller AND made Ann bail after one ring ("looks like
+  // they stepped away"). The transfer log proved cells connect and sip legs fail, so
+  // the transfer cascade dials CELLS ONLY — the app legs are removed regardless of
+  // OFFICE_PHONE_WEBRTC_INBOUND. (webrtcOn/sip kept computed above for any other use.)
+  const legsFor = (t) => { const a = []; if (t.on && t.cell) a.push({ number: t.cell }); return a; };
 
   // Per-tier ring length (seconds). Danielle reported her cell "rang once then went
   // away" — a 20s timeout is too short once the carrier's call-setup delay (often 5–10s
