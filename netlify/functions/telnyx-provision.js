@@ -66,6 +66,57 @@ exports.handler = async function (event) {
       return json(200, { ok: r.ok, status: r.status, balance: (d && d.data) || d });
     }
 
+    // Outbound caller-ID NAME (CNAM): make our name show when we call out.
+    //   &action=setcnam&num=+1...        -> set one number to "TN Appliance"
+    //   &action=setcnam&all=1            -> sweep every owned Telnyx number
+    //   &name=TN%20Appliance             -> override the display name (<=15 chars)
+    //   &check=1                         -> read-only: report current CNAM per number
+    if (action === 'setcnam') {
+      const NAME = String(q.name || 'TN Appliance').slice(0, 15);
+      const readOnly = String(q.check || '') === '1';
+      // gather targets
+      let targets = [];
+      if (String(q.all || '') === '1') {
+        let page = 1;
+        for (let i = 0; i < 8; i++) {
+          const r = await fetch(`${TELNYX}/phone_numbers?page[size]=250&page[number]=${page}`, { headers: H, signal: AbortSignal.timeout(12000) });
+          const d = await r.json().catch(() => ({}));
+          const rows = (d && d.data) || [];
+          rows.forEach((x) => targets.push({ id: x.id, number: x.phone_number }));
+          if (rows.length < 250) break; page += 1;
+        }
+      } else if (q.num) {
+        const pn = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${encodeURIComponent(q.num)}`, { headers: H, signal: AbortSignal.timeout(12000) });
+        const pd = await pn.json().catch(() => ({}));
+        const rec = pd.data && pd.data[0];
+        if (!rec) return json(200, { ok: false, error: 'number not found on Telnyx' });
+        targets.push({ id: rec.id, number: rec.phone_number });
+      } else {
+        return json(200, { ok: false, error: 'pass &num=+1... or &all=1' });
+      }
+      const results = [];
+      for (const t of targets) {
+        try {
+          if (readOnly) {
+            const vr = await fetch(`${TELNYX}/phone_numbers/${t.id}/voice`, { headers: H, signal: AbortSignal.timeout(10000) });
+            const vd = (await vr.json().catch(() => ({}))).data || {};
+            const cl = vd.cnam_listing || {};
+            results.push({ number: t.number, caller_id_name_enabled: vd.caller_id_name_enabled, cnam_enabled: cl.cnam_listing_enabled, cnam_name: cl.cnam_listing_details });
+          } else {
+            const up = await fetch(`${TELNYX}/phone_numbers/${t.id}/voice`, {
+              method: 'PATCH', headers: H,
+              body: JSON.stringify({ caller_id_name_enabled: true, cnam_listing: { cnam_listing_enabled: true, cnam_listing_details: NAME } }),
+              signal: AbortSignal.timeout(12000),
+            });
+            const ud = await up.json().catch(() => ({}));
+            const cl = (ud.data && ud.data.cnam_listing) || {};
+            results.push({ number: t.number, ok: up.ok, caller_id_name_enabled: ud.data && ud.data.caller_id_name_enabled, cnam_name: cl.cnam_listing_details, error: up.ok ? undefined : JSON.stringify(ud.errors || ud).slice(0, 200) });
+          }
+        } catch (e) { results.push({ number: t.number, ok: false, error: String((e && e.message) || e).slice(0, 120) }); }
+      }
+      return json(200, { ok: true, mode: readOnly ? 'check' : 'set', name: NAME, count: results.length, results, note: 'CNAM shows on carriers that dip the database (landlines reliable, many cell carriers use their own analytics); propagation 24-72h. Toll-free CNAM works differently.' });
+    }
+
     if (action === 'numbers') {
       let page = 1, all = [];
       for (let i = 0; i < 8; i++) {
