@@ -72,7 +72,14 @@ details p{color:var(--dim);font-size:15px;padding:0 0 14px}
 .related a{font-size:14px;color:var(--ink);text-decoration:none;background:var(--surf);border:1px solid var(--bord);border-radius:999px;padding:9px 14px}
 .related a:hover{border-color:var(--orange)}
 footer{border-top:1px solid var(--bord);margin-top:44px;padding:22px 0;color:var(--dim);font-size:13px}
-footer a{color:var(--dim)}</style>
+footer a{color:var(--dim)}.byline{font-size:13.5px;color:var(--dim,#a0a0a6);margin:2px 0 16px}
+.byline b{color:var(--ink,#ececec)}
+.qa{background:rgba(57,255,20,.06);border:1px solid rgba(57,255,20,.28);border-left:3px solid var(--green,#39ff14);border-radius:10px;padding:14px 16px;font-size:15.5px;margin:18px 0}
+.qa b{color:var(--green,#39ff14)}
+.proof{background:var(--surf,#141416);border:1px solid var(--bord,#26262a);border-radius:10px;padding:13px 15px;font-size:14.5px;color:var(--ink,#ececec);font-style:italic;margin:0 0 16px}
+.proof b{color:var(--orange,#ff6200);font-style:normal}
+</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"How to diagnose any appliance: power → switch → load","author":{"@type":"Person","name":"Teddy Pivacek","jobTitle":"Owner & Lead Appliance Technician","worksFor":{"@type":"LocalBusiness","name":"TN Appliance Exchange"},"knowsAbout":["appliance repair","home appliance diagnosis","appliance parts"]},"publisher":{"@type":"Organization","name":"TN Appliance Exchange","foundingDate":"2012"},"mainEntityOfPage":"https://tnapplianceexchange.net/fix/how-to-diagnose-any-appliance.html","speakable":{"@type":"SpeakableSpecification","cssSelector":[".qa"]}}</script>
 </head>
 <body>
   <div class="wrap">
@@ -82,6 +89,8 @@ footer a{color:var(--dim)}</style>
     </header>
     <nav class="bc"><a href="/">Home</a> › <a href="/fix/">Appliance Fix Guides</a> › How to diagnose any appliance</nav>
     <h1>How to diagnose any appliance: power → switch → load</h1>
+    <p class="byline">Answered by <b>Teddy Pivacek</b>, owner &amp; lead technician at TN Appliance Exchange — repairing appliances since 2012.</p>
+    <div class="qa"><b>Quick answer:</b> Almost every appliance fault is an electrical circuit problem found with two measurements: voltage (is power arriving?) and continuity (is the path unbroken and the part good?). You test three things in order — the power source, the switch/control, and the load — and whichever one fails the test is your repair.</div>
     <p class="lede">Here's the secret real technicians run on: you don't memorize a thousand repairs — you learn one method. <b>Continuity and voltage testing finds about 95% of all appliance faults</b>, because almost every failure is one broken link in a simple circuit: <b>power source → switch/control → load</b>. Find which of those three fails the test, and you've found the repair. This is the exact method we use on every job — in plain English.</p>
     <div class="safety"><b>⚠ Safety first:</b> Do continuity/resistance tests with the appliance <b>unplugged</b>. Do voltage tests live, carefully. <b>Never</b> touch a microwave's high-voltage capacitor — it can hold a lethal charge even unplugged. Respect 240V circuits, and treat gas appliances differently. Unsure? Send us a video and we'll walk you through it.</div>
 
@@ -170,6 +179,7 @@ footer a{color:var(--dim)}</style>
     <div class="cta">
       <h2>Stuck on which link is broken?</h2>
       <p>Send a 10-second video and a photo of the model number. For $50, a real technician tells you exactly which part failed the test — and we ship you the exact part or walk you through the fix. In Middle Tennessee or the Baton Rouge area, we'll come to you. 24/7.</p>
+      <p class="proof">Last week a customer kept their appliance instead of replacing it — they installed the part <b>themselves</b> with the exact one we shipped, after a $50 Quick Check told them precisely what they needed. That's the whole idea: honest answer, right part, no upsell.</p>
       <div class="btnrow">
         <a class="btn p" href="/">Start now — send a video</a>
         <a class="btn s" href="tel:+16152802949">Text or call (615) 280-2949</a>
