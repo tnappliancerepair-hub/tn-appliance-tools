@@ -252,6 +252,26 @@ exports.handler = async function (event) {
       return json(200, { ok: true, texml_app_id: appId, voice_url: voiceUrl, did: OFFICE_DID, did_now_points_to: 'Ant Office Ring Group', note: 'Dialing the office DID now rings both cells.' });
     }
 
+    // Repoint an inbound number at the Ann Voice-AI TeXML connection so its calls
+    // are answered by Ann (not the old Vapi call-control app). &num=+1...&conn=<id>
+    // conn defaults to Ann's texml connection (the one 615-280-2949 + 888-268-8998 use).
+    if (action === 'setai') {
+      const want = encodeURIComponent(q.num || '');
+      const conn = String(q.conn || '3025024692160300548').trim();
+      if (!q.num) return json(200, { ok: false, error: 'need ?num=+1...' });
+      const pn = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${want}`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const pd = await pn.json().catch(() => ({}));
+      const rec = pd.data && pd.data[0];
+      if (!rec) return json(200, { ok: false, error: 'number not found on Telnyx' });
+      const before = rec.connection_id;
+      const up = await fetch(`${TELNYX}/phone_numbers/${rec.id}`, {
+        method: 'PATCH', headers: H, body: JSON.stringify({ connection_id: conn }), signal: AbortSignal.timeout(12000),
+      });
+      const ud = await up.json().catch(() => ({}));
+      if (!up.ok) return json(200, { ok: false, step: 'repoint', status: up.status, error: JSON.stringify(ud.errors || ud).slice(0, 300) });
+      return json(200, { ok: true, number: rec.phone_number, connection_before: before, connection_now: (ud.data && ud.data.connection_id) || conn, points_to: 'Ann Voice AI (TeXML)' });
+    }
+
     // Inspect a number's Telnyx wiring + the connection's outbound profile, to
     // see why Vapi transfers fail. &num=+16152802949
     if (action === 'numinfo') {
