@@ -105,12 +105,14 @@ exports.handler = async function (event) {
   const webrtcOn = !isOff(webrtcRaw);
 
   // PRIORITY (Teddy 2026-08-04): Sofia FIRST, Danielle SECOND, Teddy last-resort.
-  // Each tier rings that person's cell (gated by OFFICE_REACH_<NAME>="off") AND their
-  // computer app (if their SIP login is vaulted). A tier with nobody reachable is
-  // skipped to the next. A tier that doesn't answer in ~20s chains to the next via the
-  // action webhook (?leg=N). Teddy's SIP falls back to the legacy TELNYX_SIP_USERNAME.
-  const SOFIA =    { name: 'Sofia',    cell: cellSofia || '+16292594602',    on: !isOff(reachSofia),    sip: webrtcOn ? sipUri(sipSofiaU) : '' };
-  const DANIELLE = { name: 'Danielle', cell: cellDanielle || '+16154850713', on: !isOff(reachDanielle), sip: webrtcOn ? sipUri(sipDanielleU) : '' };
+  // DISPATCHERS ALWAYS REACHABLE (Teddy 2026-08-17): Sofia + Danielle's CELLS always
+  // ring on a transfer — no OFFICE_REACH on/off switch to forget. Danielle's calls were
+  // silently dropping because her reach switch was left "off", so her cell was never
+  // dialed (only her app leg, which returns busy). Their cells now always dial + their
+  // computer app too (if their SIP login is vaulted). Teddy's tier still honors his own
+  // OFFICE_REACH_TEDDY gate. A tier that doesn't answer in ~30s chains to the next.
+  const SOFIA =    { name: 'Sofia',    cell: cellSofia || '+16292594602',    on: true, sip: webrtcOn ? sipUri(sipSofiaU) : '' };
+  const DANIELLE = { name: 'Danielle', cell: cellDanielle || '+16154850713', on: true, sip: webrtcOn ? sipUri(sipDanielleU) : '' };
   const TEDDY =    { name: 'Teddy',    cell: cellTeddy || '+16154855795',     on: !isOff(reachTeddy),    sip: webrtcOn ? sipUri(sipTeddyU || sipTeddyLegacyU) : '' };
   // ORDER (Teddy 2026-08-13): warranty-company reps go to DANIELLE first, then Sofia, then
   // Teddy — she handles warranty check-ups fastest. Everyone else keeps the Sofia-first
