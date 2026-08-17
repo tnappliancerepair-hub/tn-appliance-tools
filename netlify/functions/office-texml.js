@@ -120,10 +120,15 @@ exports.handler = async function (event) {
   // so the warranty cascade dialed that DID *as* "Danielle" → it rang a line nobody
   // sits at, forever, and she never got the call. Guard: if a configured cell is a
   // shop DID (or blank), fall back to the person's known mobile. (Teddy 2026-08-17.)
+  // Danielle stopped getting ANY shop calls the day "Sofia was added" — the OFFICE_CELL_*
+  // values got shuffled/mis-set in the vault (Danielle's got pointed at the wrong number),
+  // so her tier dialed the wrong phone while Sofia's worked. Hard-set the two dispatchers
+  // to their CONFIRMED mobiles (Teddy 2026-08-17) so no bad vault value can misroute them.
+  // Teddy keeps vault+fallback (+ his reach gate). Shop DIDs guarded for all.
   const SHOP_DIDS = ['+16157575500', '+16155889591', '+16155889500', '+16158578800', '+16158211400', '+16152802949', '+18662680111', '+18882688998', '+16292607111', '+16292477111', '+15043559111', '+17315031142'];
   const realCell = (v, fallback) => { const c = String(v || '').replace(/[^\d+]/g, ''); return (c && c.startsWith('+') && !SHOP_DIDS.includes(c)) ? c : fallback; };
-  const SOFIA =    { name: 'Sofia',    cell: realCell(cellSofia, '+16292594602'),    on: true, sip: webrtcOn ? sipUri(sipSofiaU) : '' };
-  const DANIELLE = { name: 'Danielle', cell: realCell(cellDanielle, '+16154850713'), on: true, sip: webrtcOn ? sipUri(sipDanielleU) : '' };
+  const SOFIA =    { name: 'Sofia',    cell: '+16292594602', on: true, sip: webrtcOn ? sipUri(sipSofiaU) : '' };
+  const DANIELLE = { name: 'Danielle', cell: '+16154850713', on: true, sip: webrtcOn ? sipUri(sipDanielleU) : '' };
   const TEDDY =    { name: 'Teddy',    cell: realCell(cellTeddy, '+16154855795'),    on: !isOff(reachTeddy),    sip: webrtcOn ? sipUri(sipTeddyU || sipTeddyLegacyU) : '' };
   // ORDER (Teddy 2026-08-13): warranty-company reps go to DANIELLE first, then Sofia, then
   // Teddy — she handles warranty check-ups fastest. Everyone else keeps the Sofia-first
