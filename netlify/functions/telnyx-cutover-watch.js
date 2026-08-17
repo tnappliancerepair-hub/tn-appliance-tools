@@ -52,13 +52,14 @@ exports.handler = async function (event) {
   const dry = ((event && event.queryStringParameters) || {}).dry === '1';
   const actions = [];
 
-  const [precall, callEvents, precallErr, gradMark, wireMark, errMark] = await Promise.all([
-    rows('telnyx_precall_hit', 1, 100),
+  const [precall, callEvents, precallErr, gradMark, wireMark, errMark, quietMark] = await Promise.all([
+    rows('telnyx_precall_hit', 1, 120),
     rows('telnyx_call_event', 2, 100),
     rows('telnyx_precall_error', 1, 50),
     rows('telnyx_rescue_graduated', 7, 1),
     rows('telnyx_webhook_reminder', 2, 1),
     rows('telnyx_precall_error_alert', 1, 1),
+    rows('telnyx_line_quiet_alert', 1, 1),
   ]);
 
   const realCalls24h = precall.filter((x) => !NOT_REAL.has(last10(x.m.from_resolved || x.m.from || '')));
@@ -99,9 +100,24 @@ exports.handler = async function (event) {
     } else { actions.push(dry ? 'would_alert_errors' : 'error_alert_held'); }
   }
 
+  // ── 4. LINE WENT QUIET — the phone-DOWN early warning (July 3rd: a silent line
+  //    took 3 days to notice). Works even without the call-event webhook: during
+  //    business hours, if the main line normally flows calls (>=5 real in the read
+  //    window) but has taken ZERO in ~80 min, flag it as possibly stopped answering.
+  //    Deduped 2h to avoid nagging on a naturally slow stretch.
+  const realRecent = within(realCalls24h, 80 * 60 * 1000).length;
+  if (bizHoursCT() && realRecent === 0 && realCalls24h.length >= 5) {
+    const alertedRecently = quietMark.length && (Date.now() - quietMark[0].at) < 2 * 3600 * 1000;
+    if (!alertedRecently && !dry) {
+      await sendSms(OWNER, `⚠️ New Ann's main line (615-280-2949) has taken 0 calls in ~80 min during business hours — it normally flows. The line may have stopped answering. Check it; to roll back, point 280-2949's connection back to Vapi in the Telnyx portal.`, 'owner', 'telnyx_line_quiet_alert').catch(() => null);
+      await crud.logEvent('telnyx_line_quiet_alert', { real_24h: realCalls24h.length, at_ms: Date.now() }).catch(() => null);
+      actions.push('line_quiet_alert_sent');
+    } else { actions.push(dry ? 'would_alert_quiet' : 'quiet_alert_held'); }
+  }
+
   return json(200, {
     ok: true, dry, biz_hours: bizHoursCT(),
-    real_calls_24h: realCalls24h.length, call_events_2d: callEvents.length, call_events_24h: callEvents24h.length,
+    real_calls_24h: realCalls24h.length, real_recent_80m: realRecent, call_events_2d: callEvents.length, call_events_24h: callEvents24h.length,
     precall_errors_1h: errs1h, rescue_state, webhook_wired: callEvents.length > 0, actions,
   });
 };
