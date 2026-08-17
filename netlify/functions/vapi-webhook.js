@@ -121,7 +121,7 @@ const NUMBER_PROFILES = {
     tech_side: false,
   },
   // ── Louisiana market (already on Vapi BYO) ────────────────────
-  '5043559111': {
+  '5043701234': {
     role: 'la_market',
     provider: 'vapi',
     market_context: 'Louisiana — New Orleans, Baton Rouge, Hammond and surrounding parishes.',

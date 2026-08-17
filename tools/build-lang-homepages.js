@@ -70,7 +70,7 @@ const T = {
     ctaP: 'Envía un video corto y tu número de modelo, y un técnico real armará tu Informe de Decisión del Técnico. Sin música de espera, sin adivinanzas, sin compromiso hasta que veas tus opciones.',
     ctaPrimary: '🐜 Empezar con Ant', ctaSecondary: '📞 Llamar 615-280-2949',
     footLinks: ['Cómo funciona', '¿Reparar o reemplazar?', 'Appliance Ant', 'Reparación de Secadora', 'Reparación de Refrigerador', 'Privacidad', 'Términos SMS'],
-    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-355-9111 (LA) · Familiar, guiada por técnicos desde 2012',
+    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-370-1234 (LA) · Familiar, guiada por técnicos desde 2012',
     jsPh: { Washer: 'ej. no desagua o no centrifuga…', Dryer: 'ej. no calienta…', Refrigerator: 'ej. no enfría…', Dishwasher: 'ej. no desagua…', Oven: 'ej. no calienta…' },
   },
 
@@ -128,7 +128,7 @@ const T = {
     ctaP: 'Envoyez une courte vidéo et votre numéro de modèle, et un vrai technicien bâtira votre Rapport de Décision du Technicien. Pas de musique d’attente, pas de devinettes, aucun engagement avant de voir vos options.',
     ctaPrimary: '🐜 Commencer avec Ant', ctaSecondary: '📞 Appeler le 615-280-2949',
     footLinks: ['Comment ça marche', 'Réparer ou remplacer ?', 'Appliance Ant', 'Réparation de Sèche-linge', 'Réparation de Réfrigérateur', 'Confidentialité', 'Conditions SMS'],
-    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-355-9111 (LA) · Familiale, menée par des techniciens depuis 2012',
+    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-370-1234 (LA) · Familiale, menée par des techniciens depuis 2012',
     jsPh: { Washer: 'p. ex. ne vidange pas ou n’essore pas…', Dryer: 'p. ex. ne chauffe pas…', Refrigerator: 'p. ex. ne refroidit pas…', Dishwasher: 'p. ex. ne vidange pas…', Oven: 'p. ex. ne chauffe pas…' },
   },
 
@@ -186,7 +186,7 @@ const T = {
     ctaP: 'Gửi một video ngắn và số model, một kỹ thuật viên thật sự sẽ lập Báo Cáo Quyết Định cho bạn. Không nhạc chờ, không đoán mò, không ràng buộc cho đến khi bạn thấy các lựa chọn.',
     ctaPrimary: '🐜 Bắt đầu với Ant', ctaSecondary: '📞 Gọi 615-280-2949',
     footLinks: ['Cách hoạt động', 'Sửa hay thay?', 'Appliance Ant', 'Sửa Máy Sấy', 'Sửa Tủ Lạnh', 'Quyền riêng tư', 'Điều khoản SMS'],
-    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-355-9111 (LA) · Gia đình, do kỹ thuật viên dẫn dắt từ 2012',
+    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-370-1234 (LA) · Gia đình, do kỹ thuật viên dẫn dắt từ 2012',
     jsPh: { Washer: 'vd. không xả hoặc không vắt…', Dryer: 'vd. không nóng…', Refrigerator: 'vd. không lạnh…', Dishwasher: 'vd. không xả nước…', Oven: 'vd. không nóng lên…' },
   },
 
@@ -244,7 +244,7 @@ const T = {
     ctaP: 'एक छोटा वीडियो और अपना मॉडल नंबर भेजें, और एक असली तकनीशियन आपकी Technician Decision Report बनाएगा। कोई होल्ड म्यूज़िक नहीं, कोई अंदाज़ा नहीं, विकल्प देखने तक कोई प्रतिबद्धता नहीं।',
     ctaPrimary: '🐜 Ant के साथ शुरू करें', ctaSecondary: '📞 कॉल करें 615-280-2949',
     footLinks: ['यह कैसे काम करता है', 'ठीक करें या बदलें?', 'Appliance Ant', 'ड्रायर मरम्मत', 'रेफ्रिजरेटर मरम्मत', 'गोपनीयता', 'SMS शर्तें'],
-    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-355-9111 (LA) · पारिवारिक, तकनीशियन-आधारित, 2012 से',
+    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-370-1234 (LA) · पारिवारिक, तकनीशियन-आधारित, 2012 से',
     jsPh: { Washer: 'जैसे पानी नहीं निकलता या स्पिन नहीं होता…', Dryer: 'जैसे गरम नहीं होता…', Refrigerator: 'जैसे ठंडा नहीं होता…', Dishwasher: 'जैसे पानी नहीं निकलता…', Oven: 'जैसे गरम नहीं होता…' },
   },
 
@@ -302,7 +302,7 @@ const T = {
     ctaP: 'أرسل مقطعًا قصيرًا ورقم موديلك، وسيُعدّ فنّي حقيقي تقرير قرار الفنّي الخاص بك. بلا موسيقى انتظار، بلا تخمين، وبلا التزام حتى ترى خياراتك.',
     ctaPrimary: '🐜 ابدأ مع Ant', ctaSecondary: '📞 اتصل 615-280-2949',
     footLinks: ['كيف يعمل', 'إصلاح أم استبدال؟', 'Appliance Ant', 'إصلاح المجفّفات', 'إصلاح الثلّاجات', 'الخصوصية', 'شروط الرسائل'],
-    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-355-9111 (LA) · عائلي، يقوده الفنيون منذ 2012',
+    footFine: 'TN Appliance Exchange · 615-280-2949 (TN) · 504-370-1234 (LA) · عائلي، يقوده الفنيون منذ 2012',
     jsPh: { Washer: 'مثال: لا تصرّف الماء أو لا تعصر…', Dryer: 'مثال: لا يسخّن…', Refrigerator: 'مثال: لا يبرّد…', Dishwasher: 'مثال: لا تصرّف الماء…', Oven: 'مثال: لا يسخّن…' },
   },
 };

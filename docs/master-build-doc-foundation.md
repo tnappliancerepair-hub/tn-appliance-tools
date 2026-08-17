@@ -784,7 +784,7 @@ Tomorrow's additions (Priority 2):
 >
 > **Your scope:** Build your 6 scheduling agents through HCP + MeisterTask. Use dedicated dev phone numbers (we can grab fresh Vapi numbers if needed).
 >
-> **My live numbers (please don't touch):** 629-260-7111 (Ant Inbound), 629-247-7111 (Vapi BYO TN), 504-355-9111 (Vapi BYO LA), 629-284-0444 (Business SMS).
+> **My live numbers (please don't touch):** 629-260-7111 (Ant Inbound), 629-247-7111 (Vapi BYO TN), 504-370-1234 (Vapi BYO LA), 629-284-0444 (Business SMS).
 >
 > **My side of the platform:** I've been building a parallel scheduling layer in Xano for self-pay customers (Quick Check, Premium, In-Home). HCP is the source of truth for both — when you write to HCP, my system picks it up automatically via webhook. Don't write to my Xano database directly.
 >
@@ -861,7 +861,7 @@ Tomorrow's additions (Priority 2):
 | Business SMS | 629-284-0444 | 10DLC approved 4/27 |
 | Ant Inbound | 629-260-7111 | Vapi customer voice |
 | Vapi BYO TN | 629-247-7111 | Live customer line |
-| Vapi BYO LA | 504-355-9111 | Live customer line |
+| Vapi BYO LA | 504-370-1234 | Live customer line |
 | Available for dev | 570-378-8177 | Hold as dev test number |
 | Available for dev | 234-219-3459 | Hold as dev test number |
 

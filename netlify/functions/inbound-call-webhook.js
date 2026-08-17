@@ -40,7 +40,7 @@ const TRANSFER_TO = process.env.INBOUND_TRANSFER_TO || '+16292607111';
 const ANT_OWN_NUMBERS = new Set([
   '6292607111', // Ant Inbound (Vapi)
   '6292477111', // Vapi BYO TN
-  '5043559111', // Vapi BYO LA
+  '5043701234', // Vapi BYO LA
   '5043800975', // LA backup
   '7315031142', // West TN fallback
   '6155889500', // Telnyx customer-direction

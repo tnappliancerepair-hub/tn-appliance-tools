@@ -294,7 +294,7 @@ Each warranty job ends with TDR submission to the relevant warranty portal.
 - Numbers:
   - **Business outbound + customer SMS:** `+16292840444`
   - **Tech inbound + Tech Scheduler outbound:** `+17273508487`
-  - **Vapi BYO numbers:** TN `+16292607111` (Ant Inbound), TN `+16292477111`, LA `+15043559111` *(LA number corrected 2026-05-09 from blueprint copy-paste error; per April 29 + May 4 handoffs)*
+  - **Vapi BYO numbers:** TN `+16292607111` (Ant Inbound), TN `+16292477111`, LA `+15043701234` *(LA number corrected 2026-05-09 from blueprint copy-paste error; per April 29 + May 4 handoffs)*
   - **Owner cell (Teddy):** `+16154855795` (often quoted as `615-485-5795`)
   - **Danielle:** `615-485-0713`
   - **Customer-facing voice (RingCentral, porting to Vapi):** `866-268-0111`

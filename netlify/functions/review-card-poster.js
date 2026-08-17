@@ -22,7 +22,7 @@ function json(c, o) { return { statusCode: c, headers: { 'Content-Type': 'applic
 //   Andre  -> 504 (New Orleans) : Kenner, Metairie, New Orleans     [VERIFIED ringing to Ant]
 //   John   -> 225 (Baton Rouge) : Baton Rouge, Hammond, Slidell     [225 not in Vapi yet -> 504 interim]
 //   Billy  -> North Shore/Hammond (John's bucket)
-const LA_504 = '504-355-9111';   // New Orleans — VERIFIED
+const LA_504 = '504-370-1234';   // New Orleans — VERIFIED
 const LA_225 = '';               // Baton Rouge — set when a real 225 is verified ringing to Ant
 const TN_PHONE = '615-280-2949';
 function laPhone(tech) { if (tech === 'john' || tech === 'billy') return LA_225 || LA_504; return LA_504; }

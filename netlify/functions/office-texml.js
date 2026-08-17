@@ -125,7 +125,7 @@ exports.handler = async function (event) {
   // so her tier dialed the wrong phone while Sofia's worked. Hard-set the two dispatchers
   // to their CONFIRMED mobiles (Teddy 2026-08-17) so no bad vault value can misroute them.
   // Teddy keeps vault+fallback (+ his reach gate). Shop DIDs guarded for all.
-  const SHOP_DIDS = ['+16157575500', '+16155889591', '+16155889500', '+16158578800', '+16158211400', '+16152802949', '+18662680111', '+18882688998', '+16292607111', '+16292477111', '+15043559111', '+17315031142'];
+  const SHOP_DIDS = ['+16157575500', '+16155889591', '+16155889500', '+16158578800', '+16158211400', '+16152802949', '+18662680111', '+18882688998', '+16292607111', '+16292477111', '+15043701234', '+17315031142'];
   const realCell = (v, fallback) => { const c = String(v || '').replace(/[^\d+]/g, ''); return (c && c.startsWith('+') && !SHOP_DIDS.includes(c)) ? c : fallback; };
   const SOFIA =    { name: 'Sofia',    cell: '+16292594602', on: true, sip: webrtcOn ? sipUri(sipSofiaU) : '' };
   const DANIELLE = { name: 'Danielle', cell: '+16154850713', on: true, sip: webrtcOn ? sipUri(sipDanielleU) : '' };

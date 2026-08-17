@@ -43,7 +43,7 @@ Local repo:      C:\Users\jpiva\Documents\code\tn-appliance-tools
 Tech inbound:    +17273508487  (webhook → tech-sms-inbound.js → tech_sms_inbound)
 Customer SMS:    +16292840444  (feedback_reply_webhook)
 Vapi TN:         +16292477111
-Vapi LA:         +15043559111
+Vapi LA:         +15043701234
 
 Owner phone:     615-485-5795 (Teddy/James, also OWNER_PHONE_NUMBER env var)
 Office:          615-485-0713 (Danielle)

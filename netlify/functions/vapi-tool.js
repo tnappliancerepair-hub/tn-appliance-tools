@@ -21,7 +21,7 @@ const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 
 // Our own lines — never save one of these as a customer's number (a forwarded
 // call used to show the shop's own number; defensive even now that's fixed).
-const SHOP_DIGITS = new Set(['6152802949', '8662680111', '8882688998', '6158578800', '6155889500', '5043559111', '6292607111', '6292477111', '7315031142', '5043800975']);
+const SHOP_DIGITS = new Set(['6152802949', '8662680111', '8882688998', '6158578800', '6155889500', '5043701234', '6292607111', '6292477111', '7315031142', '5043800975']);
 
 // THE #1 DROPPED-CALL FIX: every backend call MUST return fast. With no timeout,
 // a slow/hung Xano made the tool call hang forever → Vapi got no result → the

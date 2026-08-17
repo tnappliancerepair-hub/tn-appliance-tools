@@ -100,7 +100,7 @@ Draft to send before they arrive:
 >
 > **Your scope:** 6 scheduling agents through HCP + MeisterTask. Build them on dedicated dev numbers (we can grab fresh Vapi numbers if needed).
 >
-> **My live numbers (please don't touch):** 629-260-7111 (Ant Inbound), 629-247-7111 (Vapi BYO TN), 504-355-9111 (Vapi BYO LA), 629-284-0444 (Business SMS).
+> **My live numbers (please don't touch):** 629-260-7111 (Ant Inbound), 629-247-7111 (Vapi BYO TN), 504-370-1234 (Vapi BYO LA), 629-284-0444 (Business SMS).
 >
 > **My side of the platform:** I've been building out a parallel scheduling layer in Xano for our self-pay customers (Quick Check $50, Premium $90, In-Home $100). HCP is the source of truth for both — when you write to HCP, my system picks it up automatically via webhook. Don't write to my Xano database directly.
 >
@@ -374,7 +374,7 @@ RULES YOU NEVER BREAK:
 - Business SMS: 629-284-0444 (10DLC approved)
 - Ant Inbound: 629-260-7111
 - Vapi BYO TN: 629-247-7111
-- Vapi BYO LA: 504-355-9111
+- Vapi BYO LA: 504-370-1234
 
 ## 🔑 KEY ENDPOINTS REFERENCE
 - Xano base: https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA (n7e not n7)

@@ -110,7 +110,7 @@ Per memory + v1 §2:
 
 - Voice line 866-268-0111 (RingCentral) — porting to Vapi (status: in flight, port date not in any doc I read this session).
 - Today: dispatcher (or future Vapi agent) intakes the warranty job by phone, manually creates HCP job, downstream flows match §2.2.
-- Vapi BYO numbers exist for both states (TN +16292607111 Ant Inbound, TN +16292477111, LA +15043559111).
+- Vapi BYO numbers exist for both states (TN +16292607111 Ant Inbound, TN +16292477111, LA +15043701234).
 - **MED** — port status not re-verified this session.
 
 ---
@@ -403,7 +403,7 @@ For each warranty company, Danielle logs in to the portal, submits the TDR from 
 ### 10.4 Twilio
 
 - 10DLC TCR campaign: PENDING. Was day 8+ on 2026-05-09 (resubmission). Today is 2026-05-12 — that's day 11+. **MED** (status not re-verified this session — could have approved or could still be pending).
-- Numbers: +16292840444 (business outbound + customer), +17273508487 (tech inbound + scheduler outbound), Vapi BYOs (+16292607111 TN Ant Inbound, +16292477111 TN, +15043559111 LA).
+- Numbers: +16292840444 (business outbound + customer), +17273508487 (tech inbound + scheduler outbound), Vapi BYOs (+16292607111 TN Ant Inbound, +16292477111 TN, +15043701234 LA).
 - Credentials rotated 2026-05-08 (was hardcoded in `send_sms_POST.xs` + `create_job_POST.xs`; now `$env.TWILIO_*`).
 
 ### 10.5 HCP (Housecall Pro)

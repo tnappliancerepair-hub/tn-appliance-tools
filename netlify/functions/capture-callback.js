@@ -29,7 +29,7 @@ const INTERNAL_10 = new Set([
   '6158291654', // Lee
   '7315049617', // Billy
   '8133527686', // John
-  '6155889500', '6158578800', '6152802949', '8662680111', '8882688998', '5043559111', // shop lines
+  '6155889500', '6158578800', '6152802949', '8662680111', '8882688998', '5043701234', // shop lines
 ]);
 function isInternal(phone) { const d = String(phone || '').replace(/\D/g, '').slice(-10); return d.length === 10 && INTERNAL_10.has(d); }
 

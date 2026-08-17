@@ -2,7 +2,7 @@
 
 const SITE = "https://tnapplianceexchange.net";
 const PHONE_TN = "866-268-0111";
-const PHONE_LA = "504-355-9111";
+const PHONE_LA = "504-370-1234";
 
 const CITIES_TN = [
   { name: "Nashville", slug: "nashville", phone: PHONE_TN },

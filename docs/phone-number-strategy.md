@@ -27,7 +27,7 @@ Default decision when in doubt about releasing a number: **KEEP.** Re-acquiring 
 | # | Number | Provider | Today | Target |
 |---|---|---|---|---|
 | 1 | **+1 866-268-0111** | RingCentral ($300/mo) | Public website TN primary | Port → Vapi → Ant Inbound |
-| 2 | **+1 504-355-9111** | Vapi BYO | LA market (already on Vapi, old assistant) | Repoint → Ant Inbound v2 (LA context) |
+| 2 | **+1 504-370-1234** | Vapi BYO | LA market (already on Vapi, old assistant) | Repoint → Ant Inbound v2 (LA context) |
 | 3 | **+1 615-588-9500** | Telnyx | Customer SMS outbound; calling it → dead air | Enable voice → Ant Inbound (callback context) |
 | 4 | **+1 615-857-8800** | Telnyx | Tech SMS outbound; calling it → dead air | Enable voice → Ant Inbound (tech context) |
 | 5 | **+1 629-284-0444** | Twilio | Business outbound SMS (legacy waiver/booking + Telnyx failover) | Enable voice → Ant Inbound (callback context) |
@@ -62,7 +62,7 @@ The brain reads `called_number_role` + `called_number_market` + `called_number_c
 
 ### Public-facing primary (visible on website, business cards)
 - **866-268-0111** (TN) — *"Hey, you've reached TN Appliance Exchange. What's broken today?"* (warm, TN market)
-- **504-355-9111** (LA) — *"Hey, you've reached TN Appliance Exchange — we cover New Orleans, Baton Rouge, Hammond…"* (warm, LA market)
+- **504-370-1234** (LA) — *"Hey, you've reached TN Appliance Exchange — we cover New Orleans, Baton Rouge, Hammond…"* (warm, LA market)
 
 ### Telnyx + Twilio SMS callback lines (CRITICAL — closes biggest leak)
 Customers see these numbers when we text them. When they call back instead of texting:
@@ -101,7 +101,7 @@ vs $3,500-4,500/mo human receptionist who only works 40 hrs/week and would need 
 1. **Port 866-268-0111 from RingCentral → Vapi.** RingCentral typically requires a Letter of Authorization; expect 24-48 hrs for the port. Once submitted, cancel RingCentral immediately upon port confirmation. **$300/mo saved.**
 2. **Cancel HCP.** **$500/mo saved.**
 3. **In Vapi dashboard → Phone Numbers** → assign 866-268-0111 to "Ant Inbound v2" assistant.
-4. **Repoint 504-355-9111** (Vapi BYO) to Ant Inbound v2. Currently on old assistant — flip the assignment.
+4. **Repoint 504-370-1234** (Vapi BYO) to Ant Inbound v2. Currently on old assistant — flip the assignment.
 5. **Test call to each → expect Ant greeting by-number-context.**
 
 ### Same day or next (~30 min)
@@ -158,7 +158,7 @@ No XS deploys, no Mac Mini reboot, no Vapi prompt edits.
 ```
 KEEP — operational (all route to Ant Inbound v2):
   TN PRIMARY:      866-268-0111   (Vapi after RC port)
-  LA MARKET:       504-355-9111   (Vapi already)
+  LA MARKET:       504-370-1234   (Vapi already)
   TELNYX CUST:     615-588-9500   (callback context, primary SMS)
   TELNYX TECH:     615-857-8800   (tech context, primary SMS)
   TWILIO CUST:     629-284-0444   (callback context, FAILOVER SMS)

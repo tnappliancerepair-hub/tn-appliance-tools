@@ -222,10 +222,10 @@ export async function run(signal, ctx) {
     // Always offered so a customer who still owes their tech a video has it right here.
     const finishLink = `https://${bareDomain()}/finish-upload.html?job_id=${jobId}`;
     // Region-aware number so "call and ask for your tech" reaches the right line.
-    // LA jobs → 504-355-9111, everything else → 615-280-2949. Both ring Ann, who
+    // LA jobs → 504-370-1234, everything else → 615-280-2949. Both ring Ann, who
     // transfers to the assigned tech during business hours.
     const st = String(job.service_state || '').trim().toUpperCase();
-    const phone = (st === 'LA' || st === 'LOUISIANA') ? '504-355-9111' : '615-280-2949';
+    const phone = (st === 'LA' || st === 'LOUISIANA') ? '504-370-1234' : '615-280-2949';
     const body = customerBody({ first: custFirst, appliance, apptStr, techFirst, slot, finishLink, phone });
     const res = await sms.toCustomer(custPhone, body, {
       action: 'appointment_confirmation',

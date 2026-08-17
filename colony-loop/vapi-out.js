@@ -100,7 +100,7 @@ export const ASSISTANT_IDS = Object.freeze({
 // the Telnyx 615-588 (4006d617).
 export const FROM_NUMBERS = Object.freeze({
   TN_PRIMARY:         'd57d5cf2-60a7-46e6-a7f0-24ed652c1f31', // +16292477111 Twilio TN — confirmed working, "Potential Spam" risk until CNAM
-  LA_PRIMARY:         '9ceaec5d-27c7-48d3-80c5-ed1028226683', // +15043559111 Twilio LA, confirmed working
+  LA_PRIMARY:         '9ceaec5d-27c7-48d3-80c5-ed1028226683', // +15043701234 Twilio LA, confirmed working
 
   // Telnyx numbers — broken until Voice Routing fixed in Telnyx portal
   TN_TELNYX_588:      '4006d617-26d5-45c6-b84d-46389817603a', // +16155889500 — CNAM ready, routing BROKEN

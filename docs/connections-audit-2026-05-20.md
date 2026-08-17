@@ -22,7 +22,7 @@
 | D9 | Twilio | `+17273508487` (727-350-8487 St. Petersburg FL) | Mystery number. `sms_url` points at `https://tnapplianceexchange.net/.netlify/functions/tech-sms-inbound`. **Not in any documented inventory.** `voice_url` still Twilio demo. | TINY — confirm intent. | MED |
 | D10 | Twilio | `+16292840444` voice | `sms_url` correctly wired to feedback_reply_webhook (verified). `voice_url` is still `https://demo.twilio.com/welcome/voice/`. If a customer ever calls this number expecting service, they hit Twilio's demo IVR. | TINY — point at Vapi or owner forward. | MED |
 | M1 | Twilio | `+16292607111` (TN Ant Inbound) | Voice routed to `https://api.vapi.ai/twilio/inbound_call` ✓. But per docs, this number is also expected to be Telnyx-managed (D1). Currently lives on Twilio. **Sms_url at `https://api.vapi.ai/twilio/sms`** — fine for now but conflicts with Telnyx-primary plan. | n/a today — wait for Telnyx provision. | DEFER |
-| M2 | Twilio | `+15043559111` (LA Vapi) | Same as M1 — wired Twilio→Vapi correctly, but Telnyx-primary doc says LA local should be on Telnyx. | n/a today. | DEFER |
+| M2 | Twilio | `+15043701234` (LA Vapi) | Same as M1 — wired Twilio→Vapi correctly, but Telnyx-primary doc says LA local should be on Telnyx. | n/a today. | DEFER |
 | M3 | Xano legacy | `xano-workspace/api/scheduling/tech_sms_inbound_POST.xs` | 2142 lines, known broken per memory. Still receives traffic (fallback path when `TECH_SMS_BRAIN_V2_PHONES` allowlist misses). T's own phone is in allowlist now; 5 phones in allowlist. **All other techs still route to broken Xano file.** | LARGE — finish v2 brain daily-mode + onboarding migration. In flight. | (in flight) |
 | M4 | Xano legacy | `event_log` and `job_event` audit gaps | `warranty_job_intake_POST.xs` writes NO event_log row (per customer-automation-inventory). Per `docs/feedback-flow-status` SMS_ENABLED=false in Xano env blocks every customer outbound SMS. | TINY-to-MED depending on which gate. | MED |
 | M5 | Netlify | Stripe live key exposed as env-var NAME on 2026-05-20 | Per `docs/security-cleanup-2026-05-20.md`. Rotation a pending human task for T. | TINY (rotate in Stripe dashboard, swap in Netlify). | HIGH (security) |
@@ -71,7 +71,7 @@ NOTES: Wired into Vapi via Twilio shim. SID `PNe10c[redacted]`. Per memory + inv
 
 ──────────────────────────────────────────
 SERVICE: Twilio
-RESOURCE: +15043559111 (504-355-9111) — LA Vapi
+RESOURCE: +15043701234 (504-370-1234) — LA Vapi
 STATUS: ACTIVE
 ROUTES TO: SMS + Voice → `https://api.vapi.ai/twilio/*` (Vapi shim)
 LAST USED: unknown
@@ -270,7 +270,7 @@ Live endpoint liveness probes (POST with empty body, expect non-2xx but service 
 | Phone | Provider | Voice routes to | SMS routes to | Vapi assistant (per memory) | Verified live? |
 |---|---|---|---|---|---|
 | +16292607111 | **Twilio** (not Telnyx) | api.vapi.ai/twilio/inbound_call | api.vapi.ai/twilio/sms | Ant Inbound `7cc98b0c…` | YES (per blueprint) |
-| +15043559111 | **Twilio** (not Telnyx) | api.vapi.ai/twilio/inbound_call | api.vapi.ai/twilio/sms | (LA Vapi — assistant ID unverified) | UNVERIFIED |
+| +15043701234 | **Twilio** (not Telnyx) | api.vapi.ai/twilio/inbound_call | api.vapi.ai/twilio/sms | (LA Vapi — assistant ID unverified) | UNVERIFIED |
 | +16292477111 | **Twilio** (not Telnyx) | empty (UNROUTED) | empty (UNROUTED) | (claimed "TN Vapi" in memory) | NO — number alive, routes nowhere |
 | +16292840444 | **Twilio** (not Telnyx) | Twilio demo | Xano feedback_reply_webhook | (none — feedback only) | YES (feedback) |
 | +17273508487 | **Twilio** (not Telnyx) | Twilio demo | Netlify tech-sms-inbound | (none) | UNDOCUMENTED — mystery FL number |
@@ -342,7 +342,7 @@ webhook_api_version: 2
 
 - **ALL 4 Telnyx numbers route SMS inbound to `tech-sms-inbound`.** Customer messages to `+16155889500`, vanity-line messages to `+18882688998` / `+18662680111`, and tech messages to `+16158578800` all hit the same Netlify function. v2 brain allowlist gates onboarding flow; everything else falls to broken legacy.
 - **Zero voice routing on any Telnyx number.** The two vanity numbers (1-888-ANT-8998, 1-866-ANT-0111) are paid for and active but **calls to them are not connected to Vapi or anything else**.
-- Memory references `+15043559111` (LA Vapi), `+16292477111` (TN Vapi), `+16292607111` (TN Ant Inbound) as Telnyx — **all three are actually Twilio**, not Telnyx (verified via Vapi `/phone-number` query).
+- Memory references `+15043701234` (LA Vapi), `+16292477111` (TN Vapi), `+16292607111` (TN Ant Inbound) as Telnyx — **all three are actually Twilio**, not Telnyx (verified via Vapi `/phone-number` query).
 
 ### Vapi — actual state
 
@@ -372,7 +372,7 @@ webhook_api_version: 2
 |---|---|---|---|
 | `+16292607111` | twilio | `7cc98b0c` Ant -Inbound | ✅ wired |
 | `+16292477111` | twilio | `7cc98b0c` Ant -Inbound | ✅ wired |
-| `+15043559111` | twilio | **null** | LA — no assistant assigned |
+| `+15043701234` | twilio | **null** | LA — no assistant assigned |
 | `+15043800975` | vapi-native | **null** | LA — no assistant assigned |
 | `+17315031142` | vapi-native | **null** | unnamed, no assistant |
 | `+12342193439` | byo (Twilio +1-234) | `2915adea` Outbound James Repair Dev | ⚠️ dev wired to live BYO number |
@@ -388,7 +388,7 @@ webhook_api_version: 2
 | `+18662680111` (1-866-ANT-0111) | Telnyx | tech-sms-inbound.js ⚠️ (wrong handler) | **NOT WIRED** 🚨 |
 | `+16292607111` | Twilio + Vapi | (Twilio side) | Vapi → Ant -Inbound ✅ |
 | `+16292477111` | Twilio + Vapi | (Twilio side) | Vapi → Ant -Inbound ✅ (per Vapi; Twilio shows empty URL fields because Vapi uses `voice_application_sid` not `voice_url`) |
-| `+15043559111` (LA) | Twilio + Vapi | (Twilio side) | Vapi but **NO assistant** ⚠️ |
+| `+15043701234` (LA) | Twilio + Vapi | (Twilio side) | Vapi but **NO assistant** ⚠️ |
 | `+15043800975` (LA) | Vapi-native | n/a | **NO assistant** ⚠️ |
 | `+17315031142` (unnamed) | Vapi-native | n/a | **NO assistant** ⚠️ |
 | `+12342193439` (BYO OH) | Twilio + Vapi BYO | Twilio: demo.twilio.com ⚠️ | Vapi → Outbound James Repair Dev 🚨 (dev assistant on live BYO) |
@@ -402,7 +402,7 @@ webhook_api_version: 2
 |---|---|---|
 | **D8** | `+18882688998` (1-888-ANT-8998) has NO voice routing on Telnyx. Paid number, ringing nowhere. Need to wire to Vapi (probably `7cc98b0c` Ant -Inbound or a new general inbound assistant) | MEDIUM (Telnyx admin + Vapi BYO setup) |
 | **D9** | `+18662680111` (1-866-ANT-0111) — same as above. Warranty-line vanity number, ringing nowhere. Probably wire to `022faa54` Ant Warranty Company Inbound | MEDIUM |
-| **D10** | `+15043559111` LA Vapi number has no assistant bound. Per memory, LA expansion is skipped — confirm intent. Either bind to LA-version of Ant or formally retire | TINY (Vapi admin) |
+| **D10** | `+15043701234` LA Vapi number has no assistant bound. Per memory, LA expansion is skipped — confirm intent. Either bind to LA-version of Ant or formally retire | TINY (Vapi admin) |
 | **D11** | `+15043800975` LA Vapi-native number, no assistant. Same status. | TINY |
 | **D12** | `+17315031142` unnamed Vapi-native number, no assistant. Mystery. | TINY |
 
