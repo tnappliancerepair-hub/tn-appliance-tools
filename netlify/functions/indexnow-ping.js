@@ -34,17 +34,29 @@ exports.handler = async function (event) {
     if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
   }
 
-  const paths = (q.urls ? q.urls.split(',') : DEFAULTS).map((s) => s.trim()).filter(Boolean);
-  const urlList = paths.map((p) => (p.startsWith('http') ? p : `https://${HOST}${p.startsWith('/') ? '' : '/'}${p}`)).slice(0, 10000);
+  let paths = (q.urls ? q.urls.split(',') : DEFAULTS).map((s) => s.trim()).filter(Boolean);
+  // On scheduled runs (and manual ?fix=1), also refresh the whole /fix DIY library —
+  // we improve those pages continuously (AI-answer stamps, new guides), so keep
+  // Bing/Yandex re-crawling them. Pulled live from the sitemap so it auto-covers new
+  // pages; graceful — a failed sitemap fetch just falls back to the priority DEFAULTS.
+  if (scheduled || q.fix === '1') {
+    try {
+      const sr = await fetch(`https://${HOST}/sitemap.xml`, { signal: AbortSignal.timeout(3000) });
+      const xml = await sr.text();
+      const fixUrls = (xml.match(/<loc>([^<]*\/fix\/[^<]+)<\/loc>/g) || []).map((m) => m.replace(/<\/?loc>/g, ''));
+      paths = paths.concat(fixUrls);
+    } catch (_) {}
+  }
+  const urlList = [...new Set(paths.map((p) => (p.startsWith('http') ? p : `https://${HOST}${p.startsWith('/') ? '' : '/'}${p}`)))].slice(0, 10000);
 
   try {
     const r = await fetch('https://api.indexnow.org/indexnow', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
       body: JSON.stringify({ host: HOST, key: KEY, keyLocation: KEY_LOC, urlList }),
-      // 7s — must stay under Netlify's 10s sync-function wall, or a slow IndexNow
-      // response gets the whole function killed ("Internal Error") before it returns.
-      signal: AbortSignal.timeout(7000),
+      // 6s — with the optional 3s sitemap fetch above, stays under Netlify's 10s
+      // sync-function wall so a slow response can't get the function killed.
+      signal: AbortSignal.timeout(6000),
     });
     const t = await r.text().catch(() => '');
     // IndexNow returns 200 (accepted) or 202 (received, pending) on success.
