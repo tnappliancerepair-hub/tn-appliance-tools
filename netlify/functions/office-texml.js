@@ -68,7 +68,8 @@ async function logTransferOutcome({ tier, answered, status, event, leg }) {
     tier_index: (leg - 2),
     dial_status: status || '',
     caller: formField(event, 'From') || '',
-    to: formField(event, 'To') || '',
+    to: formField(event, 'To') || '',       // the LINE the call rode in on (a DID), NOT the dialed cell
+    dialed: (tier && tier.cell) || '',       // the actual number we RANG for this tier (the cell)
     call_sid: formField(event, 'CallSid') || '',
     leg,
     at_ms: Date.now(),
