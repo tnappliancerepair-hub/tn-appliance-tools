@@ -330,11 +330,15 @@ exports.handler = async function (event) {
     // Force-attach the outbound profile to the ring-group TeXML app (full PATCH
     // with required fields, since a partial patch was being dropped).
     if (action === 'fixtexml') {
+      // Attach an outbound voice profile to a TeXML app (Telnyx needs a FULL patch —
+      // partial ones get dropped). Defaults target the Ant Office Ring Group; pass
+      // &id=&name=&url= to fix another app (e.g. the Warranty Desk) without clobbering
+      // its voice_url. &name and &url are URL-encoded.
       const id = q.id || '2988900469658617248';
       const profile = q.profile || '2959911839888049315';
       const body = {
-        friendly_name: 'Ant Office Ring Group',
-        voice_url: `${SITE}/.netlify/functions/office-texml`,
+        friendly_name: q.name ? decodeURIComponent(q.name) : 'Ant Office Ring Group',
+        voice_url: q.url ? decodeURIComponent(q.url) : `${SITE}/.netlify/functions/office-texml`,
         voice_method: 'post',
         active: true,
         outbound: { outbound_voice_profile_id: profile },
@@ -342,7 +346,7 @@ exports.handler = async function (event) {
       const r = await fetch(`${TELNYX}/texml_applications/${id}`, { method: 'PATCH', headers: H, body: JSON.stringify(body), signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) return json(200, { ok: false, status: r.status, error: JSON.stringify(d.errors || d).slice(0, 400) });
-      return json(200, { ok: true, outbound_now: d.data && d.data.outbound });
+      return json(200, { ok: true, id, name: body.friendly_name, voice_url: body.voice_url, outbound_now: d.data && d.data.outbound });
     }
 
     // Dump the ring-group TeXML app config (voice_url + outbound profile).
