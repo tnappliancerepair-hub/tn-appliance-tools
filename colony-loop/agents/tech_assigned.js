@@ -57,6 +57,7 @@ function composeBody({ job, customer, tech, isReassignment, jobLabel }) {
     fmtAddress(job),
     `Issue: ${issue}`,
     `Scheduled: ${fmtSchedule(job.scheduled_start)}`,
+    `Pre-diagnosis: ${bareDomain()}/teddy-tdr-tool.html?job_id=${job.id}`,
     `Tech Ant: ${link}`,
   ].join('\n');
 }
