@@ -152,7 +152,7 @@ function renderCard(){
       '<div class="who">'+esc(nm(j))+' · '+esc(appl(j))+waitBadge(j)+'</div>'+
       '<div class="what">Ant needs this to answer calls about this job.</div>'+
       (item.noClaim?'<label>Warranty claim / work-order # ('+esc(j.warranty_company||'warranty')+')</label><input id="qClaim" placeholder="claim or WO #" value="'+esc(j.claim_number||'')+'">':'')+
-      (item.noPhone?'<label>Customer phone</label><input id="qPhone" type="tel" inputmode="tel" placeholder="(615) 555-1234" value="'+esc(j.customer_phone||'')+'">':'')+
+      (item.noPhone?'<label>Customer phone</label><input id="qPhone" type="tel" inputmode="tel" placeholder="(888) 268-8998" value="'+esc(j.customer_phone||'')+'">':'')+
       '<button class="primary green" id="qSave">Save →</button>'+
       '<button class="skip" onclick="skip()">Skip for now →</button>'+
       '<div style="display:flex;gap:8px;margin-top:6px"><button class="skip" style="flex:1;color:#0a7d33;border:1px solid #cfe6d6;border-radius:10px" onclick="removeJob(\'complete\')">✓ Already done</button><button class="skip" style="flex:1;color:#c0392b;border:1px solid #f0c9c9;border-radius:10px" onclick="removeJob(\'delete\')">🗑 Junk / delete</button></div>';

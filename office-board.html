@@ -2321,7 +2321,7 @@ function renderDrawer(d){
         <label style="font-size:11px;color:var(--ink2);font-weight:700">Claim / WO #</label>
         <input id="ej-claim" value="${esc(j.claim_number||'')}" placeholder="claim or dispatch #" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
         <label style="font-size:11px;color:var(--ink2);font-weight:700">Customer phone</label>
-        <input id="ej-phone" type="tel" value="${esc(c.phone||'')}" placeholder="(615) 555-1234" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
+        <input id="ej-phone" type="tel" value="${esc(c.phone||'')}" placeholder="(888) 268-8998" style="padding:9px;border:1px solid var(--line);border-radius:8px;font-size:14px">
         <button onclick="saveJobInfo(${jid})" style="margin-top:4px;padding:11px;border-radius:9px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">Save info</button>
       </div>
     </div>
@@ -2788,7 +2788,7 @@ async function saveJobInfo(id){
 // office_quick_fill (phone-only overwrite — never wipes the claim).
 function editPhoneInline(jid,cur){
   const cell=document.getElementById('jf-phone-cell'); if(!cell)return;
-  cell.innerHTML='<input id="jf-phone-in" type="tel" inputmode="tel" value="'+esc(cur||'')+'" placeholder="(615) 555-1234" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;width:140px"> <button onclick="savePhoneInline('+jid+')" style="padding:6px 11px;border:0;border-radius:6px;background:var(--ok);color:#fff;font-weight:800;font-size:12px;cursor:pointer">Save</button>';
+  cell.innerHTML='<input id="jf-phone-in" type="tel" inputmode="tel" value="'+esc(cur||'')+'" placeholder="(888) 268-8998" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;width:140px"> <button onclick="savePhoneInline('+jid+')" style="padding:6px 11px;border:0;border-radius:6px;background:var(--ok);color:#fff;font-weight:800;font-size:12px;cursor:pointer">Save</button>';
   const inp=document.getElementById('jf-phone-in'); if(inp){inp.focus();inp.addEventListener('keydown',function(e){if(e.key==='Enter')savePhoneInline(jid);});}
 }
 async function savePhoneInline(jid){
@@ -2849,7 +2849,7 @@ async function editCustomerInfo(jid){
   ov.innerHTML='<div style="width:100%;max-width:460px;max-height:88vh;overflow-y:auto;background:var(--card,#fff);color:var(--ink,#111);border-radius:14px;padding:18px 16px 20px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-weight:900;font-size:17px">✏️ Edit customer info</div><button onclick="document.getElementById(\'cust-edit-ov\').remove()" style="border:0;background:#eef1f5;border-radius:8px;padding:6px 12px;font-weight:800;color:#55617a;cursor:pointer">Close</button></div>'
     +'<div style="display:flex;gap:8px"><div style="flex:1">'+F('first','First name',c.first_name)+'</div><div style="flex:1">'+F('last','Last name',c.last_name)+'</div></div>'
-    +F('phone','Phone',c.phone,'(615) 555-1234')
+    +F('phone','Phone',c.phone,'(888) 268-8998')
     +F('email','Email',c.email)
     +F('address','Street address',c.address)
     +'<div style="display:flex;gap:8px"><div style="flex:2">'+F('city','City',c.city)+'</div><div style="flex:1">'+F('state','State',c.state,'TN')+'</div><div style="flex:1">'+F('zip','Zip',c.zip)+'</div></div>'

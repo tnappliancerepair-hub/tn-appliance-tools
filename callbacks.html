@@ -96,7 +96,7 @@ let FILTER='open', ROWS=[], DROPPED=[], TECHREC=[];
 // Our own techs + shop/office lines — these aren't customers to call back. A
 // field-assist call that timed out is a JOB RECORD (the summary is the tech's
 // diagnosis), so we archive it separately instead of cluttering the callback queue.
-const TECH_INTERNAL=new Set(['6154855795','6159671304','5049099413','6159693115','6158291654','8133527686','6154850713','6152802949','6155889500','6158578800','8662680111']);
+const TECH_INTERNAL=new Set(['6154855795','6159671304','5049099413','6159693115','6158291654','8133527686','6154850713','6152802949','6155889500','6158578800','8882688998']);
 // Calls that died before the caller could leave info (dead air / drop). These
 // never reach list_callback_requests, so we mine them from the call log.
 const DROP_REASONS=['silence-timed-out','no-answer','customer-did-not-answer','customer-busy','transfer-fail','error-transfer','providerfault','pipeline-error'];

@@ -63,7 +63,7 @@
   <div class="sub" data-i18n="sub">We're always hiring — experienced techs and motivated people ready to learn a real trade. Great pay, your own schedule, and a team that wants you to win.</div>
   <div class="cta-top">
     <a class="btn p" href="#apply" data-i18n="applybtn">Apply today →</a>
-    <a class="btn s" href="tel:+18662680111" data-i18n="callbtn">Call or text us</a>
+    <a class="btn s" href="tel:+18882688998" data-i18n="callbtn">Call or text us</a>
   </div>
 
   <div class="sec">
@@ -98,7 +98,7 @@
       <label class="fld" data-i18n="l_name">Your name</label>
       <input id="name" type="text" autocomplete="name" placeholder="First and last" data-i18n-ph="ph_name">
       <label class="fld" data-i18n="l_phone">Best cell number</label>
-      <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(615) 555-1234">
+      <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(888) 268-8998">
       <label class="fld" data-i18n="l_area">Your area / city</label>
       <input id="area" type="text" placeholder="e.g. Nashville, TN" data-i18n-ph="ph_area">
       <label class="fld" data-i18n="l_exp">Experience</label>
@@ -116,7 +116,7 @@
 
   <div class="ok" id="ok" data-i18n="ok">✅ Got it! We'll reach out soon — thank you for wanting to build a career with us.</div>
 
-  <div class="footer">TN Appliance Exchange · <a href="tel:+18662680111">866-268-0111</a> · <a href="/">Home</a></div>
+  <div class="footer">TN Appliance Exchange · <a href="tel:+18882688998">888-268-8998</a> · <a href="/">Home</a></div>
 
 <script>
 if (location.hostname.indexOf('www.')===0){ location.replace(location.href.replace('://www.','://')); }
@@ -167,7 +167,7 @@ function v(id){ return (document.getElementById(id).value||'').trim(); }
 document.getElementById('btn').onclick=async function(){
   const err=document.getElementById('err'); err.textContent='';
   const name=v('name'), phone=v('phone');
-  const M={ es:{n:'Por favor ingresa tu nombre.',p:'Por favor ingresa un número válido.',x:'Algo salió mal — escríbenos al 866-268-0111.'} }[LANG]||{n:'Please enter your name.',p:'Please enter a valid cell number.',x:'Something went wrong — text us at 866-268-0111.'};
+  const M={ es:{n:'Por favor ingresa tu nombre.',p:'Por favor ingresa un número válido.',x:'Algo salió mal — escríbenos al 888-268-8998.'} }[LANG]||{n:'Please enter your name.',p:'Please enter a valid cell number.',x:'Something went wrong — text us at 888-268-8998.'};
   if(name.length<2) return err.textContent=M.n;
   if(phone.replace(/\D/g,'').length<10) return err.textContent=M.p;
   const btn=this; btn.disabled=true;
