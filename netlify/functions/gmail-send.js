@@ -85,10 +85,15 @@ exports.handler = async function (event) {
   }
   if (!subject) subject = '(no subject)';
 
+  // Email headers must be ASCII — an emoji/em-dash in the subject shows as mojibake
+  // (Ã°ÂŸ…) unless RFC 2047-encoded. Encode any non-ASCII subject as UTF-8 base64.
+  const encSubject = /[^\x00-\x7F]/.test(subject)
+    ? '=?UTF-8?B?' + Buffer.from(subject, 'utf8').toString('base64') + '?='
+    : subject;
   const mime = [
     'From: ' + from,
     'To: ' + to,
-    'Subject: ' + subject,
+    'Subject: ' + encSubject,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset="UTF-8"',
   ].concat(headers).join('\r\n') + '\r\n\r\n' + bodyText;
