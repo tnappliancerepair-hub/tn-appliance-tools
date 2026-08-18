@@ -28,10 +28,14 @@ function xmlResp(inner) {
   return { statusCode: 200, headers: { 'content-type': 'text/xml; charset=utf-8' }, body: xml };
 }
 // legs: array of { number } (cell) or { sip } (computer app). Rings all in parallel.
-function dialLegs(legs, callerId, timeout, actionUrl) {
+// whisperUrl (optional): a "press 1 to accept" TeXML played to the CALLEE cell before
+// the legs bridge — a screener/voicemail can't silently swallow the call. SIP app legs
+// are left un-whispered (they answer as a real human on the softphone).
+function dialLegs(legs, callerId, timeout, actionUrl, whisperUrl) {
   const action = actionUrl ? ` action="${esc(actionUrl)}" method="POST"` : '';
+  const wu = whisperUrl ? ` url="${esc(whisperUrl)}"` : '';
   const inner = legs
-    .map((l) => (l.sip ? `    <Sip>${esc(l.sip)}</Sip>` : `    <Number>${esc(l.number)}</Number>`))
+    .map((l) => (l.sip ? `    <Sip>${esc(l.sip)}</Sip>` : `    <Number${wu}>${esc(l.number)}</Number>`))
     .join('\n');
   return `  <Dial callerId="${esc(callerId)}" timeout="${timeout}" answerOnBridge="true"${action}>\n${inner}\n  </Dial>`;
 }
@@ -77,6 +81,33 @@ async function logTransferOutcome({ tier, answered, status, event, leg }) {
 }
 
 exports.handler = async function (event) {
+  const qs = (event && event.queryStringParameters) || {};
+
+  // ── "PRESS 1 TO ACCEPT" WHISPER (Teddy 2026-08-18) ────────────────────────────
+  // The fix for calls getting silently swallowed: a call-screener, voicemail, or auto-
+  // attendant answering the transfer used to read as "answered" and STOP the cascade,
+  // stranding the caller and never ringing the next person. Now each dialed cell gets a
+  // whisper played to the CALLEE ONLY, before the legs bridge — they must press 1 to
+  // take the call. No press (screener / VM / decline) => the leg drops and the cascade
+  // rings the next dispatcher. The caller hears only ringback the whole time
+  // (answerOnBridge). These two branches need NO secrets, so they return immediately
+  // and never touch the heavy secret load below.
+  if (qs.whisper === '1') {
+    const g = (p) => `  <Gather input="dtmf" numDigits="1" timeout="6" action="${esc(SELF)}?wconfirm=1" method="POST">\n    <Say>${esc(p)}</Say>\n  </Gather>`;
+    return xmlResp(
+      '  <Pause length="1"/>\n' +
+      g('T N Appliance call. Press 1 to take this call.') + '\n' +
+      g('Press 1 to take the call, or hang up.') + '\n' +
+      '  <Hangup/>'
+    );
+  }
+  if (qs.wconfirm === '1') {
+    // Digit came back from the whisper Gather. 1 = accept -> the callee script ends and
+    // the legs bridge. Anything else (or a machine that never pressed) -> hang up this
+    // leg so the Dial falls through to the next person.
+    return String(formField(event, 'Digits') || '').trim() === '1' ? xmlResp('  <Pause length="1"/>') : xmlResp('  <Hangup/>');
+  }
+
   // Load EVERY secret CONCURRENTLY. This runs on the LIVE transfer path; reading
   // these serially (12 awaits) meant a slow/hung metadata API could stack ~12×
   // its per-read timeout of wall-time before Telnyx received any <Response> — the
@@ -90,14 +121,21 @@ exports.handler = async function (event) {
     cellSofia, reachSofia, sipSofiaU,
     cellDanielle, reachDanielle, sipDanielleU,
     cellTeddy, reachTeddy, sipTeddyU, sipTeddyLegacyU,
-    ringRaw,
+    ringRaw, confirmRaw,
   ] = await Promise.all([
     g('TELNYX_OFFICE_CALLER_NUMBER'), gf('OFFICE_PHONE_WEBRTC_INBOUND'),
     g('OFFICE_CELL_SOFIA'), gf('OFFICE_REACH_SOFIA'), g('TELNYX_SIP_USERNAME_SOFIA'),
     g('OFFICE_CELL_DANIELLE'), gf('OFFICE_REACH_DANIELLE'), g('TELNYX_SIP_USERNAME_DANIELLE'),
     g('OFFICE_CELL_TEDDY'), gf('OFFICE_REACH_TEDDY'), g('TELNYX_SIP_USERNAME_TEDDY'), g('TELNYX_SIP_USERNAME'),
-    g('OFFICE_RING_SECONDS'),
+    g('OFFICE_RING_SECONDS'), gf('TRANSFER_CONFIRM'),
   ]);
+
+  // "Press 1 to accept" is ON by default. Flip TRANSFER_CONFIRM=off in the vault to
+  // instantly revert to a plain ring (no whisper) — no redeploy. When on, each dialed
+  // cell gets the whisper and the cascade only counts a call as answered once it has
+  // truly BRIDGED (a screener/VM auto-answer never bridges, so it falls through).
+  const confirmOn = String(confirmRaw || '').trim().toLowerCase() !== 'off';
+  const whisperUrl = confirmOn ? `${SELF}?whisper=1` : '';
 
   const callerId = callerIdRaw || '+16155889591';
   // Computer-app (WebRTC) legs: OPT-IN, default OFF (Teddy 2026-08-17). The softphone
@@ -160,7 +198,7 @@ exports.handler = async function (event) {
   let ringSecs = parseInt(ringRaw, 10);
   if (!(ringSecs >= 15 && ringSecs <= 45)) ringSecs = 30;
 
-  let leg = parseInt(((event && event.queryStringParameters) || {}).leg, 10);
+  let leg = parseInt(qs.leg, 10);
   if (!(leg >= 1)) leg = 1;
 
   // A prior GROUP's ring already reported back. The action was set to ?leg=<i+2> for the
@@ -168,7 +206,14 @@ exports.handler = async function (event) {
   // (measurement only — never changes the ring behavior below).
   if (leg > 1) {
     const st = dialStatus(event);
-    const answered = st === 'completed' || st === 'answered' || st === 'bridged';
+    // With press-1 confirm on (cfm=1), a screener/voicemail that auto-answers reports
+    // "completed"/"answered" but NEVER bridges (DialCallDuration 0). Count only a truly
+    // BRIDGED call (dur > 0) as answered, so an auto-answer falls through to the next
+    // person instead of stranding the caller. Without confirm, status alone (unchanged).
+    const cfm = String(qs.cfm || '') === '1';
+    const dur = parseInt(formField(event, 'DialCallDuration'), 10) || 0;
+    const statusOK = st === 'completed' || st === 'answered' || st === 'bridged';
+    const answered = cfm ? (statusOK && dur > 0) : statusOK;
     const rung = groups[leg - 2];
     if (rung) await logTransferOutcome({ tier: groupTier(rung), answered, status: st, event, leg });
     if (answered) return xmlResp('  <Hangup/>');
@@ -186,9 +231,9 @@ exports.handler = async function (event) {
     // answering as the last ring showed 0). The action fires when the dial ends (post-bridge
     // for an answered call); the follow-up leg finds no further group and Rejects a call
     // that's already over — harmless — after logging the outcome. (Teddy 2026-08-18)
-    const action = `${SELF}?${orderQS}leg=${i + 2}`;
+    const action = `${SELF}?${orderQS}${confirmOn ? 'cfm=1&' : ''}leg=${i + 2}`;
     // Final reachable group gets a slightly longer ring (last chance before it falls through).
-    return xmlResp(dialLegs(legs, callerId, moreAhead ? ringSecs : Math.min(ringSecs + 5, 45), action));
+    return xmlResp(dialLegs(legs, callerId, moreAhead ? ringSecs : Math.min(ringSecs + 5, 45), action, whisperUrl));
   }
   return xmlResp('  <Reject/>');
 };
