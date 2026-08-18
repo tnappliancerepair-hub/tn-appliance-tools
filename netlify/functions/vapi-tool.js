@@ -13,6 +13,7 @@ const { sendSms } = require('./_lib/sms');
 let sb = null; try { sb = require('./_lib/supabase'); } catch (_) {}
 const OWNER_PHONE = '+16154855795';     // Teddy
 const DANIELLE_PHONE = '+16154850713';
+const SOFIA_PHONE = '+16292594602';   // dispatcher — warranty-call + call-created-job alerts go to Danielle + Sofia, not the owner (Teddy 2026-08-18)
 const SITE = 'https://tnapplianceexchange.net';
 
 const XANO = (process.env.XANO_INTAKE_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA').replace(/\/+$/, '');
@@ -381,8 +382,8 @@ async function alertNewJob(name, args, data) {
       const wc = data.warranty_company ? (' · ' + data.warranty_company + (data.claim_number ? (' ' + data.claim_number) : '')) : '';
       const msg = '[ant] 🔁 CALLBACK from a call' + (args.phone ? (' ' + args.phone) : '') + (args.appliance ? (' · ' + args.appliance) : '') + wc
         + ' — recall job #' + data.job_id + (data.sent_link ? ' (intake link texted)' : '') + '  ' + link;
-      await sendSms(OWNER_PHONE, msg, 'owner', 'vapi_callback').catch(() => {});
       await sendSms(DANIELLE_PHONE, msg, 'warranty_handler', 'vapi_callback').catch(() => {});
+      await sendSms(SOFIA_PHONE, msg, 'warranty_handler', 'vapi_callback').catch(() => {});
     } catch (_) {}
     return;
   }
@@ -396,8 +397,8 @@ async function alertNewJob(name, args, data) {
     const msg = '[ant] ' + (isCb ? '📞 CALLBACK' : '🆕 new job') + ' from a call: ' + who + ' ' + (args.customer_phone || '')
       + (args.appliance_type ? (' · ' + args.appliance_type) : '') + ' — ' + summ
       + '  Job #' + data.job_id + ' (Needs Scheduled): ' + link;
-    await sendSms(OWNER_PHONE, msg, 'owner', 'vapi_new_job').catch(() => {});
     await sendSms(DANIELLE_PHONE, msg, 'warranty_handler', 'vapi_new_job').catch(() => {});
+    await sendSms(SOFIA_PHONE, msg, 'warranty_handler', 'vapi_new_job').catch(() => {});
   } catch (_) {}
 }
 
