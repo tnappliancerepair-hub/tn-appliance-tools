@@ -532,6 +532,87 @@ query send_sms verb=POST {
     }
 
     // ============================================================
+    // 5g. OFFICE GATE (Teddy 2026-08-18 Text Charter: "map every text, eliminate
+    //     the noise - the office gets ~700/week and ignores them all"). Office
+    //     recipients (owner / Danielle / Sofia / Carrie) bypass the customer +
+    //     intake gates above, so nothing ever throttled their alerts. This gates
+    //     THEM: an office recipient may ONLY receive a charter-allowed text - a
+    //     live urgent callback, the once-a-day briefing, a safety / negative-
+    //     review flag, a money-in alert, or a system-down alert. Everything else
+    //     (TDR-complete pings, AHS/SP intake alerts, schedule-mismatch, TDR-gap,
+    //     unassigned, nightly scorecards) is DROPPED - that info lives on the
+    //     board. Mode from company_settings "office_sms_gate": on = enforce,
+    //     shadow = log-only (DEFAULT, safe - deploying changes nothing), off =
+    //     disabled. Field techs are gated separately in 5e above.
+    // ============================================================
+    var $is_office {
+      value = ($is_owner == true) || ($is_danielle == true) || ($is_office_staff == true)
+    }
+
+    db.query company_settings {
+      where = $db.company_settings.company_id == 1 && $db.company_settings.setting_key == "office_sms_gate"
+      return = {type: "list", paging: {page: 1, per_page: 1}}
+    } as $office_gate_rows
+
+    var $office_gate_row {
+      value = (($office_gate_rows.items|first) ?? null)
+    }
+
+    var $office_gate_mode {
+      value = ($office_gate_row != null) ? (($office_gate_row.setting_value ?? "")|trim|to_lower) : "shadow"
+    }
+
+    var $office_allowed {
+      value = ($tag_l|contains:"urgent") || ($tag_l|contains:"vapi_callback") || ($tag_l|contains:"morning") || ($tag_l|contains:"safety") || ($tag_l|contains:"satisfaction_negative") || ($tag_l|contains:"review_low") || ($tag_l|contains:"cash_in") || ($tag_l|contains:"money") || ($tag_l|contains:"paid") || ($tag_l|contains:"payment") || ($tag_l|contains:"health") || ($tag_l|contains:"line_pin") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($body_l|contains:"healthcheck") || ($body_l|contains:"colony loop") || ($body_l|contains:"urgent") || ($body_l|contains:"paid")
+    }
+
+    conditional {
+      if ($is_office == true && $office_allowed == false && $office_gate_mode == "on") {
+        db.add event_log {
+          data = {
+            action  : "office_sms_blocked"
+            metadata: {
+              recipient_last4: ($p10 != "") ? ($p10|substr:6:4) : "?"
+              context_tag    : ($input.context_tag ?? "")
+              body_preview   : (($sms_body ?? "")|substr:0:80)
+              reason         : "office_sms_gate: not a charter-allowed office text"
+            }
+          }
+        } as $office_blk_log
+
+        return {
+          value = ```
+            {
+              success            : false
+              provider           : "office_gated"
+              provider_message_id: null
+              provider_status    : null
+              twilio_sid         : null
+              twilio_status      : 0
+              error              : "office_charter_blocked"
+              gated              : true
+            }
+            ```
+        }
+      }
+    }
+
+    conditional {
+      if ($is_office == true && $office_allowed == false && $office_gate_mode == "shadow") {
+        db.add event_log {
+          data = {
+            action  : "office_sms_would_block"
+            metadata: {
+              recipient_last4: ($p10 != "") ? ($p10|substr:6:4) : "?"
+              context_tag    : ($input.context_tag ?? "")
+              body_preview   : (($sms_body ?? "")|substr:0:80)
+            }
+          }
+        } as $office_would_log
+      }
+    }
+
+    // ============================================================
     // 6. Initialize response vars (success-shaped default so the gated
     //    path returns the same contract as the live path).
     // ============================================================

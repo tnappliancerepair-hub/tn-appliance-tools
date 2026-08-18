@@ -247,8 +247,8 @@
 # itself only *maybe* sends (~55%) and enforces a 2.5h min-gap + weekday/hours
 # gate — so it lands unpredictably, ~2-4/day. Kill switch: env
 # BOSS_TRASH_ENABLED='false'. (Teddy 2026-07-09). 14-22 UTC = 9a-5p CT (CDT).
-[functions."boss-trash-talk"]
-  schedule = "17 14-22 * * *"
+# [CHARTER-OFF] [functions."boss-trash-talk"]
+#   schedule = "17 14-22 * * *"
 
 # 🚪 Frontdoor/AHS key-authorization watcher — probes the dispatch endpoint until
 # Brian links our sandbox key (403 → cleared), then texts Teddy ONCE so we can flip
@@ -275,8 +275,8 @@
 # TDR-gap safety net — catches reports that landed as notes-only or left the job
 # open after a tech actually went out (the Detrich case). Nudges the tech, digests
 # to Teddy. Self-gates to 8a-8p CT. Every 30 min.
-[functions."tdr-gap-watch"]
-  schedule = "*/30 * * * *"
+# [CHARTER-OFF] [functions."tdr-gap-watch"]
+#   schedule = "*/30 * * * *"
 
 # Duplicate-job auto-merge — cancels fresh, unassigned duplicate stubs so Danielle
 # stops deleting ~22/day by hand. SHADOW-logs until DUPE_AUTO_MERGE_ENABLED=true,
@@ -357,8 +357,8 @@
 # Google profile photo-fresh = map-pack rank + clicks). One-tap upload link per
 # tech; photos land tagged for Teddy to post. Tue 2:30pm UTC (~9:30am CT). Kill
 # switch: vault GBP_PHOTO_REQUEST=false.
-[functions."gbp-photo-request"]
-  schedule = "30 14 * * 2"
+# [CHARTER-OFF] [functions."gbp-photo-request"]
+#   schedule = "30 14 * * 2"
 
 # SquareTrade auto-assign — routes tech-less SquareTrade jobs straight to the area
 # tech (zip→cluster, capacity/day-off aware, next-rank fallback). Kills the manual
@@ -744,8 +744,8 @@
 # UTC), and vault REVIEW_RELINK_NOT_BEFORE holds it until the target afternoon (today's fire
 # no-ops). LIVE needs vault REVIEW_RELINK=on (armed). Self-terminates once cleared. REMOVE this
 # block when done. Kill: vault REVIEW_RELINK=off.
-[functions."review-relink-campaign"]
-  schedule = "10 22,23 * * *"
+# [CHARTER-OFF] [functions."review-relink-campaign"]
+#   schedule = "10 22,23 * * *"
 
 # job-completion-watch (Teddy 2026-08-06; instant review ask 2026-08-14) - the canonical
 # "job is done" signal. tech_job_complete fires ~0 times, so it watches the
