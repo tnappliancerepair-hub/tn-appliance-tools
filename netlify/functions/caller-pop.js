@@ -113,7 +113,10 @@ exports.handler = async function (event) {
 
   if (q.dry === '1') return json(200, { ok: true, dry: true, caller: name, job_id: jobId, summary, link, message: msg });
 
-  const targets = popOnly ? [] : (test ? OFFICE.filter((o) => o.role === 'owner') : OFFICE);
+  const targets = popOnly ? [] : (test ? OFFICE.filter((o) => o.role === 'owner')
+    // Warranty-rep pop (a rep called with a WO/claim) is Danielle + Sofia's job, not the owner's
+    // (Teddy 2026-08-18: "these warranty rep texts should go to Danielle").
+    : (viaClaim ? OFFICE.filter((o) => o.role !== 'owner') : OFFICE));
   const results = [];
   if (sendSms) {
     for (const o of targets) {

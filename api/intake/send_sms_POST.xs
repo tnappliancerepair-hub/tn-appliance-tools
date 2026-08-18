@@ -563,7 +563,7 @@ query send_sms verb=POST {
     }
 
     var $office_allowed {
-      value = ($tag_l|contains:"urgent") || ($tag_l|contains:"vapi_callback") || ($tag_l|contains:"morning") || ($tag_l|contains:"safety") || ($tag_l|contains:"satisfaction_negative") || ($tag_l|contains:"review_low") || ($tag_l|contains:"cash_in") || ($tag_l|contains:"money") || ($tag_l|contains:"paid") || ($tag_l|contains:"payment") || ($tag_l|contains:"health") || ($tag_l|contains:"line_pin") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($body_l|contains:"healthcheck") || ($body_l|contains:"colony loop") || ($body_l|contains:"urgent") || ($body_l|contains:"paid")
+      value = ($tag_l|contains:"urgent") || ($tag_l|contains:"vapi_callback") || ($tag_l|contains:"caller_pop") || ($tag_l|contains:"morning") || ($tag_l|contains:"safety") || ($tag_l|contains:"satisfaction_negative") || ($tag_l|contains:"review_low") || ($tag_l|contains:"cash_in") || ($tag_l|contains:"money") || ($tag_l|contains:"paid") || ($tag_l|contains:"payment") || ($tag_l|contains:"health") || ($tag_l|contains:"line_pin") || ($tag_l|contains:"opt_out") || ($tag_l|contains:"opt_in") || ($body_l|contains:"healthcheck") || ($body_l|contains:"colony loop") || ($body_l|contains:"urgent") || ($body_l|contains:"paid")
     }
 
     conditional {
