@@ -25,6 +25,20 @@ const DEDUPE_MS = 45 * 1000;   // one pop per caller per 45s (a call shouldn't d
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 
+// CROSS-PATH OFFICE-ALERT DEDUP — shared with telnyx-ai-tool.js (SAME action + key scheme)
+// so one upset call fires ONE office text total, not one per tool Ann calls. (2026-08-18)
+const OFFICE_ALERT_WINDOW_MS = 10 * 60 * 1000;
+function alertKey(jobId, phone) { const d = String(phone || '').replace(/\D/g, '').slice(-10); return jobId ? ('job:' + jobId) : (d.length >= 10 ? ('caller:' + d) : ''); }
+async function officeAlertOnce(key) {
+  if (!key) return true;
+  try {
+    const recent = await crud.searchPage(crud.TABLES.event_log, { action: 'office_alert_dedup' }, { id: 'desc' }, 25);
+    for (const r of recent) { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } if (m && String(m.key || '') === key && (Date.now() - Number(m.at_ms || 0)) < OFFICE_ALERT_WINDOW_MS) return false; }
+  } catch (_) {}
+  return true;
+}
+async function markOfficeAlert(key, path) { if (!key) return; try { await crud.logEvent('office_alert_dedup', { key, path, at_ms: Date.now() }); } catch (_) {} }
+
 function callerFrom(body, q) {
   const b = body || {};
   const cands = [q && q.phone, b.from, b.phone, b.caller, b.data && b.data.payload && b.data.payload.from, b.payload && b.payload.from];
@@ -118,17 +132,23 @@ exports.handler = async function (event) {
   // hand-off (viaJob), OR a plain incoming ring. (Teddy 2026-08-18: "someone requesting
   // a person should go to Sofia/Danielle, not me — delegate it.") Test mode still
   // targets only the owner so a test never buzzes the office.
-  const targets = popOnly ? [] : (test ? OFFICE.filter((o) => o.role === 'owner')
+  // Collapse to ONE office text per call: if log_outcome / message_office already
+  // texted the office about this job (or caller) in the window, skip the SMS here.
+  // The laptop corner-card pop still logs below regardless (it's not a text).
+  const oKey = alertKey(jobId, digits);
+  const smsAllowed = !popOnly && (test || await officeAlertOnce(oKey));
+  const targets = !smsAllowed ? [] : (test ? OFFICE.filter((o) => o.role === 'owner')
     : OFFICE.filter((o) => o.role !== 'owner'));
   const results = [];
-  if (sendSms) {
+  if (sendSms && targets.length) {
     for (const o of targets) {
       try { const sent = await sendSms(o.phone, msg, o.role, 'caller_pop'); results.push({ who: o.name, sent: !!sent }); }
       catch (e) { results.push({ who: o.name, sent: false, err: String((e && e.message) || e).slice(0, 60) }); }
     }
+    if (!test) await markOfficeAlert(oKey, 'caller_pop');
   }
   // Always log the pop — this is what the laptop corner-card widget polls.
   try { await crud.logEvent('caller_pop_sent', { key: dedupeKey, phone: digits, claim, job_id: jobId, name, summary, at_ms: Date.now() }); } catch (_) {}
 
-  return json(200, { ok: true, pop_only: popOnly, caller: name, job_id: jobId, summary, link, sent_to: results, message: msg });
+  return json(200, { ok: true, pop_only: popOnly, caller: name, job_id: jobId, summary, link, sms_deduped: !smsAllowed && !popOnly, sent_to: results, message: msg });
 };

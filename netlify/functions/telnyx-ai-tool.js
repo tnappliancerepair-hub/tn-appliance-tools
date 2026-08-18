@@ -66,6 +66,23 @@ function post(path, payload, ms = 4500) {   // fail fast — Telnyx drops a tool
 // A tool reply: `result` is what the assistant SAYS; keep it short + spoken-natural.
 const say = (result, extra) => json(200, { ok: true, result, ...(extra || {}) });
 
+// CROSS-PATH OFFICE-ALERT DEDUP (Teddy 2026-08-18: "it still sends multiple messages
+// for the same thing"). Ann fires several tools for ONE upset call — log_outcome +
+// message_office + caller-pop — each texting the office, so the office got 3 texts for
+// the same job. Collapse to ONE office text per job (or caller) inside a window; every
+// path (here AND caller-pop.js) shares this action + key scheme so they dedup each other.
+const OFFICE_ALERT_WINDOW_MS = 10 * 60 * 1000;
+function alertKey(jobId, phone) { const d = String(phone || '').replace(/\D/g, '').slice(-10); return jobId ? ('job:' + jobId) : (d.length >= 10 ? ('caller:' + d) : ''); }
+async function officeAlertOnce(key) {
+  if (!key) return true; // can't dedup without a key -> allow (better a dupe than a dropped alert)
+  try {
+    const recent = await crud.searchPage(crud.TABLES.event_log, { action: 'office_alert_dedup' }, { id: 'desc' }, 25);
+    for (const r of recent) { let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } if (m && String(m.key || '') === key && (Date.now() - Number(m.at_ms || 0)) < OFFICE_ALERT_WINDOW_MS) return false; }
+  } catch (_) {}
+  return true;
+}
+async function markOfficeAlert(key, path) { if (!key) return; try { await crud.logEvent('office_alert_dedup', { key, path, at_ms: Date.now() }); } catch (_) {} }
+
 // Open a fresh CASH job for a caller we don't have yet (self_pay, ann_phone). Reused by
 // do=create_job AND the self-heal inside do=send_intake_link so a brand-new caller can get
 // their $50 Quick Check link on the spot. Returns { job_id } or { error }. Zip defaults to
@@ -489,9 +506,18 @@ exports.handler = async function (event) {
       // reach the owner — those are the office's desk. Only an EXPLICIT owner/Teddy target
       // CCs Teddy; everything else goes to Danielle + Sofia. Urgent still bolds the text.
       const includeTeddy = a.owner === true || a.owner === 'true' || /teddy|owner/i.test(String(a.to || ''));
-      const body = `${urgent ? 'URGENT - ' : ''}From Ann: ${msg} 🐜`;
+      const link = jobId ? `\nOpen: ${SITE}/job-detail.html?job_id=${jobId}` : '';
+      const body = `${urgent ? 'URGENT - ' : ''}From Ann: ${msg} 🐜${link}`;
       const targets = OFFICE.filter((o) => includeTeddy || o.name !== 'Teddy');
+      // Dedup the URGENT upset-call path — it overlaps log_outcome + caller-pop for the
+      // same job, which is the "multiple messages for one thing" flood. Routine non-urgent
+      // notes are distinct asks (address add, pricing) -> always send. Owner-level bypasses.
+      const okey = alertKey(jobId, a.phone || a.customer_phone);
+      if (urgent && !includeTeddy && !(await officeAlertOnce(okey))) {
+        return say(`Done — the office already has this one, I won't double-text them.`, { sent: true, deduped: true });
+      }
       let n = 0; if (sendSms) for (const o of targets) { try { await sendSms(o.to, body, o.name === 'Teddy' ? 'owner' : (o.name === 'Danielle' ? 'danielle' : 'office'), 'ann_office_note'); n++; } catch (_) {} }
+      if (urgent && !includeTeddy) await markOfficeAlert(okey, 'message_office');
       try { await crud.logEvent('ann_message_office', { count: n, urgent, msg, at_ms: Date.now() }); } catch (_) {}
       return say(`Done — I've passed that along to the office. Anything else?`, { sent: true, count: n });
     }
@@ -534,13 +560,16 @@ exports.handler = async function (event) {
       try { await crud.logEvent('call_outcome', { job_id: jobId || 0, summary, urgent, warranty, needs_office: needsOffice, source: 'ann_phone', at_ms: Date.now() }); } catch (_) {}
       if (needsOffice && sendSms) {
         const tag = urgent ? '🚨 URGENT' : (warranty ? '📋 WARRANTY' : '📞 FOLLOW-UP');
-        const line = `${tag} call${jobId ? ' · job #' + jobId : ''}: ${summary || 'see call'}`.slice(0, 300);
-        // WHO GETS THE ALERT (Teddy 2026-08-18: "AHS reps should go to Danielle, stop flooding me").
-        // Warranty-rep calls are the OFFICE's desk -> Danielle + Sofia, never the owner.
-        // A non-warranty URGENT (upset customer, safety) is owner-worthy -> also ping Teddy.
-        const targets = [['+16154850713', 'danielle'], ['+16292594602', 'office']]; // Danielle, Sofia
-        if (urgent && !warranty) targets.push(['+16154855795', 'owner']);            // Teddy only for non-warranty urgencies
-        for (const [num, role] of targets) { try { await sendSms(num, line, role, 'call_outcome_alert'); } catch (_) {} }
+        const link = jobId ? ` — open: ${SITE}/job-detail.html?job_id=${jobId}` : '';
+        const line = (`${tag} call${jobId ? ' · job #' + jobId : ''}: ${summary || 'see call'}`).slice(0, 280) + link;
+        // WHO (Teddy 2026-08-18: "delegate to Danielle, stop flooding me"): the office desk =
+        // Danielle + Sofia. The owner is NOT on routine call alerts — warranty OR upset customer.
+        // HOW MANY: one text per call (dedup across log_outcome / message_office / caller-pop).
+        const key = alertKey(jobId, a.phone || a.customer_phone);
+        if (await officeAlertOnce(key)) {
+          for (const [num, role] of [['+16154850713', 'danielle'], ['+16292594602', 'office']]) { try { await sendSms(num, line, role, 'call_outcome_alert'); } catch (_) {} }
+          await markOfficeAlert(key, 'log_outcome');
+        }
       }
       return say('Noted.');
     }
