@@ -14,7 +14,10 @@ const EVENT_LOG = 3;
 const OWNER = '+16154855795';
 
 // Amazon/AWS API-access-related mail in the last 14 days.
-const QUERY = 'newer_than:14d (from:amazon.com OR from:amazonaws.com OR from:amazonsellerservices.com OR from:marketplace.amazonservices.com OR from:business.amazon.com OR from:solutionproviderportal.amazon.com OR "amazon business" OR "aws" OR "solution provider portal") '
+// Exclude our OWN sent mail — the free-text "amazon business" term was matching our own
+// follow-up emails (subject "Amazon Business Ordering API…") and false-alarming Teddy that
+// "an Amazon API email landed" when it was just us nudging them. (Teddy 2026-08-18)
+const QUERY = 'newer_than:14d -in:sent -from:tnappliancerepair@gmail.com -from:tnappliance@gmail.com (from:amazon.com OR from:amazonaws.com OR from:amazonsellerservices.com OR from:marketplace.amazonservices.com OR from:business.amazon.com OR from:solutionproviderportal.amazon.com OR "amazon business" OR "aws" OR "solution provider portal") '
   + '(api OR "ordering api" OR "business api" OR "solution provider" OR "selling partner" OR "api access" OR developer OR credentials OR approved OR onboarding OR application '
   // call-center follow-ups about the request: these phrases are specific enough to
   // not trip on routine order/marketing mail, but catch a reply that omits "API".
