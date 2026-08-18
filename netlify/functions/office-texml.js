@@ -135,44 +135,52 @@ exports.handler = async function (event) {
   // order. Set by the "Warranty Desk" TeXML app whose voice_url carries ?order=warranty.
   const order = String(((event && event.queryStringParameters) || {}).order || '').toLowerCase();
   const warrantyFirst = order === 'warranty' || order === 'danielle';
-  const tiers = warrantyFirst ? [DANIELLE, SOFIA, TEDDY] : [SOFIA, DANIELLE, TEDDY];
+  // WHO RINGS — as PARALLEL GROUPS (Teddy 2026-08-18: "make sure every transfer gets
+  // answered"). Ringing the dispatchers ONE AT A TIME (Danielle ~30s, THEN Sofia ~30s)
+  // burned the transfer's ~90s budget and let calls fall through before a human grabbed
+  // it. Now BOTH dispatchers' cells ring TOGETHER (first to pick up bridges, the other
+  // stops); the owner is a last-resort group that only rings if BOTH dispatchers miss.
+  // Order within a parallel group is cosmetic, so both dispatchers always ring regardless
+  // of the warranty flag. orderQS is still carried so the leg-chain URL stays consistent.
+  const groups = [[DANIELLE, SOFIA], [TEDDY]];
   const orderQS = warrantyFirst ? `order=${order}&` : '';
   // CELLS ONLY (Teddy 2026-08-17): the softphone/app (SIP) legs returned an instant
   // "busy" that both dropped the caller AND made Ann bail after one ring ("looks like
   // they stepped away"). The transfer log proved cells connect and sip legs fail, so
   // the transfer cascade dials CELLS ONLY — the app legs are removed regardless of
   // OFFICE_PHONE_WEBRTC_INBOUND. (webrtcOn/sip kept computed above for any other use.)
-  const legsFor = (t) => { const a = []; if (t.on && t.cell) a.push({ number: t.cell }); return a; };
+  const legsFor = (grp) => grp.filter((t) => t && t.on && t.cell).map((t) => ({ number: t.cell }));
+  // A group's log identity = the reachable members' names + cells (for phone_transfer_outcome).
+  const groupTier = (grp) => { const m = grp.filter((t) => t && t.on && t.cell); return { name: m.map((t) => t.name).join('/'), cell: m.map((t) => t.cell).join(',') }; };
 
-  // Per-tier ring length (seconds). Danielle reported her cell "rang once then went
-  // away" — a 20s timeout is too short once the carrier's call-setup delay (often 5–10s
-  // before the phone audibly rings) is subtracted, so a tier could move on after ~1 ring.
-  // Give each cell a full ~30s ring (≈5 rings) to actually grab it. Vault-tunable via
-  // OFFICE_RING_SECONDS (clamped 15–45) so the cadence can change without a redeploy.
+  // Ring length (seconds) per group. A 20s timeout was too short once the carrier's
+  // call-setup delay (5–10s before the phone audibly rings) is subtracted. Give each ~30s
+  // (≈5 rings). Vault-tunable via OFFICE_RING_SECONDS (clamped 15–45), no redeploy needed.
   let ringSecs = parseInt(ringRaw, 10);
   if (!(ringSecs >= 15 && ringSecs <= 45)) ringSecs = 30;
 
   let leg = parseInt(((event && event.queryStringParameters) || {}).leg, 10);
   if (!(leg >= 1)) leg = 1;
 
-  // A prior tier's ring already reported back. The action was set to ?leg=<i+2> for the
-  // tier at index i, so the tier just rung = tiers[leg-2]. Log whether it answered or was
-  // missed (measurement only — never changes the ring behavior below).
+  // A prior GROUP's ring already reported back. The action was set to ?leg=<i+2> for the
+  // group at index i, so the group just rung = groups[leg-2]. Log answered/missed
+  // (measurement only — never changes the ring behavior below).
   if (leg > 1) {
     const st = dialStatus(event);
     const answered = st === 'completed' || st === 'answered' || st === 'bridged';
-    const rung = tiers[leg - 2];
-    await logTransferOutcome({ tier: rung, answered, status: st, event, leg });
+    const rung = groups[leg - 2];
+    if (rung) await logTransferOutcome({ tier: groupTier(rung), answered, status: st, event, leg });
     if (answered) return xmlResp('  <Hangup/>');
   }
 
-  // Ring the first reachable tier at or after `leg`; chain to the next if it doesn't answer.
-  for (let i = leg - 1; i < tiers.length; i++) {
-    const legs = legsFor(tiers[i]);
+  // Ring the first reachable GROUP at or after `leg` (ALL its cells in parallel); chain to
+  // the next group if nobody in this one answers.
+  for (let i = leg - 1; i < groups.length; i++) {
+    const legs = legsFor(groups[i]);
     if (!legs.length) continue;
-    const moreAhead = tiers.slice(i + 1).some((t) => legsFor(t).length);
+    const moreAhead = groups.slice(i + 1).some((g) => legsFor(g).length);
     const action = moreAhead ? `${SELF}?${orderQS}leg=${i + 2}` : null;
-    // Final reachable tier gets a slightly longer ring (last chance before it falls through).
+    // Final reachable group gets a slightly longer ring (last chance before it falls through).
     return xmlResp(dialLegs(legs, callerId, moreAhead ? ringSecs : Math.min(ringSecs + 5, 45), action));
   }
   return xmlResp('  <Reject/>');
