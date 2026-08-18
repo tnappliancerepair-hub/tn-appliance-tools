@@ -113,10 +113,13 @@ exports.handler = async function (event) {
 
   if (q.dry === '1') return json(200, { ok: true, dry: true, caller: name, job_id: jobId, summary, link, message: msg });
 
+  // EVERY real caller-pop is the office's desk — Danielle + Sofia. The owner is NOT
+  // texted on routine pops: warranty-rep (viaClaim), an Ann "caller wants a person"
+  // hand-off (viaJob), OR a plain incoming ring. (Teddy 2026-08-18: "someone requesting
+  // a person should go to Sofia/Danielle, not me — delegate it.") Test mode still
+  // targets only the owner so a test never buzzes the office.
   const targets = popOnly ? [] : (test ? OFFICE.filter((o) => o.role === 'owner')
-    // Warranty-rep pop (a rep called with a WO/claim) is Danielle + Sofia's job, not the owner's
-    // (Teddy 2026-08-18: "these warranty rep texts should go to Danielle").
-    : (viaClaim ? OFFICE.filter((o) => o.role !== 'owner') : OFFICE));
+    : OFFICE.filter((o) => o.role !== 'owner'));
   const results = [];
   if (sendSms) {
     for (const o of targets) {
