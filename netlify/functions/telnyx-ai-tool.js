@@ -485,7 +485,10 @@ exports.handler = async function (event) {
       const msg = String(a.message || a.note || '').trim().slice(0, 600);
       if (!msg) return say("What should I pass along to the office?", { sent: false });
       const urgent = a.urgent === true || a.urgent === 'true';
-      const includeTeddy = urgent || a.owner === true || a.owner === 'true' || /teddy|owner/i.test(String(a.to || ''));
+      // Teddy 2026-08-18: "urgent" alone (warranty reps mark themselves urgent) must NOT
+      // reach the owner — those are the office's desk. Only an EXPLICIT owner/Teddy target
+      // CCs Teddy; everything else goes to Danielle + Sofia. Urgent still bolds the text.
+      const includeTeddy = a.owner === true || a.owner === 'true' || /teddy|owner/i.test(String(a.to || ''));
       const body = `${urgent ? 'URGENT - ' : ''}From Ann: ${msg} 🐜`;
       const targets = OFFICE.filter((o) => includeTeddy || o.name !== 'Teddy');
       let n = 0; if (sendSms) for (const o of targets) { try { await sendSms(o.to, body, o.name === 'Teddy' ? 'owner' : (o.name === 'Danielle' ? 'danielle' : 'office'), 'ann_office_note'); n++; } catch (_) {} }
@@ -532,8 +535,12 @@ exports.handler = async function (event) {
       if (needsOffice && sendSms) {
         const tag = urgent ? '🚨 URGENT' : (warranty ? '📋 WARRANTY' : '📞 FOLLOW-UP');
         const line = `${tag} call${jobId ? ' · job #' + jobId : ''}: ${summary || 'see call'}`.slice(0, 300);
-        try { await sendSms('+16154855795', line, 'owner', 'call_outcome_alert'); } catch (_) {}      // Teddy
-        try { await sendSms('+16154850713', line, 'danielle', 'call_outcome_alert'); } catch (_) {}    // Danielle
+        // WHO GETS THE ALERT (Teddy 2026-08-18: "AHS reps should go to Danielle, stop flooding me").
+        // Warranty-rep calls are the OFFICE's desk -> Danielle + Sofia, never the owner.
+        // A non-warranty URGENT (upset customer, safety) is owner-worthy -> also ping Teddy.
+        const targets = [['+16154850713', 'danielle'], ['+16292594602', 'office']]; // Danielle, Sofia
+        if (urgent && !warranty) targets.push(['+16154855795', 'owner']);            // Teddy only for non-warranty urgencies
+        for (const [num, role] of targets) { try { await sendSms(num, line, role, 'call_outcome_alert'); } catch (_) {} }
       }
       return say('Noted.');
     }

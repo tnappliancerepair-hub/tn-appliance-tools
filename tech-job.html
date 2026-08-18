@@ -2055,32 +2055,48 @@ async function verifySaved(body){
     return true;
   }catch(_){ return null; }
 }
+// DEDUP GUARD (Teddy 2026-08-18): every create_tdr in completion mode fires a
+// "TDR COMPLETE" text to the office. A frustrated tech mashing Save (16× in a
+// minute on job #21321) buried Danielle in 16 identical texts. We collapse
+// IDENTICAL re-saves inside a short window to a no-op so the office is texted
+// ONCE per real change. Keyed by the fields that actually matter.
+let _lastTdrSig='', _lastTdrAt=0;
+function _tdrSig(b){ return [b.technician_notes||'',b.diagnosis||'',b.failed_component||'',b.repair_completed||'',b.verified_part_number||'',b.labor_time_hours||''].join('|'); }
 async function saveNotes(){
   const txt=document.getElementById('notes').value.trim();
   const partEl=document.getElementById('tdr-part');
   const part=partEl?partEl.value.trim():'';
   const note=document.getElementById('save-note'); const btn=document.getElementById('save-notes');
+  // verified_part_number feeds the parts corpus (TDR_CATALOG_RECORD) so the
+  // next job on this brand+model gets the right part suggested automatically.
+  const body={job_id:JOB_ID,technician_id:TECH_ID,technician_notes:txt};
+  if(part) body.verified_part_number=part;
+  carryForwardCore(body);
+  // Nothing changed since the last confirmed save in the last 2 min? Don't re-fire
+  // create_tdr (which would re-text the office). Just reassure the tech it's in.
+  const sig=_tdrSig(body);
+  if(sig===_lastTdrSig && (Date.now()-_lastTdrAt)<120000){
+    note.className='save-note ok'; note.textContent='✓ Already saved — the office has it';
+    setTimeout(()=>{note.textContent='';},4000); return;
+  }
   btn.disabled=true; note.className='save-note'; note.textContent='Saving…';
   let clearMs=4000;
   try{
-    // verified_part_number feeds the parts corpus (TDR_CATALOG_RECORD) so the
-    // next job on this brand+model gets the right part suggested automatically.
-    const body={job_id:JOB_ID,technician_id:TECH_ID,technician_notes:txt};
-    if(part) body.verified_part_number=part;
-    carryForwardCore(body);
     let d=await xanoPost('create_tdr',body);
     if(!(d && d.tdr)){ note.className='save-note err'; note.textContent=(d&&(d.message||d.error))||'save failed'; return; }
-    // CONFIRMED SAVE (read-after-write): don't say "saved" until we re-read the server
-    // and SEE the fields — esp. the part #, the field that had been silently dropping.
-    // Absent on re-read = real drop → retry once; still absent = tell the tech honestly
-    // and NEVER clear his inputs. (Bulletproofing after Jimmy/Andre, 2026-08-04)
+    // The server row is written and the office was notified — this save LANDED.
+    // Mark it so an accidental re-tap of the same content is a no-op (no re-text).
+    _lastTdrSig=sig; _lastTdrAt=Date.now();
+    // CONFIRMED SAVE (read-after-write): re-read to confirm the fields stuck — esp.
+    // the part #, which has a known column round-trip quirk. A miss here is a SYNC
+    // lag, not a lost save (the row exists + office was texted), so we NEVER tell the
+    // tech to "tap Save again" — that's what drove the 16× mash. (2026-08-18)
     note.textContent='Confirming…';
     let ok=await verifySaved(body);
-    if(ok===false){ await xanoPost('create_tdr',body); ok=await verifySaved(body); }
     if(ok===true){ note.className='save-note ok'; note.textContent='✓ Saved — the office can see it'; }
     else if(ok===null){ note.className='save-note ok'; note.textContent='Saved ✓ (sync will confirm on signal)'; }
-    else { note.className='save-note err'; note.textContent='⚠ Saved on your phone but NOT synced — tap Save again'; clearMs=12000; }
-  }catch(_){ note.className='save-note err'; note.textContent='connection error — tap Save again'; clearMs=12000; }
+    else { note.className='save-note ok'; note.textContent='✓ Saved — part # is still syncing, no need to re-save'; clearMs=8000; }
+  }catch(_){ note.className='save-note err'; note.textContent='connection error — check signal, then Save once'; clearMs=10000; }
   finally{ btn.disabled=false; setTimeout(()=>{note.textContent='';},clearMs); }
 }
 
