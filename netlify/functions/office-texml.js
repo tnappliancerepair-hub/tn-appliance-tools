@@ -135,14 +135,15 @@ exports.handler = async function (event) {
   // order. Set by the "Warranty Desk" TeXML app whose voice_url carries ?order=warranty.
   const order = String(((event && event.queryStringParameters) || {}).order || '').toLowerCase();
   const warrantyFirst = order === 'warranty' || order === 'danielle';
-  // WHO RINGS — as PARALLEL GROUPS (Teddy 2026-08-18: "make sure every transfer gets
-  // answered"). Ringing the dispatchers ONE AT A TIME (Danielle ~30s, THEN Sofia ~30s)
-  // burned the transfer's ~90s budget and let calls fall through before a human grabbed
-  // it. Now BOTH dispatchers' cells ring TOGETHER (first to pick up bridges, the other
-  // stops); the owner is a last-resort group that only rings if BOTH dispatchers miss.
-  // Order within a parallel group is cosmetic, so both dispatchers always ring regardless
-  // of the warranty flag. orderQS is still carried so the leg-chain URL stays consistent.
-  const groups = [[DANIELLE, SOFIA], [TEDDY]];
+  // WHO RINGS — SEQUENTIAL, one at a time (Teddy 2026-08-18, exact spec: "ring Sofia
+  // first unless it's a warranty company; if she doesn't answer send to the other; then
+  // offer to take a message and text it to the office").
+  //   default (homeowner)  -> Sofia, then Danielle
+  //   warranty rep         -> Danielle first (she runs the warranty desk), then Sofia
+  // The owner is NOT in the cascade (delegation — Teddy off the ring). If BOTH dispatchers
+  // miss, the dial ends and Ann resumes to take a message + text the office. Each group
+  // holds ONE person so they ring in turn. orderQS carries the warranty flag through legs.
+  const groups = warrantyFirst ? [[DANIELLE], [SOFIA]] : [[SOFIA], [DANIELLE]];
   const orderQS = warrantyFirst ? `order=${order}&` : '';
   // CELLS ONLY (Teddy 2026-08-17): the softphone/app (SIP) legs returned an instant
   // "busy" that both dropped the caller AND made Ann bail after one ring ("looks like
