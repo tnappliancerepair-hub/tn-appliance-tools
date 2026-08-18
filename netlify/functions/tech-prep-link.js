@@ -56,7 +56,12 @@ async function alreadySent() {
     const rows = (await crud.searchPage(EVENT_LOG, { action: 'tech_prep_link_sent' }, { id: 'desc' }, 500)) || [];
     for (const r of rows) {
       let m = r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } m = m || {};
-      const realSend = !!m.provider_id || m.source === 'intake_area_tech';
+      // Count ANY real (non-baseline) send as done. Requiring provider_id caused
+      // duplicate texts when Telnyx returned OK but the id wasn't captured in the
+      // log row (Teddy 2026-08-18: prep links arriving 2-4x). Baseline markers
+      // (baseline:true = marked-done-sent-nothing) still don't count, so a tech
+      // working the job always gets the link.
+      const realSend = (m.baseline !== true);
       if (m.job_id && m.technician_id && realSend) seen.add(Number(m.job_id) + ':' + Number(m.technician_id));
     }
   } catch (_) {}
