@@ -180,7 +180,13 @@ exports.handler = async function (event) {
     const legs = legsFor(groups[i]);
     if (!legs.length) continue;
     const moreAhead = groups.slice(i + 1).some((g) => legsFor(g).length);
-    const action = moreAhead ? `${SELF}?${orderQS}leg=${i + 2}` : null;
+    // ALWAYS attach an action — even on the FINAL group — so its answer/miss gets logged.
+    // Previously the last tier had action=null, so when the last person answered, no
+    // callback fired and their catch was never recorded (undercounting the log, e.g. Sofia
+    // answering as the last ring showed 0). The action fires when the dial ends (post-bridge
+    // for an answered call); the follow-up leg finds no further group and Rejects a call
+    // that's already over — harmless — after logging the outcome. (Teddy 2026-08-18)
+    const action = `${SELF}?${orderQS}leg=${i + 2}`;
     // Final reachable group gets a slightly longer ring (last chance before it falls through).
     return xmlResp(dialLegs(legs, callerId, moreAhead ? ringSecs : Math.min(ringSecs + 5, 45), action));
   }
