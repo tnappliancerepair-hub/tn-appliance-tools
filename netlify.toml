@@ -909,6 +909,13 @@
 [functions."seo-scorecard-cron"]
   schedule = "12 14 * * *"
 
+# new-job-shop-email-cron — emails the shop the moment a new in-house (cash/self-pay)
+# job comes in (Danielle's request 2026-08-18: "so she doesn't miss it"). Every 10 min;
+# the core dedups one email per job and flags jobs with no street address. Dormant on
+# real SEND until the shop Gmail is re-authed with the send scope (retry-safe until then).
+[functions."new-job-shop-email-cron"]
+  schedule = "*/10 * * * *"
+
 # knowledge-scorecard-cron — fires the daily scoreboard for THE goal: be the most
 # advanced troubleshooting brain in appliance repair. ~7:10PM CT it invokes the
 # HTTP-callable knowledge-scorecard core with text=1, so the core measures the
