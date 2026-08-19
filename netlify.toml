@@ -658,6 +658,15 @@
   # email with a days-long wait, so 8h detection lag is fine and cuts ~63 runs/day.
   schedule = "0 13,18,23 * * *"
 
+# tesla-watch-cron — durable, infra-owned watch for Teddy's two Tesla triggers: (1) Tesla
+# opens CONSUMER Cybercab ordering to the public, (2) paid robotaxi network goes live in
+# Nashville. Twice a week it fires the HTTP-callable tesla-watch core (Google News RSS,
+# strong-keyword-gated, first-run silently baselines, texts Teddy only on a NEW headline).
+# Replaces the session-only 7-day cron so the watch actually lasts the rest of the year.
+# Kill: vault TESLA_WATCH=off.  Schedule-registered fns edge-403 on RSS, hence core+wrapper.
+[functions."tesla-watch-cron"]
+  schedule = "17 14 * * 1,4"
+
 # "Money in" backstop — texts Teddy a distinct 💰 CASH IN alert the moment a genuine cash
 # Quick Check is paid, catching the case where the instant siren was skipped (customer
 # closed the Stripe tab → webhook-only). Filters out $1 tests + owner test payments +
