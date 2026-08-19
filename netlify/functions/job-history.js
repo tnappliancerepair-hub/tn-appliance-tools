@@ -42,12 +42,27 @@ exports.handler = async function (event) {
 
   let cur = null;
   try { cur = await crud.searchOne(JOBS, { id: jobId }); } catch (_) {}
-  if (!cur || !cur.customer_id) return j(200, { ok: true, job_id: jobId, prior: [] });
+  if (!cur) return j(200, { ok: true, job_id: jobId, prior: [] });
   const appl = applOf(cur);
 
-  // All of this customer's jobs (single-field search — metadata API can't AND fields).
+  // Gather this customer's prior jobs. A warranty re-dispatch is a NEW job record AND
+  // often a NEW customer record too — SquareTrade re-intakes a fresh customer_id per work
+  // order — so matching by customer_id ALONE misses the exact return trips Jimmy needs to
+  // see (the reason his last-visit notes "disappear"). Also match by the denormed phone
+  // and the service address (single-field searches merged, since the metadata API can't
+  // AND fields) so ANY repeat visit to the same person or place surfaces — regardless of a
+  // new work order or a new customer record. Tickets stay separate (billing unaffected);
+  // this only READS the siblings. (Teddy 2026-08-18, from Jimmy.)
+  const searches = [];
+  if (cur.customer_id) searches.push(crud.searchPage(JOBS, { customer_id: cur.customer_id }, { id: 'desc' }, 100));
+  if (cur.customer_phone) searches.push(crud.searchPage(JOBS, { customer_phone: cur.customer_phone }, { id: 'desc' }, 60));
+  if (cur.service_address) searches.push(crud.searchPage(JOBS, { service_address: cur.service_address }, { id: 'desc' }, 60));
   let rows = [];
-  try { rows = (await crud.searchPage(JOBS, { customer_id: cur.customer_id }, { id: 'desc' }, 100)) || []; } catch (_) {}
+  try {
+    const sets = await Promise.all(searches.map((p) => Promise.resolve(p).catch(() => [])));
+    const seen = new Set();
+    for (const set of sets) for (const r of (set || [])) { const id = Number(r.id); if (id && !seen.has(id)) { seen.add(id); rows.push(r); } }
+  } catch (_) {}
   rows = rows.filter((r) => Number(r.id) !== jobId && !/^cancel/i.test(String(r.scheduling_status || '')));
   // Same appliance first, then newest.
   rows.sort((a, b) => { const aa = applOf(a) === appl ? 0 : 1, bb = applOf(b) === appl ? 0 : 1; return aa !== bb ? aa - bb : Number(b.id) - Number(a.id); });
