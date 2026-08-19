@@ -1,5 +1,12 @@
 // office-texml — TeXML that rings the office when a caller is transferred to a human.
 //
+// OVERLAP RING (Teddy 2026-08-19): the primary dispatcher gets a short solo head-start
+// (Sofia for homeowners, Danielle for warranty reps), then BOTH dispatchers ring together
+// for the rest — whoever's free grabs it, so one person's miss no longer burns the call.
+// If both miss, Ann takes a message + texts the office. Caller ID is a consistent branded
+// shop DID (register CNAM "TN APPLIANCE" on it) so the phones show a NAME, not "unknown",
+// and screening is far less likely to silence the transfer. The owner is NOT in the ring.
+//
 // PRIORITY (Teddy 2026-08-03): ring the DISPATCHERS (Danielle + Sofia) first, then
 // fall back to TEDDY. Two ways to be reached, independent:
 //   • CELL   — gated by OFFICE_REACH_<NAME> ("off" = don't ring my cell).
@@ -121,13 +128,13 @@ exports.handler = async function (event) {
     cellSofia, reachSofia, sipSofiaU,
     cellDanielle, reachDanielle, sipDanielleU,
     cellTeddy, reachTeddy, sipTeddyU, sipTeddyLegacyU,
-    ringRaw, confirmRaw,
+    ringRaw, soloRaw, confirmRaw,
   ] = await Promise.all([
     g('TELNYX_OFFICE_CALLER_NUMBER'), gf('OFFICE_PHONE_WEBRTC_INBOUND'),
     g('OFFICE_CELL_SOFIA'), gf('OFFICE_REACH_SOFIA'), g('TELNYX_SIP_USERNAME_SOFIA'),
     g('OFFICE_CELL_DANIELLE'), gf('OFFICE_REACH_DANIELLE'), g('TELNYX_SIP_USERNAME_DANIELLE'),
     g('OFFICE_CELL_TEDDY'), gf('OFFICE_REACH_TEDDY'), g('TELNYX_SIP_USERNAME_TEDDY'), g('TELNYX_SIP_USERNAME'),
-    g('OFFICE_RING_SECONDS'), gf('TRANSFER_CONFIRM'),
+    g('OFFICE_RING_SECONDS'), g('OFFICE_FIRST_SOLO_SECONDS'), gf('TRANSFER_CONFIRM'),
   ]);
 
   // "Press 1 to accept" is ON by default. Flip TRANSFER_CONFIRM=off in the vault to
@@ -173,15 +180,16 @@ exports.handler = async function (event) {
   // order. Set by the "Warranty Desk" TeXML app whose voice_url carries ?order=warranty.
   const order = String(((event && event.queryStringParameters) || {}).order || '').toLowerCase();
   const warrantyFirst = order === 'warranty' || order === 'danielle';
-  // WHO RINGS — SEQUENTIAL, one at a time (Teddy 2026-08-18, exact spec: "ring Sofia
-  // first unless it's a warranty company; if she doesn't answer send to the other; then
-  // offer to take a message and text it to the office").
-  //   default (homeowner)  -> Sofia, then Danielle
-  //   warranty rep         -> Danielle first (she runs the warranty desk), then Sofia
-  // The owner is NOT in the cascade (delegation — Teddy off the ring). If BOTH dispatchers
-  // miss, the dial ends and Ann resumes to take a message + text the office. Each group
-  // holds ONE person so they ring in turn. orderQS carries the warranty flag through legs.
-  const groups = warrantyFirst ? [[DANIELLE], [SOFIA]] : [[SOFIA], [DANIELLE]];
+  // WHO RINGS — OVERLAP (Teddy 2026-08-19): a miss on the primary no longer burns the
+  // whole call. STAGE 1 = the PRIMARY alone, a short head-start that preserves the
+  // priority order (Sofia first for homeowners, Danielle first for warranty reps). STAGE 2
+  // = BOTH dispatchers ring TOGETHER for the rest, so whoever is free grabs it — the big
+  // lever on the human catch-rate. If both miss, the dial ends and Ann takes a message +
+  // texts the office. The owner is NOT in the cascade (delegation — Teddy off the ring).
+  //   default (homeowner) -> Sofia solo, then Sofia+Danielle
+  //   warranty rep        -> Danielle solo, then Danielle+Sofia
+  const primary = warrantyFirst ? DANIELLE : SOFIA;
+  const secondary = warrantyFirst ? SOFIA : DANIELLE;
   const orderQS = warrantyFirst ? `order=${order}&` : '';
   // CELLS ONLY (Teddy 2026-08-17): the softphone/app (SIP) legs returned an instant
   // "busy" that both dropped the caller AND made Ann bail after one ring ("looks like
@@ -192,48 +200,56 @@ exports.handler = async function (event) {
   // A group's log identity = the reachable members' names + cells (for phone_transfer_outcome).
   const groupTier = (grp) => { const m = grp.filter((t) => t && t.on && t.cell); return { name: m.map((t) => t.name).join('/'), cell: m.map((t) => t.cell).join(',') }; };
 
-  // Ring length (seconds) per group. A 20s timeout was too short once the carrier's
-  // call-setup delay (5–10s before the phone audibly rings) is subtracted. Give each ~30s
-  // (≈5 rings). Vault-tunable via OFFICE_RING_SECONDS (clamped 15–45), no redeploy needed.
+  // Ring lengths. STAGE 2 (both together) uses OFFICE_RING_SECONDS (~30s ≈ 5 rings;
+  // carrier call-setup burns 5–10s before the phone audibly rings). STAGE 1 (primary
+  // solo head-start) is deliberately short so the second phone joins quickly on a miss —
+  // OFFICE_FIRST_SOLO_SECONDS, clamped 8–20, default 13 (a couple real rings). Both
+  // vault-tunable, no redeploy.
   let ringSecs = parseInt(ringRaw, 10);
   if (!(ringSecs >= 15 && ringSecs <= 45)) ringSecs = 30;
+  let soloSecs = parseInt(soloRaw, 10);
+  if (!(soloSecs >= 8 && soloSecs <= 20)) soloSecs = 13;
+
+  // STAGES: primary alone (short) -> both together (full). groupTier logs who's ringing.
+  const stages = [
+    { tiers: [primary], secs: soloSecs },
+    { tiers: [primary, secondary], secs: ringSecs },
+  ];
 
   let leg = parseInt(qs.leg, 10);
   if (!(leg >= 1)) leg = 1;
 
-  // A prior GROUP's ring already reported back. The action was set to ?leg=<i+2> for the
-  // group at index i, so the group just rung = groups[leg-2]. Log answered/missed
+  // A prior STAGE's ring already reported back. The action was set to ?leg=<i+2> for the
+  // stage at index i, so the stage just rung = stages[leg-2]. Log answered/missed
   // (measurement only — never changes the ring behavior below).
   if (leg > 1) {
     const st = dialStatus(event);
     // With press-1 confirm on (cfm=1), a screener/voicemail that auto-answers reports
     // "completed"/"answered" but NEVER bridges (DialCallDuration 0). Count only a truly
     // BRIDGED call (dur > 0) as answered, so an auto-answer falls through to the next
-    // person instead of stranding the caller. Without confirm, status alone (unchanged).
+    // stage instead of stranding the caller. Without confirm, status alone (unchanged).
     const cfm = String(qs.cfm || '') === '1';
     const dur = parseInt(formField(event, 'DialCallDuration'), 10) || 0;
     const statusOK = st === 'completed' || st === 'answered' || st === 'bridged';
     const answered = cfm ? (statusOK && dur > 0) : statusOK;
-    const rung = groups[leg - 2];
-    if (rung) await logTransferOutcome({ tier: groupTier(rung), answered, status: st, event, leg });
+    const rung = stages[leg - 2];
+    // Stage 2 rings both, so the log identity is the pair ("Sofia/Danielle") — the aggregate
+    // answered/missed stays exact; per-person attribution is only crisp on the solo stage.
+    if (rung) await logTransferOutcome({ tier: groupTier(rung.tiers), answered, status: st, event, leg });
     if (answered) return xmlResp('  <Hangup/>');
   }
 
-  // Ring the first reachable GROUP at or after `leg` (ALL its cells in parallel); chain to
-  // the next group if nobody in this one answers.
-  for (let i = leg - 1; i < groups.length; i++) {
-    const legs = legsFor(groups[i]);
+  // Ring the first reachable STAGE at or after `leg` (all its cells in parallel); chain to
+  // the next stage if nobody in this one answers.
+  for (let i = leg - 1; i < stages.length; i++) {
+    const legs = legsFor(stages[i].tiers);
     if (!legs.length) continue;
-    const moreAhead = groups.slice(i + 1).some((g) => legsFor(g).length);
-    // ALWAYS attach an action — even on the FINAL group — so its answer/miss gets logged.
-    // Previously the last tier had action=null, so when the last person answered, no
-    // callback fired and their catch was never recorded (undercounting the log, e.g. Sofia
-    // answering as the last ring showed 0). The action fires when the dial ends (post-bridge
-    // for an answered call); the follow-up leg finds no further group and Rejects a call
-    // that's already over — harmless — after logging the outcome. (Teddy 2026-08-18)
+    // ALWAYS attach an action — even on the FINAL stage — so its answer/miss gets logged.
+    // The action fires when the dial ends (post-bridge for an answered call); the follow-up
+    // leg finds no further stage and Rejects a call that's already over — harmless — after
+    // logging the outcome.
     const action = `${SELF}?${orderQS}${confirmOn ? 'cfm=1&' : ''}leg=${i + 2}`;
-    // Final reachable group gets a slightly longer ring (last chance before it falls through).
-    return xmlResp(dialLegs(legs, callerId, moreAhead ? ringSecs : Math.min(ringSecs + 5, 45), action, whisperUrl));
+    return xmlResp(dialLegs(legs, callerId, stages[i].secs, action, whisperUrl));
   }
   return xmlResp('  <Reject/>');
 };
