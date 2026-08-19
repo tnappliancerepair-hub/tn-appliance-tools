@@ -916,6 +916,13 @@
 [functions."new-job-shop-email-cron"]
   schedule = "*/10 * * * *"
 
+# amazon-autoplace-cron — fires the Amazon drop-ship auto-placer every 15 min. The core
+# (amazon-autoplace) watches paid, ship-to-customer, Amazon parts orders with an ASIN and
+# auto-ships them — SHADOW until AMAZON_AUTOPLACE_LIVE=true AND the connector is in
+# production. Schedule-registered fns edge-403 on direct HTTP, hence the core+wrapper split.
+[functions."amazon-autoplace-cron"]
+  schedule = "*/15 * * * *"
+
 # knowledge-scorecard-cron — fires the daily scoreboard for THE goal: be the most
 # advanced troubleshooting brain in appliance repair. ~7:10PM CT it invokes the
 # HTTP-callable knowledge-scorecard core with text=1, so the core measures the
