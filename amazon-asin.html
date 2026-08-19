@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Amazon ASIN worklist — TN Appliance</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0b0b0c;color:#ececec;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5;padding:18px;max-width:680px;margin:0 auto}
+h1{font-size:20px;margin-bottom:4px}
+.sub{color:#a0a0a6;font-size:14px;margin-bottom:18px}
+.card{background:#141416;border:1px solid #26262a;border-radius:12px;padding:14px 16px;margin:12px 0}
+.part{font-size:17px;font-weight:700;letter-spacing:.02em}
+.meta{color:#a0a0a6;font-size:13px;margin:2px 0 12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+a.find{background:#ff6200;color:#0b0b0c;text-decoration:none;font-weight:700;border-radius:9px;padding:11px 14px;font-size:14px;white-space:nowrap}
+input{flex:1 1 160px;min-width:140px;background:#0e0e10;border:1px solid #3a3a40;border-radius:9px;color:#ececec;padding:11px 12px;font-size:16px;text-transform:uppercase}
+button.save{background:#39ff14;color:#0b0b0c;border:0;font-weight:700;border-radius:9px;padding:11px 16px;font-size:14px;cursor:pointer}
+.ok{color:#39ff14;font-weight:700}
+.err{color:#ff6b6b;font-size:13px;margin-top:6px}
+.empty{color:#a0a0a6;text-align:center;padding:40px 0}
+.hint{color:#a0a0a6;font-size:12.5px;margin-top:6px}
+</style>
+</head>
+<body>
+  <h1>🛒 Amazon ASIN worklist</h1>
+  <div class="sub">Paid Amazon drop-ship parts waiting on an ASIN. Tap <b>Find on Amazon</b>, open the exact replacement part, copy the <b>ASIN</b> from the URL (the <code>/dp/<b>B0…</b></code> code), paste it here, Save. The auto-placer ships it from there.</div>
+  <div id="list"><div class="empty">Loading…</div></div>
+
+<script>
+const FN='/.netlify/functions/amazon-asin-resolve';
+let SECRET=localStorage.getItem('tn_admin_secret')||'';
+function ask(){ SECRET=prompt('Admin password:')||''; if(SECRET) localStorage.setItem('tn_admin_secret',SECRET); }
+if(!SECRET) ask();
+
+async function load(){
+  const el=document.getElementById('list');
+  el.innerHTML='<div class="empty">Loading…</div>';
+  let d;
+  try{ d=await fetch(`${FN}?secret=${encodeURIComponent(SECRET)}&list=1`).then(r=>r.json()); }
+  catch(e){ el.innerHTML='<div class="err">Network error — try again.</div>'; return; }
+  if(d && d.error && /unauthorized/i.test(d.error)){ localStorage.removeItem('tn_admin_secret'); ask(); return load(); }
+  const orders=(d&&d.orders)||[];
+  if(!orders.length){ el.innerHTML='<div class="empty">✅ Nothing waiting — every Amazon order has its ASIN.</div>'; return; }
+  el.innerHTML='';
+  for(const o of orders){
+    const c=document.createElement('div'); c.className='card';
+    c.innerHTML=`<div class="part">${o.part||'(no part #)'}</div>
+      <div class="meta">Order #${o.order_id} · Job #${o.job_id||'—'} · qty ${o.quantity}</div>
+      <div class="row">
+        ${o.search_url?`<a class="find" href="${o.search_url}" target="_blank" rel="noopener">🔍 Find on Amazon</a>`:''}
+        <input placeholder="ASIN (B0…)" maxlength="10" id="a${o.order_id}">
+        <button class="save" id="b${o.order_id}">Save</button>
+      </div>
+      <div class="err" id="e${o.order_id}"></div>`;
+    el.appendChild(c);
+    c.querySelector('#b'+o.order_id).onclick=()=>save(o.order_id,c);
+  }
+}
+async function save(id,card){
+  const asin=(document.getElementById('a'+id).value||'').trim().toUpperCase();
+  const err=document.getElementById('e'+id);
+  if(!/^[A-Z0-9]{10}$/.test(asin)){ err.textContent='ASIN is 10 letters/digits (e.g. B0XXXXXXXX).'; return; }
+  err.textContent='';
+  let d;
+  try{ d=await fetch(FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:SECRET,order_id:id,asin})}).then(r=>r.json()); }
+  catch(e){ err.textContent='Network error.'; return; }
+  if(d&&d.ok){ card.innerHTML='<div class="part">'+asin+' <span class="ok">✓ saved</span></div><div class="hint">Auto-placer will ship this on its next run.</div>'; }
+  else { err.textContent=(d&&d.error)||'Save failed.'; }
+}
+load();
+</script>
+</body>
+</html>
