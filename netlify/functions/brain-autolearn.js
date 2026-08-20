@@ -21,6 +21,14 @@ function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try {
 async function jfetch(url, opts) { try { const r = await fetch(url, { ...opts, signal: AbortSignal.timeout(6000) }); return await r.json(); } catch (_) { return null; } }
 const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const low = (s) => String(s || '').toLowerCase().trim();
+// Recompute a gap's key EXACTLY like knowledge-gap.js keyOf() — the brain logs gaps
+// in-process without a stored key, so the ledger derives it at read time and so must we.
+function keyOf(m) {
+  const b = low(m.brand) || '?', a = low(m.appliance) || '?';
+  if (m.code) return `code|${b}|${a}|${low(m.code).replace(/[\s\-_.]/g, '')}`;
+  if (m.model) return `model|${b}|${a}|${low(m.model)}`;
+  return `sym|${b}|${a}|${low(m.symptom).slice(0, 40)}`;
+}
 // platform-family match: exact, or the shorter is a prefix of the longer (WTW5000DW ↔ WTW5000DW1).
 function familyMatch(a, b) { a = norm(a); b = norm(b); if (!a || !b) return false; if (a === b) return true; const [s, l] = a.length <= b.length ? [a, b] : [b, a]; return s.length >= 6 && l.startsWith(s); }
 
@@ -46,7 +54,7 @@ exports.handler = async function (event) {
   // OPEN gaps = latest knowledge_gap per key with no newer fill.
   const filled = new Set((fillRows || []).map((r) => String(metaOf(r).key || '')).filter(Boolean));
   const openByKey = new Map();
-  for (const r of gapRows || []) { const m = metaOf(r); const k = m.key; if (!k || filled.has(k) || openByKey.has(k)) continue; openByKey.set(k, m); }
+  for (const r of gapRows || []) { const m = metaOf(r); const k = keyOf(m); if (!k || k.endsWith('|?|?|') || filled.has(k) || openByKey.has(k)) continue; m.__key = k; openByKey.set(k, m); }
   const openGaps = [...openByKey.values()];
 
   const capturedJobs = new Set((capRows || []).map((r) => Number(metaOf(r).job_id)).filter(Boolean));
@@ -87,7 +95,7 @@ exports.handler = async function (event) {
       let hit = false;
       if (g.code) { const code = norm(g.code); if (code && dtext.includes(code) && applOk) hit = true; }
       else if (g.model && model) { if (familyMatch(g.model, model) && applOk) hit = true; }
-      if (hit) { g.__done = true; gapsFilled.push({ key: g.key, by_job: jid }); if (!dry) { try { await crud.logEvent('knowledge_gap_filled', { key: g.key, by: 'autolearn', source_job: jid, at_ms: Date.now() }); } catch (_) {} } }
+      if (hit) { g.__done = true; gapsFilled.push({ key: g.__key, by_job: jid }); if (!dry) { try { await crud.logEvent('knowledge_gap_filled', { key: g.__key, by: 'autolearn', source_job: jid, at_ms: Date.now() }); } catch (_) {} } }
     }
   }
 
