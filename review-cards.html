@@ -152,7 +152,7 @@ function draw(){
   ctx.fillStyle='#f2efe6'; ctx.font='800 40px Arial,"Helvetica Neue",sans-serif'; ctx.fillText('🐜  TN APPLIANCE EXCHANGE', cx, fY);
   ctx.fillStyle='#98a1ad'; ctx.font='600 22px Arial,sans-serif'; ctx.fillText('APPLIANCE REPAIR  ·  FAMILY-OWNED SINCE 2012', cx, fY+34);
   ctx.fillStyle='#e7c255'; ctx.font='700 24px Arial,sans-serif'; ctx.fillText('★ '+(STATS.average||4.5)+'  ·  '+fmtNum(STATS.total)+' Google reviews', cx, fY+72);
-  ctx.fillStyle='#c9cdd4'; ctx.font='700 26px Arial,sans-serif'; ctx.fillText('📞 615-280-2949   ·   tnapplianceexchange.net', cx, fY+110);
+  ctx.fillStyle='#c9cdd4'; ctx.font='700 26px Arial,sans-serif'; ctx.fillText('📞 629-272-1234   ·   tnapplianceexchange.net', cx, fY+110);
 
   document.getElementById('cap').textContent = caption(r);
 }
@@ -163,7 +163,7 @@ function caption(r){
   const q = r.text.length>210 ? r.text.slice(0,207).trim()+'…' : r.text;
   return '⭐️⭐️⭐️⭐️⭐️ "'+q+'"\n— '+(r.author||'A Google customer')+', verified Google review\n\n'
     + 'Thank you, '+first+'! This is exactly why we do it. 🐜 Real techs, honest fixes — TN Appliance Exchange, family-owned since 2012.\n\n'
-    + '📞 615-280-2949  ·  tnapplianceexchange.net\n\n'
+    + '📞 629-272-1234  ·  tnapplianceexchange.net\n\n'
     + '#appliancerepair #appliancerepairnashville #nashville #murfreesboro #antioch #tnappliance #washerrepair #dryerrepair #refrigeratorrepair #familyowned #5starservice';
 }
 

@@ -136,7 +136,7 @@
   </div>
 
   <div class="allset" id="allset" data-i18n="allset">✅ Got your video, model &amp; days! Last thing — tap <b>“Review &amp; sign your waiver”</b> above and you’re all done. Thank you!</div>
-  <div class="footer">TN Appliance Exchange · <a href="tel:+16152802949">615-280-2949</a></div>
+  <div class="footer">TN Appliance Exchange · <a href="tel:+16292721234">629-272-1234</a></div>
 
 <script src="/ant-video-upload.js"></script>
 <script src="/ant-addons.js"></script>
@@ -184,7 +184,7 @@ if(DICT){ document.documentElement.lang=LANG; document.querySelectorAll('[data-i
 
 if(!jobId){
   document.getElementById('head').textContent='Hmm —';
-  document.getElementById('sub').textContent='That link looks off. Text us at 615-280-2949 and we\'ll get you sorted right away.';
+  document.getElementById('sub').textContent='That link looks off. Text us at 629-272-1234 and we\'ll get you sorted right away.';
   document.getElementById('steps').classList.add('hidden');
 }
 
@@ -264,7 +264,7 @@ async function uploadMedia(file, fileType, onStatus, targetJobId){
   }
   if(onStatus)onStatus('failed',maxTries,0); return {ok:false,error:lastErr};
 }
-function statusFn(bar,txt,stepEl,kind){ return function(phase,a,pct){ if(phase==='preparing'){txt.textContent='Preparing…';bar.style.width='4%';} else if(phase==='uploading'){const p=Math.max(4,Math.round((pct||0)*100));bar.style.width=p+'%';txt.textContent='Uploading… '+p+'%';} else if(phase==='retry'){txt.textContent='Weak signal — still trying…';} else if(phase==='done'){bar.style.width='100%';txt.textContent='✓ Got it!';if(stepEl)stepEl.classList.add('done');state[kind]=true;maybeAllSet();} else if(phase==='failed'){bar.style.width='100%';bar.classList.add('warn');txt.textContent='Couldn\'t finish — try again, or text 615-280-2949.';} }; }
+function statusFn(bar,txt,stepEl,kind){ return function(phase,a,pct){ if(phase==='preparing'){txt.textContent='Preparing…';bar.style.width='4%';} else if(phase==='uploading'){const p=Math.max(4,Math.round((pct||0)*100));bar.style.width=p+'%';txt.textContent='Uploading… '+p+'%';} else if(phase==='retry'){txt.textContent='Weak signal — still trying…';} else if(phase==='done'){bar.style.width='100%';txt.textContent='✓ Got it!';if(stepEl)stepEl.classList.add('done');state[kind]=true;maybeAllSet();} else if(phase==='failed'){bar.style.width='100%';bar.classList.add('warn');txt.textContent='Couldn\'t finish — try again, or text 629-272-1234.';} }; }
 function wire(fileId, btnId, progId, barId, statId, kind, label, stepId){
   const fi=document.getElementById(fileId);
   fi.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return;
