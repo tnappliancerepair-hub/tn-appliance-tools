@@ -508,6 +508,101 @@ exports.handler = async function (event) {
       return json(200, { ok: true, profiles, numbers: out });
     }
 
+    if (action === 'routes') {
+      // Read-only: does every inbound number REACH ANN (the Telnyx AI assistant)?
+      // Each number's VOICE connection_id decides who answers. Ann's numbers are
+      // assigned to the AI assistant; office/transfer numbers point at the TeXML
+      // ring group. This lists every number, resolves its voice connection name +
+      // type, and flags which reach Ann vs. which land somewhere else.
+      // (Teddy 2026-08-20: "do all of these phone numbers reach our ai Ann".)
+
+      // 1) every owned number, paginated (phone_number + voice connection_id + type)
+      let page = 1, nums = [];
+      for (let i = 0; i < 8; i++) {
+        const r = await fetch(`${TELNYX}/phone_numbers?page[size]=250&page[number]=${page}`, { headers: H, signal: AbortSignal.timeout(12000) });
+        const d = await r.json().catch(() => ({}));
+        const rows = Array.isArray(d && d.data) ? d.data : [];
+        nums = nums.concat(rows);
+        const meta = d && d.meta;
+        if (!rows.length || (meta && meta.total_pages && page >= meta.total_pages)) break;
+        page++;
+      }
+
+      // 2) the AI assistants + each one's assigned phone numbers (this is how a
+      // number "reaches Ann"). Try the assignment sub-resource, fall back to the
+      // assistant object's telephony block.
+      let assistants = [];
+      try {
+        const ar = await fetch(`${TELNYX}/ai/assistants?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
+        const ad = await ar.json().catch(() => ({}));
+        assistants = Array.isArray(ad && ad.data) ? ad.data : [];
+      } catch (_) {}
+      const assistantNums = {};   // E.164 -> assistant name
+      for (const a of assistants) {
+        const aid = a.id || a.assistant_id;
+        const aname = a.name || a.friendly_name || aid;
+        let assigned = [];
+        for (const path of [`/ai/assistants/${aid}/phone_numbers`, `/ai/assistants/${aid}/phone-numbers`]) {
+          try {
+            const pr = await fetch(`${TELNYX}${path}`, { headers: H, signal: AbortSignal.timeout(10000) });
+            if (pr.ok) { const pd = await pr.json().catch(() => ({})); const arr = Array.isArray(pd && pd.data) ? pd.data : []; if (arr.length) { assigned = arr; break; } }
+          } catch (_) {}
+        }
+        for (const p of assigned) { const e = p.phone_number || p.number || p.id; if (e) assistantNums[e] = aname; }
+      }
+
+      // 3) resolve each distinct voice connection_id -> {type, name} once (cached)
+      const connCache = {};
+      async function resolveConn(cid) {
+        if (!cid) return { type: null, name: '(no voice connection)' };
+        if (connCache[cid]) return connCache[cid];
+        let out = { type: 'unknown', name: cid };
+        for (const path of ['texml_applications', 'call_control_applications', 'credential_connections', 'ip_connections', 'fqdn_connections']) {
+          try {
+            const cr = await fetch(`${TELNYX}/${path}/${cid}`, { headers: H, signal: AbortSignal.timeout(8000) });
+            if (cr.ok) { const cd = await cr.json().catch(() => ({})); const dd = (cd && cd.data) || {}; out = { type: path, name: dd.friendly_name || dd.connection_name || dd.name || cid, voice_url: dd.voice_url || null }; break; }
+          } catch (_) {}
+        }
+        connCache[cid] = out;
+        return out;
+      }
+
+      // 4) build a verdict per number
+      const rows = [];
+      let reachAnn = 0, ring = 0, other = 0, noVoice = 0;
+      for (const n of nums) {
+        const e164 = n.phone_number;
+        const cid = n.connection_id || null;
+        const conn = await resolveConn(cid);
+        const viaAssistant = !!assistantNums[e164];
+        // Ann is reached either by direct AI-assistant assignment OR by a voice
+        // connection whose name/url mentions the assistant.
+        const connSaysAnn = /\bann\b|assistant|voice[-_ ]?ai|ai[-_ ]?agent/i.test(`${conn.name} ${conn.voice_url || ''}`);
+        const isRing = /ring|office|texml|transfer/i.test(`${conn.name} ${conn.voice_url || ''}`) || conn.type === 'texml_applications';
+        let verdict;
+        if (viaAssistant || connSaysAnn) { verdict = 'reaches Ann'; reachAnn++; }
+        else if (!cid) { verdict = 'NO voice connection — inbound calls go nowhere'; noVoice++; }
+        else if (isRing) { verdict = 'office ring group (transfer target, not a public line)'; ring++; }
+        else { verdict = 'other connection — verify it reaches Ann'; other++; }
+        rows.push({
+          number: e164, type: n.phone_number_type || n.number_type, status: n.status,
+          voice_connection: conn.name, connection_type: conn.type,
+          assigned_to_assistant: viaAssistant ? assistantNums[e164] : null,
+          verdict,
+        });
+      }
+      rows.sort((a, b) => String(a.verdict).localeCompare(String(b.verdict)) || String(a.number).localeCompare(String(b.number)));
+
+      return json(200, {
+        ok: true,
+        assistants: assistants.map((a) => ({ id: a.id || a.assistant_id, name: a.name || a.friendly_name })),
+        assistant_assigned_numbers: assistantNums,
+        summary: { total: nums.length, reaches_ann: reachAnn, office_ring_group: ring, no_voice_connection: noVoice, other: other },
+        numbers: rows,
+        note: 'A number "reaches Ann" when it is assigned to the AI assistant OR its voice connection is Ann. Office-ring numbers are transfer targets, not public lines. Anything under "other" or "no voice" should be verified before it is advertised to customers.',
+      });
+    }
+
     if (action === 'setsms') {
       // WRITE: route customer numbers -> customer-sms-inbound and tech numbers ->
       // tech-sms-inbound. Creates a dedicated customer messaging profile if one
