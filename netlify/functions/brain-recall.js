@@ -40,10 +40,12 @@ exports.handler = async function (event) {
   let rows = [];
   try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'knowledge_captured' }, { id: 'desc' }, 500); } catch (e) { return json(200, { ok: false, error: 'read failed' }); }
 
-  // Aggregate: for every captured job on this model-family (and matching normalized symptom
-  // when we have one), tally each part's solved vs did-not-solve.
-  const tally = new Map();     // partNorm -> { part, solved, did_not }
-  let sample = 0;
+  // Aggregate every captured job on this model-family (matching normalized symptom when we
+  // have one): tally each PART's solved vs did-not-solve, and each COMPONENT's solved count
+  // (many TDRs record the component — "compressor" — without the part number).
+  const parts = new Map();       // partNorm -> { part, solved, did_not }
+  const comps = new Map();       // compKey  -> { component, solved }
+  let sample = 0, with_part = 0;
   const wantSymptom = canon && canon !== 'unknown';
   for (const r of rows) {
     const m = metaOf(r);
@@ -52,19 +54,24 @@ exports.handler = async function (event) {
     sample++;
     const solved = Array.isArray(m.solved_parts) ? m.solved_parts : (m.solved_part ? [m.solved_part] : []);
     const didnot = Array.isArray(m.did_not_solve_parts) ? m.did_not_solve_parts : [];
-    for (const p of solved) { const k = norm(p); if (!k) continue; const e = tally.get(k) || { part: p, solved: 0, did_not: 0 }; e.solved++; e.part = e.part || p; tally.set(k, e); }
-    for (const p of didnot) { const k = norm(p); if (!k) continue; const e = tally.get(k) || { part: p, solved: 0, did_not: 0 }; e.did_not++; e.part = e.part || p; tally.set(k, e); }
+    if (solved.length) with_part++;
+    for (const p of solved) { const k = norm(p); if (!k) continue; const e = parts.get(k) || { part: p, solved: 0, did_not: 0 }; e.solved++; parts.set(k, e); }
+    for (const p of didnot) { const k = norm(p); if (!k) continue; const e = parts.get(k) || { part: p, solved: 0, did_not: 0 }; e.did_not++; parts.set(k, e); }
+    const c = String(m.component || '').trim();
+    if (c) { const ck = c.toLowerCase(); const e = comps.get(ck) || { component: c, solved: 0 }; e.solved++; comps.set(ck, e); }
   }
 
-  const ranked = [...tally.values()]
+  const ranked_parts = [...parts.values()]
     .map((e) => { const total = e.solved + e.did_not; return { ...e, net: e.solved - e.did_not, confidence: total ? Math.round((e.solved / total) * 100) : 0 }; })
-    .sort((a, b) => b.net - a.net || b.solved - a.solved)
-    .slice(0, 12);
+    .sort((a, b) => b.net - a.net || b.solved - a.solved).slice(0, 12);
+  const ranked_components = [...comps.values()].sort((a, b) => b.solved - a.solved).slice(0, 8);
 
   return json(200, {
-    ok: true, model, appliance, canon_symptom: canon, sample_size: sample,
-    grounded: sample > 0,
-    ranked,
-    note: sample === 0 ? 'no closed jobs for this model+symptom yet — the flywheel fills this as jobs close' : undefined,
+    ok: true, model, appliance, canon_symptom: canon,
+    sample_size: sample, jobs_with_part_number: with_part, grounded: sample > 0,
+    ranked_parts, ranked_components,
+    note: sample === 0
+      ? 'no closed jobs for this model+symptom yet — the flywheel fills this as jobs close'
+      : (with_part === 0 ? 'grounded at the COMPONENT level — no part numbers were logged on these jobs (log the part # on the TDR to make part-level recall reliable)' : undefined),
   });
 };
