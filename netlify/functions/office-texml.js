@@ -146,11 +146,14 @@ exports.handler = async function (event) {
     g('OFFICE_RING_SECONDS'), g('OFFICE_FIRST_SOLO_SECONDS'), gf('TRANSFER_CONFIRM'),
   ]);
 
-  // "Press 1 to accept" is ON by default. Flip TRANSFER_CONFIRM=off in the vault to
-  // instantly revert to a plain ring (no whisper) — no redeploy. When on, each dialed
-  // cell gets the whisper and the cascade only counts a call as answered once it has
-  // truly BRIDGED (a screener/VM auto-answer never bridges, so it falls through).
-  const confirmOn = String(confirmRaw || '').trim().toLowerCase() !== 'off';
+  // "Press 1 to accept" is OPT-IN, default OFF (Teddy 2026-08-20: both dispatchers had
+  // EVERY transferred call drop the moment they answered — they were hearing "press 1"
+  // and the call dropped before they pressed). The old default was ON-unless-'off', which
+  // is fail-DANGEROUS: on a slow/blank vault read confirmRaw comes back '' and the whisper
+  // silently turned ON, dropping every call. Now the whisper only runs when TRANSFER_CONFIRM
+  // is EXPLICITLY 'on' — a blank/failed read or 'off' means a plain ring, so calls always
+  // connect. Re-enable later only if a screener problem returns, by setting it to 'on'.
+  const confirmOn = String(confirmRaw || '').trim().toLowerCase() === 'on';
   const whisperUrl = confirmOn ? `${SELF}?whisper=1` : '';
 
   const callerId = callerIdRaw || '+16155889591';
