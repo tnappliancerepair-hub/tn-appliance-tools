@@ -234,7 +234,15 @@ window.ANT_SPINE_AUTO = false;
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const params = new URLSearchParams(location.search);
 const JOB_ID = parseInt(params.get('job_id'), 10);
-const TECH_ID = parseInt(params.get('tech_id'), 10) || 0;
+// TECH_ID: prefer the link's ?tech_id=, else recover the one the app already remembers
+// (tn_tech_id, set whenever the tech opens their My Day). A job link that lost its
+// &tech_id= used to dead-end at the PIN gate ("open from your My Day list") with no way
+// through — this makes the app remember who you are so that never happens. (Teddy 2026-08-20)
+let TECH_ID = parseInt(params.get('tech_id'), 10) || 0;
+try {
+  if (TECH_ID) { localStorage.setItem('tn_tech_id', String(TECH_ID)); }
+  else { const s = parseInt(localStorage.getItem('tn_tech_id'), 10); if (s > 0) TECH_ID = s; }
+} catch(_) {}
 // The day the tech was viewing on his dashboard — carried through so "back" returns
 // to that same day instead of jumping to today. (Teddy 2026-08-11)
 const VIEW_DATE = (params.get('date') || '').trim();
@@ -250,8 +258,14 @@ function authValid(){
 function initAuth(){
   if(!JOB_ID){ document.getElementById('content').innerHTML='<div class="empty">Missing job_id in the link.</div>'; document.getElementById('auth').classList.add('hidden'); return; }
   if(TECH_ID && authValid()){ document.getElementById('auth').classList.add('hidden'); loadJob(); return; }
-  if(!TECH_ID){ // office-style open without tech: still gate softly via office pw is overkill; require tech_id
-    document.getElementById('auth').querySelector('.sub').textContent='open from your My Day list';
+  if(!TECH_ID){
+    // No tech identity at all (fresh device / link with no tech_id). A PIN box is a
+    // dead-end here — it can't validate without a tech. Give a real way forward instead
+    // of trapping the tech: a one-tap button straight to their My Day. (Teddy 2026-08-20)
+    document.querySelector('#auth .auth-card').innerHTML =
+      '<h2>🐜 Tech Access</h2><div class="sub">Open your jobs from My Day, then tap the one you want.</div>' +
+      '<button id="pin-go" onclick="location.href=\'tech-daily-dashboard.html\'">Go to My Day →</button>';
+    return;
   }
   document.getElementById('pin').focus();
 }
