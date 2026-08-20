@@ -16,18 +16,31 @@
   'use strict';
   var LS = 'tn_attribution';
 
-  function channelOf(ref, utmSource) {
-    if (utmSource) return utmSource;
+  // Resolve the acquisition channel. Order matters — the whole point is to split the
+  // three things that used to all read as "google" so the office can tell what's working:
+  //   gbp        = Google Business Profile / map pack (tag the GBP website link with
+  //                ?utm_source=gbp, or a maps.google referrer) — the free local engine
+  //   google_ads = a PAID Google click (gclid/gbraid/wbraid present) — LSA or Search ads
+  //   lsa        = Local Services Ad (tag its link ?utm_source=lsa) if it carries no gclid
+  //   google     = organic blue-link search
+  // Explicit utm_source always wins; then a paid click; then referrer host. Without the
+  // GBP-link UTM a map-pack click off the main results page looks identical to organic
+  // (both referrer google.com), so the utm_source=gbp tag is what makes map pack countable.
+  function channelOf(ref, utmSource, gclid) {
+    if (utmSource) return String(utmSource).toLowerCase();
+    if (gclid) return 'google_ads';
     if (!ref) return 'direct';
     try {
       var h = new URL(ref).hostname.replace(/^www\./, '');
       var self = (location.hostname || '').replace(/^www\./, '');
       if (self && h === self) return 'internal';
+      // Map pack / Business Profile BEFORE the generic google check — else maps.google.com
+      // (has ".google.") gets mislabeled 'google' and map-pack clicks vanish into organic.
+      if (/(g\.co|maps\.google|business\.google|local\.google|goo\.gl\/maps)/.test(h)) return 'gbp';
       if (/(^|\.)google\./.test(h)) return 'google';
       if (/(^|\.)bing\./.test(h)) return 'bing';
       if (/duckduckgo|yahoo|ecosia/.test(h)) return 'search';
       if (/(facebook|fb\.com|fb\.me|instagram|t\.co|twitter|x\.com|tiktok|youtube|youtu\.be|linkedin|truthsocial)/.test(h)) return 'social';
-      if (/(g\.co|maps\.google|business\.google|goo\.gl\/maps)/.test(h)) return 'gbp';
       return h;
     } catch (_) { return 'referral'; }
   }
@@ -37,10 +50,11 @@
     if (!localStorage.getItem(LS)) {
       var u = new URLSearchParams(location.search);
       var utmSource = u.get('utm_source') || '';
+      var gclid = u.get('gclid') || u.get('gbraid') || u.get('wbraid') || '';
       var rec = {
         landing: location.pathname,
         ref: (document.referrer || '').slice(0, 300),
-        channel: channelOf(document.referrer || '', utmSource),
+        channel: channelOf(document.referrer || '', utmSource, gclid),
         utm_source: utmSource,
         utm_medium: u.get('utm_medium') || '',
         utm_campaign: u.get('utm_campaign') || '',
