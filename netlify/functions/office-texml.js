@@ -231,9 +231,14 @@ exports.handler = async function (event) {
   let soloSecs = parseInt(soloRaw, 10);
   if (!(soloSecs >= 8 && soloSecs <= 20)) soloSecs = 13;
 
-  // STAGES: primary alone (short) -> both together (full). groupTier logs who's ringing.
+  // SINGLE CLEAN RING (Teddy 2026-08-20): "we didn't drop calls on Vapi — just transfer
+  // cleaner, no press-1." Vapi did ONE transfer to the ring group. The Telnyx version had
+  // grown a solo-head-start stage + a stage-2 RE-INVOCATION (each hand-off re-runs this
+  // whole script and reloads secrets) — that hand-off gap is a drop point on a laggy
+  // backend that Vapi never had. Collapse to ONE Dial that rings BOTH dispatcher cells at
+  // once; first to answer bridges. No stages, no mid-call hand-off, whisper off (opt-in).
+  // If nobody answers in ~30s the Dial ends and control returns to Ann to take a message.
   const stages = [
-    { tiers: [primary], secs: soloSecs },
     { tiers: [primary, secondary], secs: ringSecs },
   ];
 
