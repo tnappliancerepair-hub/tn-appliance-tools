@@ -424,6 +424,16 @@ exports.handler = async function (event) {
     // (he sees who's ringing + why) so it's warm, then Ann transfers to his target. Cuts
     // the office out of a high-volume, low-complexity call. (Teddy 2026-08-12.)
     if (doAction === 'connect_to_tech') {
+      // OFF-HOURS GATE (Teddy 2026-08-20: "the phones are ringing me this morning and we
+      // aren't even open yet"). This live-connect path had no office-hours check, so a
+      // pre-open "where's my tech / what time today" call rang the assigned tech's CELL
+      // directly — and since the owner is tech #1, it rang Teddy before 9am. Match the
+      // stated policy (office staffed Mon–Fri 9–6; off-hours we take a message): outside
+      // office hours, do NOT live-ring any cell — take the message and the tech gets it
+      // first thing. Ann reads office_open=false and follows her take-a-message flow.
+      if (!officeOpenCT()) {
+        return say("Since we're outside office hours right now, I don't want to ring your tech's phone this early — let me take down your message and I'll make sure your tech has it first thing so they can get right back to you. What would you like me to pass along?", { office_open: false, connect_tech: null });
+      }
       const TECH_CELL = { 1: '+16154855795', 2: '+16159671304', 3: '+15049099413', 4: '+16158291654', 6: '+18133527686' };
       const TECH_FIRST = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
       let techId = 0, techFirst = '', custName = '', city = '';
