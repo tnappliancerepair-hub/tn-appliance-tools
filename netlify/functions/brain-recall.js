@@ -38,7 +38,7 @@ exports.handler = async function (event) {
   const canon = canonSymptom(appliance, symptomText);
 
   let rows = [];
-  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'knowledge_captured' }, { id: 'desc' }, 800); } catch (e) { return json(200, { ok: false, error: 'read failed' }); }
+  try { rows = await crud.searchPage(crud.TABLES.event_log, { action: 'knowledge_captured' }, { id: 'desc' }, 500); } catch (e) { return json(200, { ok: false, error: 'read failed' }); }
 
   // Aggregate: for every captured job on this model-family (and matching normalized symptom
   // when we have one), tally each part's solved vs did-not-solve.
