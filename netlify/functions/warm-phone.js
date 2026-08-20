@@ -31,7 +31,7 @@ exports.handler = async function () {
     }),
     // telnyx-precall-context: the NEW Telnyx Ann's greet-by-name webhook. Keep it hot so
     // Telnyx never times out the dynamic-variables call and speaks a raw "{{greeting}}".
-    ping(`${SITE}/telnyx-precall-context?phone=6155551212`),
+    ping(`${SITE}/telnyx-precall-context?phone=6155551212&warm=1`),
   ]);
   return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, warmed: results }) };
 };
