@@ -19,6 +19,7 @@
 const crud = require('./_lib/xano/metadata-crud');
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const { canonSymptom } = require('./_lib/ant/symptom-canon');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const BASE = 'https://tnapplianceexchange.net/.netlify/functions';
@@ -31,6 +32,17 @@ function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try {
 async function jfetch(url, opts, ms) { try { const r = await fetch(url, { ...(opts || {}), signal: AbortSignal.timeout(ms || 6000) }); return await r.json(); } catch (_) { return null; } }
 const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const low = (s) => String(s || '').toLowerCase().trim();
+// Pull EVERY real part-number token (letters + >=3 digits, len>=5) out of a set of fields —
+// so a multi-part fix (e.g. UI + control board) is captured as a list, not one part.
+function partTokensAll(...fields) {
+  const out = [], seen = new Set();
+  for (let f of fields) {
+    if (Array.isArray(f)) f = f.join(' ');
+    const m = String(f || '').match(/\b([A-Za-z0-9]*[A-Za-z][A-Za-z0-9-]*\d[A-Za-z0-9-]*)\b/g) || [];
+    for (const t of m) { const d = (t.match(/\d/g) || []).length; if (t.replace(/-/g, '').length >= 5 && d >= 3) { const k = norm(t); if (!seen.has(k)) { seen.add(k); out.push(t); } } }
+  }
+  return out;
+}
 // platform-family match: exact, or the shorter is a prefix of the longer (WTW5000DW ↔ WTW5000DW1).
 function familyMatch(a, b) { a = norm(a); b = norm(b); if (!a || !b) return false; if (a === b) return true; const [s, l] = a.length <= b.length ? [a, b] : [b, a]; return s.length >= 6 && l.startsWith(s); }
 // Gap key, EXACTLY like knowledge-gap.js keyOf() (in-process gaps store no key).
@@ -57,24 +69,29 @@ async function processJob(jid, pm) {
   const brand = appl.brand || pm.brand || '';
   const appType = appl.type || appl.appliance_type || pm.appliance || '';
   const symptom = appl.problem_summary || pm.symptom || '';
+  const canon = canonSymptom(appType, symptom);           // #1: normalized symptom (clusters)
+  // #2: solved_parts as a LIST — every real part# on the closing TDR (multi-part fixes like
+  // "UI + control board" are captured faithfully, not squeezed into one field).
+  const solvedParts = partTokensAll(solvedPart, tdr && tdr.parts_needed, comp);
+  const solvedSet = new Set(solvedParts.map(norm));
 
   // NEGATIVE SIGNAL — did-not-solve parts from this appliance's prior linked visits.
-  // A prior same-appliance visit that put in a DIFFERENT part than the one that finally
-  // closed it = a part that did NOT solve this model+symptom.
+  // A prior same-appliance visit that put in a part NOT among the ones that finally closed
+  // it = a part that did NOT solve this model+symptom.
   const didNot = [];
-  if (solvedPart) {
+  if (solvedParts.length) {
     const h = await jfetch(`${BASE}/job-history?job_id=${jid}`, {}, 5000);
     const prior = (h && h.prior) || [];
-    const sp = norm(solvedPart); const seen = new Set();
+    const seen = new Set();
     for (const p of prior) {
       if (!p || !p.same_appliance) continue;
       const pn = String(p.part || '').trim(); if (!pn) continue;
-      const k = norm(pn); if (!k || k === sp || seen.has(k)) continue;
+      const k = norm(pn); if (!k || solvedSet.has(k) || seen.has(k)) continue;
       seen.add(k); didNot.push(pn);
     }
   }
 
-  return { jid, model, brand, appType, symptom, comp, diag, solvedPart, didNot, dtext: norm(diag) + ' ' + norm(symptom) };
+  return { jid, model, brand, appType, symptom, canon, comp, diag, solvedPart, solvedParts, didNot, dtext: norm(diag) + ' ' + norm(symptom) };
 }
 
 exports.config = { timeout: 26 };
@@ -115,11 +132,11 @@ exports.handler = async function (event) {
   // Apply: capture the 4-field row + auto-fill matching gaps. Batch the writes.
   const captured = [], gapsFilled = [], fillKeys = new Set(), writes = [];
   for (const res of results) {
-    captured.push({ job_id: res.jid, model: res.model, symptom: String(res.symptom).slice(0, 60), solved_part: res.solvedPart, did_not_solve: res.didNot });
+    captured.push({ job_id: res.jid, model: res.model, canon_symptom: res.canon, solved_parts: res.solvedParts, did_not_solve: res.didNot });
     if (!dry) writes.push(crud.logEvent('knowledge_captured', {
       job_id: res.jid, model: res.model, brand: res.brand, appliance: res.appType,
-      symptom: String(res.symptom).slice(0, 120), component: res.comp,
-      solved_part: res.solvedPart, did_not_solve_parts: res.didNot,
+      symptom: String(res.symptom).slice(0, 120), canon_symptom: res.canon, component: res.comp,
+      solved_part: res.solvedPart, solved_parts: res.solvedParts, did_not_solve_parts: res.didNot,
       cause: String(res.diag || res.symptom || '').slice(0, 180), source: 'closed_job', at_ms: Date.now(),
     }).catch(() => {}));
 
