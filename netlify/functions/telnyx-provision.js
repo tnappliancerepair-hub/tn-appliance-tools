@@ -207,22 +207,42 @@ exports.handler = async function (event) {
     }
 
     if (action === 'tendlc') {
-      // Telnyx 10DLC endpoints return TCR-style bodies (rows under `records`), not `data`.
+      // Telnyx A2P 10DLC endpoints live under /10dlc/* and return TCR-style bodies (rows
+      // under `records`). The old checker hit /campaign + /phone_number_campaigns (no /10dlc
+      // prefix) → always empty → falsely flagged every number unregistered. Fixed 2026-08-20.
       const rows = (d) => (Array.isArray(d && d.records) ? d.records : (Array.isArray(d && d.data) ? d.data : (Array.isArray(d) ? d : [])));
       const get = async (path) => { try { const r = await fetch(`${TELNYX}${path}`, { headers: H, signal: AbortSignal.timeout(12000) }); const d = await r.json().catch(() => ({})); return { ok: r.ok, status: r.status, rows: rows(d) }; } catch (e) { return { ok: false, status: 0, rows: [] }; } };
-      let brand = await get('/brand'); if (!brand.rows.length) { const b2 = await get('/10dlc/brand'); if (b2.rows.length) brand = b2; }
-      let camp = await get('/campaign'); if (!camp.rows.length) { const c2 = await get('/campaigns'); if (c2.rows.length) camp = c2; }
-      let pnc = await get('/phone_number_campaigns?page[size]=200'); if (!pnc.rows.length) { const p2 = await get('/messaging_profiles?page[size]=50'); }
+      // paginate a list endpoint (Telnyx: page[number]/page[size])
+      const getAll = async (base) => { let out = [], status = 0; for (let p = 1; p <= 10; p++) { const sep = base.includes('?') ? '&' : '?'; const r = await get(`${base}${sep}page[number]=${p}&page[size]=100`); status = r.status; if (!r.rows.length) break; out = out.concat(r.rows); if (r.rows.length < 100) break; } return { rows: out, status }; };
+
+      let brand = await getAll('/10dlc/brand'); if (!brand.rows.length) brand = await getAll('/brand');
+      let camp = await getAll('/10dlc/campaign'); if (!camp.rows.length) camp = await getAll('/campaign');
+      let pnc = await getAll('/10dlc/phone_number_campaigns'); if (!pnc.rows.length) pnc = await getAll('/phone_number_campaigns');
+
+      const norm = (p) => { const dd = String(p || '').replace(/\D/g, ''); return dd.length === 10 ? '+1' + dd : '+' + dd; };
       const campById = {};
-      camp.rows.forEach((c) => { const id = c.campaignId || c.campaign_id || c.id || c.tcrCampaignId; if (id) campById[id] = c.status || c.campaignStatus || c.brandId && 'ACTIVE' || 'registered'; });
-      const norm = (p) => { const dd = String(p || '').replace(/\D/g, ''); return dd.length === 10 ? '+1' + dd : (dd.length === 11 ? '+' + dd : '+' + dd); };
+      camp.rows.forEach((c) => { const id = c.campaignId || c.campaign_id || c.id || c.tcrCampaignId; if (id) campById[id] = { status: c.status || c.campaignStatus || 'registered', useCase: c.useCase || c.usecase, assigned: c.assignedPhoneNumbersCount }; });
       const byNumber = {};
-      pnc.rows.forEach((a) => { const ph = norm(a.phoneNumber || a.phone_number); const cid = a.campaignId || a.campaign_id || a.telnyxCampaignId || a.tcrCampaignId; if (ph) byNumber[ph] = { campaign_id: cid || null, status: (cid && campById[cid]) || a.status || 'assigned' }; });
-      const WATCH = ['+16155889500', '+16152802949', '+16158578800', '+16157575500'];
-      const verdict = WATCH.map((ph) => { const a = byNumber[ph]; return { number: ph, registered: !!a, campaign_id: (a && a.campaign_id) || null, campaign_status: (a && a.status) || 'NONE — not in a 10DLC campaign (texts get dropped)' }; });
+      pnc.rows.forEach((a) => { const ph = norm(a.phoneNumber || a.phone_number); const cid = a.campaignId || a.campaign_id || a.telnyxCampaignId || a.tcrCampaignId; if (ph) byNumber[ph] = { campaign_id: cid || null, status: (cid && campById[cid] && campById[cid].status) || a.status || 'assigned' }; });
+
+      // which of OUR account numbers can actually TEXT? a voice-only line doesn't need 10DLC.
+      let nums = [];
+      for (let p = 1; p <= 6; p++) { const r = await get(`/phone_numbers?page[number]=${p}&page[size]=100`); if (!r.rows.length) break; nums = nums.concat(r.rows); if (r.rows.length < 100) break; }
+      const smsEnabled = new Set(); nums.forEach((n) => { if (n.messaging_profile_id) smsEnabled.add(norm(n.phone_number)); });
+
+      // Verdict: the known texting lines + ANY sms-enabled number missing a campaign (the real risk).
+      const WATCH = new Set(['+16155889500', '+16158578800', '+16157575500', '+16152802949']);
+      smsEnabled.forEach((p) => WATCH.add(p));
+      const verdict = [...WATCH].sort().map((ph) => {
+        const a = byNumber[ph], sms = smsEnabled.has(ph);
+        if (a) return { number: ph, sms_enabled: sms, registered: true, campaign_id: a.campaign_id, status: a.status };
+        if (!sms) return { number: ph, sms_enabled: false, registered: false, status: 'voice-only — does not need 10DLC' };
+        return { number: ph, sms_enabled: true, registered: false, status: '⚠️ SMS-enabled but NOT in a 10DLC campaign — texts get dropped' };
+      });
+
       const brands = brand.rows.map((b) => ({ id: b.brandId || b.id, name: b.displayName || b.entityName || b.name, status: b.identityStatus || b.status }));
-      const campaigns = camp.rows.map((c) => ({ id: c.campaignId || c.campaign_id || c.id, status: c.status || c.campaignStatus, useCase: c.useCase || c.usecase }));
-      return json(200, { ok: true, brands, campaigns, pnc_count: pnc.rows.length, verdict, _paths: { brand: brand.status, campaign: camp.status, pnc: pnc.status } });
+      const campaigns = camp.rows.map((c) => ({ id: c.campaignId || c.campaign_id || c.id, status: c.status || c.campaignStatus, useCase: c.useCase || c.usecase, numbers_assigned: c.assignedPhoneNumbersCount }));
+      return json(200, { ok: true, brands, campaigns, assignments: pnc.rows.length, verdict, _paths: { brand: brand.status, campaign: camp.status, pnc: pnc.status } });
     }
 
     // Read-only: search Telnyx's AVAILABLE inventory for a fresh number to buy
