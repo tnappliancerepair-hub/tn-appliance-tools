@@ -148,6 +148,14 @@
 [functions."ant-brain-grade"]
   schedule = "17 * * * *"
 
+# brain-autolearn-cron — the flywheel, automated (Teddy 2026-08-20). Hourly it fires the
+# HTTP-callable brain-autolearn core, which captures every newly-closed job's real outcome
+# (model → failed component + part) into the brain and AUTO-FILLS any knowledge gap that job
+# now answers — so "every I-don't-know becomes a now-I-know" with zero manual Q&A. Sourced
+# only from closed jobs (tech outcomes), never guesses. Kill: vault BRAIN_AUTOLEARN=false.
+[functions."brain-autolearn-cron"]
+  schedule = "42 * * * *"
+
 # Auto-IndexNow — resubmit the priority cash-lead pages (homepage + service hubs +
 # TN/LA city hubs) to Bing/Yandex daily so content changes get re-crawled without
 # anyone pinging by hand. 8:10am CT. (Google ignores IndexNow — for Google we lean on
