@@ -335,7 +335,76 @@ undeniable on their metric first (returns for Amazon, claim-accuracy for warrant
 
 ---
 
+## 08½ · The next 90 days — the sharpened plan *(set 2026-08-20, from a momentum gut-check)*
+
+**Why this section exists:** Teddy called it — momentum *felt* stalled. The scorecard
+proved it: the moat (the #1 goal, "improve the brain every day") went **flat** — 0 new
+models, 0 codes, 0 accuracy gain day-over-day, **122 gaps open / 0 filled**, first-guess
+part accuracy stuck at **9%**. The recent stretch was maintenance + waiting on other people
+(Amazon's flip, Frontdoor's dev, Google's crawl) — motion around the edges, center still.
+
+**The reframe that unlocks it:** it's not three tracks (brain / money / vision) competing for
+attention — it's **one machine.** The brain is the *product*; L1 cash + data is the *fuel*;
+L2/L3 is just *distribution* of the brain. The vision stalls when the engine idles — **you
+can't sell "the most advanced troubleshooting brain" at 9% and flat.** Fix the engine and all
+three move. And momentum on a vision comes from an **external signal** (a second shop, a
+homeowner, a partner meeting), not from building more internally. Our unfair advantage for
+that signal: warranty relationships + a working shop + **Frontdoor's dev already integrating
+with us right now.** That integration is the wedge.
+
+**The rule:** every 30 days = ONE goal, ONE number that must move. If it didn't move, we
+diagnose why — we do NOT pile on more features. Momentum = the signal climbing, not task count.
+
+### Phase 1 · Days 1–30 — RE-IGNITE THE ENGINE (brain + money)
+*Goal: the brain visibly compounds every day, and we know our real unit economics.*
+- **Turn the daily flywheel back on.** Fill the top ~20 recurring gaps — start with the ones
+  we hit in the field (KitchenAid KDTM604KPS F1E1, LG LDT7808BM "not cleaning", Whirlpool
+  WTW4815EW0). Auto-predict every new job. Run the HCP/MeisterTask distiller so Models-known
+  climbs off its plateau.
+- **Know the money cold.** One-glance weekly truth: jobs/week, revenue collected, cost-per-lead,
+  first-visit-fix rate. Can't sell L1's story to a partner without its economics.
+- **Close the idling loops.** Push Amazon to production (escalate, stop passively waiting); kill
+  the last HCP dependency.
+- **[SIGNAL] Models-known ↑ and first-guess accuracy off 9% and rising 7 straight days** on the
+  nightly scorecard; a weekly money number you trust.
+
+### Phase 2 · Days 31–60 — OPEN ONE DOOR (the L2 wedge)
+*Goal: one real warranty-partner conversation about Ant powering their contractor network.*
+- **Prove the Frontdoor integration end-to-end on our own shop** (auto status + auto TDR/claim
+  push). That working loop IS the demo — Frontdoor's dev is already building it; ride it.
+- **Package the wedge:** a tight one-pager + a 3-minute screen-share — "Ant auto-files status +
+  TDRs into your contractor portal, across your whole network."
+- **Use the relationships you already have** — book ONE meeting with an AHS/Frontdoor decision-maker.
+- *Underneath:* un-hardcode `company_id` so a "yes" isn't blocked by plumbing.
+- **[SIGNAL] A booked conversation with a warranty-co decision-maker.**
+
+### Phase 3 · Days 61–90 — GET AN EXTERNAL SIGNAL (L2 pilot OR L3 test)
+*Goal: someone outside TN Appliance touches Ant, or consumer demand is proven.*
+- **Pick the path Phase 2 points to:**
+  - **L2:** onboard ONE second shop on a free trial — their jobs feed the moat = the data
+    flywheel is real. **[SIGNAL] a second shop's first closed job in Ant.**
+  - **L3:** ship the consumer front door (`ant.repair` concept) + a small demand test.
+    **[SIGNAL] first N homeowner signups / conversions.**
+- **Reserve the ground:** consumer domain + handles + provisional patent (dual-tier quote +
+  confidence badge). Cheap insurance while you still can.
+
+### Running underneath all 90 days (the heartbeat, not a phase)
+- The **brain flywheel turns daily** — every closed job fills a gap or grades a guess (compounding moat).
+- **L1 keeps generating cash + data** — the fuel that funds the build and the proof that sells it.
+
+---
+
 ## Changelog
+- **2026-08-20 — v1.5.** Added **§08½ · The next 90 days** — a sharpened, dated, *measurable*
+  roadmap, written after a momentum gut-check where the knowledge scorecard proved the moat had
+  gone flat (0 new models/codes/accuracy day-over-day, 122 gaps open / 0 filled, first-guess
+  accuracy stuck at 9%). Core reframe: brain / money / vision are **one machine** — the brain is
+  the product, L1 is the fuel, L2/L3 is distribution; the vision stalls when the engine idles.
+  Three 30-day phases, each with ONE goal + ONE signal that must move: **P1 re-ignite the engine**
+  (fill top recurring gaps, know the money, close idling loops), **P2 open one door** (prove the
+  Frontdoor integration → package the wedge → book one warranty-partner meeting), **P3 get an
+  external signal** (second-shop pilot OR consumer front-door demand test). Rule: signal climbing =
+  momentum, not task count.
 - **2026-07-26 — v1.3.** Added **§04½ · The demand engine**: free-first (no paid ads until
   sales prove the funnel — paused the Miami test), the **content pivot** from the thin
   city×service doorway grid → **diagnostic/symptom/brand/model/part pages in EN + ES**
