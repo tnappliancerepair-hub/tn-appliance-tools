@@ -57,7 +57,7 @@ exports.handler = async function (event) {
     rows('telnyx_call_event', 2, 100),
     rows('telnyx_precall_error', 1, 50),
     rows('telnyx_rescue_graduated', 7, 1),
-    rows('telnyx_webhook_reminder', 2, 1),
+    rows('telnyx_webhook_reminder', 3650, 1),
     rows('telnyx_precall_error_alert', 1, 1),
     rows('telnyx_line_quiet_alert', 1, 1),
   ]);
@@ -81,8 +81,11 @@ exports.handler = async function (event) {
 
   // ── 2. WIRING REMINDER (once/day) — real calls flowing but no webhook events ──
   if (realCalls24h.length >= 3 && callEvents24h.length === 0) {
-    const remindedRecently = wireMark.length && (Date.now() - wireMark[0].at) < 22 * 3600 * 1000;
-    if (!remindedRecently && !dry) {
+    // Fire ONCE, ever — then go quiet (the drop safety-net is a nice-to-have; everything
+    // else runs, so a daily nag to the owner's personal cell is just spam). Status still
+    // shows on ?dry=1 / the dashboard. (Teddy 2026-08-20: stop texting my cell this.)
+    const alreadyReminded = wireMark.length > 0;
+    if (!alreadyReminded && !dry) {
       await sendSms(OWNER, `🐜 Heads up: the new Ann line is taking calls, but the drop safety-net webhook still isn't wired. It's a 2-min portal step — Telnyx → AI Assistant → Insights → webhook URL: ${WEBHOOK_URL}. That's the last piece; everything else is running.`, 'owner', 'telnyx_webhook_reminder').catch(() => null);
       await crud.logEvent('telnyx_webhook_reminder', { real_calls_24h: realCalls24h.length, at_ms: Date.now() }).catch(() => null);
       actions.push('wiring_reminder_sent');
