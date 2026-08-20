@@ -132,19 +132,31 @@ exports.handler = async function (event) {
   // below so an empty/timed-out read still produces a valid ring (never dead air).
   const g = (n) => getSecret(n).catch(() => '');
   const gf = (n) => getSecretFresh(n).catch(() => '');
-  const [
-    callerIdRaw, webrtcRaw,
-    cellSofia, reachSofia, sipSofiaU,
-    cellDanielle, reachDanielle, sipDanielleU,
-    cellTeddy, reachTeddy, sipTeddyU, sipTeddyLegacyU,
-    ringRaw, soloRaw, confirmRaw,
-  ] = await Promise.all([
+  // CAP THE VAULT READ (Teddy 2026-08-20: "kinda long pause before it transferred").
+  // This runs BEFORE any <Response> reaches Telnyx, so the caller hears dead air for
+  // however long the vault takes — and app_config on Xano is 3–6s under load. But every
+  // value below has a safe hardcoded default (Sofia/Danielle cells are hardcoded, ring
+  // time 30s, whisper off, caller-id fallback), so waiting on the vault buys NOTHING on
+  // the transfer path. Race the reads against ~1.2s: fast vault wins; a slow vault falls
+  // straight to defaults and the phones ring right away instead of the caller sitting in
+  // silence. A timeout yields the exact same clean ring (both dispatcher cells, 30s, no
+  // whisper) — so timing out is harmless, never a misroute.
+  const SECRET_BUDGET_MS = 1200;
+  const secretsP = Promise.all([
     g('TELNYX_OFFICE_CALLER_NUMBER'), gf('OFFICE_PHONE_WEBRTC_INBOUND'),
     g('OFFICE_CELL_SOFIA'), gf('OFFICE_REACH_SOFIA'), g('TELNYX_SIP_USERNAME_SOFIA'),
     g('OFFICE_CELL_DANIELLE'), gf('OFFICE_REACH_DANIELLE'), g('TELNYX_SIP_USERNAME_DANIELLE'),
     g('OFFICE_CELL_TEDDY'), gf('OFFICE_REACH_TEDDY'), g('TELNYX_SIP_USERNAME_TEDDY'), g('TELNYX_SIP_USERNAME'),
     g('OFFICE_RING_SECONDS'), g('OFFICE_FIRST_SOLO_SECONDS'), gf('TRANSFER_CONFIRM'),
   ]);
+  const secretsTimeout = new Promise((res) => setTimeout(() => res(new Array(15).fill('')), SECRET_BUDGET_MS));
+  const [
+    callerIdRaw, webrtcRaw,
+    cellSofia, reachSofia, sipSofiaU,
+    cellDanielle, reachDanielle, sipDanielleU,
+    cellTeddy, reachTeddy, sipTeddyU, sipTeddyLegacyU,
+    ringRaw, soloRaw, confirmRaw,
+  ] = await Promise.race([secretsP, secretsTimeout]);
 
   // "Press 1 to accept" is OPT-IN, default OFF (Teddy 2026-08-20: both dispatchers had
   // EVERY transferred call drop the moment they answered — they were hearing "press 1"
