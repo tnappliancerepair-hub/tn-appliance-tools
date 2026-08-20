@@ -62,14 +62,14 @@
 # Auto-charge PM cards on completed+invoiced jobs. SHADOW by default (logs what it WOULD
 # charge) — only charges for real when PM_AUTOCHARGE_LIVE=true. Every 10 min.
 [functions."pm-autocharge"]
-  schedule = "*/10 * * * *"
+  schedule = "1-59/10 * * * *"
 
 # phone-hours-gate — flips LIVE human transfer ON at 9 AM / OFF at 6 PM Central,
 # Mon–Fri only. Off-hours the transferCall tool is physically removed so Ann
 # can't ring a tech/Danielle/office — she takes a message. Runs every 15 min so
 # the boundary flips within 15 min; the function computes Central time itself.
 [functions."phone-hours-gate"]
-  schedule = "*/15 * * * *"
+  schedule = "2-59/15 * * * *"
 
 # scorecard-digest — end-of-day truth text to the owner. Runs hourly and fires
 # only at 6 PM CT on a weekday (DST-proof, once/day). Danielle's timestamped
@@ -127,13 +127,13 @@
 # with candidate jobs. Path D of the 4-path parts-arrival rail.
 # Every 30 min — delivery emails aren't time-critical to the same minute.
 [functions."parts-vendor-gmail-poller"]
-  schedule = "*/30 * * * *"
+  schedule = "3-59/30 * * * *"
 
 # MeisterTask sync — drop a NEEDS SCHEDULED card (TN/LA) into Danielle's board for
 # each new job, every 10 min. Forward-only + idempotent so it never dupes or
 # floods the backlog.
 [functions."meistertask-sync"]
-  schedule = "*/10 * * * *"
+  schedule = "3-59/10 * * * *"
 
 # Ant Brain sweep — auto-fire a diagnostic prediction on every new job so the
 # accuracy loop fills. Idempotent (skips already-predicted/seen jobs), bounded
@@ -290,7 +290,7 @@
 # stops deleting ~22/day by hand. SHADOW-logs until DUPE_AUTO_MERGE_ENABLED=true,
 # then acts (reversible). Every 15 min.
 [functions."dupe-auto-merge"]
-  schedule = "*/15 * * * *"
+  schedule = "5-59/15 * * * *"
 
 # Tech-interview calls — DISABLED 2026-06-30 per Teddy: do not call techs again
 # until transcript->profile extraction is proven. Re-enable by uncommenting.
@@ -372,7 +372,7 @@
 # tech (zip→cluster, capacity/day-off aware, next-rank fallback). Kills the manual
 # accept/schedule step so warranty flows hands-off. Every 10 min.
 [functions."squaretrade-autoassign"]
-  schedule = "*/10 * * * *"
+  schedule = "5-59/10 * * * *"
 
 # ServicePower supplied-parts watcher — reads the "SERVICER NEW NOTES" part emails
 # (one per Call Number), matches each to its job, and records the supplied parts so
@@ -396,7 +396,7 @@
 # a job gets stuck, or the backlog spikes. Runs on Netlify so the net holds
 # even if the colony loop is down.
 [functions."job-safety-watch"]
-  schedule = "*/30 * * * *"
+  schedule = "8-59/30 * * * *"
 
 # Callback watcher — Danielle stepped back from the phones (2026-06-23), so
 # inbound callbacks pile up unworked and risk turning into bad reviews. Every
@@ -404,7 +404,7 @@
 # flagging at-risk callers (repeat callers, "tech came out but...", complaints)
 # at the top. Dedups on the open-set signature so it can't spam.
 [functions."callback-watch"]
-  schedule = "*/30 * * * *"
+  schedule = "13-59/30 * * * *"
 
 # SquareTrade time-integrity — every 3 hours, pull each customer's AGREED arrival window
 # straight from ServicePower (the authority) onto the job, and text Teddy if any job is
@@ -419,7 +419,7 @@
 
 # Bulletproof the lead closers — page the owner if a deal-closing text gets gate-blocked
 [functions."lead-text-block-watch"]
-  schedule = "*/30 * * * *"
+  schedule = "18-59/30 * * * *"
 
 # Follow Up → Needs Invoice auto-advance — every 4 hours, move a completed job into
 # Needs Invoice once it's been 48h in Follow Up (Teddy 2026-07-16). Only touches jobs
@@ -431,7 +431,7 @@
 # Reach Me switches are off (the silent toggle-revert that gave Teddy zero calls for
 # hours on 2026-07-16) and text him before he notices the dead transfer himself.
 [functions."phone-reach-watch"]
-  schedule = "*/30 * * * *"
+  schedule = "23-59/30 * * * *"
 
 # SMS-delivery watchdog — hourly, catch a customer text line going dark. Reads the real
 # Telnyx delivery-failure receipts captured by _lib/sms-dlr; if >=3 texts bounce on one
@@ -498,7 +498,7 @@
 # Andre's today-customers to Teddy's cell. Self-expires ~18h after the notice, then
 # no-ops. Safe to remove the cron after today.
 [functions."andre-late-forward"]
-  schedule = "*/10 * * * *"
+  schedule = "7-59/10 * * * *"
 
 # Payout-ready notifier — when warranty EFTs land (jobs flip to paid), texts
 # Teddy a per-tech breakdown of what's ready to release, linking to Money →
@@ -570,7 +570,7 @@
 # DORMANT until email is turned on (EMAIL_ENABLED=true + SES verify the recipient) —
 # dry-runs safely; ?dry=1 lists recent payments to answer "did that payment land?".
 [functions."payment-email-watch"]
-  schedule = "*/30 * * * *"
+  schedule = "28-59/30 * * * *"
 
 # Teddy Tool submission watch — Teddy: "Teddy Tools submitted should also be sent to
 # the techs that work that area." On each diagnosis filed from the Teddy Tool, TEXTS
@@ -578,7 +578,7 @@
 # gate) and EMAILS tnappliancerepair@gmail.com a tracking record (dormant until
 # EMAIL_ENABLED=true). Every 15 min. ?dry=1 lists recent submissions + who'd be told.
 [functions."tdr-submit-watch"]
-  schedule = "*/15 * * * *"
+  schedule = "8-59/15 * * * *"
 
 # Nightly event_log garbage collection (noise_only) — drains high-volume,
 # non-dedup plumbing rows >7 days old in capped passes. Bounds storage on the
@@ -617,7 +617,7 @@
 [functions."warranty-status-gmail-watcher"]
   # Trimmed */10 → */30 (2026-06-29): it's DRY-RUN and vendor confirmation
   # emails aren't minute-critical — 30 min is plenty, 3x fewer runs.
-  schedule = "*/30 * * * *"
+  schedule = "6-59/30 * * * *"
 
 # Colony heartbeat watchdog. Every 5 min, verifies the Mac Mini loop
 # is firing loop_tick events. If the most recent tick is older than
@@ -627,7 +627,7 @@
 [functions."colony-watchdog"]
   # Trimmed */5 → */10 (2026-06-29): threshold is 15 min, so a 10-min check
   # still catches a Mac/loop death promptly while halving the invocations.
-  schedule = "*/10 * * * *"
+  schedule = "9-59/10 * * * *"
 
 # HCP poll catchup — OFF as of 2026-06-15. Danielle doesn't want Ant live-
 # connected to HCP (the sync created a dupe of every email job). Replaced by a
@@ -680,12 +680,12 @@
 # closed the Stripe tab → webhook-only). Filters out $1 tests + owner test payments +
 # warranty; dedupes via cash_in_ping_<job> so it never double-texts the siren. (2026-08-11)
 [functions."cash-in-notify"]
-  schedule = "*/5 * * * *"
+  schedule = "1-59/5 * * * *"
 
 # Alert Teddy when the Twilio backup kicks in (a Telnyx send failed + auto-failed-over),
 # throttled to one ping/hour so an outage does not spam him.
 [functions."telnyx-failover-watch"]
-  schedule = "*/10 * * * *"
+  schedule = "2-59/10 * * * *"
 
 # Google API-access email watcher — scans Gmail every 30 min for the Business Profile
 # API allowlist decision (support case 4-9470000004382) AND the Google Ads API Basic
@@ -732,7 +732,7 @@
 # return-to-do (matched to the job), and texts Teddy a digest of new labels so no part
 # slips unreturned (unreturned = no pay + a core charge). ?dryrun=1 to inspect.
 [functions."squaretrade-rma-watch"]
-  schedule = "*/30 * * * *"
+  schedule = "11-59/30 * * * *"
 
 # Auto-review requests — daily 6:30pm CT (23:30 UTC). Texts a one-tap Google review link
 # to customers whose job completed that day. Forward-only (lookback window) + 60-day
@@ -816,7 +816,7 @@
 # ACCEPTED, the proven flow), logs it, texts Teddy a digest. Capacity is wide open → pure
 # upside. Kill switch: vault SERVICEPOWER_AUTO_ACCEPT=false. ?dryrun=1 to inspect.
 [functions."servicepower-auto-accept"]
-  schedule = "*/10 * * * *"
+  schedule = "4-59/10 * * * *"
 
 # Daily site-health sweep — catches dead pages + broken redirects from our side (where new
 # 404s are born). Walks a rotating window of the sitemap (covers everything over time),
@@ -829,7 +829,7 @@
 # with no human (routes around the TBD-part bug via the job's TDR). SHADOW by default (logs
 # what it'd order); go live = vault SELF_CHECKOUT_AUTOPLACE_LIVE=true. Kill: =false. ?dryrun=1.
 [functions."parts-autoplace"]
-  schedule = "*/15 * * * *"
+  schedule = "11-59/15 * * * *"
 
 # parts-beat-tech (Teddy 2026-08-06) - the first-visit-fix lever. Finds CASH jobs that were
 # pre-diagnosed with a confident part #, pulls the live Marcone ETA, and decides whether that
@@ -844,13 +844,13 @@
 # dups into the one furthest along, carries every WO number onto it (searchable), soft-cancels
 # the blanks; different appliance = a separate machine, left alone. Every 15 min.
 [functions."squaretrade-redispatch-link"]
-  schedule = "*/15 * * * *"
+  schedule = "4-59/15 * * * *"
 
 # AHS data reconciler (Teddy 2026-07-15) - re-reads the real AHS dispatch XML and corrects
 # any job whose name/address/phone is stale/bogus (the "1, City" + unsplit-name bug). Keeps
 # recent AHS jobs matching their true dispatch so the crew can trust the tile. Every 10 min.
 [functions."ahs-reconcile"]
-  schedule = "*/10 * * * *"
+  schedule = "6-59/10 * * * *"
 
 # Draft-first social campaign: drafts the next post daily at ~9am CT. Self-gates —
 # no-ops until SOCIAL_CAMPAIGN_LIVE=true (Teddy's GO). Never publishes on its own;
@@ -864,12 +864,12 @@
 # Vizard has no per-request webhook — poll every 5 min so finished auto-clips
 # flow into Submagic + the Studio queue on their own.
 [functions."vizard-poll"]
-  schedule = "*/5 * * * *"
+  schedule = "2-59/5 * * * *"
 
 # ElevenLabs dubbing is async too — poll every 5 min so finished Spanish dubs
 # land in the Studio queue.
 [functions."video-dub-poll"]
-  schedule = "*/5 * * * *"
+  schedule = "3-59/5 * * * *"
 
 # tech-prep-link — THE ONE tech text: Teddy Tool prep link to the assigned tech the
 # moment a job has a tech, so they call the customer + get a video (can save the trip).
@@ -899,7 +899,7 @@
 # Conservative (distinct callers, only never-connected drops, one alert per
 # incident). Kill switch: env PHONE_DROP_WATCH=off. (Bulletproof phone, 2026-08-15.)
 [functions."phone-drop-watch"]
-  schedule = "*/5 * * * *"
+  schedule = "4-59/5 * * * *"
 
 # telnyx-cutover-watch — SELF-RUNNING oversight of the Telnyx Ann cutover, so no session
 # or manual flip is needed (Teddy 2026-08-16: "automate the process"). Every 20 min it
@@ -931,14 +931,14 @@
 # the core dedups one email per job and flags jobs with no street address. Dormant on
 # real SEND until the shop Gmail is re-authed with the send scope (retry-safe until then).
 [functions."new-job-shop-email-cron"]
-  schedule = "*/10 * * * *"
+  schedule = "8-59/10 * * * *"
 
 # amazon-autoplace-cron — fires the Amazon drop-ship auto-placer every 15 min. The core
 # (amazon-autoplace) watches paid, ship-to-customer, Amazon parts orders with an ASIN and
 # auto-ships them — SHADOW until AMAZON_AUTOPLACE_LIVE=true AND the connector is in
 # production. Schedule-registered fns edge-403 on direct HTTP, hence the core+wrapper split.
 [functions."amazon-autoplace-cron"]
-  schedule = "*/15 * * * *"
+  schedule = "7-59/15 * * * *"
 
 # knowledge-scorecard-cron — fires the daily scoreboard for THE goal: be the most
 # advanced troubleshooting brain in appliance repair. ~7:10PM CT it invokes the
