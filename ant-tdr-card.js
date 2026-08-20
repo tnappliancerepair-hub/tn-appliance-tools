@@ -1853,6 +1853,15 @@
     var fields = lastData.fields || {};
     var cur = ((fields[key] || {}).value || '').toString();
     var seededNote = '';
+    // NEVER LOSE A NOTE (Teddy 2026-08-20): a weak-signal save times out and the typed
+    // text used to live only in the textarea — gone if the app closed. We now back the
+    // draft up to localStorage on every keystroke; if a draft exists and the saved field
+    // is empty (i.e. a prior save didn't land), restore it so the note comes back.
+    try {
+      var _dk = 'ant_tdr_draft_' + jobId + '_' + key;
+      var _draft = localStorage.getItem(_dk);
+      if (_draft && !cur.trim()) { cur = _draft; seededNote = 'Restored your unsaved note from this phone — tap Save to send it.'; }
+    } catch (_) {}
     if (key === 'diagnosis' && !cur.trim()) {
       var complaint = ((lastData.submission_extras || {}).problem_summary || '').toString().trim();
       if (complaint) { cur = complaint; seededNote = 'Pre-filled from what the customer told us — confirm or edit.'; }
@@ -1877,7 +1886,11 @@
     html += '<button class="ant-tdr-btn ghost" onclick="window.__antTdrCancelEdit()">Cancel</button></div>';
     host.innerHTML = html;
     var inp = document.getElementById('ant-tdr-edit-input');
-    if (inp) { inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (_) {} }
+    if (inp) {
+      inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (_) {}
+      // Back up every keystroke locally so a failed save can never lose the note.
+      try { var _dk2 = 'ant_tdr_draft_' + jobId + '_' + key; inp.addEventListener('input', function () { try { localStorage.setItem(_dk2, inp.value); } catch (_) {} }); } catch (_) {}
+    }
   };
   window.__antTdrCancelEdit = function () { editKey = null; if (lastData) renderModal(lastData); };
   window.__antTdrSaveField = async function () {
@@ -1887,6 +1900,18 @@
     var val = inp ? String(inp.value == null ? '' : inp.value).trim() : '';
     var btns = document.querySelectorAll('.ant-tdr-save-btn');
     btns.forEach(function (b) { b.disabled = true; b.textContent = 'Saving…'; });
+    // Weak-signal-proof POST: 25s timeout, 3 tries with small backoff. A single slow
+    // Xano response on 2 bars used to abort and look like a lost save. (Teddy 2026-08-20)
+    var _postR = async function (url, payload) {
+      var lastErr;
+      for (var a = 0; a < 3; a++) {
+        try {
+          var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(25000) });
+          return await r.json();
+        } catch (e) { lastErr = e; await new Promise(function (rs) { setTimeout(rs, 600 * (a + 1)); }); }
+      }
+      throw lastErr || new Error('network');
+    };
     try {
       if (key === 'technician_notes') {
         // Notes save STRAIGHT to technician_notes via the reliable Metadata-API path
@@ -1897,12 +1922,11 @@
         // so this both persists and reaches the office. ensure-tdr guarantees a row.
         var _tid = Number((lastData && lastData.tdr_id) || 0);
         if (!(_tid > 0)) {
-          var _er = await fetch('/.netlify/functions/ensure-tdr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId), technician_id: Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0 }) });
-          _tid = Number(((await _er.json()) || {}).tdr_id || 0);
+          var _ed = await _postR('/.netlify/functions/ensure-tdr', { job_id: Number(jobId), technician_id: Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0 });
+          _tid = Number((_ed || {}).tdr_id || 0);
         }
         if (!(_tid > 0)) throw new Error('could not open the report to save notes');
-        var sr = await fetch('/.netlify/functions/set-tdr-field', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tdr_id: _tid, field: 'technician_notes', value: val }) });
-        var sd = await sr.json();
+        var sd = await _postR('/.netlify/functions/set-tdr-field', { tdr_id: _tid, field: 'technician_notes', value: val });
         if (!sd || !sd.ok) throw new Error((sd && sd.error) || 'save failed');
         // Optimistic: show it back immediately (get_unified doesn't return
         // technician_notes; refresh() re-reads it via get-tdr-notes).
@@ -1915,18 +1939,17 @@
         // repair_completed / parts_needed).
         var body = { job_id: Number(jobId), field: key, value: val };
         if (techId) body.technician_id = Number(techId);
-        var wr = await fetch(XANO + '/update_tdr_field_from_voice', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        var wd = await wr.json();
+        var wd = await _postR(XANO + '/update_tdr_field_from_voice', body);
         if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
       }
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
-      alert('Could not save: ' + (e && e.message ? e.message : e));
+      // The note is safe on this phone (draft backup). Reassure — don't imply it's lost.
+      alert('Couldn\'t reach the server on this signal — but your note is SAVED on this phone. Move to better signal and tap Save again; it will not be lost.');
       return;
     }
+    // Saved for real — clear the local draft backup for this field.
+    try { localStorage.removeItem('ant_tdr_draft_' + jobId + '_' + key); } catch (_) {}
     editKey = null;
     await refresh();
     try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
