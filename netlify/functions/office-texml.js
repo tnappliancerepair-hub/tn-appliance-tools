@@ -56,6 +56,15 @@ function formField(event, name) {
   } catch (_) { return ''; }
 }
 function dialStatus(event) { return String(formField(event, 'DialCallStatus')).toLowerCase(); }
+// Central-time hour + weekday (DST-safe). Used for the first-open-hour ring rule.
+function ctNow() {
+  try {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', hour12: false }).formatToParts(new Date());
+    let h = Number((p.find((x) => x.type === 'hour') || {}).value); if (h === 24) h = 0;
+    const wd = (p.find((x) => x.type === 'weekday') || {}).value || '';
+    return { h, weekday: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd) };
+  } catch (_) { return { h: -1, weekday: false }; }
+}
 
 // PHONE-TRANSFER-OUTCOME LOGGING (Teddy 2026-08-06). Pure measurement, additive —
 // records who answered vs missed each transferred call so we can answer "are the
@@ -188,8 +197,17 @@ exports.handler = async function (event) {
   // texts the office. The owner is NOT in the cascade (delegation — Teddy off the ring).
   //   default (homeowner) -> Sofia solo, then Sofia+Danielle
   //   warranty rep        -> Danielle solo, then Danielle+Sofia
-  const primary = warrantyFirst ? DANIELLE : SOFIA;
-  const secondary = warrantyFirst ? SOFIA : DANIELLE;
+  // FIRST OPEN HOUR (Teddy 2026-08-20): ring DANIELLE first during the 9am open hour.
+  // She's at her desk at open; Sofia is often not phone-ready until ~10 (today EVERY
+  // 9:00–9:52 transfer missed, then Sofia caught 3/3 from 10:45 on). So 9:00–9:59 CT on a
+  // weekday, Danielle is primary regardless of caller type; after 10 it reverts to the
+  // normal order (Sofia first for homeowners, Danielle first for warranty reps). Sofia
+  // still joins on stage 2 as backup — this just gives Danielle first crack that hour.
+  const _ct = ctNow();
+  const firstOpenHour = _ct.weekday && _ct.h === 9;
+  const danielleFirst = firstOpenHour || warrantyFirst;
+  const primary = danielleFirst ? DANIELLE : SOFIA;
+  const secondary = danielleFirst ? SOFIA : DANIELLE;
   const orderQS = warrantyFirst ? `order=${order}&` : '';
   // CELLS ONLY (Teddy 2026-08-17): the softphone/app (SIP) legs returned an instant
   // "busy" that both dropped the caller AND made Ann bail after one ring ("looks like
