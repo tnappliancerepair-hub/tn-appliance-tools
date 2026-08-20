@@ -962,7 +962,7 @@ async function submitAuth() {
     dbg('verify returned', { ok });
   } catch (e) {
     dbg('verify threw', { msg: String(e && e.message) });
-    errEl.textContent = (e && e.message === 'timeout') ? 'Server timeout — try again or text Teddy 615-485-5795.' : ('Error: ' + (e && e.message || 'unknown'));
+    errEl.textContent = (e && e.message === 'timeout') ? 'Server timeout — try again; if it keeps happening, let Teddy know.' : ('Error: ' + (e && e.message || 'unknown'));
     btn.disabled = false;
     btn.textContent = 'Unlock';
     return;
@@ -991,7 +991,7 @@ async function submitAuth() {
   } catch (e) {
     dbg('init threw', { msg: String(e && e.message) });
     // Init failed but auth was OK. Show a recovery message in the now-visible content area.
-    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;color:#fff;background:#0e1118;min-height:100vh"><h2>Logged in ✓ — page failed to load.</h2><p>Reload the page. If it still fails, text Teddy at 615-485-5795 with this error: ' + String(e && e.message || 'unknown') + '</p></div>';
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;color:#fff;background:#0e1118;min-height:100vh"><h2>Logged in ✓ — page failed to load.</h2><p>Reload the page. If it still fails, let Teddy know, with this error: ' + String(e && e.message || 'unknown') + '</p></div>';
   }
 }
 
