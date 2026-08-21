@@ -15,9 +15,11 @@ const ads = require('./_lib/google-ads');
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
 // ── the plan, as data ─────────────────────────────────────────────────────────
+// Region-aware so TN and LA run as SEPARATE campaigns (they never compete in the same
+// auction — different markets, different budgets). Pass &state= and &region= to retarget.
 const DEFAULT_CITIES = ['Nashville', 'Antioch', 'Smyrna', 'Murfreesboro', 'La Vergne', 'Mount Juliet', 'Hendersonville', 'Franklin', 'Brentwood', 'Nolensville'];
-const STATE = 'Tennessee';
-const FINAL = 'https://tnapplianceexchange.net/appliance-ai.html?utm_source=google_ads&utm_medium=cpc&utm_campaign=afterhours';
+const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+const finalFor = (region) => `https://tnapplianceexchange.net/appliance-ai.html?utm_source=google_ads&utm_medium=cpc&utm_campaign=afterhours_${slug(region) || 'x'}`;
 
 // Keywords — all-appliance repair intent + the after-hours goldmine nobody else bids on.
 const KEYWORDS = [
@@ -34,11 +36,12 @@ const HEADLINES = [
   'Fridge, Dryer & Washer Fix', 'Honest Appliance Repair', 'Chat or Text Us Now', 'Local Repair Pros',
   '$50 Quick Check', 'Family Owned Since 2012', 'Fast, Honest, Local', 'Book Your Repair Online',
 ];
+// Region-neutral copy (no "Middle TN") so the same ad is TRUE for TN and LA alike.
 const DESCRIPTIONS = [
   'Appliance broke after hours? Chat now — we book it tonight and fix it fast.',
   'Real local techs, honest upfront pricing. Fridge, dryer, washer, oven, dishwasher.',
   'We answer 24/7 when others are closed. Book your repair online in about a minute.',
-  'Same-week service across Middle TN. Licensed, insured, 4.5 stars, 1,000+ reviews.',
+  'Same-week service in your area. Licensed, insured, 4.5 stars, 1,000+ reviews.',
 ];
 
 // THE DAYPARTING — bid modifiers by window. Base ad-group CPC is scaled by these, so
@@ -72,8 +75,10 @@ exports.handler = async function (event) {
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
   const cities = String(q.cities || DEFAULT_CITIES.join(',')).split(',').map((s) => s.trim()).filter(Boolean);
+  const STATE = String(q.state || 'Tennessee').trim();
+  const region = String(q.region || 'Nashville Metro').trim();
   const budget = Math.max(5, Math.min(500, parseInt(q.budget, 10) || 30));
-  const finalUrl = (q.final || '').trim() || FINAL;
+  const finalUrl = (q.final || '').trim() || finalFor(region);
   const baseCpc = Math.max(1, Math.min(20, parseInt(q.cpc, 10) || 4)); // $ base max CPC, scaled by the schedule
   const apply = q.apply === '1';
   const enable = q.enable === '1';
@@ -113,7 +118,7 @@ exports.handler = async function (event) {
     if (m) geo.push({ city, resource: m.geoTargetConstant.resourceName, canonical: m.geoTargetConstant.canonicalName });
   }
 
-  const name = `After-Hours Appliance Repair — Nashville Metro (Ant)`;
+  const name = `After-Hours Appliance Repair — ${region} (Ant)`;
   const plan = {
     campaign: name, status: enable ? 'ENABLED' : 'PAUSED', budget_per_day: budget, base_max_cpc: baseCpc,
     geo_resolved: geo.map((g) => g.canonical), geo_unresolved: cities.filter((ci) => !geo.find((g) => g.city === ci)),
