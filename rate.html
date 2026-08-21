@@ -68,7 +68,7 @@
   var qs=new URLSearchParams(location.search);
   var JOB=qs.get('j')||''; var TOK=qs.get('t')||'';
   var card=document.getElementById('card');
-  var ctx={google_url:'https://g.page/r/CRt-vo--eAJ3EBM/review'};
+  var ctx={google_url:'https://search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc'};
 
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function state(html){card.innerHTML='<div class="state">'+html+'</div>';}

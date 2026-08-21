@@ -11,7 +11,7 @@ const { getSecret } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
+const REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc';
 const OWNER = '+16154855795';
 
 function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(b) }; }

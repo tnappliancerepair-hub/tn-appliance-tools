@@ -15,7 +15,7 @@ const { sendSms } = require('./sms');
 const revI18n = require('./review-i18n');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
+const REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc';
 const OWNER = '+16154855795';
 const STALE_MS = 14 * 86400000; // ignore a state older than 14 days
 

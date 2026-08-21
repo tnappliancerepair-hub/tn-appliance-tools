@@ -453,7 +453,7 @@ ${STYLE}
       <div><div class="rev-stars">★★★★★</div><div class="rev-count"><span id="revCount">1,081</span> ${esc(t.revCount)}</div></div>
     </div>
     <div class="rev-grid" id="revGrid"></div>
-    <p class="prose" style="margin-top:16px"><a href="https://g.page/r/CRt-vo--eAJ3EBM/review" target="_blank" rel="noopener">${esc(t.revAll)}</a></p>
+    <p class="prose" style="margin-top:16px"><a href="https://search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc" target="_blank" rel="noopener">${esc(t.revAll)}</a></p>
   </div>
 
   <div class="section">
