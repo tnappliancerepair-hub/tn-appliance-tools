@@ -69,7 +69,7 @@ exports.handler = async function (event) {
   return ok({
     ok: true, job_id: jobId || null, brand, model, appliance: dx.appliance, symptom,
     matched: dx.matched, note: dx.note,
-    diagnoses: dx.diagnoses, safety: dx.safety,
+    diagnoses: dx.diagnoses, circuit: dx.circuit || [], safety: dx.safety,
     grounded_by_history: dx.grounded_by_history, where_to_look: where,
     part_note: 'Exact part # = catalog lookup off (model + the confirmed component). Diagnose first, then pull the SKU.',
   });

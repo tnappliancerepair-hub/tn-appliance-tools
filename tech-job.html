@@ -2538,17 +2538,21 @@ async function diagnose(){
     // PRIMARY: the diagnostic engine — symptom → likely failure ranked, with the test to
     // confirm each + the part category to look up. Fast + accurate (real repair logic).
     const d=await fetch('/.netlify/functions/ant-diagnose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({brand:appliance.brand||'',model,appliance:appliance.type||'',symptom})}).then(r=>r.json());
-    if(d && d.ok && d.matched && (d.diagnoses||[]).length){
-      let html='<div style="font-size:11px;color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">🔎 Most likely — check in this order</div>';
-      (d.diagnoses||[]).slice(0,4).forEach(function(x,i){
-        var flags=(x.flags||[]).length?(' <span style="color:#c0392b;font-weight:700">⚠ '+esc(x.flags.join(' · '))+'</span>'):'';
-        html+='<div class="cand" style="border-left:3px solid #2d7ef7;background:#eef4ff">'
-          +'<span class="pn">'+(i+1)+'. '+esc(x.component)+' <span style="font-weight:600;color:#2d7ef7">'+x.likelihood+'%</span>'+flags+'</span>'
-          +'<div class="cn">✅ '+esc(x.confirm)+'</div>'
-          +(x.part_category&&!/^(clean|clear|thaw)/i.test(x.part_category)?('<div class="cn" style="color:#0a7d33">🔩 look up: '+esc(x.part_category)+'</div>'):'')
-          +'</div>';
+    if(d && d.ok && (d.circuit||[]).length){
+      // POWER → SWITCH → LOAD trace (Teddy's method): test in order, first failed stage = the part.
+      let html='<div style="font-size:13px;font-weight:800;color:#2d7ef7;margin-bottom:8px">🔌 Trace the circuit — first stage that fails a test is your part</div>';
+      (d.circuit||[]).forEach(function(st){
+        html+='<div style="border-left:3px solid #2d7ef7;background:#eef4ff;border-radius:0 8px 8px 0;padding:8px 11px;margin-bottom:7px">'
+          +'<div style="font-weight:800;font-size:13.5px">'+esc(st.icon||'')+' '+esc(st.stage)+' <span style="font-weight:600;color:#5a6a85;font-size:11.5px">— '+esc(st.check||'')+'</span></div>';
+        (st.items||[]).forEach(function(it){
+          html+='<div style="font-size:12.5px;margin-top:5px"><b>'+esc(it.component)+'</b>'+(it.likelihood?(' <span style="color:#2d7ef7;font-weight:700">'+it.likelihood+'%</span>'):'')
+            +'<br><span style="color:#5a6a85">✅ '+esc(it.confirm)+'</span>'
+            +(it.part_category&&!/^(clean|clear|thaw|n\/a)/i.test(it.part_category)?('<br><span style="color:#0a7d33">🔩 look up: '+esc(it.part_category)+'</span>'):'')
+            +'</div>';
+        });
+        html+='</div>';
       });
-      if(d.note) html+='<div style="font-size:12.5px;color:#8a5a00;background:#fff7e6;border:1px solid #ffe2a8;border-radius:8px;padding:8px 10px;margin-top:8px">💡 '+esc(d.note)+'</div>';
+      if(d.note) html+='<div style="font-size:12.5px;color:#8a5a00;background:#fff7e6;border:1px solid #ffe2a8;border-radius:8px;padding:8px 10px;margin-top:6px">💡 '+esc(d.note)+'</div>';
       if((d.safety||[]).length) html+='<div style="font-size:12px;color:#c0392b;margin-top:8px">'+d.safety.map(function(s){return '⚠ '+esc(s);}).join('<br>')+'</div>';
       if(d.grounded_by_history>0) html+='<div style="font-size:11px;color:var(--dim);margin-top:6px">↑ boosted by '+d.grounded_by_history+' match'+(d.grounded_by_history===1?'':'es')+' in our own history on this machine</div>';
       out.innerHTML=html;
