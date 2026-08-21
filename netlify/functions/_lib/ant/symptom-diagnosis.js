@@ -190,6 +190,38 @@ const DX = {
 
 function normComp(c) { return String(c || '').toLowerCase(); }
 
+// POWER → SWITCH → LOAD (Teddy 2026-08-21: "90% of all machines simplify to this").
+// The universal circuit: get POWER to it, a SWITCH/control lets it run, the LOAD does
+// the work. Classify a component into its stage so the diagnosis can be presented as a
+// GUIDED TRACE the tech tests in order — the first stage that fails a test IS the fault.
+// This is what kills misdiagnosis (no more "replaced the element, still won't heat" —
+// because you confirm the switch stage before you touch the load).
+function stageOf(name) {
+  const c = String(name || '').toLowerCase();
+  // LOAD = draws the power + does the physical work.
+  if (/element|\bmotor\b|pump|valve|compressor|ignit|heater|magnetron|gearcase|transmission|\bbelt\b|pulley|roller|bearing|coupling|agitator|auger|blower|\bfan\b/.test(c)) return 'load';
+  // POWER = gets voltage to the circuit (a break here = nothing downstream runs).
+  if (/fuse|line filter|\bcord\b|breaker|outlet|incoming|main harness/.test(c)) return 'power';
+  // SWITCH/CONTROL = everything that decides/allows the load to run (switches, sensors,
+  // thermostats, locks, actuators, control boards).
+  return 'switch';
+}
+const STAGES = [
+  { key: 'power', label: 'Power', icon: '⚡', ask: 'Is power getting to it?' },
+  { key: 'switch', label: 'Switch / control', icon: '🎛️', ask: 'Is it being told to run — is the circuit being closed?' },
+  { key: 'load', label: 'Load', icon: '🔧', ask: 'Is the part that does the work good?' },
+];
+// Universal fallback trace for a machine/symptom we have no specific pattern for —
+// still a real diagnosis, because the circuit is the same on every appliance.
+function universalCircuit(appl) {
+  const load = ({ dryer: 'heating element / drive motor', washer: 'drive motor / drain pump', refrigerator: 'compressor / evaporator fan', oven: 'bake element / igniter', dishwasher: 'wash pump / heating element', microwave: 'magnetron' })[appl] || 'the main motor / element / pump';
+  return [
+    { stage: 'Power', icon: '⚡', check: 'Is power getting to it?', items: [{ component: 'Incoming power', confirm: 'outlet voltage, breaker, cord, then the thermal fuse / line filter — is voltage reaching the control?' }] },
+    { stage: 'Switch / control', icon: '🎛️', check: 'Is it being told to run?', items: [{ component: 'The switch / control that starts it', confirm: 'door or lid switch, start switch, the thermostat/sensor, and the control-board relay — is the circuit being closed?' }] },
+    { stage: 'Load', icon: '🔧', check: 'Is the working part good?', items: [{ component: load, confirm: 'ohm / continuity-test the ' + load + ' that actually does the job' }] },
+  ];
+}
+
 // The engine. Input: { appliance, brand, model, symptom, history? }
 //   history = optional array of the shop's failed_component strings for this model/brand.
 // Returns ranked component diagnoses (knowledge-base priors, BOOSTED by history), each
@@ -197,8 +229,16 @@ function normComp(c) { return String(c || '').toLowerCase(); }
 function diagnose(input) {
   const symptom = String((input && input.symptom) || '');
   const appliance = canonAppliance((input && input.appliance) || '') || canonAppliance(symptom);
-  const out = { appliance: appliance || null, matched: false, note: '', diagnoses: [], safety: [], grounded_by_history: 0 };
-  if (!appliance || !DX[appliance]) { out.note = 'Need the appliance + a symptom to diagnose.'; return out; }
+  const out = { appliance: appliance || null, matched: false, note: '', diagnoses: [], circuit: [], safety: [], grounded_by_history: 0 };
+  if (!DX[appliance]) {
+    // Appliance we have no specific table for (microwave, disposal, unknown) — still a
+    // real diagnosis via the universal Power → Switch → Load trace. 90% of all machines.
+    out.note = appliance
+      ? 'Trace the circuit: the first stage that fails a test is your part.'
+      : 'Tell me the appliance + what it\'s doing and I\'ll trace it.';
+    if (appliance) out.circuit = universalCircuit(appliance);
+    return out;
+  }
 
   // Normalize before matching: strip a leading "Other"/category placeholder + any
   // appended call/note noise, then convert smart/curly apostrophes (’ ‘ ´ ` ʼ) to a
@@ -210,7 +250,10 @@ function diagnose(input) {
     .toLowerCase().replace(/[‘’ʼ´`]/g, "'").trim();
   const block = DX[appliance].find((b) => b.sym.test(t));
   if (!block) {
-    out.note = 'No symptom pattern matched yet — describe what it\'s doing (won\'t drain / no heat / not cooling / makes noise…).';
+    // No specific pattern — but 90% of machines trace the same way. Hand back the
+    // universal Power → Switch → Load walk so it's still a real, systematic diagnosis.
+    out.note = 'No specific pattern yet — but trace the circuit: the first stage that fails a test is your part.';
+    out.circuit = universalCircuit(appliance);
     return out;
   }
   out.matched = true;
@@ -248,6 +291,13 @@ function diagnose(input) {
   const tot = ranked.reduce((s, x) => s + x.likelihood, 0) || 1;
   ranked.forEach((x) => { x.likelihood = Math.round((x.likelihood / tot) * 100); });
   out.diagnoses = ranked;
+
+  // POWER → SWITCH → LOAD trace: group the likely culprits into the circuit stages so
+  // the tech tests in order and stops at the first failed stage (kills misdiagnosis).
+  out.circuit = STAGES.map((s) => ({
+    stage: s.label, icon: s.icon, check: s.ask,
+    items: ranked.filter((x) => stageOf(x.component) === s.key).map((x) => ({ component: x.component, confirm: x.confirm, likelihood: x.likelihood, part_category: x.part_category })),
+  })).filter((s) => s.items.length);
 
   // Safety routing.
   const flagset = new Set(ranked.flatMap((x) => x.flags));
