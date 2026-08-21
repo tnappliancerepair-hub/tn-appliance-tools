@@ -38,11 +38,12 @@ const DX = {
       { component: 'cycling thermostat / hi-limit thermostat', confirm: 'ohm the cycling thermostat + hi-limit', part: 'thermostat kit', pct: 15 },
       { component: 'gas igniter / flame sensor', confirm: 'igniter glows then drops out without lighting = weak igniter; check flame sensor continuity', part: 'igniter', pct: 25, gas: true },
     ] },
-    { sym: /won'?t start|no start|dead|won'?t turn on|no power|nothing happens/, dx: [
-      { component: 'thermal fuse', confirm: 'ohm it — open = blown', part: 'thermal fuse', pct: 30 },
-      { component: 'door switch', confirm: 'test switch continuity with door closed', part: 'door switch', pct: 25 },
-      { component: 'start switch / push-to-start', confirm: 'test the start switch', part: 'start switch', pct: 20 },
-      { component: 'broken drive belt (belt switch trips)', confirm: 'open top — belt off or broken?', part: 'drive belt', pct: 15 },
+    { sym: /won'?t start|no start|\bdead\b|won'?t turn on|not turning on|won'?t come on|not coming on|not working|no power|nothing happens|start button|push.?to.?start|button (is )?(not working|frozen|froze|stuck)/, dx: [
+      { component: 'start switch / push-to-start', confirm: 'test the start switch (a bad/frozen start button is common)', part: 'start switch', pct: 28 },
+      { component: 'thermal fuse', confirm: 'ohm it — open = blown', part: 'thermal fuse', pct: 25 },
+      { component: 'door switch', confirm: 'test switch continuity with door closed', part: 'door switch', pct: 22 },
+      { component: 'control board / timer', confirm: 'power but no response = control board / timer', part: 'control board', pct: 15 },
+      { component: 'broken drive belt (belt switch trips)', confirm: 'open top — belt off or broken?', part: 'drive belt', pct: 10 },
     ] },
     { sym: /nois|loud|squeal|grind|thump|rumble|rattle|screech/, dx: [
       { component: 'drum support rollers', confirm: 'spin the drum by hand — growl/roughness', part: 'drum roller kit', pct: 30 },
@@ -78,15 +79,23 @@ const DX = {
       { component: 'drain pump / hose clamps', confirm: 'check the pump housing + hose clamps', part: 'pump / hoses', pct: 25 },
       { component: 'tub seal', confirm: 'leak from the center-bottom during spin', part: 'tub seal', pct: 20 },
     ] },
-    { sym: /won'?t agitate|no agitat|doesn'?t agitate/, dx: [
-      { component: 'motor coupling / drive block', confirm: 'coupler cracked?', part: 'motor coupling', pct: 35 },
-      { component: 'agitator dogs / cam kit', confirm: 'agitator drives one way only?', part: 'agitator repair kit', pct: 30 },
-      { component: 'shift actuator', confirm: 'test the actuator', part: 'shift actuator', pct: 15 },
+    { sym: /won'?t agitate|no agitat|doesn'?t agitate|agitator (is )?loose|agitator (not|won'?t)|screw (fell|loose|came)/, dx: [
+      { component: 'gearcase / transmission', confirm: 'agitator loose or drives one way, or a growl on agitate = worn gearcase', part: 'gearcase / transmission', pct: 30 },
+      { component: 'motor coupling / drive block', confirm: 'coupler cracked?', part: 'motor coupling', pct: 25 },
+      { component: 'agitator dogs / cam kit', confirm: 'agitator drives one way only?', part: 'agitator repair kit', pct: 25 },
+      { component: 'shift actuator', confirm: 'test the actuator', part: 'shift actuator', pct: 12 },
     ] },
-    { sym: /nois|loud|grind|bang|rumble/, dx: [
-      { component: 'tub bearing', confirm: 'spin the basket — growl/roughness on spin', part: 'tub bearing kit', pct: 30 },
-      { component: 'shock absorbers / suspension', confirm: 'basket bangs on spin', part: 'shock / suspension kit', pct: 25 },
+    { sym: /nois|loud|grind|bang|rumble|clunk|shriek|whistl/, dx: [
+      { component: 'tub bearing', confirm: 'spin the basket — growl/roughness on spin', part: 'tub bearing kit', pct: 26 },
+      { component: 'gearcase / transmission (center bolt)', confirm: 'clunk on agitate, loose agitator, or oil leak under = gearcase', part: 'gearcase / transmission', pct: 22 },
+      { component: 'shock absorbers / suspension', confirm: 'basket bangs on spin', part: 'shock / suspension kit', pct: 22 },
       { component: 'motor coupling', confirm: 'inspect the coupler', part: 'motor coupling', pct: 15 },
+    ] },
+    { sym: /won'?t start|no start|\bdead\b|no power|not working|not coming on|won'?t come on|not turning on|won'?t turn on|won'?t power|no lights|powers on.*(won'?t|then)|won'?t run/, dx: [
+      { component: 'lid switch (top-load) / door lock (front-load)', confirm: 'won\'t start until it locks — test the lid switch / door lock', part: 'lid switch / door lock', pct: 30 },
+      { component: 'main control board (CCU)', confirm: 'power but no function = CCU', part: 'main control board', pct: 25 },
+      { component: 'user interface / control panel', confirm: 'buttons dead = interface board', part: 'interface board', pct: 22 },
+      { component: 'line filter / thermal fuse (no power)', confirm: 'no power at all — check the line filter / thermal fuse', part: 'line filter / thermal fuse', pct: 13 },
     ] },
     { sym: /smell|odor|mildew|stink|musty/, dx: [
       { component: 'door boot / gasket biofilm (front-load)', confirm: 'clean the boot, run a tub-clean cycle, leave the door ajar between washes', part: 'clean (or door boot if torn)', pct: 60 },
@@ -104,7 +113,7 @@ const DX = {
       { component: 'frozen fill tube / water line', confirm: 'ice bridged at the fill tube', part: 'thaw (or line)', pct: 20 },
       { component: 'restricted water filter', confirm: 'old filter choking flow', part: 'water filter', pct: 10 },
     ] },
-    { sym: /not cool|won'?t cool|warm|not cold|too warm|not getting cold|not freezing/, dx: [
+    { sym: /not cool|won'?t cool|warm|not cold|too warm|not getting cold|not freezing|not working|not coming on|won'?t come on|not turning on|\bdead\b|no power|not running/, dx: [
       { component: 'evaporator fan motor', confirm: 'freezer cold but fridge warm + no fan noise = evap fan', part: 'evaporator fan motor', pct: 22 },
       { component: 'defrost system (heater / thermostat / bi-metal / board)', confirm: 'frost caked on the evap coils = defrost failure', part: 'defrost heater / thermostat / board', pct: 25 },
       { component: 'compressor start relay / inverter', confirm: 'compressor not running or clicking = start relay (or inverter on linear comps)', part: 'start relay / inverter', pct: 20 },
@@ -128,7 +137,7 @@ const DX = {
     ] },
   ],
   oven: [
-    { sym: /(oven|bake).*(no heat|won'?t heat|not heat)|not baking|won'?t bake|oven cold/, dx: [
+    { sym: /(oven|bake).*(no heat|won'?t heat|not heat)|not baking|won'?t bake|oven cold|not heating|\bno heat\b/, dx: [
       { component: 'bake element (electric)', confirm: 'ohm the element / look for a break or blister', part: 'bake element', pct: 40, v240: true },
       { component: 'oven igniter (gas)', confirm: 'igniter glows but the gas valve won\'t open = weak igniter (drawing under ~3A)', part: 'oven igniter', pct: 35, gas: true },
       { component: 'control / relay board', confirm: 'element or igniter is good but getting no power = relay board', part: 'control board', pct: 15 },
@@ -146,7 +155,7 @@ const DX = {
       { component: 'oven temp sensor (RTD)', confirm: 'ohm the sensor — ~1080Ω at room temp', part: 'oven temp sensor', pct: 45 },
       { component: 'control board', confirm: 'sensor reads good but temp is off = board', part: 'control board', pct: 20 },
     ] },
-    { sym: /won'?t turn on|dead|no power|display (dead|blank|out)/, dx: [
+    { sym: /won'?t turn on|not turning on|not working|not coming on|won'?t come on|\bdead\b|no power|display (dead|blank|out)/, dx: [
       { component: 'control board', confirm: 'check board power + relays', part: 'control board', pct: 40 },
       { component: 'thermal fuse (some models)', confirm: 'ohm the fuse', part: 'thermal fuse', pct: 20 },
     ] },
@@ -171,7 +180,7 @@ const DX = {
       { component: 'pump / sump seal', confirm: 'leak at the pump housing', part: 'pump seal', pct: 25 },
       { component: 'inlet valve / hose', confirm: 'check the fittings', part: 'valve / hose', pct: 20 },
     ] },
-    { sym: /won'?t start|dead|no power|won'?t turn on|no lights/, dx: [
+    { sym: /won'?t start|\bdead\b|no power|won'?t turn on|not turning on|not working|not coming on|won'?t come on|no lights/, dx: [
       { component: 'door latch / latch switch', confirm: 'test the latch switch continuity', part: 'door latch', pct: 35 },
       { component: 'control board', confirm: 'check board power', part: 'control board', pct: 25 },
       { component: 'thermal fuse (on the control)', confirm: 'ohm the fuse', part: 'thermal fuse', pct: 15 },
@@ -191,9 +200,14 @@ function diagnose(input) {
   const out = { appliance: appliance || null, matched: false, note: '', diagnoses: [], safety: [], grounded_by_history: 0 };
   if (!appliance || !DX[appliance]) { out.note = 'Need the appliance + a symptom to diagnose.'; return out; }
 
-  // Normalize smart/curly apostrophes (’ ‘ ´ ` ʼ) to a straight ' so "won’t"/"won`t"
-  // from iOS autocorrect, phone transcription, and copy-paste all match the patterns.
-  const t = symptom.toLowerCase().replace(/[‘’ʼ´`]/g, "'");
+  // Normalize before matching: strip a leading "Other"/category placeholder + any
+  // appended call/note noise, then convert smart/curly apostrophes (’ ‘ ´ ` ʼ) to a
+  // straight ' so "won’t"/"won`t" from iOS autocorrect + phone transcription match.
+  const t = String(symptom)
+    .split(/\s*\|\|\s*/)[0]
+    .replace(/\[(phone call|call|note|voicemail|vm|sms|text|system)\][\s\S]*$/i, '')
+    .replace(/^\s*(other|general|misc(ellaneous)?)\b[:\-\s]*/i, '')
+    .toLowerCase().replace(/[‘’ʼ´`]/g, "'").trim();
   const block = DX[appliance].find((b) => b.sym.test(t));
   if (!block) {
     out.note = 'No symptom pattern matched yet — describe what it\'s doing (won\'t drain / no heat / not cooling / makes noise…).';
