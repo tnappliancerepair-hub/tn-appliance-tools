@@ -14,6 +14,12 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
   const days = Math.max(1, Math.min(365, parseInt(q.days, 10) || 30));
+  // ?range= a named Google DURING literal (TODAY / YESTERDAY / THIS_WEEK_SUN_TODAY /
+  // LAST_7_DAYS / LAST_30_DAYS / THIS_MONTH ...). Google rejects LAST_1_DAYS/LAST_2_DAYS,
+  // so "today"/"yesterday" have no LAST_N form — this is how you pull them. Whitelisted.
+  const RANGES = new Set(['TODAY', 'YESTERDAY', 'THIS_WEEK_SUN_TODAY', 'THIS_WEEK_MON_TODAY', 'LAST_WEEK_SUN_SAT', 'LAST_BUSINESS_WEEK', 'LAST_7_DAYS', 'LAST_14_DAYS', 'LAST_30_DAYS', 'THIS_MONTH', 'LAST_MONTH']);
+  const rangeLit = q.range && RANGES.has(String(q.range).toUpperCase()) ? String(q.range).toUpperCase() : '';
+  const during = rangeLit || `LAST_${days}_DAYS`;
 
   const c = await ads.creds();
   if (!c.clientId || !c.refresh || !c.devToken) return json(200, { ok: false, configured: false });
@@ -40,7 +46,7 @@ exports.handler = async function (event) {
   // my ads serving" answer). Default query unchanged so existing callers are safe.
   const diag = q.diag === '1';
   const diagFields = diag ? ', campaign.bidding_strategy_type, campaign_budget.amount_micros, metrics.search_impression_share, metrics.search_budget_lost_impression_share, metrics.search_rank_lost_impression_share' : '';
-  const gaql = `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.average_cpc${diagFields} FROM campaign WHERE segments.date DURING LAST_${days}_DAYS ORDER BY metrics.cost_micros DESC`;
+  const gaql = `SELECT campaign.id, campaign.name, campaign.status, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.average_cpc${diagFields} FROM campaign WHERE segments.date DURING ${during} ORDER BY metrics.cost_micros DESC`;
 
   const out = [];
   for (const cid of cids) {
@@ -74,7 +80,7 @@ exports.handler = async function (event) {
     });
     const totCost = rows.reduce((a, b) => a + b.cost, 0);
     const totConv = rows.reduce((a, b) => a + b.conversions, 0);
-    out.push({ cid, days, campaigns: rows.length, total_cost: Math.round(totCost * 100) / 100, total_clicks: rows.reduce((a, b) => a + b.clicks, 0), total_conversions: Math.round(totConv * 100) / 100, cost_per_conversion: totConv > 0 ? Math.round((totCost / totConv) * 100) / 100 : null, rows });
+    out.push({ cid, window: during, days, campaigns: rows.length, total_cost: Math.round(totCost * 100) / 100, total_clicks: rows.reduce((a, b) => a + b.clicks, 0), total_conversions: Math.round(totConv * 100) / 100, cost_per_conversion: totConv > 0 ? Math.round((totCost / totConv) * 100) / 100 : null, rows });
   }
   return json(200, { ok: true, version: ver, accounts: out });
 };
