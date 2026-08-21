@@ -328,16 +328,18 @@ exports.handler = async function (event) {
     // &num=+1... to target a different DID. Mirrors ringgroup exactly.
     if (action === 'googleline') {
       const gnum = String(q.num || '+16158458500').trim();
-      const voiceUrl = `${SITE}/.netlify/functions/google-line-texml`;
+      const verify = q.verify === '1';   // verify-only: rings Teddy alone, no Ann fallback
+      const friendly = verify ? 'Ant Verify Line' : 'Ant Google Line';
+      const voiceUrl = `${SITE}/.netlify/functions/google-line-texml${verify ? '?direct=1' : ''}`;
       let appId = null;
       const la = await fetch(`${TELNYX}/texml_applications?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
       const ld = await la.json().catch(() => ({}));
-      const existing = (ld.data || []).find((a) => (a.friendly_name === 'Ant Google Line') || (a.voice_url === voiceUrl));
+      const existing = (ld.data || []).find((a) => (a.friendly_name === friendly) || (a.voice_url === voiceUrl));
       if (existing) appId = existing.id;
       if (!appId) {
         const ca = await fetch(`${TELNYX}/texml_applications`, {
           method: 'POST', headers: H,
-          body: JSON.stringify({ friendly_name: 'Ant Google Line', voice_url: voiceUrl, voice_method: 'POST', active: true }),
+          body: JSON.stringify({ friendly_name: friendly, voice_url: voiceUrl, voice_method: 'POST', active: true }),
           signal: AbortSignal.timeout(12000),
         });
         const cd = await ca.json().catch(() => ({}));
@@ -365,7 +367,7 @@ exports.handler = async function (event) {
       });
       const ud = await up.json().catch(() => ({}));
       if (!up.ok) return json(200, { ok: false, step: 'repoint_did', status: up.status, error: JSON.stringify(ud.errors || ud).slice(0, 300) });
-      return json(200, { ok: true, texml_app_id: appId, voice_url: voiceUrl, did: gnum, connection_before: before, did_now_points_to: 'Ant Google Line', note: 'rings Teddy first, then Ann on a miss' });
+      return json(200, { ok: true, texml_app_id: appId, voice_url: voiceUrl, did: gnum, connection_before: before, did_now_points_to: friendly, note: verify ? 'rings Teddy only (verify) — revert with setai when approved' : 'rings Teddy first, then Ann on a miss' });
     }
 
     // Repoint an inbound number at the Ann Voice-AI TeXML connection so its calls
