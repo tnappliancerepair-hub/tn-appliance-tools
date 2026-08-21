@@ -69,6 +69,35 @@ function scheduleCriteria(campaign) {
   return out;
 }
 
+// ── PER-CITY DRYER + FRIDGE ad group (Teddy: "each LA city its own little ads, aimed at
+// Louisiana customers, dryer + refrigerator primarily"). One ad group per city so a
+// Baton Rouge searcher sees a Baton Rouge ad. City names live in the HEADLINES; the
+// "yes—we service your area" promise lives in the descriptions (kept generic so a long
+// city name can't blow the 90-char cap). Defensive length filters guarantee a valid RSA.
+const clip = (arr, max) => arr.filter((s) => s && s.length <= max);
+const dig = (s) => String(s || '').replace(/\D/g, '');
+function cityAdGroup(city, stAbbr) {
+  const kw = [
+    `dryer repair ${city}`, `refrigerator repair ${city}`, `fridge repair ${city}`,
+    `appliance repair ${city}`, `${city} dryer repair`, `${city} appliance repair`,
+    'dryer repair near me', 'refrigerator repair near me', 'dryer not heating', 'fridge not cooling',
+  ];
+  // city-specific headlines (only those ≤30 survive), then strong generics to guarantee ≥3.
+  const cityHeads = clip([
+    `${city} Dryer Repair`, `${city} Fridge Repair`, `Dryer Repair in ${city}`,
+    `We Service ${city}, ${stAbbr}`, `Yes—We Come to ${city}`, `${city} Appliance Repair`,
+  ], 30);
+  const genHeads = ['Same-Day Dryer & Fridge Fix', 'We Answer 24/7', "Broken Tonight? We're Open", 'Honest Local Repair', '$50 Quick Check', 'Fast, Honest, Local', 'Book Your Repair Online', 'Licensed & Insured'];
+  const headlines = [...new Set([...cityHeads, ...genHeads])].slice(0, 15);
+  const descriptions = clip([
+    'Yes—we service your area across Louisiana. Dryer & refrigerator repair, honest pricing.',
+    'Dryer not heating or fridge not cooling? We come to you. Book online in about a minute.',
+    'We answer 24/7 when others are closed. Same-week service, licensed & insured.',
+    'Real local techs, upfront pricing. 4.5 stars, 1,000+ reviews. Book your repair now.',
+  ], 90);
+  return { name: `${city} — Dryer & Fridge`, kw, headlines, descriptions };
+}
+
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -82,6 +111,10 @@ exports.handler = async function (event) {
   const baseCpc = Math.max(1, Math.min(20, parseInt(q.cpc, 10) || 4)); // $ base max CPC, scaled by the schedule
   const apply = q.apply === '1';
   const enable = q.enable === '1';
+  const step = String(q.step || '').toLowerCase();     // '', 'shell', or 'city' (per-city flow)
+  const stAbbr = String(q.st || (STATE.toLowerCase().startsWith('louis') ? 'LA' : STATE.slice(0, 2).toUpperCase())).toUpperCase();
+  const callRaw = dig(q.call);                          // e.g. 2256051234 -> +12256051234 call asset
+  const callNumber = callRaw ? (callRaw.length === 10 ? `+1${callRaw}` : (callRaw.startsWith('1') ? `+${callRaw}` : `+${callRaw}`)) : '';
 
   const c = await ads.creds();
   if (!c.clientId || !c.refresh || !c.devToken) return json(200, { ok: false, configured: false });
@@ -98,6 +131,23 @@ exports.handler = async function (event) {
     }
     const detail = d.error && d.error.details && d.error.details[0] && (d.error.details[0].errors || d.error.details[0]);
     return { ok: r.ok, status: r.status, d, err: r.ok ? null : { message: (d.error && d.error.message) || null, detail: detail || (d.error && d.error.status) || d } };
+  }
+
+  // ── STEP: add ONE city's dryer/fridge ad group to an existing campaign ───────────
+  // Small (3 API calls) so it never times out; call once per city after the shell.
+  if (step === 'city') {
+    const campId = dig(q.campaign);
+    const city = String(q.city || '').trim();
+    if (!campId || !city) return json(400, { ok: false, error: 'step=city needs &campaign=<id> and &city=' });
+    const campRes = `customers/${cid}/campaigns/${campId}`;
+    const g = cityAdGroup(city, stAbbr);
+    if (!apply) return json(200, { ok: true, mode: 'preview city', city, ad_group: g.name, keywords: g.kw, headlines: g.headlines, descriptions: g.descriptions, final: finalUrl });
+    const ag = await post('/adGroups:mutate', { operations: [{ create: { name: g.name, campaign: campRes, status: 'ENABLED', type: 'SEARCH_STANDARD', cpcBidMicros: baseCpc * 1000000 } }] });
+    if (!ag.ok) return json(200, { ok: false, step: 'city_adgroup', city, error: ag.err });
+    const agRes = ag.d.results[0].resourceName;
+    const kw = await post('/adGroupCriteria:mutate', { partialFailure: true, operations: g.kw.map((t) => ({ create: { adGroup: agRes, status: 'ENABLED', keyword: { text: t, matchType: 'PHRASE' } } })) });
+    const ad = await post('/adGroupAds:mutate', { operations: [{ create: { adGroup: agRes, status: 'ENABLED', ad: { finalUrls: [finalUrl], responsiveSearchAd: { headlines: g.headlines.map((t) => ({ text: t })), descriptions: g.descriptions.map((t) => ({ text: t })) } } } }] });
+    return json(200, { ok: !!(ag.ok && ad.ok), mode: 'city added', city, ad_group: agRes, keywords: { ok: kw.ok, count: g.kw.length, err: kw.err }, ad: { ok: ad.ok, err: ad.err } });
   }
 
   // resolve City geo constants
@@ -149,7 +199,32 @@ exports.handler = async function (event) {
   const schedMut = await post('/campaignCriteria:mutate', { partialFailure: true, operations: scheduleCriteria(campRes) });
   const negMut = await post('/campaignCriteria:mutate', { partialFailure: true, operations: NEGATIVES.map((t) => ({ create: { campaign: campRes, negative: true, keyword: { text: t, matchType: 'BROAD' } } })) });
 
-  // ad group + keywords + RSA
+  // optional CALL ASSET (the local number on the ad) — create the asset, link it to THIS
+  // campaign only. Different regions get different local numbers this way (LA -> 225).
+  let callRes = { ok: true, skipped: true };
+  if (callNumber) {
+    const a = await post('/assets:mutate', { operations: [{ create: { callAsset: { countryCode: 'US', phoneNumber: callNumber, callConversionReportingState: 'USE_ACCOUNT_LEVEL_CALL_CONVERSION_ACTION' } } }] });
+    if (a.ok) {
+      const assetRes = a.d.results[0].resourceName;
+      const link = await post('/campaignAssets:mutate', { operations: [{ create: { campaign: campRes, asset: assetRes, fieldType: 'CALL' } }] });
+      callRes = { ok: link.ok, number: callNumber, asset: assetRes, err: link.err };
+    } else { callRes = { ok: false, number: callNumber, err: a.err }; }
+  }
+
+  // SHELL mode: campaign-level only, no ad group — per-city ad groups get added next via
+  // step=city (keeps each call small so nothing times out mid-create). Left PAUSED.
+  if (step === 'shell') {
+    return json(200, {
+      ok: camp.ok, mode: 'shell created (PAUSED)', cid, campaign: campRes, status: 'PAUSED', budget_per_day: budget,
+      geo: { ok: geoMut.ok, targeted: geo.map((g) => g.canonical), err: geoMut.err },
+      schedule: { ok: schedMut.ok, blocks: scheduleCriteria(campRes).length, err: schedMut.err },
+      negatives: { ok: negMut.ok, count: NEGATIVES.length, err: negMut.err },
+      call: callRes,
+      next: `add each city: ?step=city&apply=1&campaign=${campRes.split('/').pop()}&state=${encodeURIComponent(STATE)}&city=<City>`,
+    });
+  }
+
+  // FULL mode: single all-appliance ad group + keywords + RSA (TN uses this).
   const ag = await post('/adGroups:mutate', { operations: [{ create: { name: 'After-Hours ad group', campaign: campRes, status: 'ENABLED', type: 'SEARCH_STANDARD', cpcBidMicros: baseCpc * 1000000 } }] });
   if (!ag.ok) return json(200, { ok: false, step: 'adgroup', error: ag.err, campaign: campRes });
   const agRes = ag.d.results[0].resourceName;
@@ -162,6 +237,7 @@ exports.handler = async function (event) {
     geo: { ok: geoMut.ok, targeted: geo.map((g) => g.canonical), err: geoMut.err },
     schedule: { ok: schedMut.ok, blocks: scheduleCriteria(campRes).length, err: schedMut.err },
     negatives: { ok: negMut.ok, count: NEGATIVES.length, err: negMut.err },
+    call: callRes,
     keywords: { ok: kw.ok, count: KEYWORDS.length, err: kw.err },
     ad: { ok: ad.ok, err: ad.err },
     plan,
