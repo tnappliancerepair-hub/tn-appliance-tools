@@ -10,7 +10,7 @@
 const qrcode = require('qrcode-generator');
 
 // The authoritative Google review deep-link (opens straight to the write-a-review box).
-const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
+const REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc';
 
 function qrSvg(text, cell) {
   const qr = qrcode(0, 'M');
@@ -72,7 +72,7 @@ exports.handler = async function (event) {
       <div class="scan">📲 Scan to review us <span class="arrow">↓</span></div>
       <div class="qrbox">${svg}</div>
       <div class="or">or go to</div>
-      <div class="link">g.page/r/CRt-vo--eAJ3EBM/review</div>
+      <div class="link">search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc</div>
       <div class="trust">
         <div class="stars">★★★★★</div>
         <div class="n">Rated 4.5 by 1,000+ neighbors</div>

@@ -9,7 +9,7 @@ const { getSecret } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
+const REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc';
 const NEXTDOOR_DEFAULT = 'https://nextdoor.com/page/tn-appliance-exchange-antioch-tn';
 async function nextdoorUrl() {
   let u = ''; try { u = String((await getSecret('NEXTDOOR_RECOMMEND_URL')) || '').trim(); } catch (_) { u = ''; }

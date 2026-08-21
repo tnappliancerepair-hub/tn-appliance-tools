@@ -21,7 +21,7 @@ const reviewI18n = require('./_lib/review-i18n');
 const satisfaction = require('./_lib/satisfaction');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
-const REVIEW_URL = 'https://g.page/r/CRt-vo--eAJ3EBM/review';
+const REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc';
 const DEDUP_DAYS = 60;
 const TECH_NAME = { 1: 'Teddy', 2: 'Jimmy', 3: 'Andre', 4: 'Lee', 6: 'John' };
 
