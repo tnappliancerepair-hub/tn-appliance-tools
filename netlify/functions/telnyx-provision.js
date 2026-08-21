@@ -323,6 +323,51 @@ exports.handler = async function (event) {
       return json(200, { ok: true, texml_app_id: appId, voice_url: voiceUrl, did: OFFICE_DID, did_now_points_to: 'Ant Office Ring Group', note: 'Dialing the office DID now rings both cells.' });
     }
 
+    // Point the Google-Ads line (default 615-845-8500) at the google-line-texml app:
+    // rings Teddy's cell first, then hands the caller to Ann on a miss (Option A).
+    // &num=+1... to target a different DID. Mirrors ringgroup exactly.
+    if (action === 'googleline') {
+      const gnum = String(q.num || '+16158458500').trim();
+      const voiceUrl = `${SITE}/.netlify/functions/google-line-texml`;
+      let appId = null;
+      const la = await fetch(`${TELNYX}/texml_applications?page[size]=100`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const ld = await la.json().catch(() => ({}));
+      const existing = (ld.data || []).find((a) => (a.friendly_name === 'Ant Google Line') || (a.voice_url === voiceUrl));
+      if (existing) appId = existing.id;
+      if (!appId) {
+        const ca = await fetch(`${TELNYX}/texml_applications`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ friendly_name: 'Ant Google Line', voice_url: voiceUrl, voice_method: 'POST', active: true }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const cd = await ca.json().catch(() => ({}));
+        if (!ca.ok) return json(200, { ok: false, step: 'create_texml_app', status: ca.status, error: JSON.stringify(cd.errors || cd).slice(0, 300) });
+        appId = cd.data && cd.data.id;
+      }
+      if (!appId) return json(200, { ok: false, error: 'no TeXML app id' });
+      // attach an outbound voice profile so the <Dial> to Teddy's cell can connect
+      let outboundProfileId = q.profile;
+      if (!outboundProfileId) {
+        try { const op = await fetch(`${TELNYX}/outbound_voice_profiles?page[size]=10`, { headers: H, signal: AbortSignal.timeout(10000) }); outboundProfileId = (((await op.json().catch(() => ({}))).data || [])[0] || {}).id; } catch (_) {}
+      }
+      if (outboundProfileId) {
+        await fetch(`${TELNYX}/texml_applications/${appId}`, {
+          method: 'PATCH', headers: H, body: JSON.stringify({ outbound: { outbound_voice_profile_id: outboundProfileId } }), signal: AbortSignal.timeout(12000),
+        }).catch(() => {});
+      }
+      const pn = await fetch(`${TELNYX}/phone_numbers?filter[phone_number]=${encodeURIComponent(gnum)}`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const pd = await pn.json().catch(() => ({}));
+      const rec = pd.data && pd.data[0];
+      if (!rec) return json(200, { ok: false, step: 'find_did', error: `${gnum} not found on account` });
+      const before = rec.connection_id;
+      const up = await fetch(`${TELNYX}/phone_numbers/${rec.id}`, {
+        method: 'PATCH', headers: H, body: JSON.stringify({ connection_id: appId }), signal: AbortSignal.timeout(12000),
+      });
+      const ud = await up.json().catch(() => ({}));
+      if (!up.ok) return json(200, { ok: false, step: 'repoint_did', status: up.status, error: JSON.stringify(ud.errors || ud).slice(0, 300) });
+      return json(200, { ok: true, texml_app_id: appId, voice_url: voiceUrl, did: gnum, connection_before: before, did_now_points_to: 'Ant Google Line', note: 'rings Teddy first, then Ann on a miss' });
+    }
+
     // Repoint an inbound number at the Ann Voice-AI TeXML connection so its calls
     // are answered by Ann (not the old Vapi call-control app). &num=+1...&conn=<id>
     // conn defaults to Ann's texml connection (the one 615-280-2949 + 888-268-8998 use).
