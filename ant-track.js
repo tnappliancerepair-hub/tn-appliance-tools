@@ -100,3 +100,12 @@
     (document.head || document.documentElement).appendChild(s);
   } catch (e) {}
 })();
+
+// The 24/7·365 "we answer" moat bar — self-gates to public customer pages, dismissable.
+(function () {
+  try {
+    var s = document.createElement('script');
+    s.src = '/ant-open-badge.js'; s.defer = true;
+    (document.head || document.documentElement).appendChild(s);
+  } catch (e) {}
+})();
