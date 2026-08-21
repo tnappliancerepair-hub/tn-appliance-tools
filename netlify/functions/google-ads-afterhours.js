@@ -133,6 +133,20 @@ exports.handler = async function (event) {
     return { ok: r.ok, status: r.status, d, err: r.ok ? null : { message: (d.error && d.error.message) || null, detail: detail || (d.error && d.error.status) || d } };
   }
 
+  // ── STEP: change an existing campaign's daily budget ─────────────────────────────
+  if (step === 'budget') {
+    const campId = dig(q.campaign);
+    if (!campId) return json(400, { ok: false, error: 'step=budget needs &campaign=<id> and &budget=' });
+    const bq = await post('/googleAds:search', { query: `SELECT campaign.id, campaign.name, campaign_budget.resource_name, campaign_budget.amount_micros FROM campaign WHERE campaign.id = ${campId}` });
+    const row = bq.ok && bq.d.results && bq.d.results[0];
+    const budgetRes = row && row.campaignBudget && row.campaignBudget.resourceName;
+    if (!budgetRes) return json(200, { ok: false, error: 'could not find campaign budget', detail: bq.err || bq.d });
+    const oldMicros = row.campaignBudget.amountMicros;
+    if (!apply) return json(200, { ok: true, mode: 'preview budget', campaign: campId, name: row.campaign && row.campaign.name, from_per_day: Math.round(oldMicros / 1e6), to_per_day: budget });
+    const up = await post('/campaignBudgets:mutate', { operations: [{ update: { resourceName: budgetRes, amountMicros: budget * 1000000 }, updateMask: 'amount_micros' }] });
+    return json(200, { ok: up.ok, mode: 'budget set', campaign: campId, name: row.campaign && row.campaign.name, from_per_day: Math.round(oldMicros / 1e6), to_per_day: budget, err: up.err });
+  }
+
   // ── STEP: add ONE city's dryer/fridge ad group to an existing campaign ───────────
   // Small (3 API calls) so it never times out; call once per city after the shell.
   if (step === 'city') {
