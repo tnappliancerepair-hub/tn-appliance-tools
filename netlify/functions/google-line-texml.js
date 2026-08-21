@@ -44,6 +44,15 @@ exports.handler = async function (event) {
   const leg = parseInt(qs.leg, 10) || 1;
   const from = formField(event, 'From') || qs.from || '';
 
+  // DIRECT / VERIFY mode: ring Teddy's cell ONLY (45s), no Ann fallback. Used to catch a
+  // Google number-verification/approval call so an AI never answers it. Reverted to Ann
+  // once the number is approved. No customer traffic on a paused campaign's number.
+  if (qs.direct === '1') {
+    if (leg >= 2) return xml('  <Hangup/>');
+    const action = `${SELF}?direct=1&leg=2`;
+    return xml(`  <Dial answerOnBridge="true" timeout="45" callerId="${esc(callerFrom(from))}" action="${esc(action)}" method="POST"><Number>${esc(TEDDY_CELL)}</Number></Dial>`);
+  }
+
   // Leg 2: Teddy's cell ring reported back. Answered -> done. Missed -> hand to Ann + text.
   if (leg >= 2) {
     const st = String(formField(event, 'DialCallStatus') || '').toLowerCase();
