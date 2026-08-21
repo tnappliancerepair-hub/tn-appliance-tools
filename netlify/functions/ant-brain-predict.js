@@ -193,6 +193,22 @@ exports.handler = async function (event) {
     } catch (_) { /* base optional — never break the guess */ }
   }
 
+  // CONFIDENCE HONESTY GUARDRAIL (2026-08-21): confidence must be EARNED by repeated
+  // evidence. The old formula let a SINGLE historical match read 100% (n/distinctJobs
+  // = 1/1), so the brain showed high confidence on one data point — "confidently wrong"
+  // on the TDR card, the worst possible state for a pre-order decision (you'd order the
+  // wrong part with conviction). Measured 2026-08-21: exact-part hit ~1%, yet half the
+  // graded predictions read >=40% confidence — confidence was anti-correlated with being
+  // right. Damp every prediction by how many times we've actually SEEN that part fix a
+  // similar machine: 1 sighting ~0.4x, 2 ~0.65x, 4+ full weight. This changes only how
+  // sure we CLAIM to be, never which part ranks first — so the "Pre-order" recommendation
+  // now only fires on genuinely repeated evidence (>=2 sightings), not a lucky single row.
+  // Accuracy itself is a data problem (thin grounded corpus); this stops the false certainty.
+  ranked = ranked.map((p) => ({
+    ...p,
+    confidence: Math.max(5, Math.round((p.confidence || 0) * Math.min(1, (p.seen_n || 0) / 4 + 0.15))),
+  }));
+
   // Fault-code layer (if the symptom carries a code).
   let fault = null;
   const code = codeIn(symptom);
