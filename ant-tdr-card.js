@@ -33,7 +33,7 @@
   var _photoUrlCache = {};        // s3_key -> viewable URL (signed or cached data URL)
   var _partPhotoTarget = null;    // { part, status } while snapping a per-part photo
   // Tech vs Ant 🐜 (Stage 1): antGuess undefined=unfetched, null=no confident call, obj=call.
-  var antGuess, antGuessBasedOn = 0, antGuessVerdict = null, antGuessOverriding = false, antGuessLoading = false;
+  var antGuess, antGuessBasedOn = 0, antGuessVerdict = null, antGuessOverriding = false, antGuessLoading = false, antGuessScope = '';
   // The 5 inline-editable TDR fields → their real DB column + editor shape.
   // SIMPLE TDR (Teddy 2026-07-07): strip it to the essentials. Customer complaint
   // (auto from intake, shown above), what failed, the part(s) (name + number in ONE
@@ -465,37 +465,56 @@
   }
 
   // ── Tech vs Ant 🐜 — Ant's part guess: confirm or beat it ─────────
+  // TRUST-FIRST (Teddy 2026-08-21): Ant is only ~1% on the exact part right now, so a
+  // confident guess in the tech's face is wrong ~99% of the time — and a confidently-wrong
+  // Ant erodes the crew's trust in Ant EVERYWHERE (phones, scheduling, tools). So Ant stays
+  // quiet unless it's genuinely grounded on THIS model AND confident. The other 99% of the
+  // time this is a SILENT-LEARNING capture: the tech just logs the winning part (feeding the
+  // brain the clean answer key it's starved for) with no guess shown, no "beat the machine."
+  // As the brain earns it per-model, credible guesses start appearing on their own — that's
+  // when the tech sees Ant NAIL it, which BUILDS trust. The competition graduates in later.
   function buildAntGuess() {
     if (antGuessVerdict) {
       var v = antGuessVerdict;
-      var txt = v.beat_ant ? ('🏆 You beat Ant — part ' + escapeHtml(v.part || '')) : ('✓ Confirmed Ant\'s call — part ' + escapeHtml(v.part || '(none)'));
+      var txt = (v.verdict === 'confirmed')
+        ? ('✓ Confirmed — part ' + escapeHtml(v.part || '(none)'))
+        : ('✓ Part logged: ' + escapeHtml(v.part || '(none)') + ' — thanks, that teaches Ant.');
       return '<div style="background:rgba(74,158,255,0.10);border:1px solid rgba(74,158,255,0.4);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13.5px;font-weight:800;color:#8fc0ff">🐜 ' + txt + '</div>';
     }
     var open = '<div id="ant-guess-box" style="background:rgba(74,158,255,0.08);border:1px solid rgba(74,158,255,0.35);border-radius:12px;padding:13px 14px;margin-bottom:14px">';
-    var head = '<div style="font-size:13px;font-weight:800;color:#8fc0ff;margin-bottom:6px">🐜 Ant vs you — the part</div>';
     var msg = '<div id="ant-guess-msg" style="font-size:12px;color:#8fc0ff;margin-top:6px;min-height:12px"></div>';
-    if (antGuess === undefined) return open + head + '<div style="font-size:12.5px;color:#b8bfd0">Checking the part from our repair history…</div></div>';
-    if (!antGuess || !antGuess.part_display) {
-      return open + head
-        + '<div style="font-size:12.5px;color:#b8bfd0;margin-bottom:8px">Ant\'s not sure on this one yet — what part did you use? (You\'re teaching it.)</div>'
-        + '<input id="ant-guess-input" type="text" placeholder="OEM part number" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:9px;padding:11px 12px;font-size:16px;outline:none">'
+    if (antGuess === undefined) return open + '<div style="font-size:12.5px;color:#b8bfd0">Loading the part from our history…</div></div>';
+
+    // CREDIBLE = grounded on THIS model/family (not an appliance-wide fallback) AND
+    // confident AND backed by real repeat evidence. Only then does Ant speak up.
+    var g = antGuess || {}, conf = Number(g.confidence || 0), seen = Number(g.seen_n || 0), based = Number(antGuessBasedOn || 0);
+    var grounded = /^(model|exact)/.test(String(antGuessScope || ''));
+    var credible = !!(g.part_display && grounded && conf >= 55 && seen >= 2);
+
+    if (credible) {
+      var proof = seen ? ('seen it fix ' + seen + (based ? ' of ' + based : '') + ' like it') : '';
+      return open
+        + '<div style="font-size:13px;font-weight:800;color:#8fc0ff;margin-bottom:4px">🐜 Ant\'s seen this one</div>'
+        + '<div style="font-size:12px;color:#b8bfd0;margin-bottom:4px">Likely part — confirm it or correct it:</div>'
+        + '<div style="font-size:19px;font-weight:900;color:#e6e9f0;letter-spacing:.02em;font-family:ui-monospace,monospace">' + escapeHtml(g.part_display) + '</div>'
+        + '<div style="font-size:12.5px;color:#9fb2cc;margin-top:2px">' + escapeHtml(g.component || '') + (proof ? ' · ' + proof : '') + '</div>'
+        + '<div id="ant-guess-actions" style="display:flex;gap:8px;margin-top:11px">'
+        + '<button onclick="window.__antGuessConfirm()" style="flex:1;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">✓ That\'s the part</button>'
+        + '<button onclick="window.__antGuessOverride()" style="flex:1;background:#2a3242;color:#e6e9f0;border:1px solid #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">✗ It was another</button>'
+        + '</div>'
+        + '<div id="ant-guess-override" style="display:none;margin-top:9px">'
+        + '<input id="ant-guess-input" type="text" placeholder="the part # you actually used" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:9px;padding:11px 12px;font-size:16px;outline:none">'
         + '<button onclick="window.__antGuessSaveOverride()" style="width:100%;margin-top:8px;background:#1f6fed;color:#fff;border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">Save the part</button>'
-        + msg + '</div>';
+        + '</div>' + msg + '</div>';
     }
-    var g = antGuess, conf = Number(g.confidence || 0), seen = Number(g.seen_n || 0), based = Number(antGuessBasedOn || 0);
-    var proof = seen ? ('fixed ' + seen + (based ? ' of ' + based : '') + ' similar') : 'best call from our history';
-    return open + head
-      + '<div style="font-size:12px;color:#b8bfd0;margin-bottom:4px">Ant\'s call — confirm it or beat it:</div>'
-      + '<div style="font-size:19px;font-weight:900;color:#e6e9f0;letter-spacing:.02em;font-family:ui-monospace,monospace">' + escapeHtml(g.part_display) + '</div>'
-      + '<div style="font-size:12.5px;color:#9fb2cc;margin-top:2px">' + escapeHtml(g.component || '') + ' · <b style="color:#8fc0ff">' + conf + '% sure</b> · ' + proof + '</div>'
-      + '<div id="ant-guess-actions" style="display:flex;gap:8px;margin-top:11px">'
-      + '<button onclick="window.__antGuessConfirm()" style="flex:1;background:linear-gradient(135deg,#10b981,#047857);color:#fff;border:0;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">✓ Ant nailed it</button>'
-      + '<button onclick="window.__antGuessOverride()" style="flex:1;background:#2a3242;color:#e6e9f0;border:1px solid #3a4256;border-radius:10px;padding:12px;font-size:14px;font-weight:800;cursor:pointer">✗ I\'ve got the real one</button>'
-      + '</div>'
-      + '<div id="ant-guess-override" style="display:none;margin-top:9px">'
-      + '<input id="ant-guess-input" type="text" placeholder="the part # you actually used" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:9px;padding:11px 12px;font-size:16px;outline:none">'
-      + '<button onclick="window.__antGuessSaveOverride()" style="width:100%;margin-top:8px;background:#1f6fed;color:#fff;border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">🏆 Save my answer — beat the machine</button>'
-      + '</div>' + msg + '</div>';
+
+    // Not credible → SILENT LEARNING. No guess shown; the tech just teaches Ant the part.
+    return open
+      + '<div style="font-size:13px;font-weight:800;color:#8fc0ff;margin-bottom:4px">🐜 What part fixed it?</div>'
+      + '<div style="font-size:12.5px;color:#b8bfd0;margin-bottom:8px">Drop the OEM part # — you\'re teaching Ant\'s brain on this model.</div>'
+      + '<input id="ant-guess-input" type="text" placeholder="OEM part number" style="width:100%;box-sizing:border-box;background:#0f1420;color:#e6e9f0;border:1px solid #3a4256;border-radius:9px;padding:11px 12px;font-size:16px;outline:none">'
+      + '<button onclick="window.__antGuessSaveOverride()" style="width:100%;margin-top:8px;background:#1f6fed;color:#fff;border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:800;cursor:pointer">Save the part</button>'
+      + msg + '</div>';
   }
   async function loadAntGuess() {
     if (!jobId) { antGuess = null; antGuessLoading = false; return; }
@@ -503,6 +522,7 @@
       var r = await fetch('/.netlify/functions/ant-brain-predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: Number(jobId) }) });
       var d = await r.json();
       antGuessBasedOn = (d && d.based_on_n) || 0;
+      antGuessScope = (d && d.scope) || '';
       var top = (d && d.predictions && d.predictions[0]) || null;
       antGuess = (top && top.part_display) ? top : null;
     } catch (_) { antGuess = null; }
