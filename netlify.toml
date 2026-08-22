@@ -337,6 +337,13 @@
 [functions."gbp-post-generator"]
   schedule = "0 14 * * 1,4"
 
+# Auto-source real job photos -> Claude Vision privacy screen (anonymous appliance
+# shots only, no people/rooms/serials) -> post to GBP as photo posts. Tue+Sat ~11am CT.
+# SHADOW by default (screens + texts owner what passed, posts nothing) until vault
+# GBP_PHOTO_AUTOPOST_LIVE=true. Kill: GBP_PHOTO_AUTOPOST=off.
+[functions."gbp-photo-autopost"]
+  schedule = "20 16 * * 2,6"
+
 # Auto-reply to every Google review, twice daily (~8am + ~4pm CT). 4-5★ replies
 # auto-post via the GBP API; 1-3★ are drafted + texted to the owner (human touch).
 # Idempotent — skips reviews that already have a reply. GBP_REVIEW_RESPONDER=false to stop.
