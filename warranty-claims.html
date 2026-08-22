@@ -190,7 +190,9 @@
     if (parts.length) {
       h += '<div class="parts"><div class="ph">Parts (' + parts.length + ') · returns are what SquareTrade checks hardest</div>';
       for (const p of parts) {
-        h += '<div class="prow"><span>' + esc(p.number || '—') + (p.description ? (' · ' + esc(p.description)) : '') + '  ×' + (p.quantity || 1) + '</span>'
+        h += '<div class="prow"><span>' + esc(p.number || '—') + (p.description ? (' · ' + esc(p.description)) : '') + '  ×' + (p.quantity || 1)
+          + (p.tracking ? ('<br><span style="font-size:11px;color:var(--muted)">📦 ' + (p.shippingProvider ? esc(p.shippingProvider) + ' ' : '') + esc(p.tracking) + (p.distributor ? (' → ' + esc(p.distributor)) : '') + '</span>') : '')
+          + '</span>'
           + '<span class="' + (p.returned === 'Y' ? 'ret-y' : 'ret-n') + '">' + (p.returned === 'Y' ? '↩ return' : 'keep') + '</span></div>';
       }
       h += '</div>';

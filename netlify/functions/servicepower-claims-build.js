@@ -102,13 +102,26 @@ exports.handler = async function (event) {
     const wp = await fetch(`${SITE}/.netlify/functions/warranty-parts?job_id=${jobId}`, { signal: AbortSignal.timeout(9000) }).then((r) => r.json());
     if (wp && wp.ok && Array.isArray(wp.parts)) supplied = wp.parts;
   } catch (_) {}
-  const retOf = {};
-  for (const s of supplied) { const k = partKey(s.part); if (k) retOf[k] = (s.status === 'to_return' || s.status === 'returned') ? 'Y' : 'N'; }
-  for (const p of parts) { const k = partKey(p.number); if (k && retOf[k] != null) p.returned = retOf[k]; }
+  // Carry BOTH the return decision AND the shipping (tracking/provider/distributor) off
+  // each supplied part onto the claim — Danielle's ask (2026-08-22): the claim has to show
+  // "the parts AND shipping," not just the part number. warranty-parts returns tracking +
+  // distributor per part (from the ServicePower/RMA emails); fold it in by part number.
+  const retOf = {}; const shipOf = {};
+  for (const s of supplied) {
+    const k = partKey(s.part);
+    if (!k) continue;
+    retOf[k] = (s.status === 'to_return' || s.status === 'returned') ? 'Y' : 'N';
+    if (s.tracking || s.provider || s.distributor) shipOf[k] = { tracking: s.tracking || '', provider: s.provider || '', distributor: s.distributor || '' };
+  }
+  for (const p of parts) {
+    const k = partKey(p.number);
+    if (k && retOf[k] != null) p.returned = retOf[k];
+    if (k && shipOf[k]) { p.tracking = shipOf[k].tracking; p.shippingProvider = shipOf[k].provider; p.distributor = shipOf[k].distributor; }
+  }
   if (!parts.length && supplied.length) {
     for (const s of supplied) {
       if (s.status === 'missing') continue;   // never arrived — not on the claim
-      parts.push({ number: s.part || '', quantity: Number(s.qty || 1), description: s.description || '', priceRequested: 0, faultCode: '', jobCode: '', returned: (s.status === 'to_return' || s.status === 'returned') ? 'Y' : 'N' });
+      parts.push({ number: s.part || '', quantity: Number(s.qty || 1), description: s.description || '', priceRequested: 0, faultCode: '', jobCode: '', returned: (s.status === 'to_return' || s.status === 'returned') ? 'Y' : 'N', tracking: s.tracking || '', shippingProvider: s.provider || '', distributor: s.distributor || '' });
     }
   }
   const uncheckedSupplied = supplied.filter((s) => !s.checked).length;
