@@ -109,3 +109,13 @@
     (document.head || document.documentElement).appendChild(s);
   } catch (e) {}
 })();
+
+// THE Easy Button — one-tap "broken machine? we've got it." Self-gates to public
+// customer pages; real tel:/sms:/intake links, so the GA listeners above track taps.
+(function () {
+  try {
+    var s = document.createElement('script');
+    s.src = '/ant-easy-button.js'; s.defer = true;
+    (document.head || document.documentElement).appendChild(s);
+  } catch (e) {}
+})();
