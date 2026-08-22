@@ -82,7 +82,7 @@ exports.handler = async function (event) {
         name: ACTION_NAME, type: 'AD_CALL', category: 'PHONE_CALL_LEAD', status: 'ENABLED',
         countingType: 'ONE_PER_CLICK',
         phoneCallDurationSeconds: MIN_SECONDS,
-        valueSettings: { defaultValue: 0, alwaysUseDefaultValue: false },
+        valueSettings: { defaultValue: 0, alwaysUseDefaultValue: true },
       } };
       const body = JSON.stringify({ operations: [op] });
       let r = await fetch(url, { method: 'POST', headers: ads.apiHeaders(token, c, cidDigits), body });
