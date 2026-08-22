@@ -104,7 +104,7 @@ function rawBody(event) {
 // itself can never throw. If ANYTHING in the brain fails, Ann still answers warmly.
 const SAFE_DV = {
   known: false, caller_first: '', caller_name: '',
-  greeting: 'Thanks for calling Tennessee Appliance Exchange! Who do I have the pleasure of speaking with?',
+  greeting: "Thanks for calling Tennessee Appliance Exchange — we're here for you day or night, any day of the year. Who do I have the pleasure of speaking with?",
   situation: '', has_job: false, appliance: '', tech: '', scheduled_day: '', status: '', part_eta: '',
   is_warranty: false, warranty_company: '', job_id: '', claim_number: '',
   call_track: 'cash',
@@ -147,7 +147,7 @@ async function _handle(event) {
     known: false,
     caller_first: '',
     caller_name: '',
-    greeting: 'Thanks for calling Tennessee Appliance Exchange! Who do I have the pleasure of speaking with?',
+    greeting: "Thanks for calling Tennessee Appliance Exchange — we're here for you day or night, any day of the year. Who do I have the pleasure of speaking with?",
     situation: '',
     has_job: false,
     appliance: '', tech: '', scheduled_day: '', status: '', part_eta: '',
