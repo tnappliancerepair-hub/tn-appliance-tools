@@ -76,7 +76,9 @@ exports.handler = async function (event) {
     if (!dry) {
       await sms(t.p, msg, 'parts_return');
       // Carrie (returns owner) gets the overdue ones so she can chase/ship from the office.
-      if (stage === 'overdue') { try { await sms(carrieCell, `[ant] 📦 OVERDUE return — ${o.part} for ${who} (tech ${t.n}). Was due ${due}. FedEx ${o.tracking} → ${o.distributor || 'distributor'}. Ship today to avoid the chargeback.`, 'parts_return'); } catch (_) {} }
+      // Carrie is the LOUISIANA office contact — only text her about LA returns (tech Andre/John)
+      let _laRet = false; try { _laRet = require('./_lib/carrie-la').isLouisiana({ techId: o.tech_id }); } catch (_) {}
+      if (stage === 'overdue' && _laRet) { try { await sms(carrieCell, `[ant] 📦 OVERDUE return — ${o.part} for ${who} (tech ${t.n}). Was due ${due}. FedEx ${o.tracking} → ${o.distributor || 'distributor'}. Ship today to avoid the chargeback.`, 'parts_return'); } catch (_) {} }
       try { await crud.logEvent('parts_return_warned', { key: o.key, stage, tech_id: o.tech_id, job_id: o.job_id, part: o.part, customer: o.customer, due_ms: o.due_ms, at_ms: Date.now() }); } catch (_) {}
     }
     out.sent[stage]++;

@@ -174,8 +174,21 @@ exports.handler = async function (event) {
     const lines = fresh.slice(0, 8).map((p) => `• ${p.part} (${p.return_desc || 'return'}) → ${p.distributor} · ${p.customer || p.claim} · FedEx ${p.tracking}`);
     const body = `[ant] 📦 ${fresh.length} part(s) to RETURN (SquareTrade chargeback risk):\n\n${lines.join('\n')}\n\nLabel emails are in the inbox (from rma_request@squaretrade.com). Print + ship each so we get paid + avoid the core charge.`;
     try { await sendSms(OWNER, body, 'owner', 'sp_rma_watch'); } catch (_) {}
-    // Carrie runs all returns — send her the new-label digest too (internal, gate-bypassing).
-    try { const carrie = (await getSecret('OFFICE_CELL_CARRIE')) || '+12258035669'; await sendSms(carrie, body, 'office', 'sp_rma_watch'); } catch (_) {}
+    // Carrie is the LOUISIANA office contact — text her ONLY the LA labels (Teddy 2026-08-22).
+    try {
+      const { isLouisiana } = require('./_lib/carrie-la');
+      const laFresh = [];
+      for (const p of fresh) {
+        if (!p.job_id) continue;
+        try { const j = await crud.searchOne(crud.TABLES.jobs, { id: p.job_id }); if (j && isLouisiana({ state: j.service_state, techId: j.technician_id })) laFresh.push(p); } catch (_) {}
+      }
+      if (laFresh.length) {
+        const laLines = laFresh.slice(0, 8).map((p) => `• ${p.part} (${p.return_desc || 'return'}) → ${p.distributor} · ${p.customer || p.claim} · FedEx ${p.tracking}`);
+        const laBody = `[ant] 📦 ${laFresh.length} Louisiana part(s) to RETURN (SquareTrade chargeback risk):\n\n${laLines.join('\n')}\n\nLabel emails from rma_request@squaretrade.com — print + ship each so we get paid.`;
+        const carrie = (await getSecret('OFFICE_CELL_CARRIE')) || '+12258035669';
+        await sendSms(carrie, laBody, 'office', 'sp_rma_watch');
+      }
+    } catch (_) {}
   }
 
   return json(200, { ok: true, parsed: parsed.length, new_labels: fresh.length, recorded: fresh.map((p) => ({ part: p.part, claim: p.claim, rma: p.rma, job_id: p.job_id || null })) });

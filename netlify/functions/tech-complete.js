@@ -91,7 +91,10 @@ exports.handler = async function (event) {
         const appl = String(job.appliance_type || 'appliance').trim();
         const claim = String(job.claim_number || job.dispatch_source_id || '').trim();
         const note = `☑️ NO FAILURE FOUND (warranty) — Job #${jobId}, ${cust}, ${appl}${claim ? ' · claim ' + claim : ''} (${vendor}). Nothing failed, but file the diagnostic/service-call claim so we still get paid for the trip.`;
-        for (const cell of ['+16154850713', '+12258035669']) {   // Danielle, Carrie (internal, gate-allowed)
+        // Danielle always; Carrie ONLY if it's a Louisiana job (she's the LA office contact)
+        let _isLA = false; try { _isLA = require('./_lib/carrie-la').isLouisiana({ state: job.service_state || job.customer_state, techId: job.technician_id }); } catch (_) {}
+        const cells = ['+16154850713']; if (_isLA) cells.push('+12258035669');
+        for (const cell of cells) {   // Danielle (+ Carrie when LA), internal gate-allowed
           try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: cell, message: note, context_tag: 'nff_warranty_claim' }), signal: AbortSignal.timeout(8000) }); } catch (_) {}
         }
         try { await crud.logEvent('nff_warranty_needs_claim', { job_id: jobId, vendor, claim, at_ms: now }); } catch (_) {}
