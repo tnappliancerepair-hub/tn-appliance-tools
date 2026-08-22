@@ -35,6 +35,13 @@
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
   .card h3{margin:0 0 6px;font-size:17px}
   .card p{margin:0;color:var(--dim);font-size:15px}
+  .taps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:560px){.taps{grid-template-columns:1fr}}
+  .tap{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative}
+  .tap .n{width:34px;height:34px;border-radius:50%;background:rgba(49,214,122,.14);border:1px solid rgba(49,214,122,.42);color:var(--green);font-weight:800;font-size:16px;display:flex;align-items:center;justify-content:center;margin-bottom:11px}
+  .tap .ti{font-weight:800;font-size:16px;margin:0 0 4px}
+  .tap .td{color:var(--dim);font-size:14px;line-height:1.5}
+  .taps-cta{text-align:center;margin-top:18px}
   .steps{counter-reset:s;list-style:none;padding:0;margin:0}
   .steps li{position:relative;padding:0 0 18px 46px;color:var(--dim)}
   .steps li b{color:var(--ink)}
@@ -57,6 +64,16 @@
     <div class="cta-row"><a class="cta call" href="tel:+16292721234">📞 Not sure? Talk to Ann — (629) 272-1234</a></div>
     <span class="sub-cta">Not sure if it's worth fixing, or even what's wrong? Just call and talk it through with Ann — any hour, no pressure. Or book yourself in 60 seconds above.</span>
   </div>
+
+  <section>
+    <h2>It's 3 taps.</h2>
+    <div class="taps">
+      <div class="tap"><div class="n">1</div><div class="ti">Tell us what broke</div><div class="td">Tap your appliance and what it's doing — or just call and say it out loud. That's the whole "form."</div></div>
+      <div class="tap"><div class="n">2</div><div class="ti">Send a 10-second video</div><div class="td">Show us what it's doing, plus a photo of the model-number sticker. That's all we need to pre-diagnose it.</div></div>
+      <div class="tap"><div class="n">3</div><div class="ti">We handle it from here</div><div class="td">Honest answer, the right part, on the schedule — often with the part already on the truck. You're done.</div></div>
+    </div>
+    <div class="taps-cta"><a class="cta sm" href="/appliance-ai.html?utm_source=always_open&utm_medium=3tap&utm_campaign=easy_button">Start now — it's easy →</a></div>
+  </section>
 
   <section>
     <h2>Three ways to reach us — always on</h2>
