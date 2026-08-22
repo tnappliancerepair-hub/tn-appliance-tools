@@ -24,6 +24,7 @@
     try { var raw = localStorage.getItem(OFF); if (raw && (Date.now() - parseInt(raw, 10)) < 7 * 864e5) return; } catch (_) {}
 
     var CTA = '/appliance-ai.html?utm_source=open_badge&utm_medium=site&utm_campaign=always_open';
+    var CALL = 'tel:+16292721234';  // primary Ann-routing customer line (24/7)
     var reduce = false; try { reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
 
     function build() {
@@ -43,11 +44,12 @@
 
       var dot = '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#31d67a;box-shadow:0 0 0 0 rgba(49,214,122,.6)' +
         (reduce ? '' : ';animation:tnpulse 1.8s infinite') + '"></span>';
-      var msg = '<span style="flex:1;min-width:0">' + dot +
-        ' <b style="color:#fff">We answer 24/7·365</b> <span style="color:#b8c4de">— even at 2am. Broken now?</span></span>';
-      var btn = '<a href="' + CTA + '" style="flex:0 0 auto;background:linear-gradient(135deg,#31d67a,#1aa85c);color:#04210f;text-decoration:none;font-weight:800;font-size:14px;padding:9px 14px;border-radius:10px;white-space:nowrap">Get booked now →</a>';
+      var msg = '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + dot +
+        ' <b style="color:#fff">We answer 24/7·365</b> <span style="color:#b8c4de">— even at 2am. Not sure? Talk to Ann.</span></span>';
+      var callBtn = '<a href="' + CALL + '" style="flex:0 0 auto;background:transparent;border:1.5px solid rgba(49,214,122,.55);color:#31d67a;text-decoration:none;font-weight:800;font-size:14px;padding:8px 12px;border-radius:10px;white-space:nowrap">📞 Talk to Ann</a>';
+      var btn = '<a href="' + CTA + '" style="flex:0 0 auto;background:linear-gradient(135deg,#31d67a,#1aa85c);color:#04210f;text-decoration:none;font-weight:800;font-size:14px;padding:9px 14px;border-radius:10px;white-space:nowrap">Book →</a>';
       var x = '<button id="tn-open-x" aria-label="Dismiss" style="flex:0 0 auto;background:transparent;border:0;color:#8a97b4;font-size:20px;line-height:1;padding:4px 4px;cursor:pointer">×</button>';
-      bar.innerHTML = msg + btn + x;
+      bar.innerHTML = msg + callBtn + btn + x;
 
       if (!document.getElementById('tn-open-style') && !reduce) {
         var st = document.createElement('style'); st.id = 'tn-open-style';
