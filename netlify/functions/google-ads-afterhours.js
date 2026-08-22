@@ -19,7 +19,9 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 // auction — different markets, different budgets). Pass &state= and &region= to retarget.
 const DEFAULT_CITIES = ['Nashville', 'Antioch', 'Smyrna', 'Murfreesboro', 'La Vergne', 'Mount Juliet', 'Hendersonville', 'Franklin', 'Brentwood', 'Nolensville'];
 const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-const finalFor = (region) => `https://tnapplianceexchange.net/appliance-ai.html?utm_source=google_ads&utm_medium=cpc&utm_campaign=afterhours_${slug(region) || 'x'}`;
+// After-hours clicks land on the 24/7 moat page (message match: ad says "we answer at
+// 2am" → page proves it + books). It carries a Get-booked CTA into the intake.
+const finalFor = (region) => `https://tnapplianceexchange.net/always-open.html?utm_source=google_ads&utm_medium=cpc&utm_campaign=afterhours_${slug(region) || 'x'}`;
 
 // Keywords — all-appliance repair intent + the after-hours goldmine nobody else bids on.
 const KEYWORDS = [
@@ -31,17 +33,19 @@ const KEYWORDS = [
 // Campaign negatives — kill parts/used/DIY/hiring + the used-store ghost.
 const NEGATIVES = ['used', 'for sale', 'parts', 'diy', 'how to', 'job', 'jobs', 'salary', 'rental', 'scrap', 'haul away', 'who buys', 'sell my', 'donate'];
 
+// Lead with the moat — the 24/7 "we answer at 2am" headlines come FIRST (Google favors
+// the early ones), then the supporting repair headlines. All ≤30 chars.
 const HEADLINES = [
-  'Appliance Repair Near You', 'Same-Day Appliance Repair', 'We Answer 24/7', "Broken Tonight? We're Open",
-  'Fridge, Dryer & Washer Fix', 'Honest Appliance Repair', 'Chat or Text Us Now', 'Local Repair Pros',
-  '$50 Quick Check', 'Family Owned Since 2012', 'Fast, Honest, Local', 'Book Your Repair Online',
+  'We Answer 24/7 · 365', 'Broken at 2am? We Answer', 'Open Now - 24/7 Repair', "Broken Tonight? We're Open",
+  'Appliance Repair Near You', 'Same-Day Appliance Repair', 'Fridge, Dryer & Washer Fix', 'Honest Appliance Repair',
+  'Chat or Text Us Now', 'Local Repair Pros', 'Family Owned Since 2012', 'Book Your Repair Online',
 ];
-// Region-neutral copy (no "Middle TN") so the same ad is TRUE for TN and LA alike.
+// Region-neutral copy (no "Middle TN") so the same ad is TRUE for TN and LA alike. ≤90 chars.
 const DESCRIPTIONS = [
-  'Appliance broke after hours? Chat now — we book it tonight and fix it fast.',
-  'Real local techs, honest upfront pricing. Fridge, dryer, washer, oven, dishwasher.',
-  'We answer 24/7 when others are closed. Book your repair online in about a minute.',
-  'Same-week service in your area. Licensed, insured, 4.5 stars, 1,000+ reviews.',
+  'We answer 24/7, 365 - even at 2am. Chat now and book your repair tonight.',
+  'Booked while everyone else is on voicemail. Real local techs, honest pricing.',
+  'Fridge, dryer, washer, oven, dishwasher. Licensed, insured, 4.5 stars.',
+  'Same-week service in your area. Broke after hours? We still answer.',
 ];
 
 // THE DAYPARTING — bid modifiers by window. Base ad-group CPC is scaled by these, so
@@ -145,6 +149,32 @@ exports.handler = async function (event) {
     if (!apply) return json(200, { ok: true, mode: 'preview budget', campaign: campId, name: row.campaign && row.campaign.name, from_per_day: Math.round(oldMicros / 1e6), to_per_day: budget });
     const up = await post('/campaignBudgets:mutate', { operations: [{ update: { resourceName: budgetRes, amountMicros: budget * 1000000 }, updateMask: 'amount_micros' }] });
     return json(200, { ok: up.ok, mode: 'budget set', campaign: campId, name: row.campaign && row.campaign.name, from_per_day: Math.round(oldMicros / 1e6), to_per_day: budget, err: up.err });
+  }
+
+  // ── STEP: refresh the LIVE ads — new 24/7 RSA + /always-open landing, pause the old ─
+  // Google ad text is immutable, so "updating" copy = create a fresh RSA then pause the
+  // prior one. Applies the current HEADLINES/DESCRIPTIONS + finalUrl to every enabled ad
+  // group on the campaign. Preview (no &apply=1) shows exactly what it will do.
+  if (step === 'refreshad') {
+    const campId = dig(q.campaign);
+    if (!campId) return json(400, { ok: false, error: 'step=refreshad needs &campaign=<id>' });
+    const sq = await post('/googleAds:search', { query: `SELECT ad_group.resource_name, ad_group_ad.resource_name FROM ad_group_ad WHERE campaign.id = ${campId} AND ad_group.status = 'ENABLED' AND ad_group_ad.status = 'ENABLED'` });
+    if (!sq.ok) return json(200, { ok: false, error: 'search failed', detail: sq.err });
+    const rows = sq.d.results || [];
+    const groups = [...new Set(rows.map((r) => r.adGroup && r.adGroup.resourceName).filter(Boolean))];
+    const oldAds = rows.map((r) => r.adGroupAd && r.adGroupAd.resourceName).filter(Boolean);
+    if (!groups.length) return json(200, { ok: false, error: 'no enabled ad groups on that campaign' });
+    if (!apply) return json(200, { ok: true, mode: 'preview refreshad', campaign: campId, ad_groups: groups.length, old_ads_to_pause: oldAds.length, new_final: finalUrl, new_headlines: HEADLINES, new_descriptions: DESCRIPTIONS });
+    const created = [];
+    for (const agRes of groups) {
+      const ad = await post('/adGroupAds:mutate', { operations: [{ create: { adGroup: agRes, status: 'ENABLED', ad: { finalUrls: [finalUrl], responsiveSearchAd: { headlines: HEADLINES.map((t) => ({ text: t })), descriptions: DESCRIPTIONS.map((t) => ({ text: t })) } } } }] });
+      created.push({ ad_group: agRes, ok: ad.ok, err: ad.err });
+    }
+    let paused = { ok: true, err: null };
+    if (oldAds.length && created.some((x) => x.ok)) {
+      paused = await post('/adGroupAds:mutate', { operations: oldAds.map((rn) => ({ update: { resourceName: rn, status: 'PAUSED' }, updateMask: 'status' })) });
+    }
+    return json(200, { ok: created.some((x) => x.ok), mode: 'ads refreshed', campaign: campId, new_ads: created, old_paused: { ok: paused.ok, count: oldAds.length, err: paused.err } });
   }
 
   // ── STEP: add ONE city's dryer/fridge ad group to an existing campaign ───────────
