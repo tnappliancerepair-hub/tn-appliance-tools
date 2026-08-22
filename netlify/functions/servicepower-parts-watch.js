@@ -23,6 +23,12 @@ const partNotify = require('./_lib/part-notify');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function meta(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
+// Dedup key for a supplied part: job + normalized part# + tracking. The SAME part shows
+// up across MULTIPLE emails (the "order" note with no tracking, then the "shipped" note
+// with tracking) and inside quoted/forwarded bodies — each has its own message id, so the
+// message-id dedup can't stop the SAME part+tracking from being logged 2-4x. Keying on
+// tracking keeps the order→shipped progression (different keys) while killing true dupes.
+function partSupKey(job, part, tracking) { return String(job) + '|' + String(part || '').toUpperCase().replace(/[^A-Z0-9]/g, '') + '|' + String(tracking || '').replace(/\s+/g, ''); }
 
 // Parse one message body → { call, parts:[{part,desc,qty,requires_return,tracking,provider}] }.
 // A message normally has ONE Call Number; we still loop all blocks in case it batches.
@@ -119,6 +125,16 @@ exports.handler = async function (event) {
   const out = { ok: true, dry, messages_scanned: msgs.length, new_messages: fresh.length, work_orders: plan.length };
   if (dry) { out.plan = plan.slice(0, 25); return json(200, out); }
 
+  // Pre-load already-recorded supplied keys (job+part+tracking) so a re-sent or quoted note
+  // can't re-log the same part+tracking — the dup bug that had parts landing 2-4x. Bounded
+  // read; warranty-parts still merges the order-note row with the shipped-note row so tracking
+  // is never lost. The seen-set below also collapses repeats within this same run.
+  const supKeys = new Set(); let skipped_dupes = 0;
+  try {
+    const priorRows = await crud.searchPage(crud.TABLES.event_log, { action: 'warranty_part_supplied' }, { id: 'desc' }, 600);
+    for (const r of priorRows || []) { const m = meta(r); if (m.job_id && m.part) supKeys.add(partSupKey(m.job_id, m.part, m.tracking)); }
+  } catch (_) {}
+
   // record matched parts; flag unmatched (don't lose them)
   let recorded = 0; const processedIds = new Set(); const unmatched = []; const notifyJobs = new Set();
   for (const wo of plan) {
@@ -131,6 +147,9 @@ exports.handler = async function (event) {
       processedIds.add(wo.msg_id); continue;
     }
     for (const p of wo.parts) {
+      const dk = partSupKey(wo.job_id, p.part, p.tracking);
+      if (supKeys.has(dk)) { skipped_dupes++; continue; }   // this exact part+tracking already recorded
+      supKeys.add(dk);
       try {
         await crud.logEvent('warranty_part_supplied', {
           job_id: wo.job_id, claim: wo.call, part: p.part, description: p.desc, qty: p.qty,
@@ -162,6 +181,7 @@ exports.handler = async function (event) {
   }
 
   out.recorded_parts = recorded;
+  out.skipped_dupes = skipped_dupes;
   out.autotext = autotextOn ? 'live' : 'held';
   out.customer_texts = customer_texts;
   out.retry_texts = retry_texts;
