@@ -64,9 +64,28 @@ function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringif
 // effort to close jobs"). The persona rides in system_context PER CALL, so the same Ann
 // flips posture by who's calling — KNOWN WARRANTY caller → efficient service; EVERYONE
 // ELSE (cash / unknown) → sharp closer whose job is to WIN the work.
-const PERSONA_CASH = "CALL TRACK — CASH (self-pay): this is our best shot to WIN the job — run your CASH CLOSER PLAYBOOK from your instructions. Lead with genuine empathy, surface what the breakdown is actually costing them, teach honestly why waiting is the expensive option, and guide them to a decision like the best advisor they've ever talked to. Options are transparent — an OEM or an Amazon-equivalent part, and we-install or you-install, every option delivered by us (never read out part numbers). Make the first yes tiny: the quick $50 diagnostic, or a short video of the problem plus a photo of the model-number sticker. Close on a CHOICE, not a yes/no. NEVER let a cash caller hang up empty-handed — always land a concrete next step: booked, a scheduling hold (place_hold), or the intake link sent (send_intake_link).";
+const PERSONA_CASH = "CALL TRACK — CASH (self-pay): this is our best shot to WIN the job — run your CASH CLOSER PLAYBOOK from your instructions. Lead with genuine empathy, surface what the breakdown is actually costing them, teach honestly why waiting is the expensive option, and guide them to a decision like the best advisor they've ever talked to. Options are transparent — an OEM or an Amazon-equivalent part, and we-install or you-install, every option delivered by us (never read out part numbers). YOUR FIRST-MINUTE GOAL: after a warm, genuine open and quickly grabbing what's broken, get the $50 Quick Check intake link into their hands EARLY — tell them you're texting it right over and use send_intake_link within the first minute of the call. Sending that link early is the single best move on a cold call: it gives them an instant next step (a short video of the problem + a photo of the model-number sticker), and it turns a caller into a real lead. Make the first yes tiny: that Quick Check link, or the $50 diagnostic. Close on a CHOICE, not a yes/no. NEVER let a cash caller hang up empty-handed — always land a concrete next step: booked, a scheduling hold (place_hold), or the intake link sent (send_intake_link).";
 const PERSONA_WARRANTY = "CALL TRACK — WARRANTY: this job is already ours, so serve it fast, warm, and accurate — do NOT sell. Confirm the claim, give status, scheduling, and parts clearly, gather availability if it's missing, and connect them straight to their tech if they're on today's route. Efficient and kind: handle it and get them off the phone happy.";
 function withPersona(track, ctx) { return `${track === 'warranty' ? PERSONA_WARRANTY : PERSONA_CASH} ${ctx || ''}`.trim(); }
+
+// The DEDICATED GOOGLE ADS line (615-845-8500). A call that comes IN on this number
+// is a PAID Google click that dialed — a brand-new, high-intent lead we paid to reach.
+// (It's also how the AD_CALL conversion counts: a call >=60s = a tracked conversion, so
+// Ann's job is to make that minute produce the Quick Check link, not just pass the clock.)
+const ADS_LINE = '6158458500';
+const ADS_GOAL = "PAID GOOGLE ADS LEAD — they dialed our ads line, so this is a brand-new, high-intent lead we PAID to reach: treat winning it as your top priority. Engage genuinely from the first second, and make your #1 EARLY GOAL getting the $50 Quick Check intake link into their hands within the first minute — a warm empathetic open, quickly grab the appliance + what it's doing, then say you're texting the link right over and use send_intake_link. Do NOT let a paid lead hang up without at least the Quick Check link sent.";
+function dialedTo(body, q) {
+  if (q && q.to) return String(q.to);
+  const b = body || {};
+  const cands = [
+    b.data && b.data.payload && b.data.payload.to,
+    b.payload && b.payload.to,
+    b.to,
+    b.data && b.data.payload && b.data.payload.to && b.data.payload.to.phone_number,
+  ];
+  for (const c of cands) { if (c && typeof c === 'string') return c; if (c && c.phone_number) return c.phone_number; }
+  return '';
+}
 
 // Telnyx tucks the caller number in a few possible spots depending on the webhook
 // (AI assistant dynamic-vars vs call-control). Pull it from wherever it lands.
@@ -131,6 +150,9 @@ async function _handle(event) {
   const q = event.queryStringParameters || {};
   const from = callerFrom(body, q);
   const digits = String(from || '').replace(/\D/g, '');
+  // Did they call our paid Google Ads line? (drives the Quick-Check-link-first goal)
+  const toDigits = String(dialedTo(body, q) || '').replace(/\D/g, '');
+  const adsLead = toDigits === ADS_LINE || toDigits === '1' + ADS_LINE;
 
   // Debug (fire-and-forget, non-blocking): capture exactly what Telnyx sends so we can
   // confirm greet-by-name fires and pinpoint the caller-ID field. Logs a truncated RAW
@@ -156,7 +178,8 @@ async function _handle(event) {
     // Unknown caller → default to the CASH CLOSER track ("everyone else → sharp closer").
     // If the lookup later reveals a warranty job, the base instructions still handle it.
     call_track: 'cash',
-    system_context: withPersona('cash', 'This caller is not yet identified. Warmly ask for their name and how we can help, then use your lookup tools.'),
+    ads_lead: adsLead,
+    system_context: withPersona('cash', (adsLead ? ADS_GOAL + ' ' : '') + 'This caller is not yet identified. Warmly ask for their name and how we can help, then use your lookup tools.'),
   };
 
   if (!digits || digits.length < 10) return json(200, { dynamic_variables: generic, matched: false, reason: 'no_caller_id' });
@@ -352,8 +375,9 @@ async function _handle(event) {
     // day-of "where's my tech" — connect them straight to their tech
     scheduled_today: scheduledToday, can_connect_tech: canConnectTech, tech_first: techFirst,
     call_track: track,
-    system_context: withPersona(track, ctxBits.join(' ')),
+    ads_lead: adsLead,
+    system_context: withPersona(track, ((adsLead && track === 'cash') ? ADS_GOAL + ' ' : '') + ctxBits.join(' ')),
   };
 
-  return json(200, { dynamic_variables: dv, matched: true, job_id: dv.job_id, call_track: track });
+  return json(200, { dynamic_variables: dv, matched: true, job_id: dv.job_id, call_track: track, ads_lead: adsLead });
 };
