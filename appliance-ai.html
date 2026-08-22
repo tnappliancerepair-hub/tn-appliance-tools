@@ -807,8 +807,25 @@ function payStep(){
     }catch(e){ btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((e&&e.message)?('Couldn’t reach checkout ('+e.message+') — '):'Connection hiccup — ')+'try again, or call 629-272-1234.'); }
   };
 }
+// The "That was easy ✅" moment — the brand feeling made tangible at the finish line.
+function easyBadge(){
+  try{
+    if(!document.getElementById('easy-badge-style')){
+      var s=document.createElement('style'); s.id='easy-badge-style';
+      s.textContent='@keyframes easyPop{0%{transform:scale(.82);opacity:0}60%{transform:scale(1.04)}100%{transform:scale(1);opacity:1}}';
+      document.head.appendChild(s);
+    }
+    var d=document.createElement('div');
+    d.style.cssText='background:linear-gradient(135deg,rgba(49,214,122,.15),rgba(49,214,122,.05));border:1px solid rgba(49,214,122,.45);border-radius:16px;padding:20px 16px;text-align:center;margin:8px 0 14px;animation:easyPop .5s ease both';
+    d.innerHTML='<div style="font-size:44px;line-height:1;margin-bottom:6px">✅</div>'
+      +'<div style="font-size:24px;font-weight:800;color:#31d67a;letter-spacing:.01em">That was easy.</div>'
+      +'<div style="color:#9aa4b8;font-size:14.5px;margin-top:5px">We\'ve got it from here.</div>';
+    FLOW.appendChild(d);
+  }catch(e){}
+}
 function done(){
   setHead('You\'re <span class="accent">all set.</span> 🎉','');
+  easyBadge();
   antMsg('Got everything, '+esc(state.name.split(' ')[0]||'')+'. Our tech is reviewing your video right now. You\'ll have your <b>honest assessment + your repair options</b> within <b>2 business hours</b> — usually a lot sooner. Hang tight. 🐜');
 }
 // In-home ($100) booking — creates the job (pay-at-visit, credited) via the same
@@ -859,6 +876,7 @@ function submitInHome(){
 }
 function doneInHome(){
   setHead('You\'re <span class="accent">on the schedule.</span> 🎉','');
+  easyBadge();
   antMsg('Got it, '+esc(state.name.split(' ')[0]||'')+'. We\'ll text you to confirm the day a tech comes out. The <b>$100 diagnostic is credited to your repair</b> — so if you fix it with us, it basically pays for itself. 🐜');
 }
 
