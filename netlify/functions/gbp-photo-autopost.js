@@ -114,13 +114,13 @@ exports.handler = async function (event) {
       if (fresh.length >= SCREEN_CAP) break;
     }
 
-    // screen them
-    const verdicts = [];
-    for (const f of fresh.slice(0, SCREEN_CAP)) {
+    // screen them IN PARALLEL (Netlify sync cap ~26s; serial vision calls blow past it)
+    const cap = q.n ? Math.max(1, Math.min(SCREEN_CAP, parseInt(q.n, 10) || SCREEN_CAP)) : SCREEN_CAP;
+    const verdicts = await Promise.all(fresh.slice(0, cap).map(async (f) => {
       const v = await screenOne(f.key);
-      verdicts.push({ key: f.key, job_id: f.job_id, ...v });
       if (!dry) { try { await crud.insert(EVENT_LOG, { action: 'gbp_photo_screened', metadata: { key: f.key, job_id: f.job_id, pass: v.pass, reason: v.reason, caption: v.caption || '', at_ms: Date.now() } }); } catch (_) {} }
-    }
+      return { key: f.key, job_id: f.job_id, ...v };
+    }));
     const passed = verdicts.filter((v) => v.pass);
 
     if (dry) return json(200, { ok: true, mode: 'dry', screened: verdicts.length, passed: passed.length, verdicts });
