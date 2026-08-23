@@ -188,6 +188,36 @@ exports.handler = async function (event) {
         const carrie = (await getSecret('OFFICE_CELL_CARRIE')) || '+12258035669';
         await sendSms(carrie, laBody, 'office', 'sp_rma_watch');
       }
+
+      // FORWARD the actual LA label email(s) to Carrie's inbox — she runs returns and needs
+      // to open + print the FedEx label (Teddy 2026-08-22, LA-scoped like her texts). One
+      // forward per source email, deduped so a re-run never re-sends. Kill: RMA_FORWARD_CARRIE=off.
+      const fwdFlag = String((await getSecret('RMA_FORWARD_CARRIE')) || 'on').toLowerCase();
+      if (fwdFlag !== 'off' && laFresh.length) {
+        const gmailForward = require('./_lib/gmail-forward');
+        const { CARRIE_EMAIL_DEFAULT } = require('./_lib/carrie-la');
+        const carrieMail = (await getSecret('OFFICE_EMAIL_CARRIE')) || CARRIE_EMAIL_DEFAULT;
+        const doneRows = await crud.searchPage(crud.TABLES.event_log, { action: 'carrie_rma_emailed' }, { id: 'desc' }, 400).catch(() => []);
+        const already = new Set();
+        for (const r of doneRows) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } if (m && m.email_id) already.add(String(m.email_id)); }
+        const byMsg = new Map();
+        for (const p of laFresh) { if (!byMsg.has(p.id)) byMsg.set(p.id, []); byMsg.get(p.id).push(p); }
+        const oauthF = new google.auth.OAuth2(clientId, clientSecret); oauthF.setCredentials({ refresh_token: refreshToken });
+        const gmailF = google.gmail({ version: 'v1', auth: oauthF });
+        for (const [mid, plist] of byMsg) {
+          if (already.has(String(mid))) continue;
+          try {
+            const rawMsg = await gmailF.users.messages.get({ userId: 'me', id: mid, format: 'raw' });
+            const rawB64 = rawMsg.data && rawMsg.data.raw; if (!rawB64) continue;
+            const subj = plist[0].subject || 'Return label';
+            const lines = plist.map((p) => `• ${p.part} (${p.return_desc || 'return'}) → ${p.distributor || 'distributor'} · ${p.customer || p.claim} · FedEx ${p.tracking}`);
+            const note = `Louisiana return label(s) — forwarded for you (returns).\n\n${lines.join('\n')}\n\nThe original SquareTrade email is attached — open it to print the FedEx label. You can also pull the label in the Return Label Finder: https://tnapplianceexchange.net/return-finder.html`;
+            const fname = `RMA-${(plist[0].claim || 'label').replace(/[^A-Za-z0-9]/g, '')}.eml`;
+            await gmailForward.forwardEml({ to: carrieMail, subject: 'Fwd: ' + subj, note, originalRawB64: rawB64, filename: fname });
+            await crud.logEvent('carrie_rma_emailed', { email_id: mid, to: carrieMail, parts: plist.map((p) => p.part), claim: plist[0].claim || '', at_ms: Date.now() });
+          } catch (_) {}
+        }
+      }
     } catch (_) {}
   }
 

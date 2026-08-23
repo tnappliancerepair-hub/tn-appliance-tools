@@ -6,6 +6,7 @@
 'use strict';
 const LA_TECHS = new Set([3, 6]);              // Andre, John — the Louisiana crew
 const CARRIE_DEFAULT = '+12258035669';         // Carrie's cell (OFFICE_CELL_CARRIE overrides)
+const CARRIE_EMAIL_DEFAULT = 'mapes96@msn.com'; // Carrie's email (OFFICE_EMAIL_CARRIE overrides)
 
 function isLouisiana(ctx) {
   const c = ctx || {};
@@ -14,4 +15,4 @@ function isLouisiana(ctx) {
   return false;
 }
 
-module.exports = { isLouisiana, LA_TECHS, CARRIE_DEFAULT };
+module.exports = { isLouisiana, LA_TECHS, CARRIE_DEFAULT, CARRIE_EMAIL_DEFAULT };
