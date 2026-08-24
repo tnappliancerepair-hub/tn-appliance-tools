@@ -1511,7 +1511,7 @@
       }
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
-      alert("Couldn't reach the server on this signal — but your part numbers are saved on this phone. Tap Save again when you've got a bar or two and they'll go through.");
+      alert("Couldn't reach the server just now — your part numbers are SAVED on this phone, nothing lost. Toggle Airplane mode off/on (or switch to Wi‑Fi or LTE), then tap Save again.");
       return;
     }
     // (3) legacy column — harmless best-effort (auto-populates if the column is ever fixed).
@@ -1959,13 +1959,26 @@
         // repair_completed / parts_needed).
         var body = { job_id: Number(jobId), field: key, value: val };
         if (techId) body.technician_id = Number(techId);
-        var wd = await _postR(XANO + '/update_tdr_field_from_voice', body);
-        if (!wd || !wd.success) throw new Error((wd && (wd.message || wd.error)) || 'save failed');
+        var okSaved = false;
+        try { var wd = await _postR(XANO + '/update_tdr_field_from_voice', body); if (wd && wd.success) okSaved = true; } catch (_e1) {}
+        // SECOND independent backend: if Xano hiccuped, save whitelisted text fields
+        // through the Netlify Metadata path (ensure-tdr + set-tdr-field, a different host)
+        // so one backend being flaky no longer blocks the save. (Jimmy 2026-08-24)
+        var FB = { diagnosis: 1, failed_component: 1, repair_completed: 1 };
+        if (!okSaved && FB[key]) {
+          try {
+            var _tid2 = Number((lastData && lastData.tdr_id) || 0);
+            if (!(_tid2 > 0)) { var _ed2 = await _postR('/.netlify/functions/ensure-tdr', { job_id: Number(jobId), technician_id: Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0 }); _tid2 = Number((_ed2 || {}).tdr_id || 0); }
+            if (_tid2 > 0) { var sd2 = await _postR('/.netlify/functions/set-tdr-field', { tdr_id: _tid2, field: key, value: val }); if (sd2 && sd2.ok) { okSaved = true; if (lastData) lastData.tdr_id = _tid2; } }
+          } catch (_e2) {}
+        }
+        if (!okSaved) throw new Error('save failed');
       }
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
-      // The note is safe on this phone (draft backup). Reassure — don't imply it's lost.
-      alert('Couldn\'t reach the server on this signal — but your note is SAVED on this phone. Move to better signal and tap Save again; it will not be lost.');
+      // The text is safe on this phone (draft backup). Give the REAL fix — full bars can
+      // still be a stalled data path (esp. 5G UW), so tell the tech how to kick it.
+      alert('Couldn\'t reach the server just now — your work is SAVED on this phone, nothing lost. Toggle Airplane mode off/on (or switch to Wi‑Fi or LTE), then tap Save again.');
       return;
     }
     // Saved for real — clear the local draft backup for this field.
