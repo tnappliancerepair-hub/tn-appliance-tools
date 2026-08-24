@@ -48,7 +48,8 @@
   .brainrow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
   .brainrow:first-of-type{border-top:none}
   .brainrow .bp{color:var(--muted);font-size:12px}
-  .tdr input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px}
+  .tdr input:not([type="radio"]):not([type="checkbox"]){width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px}
+  .tdr input[type="radio"],.tdr input[type="checkbox"]{width:auto;flex:0 0 auto;margin:0}
   .tdr .two{display:flex;gap:8px}
   .tdr .outc{display:flex;flex-direction:column;gap:5px;font-size:14.5px;margin:4px 0 10px}
   .tdr .outc label,.tdr .cameback{display:flex;gap:8px;align-items:center}

@@ -61,7 +61,8 @@
   .brainrow .bp{color:var(--muted);font-size:12px}
   .tdr{margin-top:11px;display:none;flex-direction:column;gap:8px}
   .tdr.open{display:flex}
-  .tdr input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  .tdr input:not([type="radio"]):not([type="checkbox"]){width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  .tdr input[type="radio"],.tdr input[type="checkbox"]{width:auto;flex:0 0 auto;margin:0}
   .tdr .two{display:flex;gap:8px}
   .tdr .outc{display:flex;flex-direction:column;gap:4px;font-size:14px}
   .tdr .outc label{display:flex;gap:8px;align-items:center}
