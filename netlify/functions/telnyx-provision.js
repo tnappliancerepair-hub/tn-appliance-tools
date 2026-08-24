@@ -99,17 +99,22 @@ exports.handler = async function (event) {
     // (+ optional &field=) to PATCH it. &gid= to target a specific group.
     if (action === 'insightgroup') {
       const gid = q.gid || '68d12f44-565f-4370-a3a8-6ef6bf53e84e';
-      const paths = [`/ai/assistants/insight-groups/${gid}`, `/ai/insight-groups/${gid}`, `/ai/assistants/insights/groups/${gid}`, `/ai/assistants/insight_groups/${gid}`];
+      // Try LIST bases first (discover the working path), then the single-GET under it.
+      const listBases = ['/ai/assistants/insight-groups', '/ai/insight-groups', '/ai/assistants/insights/groups', '/ai/assistants/insight_groups', '/ai/assistants/insights', '/ai/insight_groups'];
       const probes = [];
       let found = null;
-      for (const p of paths) {
+      for (const base of listBases) {
         try {
-          const r = await fetch(`${TELNYX}${p}`, { headers: H, signal: AbortSignal.timeout(12000) });
+          const r = await fetch(`${TELNYX}${base}`, { headers: H, signal: AbortSignal.timeout(10000) });
           const d = await r.json().catch(() => ({}));
-          const g = (d && d.data) || null;
-          probes.push({ path: p, status: r.status, keys: g ? Object.keys(g) : Object.keys(d || {}).slice(0, 10) });
-          if (r.ok && g) { found = { path: p, group: g }; break; }
-        } catch (e) { probes.push({ path: p, error: String((e && e.message) || e).slice(0, 60) }); }
+          const arr = Array.isArray(d && d.data) ? d.data : null;
+          probes.push({ base, status: r.status, count: arr ? arr.length : null, sample_keys: arr && arr[0] ? Object.keys(arr[0]) : Object.keys(d || {}).slice(0, 8) });
+          if (r.ok && arr) {
+            const g = arr.find((x) => x.id === gid) || null;
+            if (g) found = { path: `${base}/${gid}`, base, group: g };
+            else if (!found) found = { path: `${base}/${gid}`, base, group: null, note: 'gid not in list', list: arr.map((x) => ({ id: x.id, name: x.name, webhook_url: x.webhook_url })) };
+          }
+        } catch (e) { probes.push({ base, error: String((e && e.message) || e).slice(0, 60) }); }
       }
       if (found && q.set_webhook) {
         const field = q.field || 'webhook_url';
