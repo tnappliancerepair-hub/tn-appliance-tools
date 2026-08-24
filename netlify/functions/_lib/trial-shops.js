@@ -45,19 +45,20 @@ const SHOPS = {
   //   platformSlug: '',                  // set to their Supabase tenant slug for the board+intake bridge
   // },
 
-  // ── Greg Long — Classic Automotive. Automotive persona captures year/make/model.
-  //    Set autoScope: 'classic' if it's classic/restoration-focused, else 'general'.
-  // 'greg': {
-  //   name: 'Classic Automotive',
-  //   type: 'automotive',
-  //   ownerFirst: 'Greg',
-  //   ownerCell: '+1FILL_owner_cell',
-  //   area: 'FILL_service_area',
-  //   hours: 'Monday to Friday, 8 to 5',
-  //   autoScope: 'general',              // 'general' | 'classic'
-  //   about: 'FILL_what_she_can_answer',
-  //   platformSlug: '',
-  // },
+  // ── Greg Long — Classic Automotive, Lebanon TN. Automotive persona captures
+  //    year/make/model. ⚠️ NEEDS Greg's cell (ownerCell) to go live — that's where
+  //    the lead texts land. Confirm autoScope: 'classic' vs 'general' with Greg.
+  'greg': {
+    name: 'Classic Automotive',
+    type: 'automotive',
+    ownerFirst: 'Greg',
+    ownerCell: '+1',                    // ⚠️ FILL — Greg's cell, E.164. REQUIRED to fire leads.
+    area: 'Lebanon, Tennessee and the surrounding area',
+    hours: 'Monday to Friday, 8 to 5',
+    autoScope: 'general',               // confirm 'general' (all makes) vs 'classic' (restoration)
+    about: '',                          // optional — services/pricing Ann may share
+    platformSlug: '',
+  },
 };
 
 function get(slug) {
