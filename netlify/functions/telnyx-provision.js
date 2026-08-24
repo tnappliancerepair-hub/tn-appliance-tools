@@ -252,13 +252,24 @@ exports.handler = async function (event) {
     if (action === 'searchnew') {
       const area = (q.area || '615').replace(/\D/g, '');
       const ends = (q.ends || '00').replace(/\D/g, '');
-      // Ask Telnyx directly for numbers ending in the pattern (rare in a random pull).
-      const url = `${TELNYX}/available_phone_numbers?filter[national_destination_code]=${area}&filter[features][]=sms&filter[features][]=voice&filter[phone_number][ends_with]=${ends}&filter[limit]=30`;
+      const contains = (q.contains || '').replace(/\D/g, '');
+      // Ask Telnyx for numbers ending in the pattern; best_effort widens the pool so we
+      // can also post-scan for the digits appearing anywhere (vanity search).
+      let url = `${TELNYX}/available_phone_numbers?filter[national_destination_code]=${area}&filter[features][]=voice&filter[limit]=50&filter[best_effort]=true`;
+      if (!contains) url += `&filter[phone_number][ends_with]=${ends}`;
+      else url += `&filter[phone_number][contains]=${contains}`;
       const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) });
       const d = await r.json().catch(() => ({}));
-      const all = ((d && d.data) || []).map((x) => x.phone_number).filter(Boolean);
-      const matches = all.filter((n) => String(n).endsWith(ends));
-      return json(200, { ok: r.ok, area, ends, returned: all.length, ending_matches: matches.slice(0, 20), sample: all.slice(0, 6), error: r.ok ? undefined : d });
+      const rows = (d && d.data) || [];
+      const all = rows.map((x) => x.phone_number).filter(Boolean);
+      const smsCap = {}; rows.forEach((x) => { const f = x.features || []; smsCap[x.phone_number] = Array.isArray(f) ? f.some((y) => (y.name || y) === 'sms') : !!(f && f.sms); });
+      const want = contains || ends;
+      const ending_matches = all.filter((n) => String(n).endsWith(ends));
+      const contains_matches = want ? all.filter((n) => String(n).replace(/\D/g, '').includes(want)) : [];
+      return json(200, { ok: r.ok, area, ends, contains: contains || undefined, returned: all.length,
+        ending_matches: ending_matches.slice(0, 20), contains_matches: contains_matches.slice(0, 20),
+        sms_capable: contains_matches.slice(0, 20).map((n) => ({ n, sms: !!smsCap[n] })),
+        sample: all.slice(0, 8), error: r.ok ? undefined : d });
     }
 
     // Buy a specific available number + attach it to the CUSTOMER SMS profile so it
