@@ -29,11 +29,14 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 // services — the owner confirms all of that when he calls right back.
 function buildInstructions(shop) {
   const isAuto = shop.type === 'automotive';
+  const isDealer = shop.type === 'dealership';
   const owner = shop.ownerFirst || 'the owner';
   const area = shop.area ? ` serving ${shop.area}` : '';
   const hours = shop.hours || 'Monday to Friday, 8 to 5';
 
-  const capture = isAuto
+  const capture = isDealer
+    ? `WHAT TO CAPTURE (vehicle sales): their name, the best callback number, and WHAT THEY'RE LOOKING FOR — the kind of vehicle (for a work van: cargo vs passenger, the size, any make/model they have in mind, and what they'll use it for), their rough budget or monthly payment target, whether they'll need financing, and whether they have a trade-in. Also ask if they'd like to come by for a look or a test drive. That's what ${owner} needs to line up the right vehicle before he calls them back.`
+    : isAuto
     ? `WHAT TO CAPTURE (automotive): their name, the best callback number, the VEHICLE — year, make, and model (always get all three; read the year back to be sure), and a short description of what's going on with it (the noise, the warning light, what it's doing or not doing). Their city or where the car is helps too. Get the vehicle right — that's what ${owner} needs to know before he calls back.`
     : `WHAT TO CAPTURE (appliance): their name, the best callback number, the APPLIANCE (fridge, washer, dryer, oven, dishwasher, etc.) and its brand if they know it, and a short description of what it's doing or not doing. Their city helps too.`;
 
@@ -44,7 +47,9 @@ function buildInstructions(shop) {
     ? `\n\nWHAT YOU KNOW ABOUT ${shop.name.toUpperCase()} (answer caller questions from THIS, and only this — it's what ${owner} has cleared you to share):\n${String(shop.about).trim()}\nIf a caller asks something that ISN'T covered here, don't guess — warmly say "great question, let me have ${owner} confirm that for you when he calls right back," and make sure that question rides along in the lead.`
     : '';
 
-  const scopeLine = isAuto
+  const scopeLine = isDealer
+    ? `${shop.name} is a used car lot — you're the friendly, no-pressure salesperson who helps buyers find the right vehicle. Be genuinely helpful and easygoing; the goal is to get them excited to come see it and to hand ${owner} a warm lead.`
+    : isAuto
     ? (shop.autoScope === 'classic'
       ? `${shop.name} specializes in CLASSIC and restoration work, so match that energy — these are people who love their cars. Be genuinely interested in what they've got.`
       : `${shop.name} handles automotive repair and service. Be warm and capable, like the best service advisor in town.`)
@@ -93,9 +98,20 @@ function webhookTool(name, description, url, properties, required) {
 
 function buildTools(shop, toolKey) {
   const isAuto = shop.type === 'automotive';
+  const isDealer = shop.type === 'dealership';
   const q = (base) => base + `?shop=${encodeURIComponent(shop.slug)}` + (toolKey ? `&k=${encodeURIComponent(toolKey)}` : '');
 
-  const leadProps = isAuto
+  const leadProps = isDealer
+    ? {
+      name: { type: 'string', description: "the caller's name" },
+      phone: { type: 'string', description: 'best callback number, digits' },
+      vehicle: { type: 'string', description: 'what they\'re looking for — e.g. "cargo work van, Ford Transit, mid-size"' },
+      budget: { type: 'string', description: 'rough budget or monthly payment target (optional)' },
+      financing: { type: 'string', description: 'do they need financing? (optional)' },
+      trade_in: { type: 'string', description: 'any trade-in vehicle they mentioned (optional)' },
+      city: { type: 'string', description: 'their city (optional)' },
+    }
+    : isAuto
     ? {
       name: { type: 'string', description: "the caller's name" },
       phone: { type: 'string', description: 'best callback number, digits' },
@@ -113,7 +129,9 @@ function buildTools(shop, toolKey) {
 
   return [
     webhookTool('capture_lead',
-      isAuto
+      isDealer
+        ? "Send the buyer's lead straight to the lot owner's phone. Use once you have their name, callback number, and what vehicle they're looking for (plus budget, financing, or trade-in if they shared). This is how the lead reaches the lot — always do it before ending a call with a real buyer."
+        : isAuto
         ? "Send the caller's lead straight to the shop owner's phone. Use once you have their name, callback number, the vehicle (year/make/model), and what they need. This is how the lead reaches the shop — always do it before ending a call with a real caller."
         : "Send the caller's lead straight to the shop owner's phone. Use once you have their name, callback number, the appliance, and what it's doing. This is how the lead reaches the shop — always do it before ending a call with a real caller.",
       q(`${LEAD_TOOL}?do=capture_lead`), leadProps, ['phone']),

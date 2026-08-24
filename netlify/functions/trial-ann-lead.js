@@ -52,13 +52,19 @@ exports.handler = async function (event) {
     return json(200, { ok: sent, sent_to_owner: sent });
   }
 
-  // capture_lead — the core: text the owner a clean, callable lead.
-  // Automotive leads carry the vehicle; appliance leads carry the appliance.
+  // capture_lead — the core: text the owner a clean, callable lead. Dealership leads
+  // carry the vehicle they WANT + budget/financing/trade; auto-repair carries the
+  // vehicle + issue; appliance carries the appliance + problem.
   const isAuto = shop.type === 'automotive';
-  const what = isAuto
+  const isDealer = shop.type === 'dealership';
+  const what = isDealer
+    ? String(p.vehicle || p.summary || '').trim()
+    : isAuto
     ? String(p.vehicle || p.summary || '').trim()
     : String(p.appliance || p.summary || '').trim();
-  const detail = isAuto
+  const detail = isDealer
+    ? [p.budget && `Budget: ${String(p.budget).trim()}`, p.financing && `Financing: ${String(p.financing).trim()}`, p.trade_in && `Trade-in: ${String(p.trade_in).trim()}`, (!p.budget && !p.financing && !p.trade_in && p.summary) ? String(p.summary).trim() : ''].filter(Boolean).join(' · ')
+    : isAuto
     ? String(p.issue || p.problem || p.summary || '').trim()
     : String(p.problem || p.summary || '').trim();
 
@@ -76,8 +82,8 @@ exports.handler = async function (event) {
     `🔔 NEW LEAD — ${shop.name} (via Ann)`,
     name && `Name: ${name}`,
     phone && `Call back: ${fmtPhone(phone)}`,
-    isAuto ? (what && `Vehicle: ${what}`) : (what && `Appliance: ${what}`),
-    detail && `Needs: ${detail}`,
+    isDealer ? (what && `Looking for: ${what}`) : isAuto ? (what && `Vehicle: ${what}`) : (what && `Appliance: ${what}`),
+    detail && (isDealer ? detail : `Needs: ${detail}`),
     city && `City: ${city}`,
     board.ok && board.portal_url ? `On your board ✅ · customer link: ${board.portal_url}` : null,
     `— Ann answered this for you. Call them back and close it. 🐜`,
