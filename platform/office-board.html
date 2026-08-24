@@ -178,16 +178,30 @@
   function openSettings() {
     var s = shopSettings || {};
     var ov = document.createElement('div'); ov.className = 'ov';
+    var b = s.business || {};
     ov.innerHTML =
       '<div class="sheet"><h2>⚙️ Shop settings</h2>' +
-      '<label>Google review link <span class="hint">the link customers tap to leave you a review</span></label>' +
+      '<div class="sec">Your business (shown on invoices)</div>' +
+      '<label>Business name <span class="hint">appears at the top of every invoice</span></label>' +
+      '<input id="b_name" placeholder="' + esc(shopName || 'Your Appliance Repair LLC') + '" value="' + esc(b.name || '') + '">' +
+      '<label>Address</label><input id="b_addr" placeholder="123 Main St, City, ST 00000" value="' + esc(b.address || '') + '">' +
+      '<label>Phone</label><input id="b_phone" placeholder="(555) 123-4567" value="' + esc(b.phone || '') + '">' +
+      '<label>Email</label><input id="b_email" placeholder="office@yourshop.com" value="' + esc(b.email || '') + '">' +
+      '<label>Tax ID / EIN <span class="hint">for the customer\'s records</span></label>' +
+      '<input id="b_tax" placeholder="00-0000000" value="' + esc(b.tax_id || '') + '">' +
+      '<label>License #</label><input id="b_lic" placeholder="optional" value="' + esc(b.license || '') + '">' +
+      '<label>Payment instructions <span class="hint">how customers pay you — checks payable to, Zelle/Venmo, etc.</span></label>' +
+      '<textarea id="b_pay" placeholder="Make checks payable to … · Zelle: office@yourshop.com" style="width:100%;min-height:58px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical">' + esc(s.pay_instructions || '') + '</textarea>' +
+      '<div class="sec">Sales tax</div>' +
+      '<label>Sales tax % <span class="hint">default rate on invoices</span></label>' +
+      '<input id="s_tax" inputmode="decimal" placeholder="9.75" value="' + esc(s.tax_rate != null ? s.tax_rate : '') + '">' +
+      '<div class="sec">Tools</div>' +
+      '<label>Google review link <span class="hint">the link customers tap to leave a review</span></label>' +
       '<input id="s_review" placeholder="https://g.page/r/…/review" value="' + esc(s.review_url || '') + '">' +
       '<label>Parts distributor <span class="hint">the name on the tech\'s parts button</span></label>' +
       '<input id="s_dname" placeholder="Marcone" value="' + esc(s.distributor_name || '') + '">' +
       '<label>Distributor search link <span class="hint">use <b>{q}</b> where the model/part goes</span></label>' +
       '<input id="s_durl" placeholder="https://yoursupplier.com/search?q={q}" value="' + esc(s.distributor_search_url || '') + '">' +
-      '<label>Sales tax % <span class="hint">default tax rate on invoices</span></label>' +
-      '<input id="s_tax" inputmode="decimal" placeholder="9.75" value="' + esc(s.tax_rate != null ? s.tax_rate : '') + '">' +
       '<div class="srow"><button id="s_cancel">Cancel</button><button class="primary" id="s_save">Save</button></div>' +
       '<div class="err" id="s_err"></div></div>';
     document.body.appendChild(ov);
@@ -197,11 +211,17 @@
     document.getElementById('s_save').onclick = function () {
       var btn = document.getElementById('s_save'); btn.disabled = true; btn.textContent = 'Saving…';
       var taxRaw = document.getElementById('s_tax').value.trim();
+      var gv = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
       var next = Object.assign({}, shopSettings, {
-        review_url: document.getElementById('s_review').value.trim(),
-        distributor_name: document.getElementById('s_dname').value.trim(),
-        distributor_search_url: document.getElementById('s_durl').value.trim(),
+        review_url: gv('s_review'),
+        distributor_name: gv('s_dname'),
+        distributor_search_url: gv('s_durl'),
         tax_rate: taxRaw === '' ? null : (parseFloat(taxRaw) || 0),
+        pay_instructions: gv('b_pay'),
+        business: {
+          name: gv('b_name'), address: gv('b_addr'), phone: gv('b_phone'),
+          email: gv('b_email'), tax_id: gv('b_tax'), license: gv('b_lic'),
+        },
       });
       sb.from('company').update({ settings: next }).eq('id', companyId).then(function (r) {
         if (r.error) { btn.disabled = false; btn.textContent = 'Save'; document.getElementById('s_err').textContent = r.error.message; return; }
@@ -289,7 +309,7 @@
       '<div class="totals" id="jtotals"></div>' +
       '<div class="paidrow"><label style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px"><input type="checkbox" id="jpaid"> Paid</label>' +
         '<select id="jmethod"><option value="">method…</option><option>Cash</option><option>Card</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Warranty</option></select></div>' +
-      '<div class="srow"><button id="jstmt">📄 Statement</button><button class="primary" id="jpaySave">Save invoice</button></div>' +
+      '<div class="srow" style="flex-wrap:wrap"><button id="jstmt">📄 Print</button><button id="jsend">📤 Text invoice</button><button class="primary" id="jpaySave">Save invoice</button></div>' +
       '<div class="err" id="jerr"></div>' +
       '<div class="srow" style="margin-top:16px;justify-content:center"><button id="jclose">Close</button></div>' +
       '</div>';
@@ -328,27 +348,47 @@
       });
     } else { recompute(); }
 
-    document.getElementById('jpaySave').onclick=function(){ savePay(job, close); };
+    document.getElementById('jpaySave').onclick=function(){ savePay(job); };
     document.getElementById('jstmt').onclick=function(){ openStatement(job); };
+    document.getElementById('jsend').onclick=function(){ sendInvoice(job); };
     function g(id){ return document.getElementById(id).value; }
+  }
+
+  function sendInvoice(job){
+    var btn=document.getElementById('jsend');
+    if(!invByJob[job.id]){ document.getElementById('jerr').textContent='Save the invoice first, then text it.'; return; }
+    btn.disabled=true; btn.textContent='Texting…';
+    sb.auth.getSession().then(function(r){ var tok=(r.data&&r.data.session&&r.data.session.access_token)||'';
+      fetch('/.netlify/functions/platform-invoice?do=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:job.id,access_token:tok})})
+        .then(function(x){return x.json();}).then(function(d){
+          btn.disabled=false;
+          if(d&&d.ok){ btn.textContent=d.texted?'✓ Invoice texted':'✓ Link ready (no phone)'; if(!d.texted&&d.url){ document.getElementById('jerr').textContent='No phone on file — link: '+d.url; } }
+          else { btn.textContent='📤 Text invoice'; document.getElementById('jerr').textContent=(d&&d.error==='no_invoice')?'Save the invoice first.':'Couldn\'t send — try again.'; }
+        }).catch(function(){ btn.disabled=false; btn.textContent='📤 Text invoice'; document.getElementById('jerr').textContent='Couldn\'t reach the server.'; });
+    });
   }
   function fld(id,label){ return '<div class="fld"><label>'+esc(label)+'</label><input id="'+id+'" inputmode="decimal" placeholder="0"></div>'; }
 
-  function savePay(job, done){
+  function savePay(job){
     var btn=document.getElementById('jpaySave'); btn.disabled=true; btn.textContent='Saving…';
+    document.getElementById('jerr').textContent='';
     var g=function(id){ return document.getElementById(id).value; };
     var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee'));
     var sub=laborC+partsC+feeC, taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
     var paid=document.getElementById('jpaid').checked, method=document.getElementById('jmethod').value||null;
     var inv=invByJob[job.id]||null;
     var row={ company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, subtotal_cents:sub, tax_cents:taxC, total_cents:tot, status:paid?'paid':'draft', paid_method:paid?method:null, paid_at:paid?(inv&&inv.paid_at?inv.paid_at:new Date().toISOString()):null };
+    var done=function(invoiceId){
+      invByJob[job.id]=Object.assign({ id:invoiceId, job_id:job.id, created_at:(inv&&inv.created_at)||new Date().toISOString() }, row);
+      btn.disabled=false; btn.textContent='Saved ✓'; setTimeout(function(){ btn.textContent='Save invoice'; },1600);
+      loadBoard();
+    };
     var writeLines=function(invoiceId){
       sb.from('invoice_line').delete().eq('invoice_id',invoiceId).then(function(){
         var lines=[]; if(laborC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'labor',description:'Labor',qty:1,unit_cents:laborC});
         if(partsC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:'Parts',qty:1,unit_cents:partsC});
         if(feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'fee',description:'Trip / fee',qty:1,unit_cents:feeC});
-        var after=function(){ btn.disabled=false; loadBoard(); if(done)done(); };
-        if(lines.length) sb.from('invoice_line').insert(lines).then(after); else after();
+        if(lines.length) sb.from('invoice_line').insert(lines).then(function(){ done(invoiceId); }); else done(invoiceId);
       });
     };
     if(inv){ sb.from('invoice').update(row).eq('id',inv.id).then(function(r){ if(r.error){btn.disabled=false;btn.textContent='Save invoice';document.getElementById('jerr').textContent=r.error.message;return;} writeLines(inv.id); }); }
@@ -367,14 +407,18 @@
     if(partsC)rows+='<tr><td>Parts</td><td style="text-align:right">'+money(partsC)+'</td></tr>';
     if(feeC)rows+='<tr><td>Trip / fee</td><td style="text-align:right">'+money(feeC)+'</td></tr>';
     var today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
-    var html='<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Statement — '+esc(shopName)+'</title>' +
-      '<style>body{font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;max-width:640px;margin:0 auto;padding:26px}h1{font-size:22px;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 0;border-bottom:1px solid #eee}.grand td{font-size:19px;font-weight:800;border-bottom:none}.muted{color:#666}.pill{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:800;font-size:13px}.paid{background:#dcfce7;color:#166534}.due{background:#fef3c7;color:#92400e}.pr{margin-top:22px}@media print{.pr{display:none}}</style>' +
-      '<h1>'+esc(shopName||'Invoice')+'</h1><div class="muted">Service statement · '+today+'</div>' +
+    var biz=(shopSettings.business)||{}; var bizName=biz.name||shopName||'Invoice';
+    var bizbits=[biz.address,[biz.phone,biz.email].filter(Boolean).join(' · '),biz.tax_id?('Tax ID: '+biz.tax_id):'',biz.license?('Lic# '+biz.license):''].filter(Boolean).join('<br>');
+    var payNote=String(shopSettings.pay_instructions||'').replace(/</g,'&lt;');
+    var html='<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invoice — '+esc(bizName)+'</title>' +
+      '<style>body{font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;max-width:640px;margin:0 auto;padding:26px}h1{font-size:22px;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 0;border-bottom:1px solid #eee}.grand td{font-size:19px;font-weight:800;border-bottom:none}.muted{color:#666;font-size:13px}.pill{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:800;font-size:13px}.paid{background:#dcfce7;color:#166534}.due{background:#fef3c7;color:#92400e}.note{background:#f6f6f4;border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-top:16px;white-space:pre-line}.pr{margin-top:22px}@media print{.pr{display:none}}</style>' +
+      '<h1>'+esc(bizName)+'</h1>'+(bizbits?'<div class="muted" style="margin-top:3px">'+bizbits+'</div>':'')+'<div class="muted" style="margin-top:6px">Invoice · '+today+'</div>' +
       '<div style="margin-top:16px"><b>'+esc(fullName(cust)||'Customer')+'</b>'+(cust.phone?' · '+esc(cust.phone):'')+(unit?'<br>'+esc(unit):'')+(job.problem?'<br><span class="muted">'+esc(job.problem)+'</span>':'')+'</div>' +
       '<table>'+rows+'<tr><td class="muted">Subtotal</td><td style="text-align:right">'+money(sub)+'</td></tr><tr><td class="muted">Tax ('+taxp+'%)</td><td style="text-align:right">'+money(taxC)+'</td></tr><tr class="grand"><td>Total</td><td style="text-align:right">'+money(tot)+'</td></tr></table>' +
       '<div style="margin-top:16px"><span class="pill '+(paid?'paid':'due')+'">'+(paid?'PAID IN FULL':'BALANCE DUE '+money(tot))+'</span></div>' +
+      (payNote&&!paid?'<div class="note">'+payNote+'</div>':'') +
       '<div class="pr"><button onclick="window.print()" style="padding:12px 18px;font-size:16px;font-weight:700;border:0;border-radius:10px;background:#3f8f24;color:#fff">🖨️ Print / Save as PDF</button></div>' +
-      '<p class="muted" style="margin-top:26px">Thank you for your business — '+esc(shopName||'')+'</p>';
+      '<p class="muted" style="margin-top:26px">Thank you for your business — '+esc(bizName)+'</p>';
     var w=window.open('','_blank'); if(w){ w.document.write(html); w.document.close(); } else { alert('Allow pop-ups to view the statement.'); }
   }
 

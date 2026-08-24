@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Invoice</title>
+<!-- Ant platform — customer INVOICE view. Tokenized, anon (invoice_get). Renders entirely
+     as the shop (their business info from company.settings.business). No mention of us. -->
+<style>
+  :root{ --bg:#f5f6f3; --panel:#fff; --ink:#12160f; --muted:#5b6152; --line:#e5e8de; --brand:#3f8f24; --shadow:0 1px 2px rgba(20,30,10,.06),0 10px 30px rgba(20,30,10,.07); }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0f130c; --panel:#161b11; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --brand:#5bb537; } }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:600px;margin:0 auto;padding:22px 16px 60px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
+  .shop{font-size:23px;font-weight:800}
+  .bizline{color:var(--muted);font-size:13px;margin-top:3px;white-space:pre-line}
+  .hr{height:1px;background:var(--line);margin:18px 0}
+  .lab{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  .to{font-weight:700;margin-top:2px}
+  .meta{color:var(--muted);font-size:13px}
+  table{width:100%;border-collapse:collapse;margin-top:14px}
+  td{padding:9px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  td.r{text-align:right}
+  .tot{font-variant-numeric:tabular-nums}
+  .tot .tr{display:flex;justify-content:space-between;padding:4px 0}
+  .tot .grand{font-size:20px;font-weight:800;border-top:1px solid var(--line);margin-top:6px;padding-top:9px}
+  .pill{display:inline-block;padding:5px 14px;border-radius:999px;font-weight:800;font-size:13px;margin-top:14px}
+  .paid{background:#dcfce7;color:#166534}
+  .due{background:#fef3c7;color:#92400e}
+  .pay-note{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-top:16px;font-size:14px;white-space:pre-line}
+  .center{max-width:380px;margin:16vh auto;text-align:center;color:var(--muted);padding:0 20px}
+  .center .big{font-size:44px;margin-bottom:8px}
+  .print{display:block;width:100%;margin-top:18px;padding:13px;border:0;border-radius:11px;background:var(--brand);color:#fff;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+  @media print{ .print{display:none} body{background:#fff} .card{border:none;box-shadow:none} }
+</style>
+</head>
+<body>
+<div id="app"><div class="center"><div class="big">🧾</div><p>Loading your invoice…</p></div></div>
+
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var app=document.getElementById('app'); var cfg=window.ANT_SUPABASE||{};
+  var t=new URLSearchParams(location.search).get('t');
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
+  function money(c){ c=Math.round(c||0); return '$'+(c/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function fail(m){ app.innerHTML='<div class="center"><div class="big">🧾</div><p>'+esc(m)+'</p></div>'; }
+  if(!cfg.url||!cfg.anonKey){ fail('Not connected yet.'); return; }
+  if(!t){ fail('This link is missing its code.'); return; }
+  var sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+
+  sb.rpc('invoice_get',{p_token:t}).then(function(r){
+    if(r.error){ fail('Could not load this invoice.'); return; }
+    var d=r.data||{}; if(!d.ok){ fail(d.error||'This link is invalid or has expired.'); return; }
+    var co=d.company||{}, s=(co.settings&&co.settings.business)||{}, cust=d.customer||{}, job=d.job||{}, inv=d.invoice||{}, lines=d.lines||[];
+    var name=s.name||co.name||'Invoice';
+    var bizbits=[s.address,[s.phone,s.email].filter(Boolean).join(' · '),s.tax_id?('Tax ID: '+s.tax_id):'',s.license?('Lic# '+s.license):''].filter(Boolean).join('\n');
+    var paid=inv.status==='paid';
+    var when=inv.created_at?new Date(inv.created_at).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'';
+    var custName=[cust.first_name,cust.last_name].filter(Boolean).join(' ')||'Customer';
+    var rows=lines.map(function(l){ var amt=Math.round((l.unit_cents||0)*(l.qty||1)); return '<tr><td>'+esc(l.description||l.kind)+'</td><td class="r">'+money(amt)+'</td></tr>'; }).join('');
+    var payNote=(co.settings&&co.settings.pay_instructions)||'';
+
+    app.innerHTML='<div class="wrap"><div class="card">' +
+      '<div class="shop">'+esc(name)+'</div>' +
+      (bizbits?'<div class="bizline">'+esc(bizbits)+'</div>':'') +
+      '<div class="hr"></div>' +
+      '<div class="lab">Billed to</div><div class="to">'+esc(custName)+'</div>' +
+      (job.appliance||job.problem?'<div class="meta" style="margin-top:6px">'+esc([job.appliance,job.problem].filter(Boolean).join(' — '))+'</div>':'') +
+      (when?'<div class="meta">Invoice date: '+esc(when)+(inv.number?' · #'+esc(inv.number):'')+'</div>':'') +
+      '<table>'+rows+'</table>' +
+      '<div class="tot" style="margin-top:12px">' +
+        '<div class="tr"><span>Subtotal</span><span>'+money(inv.subtotal_cents)+'</span></div>' +
+        '<div class="tr"><span>Tax</span><span>'+money(inv.tax_cents)+'</span></div>' +
+        '<div class="tr grand"><span>Total</span><span>'+money(inv.total_cents)+'</span></div>' +
+      '</div>' +
+      '<div><span class="pill '+(paid?'paid':'due')+'">'+(paid?'PAID IN FULL':'BALANCE DUE '+money(inv.total_cents))+'</span></div>' +
+      (payNote&&!paid?'<div class="pay-note">'+esc(payNote)+'</div>':'') +
+      '<button class="print" onclick="window.print()">🖨️ Print / Save as PDF</button>' +
+      '</div></div>';
+  }).catch(function(){ fail('Could not load this invoice.'); });
+})();
+</script>
+</body>
+</html>
