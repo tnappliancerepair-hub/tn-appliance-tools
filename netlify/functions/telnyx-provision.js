@@ -72,7 +72,12 @@ exports.handler = async function (event) {
       for (const a of want) {
         let full = a;
         try { const fr = await fetch(`${TELNYX}/ai/assistants/${a.id}`, { headers: H, signal: AbortSignal.timeout(12000) }); const fd = await fr.json().catch(() => ({})); full = (fd && fd.data) || fd || a; } catch (_) {}
+        if (String(q.raw || '') === '1') { out.push(full); continue; }
         out.push({
+          post_conversation_settings: full.post_conversation_settings || null,
+          observability_settings: full.observability_settings || null,
+          integrations: full.integrations || null,
+          privacy_settings: full.privacy_settings || null,
           id: full.id,
           name: full.name,
           model: full.model,
