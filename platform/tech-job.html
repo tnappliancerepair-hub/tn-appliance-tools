@@ -70,6 +70,7 @@
 
 <script src="/platform/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tus-js-client@3/dist/tus.min.js"></script>
 <script>
 (function () {
   var app = document.getElementById('app');
@@ -123,11 +124,16 @@
     var addr = [cust.address, cust.city, cust.state].filter(Boolean).join(', ');
     var phone = (cust.phone||'').replace(/[^0-9+]/g,'');
     var media = job.media || [];
-    var vids = media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream';});
-    var phos = media.filter(function(m){return m.kind==='photo'&&m.provider==='storage';});
-
-    var vidHtml = vids.length ? vids.map(function(m){ return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; }).join('') : '<div class="note">No video sent yet.</div>';
-    var phoHtml = phos.length ? '<div class="thumbs">'+phos.map(function(m){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+m.ref; return '<a target="_blank" rel="noopener" href="'+esc(u)+'"><img src="'+esc(u)+'"></a>'; }).join('')+'</div>' : '';
+    var isTech = function(m){ return /^tech/i.test(m.label||''); };
+    var cVids = media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream'&&!isTech(m);});
+    var cPhos = media.filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&!isTech(m);});
+    var tVids = media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream'&&isTech(m);});
+    var tPhos = media.filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&isTech(m);});
+    var vidPlayer = function(m){ return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; };
+    var photoThumbs = function(list){ return list.length ? '<div class="thumbs">'+list.map(function(m){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+m.ref; return '<a target="_blank" rel="noopener" href="'+esc(u)+'"><img src="'+esc(u)+'"></a>'; }).join('')+'</div>' : ''; };
+    var vidHtml = cVids.length ? cVids.map(vidPlayer).join('') : '<div class="note">No video sent yet.</div>';
+    var phoHtml = photoThumbs(cPhos);
+    var techMediaHtml = (tVids.map(vidPlayer).join('')) + photoThumbs(tPhos);
 
     app.innerHTML =
       '<header><a class="back" href="/platform/tech.html">‹ My Jobs</a><span class="shop" id="shop"></span></header>' +
@@ -149,6 +155,13 @@
         (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
         (job.waiver_signed_at?'<div class="kv">✍️ Waiver signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>':'<div class="kv note">Waiver not signed yet</div>') +
         '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
+
+      '<div class="card"><div class="sec">My photos &amp; videos</div>' +
+        (techMediaHtml || '<div class="note">Add your own shots of the appliance, the part, or the fix.</div>') +
+        '<div class="btnrow" style="margin-top:10px">' +
+          '<button id="tphBtn">📷 Add photo<input type="file" accept="image/*" capture="environment" id="tphFile" class="hidden"></button>' +
+          '<button id="tvidBtn">🎥 Add video<input type="file" accept="video/*" capture="environment" id="tvidFile" class="hidden"></button>' +
+        '</div><div class="note hidden" id="tmMsg"></div></div>' +
 
       '<div class="card"><div class="sec">Model number</div>' +
         '<div class="model"><span class="mval" id="modelVal">'+esc(a.model||'—')+'</span>'+(a.brand?'<span class="unit">'+esc(a.brand)+'</span>':'')+'</div>' +
@@ -190,6 +203,14 @@
     ocrBtn.onclick = function(e){ if (e.target !== ocrFile) ocrFile.click(); };
     ocrFile.onchange = function(){ if (ocrFile.files && ocrFile.files[0]) runOcr(ocrFile.files[0]); };
 
+    // tech's own photos + videos
+    var tphBtn=document.getElementById('tphBtn'), tphFile=document.getElementById('tphFile');
+    tphBtn.onclick=function(e){ if(e.target!==tphFile) tphFile.click(); };
+    tphFile.onchange=function(){ if(tphFile.files&&tphFile.files[0]) addTechPhoto(tphFile.files[0]); };
+    var tvidBtn=document.getElementById('tvidBtn'), tvidFile=document.getElementById('tvidFile');
+    tvidBtn.onclick=function(e){ if(e.target!==tvidFile) tvidFile.click(); };
+    tvidFile.onchange=function(){ if(tvidFile.files&&tvidFile.files[0]) addTechVideo(tvidFile.files[0]); };
+
     document.getElementById('brainBtn').onclick = brainLookup;
     document.getElementById('partsBtn').onclick = findParts;
     document.getElementById('saveTdr').onclick = saveTdr;
@@ -217,6 +238,44 @@
     };
     img.onerror=function(){ msg.textContent='That file didn\'t work — try a photo.'; };
     img.src=url;
+  }
+
+  function token(){ return sb.auth.getSession().then(function(r){ return (r.data&&r.data.session&&r.data.session.access_token)||''; }); }
+  function tm(msg){ var e=document.getElementById('tmMsg'); if(e){ e.classList.remove('hidden'); e.textContent=msg; } }
+
+  function addTechPhoto(file){
+    tm('Adding photo…');
+    var img=new Image(), url=URL.createObjectURL(file);
+    img.onload=function(){
+      var max=1400,w=img.width,h=img.height; if(Math.max(w,h)>max){var s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url);
+      var data=cv.toDataURL('image/jpeg',0.8);
+      token().then(function(tok){
+        fetch('/.netlify/functions/platform-tech-media?do=photo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,data:data,label:'Tech photo'})})
+          .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ tm('Photo added ✓'); loadJob(); } else { tm('Couldn\'t add that photo — try again.'); } })
+          .catch(function(){ tm('Couldn\'t reach the server — try again.'); });
+      });
+    };
+    img.onerror=function(){ tm('That file didn\'t work — try a photo.'); };
+    img.src=url;
+  }
+
+  function addTechVideo(file){
+    if(!window.tus){ tm('Video tool didn\'t load — reopen the job and try again.'); return; }
+    tm('Starting video upload…');
+    token().then(function(tok){
+      fetch('/.netlify/functions/platform-tech-media?do=stream_mint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,bytes:file.size,filename:file.name||'tech.mp4'})})
+        .then(function(r){return r.json();}).then(function(d){
+          if(!d||!d.ok||!d.uploadUrl){ tm('Couldn\'t start the video upload — try again.'); return; }
+          var up=new window.tus.Upload(file,{ uploadUrl:d.uploadUrl, chunkSize:5*1024*1024, retryDelays:[0,1000,3000,6000],
+            metadata:{filename:file.name||'tech.mp4', filetype:file.type||'video/mp4'},
+            onError:function(){ tm('Upload hiccuped — tap Add video to try again.'); },
+            onProgress:function(sent,total){ tm('Uploading… '+Math.max(3,Math.round(sent/total*100))+'%'); },
+            onSuccess:function(){ tm('Video added ✓'); fetch('/.netlify/functions/platform-tech-media?do=stream_done',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,uid:d.uid,label:'Tech video'})}).then(function(){ loadJob(); }); },
+          });
+          up.start();
+        }).catch(function(){ tm('Couldn\'t reach the server — try again.'); });
+    });
   }
 
   function brainLookup() {
