@@ -40,7 +40,10 @@
   .daylabel{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:6px 2px 12px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:13px;box-shadow:var(--shadow)}
   .row1{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .opencard{text-decoration:none;color:inherit;display:block}
   .cust{font-weight:800;font-size:17px}
+  .chev{color:var(--brand)}
+  .openbtn{display:block;text-align:center;margin-top:11px;background:var(--brand);color:#fff;border-radius:10px;padding:11px 12px;font-weight:800;font-size:14.5px;text-decoration:none}
   .unit{color:var(--muted);font-size:14px;margin-top:2px}
   .badge{flex:0 0 auto;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;color:#fff;white-space:nowrap}
   .prob{margin-top:9px;font-size:14.5px}
@@ -233,10 +236,12 @@
       (tdr ? '<label class="cameback"><input type="checkbox" id="tcb'+j.id+'"'+(tdr.held===false?' checked':'')+'> This came back — the last fix didn\'t hold</label>' : '') +
       '<button class="primary" data-savetdr="'+j.id+'">Save report + finish</button></div>';
     var tdrDone = tdr ? '<div class="tdrdone">📋 Report: <b>'+esc(tdr.failed_component||'')+'</b>'+(tdr.part_number?' · '+esc(tdr.part_number):'')+' · '+esc(tdr.outcome)+(tdr.held===false?' · came back':'')+'</div>' : '';
+    var openUrl = '/platform/tech-job.html?job='+encodeURIComponent(j.id);
     return '<div class="card" data-card="'+j.id+'">' +
-      '<div class="row1"><div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(unit?'<div class="unit">'+esc(unit)+'</div>':'')+'</div>' +
+      '<div class="row1"><a class="opencard" href="'+openUrl+'"><div class="cust">'+esc(fullName(cust)||'Customer')+' <span class="chev">›</span></div>'+(unit?'<div class="unit">'+esc(unit)+'</div>':'')+'</a>' +
       '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>' +
       (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
+      '<a class="openbtn" href="'+openUrl+'">Open job — video, model &amp; report →</a>' +
       intakeHtml(j) +
       '<button class="brainbtn" data-brain="'+j.id+'">🧠 What usually fixes this</button>' +
       '<div class="brainbox" id="brain_'+j.id+'"></div>' +
