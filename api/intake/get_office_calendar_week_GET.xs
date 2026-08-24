@@ -110,39 +110,39 @@ query get_office_calendar_week verb=GET {
   
     foreach ($job_rows.items) {
       each as $j {
-        var $cust_id_val {
-          value = ($j.customer_id ?? 0)
-        }
-      
+        // FAST PATH: read the denormalized name straight off the job row (no per-job
+        // customer lookup). Falls back to a live db.get ONLY when blank (a brand-new job
+        // not yet swept) so a name always shows. Kills the per-job N+1 that made this
+        // endpoint 12-45s. Mirrors get_office_kanban. (Danielle 2026-08-24)
         var $cust_first {
-          value = ""
+          value = (($j.customer_first ?? "")|trim)
         }
-      
+
         var $cust_last {
-          value = ""
+          value = (($j.customer_last ?? "")|trim)
         }
-      
+
         var $cust_phone {
-          value = ""
+          value = (($j.customer_phone ?? "")|trim)
         }
-      
+
         conditional {
-          if ($cust_id_val > 0) {
+          if ($cust_first == "" && $cust_last == "") {
             db.get customer {
               field_name = "id"
-              field_value = $cust_id_val
+              field_value = ($j.customer_id ?? 0)
             } as $c
-          
+
             var.update $cust_first {
-              value = ($c.first_name ?? "")
+              value = (($c ?? {first_name: ""}).first_name ?? "")
             }
-          
+
             var.update $cust_last {
-              value = ($c.last_name ?? "")
+              value = (($c ?? {last_name: ""}).last_name ?? "")
             }
-          
+
             var.update $cust_phone {
-              value = ($c.phone ?? "")
+              value = (($c ?? {phone: ""}).phone ?? "")
             }
           }
         }
@@ -201,39 +201,36 @@ query get_office_calendar_week verb=GET {
 
     foreach ($unsched_rows.items) {
       each as $u {
-        var $u_cust_id {
-          value = ($u.customer_id ?? 0)
-        }
-
+        // FAST PATH denorm — same as the scheduled loop above (no per-job customer lookup).
         var $u_first {
-          value = ""
+          value = (($u.customer_first ?? "")|trim)
         }
 
         var $u_last {
-          value = ""
+          value = (($u.customer_last ?? "")|trim)
         }
 
         var $u_phone {
-          value = ""
+          value = (($u.customer_phone ?? "")|trim)
         }
 
         conditional {
-          if ($u_cust_id > 0) {
+          if ($u_first == "" && $u_last == "") {
             db.get customer {
               field_name = "id"
-              field_value = $u_cust_id
+              field_value = ($u.customer_id ?? 0)
             } as $uc
 
             var.update $u_first {
-              value = ($uc.first_name ?? "")
+              value = (($uc ?? {first_name: ""}).first_name ?? "")
             }
 
             var.update $u_last {
-              value = ($uc.last_name ?? "")
+              value = (($uc ?? {last_name: ""}).last_name ?? "")
             }
 
             var.update $u_phone {
-              value = ($uc.phone ?? "")
+              value = (($uc ?? {phone: ""}).phone ?? "")
             }
           }
         }
