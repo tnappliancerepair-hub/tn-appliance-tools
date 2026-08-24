@@ -79,7 +79,7 @@
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
   var jobId = new URLSearchParams(location.search).get('job');
-  var sb = null, me = null, myTech = null, job = null;
+  var sb = null, me = null, myTech = null, job = null, shopSettings = {};
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
@@ -176,12 +176,12 @@
 
       '<div class="card"><div class="sec">Parts catalog</div>' +
         '<input class="partq" id="partq" placeholder="Model # or part #" value="'+esc(a.model||'')+'">' +
-        '<div class="note" style="margin:2px 0 9px">Tap 📸 Capture model # above and it fills in here automatically.</div>' +
-        '<button class="full primary" data-src="sears">🔩 Search parts for this model</button>' +
+        '<div class="note" style="margin:2px 0 9px">Reads the model off the customer\'s photo automatically — or tap 📸 Capture model # above.</div>' +
+        '<button class="full primary" data-src="sears">🔩 Sears PartsDirect — parts for this model</button>' +
         '<div class="btnrow">' +
-          '<button data-src="ereplacement">📖 Diagrams</button>' +
+          '<button data-src="amazon">📦 Amazon</button>' +
+          '<button data-src="marcone" id="distBtn">🏭 Marcone</button>' +
           '<button data-src="ebay">🛒 eBay</button>' +
-          '<button data-src="google">🔎 Google</button>' +
         '</div></div>' +
 
       '<div class="card"><div class="sec">Diagnose</div>' +
@@ -205,8 +205,9 @@
 
       '</div>';
 
-    sb.from('company').select('name').limit(1).then(function(r){ if(r.data&&r.data[0]){ var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; } });
+    sb.from('company').select('name,settings').limit(1).then(function(r){ if(r.data&&r.data[0]){ shopSettings=r.data[0].settings||{}; var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; var db=document.getElementById('distBtn'); if(db&&shopSettings.distributor_name) db.textContent='🏭 '+shopSettings.distributor_name; } });
     wire();
+    autoModel();
   }
 
   function wire() {
@@ -243,19 +244,38 @@
       fetch('/.netlify/functions/platform-ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:data})}).then(function(r){return r.json();}).then(function(d){
         if (!d || !d.ok || !d.model) { msg.textContent = (d&&d.error==='ocr_not_configured')?'Model reader isn\'t on yet — type it below.':'Couldn\'t read a model # — try a clearer photo, or type it below.'; return; }
         msg.textContent = 'Read model: ' + d.model + (d.brand?' ('+d.brand+')':'');
-        document.getElementById('modelVal').textContent = d.model;
-        var pq=document.getElementById('partq'); if(pq) pq.value = d.model;
-        var tm=document.getElementById('tm'); if(tm && !tm.value) tm.value = d.model;
-        var tb=document.getElementById('tb'); if(tb && !tb.value && d.brand) tb.value = d.brand;
-        // persist onto the unit so the brain + future visits have it
-        if (job.unit && job.unit.id) {
-          var newAttrs = Object.assign({}, attrs(), { model: d.model }); if(d.brand) newAttrs.brand=d.brand; if(d.serial) newAttrs.serial=d.serial;
-          sb.from('unit').update({ attributes: newAttrs }).eq('id', job.unit.id).then(function(){ job.unit.attributes = newAttrs; });
-        }
+        applyModel(d);
       }).catch(function(){ msg.textContent='Couldn\'t reach the model reader — type it below.'; });
     };
     img.onerror=function(){ msg.textContent='That file didn\'t work — try a photo.'; };
     img.src=url;
+  }
+
+  // fill the model into the header, the parts search, and the report — and persist it to
+  // the unit so the brain + the next visit already know it.
+  function applyModel(d){
+    if(!d||!d.model) return;
+    var mv=document.getElementById('modelVal'); if(mv) mv.textContent=d.model;
+    var pq=document.getElementById('partq'); if(pq && !pq.value) pq.value=d.model;
+    var tm=document.getElementById('tm'); if(tm && !tm.value) tm.value=d.model;
+    var tb=document.getElementById('tb'); if(tb && !tb.value && d.brand) tb.value=d.brand;
+    if(job.unit && job.unit.id){
+      var newAttrs=Object.assign({}, attrs(), {model:d.model}); if(d.brand)newAttrs.brand=d.brand; if(d.serial)newAttrs.serial=d.serial;
+      sb.from('unit').update({attributes:newAttrs}).eq('id',job.unit.id).then(function(){ job.unit.attributes=newAttrs; });
+    }
+  }
+
+  // on open: if we don't have the model yet but the customer sent a model-sticker photo at
+  // intake, read it automatically so the model is already in the parts search + report.
+  function autoModel(){
+    if(attrs().model) return;
+    var pho=(job.media||[]).filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&!/^tech/i.test(m.label||'');})[0];
+    if(!pho) return;
+    var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+pho.ref;
+    var mv=document.getElementById('modelVal'); if(mv) mv.textContent='reading…';
+    fetch('/.netlify/functions/platform-ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})})
+      .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok&&d.model){ applyModel(d); } else { var m2=document.getElementById('modelVal'); if(m2&&m2.textContent==='reading…') m2.textContent='—'; } })
+      .catch(function(){ var m2=document.getElementById('modelVal'); if(m2&&m2.textContent==='reading…') m2.textContent='—'; });
   }
 
   function token(){ return sb.auth.getSession().then(function(r){ return (r.data&&r.data.session&&r.data.session.access_token)||''; }); }
@@ -329,9 +349,14 @@
     var q=((pq&&pq.value)||'').trim() || (document.getElementById('tp').value||'').trim() || (attrs().model||'') || (job.unit&&job.unit.label) || '';
     if (!q) { alert('Add a model # or part # first — tap 📸 Capture model # to read it off the sticker.'); return; }
     var e=encodeURIComponent(q), url;
-    if (src==='ereplacement') url='https://www.ereplacementparts.com/search.php?query='+e;
+    if (src==='amazon') url='https://www.amazon.com/s?k='+encodeURIComponent(q+' appliance part');
     else if (src==='ebay') url='https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(q+' appliance part');
-    else if (src==='google') url='https://www.google.com/search?q='+encodeURIComponent(q+' appliance replacement part');
+    else if (src==='marcone') {
+      var tpl=String(shopSettings.distributor_search_url||'').trim();   // shop's own distributor (set in settings)
+      if (tpl && tpl.indexOf('{q}')>=0) url=tpl.replace('{q}', e);
+      else if (tpl) url=tpl+e;
+      else url='https://www.google.com/search?q='+encodeURIComponent(q+' marcone parts');
+    }
     else url='https://www.searspartsdirect.com/search?q='+e;
     window.open(url, '_blank', 'noopener');
   }
