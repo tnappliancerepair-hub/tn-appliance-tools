@@ -32,17 +32,31 @@
 'use strict';
 
 const SHOPS = {
-  // ── Joey Grover — appliance repair (awaiting his details) ────────────────────
+  // ── Joey Grover — appliance repair. Uncomment + fill the FILL_ markers, push,
+  //    then trial-ann-admin?action=create&shop=joey  →  &action=bind&id=…&number=+1…
   // 'joey': {
-  //   name: '', type: 'appliance', ownerFirst: 'Joey',
-  //   ownerCell: '+1', area: '', hours: 'Monday to Friday, 8 to 5', greeting: '',
+  //   name: 'FILL_business_name',        // said in full on the phone
+  //   type: 'appliance',
+  //   ownerFirst: 'Joey',
+  //   ownerCell: '+1FILL_owner_cell',    // E.164 — REQUIRED, lead texts land here
+  //   area: 'FILL_service_area',         // e.g. 'the Greater Nashville area'
+  //   hours: 'Monday to Friday, 8 to 5',
+  //   about: 'FILL_what_she_can_answer', // services / brands / rough pricing she may share
+  //   platformSlug: '',                  // set to their Supabase tenant slug for the board+intake bridge
   // },
 
-  // ── Greg Long — Classic Automotive (awaiting his details) ────────────────────
+  // ── Greg Long — Classic Automotive. Automotive persona captures year/make/model.
+  //    Set autoScope: 'classic' if it's classic/restoration-focused, else 'general'.
   // 'greg': {
-  //   name: 'Classic Automotive', type: 'automotive', ownerFirst: 'Greg',
-  //   ownerCell: '+1', area: '', hours: 'Monday to Friday, 8 to 5',
-  //   autoScope: 'general', greeting: '',
+  //   name: 'Classic Automotive',
+  //   type: 'automotive',
+  //   ownerFirst: 'Greg',
+  //   ownerCell: '+1FILL_owner_cell',
+  //   area: 'FILL_service_area',
+  //   hours: 'Monday to Friday, 8 to 5',
+  //   autoScope: 'general',              // 'general' | 'classic'
+  //   about: 'FILL_what_she_can_answer',
+  //   platformSlug: '',
   // },
 };
 
