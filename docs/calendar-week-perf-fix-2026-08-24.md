@@ -47,3 +47,35 @@ while Xano is slow. That stays as a safety net even after this fix lands.
 That job's denorm columns weren't populated. The `denorm-job-customer?action=sweep` cron fills new
 jobs every 30 min; a one-off `?action=sweep` run backfills any stragglers. (The fallback db.get
 covers it live regardless, so it's cosmetic-only.)
+
+## ✅ DEPLOYED + VERIFIED (2026-08-24)
+Pushed live (`Pushed 1 documents … in 3.9s`). Measured after: **~0.9s** (was 12-45s), HTTP 200,
+week snaps to Monday, every job carries its customer name off the denorm columns. Done.
+
+## 🐞 THE REAL "unexpected 'id'" ROOT CAUSE (new XS footgun — cost 8 push attempts)
+This file had been flagged **unpushable since 2026-07-02** with `Syntax error: unexpected 'id'`.
+The error location was a **lie** — the true cause was a **`//` comment sitting INSIDE an object
+literal**, wedged between two keys of the `$u_entry` `value = { … }` block:
+
+```
+customer_availability_grid: ($u… ?? "")
+// Vendor pre-scheduled slot info …      <-- THIS breaks the XS parser
+scheduled_start : ($u.scheduled_start ?? null)
+```
+
+**XS tolerates `//` comments BETWEEN statements (kanban has them) but NOT inside an object-literal
+expression.** When it hits one, it desyncs the object-literal parser and reports the *first* `id`
+key it can find (`id : $t.id`) as "unexpected" — so the error points at a spot that is completely
+innocent. Removing the in-object comment fixed it instantly.
+
+**How it was finally found (the method that works):** stop guessing at tokens. When one XS file
+won't push but a structurally-identical one (here `get_office_kanban`) does, (1) re-push the good
+file to confirm the CLI itself works, then (2) diff the bad file against the good one for anything
+the good one never does — scan for non-ASCII/em-dashes/tabs, check brace balance, and compare
+grammar constructs one by one. The offender is whatever the pushable file never contains.
+
+**Add to the footgun catalog:** NEVER put a `//` comment inside a `value = { … }` object literal.
+Put it on the line above the `var $x {`, or between statements. (Also reconfirmed this session:
+em-dashes break the parser even inside comments; `$db.field == null` in a where is unsupported;
+a bare-variable filter arg `transform_timestamp:$var` is unsupported — use a paren-wrapped literal
+or expression like `transform_timestamp:("+" ~ ($n|to_text) ~ " days")`.)
