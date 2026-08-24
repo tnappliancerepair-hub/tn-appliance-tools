@@ -86,7 +86,7 @@ exports.handler = async function (event) {
     // shows on ?dry=1 / the dashboard. (Teddy 2026-08-20: stop texting my cell this.)
     const alreadyReminded = wireMark.length > 0;
     if (!alreadyReminded && !dry) {
-      await sendSms(OWNER, `🐜 Heads up: the new Ann line is taking calls, but the drop safety-net webhook still isn't wired. It's a 2-min portal step — Telnyx → AI Assistant → Insights → webhook URL: ${WEBHOOK_URL}. That's the last piece; everything else is running.`, 'owner', 'telnyx_webhook_reminder').catch(() => null);
+      await sendSms(OWNER, `🐜 Heads up: the new Ann line is taking calls, but the drop safety-net webhook still isn't wired. In Telnyx: AI Assistants -> open the Ann assistant -> its Insights/Webhook setting (INSIDE the assistant, not the global Insights list) -> paste ${WEBHOOK_URL}. Or reply and I'll wire it via the API for you. Everything else is running.`, 'owner', 'telnyx_webhook_reminder').catch(() => null);
       await crud.logEvent('telnyx_webhook_reminder', { real_calls_24h: realCalls24h.length, at_ms: Date.now() }).catch(() => null);
       actions.push('wiring_reminder_sent');
     } else { actions.push(dry ? 'would_remind_wiring' : 'wiring_reminder_held'); }

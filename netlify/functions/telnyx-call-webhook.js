@@ -1,9 +1,14 @@
 // telnyx-call-webhook — the Telnyx-native equivalent of vapi-webhook's end-of-call
 // safety net, for when Telnyx Ann takes over (Teddy 2026-08-15, cutover).
 //
-// Point BOTH of these at this URL in the Telnyx portal:
-//   • AI Assistant → Insights tab → post-call insights webhook
-//   • the number's Call-Control / call-progress webhook (call.ended events)
+// Point this URL at the Telnyx AI Assistant's webhook — it's INSIDE the assistant
+// editor (AI Assistants -> open the Ann assistant -> its Insights/Webhook setting),
+// NOT the global "AI Suite -> Insights" list (that page only defines insights).
+// It fires after each conversation, so it catches connected-then-dropped calls
+// (enough to auto-verify the payload + graduate the rescue). A caller who never
+// connects at all won't generate one -- that gap is covered by phone-drop-watch's
+// server-side polling, not this webhook. Can also be set via the Telnyx API
+// (PATCH /ai/assistants/{id}) instead of the portal.
 //
 // WHAT IT DOES — two jobs, split by risk so nothing fires blind:
 //   1. ALWAYS logs every call event raw to event_log (`telnyx_call_event`) so we
