@@ -11,7 +11,8 @@
 //
 // Fields:
 //   name        spoken business name, said in full ("Classic Automotive")
-//   type        'appliance' | 'automotive'  (drives which persona template Ann uses)
+//   type        'appliance' | 'automotive' | 'dealership'  (drives Ann's persona:
+//               appliance repair · auto repair · used-car-lot sales lead capture)
 //   ownerFirst  the owner's first name (Ann can say "I'll get this straight to Greg")
 //   ownerCell   E.164 — where the lead text lands (their phone). REQUIRED.
 //   area        service area phrase ("the Greater Nashville area")
@@ -64,6 +65,20 @@ const SHOPS = {
     annConnection: '3033816465695311487', // his Ann's TeXML app id
     planPrice: 0,                       // what we charge him/mo (0 = free trial)
   },
+
+  // ── Jake — used car lot (work vans), Mt. Juliet TN. Dealership persona: Ann is an
+  //    after-hours / overflow SALES lead catcher (dad answers during open hours).
+  //    ⚠️ NEEDS Jake's cell + real details. Uncomment + fill, then create + bind.
+  // 'jake': {
+  //   name: 'FILL_lot_name',
+  //   type: 'dealership',
+  //   ownerFirst: 'Jake',
+  //   ownerCell: '+1FILL',              // where leads text (Jake's, or the lot's)
+  //   area: 'Mt. Juliet, Tennessee and the surrounding area',
+  //   hours: 'FILL_open_hours',         // when dad answers live
+  //   about: 'FILL — e.g. "Used car lot in Mt. Juliet specializing in work vans — cargo and passenger. We take trades and can help with financing."',
+  //   platformSlug: '', annNumber: '', annConnection: '', planPrice: 0,
+  // },
 };
 
 function get(slug) {
