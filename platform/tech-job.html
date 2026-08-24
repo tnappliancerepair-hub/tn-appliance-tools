@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Job — Ant</title>
+<!--
+  Ant platform — TECH JOB WORKSPACE. Open a job and work it like TN's Ant: watch the
+  customer's video inline (Cloudflare Stream), see the model photos, camera-OCR the model
+  number (Claude Vision -> saved on the unit), ask the cross-shop brain what usually fixes
+  it, jump to the parts catalog, and file the structured completion report. RLS scopes
+  everything to this shop.
+-->
+<style>
+  :root{ --bg:#f6f7f4; --panel:#fff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd; --brand:#3f8f24; --brand-ink:#fff; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 6px 18px rgba(20,30,10,.06);
+    --new:#6b7280; --scheduled:#2563eb; --in_progress:#b45309; --awaiting_parts:#7c3aed; --completed:#3f8f24; --canceled:#9ca3af; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a; --brand:#5bb537; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.4); }}
+  :root[data-theme="dark"]{ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a; --brand:#5bb537; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.4); }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:12px 15px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header a.back{color:var(--brand);font-weight:700;text-decoration:none;font-size:14px}
+  header .shop{color:var(--muted);font-weight:600;font-size:14px}
+  .shell{max-width:620px;margin:0 auto;padding:14px 14px 48px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:13px;box-shadow:var(--shadow)}
+  .cust{font-weight:800;font-size:19px}
+  .unit{color:var(--muted);font-size:14px;margin-top:2px}
+  .badge{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;color:#fff}
+  .prob{margin-top:9px;font-size:15px}
+  .sec{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:2px 0 9px}
+  .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+  .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:8px 12px}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px 13px;font-weight:700}
+  button.primary{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+  button.full{width:100%}
+  button:disabled{opacity:.55}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .btnrow button{flex:1;min-width:100px}
+  iframe.vid{border:none;width:100%;aspect-ratio:16/9;border-radius:12px;background:#000}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .thumbs img{width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+  .kv{font-size:14px;margin:3px 0}
+  .kv b{font-weight:700}
+  .model{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .model .mval{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px;background:var(--chip);padding:4px 9px;border-radius:7px}
+  .brainbox{background:var(--chip);border-radius:10px;padding:11px 12px;font-size:13.5px;margin-top:8px}
+  .brainrow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
+  .brainrow:first-of-type{border-top:none}
+  .brainrow .bp{color:var(--muted);font-size:12px}
+  .tdr input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px}
+  .tdr .two{display:flex;gap:8px}
+  .tdr .outc{display:flex;flex-direction:column;gap:5px;font-size:14.5px;margin:4px 0 10px}
+  .tdr .outc label,.tdr .cameback{display:flex;gap:8px;align-items:center}
+  .tdr .cameback{font-size:13.5px;color:var(--muted);margin-bottom:10px}
+  .note{background:var(--chip);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--muted)}
+  .center{max-width:400px;margin:12vh auto;text-align:center;color:var(--muted);padding:0 20px}
+  .center .big{font-size:44px;margin-bottom:8px}
+  .gate{max-width:360px;margin:10vh auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
+  .gate input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-top:8px}
+  .gate button{width:100%;margin-top:14px}
+  .err{color:#c0392b;font-size:13px;margin-top:8px;min-height:1em}
+  :root[data-theme="dark"] .err,:root:not([data-theme="light"]) .err{color:#ff8a7a}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div id="app"><div class="center"><div class="big">🐜</div><p>Loading…</p></div></div>
+
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function () {
+  var app = document.getElementById('app');
+  var cfg = window.ANT_SUPABASE || {};
+  var jobId = new URLSearchParams(location.search).get('job');
+  var sb = null, me = null, myTech = null, job = null;
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+  function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
+  var STATUS = { new:{l:'New',c:'var(--new)'}, scheduled:{l:'Scheduled',c:'var(--scheduled)'}, in_progress:{l:'In progress',c:'var(--in_progress)'}, awaiting_parts:{l:'Awaiting parts',c:'var(--awaiting_parts)'}, completed:{l:'Completed',c:'var(--completed)'}, canceled:{l:'Canceled',c:'var(--canceled)'} };
+  function st(k){ return STATUS[k] || {l:(k||'Open'),c:'var(--new)'}; }
+
+  if (!cfg.url || !cfg.anonKey) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Not connected yet.</p></div>'; return; }
+  if (!jobId) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>No job selected. <a href="/platform/tech.html">Back to My Jobs</a></p></div>'; return; }
+  sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+
+  function signIn(msg) {
+    app.innerHTML = '<div class="gate"><h2>🐜 Sign in</h2><input id="em" type="email" placeholder="Email" autocomplete="username"><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button class="primary" id="go">Sign in</button><div class="err">'+esc(msg||'')+'</div></div>';
+    document.getElementById('go').onclick = function(){
+      sb.auth.signInWithPassword({ email: document.getElementById('em').value.trim(), password: document.getElementById('pw').value }).then(function(r){ if(r.error) signIn(r.error.message); else boot(); });
+    };
+  }
+
+  function boot() {
+    sb.auth.getUser().then(function(u){
+      var uid = u && u.data && u.data.user ? u.data.user.id : null;
+      sb.from('app_user').select('id,name,company_id').eq('auth_user_id', uid).limit(1).then(function(r){
+        me = (r.data && r.data[0]) || null;
+        if (!me) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Your login isn\'t attached to a shop yet.</p></div>'; return; }
+        sb.from('technician').select('id,name').eq('app_user_id', me.id).limit(1).then(function(t){ myTech = (t.data && t.data[0]) || null; loadJob(); });
+      });
+    });
+  }
+
+  function loadJob() {
+    sb.from('job').select(
+      'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,' +
+      'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes),' +
+      'media:job_media(kind,provider,ref,label),tdr:job_tdr(*)'
+    ).eq('id', jobId).limit(1).then(function(r){
+      if (r.error || !r.data || !r.data[0]) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Couldn\'t open that job. <a href="/platform/tech.html">Back</a></p></div>'; return; }
+      job = r.data[0]; render();
+    });
+  }
+
+  function attrs(){ return (job.unit && job.unit.attributes) || {}; }
+  function tdr(){ return (job.tdr && job.tdr[0]) || null; }
+
+  function render() {
+    var s = st(job.status), cust = job.customer || {}, a = attrs(), t = tdr();
+    var addr = [cust.address, cust.city, cust.state].filter(Boolean).join(', ');
+    var phone = (cust.phone||'').replace(/[^0-9+]/g,'');
+    var media = job.media || [];
+    var vids = media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream';});
+    var phos = media.filter(function(m){return m.kind==='photo'&&m.provider==='storage';});
+
+    var vidHtml = vids.length ? vids.map(function(m){ return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; }).join('') : '<div class="note">No video sent yet.</div>';
+    var phoHtml = phos.length ? '<div class="thumbs">'+phos.map(function(m){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+m.ref; return '<a target="_blank" rel="noopener" href="'+esc(u)+'"><img src="'+esc(u)+'"></a>'; }).join('')+'</div>' : '';
+
+    app.innerHTML =
+      '<header><a class="back" href="/platform/tech.html">‹ My Jobs</a><span class="shop" id="shop"></span></header>' +
+      '<div class="shell">' +
+
+      '<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
+        '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+'</div>' +
+        '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>' +
+        (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
+        '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
+        '<div class="btnrow">' +
+          (job.status!=='in_progress'?'<button class="primary" data-status="in_progress">Start</button>':'') +
+          '<button data-status="awaiting_parts">Awaiting parts</button>' +
+          '<button class="primary" data-scrollreport>Complete + report</button>' +
+        '</div></div>' +
+
+      '<div class="card"><div class="sec">From the customer</div>' +
+        (job.availability?'<div class="kv">📅 <b>'+esc(job.availability)+'</b></div>':'') +
+        (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
+        (job.waiver_signed_at?'<div class="kv">✍️ Waiver signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>':'<div class="kv note">Waiver not signed yet</div>') +
+        '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
+
+      '<div class="card"><div class="sec">Model number</div>' +
+        '<div class="model"><span class="mval" id="modelVal">'+esc(a.model||'—')+'</span>'+(a.brand?'<span class="unit">'+esc(a.brand)+'</span>':'')+'</div>' +
+        '<div class="btnrow"><button class="full" id="ocrBtn">📸 Capture model # <input type="file" accept="image/*" capture="environment" id="ocrFile" class="hidden"></button></div>' +
+        '<div class="note hidden" id="ocrMsg"></div></div>' +
+
+      '<div class="card"><div class="sec">Diagnose</div>' +
+        '<button class="full" id="brainBtn">🧠 What usually fixes this</button>' +
+        '<div class="brainbox hidden" id="brainBox"></div>' +
+        '<button class="full" id="partsBtn" style="margin-top:8px">🔩 Find the part (catalog)</button></div>' +
+
+      '<div class="card" id="reportCard"><div class="sec">Completion report</div>' +
+        '<div class="tdr">' +
+          '<div class="two"><input id="tb" placeholder="Brand" value="'+esc(t?t.brand||a.brand:a.brand||'')+'"><input id="tm" placeholder="Model #" value="'+esc(t?t.model||a.model:a.model||'')+'"></div>' +
+          '<input id="tc" placeholder="Failed component (e.g. heating element)" value="'+esc(t?t.failed_component||'':'')+'">' +
+          '<input id="tp" placeholder="Part number used" value="'+esc(t?t.part_number||'':'')+'">' +
+          '<input id="tr" placeholder="Root cause (short)" value="'+esc(t?t.root_cause||'':'')+'">' +
+          '<div class="outc">' +
+            '<label><input type="radio" name="o" value="fixed"'+(!t||t.outcome==='fixed'?' checked':'')+'> Fixed today</label>' +
+            '<label><input type="radio" name="o" value="return_needed"'+(t&&t.outcome==='return_needed'?' checked':'')+'> Needs a return / part</label>' +
+            '<label><input type="radio" name="o" value="not_fixable"'+(t&&t.outcome==='not_fixable'?' checked':'')+'> Not fixable</label>' +
+          '</div>' +
+          (t?'<label class="cameback"><input type="checkbox" id="tcb"'+(t.held===false?' checked':'')+'> This came back — the last fix didn\'t hold</label>':'') +
+          '<button class="primary full" id="saveTdr">Save report + finish</button><div class="err" id="tdrErr"></div>' +
+        '</div></div>' +
+
+      '</div>';
+
+    sb.from('company').select('name').limit(1).then(function(r){ if(r.data&&r.data[0]){ var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; } });
+    wire();
+  }
+
+  function wire() {
+    app.querySelectorAll('button[data-status]').forEach(function(b){ b.onclick=function(){ sb.from('job').update({status:b.getAttribute('data-status')}).eq('id',jobId).then(loadJob); }; });
+    var sr = app.querySelector('[data-scrollreport]'); if(sr) sr.onclick=function(){ var c=document.getElementById('reportCard'); if(c) c.scrollIntoView({behavior:'smooth'}); var e=document.getElementById('tc'); if(e) e.focus(); };
+
+    // model OCR
+    var ocrBtn = document.getElementById('ocrBtn'), ocrFile = document.getElementById('ocrFile');
+    ocrBtn.onclick = function(e){ if (e.target !== ocrFile) ocrFile.click(); };
+    ocrFile.onchange = function(){ if (ocrFile.files && ocrFile.files[0]) runOcr(ocrFile.files[0]); };
+
+    document.getElementById('brainBtn').onclick = brainLookup;
+    document.getElementById('partsBtn').onclick = findParts;
+    document.getElementById('saveTdr').onclick = saveTdr;
+  }
+
+  function runOcr(file) {
+    var msg = document.getElementById('ocrMsg'); msg.classList.remove('hidden'); msg.textContent = 'Reading the sticker…';
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function(){
+      var max=1400,w=img.width,h=img.height; if(Math.max(w,h)>max){var s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url);
+      var data=cv.toDataURL('image/jpeg',0.8);
+      fetch('/.netlify/functions/platform-ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:data})}).then(function(r){return r.json();}).then(function(d){
+        if (!d || !d.ok || !d.model) { msg.textContent = (d&&d.error==='ocr_not_configured')?'Model reader isn\'t on yet — type it below.':'Couldn\'t read a model # — try a clearer photo, or type it below.'; return; }
+        msg.textContent = 'Read model: ' + d.model + (d.brand?' ('+d.brand+')':'');
+        document.getElementById('modelVal').textContent = d.model;
+        var tm=document.getElementById('tm'); if(tm && !tm.value) tm.value = d.model;
+        var tb=document.getElementById('tb'); if(tb && !tb.value && d.brand) tb.value = d.brand;
+        // persist onto the unit so the brain + future visits have it
+        if (job.unit && job.unit.id) {
+          var newAttrs = Object.assign({}, attrs(), { model: d.model }); if(d.brand) newAttrs.brand=d.brand; if(d.serial) newAttrs.serial=d.serial;
+          sb.from('unit').update({ attributes: newAttrs }).eq('id', job.unit.id).then(function(){ job.unit.attributes = newAttrs; });
+        }
+      }).catch(function(){ msg.textContent='Couldn\'t reach the model reader — type it below.'; });
+    };
+    img.onerror=function(){ msg.textContent='That file didn\'t work — try a photo.'; };
+    img.src=url;
+  }
+
+  function brainLookup() {
+    var box=document.getElementById('brainBox'); box.classList.remove('hidden'); box.innerHTML='<div>🧠 Checking across shops…</div>';
+    var a=attrs();
+    sb.rpc('brain_lookup',{p_brand:a.brand||document.getElementById('tb').value||'',p_model:a.model||document.getElementById('tm').value||'',p_symptom:job.problem||''}).then(function(r){
+      if(r.error){box.innerHTML='<div>🧠 Not available yet</div>';return;}
+      var rows=r.data||[];
+      if(!rows.length){box.innerHTML='<div><b>🧠 No data yet</b></div><div class="bp">As shops file reports, this fills in with what usually fixes this model.</div>';return;}
+      box.innerHTML='<div style="font-weight:800;margin-bottom:6px">🧠 What usually fixes this — across '+(rows[0].shops||0)+'+ shops</div>'+rows.map(function(x){
+        return '<div class="brainrow"><div><b>'+esc(x.failed_component||'')+'</b>'+(x.part_number?' <span class="bp">'+esc(x.part_number)+'</span>':'')+'</div><div class="bp">'+(x.fixes||0)+' fixed'+(x.comebacks?' · '+x.comebacks+' came back':'')+'</div></div>';
+      }).join('');
+    });
+  }
+
+  function findParts() {
+    var part=document.getElementById('tp').value.trim();
+    var model=document.getElementById('tm').value.trim()||(attrs().model||'');
+    var q = part || model || (job.unit&&job.unit.label) || '';
+    if (!q) { alert('Add a model # or part # first.'); return; }
+    window.open('https://www.searspartsdirect.com/search?q='+encodeURIComponent(q), '_blank', 'noopener');
+  }
+
+  function saveTdr() {
+    var v=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
+    var comp=v('tc'); if(!comp){ var e=document.getElementById('tc'); if(e)e.focus(); document.getElementById('tdrErr').textContent='Enter the failed component.'; return; }
+    var outcome='fixed'; var rs=document.getElementsByName('o'); for(var i=0;i<rs.length;i++){if(rs[i].checked)outcome=rs[i].value;}
+    var btn=document.getElementById('saveTdr'); btn.disabled=true; btn.textContent='Saving…';
+    var cb=document.getElementById('tcb'); var held=!(cb&&cb.checked);
+    var row={ company_id:me.company_id, job_id:jobId, appliance:(job.unit&&job.unit.label)||'', brand:v('tb'), model:v('tm'), symptom:job.problem||'', failed_component:comp, part_number:v('tp'), root_cause:v('tr'), outcome:outcome, held:held, tech: myTech?myTech.name:(me.name||'') };
+    if(!held) row.reopened_at=new Date().toISOString();
+    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(function(r){
+      if(r.error){ btn.disabled=false; btn.textContent='Save report + finish'; document.getElementById('tdrErr').textContent=r.error.message; return; }
+      var ns=outcome==='return_needed'?'awaiting_parts':'completed';
+      sb.from('job').update({status:ns}).eq('id',jobId).then(function(){ app.innerHTML='<div class="center"><div class="big">✅</div><h2>Report saved</h2><p>Nice work. <a href="/platform/tech.html">Back to My Jobs</a></p></div>'; });
+    });
+  }
+
+  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else signIn(); });
+})();
+</script>
+</body>
+</html>
