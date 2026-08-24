@@ -18,9 +18,24 @@ const PROMPT = 'This is a photo a technician took of an appliance data/model sti
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
+
+  let mediaType = '', imgB64 = '';
   const m = String(b.data || '').match(/^data:(image\/[a-z]+);base64,(.+)$/i);
-  if (!m) return json(400, { ok: false, error: 'send a base64 image in "data"' });
-  const mediaType = m[1], imgB64 = m[2];
+  if (m) { mediaType = m[1]; imgB64 = m[2]; }
+  else if (b.url) {
+    // fetch the (public) photo server-side and base64 it — lets the page auto-read the
+    // model off the customer's intake sticker photo without CORS.
+    try {
+      const r = await fetch(String(b.url), { signal: AbortSignal.timeout(12000) });
+      if (!r.ok) return json(200, { ok: false, error: 'photo_fetch_failed' });
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      if (!/^image\//.test(ct)) return json(200, { ok: false, error: 'not_an_image' });
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 8 * 1024 * 1024) return json(200, { ok: false, error: 'image_too_large' });
+      mediaType = ct.split(';')[0]; imgB64 = buf.toString('base64');
+    } catch (_) { return json(200, { ok: false, error: 'photo_fetch_failed' }); }
+  }
+  if (!imgB64) return json(400, { ok: false, error: 'send a base64 image in "data" or a photo "url"' });
 
   const key = process.env.ANTHROPIC_API_KEY || (await getSecret('ANTHROPIC_API_KEY'));
   if (!key) return json(200, { ok: false, error: 'ocr_not_configured' });
