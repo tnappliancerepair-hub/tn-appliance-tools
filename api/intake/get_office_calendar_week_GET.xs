@@ -85,20 +85,24 @@ query get_office_calendar_week verb=GET {
     foreach ($tech_rows.items) {
       each as $t {
         var $t_first {
-          value = ($t.first_name ?? "")|trim
+          value = (($t.first_name ?? "")|trim)
         }
-      
+
+        // Build the entry at foreach top-level (NOT inside the conditional) -
+        // XS won't parse a var whose value is a multi-key object literal nested
+        // inside a conditional/if. Mirrors get_office_kanban's $row. Only the
+        // push is gated (skip the blank-name orphan tech row). (2026-08-24)
+        var $tech_entry {
+          value = {
+            id        : $t.id
+            first_name: ($t.first_name ?? "")
+            last_name : ($t.last_name ?? "")
+            phone     : ($t.phone ?? "")
+          }
+        }
+
         conditional {
           if ($t_first != "") {
-            var $tech_entry {
-              value = {
-                id        : $t.id
-                first_name: ($t.first_name ?? "")
-                last_name : ($t.last_name ?? "")
-                phone     : ($t.phone ?? "")
-              }
-            }
-          
             var.update $technicians_out {
               value = $technicians_out|push:$tech_entry
             }
@@ -194,7 +198,7 @@ query get_office_calendar_week verb=GET {
       return = {type: "list", paging: {page: 1, per_page: 200}}
     } as $avail_rows
 
-    // Unscheduled queue — jobs that still need a human to place them (incl.
+    // Unscheduled queue - jobs that still need a human to place them (incl.
     // anything the auto-scheduler couldn't route). Surfaced as a quick-assign
     // tray on the calendar so Danielle sees who HASN'T been scheduled and can
     // place them onto an under-loaded tech without leaving the page.
@@ -210,7 +214,7 @@ query get_office_calendar_week verb=GET {
 
     foreach ($unsched_rows.items) {
       each as $u {
-        // FAST PATH denorm — same as the scheduled loop above (no per-job customer lookup).
+        // FAST PATH denorm - same as the scheduled loop above (no per-job customer lookup).
         var $u_first {
           value = (($u.customer_first ?? "")|trim)
         }
