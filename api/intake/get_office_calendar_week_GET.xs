@@ -9,13 +9,21 @@ query get_office_calendar_week verb=GET {
     var $week_start_in {
       value = ($input.week_start ?? "")|trim
     }
-  
+
     var $now_ct_ts {
-      value = (now|transform_timestamp:"-5 hours")
+      value = now|transform_timestamp:"-5 hours"
     }
 
     var $today_ct_str {
-      value = ($now_ct_ts|format_timestamp:"Y-m-d")
+      value = $now_ct_ts|format_timestamp:"Y-m-d"
+    }
+
+    // This week's Monday (CT) for the cold-open default. Uses a literal relative
+    // string, same proven idiom get_tech_scheduler_data uses -- no day-of-week
+    // math. The Schedule page passes an explicit week_start on every load / prev
+    // / next, so this default is only the very first paint.
+    var $monday_ct_str {
+      value = ($now_ct_ts|transform_timestamp:"monday this week")|format_timestamp:"Y-m-d"
     }
 
     var $resolved_week_start {
@@ -30,46 +38,22 @@ query get_office_calendar_week verb=GET {
       }
 
       else {
-        var $today_dow_iso {
-          value = (($now_ct_ts|format_timestamp:"N")|to_int)
-        }
-
-        var $days_back_to_mon {
-          value = ($today_dow_iso - 1)
-        }
-
-        var $days_back_expr {
-          value = ("-" ~ ($days_back_to_mon|to_text) ~ " days")
-        }
-
-        var $monday_ts {
-          value = ($now_ct_ts|transform_timestamp:$days_back_expr)
-        }
-
         var.update $resolved_week_start {
-          value = ($monday_ts|format_timestamp:"Y-m-d")
+          value = $monday_ct_str
         }
       }
     }
 
-    var $week_start_local_str {
-      value = ($resolved_week_start ~ " 00:00:00")
-    }
-
-    var $week_start_local_ts {
-      value = ($week_start_local_str|to_timestamp)
-    }
-
     var $week_start_utc {
-      value = ($week_start_local_ts|transform_timestamp:"+5 hours")
+      value = (($resolved_week_start ~ " 00:00:00")|to_timestamp)|transform_timestamp:"+5 hours"
     }
 
     var $week_end_utc {
-      value = ($week_start_utc|transform_timestamp:"+7 days")
+      value = $week_start_utc|transform_timestamp:"+7 days"
     }
 
     var $sunday_str {
-      value = (($week_start_utc|transform_timestamp:"+6 days")|format_timestamp:"Y-m-d")
+      value = ($week_start_utc|transform_timestamp:"+6 days")|format_timestamp:"Y-m-d"
     }
   
     db.query technicians {
