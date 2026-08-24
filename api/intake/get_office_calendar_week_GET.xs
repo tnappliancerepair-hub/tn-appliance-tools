@@ -11,61 +11,70 @@ query get_office_calendar_week verb=GET {
     }
   
     var $now_ct_ts {
-      value = now|transform_timestamp:"-5 hours"
+      value = (now|transform_timestamp:"-5 hours")
     }
-  
+
     var $today_ct_str {
-      value = $now_ct_ts|format_timestamp:"Y-m-d"
+      value = ($now_ct_ts|format_timestamp:"Y-m-d")
     }
-  
+
     var $resolved_week_start {
       value = ""
     }
-  
+
     conditional {
       if ($week_start_in != "") {
         var.update $resolved_week_start {
           value = $week_start_in
         }
       }
-    
+
       else {
         var $today_dow_iso {
-          value = ($now_ct_ts|format_timestamp:"N")|to_int
+          value = (($now_ct_ts|format_timestamp:"N")|to_int)
         }
-      
+
         var $days_back_to_mon {
-          value = $today_dow_iso - 1
+          value = ($today_dow_iso - 1)
         }
-      
+
+        var $days_back_expr {
+          value = ("-" ~ ($days_back_to_mon|to_text) ~ " days")
+        }
+
         var $monday_ts {
-          value = $now_ct_ts
-            |transform_timestamp:"-" ~ ($days_back_to_mon|to_text) ~ " days"
+          value = ($now_ct_ts|transform_timestamp:$days_back_expr)
         }
-      
+
         var.update $resolved_week_start {
-          value = $monday_ts|format_timestamp:"Y-m-d"
+          value = ($monday_ts|format_timestamp:"Y-m-d")
         }
       }
     }
-  
+
+    var $week_start_local_str {
+      value = ($resolved_week_start ~ " 00:00:00")
+    }
+
+    var $week_start_local_ts {
+      value = ($week_start_local_str|to_timestamp)
+    }
+
     var $week_start_utc {
-      value = (($resolved_week_start ~ " 00:00:00")|to_timestamp)|transform_timestamp:"+5 hours"
+      value = ($week_start_local_ts|transform_timestamp:"+5 hours")
     }
-  
+
     var $week_end_utc {
-      value = $week_start_utc|transform_timestamp:"+7 days"
+      value = ($week_start_utc|transform_timestamp:"+7 days")
     }
-  
+
     var $sunday_str {
-      value = $week_start_utc
-        |transform_timestamp:"+6 days"
-        |format_timestamp:"Y-m-d"
+      value = (($week_start_utc|transform_timestamp:"+6 days")|format_timestamp:"Y-m-d")
     }
   
     db.query technicians {
       where = $db.technicians.active == true
-      sort = {technicians.id: "asc"}
+      sort = {technicians.created_at: "asc"}
       return = {type: "list", paging: {page: 1, per_page: 50}}
     } as $tech_rows
   
