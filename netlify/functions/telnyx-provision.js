@@ -94,35 +94,26 @@ exports.handler = async function (event) {
       return json(200, { ok: true, count: out.length, assistants: out });
     }
 
-    // Insight Group is where the post-call insights webhook actually lives (shared by
-    // our Ann assistants). GET to see the exact webhook field; add &set_webhook=<url>
-    // (+ optional &field=) to PATCH it. &gid= to target a specific group.
+    // Insight Group is where the post-call insights webhook lives (shared by our Ann
+    // assistants). Endpoint: /ai/conversations/insight-groups/{group_id}; the webhook
+    // field is "webhook" and update is a PUT (full replace, so we resend name+desc).
+    //   GET  ...&action=insightgroup[&gid=]            -> current webhook + insight count
+    //   SET  ...&action=insightgroup&set_webhook=<url> -> PUT the webhook on
     if (action === 'insightgroup') {
       const gid = q.gid || '68d12f44-565f-4370-a3a8-6ef6bf53e84e';
-      // Try LIST bases first (discover the working path), then the single-GET under it.
-      const listBases = ['/ai/assistants/insight-groups', '/ai/insight-groups', '/ai/assistants/insights/groups', '/ai/assistants/insight_groups', '/ai/assistants/insights', '/ai/insight_groups'];
-      const probes = [];
-      let found = null;
-      for (const base of listBases) {
-        try {
-          const r = await fetch(`${TELNYX}${base}`, { headers: H, signal: AbortSignal.timeout(10000) });
-          const d = await r.json().catch(() => ({}));
-          const arr = Array.isArray(d && d.data) ? d.data : null;
-          probes.push({ base, status: r.status, count: arr ? arr.length : null, sample_keys: arr && arr[0] ? Object.keys(arr[0]) : Object.keys(d || {}).slice(0, 8) });
-          if (r.ok && arr) {
-            const g = arr.find((x) => x.id === gid) || null;
-            if (g) found = { path: `${base}/${gid}`, base, group: g };
-            else if (!found) found = { path: `${base}/${gid}`, base, group: null, note: 'gid not in list', list: arr.map((x) => ({ id: x.id, name: x.name, webhook_url: x.webhook_url })) };
-          }
-        } catch (e) { probes.push({ base, error: String((e && e.message) || e).slice(0, 60) }); }
-      }
-      if (found && q.set_webhook) {
-        const field = q.field || 'webhook_url';
-        const pr = await fetch(`${TELNYX}${found.path}`, { method: 'PATCH', headers: H, body: JSON.stringify({ [field]: q.set_webhook }), signal: AbortSignal.timeout(12000) });
+      const path = `/ai/conversations/insight-groups/${gid}`;
+      const gr = await fetch(`${TELNYX}${path}`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const gd = await gr.json().catch(() => ({}));
+      const group = (gd && gd.data) || null;
+      if (!group) return json(200, { ok: false, status: gr.status, path, error: JSON.stringify(gd.errors || gd).slice(0, 300) });
+      if (q.set_webhook) {
+        const body = { name: group.name, description: group.description || '', webhook: q.set_webhook };
+        const pr = await fetch(`${TELNYX}${path}`, { method: 'PUT', headers: H, body: JSON.stringify(body), signal: AbortSignal.timeout(12000) });
         const pd = await pr.json().catch(() => ({}));
-        return json(200, { ok: pr.ok, patched_field: field, status: pr.status, path: found.path, group: (pd && pd.data) || pd });
+        const ng = (pd && pd.data) || pd;
+        return json(200, { ok: pr.ok, status: pr.status, set_webhook: q.set_webhook, now: { name: ng && ng.name, webhook: ng && ng.webhook } });
       }
-      return json(200, { ok: !!found, found_path: found ? found.path : null, group: found ? found.group : null, probes });
+      return json(200, { ok: true, gid, name: group.name, webhook: group.webhook || null, insights_count: Array.isArray(group.insights) ? group.insights.length : null });
     }
 
     if (action === 'balance') {
