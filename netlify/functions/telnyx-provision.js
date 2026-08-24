@@ -60,6 +60,35 @@ exports.handler = async function (event) {
       return json(200, { ok: !!works, can_manage_via_api: !!works, working_path: works ? works.path : null, claude_models: claude, tts_voices: voices, probes });
     }
 
+    // Read-only: dump each AI Assistant's config, focused on any field that could
+    // carry a call/insight webhook, so we can wire the drop safety-net to the EXACT
+    // field (and confirm each shop's Ann is set). &id=<assistant_id> for just one.
+    if (action === 'assistants') {
+      const listR = await fetch(`${TELNYX}/ai/assistants`, { headers: H, signal: AbortSignal.timeout(15000) });
+      const listD = await listR.json().catch(() => ({}));
+      const all = Array.isArray(listD && listD.data) ? listD.data : [];
+      const want = q.id ? all.filter((a) => a.id === q.id) : all;
+      const out = [];
+      for (const a of want) {
+        let full = a;
+        try { const fr = await fetch(`${TELNYX}/ai/assistants/${a.id}`, { headers: H, signal: AbortSignal.timeout(12000) }); const fd = await fr.json().catch(() => ({})); full = (fd && fd.data) || fd || a; } catch (_) {}
+        out.push({
+          id: full.id,
+          name: full.name,
+          model: full.model,
+          webhook_bearing_keys: Object.keys(full).filter((k) => /webhook|_url|insight|telephony|messaging|event/i.test(k)),
+          telephony_settings: full.telephony_settings || null,
+          insight_settings: full.insight_settings || null,
+          messaging_settings: full.messaging_settings || null,
+          webhook_url: full.webhook_url || null,
+          dynamic_variables_webhook_url: full.dynamic_variables_webhook_url || null,
+          enabled_features: full.enabled_features || null,
+          all_top_keys: Object.keys(full),
+        });
+      }
+      return json(200, { ok: true, count: out.length, assistants: out });
+    }
+
     if (action === 'balance') {
       const r = await fetch(`${TELNYX}/balance`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
