@@ -116,6 +116,28 @@ exports.handler = async function (event) {
       return json(200, { ok: true, gid, name: group.name, webhook: group.webhook || null, insights_count: Array.isArray(group.insights) ? group.insights.length : null });
     }
 
+    // Create a dedicated insight group and (optionally) point an assistant at it,
+    // isolating that shop's post-call data from the shared "Default" group.
+    //   &name=<group name> (required)  &webhook=<url> (optional)
+    //   &assistant=<assistant_id> (optional: reassign it to the new group)
+    if (action === 'newgroup') {
+      if (!q.name) return json(200, { ok: false, error: 'name required (&name=)' });
+      const body = { name: q.name };
+      if (q.webhook) body.webhook = q.webhook;
+      const cr = await fetch(`${TELNYX}/ai/conversations/insight-groups`, { method: 'POST', headers: H, body: JSON.stringify(body), signal: AbortSignal.timeout(12000) });
+      const cd = await cr.json().catch(() => ({}));
+      const grp = (cd && cd.data) || null;
+      if (!grp || !grp.id) return json(200, { ok: false, step: 'create', status: cr.status, error: JSON.stringify(cd.errors || cd).slice(0, 300) });
+      let assigned = null;
+      if (q.assistant) {
+        const ar = await fetch(`${TELNYX}/ai/assistants/${q.assistant}`, { method: 'POST', headers: H, body: JSON.stringify({ insight_settings: { insight_group_id: grp.id } }), signal: AbortSignal.timeout(12000) });
+        const ad = await ar.json().catch(() => ({}));
+        const iss = ((ad && ad.data) || {}).insight_settings || {};
+        assigned = { assistant: q.assistant, status: ar.status, ok: ar.ok, now_insight_group_id: iss.insight_group_id || null };
+      }
+      return json(200, { ok: true, group: { id: grp.id, name: grp.name, webhook: grp.webhook || null }, assigned });
+    }
+
     if (action === 'balance') {
       const r = await fetch(`${TELNYX}/balance`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
