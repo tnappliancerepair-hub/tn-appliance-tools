@@ -199,7 +199,7 @@ query get_office_calendar_week verb=GET {
     // tray on the calendar so Danielle sees who HASN'T been scheduled and can
     // place them onto an under-loaded tech without leaving the page.
     db.query jobs {
-      where = ($db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "prediagnosis_pending") && $db.jobs.scheduled_start == null
+      where = $db.jobs.scheduling_status == "not_ready" || $db.jobs.scheduling_status == "needs_scheduled" || $db.jobs.scheduling_status == "prediagnosis_pending"
       sort = {jobs.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: 100}}
     } as $unsched_rows
