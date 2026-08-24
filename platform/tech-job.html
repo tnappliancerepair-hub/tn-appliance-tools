@@ -33,6 +33,8 @@
   .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:8px 12px}
   button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px 13px;font-weight:700}
   button.primary{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+  button.otw{background:#2563eb;color:#fff;border-color:transparent}
+  button.review{background:#f59e0b;color:#231a02;border-color:transparent}
   button.full{width:100%}
   button:disabled{opacity:.55}
   .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -145,11 +147,14 @@
         '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>' +
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
         '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
+        (addr?'<button class="full otw" id="otwBtn" style="margin-top:10px">🚚 On my way — text customer &amp; navigate</button>':'') +
         '<div class="btnrow">' +
           (job.status!=='in_progress'?'<button class="primary" data-status="in_progress">Start</button>':'') +
           '<button data-status="awaiting_parts">Awaiting parts</button>' +
           '<button class="primary" data-scrollreport>Complete + report</button>' +
-        '</div></div>' +
+        '</div>' +
+        (job.status==='completed'?'<button class="full review" id="reviewBtn" style="margin-top:8px">⭐ Text review link to customer</button>':'') +
+        '</div>' +
 
       '<div class="card"><div class="sec">From the customer</div>' +
         (job.availability?'<div class="kv">📅 <b>'+esc(job.availability)+'</b></div>':'') +
@@ -207,6 +212,8 @@
   function wire() {
     app.querySelectorAll('button[data-status]').forEach(function(b){ b.onclick=function(){ sb.from('job').update({status:b.getAttribute('data-status')}).eq('id',jobId).then(loadJob); }; });
     var sr = app.querySelector('[data-scrollreport]'); if(sr) sr.onclick=function(){ var c=document.getElementById('reportCard'); if(c) c.scrollIntoView({behavior:'smooth'}); var e=document.getElementById('tc'); if(e) e.focus(); };
+    var otw = document.getElementById('otwBtn'); if(otw) otw.onclick = onMyWay;
+    var rvw = document.getElementById('reviewBtn'); if(rvw) rvw.onclick = function(){ sendReview(rvw); };
 
     // model OCR
     var ocrBtn = document.getElementById('ocrBtn'), ocrFile = document.getElementById('ocrFile');
@@ -253,6 +260,21 @@
 
   function token(){ return sb.auth.getSession().then(function(r){ return (r.data&&r.data.session&&r.data.session.access_token)||''; }); }
   function tm(msg){ var e=document.getElementById('tmMsg'); if(e){ e.classList.remove('hidden'); e.textContent=msg; } }
+  function notify(action){ return token().then(function(tok){ return fetch('/.netlify/functions/platform-tech-notify?do='+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok})}).then(function(r){return r.json();}); }); }
+
+  function onMyWay(){
+    var cust=job.customer||{}; var addr=[cust.address,cust.city,cust.state].filter(Boolean).join(', ');
+    if(addr) window.open('https://maps.google.com/?q='+encodeURIComponent(addr),'_blank','noopener'); // open nav right away
+    var btn=document.getElementById('otwBtn'); if(btn){ btn.disabled=true; btn.textContent='Texting the customer…'; }
+    notify('otw').then(function(d){ if(btn){ btn.disabled=false; btn.textContent=(d&&d.texted)?'🚚 Customer notified ✓':'🚚 On my way — text customer & navigate'; } })
+      .catch(function(){ if(btn){ btn.disabled=false; btn.textContent='🚚 On my way — text customer & navigate'; } });
+  }
+
+  function sendReview(btn){
+    if(btn){ btn.disabled=true; btn.textContent='Sending review link…'; }
+    notify('review').then(function(d){ if(btn){ btn.textContent=(d&&d.texted)?'⭐ Review link sent ✓':(d&&d.url?'⭐ Sent (no phone — link ready)':'Couldn\'t send — try again'); btn.disabled=false; } })
+      .catch(function(){ if(btn){ btn.disabled=false; btn.textContent='⭐ Text review link to customer'; } });
+  }
 
   function addTechPhoto(file){
     tm('Adding photo…');
@@ -325,7 +347,11 @@
     sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(function(r){
       if(r.error){ btn.disabled=false; btn.textContent='Save report + finish'; document.getElementById('tdrErr').textContent=r.error.message; return; }
       var ns=outcome==='return_needed'?'awaiting_parts':'completed';
-      sb.from('job').update({status:ns}).eq('id',jobId).then(function(){ app.innerHTML='<div class="center"><div class="big">✅</div><h2>Report saved</h2><p>Nice work. <a href="/platform/tech.html">Back to My Jobs</a></p></div>'; });
+      sb.from('job').update({status:ns}).eq('id',jobId).then(function(){
+        var reviewCta = ns==='completed' ? '<button class="full review" id="doneReview" style="max-width:320px;margin:14px auto 0">⭐ Text review link to customer</button>' : '';
+        app.innerHTML='<div class="center"><div class="big">✅</div><h2>Report saved</h2><p>Nice work.</p>'+reviewCta+'<p style="margin-top:16px"><a href="/platform/tech.html">Back to My Jobs</a></p></div>';
+        var dr=document.getElementById('doneReview'); if(dr) dr.onclick=function(){ sendReview(dr); };
+      });
     });
   }
 
