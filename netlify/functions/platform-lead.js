@@ -24,11 +24,15 @@ exports.handler = async function (event) {
   let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
   const p = Object.assign({}, body, q);
 
-  const key = await getSecret('TELNYX_TOOL_SECRET');
-  if (key && q.k !== key && p.k !== key) return json(403, { ok: false, error: 'forbidden' });
-
   const slug = String(p.slug || '').toLowerCase().trim();
   if (!slug) return json(200, { ok: false, error: 'need slug (the shop)' });
+
+  // Tool-key gate for REAL shops; the 'demo' sandbox tenant is open so the bridge is
+  // easy to test (it only ever writes throwaway demo data).
+  if (slug !== 'demo') {
+    const key = await getSecret('TELNYX_TOOL_SECRET');
+    if (key && q.k !== key && p.k !== key) return json(403, { ok: false, error: 'forbidden' });
+  }
 
   const res = await createLeadJob({
     slug,
