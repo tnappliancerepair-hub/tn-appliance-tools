@@ -60,7 +60,7 @@ const SHOPS = {
     autoScope: 'general',               // he does it ALL — general, not classic-only
     greeting: "Thanks for calling Classic Automotive, this is Ann — I help catch Greg's calls when he's out in the shop. How can I help you today?",
     about: "Full-service auto repair based in Lebanon, TN, serving Tennessee, Kentucky, and Alabama — no job too big or too small, Greg does it all. We SPECIALIZE in wheel alignments — alignments start at $120. We also do tires (we have our own tire machine), batteries, oil changes, brakes, and general repair, all the way up to complete restorations. Multiple lifts. We offer a FREE diagnostic with any repair. Greg goes over exact pricing himself when he calls back.",
-    platformSlug: '',
+    platformSlug: 'classic-automotive', // FULL tenant on the Ant platform: every lead Ann catches lands on his office board + mints a customer portal link
     annNumber: '+19316324734',          // his Ann line (spells GREG) — for cost attribution
     annConnection: '3033816465695311487', // his Ann's TeXML app id
     assistantId: 'assistant-1272a268-c00e-4e5c-987a-6dded4893b4d', // Telnyx AI Assistant

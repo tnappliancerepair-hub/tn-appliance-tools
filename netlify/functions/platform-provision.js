@@ -12,6 +12,7 @@
 // The owner then signs into /platform/office-board.html with that email + temp password.
 'use strict';
 const { getSecret } = require('./_lib/secrets');
+const { createLeadJob } = require('./_lib/platform-db');
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function tempPassword() { return 'Ant-' + Math.random().toString(36).slice(2, 8) + Math.floor(10 + Math.random() * 89); }
@@ -81,8 +82,23 @@ exports.handler = async function (event) {
     }
   }
 
+  // Optional: seed one sample job so the board demos populated + proves the lead->board
+  // chain works for this tenant end-to-end. &seed=1
+  let seeded = null;
+  if (q.seed === '1') {
+    try {
+      seeded = await createLeadJob({
+        slug, name: 'Sample Lead (demo)', phone: '+16155551234',
+        what: trade === 'automotive' ? 'Alignment + front brakes' : 'Sample job',
+        detail: 'This is a sample card so you can see the board. Delete it anytime.',
+        city: q.area || '', source: 'provision_seed',
+      });
+    } catch (e) { seeded = { ok: false, error: String((e && e.message) || e).slice(0, 120) }; }
+  }
+
   return json(200, {
     ok: true,
+    seeded,
     company: { id: company.id, slug: company.slug, name: company.name, trade: company.trade, plan: company.plan },
     login: { email, temp_password: tempPw, note: userNote },
     owner_linked: ownerLinked,
