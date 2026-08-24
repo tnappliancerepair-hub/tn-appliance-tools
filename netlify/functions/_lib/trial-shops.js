@@ -20,6 +20,11 @@
 //   autoScope   automotive only: 'general' (all makes/repairs) | 'classic'
 //               (classic / restoration focus) — tunes how Ann talks about the work.
 //   greeting    optional custom opening line; blank = a warm default is generated.
+//   about       optional — a few plain lines of what Ann can ANSWER for callers
+//               (services offered, what they do/don't work on, general hours, rough
+//               pricing the owner is OK with her sharing). Makes her a real CSR, not
+//               just a lead-catcher. She answers ONLY from what's here; anything past
+//               it she routes to a callback. Leave blank = she captures + hands off.
 'use strict';
 
 const SHOPS = {
@@ -39,7 +44,7 @@ const SHOPS = {
 
 function get(slug) {
   const s = SHOPS[String(slug || '').toLowerCase().trim()];
-  return s ? Object.assign({ type: 'appliance', autoScope: 'general', hours: 'Monday to Friday, 8 to 5' }, s) : null;
+  return s ? Object.assign({ type: 'appliance', autoScope: 'general', hours: 'Monday to Friday, 8 to 5', about: '' }, s) : null;
 }
 
 module.exports = { SHOPS, get };
