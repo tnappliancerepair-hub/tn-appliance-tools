@@ -229,7 +229,7 @@
 # Cash-ready push — text Teddy the moment a self-pay web lead has given
 # availability (so it can be scheduled fast). Once per job, 8a-8p CT.
 [functions."cash-ready-notify"]
-  schedule = "20 * * * *"
+  schedule = "*/20 * * * *"
 
 # Call-lead chase — every cash lead that calls in but doesn't convert (no address/
 # availability, not booked) gets one follow-up text (address + availability + AI
