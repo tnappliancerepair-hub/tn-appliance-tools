@@ -174,13 +174,19 @@ exports.handler = async function (event) {
     }
 
     if (action === 'bind') {
+      // Route a phone number's inbound to the assistant by pointing the number's
+      // connection_id at the assistant's own TeXML app (telephony_settings.
+      // default_texml_app_id). The old /ai/assistants/{id}/phone_numbers endpoint 404s.
       const id = q.id; const number = q.number;
       if (!id || !number) return json(200, { ok: false, error: 'need ?id= and ?number=+1...' });
-      const attempts = [];
-      let r = await call('POST', `/ai/assistants/${id}/phone_numbers`, { phone_number: number });
-      attempts.push({ path: 'phone_numbers', status: r.status, data: r.data });
-      if (!r.ok) { r = await call('POST', `/ai/assistants/${id}/phone_numbers/assign`, { phone_number: number }); attempts.push({ path: 'assign', status: r.status, data: r.data }); }
-      return json(200, { ok: r.ok, bound: r.ok ? number : null, attempts });
+      const a = await call('GET', `/ai/assistants/${id}`);
+      const conn = a.data && a.data.telephony_settings && a.data.telephony_settings.default_texml_app_id;
+      if (!conn) return json(200, { ok: false, error: 'no default_texml_app_id on assistant', assistant: a.status });
+      const pn = await call('GET', `/phone_numbers?filter[phone_number]=${encodeURIComponent(number)}`);
+      const rec = pn.data && pn.data.data && pn.data.data[0];
+      if (!rec) return json(200, { ok: false, error: 'number not found on Telnyx (still provisioning?)' });
+      const up = await call('PATCH', `/phone_numbers/${rec.id}`, { connection_id: conn });
+      return json(200, { ok: up.ok, bound: up.ok ? number : null, points_to: conn, status: up.status, error: up.ok ? undefined : JSON.stringify((up.data && up.data.errors) || up.data).slice(0, 300) });
     }
 
     return json(200, { ok: false, error: 'unknown action', actions: ['create', 'update', 'bind', 'get', 'delete', 'list'] });
