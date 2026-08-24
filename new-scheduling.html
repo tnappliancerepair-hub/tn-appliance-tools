@@ -1074,7 +1074,15 @@ function __initCalendar() {
     if (currentWeekStart) url += `?week_start=${encodeURIComponent(currentWeekStart)}`;
 
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(20000) });  // fail-fast on weak signal
+      // This Xano feed runs heavy (12-18s, sometimes stalls under load), so a single
+      // 20s cutoff was erroring out. Give it room + auto-retry so the office isn't stuck
+      // manually hitting Retry. 3 tries, 35s each, short backoff. (Danielle 2026-08-24)
+      let res, lastErr;
+      for (let a = 0; a < 3; a++) {
+        try { res = await fetch(url, { signal: AbortSignal.timeout(35000) }); break; }
+        catch (e) { lastErr = e; await new Promise((r) => setTimeout(r, 1200 * (a + 1))); }
+      }
+      if (!res) throw (lastErr || new Error('timed out'));
       const data = await res.json();
       if (!data || data.success !== true) {
         showError(data && data.error ? data.error : 'failed to load week');
