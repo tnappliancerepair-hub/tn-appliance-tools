@@ -60,12 +60,15 @@ const SHOPS = {
     greeting: "Thanks for calling Classic Automotive, this is Ann — I help catch Greg's calls when he's out in the shop. How can I help you today?",
     about: "Full-service auto repair based in Lebanon, TN, serving Tennessee, Kentucky, and Alabama — no job too big or too small, Greg does it all. We SPECIALIZE in wheel alignments — alignments start at $120. We also do tires (we have our own tire machine), batteries, oil changes, brakes, and general repair, all the way up to complete restorations. Multiple lifts. We offer a FREE diagnostic with any repair. Greg goes over exact pricing himself when he calls back.",
     platformSlug: '',
+    annNumber: '+19316324734',          // his Ann line (spells GREG) — for cost attribution
+    annConnection: '3033816465695311487', // his Ann's TeXML app id
+    planPrice: 0,                       // what we charge him/mo (0 = free trial)
   },
 };
 
 function get(slug) {
   const s = SHOPS[String(slug || '').toLowerCase().trim()];
-  return s ? Object.assign({ type: 'appliance', autoScope: 'general', hours: 'Monday to Friday, 8 to 5', about: '', platformSlug: '' }, s) : null;
+  return s ? Object.assign({ type: 'appliance', autoScope: 'general', hours: 'Monday to Friday, 8 to 5', about: '', platformSlug: '', annNumber: '', annConnection: '', planPrice: 0 }, s) : null;
 }
 
 module.exports = { SHOPS, get };
