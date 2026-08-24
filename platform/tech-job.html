@@ -44,6 +44,7 @@
   .kv b{font-weight:700}
   .model{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .model .mval{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px;background:var(--chip);padding:4px 9px;border-radius:7px}
+  input.partq{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace}
   .brainbox{background:var(--chip);border-radius:10px;padding:11px 12px;font-size:13.5px;margin-top:8px}
   .brainrow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
   .brainrow:first-of-type{border-top:none}
@@ -168,10 +169,19 @@
         '<div class="btnrow"><button class="full" id="ocrBtn">📸 Capture model # <input type="file" accept="image/*" capture="environment" id="ocrFile" class="hidden"></button></div>' +
         '<div class="note hidden" id="ocrMsg"></div></div>' +
 
+      '<div class="card"><div class="sec">Parts catalog</div>' +
+        '<input class="partq" id="partq" placeholder="Model # or part #" value="'+esc(a.model||'')+'">' +
+        '<div class="note" style="margin:2px 0 9px">Tap 📸 Capture model # above and it fills in here automatically.</div>' +
+        '<button class="full primary" data-src="sears">🔩 Search parts for this model</button>' +
+        '<div class="btnrow">' +
+          '<button data-src="ereplacement">📖 Diagrams</button>' +
+          '<button data-src="ebay">🛒 eBay</button>' +
+          '<button data-src="google">🔎 Google</button>' +
+        '</div></div>' +
+
       '<div class="card"><div class="sec">Diagnose</div>' +
         '<button class="full" id="brainBtn">🧠 What usually fixes this</button>' +
-        '<div class="brainbox hidden" id="brainBox"></div>' +
-        '<button class="full" id="partsBtn" style="margin-top:8px">🔩 Find the part (catalog)</button></div>' +
+        '<div class="brainbox hidden" id="brainBox"></div></div>' +
 
       '<div class="card" id="reportCard"><div class="sec">Completion report</div>' +
         '<div class="tdr">' +
@@ -212,7 +222,7 @@
     tvidFile.onchange=function(){ if(tvidFile.files&&tvidFile.files[0]) addTechVideo(tvidFile.files[0]); };
 
     document.getElementById('brainBtn').onclick = brainLookup;
-    document.getElementById('partsBtn').onclick = findParts;
+    app.querySelectorAll('button[data-src]').forEach(function(b){ b.onclick=function(){ openParts(b.getAttribute('data-src')); }; });
     document.getElementById('saveTdr').onclick = saveTdr;
   }
 
@@ -227,6 +237,7 @@
         if (!d || !d.ok || !d.model) { msg.textContent = (d&&d.error==='ocr_not_configured')?'Model reader isn\'t on yet — type it below.':'Couldn\'t read a model # — try a clearer photo, or type it below.'; return; }
         msg.textContent = 'Read model: ' + d.model + (d.brand?' ('+d.brand+')':'');
         document.getElementById('modelVal').textContent = d.model;
+        var pq=document.getElementById('partq'); if(pq) pq.value = d.model;
         var tm=document.getElementById('tm'); if(tm && !tm.value) tm.value = d.model;
         var tb=document.getElementById('tb'); if(tb && !tb.value && d.brand) tb.value = d.brand;
         // persist onto the unit so the brain + future visits have it
@@ -291,12 +302,16 @@
     });
   }
 
-  function findParts() {
-    var part=document.getElementById('tp').value.trim();
-    var model=document.getElementById('tm').value.trim()||(attrs().model||'');
-    var q = part || model || (job.unit&&job.unit.label) || '';
-    if (!q) { alert('Add a model # or part # first.'); return; }
-    window.open('https://www.searspartsdirect.com/search?q='+encodeURIComponent(q), '_blank', 'noopener');
+  function openParts(src) {
+    var pq=document.getElementById('partq');
+    var q=((pq&&pq.value)||'').trim() || (document.getElementById('tp').value||'').trim() || (attrs().model||'') || (job.unit&&job.unit.label) || '';
+    if (!q) { alert('Add a model # or part # first — tap 📸 Capture model # to read it off the sticker.'); return; }
+    var e=encodeURIComponent(q), url;
+    if (src==='ereplacement') url='https://www.ereplacementparts.com/search.php?query='+e;
+    else if (src==='ebay') url='https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(q+' appliance part');
+    else if (src==='google') url='https://www.google.com/search?q='+encodeURIComponent(q+' appliance replacement part');
+    else url='https://www.searspartsdirect.com/search?q='+e;
+    window.open(url, '_blank', 'noopener');
   }
 
   function saveTdr() {
