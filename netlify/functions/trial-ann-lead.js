@@ -85,6 +85,15 @@ exports.handler = async function (event) {
   const msg = lines.join('\n');
 
   const sent = await sendSms(shop.ownerCell, msg, 'office', 'trial_ann_lead');
-  try { if (crud) crud.logEvent('trial_ann_lead', { shop: slug, name, phone: phone.replace(/\D/g, '').slice(-10), what, sent, on_board: !!board.ok, job_id: board.job_id || '', at_ms: Date.now() }); } catch (_) {}
-  return json(200, { ok: sent, sent_to_owner: sent, on_board: !!board.ok, job_id: board.job_id || null, portal_url: board.portal_url || null, reply: sent ? 'Lead sent to the shop.' : 'Could not reach the shop right now — logged it.' });
+
+  // Text the CUSTOMER their intake link — the video/model-photo/availability/waiver bundle
+  // (TN's intake magic). Only when the job made it onto the board (so the link is live).
+  let customerTexted = false;
+  if (phone && board.ok && board.intake_url) {
+    const cmsg = `${shop.name}: thanks for calling! Tap here to send a quick video + a photo of the model sticker, pick your days, and sign a quick form so we show up ready to fix it: ${board.intake_url}`;
+    try { customerTexted = await sendSms(phone, cmsg, 'customer', 'trial_ann_intake'); } catch (_) {}
+  }
+
+  try { if (crud) crud.logEvent('trial_ann_lead', { shop: slug, name, phone: phone.replace(/\D/g, '').slice(-10), what, sent, on_board: !!board.ok, job_id: board.job_id || '', customer_texted: customerTexted, at_ms: Date.now() }); } catch (_) {}
+  return json(200, { ok: sent, sent_to_owner: sent, customer_texted: customerTexted, on_board: !!board.ok, job_id: board.job_id || null, intake_url: board.intake_url || null, portal_url: board.portal_url || null, reply: sent ? 'Lead sent to the shop and the customer got their intake link.' : 'Logged the lead.' });
 };

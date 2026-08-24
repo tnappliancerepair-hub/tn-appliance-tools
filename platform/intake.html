@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Get Started — Ant</title>
+<!--
+  Ant platform — CUSTOMER INTAKE (multi-tenant). One token (the portal_grant) opens this
+  branded page: availability + a video (Cloudflare Stream, weak-signal-proof) + model
+  photos + a signed release of liability. Everything writes through platform-intake
+  (service key server-side); nothing here touches the DB directly. After finishing, the
+  same token opens portal.html for status. Mirrors TN's proven intake flow.
+-->
+<style>
+  :root{ --bg:#f5f7f3; --panel:#fff; --ink:#131711; --muted:#606753; --line:#e5e8de; --accent:#3f8f24; --accent-ink:#fff; --chip:#eef2e8; --ok:#3f8f24; --shadow:0 1px 2px rgba(20,30,10,.06),0 8px 26px rgba(20,30,10,.06); }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0f120b; --panel:#171b11; --ink:#eef2e6; --muted:#9aa38c; --line:#282f1f; --chip:#20281a; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4); }}
+  :root[data-theme="dark"]{ --bg:#0f120b; --panel:#171b11; --ink:#eef2e6; --muted:#9aa38c; --line:#282f1f; --chip:#20281a; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4); }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .shell{max-width:560px;margin:0 auto;padding:18px 16px 48px}
+  header{display:flex;align-items:center;gap:10px;padding:6px 2px 12px}
+  header .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:19px}
+  header .shop{font-weight:800;font-size:18px;line-height:1.1}
+  h1.greet{font-size:22px;margin:8px 2px 4px}
+  .sub{color:var(--muted);margin:0 2px 16px;font-size:14.5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+  .step{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px;margin-bottom:4px}
+  .step .num{width:23px;height:23px;border-radius:50%;background:var(--chip);color:var(--muted);display:grid;place-items:center;font-size:12px;flex:0 0 auto}
+  .step.done .num{background:var(--ok);color:#fff}
+  .step .tick{margin-left:auto;color:var(--ok);font-weight:800;display:none}
+  .step.done .tick{display:inline}
+  .hint{color:var(--muted);font-size:13.5px;margin:2px 0 12px 32px}
+  .body{margin-left:32px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+  .chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:8px 13px;font-weight:600;font-size:14px;cursor:pointer}
+  .chip.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+  textarea,input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  textarea{resize:none;min-height:52px}
+  .btn{border:none;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:12px 16px;font-weight:800;font-size:15px;cursor:pointer;width:100%;margin-top:10px}
+  .btn.sec{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .pick{display:flex;gap:9px}
+  .pick label{flex:1;text-align:center;border:1px solid var(--line);border-radius:11px;padding:14px 8px;font-weight:700;cursor:pointer;background:var(--bg)}
+  .pick input{display:none}
+  .filerow{font-size:13.5px;color:var(--muted);margin-top:8px;min-height:1.2em}
+  .prog{height:8px;background:var(--chip);border-radius:999px;overflow:hidden;margin-top:8px;display:none}
+  .prog>span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .thumbs img{width:66px;height:66px;object-fit:cover;border-radius:9px;border:1px solid var(--line)}
+  .waivertext{font-size:12.5px;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px;max-height:150px;overflow:auto;margin-bottom:11px;line-height:1.45}
+  .agree{display:flex;gap:9px;align-items:flex-start;font-size:14px;margin:6px 0 10px}
+  .agree input{margin-top:3px}
+  .center{max-width:420px;margin:12vh auto;text-align:center;padding:0 20px;color:var(--muted)}
+  .center .big{font-size:46px;margin-bottom:10px}
+  .center h2{color:var(--ink);margin:0 0 6px}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:24px}
+  .err{color:#c0392b;font-size:13px;margin-top:8px;min-height:1.1em}
+  :root[data-theme="dark"] .err,:root:not([data-theme="light"]) .err{color:#ff8a7a}
+</style>
+</head>
+<body>
+<div class="shell" id="app"><div class="center"><div class="big">🐜</div><p>Loading…</p></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/tus-js-client@3/dist/tus.min.js"></script>
+<script>
+(function () {
+  var app = document.getElementById('app');
+  var token = new URLSearchParams(location.search).get('t');
+  var API = '/.netlify/functions/platform-intake';
+  var ctx = null;
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+  function center(icon, title, msg){ app.innerHTML = '<div class="center"><div class="big">' + icon + '</div><h2>' + esc(title) + '</h2><p>' + esc(msg) + '</p></div>'; }
+  function api(doo, payload) {
+    var opts = payload ? { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) } : {};
+    return fetch(API + '?t=' + encodeURIComponent(token) + '&do=' + doo, opts).then(function(r){ return r.json(); });
+  }
+
+  if (!token) { center('🔗', 'Missing link', 'Please tap the link your shop texted you.'); return; }
+
+  function load() {
+    api('context').then(function (d) {
+      if (!d || d.ok === false) { center('🔗', 'Link expired', (d && d.error) || 'Ask the shop to text you a fresh link.'); return; }
+      ctx = d; render();
+    }).catch(function(){ center('⚠️', 'One sec', 'Please try your link again in a moment.'); });
+  }
+
+  function render() {
+    var shop = ctx.shop || {}, settings = shop.settings || {};
+    var accent = settings.brand_color || '#3f8f24';
+    document.documentElement.style.setProperty('--accent', accent);
+    var first = (ctx.first_name || '').trim();
+    var appl = (ctx.appliance || 'your appliance').trim() || 'your appliance';
+    var done = ctx.done || {};
+
+    app.innerHTML =
+      '<header><span class="logo">🐜</span><span class="shop">' + esc(shop.name || 'Your shop') + '</span></header>' +
+      '<h1 class="greet">Hi' + (first ? ' ' + esc(first) : '') + ' 👋</h1>' +
+      '<p class="sub">A few quick things so we show up ready to fix ' + esc(appl) + ' the first trip. Takes about 2 minutes.</p>' +
+
+      section(1, 'When are you available?', done.availability, availBody()) +
+      section(2, 'Show us the problem', done.video, videoBody()) +
+      section(3, 'Photo of the model sticker', done.photo, photoBody()) +
+      section(4, 'Quick release of liability', done.waiver, waiverBody(first)) +
+      '<button class="btn" id="finish">All done — send it to ' + esc(shop.name || 'the shop') + '</button>' +
+      '<div class="err" id="finishErr"></div>' +
+      '<div class="foot">🐜 Powered by Ant</div>';
+
+    wireAvail(); wireVideo(); wirePhoto(); wireWaiver();
+    document.getElementById('finish').onclick = finish;
+  }
+
+  function section(n, title, isDone, inner) {
+    return '<div class="card"><div class="step' + (isDone ? ' done' : '') + '" id="step' + n + '">' +
+      '<span class="num">' + (isDone ? '✓' : n) + '</span>' + esc(title) + '<span class="tick">✓ done</span></div>' +
+      '<div class="body">' + inner + '</div></div>';
+  }
+  function markDone(n) { var el = document.getElementById('step' + n); if (el) { el.classList.add('done'); el.querySelector('.num').textContent = '✓'; } }
+
+  // 1) availability
+  function availBody() {
+    return '<div class="chips" id="days"></div>' +
+      '<textarea id="avNotes" placeholder="Anything else? Gate code, best time of day, pets…"></textarea>' +
+      '<button class="btn" id="avSave">Save my availability</button><div class="err" id="avErr"></div>';
+  }
+  function wireAvail() {
+    var days = ['Mon','Tue','Wed','Thu','Fri','Sat'], sel = {};
+    var box = document.getElementById('days');
+    box.innerHTML = days.map(function(d){ return '<span class="chip" data-d="'+d+'">'+d+'</span>'; }).join('');
+    box.querySelectorAll('.chip').forEach(function(c){ c.onclick = function(){ var d=c.getAttribute('data-d'); sel[d]=!sel[d]; c.classList.toggle('on', sel[d]); }; });
+    document.getElementById('avSave').onclick = function () {
+      var picked = Object.keys(sel).filter(function(d){ return sel[d]; });
+      var notes = document.getElementById('avNotes').value.trim();
+      if (!picked.length && !notes) { document.getElementById('avErr').textContent = 'Tap the days that work for you.'; return; }
+      var btn = document.getElementById('avSave'); btn.disabled = true; btn.textContent = 'Saving…';
+      api('availability', { availability: picked.join(', '), access_notes: notes }).then(function(r){
+        btn.disabled = false; btn.textContent = 'Saved ✓';
+        if (r && r.ok) markDone(1); else document.getElementById('avErr').textContent = 'Try again.';
+      });
+    };
+  }
+
+  // 2) video → Cloudflare Stream (tus, resumable)
+  function videoBody() {
+    return '<div class="pick"><label>🎥 Record<input type="file" accept="video/*" capture="environment" id="vidCap"></label>' +
+      '<label>📁 Upload<input type="file" accept="video/*" id="vidUp"></label></div>' +
+      '<div class="prog" id="vidProg"><span></span></div><div class="filerow" id="vidRow">A quick 10–20 second clip of what it\'s doing is perfect.</div>';
+  }
+  function wireVideo() {
+    ['vidCap','vidUp'].forEach(function(id){ var el=document.getElementById(id); if(el) el.onchange=function(){ if(el.files&&el.files[0]) startVideo(el.files[0]); }; });
+  }
+  function startVideo(file) {
+    var row = document.getElementById('vidRow'), prog = document.getElementById('vidProg'), bar = prog.firstChild;
+    row.textContent = 'Preparing upload…'; prog.style.display = 'block'; bar.style.width = '3%';
+    api('stream_upload', { bytes: file.size, filename: file.name || 'video.mp4' }).then(function (r) {
+      if (!r || !r.ok || !r.uploadUrl) { row.textContent = 'Couldn\'t start the video upload — you can skip this and we\'ll grab it on site.'; prog.style.display='none'; return; }
+      if (!window.tus) { row.textContent = 'Video tool didn\'t load — try reopening the link.'; prog.style.display='none'; return; }
+      var up = new window.tus.Upload(file, {
+        uploadUrl: r.uploadUrl, chunkSize: 5 * 1024 * 1024, retryDelays: [0, 1000, 3000, 6000],
+        metadata: { filename: file.name || 'video.mp4', filetype: file.type || 'video/mp4' },
+        onError: function(){ row.textContent = 'Upload hiccuped — tap Record/Upload to try again.'; prog.style.display='none'; },
+        onProgress: function(sent, total){ var pct = Math.max(3, Math.round(sent/total*100)); bar.style.width = pct + '%'; row.textContent = 'Uploading… ' + pct + '%'; },
+        onSuccess: function(){ bar.style.width = '100%'; row.textContent = 'Got your video ✓'; api('media', { kind:'video', provider:'cfstream', ref: r.uid, label:'Problem video' }).then(function(){ markDone(2); }); },
+      });
+      up.start();
+    });
+  }
+
+  // 3) model photo → downscale → Supabase Storage (via server)
+  function photoBody() {
+    return '<div class="pick"><label>📸 Take<input type="file" accept="image/*" capture="environment" id="phCap"></label>' +
+      '<label>📁 Upload<input type="file" accept="image/*" id="phUp"></label></div>' +
+      '<div class="thumbs" id="phThumbs"></div><div class="filerow" id="phRow">The sticker with the model &amp; serial number (usually inside the door or on the back).</div>';
+  }
+  function wirePhoto() {
+    ['phCap','phUp'].forEach(function(id){ var el=document.getElementById(id); if(el) el.onchange=function(){ if(el.files&&el.files[0]) sendPhoto(el.files[0]); }; });
+  }
+  function sendPhoto(file) {
+    var row = document.getElementById('phRow');
+    row.textContent = 'Adding photo…';
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var max = 1400, w = img.width, h = img.height;
+      if (Math.max(w, h) > max) { var s = max / Math.max(w, h); w = Math.round(w*s); h = Math.round(h*s); }
+      var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url);
+      var data = cv.toDataURL('image/jpeg', 0.7);
+      api('photo', { data: data, filename: 'model.jpg' }).then(function (r) {
+        if (r && r.ok) { row.textContent = 'Photo added ✓ — add another if you like.'; if (r.url) { var t=document.getElementById('phThumbs'); var im=document.createElement('img'); im.src=r.url; t.appendChild(im); } markDone(3); }
+        else row.textContent = 'Couldn\'t add that one — try again.';
+      });
+    };
+    img.onerror = function(){ row.textContent = 'That file didn\'t work — try a photo.'; };
+    img.src = url;
+  }
+
+  // 4) waiver
+  function waiverBody(first) {
+    var w = 'I authorize the shop and its technicians to inspect and service my appliance. I understand ' +
+      'appliance repair carries inherent risks, that pre-existing conditions (worn parts, prior damage, water ' +
+      'lines, flooring) may fail during normal service, and I release the shop from liability for such ' +
+      'pre-existing or unavoidable conditions. I confirm I am authorized to request service at this address. ' +
+      'A diagnostic/trip fee may apply and will be disclosed before work begins.';
+    return '<div class="waivertext">' + esc(w) + '</div>' +
+      '<input type="text" id="wvName" placeholder="Type your full name to sign" autocomplete="name" value="' + esc(first) + '">' +
+      '<label class="agree"><input type="checkbox" id="wvAgree"><span>I have read and agree to the release above, and this is my electronic signature.</span></label>' +
+      '<button class="btn" id="wvSign">Sign &amp; agree</button><div class="err" id="wvErr"></div>';
+  }
+  function wireWaiver() {
+    document.getElementById('wvSign').onclick = function () {
+      var name = document.getElementById('wvName').value.trim();
+      var agree = document.getElementById('wvAgree').checked;
+      if (!name) { document.getElementById('wvErr').textContent = 'Type your name to sign.'; return; }
+      if (!agree) { document.getElementById('wvErr').textContent = 'Please check the box to agree.'; return; }
+      var btn = document.getElementById('wvSign'); btn.disabled = true; btn.textContent = 'Signing…';
+      api('waiver', { name: name }).then(function (r) {
+        btn.disabled = false; btn.textContent = 'Signed ✓';
+        if (r && r.ok) markDone(4); else document.getElementById('wvErr').textContent = 'Try again.';
+      });
+    };
+  }
+
+  function finish() {
+    var btn = document.getElementById('finish'); btn.disabled = true; btn.textContent = 'Sending…';
+    api('finish', {}).then(function (r) {
+      if (r && r.ok) center('✅', 'All set — thank you!', 'We\'ve got everything we need. ' + esc((ctx.shop && ctx.shop.name) || 'The shop') + ' will reach out to lock in your day. You can close this page.');
+      else { btn.disabled = false; btn.textContent = 'All done — send it'; document.getElementById('finishErr').textContent = 'Try again in a moment.'; }
+    });
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
