@@ -60,6 +60,13 @@
   .gate button{width:100%;margin-top:18px}
   .err{color:#c0392b;font-size:13px;margin-top:12px;min-height:1.2em}
   :root[data-theme="dark"] .err,:root:not([data-theme="light"]) .err{color:#ff8a7a}
+  .ov{position:fixed;inset:0;z-index:20;background:rgba(10,14,6,.5);display:flex;align-items:flex-start;justify-content:center;padding:8vh 16px 16px;overflow:auto}
+  .sheet{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:var(--shadow)}
+  .sheet h2{margin:0 0 6px;font-size:19px}
+  .sheet label{display:block;font-size:12.5px;font-weight:700;color:var(--ink);margin:15px 0 5px}
+  .sheet label .hint{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:2px}
+  .sheet input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  .sheet .srow{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--chip);padding:1px 5px;border-radius:5px}
   .banner{background:#fff7e6;border:1px solid #f0d59a;color:#7a5b00;padding:10px 14px;border-radius:10px;margin:16px;font-size:13px}
   :root[data-theme="dark"] .banner,:root:not([data-theme="light"]) .banner{background:#2a2410;border-color:#5a4a1a;color:#e6c766}
@@ -74,7 +81,7 @@
 (function () {
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
-  var sb = null, rt = null;
+  var sb = null, rt = null, companyId = null, shopSettings = {};
 
   // ── STATUS COLUMNS ─────────────────────────────────────────────────────────
   var COLS = [
@@ -127,10 +134,43 @@
   function renderShell() {
     app.innerHTML =
       '<header><span class="brand">🐜 Ant</span><span class="shop" id="shop">' + esc(shopName || '…') + '</span>' +
-      '<span class="sp"></span><button id="refresh">Refresh</button><button id="out">Sign out</button></header>' +
+      '<span class="sp"></span><button id="settings">⚙️ Settings</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>' +
       '<div class="wrap"><div class="board" id="board"></div></div>';
     document.getElementById('out').onclick = function () { if (rt) { try { sb.removeChannel(rt); } catch (e) {} } sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick = loadBoard;
+    document.getElementById('settings').onclick = openSettings;
+  }
+
+  // ── SETTINGS (per-shop config: review link + parts distributor) ─────────────
+  function openSettings() {
+    var s = shopSettings || {};
+    var ov = document.createElement('div'); ov.className = 'ov';
+    ov.innerHTML =
+      '<div class="sheet"><h2>⚙️ Shop settings</h2>' +
+      '<label>Google review link <span class="hint">the link customers tap to leave you a review</span></label>' +
+      '<input id="s_review" placeholder="https://g.page/r/…/review" value="' + esc(s.review_url || '') + '">' +
+      '<label>Parts distributor <span class="hint">the name on the tech\'s parts button</span></label>' +
+      '<input id="s_dname" placeholder="Marcone" value="' + esc(s.distributor_name || '') + '">' +
+      '<label>Distributor search link <span class="hint">use <b>{q}</b> where the model/part goes</span></label>' +
+      '<input id="s_durl" placeholder="https://yoursupplier.com/search?q={q}" value="' + esc(s.distributor_search_url || '') + '">' +
+      '<div class="srow"><button id="s_cancel">Cancel</button><button class="primary" id="s_save">Save</button></div>' +
+      '<div class="err" id="s_err"></div></div>';
+    document.body.appendChild(ov);
+    var close = function () { try { document.body.removeChild(ov); } catch (e) {} };
+    ov.onclick = function (e) { if (e.target === ov) close(); };
+    document.getElementById('s_cancel').onclick = close;
+    document.getElementById('s_save').onclick = function () {
+      var btn = document.getElementById('s_save'); btn.disabled = true; btn.textContent = 'Saving…';
+      var next = Object.assign({}, shopSettings, {
+        review_url: document.getElementById('s_review').value.trim(),
+        distributor_name: document.getElementById('s_dname').value.trim(),
+        distributor_search_url: document.getElementById('s_durl').value.trim(),
+      });
+      sb.from('company').update({ settings: next }).eq('id', companyId).then(function (r) {
+        if (r.error) { btn.disabled = false; btn.textContent = 'Save'; document.getElementById('s_err').textContent = r.error.message; return; }
+        shopSettings = next; close();
+      });
+    };
   }
 
   function renderBoard(jobs) {
@@ -183,9 +223,9 @@
 
   function boot() {
     renderShell();
-    // Company name (RLS returns only this shop's row via the company_self policy).
-    sb.from('company').select('name,trade').limit(1).then(function (r) {
-      if (!r.error && r.data && r.data[0]) { shopName = r.data[0].name; var el = document.getElementById('shop'); if (el) el.textContent = shopName; }
+    // Company (RLS returns only this shop's row via the company_self policy).
+    sb.from('company').select('id,name,trade,settings').limit(1).then(function (r) {
+      if (!r.error && r.data && r.data[0]) { companyId = r.data[0].id; shopSettings = r.data[0].settings || {}; shopName = r.data[0].name; var el = document.getElementById('shop'); if (el) el.textContent = shopName; }
     });
     loadBoard();
     subscribeRealtime();
