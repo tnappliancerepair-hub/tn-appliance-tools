@@ -18,8 +18,11 @@ const { getSecret } = require('./secrets');
 const SITE = 'https://tnapplianceexchange.net';
 
 async function cfg() {
-  const url = (await getSecret('SUPABASE_URL')) || (await getSecret('PLATFORM_SUPABASE_URL')) || '';
-  const key = (await getSecret('SUPABASE_SERVICE_KEY')) || (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  // PLATFORM-specific names on purpose — the generic SUPABASE_URL/SUPABASE_SERVICE_KEY
+  // already point to the ANT OPS archive project. The multi-tenant PLATFORM lives in a
+  // SEPARATE Supabase project ("ANT Platforms"), so its creds get their own names.
+  const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
+  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   return { url: String(url).replace(/\/+$/, ''), key };
 }
 
