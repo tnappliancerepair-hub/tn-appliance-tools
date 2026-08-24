@@ -52,11 +52,12 @@ const SHOPS = {
     name: 'Classic Automotive',
     type: 'automotive',
     ownerFirst: 'Greg',
-    ownerCell: '+16158549602',          // Greg's cell — lead texts land here
+    ownerCell: '+16158549602',          // Greg's cell — lead/message texts land here
     area: 'Lebanon, Tennessee and the surrounding area',
     hours: 'Monday to Friday, 8 to 5',
-    autoScope: 'general',               // confirm 'general' (all makes) vs 'classic' (restoration)
-    about: '',                          // optional — services/pricing Ann may share
+    autoScope: 'general',               // he does it ALL — general, not classic-only
+    greeting: "Thanks for calling Classic Automotive, this is Ann — I help catch Greg's calls when he's out in the shop. How can I help you today?",
+    about: "Full-service auto repair in Lebanon, TN — no job too big or too small, Greg does it all. We SPECIALIZE in wheel alignments. We also do tires (we have our own tire machine), batteries, oil changes, brakes, and general repair — all the way up to complete restorations. Multiple lifts, so we can handle just about anything. Greg goes over exact pricing himself when he calls back.",
     platformSlug: '',
   },
 };
