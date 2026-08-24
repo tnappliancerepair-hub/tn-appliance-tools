@@ -52,7 +52,7 @@ const SHOPS = {
     name: 'Classic Automotive',
     type: 'automotive',
     ownerFirst: 'Greg',
-    ownerCell: '+1',                    // ⚠️ FILL — Greg's cell, E.164. REQUIRED to fire leads.
+    ownerCell: '+16158549602',          // Greg's cell — lead texts land here
     area: 'Lebanon, Tennessee and the surrounding area',
     hours: 'Monday to Friday, 8 to 5',
     autoScope: 'general',               // confirm 'general' (all makes) vs 'classic' (restoration)
