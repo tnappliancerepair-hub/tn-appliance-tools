@@ -201,7 +201,7 @@
     <div style="display:inline-flex;align-items:center;gap:7px;margin:8px 0 4px;padding:6px 14px;border-radius:999px;background:rgba(49,214,122,.12);border:1px solid rgba(49,214,122,.42);color:#31d67a;font-weight:800;font-size:13px;letter-spacing:.01em">🟢 We answer 24/7 · 365 — even at 2am</div>
     <h1 id="head">What's going on with <span class="accent">your appliance?</span></h1>
     <div class="sub" id="sub">Tap what's broken — I'll figure it out with you. Honest answer, fast.</div>
-    <div style="margin-top:12px;font-size:14.5px;line-height:1.5;color:#9aa4b8">Broken machine? <b style="color:#c9d2e3">We're the easy button.</b> Tap what's wrong, send a quick video — we take it from there. No runaround, no forms, no figuring it out yourself.</div>
+    <div style="margin-top:12px;font-size:14.5px;line-height:1.5;color:#9aa4b8">Broken machine? <b style="color:#c9d2e3">We're the easy button.</b> Tap what's wrong, send a quick video — we take it from there. <b style="color:#c9d2e3">Free to book, pay when we come out.</b> No runaround, no forms, no figuring it out yourself.</div>
   </div>
 
   <!-- dynamic flow renders here -->
@@ -440,10 +440,11 @@ function cashPath(){
     antMsg('Perfect — we\'ll get a tech out to you. Two quick things so he rolls up <b>ready to fix it the first trip</b>: a <b>10-second video</b> + a photo of the <b>model sticker</b>. Takes about 2 minutes. 🐜');
     think(800, capVideo); return;
   }
-  setHead('We\'ll <span class="accent">come to you.</span>','Same great service — here\'s exactly how the cost works, up front.');
-  antMsg('You got it — we\'ll send a tech to your home. Straight talk on the cost so there are <b>no surprises</b>:');
+  setHead('We\'ll <span class="accent">come to you.</span>','Free to book — you only pay at the visit. Here\'s the straight talk on cost.');
+  antMsg('You got it — we\'ll send a tech to your home. <b>Nothing to pay right now.</b> Straight talk on the cost so there are <b>no surprises</b>:');
   const v=document.createElement('div'); v.className='value';
-  v.innerHTML='<div><b>$100 diagnostic &amp; trip fee</b> — charged <b>at the time of service</b>, not now.</div>'
+  v.innerHTML='<div><b>$0 to book</b> — nothing due today.</div>'
+    +'<div><b>$100 diagnostic &amp; trip fee</b> — charged <b>at the time of service</b>, not now.</div>'
     +'<div><b>It goes straight toward your repair</b> — fix it with us and it comes right off the bill.</div>'
     +'<div><b>No free inspections.</b> We don\'t send a tech out to look at a machine for free — <b>no exceptions</b>. It applies to every in-home visit.</div>';
   FLOW.appendChild(v);
