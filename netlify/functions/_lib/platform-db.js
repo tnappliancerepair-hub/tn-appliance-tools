@@ -104,15 +104,19 @@ async function createLeadJob(lead) {
       });
     } catch (_) {}
 
-    // mint a customer portal link for this job
-    let portalToken = '', portalUrl = '';
+    // mint the token — one token opens BOTH the intake page (video/photos/availability/
+    // waiver) and, afterward, the status portal.
+    let portalToken = '', portalUrl = '', intakeUrl = '';
     try {
       const g = await db.insert('portal_grant', { company_id: companyId, customer_id: customer.id, job_id: job.id });
       portalToken = g && g.token;
-      if (portalToken) portalUrl = `${SITE}/platform/portal.html?t=${portalToken}`;
+      if (portalToken) {
+        portalUrl = `${SITE}/platform/portal.html?t=${portalToken}`;
+        intakeUrl = `${SITE}/platform/intake.html?t=${portalToken}`;
+      }
     } catch (_) {}
 
-    return { ok: true, job_id: job.id, customer_id: customer.id, portal_token: portalToken, portal_url: portalUrl };
+    return { ok: true, job_id: job.id, customer_id: customer.id, portal_token: portalToken, portal_url: portalUrl, intake_url: intakeUrl };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e).slice(0, 200) };
   }
