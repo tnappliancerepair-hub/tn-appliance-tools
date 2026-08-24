@@ -66,17 +66,17 @@ const SHOPS = {
     planPrice: 0,                       // what we charge him/mo (0 = free trial)
   },
 
-  // ── Jake — used car lot (work vans), Mt. Juliet TN. Dealership persona: Ann is an
-  //    after-hours / overflow SALES lead catcher (dad answers during open hours).
-  //    ⚠️ NEEDS Jake's cell + real details. Uncomment + fill, then create + bind.
+  // ── Jake — Next Gen, used car lot (work vans), Mt. Juliet TN. Dealership persona:
+  //    Ann = AFTER-HOURS sales lead catcher (dad answers live during open hours).
+  //    ⚠️ NEEDS Jake's cell + confirm exact lot name + open hours. Uncomment + fill.
   // 'jake': {
-  //   name: 'FILL_lot_name',
+  //   name: 'Next Gen',                 // confirm exact spoken name (Next Gen Auto / Motors?)
   //   type: 'dealership',
   //   ownerFirst: 'Jake',
   //   ownerCell: '+1FILL',              // where leads text (Jake's, or the lot's)
   //   area: 'Mt. Juliet, Tennessee and the surrounding area',
-  //   hours: 'FILL_open_hours',         // when dad answers live
-  //   about: 'FILL — e.g. "Used car lot in Mt. Juliet specializing in work vans — cargo and passenger. We take trades and can help with financing."',
+  //   hours: 'FILL_open_hours',         // when dad answers live (so Ann says when a person follows up)
+  //   about: 'Used car lot in Mt. Juliet specializing in work vans — cargo and passenger. We take trades and can help with financing.',
   //   platformSlug: '', annNumber: '', annConnection: '', planPrice: 0,
   // },
 };
