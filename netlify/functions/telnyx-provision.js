@@ -94,6 +94,32 @@ exports.handler = async function (event) {
       return json(200, { ok: true, count: out.length, assistants: out });
     }
 
+    // Insight Group is where the post-call insights webhook actually lives (shared by
+    // our Ann assistants). GET to see the exact webhook field; add &set_webhook=<url>
+    // (+ optional &field=) to PATCH it. &gid= to target a specific group.
+    if (action === 'insightgroup') {
+      const gid = q.gid || '68d12f44-565f-4370-a3a8-6ef6bf53e84e';
+      const paths = [`/ai/assistants/insight-groups/${gid}`, `/ai/insight-groups/${gid}`, `/ai/assistants/insights/groups/${gid}`, `/ai/assistants/insight_groups/${gid}`];
+      const probes = [];
+      let found = null;
+      for (const p of paths) {
+        try {
+          const r = await fetch(`${TELNYX}${p}`, { headers: H, signal: AbortSignal.timeout(12000) });
+          const d = await r.json().catch(() => ({}));
+          const g = (d && d.data) || null;
+          probes.push({ path: p, status: r.status, keys: g ? Object.keys(g) : Object.keys(d || {}).slice(0, 10) });
+          if (r.ok && g) { found = { path: p, group: g }; break; }
+        } catch (e) { probes.push({ path: p, error: String((e && e.message) || e).slice(0, 60) }); }
+      }
+      if (found && q.set_webhook) {
+        const field = q.field || 'webhook_url';
+        const pr = await fetch(`${TELNYX}${found.path}`, { method: 'PATCH', headers: H, body: JSON.stringify({ [field]: q.set_webhook }), signal: AbortSignal.timeout(12000) });
+        const pd = await pr.json().catch(() => ({}));
+        return json(200, { ok: pr.ok, patched_field: field, status: pr.status, path: found.path, group: (pd && pd.data) || pd });
+      }
+      return json(200, { ok: !!found, found_path: found ? found.path : null, group: found ? found.group : null, probes });
+    }
+
     if (action === 'balance') {
       const r = await fetch(`${TELNYX}/balance`, { headers: H, signal: AbortSignal.timeout(12000) });
       const d = await r.json().catch(() => ({}));
