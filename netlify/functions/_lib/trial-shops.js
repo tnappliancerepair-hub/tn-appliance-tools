@@ -25,6 +25,10 @@
 //               pricing the owner is OK with her sharing). Makes her a real CSR, not
 //               just a lead-catcher. She answers ONLY from what's here; anything past
 //               it she routes to a callback. Leave blank = she captures + hands off.
+//   platformSlug optional — the shop's Supabase tenant slug (docs/multi-tenant-platform).
+//               When set (and the platform is configured), every lead Ann captures ALSO
+//               becomes a JOB on that shop's office board + a customer portal link. This
+//               is the phone→database bridge. Leave blank = SMS-to-owner only.
 'use strict';
 
 const SHOPS = {
@@ -44,7 +48,7 @@ const SHOPS = {
 
 function get(slug) {
   const s = SHOPS[String(slug || '').toLowerCase().trim()];
-  return s ? Object.assign({ type: 'appliance', autoScope: 'general', hours: 'Monday to Friday, 8 to 5', about: '' }, s) : null;
+  return s ? Object.assign({ type: 'appliance', autoScope: 'general', hours: 'Monday to Friday, 8 to 5', about: '', platformSlug: '' }, s) : null;
 }
 
 module.exports = { SHOPS, get };
