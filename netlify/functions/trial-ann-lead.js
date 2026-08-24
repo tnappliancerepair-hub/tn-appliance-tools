@@ -15,6 +15,7 @@
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
 const shops = require('./_lib/trial-shops');
+let createLeadJob = null; try { ({ createLeadJob } = require('./_lib/platform-db')); } catch (_) {}
 let crud = null; try { crud = require('./_lib/xano/metadata-crud'); } catch (_) {}
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
@@ -61,6 +62,16 @@ exports.handler = async function (event) {
     ? String(p.issue || p.problem || p.summary || '').trim()
     : String(p.problem || p.summary || '').trim();
 
+  // PHONE→DATABASE BRIDGE: if this shop is on the platform, turn the lead into a real
+  // JOB on their board + mint a customer portal link. Best-effort — a DB hiccup never
+  // stops the owner SMS (the lead still lands on their phone).
+  let board = { ok: false };
+  if (shop.platformSlug && createLeadJob) {
+    try {
+      board = await createLeadJob({ slug: shop.platformSlug, name, phone, what, detail, city, source: 'ann_phone' });
+    } catch (_) { board = { ok: false }; }
+  }
+
   const lines = [
     `🔔 NEW LEAD — ${shop.name} (via Ann)`,
     name && `Name: ${name}`,
@@ -68,11 +79,12 @@ exports.handler = async function (event) {
     isAuto ? (what && `Vehicle: ${what}`) : (what && `Appliance: ${what}`),
     detail && `Needs: ${detail}`,
     city && `City: ${city}`,
+    board.ok && board.portal_url ? `On your board ✅ · customer link: ${board.portal_url}` : null,
     `— Ann answered this for you. Call them back and close it. 🐜`,
   ].filter(Boolean);
   const msg = lines.join('\n');
 
   const sent = await sendSms(shop.ownerCell, msg, 'office', 'trial_ann_lead');
-  try { if (crud) crud.logEvent('trial_ann_lead', { shop: slug, name, phone: phone.replace(/\D/g, '').slice(-10), what, sent, at_ms: Date.now() }); } catch (_) {}
-  return json(200, { ok: sent, sent_to_owner: sent, reply: sent ? 'Lead sent to the shop.' : 'Could not reach the shop right now — logged it.' });
+  try { if (crud) crud.logEvent('trial_ann_lead', { shop: slug, name, phone: phone.replace(/\D/g, '').slice(-10), what, sent, on_board: !!board.ok, job_id: board.job_id || '', at_ms: Date.now() }); } catch (_) {}
+  return json(200, { ok: sent, sent_to_owner: sent, on_board: !!board.ok, job_id: board.job_id || null, portal_url: board.portal_url || null, reply: sent ? 'Lead sent to the shop.' : 'Could not reach the shop right now — logged it.' });
 };
