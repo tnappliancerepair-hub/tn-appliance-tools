@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Your Repair — Ant</title>
+<!--
+  Ant platform — CUSTOMER PORTAL (multi-tenant reference surface).
+  Token-gated, NO login: the shop mints a portal_grant and hands the customer
+  /platform/portal.html?t=<token>. The page calls two SECURITY DEFINER functions
+  (docs/sql/005_portal_access.sql) with the anon key — portal_get shows ONLY this
+  customer's status + conversation, portal_post_message lets them reply. They can
+  never see another customer's data (the functions enforce the token). Branded per
+  shop from company.settings. Same core as the office board — a different lens.
+-->
+<style>
+  :root{
+    --bg:#f5f7f3; --panel:#ffffff; --ink:#131711; --muted:#606753; --line:#e5e8de;
+    --accent:#3f8f24; --accent-ink:#ffffff; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 8px 26px rgba(20,30,10,.06);
+    --bubble-in:#eef2e8; --bubble-out:#3f8f24;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#0f120b; --panel:#171b11; --ink:#eef2e6; --muted:#9aa38c; --line:#282f1f; --chip:#20281a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4); --bubble-in:#20281a; --bubble-out:#3f8f24;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f120b; --panel:#171b11; --ink:#eef2e6; --muted:#9aa38c; --line:#282f1f; --chip:#20281a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4); --bubble-in:#20281a; --bubble-out:#3f8f24;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .shell{max-width:560px;margin:0 auto;padding:18px 16px 40px}
+  header{display:flex;align-items:center;gap:10px;padding:6px 2px 16px}
+  header .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:19px}
+  header .shop{font-weight:800;font-size:18px;line-height:1.1}
+  header .call{margin-left:auto;font-size:13px;font-weight:700;color:var(--accent);text-decoration:none;border:1px solid var(--line);padding:7px 11px;border-radius:9px}
+  h1.greet{font-size:22px;margin:6px 2px 4px}
+  .sub{color:var(--muted);margin:0 2px 18px;font-size:14.5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+  .job-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .job-unit{font-weight:700;font-size:16px}
+  .job-prob{color:var(--muted);font-size:14px;margin-top:3px}
+  .badge{flex:0 0 auto;font-size:12px;font-weight:800;padding:5px 11px;border-radius:999px;color:#fff;white-space:nowrap}
+  .statusline{margin-top:12px;font-size:14.5px;background:var(--chip);border-radius:10px;padding:11px 13px}
+  .meta{margin-top:11px;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--muted)}
+  .meta b{color:var(--ink);font-weight:600}
+  .sec-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:22px 2px 10px;font-weight:700}
+  .thread{display:flex;flex-direction:column;gap:9px}
+  .bub{max-width:82%;padding:10px 13px;border-radius:15px;font-size:14.5px;box-shadow:var(--shadow)}
+  .bub .who{display:block;font-size:11px;font-weight:700;opacity:.7;margin-bottom:2px}
+  .bub .tm{display:block;font-size:11px;opacity:.6;margin-top:4px}
+  .bub.in{align-self:flex-start;background:var(--bubble-in);color:var(--ink);border-bottom-left-radius:5px}
+  .bub.out{align-self:flex-end;background:var(--bubble-out);color:#fff;border-bottom-right-radius:5px}
+  .bub.out .who,.bub.out .tm{opacity:.85}
+  .composer{display:flex;gap:8px;margin-top:14px}
+  .composer textarea{flex:1;resize:none;min-height:46px;max-height:140px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font:inherit}
+  .composer button{border:none;background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:0 18px;font-weight:800;font-size:15px;cursor:pointer}
+  .composer button:disabled{opacity:.5;cursor:default}
+  .center{max-width:420px;margin:14vh auto;text-align:center;padding:0 20px;color:var(--muted)}
+  .center .big{font-size:44px;margin-bottom:10px}
+  .center h2{color:var(--ink);margin:0 0 6px}
+  .empty{color:var(--muted);font-size:14px;padding:4px 2px}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:26px}
+</style>
+</head>
+<body>
+<div class="shell" id="app"><div class="center"><div class="big">🐜</div><p>Loading…</p></div></div>
+
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function () {
+  var app = document.getElementById('app');
+  var cfg = window.ANT_SUPABASE || {};
+  var token = new URLSearchParams(location.search).get('t');
+  var sb = null, state = null, pollTimer = null;
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+  function center(icon, title, msg){ app.innerHTML = '<div class="center"><div class="big">' + icon + '</div><h2>' + esc(title) + '</h2><p>' + esc(msg) + '</p></div>'; }
+
+  if (!cfg.url || !cfg.anonKey) { center('🐜', 'Almost there', 'This portal isn\'t connected to a project yet.'); return; }
+  if (!token) { center('🔗', 'Missing link', 'This page needs the link your shop texted you. Please tap that link again.'); return; }
+  sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+
+  // Friendly, human status wording (customers never see raw status keys).
+  var STATUS = {
+    new:            { label: 'Received',       color: '#6b7280', line: 'We\'ve got your request and we\'re on it — we\'ll reach out to get you scheduled.' },
+    scheduled:      { label: 'Scheduled',      color: '#2563eb', line: 'You\'re on the schedule. We\'ll text you a live arrival window the morning of your visit.' },
+    in_progress:    { label: 'In progress',    color: '#b45309', line: 'Your tech is on it right now.' },
+    awaiting_parts: { label: 'Waiting on part',color: '#7c3aed', line: 'We\'ve diagnosed it and we\'re waiting on the part. We\'ll reach out to schedule the fix as soon as it lands.' },
+    completed:      { label: 'All done',       color: '#3f8f24', line: 'This one\'s complete. Thank you for trusting us — reply below if anything comes up.' },
+    canceled:       { label: 'Canceled',       color: '#9ca3af', line: 'This request was canceled. Reply below if you\'d like to pick it back up.' },
+  };
+  function statusOf(k){ return STATUS[k] || { label: (k||'Open'), color: '#6b7280', line: 'We\'re on it — reply below anytime with questions.' }; }
+
+  function fmtDay(d){ if(!d) return ''; try { return new Date(d + 'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); } catch(e){ return d; } }
+  function fmtTime(iso){ if(!iso) return ''; try { var dt=new Date(iso); return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+dt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } }
+  function whoLabel(m){ if(m.direction==='in') return 'You'; var s=String(m.sender||''); if(/^office:/.test(s)) return s.slice(7); if(/^tech:/.test(s)) return s.slice(5); if(s==='ann'||s==='') return 'Ann'; return s; }
+
+  function render() {
+    var co = state.company || {}, cust = state.customer || {}, jobs = state.jobs || [], thread = state.thread || [];
+    var settings = co.settings || {};
+    var accent = settings.brand_color || '#3f8f24';
+    document.documentElement.style.setProperty('--accent', accent);
+    document.documentElement.style.setProperty('--bubble-out', accent);
+    var phone = settings.phone || '';
+    var first = (cust.first_name || '').trim();
+
+    var head = '<header><span class="logo">🐜</span><span class="shop">' + esc(co.name || 'Your shop') + '</span>' +
+      (phone ? '<a class="call" href="tel:' + esc(phone.replace(/[^0-9+]/g,'')) + '">Call us</a>' : '') + '</header>';
+
+    var greet = '<h1 class="greet">Hi' + (first ? ' ' + esc(first) : '') + ' 👋</h1>' +
+      '<p class="sub">Here\'s where your ' + (jobs.length > 1 ? 'repairs stand' : 'repair stands') + ' — and you can message us anytime right here.</p>';
+
+    var jobsHtml = jobs.length ? jobs.map(function (j) {
+      var st = statusOf(j.status);
+      var unit = j.unit_label || (j.unit && j.unit.label) || 'Your service';
+      var day = fmtDay(j.scheduled_day);
+      return '<div class="card"><div class="job-top"><div>' +
+        '<div class="job-unit">' + esc(unit) + '</div>' +
+        (j.problem ? '<div class="job-prob">' + esc(j.problem) + '</div>' : '') +
+        '</div><span class="badge" style="background:' + st.color + '">' + esc(st.label) + '</span></div>' +
+        '<div class="statusline">' + esc(st.line) + '</div>' +
+        (day ? '<div class="meta"><span>Scheduled: <b>' + esc(day) + '</b></span></div>' : '') +
+        '</div>';
+    }).join('') : '<div class="card"><div class="empty">No open repairs on file. Reply below if you need us.</div></div>';
+
+    var bubbles = thread.length ? thread.map(function (m) {
+      return '<div class="bub ' + (m.direction === 'in' ? 'in' : 'out') + '">' +
+        '<span class="who">' + esc(whoLabel(m)) + '</span>' + esc(m.body || '') +
+        '<span class="tm">' + esc(fmtTime(m.created_at)) + '</span></div>';
+    }).join('') : '<div class="empty">No messages yet — say hi 👇</div>';
+
+    app.innerHTML = head + greet + jobsHtml +
+      '<div class="sec-title">Messages</div><div class="thread" id="thread">' + bubbles + '</div>' +
+      '<div class="composer"><textarea id="msg" placeholder="Type a message to the shop…"></textarea><button id="send">Send</button></div>' +
+      '<div class="foot">🐜 Powered by Ant</div>';
+
+    var ta = document.getElementById('msg'), btn = document.getElementById('send');
+    ta.addEventListener('input', function(){ ta.style.height='auto'; ta.style.height=Math.min(140, ta.scrollHeight)+'px'; });
+    function send() {
+      var body = ta.value.trim(); if (!body) return;
+      btn.disabled = true; var old = ta.value; ta.value = ''; ta.style.height='auto';
+      sb.rpc('portal_post_message', { p_token: token, p_body: body }).then(function (r) {
+        btn.disabled = false;
+        if (r.error || (r.data && r.data.ok === false)) { ta.value = old; return; }
+        load(true);   // refresh the thread
+      });
+    }
+    btn.onclick = send;
+    ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } });
+    var th = document.getElementById('thread'); if (th) th.scrollTop = th.scrollHeight;
+  }
+
+  function load(quiet) {
+    sb.rpc('portal_get', { p_token: token }).then(function (r) {
+      if (r.error) { if (!quiet) center('⚠️', 'Something went wrong', 'Please try your link again in a moment.'); return; }
+      var d = r.data;
+      if (!d || d.ok === false) { center('🔗', 'Link expired', (d && d.error) || 'This link is no longer active. Ask the shop to text you a fresh one.'); if (pollTimer) clearInterval(pollTimer); return; }
+      state = d; render();
+    });
+  }
+
+  load(false);
+  // Light poll so shop replies appear without a manual refresh (Realtime can't gate an
+  // anon token, so the portal polls the SECURITY DEFINER read instead).
+  pollTimer = setInterval(function(){ if (document.visibilityState === 'visible') load(true); }, 25000);
+})();
+</script>
+</body>
+</html>
