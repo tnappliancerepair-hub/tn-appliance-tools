@@ -63,6 +63,8 @@ const SHOPS = {
     platformSlug: '',
     annNumber: '+19316324734',          // his Ann line (spells GREG) — for cost attribution
     annConnection: '3033816465695311487', // his Ann's TeXML app id
+    assistantId: 'assistant-1272a268-c00e-4e5c-987a-6dded4893b4d', // Telnyx AI Assistant
+    insightGroup: '9ae0abfe-78cc-424c-9713-45180b76783d', // his OWN insight group (isolated from TN's Default; webhook unset)
     planPrice: 0,                       // what we charge him/mo (0 = free trial)
   },
 
