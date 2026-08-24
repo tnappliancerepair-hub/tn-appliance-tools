@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Office Board — Ant</title>
+<!--
+  Ant platform — OFFICE BOARD (multi-tenant reference surface).
+  Runs against the Supabase platform project (docs/sql/004_multitenant_core.sql).
+  Auth → the board shows ONLY this shop's jobs (Row-Level Security does the scoping;
+  the page never sends a company_id). Realtime keeps it live. This same pattern —
+  sign in, query, RLS scopes to your tenant — is what the tech app + customer portal
+  reuse. One codebase, three lenses, every shop.
+-->
+<style>
+  :root{
+    --bg:#f6f7f4; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
+    --brand:#3f8f24; --brand-ink:#ffffff; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 4px 14px rgba(20,30,10,.05);
+    --new:#6b7280; --scheduled:#2563eb; --in_progress:#b45309; --awaiting_parts:#7c3aed; --completed:#3f8f24; --canceled:#9ca3af;
+  }
+  :root:not([data-theme="light"]){ }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a;
+    --brand:#5bb537; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a;
+    --brand:#5bb537; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header .brand{font-weight:800;letter-spacing:.2px}
+  header .shop{color:var(--muted);font-weight:600}
+  header .sp{flex:1}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:9px;padding:8px 12px;font-weight:600}
+  button.primary{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+  button:disabled{opacity:.55;cursor:default}
+  .wrap{padding:16px}
+  .board{display:flex;gap:14px;overflow-x:auto;padding-bottom:12px}
+  .col{flex:0 0 268px;min-width:268px}
+  .col h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .col h3 .n{background:var(--chip);color:var(--muted);border-radius:999px;padding:1px 8px;font-size:11px}
+  .col h3 .dot{width:8px;height:8px;border-radius:50%}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow)}
+  .card .name{font-weight:700}
+  .card .unit{color:var(--muted);font-size:13px;margin-top:1px}
+  .card .prob{margin-top:7px;font-size:13.5px}
+  .card .foot{margin-top:9px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .pill{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;color:#fff}
+  .tech{color:var(--muted);font-size:12px;font-weight:600}
+  .empty{color:var(--muted);font-size:13px;padding:8px 2px}
+  /* auth / connect gates */
+  .gate{max-width:380px;margin:9vh auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px;box-shadow:var(--shadow)}
+  .gate h1{margin:0 0 4px;font-size:20px}
+  .gate p{margin:0 0 18px;color:var(--muted);font-size:14px}
+  .gate label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 5px}
+  .gate input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  .gate button{width:100%;margin-top:18px}
+  .err{color:#c0392b;font-size:13px;margin-top:12px;min-height:1.2em}
+  :root[data-theme="dark"] .err,:root:not([data-theme="light"]) .err{color:#ff8a7a}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--chip);padding:1px 5px;border-radius:5px}
+  .banner{background:#fff7e6;border:1px solid #f0d59a;color:#7a5b00;padding:10px 14px;border-radius:10px;margin:16px;font-size:13px}
+  :root[data-theme="dark"] .banner,:root:not([data-theme="light"]) .banner{background:#2a2410;border-color:#5a4a1a;color:#e6c766}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function () {
+  var app = document.getElementById('app');
+  var cfg = window.ANT_SUPABASE || {};
+  var sb = null, rt = null;
+
+  // ── STATUS COLUMNS ─────────────────────────────────────────────────────────
+  var COLS = [
+    { key: 'new',            label: 'New',            color: 'var(--new)' },
+    { key: 'scheduled',      label: 'Scheduled',      color: 'var(--scheduled)' },
+    { key: 'in_progress',    label: 'In progress',    color: 'var(--in_progress)' },
+    { key: 'awaiting_parts', label: 'Awaiting parts', color: 'var(--awaiting_parts)' },
+    { key: 'completed',      label: 'Completed',      color: 'var(--completed)' },
+  ];
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+  function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
+
+  // ── CONNECT GATE — no project wired yet ────────────────────────────────────
+  if (!cfg.url || !cfg.anonKey) {
+    app.innerHTML =
+      '<div class="gate"><h1>🐜 Connect your project</h1>' +
+      '<p>This is the Ant office board. Point it at your Supabase platform project to bring it alive.</p>' +
+      '<p>Fill <span class="mono">platform/config.js</span> with your project URL and the <b>anon public</b> key ' +
+      '(Supabase → Settings → API), then reload. The anon key is safe in the browser — Row-Level Security protects every shop\'s data.</p></div>';
+    return;
+  }
+
+  sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+
+  // ── SIGN-IN VIEW ───────────────────────────────────────────────────────────
+  function renderSignIn(msg) {
+    app.innerHTML =
+      '<div class="gate"><h1>🐜 Office board</h1><p>Sign in to your shop.</p>' +
+      '<label>Email</label><input id="em" type="email" autocomplete="username" placeholder="you@shop.com">' +
+      '<label>Password</label><input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">' +
+      '<button class="primary" id="go">Sign in</button>' +
+      '<div class="err" id="err">' + esc(msg || '') + '</div></div>';
+    var go = document.getElementById('go');
+    function submit() {
+      var em = document.getElementById('em').value.trim();
+      var pw = document.getElementById('pw').value;
+      if (!em || !pw) { document.getElementById('err').textContent = 'Enter your email and password.'; return; }
+      go.disabled = true; go.textContent = 'Signing in…';
+      sb.auth.signInWithPassword({ email: em, password: pw }).then(function (r) {
+        if (r.error) { renderSignIn(r.error.message); }
+        else { boot(); }
+      });
+    }
+    go.onclick = submit;
+    document.getElementById('pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+  }
+
+  // ── BOARD VIEW ─────────────────────────────────────────────────────────────
+  var shopName = '';
+  function renderShell() {
+    app.innerHTML =
+      '<header><span class="brand">🐜 Ant</span><span class="shop" id="shop">' + esc(shopName || '…') + '</span>' +
+      '<span class="sp"></span><button id="refresh">Refresh</button><button id="out">Sign out</button></header>' +
+      '<div class="wrap"><div class="board" id="board"></div></div>';
+    document.getElementById('out').onclick = function () { if (rt) { try { sb.removeChannel(rt); } catch (e) {} } sb.auth.signOut().then(renderSignIn); };
+    document.getElementById('refresh').onclick = loadBoard;
+  }
+
+  function renderBoard(jobs) {
+    var byStatus = {};
+    COLS.forEach(function (c) { byStatus[c.key] = []; });
+    var extraCols = {};
+    (jobs || []).forEach(function (j) {
+      if (byStatus[j.status]) byStatus[j.status].push(j);
+      else { (extraCols[j.status] = extraCols[j.status] || []).push(j); }
+    });
+    var cols = COLS.slice();
+    Object.keys(extraCols).forEach(function (k) { cols.push({ key: k, label: k.replace(/_/g, ' '), color: 'var(--canceled)' }); byStatus[k] = extraCols[k]; });
+
+    var html = cols.map(function (c) {
+      var list = byStatus[c.key] || [];
+      var cards = list.length ? list.map(function (j) {
+        var unit = j.unit && j.unit.label ? j.unit.label : '';
+        var tech = j.technician && j.technician.name ? j.technician.name : 'Unassigned';
+        return '<div class="card">' +
+          '<div class="name">' + esc(fullName(j.customer) || 'Customer') + '</div>' +
+          (unit ? '<div class="unit">' + esc(unit) + '</div>' : '') +
+          (j.problem ? '<div class="prob">' + esc(j.problem) + '</div>' : '') +
+          '<div class="foot"><span class="pill" style="background:' + c.color + '">' + esc(c.label) + '</span>' +
+          '<span class="tech">' + esc(tech) + '</span></div></div>';
+      }).join('') : '<div class="empty">Nothing here</div>';
+      return '<div class="col"><h3><span class="dot" style="background:' + c.color + '"></span>' + esc(c.label) +
+        '<span class="n">' + list.length + '</span></h3>' + cards + '</div>';
+    }).join('');
+    document.getElementById('board').innerHTML = html;
+  }
+
+  function loadBoard() {
+    // RLS scopes both queries to the logged-in user's company — we never pass company_id.
+    sb.from('job').select(
+      'id,status,problem,source,scheduled_day,created_at,' +
+      'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)'
+    ).order('created_at', { ascending: false }).then(function (r) {
+      if (r.error) { document.getElementById('board').innerHTML = '<div class="banner">Couldn\'t load the board: ' + esc(r.error.message) + '</div>'; return; }
+      renderBoard(r.data || []);
+    });
+  }
+
+  function subscribeRealtime() {
+    try {
+      rt = sb.channel('office-board')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'job' }, loadBoard)
+        .subscribe();
+    } catch (e) { /* realtime optional — Refresh still works */ }
+  }
+
+  function boot() {
+    renderShell();
+    // Company name (RLS returns only this shop's row via the company_self policy).
+    sb.from('company').select('name,trade').limit(1).then(function (r) {
+      if (!r.error && r.data && r.data[0]) { shopName = r.data[0].name; var el = document.getElementById('shop'); if (el) el.textContent = shopName; }
+    });
+    loadBoard();
+    subscribeRealtime();
+  }
+
+  // Resume an existing session, else sign-in.
+  sb.auth.getSession().then(function (r) {
+    if (r.data && r.data.session) boot(); else renderSignIn();
+  });
+})();
+</script>
+</body>
+</html>
