@@ -68,18 +68,21 @@ const SHOPS = {
     planPrice: 0,                       // what we charge him/mo (0 = free trial)
   },
 
-  // ── Jake — Next Gen, used car lot (work vans), Mt. Juliet TN. Dealership persona:
-  //    Ann = AFTER-HOURS sales lead catcher (dad answers live during open hours).
-  //    ⚠️ NEEDS Jake's cell + confirm exact lot name + open hours. Uncomment + fill.
+  // ── Jake Ihmeidan — NextGen Motors Inc., used car lot (work vans), Nashville/Antioch TN.
+  //    Dealership persona: Ann = AFTER-HOURS sales lead catcher (a person answers live during
+  //    open hours). PLATFORM TENANT IS STANDING (2026-08-25): company nextgen-motors (id
+  //    f2de80cc-7a2b-48bb-b4ae-13e2db23fd1e, trade=dealership), board seeded with a sample
+  //    vehicle-inquiry card. ⚠️ STILL NEEDS, to finish: Jake's EMAIL (login) + cell + open
+  //    hours + service area confirm, then uncomment + create his Ann.
   // 'jake': {
-  //   name: 'Next Gen',                 // confirm exact spoken name (Next Gen Auto / Motors?)
+  //   name: 'NextGen Motors',           // confirm exact spoken name
   //   type: 'dealership',
   //   ownerFirst: 'Jake',
   //   ownerCell: '+1FILL',              // where leads text (Jake's, or the lot's)
-  //   area: 'Mt. Juliet, Tennessee and the surrounding area',
-  //   hours: 'FILL_open_hours',         // when dad answers live (so Ann says when a person follows up)
-  //   about: 'Used car lot in Mt. Juliet specializing in work vans — cargo and passenger. We take trades and can help with financing.',
-  //   platformSlug: '', annNumber: '', annConnection: '', planPrice: 0,
+  //   area: 'Nashville and the surrounding area',
+  //   hours: 'FILL_open_hours',         // when a person answers live (so Ann says when someone follows up)
+  //   about: 'Used car lot specializing in work vans — cargo and passenger. We take trades and can help with financing.',
+  //   platformSlug: 'nextgen-motors', annNumber: '', annConnection: '', planPrice: 0,
   // },
 
   // ── Brandon Pack — Music City Aquatics (Nashville), reef/aquarium tank service.
