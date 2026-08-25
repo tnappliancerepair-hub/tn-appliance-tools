@@ -48,6 +48,41 @@ exports.handler = async function (event) {
     return json(200, { ok: true, tenants: out });
   }
 
+  // Stage a new trade (adds a trade_profile row so a shop of that trade can stand up).
+  // Harmless infra prep — creates no tenant, sends nothing. ?action=addtrade&trade=aquarium
+  if (q.action === 'addtrade') {
+    const TRADES = {
+      aquarium: {
+        trade: 'aquarium', label: 'Aquarium Service', unit_kind: 'tank', unit_label: 'Tank',
+        fields: [
+          { key: 'gallons', label: 'Gallons', required: false },
+          { key: 'water_type', label: 'Water type (fresh / salt / reef)', required: true },
+          { key: 'location', label: 'Location', required: false },
+          { key: 'livestock', label: 'Livestock', required: false },
+        ],
+        vocab: { problem_noun: 'issue', service_verb: 'service' },
+      },
+      furniture: {
+        trade: 'furniture', label: 'Furniture', unit_kind: 'order', unit_label: 'Order',
+        fields: [
+          { key: 'item', label: 'Item', required: true },
+          { key: 'custom', label: 'Custom specs', required: false },
+          { key: 'finish', label: 'Fabric / finish', required: false },
+          { key: 'manufacturer', label: 'Manufacturer', required: false },
+          { key: 'eta', label: 'Expected date', required: false },
+        ],
+        vocab: { problem_noun: 'order', service_verb: 'deliver' },
+      },
+    };
+    const t = TRADES[String(q.trade || '').toLowerCase()];
+    if (!t) return json(200, { ok: false, error: 'unknown trade; known: ' + Object.keys(TRADES).join(', ') });
+    const ex = await rest0(`trade_profile?trade=eq.${t.trade}&select=trade`);
+    if (Array.isArray(ex) && ex.length) return json(200, { ok: true, trade: t.trade, note: 'already staged' });
+    const ins = await fetch(`${url}/rest/v1/trade_profile`, { method: 'POST', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify(t), signal: AbortSignal.timeout(10000) });
+    const d = await ins.json().catch(() => ({}));
+    return json(200, { ok: ins.ok, status: ins.status, trade: t.trade, staged: ins.ok, error: ins.ok ? undefined : JSON.stringify(d).slice(0, 300) });
+  }
+
   const slug = String(q.slug || '').toLowerCase().trim();
   const name = (q.name || '').trim();
   if (!slug || !name) return json(200, { ok: false, error: 'slug and name required' });
