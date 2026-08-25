@@ -787,8 +787,13 @@
 # this is the BACKSTOP for OFFICE-marked completions; the tech's Complete tap fires the ask
 # inline (tech-complete.js) with zero lag. Forward-only + per-job dedup + 60-day per-customer
 # review dedup + per-run caps make repeated runs safe. Kill: JOB_COMPLETION_WATCH=false.
+# Cadence 2026-08-25: */2 -> 1-59/5 (every 5 min, offset :1). This was the single
+# highest-frequency PURE-XANO reader (30 runs/hr) and forward-only+deduped means a
+# 5-min cadence only delays an OFFICE-marked-complete review ask by <=3 min (the tech's
+# Complete tap already fires it inline with zero lag). Cuts its Xano hits ~60% to relieve
+# compute saturation (the recurring "board takes forever" root cause).
 [functions."job-completion-watch"]
-  schedule = "*/2 * * * *"
+  schedule = "1-59/5 * * * *"
 
 # phone-test-blast (Teddy 2026-08-14) - ONE-TIME 9am CT text test to everyone on Ann's real
 # path. Fires 14:00 UTC = 9:00am CDT; date-gated to 2026-08-14 + done-flag so it self-terminates
