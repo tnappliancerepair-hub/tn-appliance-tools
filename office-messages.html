@@ -163,6 +163,15 @@ let DISMISS={}; try{ DISMISS=JSON.parse(localStorage.getItem('tn_msg_dismissed')
 function isDismissed(c){ const d=DISMISS[c.key]; return d && c.last && c.last.ts<=d; }
 function dismissThread(ev,key,ts){ ev.stopPropagation(); ev.preventDefault(); DISMISS[key]=ts; try{localStorage.setItem('tn_msg_dismissed',JSON.stringify(DISMISS));}catch(_){}
   const el=document.getElementById('conv-'+key); if(el) el.style.display='none'; load(); }
+// OPTIMISTIC "I just replied here" memory (2026-08-25) — fixes Danielle's "texts I
+// already replied to keep popping back up". The needs-review flag is recomputed from
+// Xano's event_log, which LAGS under load, so a thread she just answered still looked
+// unanswered on the next 30s poll and jumped back to the red bucket. We stamp the
+// phone locally the instant a reply sends and honor it for 15 min, so her replies
+// stick immediately regardless of how slow the log is to catch up. Persisted to
+// localStorage so a page refresh doesn't lose it.
+const RECENTLY_REPLIED=(function(){try{return JSON.parse(localStorage.getItem('tn_recent_replies')||'{}')||{};}catch(_){return{};}})();
+function markReplied(phone){ const d=String(phone||'').replace(/\D/g,'').slice(-10); if(!d)return; RECENTLY_REPLIED[d]=Date.now(); try{localStorage.setItem('tn_recent_replies',JSON.stringify(RECENTLY_REPLIED));}catch(_){} }
 async function load(){
   document.getElementById('refresh').textContent='refreshing…';
   let rows=[];
@@ -214,7 +223,15 @@ async function load(){
   // WAITING-FIRST, then newest. The ones where the customer wrote last (need a
   // reply) float to the very top so Danielle never has to hunt for what's owed.
   // needsReview = the customer wrote and NO human has replied since (AI replies ignored).
-  Object.values(conv).forEach(c=>{ c.needsReview = (c.lastInTs||0)>0 && (c.lastInTs||0) > (c.lastHumanTs||0); });
+  Object.values(conv).forEach(c=>{
+    c.needsReview = (c.lastInTs||0)>0 && (c.lastInTs||0) > (c.lastHumanTs||0);
+    // If Danielle just replied to THIS number (within 15 min) at/after the customer's
+    // last message, it's handled NOW — don't let a lagging event_log re-pop it. A NEW
+    // inbound after her reply (lastInTs > reply stamp) correctly stays needs-review.
+    try{ const dd=String(c.phone||'').replace(/\D/g,'').slice(-10); const t=RECENTLY_REPLIED[dd];
+      if(t && t>=((c.lastInTs||0)-2000) && (Date.now()-t)<15*60000){ c.needsReview=false; if(t>(c.lastHumanTs||0))c.lastHumanTs=t; }
+    }catch(_){}
+  });
   const list=Object.values(conv).filter(c=>c.last).filter(c=>!isDismissed(c)).sort((a,b)=>{
     const aw=a.needsReview?1:0, bw=b.needsReview?1:0;
     if(aw!==bw) return bw-aw;            // needs-review first
@@ -396,7 +413,7 @@ async function startNew(phone,name){
   try{
     const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:eng.trim(),customer_text:''})});
     const d=await r.json();
-    if(d&&(d.success||d.sent)){ alert('✅ Sent to '+name); toggleCompose(); document.getElementById('custSearch').value=''; document.getElementById('custResults').innerHTML=''; load(); }
+    if(d&&(d.success||d.sent)){ markReplied(phone); alert('✅ Sent to '+name); toggleCompose(); document.getElementById('custSearch').value=''; document.getElementById('custResults').innerHTML=''; load(); }
     else alert('⚠ Could not send'+(d&&d.error?': '+d.error:' — check customer texting is on'));
   }catch(e){ alert('⚠ Send failed: '+e.message); }
 }
@@ -410,7 +427,7 @@ async function replyTo(phone){
   try{
     const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:eng.trim(),customer_text:LAST_TEXT[phone]||''})});
     const d=await r.json();
-    if(d&&d.ok){ alert('✅ Sent in '+(d.language||'their language')+':\n\n'+(d.translated||'')); load(); }
+    if(d&&d.ok){ markReplied(phone); alert('✅ Sent in '+(d.language||'their language')+':\n\n'+(d.translated||'')); load(); }
     else alert('⚠ Could not send'+(d&&d.error?': '+d.error:' — check customer texting is on'));
   }catch(_){ alert('⚠ Connection error — try again'); }
 }
@@ -428,7 +445,7 @@ async function sendStatus(phone){
   try{
     const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:msg,customer_text:LAST_TEXT[phone]||''})});
     const res=await r.json();
-    if(res&&(res.ok||res.success||res.sent)){ alert('✅ Status sent'); load(); }
+    if(res&&(res.ok||res.success||res.sent)){ markReplied(phone); alert('✅ Status sent'); load(); }
     else alert('⚠ Could not send'+(res&&res.error?': '+res.error:' — check customer texting is on'));
   }catch(e){ alert('⚠ Send failed: '+e.message); }
 }
@@ -471,7 +488,7 @@ async function sendNoCoverage(phone, jobId){
   try{
     const r=await fetch('/.netlify/functions/send-translated-reply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'+1'+phone,reply_english:msg,customer_text:LAST_TEXT[phone]||''})});
     const res=await r.json();
-    if(res&&(res.ok||res.success||res.sent)){ alert('✅ No-coverage note sent'); load(); }
+    if(res&&(res.ok||res.success||res.sent)){ markReplied(phone); alert('✅ No-coverage note sent'); load(); }
     else alert('⚠ Could not send'+(res&&res.error?': '+res.error:' — check customer texting is on'));
   }catch(e){ alert('⚠ Send failed: '+e.message); }
 }

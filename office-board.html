@@ -833,7 +833,12 @@ async function loadBoard(){
     try{ const r=await fetchT('/.netlify/functions/board-feed-fast',22000); if(r.ok) d=await r.json(); }catch(_){}
     if(!(d&&Array.isArray(d.items))){ try{ const r=await fetchT('/.netlify/functions/board-feed',22000); if(r.ok) d=await r.json(); }catch(_){} }
     if(!(d&&Array.isArray(d.items))){ try{ const r2=await fetchT(XANO+'/get_office_kanban',22000,{cache:'no-store'}); d=await r2.json(); }catch(_){ d=null; } }
-    await Promise.all([loadStages(),loadFlags(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap(),loadLeaveBy()]);
+    // PAINT-FIRST (2026-08-25): the job cards are already here from the feed — do NOT
+    // gate the board on the 9 Xano-hitting side-loads (stages/flags/holds/slots/etc.).
+    // Under Xano load those crawl, and awaiting Promise.all left the board BLANK until
+    // the slowest one finished (Danielle's "long load times"). The side-load maps are
+    // GLOBALS that persist from the last load, so we paint immediately with last-known
+    // badges, then re-render once fresh badges land. Cards are instant; badges hydrate.
     const _items=(d&&Array.isArray(d.items))?d.items:null;
     // Only overwrite the board if we got a real feed; a briefly-empty/failed read
     // must NEVER blank a board that already has jobs.
@@ -846,9 +851,12 @@ async function loadBoard(){
       if(window.__prevJobIds){ let fresh=0; ids.forEach(x=>{ if(!window.__prevJobIds.has(x)) fresh++; }); if(fresh>0 && window.AntMagic) AntMagic.owl(); }
       window.__prevJobIds=ids;
     }catch(_){}
-    renderBoard();
+    renderBoard();                    // <-- INSTANT paint from the feed; not gated on Xano side-loads
     try{ if(window.AntMagic)AntMagic.init(); }catch(_){}   // points badge + enchanted ceiling
     saveBoardCache();
+    // Hydrate badges/pins/flags AFTER the cards are on screen — best-effort, each is
+    // independent, and we re-render when they've all settled so a slow one can't block.
+    Promise.allSettled([loadStages(),loadFlags(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap(),loadLeaveBy()]).then(function(){ try{ stageReconcile(); renderBoard(); }catch(_){} });
     loadAddons();
     loadPaid();
     loadInvoices();
