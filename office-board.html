@@ -823,12 +823,15 @@ async function loadBoard(){
   const _cached=renderFromCache();
   if(!_cached) document.getElementById('board-host').innerHTML='<div class="loading"><div class="spinner"></div>Loading the board…</div>';
   try{
-    // Cached shared feed (board-feed): served from Netlify's edge so every office
-    // user hits ONE cached copy instead of each hammering the 9-24s Xano query —
-    // which is what was saturating Xano and timing out saves. Falls back to the
-    // direct feed if the proxy errors; keeps the current cache if a fetch is empty.
+    // FAST board feed (board-feed-fast): served from the Supabase board_mirror
+    // (~50-100ms), refreshed once/min by board-mirror-sync-cron. This decouples the
+    // board from Xano compute entirely — even when Xano saturates (the recurring
+    // "board takes forever"), the board loads instantly from Supabase. board-feed-fast
+    // itself falls back to the old board-feed (Xano-cached) if the mirror is empty/down,
+    // and we fall back to raw Xano below that — so this is never worse than before.
     let d=null;
-    try{ const r=await fetchT('/.netlify/functions/board-feed',22000); if(r.ok) d=await r.json(); }catch(_){}
+    try{ const r=await fetchT('/.netlify/functions/board-feed-fast',22000); if(r.ok) d=await r.json(); }catch(_){}
+    if(!(d&&Array.isArray(d.items))){ try{ const r=await fetchT('/.netlify/functions/board-feed',22000); if(r.ok) d=await r.json(); }catch(_){} }
     if(!(d&&Array.isArray(d.items))){ try{ const r2=await fetchT(XANO+'/get_office_kanban',22000,{cache:'no-store'}); d=await r2.json(); }catch(_){ d=null; } }
     await Promise.all([loadStages(),loadFlags(),loadOfficeNoteFlags(),loadSecondOpinions(),loadCancelRequests(),loadHoldMap(),loadSlotsMap(),loadMachineMap(),loadLeaveBy()]);
     const _items=(d&&Array.isArray(d.items))?d.items:null;
