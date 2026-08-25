@@ -84,8 +84,11 @@ const SHOPS = {
 
   // ── Brandon Pack — Music City Aquatics (Nashville), reef/aquarium tank service.
   //    Ant's best friend (the system is named after Ant). Aquarium trade is STAGED.
-  //    Personal setup — give him the FULL platform (Ann + board + portal). ⚠️ NEEDS
-  //    his cell + hours + service area + about block before go-live. Slug: music-city-aquatics.
+  //    Personal setup — the FULL platform (Ann + board + portal). PLATFORM TENANT IS
+  //    STANDING (2026-08-25): company music-city-aquatics (id 433cbf40-1678-41a6-b918-
+  //    187b4835429c), board seeded with a sample reef-maintenance card. ⚠️ STILL NEEDS,
+  //    to finish: Brandon's EMAIL (to mint his office-board login) + his cell + hours +
+  //    about block, then uncomment below + create his Ann. Strategy: docs/reef-service-moonshot.md.
   // 'music-city-aquatics': {
   //   name: 'Music City Aquatics', type: 'aquarium', ownerFirst: 'Brandon',
   //   ownerCell: '+1FILL', area: 'the Greater Nashville area', hours: 'FILL',
@@ -95,8 +98,10 @@ const SHOPS = {
 
   // ── Brandon Brewer — Mid Tenn Furniture (Nashville), furniture retail: delivers +
   //    custom orders. Furniture trade is STAGED (unit=order; board = order/delivery
-  //    pipeline; portal = "where's my order"). ⚠️ NEEDS cell + hours + delivery area +
-  //    about + custom-order/delivery flow. Slug: mid-tenn-furniture.
+  //    pipeline; portal = "where's my order"). PLATFORM TENANT IS STANDING (2026-08-25):
+  //    company mid-tenn-furniture (id f5cfe722-f67c-4068-bbbd-3233ec2fcd38), board seeded
+  //    with a sample custom-order card. ⚠️ STILL NEEDS, to finish: Brandon's EMAIL (login)
+  //    + cell + hours + delivery area + about + custom-order/delivery flow, then uncomment.
   // 'mid-tenn-furniture': {
   //   name: 'Mid Tenn Furniture', type: 'furniture', ownerFirst: 'Brandon',
   //   ownerCell: '+1FILL', area: 'the Greater Nashville area', hours: 'FILL',
