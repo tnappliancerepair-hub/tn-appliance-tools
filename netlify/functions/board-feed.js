@@ -23,8 +23,27 @@ exports.handler = async function () {
     const text = await r.text();
     // Only cache a genuinely good feed (200 + has items). Anything else is
     // returned non-cacheable so the edge keeps the last good copy.
-    let good = false;
-    if (r.ok) { try { const d = JSON.parse(text); good = Array.isArray(d.items) && d.items.length > 0; } catch (_) {} }
+    let good = false, body = text;
+    if (r.ok) {
+      try {
+        const d = JSON.parse(text);
+        good = Array.isArray(d.items) && d.items.length > 0;
+        if (good) {
+          // SLIM the payload: the board TILE (cardHtml) never renders these long
+          // essay fields — the drawer refetches full detail via get_job_for_dashboard
+          // on open. problem_summary alone is ~60% of the feed (~280KB across 800 jobs),
+          // so trimming it here roughly HALVES the download + client render with zero
+          // visible change. (2026-08-26 — fix for Danielle's "board takes forever".)
+          const cut = (s, n) => { s = (s == null ? '' : String(s)); return s.length > n ? s.slice(0, n) + '…' : s; };
+          for (const j of d.items) {
+            if (!j) continue;
+            if (j.problem_summary) j.problem_summary = cut(j.problem_summary, 120);
+            if (j.customer_preference_text) j.customer_preference_text = cut(j.customer_preference_text, 160);
+          }
+          body = JSON.stringify(d);
+        }
+      } catch (_) {}
+    }
     if (good) {
       return {
         statusCode: 200,
@@ -44,7 +63,7 @@ exports.handler = async function () {
           'Netlify-CDN-Cache-Control': 'public, durable, s-maxage=75, stale-while-revalidate=300',
           'Cache-Control': 'public, max-age=0, must-revalidate', // browser revalidates; edge serves the cache
         },
-        body: text,
+        body: body,
       };
     }
     return { statusCode: 502, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }, body: JSON.stringify({ ok: false, error: 'upstream_bad', status: r.status }) };
