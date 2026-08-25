@@ -109,6 +109,32 @@ async function recordEvent(row, { throwOnError = false } = {}) {
   }
 }
 
+// UPSERT rows on a conflict column (PostgREST merge-duplicates). Bulk-safe:
+//   upsert('board_mirror', rows, { onConflict: 'id' })
+// Chunks large arrays so a big office board (~800 jobs) never exceeds a single
+// request. Returns { ok, count }.
+async function upsert(table, rows, { onConflict = 'id', chunk = 500 } = {}) {
+  const c = await cfg();
+  if (!c.url || !c.key) throw new Error('supabase_not_configured');
+  const all = Array.isArray(rows) ? rows : [rows];
+  let count = 0;
+  for (let i = 0; i < all.length; i += chunk) {
+    const batch = all.slice(i, i + chunk);
+    const r = await fetch(`${c.url}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`, {
+      method: 'POST',
+      headers: headers(c, { Prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify(batch),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      throw new Error(`supabase upsert ${table} -> ${r.status}: ${t.slice(0, 200)}`);
+    }
+    count += batch.length;
+  }
+  return { ok: true, count };
+}
+
 // UPDATE rows matching PostgREST filters with a partial patch, e.g.
 //   update('v2_shadow_decisions', { job_id: 'eq.19971' }, { status: 'reconciled', tech_match: true })
 // Requires at least one filter (refuses an unfiltered update).
@@ -168,4 +194,4 @@ async function rpc(fn, args = {}) {
   return r.json();
 }
 
-module.exports = { cfg, isConnected, insert, select, update, del, recordEvent, rpc };
+module.exports = { cfg, isConnected, insert, upsert, select, update, del, recordEvent, rpc };
