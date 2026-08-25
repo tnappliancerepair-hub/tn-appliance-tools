@@ -73,6 +73,17 @@ exports.handler = async function (event) {
         ],
         vocab: { problem_noun: 'order', service_verb: 'deliver' },
       },
+      dealership: {
+        trade: 'dealership', label: 'Auto Sales', unit_kind: 'vehicle', unit_label: 'Vehicle',
+        fields: [
+          { key: 'interest', label: 'Vehicle of interest', required: true },
+          { key: 'trade_in', label: 'Trade-in', required: false },
+          { key: 'financing', label: 'Financing needed', required: false },
+          { key: 'budget', label: 'Budget', required: false },
+          { key: 'stock', label: 'Stock number', required: false },
+        ],
+        vocab: { problem_noun: 'inquiry', service_verb: 'sell' },
+      },
     };
     const t = TRADES[String(q.trade || '').toLowerCase()];
     if (!t) return json(200, { ok: false, error: 'unknown trade; known: ' + Object.keys(TRADES).join(', ') });
@@ -140,6 +151,7 @@ exports.handler = async function (event) {
       var sampleWhat = trade === 'automotive' ? 'Alignment + front brakes'
         : trade === 'aquarium' ? 'Reef tank — monthly maintenance'
         : trade === 'furniture' ? 'Custom sectional — special order'
+        : trade === 'dealership' ? 'Interested in a cargo van — has a trade-in'
         : 'Sample job';
       seeded = await createLeadJob({
         slug, name: 'Sample Lead (demo)', phone: '+16155551234',
