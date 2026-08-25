@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://classicautomotivetn.com/sitemap.xml
