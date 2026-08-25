@@ -181,7 +181,10 @@
 # the ahs_email_intake parser fix. Applies + texts the owner only when it heals something.
 # Daily 8:45am CT.
 [functions."ahs-address-backfill"]
-  schedule = "45 13 * * *"
+  # Every 2h during business hours (was once daily 8:45am CT) so a "1, City" address
+  # self-heals within ~2h instead of next-day. Now heals Frontdoor dispatches (body
+  # "Address:" line) too and writes the street onto the JOB, not just the customer.
+  schedule = "45 13-23/2 * * *"
 
 # Denorm sweep — keep the kanban fast by filling customer_first/last/phone on any NEW
 # job that hasn't been denormed yet (scheduled invocation runs mode=sweep). Every 30 min.

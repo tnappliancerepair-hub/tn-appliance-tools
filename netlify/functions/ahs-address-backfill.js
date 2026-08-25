@@ -61,6 +61,45 @@ function findXmlAtt(payload) {
   return null;
 }
 
+function b64(s) { try { return Buffer.from(String(s || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch (_) { return ''; } }
+// Flatten a Gmail message payload into plain text (Frontdoor dispatches carry the
+// address in the BODY, not an XML attachment).
+function getBodyText(payload) {
+  let out = '';
+  (function walk(p) {
+    if (!p) return;
+    const mt = (p.mimeType || '');
+    if (p.body && p.body.data) {
+      const txt = b64(p.body.data);
+      if (mt.includes('text/plain')) out += ' ' + txt;
+      else if (mt.includes('text/html')) out += ' ' + txt.replace(/<[^>]+>/g, ' ');
+    }
+    (p.parts || []).forEach(walk);
+  })(payload);
+  return out.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+}
+const esc = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// Parse the Frontdoor/AHS body "Address: <street> <city> <state> <zip>" line. We usually
+// already know the correct city/state/zip (only the STREET got dropped to "1"), so anchor
+// on the known city to cleanly isolate the street; fall back to a generic split otherwise.
+function parseBodyAddress(text, known) {
+  const t = String(text || '').replace(/\s+/g, ' ');
+  const city = (known && known.city) ? String(known.city).trim() : '';
+  let street = '', pcity = city, pstate = (known && known.state) || '', pzip = (known && known.zip) || '';
+  if (city) {
+    const m = t.match(new RegExp('Address:\\s*(.+?)\\s+' + esc(city) + '\\s+([A-Za-z]{2})\\s+(\\d{5})', 'i'));
+    if (m) { street = decode(m[1]).trim(); pstate = m[2].toUpperCase(); pzip = m[3]; }
+  }
+  if (!street) {
+    const m = t.match(/Address:\s*(\d+\s+.+?)\s+([A-Za-z][A-Za-z .'-]*?)\s+([A-Za-z]{2})\s+(\d{5})/i);
+    if (m) { street = decode(m[1]).trim(); pcity = decode(m[2]).trim(); pstate = m[3].toUpperCase(); pzip = m[4]; }
+  }
+  if (!street) return null;
+  // a real street has a NAME (letters after the house number), not a bare "1"
+  const nameOK = /[a-z]/i.test(street.replace(/^\d+\s*/, '')) && !/^\d+$/.test(street.trim());
+  return { street, city: pcity, state: pstate, zip: pzip, complete: nameOK };
+}
+
 exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
   // Scheduled (cron) invocations carry {next_run} in the body — they self-authorize and
@@ -97,18 +136,27 @@ exports.handler = async function (event) {
   for (const f of batch) {
     const rec = { job_id: f.id, name: f.name, claim: f.claim_number, current: [f.street, f.city, f.state, f.zip].filter(Boolean).join(', ') || '(blank)' };
     try {
-      const list = await gmail.users.messages.list({ userId: 'me', q: `${f.claim_number} has:attachment`, maxResults: 3 });
+      // Search WITHOUT has:attachment so Frontdoor dispatches (address in the body,
+      // no XML attachment) are found too — that class was silently un-healable before.
+      const list = await gmail.users.messages.list({ userId: 'me', q: `${f.claim_number}`, maxResults: 5 });
       const msgs = (list.data.messages) || [];
       let parsed = null;
       for (const { id } of msgs) {
         const mm = await gmail.users.messages.get({ userId: 'me', id, format: 'full' });
+        // (a) classic AHS XML attachment
         const att = findXmlAtt(mm.data.payload);
-        if (!att) continue;
-        const a = await gmail.users.messages.attachments.get({ userId: 'me', messageId: id, id: att });
-        const xml = Buffer.from(a.data.data, 'base64url').toString('utf8');
-        const p = parseDispatchAddress(xml);
-        if (p && p.complete) { parsed = p; break; }
-        if (p && !parsed) parsed = p; // keep an incomplete one as fallback signal
+        if (att) {
+          const a = await gmail.users.messages.attachments.get({ userId: 'me', messageId: id, id: att });
+          const xml = Buffer.from(a.data.data, 'base64url').toString('utf8');
+          const p = parseDispatchAddress(xml);
+          if (p && p.complete) { parsed = p; break; }
+          if (p && !parsed) parsed = p;
+          continue;
+        }
+        // (b) Frontdoor body "Address:" line (no attachment)
+        const pb = parseBodyAddress(getBodyText(mm.data.payload), { city: f.city, state: f.state, zip: f.zip });
+        if (pb && pb.complete) { parsed = pb; break; }
+        if (pb && !parsed) parsed = pb;
       }
       if (!parsed) { rec.status = 'no_dispatch_found'; results.push(rec); continue; }
       rec.proposed = [parsed.street, parsed.city, parsed.state, parsed.zip].filter(Boolean).join(', ');
@@ -120,12 +168,15 @@ exports.handler = async function (event) {
         if (parsed.state) custPatch.state = parsed.state;
         if (parsed.zip) custPatch.zip = parsed.zip;
         if (f.customer_id) await crud.update(CUSTOMER, f.customer_id, custPatch);
-        // keep the job's denormalized service_* in sync so the board reflects it
-        const jobPatch = {};
+        // keep the job's denormalized service_* in sync so the board reflects it.
+        // CRITICAL: service_ADDRESS (the street) must be written too — the job file
+        // displays the JOB's street, so without this the drawer kept showing the old
+        // "1" even after a "FIXED" run (the real cause of "addresses messing up again").
+        const jobPatch = { service_address: parsed.street };
         if (parsed.city) jobPatch.service_city = parsed.city;
         if (parsed.state) jobPatch.service_state = parsed.state;
         if (parsed.zip) jobPatch.service_zip = parsed.zip;
-        if (Object.keys(jobPatch).length) await crud.update(JOBS, f.id, jobPatch);
+        await crud.update(JOBS, f.id, jobPatch);
         await crud.logEvent('ahs_address_backfill', { job_id: f.id, customer_id: f.customer_id, from: rec.current, to: rec.proposed, claim: f.claim_number });
         rec.status = 'FIXED';
       } else {
