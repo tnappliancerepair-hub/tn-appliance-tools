@@ -1068,7 +1068,11 @@ function __initCalendar() {
   // ── Data load ──────────────────────────────────────────────────
   async function loadWeek() {
     loading.style.display = 'block';
-    content.innerHTML = '';
+    // Do NOT blank the grid while the (heavy, 12-18s) Xano feed loads — that's what
+    // made the schedule "not come up" for up to ~105s under load. Keep the current
+    // grid on screen with the spinner over it; render(data) swaps it when fresh data
+    // arrives. Only the true cold first-load shows an empty grid (nothing to keep).
+    // (2026-08-25)
 
     let url = `${XANO_BASE}/get_office_calendar_week`;
     if (currentWeekStart) url += `?week_start=${encodeURIComponent(currentWeekStart)}`;
