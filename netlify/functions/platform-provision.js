@@ -137,9 +137,13 @@ exports.handler = async function (event) {
   let seeded = null;
   if (q.seed === '1') {
     try {
+      var sampleWhat = trade === 'automotive' ? 'Alignment + front brakes'
+        : trade === 'aquarium' ? 'Reef tank — monthly maintenance'
+        : trade === 'furniture' ? 'Custom sectional — special order'
+        : 'Sample job';
       seeded = await createLeadJob({
         slug, name: 'Sample Lead (demo)', phone: '+16155551234',
-        what: trade === 'automotive' ? 'Alignment + front brakes' : 'Sample job',
+        what: sampleWhat,
         detail: 'This is a sample card so you can see the board. Delete it anytime.',
         city: q.area || '', source: 'provision_seed',
       });
