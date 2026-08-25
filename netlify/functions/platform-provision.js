@@ -33,6 +33,21 @@ exports.handler = async function (event) {
     return { ok: r.ok, status: r.status, d };
   };
 
+  const rest0 = async (path) => { const r = await fetch(`${url}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(10000) }); return r.ok ? r.json().catch(() => []) : []; };
+
+  // Diagnostic: list every tenant + its owner login, to confirm isolation.
+  if (q.action === 'tenants') {
+    const companies = await rest0('company?select=id,slug,name,trade,plan,created_at&order=created_at.asc');
+    const users = await rest0('app_user?select=company_id,role,email,active&order=created_at.asc');
+    const byCo = {};
+    (Array.isArray(users) ? users : []).forEach((u) => { (byCo[u.company_id] = byCo[u.company_id] || []).push({ email: u.email, role: u.role, active: u.active }); });
+    const jc = await rest0('job?select=company_id');
+    const jobCount = {};
+    (Array.isArray(jc) ? jc : []).forEach((j) => { jobCount[j.company_id] = (jobCount[j.company_id] || 0) + 1; });
+    const out = (Array.isArray(companies) ? companies : []).map((c) => ({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, jobs: jobCount[c.id] || 0, logins: byCo[c.id] || [] }));
+    return json(200, { ok: true, tenants: out });
+  }
+
   const slug = String(q.slug || '').toLowerCase().trim();
   const name = (q.name || '').trim();
   if (!slug || !name) return json(200, { ok: false, error: 'slug and name required' });
