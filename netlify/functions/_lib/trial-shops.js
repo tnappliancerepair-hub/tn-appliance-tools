@@ -81,6 +81,28 @@ const SHOPS = {
   //   about: 'Used car lot in Mt. Juliet specializing in work vans — cargo and passenger. We take trades and can help with financing.',
   //   platformSlug: '', annNumber: '', annConnection: '', planPrice: 0,
   // },
+
+  // ── Brandon Pack — Music City Aquatics (Nashville), reef/aquarium tank service.
+  //    Ant's best friend (the system is named after Ant). Aquarium trade is STAGED.
+  //    Personal setup — give him the FULL platform (Ann + board + portal). ⚠️ NEEDS
+  //    his cell + hours + service area + about block before go-live. Slug: music-city-aquatics.
+  // 'music-city-aquatics': {
+  //   name: 'Music City Aquatics', type: 'aquarium', ownerFirst: 'Brandon',
+  //   ownerCell: '+1FILL', area: 'the Greater Nashville area', hours: 'FILL',
+  //   about: 'FILL — tank setups / maintenance routes / emergency service / water testing; fresh, salt, reef; rough pricing OK to share.',
+  //   platformSlug: 'music-city-aquatics', annNumber: '', annConnection: '', planPrice: 0,
+  // },
+
+  // ── Brandon Brewer — Mid Tenn Furniture (Nashville), furniture retail: delivers +
+  //    custom orders. Furniture trade is STAGED (unit=order; board = order/delivery
+  //    pipeline; portal = "where's my order"). ⚠️ NEEDS cell + hours + delivery area +
+  //    about + custom-order/delivery flow. Slug: mid-tenn-furniture.
+  // 'mid-tenn-furniture': {
+  //   name: 'Mid Tenn Furniture', type: 'furniture', ownerFirst: 'Brandon',
+  //   ownerCell: '+1FILL', area: 'the Greater Nashville area', hours: 'FILL',
+  //   about: 'FILL — delivery (cost/area), custom orders (lead time), financing/layaway, haul-away/trades, styles carried.',
+  //   platformSlug: 'mid-tenn-furniture', annNumber: '', annConnection: '', planPrice: 0,
+  // },
 };
 
 function get(slug) {
