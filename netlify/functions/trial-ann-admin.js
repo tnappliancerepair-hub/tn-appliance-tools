@@ -175,10 +175,45 @@ exports.handler = async function (event) {
     if (action === 'get') return json(200, await call('GET', `/ai/assistants/${q.id}`));
     if (action === 'delete') return json(200, await call('DELETE', `/ai/assistants/${q.id}`));
 
+    // add_shop — register a NEW shop's config in the data-driven store (Supabase),
+    // so a shop can be stood up on a call with NO code edit + deploy. Idempotent by slug
+    // (re-send to update fields). Only the params you pass are written (merged over any
+    // existing config), so you can add the `about` later without wiping the rest.
+    if (action === 'add_shop') {
+      const slug = String(q.slug || '').toLowerCase().trim();
+      if (!slug) return json(200, { ok: false, error: 'need ?slug=' });
+      // required on first create; a later add_shop can omit them (merge keeps them)
+      const patch = {};
+      const map = {
+        name: 'name', type: 'type', owner_first: 'ownerFirst', owner_cell: 'ownerCell',
+        area: 'area', hours: 'hours', about: 'about', email: 'email',
+        auto_scope: 'autoScope', greeting: 'greeting', platform_slug: 'platformSlug',
+        ann_number: 'annNumber',
+      };
+      for (const k of Object.keys(map)) { if (q[k] != null && q[k] !== '') patch[map[k]] = String(q[k]); }
+      if (patch.ownerCell) { const d = patch.ownerCell.replace(/[^\d+]/g, ''); patch.ownerCell = d.startsWith('+') ? d : (d.length === 10 ? '+1' + d : (d.length === 11 && d[0] === '1' ? '+' + d : d)); }
+      if (q.plan_price != null && q.plan_price !== '') patch.planPrice = Number(q.plan_price) || 0;
+      // sanity: a brand-new shop needs at least name + a valid owner cell
+      let existing = null; try { existing = await shops.getAsync(slug); } catch (_) {}
+      if (!existing && (!patch.name || !patch.ownerCell)) {
+        return json(200, { ok: false, error: 'a new shop needs at least &name= and &owner_cell=' });
+      }
+      if (existing && existing._source === 'file') {
+        return json(200, { ok: false, error: 'slug "' + slug + '" is a curated file shop — edit it in _lib/trial-shops.js, not the store' });
+      }
+      try {
+        const saved = await shops.putStore(slug, patch);
+        return json(200, { ok: true, slug, shop: saved, next: `trial-ann-admin?action=create&shop=${slug}&secret=… -> then &action=bind&id=<assistant_id>&number=+1…` });
+      } catch (e) { return json(200, { ok: false, error: 'store write failed: ' + String((e && e.message) || e) }); }
+    }
+
+    // list store-backed shops (curated file shops aren't listed here)
+    if (action === 'shops') return json(200, { ok: true, shops: await shops.listStore() });
+
     if (action === 'create' || action === 'update') {
-      const shop = shops.get(q.shop);
-      if (!shop) return json(200, { ok: false, error: 'unknown shop: ' + (q.shop || '') + ' — add it to _lib/trial-shops.js first' });
-      if (!shop.name || !shop.ownerCell) return json(200, { ok: false, error: 'shop needs at least name + ownerCell in trial-shops.js' });
+      const shop = await shops.getAsync(q.shop);
+      if (!shop) return json(200, { ok: false, error: 'unknown shop: ' + (q.shop || '') + ' — add it first via ?action=add_shop (or _lib/trial-shops.js)' });
+      if (!shop.name || !shop.ownerCell) return json(200, { ok: false, error: 'shop needs at least name + ownerCell (set via add_shop)' });
       shop.slug = String(q.shop).toLowerCase().trim();
       const toolKey = q.tool_key || (await getSecret('TELNYX_TOOL_SECRET')) || '';
       if (action === 'update') {
@@ -188,6 +223,9 @@ exports.handler = async function (event) {
       }
       const res = await call('POST', '/ai/assistants', assistantBody(shop, toolKey));
       const id = res.data && (res.data.id || (res.data.data && res.data.data.id));
+      // Persist the assistant_id back to the store so it survives without a code edit
+      // (curated file shops are hand-maintained, so only store-backed shops get written).
+      if (id && shop._source === 'store') { try { await shops.putStore(shop.slug, { assistantId: id }); } catch (_) {} }
       return json(200, { ok: res.ok, status: res.status, shop: shop.name, type: shop.type, assistant_id: id || null, response: res.data });
     }
 
@@ -204,10 +242,12 @@ exports.handler = async function (event) {
       const rec = pn.data && pn.data.data && pn.data.data[0];
       if (!rec) return json(200, { ok: false, error: 'number not found on Telnyx (still provisioning?)' });
       const up = await call('PATCH', `/phone_numbers/${rec.id}`, { connection_id: conn });
+      // If a store-backed shop slug was passed, remember its Ann number (best-effort).
+      if (up.ok && q.shop) { try { const s = await shops.getAsync(q.shop); if (s && s._source === 'store') await shops.putStore(q.shop, { annNumber: number }); } catch (_) {} }
       return json(200, { ok: up.ok, bound: up.ok ? number : null, points_to: conn, status: up.status, error: up.ok ? undefined : JSON.stringify((up.data && up.data.errors) || up.data).slice(0, 300) });
     }
 
-    return json(200, { ok: false, error: 'unknown action', actions: ['create', 'update', 'bind', 'get', 'delete', 'list'] });
+    return json(200, { ok: false, error: 'unknown action', actions: ['add_shop', 'shops', 'create', 'update', 'bind', 'get', 'delete', 'list'] });
   } catch (e) {
     return json(200, { ok: false, error: String((e && e.message) || e) });
   }
