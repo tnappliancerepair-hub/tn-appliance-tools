@@ -1,8 +1,0 @@
-# Cloudflare Workers static-assets deploy for Andre's 4U Repair & Services site.
-# Serves the sites/4u-appliance-repair/ folder as a static site (no Worker code).
-# `npx wrangler deploy` reads this and uploads that folder.
-name = "applianceman504"
-compatibility_date = "2025-01-01"
-
-[assets]
-directory = "sites/4u-appliance-repair"
