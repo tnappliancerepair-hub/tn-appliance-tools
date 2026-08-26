@@ -38,7 +38,7 @@ h1,h2,h3,h4,.disp{font-family:"Anton","Inter",sans-serif;font-weight:400;letter-
 header{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .hrow{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
 .brand{display:flex;align-items:center;gap:11px;font-family:"Anton",sans-serif;font-size:21px;letter-spacing:.02em;text-transform:uppercase;text-decoration:none}
-.brand .mk{width:34px;height:34px;border-radius:9px;background:var(--brass);color:#1c1403;display:grid;place-items:center;font-size:19px}
+.brand .mk{width:40px;height:40px;border-radius:9px;display:block;flex:0 0 auto}
 .brand small{display:block;font-family:"Space Mono",monospace;font-size:9.5px;letter-spacing:.12em;color:var(--muted);font-weight:400;margin-top:-1px;text-transform:none}
 .hcall{display:inline-flex;align-items:center;gap:8px;background:var(--brass);color:#1c1403;text-decoration:none;font-weight:700;padding:10px 18px;border-radius:9px;font-size:15px}
 @media(max-width:560px){.hcall span.lbl{display:none}}
@@ -114,7 +114,7 @@ const FAVICON = `<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://ww
 
 function header(base) {
   return `<header><div class="wrap hrow">
-  <a class="brand" href="${base || './'}"><span class="mk">🐜</span><span>${NAME_H}<small>New Orleans Appliance Repair</small></span></a>
+  <a class="brand" href="${base || './'}"><img class="mk" src="${base}logo-emblem.svg" alt="${NAME} logo" width="40" height="40"><span>${NAME_H}<small>New Orleans Appliance Repair</small></span></a>
   <a class="hcall" href="tel:${PHONE_TEL}">📞 <span class="lbl">Call&nbsp;</span>${PHONE}</a>
 </div></header>`;
 }
@@ -129,7 +129,7 @@ function footer(base, cityLinks) {
   return `<footer><div class="wrap">
   <div class="frow">
     <div>
-      <div class="fb">🐜 ${NAME_H}</div>
+      <div class="fb"><img src="${base}logo-emblem.svg" alt="" width="26" height="26" style="vertical-align:-6px;border-radius:6px"> ${NAME_H}</div>
       <p style="margin:8px 0 0">Family-run appliance repair<br>Greater New Orleans, Louisiana · named for Ant</p>
       <p style="margin:10px 0 0"><a href="tel:${PHONE_TEL}"><strong style="color:var(--hero-ink)">📞 ${PHONE}</strong></a></p>
     </div>
@@ -155,7 +155,7 @@ function page({ title, desc, canon, extraHead = '', body, cityLinks, base = '' }
 <meta property="og:description" content="${enc(desc)}">
 <meta property="og:url" content="${DOMAIN}/${canon}">
 <meta name="twitter:card" content="summary_large_image">
-${FAVICON}
+<link rel="icon" type="image/svg+xml" href="${base}logo-emblem.svg">
 <title>${enc(title)}</title>
 <meta name="description" content="${enc(desc)}">
 ${HEAD_FONTS}
