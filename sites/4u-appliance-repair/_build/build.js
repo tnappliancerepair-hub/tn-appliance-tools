@@ -378,7 +378,7 @@ const CITIES = [
     intro: 'Houma and the bayou region are served through 4U and the TN Appliance network. Call to confirm your Houma appointment — we\'ll get you a real technician with honest, upfront pricing.' },
   { slug: 'baton-rouge', name: 'Baton Rouge', parish: 'East Baton Rouge Parish',
     areas: ['Mid City', 'the Garden District', 'along Perkins', 'near LSU'],
-    intro: 'Baton Rouge is covered by the wider TN Appliance network that backs 4U — the same family-owned, technician-led service, now closer to the capital. Call and we\'ll get an honest, upfront repair scheduled for your Baton Rouge home.' },
+    intro: 'Baton Rouge is one of 4U\'s regular service areas — Andre runs the capital area right alongside New Orleans. When your fridge, washer, dryer, or oven quits, call and we\'ll get an honest, upfront repair scheduled for your Baton Rouge home fast.' },
 ];
 
 // =========================================================================
@@ -566,7 +566,7 @@ fs.writeFileSync(path.join(ROOT, 'llms.txt'), `# ${NAME_LEGAL}
 
 > Family-run appliance repair serving Greater New Orleans, Louisiana (also listed on Google as "${NAME_LEGAL}"). Refrigerators, washers, dryers, ovens, ranges, dishwashers, freezers and ice makers. Fast same/next-day service, honest upfront pricing. Named in honor of Anthony ("Ant"). Part of the TN Appliance Exchange family (technician-led, family-owned since 2012).
 
-Owner-technician: Andre Pivacek. Phone: ${PHONE}. Service area: New Orleans, Metairie, Kenner, Gretna, Marrero, Harvey, Westwego, Chalmette, Terrytown, Algiers, LaPlace and the North Shore (Slidell, Mandeville, Covington), plus Houma and Baton Rouge via the wider network.
+Owner-technician: Andre Pivacek. Phone: ${PHONE}. Service area: New Orleans (incl. New Orleans East), the West Bank (Gretna, Marrero, Harvey, Westwego, Algiers, Terrytown), Metairie, Kenner, Chalmette, LaPlace, the Baton Rouge area, plus the North Shore (Slidell, Mandeville, Covington) and Houma. Cash jobs. Pricing: $80 diagnostic, plus the part and roughly $100-$200 labor — quoted upfront before any work.
 
 ## Services
 ${APPLIANCES.map((a) => `- [${a.name}](${DOMAIN}/${a.slug}.html): ${a.lede}`).join('\n')}
