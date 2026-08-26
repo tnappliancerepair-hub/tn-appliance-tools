@@ -2,13 +2,13 @@
 // Produces appliance service hubs, /fix/ symptom authority pages, and New
 // Orleans-metro city pages from structured data, plus sitemap/robots/llms.
 // All internal links are RELATIVE so the whole site is portable from
-// tnapplianceexchange.net/sites/4u-appliance-repair/ to 4urepairs.com.
+// tnapplianceexchange.net/sites/4u-appliance-repair/ to applianceman504.com.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const DOMAIN = 'https://4urepairs.com';
+const DOMAIN = 'https://applianceman504.com';
 // Official name matches Andre's Google Business Profile + Facebook exactly
 // (NAP consistency = a top local-SEO signal). "Appliance Repair" stays as the
 // keyword descriptor in titles/taglines.
