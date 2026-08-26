@@ -2,13 +2,19 @@
 // Produces appliance service hubs, /fix/ symptom authority pages, and New
 // Orleans-metro city pages from structured data, plus sitemap/robots/llms.
 // All internal links are RELATIVE so the whole site is portable from
-// tnapplianceexchange.net/sites/4u-appliance-repair/ to 4uappliancerepair.com.
+// tnapplianceexchange.net/sites/4u-appliance-repair/ to 4urepairs.com.
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const DOMAIN = 'https://4uappliancerepair.com';
+const DOMAIN = 'https://4urepairs.com';
+// Official name matches Andre's Google Business Profile + Facebook exactly
+// (NAP consistency = a top local-SEO signal). "Appliance Repair" stays as the
+// keyword descriptor in titles/taglines.
+const NAME = '4U Repair & Services';         // plain — for JSON / enc()'d strings
+const NAME_H = '4U Repair &amp; Services';   // for raw HTML template literals
+const NAME_LEGAL = '4U Repair & Services LLC';
 const PHONE_TEL = '+15049099413';
 const PHONE = '(504) 909-9413';
 const TN = 'https://tnapplianceexchange.net';
@@ -108,7 +114,7 @@ const FAVICON = `<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://ww
 
 function header(base) {
   return `<header><div class="wrap hrow">
-  <a class="brand" href="${base || './'}"><span class="mk">🐜</span><span>4U Appliance Repair<small>New Orleans, LA · named for Ant</small></span></a>
+  <a class="brand" href="${base || './'}"><span class="mk">🐜</span><span>${NAME_H}<small>New Orleans Appliance Repair</small></span></a>
   <a class="hcall" href="tel:${PHONE_TEL}">📞 <span class="lbl">Call&nbsp;</span>${PHONE}</a>
 </div></header>`;
 }
@@ -123,7 +129,7 @@ function footer(base, cityLinks) {
   return `<footer><div class="wrap">
   <div class="frow">
     <div>
-      <div class="fb">🐜 4U Appliance Repair</div>
+      <div class="fb">🐜 ${NAME_H}</div>
       <p style="margin:8px 0 0">Family-run appliance repair<br>Greater New Orleans, Louisiana · named for Ant</p>
       <p style="margin:10px 0 0"><a href="tel:${PHONE_TEL}"><strong style="color:var(--hero-ink)">📞 ${PHONE}</strong></a></p>
     </div>
@@ -132,7 +138,7 @@ function footer(base, cityLinks) {
     </div>
   </div>
   <p class="network">Part of the <strong>TN Appliance Exchange</strong> family — a family-owned, technician-led repair network serving Louisiana &amp; Middle Tennessee since 2012. Need service in Tennessee? Visit <a href="${TN}">tnapplianceexchange.net</a>.</p>
-  <p class="disc">4U Appliance Repair · New Orleans, LA · Refrigerators · Washers · Dryers · Ovens · Dishwashers · Fast, honest, done right — for you.</p>
+  <p class="disc">${NAME_LEGAL.replace('&', '&amp;')} · New Orleans, LA · Refrigerators · Washers · Dryers · Ovens · Dishwashers · Fast, honest, done right — for you.</p>
 </div></footer>`;
 }
 
@@ -167,7 +173,7 @@ ${footer(base, cityLinks)}
 const ctaBand = (h, p) => `<section class="band"><div class="wrap">
   <h2>${h}</h2><p>${p}</p>
   <a class="phone" href="tel:${PHONE_TEL}">${PHONE}</a>
-  <a class="btn" href="tel:${PHONE_TEL}">📞 Call 4U Appliance Repair</a>
+  <a class="btn" href="tel:${PHONE_TEL}">📞 Call ${NAME_H}</a>
 </div></section>`;
 
 const faqSection = (items) => `<section class="faq"><div class="wrap">
@@ -389,7 +395,7 @@ function renderAppliance(a) {
     { q: 'Do you charge a service fee?', a: 'There\'s a service-call fee to come out and diagnose it, and it goes toward your repair when you have us do the fix. Andre goes over the price before any work starts.' },
     { q: `Is it worth repairing instead of replacing?`, a: 'Usually yes if the unit isn\'t too old — most repairs cost a fraction of a new appliance. Andre will tell you straight if yours isn\'t worth fixing.' },
   ];
-  const schema = jsonld({ '@context': 'https://schema.org', '@type': 'Service', serviceType: a.name, provider: { '@type': 'LocalBusiness', name: '4U Appliance Repair', telephone: PHONE_TEL, url: DOMAIN, areaServed: 'New Orleans, LA' }, areaServed: CITIES.slice(0, 12).map((c) => ({ '@type': 'City', name: c.name })), description: a.lede });
+  const schema = jsonld({ '@context': 'https://schema.org', '@type': 'Service', serviceType: a.name, provider: { '@type': 'LocalBusiness', name: NAME_LEGAL, telephone: PHONE_TEL, url: DOMAIN, areaServed: 'New Orleans, LA' }, areaServed: CITIES.slice(0, 12).map((c) => ({ '@type': 'City', name: c.name })), description: a.lede });
   const body = `
 <div class="hero"><div class="wrap">
   <p class="crumb"><a href="./">Home</a> › ${enc(a.short)}</p>
@@ -426,7 +432,7 @@ ${relFix.length ? `<section><div class="wrap">
 
 ${faqSection(faq)}
 ${ctaBand(`${enc(a.short)} you can trust`, `Tell Andre what it's doing — he calls you right back with honest, upfront pricing.`)}`;
-  return { file: `${a.slug}.html`, html: page({ title: `${a.name} in New Orleans | 4U Appliance Repair`, desc: `${a.lede} Call 4U — ${PHONE}. Same-day & next-day service across New Orleans & the West Bank.`, canon: `${a.slug}.html`, extraHead: schema + '\n' + faqSchema(faq), body }) };
+  return { file: `${a.slug}.html`, html: page({ title: `${a.name} in New Orleans | ${NAME}`, desc: `${a.lede} Call 4U — ${PHONE}. Same-day & next-day service across New Orleans & the West Bank.`, canon: `${a.slug}.html`, extraHead: schema + '\n' + faqSchema(faq), body }) };
 }
 
 function renderFix(f) {
@@ -464,7 +470,7 @@ function renderFix(f) {
 
 ${faqSection(f.faq)}
 ${ctaBand(`Still stuck? 4U's got you.`, `Andre diagnoses it right and quotes you upfront — no pressure, no mystery fees.`)}`;
-  return { file: `fix/${f.slug}.html`, html: page({ base: '../', title: `${f.title} | 4U Appliance Repair New Orleans`, desc: `${f.lede} 4U Appliance Repair — call ${PHONE} for fast, honest service in New Orleans & the West Bank.`, canon: `fix/${f.slug}.html`, extraHead: howto + '\n' + faqSchema(f.faq), body }) };
+  return { file: `fix/${f.slug}.html`, html: page({ base: '../', title: `${f.title} | ${NAME} · New Orleans`, desc: `${f.lede} ${NAME} — call ${PHONE} for fast, honest service in New Orleans & the West Bank.`, canon: `fix/${f.slug}.html`, extraHead: howto + '\n' + faqSchema(f.faq), body }) };
 }
 
 function renderCity(c) {
@@ -474,7 +480,7 @@ function renderCity(c) {
     { q: 'What appliances do you fix?', a: 'Refrigerators, freezers, ice makers, washers, dryers, ovens, ranges, cooktops, dishwashers, disposals and microwaves — all major brands.' },
     { q: 'Do you charge to come out?', a: 'There\'s a service-call fee to diagnose it, and it goes toward your repair. Andre goes over the exact price before any work starts — no surprises.' },
   ];
-  const schema = jsonld({ '@context': 'https://schema.org', '@type': 'ApplianceRepair', name: `4U Appliance Repair — ${c.name}`, telephone: PHONE_TEL, url: `${DOMAIN}/${c.slug}.html`, areaServed: { '@type': 'City', name: c.name, containedInPlace: { '@type': 'State', name: 'Louisiana' } }, address: { '@type': 'PostalAddress', addressLocality: c.name, addressRegion: 'LA', addressCountry: 'US' }, priceRange: '$$' });
+  const schema = jsonld({ '@context': 'https://schema.org', '@type': 'ApplianceRepair', name: `${NAME_LEGAL} — ${c.name}`, telephone: PHONE_TEL, url: `${DOMAIN}/${c.slug}.html`, areaServed: { '@type': 'City', name: c.name, containedInPlace: { '@type': 'State', name: 'Louisiana' } }, address: { '@type': 'PostalAddress', addressLocality: c.name, addressRegion: 'LA', addressCountry: 'US' }, priceRange: '$$' });
   const body = `
 <div class="hero"><div class="wrap">
   <p class="crumb"><a href="./">Home</a> › ${enc(c.name)}</p>
@@ -512,7 +518,7 @@ function renderCity(c) {
 
 ${faqSection(faq)}
 ${ctaBand(`${enc(c.name)} appliance repair — done right`, `Tell Andre what's broken — he calls you right back with honest, upfront pricing.`)}`;
-  return { file: `${c.slug}.html`, html: page({ title: `Appliance Repair in ${c.name}, LA | 4U Appliance Repair`, desc: `Fast, honest appliance repair in ${c.name} (${c.parish}). Fridge, washer, dryer, oven & dishwasher repair — all brands. Call 4U at ${PHONE}.`, canon: `${c.slug}.html`, extraHead: schema + '\n' + faqSchema(faq), body }) };
+  return { file: `${c.slug}.html`, html: page({ title: `Appliance Repair in ${c.name}, LA | ${NAME}`, desc: `Fast, honest appliance repair in ${c.name} (${c.parish}). Fridge, washer, dryer, oven & dishwasher repair — all brands. Call 4U at ${PHONE}.`, canon: `${c.slug}.html`, extraHead: schema + '\n' + faqSchema(faq), body }) };
 }
 
 // =========================================================================
@@ -556,9 +562,9 @@ Sitemap: ${DOMAIN}/sitemap.xml
 `);
 
 // llms.txt
-fs.writeFileSync(path.join(ROOT, 'llms.txt'), `# 4U Appliance Repair
+fs.writeFileSync(path.join(ROOT, 'llms.txt'), `# ${NAME_LEGAL}
 
-> Family-run appliance repair serving Greater New Orleans, Louisiana. Refrigerators, washers, dryers, ovens, ranges, dishwashers, freezers and ice makers. Fast same/next-day service, honest upfront pricing. Named in honor of Anthony ("Ant"). Part of the TN Appliance Exchange family (technician-led, family-owned since 2012).
+> Family-run appliance repair serving Greater New Orleans, Louisiana (also listed on Google as "${NAME_LEGAL}"). Refrigerators, washers, dryers, ovens, ranges, dishwashers, freezers and ice makers. Fast same/next-day service, honest upfront pricing. Named in honor of Anthony ("Ant"). Part of the TN Appliance Exchange family (technician-led, family-owned since 2012).
 
 Owner-technician: Andre Pivacek. Phone: ${PHONE}. Service area: New Orleans, Metairie, Kenner, Gretna, Marrero, Harvey, Westwego, Chalmette, Terrytown, Algiers, LaPlace and the North Shore (Slidell, Mandeville, Covington), plus Houma and Baton Rouge via the wider network.
 
