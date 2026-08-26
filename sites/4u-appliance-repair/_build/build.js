@@ -114,7 +114,7 @@ const FAVICON = `<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://ww
 
 function header(base) {
   return `<header><div class="wrap hrow">
-  <a class="brand" href="${base || './'}"><img class="mk" src="${base}logo-emblem.svg" alt="${NAME} logo" width="40" height="40"><span>${NAME_H}<small>New Orleans Appliance Repair</small></span></a>
+  <a class="brand" href="${base || './'}"><img class="mk" src="${base}logo.png" alt="${NAME} logo" width="40" height="40"><span>${NAME_H}<small>New Orleans Appliance Repair</small></span></a>
   <a class="hcall" href="tel:${PHONE_TEL}">📞 <span class="lbl">Call&nbsp;</span>${PHONE}</a>
 </div></header>`;
 }
@@ -129,7 +129,7 @@ function footer(base, cityLinks) {
   return `<footer><div class="wrap">
   <div class="frow">
     <div>
-      <div class="fb"><img src="${base}logo-emblem.svg" alt="" width="26" height="26" style="vertical-align:-6px;border-radius:6px"> ${NAME_H}</div>
+      <div class="fb"><img src="${base}logo.png" alt="" width="26" height="26" style="vertical-align:-6px;border-radius:6px"> ${NAME_H}</div>
       <p style="margin:8px 0 0">Family-run appliance repair<br>Greater New Orleans, Louisiana · named for Ant</p>
       <p style="margin:10px 0 0"><a href="tel:${PHONE_TEL}"><strong style="color:var(--hero-ink)">📞 ${PHONE}</strong></a></p>
     </div>
@@ -155,7 +155,7 @@ function page({ title, desc, canon, extraHead = '', body, cityLinks, base = '' }
 <meta property="og:description" content="${enc(desc)}">
 <meta property="og:url" content="${DOMAIN}/${canon}">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="icon" type="image/svg+xml" href="${base}logo-emblem.svg">
+<link rel="icon" type="image/png" href="${base}favicon.png">
 <title>${enc(title)}</title>
 <meta name="description" content="${enc(desc)}">
 ${HEAD_FONTS}
