@@ -819,6 +819,16 @@
 [functions."tdr-sync-cron"]
   schedule = "* * * * *"
 
+# job-mirror-sync-cron (Phase 0 Part B, 2026-08-26) — pre-warms the per-job read
+# mirror (job_mirror) for today's active jobs while Xano is healthy, so the tech app
+# opens a job INSTANTLY even mid-outage (job-view-fast serves the mirror when Xano is
+# slow/down). Picks its targets from the Supabase board_mirror (no Xano cost), refreshes
+# only missing/stale rows, capped at 40/run. Gated by Netlify env flag JOB_VIEW_FAST
+# (skips entirely when off). Run docs/sql/011_job_mirror.sql in the ANT OPS Supabase
+# project, then set JOB_VIEW_FAST=true in Netlify env to activate. Every 5 min.
+[functions."job-mirror-sync-cron"]
+  schedule = "4-59/5 * * * *"
+
 # phone-test-blast (Teddy 2026-08-14) - ONE-TIME 9am CT text test to everyone on Ann's real
 # path. Fires 14:00 UTC = 9:00am CDT; date-gated to 2026-08-14 + done-flag so it self-terminates
 # (later days no-op). REMOVE this block after the test. Kill: vault PHONE_TEST_BLAST_DONE=1.
