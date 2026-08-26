@@ -1483,8 +1483,8 @@ function renderGetPaid(){
   const d=_payData;
   if(!card||!body||!d||!d.ok){ if(card) card.style.display='none'; return; }
   card.style.display='';
-  if(d.paid){ if(st){st.style.color='#127a4a';st.textContent='✅ Paid';} body.innerHTML='<div style="color:#127a4a;font-weight:800;font-size:16px">✅ Paid in full — nothing to collect.</div>'; return; }
-  if(d.nothing_due && !d.self_pay){ if(st){st.style.color='#2c6fb0';st.textContent='🛡️ Covered';} body.innerHTML='<div style="color:#2c6fb0;font-size:14px">🛡️ Covered by warranty — nothing to collect from the customer.</div>'; return; }
+  if(d.paid){ if(st){st.style.color='#127a4a';st.textContent='✅ Paid';} body.innerHTML='<div style="color:#127a4a;font-weight:800;font-size:16px">✅ Paid in full — nothing to collect.</div>'+deductibleBlockHtml(); wireDeductible(); return; }
+  if(d.nothing_due && !d.self_pay){ if(st){st.style.color='#2c6fb0';st.textContent='🛡️ Covered';} body.innerHTML='<div style="color:#2c6fb0;font-size:14px">🛡️ Covered by warranty — the repair is covered. Deductible/copay still due? Collect it below.</div>'+deductibleBlockHtml(); wireDeductible(); return; }
   if(st) st.textContent='';
   const owed=(d.owed_cents||0)/100;
   const amtVal=owed>0?owed.toFixed(2):'';
@@ -1519,6 +1519,95 @@ function renderGetPaid(){
   document.getElementById('gp-charge').onclick=chargeOnPhone;
   const recs=body.querySelectorAll('.gp-rec');
   for(let i=0;i<recs.length;i++){ (function(el){ el.onclick=function(){ recordPaid(el.getAttribute('data-m'),el.getAttribute('data-h')||''); }; })(recs[i]); }
+  // Warranty deductible/copay is a SEPARATE out-of-pocket even when there's a self-pay
+  // balance — surface it here too so the tech never has to hunt for it.
+  body.insertAdjacentHTML('beforeend', deductibleBlockHtml());
+  wireDeductible();
+}
+// 💵 DEDUCTIBLE / COPAY — the customer's out-of-pocket on a WARRANTY job (the repair is
+// covered; the deductible is theirs). This is separate from the self-pay rails above and
+// is shown on EVERY job (even "covered / paid in full"), because a covered job still has a
+// deductible to collect (Teddy 2026-08-26: "customer has a $60 deductible, Danielle had no
+// way to add it, techs need it"). Charged EXACTLY as typed, NO tax: create-stripe-payment-link
+// with kind:'deductible' is not warranty-refused (only 'invoice' is) and adds no tax (only
+// 'addon' does). Three rails: charge the card here, text the customer a card link, or record
+// cash/check/wallet.
+function deductibleBlockHtml(){
+  const w=(_payData&&_payData.wallets)||{};
+  const CHIP='flex:1 1 auto;min-width:calc(50% - 5px);padding:11px 6px;border:1px solid #e0b866;background:#fff;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;color:#8a5a12';
+  let direct='<button type="button" class="dd-rec" data-m="cash" style="'+CHIP+'">💵 Cash</button>'
+    +'<button type="button" class="dd-rec" data-m="check" style="'+CHIP+'">🧾 Check</button>';
+  if(w.zelle)   direct+='<button type="button" class="dd-rec" data-m="zelle"   data-h="'+esc(w.zelle)+'" style="'+CHIP+'">Zelle</button>';
+  if(w.venmo)   direct+='<button type="button" class="dd-rec" data-m="venmo"   data-h="'+esc(w.venmo)+'" style="'+CHIP+'">Venmo</button>';
+  if(w.cashapp) direct+='<button type="button" class="dd-rec" data-m="cashapp" data-h="'+esc(w.cashapp)+'" style="'+CHIP+'">Cash App</button>';
+  return ''
+   +'<div style="margin-top:14px;padding:12px;border:1px solid #e6c37a;background:#fff8ec;border-radius:12px">'
+    +'<div style="font-weight:800;font-size:14px;color:#8a5a12">💵 Collect a deductible / copay</div>'
+    +'<div style="font-size:12px;color:#96702a;margin:2px 0 8px">Warranty covers the repair — this is the customer&#39;s deductible only. Charged exactly what you enter, no tax.</div>'
+    +'<label style="font-size:12px;color:#96702a">Deductible ($)</label>'
+    +'<input id="dd-amt" inputmode="decimal" placeholder="e.g. 60" style="width:100%;padding:12px;border:1px solid #e0b866;border-radius:9px;font-size:18px;font-weight:700;margin:4px 0 10px">'
+    +'<div style="display:flex;gap:6px;margin-bottom:8px">'
+      +'<button class="btn" id="dd-charge" style="flex:1;background:#127a4a;color:#fff;border:0">💳 Charge card here</button>'
+      +'<button class="btn" id="dd-text" style="flex:1;background:#fff;border:1px solid #bfe3cf;color:#127a4a">📲 Text card link</button>'
+    +'</div>'
+    +'<div style="font-weight:800;font-size:11px;color:#96702a;margin:4px 0 6px;text-transform:uppercase;letter-spacing:.05em">Paid you directly — mark it collected</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+direct+'</div>'
+    +'<div id="dd-out" style="font-size:12.5px;margin-top:9px;min-height:14px"></div>'
+   +'</div>';
+}
+function wireDeductible(){
+  const c=document.getElementById('dd-charge'); if(c) c.onclick=chargeDeductible;
+  const t=document.getElementById('dd-text'); if(t) t.onclick=textDeductible;
+  const recs=document.querySelectorAll('.dd-rec');
+  for(let i=0;i<recs.length;i++){ (function(el){ el.onclick=function(){ recordDeductibleDirect(el.getAttribute('data-m'),el.getAttribute('data-h')||''); }; })(recs[i]); }
+}
+function ddAmt(){ const inp=document.getElementById('dd-amt'); const a=inp?parseFloat(String(inp.value||'').replace(/[^0-9.]/g,'')):0; return (a>0)?a:0; }
+// Mint an exact-amount, untaxed, warranty-allowed durable Stripe link for the deductible.
+async function mintDeductibleLink(amt){
+  try{
+    const d=await fetch('/.netlify/functions/create-stripe-payment-link',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({job_id:JOB_ID, amount_cents:Math.round(amt*100), kind:'deductible', description:'Warranty service deductible', technician_id:TECH_ID, durable:true})}).then(r=>r.json());
+    return (d&&d.ok&&d.url)?d.url:null;
+  }catch(_){ return null; }
+}
+async function chargeDeductible(){
+  const out=document.getElementById('dd-out'); const amt=ddAmt();
+  if(!amt){ if(out){out.style.color='#c2691c';out.textContent='Enter the deductible amount first.';} return; }
+  if(out){ out.style.color='#5c6672'; out.textContent='Opening the secure card page…'; }
+  const url=await mintDeductibleLink(amt);
+  if(url){ window.location.href=url; }   // Stripe on the tech's phone — hand it over (card · Apple Pay)
+  else if(out){ out.style.color='#c0392b'; out.textContent='Could not open — try Cash/Check or Text link.'; }
+}
+async function textDeductible(){
+  const out=document.getElementById('dd-out'), btn=document.getElementById('dd-text'); const amt=ddAmt();
+  if(!amt){ if(out){out.style.color='#c2691c';out.textContent='Enter the deductible amount first.';} return; }
+  if(btn) btn.disabled=true; if(out){ out.style.color='#5c6672'; out.textContent='Building a secure card link…'; }
+  const url=await mintDeductibleLink(amt);
+  if(!url){ if(out){out.style.color='#c0392b';out.textContent='Could not build the link — try Charge here or Cash/Check.';} if(btn) btn.disabled=false; return; }
+  if(out) out.textContent='Texting the customer…';
+  try{
+    const msg='Secure link to pay your $'+amt.toFixed(2)+' service deductible — card or Apple Pay: '+url;
+    const d=await fetch('/.netlify/functions/tech-customer-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID, tech_id:TECH_ID, message:msg})}).then(r=>r.json());
+    if(d&&d.sent){ if(out){out.style.color='#127a4a';out.innerHTML='✅ Texted '+esc((d.to_masked)||'the customer')+' a card link for $'+amt.toFixed(2)+'.';} }
+    else { const why=(d&&d.reason==='no_phone')?'no phone on file':(d&&d.reason==='opted_out')?'they replied STOP — texting off':((d&&d.reason)||'could not text'); if(out){out.style.color='#c0392b';out.textContent='⚠ '+why+'. Use Charge here or Cash/Check.';} }
+  }catch(_){ if(out){out.style.color='#c0392b';out.textContent='⚠ connection error.';} }
+  if(btn) btn.disabled=false;
+}
+async function recordDeductibleDirect(method,handle){
+  const out=document.getElementById('dd-out'); const amt=ddAmt();
+  if(!amt){ if(out){out.style.color='#c2691c';out.textContent='Enter the deductible amount first.';} return; }
+  const label=PAY_LABEL[method]||method;
+  const who=(_payData&&_payData.first)||'them';
+  const ok=handle
+    ? confirm('Have '+who+' send $'+amt.toFixed(2)+' deductible to our '+label+':\n\n'+handle+'\n\nTap OK once it comes through.')
+    : confirm('Mark $'+amt.toFixed(2)+' deductible collected — '+label+'?');
+  if(!ok) return;
+  if(out){ out.style.color='#5c6672'; out.textContent='Recording…'; }
+  try{
+    const d=await xanoPost('record_payment_received',{job_id:JOB_ID, amount:amt, method:method, reference:'Warranty deductible ('+label+')', recorded_by:TECH_ID||0});
+    if(d&&(d.success!==false)){ if(out){out.style.color='#127a4a';out.innerHTML='✅ Recorded <b>$'+amt.toFixed(2)+'</b> deductible ('+esc(label)+').';} }
+    else { if(out){out.style.color='#c0392b';out.textContent='⚠ '+((d&&d.error)||'failed');} }
+  }catch(_){ if(out){out.style.color='#c0392b';out.textContent='⚠ connection error.';} }
 }
 // Confirm/record the self-pay amount + refresh the durable url/qr so every option charges
 // exactly what the tech typed (warranty add-on amount is resolved server-side, untouched).
