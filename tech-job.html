@@ -318,6 +318,23 @@ async function xanoGet(ep,qs){
   const r=await fetchT(XANO+'/'+ep+(qs?('?'+qs):''),{cache:'no-store'});
   return r.json();
 }
+// DURABLE SAVE (Phase 0 Part A) — route every TDR/part save through tdr-save
+// instead of straight to Xano. tdr-save lands it in fast Supabase FIRST (durable
+// the instant it returns) then relays to Xano, so a slow/down Xano can't lose the
+// part number. Response: {ok, durable, xano_synced, tdr}. When the server flag
+// TDR_DURABLE_SAVE is OFF, tdr-save is a pure passthrough that returns {tdr} exactly
+// like create_tdr — so this is safe with the flag either way. Shorter timeout than
+// Xano (Supabase is fast); on any failure the caller's catch shows a connection error.
+async function postTdr(body){
+  const c=new AbortController(); const t=setTimeout(function(){try{c.abort();}catch(_){}},15000);
+  try{
+    const r=await fetch('/.netlify/functions/tdr-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:c.signal});
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+// A successful durable save may hand back a placeholder {id:'pending'} (Xano hadn't
+// answered yet). Treat EITHER a real Xano tdr OR a durable landing as "saved".
+function tdrLanded(d){ return !!(d && (d.tdr || d.durable)); }
 
 // SWR job cache — the "fastest available system" lever. We stash the last-good job
 // payload per job_id on THIS device, so reopening a job PAINTS INSTANTLY (0ms) from
@@ -1729,7 +1746,7 @@ function completeFlow(){
       const reason=(prompt('No failure found — quick note for the office & warranty:\n\nWhat did you check, and why is there no failure?\n(e.g. "Tested fridge, holding 37°F, cooling fine — door was left ajar")')||'').trim();
       if(!reason){ toast('Add a quick note so the office can bill the visit'); return; }
       if(reason.length<8){ alert('Add a little more detail (a sentence) so the office can bill the visit and the warranty company accepts it.'); return; }
-      try{ await xanoPost('create_tdr',{job_id:JOB_ID,technician_id:TECH_ID,diagnosis:'No failure found',repair_completed:'No fault found — no repair needed',technician_notes:'☑️ NO FAILURE FOUND — '+reason}); }catch(_){}
+      try{ await postTdr({job_id:JOB_ID,technician_id:TECH_ID,diagnosis:'No failure found',repair_completed:'No fault found — no repair needed',technician_notes:'☑️ NO FAILURE FOUND — '+reason}); }catch(_){}
     }
     // 🚫 Cancel this job: a separate path — don't "complete" it. Capture the tech's
     // reason, park it in his Report folder with a BLUE siren, and let the office decide
@@ -1739,7 +1756,7 @@ function completeFlow(){
       if(!reason) return;   // backed out
       toast('Sending to the office…');
       try{
-        await xanoPost('create_tdr',{job_id:JOB_ID,technician_id:TECH_ID,technician_notes:'🚫 CANCEL REQUESTED — '+reason}).catch(()=>{});
+        await postTdr({job_id:JOB_ID,technician_id:TECH_ID,technician_notes:'🚫 CANCEL REQUESTED — '+reason}).catch(()=>{});
         if(!job.job_started_at){ try{ await xanoPost('tech_job_started',{job_id:JOB_ID,technician_id:TECH_ID}); }catch(_){} }
         await fetch('/.netlify/functions/cancel-request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,reason})}).then(r=>r.json()).catch(()=>{});
         toast('Sent to the office ✓');
@@ -1758,7 +1775,7 @@ function completeFlow(){
         const _pEl=document.getElementById('tdr-part'); const _part=_pEl?_pEl.value.trim():'';
         const _body={job_id:JOB_ID,technician_id:TECH_ID,technician_notes:_note};
         if(_part) _body.verified_part_number=_part;
-        try{ await xanoPost('create_tdr',_body); }catch(_){}
+        try{ await postTdr(_body); }catch(_){}
       }
       // Auto-Start guard: the state machine won't go scheduled -> completed directly
       // (must pass through in_progress). Techs Complete without ever tapping Start, so
@@ -2022,9 +2039,9 @@ async function voiceReport(){
     if(cap.labor_hours){ const lh=parseFloat(cap.labor_hours); if(lh>0) body.labor_time_hours=lh; }
     carryForwardCore(body);
     try{
-      const d=await xanoPost('create_tdr',body);
-      if(d && d.tdr){ const filled=(cap.diagnosis||cap.repair_completed||cap.failed_component); note.className='save-note ok'; note.textContent=filled?'✓ Report saved — Ant filled it from your voice':'✓ Report saved'; if(typeof loadJob==='function') loadJob(); }
-      else { note.className='save-note err'; note.textContent=d.message||d.error||'save failed'; }
+      const d=await postTdr(body);
+      if(tdrLanded(d)){ const filled=(cap.diagnosis||cap.repair_completed||cap.failed_component); note.className='save-note ok'; note.textContent=filled?'✓ Report saved — Ant filled it from your voice':'✓ Report saved'; if(typeof loadJob==='function') loadJob(); }
+      else { note.className='save-note err'; note.textContent=(d&&(d.message||d.error))||'save failed'; }
     }catch(_){ note.className='save-note err'; note.textContent='connection error'; }
   };
   mediaRec.start();
@@ -2096,17 +2113,23 @@ async function saveNotes(){
   btn.disabled=true; note.className='save-note'; note.textContent='Saving…';
   let clearMs=4000;
   try{
-    let d=await xanoPost('create_tdr',body);
-    if(!(d && d.tdr)){ note.className='save-note err'; note.textContent=(d&&(d.message||d.error))||'save failed'; return; }
-    // The server row is written and the office was notified — this save LANDED.
-    // Mark it so an accidental re-tap of the same content is a no-op (no re-text).
+    let d=await postTdr(body);
+    if(!tdrLanded(d)){ note.className='save-note err'; note.textContent=(d&&(d.message||d.error))||'save failed'; return; }
+    // The save LANDED (durable in Supabase and/or a real Xano row). Mark it so an
+    // accidental re-tap of the same content is a no-op (no re-text).
     _lastTdrSig=sig; _lastTdrAt=Date.now();
-    // CONFIRMED SAVE (read-after-write): re-read to confirm the fields stuck — esp.
-    // the part #, which has a known column round-trip quirk. A miss here is a SYNC
-    // lag, not a lost save (the row exists + office was texted), so we NEVER tell the
-    // tech to "tap Save again" — that's what drove the 16× mash. (2026-08-18)
+    // Durable but Xano hasn't confirmed yet? Don't read-back from a slow Xano — the
+    // part number is already safe in Supabase and tdr-sync-cron will land it. Tell
+    // the tech it's saved, plainly. This is the whole point: no spinning, no re-mash.
+    if(d.durable && !d.xano_synced){
+      note.className='save-note ok'; note.textContent='✓ Saved — syncing to the office'; return;
+    }
+    // Xano confirmed the row. Read-after-write to confirm the fields stuck (esp. the
+    // part #, which has a known column round-trip quirk) — but time-box it so a slow
+    // Xano can't hang the confirm. A miss is a SYNC lag, not a lost save, so we NEVER
+    // tell the tech to "tap Save again" (that drove the 16× mash). (2026-08-18)
     note.textContent='Confirming…';
-    let ok=await verifySaved(body);
+    let ok=await Promise.race([verifySaved(body), new Promise(r=>setTimeout(()=>r(null),3500))]);
     if(ok===true){ note.className='save-note ok'; note.textContent='✓ Saved — the office can see it'; }
     else if(ok===null){ note.className='save-note ok'; note.textContent='Saved ✓ (sync will confirm on signal)'; }
     else { note.className='save-note ok'; note.textContent='✓ Saved — part # is still syncing, no need to re-save'; clearMs=8000; }

@@ -808,6 +808,17 @@
 [functions."board-mirror-sync-cron"]
   schedule = "* * * * *"
 
+# tdr-sync-cron (Phase 0 Part A, 2026-08-26) — THE fix for "won't save the part
+# number" when Xano chokes. tech-job.html saves through tdr-save, which lands every
+# TDR/part save in Supabase tdr_pending (durable, instant) then relays to Xano
+# best-effort. This cron drains any row that missed the relay (Xano was slow/down)
+# into Xano create_tdr every minute, so a save is NEVER lost — it lands the moment
+# Xano recovers. Gated by Netlify env flag TDR_DURABLE_SAVE (default off = pure
+# passthrough to Xano). Run docs/sql/010_tdr_pending.sql in the ANT OPS Supabase
+# project, then set TDR_DURABLE_SAVE=true in Netlify env to activate.
+[functions."tdr-sync-cron"]
+  schedule = "* * * * *"
+
 # phone-test-blast (Teddy 2026-08-14) - ONE-TIME 9am CT text test to everyone on Ann's real
 # path. Fires 14:00 UTC = 9:00am CDT; date-gated to 2026-08-14 + done-flag so it self-terminates
 # (later days no-op). REMOVE this block after the test. Kill: vault PHONE_TEST_BLAST_DONE=1.
