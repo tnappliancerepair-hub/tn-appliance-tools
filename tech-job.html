@@ -310,6 +310,23 @@ async function xanoGetJob(payload,tries){
   }
   throw lastErr||new Error('load failed');
 }
+// FAST JOB READ (Phase 0 Part B) — the DISPLAY read goes through job-view-fast, which
+// tries Xano first (short box, so fresh when Xano is responsive) then falls back to the
+// Supabase job_mirror when Xano is slow/down — so opening a job never hangs on a bad
+// Xano. Same { success, job, ... } shape as get_job_for_dashboard. When the server flag
+// JOB_VIEW_FAST is OFF, job-view-fast is a pure passthrough to Xano = today's behavior.
+// Single-shot with a 12s client cap; loadJob's own cache-first paint + retry cover the
+// rest. (verifySaved deliberately stays on direct Xano — it needs source-of-truth, not a
+// possibly-stale mirror.)
+async function getJobFast(payload){
+  const c=new AbortController(); const t=setTimeout(function(){try{c.abort();}catch(_){}},12000);
+  try{
+    const r=await fetch('/.netlify/functions/job-view-fast',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:c.signal});
+    const d=await r.json();
+    if(d&&d.success) return d;
+    throw new Error((d&&d.error)||'not found');
+  } finally { clearTimeout(t); }
+}
 async function xanoPost(ep,payload){
   const r=await fetchT(XANO+'/'+ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   return r.json();
@@ -386,11 +403,14 @@ async function loadJob(){
   }
   // 2) REFRESH: fetch fresh in the background, re-render + cache when it lands.
   try{
-    const d=await xanoGetJob({job_id:JOB_ID});
+    const d=await getJobFast({job_id:JOB_ID});
     if(!d.success) throw new Error(d.error||'not found');
     saveJobCache(JOB_ID,d);
     applyJobPayload(d);
     render();
+    // If Xano was down and this came from the mirror, tell the tech quietly that
+    // he's seeing the last-synced copy — never a scary error, just honesty.
+    if(d._mirror){ try{ const _b=document.getElementById('content'); if(_b){ const n=document.createElement('div'); n.style.cssText='margin:8px 0;padding:8px 12px;background:#26210f;border:1px solid #5a4a14;border-radius:8px;color:#e8c766;font-size:13px'; n.textContent='Showing the last synced copy — your saves are safe and will catch up.'; _b.insertBefore(n,_b.firstChild); } }catch(_){} }
     recordRecentJob();
     try{ const _n=document.getElementById('notes'); if(_n && _prevNotes!=null && _prevNotes.trim() && _prevNotes!==_n.value){ _n.value=_prevNotes; } }catch(_){}
     renderAntTdr(tdr, allTdrs);

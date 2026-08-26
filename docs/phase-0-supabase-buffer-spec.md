@@ -62,7 +62,20 @@ Xano relay and the cron both no-op on an already-synced key.
 
 ---
 
-## Part B — READS never freeze (open a job instantly, even mid-outage)
+## Part B — READS never freeze (open a job instantly, even mid-outage)  ✅ BUILT 2026-08-26
+
+**Shipped design (Xano-first, mirror-fallback):** `tech-job.html` paints from its device
+cache first (unchanged), then its background refresh goes through **`job-view-fast`** which
+tries Xano with a short time-box (fresh when Xano is responsive) and, if Xano is slow/down,
+serves the last-good copy from the Supabase **`job_mirror`** — so a read never hangs.
+`job-view-fast` warms the mirror on every healthy read; **`job-mirror-sync-cron`** pre-warms
+today's active jobs (targets chosen from `board_mirror` = no Xano cost, capped 40/run) so
+even a first cold open during an outage is instant. Gated by `JOB_VIEW_FAST` (default off =
+pure passthrough to Xano). Files: `docs/sql/011_job_mirror.sql`, `_lib/job-mirror.js`,
+`job-view-fast.js`, `job-mirror-sync-cron.js`, netlify.toml, tech-job.html (`getJobFast`).
+verifySaved stays on direct Xano (needs source-of-truth, not a possibly-stale mirror).
+
+### Original spec
 
 **Principle:** paint from local cache / Supabase mirror first, use Xano for freshness only
 when it's healthy, and **kill every infinite spinner**.
