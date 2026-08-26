@@ -28,19 +28,21 @@ Everything Ann needs per shop — one text back from them covers it:
 - **Email** — for their platform login (so leads land on their own board)
 - **Phone plan:** buy them a fresh Telnyx line, or forward their existing business line?
 
-## Standup flow — AS-IS (works today, ~1 deploy + 2 API calls)
-1. Add a shop entry to `netlify/functions/_lib/trial-shops.js` (copy an existing block).
-2. Commit + push → Netlify deploys (~2–3 min). *(This deploy is the only slow step — see
-   "the one build" below to remove it.)*
-3. **Phone number:** `telnyx-provision?action=searchnew` → `…&action=buynew&number=+1…`
+## Standup flow — NO deploy needed (data-driven registry is LIVE, 2026-08-26)
+All API calls, ~3 minutes on a call. `&secret=<VAPI_ADMIN_SECRET>` on every trial-ann-admin call.
+1. **Register the shop (no code, no deploy):**
+   `trial-ann-admin?action=add_shop&slug=<slug>&name=<Shop Name>&type=appliance&owner_first=<First>&owner_cell=+1<cell>&area=<area>&hours=<hours>&about=<what she can answer>&email=<login email>&platform_slug=<tenant slug if giving them a board>`
+   (Idempotent — re-send to add the `about` or fix a field later. Only params you pass are written.)
+2. **Phone number:** `telnyx-provision?action=searchnew` → `…&action=buynew&number=+1…`
    to buy a line (a vanity number that spells their name is a nice touch — Greg's spells GREG),
    OR have them forward their business line to the number.
-4. `trial-ann-admin?action=create&shop=<slug>` → returns the assistant_id.
-5. `trial-ann-admin?action=bind&id=<assistant_id>&number=+1<their line>` → inbound routes to Ann.
-6. **(optional, the magic)** set `platformSlug: '<their-tenant-slug>'` in their entry +
-   `platform-provision` their tenant → every lead Ann catches ALSO becomes a job on their
-   board + mints a customer portal link. This is the phone→board bridge that makes the demo pop.
+4. `trial-ann-admin?action=create&shop=<slug>` → returns the assistant_id (auto-saved to the store).
+5. `trial-ann-admin?action=bind&id=<assistant_id>&number=+1<their line>&shop=<slug>` → inbound routes to Ann.
+6. **(the magic)** if you set `platform_slug` in step 1, `platform-provision` their tenant →
+   every lead Ann catches ALSO becomes a job on their board + mints a customer portal link.
+   This is the phone→board bridge that makes the demo pop.
 7. Test-call the number yourself before handing it over.
+   Check what's registered anytime: `trial-ann-admin?action=shops&secret=…`.
 
 Reference: Greg's fully-populated entry in `trial-shops.js` is the template — real Ann line,
 assistant, platform tenant (`classic-automotive`), leads → board, all wired.
@@ -55,6 +57,13 @@ assistant, platform tenant (`classic-automotive`), leads → board, all wired.
 `planPrice` on the shop entry = what they pay/mo (0 = free trial). For founding partners:
 0 while we build it out → locked founding rate later → a referral cut on shops they bring.
 (TK: free founding partner + a cut on his group — that's the whole offer.)
+
+## ✅ BUILT 2026-08-26 — the data-driven registry (no more code edit + deploy)
+`add_shop` + `getAsync`/`putStore` are live. Configs live in Supabase `trial_shop`
+(run `docs/sql/012_trial_shop.sql` once). `_lib/trial-shops.getAsync()` reads FILE-FIRST
+(Greg + curated shops resolve instantly and never depend on the store), then the store for
+new shops; any store hiccup degrades to the file so an existing shop can never break. `create`
+auto-persists the assistant_id, `bind&shop=` the number. Original design notes below.
 
 ## ⭐ THE ONE BUILD to make this a true few-minutes flow
 **Kill the code-edit + deploy in step 1–2.** Today a new shop = editing `trial-shops.js`,

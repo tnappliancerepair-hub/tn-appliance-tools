@@ -34,7 +34,7 @@ exports.handler = async function (event) {
   const key = await getSecret('TELNYX_TOOL_SECRET');
   if (key && q.k !== key && p.k !== key) return json(403, { ok: false, error: 'forbidden' });
 
-  const shop = shops.get(slug);
+  const shop = await shops.getAsync(slug);   // file-first, then the data-driven store
   if (!shop) return json(200, { ok: false, error: 'unknown shop: ' + slug });
   if (doo === 'ping') return json(200, { ok: true, shop: shop.name, type: shop.type, owner_cell_set: !!shop.ownerCell });
   if (!shop.ownerCell) return json(200, { ok: false, error: 'shop has no ownerCell configured' });

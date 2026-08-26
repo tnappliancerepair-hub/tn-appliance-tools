@@ -113,9 +113,69 @@ const SHOPS = {
   // },
 };
 
-function get(slug) {
-  const s = SHOPS[String(slug || '').toLowerCase().trim()];
-  return s ? Object.assign({ type: 'appliance', autoScope: 'general', hours: 'Monday to Friday, 8 to 5', about: '', platformSlug: '', annNumber: '', annConnection: '', planPrice: 0 }, s) : null;
+const norm = (slug) => String(slug || '').toLowerCase().trim();
+function withDefaults(s) {
+  return Object.assign({ type: 'appliance', autoScope: 'general', hours: 'Monday to Friday, 8 to 5', about: '', platformSlug: '', annNumber: '', annConnection: '', planPrice: 0 }, s);
 }
 
-module.exports = { SHOPS, get };
+// SYNC, file-only. Unchanged for backwards-compat (any caller that can't await).
+function get(slug) {
+  const s = SHOPS[norm(slug)];
+  return s ? withDefaults(s) : null;
+}
+
+// ── Data-driven registry (Supabase `trial_shop`) — lets us add a shop's Ann on a call
+// WITHOUT a code edit + deploy. FILE-FIRST so the hand-curated live shops (Greg, with his
+// assistantId / annNumber / insightGroup) always resolve instantly and never depend on the
+// store; the store is only consulted for shops that aren't in the file. On any store error
+// we degrade to the file result — a store hiccup can never break an existing shop.
+let sb = null;
+try { sb = require('./supabase'); } catch (_) { sb = null; }
+
+// ASYNC lookup: file first, then store. Adds `_source` so callers know whether to persist
+// updates (assistant_id, number) back to the store.
+async function getAsync(slug) {
+  const key = norm(slug);
+  const fromFile = get(key);
+  if (fromFile) { fromFile._source = 'file'; return fromFile; }
+  if (!sb) return null;
+  try {
+    // bounded so a slow store can't hang a live lead-capture call
+    const rows = await Promise.race([
+      sb.select('trial_shop', { select: 'config', slug: 'eq.' + key, limit: '1' }),
+      new Promise((res) => setTimeout(() => res(null), 4500)),
+    ]);
+    if (Array.isArray(rows) && rows[0] && rows[0].config) {
+      const cfg = withDefaults(rows[0].config);
+      cfg._source = 'store';
+      return cfg;
+    }
+  } catch (_) { /* degrade to null -> caller handles unknown shop */ }
+  return null;
+}
+
+// Upsert a shop's config into the store, MERGING patch over any existing config (so
+// create/bind can persist assistant_id / number without wiping the rest). Best-effort.
+async function putStore(slug, patch) {
+  if (!sb) throw new Error('store_not_configured');
+  const key = norm(slug);
+  let existing = {};
+  try {
+    const rows = await sb.select('trial_shop', { select: 'config', slug: 'eq.' + key, limit: '1' });
+    if (Array.isArray(rows) && rows[0] && rows[0].config) existing = rows[0].config;
+  } catch (_) {}
+  const config = Object.assign({}, existing, patch || {});
+  await sb.upsert('trial_shop', { slug: key, config, updated_at: new Date().toISOString() }, { onConflict: 'slug' });
+  return withDefaults(config);
+}
+
+// List store-backed shops (for an admin overview). Best-effort -> [] on error.
+async function listStore() {
+  if (!sb) return [];
+  try {
+    const rows = await sb.select('trial_shop', { select: 'slug,config,updated_at', order: 'updated_at.desc', limit: '200' });
+    return Array.isArray(rows) ? rows : [];
+  } catch (_) { return []; }
+}
+
+module.exports = { SHOPS, get, getAsync, putStore, listStore };
