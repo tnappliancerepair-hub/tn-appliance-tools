@@ -1,7 +1,7 @@
 # Static-assets-only Worker for Andre's 4U site. Build root = this folder (no
 # package.json here) so Cloudflare skips npm install; `npx wrangler deploy`
 # uploads this folder as a static site.
-name = "applianceman504"
+name = "tn-appliance-tools"
 compatibility_date = "2025-01-01"
 
 [assets]
