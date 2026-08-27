@@ -85,21 +85,31 @@ exports.handler = async function (event) {
     isDealer ? (what && `Looking for: ${what}`) : isAuto ? (what && `Vehicle: ${what}`) : (what && `Appliance: ${what}`),
     detail && (isDealer ? detail : `Needs: ${detail}`),
     city && `City: ${city}`,
-    board.ok && board.portal_url ? `On your board ✅ · customer link: ${board.portal_url}` : null,
+    board.ok ? 'On your board ✅' : null,
+    // The exact intake link the customer got — so the shop can preview it, and RESEND it
+    // if the caller never taps it or Ann mishears the callback number.
+    board.ok && board.intake_url ? `📋 Their intake link (video + model photo + waiver — tap to preview / resend): ${board.intake_url}` : null,
+    board.ok && board.portal_url ? `👀 Track the job: ${board.portal_url}` : null,
     `— Ann answered this for you. Call them back and close it. 🐜`,
   ].filter(Boolean);
   const msg = lines.join('\n');
 
-  const sent = await sendSms(shop.ownerCell, msg, 'office', 'trial_ann_lead');
+  // DEDUP: if the same lead already landed within the last few minutes (Ann re-called the
+  // tool, or Telnyx retried it), the bridge returns deduped:true. Send NEITHER text again —
+  // one lead = one owner text + one customer text, no matter how many times the tool fires.
+  const deduped = !!board.deduped;
+
+  const sent = deduped ? false : await sendSms(shop.ownerCell, msg, 'office', 'trial_ann_lead');
 
   // Text the CUSTOMER their intake link — the video/model-photo/availability/waiver bundle
-  // (TN's intake magic). Only when the job made it onto the board (so the link is live).
+  // (TN's intake magic). Only when the job made it onto the board (so the link is live) and
+  // this is a fresh lead (not a duplicate re-fire).
   let customerTexted = false;
-  if (phone && board.ok && board.intake_url) {
+  if (!deduped && phone && board.ok && board.intake_url) {
     const cmsg = `${shop.name}: thanks for calling! Tap here to send a quick video + a photo of the model sticker, pick your days, and sign a quick form so we show up ready to fix it: ${board.intake_url}`;
     try { customerTexted = await sendSms(phone, cmsg, 'customer', 'trial_ann_intake'); } catch (_) {}
   }
 
-  try { if (crud) crud.logEvent('trial_ann_lead', { shop: slug, name, phone: phone.replace(/\D/g, '').slice(-10), what, sent, on_board: !!board.ok, job_id: board.job_id || '', customer_texted: customerTexted, at_ms: Date.now() }); } catch (_) {}
-  return json(200, { ok: sent, sent_to_owner: sent, customer_texted: customerTexted, on_board: !!board.ok, job_id: board.job_id || null, intake_url: board.intake_url || null, portal_url: board.portal_url || null, reply: sent ? 'Lead sent to the shop and the customer got their intake link.' : 'Logged the lead.' });
+  try { if (crud) crud.logEvent('trial_ann_lead', { shop: slug, name, phone: phone.replace(/\D/g, '').slice(-10), what, sent, deduped, on_board: !!board.ok, job_id: board.job_id || '', customer_texted: customerTexted, at_ms: Date.now() }); } catch (_) {}
+  return json(200, { ok: sent || deduped, sent_to_owner: sent, deduped, customer_texted: customerTexted, on_board: !!board.ok, job_id: board.job_id || null, intake_url: board.intake_url || null, portal_url: board.portal_url || null, reply: deduped ? 'Already handled this lead moments ago — no duplicate texts sent.' : (sent ? 'Lead sent to the shop and the customer got their intake link.' : 'Logged the lead.') });
 };

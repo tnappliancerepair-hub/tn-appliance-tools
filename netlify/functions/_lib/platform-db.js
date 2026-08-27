@@ -82,6 +82,30 @@ async function createLeadJob(lead) {
       });
     }
 
+    // IDEMPOTENCY GUARD (the anti-spam fix): a single call can fire capture_lead more
+    // than once — Ann re-calls the tool, or Telnyx retries it on a slow response — and
+    // each fire used to re-text the owner AND the customer. If this customer already got
+    // a job in the last 10 minutes, it's the SAME lead: reuse that job + its link and
+    // return deduped:true so the caller sends NEITHER text again. One lead = one owner
+    // text + one customer text, period.
+    if (customer && customer.id) {
+      try {
+        const sinceIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const recent = await db.get(`job?company_id=eq.${companyId}&customer_id=eq.${customer.id}&created_at=gt.${encodeURIComponent(sinceIso)}&select=id&order=created_at.desc&limit=1`);
+        const dupe = recent && recent[0];
+        if (dupe && dupe.id) {
+          let token = '';
+          try { const gs = await db.get(`portal_grant?job_id=eq.${dupe.id}&select=token&order=created_at.desc&limit=1`); token = gs && gs[0] && gs[0].token; } catch (_) {}
+          return {
+            ok: true, deduped: true, job_id: dupe.id, customer_id: customer.id,
+            portal_token: token || '',
+            portal_url: token ? `${SITE}/platform/portal.html?t=${token}` : '',
+            intake_url: token ? `${SITE}/platform/intake.html?t=${token}` : '',
+          };
+        }
+      } catch (_) { /* dedup is best-effort — never blocks a real lead */ }
+    }
+
     // the serviced unit (appliance or vehicle) — trade-agnostic
     const label = String(lead.what || '').trim() || (kind === 'vehicle' ? 'Vehicle' : 'Appliance');
     const unit = await db.insert('unit', {

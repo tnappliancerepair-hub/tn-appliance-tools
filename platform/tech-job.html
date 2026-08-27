@@ -39,6 +39,8 @@
   button:disabled{opacity:.55}
   .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
   .btnrow button{flex:1;min-width:100px}
+  .psrow button{min-width:120px}
+  .psrow button.sel{background:var(--accent,#3f8f24);border-color:var(--accent,#3f8f24);color:#fff}
   iframe.vid{border:none;width:100%;aspect-ratio:16/9;border-radius:12px;background:#000}
   .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
   .thumbs img{width:80px;height:80px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
@@ -79,7 +81,7 @@
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
   var jobId = new URLSearchParams(location.search).get('job');
-  var sb = null, me = null, myTech = null, job = null, shopSettings = {};
+  var sb = null, me = null, myTech = null, job = null, shopSettings = {}, partStatus = '';
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
@@ -162,6 +164,11 @@
         (job.waiver_signed_at?'<div class="kv">✍️ Waiver signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>':'<div class="kv note">Waiver not signed yet</div>') +
         '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
 
+      '<div class="card"><div class="sec">Job details</div>' +
+        '<div class="note" style="margin:-2px 0 8px">Anything off? Fix it here — it updates the office tile &amp; the customer\'s record too.</div>' +
+        '<button class="full" id="jdToggle">✏️ Edit job details</button>' +
+        '<div id="jdBox" class="hidden" style="margin-top:10px"></div></div>' +
+
       '<div class="card"><div class="sec">My photos &amp; videos</div>' +
         (techMediaHtml || '<div class="note">Add your own shots of the appliance, the part, or the fix.</div>') +
         '<div class="btnrow" style="margin-top:10px">' +
@@ -193,6 +200,14 @@
           '<div class="two"><input id="tb" placeholder="Brand" value="'+esc(t?t.brand||a.brand:a.brand||'')+'"><input id="tm" placeholder="Model #" value="'+esc(t?t.model||a.model:a.model||'')+'"></div>' +
           '<input id="tc" placeholder="Failed component (e.g. heating element)" value="'+esc(t?t.failed_component||'':'')+'">' +
           '<input id="tp" placeholder="Part number used" value="'+esc(t?t.part_number||'':'')+'">' +
+          '<div class="note" style="margin:4px 0 4px;font-weight:600">Part status</div>' +
+          '<div class="btnrow psrow" id="psrow">' +
+            '<button type="button" data-ps="please_order">🛒 Please order</button>' +
+            '<button type="button" data-ps="truck">🚚 On my truck</button>' +
+            '<button type="button" data-ps="used">🔧 Used</button>' +
+            '<button type="button" data-ps="return">↩️ Return</button>' +
+            '<button type="button" data-ps="missing">⚠️ Missing</button>' +
+          '</div>' +
           '<input id="tr" placeholder="Root cause (short)" value="'+esc(t?t.root_cause||'':'')+'">' +
           '<div class="outc">' +
             '<label><input type="radio" name="o" value="fixed"'+(!t||t.outcome==='fixed'?' checked':'')+'> Fixed today</label>' +
@@ -231,7 +246,56 @@
 
     document.getElementById('brainBtn').onclick = brainLookup;
     app.querySelectorAll('button[data-src]').forEach(function(b){ b.onclick=function(){ openParts(b.getAttribute('data-src')); }; });
+    // Part status — the TN set (please order / truck stock / used / return / missing).
+    partStatus = (tdr() && tdr().part_status) || '';
+    app.querySelectorAll('#psrow button[data-ps]').forEach(function(b){
+      if (b.getAttribute('data-ps') === partStatus) b.classList.add('sel');
+      b.onclick = function(){
+        var was = b.classList.contains('sel');
+        app.querySelectorAll('#psrow button[data-ps]').forEach(function(x){ x.classList.remove('sel'); });
+        if (was) { partStatus = ''; } else { b.classList.add('sel'); partStatus = b.getAttribute('data-ps'); }
+      };
+    });
     document.getElementById('saveTdr').onclick = saveTdr;
+
+    // Shared job details — the tech can correct the SAME customer/unit/job rows the office
+    // tile and the customer record read. Input once, shared everywhere.
+    var jdToggle=document.getElementById('jdToggle'), jdBox=document.getElementById('jdBox');
+    if(jdToggle) jdToggle.onclick=function(){
+      if(jdBox.classList.contains('hidden')){ renderJdEditor(jdBox); jdBox.classList.remove('hidden'); jdToggle.textContent='✕ Close'; }
+      else { jdBox.classList.add('hidden'); jdToggle.textContent='✏️ Edit job details'; }
+    };
+  }
+
+  function renderJdEditor(box){
+    var c=job.customer||{}, a=attrs();
+    var IST='width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:7px;box-sizing:border-box';
+    var di=function(id,label,val,ph,ta){ return '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:2px 0 2px">'+esc(label)+'</label>'+(ta?'<textarea id="'+id+'" style="'+IST+';min-height:52px;resize:vertical" placeholder="'+esc(ph||'')+'">'+esc(val||'')+'</textarea>':'<input id="'+id+'" style="'+IST+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'">'); };
+    box.innerHTML=
+      '<div style="display:flex;gap:8px"><div style="flex:1">'+di('jd_appl','Appliance',(job.unit&&job.unit.label),'Washer')+'</div><div style="flex:1">'+di('jd_brand','Brand',a.brand,'Whirlpool')+'</div></div>'+
+      di('jd_model','Model #',a.model,'off the sticker')+
+      di('jd_prob','Problem',job.problem,'what it\'s doing',true)+
+      di('jd_avail','Availability',job.availability,'days that work')+
+      '<div style="display:flex;gap:8px"><div style="flex:1">'+di('jd_first','First name',c.first_name,'')+'</div><div style="flex:1">'+di('jd_last','Last name',c.last_name,'')+'</div></div>'+
+      di('jd_phone','Phone',c.phone,'(555) 123-4567')+
+      di('jd_addr','Address',c.address,'123 Main St')+
+      '<div style="display:flex;gap:8px"><div style="flex:2">'+di('jd_city','City',c.city,'')+'</div><div style="flex:1">'+di('jd_state','State',c.state,'TN')+'</div></div>'+
+      '<button class="primary full" id="jd_save">Save details</button><div class="err" id="jd_msg"></div>';
+    document.getElementById('jd_save').onclick=function(){
+      var gv=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
+      var btn=document.getElementById('jd_save'), msg=document.getElementById('jd_msg'); btn.disabled=true; btn.textContent='Saving…'; msg.textContent='';
+      var attrsNew=Object.assign({},a,{brand:gv('jd_brand')||null,model:gv('jd_model')||null});
+      var ops=[];
+      if(job.customer_id) ops.push(sb.from('customer').update({first_name:gv('jd_first')||null,last_name:gv('jd_last')||null,phone:gv('jd_phone')||null,address:gv('jd_addr')||null,city:gv('jd_city')||null,state:gv('jd_state')||null}).eq('id',job.customer_id));
+      if(job.unit&&job.unit.id) ops.push(sb.from('unit').update({label:gv('jd_appl')||null,attributes:attrsNew}).eq('id',job.unit.id));
+      ops.push(sb.from('job').update({problem:gv('jd_prob')||null,availability:gv('jd_avail')||null}).eq('id',jobId));
+      Promise.all(ops).then(function(rr){
+        var err=rr.filter(function(x){return x&&x.error;})[0];
+        btn.disabled=false; btn.textContent='Save details';
+        if(err){ msg.textContent=err.error.message; return; }
+        msg.style.color='var(--completed)'; msg.textContent='Saved ✓ — office + customer updated'; loadJob();
+      });
+    };
   }
 
   function runOcr(file) {
@@ -368,16 +432,23 @@
     var btn=document.getElementById('saveTdr'); btn.disabled=true; btn.textContent='Saving…';
     var cb=document.getElementById('tcb'); var held=!(cb&&cb.checked);
     var row={ company_id:me.company_id, job_id:jobId, appliance:(job.unit&&job.unit.label)||'', brand:v('tb'), model:v('tm'), symptom:job.problem||'', failed_component:comp, part_number:v('tp'), root_cause:v('tr'), outcome:outcome, held:held, tech: myTech?myTech.name:(me.name||'') };
+    if(partStatus) row.part_status=partStatus;
     if(!held) row.reopened_at=new Date().toISOString();
-    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(function(r){
-      if(r.error){ btn.disabled=false; btn.textContent='Save report + finish'; document.getElementById('tdrErr').textContent=r.error.message; return; }
-      var ns=outcome==='return_needed'?'awaiting_parts':'completed';
+    var done=function(r){
+      if(r.error){
+        // If part_status column isn't there yet, save the rest of the report anyway.
+        if(row.part_status!==undefined && /part_status/i.test(r.error.message||'')){ delete row.part_status; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done); return; }
+        btn.disabled=false; btn.textContent='Save report + finish'; document.getElementById('tdrErr').textContent=r.error.message; return;
+      }
+      // "Please order" or "Missing" → the part isn't in hand, so the job waits on parts.
+      var ns=(outcome==='return_needed'||partStatus==='please_order'||partStatus==='missing')?'awaiting_parts':'completed';
       sb.from('job').update({status:ns}).eq('id',jobId).then(function(){
         var reviewCta = ns==='completed' ? '<button class="full review" id="doneReview" style="max-width:320px;margin:14px auto 0">⭐ Text review link to customer</button>' : '';
         app.innerHTML='<div class="center"><div class="big">✅</div><h2>Report saved</h2><p>Nice work.</p>'+reviewCta+'<p style="margin-top:16px"><a href="/platform/tech.html">Back to My Jobs</a></p></div>';
         var dr=document.getElementById('doneReview'); if(dr) dr.onclick=function(){ sendReview(dr); };
       });
-    });
+    };
+    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done);
   }
 
   sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else signIn(); });

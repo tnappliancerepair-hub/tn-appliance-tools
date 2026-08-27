@@ -91,7 +91,16 @@ async function sentSince(phone, sinceMs) {
 // idempotency check at the chokepoint fixes both. Exact phone+body match only, so
 // it can never suppress a genuinely different message — just a literal duplicate.
 const DEDUP_WINDOW_MS = (Number(process.env.SMS_DEDUP_WINDOW_MIN) > 0 ? Number(process.env.SMS_DEDUP_WINDOW_MIN) : 30) * 60 * 1000;
-function bodyKey(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 200); }
+// Dedup key must include the UNIQUE tail of a message, not just its opening. Intake /
+// pay / portal texts share an identical preamble and carry their one distinguishing
+// token (the link) at the END — a flat slice(0,200) cut the token off, so two DIFFERENT
+// intake links to the same phone collided and the 2nd was suppressed as a false
+// "duplicate" (why a repeat test to the same number never delivered). Keep head+tail so a
+// truly identical message still matches, but two links that differ only in their token don't.
+function bodyKey(s) {
+  const t = String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return t.length <= 200 ? t : (t.slice(0, 150) + '|' + t.slice(-60));
+}
 async function recentDuplicate(phone, message, windowMs) {
   const e = toE164(phone); if (!e) return false;
   const key = bodyKey(message);

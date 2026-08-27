@@ -74,7 +74,15 @@
   function center(icon, title, msg){ app.innerHTML = '<div class="center"><div class="big">' + icon + '</div><h2>' + esc(title) + '</h2><p>' + esc(msg) + '</p></div>'; }
   function api(doo, payload) {
     var opts = payload ? { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) } : {};
-    return fetch(API + '?t=' + encodeURIComponent(token) + '&do=' + doo, opts).then(function(r){ return r.json(); });
+    // The waiver step fires several sequential Supabase writes server-side and can be
+    // slow on weak signal. NEVER let the promise reject — a rejected fetch left the
+    // "Signing…" button stuck forever even though the write landed. Always resolve to an
+    // object so every .then fires and resets the button. 20s abort guard as a backstop.
+    var ctl = ('AbortController' in window) ? new AbortController() : null;
+    if (ctl) { opts.signal = ctl.signal; setTimeout(function(){ try { ctl.abort(); } catch(_){} }, 20000); }
+    return fetch(API + '?t=' + encodeURIComponent(token) + '&do=' + doo, opts)
+      .then(function(r){ return r.json().catch(function(){ return { ok:false, error:'bad_response' }; }); })
+      .catch(function(){ return { ok:false, error:'network' }; });
   }
 
   if (!token) { center('🔗', 'Missing link', 'Please tap the link your shop texted you.'); return; }
