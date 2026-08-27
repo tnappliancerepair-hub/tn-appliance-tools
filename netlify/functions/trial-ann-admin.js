@@ -283,6 +283,34 @@ exports.handler = async function (event) {
       return json(200, { ok: true, number: want, days, call_count: out.length, calls: out.slice(0, 25) });
     }
 
+    // numbers — list every Telnyx number we own + how it's wired, so we can spot a
+    // spare to use as a demo line. ?action=numbers
+    if (action === 'numbers') {
+      const out = [];
+      let page = 1;
+      while (page <= 5) {
+        const r = await call('GET', `/phone_numbers?page[size]=100&page[number]=${page}`);
+        if (!r.ok) break;
+        const rows = (r.data && r.data.data) || [];
+        if (!rows.length) break;
+        for (const n of rows) {
+          out.push({
+            number: n.phone_number,
+            status: n.status,
+            connection_id: n.connection_id || null,
+            messaging_profile_id: n.messaging_profile_id || null,
+            tags: n.tags || [],
+            name: n.customer_reference || n.external_pin || '',
+          });
+        }
+        const meta = (r.data && r.data.meta) || {};
+        if (meta.page_number && meta.total_pages && meta.page_number < meta.total_pages) page++;
+        else break;
+      }
+      const noVoice = out.filter((n) => !n.connection_id);
+      return json(200, { ok: true, total: out.length, without_voice_connection: noVoice.length, spare_candidates: noVoice.slice(0, 20), all: out });
+    }
+
     // convos — AI-assistant conversation log (the RIGHT place for AI-answered calls;
     // classic voice CDRs don't capture these). ?action=convos&id=<assistant-id>[&days=7]
     if (action === 'convos') {
