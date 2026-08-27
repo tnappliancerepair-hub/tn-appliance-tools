@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Job — Ant</title>
+<!-- Ant platform — NO-LOGIN, read-only cockpit view. Tokenized (job_view RPC, anon). The
+     owner taps the cockpit link from the SMS and SEES the intake (video, model photo,
+     availability, waiver, problem) with no sign-in. Working the job stays in the signed-in
+     cockpit (tech-job.html). -->
+<style>
+  :root{ --bg:#f6f7f4; --panel:#fff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd; --brand:#3f8f24; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 6px 18px rgba(20,30,10,.06);
+    --new:#6b7280; --scheduled:#2563eb; --in_progress:#b45309; --awaiting_parts:#7c3aed; --completed:#3f8f24; --canceled:#9ca3af; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a; --brand:#5bb537; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.4); }}
+  :root[data-theme="dark"]{ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a; --brand:#5bb537; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:12px 15px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header .logo{font-size:18px}
+  header .shop{font-weight:800;font-size:15px}
+  header .ro{margin-left:auto;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .shell{max-width:620px;margin:0 auto;padding:14px 14px 48px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:13px;box-shadow:var(--shadow)}
+  .cust{font-weight:800;font-size:19px}
+  .unit{color:var(--muted);font-size:14px;margin-top:2px}
+  .badge{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;color:#fff}
+  .prob{margin-top:9px;font-size:15px}
+  .sec{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:2px 0 9px}
+  .kv{font-size:14px;margin:3px 0}
+  .kv b{font-weight:700}
+  .flag{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;margin:6px 6px 0 0}
+  iframe.vid,video.vid{border:none;width:100%;aspect-ratio:16/9;border-radius:12px;background:#000}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .thumbs img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+  .model .mval{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px;background:var(--chip);padding:4px 9px;border-radius:7px}
+  .note{background:var(--chip);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--muted)}
+  a.cta{display:block;text-align:center;background:var(--brand);color:#fff;text-decoration:none;font-weight:800;padding:14px;border-radius:12px;font-size:16px}
+  .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+  .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:8px 12px}
+  .center{max-width:400px;margin:14vh auto;text-align:center;color:var(--muted);padding:0 20px}
+  .center .big{font-size:44px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div id="app"><div class="center"><div class="big">🐜</div><p>Loading…</p></div></div>
+
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var app=document.getElementById('app'); var cfg=window.ANT_SUPABASE||{};
+  var t=new URLSearchParams(location.search).get('t');
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
+  function fail(m){ app.innerHTML='<div class="center"><div class="big">🐜</div><p>'+esc(m)+'</p></div>'; }
+  if(!cfg.url||!cfg.anonKey){ fail('Not connected yet.'); return; }
+  if(!t){ fail('This link is missing its code.'); return; }
+  var sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+  var STATUS={ new:{l:'New',c:'var(--new)'}, scheduled:{l:'Scheduled',c:'var(--scheduled)'}, in_progress:{l:'In progress',c:'var(--in_progress)'}, awaiting_parts:{l:'Awaiting parts',c:'var(--awaiting_parts)'}, completed:{l:'Completed',c:'var(--completed)'}, canceled:{l:'Canceled',c:'var(--canceled)'} };
+  function st(k){ return STATUS[k]||{l:(k||'Open'),c:'var(--new)'}; }
+  function fmtDay(d){ if(!d) return ''; var p=String(d).split('-'); if(p.length!==3) return d; var dt=new Date(+p[0],+p[1]-1,+p[2]); return dt.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
+
+  sb.rpc('job_view',{p_token:t}).then(function(r){
+    if(r.error){ fail('Could not load this job.'); return; }
+    var d=r.data||{}; if(!d.ok){ fail(d.error||'This link is invalid or has expired.'); return; }
+    var co=d.company||{}, job=d.job||{}, cust=job.customer||{}, unit=job.unit||{}, a=unit.attributes||{}, media=d.media||[], tdr=d.tdr||null;
+    var s=st(job.status);
+    var name=[cust.first_name,cust.last_name].filter(Boolean).join(' ')||'Customer';
+    var addr=[cust.address,cust.city,cust.state].filter(Boolean).join(', ');
+    var phone=(cust.phone||'').replace(/[^0-9+]/g,'');
+
+    var vids=media.filter(function(m){return m.kind==='video';});
+    var phos=media.filter(function(m){return m.kind==='photo';});
+    var vidPlayer=function(m){ if(m.provider==='storage'){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+esc(m.ref); return '<video class="vid" src="'+u+'" controls playsinline preload="metadata"></video>'; } return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; };
+    var photoThumbs=function(list){ return list.length?'<div class="thumbs">'+list.map(function(m){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+esc(m.ref); return '<a target="_blank" rel="noopener" href="'+u+'"><img src="'+u+'"></a>'; }).join('')+'</div>':''; };
+    var vidHtml=vids.length?vids.map(vidPlayer).join(''):'<div class="note">No video sent.</div>';
+    var flags=(job.needs_two_techs?'<span class="flag">🧑‍🤝‍🧑 Two-man job</span>':'')+(job.long_job?'<span class="flag">⏳ Time-consuming</span>':'');
+
+    app.innerHTML=
+      '<header><span class="logo">🐜</span><span class="shop">'+esc(co.name||'Your shop')+'</span><span class="ro">Read-only</span></header>'+
+      '<div class="shell">'+
+
+      '<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">'+
+        '<div><div class="cust">'+esc(name)+'</div>'+(unit.label?'<div class="unit">'+esc(unit.label)+'</div>':'')+(job.scheduled_day?'<div class="unit">📅 '+esc(fmtDay(job.scheduled_day))+'</div>':'')+'</div>'+
+        '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>'+
+        (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'')+
+        (flags?'<div>'+flags+'</div>':'')+
+        '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>'+
+      '</div>'+
+
+      '<div class="card"><div class="sec">From the customer</div>'+
+        (job.availability?'<div class="kv">📅 <b>'+esc(job.availability)+'</b></div>':'')+
+        (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'')+
+        (job.waiver_signed_at?'<div class="kv">✍️ Release signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>':'<div class="kv note">Release not signed yet</div>')+
+        '<div style="margin-top:10px">'+vidHtml+'</div>'+photoThumbs(phos)+
+      '</div>'+
+
+      (a.model||a.brand?'<div class="card"><div class="sec">Model number</div><div class="model"><span class="mval">'+esc(a.model||'—')+'</span>'+(a.brand?' <span class="unit">'+esc(a.brand)+'</span>':'')+'</div></div>':'')+
+
+      (tdr&&(tdr.failed_component||tdr.diagnosis||tdr.part_number||tdr.root_cause)?'<div class="card"><div class="sec">Diagnosis so far</div>'+
+        (tdr.failed_component?'<div class="kv"><b>Failed:</b> '+esc(tdr.failed_component)+'</div>':'')+
+        (tdr.part_number?'<div class="kv"><b>Part:</b> '+esc(tdr.part_number)+(tdr.part_status?' ('+esc(tdr.part_status)+')':'')+'</div>':'')+
+        (tdr.root_cause?'<div class="kv"><b>Cause:</b> '+esc(tdr.root_cause)+'</div>':'')+
+        (tdr.diagnosis?'<div class="kv">'+esc(tdr.diagnosis)+'</div>':'')+
+      '</div>':'')+
+
+      '<a class="cta" href="/c/'+esc(job.id)+'">Open the full cockpit to work this job →</a>'+
+      '<div class="note" style="margin-top:10px;text-align:center">This is a read-only preview — no sign-in needed. Sign in on the cockpit to start, report, take payment, or edit.</div>'+
+      '</div>';
+  }).catch(function(){ fail('Could not load this job.'); });
+})();
+</script>
+</body>
+</html>
