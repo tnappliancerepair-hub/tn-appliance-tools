@@ -54,7 +54,12 @@ async function syncBoardMirror() {
   const items = await fetchKanban();
   if (!items.length) return { ok: false, error: 'empty_feed', ms: Date.now() - t0 };
 
-  const rows = items.map(shape).filter((x) => x.id != null);
+  // Stamp every row with this run's timestamp so max(synced_at) is a TRUE heartbeat
+  // (was default-now() on insert only, which read as "stale" even while the sync ran
+  // fine — jobs just hadn't changed). Now "is the mirror current / still receiving
+  // Xano?" is a reliable one-query check during the crossover.
+  const syncedAt = new Date().toISOString();
+  const rows = items.map(shape).filter((x) => x.id != null).map((r) => ({ ...r, synced_at: syncedAt }));
   const ids = rows.map((x) => x.id);
 
   await sb.upsert('board_mirror', rows, { onConflict: 'id' });
