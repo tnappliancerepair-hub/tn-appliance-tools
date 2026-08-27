@@ -148,7 +148,7 @@
   function load(){
     shell('<div class="skel" style="padding:30px 4px">Crunching…</div>');
     // RLS scopes both queries to this company — we never pass company_id.
-    var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status').limit(3000);
+    var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id').limit(3000);
     var invP  = sb.from('invoice').select('total_cents,status,paid_at,created_at').limit(3000);
     Promise.all([jobsP, invP]).then(function(res){
       var jobs = (res[0].data)||[], invs = (res[1].data)||[];
@@ -172,9 +172,11 @@
     for (k in byCust){ var ds=byCust[k].sort(function(a,b){return a-b;}); for(var i=1;i<ds.length;i++){ if(ds[i]-ds[i-1] <= 30*864e5){ callbackCust++; break; } } }
     var completedAll = jobs.filter(function(j){return j.status==='completed';}).length;
     var callbackRate = pct(callbackCust, Object.keys(byCust).length);
-    // first-stop PRELIM: completed jobs that never needed parts / no parts_status set ÷ completed. Sharpens with TDR data.
-    var neededParts = completed.filter(function(j){ var p=(j.parts_status||'').toLowerCase(); return p && p!=='none' && p!=='n/a'; }).length;
-    var firstStop = pct(completed.length - neededParts, completed.length);
+    // first-stop from the REAL repair report: completed jobs with a TDR, fixed with no
+    // return trip for parts. Only counts jobs we actually have a report for (never fakes it).
+    var fsKnown = completed.filter(function(j){ return j.first_stop===true || j.first_stop===false; });
+    var fsYes = fsKnown.filter(function(j){ return j.first_stop===true; }).length;
+    var firstStop = pct(fsYes, fsKnown.length);
 
     // money (owner-only) from real invoices — honest, may be sparse until CSR invoicing moves here
     var invWin = invs.filter(function(v){ return inWin(v, v.paid_at||v.created_at?'created_at':'created_at'); });
@@ -184,7 +186,7 @@
     var body =
       '<div class="sec">Performance — front and center</div>'+
       '<div class="hero">'+
-        tile('🥇 First-Stop Completion', firstStop+'%', 'of '+completed.length+' completed this period', true, 'prelim', 'Preliminary — sharpens when repair-report data lands (warranty part backorders won\'t count against it).')+
+        tile('🥇 First-Stop Completion', firstStop+'%', 'of '+fsKnown.length+' completed jobs with a report', true, '', 'Fixed on the first visit, no return trip for parts. From the tech\'s repair report; only counts jobs we have a report for.')+
         tile('💚 Callbacks', callbackRate+'%', callbackCust+' customers back within 30 days', false, '', '')+
         tile('🔁 Recommend Replacement', String(recRep), 'machines called not-worth-fixing', false, '', 'Outcome, not a grade. Owner outlier-watch only.')+
         tile('✅ Completed', String(completed.length), 'jobs finished this period', false, '', '')+

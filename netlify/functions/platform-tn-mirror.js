@@ -36,6 +36,51 @@ async function cfg() {
   return { url, key };
 }
 
+// Bulk-read the newest TDR (repair report) per job from Xano (metadata API, table 12).
+// Gives us real repair data — diagnosis, failed part, labor, repair-done, parts-needed —
+// which the board feed doesn't carry. Newest TDR per job wins (id desc). Best-effort:
+// a token/read failure returns {} so the mirror still runs on board data alone.
+const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
+async function fetchTdrMap() {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return {};
+  const map = {};
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  for (let page = 1; page <= 4; page++) {
+    let rows = [];
+    try {
+      const r = await fetch(`${META}/table/12/content/search`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ sort: { id: 'desc' }, per_page: 500, page }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!r.ok) break;
+      rows = (await r.json()).items || [];
+    } catch (_) { break; }
+    if (!rows.length) break;
+    for (const t of rows) {
+      const jid = Number(t.job_id || 0);
+      if (!jid || map[jid]) continue;   // id-desc → first seen = newest TDR, wins
+      map[jid] = {
+        diagnosis: String(t.diagnosis || ''),
+        failed_component: String(t.failed_component || ''),
+        part: String(t.verified_part_number || ''),
+        repair_completed: String(t.repair_completed || ''),
+        parts_needed: String(t.parts_needed || ''),
+        labor_hours: (t.labor_hours != null && t.labor_hours !== '') ? Number(t.labor_hours) : null,
+      };
+    }
+    if (rows.length < 500) break;
+  }
+  return map;
+}
+// A real part token in parts_needed = the job needed a return trip for parts (not first-stop).
+function neededPartsTrip(pn) {
+  const s = String(pn || '').trim();
+  if (!s || /^(none|n\/a|na|no)$/i.test(s)) return false;
+  return /[A-Za-z0-9][A-Za-z0-9.\-]{4,}/.test(s) && /\d/.test(s);
+}
+
 // PostgREST bulk upsert that returns the upserted rows (so we can read back the UUIDs).
 async function upsert(url, key, table, rows, onConflict) {
   if (!rows.length) return [];
@@ -105,6 +150,9 @@ async function syncTnToPlatform(limit) {
     if (Array.isArray(td)) td.forEach((x) => { if (x.xano_tech_id != null) techByXano.set(Number(x.xano_tech_id), x.id); });
   } catch (_) { /* leave techs unmapped rather than fail the whole mirror */ }
 
+  // Real repair data per job (first-stop, diagnosis, part, labor) from the TDR table.
+  const tdrMap = await fetchTdrMap();
+
   // 3) jobs
   const jobRows = jobs.map((j) => {
     const customer_id = custIdByXano.get(Number(j.customer_id));
@@ -113,11 +161,23 @@ async function syncTnToPlatform(limit) {
     const ss = Number(j.scheduled_start);
     const iso = ss > 0 ? new Date(ss).toISOString() : null;
     const eta = String(j.parts_eta_date || '').trim();
+    const tdr = tdrMap[Number(j.id)] || null;
+    const isCompleted = mapStatus(j) === 'completed';
+    // First-stop = fixed on the visit with no return trip for parts. Only meaningful on a
+    // completed job WITH a TDR; unknown (null) otherwise so it never fakes the rate.
+    const firstStop = (isCompleted && tdr) ? !neededPartsTrip(tdr.parts_needed) : null;
     return {
       company_id: TN_COMPANY, xano_id: Number(j.id),
       customer_id, unit_id,
       technician_id: techByXano.get(Number(j.technician_id)) || null,
       status: mapStatus(j),
+      tdr_diagnosis: tdr ? tdr.diagnosis : '',
+      tdr_failed_component: tdr ? tdr.failed_component : '',
+      tdr_part_number: tdr ? tdr.part : '',
+      tdr_repair_completed: tdr ? tdr.repair_completed : '',
+      tdr_parts_needed: tdr ? tdr.parts_needed : '',
+      tdr_labor_hours: tdr ? tdr.labor_hours : null,
+      first_stop: firstStop,
       problem: String(j.problem_summary || ''),
       source: String(j.intake_source || 'xano_mirror'),
       scheduled_start: iso,
