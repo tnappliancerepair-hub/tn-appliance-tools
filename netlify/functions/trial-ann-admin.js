@@ -217,10 +217,11 @@ exports.handler = async function (event) {
             scanned++;
             const when = Date.parse(rec.created_at || rec.started_at || rec.completed_at || rec.date || rec.occurred_at || '') || 0;
             if (when && when < since) { stop = true; break; }
-            const cost = amt(rec.cost) + amt(rec.total_cost) + amt(rec.rate);
+            const cost = amt(rec.cost) + amt(rec.carrier_fee);   // base + carrier fee = true billed
             perType[rt] = perType[rt] || { count: 0, cost: 0 };
             perType[rt].count++; perType[rt].cost += cost;
-            const num = rec.to || rec.destination_number || rec.destination || rec.from || rec.source_number || '';
+            // messaging uses cld/cli; voice uses to/from — cover both
+            const num = rec.cld || rec.to || rec.destination_number || rec.cli || rec.from || rec.source_number || '';
             if (num) { perNumber[num] = perNumber[num] || { count: 0, cost: 0 }; perNumber[num].count++; perNumber[num].cost += cost; }
           }
           const meta = (r.data && r.data.meta) || {};
