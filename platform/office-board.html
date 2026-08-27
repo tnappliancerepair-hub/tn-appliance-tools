@@ -339,6 +339,45 @@
         (choices.length?'<div style="font-size:13px;line-height:1.5">'+choices.map(function(c){return esc(c);}).join('<br>')+'</div>':'');
     }).catch(function(){ if(box) box.innerHTML=''; });
   }
+
+  // ── Shared JOB DETAILS — the single-write record. Whoever inputs first (Ann on the
+  // call, the customer via intake, the tech in the cockpit) fills it; anyone can correct
+  // it here, and it writes to the SAME customer/unit/job rows every surface reads. Input
+  // once, shared across the office tile, the tech app, the cockpit, and the customer portal.
+  function loadDetails(job){
+    var box=document.getElementById('jdetails'); if(!box) return;
+    var IST='width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:7px;box-sizing:border-box';
+    var di=function(id,label,val,ph,ta){ return '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:2px 0 2px">'+esc(label)+'</label>'+(ta?'<textarea id="'+id+'" style="'+IST+';min-height:52px;resize:vertical" placeholder="'+esc(ph||'')+'">'+esc(val||'')+'</textarea>':'<input id="'+id+'" style="'+IST+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'">'); };
+    sb.from('job').select('id,problem,availability,customer_id,unit_id,customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes)').eq('id',job.id).limit(1).single().then(function(r){
+      var j=(r&&r.data)||{}; var c=j.customer||{}; var u=j.unit||{}; var a=u.attributes||{};
+      box.innerHTML=
+        '<div style="display:flex;gap:8px"><div style="flex:1">'+di('d_appl','Appliance',u.label,'Washer')+'</div><div style="flex:1">'+di('d_brand','Brand',a.brand,'Whirlpool')+'</div></div>'+
+        di('d_model','Model #',a.model,'off the sticker')+
+        di('d_prob','Problem',j.problem,'what it\'s doing',true)+
+        di('d_avail','Availability',j.availability,'days that work')+
+        '<div style="display:flex;gap:8px"><div style="flex:1">'+di('d_first','First name',c.first_name,'')+'</div><div style="flex:1">'+di('d_last','Last name',c.last_name,'')+'</div></div>'+
+        di('d_phone','Phone',c.phone,'(555) 123-4567')+
+        di('d_addr','Address',c.address,'123 Main St')+
+        '<div style="display:flex;gap:8px"><div style="flex:2">'+di('d_city','City',c.city,'')+'</div><div style="flex:1">'+di('d_state','State',c.state,'TN')+'</div></div>'+
+        '<div class="srow"><button class="primary" id="d_save">Save details</button><span id="d_msg" style="font-size:12px;color:var(--muted);align-self:center"></span></div>';
+      document.getElementById('d_save').onclick=function(){
+        var gv=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
+        var btn=document.getElementById('d_save'), msg=document.getElementById('d_msg'); btn.disabled=true; btn.textContent='Saving…'; msg.textContent='';
+        var attrs=Object.assign({},a,{brand:gv('d_brand')||null,model:gv('d_model')||null});
+        var ops=[];
+        if(j.customer_id) ops.push(sb.from('customer').update({first_name:gv('d_first')||null,last_name:gv('d_last')||null,phone:gv('d_phone')||null,address:gv('d_addr')||null,city:gv('d_city')||null,state:gv('d_state')||null}).eq('id',j.customer_id));
+        if(j.unit_id) ops.push(sb.from('unit').update({label:gv('d_appl')||null,attributes:attrs}).eq('id',j.unit_id));
+        ops.push(sb.from('job').update({problem:gv('d_prob')||null,availability:gv('d_avail')||null}).eq('id',job.id));
+        Promise.all(ops).then(function(rr){
+          var err=rr.filter(function(x){return x&&x.error;})[0];
+          btn.disabled=false; btn.textContent='Save details';
+          if(err){ msg.textContent=err.error.message; return; }
+          msg.textContent='Saved ✓ — everyone sees it'; loadBoard();
+          setTimeout(function(){ if(msg) msg.textContent=''; },2500);
+        });
+      };
+    }).catch(function(){ if(box) box.innerHTML='<div style="font-size:12.5px;color:var(--muted)">Couldn\'t load details.</div>'; });
+  }
   // ── JOB DRAWER — status buttons, notes, pay, statement ──────────────────────
   function openJob(job){
     var cust=job.customer||{}, unit=job.unit&&job.unit.label?job.unit.label:'';
@@ -349,6 +388,7 @@
       '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
       '<div id="jintake"></div>' +
+      '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
       '<div class="sec">Office notes</div><textarea id="jnotes" placeholder="Parts on order, gate code, upsell offered, anything the team should see…">'+esc(job.office_notes||'')+'</textarea>' +
       '<div class="srow" style="margin-top:8px"><button class="primary" id="jnotesSave">Save notes</button></div>' +
@@ -368,6 +408,7 @@
     ov.onclick=function(e){ if(e.target===ov) close(); };
     document.getElementById('jclose').onclick=close;
     loadIntake(job);
+    loadDetails(job);
 
     // status buttons
     var sb2=document.getElementById('jstatus');
