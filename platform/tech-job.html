@@ -80,6 +80,23 @@
   .sbtn.sel[data-o="return_needed"]{background:linear-gradient(135deg,#f5a623,#d98613);color:#231a02}
   .sbtn.sel[data-o="not_fixable"]{background:linear-gradient(135deg,#4aa9ff,#1f6fed)}
   .sbtn.sel[data-o="reassign"]{background:linear-gradient(135deg,#a78bfa,#7c5cff)}
+  /* Status — the big three-tile OTW / Start-Pause / Complete row (matches TN) */
+  .statustiles{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:0 0 4px}
+  .stile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 6px;border:1.5px solid var(--line);border-radius:14px;background:var(--bg);font-weight:800;font-size:14.5px;text-align:center;line-height:1.15;min-height:96px}
+  .stile .ic{font-size:26px;line-height:1}
+  .stile.otw{color:#2563eb}
+  .stile.go{color:var(--in_progress)}
+  .stile.done{color:var(--completed);background:rgba(63,143,36,.07)}
+  .stile.on{border-color:transparent;color:#fff}
+  .stile.otw.on{background:#2563eb}
+  .stile.go.on{background:var(--in_progress)}
+  .stile.done.on{background:var(--completed)}
+  .stile:disabled{opacity:.5}
+  .stimes{text-align:center;color:var(--muted);font-size:12.5px;font-weight:600;margin:2px 0 11px;min-height:1em}
+  .bigwaiver{width:100%;background:#7c5cff;color:#fff;border-color:transparent;font-size:15.5px;padding:15px;box-shadow:0 4px 14px rgba(124,92,255,.3)}
+  .wvwarn{text-align:center;color:#c67a0f;font-size:13px;font-weight:700;margin-top:9px}
+  :root[data-theme="dark"] .wvwarn,:root:not([data-theme="light"]) .wvwarn{color:#f5b451}
+  .wvok{text-align:center;color:var(--completed);font-size:13.5px;font-weight:700;margin-top:12px}
   .note{background:var(--chip);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--muted)}
   .thr{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;padding:2px}
   .bub{max-width:88%;padding:8px 11px;border-radius:12px;font-size:14px;background:var(--chip);border:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
@@ -149,11 +166,16 @@
       if (r.error || !r.data || !r.data[0]) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Couldn\'t open that job. <a href="/platform/tech.html">Back</a></p></div>'; return; }
       job = r.data[0]; render();
     };
-    // Try with the scheduling-flag columns; if they aren't there yet (migration 014 not run),
-    // fall back to the same query without them so the cockpit always opens.
-    sb.from('job').select(base + 'needs_two_techs,long_job,' + tail).eq('id', jobId).limit(1).then(function(r){
-      if (r.error) { sb.from('job').select(base + tail).eq('id', jobId).limit(1).then(done); return; }
-      done(r);
+    // Try with the optional columns (scheduling flags = migration 014, status timestamps =
+    // migration 018). If either set isn't there yet, fall back so the cockpit always opens.
+    var flags = 'needs_two_techs,long_job,';
+    var stamps = 'en_route_at,started_at,completed_at,';
+    sb.from('job').select(base + flags + stamps + tail).eq('id', jobId).limit(1).then(function(r){
+      if (!r.error) { done(r); return; }
+      sb.from('job').select(base + flags + tail).eq('id', jobId).limit(1).then(function(r2){
+        if (!r2.error) { done(r2); return; }
+        sb.from('job').select(base + tail).eq('id', jobId).limit(1).then(done);
+      });
     });
   }
 
@@ -182,31 +204,38 @@
       '<header><a class="back" href="/platform/tech.html">‹ My Jobs</a><span class="shop" id="shop"></span></header>' +
       '<div class="shell">' +
 
+      // ── Who / what / call · navigate ──
       '<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
         '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+(job.scheduled_day?'<div class="unit">📅 '+esc(fmtDay(job.scheduled_day))+'</div>':'')+'</div>' +
         '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>' +
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
         '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
-        (addr?'<button class="full otw" id="otwBtn" style="margin-top:10px">🚚 On my way — text customer &amp; navigate</button>':'') +
-        '<div class="btnrow">' +
-          (job.status!=='in_progress'?'<button class="primary" data-status="in_progress">Start</button>':'') +
-          '<button data-status="awaiting_parts">Awaiting parts</button>' +
-          '<button class="primary" data-scrollreport>Complete + report</button>' +
         '</div>' +
-        '<button class="full" id="schedBtn" style="margin-top:8px">📅 Schedule my day · move · hand off</button>' +
+
+      // ── Status — the big three-tile row (TN's clean layout) ──
+      '<div class="card"><div class="sec">🚦 Status</div>' +
+        '<div class="statustiles">' +
+          '<button class="stile otw'+(job.en_route_at?' on':'')+'" id="otwBtn"'+(addr?'':' disabled')+'><span class="ic">🚚</span>On my way</button>' +
+          '<button class="stile go'+(job.status==='in_progress'?' on':'')+'" id="startBtn"><span class="ic">'+(job.status==='in_progress'?'⏸':'▶️')+'</span>'+(job.status==='in_progress'?'Pause':(job.started_at?'Resume':'Start job'))+'</button>' +
+          '<button class="stile done'+(job.status==='completed'?' on':'')+'" data-scrollreport><span class="ic">✅</span>Complete</button>' +
+        '</div>' +
+        '<div class="stimes">'+statusTimes()+'</div>' +
+        '<button class="full" id="schedBtn">📅 Schedule on my day · move · hand off</button>' +
         '<div id="schedBox" class="hidden" style="margin-top:10px"></div>' +
         (job.status==='completed'||job.status==='canceled'?'<button class="full reopen" id="reopenBtn" style="margin-top:8px">↩️ Made a mistake? Reopen &amp; change how this ended</button>':'') +
         (job.status==='completed'?'<button class="full review" id="reviewBtn" style="margin-top:8px">⭐ Text review link to customer</button>':'') +
+        // Release of liability — big and unmissable, right where the tech works the job.
+        (job.waiver_signed_at
+          ? '<div class="wvok">✍️ Release of liability signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>'
+          : '<button class="bigwaiver" id="wvToggle" style="margin-top:12px">✍️ Customer signs release of liability</button>'+
+            '<div class="wvwarn">⚠️ Not signed yet — have the customer sign before you start</div>'+
+            '<div id="wvBox" class="hidden" style="margin-top:10px"></div>') +
         '</div>' +
 
+      // ── From the customer ──
       '<div class="card"><div class="sec">From the customer</div>' +
         (job.availability?'<div class="kv">📅 <b>'+esc(job.availability)+'</b></div>':'') +
         (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
-        (job.waiver_signed_at
-          ? '<div class="kv">✍️ Waiver signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>'
-          : '<div class="kv note" style="margin-bottom:8px">Release of liability not signed yet</div>'+
-            '<button class="full" id="wvToggle">✍️ Get the waiver signed</button>'+
-            '<div id="wvBox" class="hidden" style="margin-top:10px"></div>') +
         '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
 
       '<div class="card"><div class="sec">📋 Heads-up for the office</div>' +
@@ -352,6 +381,7 @@
     app.querySelectorAll('button[data-status]').forEach(function(b){ b.onclick=function(){ sb.from('job').update({status:b.getAttribute('data-status')}).eq('id',jobId).then(loadJob); }; });
     var sr = app.querySelector('[data-scrollreport]'); if(sr) sr.onclick=function(){ var c=document.getElementById('reportCard'); if(c) c.scrollIntoView({behavior:'smooth'}); var e=document.getElementById('tc'); if(e) e.focus(); };
     var otw = document.getElementById('otwBtn'); if(otw) otw.onclick = onMyWay;
+    var stb = document.getElementById('startBtn'); if(stb) stb.onclick = toggleStart;
     var rvw = document.getElementById('reviewBtn'); if(rvw) rvw.onclick = function(){ sendReview(rvw); };
 
     // Scheduling flags — tech flags a two-man / time-consuming job so the office slots it right.
@@ -676,12 +706,39 @@
   function tm(msg){ var e=document.getElementById('tmMsg'); if(e){ e.classList.remove('hidden'); e.textContent=msg; } }
   function notify(action){ return token().then(function(tok){ return fetch('/.netlify/functions/platform-tech-notify?do='+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok})}).then(function(r){return r.json();}); }); }
 
+  // Short "11:29am" for the status timestamps line.
+  function tf(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}).replace(/\s/g,'').toLowerCase(); }catch(e){ return ''; } }
+  function statusTimes(){
+    var p=[];
+    if(job.en_route_at) p.push('🚚 On way '+tf(job.en_route_at));
+    if(job.started_at) p.push('▶️ Started '+tf(job.started_at));
+    if(job.status==='completed'&&job.completed_at) p.push('✅ Done '+tf(job.completed_at));
+    return p.join(' · ');
+  }
+
   function onMyWay(){
     var cust=job.customer||{}; var addr=[cust.address,cust.city,cust.state].filter(Boolean).join(', ');
     if(addr) window.open('https://maps.google.com/?q='+encodeURIComponent(addr),'_blank','noopener'); // open nav right away
-    var btn=document.getElementById('otwBtn'); if(btn){ btn.disabled=true; btn.textContent='Texting the customer…'; }
-    notify('otw').then(function(d){ if(btn){ btn.disabled=false; btn.textContent=(d&&d.texted)?'🚚 Customer notified ✓':'🚚 On my way — text customer & navigate'; } })
-      .catch(function(){ if(btn){ btn.disabled=false; btn.textContent='🚚 On my way — text customer & navigate'; } });
+    var btn=document.getElementById('otwBtn'); if(btn){ btn.disabled=true; }
+    notify('otw'); // text the customer (fire-and-forget)
+    // Stamp the time so the tile flips to "on" + shows "On way 11:29am". Best-effort:
+    // if the column isn't migrated yet, still reload so the flow keeps working.
+    sb.from('job').update({ en_route_at:new Date().toISOString() }).eq('id',jobId).then(function(){ loadJob(); });
+  }
+
+  // Start / Pause the job — the middle status tile. Start records the first-start time;
+  // Pause drops it back to Scheduled (keeping the start time so it reads "Resume").
+  function toggleStart(){
+    var btn=document.getElementById('startBtn'); if(btn) btn.disabled=true;
+    if(job.status==='in_progress'){
+      sb.from('job').update({ status:'scheduled' }).eq('id',jobId).then(loadJob);
+      return;
+    }
+    var upd={ status:'in_progress' }; if(!job.started_at) upd.started_at=new Date().toISOString();
+    sb.from('job').update(upd).eq('id',jobId).then(function(r){
+      if(r.error && /started_at/i.test(r.error.message||'')){ sb.from('job').update({ status:'in_progress' }).eq('id',jobId).then(loadJob); return; }
+      loadJob();
+    });
   }
 
   function sendReview(btn){
@@ -861,14 +918,23 @@
       }
       // "Please order" or "Missing" or a needed return → the part isn't in hand, so the job waits.
       var ns=(outcome==='return_needed'||partStatus==='please_order'||partStatus==='missing')?'awaiting_parts':'completed';
-      sb.from('job').update({status:ns}).eq('id',jobId).then(function(){
+      var ju={status:ns}; if(ns==='completed') ju.completed_at=new Date().toISOString();
+      var finish=function(){
         // 🎉 Job done — confetti + fanfare. The reward that makes techs want to close jobs.
         if(ns==='completed' && window.antCelebrate){ try{ window.antCelebrate({ tag:'Job complete', big:'JOB DONE! 🎉', sub:(job.customer&&fullName(job.customer))||'', cue:'win', sound:'both' }); }catch(_){ } }
         var head = ns==='completed' ? '<div class="big">✅</div><h2>Report saved</h2><p>Nice work.</p>' : '<div class="big">🔁</div><h2>Report saved</h2><p>Logged for a return — the office will line up the part.</p>';
         var reviewCta = ns==='completed' ? '<button class="full review" id="doneReview" style="max-width:320px;margin:14px auto 0">⭐ Text review link to customer</button>' : '';
         app.innerHTML='<div class="center">'+head+reviewCta+'<p style="margin-top:16px"><a href="/platform/tech.html">Back to My Jobs</a></p></div>';
         var dr=document.getElementById('doneReview'); if(dr) dr.onclick=function(){ sendReview(dr); };
-      });
+      };
+      // Set the job status; if completed_at isn't a column yet, retry without it.
+      var setStatus=function(u){
+        sb.from('job').update(u).eq('id',jobId).then(function(r2){
+          if(r2 && r2.error && /completed_at/i.test(r2.error.message||'')){ setStatus({status:ns}); return; }
+          finish();
+        });
+      };
+      setStatus(ju);
     };
     sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done);
   }
