@@ -808,6 +808,14 @@
 [functions."board-mirror-sync-cron"]
   schedule = "* * * * *"
 
+# platform-tn-mirror-cron (2026-08-27) — mirror TN's live Xano jobs INTO the ANT Platform
+# tenant tables (TN = tenant #1) every 5 min, so the platform office board stays current
+# with Xano during the crossover. Read-only toward Xano (Xano stays system of record);
+# writes only into TN's own platform tenant, RLS-scoped. Gentle cadence to keep platform
+# DB writes low. Manual/curl-testable core = platform-tn-mirror?secret=…
+[functions."platform-tn-mirror-cron"]
+  schedule = "1-59/5 * * * *"
+
 # tdr-sync-cron (Phase 0 Part A, 2026-08-26) — THE fix for "won't save the part
 # number" when Xano chokes. tech-job.html saves through tdr-save, which lands every
 # TDR/part save in Supabase tdr_pending (durable, instant) then relays to Xano
