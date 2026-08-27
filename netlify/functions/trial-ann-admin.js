@@ -198,38 +198,37 @@ exports.handler = async function (event) {
       const since = Date.now() - days * 86400000;
       const amt = (c) => { if (c == null) return 0; if (typeof c === 'number') return c; if (typeof c === 'string') return parseFloat(c) || 0; if (typeof c === 'object') return parseFloat(c.amount || c.total || 0) || 0; return 0; };
       const perType = {}; const perNumber = {};
-      const maxPages = Number(q.pages) > 0 ? Math.min(Number(q.pages), 4) : 2;   // stay under Netlify's 26s
-      let path = '/detail_records?page[size]=250&sort=-created_at';
-      let pages = 0; let stop = false; let scanned = 0; let sample = null;
-      while (path && pages < maxPages && !stop) {
-        const r = await Promise.race([
-          call('GET', path),
-          new Promise((res) => setTimeout(() => res({ ok: false, status: 0, data: { _timeout: true } }), 9000)),
-        ]);
-        if (r.data && r.data._timeout) { stop = true; break; }
-        if (!r.ok) return json(200, { ok: false, step: 'detail_records', status: r.status, error: JSON.stringify(r.data).slice(0, 300) });
-        const recs = (r.data && r.data.data) || [];
-        if (!sample && recs.length) sample = recs.slice(0, 2);
-        for (const rec of recs) {
-          scanned++;
-          const t = String(rec.record_type || rec.type || 'unknown');
-          const when = Date.parse(rec.created_at || rec.started_at || rec.completed_at || rec.date || '') || 0;
-          if (when && when < since) { stop = true; break; }
-          const cost = amt(rec.cost) + amt(rec.rate) * 0 + amt(rec.total_cost);
-          perType[t] = perType[t] || { count: 0, cost: 0 };
-          perType[t].count++; perType[t].cost += cost;
-          // attribute to whichever of our numbers is on the record (inbound = to, we own it)
-          [rec.to, rec.from, rec.destination_number, rec.originating_number].filter(Boolean).forEach(() => {});
-          const num = rec.to || rec.destination_number || rec.from || '';
-          if (num) { perNumber[num] = perNumber[num] || { count: 0, cost: 0 }; perNumber[num].count++; perNumber[num].cost += cost; }
+      const types = String(q.types || 'messaging,voice').split(',').map((s) => s.trim()).filter(Boolean);
+      const maxPages = Number(q.pages) > 0 ? Math.min(Number(q.pages), 3) : 2;   // per type; stay under 26s
+      let scanned = 0; let sample = null;
+      for (const rt of types) {
+        let path = `/detail_records?filter[record_type]=${encodeURIComponent(rt)}&page[size]=250&sort=-created_at`;
+        let pages = 0; let stop = false;
+        while (path && pages < maxPages && !stop) {
+          const r = await Promise.race([
+            call('GET', path),
+            new Promise((res) => setTimeout(() => res({ ok: false, status: 0, data: { _timeout: true } }), 8000)),
+          ]);
+          if (r.data && r.data._timeout) { stop = true; break; }
+          if (!r.ok) { perType['_error_' + rt] = { count: 0, cost: 0, note: JSON.stringify(r.data).slice(0, 120) }; break; }
+          const recs = (r.data && r.data.data) || [];
+          if (!sample && recs.length) sample = recs.slice(0, 2);
+          for (const rec of recs) {
+            scanned++;
+            const when = Date.parse(rec.created_at || rec.started_at || rec.completed_at || rec.date || rec.occurred_at || '') || 0;
+            if (when && when < since) { stop = true; break; }
+            const cost = amt(rec.cost) + amt(rec.total_cost) + amt(rec.rate);
+            perType[rt] = perType[rt] || { count: 0, cost: 0 };
+            perType[rt].count++; perType[rt].cost += cost;
+            const num = rec.to || rec.destination_number || rec.destination || rec.from || rec.source_number || '';
+            if (num) { perNumber[num] = perNumber[num] || { count: 0, cost: 0 }; perNumber[num].count++; perNumber[num].cost += cost; }
+          }
+          const meta = (r.data && r.data.meta) || {};
+          const pageNum = meta.page_number; const totalPages = meta.total_pages;
+          pages++;
+          if (pageNum && totalPages && pageNum < totalPages) path = `/detail_records?filter[record_type]=${encodeURIComponent(rt)}&page[size]=250&page[number]=${pageNum + 1}&sort=-created_at`;
+          else path = null;
         }
-        const nextUrl = r.data && r.data.meta && (r.data.meta.next_page_url || r.data.meta.next);
-        const pageNum = r.data && r.data.meta && r.data.meta.page_number;
-        const totalPages = r.data && r.data.meta && r.data.meta.total_pages;
-        pages++;
-        if (nextUrl) path = String(nextUrl).replace(/^https?:\/\/[^/]+\/v2/, '');
-        else if (pageNum && totalPages && pageNum < totalPages) path = `/detail_records?page[size]=250&page[number]=${pageNum + 1}&sort=-created_at`;
-        else path = null;
       }
       const totalCost = Object.values(perType).reduce((s, x) => s + x.cost, 0);
       const topNumbers = Object.entries(perNumber).map(([n, v]) => ({ number: n, records: v.count, cost: Math.round(v.cost * 100) / 100 })).sort((a, b) => b.cost - a.cost).slice(0, 40);
