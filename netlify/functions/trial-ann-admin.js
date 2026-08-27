@@ -191,6 +191,45 @@ exports.handler = async function (event) {
       if (nq) out = out.filter((v) => String(v.id || '').toLowerCase().includes(nq) || String(v.name || '').toLowerCase().includes(nq));
       return json(200, { ok: r.ok, status: r.status, total: list.length, filtered: out.length, voices: out.slice(0, 120), raw_sample: list.slice(0, 2) });
     }
+    // telnyx_costs — REAL spend from Telnyx detail records (calls + SMS), aggregated by
+    // number so we can attribute actual $ per shop. ?action=telnyx_costs[&days=30]
+    if (action === 'telnyx_costs') {
+      const days = Number(q.days) > 0 ? Number(q.days) : 30;
+      const since = Date.now() - days * 86400000;
+      const amt = (c) => { if (c == null) return 0; if (typeof c === 'number') return c; if (typeof c === 'string') return parseFloat(c) || 0; if (typeof c === 'object') return parseFloat(c.amount || c.total || 0) || 0; return 0; };
+      const perType = {}; const perNumber = {};
+      let path = '/detail_records?page[size]=250&sort=-created_at';
+      let pages = 0; let stop = false; let scanned = 0; let sample = null;
+      while (path && pages < 8 && !stop) {
+        const r = await call('GET', path);
+        if (!r.ok) return json(200, { ok: false, step: 'detail_records', status: r.status, error: JSON.stringify(r.data).slice(0, 300) });
+        const recs = (r.data && r.data.data) || [];
+        if (!sample && recs.length) sample = recs.slice(0, 2);
+        for (const rec of recs) {
+          scanned++;
+          const t = String(rec.record_type || rec.type || 'unknown');
+          const when = Date.parse(rec.created_at || rec.started_at || rec.completed_at || rec.date || '') || 0;
+          if (when && when < since) { stop = true; break; }
+          const cost = amt(rec.cost) + amt(rec.rate) * 0 + amt(rec.total_cost);
+          perType[t] = perType[t] || { count: 0, cost: 0 };
+          perType[t].count++; perType[t].cost += cost;
+          // attribute to whichever of our numbers is on the record (inbound = to, we own it)
+          [rec.to, rec.from, rec.destination_number, rec.originating_number].filter(Boolean).forEach(() => {});
+          const num = rec.to || rec.destination_number || rec.from || '';
+          if (num) { perNumber[num] = perNumber[num] || { count: 0, cost: 0 }; perNumber[num].count++; perNumber[num].cost += cost; }
+        }
+        const nextUrl = r.data && r.data.meta && (r.data.meta.next_page_url || r.data.meta.next);
+        const pageNum = r.data && r.data.meta && r.data.meta.page_number;
+        const totalPages = r.data && r.data.meta && r.data.meta.total_pages;
+        pages++;
+        if (nextUrl) path = String(nextUrl).replace(/^https?:\/\/[^/]+\/v2/, '');
+        else if (pageNum && totalPages && pageNum < totalPages) path = `/detail_records?page[size]=250&page[number]=${pageNum + 1}&sort=-created_at`;
+        else path = null;
+      }
+      const totalCost = Object.values(perType).reduce((s, x) => s + x.cost, 0);
+      const topNumbers = Object.entries(perNumber).map(([n, v]) => ({ number: n, records: v.count, cost: Math.round(v.cost * 100) / 100 })).sort((a, b) => b.cost - a.cost).slice(0, 40);
+      return json(200, { ok: true, days, scanned, pages, total_cost: Math.round(totalCost * 100) / 100, by_type: perType, by_number: topNumbers, sample });
+    }
     if (action === 'list') return json(200, await call('GET', '/ai/assistants?page[size]=20'));
     if (action === 'get') return json(200, await call('GET', `/ai/assistants/${q.id}`));
     if (action === 'delete') return json(200, await call('DELETE', `/ai/assistants/${q.id}`));
