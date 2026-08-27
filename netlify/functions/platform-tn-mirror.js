@@ -11,7 +11,7 @@
 // A scheduled wrapper (platform-tn-mirror-cron) calls syncTnToPlatform() every few min.
 'use strict';
 
-const { getSecret } = require('./secrets');
+const { getSecret } = require('./_lib/secrets');
 const { fetchKanban } = require('./_lib/board-mirror');
 
 const TN_COMPANY = '7b421706-4951-4d79-b070-4d4bcbc37c47';
