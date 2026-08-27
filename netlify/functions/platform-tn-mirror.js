@@ -101,6 +101,7 @@ async function syncTnToPlatform(limit) {
     if (!customer_id || !unit_id) return null;
     const ss = Number(j.scheduled_start);
     const iso = ss > 0 ? new Date(ss).toISOString() : null;
+    const eta = String(j.parts_eta_date || '').trim();
     return {
       company_id: TN_COMPANY, xano_id: Number(j.id),
       customer_id, unit_id,
@@ -110,6 +111,14 @@ async function syncTnToPlatform(limit) {
       scheduled_start: iso,
       scheduled_day: iso ? iso.slice(0, 10) : null,
       availability: String(j.customer_preference_text || ''),
+      // warranty + parts + RAW status — the source fields KPIs need (condemned /
+      // first-stop / warranty pipeline) that the simplified `status` bucket drops.
+      warranty_company: String(j.warranty_company || ''),
+      claim_number: String(j.claim_number || ''),
+      parts_status: String(j.parts_status || ''),
+      parts_eta: /^\d{4}-\d{2}-\d{2}/.test(eta) ? eta.slice(0, 10) : null,
+      xano_status: String(j.scheduling_status || ''),
+      xano_current_status: String(j.current_status || ''),
       updated_at: new Date().toISOString(),
     };
   }).filter(Boolean);
