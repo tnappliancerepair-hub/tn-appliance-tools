@@ -248,6 +248,41 @@ exports.handler = async function (event) {
       return json(200, { ok: res.ok, status: res.status, voice, now: a && (a.voice_settings || {}).voice });
     }
 
+    // calls — did a given number get any calls? Read-only Telnyx detail-record check so
+    // we can confirm a trial/test line was actually dialed. ?action=calls&number=+18046061234[&days=3]
+    if (action === 'calls') {
+      const want = String(q.number || '').replace(/\D/g, '');
+      if (!want) return json(200, { ok: false, error: 'need ?number=' });
+      const days = Number(q.days) > 0 ? Number(q.days) : 3;
+      const since = Date.now() - days * 86400000;
+      const norm = (s) => String(s || '').replace(/\D/g, '');
+      const hit = (n) => { const d = norm(n); return d && (d === want || d.endsWith(want) || want.endsWith(d)); };
+      const out = [];
+      let path = `/detail_records?filter[record_type]=voice&page[size]=250&sort=-created_at`;
+      let pages = 0;
+      while (path && pages < 3) {
+        const r = await Promise.race([
+          call('GET', path),
+          new Promise((res) => setTimeout(() => res({ ok: false, status: 0, data: { _timeout: true } }), 8000)),
+        ]);
+        if (!r.ok || (r.data && r.data._timeout)) break;
+        const recs = (r.data && r.data.data) || [];
+        let stop = false;
+        for (const rec of recs) {
+          const when = Date.parse(rec.created_at || rec.started_at || rec.completed_at || '') || 0;
+          if (when && when < since) { stop = true; break; }
+          if (hit(rec.cld) || hit(rec.to) || hit(rec.destination_number) || hit(rec.cli) || hit(rec.from) || hit(rec.source_number)) {
+            out.push({ at: rec.started_at || rec.created_at, from: rec.cli || rec.from || rec.source_number, to: rec.cld || rec.to || rec.destination_number, secs: rec.duration_secs || rec.billed_sec || 0, status: rec.status || rec.hangup_cause || '' });
+          }
+        }
+        const meta = (r.data && r.data.meta) || {};
+        pages++;
+        if (!stop && meta.page_number && meta.total_pages && meta.page_number < meta.total_pages) path = `/detail_records?filter[record_type]=voice&page[size]=250&page[number]=${meta.page_number + 1}&sort=-created_at`;
+        else path = null;
+      }
+      return json(200, { ok: true, number: want, days, call_count: out.length, calls: out.slice(0, 25) });
+    }
+
     // add_shop — register a NEW shop's config in the data-driven store (Supabase),
     // so a shop can be stood up on a call with NO code edit + deploy. Idempotent by slug
     // (re-send to update fields). Only the params you pass are written (merged over any
