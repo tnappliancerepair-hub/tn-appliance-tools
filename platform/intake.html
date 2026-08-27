@@ -167,7 +167,10 @@
       if (!r || !r.ok || !r.uploadUrl) { row.textContent = 'Couldn\'t start the video upload — you can skip this and we\'ll grab it on site.'; prog.style.display='none'; return; }
       if (!window.tus) { row.textContent = 'Video tool didn\'t load — try reopening the link.'; prog.style.display='none'; return; }
       var up = new window.tus.Upload(file, {
-        uploadUrl: r.uploadUrl, chunkSize: 5 * 1024 * 1024, retryDelays: [0, 1000, 3000, 6000],
+        // Cloudflare Stream over resumable tus — the weak-signal-proof channel. Long retry
+        // ladder so a truck/driveway dead-spot resumes the SAME upload instead of failing.
+        uploadUrl: r.uploadUrl, chunkSize: 5 * 1024 * 1024,
+        retryDelays: [0, 3000, 5000, 10000, 20000, 30000], removeFingerprintOnSuccess: true,
         metadata: { filename: file.name || 'video.mp4', filetype: file.type || 'video/mp4' },
         onError: function(){ videoState = 'error'; row.textContent = 'Upload hiccuped — tap Record/Upload to try again.'; prog.style.display='none'; },
         onProgress: function(sent, total){ var pct = Math.max(3, Math.round(sent/total*100)); bar.style.width = pct + '%'; row.textContent = 'Uploading… ' + pct + '%'; },

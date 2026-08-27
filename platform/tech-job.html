@@ -583,7 +583,7 @@
       fetch('/.netlify/functions/platform-tech-media?do=stream_mint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,bytes:file.size,filename:file.name||'tech.mp4'})})
         .then(function(r){return r.json();}).then(function(d){
           if(!d||!d.ok||!d.uploadUrl){ tm('Couldn\'t start the video upload — try again.'); return; }
-          var up=new window.tus.Upload(file,{ uploadUrl:d.uploadUrl, chunkSize:5*1024*1024, retryDelays:[0,1000,3000,6000],
+          var up=new window.tus.Upload(file,{ uploadUrl:d.uploadUrl, chunkSize:5*1024*1024, retryDelays:[0,3000,5000,10000,20000,30000], removeFingerprintOnSuccess:true,
             metadata:{filename:file.name||'tech.mp4', filetype:file.type||'video/mp4'},
             onError:function(){ tm('Upload hiccuped — tap Add video to try again.'); },
             onProgress:function(sent,total){ tm('Uploading… '+Math.max(3,Math.round(sent/total*100))+'%'); },
