@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Cost + Pricing — Ant</title>
+<style>
+  :root{ --bg:#0f1216; --panel:#171b21; --line:#2a2f37; --ink:#e8ecf1; --muted:#9aa4b0; --accent:#3f8f24; --accent2:#2563eb; --bad:#e0564b; --warn:#c9862a; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:20px 16px 60px}
+  h1{font-size:22px;margin:4px 0 2px}
+  h2{font-size:15px;margin:0 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:6px 0}
+  .row label{font-size:13.5px;color:var(--muted)}
+  input[type=number]{width:110px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;text-align:right;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%}
+  input[type=password]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  .big{font-size:15px}
+  .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+  .kv:last-child{border-bottom:0}
+  .kv b{font-weight:700}
+  .tot{font-size:20px;font-weight:800}
+  .good{color:var(--accent)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+  th,td{text-align:right;padding:7px 6px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:700;font-size:11.5px;text-transform:uppercase}
+  details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:8px}
+  .hint{font-size:11.5px;color:var(--muted)}
+  .btn{width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent2);color:#fff;font-weight:700;cursor:pointer;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💵 Cost + Pricing</h1>
+  <div class="sub">What it costs to run a shop, and what to charge. Rates are editable — tune them to your real bills.</div>
+
+  <!-- RATES -->
+  <div class="card">
+    <h2>Cost assumptions</h2>
+    <div class="row"><label>Voice AI + phone, per call minute ($)</label><input type="number" id="r_min" value="0.08" step="0.01"></div>
+    <div class="row"><label>Average call length (minutes)</label><input type="number" id="r_len" value="3" step="0.5"></div>
+    <div class="row"><label>% of calls that become a lead</label><input type="number" id="r_lead" value="60" step="5"></div>
+    <div class="row"><label>SMS segments per lead</label><input type="number" id="r_seg" value="7" step="1"></div>
+    <div class="row"><label>Cost per SMS segment ($)</label><input type="number" id="r_segc" value="0.008" step="0.001"></div>
+    <div class="row"><label>Intake media + OCR, per lead ($)</label><input type="number" id="r_media" value="0.05" step="0.01"></div>
+    <div class="row"><label>Phone number, per shop / mo ($)</label><input type="number" id="r_num" value="1" step="1"></div>
+    <div class="row"><label>10DLC texting reg, per shop / mo ($)</label><input type="number" id="r_10dlc" value="3" step="1"></div>
+    <div class="hint">Platform infra (Supabase, Netlify, Cloudflare) is shared across all shops → pennies each at scale, not counted per-shop here.</div>
+  </div>
+
+  <!-- CALCULATOR -->
+  <div class="card">
+    <h2>Pricing calculator</h2>
+    <div class="row"><label>Calls / month</label><input type="number" id="calls" value="300" step="25"></div>
+    <input type="range" id="callsR" min="0" max="1500" value="300" step="25">
+    <div class="row"><label>Your monthly price ($)</label><input type="number" id="price" value="400" step="25"></div>
+    <input type="range" id="priceR" min="0" max="1500" value="400" step="25">
+    <div id="calcOut" style="margin-top:12px"></div>
+  </div>
+
+  <!-- VOLUME TABLE -->
+  <div class="card">
+    <h2>Cost by volume</h2>
+    <table id="volTable"><thead><tr><th>Calls/mo</th><th>Leads</th><th>Cost/mo</th><th>Margin @ your price</th></tr></thead><tbody></tbody></table>
+    <div class="hint" style="margin-top:8px">Margin uses your price above. Green = healthy, amber = thin, red = losing money.</div>
+  </div>
+
+  <!-- PER-SHOP METER -->
+  <div class="card">
+    <h2>Per-shop meter (real usage, 30 days)</h2>
+    <div id="gate"><input type="password" id="secret" placeholder="admin key to load real shop data"><button class="btn" id="load">Load real usage</button></div>
+    <div id="meter"></div>
+    <div class="hint" style="margin-top:8px">Leads are counted from live logs; calls are estimated back from your lead-% above.</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var XANO='https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+  function num(id){ return parseFloat($(id).value)||0; }
+  function money(n){ return '$'+(n<0?'-':'')+Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}); }
+  function money2(n){ return '$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+  // cost of running ONE shop at a given monthly call volume
+  function costFor(calls){
+    var leadRate=num('r_lead')/100;
+    var leads=calls*leadRate;
+    var callCost=calls*num('r_len')*num('r_min');
+    var smsCost=leads*num('r_seg')*num('r_segc');
+    var mediaCost=leads*num('r_media');
+    var fixed=num('r_num')+num('r_10dlc');
+    return { leads:leads, callCost:callCost, smsCost:smsCost, mediaCost:mediaCost, fixed:fixed, total:callCost+smsCost+mediaCost+fixed };
+  }
+
+  function renderCalc(){
+    var calls=num('calls'), price=num('price');
+    var c=costFor(calls);
+    var margin=price-c.total;
+    var pct = price>0 ? Math.round(margin/price*100) : 0;
+    var cls = margin<0?'bad':(margin<c.total?'warn':'good');
+    $('calcOut').innerHTML=
+      '<div class="kv"><span>Calls → leads</span><b>'+Math.round(calls)+' → '+Math.round(c.leads)+'</b></div>'+
+      '<div class="kv"><span>Call minutes cost</span><b>'+money2(c.callCost)+'</b></div>'+
+      '<div class="kv"><span>Text messages</span><b>'+money2(c.smsCost)+'</b></div>'+
+      '<div class="kv"><span>Intake media + OCR</span><b>'+money2(c.mediaCost)+'</b></div>'+
+      '<div class="kv"><span>Number + 10DLC</span><b>'+money2(c.fixed)+'</b></div>'+
+      '<div class="kv"><span>Your cost to run it</span><b class="tot">'+money(c.total)+'</b></div>'+
+      '<div class="kv"><span>You charge</span><b>'+money(price)+'</b></div>'+
+      '<div class="kv"><span>Your margin</span><b class="tot '+cls+'">'+money(margin)+' &nbsp;('+pct+'%)</b></div>';
+    renderTable();
+  }
+
+  function renderTable(){
+    var price=num('price');
+    var rows=[100,300,500,750,1000,1500].map(function(v){
+      var c=costFor(v); var m=price-c.total; var cls=m<0?'bad':(m<c.total?'warn':'good');
+      return '<tr><td>'+v+'</td><td>'+Math.round(c.leads)+'</td><td>'+money(c.total)+'</td><td class="'+cls+'">'+money(m)+'</td></tr>';
+    }).join('');
+    $('volTable').querySelector('tbody').innerHTML=rows;
+  }
+
+  // link the number + range inputs
+  [['calls','callsR'],['price','priceR']].forEach(function(p){
+    $(p[0]).addEventListener('input',function(){ $(p[1]).value=$(p[0]).value; renderCalc(); });
+    $(p[1]).addEventListener('input',function(){ $(p[0]).value=$(p[1]).value; renderCalc(); });
+  });
+  ['r_min','r_len','r_lead','r_seg','r_segc','r_media','r_num','r_10dlc'].forEach(function(id){ $(id).addEventListener('input',renderCalc); });
+  renderCalc();
+
+  // per-shop real usage
+  $('load').onclick=function(){
+    var key=$('secret').value.trim();
+    $('meter').innerHTML='<div class="hint">Loading…</div>';
+    fetch(XANO+'/list_recent_event_log?action=trial_ann_lead&days_back=30&limit=1000')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var items=(d&&d.items)||[];
+        var byShop={};
+        items.forEach(function(it){ var m=it.metadata||{}; var s=m.shop||'?'; if(!byShop[s])byShop[s]={leads:0,texted:0}; byShop[s].leads++; if(m.customer_texted)byShop[s].texted++; });
+        var shops=Object.keys(byShop).sort(function(a,b){return byShop[b].leads-byShop[a].leads;});
+        if(!shops.length){ $('meter').innerHTML='<div class="hint">No leads logged in the last 30 days yet.</div>'; return; }
+        var leadRate=num('r_lead')/100;
+        var rows=shops.map(function(s){
+          var leads=byShop[s].leads;
+          var calls=leadRate>0?leads/leadRate:leads;
+          var c=costFor(calls);
+          return '<tr><td>'+s+'</td><td>'+leads+'</td><td>'+Math.round(calls)+'</td><td>'+money(c.total)+'</td></tr>';
+        }).join('');
+        $('meter').innerHTML='<table><thead><tr><th>Shop</th><th>Leads 30d</th><th>Est. calls</th><th>Est. cost/mo</th></tr></thead><tbody>'+rows+'</tbody></table>';
+      })
+      .catch(function(){ $('meter').innerHTML='<div class="hint bad">Couldn\'t load usage.</div>'; });
+  };
+})();
+</script>
+</body>
+</html>
