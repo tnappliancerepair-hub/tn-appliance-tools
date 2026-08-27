@@ -102,7 +102,7 @@
       section(1, 'When are you available?', done.availability, availBody()) +
       section(2, 'Show us the problem', done.video, videoBody()) +
       section(3, 'Photo of the model sticker', done.photo, photoBody()) +
-      section(4, 'Quick release of liability', done.waiver, waiverBody(first)) +
+      section(4, 'Release of liability + a couple quick options', done.waiver, waiverBody(first)) +
       '<button class="btn" id="finish">All done — send it to ' + esc(shop.name || 'the shop') + '</button>' +
       '<div class="err" id="finishErr"></div>' +
       '<div class="foot">🐜 Powered by Ant</div>';
@@ -195,26 +195,77 @@
     img.src = url;
   }
 
-  // 4) waiver
+  // 4) release of liability + protection options (appliance-aware, TN-style)
+  // The wear-item Yes/No is BOTH an upsell AND a liability shield: a recorded "No"
+  // documents that the shop offered and the customer declined.
+  function wearItemFor(appl) {
+    var a = String(appl || '').toLowerCase();
+    if (/dryer/.test(a))                 return { key: 'dryer_vent_hose',       label: 'a fresh dryer vent hose',        why: 'Lint-clogged vent hoses are the #1 cause of dryer fires.' };
+    if (/wash/.test(a))                  return { key: 'washer_fill_hoses',     label: 'new washer fill hoses',          why: 'Burst washer hoses are a top cause of home water damage — replace every 3–5 years.' };
+    if (/fridge|refrig|freez|ice/.test(a)) return { key: 'fridge_water_line',   label: 'a new water/ice line',           why: 'Old fridge lines crack and leak behind the unit where you can’t see it.' };
+    if (/dish/.test(a))                  return { key: 'dishwasher_supply_line', label: 'a new supply line',             why: 'A failed dishwasher supply line can flood the kitchen.' };
+    return null;
+  }
+  function optGroup(id, q, hint, opts) {
+    var btns = opts.map(function (o) {
+      return '<button type="button" class="obtn" data-v="' + esc(o.v) + '" style="flex:1 1 auto;min-width:calc(50% - 5px);padding:11px 8px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;font-weight:700;font-size:13.5px;cursor:pointer">' + esc(o.t) + '</button>';
+    }).join('');
+    return '<div style="margin:12px 0 4px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--chip)">' +
+      '<div style="font-weight:800;font-size:14px">' + esc(q) + '</div>' +
+      (hint ? '<div style="font-size:12px;color:var(--muted);margin:3px 0 9px">' + esc(hint) + '</div>' : '<div style="height:6px"></div>') +
+      '<div class="optbtns" id="' + id + '" style="display:flex;flex-wrap:wrap;gap:6px">' + btns + '</div></div>';
+  }
   function waiverBody(first) {
+    var wear = wearItemFor(ctx.appliance);
     var w = 'I authorize the shop and its technicians to inspect and service my appliance. I understand ' +
-      'appliance repair carries inherent risks, that pre-existing conditions (worn parts, prior damage, water ' +
-      'lines, flooring) may fail during normal service, and I release the shop from liability for such ' +
-      'pre-existing or unavoidable conditions. I confirm I am authorized to request service at this address. ' +
-      'A diagnostic/trip fee may apply and will be disclosed before work begins.';
-    return '<div class="waivertext">' + esc(w) + '</div>' +
-      '<input type="text" id="wvName" placeholder="Type your full name to sign" autocomplete="name" value="' + esc(first) + '">' +
+      'appliance repair carries inherent risks; that pre-existing conditions (worn parts, prior damage, water ' +
+      'lines, flooring) may fail during normal service; and that moving a heavy appliance to reach it can disturb ' +
+      'old shut-off valves, water lines, hoses, or flooring. I release the shop from liability for such pre-existing ' +
+      'or unavoidable conditions. My tech checks the area for leaks before leaving. I confirm I am authorized to ' +
+      'request service at this address. A diagnostic/trip fee may apply and will be disclosed before work begins.';
+    var html = '<div class="waivertext">' + esc(w) + '</div>';
+    // wear-item upsell (appliance-aware) — Yes installs it, No is the documented decline
+    if (wear) {
+      html += optGroup('hoseBtns', 'While we’re there — want us to put in ' + wear.label + '?',
+        wear.why + ' Your tech gives you the price on site.',
+        [{ v: 'yes', t: 'Yes, install it' }, { v: 'no', t: 'No thanks' }]);
+    }
+    // floor protection
+    html += optGroup('floorBtns', '🛟 Worried about your floors?',
+      'Moving a heavy appliance is never 100% risk-free — tell us how you’d like us to handle it.',
+      [{ v: 'fine', t: 'They’re fine' }, { v: 'careful', t: 'Be extra careful' }, { v: 'protect', t: 'Ask me about floor protection' }]);
+    // signature
+    html += '<input type="text" id="wvName" placeholder="Type your full name to sign" autocomplete="name" value="' + esc(first) + '" style="margin-top:12px">' +
       '<label class="agree"><input type="checkbox" id="wvAgree"><span>I have read and agree to the release above, and this is my electronic signature.</span></label>' +
       '<button class="btn" id="wvSign">Sign &amp; agree</button><div class="err" id="wvErr"></div>';
+    return html;
   }
+  // single-select within a button group; returns the chosen value ('' if none)
+  function wireGroup(id) {
+    var box = document.getElementById(id); if (!box) return;
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('.obtn'); if (!b) return;
+      var all = box.querySelectorAll('.obtn');
+      for (var i = 0; i < all.length; i++) { all[i].style.background = 'var(--bg)'; all[i].style.borderColor = 'var(--line)'; all[i].style.color = 'var(--ink)'; all[i].removeAttribute('data-sel'); }
+      b.style.background = 'var(--accent)'; b.style.borderColor = 'var(--accent)'; b.style.color = '#fff'; b.setAttribute('data-sel', '1');
+    });
+  }
+  function groupVal(id) { var box = document.getElementById(id); if (!box) return ''; var sel = box.querySelector('.obtn[data-sel]'); return sel ? sel.getAttribute('data-v') : ''; }
   function wireWaiver() {
+    wireGroup('hoseBtns'); wireGroup('floorBtns');
     document.getElementById('wvSign').onclick = function () {
       var name = document.getElementById('wvName').value.trim();
       var agree = document.getElementById('wvAgree').checked;
       if (!name) { document.getElementById('wvErr').textContent = 'Type your name to sign.'; return; }
       if (!agree) { document.getElementById('wvErr').textContent = 'Please check the box to agree.'; return; }
+      var wear = wearItemFor(ctx.appliance);
       var btn = document.getElementById('wvSign'); btn.disabled = true; btn.textContent = 'Signing…';
-      api('waiver', { name: name }).then(function (r) {
+      api('waiver', {
+        name: name,
+        hose: groupVal('hoseBtns'),
+        hose_label: wear ? wear.label : '',
+        floor: groupVal('floorBtns')
+      }).then(function (r) {
         btn.disabled = false; btn.textContent = 'Signed ✓';
         if (r && r.ok) markDone(4); else document.getElementById('wvErr').textContent = 'Try again.';
       });

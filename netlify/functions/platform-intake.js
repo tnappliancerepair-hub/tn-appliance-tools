@@ -140,6 +140,18 @@ exports.handler = async function (event) {
       if (!name) return json(400, { ok: false, error: 'name required' });
       await db.patch(`job?id=eq.${g.job_id}`, { waiver_name: name, waiver_signed_at: new Date().toISOString() });
       await note(db, g, `✍️ Release of liability signed by ${name}`);
+      // Wear-item upsell decision (appliance-aware). "yes" = a real add-on lead for the
+      // shop; "no" = the documented decline that shields the shop later. Either way it's
+      // captured on the job thread so the office sees it.
+      const hose = String(p.hose || '').trim();
+      const hoseLabel = String(p.hose_label || 'the wear item').trim().slice(0, 60);
+      if (hose === 'yes') await note(db, g, `🔧 UPSELL: wants ${hoseLabel} installed — tech to quote on site`);
+      else if (hose === 'no') await note(db, g, `🛡️ Offered ${hoseLabel} — customer declined (documented ${new Date().toLocaleDateString('en-US')})`);
+      // Floor protection choice
+      const floor = String(p.floor || '').trim();
+      if (floor === 'protect') await note(db, g, '🛟 FLOORS: interested in floor protection — quote / follow up');
+      else if (floor === 'careful') await note(db, g, '🛟 FLOORS: wants the tech to take extra care with flooring');
+      else if (floor === 'fine') await note(db, g, '🛟 FLOORS: no concern');
       return json(200, { ok: true });
     }
 
