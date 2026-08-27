@@ -81,7 +81,7 @@
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
   var jobId = new URLSearchParams(location.search).get('job');
-  var sb = null, me = null, myTech = null, job = null, shopSettings = {}, partStatus = '';
+  var sb = null, me = null, myTech = null, job = null, shopSettings = {}, partStatus = '', invoice = null;
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
@@ -161,7 +161,11 @@
       '<div class="card"><div class="sec">From the customer</div>' +
         (job.availability?'<div class="kv">📅 <b>'+esc(job.availability)+'</b></div>':'') +
         (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
-        (job.waiver_signed_at?'<div class="kv">✍️ Waiver signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>':'<div class="kv note">Waiver not signed yet</div>') +
+        (job.waiver_signed_at
+          ? '<div class="kv">✍️ Waiver signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>'
+          : '<div class="kv note" style="margin-bottom:8px">Release of liability not signed yet</div>'+
+            '<button class="full" id="wvToggle">✍️ Get the waiver signed</button>'+
+            '<div id="wvBox" class="hidden" style="margin-top:10px"></div>') +
         '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
 
       '<div class="card"><div class="sec">Job details</div>' +
@@ -218,11 +222,35 @@
           '<button class="primary full" id="saveTdr">Save report + finish</button><div class="err" id="tdrErr"></div>' +
         '</div></div>' +
 
+      '<div class="card" id="payCard"><div class="sec">💵 Get paid</div>' +
+        '<div id="payStatus" class="note" style="margin:-2px 0 10px">Set the total, then text the invoice or collect it right here.</div>' +
+        '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:0 0 4px">Total to collect</label>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<span style="font-size:20px;font-weight:800">$</span>' +
+          '<input id="payAmt" inputmode="decimal" placeholder="0.00" style="flex:1;padding:12px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:20px;font-weight:800;font-variant-numeric:tabular-nums">' +
+        '</div>' +
+        '<div class="btnrow" style="margin-top:10px">' +
+          '<button class="primary" id="payText">💳 Text invoice / pay link</button>' +
+          '<button id="payCollect">✅ Mark collected</button>' +
+        '</div>' +
+        '<div id="payMethods" class="hidden" style="margin-top:8px">' +
+          '<div class="note" style="margin-bottom:6px">How\'d they pay?</div>' +
+          '<div class="btnrow psrow" id="pmrow">' +
+            '<button type="button" data-pm="cash">💵 Cash</button>' +
+            '<button type="button" data-pm="card">💳 Card</button>' +
+            '<button type="button" data-pm="check">🧾 Check</button>' +
+            '<button type="button" data-pm="zelle">Zelle</button>' +
+            '<button type="button" data-pm="venmo">Venmo</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="err" id="payErr"></div></div>' +
+
       '</div>';
 
     sb.from('company').select('name,settings').limit(1).then(function(r){ if(r.data&&r.data[0]){ shopSettings=r.data[0].settings||{}; var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; var db=document.getElementById('distBtn'); if(db&&shopSettings.distributor_name) db.textContent='🏭 '+shopSettings.distributor_name; } });
     wire();
     autoModel();
+    loadInvoice();
   }
 
   function wire() {
@@ -265,6 +293,105 @@
       if(jdBox.classList.contains('hidden')){ renderJdEditor(jdBox); jdBox.classList.remove('hidden'); jdToggle.textContent='✕ Close'; }
       else { jdBox.classList.add('hidden'); jdToggle.textContent='✏️ Edit job details'; }
     };
+
+    // Waiver — sign on this device (hand the phone over) or text the customer the sign link.
+    var wvToggle=document.getElementById('wvToggle'), wvBox=document.getElementById('wvBox');
+    if(wvToggle) wvToggle.onclick=function(){
+      if(wvBox.classList.contains('hidden')){ renderWaiverBox(wvBox); wvBox.classList.remove('hidden'); wvToggle.textContent='✕ Close'; }
+      else { wvBox.classList.add('hidden'); wvToggle.textContent='✍️ Get the waiver signed'; }
+    };
+
+    // Get paid — set the total, then text the invoice/pay link or record it collected here.
+    var payText=document.getElementById('payText'), payCollect=document.getElementById('payCollect');
+    if(payText) payText.onclick=sendPayLink;
+    if(payCollect) payCollect.onclick=function(){ var pm=document.getElementById('payMethods'); if(pm) pm.classList.toggle('hidden'); };
+    app.querySelectorAll('#pmrow button[data-pm]').forEach(function(b){ b.onclick=function(){ markCollected(b.getAttribute('data-pm')); }; });
+  }
+
+  // ── WAIVER ──────────────────────────────────────────────────────────────────
+  function renderWaiverBox(box){
+    box.innerHTML=
+      '<div class="note" style="margin-bottom:8px">Hand the phone to the customer to sign, or text them the link to sign on their own phone.</div>'+
+      '<input id="wvName" placeholder="Customer\'s full name" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px;box-sizing:border-box">'+
+      '<button class="primary full" id="wvSign">✍️ Sign on this device</button>'+
+      '<button class="full" id="wvText" style="margin-top:8px">📲 Text the customer the sign link</button>'+
+      '<div class="err" id="wvErr"></div>';
+    document.getElementById('wvSign').onclick=function(){
+      var nm=(document.getElementById('wvName').value||'').trim();
+      if(!nm){ document.getElementById('wvErr').textContent='Type the customer\'s name to sign.'; return; }
+      var btn=document.getElementById('wvSign'); btn.disabled=true; btn.textContent='Signing…';
+      sb.from('job').update({ waiver_name:nm, waiver_signed_at:new Date().toISOString() }).eq('id',jobId).then(function(r){
+        if(r.error){ btn.disabled=false; btn.textContent='✍️ Sign on this device'; document.getElementById('wvErr').textContent=r.error.message; return; }
+        loadJob();
+      });
+    };
+    document.getElementById('wvText').onclick=function(){
+      var btn=document.getElementById('wvText'); btn.disabled=true; btn.textContent='Sending link…';
+      notify('waiver_link').then(function(d){
+        btn.disabled=false;
+        btn.textContent=(d&&d.texted)?'📲 Sign link sent ✓':(d&&d.error==='no_phone'?'No phone on file':'Couldn\'t send — try again');
+      }).catch(function(){ btn.disabled=false; btn.textContent='📲 Text the customer the sign link'; });
+    };
+  }
+
+  // ── GET PAID ────────────────────────────────────────────────────────────────
+  function loadInvoice(){
+    sb.from('invoice').select('id,status,total_cents,paid_method,paid_at').eq('job_id',jobId).order('created_at',{ascending:false}).limit(1).then(function(r){
+      invoice=(r.data&&r.data[0])||null; renderPayStatus();
+    });
+  }
+  function money(c){ c=Math.round(c||0); return '$'+(c/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function renderPayStatus(){
+    var st=document.getElementById('payStatus'), amt=document.getElementById('payAmt'); if(!st) return;
+    if(invoice){
+      if(amt && !amt.value && invoice.total_cents) amt.value=(invoice.total_cents/100).toFixed(2);
+      if(invoice.status==='paid'){ st.innerHTML='<b style="color:var(--completed)">✅ PAID '+money(invoice.total_cents)+'</b>'+(invoice.paid_method?' · '+esc(invoice.paid_method):''); }
+      else if(invoice.status==='sent'){ st.innerHTML='🧾 Invoice sent — '+money(invoice.total_cents)+' due. Collect it, or resend the link.'; }
+      else { st.textContent='Draft invoice '+money(invoice.total_cents)+' — text it or collect it.'; }
+    } else { st.textContent='Set the total, then text the invoice or collect it right here.'; }
+  }
+  function amountCents(){ var v=parseFloat((document.getElementById('payAmt').value||'').replace(/[^0-9.]/g,'')); return v>0?Math.round(v*100):0; }
+  // Create-or-update THE job's invoice (RLS scopes it to this shop) with a single line so the
+  // hosted invoice reads clean. Returns the invoice id.
+  function ensureInvoice(cents, status){
+    var row={ company_id:me.company_id, job_id:jobId, customer_id:job.customer_id||null, status:status||'draft', subtotal_cents:cents, tax_cents:0, total_cents:cents };
+    var p = invoice
+      ? sb.from('invoice').update(row).eq('id',invoice.id).select('id').then(function(r){ return (r.data&&r.data[0])?r.data[0].id:invoice.id; })
+      : sb.from('invoice').insert(row).select('id').then(function(r){ return (r.data&&r.data[0])?r.data[0].id:null; });
+    return p.then(function(invId){
+      if(!invId) return null;
+      return sb.from('invoice_line').delete().eq('invoice_id',invId).then(function(){
+        return sb.from('invoice_line').insert({ company_id:me.company_id, invoice_id:invId, kind:'labor', description:(job.unit&&job.unit.label?job.unit.label+' repair':'Appliance repair'), qty:1, unit_cents:cents }).then(function(){ return invId; });
+      });
+    });
+  }
+  function sendPayLink(){
+    var cents=amountCents(); var err=document.getElementById('payErr'); err.textContent='';
+    if(!cents){ err.textContent='Enter the amount first.'; return; }
+    var btn=document.getElementById('payText'); btn.disabled=true; btn.textContent='Sending…';
+    ensureInvoice(cents,'sent').then(function(invId){
+      if(!invId){ btn.disabled=false; btn.textContent='💳 Text invoice / pay link'; err.textContent='Couldn\'t save the invoice.'; return; }
+      return token().then(function(tok){
+        return fetch('/.netlify/functions/platform-invoice?do=send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok})})
+          .then(function(r){return r.json();}).then(function(d){
+            btn.disabled=false;
+            if(d&&d.ok){ btn.textContent=d.texted?'💳 Invoice sent ✓':'💳 Saved — no phone on file'; loadInvoice(); }
+            else { btn.textContent='💳 Text invoice / pay link'; err.textContent=(d&&d.error)||'Couldn\'t send.'; }
+          });
+      });
+    }).catch(function(){ var b=document.getElementById('payText'); if(b){ b.disabled=false; b.textContent='💳 Text invoice / pay link'; } });
+  }
+  function markCollected(method){
+    var cents=amountCents(); var err=document.getElementById('payErr'); err.textContent='';
+    if(!cents){ err.textContent='Enter the amount collected first.'; return; }
+    ensureInvoice(cents,'paid').then(function(invId){
+      if(!invId){ err.textContent='Couldn\'t save the payment.'; return; }
+      sb.from('invoice').update({ status:'paid', paid_method:method, paid_at:new Date().toISOString() }).eq('id',invId).then(function(r){
+        if(r.error){ err.textContent=r.error.message; return; }
+        var pm=document.getElementById('payMethods'); if(pm) pm.classList.add('hidden');
+        loadInvoice();
+      });
+    });
   }
 
   function renderJdEditor(box){

@@ -11,6 +11,7 @@
 
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const SITE = 'https://tnapplianceexchange.net';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 
@@ -24,6 +25,7 @@ function rest(base, key) {
   return {
     async get(path) { const r = await fetch(`${base}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(8000) }); return r.ok ? r.json() : []; },
     async insert(table, row) { try { await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) }); } catch (_) {} },
+    async insertRet(table, row) { const r = await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) }); const d = await r.json().catch(() => null); return Array.isArray(d) ? d[0] : d; },
   };
 }
 async function authUser(base, key, accessToken) {
@@ -69,6 +71,22 @@ exports.handler = async function (event) {
       if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_otw'); } catch (_) {} }
       await logThread('sms', '🚚 On my way');
       return json(200, { ok: true, texted: sent });
+    }
+
+    if (doo === 'waiver_link') {
+      // Text the customer the intake/sign link (same /i/<token> the lead flow uses) so they
+      // can sign the release on their own phone — for when they didn't sign before the visit.
+      if (!phone) return json(200, { ok: true, texted: false, error: 'no_phone' });
+      let grant = (await db.get(`portal_grant?company_id=eq.${companyId}&customer_id=eq.${job.customer_id}&job_id=eq.${job.id}&revoked=eq.false&select=token&limit=1`))[0];
+      if (!grant) grant = await db.insertRet('portal_grant', { company_id: companyId, customer_id: job.customer_id, job_id: job.id });
+      const tk = grant && grant.token;
+      if (!tk) return json(200, { ok: false, error: 'grant_failed' });
+      const link = `${SITE}/i/${tk}`;
+      const msg = `${shop}: quick release of liability to sign before we work on your appliance — tap here, takes 20 seconds: ${link}`;
+      let sent = false;
+      try { sent = await sendSms(phone, msg, 'customer', 'platform_waiver_link'); } catch (_) {}
+      await logThread('sms', `✍️ Sign-waiver link sent: ${link}`);
+      return json(200, { ok: true, texted: sent, url: link });
     }
 
     if (doo === 'review') {
