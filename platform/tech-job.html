@@ -164,6 +164,11 @@
         (job.waiver_signed_at?'<div class="kv">✍️ Waiver signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>':'<div class="kv note">Waiver not signed yet</div>') +
         '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
 
+      '<div class="card"><div class="sec">Job details</div>' +
+        '<div class="note" style="margin:-2px 0 8px">Anything off? Fix it here — it updates the office tile &amp; the customer\'s record too.</div>' +
+        '<button class="full" id="jdToggle">✏️ Edit job details</button>' +
+        '<div id="jdBox" class="hidden" style="margin-top:10px"></div></div>' +
+
       '<div class="card"><div class="sec">My photos &amp; videos</div>' +
         (techMediaHtml || '<div class="note">Add your own shots of the appliance, the part, or the fix.</div>') +
         '<div class="btnrow" style="margin-top:10px">' +
@@ -252,6 +257,45 @@
       };
     });
     document.getElementById('saveTdr').onclick = saveTdr;
+
+    // Shared job details — the tech can correct the SAME customer/unit/job rows the office
+    // tile and the customer record read. Input once, shared everywhere.
+    var jdToggle=document.getElementById('jdToggle'), jdBox=document.getElementById('jdBox');
+    if(jdToggle) jdToggle.onclick=function(){
+      if(jdBox.classList.contains('hidden')){ renderJdEditor(jdBox); jdBox.classList.remove('hidden'); jdToggle.textContent='✕ Close'; }
+      else { jdBox.classList.add('hidden'); jdToggle.textContent='✏️ Edit job details'; }
+    };
+  }
+
+  function renderJdEditor(box){
+    var c=job.customer||{}, a=attrs();
+    var IST='width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:7px;box-sizing:border-box';
+    var di=function(id,label,val,ph,ta){ return '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:2px 0 2px">'+esc(label)+'</label>'+(ta?'<textarea id="'+id+'" style="'+IST+';min-height:52px;resize:vertical" placeholder="'+esc(ph||'')+'">'+esc(val||'')+'</textarea>':'<input id="'+id+'" style="'+IST+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'">'); };
+    box.innerHTML=
+      '<div style="display:flex;gap:8px"><div style="flex:1">'+di('jd_appl','Appliance',(job.unit&&job.unit.label),'Washer')+'</div><div style="flex:1">'+di('jd_brand','Brand',a.brand,'Whirlpool')+'</div></div>'+
+      di('jd_model','Model #',a.model,'off the sticker')+
+      di('jd_prob','Problem',job.problem,'what it\'s doing',true)+
+      di('jd_avail','Availability',job.availability,'days that work')+
+      '<div style="display:flex;gap:8px"><div style="flex:1">'+di('jd_first','First name',c.first_name,'')+'</div><div style="flex:1">'+di('jd_last','Last name',c.last_name,'')+'</div></div>'+
+      di('jd_phone','Phone',c.phone,'(555) 123-4567')+
+      di('jd_addr','Address',c.address,'123 Main St')+
+      '<div style="display:flex;gap:8px"><div style="flex:2">'+di('jd_city','City',c.city,'')+'</div><div style="flex:1">'+di('jd_state','State',c.state,'TN')+'</div></div>'+
+      '<button class="primary full" id="jd_save">Save details</button><div class="err" id="jd_msg"></div>';
+    document.getElementById('jd_save').onclick=function(){
+      var gv=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
+      var btn=document.getElementById('jd_save'), msg=document.getElementById('jd_msg'); btn.disabled=true; btn.textContent='Saving…'; msg.textContent='';
+      var attrsNew=Object.assign({},a,{brand:gv('jd_brand')||null,model:gv('jd_model')||null});
+      var ops=[];
+      if(job.customer_id) ops.push(sb.from('customer').update({first_name:gv('jd_first')||null,last_name:gv('jd_last')||null,phone:gv('jd_phone')||null,address:gv('jd_addr')||null,city:gv('jd_city')||null,state:gv('jd_state')||null}).eq('id',job.customer_id));
+      if(job.unit&&job.unit.id) ops.push(sb.from('unit').update({label:gv('jd_appl')||null,attributes:attrsNew}).eq('id',job.unit.id));
+      ops.push(sb.from('job').update({problem:gv('jd_prob')||null,availability:gv('jd_avail')||null}).eq('id',jobId));
+      Promise.all(ops).then(function(rr){
+        var err=rr.filter(function(x){return x&&x.error;})[0];
+        btn.disabled=false; btn.textContent='Save details';
+        if(err){ msg.textContent=err.error.message; return; }
+        msg.style.color='var(--completed)'; msg.textContent='Saved ✓ — office + customer updated'; loadJob();
+      });
+    };
   }
 
   function runOcr(file) {
