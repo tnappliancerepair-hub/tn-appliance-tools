@@ -46,8 +46,18 @@ async function rows(action, deadline) {
   const out = [];
   for (let page = 1; page <= 4000; page++) {
     if (deadline && Date.now() > deadline) break;
-    let list = [];
-    try { list = await crud.searchPageN(crud.TABLES.event_log, { action }, { id: 'desc' }, 500, page); } catch (_) { break; }
+    let list = null;
+    try {
+      // Per-PAGE timeout — a single Xano query can itself hang ~30s under load, and a
+      // between-pages budget check can't interrupt that. Race each page against 5s so one
+      // stalled query can never hang the whole request; on a stall we stop and return
+      // what we already have (an active job's parts are in the earliest pages anyway).
+      list = await Promise.race([
+        crud.searchPageN(crud.TABLES.event_log, { action }, { id: 'desc' }, 500, page),
+        new Promise((res) => setTimeout(() => res('__timeout__'), 5000)),
+      ]);
+    } catch (_) { break; }
+    if (list === '__timeout__') break;
     if (!Array.isArray(list) || !list.length) break;
     out.push(...list);
     if (list.length < 500) break;
