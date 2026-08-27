@@ -148,7 +148,7 @@
   function load(){
     shell('<div class="skel" style="padding:30px 4px">Crunching…</div>');
     // RLS scopes both queries to this company — we never pass company_id.
-    var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id').limit(3000);
+    var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents').limit(3000);
     var invP  = sb.from('invoice').select('total_cents,status,paid_at,created_at').limit(3000);
     Promise.all([jobsP, invP]).then(function(res){
       var jobs = (res[0].data)||[], invs = (res[1].data)||[];
@@ -170,6 +170,14 @@
     var byCust = {}; jobs.forEach(function(j){ if(j.status==='completed'){ (byCust[j.customer_id]=byCust[j.customer_id]||[]).push(Date.parse(j.completed_at||j.created_at)); }});
     var callbackCust=0, k;
     for (k in byCust){ var ds=byCust[k].sort(function(a,b){return a-b;}); for(var i=1;i<ds.length;i++){ if(ds[i]-ds[i-1] <= 30*864e5){ callbackCust++; break; } } }
+    // Straight Shooter: of recommend-replacement calls that got a vendor decision, % approved.
+    var repl = jobs.filter(function(j){ return j.xano_status==='no_fix_possible'; });
+    var replApproved = repl.filter(function(j){ var s=(j.warranty_claim_status||'').toUpperCase(); return s==='P'||s==='S'; }).length;
+    var replRejected = repl.filter(function(j){ var s=(j.warranty_claim_status||'').toUpperCase(); return s==='R'||s==='W'; }).length;
+    var replDecided = replApproved + replRejected;
+    var straightShooter = replDecided>0 ? pct(replApproved, replDecided)+'%' : '—';
+    // Warranty collected = EFTs actually paid on claims (real collected money).
+    var warrantyPaid=0; jobs.forEach(function(j){ warrantyPaid += (j.warranty_paid_cents||0); });
     var completedAll = jobs.filter(function(j){return j.status==='completed';}).length;
     var callbackRate = pct(callbackCust, Object.keys(byCust).length);
     // first-stop from the REAL repair report: completed jobs with a TDR, fixed with no
@@ -190,6 +198,7 @@
         tile('💚 Callbacks', callbackRate+'%', callbackCust+' customers back within 30 days', false, '', '')+
         tile('🔁 Recommend Replacement', String(recRep), 'machines called not-worth-fixing', false, '', 'Outcome, not a grade. Owner outlier-watch only.')+
         tile('✅ Completed', String(completed.length), 'jobs finished this period', false, '', '')+
+        tile('🏅 Straight Shooter', straightShooter, replDecided>0 ? replApproved+' of '+replDecided+' replace calls approved' : 'awaiting vendor decisions on replace calls', false, replDecided>0?'':'soon', 'Of your recommend-replacement calls, the % the warranty vendor approved. A sharp call = vendor agrees.')+
       '</div>'+
       '<div class="sec">Pipeline</div>'+
       '<div class="stat-strip">'+
@@ -206,8 +215,9 @@
       '</div>'+
       '<div class="sec">Money <span class="lock">🔒 owner only</span></div>'+
       '<div class="money">'+
-        mrow('Billed','',USD(billed))+
-        mrow('Collected','',USD(collected))+
+        mrow('Warranty collected (paid EFTs)','',USD(warrantyPaid))+
+        mrow('Invoiced (cash/self-pay)','',USD(billed))+
+        mrow('Cash collected','',USD(collected))+
         mrow('Outstanding (owed to shop)','',USD(outstanding))+
       '</div>'+
       (invWin.length===0

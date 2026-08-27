@@ -74,6 +74,21 @@ async function fetchTdrMap() {
   }
   return map;
 }
+// Newest warranty-claim reconcile snapshot: claim/call # -> { status (P=paid, R/W=rejected,
+// S=approved, ...), paid_total, eft_num }. Powers Straight Shooter (vendor approved the call)
+// + the warranty "collected" number. Best-effort: {} on any failure.
+const XANO_PUB = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+async function fetchClaimMap() {
+  try {
+    const r = await fetch(`${XANO_PUB}/list_recent_event_log?action=sp_claim_sync_state&days_back=120&limit=1`, { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return {};
+    const rows = ((await r.json()).items) || [];
+    if (!rows.length) return {};
+    let md = rows[0].metadata;
+    if (typeof md === 'string') { try { md = JSON.parse(md); } catch (_) { md = {}; } }
+    return (md && md.map) || {};
+  } catch (_) { return {}; }
+}
 // A real part token in parts_needed = the job needed a return trip for parts (not first-stop).
 function neededPartsTrip(pn) {
   const s = String(pn || '').trim();
@@ -152,6 +167,8 @@ async function syncTnToPlatform(limit) {
 
   // Real repair data per job (first-stop, diagnosis, part, labor) from the TDR table.
   const tdrMap = await fetchTdrMap();
+  // Warranty claim outcomes (approved/paid/rejected + $) keyed by claim/dispatch #.
+  const claimMap = await fetchClaimMap();
 
   // 3) jobs
   const jobRows = jobs.map((j) => {
@@ -163,6 +180,9 @@ async function syncTnToPlatform(limit) {
     const eta = String(j.parts_eta_date || '').trim();
     const tdr = tdrMap[Number(j.id)] || null;
     const isCompleted = mapStatus(j) === 'completed';
+    // Match the job to its claim outcome by claim# or dispatch#.
+    const cl = claimMap[String(j.claim_number || '').trim()] || claimMap[String(j.dispatch_source_id || '').trim()] || null;
+    const clStatus = cl ? String(cl.status || '').toUpperCase() : '';
     // First-stop = fixed on the visit with no return trip for parts. Only meaningful on a
     // completed job WITH a TDR; unknown (null) otherwise so it never fakes the rate.
     const firstStop = (isCompleted && tdr) ? !neededPartsTrip(tdr.parts_needed) : null;
@@ -178,6 +198,9 @@ async function syncTnToPlatform(limit) {
       tdr_parts_needed: tdr ? tdr.parts_needed : '',
       tdr_labor_hours: tdr ? tdr.labor_hours : null,
       first_stop: firstStop,
+      warranty_claim_status: clStatus,
+      warranty_paid_cents: cl ? Math.round(Number(cl.paid_total || 0) * 100) : null,
+      warranty_eft: cl ? String(cl.eft_num || '') : '',
       problem: String(j.problem_summary || ''),
       source: String(j.intake_source || 'xano_mirror'),
       scheduled_start: iso,
