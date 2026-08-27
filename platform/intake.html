@@ -69,6 +69,7 @@
   var token = new URLSearchParams(location.search).get('t');
   var API = '/.netlify/functions/platform-intake';
   var ctx = null;
+  var videoState = 'idle';   // idle | uploading | saved | error — guards Finish so a video mid-upload isn't lost
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function center(icon, title, msg){ app.innerHTML = '<div class="center"><div class="big">' + icon + '</div><h2>' + esc(title) + '</h2><p>' + esc(msg) + '</p></div>'; }
@@ -160,6 +161,7 @@
   }
   function startVideo(file) {
     var row = document.getElementById('vidRow'), prog = document.getElementById('vidProg'), bar = prog.firstChild;
+    videoState = 'uploading';
     row.textContent = 'Preparing upload…'; prog.style.display = 'block'; bar.style.width = '3%';
     api('stream_upload', { bytes: file.size, filename: file.name || 'video.mp4' }).then(function (r) {
       if (!r || !r.ok || !r.uploadUrl) { row.textContent = 'Couldn\'t start the video upload — you can skip this and we\'ll grab it on site.'; prog.style.display='none'; return; }
@@ -167,11 +169,23 @@
       var up = new window.tus.Upload(file, {
         uploadUrl: r.uploadUrl, chunkSize: 5 * 1024 * 1024, retryDelays: [0, 1000, 3000, 6000],
         metadata: { filename: file.name || 'video.mp4', filetype: file.type || 'video/mp4' },
-        onError: function(){ row.textContent = 'Upload hiccuped — tap Record/Upload to try again.'; prog.style.display='none'; },
+        onError: function(){ videoState = 'error'; row.textContent = 'Upload hiccuped — tap Record/Upload to try again.'; prog.style.display='none'; },
         onProgress: function(sent, total){ var pct = Math.max(3, Math.round(sent/total*100)); bar.style.width = pct + '%'; row.textContent = 'Uploading… ' + pct + '%'; },
-        onSuccess: function(){ bar.style.width = '100%'; row.textContent = 'Got your video ✓'; api('media', { kind:'video', provider:'cfstream', ref: r.uid, label:'Problem video' }).then(function(){ markDone(2); }); },
+        onSuccess: function(){ bar.style.width = '100%'; row.textContent = 'Saving your video…'; saveVideoRecord(r.uid, 0); },
       });
       up.start();
+    });
+  }
+  // The tus upload to Cloudflare succeeded, but the job only shows a video once the
+  // job_media record is saved server-side. Confirm that write actually landed (retry a
+  // couple times on a flaky connection) — only THEN mark the step done. Otherwise the
+  // customer thinks the video's in when the cockpit has nothing ("no video available").
+  function saveVideoRecord(uid, attempt) {
+    var row = document.getElementById('vidRow');
+    api('media', { kind:'video', provider:'cfstream', ref: uid, label:'Problem video' }).then(function (r) {
+      if (r && r.ok) { videoState = 'saved'; row.textContent = 'Got your video ✓'; markDone(2); return; }
+      if (attempt < 2) { row.textContent = 'Saving your video… (retrying)'; setTimeout(function(){ saveVideoRecord(uid, attempt + 1); }, 1500); return; }
+      videoState = 'error'; row.textContent = 'Your video uploaded but didn\'t save — tap Record/Upload once more.';
     });
   }
 
@@ -281,6 +295,13 @@
   }
 
   function finish() {
+    // Don't let a still-uploading video get abandoned. If it's mid-upload, hold the
+    // customer a beat so it can land (the #1 way a video "never comes through" is the
+    // customer tapping All-done before the upload finishes).
+    if (videoState === 'uploading') {
+      document.getElementById('finishErr').textContent = 'Your video is still uploading — give it a few seconds, then tap again.';
+      return;
+    }
     var btn = document.getElementById('finish'); btn.disabled = true; btn.textContent = 'Sending…';
     api('finish', {}).then(function (r) {
       if (r && r.ok) center('✅', 'All set — thank you!', 'We\'ve got everything we need. ' + esc((ctx.shop && ctx.shop.name) || 'The shop') + ' will reach out to lock in your day. You can close this page.');

@@ -75,8 +75,17 @@ async function notifyShopIntakeDone(db, base, g) {
     try { const s = await shopsReg.getAsync(co.slug); ownerCell = (s && s.ownerCell) || ''; } catch (_) {}
   }
   if (!ownerCell) return;
+  // Say what actually landed — never promise a video that isn't there (the cockpit would
+  // show "no video available" and the shop wonders what happened).
+  const media = await db.get(`job_media?job_id=eq.${g.job_id}&select=kind&limit=50`);
+  const hasVideo = (media || []).some((m) => m.kind === 'video');
+  const hasPhoto = (media || []).some((m) => m.kind === 'photo');
+  const got = hasVideo && hasPhoto ? 'Video + model photo in.'
+    : hasVideo ? 'Video in.'
+    : hasPhoto ? 'Model photo in (no video).'
+    : 'Details in (no video/photo yet).';
   const cockpit = `${SITE}/c/${g.job_id}`;
-  const msg = `✅ ${who} finished intake — ${appliance}. Video + model photo in. Open the cockpit to diagnose + find the part: ${cockpit}`;
+  const msg = `✅ ${who} finished intake — ${appliance}. ${got} Open the cockpit to diagnose + find the part: ${cockpit}`;
   try { await sms.sendSms(ownerCell, msg, 'office', 'intake_complete_cockpit'); } catch (_) {}
 }
 
