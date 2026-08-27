@@ -174,6 +174,58 @@
     document.getElementById('settings').onclick = openSettings;
   }
 
+  // ── PAYMENTS (self-serve): the shop's OWN ways to get paid. Their money, their
+  // accounts — we never touch it, never process it, it never lands in our bank. They add
+  // or change these anytime; they show on the customer's invoice so customers pay them
+  // directly. Structured in settings.pay.methods + an auto-built pay_instructions text so
+  // the hosted invoice keeps working.
+  var PAY_TYPES = [
+    { t:'zelle',    l:'Zelle',            ph:'email or phone on your Zelle' },
+    { t:'cashapp',  l:'Cash App',         ph:'$YourCashtag' },
+    { t:'venmo',    l:'Venmo',            ph:'@your-venmo' },
+    { t:'applepay', l:'Apple Pay',        ph:'phone # to send Apple Pay to' },
+    { t:'paypal',   l:'PayPal',           ph:'your PayPal.me link or email' },
+    { t:'link',     l:'Card / pay link',  ph:'https://square.link/… or your Stripe link' },
+    { t:'check',    l:'Check payable to', ph:'Your Business LLC' },
+    { t:'other',    l:'Other',            ph:'how to pay' },
+  ];
+  function payTypeMeta(t){ for(var i=0;i<PAY_TYPES.length;i++){ if(PAY_TYPES[i].t===t) return PAY_TYPES[i]; } return PAY_TYPES[PAY_TYPES.length-1]; }
+  function payRowHtml(m){
+    m = m || {};
+    var opts = PAY_TYPES.map(function(p){ return '<option value="'+p.t+'"'+(m.type===p.t?' selected':'')+'>'+esc(p.l)+'</option>'; }).join('');
+    var ph = payTypeMeta(m.type||'zelle').ph;
+    var IST='padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box';
+    return '<div class="payrow" style="display:flex;gap:6px;margin-bottom:7px;align-items:center">' +
+      '<select class="pm-type" style="'+IST+';flex:0 0 40%">'+opts+'</select>' +
+      '<input class="pm-val" style="'+IST+';flex:1" placeholder="'+esc(ph)+'" value="'+esc(m.value||'')+'">' +
+      '<button type="button" class="pm-del" title="Remove" style="flex:0 0 auto;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--muted);cursor:pointer">✕</button>' +
+    '</div>';
+  }
+  function wirePayRow(row){
+    var typeSel=row.querySelector('.pm-type'), val=row.querySelector('.pm-val'), del=row.querySelector('.pm-del');
+    if(typeSel) typeSel.onchange=function(){ if(!val.value.trim()) val.placeholder=payTypeMeta(typeSel.value).ph; };
+    if(del) del.onclick=function(){ try{ row.parentNode.removeChild(row); }catch(e){} };
+  }
+  function renderPayMethods(methods){
+    var box=document.getElementById('payMethods'); if(!box) return;
+    var list=(methods&&methods.length)?methods:[{type:'zelle',value:''}];
+    box.innerHTML=list.map(payRowHtml).join('');
+    box.querySelectorAll('.payrow').forEach(wirePayRow);
+  }
+  function collectPayMethods(){
+    var out=[]; var box=document.getElementById('payMethods'); if(!box) return out;
+    box.querySelectorAll('.payrow').forEach(function(row){
+      var t=row.querySelector('.pm-type').value, v=row.querySelector('.pm-val').value.trim();
+      if(v) out.push({ type:t, value:v, label:payTypeMeta(t).l });
+    });
+    return out;
+  }
+  function payInstructionsText(methods, note){
+    var lines=(methods||[]).map(function(m){ return m.label + ': ' + m.value; });
+    if(note) lines.push(note);
+    return lines.join('\n');
+  }
+
   // ── SETTINGS (per-shop config: review link + parts distributor) ─────────────
   function openSettings() {
     var s = shopSettings || {};
@@ -190,8 +242,12 @@
       '<label>Tax ID / EIN <span class="hint">for the customer\'s records</span></label>' +
       '<input id="b_tax" placeholder="00-0000000" value="' + esc(b.tax_id || '') + '">' +
       '<label>License #</label><input id="b_lic" placeholder="optional" value="' + esc(b.license || '') + '">' +
-      '<label>Payment instructions <span class="hint">how customers pay you — checks payable to, Zelle/Venmo, etc.</span></label>' +
-      '<textarea id="b_pay" placeholder="Make checks payable to … · Zelle: office@yourshop.com" style="width:100%;min-height:58px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical">' + esc(s.pay_instructions || '') + '</textarea>' +
+      '<div class="sec">💳 How your customers pay you</div>' +
+      '<div class="hint" style="margin:-4px 0 8px">Your accounts, your money — we never touch it. Add your own Zelle, Cash App, Apple Pay, or a card link (Square / Stripe / PayPal). These show on your invoice so customers pay <b>you</b> directly. Change them anytime.</div>' +
+      '<div id="payMethods"></div>' +
+      '<button type="button" id="payAdd" style="width:100%;margin-top:2px">＋ Add a way to get paid</button>' +
+      '<label style="margin-top:10px">Anything else about paying <span class="hint">(optional)</span></label>' +
+      '<textarea id="b_paynote" placeholder="e.g. Deposit due before we order parts" style="width:100%;min-height:44px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical">' + esc((s.pay && s.pay.note) || '') + '</textarea>' +
       '<div class="sec">Sales tax</div>' +
       '<label>Sales tax % <span class="hint">default rate on invoices</span></label>' +
       '<input id="s_tax" inputmode="decimal" placeholder="9.75" value="' + esc(s.tax_rate != null ? s.tax_rate : '') + '">' +
@@ -212,6 +268,11 @@
     var close = function () { try { document.body.removeChild(ov); } catch (e) {} };
     ov.onclick = function (e) { if (e.target === ov) close(); };
     document.getElementById('s_cancel').onclick = close;
+    // Payment methods: render the shop's own list (seed legacy free-text into the note).
+    renderPayMethods(s.pay && s.pay.methods);
+    if (!(s.pay && s.pay.note) && !(s.pay && s.pay.methods) && s.pay_instructions) { var pn=document.getElementById('b_paynote'); if(pn) pn.value=s.pay_instructions; }
+    var payAdd = document.getElementById('payAdd');
+    if (payAdd) payAdd.onclick = function(){ var box=document.getElementById('payMethods'); var d=document.createElement('div'); d.innerHTML=payRowHtml({type:'zelle',value:''}); var row=d.firstChild; box.appendChild(row); wirePayRow(row); row.querySelector('.pm-val').focus(); };
     var npGo = document.getElementById('np_go');
     if (npGo) npGo.onclick = function () {
       var pw = (document.getElementById('np').value || '').trim();
@@ -228,12 +289,15 @@
       var btn = document.getElementById('s_save'); btn.disabled = true; btn.textContent = 'Saving…';
       var taxRaw = document.getElementById('s_tax').value.trim();
       var gv = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+      var payMethods = collectPayMethods();
+      var payNote = gv('b_paynote');
       var next = Object.assign({}, shopSettings, {
         review_url: gv('s_review'),
         distributor_name: gv('s_dname'),
         distributor_search_url: gv('s_durl'),
         tax_rate: taxRaw === '' ? null : (parseFloat(taxRaw) || 0),
-        pay_instructions: gv('b_pay'),
+        pay: { methods: payMethods, note: payNote },
+        pay_instructions: payInstructionsText(payMethods, payNote),   // keep text in sync for the invoice
         business: {
           name: gv('b_name'), address: gv('b_addr'), phone: gv('b_phone'),
           email: gv('b_email'), tax_id: gv('b_tax'), license: gv('b_lic'),

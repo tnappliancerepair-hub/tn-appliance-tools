@@ -30,6 +30,13 @@
   .paid{background:#dcfce7;color:#166534}
   .due{background:#fef3c7;color:#92400e}
   .pay-note{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-top:16px;font-size:14px;white-space:pre-line}
+  .pay-title{font-weight:800;font-size:13px;margin-bottom:6px}
+  .pay-btn{display:block;text-align:center;background:var(--brand);color:#fff;text-decoration:none;font-weight:800;padding:13px;border-radius:10px;margin:8px 0;font-size:15px}
+  .pay-line{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}
+  .pay-line:last-child{border-bottom:0}
+  .pl-lab{color:var(--muted);font-weight:700;font-size:13px;white-space:nowrap}
+  .pl-val{font-weight:700;word-break:break-all;text-align:right}
+  .pay-extra{margin-top:10px;font-size:13px;color:var(--muted);white-space:pre-line}
   .center{max-width:380px;margin:16vh auto;text-align:center;color:var(--muted);padding:0 20px}
   .center .big{font-size:44px;margin-bottom:8px}
   .print{display:block;width:100%;margin-top:18px;padding:13px;border:0;border-radius:11px;background:var(--brand);color:#fff;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
@@ -63,6 +70,26 @@
     var custName=[cust.first_name,cust.last_name].filter(Boolean).join(' ')||'Customer';
     var rows=lines.map(function(l){ var amt=Math.round((l.unit_cents||0)*(l.qty||1)); return '<tr><td>'+esc(l.description||l.kind)+'</td><td class="r">'+money(amt)+'</td></tr>'; }).join('');
     var payNote=(co.settings&&co.settings.pay_instructions)||'';
+    // The shop's OWN payment methods (Zelle / Cash App / their card link). We just display
+    // them — the money goes straight to the shop, never through us.
+    var pay=(co.settings&&co.settings.pay)||null;
+    var isUrl=function(v){ return /^https?:\/\//i.test(String(v||'')); };
+    var payHtml='';
+    if(!paid){
+      if(pay&&pay.methods&&pay.methods.length){
+        var items=pay.methods.map(function(m){
+          var label=esc(m.label||m.type||'Pay');
+          if(m.type==='link'||(m.type==='paypal'&&isUrl(m.value))||isUrl(m.value)){
+            var href=isUrl(m.value)?m.value:('https://'+m.value);
+            return '<a class="pay-btn" href="'+esc(href)+'" target="_blank" rel="noopener">💳 '+label+' →</a>';
+          }
+          return '<div class="pay-line"><span class="pl-lab">'+label+'</span><span class="pl-val">'+esc(m.value||'')+'</span></div>';
+        }).join('');
+        payHtml='<div class="pay-note"><div class="pay-title">Ways to pay '+esc(name)+'</div>'+items+(pay.note?'<div class="pay-extra">'+esc(pay.note)+'</div>':'')+'</div>';
+      } else if(payNote){
+        payHtml='<div class="pay-note">'+esc(payNote)+'</div>';
+      }
+    }
 
     app.innerHTML='<div class="wrap"><div class="card">' +
       '<div class="shop">'+esc(name)+'</div>' +
@@ -78,7 +105,7 @@
         '<div class="tr grand"><span>Total</span><span>'+money(inv.total_cents)+'</span></div>' +
       '</div>' +
       '<div><span class="pill '+(paid?'paid':'due')+'">'+(paid?'PAID IN FULL':'BALANCE DUE '+money(inv.total_cents))+'</span></div>' +
-      (payNote&&!paid?'<div class="pay-note">'+esc(payNote)+'</div>':'') +
+      payHtml +
       '<button class="print" onclick="window.print()">🖨️ Print / Save as PDF</button>' +
       '</div></div>';
   }).catch(function(){ fail('Could not load this invoice.'); });
