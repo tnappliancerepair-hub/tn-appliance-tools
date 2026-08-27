@@ -62,6 +62,14 @@
   .tdr .outc label,.tdr .cameback{display:flex;gap:8px;align-items:center}
   .tdr .cameback{font-size:13.5px;color:var(--muted);margin-bottom:10px}
   .note{background:var(--chip);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--muted)}
+  .thr{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;padding:2px}
+  .bub{max-width:88%;padding:8px 11px;border-radius:12px;font-size:14px;background:var(--chip);border:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
+  .bub.cust{align-self:flex-start;border-left:3px solid #3b82f6}
+  .bub.ann{align-self:flex-end;border-left:3px solid #7c3aed}
+  .bub.you{align-self:flex-end;border-left:3px solid var(--brand)}
+  .bub .who{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;opacity:.85}
+  .bub.cust .who{color:#3b82f6}.bub.ann .who{color:#a855f7}.bub.you .who{color:var(--brand)}
+  .bub .tm{display:block;font-size:10.5px;opacity:.6;margin-top:3px}
   .center{max-width:400px;margin:12vh auto;text-align:center;color:var(--muted);padding:0 20px}
   .center .big{font-size:44px;margin-bottom:8px}
   .gate{max-width:360px;margin:10vh auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:var(--shadow)}
@@ -173,6 +181,14 @@
             '<div id="wvBox" class="hidden" style="margin-top:10px"></div>') +
         '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
 
+      '<div class="card"><div class="sec">💬 Conversation — every text on this job</div>' +
+        '<div class="note" style="margin:-2px 0 8px">🤖 Ant (AI) · 🏢 office · 👤 the customer — the whole thread, and text them yourself below.</div>' +
+        '<div class="thr" id="thr"><div class="note">Loading…</div></div>' +
+        '<div style="display:flex;gap:8px;margin-top:10px">' +
+          '<textarea id="msgBox" placeholder="Type a message to '+esc((cust.first_name||'the customer'))+'…" style="flex:1;resize:none;min-height:44px;max-height:120px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"></textarea>' +
+          '<button class="primary" id="msgSend" style="align-self:stretch;min-width:74px">Send</button>' +
+        '</div><div class="err" id="msgErr"></div></div>' +
+
       '<div class="card"><div class="sec">Job details</div>' +
         '<div class="note" style="margin:-2px 0 8px">Anything off? Fix it here — it updates the office tile &amp; the customer\'s record too.</div>' +
         '<button class="full" id="jdToggle">✏️ Edit job details</button>' +
@@ -256,6 +272,7 @@
     wire();
     autoModel();
     loadInvoice();
+    loadThread();
   }
 
   function wire() {
@@ -263,6 +280,12 @@
     var sr = app.querySelector('[data-scrollreport]'); if(sr) sr.onclick=function(){ var c=document.getElementById('reportCard'); if(c) c.scrollIntoView({behavior:'smooth'}); var e=document.getElementById('tc'); if(e) e.focus(); };
     var otw = document.getElementById('otwBtn'); if(otw) otw.onclick = onMyWay;
     var rvw = document.getElementById('reviewBtn'); if(rvw) rvw.onclick = function(){ sendReview(rvw); };
+
+    // Conversation — text the customer free-form; lands in the shared thread.
+    var msgBox=document.getElementById('msgBox'), msgSend=document.getElementById('msgSend');
+    if(msgBox) msgBox.addEventListener('input',function(){ msgBox.style.height='auto'; msgBox.style.height=Math.min(120,msgBox.scrollHeight)+'px'; });
+    if(msgSend) msgSend.onclick=sendMsg;
+    if(msgBox) msgBox.addEventListener('keydown',function(e){ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){ e.preventDefault(); sendMsg(); } });
 
     // Schedule on my day / move / hand off
     var schedBtn=document.getElementById('schedBtn'), schedBox=document.getElementById('schedBox');
@@ -557,6 +580,40 @@
     if(btn){ btn.disabled=true; btn.textContent='Sending review link…'; }
     notify('review').then(function(d){ if(btn){ btn.textContent=(d&&d.texted)?'⭐ Review link sent ✓':(d&&d.url?'⭐ Sent (no phone — link ready)':'Couldn\'t send — try again'); btn.disabled=false; } })
       .catch(function(){ if(btn){ btn.disabled=false; btn.textContent='⭐ Text review link to customer'; } });
+  }
+
+  // ── CONVERSATION (shared thread) ────────────────────────────────────────────
+  function ftime(iso){ if(!iso) return ''; try{ var d=new Date(iso); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } }
+  function whoOf(m){
+    var s=String(m.sender||'');
+    if(m.direction==='in') return { cls:'cust', who:'👤 '+((job.customer&&fullName(job.customer))||'Customer') };
+    if(s==='ann'||s==='') return { cls:'ann', who:'🤖 Ant · AI' };
+    if(/^office/i.test(s)) return { cls:'you', who:'🏢 Office'+(s.indexOf(':')>0?' · '+s.split(':').slice(1).join(':'):'') };
+    if(/^tech/i.test(s)) return { cls:'you', who:'🔧 '+(s.indexOf(':')>0?s.split(':').slice(1).join(':'):'You') };
+    return { cls:'you', who:esc(s||'You') };
+  }
+  function loadThread(){
+    var box=document.getElementById('thr'); if(!box) return;
+    sb.from('thread_message').select('direction,sender,body,created_at').eq('job_id',jobId).order('created_at',{ascending:true}).limit(200).then(function(r){
+      var rows=(r.data||[]);
+      if(!rows.length){ box.innerHTML='<div class="note">No messages yet — send the first one below.</div>'; return; }
+      box.innerHTML=rows.map(function(m){ var w=whoOf(m); return '<div class="bub '+w.cls+'"><span class="who">'+esc(w.who)+'</span>'+esc(m.body||'')+'<span class="tm">'+esc(ftime(m.created_at))+'</span></div>'; }).join('');
+      box.scrollTop=box.scrollHeight;
+    });
+  }
+  function sendMsg(){
+    var box=document.getElementById('msgBox'), err=document.getElementById('msgErr'), btn=document.getElementById('msgSend');
+    var text=(box&&box.value||'').trim(); err.textContent='';
+    if(!text) return;
+    btn.disabled=true; btn.textContent='…'; var old=box.value; box.value=''; box.style.height='auto';
+    token().then(function(tok){
+      return fetch('/.netlify/functions/platform-tech-notify?do=message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,body:text})})
+        .then(function(r){return r.json();}).then(function(d){
+          btn.disabled=false; btn.textContent='Send';
+          if(d&&d.ok){ if(d.no_phone) err.textContent='Sent to the thread — no phone on file to text.'; loadThread(); }
+          else { box.value=old; err.textContent=(d&&d.error)||'Couldn\'t send — try again.'; }
+        });
+    }).catch(function(){ btn.disabled=false; btn.textContent='Send'; box.value=old; err.textContent='Couldn\'t reach the server — try again.'; });
   }
 
   function addTechPhoto(file){

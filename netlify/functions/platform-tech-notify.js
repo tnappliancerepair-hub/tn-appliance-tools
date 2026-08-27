@@ -50,8 +50,9 @@ exports.handler = async function (event) {
   if (!u) return json(200, { ok: false, error: 'not_signed_in' });
 
   // scope: caller's company must own the job
-  const us = await db.get(`app_user?auth_user_id=eq.${u.id}&select=company_id&limit=1`);
+  const us = await db.get(`app_user?auth_user_id=eq.${u.id}&select=company_id,name&limit=1`);
   const companyId = us && us[0] && us[0].company_id;
+  const techName = (us && us[0] && us[0].name) || '';
   if (!companyId) return json(200, { ok: false, error: 'no_company' });
   const jobs = await db.get(`job?id=eq.${jobId}&company_id=eq.${companyId}&select=id,customer_id&limit=1`);
   const job = jobs && jobs[0];
@@ -71,6 +72,17 @@ exports.handler = async function (event) {
       if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_otw'); } catch (_) {} }
       await logThread('sms', '🚚 On my way');
       return json(200, { ok: true, texted: sent });
+    }
+
+    if (doo === 'message') {
+      // Free-form text from the tech to the customer, logged to the SAME shared thread the
+      // office tile + customer portal read. sender 'tech:<name>' so every surface shows who.
+      const text = String(p.body || '').trim().slice(0, 1000);
+      if (!text) return json(200, { ok: false, error: 'empty' });
+      let sent = false;
+      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_tech_msg'); } catch (_) {} }
+      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'sms', sender: techName ? ('tech:' + techName) : 'tech', body: text });
+      return json(200, { ok: true, texted: sent, no_phone: !phone });
     }
 
     if (doo === 'waiver_link') {
