@@ -55,7 +55,7 @@ function buildInstructions(shop) {
       : `${shop.name} handles automotive repair and service. Be warm and capable, like the best service advisor in town.`)
     : `${shop.name} handles home appliance repair. Be warm and capable, like the best front-desk person a repair shop could have.`;
 
-  return `You are Ann, the friendly voice of ${shop.name}${area}. You answer the phone. Be warm, natural, and concise — like the best front-desk person a shop could have. Keep replies short and conversational; this is a phone call.
+  return `You are ${shop.botName || 'Ant'}, the friendly voice of ${shop.name}${area}. You answer the phone. Be warm, natural, and concise — like the best front-desk person a shop could have. Keep replies short and conversational; this is a phone call.
 
 ${scopeLine}${aboutBlock}
 
@@ -89,7 +89,7 @@ STYLE: brief, warm, human. One question at a time. Confirm what you did ("I just
 
 function defaultGreeting(shop) {
   if (shop.greeting) return shop.greeting;
-  return `Thanks for calling ${shop.name} — this is Ann. We're here for you around the clock. How can I help you today?`;
+  return `Thanks for calling ${shop.name} — this is ${shop.botName || 'Ant'}. We're here for you around the clock. How can I help you today?`;
 }
 
 function webhookTool(name, description, url, properties, required) {
@@ -146,12 +146,12 @@ function buildTools(shop, toolKey) {
 
 function assistantBody(shop, toolKey) {
   return {
-    name: `Ann — ${shop.name} (trial)`,
+    name: `${shop.botName || 'Ant'} — ${shop.name} (trial)`,
     model: MODEL,
     instructions: buildInstructions(shop),
     greeting: defaultGreeting(shop),
     description: `${shop.name} phone AI (free trial) — answers 24/7, captures the lead, texts it to the owner.`,
-    voice_settings: { voice: VOICE_BROOKE, voice_speed: 1.0 },
+    voice_settings: { voice: shop.voice || VOICE_BROOKE, voice_speed: 1.0 },
     transcription: { model: 'deepgram/flux', language: 'auto' },
     tools: buildTools(shop, toolKey),
   };
@@ -173,6 +173,20 @@ exports.handler = async function (event) {
   };
 
   try {
+    // voices — list the TTS voices Telnyx offers (so we can pick a male one for "Ant").
+    //   ?action=voices[&gender=male][&provider=Inworld]
+    if (action === 'voices') {
+      const r = await call('GET', '/text-to-speech/voices');
+      let list = (r.data && (r.data.data || r.data.voices)) || (Array.isArray(r.data) ? r.data : []);
+      if (!Array.isArray(list)) list = [];
+      const g = String(q.gender || '').toLowerCase();
+      const prov = String(q.provider || '').toLowerCase();
+      const norm = list.map((v) => ({ id: v.id || v.name || v.voice, name: v.name || v.label || v.display_name, provider: v.provider, gender: v.gender || v.labels && v.labels.gender, accent: v.accent || (v.labels && v.labels.accent) }));
+      let out = norm;
+      if (g) out = out.filter((v) => String(v.gender || '').toLowerCase().includes(g));
+      if (prov) out = out.filter((v) => String(v.provider || '').toLowerCase().includes(prov));
+      return json(200, { ok: r.ok, status: r.status, total: list.length, filtered: out.length, voices: out.slice(0, 80), raw_sample: list.slice(0, 2) });
+    }
     if (action === 'list') return json(200, await call('GET', '/ai/assistants?page[size]=20'));
     if (action === 'get') return json(200, await call('GET', `/ai/assistants/${q.id}`));
     if (action === 'delete') return json(200, await call('DELETE', `/ai/assistants/${q.id}`));
@@ -190,7 +204,7 @@ exports.handler = async function (event) {
         name: 'name', type: 'type', owner_first: 'ownerFirst', owner_cell: 'ownerCell',
         area: 'area', hours: 'hours', about: 'about', email: 'email',
         auto_scope: 'autoScope', greeting: 'greeting', platform_slug: 'platformSlug',
-        ann_number: 'annNumber',
+        ann_number: 'annNumber', voice: 'voice', bot_name: 'botName',
       };
       for (const k of Object.keys(map)) { if (q[k] != null && q[k] !== '') patch[map[k]] = String(q[k]); }
       if (patch.ownerCell) { const d = patch.ownerCell.replace(/[^\d+]/g, ''); patch.ownerCell = d.startsWith('+') ? d : (d.length === 10 ? '+1' + d : (d.length === 11 && d[0] === '1' ? '+' + d : d)); }
