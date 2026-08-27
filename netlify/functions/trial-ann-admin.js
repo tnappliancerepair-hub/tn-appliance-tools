@@ -181,11 +181,15 @@ exports.handler = async function (event) {
       if (!Array.isArray(list)) list = [];
       const g = String(q.gender || '').toLowerCase();
       const prov = String(q.provider || '').toLowerCase();
-      const norm = list.map((v) => ({ id: v.id || v.name || v.voice, name: v.name || v.label || v.display_name, provider: v.provider, gender: v.gender || v.labels && v.labels.gender, accent: v.accent || (v.labels && v.labels.accent) }));
+      const norm = list.map((v) => ({ id: v.id || v.name || v.voice, name: v.name || v.label || v.display_name, provider: v.provider, gender: v.gender || (v.labels && v.labels.gender), language: v.language || (v.labels && v.labels.language) }));
       let out = norm;
-      if (g) out = out.filter((v) => String(v.gender || '').toLowerCase().includes(g));
+      if (g) out = out.filter((v) => String(v.gender || '').toLowerCase() === g);
       if (prov) out = out.filter((v) => String(v.provider || '').toLowerCase().includes(prov));
-      return json(200, { ok: r.ok, status: r.status, total: list.length, filtered: out.length, voices: out.slice(0, 80), raw_sample: list.slice(0, 2) });
+      const lang = String(q.lang || '').toLowerCase();
+      if (lang) out = out.filter((v) => String(v.language || '').toLowerCase().includes(lang));
+      const nq = String(q.q || '').toLowerCase();
+      if (nq) out = out.filter((v) => String(v.id || '').toLowerCase().includes(nq) || String(v.name || '').toLowerCase().includes(nq));
+      return json(200, { ok: r.ok, status: r.status, total: list.length, filtered: out.length, voices: out.slice(0, 120), raw_sample: list.slice(0, 2) });
     }
     if (action === 'list') return json(200, await call('GET', '/ai/assistants?page[size]=20'));
     if (action === 'get') return json(200, await call('GET', `/ai/assistants/${q.id}`));
