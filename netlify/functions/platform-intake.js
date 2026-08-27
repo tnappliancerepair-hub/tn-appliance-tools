@@ -15,6 +15,8 @@
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
+let sms = null; try { sms = require('./_lib/sms'); } catch (_) {}
+let shopsReg = null; try { shopsReg = require('./_lib/trial-shops'); } catch (_) {}
 const SITE = 'https://tnapplianceexchange.net';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -50,6 +52,32 @@ async function grantFor(db, token) {
 }
 async function note(db, g, body) {
   try { await db.insert('thread_message', { company_id: g.company_id, customer_id: g.customer_id, job_id: g.job_id, direction: 'in', channel: 'portal', sender: 'customer', body }); } catch (_) {}
+}
+
+// The moment the customer finishes intake, ping the SHOP with a link straight into the
+// cockpit (platform/tech-job.html) — the customer's video + model photo are loaded, the
+// model # is OCR-ready, part search is a tap away, and the TDR is right there to pre-
+// diagnose. This is the hand-off: customer done -> shop opens ready to find the part.
+// Sends as an internal 'office' alert (reliable line, no quiet-hours/rate gate). Best-effort.
+async function notifyShopIntakeDone(db, base, g) {
+  if (!sms) return;
+  const cos = await db.get(`company?id=eq.${g.company_id}&select=slug,name,settings&limit=1`);
+  const co = (cos && cos[0]) || {};
+  const jobs = await db.get(`job?id=eq.${g.job_id}&select=problem,unit:unit_id(label)&limit=1`);
+  const job = (jobs && jobs[0]) || {};
+  const cus = await db.get(`customer?id=eq.${g.customer_id}&select=first_name,last_name&limit=1`);
+  const c = (cus && cus[0]) || {};
+  const who = [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'The customer';
+  const appliance = (job.unit && job.unit.label) || 'their appliance';
+  // Owner notify number: company.settings first, then the trial-shops registry by slug.
+  let ownerCell = (co.settings && (co.settings.owner_cell || co.settings.ownerCell || co.settings.notify_cell)) || '';
+  if (!ownerCell && co.slug && shopsReg && shopsReg.getAsync) {
+    try { const s = await shopsReg.getAsync(co.slug); ownerCell = (s && s.ownerCell) || ''; } catch (_) {}
+  }
+  if (!ownerCell) return;
+  const cockpit = `${SITE}/platform/tech-job.html?job=${g.job_id}`;
+  const msg = `✅ ${who} finished their intake for ${appliance} — video, model photo & availability are in. Open the cockpit to pre-diagnose + find the part: ${cockpit}`;
+  try { await sms.sendSms(ownerCell, msg, 'office', 'intake_complete_cockpit'); } catch (_) {}
 }
 
 exports.handler = async function (event) {
@@ -156,8 +184,13 @@ exports.handler = async function (event) {
     }
 
     if (doo === 'finish') {
+      // Dedup the shop ping: only fire the cockpit text on the FIRST finish (a customer
+      // re-tapping "All done" must not re-text the shop).
+      let already = false;
+      try { const pre = await db.get(`job?id=eq.${g.job_id}&select=intake_done_at&limit=1`); already = !!(pre && pre[0] && pre[0].intake_done_at); } catch (_) {}
       await db.patch(`job?id=eq.${g.job_id}`, { intake_done_at: new Date().toISOString() });
       await note(db, g, '✅ Finished intake — ready to schedule');
+      if (!already) { try { await notifyShopIntakeDone(db, url, g); } catch (_) {} }
       return json(200, { ok: true });
     }
 
