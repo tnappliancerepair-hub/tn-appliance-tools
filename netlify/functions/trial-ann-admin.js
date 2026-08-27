@@ -283,6 +283,43 @@ exports.handler = async function (event) {
       return json(200, { ok: true, number: want, days, call_count: out.length, calls: out.slice(0, 25) });
     }
 
+    // phones — fast health check: are the main lines taking calls right now? Pulls the
+    // newest page of voice CDRs and summarizes recent flow + per-main-line recency.
+    // ?action=phones
+    if (action === 'phones') {
+      const MAIN = { '16152802949': '280-2949 (main)', '16155889500': '588-9500 (AI/customer)', '16158578800': '857-8800 (human)', '18662680111': '866-268-0111 (toll-free)', '18882688998': '888-268-8998 (toll-free)', '16292607111': '629-260-7111', '16292477111': '629-247-7111' };
+      const norm = (s) => String(s || '').replace(/\D/g, '');
+      const r = await Promise.race([
+        call('GET', `/detail_records?filter[record_type]=voice&page[size]=250&sort=-created_at`),
+        new Promise((res) => setTimeout(() => res({ ok: false, status: 0, data: { _timeout: true } }), 18000)),
+      ]);
+      if (!r.ok) return json(200, { ok: false, error: (r.data && r.data._timeout) ? 'cdr_timeout' : JSON.stringify(r.data).slice(0, 200) });
+      const recs = (r.data && r.data.data) || [];
+      const now = Date.now();
+      const mins = (t) => Math.round((now - t) / 60000);
+      let newestAll = 0, last2h = 0, last1h = 0, answered2h = 0;
+      const perLine = {};
+      const oldestInPage = recs.length ? (Date.parse(recs[recs.length - 1].created_at || recs[recs.length - 1].started_at || '') || 0) : 0;
+      for (const rec of recs) {
+        const t = Date.parse(rec.created_at || rec.started_at || rec.completed_at || '') || 0;
+        if (!t) continue;
+        if (t > newestAll) newestAll = t;
+        if (now - t <= 7200000) { last2h++; if ((rec.duration_secs || rec.billed_sec || 0) > 0) answered2h++; }
+        if (now - t <= 3600000) last1h++;
+        const nums = [rec.cld, rec.to, rec.destination_number, rec.cli, rec.from, rec.source_number].map(norm);
+        for (const key of Object.keys(MAIN)) { if (nums.includes(key)) { if (!perLine[key] || t > perLine[key]) perLine[key] = t; } }
+      }
+      const lines = Object.keys(MAIN).map((k) => ({ line: MAIN[k], last_call_min_ago: perLine[k] ? mins(perLine[k]) : null, seen_in_window: !!perLine[k] }));
+      return json(200, {
+        ok: true,
+        page_covers_back_to_min_ago: oldestInPage ? mins(oldestInPage) : null,
+        newest_call_min_ago: newestAll ? mins(newestAll) : null,
+        calls_last_1h: last1h, calls_last_2h: last2h, answered_last_2h: answered2h,
+        main_lines: lines,
+        note: 'newest_call_min_ago is across ALL numbers; if it is small the platform is taking calls. Per-line null = no call to/from that line within the newest 250 records.',
+      });
+    }
+
     // numbers — list every Telnyx number we own + how it's wired, so we can spot a
     // spare to use as a demo line. ?action=numbers
     if (action === 'numbers') {
