@@ -283,6 +283,30 @@ exports.handler = async function (event) {
       return json(200, { ok: true, number: want, days, call_count: out.length, calls: out.slice(0, 25) });
     }
 
+    // convos — AI-assistant conversation log (the RIGHT place for AI-answered calls;
+    // classic voice CDRs don't capture these). ?action=convos&id=<assistant-id>[&days=7]
+    if (action === 'convos') {
+      if (!q.id) return json(200, { ok: false, error: 'need ?id=' });
+      const tries = [
+        `/ai/assistants/${q.id}/conversations?page[size]=40`,
+        `/ai/conversations?filter[assistant_id]=${encodeURIComponent(q.id)}&page[size]=40`,
+        `/ai/conversations?filter[assistant_id][eq]=${encodeURIComponent(q.id)}&page[size]=40`,
+      ];
+      let used = null, rows = [], raw = null;
+      for (const path of tries) {
+        const r = await call('GET', path);
+        if (r.ok) { const d = (r.data && r.data.data) || []; if (Array.isArray(d)) { used = path; rows = d; raw = r.data && r.data.data ? null : r.data; break; } }
+        raw = { path, status: r.status, err: JSON.stringify(r.data).slice(0, 160) };
+      }
+      const convos = rows.map((c) => ({
+        id: c.id || c.conversation_id,
+        at: c.created_at || c.started_at || c.last_message_at,
+        from: c.metadata && (c.metadata.from || c.metadata.caller) || c.from || c.telnyx_end_user_target || '',
+        msgs: c.message_count || (Array.isArray(c.messages) ? c.messages.length : undefined),
+      }));
+      return json(200, { ok: !!used, endpoint_used: used, count: convos.length, conversations: convos.slice(0, 40), note: used ? undefined : raw });
+    }
+
     // add_shop — register a NEW shop's config in the data-driven store (Supabase),
     // so a shop can be stood up on a call with NO code edit + deploy. Idempotent by slug
     // (re-send to update fields). Only the params you pass are written (merged over any
