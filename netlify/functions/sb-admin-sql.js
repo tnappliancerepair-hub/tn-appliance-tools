@@ -35,10 +35,15 @@ exports.handler = async function (event) {
     let path = String(q.mgmt).trim();
     path = path.replace(/^\/?v1/, '');           // drop a leading v1 if present
     if (!path.startsWith('/')) path = '/' + path;
+    // GET (read posture) by default. DELETE allowed for deliberate teardown; a DELETE must
+    // pass &confirm=yes so it can't fire by accident. Nothing else is permitted here.
+    const method = String(q.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'DELETE') return json(200, { ok: false, error: 'mgmt passthrough allows GET or DELETE only' });
+    if (method === 'DELETE' && q.confirm !== 'yes') return json(200, { ok: false, error: 'DELETE requires &confirm=yes', would_delete: `${MGMT}${path}` });
     try {
-      const r = await fetch(`${MGMT}${path}`, { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(20000) });
+      const r = await fetch(`${MGMT}${path}`, { method, headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(20000) });
       const d = await r.json().catch(() => ({}));
-      return json(200, { ok: r.ok, status: r.status, url: `${MGMT}${path}`, data: d });
+      return json(200, { ok: r.ok, status: r.status, method, url: `${MGMT}${path}`, data: d });
     } catch (e) {
       return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200), path });
     }
