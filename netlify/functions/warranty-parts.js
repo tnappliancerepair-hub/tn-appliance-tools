@@ -30,13 +30,22 @@ function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { t
 // grew — so parts from "last week and before" vanished from the drawer even though the
 // data was never lost. This reads all of it so a job's parts never fall out of view.
 // (2026-07-22 — Danielle's report)
-async function rows(action) {
+// Per-job result cache (in-memory, per warm container). The parts read scans a lot of
+// history, so without this every reopen / retry / poll / office-board hit re-ran the whole
+// scan and, under Xano load, hung to a 30s timeout — "parts won't load even on full bars"
+// (Lee/Andre 2026-08-27). Short TTL keeps used/unused status fresh; any POST clears it.
+const _partsCache = {};
+const PARTS_CACHE_TTL_MS = 30 * 1000;
+
+// Deep-paginate an action's history (pages of 500, early break) UNTIL a shared time budget
+// (`deadline`) is hit — so one slow Xano page can never hang the whole request past ~9s. An
+// active job's parts are in the newest pages, so the budget rarely bites them; it just caps
+// the worst case instead of timing out with nothing. The 4000-page number is a runaway
+// guard. (2026-07-22 unlimited; 2026-08-27 add a time budget so it can't hang.)
+async function rows(action, deadline) {
   const out = [];
-  // UNLIMITED — page through EVERY record for this action; stops only at the real last
-  // page (a page shorter than 500). No coverage cap, so parts never fall out of view no
-  // matter how large the log grows. The 4000-page number is a pure runaway guard (2M
-  // rows) that will never be reached in practice. (Teddy 2026-07-22: "make it unlimited")
   for (let page = 1; page <= 4000; page++) {
+    if (deadline && Date.now() > deadline) break;
     let list = [];
     try { list = await crud.searchPageN(crud.TABLES.event_log, { action }, { id: 'desc' }, 500, page); } catch (_) { break; }
     if (!Array.isArray(list) || !list.length) break;
@@ -81,6 +90,8 @@ exports.handler = async function (event) {
 
   if (event.httpMethod === 'POST') {
     let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
+    // A write changes a job's parts — drop the read cache so the next GET is fresh.
+    try { for (const k of Object.keys(_partsCache)) delete _partsCache[k]; } catch (_) {}
     const jobId = Number(b.job_id || 0);
     if (!jobId) return j(400, { ok: false, error: 'job_id required' });
 
@@ -165,10 +176,16 @@ exports.handler = async function (event) {
   if (!jobId && !claim) return j(400, { ok: false, error: 'job_id or claim required' });
   const mine = (m) => (jobId && Number(m.job_id) === jobId) || (claim && String(m.claim) === claim);
 
+  // Serve a fresh cached result instantly — kills the reopen/retry/poll re-scan storm.
+  const _ck = jobId ? ('j' + jobId) : ('c' + claim);
+  const _hit = _partsCache[_ck];
+  if (_hit && (Date.now() - _hit.at) < PARTS_CACHE_TTL_MS) return j(200, _hit.payload);
+
+  const _deadline = Date.now() + 9000;   // hard cap: respond within ~9s, never hang to a 30s timeout
   const [labels, manual, statuses, discreps, photos, deletes] = await Promise.all([
-    rows('parts_return_label'), rows('warranty_part_supplied'),
-    rows('warranty_part_status'), rows('warranty_part_discrepancy'),
-    rows('warranty_part_photo'), rows('warranty_part_deleted'),
+    rows('parts_return_label', _deadline), rows('warranty_part_supplied', _deadline),
+    rows('warranty_part_status', _deadline), rows('warranty_part_discrepancy', _deadline),
+    rows('warranty_part_photo', _deadline), rows('warranty_part_deleted', _deadline),
   ]);
 
   // Newest soft-delete timestamp per part (this job/claim). A part is hidden when its
@@ -234,5 +251,7 @@ exports.handler = async function (event) {
   const to_return = parts.filter((p) => p.status === 'to_return').length;
   const missing = parts.filter((p) => p.status === 'missing').length;
   const unchecked = parts.filter((p) => !p.checked).length;
-  return j(200, { ok: true, count: parts.length, to_return, missing, unchecked, parts });
+  const _payload = { ok: true, count: parts.length, to_return, missing, unchecked, parts };
+  _partsCache[_ck] = { at: Date.now(), payload: _payload };
+  return j(200, _payload);
 };
