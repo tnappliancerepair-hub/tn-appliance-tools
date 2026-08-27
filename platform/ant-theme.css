@@ -1,70 +1,154 @@
 /* ant-theme.css — the shared design layer for the whole Ant platform. Loaded AFTER each
    page's inline <style>, so it refines the SAME token names (palette, shadows, type) and
-   polishes common components (.card, buttons, inputs, .sec, .badge) everywhere at once.
-   Improve here → every page and every shop gets prettier. No markup changes required. */
+   polishes common components (.card, buttons, inputs, chips, tiles) everywhere at once.
+   Improve here → every page and every shop gets prettier. No markup changes required.
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+   The vibe: energetic green → gold, real depth + glow, a confident display face, gradient
+   CTAs with a light-sweep, springy taps, and cards that rise in as the page loads.
+   Motion is gated so the live-polling pages (office board, portal) never re-animate. */
 
-/* ── Palette (light) — warm, chosen neutrals with a green bias, a richer brand green ── */
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* ══ Palette — vivid, chosen. Green with a lift, a gold accent for money/celebration ══ */
 :root{
-  --bg:#f5f7f1; --panel:#ffffff; --ink:#151a10; --muted:#6a7160; --line:#e7eadf;
-  --brand:#2f8a2a; --brand-ink:#ffffff; --chip:#eef3e7;
-  --shadow:0 1px 2px rgba(24,34,12,.05), 0 5px 16px rgba(24,34,12,.06), 0 16px 34px rgba(24,34,12,.05);
-  --ring:rgba(47,138,42,.22);
+  --bg:#f2f6ea; --panel:#ffffff; --ink:#0f1508; --muted:#636d51; --line:#e3e9d5;
+  --brand:#1a9e46; --accent:#1a9e46; --brand-ink:#ffffff; --accent-ink:#ffffff; --ok:#1a9e46;
+  --chip:#e9f2df;
+  --brand-grad:linear-gradient(135deg,#3ad061 0%,#0f8e3c 100%);
+  --gold:#f7b500; --gold-grad:linear-gradient(135deg,#ffcf3f 0%,#f59e0b 100%);
+  --shadow:0 1px 2px rgba(20,34,8,.05), 0 6px 18px rgba(20,34,8,.07), 0 20px 44px rgba(20,34,8,.06);
+  --shadow-lift:0 2px 4px rgba(20,34,8,.06), 0 14px 30px rgba(20,34,8,.12), 0 30px 60px rgba(20,34,8,.10);
+  --ring:rgba(26,158,70,.26);
+  --glow:0 6px 20px rgba(26,158,70,.34);
+  --glow-strong:0 8px 30px rgba(26,158,70,.5);
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --bg:#0e120b; --panel:#161b10; --ink:#eef2e6; --muted:#9aa38b; --line:#28311e;
-  --brand:#5fbb3a; --brand-ink:#08210a; --chip:#1e2617;
-  --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.5);
-  --ring:rgba(95,187,58,.28);
+  --bg:#0b1007; --panel:#121a0d; --ink:#eef4e3; --muted:#8fa07f; --line:#223019;
+  --brand:#4fd06a; --accent:#4fd06a; --brand-ink:#06210a; --accent-ink:#06210a; --ok:#4fd06a;
+  --chip:#1a2413;
+  --brand-grad:linear-gradient(135deg,#57d873 0%,#1f9c46 100%);
+  --gold:#ffc531; --gold-grad:linear-gradient(135deg,#ffd75a 0%,#f5a623 100%);
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 30px rgba(0,0,0,.55), 0 26px 60px rgba(0,0,0,.5);
+  --shadow-lift:0 2px 6px rgba(0,0,0,.55), 0 18px 40px rgba(0,0,0,.6), 0 36px 70px rgba(0,0,0,.55);
+  --ring:rgba(79,208,106,.32);
+  --glow:0 6px 22px rgba(79,208,106,.32);
+  --glow-strong:0 10px 34px rgba(79,208,106,.46);
 }}
 :root[data-theme="dark"]{
-  --bg:#0e120b; --panel:#161b10; --ink:#eef2e6; --muted:#9aa38b; --line:#28311e;
-  --brand:#5fbb3a; --brand-ink:#08210a; --chip:#1e2617;
-  --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.5);
-  --ring:rgba(95,187,58,.28);
+  --bg:#0b1007; --panel:#121a0d; --ink:#eef4e3; --muted:#8fa07f; --line:#223019;
+  --brand:#4fd06a; --accent:#4fd06a; --brand-ink:#06210a; --accent-ink:#06210a; --ok:#4fd06a;
+  --chip:#1a2413;
+  --brand-grad:linear-gradient(135deg,#57d873 0%,#1f9c46 100%);
+  --gold:#ffc531; --gold-grad:linear-gradient(135deg,#ffd75a 0%,#f5a623 100%);
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 30px rgba(0,0,0,.55), 0 26px 60px rgba(0,0,0,.5);
+  --shadow-lift:0 2px 6px rgba(0,0,0,.55), 0 18px 40px rgba(0,0,0,.6), 0 36px 70px rgba(0,0,0,.55);
+  --ring:rgba(79,208,106,.32);
+  --glow:0 6px 22px rgba(79,208,106,.32);
+  --glow-strong:0 10px 34px rgba(79,208,106,.46);
 }
 
-/* ── Typography ── */
+/* ══ Typography — Plus Jakarta for UI, Bricolage Grotesque for the headline moments ══ */
 body{
   font-family:'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
   text-rendering:optimizeLegibility; letter-spacing:-0.011em;
+  background:var(--bg);
 }
-h1,h2,h3,.cust,.custname,.name,.shop,.greet{ letter-spacing:-0.02em; }
-.sec,.lab{ letter-spacing:.07em !important; }
+h1,h2,h3,.greet,.cust,.custname,.name,.big,.stat,.statnum,.amount,.money-big,.hero-h{
+  font-family:'Bricolage Grotesque','Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif !important;
+  letter-spacing:-0.02em; font-weight:800;
+}
+h1,.greet,.hero-h{ text-wrap:balance; }
+.sec,.lab,.fld-lab,.step .num{ letter-spacing:.07em !important; }
+.amount,.money-badge,.stat,.statnum,.mval{ font-variant-numeric:tabular-nums; }
 
-/* ── Cards — softer depth, a touch more radius ── */
-.card{ border-radius:16px !important; box-shadow:var(--shadow) !important; border:1px solid var(--line) !important; }
+/* ══ Cards — layered depth + a hairline top-light; float up on load ══ */
+.card{
+  border-radius:18px !important;
+  box-shadow:var(--shadow) !important;
+  border:1px solid var(--line) !important;
+  position:relative;
+}
+/* a whisper of top highlight so cards feel lit, not flat */
+.card::before{
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55);
+}
+:root[data-theme="dark"] .card::before,:root:not([data-theme="light"]) .card::before{ box-shadow:inset 0 1px 0 rgba(255,255,255,.06); }
 
-/* ── Buttons — rounded, weighted, with a subtle lift on hover ── */
+/* ══ Buttons — gradient primaries with a glow + a hover light-sweep, springy press ══ */
 button, .btn, a.cta, a.go, .go{
-  border-radius:12px !important;
-  font-weight:700;
-  transition:transform .14s ease, box-shadow .14s ease, background-color .14s ease, border-color .14s ease, opacity .14s ease;
+  border-radius:13px !important;
+  font-weight:800;
+  transition:transform .13s cubic-bezier(.2,.7,.2,1), box-shadow .16s ease, background-color .16s ease, border-color .16s ease, opacity .16s ease, filter .16s ease;
 }
-button:not(:disabled):hover, .btn:not(:disabled):hover, a.cta:hover, .go:not(:disabled):hover{ transform:translateY(-1px); }
-button:not(:disabled):active, .btn:not(:disabled):active, a.cta:active, .go:not(:disabled):active{ transform:translateY(0); }
-button.primary, .btn.primary, button.approve, a.cta, .go{ box-shadow:0 4px 14px var(--ring); }
+button:not(:disabled):hover, .btn:not(:disabled):not(.sec):hover, a.cta:hover, .go:not(:disabled):hover{ transform:translateY(-2px); }
+button:not(:disabled):active, .btn:not(:disabled):active, a.cta:active, .go:not(:disabled):active{ transform:translateY(0) scale(.975); }
 
-/* ── Inputs — friendly radius + a brand focus ring ── */
-input, select, textarea{ border-radius:11px !important; transition:border-color .14s ease, box-shadow .14s ease; }
-input:focus, select:focus, textarea:focus{ outline:none; border-color:var(--brand) !important; box-shadow:0 0 0 3px var(--ring) !important; }
+/* the hero CTAs — brand gradient, real glow, and a light-sweep on hover */
+button.primary, .btn:not(.sec), .go, a.cta, button.approve{
+  background:var(--brand-grad) !important;
+  color:var(--brand-ink) !important;
+  border-color:transparent !important;
+  box-shadow:var(--glow) !important;
+  position:relative; overflow:hidden;
+}
+button.primary:not(:disabled):hover, .btn:not(.sec):not(:disabled):hover, .go:not(:disabled):hover, a.cta:hover, button.approve:not(:disabled):hover{
+  box-shadow:var(--glow-strong) !important; filter:saturate(1.05) brightness(1.03);
+}
+button.primary::after, .btn:not(.sec)::after, .go::after, a.cta::after, button.approve::after{
+  content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+  background:linear-gradient(115deg, transparent 34%, rgba(255,255,255,.42) 50%, transparent 66%);
+  transform:translateX(-130%); transition:transform .62s ease;
+}
+button.primary:not(:disabled):hover::after, .btn:not(.sec):not(:disabled):hover::after, .go:not(:disabled):hover::after, a.cta:hover::after, button.approve:not(:disabled):hover::after{ transform:translateX(130%); }
 
-/* ── Pills / badges — crisp, tracked ── */
+/* ══ Inputs — friendly radius + a confident focus glow ══ */
+input, select, textarea{ border-radius:12px !important; transition:border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
+input:focus, select:focus, textarea:focus{ outline:none; border-color:var(--brand) !important; box-shadow:0 0 0 4px var(--ring) !important; }
+
+/* ══ Chips / pills / badges — tracked, weighted, the selected one pops ══ */
 .badge, .pill, .flag, .money-badge, .ro{ letter-spacing:.03em; }
 .badge, .pill{ font-weight:800 !important; }
+.chip{ transition:transform .13s ease, box-shadow .14s ease, background-color .14s ease, border-color .14s ease; }
+.chip:not(.on):hover{ transform:translateY(-1px); border-color:var(--brand); }
+.chip.on{ background:var(--brand-grad) !important; border-color:transparent !important; color:var(--brand-ink) !important; box-shadow:var(--glow); }
+.money-badge{ background:var(--gold-grad); color:#231a02; }
+.prog>span{ background:var(--brand-grad) !important; }
 
-/* ── Sticky headers — a hint of blur/translucency ── */
-header{ backdrop-filter:saturate(1.1) blur(8px); -webkit-backdrop-filter:saturate(1.1) blur(8px); }
+/* ══ Sticky headers — a soft translucent wash + blur ══ */
+header{ backdrop-filter:saturate(1.15) blur(10px); -webkit-backdrop-filter:saturate(1.15) blur(10px); }
+header .logo{ background:var(--brand-grad) !important; box-shadow:var(--glow); }
 
-/* ── Media — rounder video/photo corners ── */
-iframe.vid, video.vid{ border-radius:14px !important; }
-.thumbs img{ border-radius:12px !important; }
+/* ══ Media — rounder video/photo corners ══ */
+iframe.vid, video.vid{ border-radius:16px !important; }
+.thumbs img{ border-radius:12px !important; transition:transform .15s ease; }
+.thumbs img:hover{ transform:scale(1.04); }
 
-/* ── Nicer scrollbars on the conversation/thread ── */
+/* ══ Motion — the page floats up on load; cards stagger in (skipped on live-poll pages) ══ */
+@keyframes antRise{ from{ opacity:0; transform:translateY(12px); } to{ opacity:1; transform:none; } }
+@keyframes antFloat{ from{ opacity:0; transform:translateY(16px) scale(.995); } to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion: no-preference){
+  .shell, .wrap{ animation:antFloat .5s cubic-bezier(.2,.7,.2,1) both; }
+  html:not([data-live]) .card{ animation:antRise .48s cubic-bezier(.2,.7,.2,1) both; }
+  html:not([data-live]) .card:nth-of-type(1){ animation-delay:.02s }
+  html:not([data-live]) .card:nth-of-type(2){ animation-delay:.07s }
+  html:not([data-live]) .card:nth-of-type(3){ animation-delay:.12s }
+  html:not([data-live]) .card:nth-of-type(4){ animation-delay:.17s }
+  html:not([data-live]) .card:nth-of-type(5){ animation-delay:.22s }
+  html:not([data-live]) .card:nth-of-type(6){ animation-delay:.27s }
+  html:not([data-live]) .card:nth-of-type(7){ animation-delay:.31s }
+  html:not([data-live]) .card:nth-of-type(n+8){ animation-delay:.35s }
+}
+
+/* ══ Nicer scrollbars on the conversation/thread ══ */
 .thr::-webkit-scrollbar, .thread::-webkit-scrollbar{ width:8px; }
 .thr::-webkit-scrollbar-thumb, .thread::-webkit-scrollbar-thumb{ background:var(--line); border-radius:8px; }
 
-/* Respect reduced motion */
-@media (prefers-reduced-motion: reduce){ button,.btn,a.cta,.go{ transition:none; } button:hover,.btn:hover{ transform:none; } }
+/* Respect reduced motion everywhere */
+@media (prefers-reduced-motion: reduce){
+  button,.btn,a.cta,.go,.chip,.thumbs img{ transition:none; }
+  button:hover,.btn:hover,.chip:hover{ transform:none; }
+  button.primary::after,.btn:not(.sec)::after,.go::after,a.cta::after,button.approve::after{ display:none; }
+  .shell,.wrap,.card{ animation:none !important; }
+}

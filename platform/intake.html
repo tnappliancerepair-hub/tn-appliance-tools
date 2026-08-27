@@ -57,6 +57,15 @@
   .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:24px}
   .err{color:#c0392b;font-size:13px;margin-top:8px;min-height:1.1em}
   :root[data-theme="dark"] .err,:root:not([data-theme="light"]) .err{color:#ff8a7a}
+  /* Hero — the first impression: a glowing branded band up top */
+  .hero{position:relative;overflow:hidden;border-radius:22px;padding:22px 20px 20px;margin-bottom:16px;border:1px solid var(--line);background:radial-gradient(130% 120% at 0% 0%, rgba(58,208,97,.18), transparent 58%), radial-gradient(120% 120% at 100% 0%, rgba(247,181,0,.14), transparent 55%), var(--panel);box-shadow:var(--shadow)}
+  .hero .hero-top{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+  .hero .logo{width:40px;height:40px;border-radius:12px;font-size:22px;display:grid;place-items:center;color:#fff;background:var(--brand-grad,var(--accent));box-shadow:var(--glow,0 6px 20px rgba(26,158,70,.34))}
+  .hero .shop{font-size:19px}
+  .hero .greet{font-size:29px;line-height:1.06;margin:2px 0 5px}
+  .hero .sub{margin:0 0 13px;font-size:14.5px}
+  .trust{display:flex;flex-wrap:wrap;gap:7px}
+  .trust span{font-size:12px;font-weight:700;color:var(--muted);background:var(--chip);border-radius:999px;padding:6px 11px}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -105,9 +114,12 @@
     var done = ctx.done || {};
 
     app.innerHTML =
-      '<header><span class="logo">🐜</span><span class="shop">' + esc(shop.name || 'Your shop') + '</span></header>' +
-      '<h1 class="greet">Hi' + (first ? ' ' + esc(first) : '') + ' 👋</h1>' +
-      '<p class="sub">A few quick things so we show up ready to fix ' + esc(appl) + ' the first trip. Takes about 2 minutes.</p>' +
+      '<div class="hero">' +
+        '<div class="hero-top"><span class="logo">🐜</span><span class="shop">' + esc(shop.name || 'Your shop') + '</span></div>' +
+        '<h1 class="greet hero-h">Hi' + (first ? ' ' + esc(first) : '') + ' 👋</h1>' +
+        '<p class="sub">A few quick things so we show up ready to fix ' + esc(appl) + ' the first trip. Takes about 2 minutes.</p>' +
+        '<div class="trust"><span>🔒 Private &amp; secure</span><span>📹 Works on any signal</span><span>✍️ Sign in 20 seconds</span></div>' +
+      '</div>' +
 
       section(1, 'When are you available?', done.availability, availBody()) +
       section(2, 'Show us the problem', done.video, videoBody()) +
