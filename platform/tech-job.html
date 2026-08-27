@@ -85,11 +85,11 @@
   .stile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 6px;border:1.5px solid var(--line);border-radius:14px;background:var(--bg);font-weight:800;font-size:14.5px;text-align:center;line-height:1.15;min-height:96px}
   .stile .ic{font-size:26px;line-height:1}
   .stile.otw{color:#2563eb}
-  .stile.go{color:var(--in_progress)}
+  .stile.run{color:var(--in_progress)}
   .stile.done{color:var(--completed);background:rgba(63,143,36,.07)}
   .stile.on{border-color:transparent;color:#fff}
   .stile.otw.on{background:#2563eb}
-  .stile.go.on{background:var(--in_progress)}
+  .stile.run.on{background:var(--in_progress)}
   .stile.done.on{background:var(--completed)}
   .stile:disabled{opacity:.5}
   .stimes{text-align:center;color:var(--muted);font-size:12.5px;font-weight:600;margin:2px 0 11px;min-height:1em}
@@ -216,7 +216,7 @@
       '<div class="card"><div class="sec">🚦 Status</div>' +
         '<div class="statustiles">' +
           '<button class="stile otw'+(job.en_route_at?' on':'')+'" id="otwBtn"'+(addr?'':' disabled')+'><span class="ic">🚚</span>On my way</button>' +
-          '<button class="stile go'+(job.status==='in_progress'?' on':'')+'" id="startBtn"><span class="ic">'+(job.status==='in_progress'?'⏸':'▶️')+'</span>'+(job.status==='in_progress'?'Pause':(job.started_at?'Resume':'Start job'))+'</button>' +
+          '<button class="stile run'+(job.status==='in_progress'?' on':'')+'" id="startBtn"><span class="ic">'+(job.status==='in_progress'?'⏸':'▶️')+'</span>'+(job.status==='in_progress'?'Pause':(job.started_at?'Resume':'Start job'))+'</button>' +
           '<button class="stile done'+(job.status==='completed'?' on':'')+'" data-scrollreport><span class="ic">✅</span>Complete</button>' +
         '</div>' +
         '<div class="stimes">'+statusTimes()+'</div>' +
