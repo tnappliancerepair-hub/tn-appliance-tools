@@ -104,7 +104,7 @@ exports.handler = async function (event) {
     if (doo === 'review') {
       const settings = co.settings || {};
       const reviewUrl = String(settings.review_url || '').trim() || `https://www.google.com/search?q=${encodeURIComponent(shop + ' reviews')}`;
-      const msg = `Thanks for choosing ${shop}, ${first}! If we did right by you, a quick review means the world: ${reviewUrl}`;
+      const msg = `Hi ${first}, how did ${shop} do today? If we earned it, a quick Google review means the world 🙏 ${reviewUrl} — and if anything was off, just reply here and we'll make it right.`;
       let sent = false;
       if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_review'); } catch (_) {} }
       await logThread('sms', `⭐ Review request sent: ${reviewUrl}`);
