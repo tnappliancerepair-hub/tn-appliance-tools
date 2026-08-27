@@ -48,6 +48,33 @@ exports.handler = async function (event) {
     return json(200, { ok: true, tenants: out });
   }
 
+  // Diagnostic: the newest lead for a shop + its intake state (media, waiver, availability)
+  // and the customer's intake link — to verify a test call end-to-end. ?action=lastlead&slug=…
+  if (q.action === 'lastlead') {
+    const slug = String(q.slug || '').toLowerCase().trim();
+    if (!slug) return json(200, { ok: false, error: 'slug required' });
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name&limit=1`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown shop: ' + slug });
+    const jobs = await rest0(`job?company_id=eq.${co.id}&order=created_at.desc&limit=1&select=id,problem,status,availability,waiver_signed_at,waiver_name,intake_done_at,created_at,customer:customer_id(first_name,last_name,phone),unit:unit_id(label)`);
+    const job = jobs && jobs[0];
+    if (!job) return json(200, { ok: true, shop: co.name, lead: null });
+    const media = await rest0(`job_media?job_id=eq.${job.id}&select=kind,provider,ref`);
+    const grants = await rest0(`portal_grant?job_id=eq.${job.id}&order=created_at.desc&limit=1&select=token`);
+    const token = grants && grants[0] && grants[0].token;
+    const hasVideo = (media || []).some((m) => m.kind === 'video');
+    const hasPhoto = (media || []).some((m) => m.kind === 'photo');
+    return json(200, { ok: true, shop: co.name, lead: {
+      job_id: job.id, created_at: job.created_at, status: job.status,
+      customer: [job.customer && job.customer.first_name, job.customer && job.customer.last_name].filter(Boolean).join(' '),
+      phone: job.customer && job.customer.phone, appliance: job.unit && job.unit.label, problem: job.problem,
+      intake: { video: hasVideo, photo: hasPhoto, availability: !!job.availability, waiver: !!job.waiver_signed_at, finished: !!job.intake_done_at },
+      media: (media || []).map((m) => ({ kind: m.kind, provider: m.provider })),
+      intake_url: token ? `https://tnapplianceexchange.net/i/${token}` : null,
+      cockpit: `https://tnapplianceexchange.net/c/${job.id}`,
+    } });
+  }
+
   // Stage a new trade (adds a trade_profile row so a shop of that trade can stand up).
   // Harmless infra prep — creates no tenant, sends nothing. ?action=addtrade&trade=aquarium
   if (q.action === 'addtrade') {
