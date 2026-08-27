@@ -27,6 +27,23 @@ exports.handler = async function (event) {
   const token = await getSecret('SUPABASE_MGMT_TOKEN');
   if (!token) return json(200, { ok: false, error: 'SUPABASE_MGMT_TOKEN not vaulted' });
 
+  // Read-only Management API passthrough (GET only) — org/project/billing posture.
+  //   ?secret=<admin>&mgmt=/v1/organizations
+  //   ?secret=<admin>&mgmt=/v1/projects
+  if (q.mgmt) {
+    // MGMT already ends in /v1 — normalize the path to a bare "/organizations" etc.
+    let path = String(q.mgmt).trim();
+    path = path.replace(/^\/?v1/, '');           // drop a leading v1 if present
+    if (!path.startsWith('/')) path = '/' + path;
+    try {
+      const r = await fetch(`${MGMT}${path}`, { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(20000) });
+      const d = await r.json().catch(() => ({}));
+      return json(200, { ok: r.ok, status: r.status, url: `${MGMT}${path}`, data: d });
+    } catch (e) {
+      return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200), path });
+    }
+  }
+
   let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}
   const sql = String(body.sql || q.sql || '').trim();
   if (!sql) return json(200, { ok: false, error: 'need sql — POST {"sql":"..."} or ?sql=' });
