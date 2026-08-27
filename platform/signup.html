@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Stand up a shop — Ant</title>
+<style>
+  :root{ --bg:#0f1216; --panel:#171b21; --line:#2a2f37; --ink:#e8ecf1; --muted:#9aa4b0; --accent:#3f8f24; --accent2:#2563eb; --bad:#e0564b; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:560px;margin:0 auto;padding:22px 16px 60px}
+  h1{font-size:22px;margin:6px 0 2px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+  label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.03em}
+  input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  textarea{min-height:64px;resize:vertical}
+  .two{display:flex;gap:10px}.two>div{flex:1}
+  .seg{display:flex;gap:8px;margin-top:4px}
+  .seg button{flex:1;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-weight:700;cursor:pointer}
+  .seg button.on{background:var(--accent2);border-color:var(--accent2);color:#fff}
+  .go{width:100%;margin-top:16px;padding:14px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-weight:800;font-size:16px;cursor:pointer}
+  .go:disabled{opacity:.6}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px;font-weight:400;text-transform:none;letter-spacing:0}
+  .res{white-space:pre-wrap;word-break:break-word}
+  .ok{color:var(--accent)}.err{color:var(--bad)}
+  .kv{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .kv b{font-weight:700}.kv .v{font-family:ui-monospace,Menlo,monospace;text-align:right}
+  .copy{background:none;border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:12px;padding:3px 8px;cursor:pointer;margin-left:6px}
+  a{color:var(--accent2)}
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🐜 Stand up a shop</h1>
+  <div class="sub">Fills the number, the board + owner login, and the shop's own Ant — live in seconds.</div>
+
+  <div class="card" id="gate">
+    <label>Admin key</label>
+    <input id="secret" type="password" placeholder="admin secret" autocomplete="off">
+    <div class="hint">Stored only in this browser tab.</div>
+  </div>
+
+  <div class="card">
+    <label>Shop name</label><input id="name" placeholder="Joe's Appliance Repair">
+    <label>Trade</label>
+    <select id="type"><option value="appliance">Appliance repair</option><option value="automotive">Auto repair</option><option value="dealership">Car dealership</option><option value="aquarium">Aquarium service</option><option value="furniture">Furniture</option></select>
+    <label>Service area</label><input id="area" placeholder="Greater Dallas, TX">
+    <label>What they do <span class="hint">(Ant answers caller questions from this)</span></label>
+    <textarea id="about" placeholder="We fix refrigerators, washers, dryers, ovens, dishwashers across all major brands. Owner goes over pricing on the callback."></textarea>
+    <label>Hours</label><input id="hours" placeholder="Mon-Fri 8-5">
+  </div>
+
+  <div class="card">
+    <div class="two"><div><label>Owner first name</label><input id="owner_first" placeholder="Joe"></div><div><label>Owner full name</label><input id="owner_name" placeholder="Joe Smith"></div></div>
+    <label>Owner email <span class="hint">(their board login)</span></label><input id="owner_email" type="email" placeholder="joe@shop.com">
+    <label>Owner cell <span class="hint">(where leads text)</span></label><input id="owner_cell" placeholder="(214) 555-1234">
+    <label>Bot name</label><input id="bot_name" placeholder="Ant" value="Ant">
+  </div>
+
+  <div class="card">
+    <label>Phone number</label>
+    <div class="seg"><button type="button" id="segBuy" class="on">Buy a local number</button><button type="button" id="segHave">I already have one</button></div>
+    <div id="buyBox" style="margin-top:10px">
+      <div class="two"><div><label>Area code</label><input id="buy_area" inputmode="numeric" placeholder="214"></div><div><label>Ends with <span class="hint">(optional)</span></label><input id="buy_ends" inputmode="numeric" placeholder="1234"></div></div>
+    </div>
+    <div id="haveBox" style="margin-top:10px;display:none">
+      <label>Existing number</label><input id="number" placeholder="+12145551234">
+    </div>
+  </div>
+
+  <button class="go" id="go">Create shop →</button>
+  <div class="card" id="result" style="display:none"></div>
+  <div class="foot">🐜 Ant · onboarding</div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  try{ var s=sessionStorage.getItem('ant_admin'); if(s) $('secret').value=s; }catch(e){}
+  var mode='buy';
+  $('segBuy').onclick=function(){ mode='buy'; $('segBuy').classList.add('on'); $('segHave').classList.remove('on'); $('buyBox').style.display=''; $('haveBox').style.display='none'; };
+  $('segHave').onclick=function(){ mode='have'; $('segHave').classList.add('on'); $('segBuy').classList.remove('on'); $('haveBox').style.display=''; $('buyBox').style.display='none'; };
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+  function copyBtn(val){ return '<button class="copy" data-copy="'+esc(val)+'">copy</button>'; }
+
+  $('go').onclick=function(){
+    var secret=$('secret').value.trim();
+    if(!secret){ alert('Enter the admin key.'); return; }
+    try{ sessionStorage.setItem('ant_admin', secret); }catch(e){}
+    var body={
+      action:'onboard', secret:secret,
+      name:$('name').value.trim(), type:$('type').value, area:$('area').value.trim(),
+      about:$('about').value.trim(), hours:$('hours').value.trim(),
+      owner_first:$('owner_first').value.trim(), owner_name:$('owner_name').value.trim(),
+      owner_email:$('owner_email').value.trim(), owner_cell:$('owner_cell').value.trim(),
+      bot_name:$('bot_name').value.trim()||'Ant'
+    };
+    if(!body.name){ alert('Shop name is required.'); return; }
+    if(!body.owner_cell){ alert('Owner cell is required (that\'s where leads text).'); return; }
+    if(mode==='buy'){ body.buy_area=$('buy_area').value.replace(/\D/g,''); if($('buy_ends').value.trim()) body.buy_ends=$('buy_ends').value.replace(/\D/g,''); }
+    else { body.number=$('number').value.trim(); }
+
+    var btn=$('go'); btn.disabled=true; btn.textContent='Standing it up…';
+    var res=$('result'); res.style.display=''; res.innerHTML='<div class="res">Working… buying the number, provisioning the board + login, building Ant…</div>';
+
+    fetch('/.netlify/functions/onboard-shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){return r.json();})
+      .catch(function(){return {ok:false,error:'network'};})
+      .then(function(d){
+        btn.disabled=false; btn.textContent='Create shop →';
+        if(!d || d.ok===false){ res.innerHTML='<div class="res err">Error: '+esc((d&&d.error)||'unknown')+'</div>'; return; }
+        var login=d.owner_login||{};
+        var steps=d.steps||{};
+        var stepLine=function(k){ var s=steps[k]||{}; return '<div class="kv"><b>'+k+'</b><span class="v '+(s.ok?'ok':'err')+'">'+(s.ok?'✓':(s.skipped?'skipped':'✕ '+esc(s.error||'')))+'</span></div>'; };
+        res.innerHTML=
+          '<div class="res '+(d.ready?'ok':'err')+'" style="font-weight:800;font-size:16px;margin-bottom:8px">'+(d.ready?'✅ '+esc(d.slug)+' is live':'⚠️ needs attention — see steps')+'</div>'+
+          '<div class="kv"><b>Ann/Ant number</b><span class="v">'+esc(d.ann_number||'—')+(d.ann_number?copyBtn(d.ann_number):'')+'</span></div>'+
+          '<div class="kv"><b>Board</b><span class="v"><a href="'+esc(d.board_url)+'" target="_blank">open</a>'+copyBtn(d.board_url)+'</span></div>'+
+          (login.email?'<div class="kv"><b>Owner login</b><span class="v">'+esc(login.email)+copyBtn(login.email)+'</span></div>':'')+
+          (login.temp_password?'<div class="kv"><b>Temp password</b><span class="v">'+esc(login.temp_password)+copyBtn(login.temp_password)+'</span></div>':'')+
+          '<div style="margin:12px 0 4px;font-weight:700;color:var(--muted);font-size:12px">STEPS</div>'+
+          stepLine('number')+stepLine('tenant')+stepLine('registry')+stepLine('assistant')+stepLine('bind')+
+          (d.tell_owner?'<div class="res" style="margin-top:12px;font-size:13px">📣 '+esc(d.tell_owner)+copyBtn(d.tell_owner)+'</div>':'');
+        res.querySelectorAll('.copy').forEach(function(b){ b.onclick=function(){ try{navigator.clipboard.writeText(b.getAttribute('data-copy'));b.textContent='copied';setTimeout(function(){b.textContent='copy';},1200);}catch(e){} }; });
+      });
+  };
+})();
+</script>
+</body>
+</html>
