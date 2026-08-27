@@ -99,7 +99,9 @@ function webhookTool(name, description, url, properties, required) {
 function buildTools(shop, toolKey) {
   const isAuto = shop.type === 'automotive';
   const isDealer = shop.type === 'dealership';
-  const q = (base) => base + `?shop=${encodeURIComponent(shop.slug)}` + (toolKey ? `&k=${encodeURIComponent(toolKey)}` : '');
+  // base always already carries `?do=<tool>`, so append with & (NOT ? — a second ? here
+  // was silently breaking the shop param, so capture_lead never resolved a shop -> no lead).
+  const q = (base) => base + `&shop=${encodeURIComponent(shop.slug)}` + (toolKey ? `&k=${encodeURIComponent(toolKey)}` : '');
 
   const leadProps = isDealer
     ? {
