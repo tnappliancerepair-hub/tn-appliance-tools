@@ -63,6 +63,16 @@
   .money .row .v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
   .note{color:var(--muted);font-size:12.5px;margin:8px 4px 0}
   .lock{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);font-weight:700}
+  .ptwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table.pt{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);font-variant-numeric:tabular-nums;min-width:460px}
+  table.pt th,table.pt td{text-align:right;padding:11px 14px;border-top:1px solid var(--line);font-size:13.5px;white-space:nowrap}
+  table.pt th{color:var(--muted);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-top:0;background:var(--chip)}
+  table.pt th:first-child,table.pt td.nm{text-align:left}
+  table.pt td.nm{font-weight:700}
+  table.pt td.good{color:var(--good);font-weight:700}
+  table.pt td.hi{color:var(--bad);font-weight:800}
+  table.pt td.mut{color:var(--muted)}
+  table.pt tbody tr:hover{background:var(--chip)}
   /* sign in */
   .gate{max-width:380px;margin:9vh auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 24px;box-shadow:var(--shadow)}
   .gate h1{margin:0 0 4px;font-size:20px}
@@ -150,13 +160,14 @@
     // RLS scopes both queries to this company — we never pass company_id.
     var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents').limit(3000);
     var invP  = sb.from('invoice').select('total_cents,status,paid_at,created_at').limit(3000);
-    Promise.all([jobsP, invP]).then(function(res){
-      var jobs = (res[0].data)||[], invs = (res[1].data)||[];
-      render(jobs, invs);
+    var techP = sb.from('technician').select('id,name,active').limit(200);
+    Promise.all([jobsP, invP, techP]).then(function(res){
+      var jobs = (res[0].data)||[], invs = (res[1].data)||[], techs = (res[2].data)||[];
+      render(jobs, invs, techs);
     }).catch(function(){ shell('<div class="note">Could not load data. Try again.</div>'); });
   }
 
-  function render(jobs, invs){
+  function render(jobs, invs, techs){
     var since = winStartMs();
     var inWin = function(row, field){ var t=row[field]?Date.parse(row[field]):0; return since===0 || t>=since; };
     // KPI base: jobs created in-window (pipeline) + completed in-window (outcomes)
@@ -183,6 +194,29 @@
     var billed=0, collected=0; invWin.forEach(function(v){ billed+=v.total_cents||0; if(v.status==='paid'){ collected+=v.total_cents||0; } });
     var outstanding = billed - collected;
 
+    // Per-tech watch table (owner-only): jobs, completed, first-stop %, condemn %, reassign %.
+    var techName={}; (techs||[]).forEach(function(t){ techName[t.id]=t.name; });
+    var agg={};
+    jobs.forEach(function(j){
+      if(!j.technician_id) return;
+      if(!(since===0 || (j.created_at && Date.parse(j.created_at)>=since))) return;
+      var a=agg[j.technician_id]||(agg[j.technician_id]={jobs:0,completed:0,fsK:0,fsY:0,cond:0});
+      a.jobs++;
+      if(j.status==='completed') a.completed++;
+      if(j.first_stop===true||j.first_stop===false){ a.fsK++; if(j.first_stop===true) a.fsY++; }
+      if(j.xano_status==='no_fix_possible') a.cond++;
+    });
+    var trows=Object.keys(agg).map(function(id){ var a=agg[id]; return {
+      name: techName[id]||'—', jobs:a.jobs, completed:a.completed,
+      fs: a.fsK>0?Math.round(100*a.fsY/a.fsK):null,
+      cond: a.jobs>0?Math.round(1000*a.cond/a.jobs)/10:0
+    }; }).filter(function(r){ return r.jobs>0; }).sort(function(x,y){ return (y.fs==null?-1:y.fs)-(x.fs==null?-1:x.fs); });
+    var techTable = trows.length ? (
+      '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Jobs</th><th>Done</th><th>First-stop</th><th>Condemn</th><th>Reassign</th></tr></thead><tbody>'+
+      trows.map(function(r){ return '<tr><td class="nm">'+esc(r.name)+'</td><td>'+r.jobs+'</td><td>'+r.completed+'</td><td class="good">'+(r.fs==null?'—':r.fs+'%')+'</td><td'+(r.cond>=8?' class="hi"':'')+'>'+r.cond+'%</td><td class="mut">—</td></tr>'; }).join('')+
+      '</tbody></table></div><div class="note">Condemn = recommend-replacement ÷ jobs (owner watch, not a leaderboard). First-stop from the repair reports. Reassign % lands with the next data pull.</div>'
+    ) : '<div class="note">No per-tech data in this window.</div>';
+
     var body =
       '<div class="sec">Performance — front and center</div>'+
       '<div class="hero">'+
@@ -204,6 +238,8 @@
         spill('#3f8f24','Warranty', warranty)+
         spill('#b45309','Cash / self-pay', cash)+
       '</div>'+
+      '<div class="sec">Per-tech <span class="lock">🔒 owner only</span></div>'+
+      techTable+
       '<div class="sec">Money <span class="lock">🔒 owner only</span></div>'+
       '<div class="money">'+
         mrow('Invoiced (from the job tile)','',USD(billed))+
