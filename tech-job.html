@@ -1343,13 +1343,49 @@ async function partGotIt(part){
   try{ await fetch('/.netlify/functions/set-part-location',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,part:part,in_hand:true,tech_id:TECH_ID})}); }catch(_){}
   if(typeof renderPartsLoc==='function') renderPartsLoc();
 }
+let _wpCache=null;
+function _wpKey(){ return 'tn_wparts_'+JOB_ID; }
+function _wpLoad(){ try{ const r=localStorage.getItem(_wpKey()); return r?JSON.parse(r):null; }catch(_){ return null; } }
+function _wpStore(p){ try{ localStorage.setItem(_wpKey(), JSON.stringify(p)); }catch(_){} }
+// GRACEFUL LOAD (Lee 2026-08-27): this card used to HIDE itself whenever the parts
+// fetch was slow or timed out on a weak field signal — which read to techs as "the
+// parts got deleted and won't reload." They were never deleted; the load just failed.
+// Now a failed/slow load shows the LAST-SAVED parts + a "tap to retry", and the card
+// only hides when the server SUCCESSFULLY returns zero parts. Same principle as the
+// durable TDR save: never lose UI state on a slow server.
 async function renderJobParts(){
   const card=document.getElementById('wparts-card'), list=document.getElementById('wparts-list');
   if(!card||!list||!JOB_ID) return;
   const claim=encodeURIComponent((job&&job.claim_number)||'');
-  let parts=[];
-  try{ const d=await fetch('/.netlify/functions/warranty-parts?job_id='+JOB_ID+'&claim='+claim).then(r=>r.json()); parts=(d&&d.parts)||[]; }catch(_){}
-  if(!parts.length){ card.style.display='none'; return; }
+  let ok=false, parts=null;
+  try{
+    const ctl=('AbortController'in window)?new AbortController():null;
+    const to=ctl?setTimeout(()=>ctl.abort(),12000):0;
+    const d=await fetch('/.netlify/functions/warranty-parts?job_id='+JOB_ID+'&claim='+claim, ctl?{signal:ctl.signal}:{}).then(r=>r.json());
+    if(to)clearTimeout(to);
+    if(d&&d.ok&&Array.isArray(d.parts)){ ok=true; parts=d.parts; }
+  }catch(_){}
+  if(ok){
+    _wpCache=parts; _wpStore(parts);
+    if(!parts.length){ card.style.display='none'; return; }   // genuinely no parts on this job
+    paintJobParts(parts); return;
+  }
+  // Load failed (slow / timeout / offline) — NEVER vanish. Show last-known + a retry.
+  const cached=_wpCache||_wpLoad();
+  card.style.display='';
+  if(cached&&cached.length){
+    paintJobParts(cached);
+    const b=document.createElement('div'); b.style.cssText='font-size:12px;font-weight:700;color:#c2691c;background:#fff6ec;border:1px solid #f0d3ad;border-radius:8px;padding:8px;margin-bottom:8px';
+    b.innerHTML='⚠ Couldn\'t refresh parts just now (slow signal) — showing your last saved. Nothing lost. <a href="#" id="wp-retry" style="font-weight:800;color:#c2691c">Tap to retry</a>';
+    list.prepend(b);
+  } else {
+    list.innerHTML='<div style="font-size:13px;color:#c2691c;padding:12px 0;line-height:1.5"><b>Parts didn\'t load</b> — slow signal, not deleted. <a href="#" id="wp-retry" style="font-weight:800;color:#c2691c">Tap to retry</a></div>';
+  }
+  const rt=document.getElementById('wp-retry'); if(rt) rt.onclick=(e)=>{e.preventDefault();renderJobParts();};
+}
+function paintJobParts(parts){
+  const card=document.getElementById('wparts-card'), list=document.getElementById('wparts-list');
+  if(!card||!list) return;
   card.style.display='';
   list.innerHTML=parts.map(p=>{
     const nm=esc(p.part), desc=esc(p.description||''), sub=esc([p.vendor,p.distributor].filter(Boolean).join(' · '));
