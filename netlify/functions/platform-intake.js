@@ -75,8 +75,8 @@ async function notifyShopIntakeDone(db, base, g) {
     try { const s = await shopsReg.getAsync(co.slug); ownerCell = (s && s.ownerCell) || ''; } catch (_) {}
   }
   if (!ownerCell) return;
-  const cockpit = `${SITE}/platform/tech-job.html?job=${g.job_id}`;
-  const msg = `✅ ${who} finished their intake for ${appliance} — video, model photo & availability are in. Open the cockpit to pre-diagnose + find the part: ${cockpit}`;
+  const cockpit = `${SITE}/c/${g.job_id}`;
+  const msg = `✅ ${who} finished intake — ${appliance}. Video + model photo in. Open the cockpit to diagnose + find the part: ${cockpit}`;
   try { await sms.sendSms(ownerCell, msg, 'office', 'intake_complete_cockpit'); } catch (_) {}
 }
 

@@ -78,19 +78,15 @@ exports.handler = async function (event) {
     } catch (_) { board = { ok: false }; }
   }
 
+  // Kept short on purpose — fewer SMS segments = lower cost. One intake link (the useful
+  // one, tap to preview/resend); the board has the track link + full detail.
+  const whatLabel = isDealer ? 'Wants' : isAuto ? 'Vehicle' : what;
   const lines = [
-    `🔔 NEW LEAD — ${shop.name} (via Ann)`,
-    name && `Name: ${name}`,
-    phone && `Call back: ${fmtPhone(phone)}`,
-    isDealer ? (what && `Looking for: ${what}`) : isAuto ? (what && `Vehicle: ${what}`) : (what && `Appliance: ${what}`),
-    detail && (isDealer ? detail : `Needs: ${detail}`),
-    city && `City: ${city}`,
-    board.ok ? 'On your board ✅' : null,
-    // The exact intake link the customer got — so the shop can preview it, and RESEND it
-    // if the caller never taps it or Ann mishears the callback number.
-    board.ok && board.intake_url ? `📋 Their intake link (video + model photo + waiver — tap to preview / resend): ${board.intake_url}` : null,
-    board.ok && board.portal_url ? `👀 Track the job: ${board.portal_url}` : null,
-    `— Ann answered this for you. Call them back and close it. 🐜`,
+    `🔔 NEW LEAD — ${shop.name}`,
+    [name, phone && fmtPhone(phone)].filter(Boolean).join(' · '),
+    [isDealer || isAuto ? `${whatLabel}: ${what}` : what, detail, city].filter(Boolean).join(' · '),
+    board.ok && board.intake_url ? `Intake (tap to preview/resend): ${board.intake_url}` : (board.ok ? 'On your board ✅' : null),
+    `— Ann got this. Call them back. 🐜`,
   ].filter(Boolean);
   const msg = lines.join('\n');
 
@@ -106,7 +102,7 @@ exports.handler = async function (event) {
   // this is a fresh lead (not a duplicate re-fire).
   let customerTexted = false;
   if (!deduped && phone && board.ok && board.intake_url) {
-    const cmsg = `${shop.name}: thanks for calling! Tap here to send a quick video + a photo of the model sticker, pick your days, and sign a quick form so we show up ready to fix it: ${board.intake_url}`;
+    const cmsg = `${shop.name}: thanks for calling! Send a quick video + model-sticker photo & pick your days here so we show up ready: ${board.intake_url}`;
     try { customerTexted = await sendSms(phone, cmsg, 'customer', 'trial_ann_intake'); } catch (_) {}
   }
 

@@ -99,8 +99,8 @@ async function createLeadJob(lead) {
           return {
             ok: true, deduped: true, job_id: dupe.id, customer_id: customer.id,
             portal_token: token || '',
-            portal_url: token ? `${SITE}/platform/portal.html?t=${token}` : '',
-            intake_url: token ? `${SITE}/platform/intake.html?t=${token}` : '',
+            portal_url: token ? `${SITE}/p/${token}` : '',
+            intake_url: token ? `${SITE}/i/${token}` : '',
           };
         }
       } catch (_) { /* dedup is best-effort — never blocks a real lead */ }
@@ -135,8 +135,8 @@ async function createLeadJob(lead) {
       const g = await db.insert('portal_grant', { company_id: companyId, customer_id: customer.id, job_id: job.id });
       portalToken = g && g.token;
       if (portalToken) {
-        portalUrl = `${SITE}/platform/portal.html?t=${portalToken}`;
-        intakeUrl = `${SITE}/platform/intake.html?t=${portalToken}`;
+        portalUrl = `${SITE}/p/${portalToken}`;
+        intakeUrl = `${SITE}/i/${portalToken}`;
       }
     } catch (_) {}
 
