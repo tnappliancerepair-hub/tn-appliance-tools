@@ -52,6 +52,9 @@
   .card .money-badge{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px}
   .money-badge.paid{background:#dcfce7;color:#166534}
   .money-badge.due{background:#fef3c7;color:#92400e}
+  .flag{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;margin:5px 5px 0 0}
+  .schedflags{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .schedflags button.on{background:#e0e7ff;color:#3730a3;border-color:#c7d2fe;font-weight:800}
   :root:not([data-theme="light"]) .money-badge.paid,:root[data-theme="dark"] .money-badge.paid{background:#14351f;color:#8ff0b0}
   :root:not([data-theme="light"]) .money-badge.due,:root[data-theme="dark"] .money-badge.due{background:#3a2e0c;color:#f2ce7a}
   .col h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;gap:8px}
@@ -357,10 +360,12 @@
         var tech = j.technician && j.technician.name ? j.technician.name : 'Unassigned';
         var iv = invByJob[j.id];
         var badge = iv ? '<span class="money-badge '+(iv.status==='paid'?'paid':'due')+'">'+(iv.status==='paid'?'PAID ':'')+money(iv.total_cents)+'</span>' : '';
+        var flags=(j.needs_two_techs?'<span class="flag">🧑‍🤝‍🧑 2-man</span>':'')+(j.long_job?'<span class="flag">⏳ Long job</span>':'');
         return '<div class="card" data-job="'+j.id+'">' +
           '<div class="name">'+esc(fullName(j.customer)||'Customer')+'</div>' +
           (unit?'<div class="unit">'+esc(unit)+'</div>':'') +
           (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
+          (flags?'<div class="flags">'+flags+'</div>':'') +
           '<div class="foot"><span class="pill" style="background:'+m.color+'">'+esc(m.label)+'</span>' +
           '<span class="tech">'+esc(tech)+(badge?' '+badge:'')+'</span></div></div>';
       }).join('');
@@ -451,6 +456,7 @@
       '<div class="custname">'+esc(fullName(cust)||'Customer')+'</div>' +
       '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
+      '<div class="schedflags" id="jflags"><button type="button" data-flag="two" class="'+(job.needs_two_techs?'on':'')+'">🧑‍🤝‍🧑 Two-man</button><button type="button" data-flag="long" class="'+(job.long_job?'on':'')+'">⏳ Long job</button></div>' +
       '<div id="jintake"></div>' +
       '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
@@ -480,6 +486,9 @@
     sb2.querySelectorAll('button[data-s]').forEach(function(b){ b.onclick=function(){ var ns=b.getAttribute('data-s'); sb.from('job').update({status:ns}).eq('id',job.id).then(function(r){ if(!r.error){ job.status=ns; sb2.querySelectorAll('button').forEach(function(x){ x.className=''; x.style.background=''; }); b.className='on'; b.style.background=statusMeta(ns).color; loadBoard(); } }); }; });
 
     document.getElementById('jnotesSave').onclick=function(){ var t=document.getElementById('jnotes').value; var btn=document.getElementById('jnotesSave'); btn.disabled=true; btn.textContent='Saving…'; sb.from('job').update({office_notes:t}).eq('id',job.id).then(function(r){ job.office_notes=t; btn.disabled=false; btn.textContent=r.error?'Try again':'Saved ✓'; setTimeout(function(){ btn.textContent='Save notes'; },1500); }); };
+
+    // scheduling flags — office can set/clear (slot a wider window or a second tech)
+    document.querySelectorAll('#jflags button[data-flag]').forEach(function(b){ b.onclick=function(){ var col=b.getAttribute('data-flag')==='two'?'needs_two_techs':'long_job'; var now=!b.classList.contains('on'); b.disabled=true; var upd={}; upd[col]=now; sb.from('job').update(upd).eq('id',job.id).then(function(r){ b.disabled=false; if(r.error)return; b.classList.toggle('on',now); job[col]=now; loadBoard(); }); }; });
 
     // pay — prefill from existing invoice + lines, live totals
     var inv=invByJob[job.id]||null;
@@ -620,7 +629,7 @@
   function loadBoard() {
     // RLS scopes both queries to the logged-in user's company — we never pass company_id.
     sb.from('job').select(
-      'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,' +
+      'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,needs_two_techs,long_job,' +
       'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)'
     ).order('created_at', { ascending: false }).then(function (r) {
       if (r.error) { document.getElementById('board').innerHTML = '<div class="empty">Couldn\'t load the board: ' + esc(r.error.message) + '</div>'; return; }

@@ -122,7 +122,7 @@
 
   function loadJob() {
     sb.from('job').select(
-      'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,' +
+      'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,needs_two_techs,long_job,' +
       'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(*)'
     ).eq('id', jobId).limit(1).then(function(r){
@@ -182,6 +182,13 @@
             '<button class="full" id="wvToggle">✍️ Get the waiver signed</button>'+
             '<div id="wvBox" class="hidden" style="margin-top:10px"></div>') +
         '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
+
+      '<div class="card"><div class="sec">📋 Heads-up for the office</div>' +
+        '<div class="note" style="margin:-2px 0 9px">Flag this job so the office blocks the right slot next time — a wider window, or a second tech.</div>' +
+        '<div class="btnrow psrow" id="schedflags">' +
+          '<button type="button" data-flag="two" class="'+(job.needs_two_techs?'sel':'')+'">🧑‍🤝‍🧑 Two-man job</button>' +
+          '<button type="button" data-flag="long" class="'+(job.long_job?'sel':'')+'">⏳ Time-consuming</button>' +
+        '</div><div class="err" id="flagMsg"></div></div>' +
 
       '<div class="card"><div class="sec">💬 Conversation — every text on this job</div>' +
         '<div class="note" style="margin:-2px 0 8px">🤖 Ant (AI) · 🏢 office · 👤 the customer — the whole thread, and text them yourself below.</div>' +
@@ -282,6 +289,20 @@
     var sr = app.querySelector('[data-scrollreport]'); if(sr) sr.onclick=function(){ var c=document.getElementById('reportCard'); if(c) c.scrollIntoView({behavior:'smooth'}); var e=document.getElementById('tc'); if(e) e.focus(); };
     var otw = document.getElementById('otwBtn'); if(otw) otw.onclick = onMyWay;
     var rvw = document.getElementById('reviewBtn'); if(rvw) rvw.onclick = function(){ sendReview(rvw); };
+
+    // Scheduling flags — tech flags a two-man / time-consuming job so the office slots it right.
+    app.querySelectorAll('#schedflags button[data-flag]').forEach(function(b){
+      b.onclick=function(){
+        var col=b.getAttribute('data-flag')==='two'?'needs_two_techs':'long_job';
+        var now=!b.classList.contains('sel'); var msg=document.getElementById('flagMsg'); msg.textContent='';
+        b.disabled=true; var upd={}; upd[col]=now;
+        sb.from('job').update(upd).eq('id',jobId).then(function(r){
+          b.disabled=false;
+          if(r.error){ msg.textContent=/column/i.test(r.error.message||'')?'Run migration 014 in Supabase to enable this.':r.error.message; return; }
+          b.classList.toggle('sel', now); job[col]=now;
+        });
+      };
+    });
 
     // Conversation — text the customer free-form; lands in the shared thread.
     var msgBox=document.getElementById('msgBox'), msgSend=document.getElementById('msgSend');
