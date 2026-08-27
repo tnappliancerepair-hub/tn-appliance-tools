@@ -287,24 +287,27 @@ exports.handler = async function (event) {
     // classic voice CDRs don't capture these). ?action=convos&id=<assistant-id>[&days=7]
     if (action === 'convos') {
       if (!q.id) return json(200, { ok: false, error: 'need ?id=' });
-      const tries = [
-        `/ai/assistants/${q.id}/conversations?page[size]=40`,
-        `/ai/conversations?filter[assistant_id]=${encodeURIComponent(q.id)}&page[size]=40`,
-        `/ai/conversations?filter[assistant_id][eq]=${encodeURIComponent(q.id)}&page[size]=40`,
-      ];
-      let used = null, rows = [], raw = null;
-      for (const path of tries) {
-        const r = await call('GET', path);
-        if (r.ok) { const d = (r.data && r.data.data) || []; if (Array.isArray(d)) { used = path; rows = d; raw = r.data && r.data.data ? null : r.data; break; } }
-        raw = { path, status: r.status, err: JSON.stringify(r.data).slice(0, 160) };
-      }
-      const convos = rows.map((c) => ({
+      // Pull the recent AI-conversation log unfiltered, then match this assistant
+      // client-side (the server-side filter param names vary by Telnyx version).
+      const r = await call('GET', `/ai/conversations?page[size]=100`);
+      if (!r.ok) return json(200, { ok: false, status: r.status, err: JSON.stringify(r.data).slice(0, 300) });
+      const all = (r.data && r.data.data) || [];
+      const idStr = String(q.id);
+      const mine = all.filter((c) => JSON.stringify(c).includes(idStr));
+      const shape = (c) => ({
         id: c.id || c.conversation_id,
-        at: c.created_at || c.started_at || c.last_message_at,
-        from: c.metadata && (c.metadata.from || c.metadata.caller) || c.from || c.telnyx_end_user_target || '',
-        msgs: c.message_count || (Array.isArray(c.messages) ? c.messages.length : undefined),
-      }));
-      return json(200, { ok: !!used, endpoint_used: used, count: convos.length, conversations: convos.slice(0, 40), note: used ? undefined : raw });
+        at: c.last_message_at || c.created_at || c.started_at,
+        assistant: c.assistant_id || (c.metadata && c.metadata.assistant_id),
+        from: (c.metadata && (c.metadata.from || c.metadata.caller || c.metadata.telnyx_end_user_target)) || c.from || '',
+        msgs: c.message_count,
+      });
+      return json(200, {
+        ok: true,
+        total_in_log: all.length,
+        matched_this_assistant: mine.length,
+        conversations: mine.slice(0, 40).map(shape),
+        raw_sample: all.slice(0, 1),
+      });
     }
 
     // add_shop — register a NEW shop's config in the data-driven store (Supabase),
