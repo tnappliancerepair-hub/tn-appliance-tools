@@ -46,6 +46,16 @@ Rules:
   check** that flags any gap between "what the app said" and "what got paid" each period — so
   the OWNER catches drift, not a tech.
 
+## Owner-only per-tech WATCH metrics (rates, NOT leaderboard) — Teddy 2026-08-27
+The owner needs to spot outliers; these are never celebrated or ranked. Always expressed as a
+**percentage** so techs with different volumes compare fairly (4 condemned of 200 stops ≠ 3 of 80).
+| Watch metric | Definition | Data |
+|---|---|---|
+| **Condemn rate** | recommend-replacement (`no_fix_possible`) ÷ that tech's jobs, % | ✅ now (per-tech mapped). Live sample: John 3/139 = 2.2%, others 0%. |
+| **Reassign rate** | jobs the tech reassigned/handed off ÷ jobs completed, % | needs reassignment-event pull (reassign_job / tech-request-reassignment) |
+These live in the owner board's **per-tech table** alongside first-stop %, next to (not on) the
+leaderboard. A guy drifting high on either is obvious to the owner; nobody competes on them.
+
 ## KPIs (TK's "front and center")
 | KPI | Definition | Accurate now? |
 |---|---|---|
