@@ -1511,7 +1511,7 @@
       }
     } catch (e) {
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
-      alert("Couldn't reach the server just now — your part numbers are SAVED on this phone, nothing lost. Toggle Airplane mode off/on (or switch to Wi‑Fi or LTE), then tap Save again.");
+      alert("Saved on this phone — nothing lost. It'll sync itself the moment your signal is back, no need to re-enter anything. (Want to force it now? Toggle Airplane mode off/on or hop on Wi‑Fi.)");
       return;
     }
     // (3) legacy column — harmless best-effort (auto-populates if the column is ever fixed).
@@ -1978,7 +1978,7 @@
       btns.forEach(function (b) { b.disabled = false; b.textContent = '✓ Save'; });
       // The text is safe on this phone (draft backup). Give the REAL fix — full bars can
       // still be a stalled data path (esp. 5G UW), so tell the tech how to kick it.
-      alert('Couldn\'t reach the server just now — your work is SAVED on this phone, nothing lost. Toggle Airplane mode off/on (or switch to Wi‑Fi or LTE), then tap Save again.');
+      alert("Saved on this phone — nothing lost. It'll sync itself the moment your signal is back, no need to re-type anything. (Want to force it now? Toggle Airplane mode off/on or hop on Wi‑Fi.)");
       return;
     }
     // Saved for real — clear the local draft backup for this field.
@@ -1987,6 +1987,102 @@
     await refresh();
     try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
   };
+
+  // ── AUTO-SYNC PENDING SAVES (Teddy 2026-08-27) ──────────────────────────────────
+  // Techs live on 1 bar and lose data mid-call, so a save can fail even though the work
+  // is stashed on the phone. Instead of making the tech toggle Airplane mode + re-tap,
+  // we auto-resubmit the stashed drafts the moment the device is back online (plus a slow
+  // poll backstop — iOS doesn't reliably fire 'online'). Submits go straight to the same
+  // endpoints from the draft, so they work even if the card re-rendered. On success we
+  // clear the draft, quietly refresh, and toast "✓ Synced". Never throws, never blocks.
+  function _antToast(msg) {
+    try {
+      var t = document.createElement('div');
+      t.textContent = msg;
+      t.style.cssText = 'position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:#127a4a;color:#fff;font-weight:800;font-size:13px;padding:10px 16px;border-radius:22px;box-shadow:0 4px 16px rgba(0,0,0,.3);z-index:99999;max-width:90%;text-align:center';
+      document.body.appendChild(t);
+      setTimeout(function () { try { t.remove(); } catch (_) {} }, 3500);
+    } catch (_) {}
+  }
+  var _antDraining = false;
+  async function _antDrainOnce() {
+    if (_antDraining) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;  // truly offline → wait for signal
+    if (!jobId) return;
+    // Only run if there's actually something stashed for this job.
+    var hasParts = false, fieldKeys = [];
+    try { hasParts = !!localStorage.getItem('ant_parts_draft_' + jobId); } catch (_) {}
+    try { for (var j = 0; j < localStorage.length; j++) { var k = localStorage.key(j); if (k && k.indexOf('ant_tdr_draft_' + jobId + '_') === 0) fieldKeys.push(k); } } catch (_) {}
+    if (!hasParts && !fieldKeys.length) return;
+    _antDraining = true;
+    var synced = false;
+    try {
+      var _post = async function (url, payload) {
+        var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(20000) });
+        return await r.json().catch(function () { return {}; });
+      };
+      var _tidOf = async function () {
+        var _t = Number((lastData && lastData.tdr_id) || 0);
+        if (_t > 0) return _t;
+        var er = await _post('/.netlify/functions/ensure-tdr', { job_id: Number(jobId), technician_id: Number(techId) || Number((lastData && lastData.technician_id) || 0) || 0 });
+        _t = Number((er || {}).tdr_id || 0);
+        if (_t > 0 && lastData) lastData.tdr_id = _t;
+        return _t;
+      };
+      // (1) parts draft
+      if (hasParts) {
+        var vals = []; try { vals = JSON.parse(localStorage.getItem('ant_parts_draft_' + jobId) || '[]') || []; } catch (_) { vals = []; }
+        if (!vals.length) { try { localStorage.removeItem('ant_parts_draft_' + jobId); } catch (_) {} }
+        else {
+          var _tid = await _tidOf();
+          if (_tid > 0) {
+            var sd = await _post('/.netlify/functions/set-tdr-field', { tdr_id: _tid, field: 'verified_part_number', value: vals.join(', ') });
+            if (sd && sd.ok) {
+              for (var i = 0; i < vals.length; i++) { try { await _post('/.netlify/functions/warranty-parts', { job_id: Number(jobId), part: vals[i], status: 'used', source: 'tdr_used', by: role, technician_id: techId ? Number(techId) : 0 }); } catch (_) {} }
+              try { localStorage.removeItem('ant_parts_draft_' + jobId); } catch (_) {}
+              synced = true;
+            }
+          }
+        }
+      }
+      // (2) tdr field drafts — mirror __antTdrSaveField's persistence per field
+      for (var f = 0; f < fieldKeys.length; f++) {
+        var fk = fieldKeys[f];
+        var key = fk.slice(('ant_tdr_draft_' + jobId + '_').length);
+        var val = null; try { val = localStorage.getItem(fk); } catch (_) {}
+        if (val == null) continue;
+        var okSaved = false;
+        try {
+          if (key === 'technician_notes') {
+            var _t2 = await _tidOf();
+            if (_t2 > 0) { var sn = await _post('/.netlify/functions/set-tdr-field', { tdr_id: _t2, field: 'technician_notes', value: val }); okSaved = !!(sn && sn.ok); }
+          } else {
+            var body = { job_id: Number(jobId), field: key, value: val }; if (techId) body.technician_id = Number(techId);
+            try { var wd = await _post(XANO + '/update_tdr_field_from_voice', body); if (wd && wd.success) okSaved = true; } catch (_) {}
+            var FB = { diagnosis: 1, failed_component: 1, repair_completed: 1 };
+            if (!okSaved && FB[key]) { var _t3 = await _tidOf(); if (_t3 > 0) { var sd3 = await _post('/.netlify/functions/set-tdr-field', { tdr_id: _t3, field: key, value: val }); okSaved = !!(sd3 && sd3.ok); } }
+          }
+        } catch (_) {}
+        if (okSaved) { try { localStorage.removeItem(fk); } catch (_) {} synced = true; }
+      }
+      if (synced) {
+        try { if (typeof loadSuppliedParts === 'function') await loadSuppliedParts(); } catch (_) {}
+        try { if (typeof refresh === 'function') await refresh(); } catch (_) {}
+        try { window.dispatchEvent(new Event('ant:state-changed')); } catch (_) {}
+        _antToast('✓ Synced — your saved work just went through');
+      }
+    } catch (_) {} finally { _antDraining = false; }
+  }
+  // Always point the global drainer at the LATEST card's closure (fresh jobId), and wire
+  // the online-listener + poll exactly ONCE so listeners never stack up across re-renders.
+  window.__antDrain = _antDrainOnce;
+  if (!window.__antDrainWired) {
+    window.__antDrainWired = true;
+    try { window.addEventListener('online', function () { try { window.__antDrain && window.__antDrain(); } catch (_) {} }); } catch (_) {}
+    try { setInterval(function () { try { window.__antDrain && window.__antDrain(); } catch (_) {} }, 25000); } catch (_) {}
+  }
+  try { setTimeout(function () { try { window.__antDrain && window.__antDrain(); } catch (_) {} }, 2500); } catch (_) {}
+
   window.__antTdrOpenTeddy = function () {
     location.href = '/teddy-tdr-tool.html?job_id=' + jobId;
   };
