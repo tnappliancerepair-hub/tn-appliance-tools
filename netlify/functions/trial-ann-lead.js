@@ -13,7 +13,7 @@
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
-const { sendSms } = require('./_lib/sms');
+const { sendSms, sendFrom588 } = require('./_lib/sms');
 const shops = require('./_lib/trial-shops');
 let createLeadJob = null; try { ({ createLeadJob } = require('./_lib/platform-db')); } catch (_) {}
 let crud = null; try { crud = require('./_lib/xano/metadata-crud'); } catch (_) {}
@@ -103,7 +103,12 @@ exports.handler = async function (event) {
   let customerTexted = false;
   if (!deduped && phone && board.ok && board.intake_url) {
     const cmsg = `${shop.name}: help us help you faster! When you're near your machine, tap here and show us what's going on — shoot a quick video from any phone, snap the model sticker, and pick your days so we show up ready to fix it: ${board.intake_url}`;
-    try { customerTexted = await sendSms(phone, cmsg, 'customer', 'trial_ann_intake'); } catch (_) {}
+    // Send the intake DIRECT from the 588 line (opt-out honored) rather than through the
+    // Xano send_sms path, which special-cases internal/owner numbers and silently drops
+    // customer-direction texts to them. Direct = reliable to ANY number, incl. the owner's
+    // cell during testing, and not subject to TN's Xano SMS gate. It's a reactive, expected
+    // text (the customer just called), so quiet-hours don't apply.
+    try { customerTexted = await sendFrom588(phone, cmsg, 'trial_ann_intake'); } catch (_) {}
   }
 
   try { if (crud) crud.logEvent('trial_ann_lead', { shop: slug, name, phone: phone.replace(/\D/g, '').slice(-10), what, sent, deduped, on_board: !!board.ok, job_id: board.job_id || '', customer_texted: customerTexted, at_ms: Date.now() }); } catch (_) {}
