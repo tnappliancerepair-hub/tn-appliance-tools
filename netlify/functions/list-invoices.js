@@ -91,12 +91,21 @@ exports.handler = async function (event) {
   } catch (e) { return j(200, { ok: false, error: 'events: ' + String(e.message || e) }); }
   if (q.debug === '1') return j(200, { ok: true, debug: true, inv_rows: invRows.length, pay_rows: payRows.length, qc_rows: qcRows.length, mark_rows: markRows.length, sample_inv: invRows.slice(0, 2).map(meta) });
 
-  // Paid set: any job with a payment record (Stripe, quick-check, OR a direct cash collect).
-  const paidBy = {};
-  for (const r of [...payRows, ...qcRows]) { const m = meta(r); const jid = Number(m.job_id || 0); if (jid) paidBy[jid] = paidBy[jid] || { method: m.pay_method || m.method || (r.action === 'quick_check_paid' ? 'quick check' : 'card'), at: ms(m.logged_at_ms || m.at_ms || r.created_at) }; }
-  // Cash/check field collects carry the amount + method the tech entered.
-  const offlineBy = {};
-  for (const r of offlineRows) { const m = meta(r); const jid = Number(m.job_id || 0); if (!jid) continue; if (!paidBy[jid]) paidBy[jid] = { method: m.method || 'cash', at: ms(m.at_ms || r.created_at) }; offlineBy[jid] = offlineBy[jid] || { amount: num(m.amount), method: m.method || 'cash', at: ms(m.at_ms || r.created_at), by: m.recorded_by || '' }; }
+  // Paid set + the collected AMOUNT for EVERY payment type — the tech-sent pay link
+  // (customer_payment_received, the out-of-pocket case Danielle is blind to), quick-check,
+  // and direct cash/check. paidBy = the paid flag+method; collectedBy = the dollar amount to
+  // surface on the tile when NO office invoice was logged (tech charged in the field).
+  const paidBy = {}, collectedBy = {};
+  const addPay = (r, defMethod) => {
+    const m = meta(r); const jid = Number(m.job_id || 0); if (!jid) return;
+    const method = m.pay_method || m.method || defMethod;
+    const at = ms(m.logged_at_ms || m.at_ms || r.created_at);
+    if (!paidBy[jid]) paidBy[jid] = { method, at };
+    const amt = num(m.amount); if (amt > 0 && !collectedBy[jid]) collectedBy[jid] = { amount: amt, method, at, by: m.tech_first || m.recorded_by || '' };
+  };
+  for (const r of payRows) addPay(r, 'card');          // tech-sent pay link / Stripe
+  for (const r of qcRows) addPay(r, 'quick check');
+  for (const r of offlineRows) addPay(r, 'cash');       // direct cash/check collect
 
   // MANUAL override (Danielle marks paid/unpaid — from the board's Paid folder or
   // the invoices page). Latest write per job WINS over auto-detection, and it's
@@ -120,15 +129,16 @@ exports.handler = async function (event) {
     seen.add(jid);
     invoices.push({ job_id: jid, amount: num(m.amount_invoiced), labor: num(m.labor), parts: num(m.parts_charge || m.parts), tax: num(m.tax), tech_id: Number(m.technician_id || 0), logged_by: m.logged_by || '', when_ms: at });
   }
-  // A tech's cash/check collect with NO office invoice: surface the amount he entered as its
-  // own line so the tile shows "$X paid" (not a bare "Paid" flag with no number).
-  for (const jid in offlineBy) {
+  // A field-collected payment (tech-sent pay link, cash/check, quick-check) with NO office
+  // invoice: surface the amount as its own line so the tile shows "$X paid" instead of the
+  // job being invisible. THIS is the out-of-pocket-link case the office was blind to.
+  for (const jid in collectedBy) {
     const id = Number(jid);
     if (seen.has(id)) continue;                 // an office invoice already covers it
-    const o = offlineBy[id];
+    const o = collectedBy[id];
     if (o.at && o.at < cutoff) continue;
     seen.add(id);
-    invoices.push({ job_id: id, amount: o.amount, labor: 0, parts: 0, tax: 0, tech_id: 0, logged_by: o.by, when_ms: o.at, offline: true });
+    invoices.push({ job_id: id, amount: o.amount, labor: 0, parts: 0, tax: 0, tech_id: 0, logged_by: o.by, when_ms: o.at, field_collected: true });
   }
   if (!invoices.length) return j(200, { ok: true, count: 0, invoices: [] });
 
