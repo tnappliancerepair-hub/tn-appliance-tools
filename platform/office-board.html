@@ -106,6 +106,24 @@
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--chip);padding:1px 5px;border-radius:5px}
   .banner{background:#fff7e6;border:1px solid #f0d59a;color:#7a5b00;padding:10px 14px;border-radius:10px;margin:16px;font-size:13px}
   :root[data-theme="dark"] .banner,:root:not([data-theme="light"]) .banner{background:#2a2410;border-color:#5a4a1a;color:#e6c766}
+  /* ── SLOT-MACHINE DOPAMINE (TN colors): a gold jackpot hero + glowing reels + status-lit tiles ── */
+  .money{display:block !important;overflow:visible;padding-bottom:0}
+  .jackpot{position:relative;overflow:hidden;border-radius:18px;padding:17px 18px 15px;margin-bottom:14px;background:linear-gradient(135deg,#151d10,#0b1006);border:1px solid #2d3d1a;box-shadow:0 12px 36px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.05)}
+  .jackpot::before{content:'';position:absolute;inset:0;background:radial-gradient(120% 130% at 100% 0%, rgba(247,181,0,.18), transparent 55%);pointer-events:none}
+  .jp-label{position:relative;font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#c6d2b2}
+  .jp-num{position:relative;font-family:'Bricolage Grotesque',ui-monospace,SFMono-Regular,Menlo,monospace;font-size:44px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.04;margin-top:3px;background:linear-gradient(180deg,#ffe98a 0%,#f6b01f 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 14px rgba(247,181,0,.28));letter-spacing:-.01em}
+  .jp-num.flash{animation:jpFlash .8s ease}
+  @keyframes jpFlash{0%{filter:drop-shadow(0 2px 14px rgba(247,181,0,.28))}28%{filter:drop-shadow(0 0 22px rgba(247,181,0,.85)) brightness(1.25)}100%{filter:drop-shadow(0 2px 14px rgba(247,181,0,.28))}}
+  .jp-reels{position:relative;display:flex;gap:8px;overflow-x:auto;margin-top:13px;padding-bottom:2px;-webkit-overflow-scrolling:touch}
+  .reel{flex:0 0 auto;background:rgba(0,0,0,.34);border:1px solid #35461f;border-radius:11px;padding:8px 13px;min-width:98px}
+  .reel .rl{display:block;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#93a37c}
+  .reel .rv{display:block;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;color:#eef4e3;margin-top:2px}
+  .reel.go{cursor:pointer;border-color:#5f7f31}.reel.go .rv{color:#8ff0b0}
+  .reel.go:hover{transform:translateY(-1px)}
+  .board .card{ box-shadow: inset 4px 0 0 var(--sc,var(--line)), var(--shadow) !important; transition:transform .13s ease, box-shadow .18s ease; }
+  .board .card:hover{ transform:translateY(-2px); }
+  .board .card.paidcard{ box-shadow: inset 4px 0 0 #f7b500, 0 0 0 1px rgba(247,181,0,.32), 0 8px 22px rgba(247,181,0,.14) !important; }
+  @media (prefers-reduced-motion: reduce){ .jp-num.flash{animation:none} .board .card{transition:none} .board .card:hover{transform:none} }
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -258,8 +276,8 @@
       '<label>Sales tax % <span class="hint">default rate on invoices</span></label>' +
       '<input id="s_tax" inputmode="decimal" placeholder="9.75" value="' + esc(s.tax_rate != null ? s.tax_rate : '') + '">' +
       '<div class="sec">Tools</div>' +
-      '<label>Google review link <span class="hint">the link customers tap to leave a review</span></label>' +
-      '<input id="s_review" placeholder="https://g.page/r/…/review" value="' + esc(s.review_url || '') + '">' +
+      '<label>Review link <span class="hint">Google, Facebook, Yelp — wherever you collect reviews. This is the link customers tap to review you.</span></label>' +
+      '<input id="s_review" placeholder="https://g.page/r/…/review — or your Facebook / Yelp review URL" value="' + esc(s.review_url || '') + '">' +
       '<label>Parts distributor <span class="hint">the name on the tech\'s parts button</span></label>' +
       '<input id="s_dname" placeholder="Marcone" value="' + esc(s.distributor_name || '') + '">' +
       '<label>Distributor search link <span class="hint">use <b>{q}</b> where the model/part goes</span></label>' +
@@ -343,11 +361,30 @@
       if(iv.status==='paid'){ collected+=iv.total_cents||0; } else { due+=iv.total_cents||0; }
     });
     document.getElementById('money').innerHTML =
-      stat('Collected', money(collected)) + stat('Outstanding', money(due)) + stat('Tax collected', money(tax)) + stat('Invoiced', money(invoiced)) +
-      '<div class="stat" style="cursor:pointer" id="finBtn"><div class="lab">Reports</div><div class="val">💵 Statements</div></div>';
+      '<div class="jackpot">' +
+        '<div class="jp-label">💰 Collected this month</div>' +
+        '<div class="jp-num" id="jpNum">'+money(lastCollected==null?collected:lastCollected)+'</div>' +
+        '<div class="jp-reels">' +
+          reel('Outstanding', money(due)) + reel('Tax', money(tax)) + reel('Invoiced', money(invoiced)) +
+          '<div class="reel go" id="finBtn"><span class="rl">Reports</span><span class="rv">💵 Statements</span></div>' +
+        '</div>' +
+      '</div>';
     var fb=document.getElementById('finBtn'); if(fb) fb.onclick=openFinancials;
+    animateJackpot(collected);
   }
-  function stat(l,v){ return '<div class="stat"><div class="lab">'+esc(l)+'</div><div class="val">'+esc(v)+'</div></div>'; }
+  function reel(l,v){ return '<div class="reel"><span class="rl">'+esc(l)+'</span><span class="rv">'+esc(v)+'</span></div>'; }
+  // The jackpot number rolls up like a slot reel when the collected total climbs (a payment
+  // landed) — gold flash on an increase. Sound is left to the paid celebration.
+  var lastCollected=null;
+  function animateJackpot(to){
+    var el=document.getElementById('jpNum'); if(!el){ lastCollected=to; return; }
+    var from=(lastCollected==null)?to:lastCollected; lastCollected=to;
+    if(from===to){ el.textContent=money(to); return; }
+    if(to>from){ el.classList.add('flash'); setTimeout(function(){ el.classList.remove('flash'); },800); }
+    var start=null, dur=850;
+    function step(ts){ if(start==null) start=ts; var p=Math.min(1,(ts-start)/dur); var e=1-Math.pow(1-p,3); el.textContent=money(Math.round(from+(to-from)*e)); if(p<1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  }
 
   function renderBoard(){
     var jobs = jobsCache.filter(function(j){ return activeFilter==='all' || j.status===activeFilter; });
@@ -364,7 +401,7 @@
         var iv = invByJob[j.id];
         var badge = iv ? '<span class="money-badge '+(iv.status==='paid'?'paid':'due')+'">'+(iv.status==='paid'?'PAID ':'')+money(iv.total_cents)+'</span>' : '';
         var flags=(j.needs_two_techs?'<span class="flag">🧑‍🤝‍🧑 2-man</span>':'')+(j.long_job?'<span class="flag">⏳ Long job</span>':'');
-        return '<div class="card" data-job="'+j.id+'">' +
+        return '<div class="card'+(iv&&iv.status==='paid'?' paidcard':'')+'" data-job="'+j.id+'" style="--sc:'+m.color+'">' +
           '<div class="name">'+esc(fullName(j.customer)||'Customer')+'</div>' +
           (unit?'<div class="unit">'+esc(unit)+'</div>':'') +
           (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
@@ -486,7 +523,7 @@
     // status buttons
     var sb2=document.getElementById('jstatus');
     sb2.innerHTML=ALLSTATUS.map(function(s){ return '<button data-s="'+s.key+'" class="'+(job.status===s.key?'on':'')+'" style="'+(job.status===s.key?'background:'+s.color:'')+'">'+esc(s.label)+'</button>'; }).join('');
-    sb2.querySelectorAll('button[data-s]').forEach(function(b){ b.onclick=function(){ var ns=b.getAttribute('data-s'); sb.from('job').update({status:ns}).eq('id',job.id).then(function(r){ if(!r.error){ job.status=ns; sb2.querySelectorAll('button').forEach(function(x){ x.className=''; x.style.background=''; }); b.className='on'; b.style.background=statusMeta(ns).color; loadBoard(); } }); }; });
+    sb2.querySelectorAll('button[data-s]').forEach(function(b){ b.onclick=function(){ var ns=b.getAttribute('data-s'); sb.from('job').update({status:ns}).eq('id',job.id).then(function(r){ if(!r.error){ job.status=ns; sb2.querySelectorAll('button').forEach(function(x){ x.className=''; x.style.background=''; }); b.className='on'; b.style.background=statusMeta(ns).color; if(ns==='completed' && window.antCelebrate){ try{ window.antCelebrate({ tag:'Job done', big:'JOB COMPLETE! 🎉', sub:fullName(job.customer)||'', sound:'both' }); }catch(_){ } } loadBoard(); } }); }; });
 
     document.getElementById('jnotesSave').onclick=function(){ var t=document.getElementById('jnotes').value; var btn=document.getElementById('jnotesSave'); btn.disabled=true; btn.textContent='Saving…'; sb.from('job').update({office_notes:t}).eq('id',job.id).then(function(r){ job.office_notes=t; btn.disabled=false; btn.textContent=r.error?'Try again':'Saved ✓'; setTimeout(function(){ btn.textContent='Save notes'; },1500); }); };
 
@@ -551,7 +588,7 @@
       invByJob[job.id]=Object.assign({ id:invoiceId, job_id:job.id, created_at:(inv&&inv.created_at)||new Date().toISOString() }, row);
       btn.disabled=false; btn.textContent='Saved ✓'; setTimeout(function(){ btn.textContent='Save invoice'; },1600);
       // 💵 Money in — celebrate the first time it flips to paid.
-      if(newlyPaid && window.antCelebrate){ try{ window.antCelebrate({ tag:'Paid', big:'PAID! 💵', sub:fullName(job.customer)||'', tiles:[{value:money(tot),label:'Collected',accent:'#4ade80'}], cue:'win' }); }catch(_){ } }
+      if(newlyPaid && window.antCelebrate){ try{ window.antCelebrate({ tag:'Payment', big:'JACKPOT! 💰', sub:fullName(job.customer)||'', tiles:[{value:money(tot),label:'Collected',accent:'#f7b500'}], sound:'both' }); }catch(_){ } }
       loadBoard();
     };
     var writeLines=function(invoiceId){
