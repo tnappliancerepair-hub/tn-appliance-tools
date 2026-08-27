@@ -11,7 +11,7 @@
 //   -> creates the login + company, returns { company, login:{email,temp_password}, slug }
 // The owner then signs into /platform/office-board.html with that email + temp password.
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, setSecret } = require('./_lib/secrets');
 const { createLeadJob } = require('./_lib/platform-db');
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -34,6 +34,35 @@ exports.handler = async function (event) {
   };
 
   const rest0 = async (path) => { const r = await fetch(`${url}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(10000) }); return r.ok ? r.json().catch(() => []) : []; };
+
+  // Reset an owner's platform login password to a fresh one and DROP IT IN THE VAULT
+  // server-side (the value never returns through chat/logs). The owner then reads it at
+  // admin-secrets.html and signs into /platform/office-board.html, changing it on first
+  // login. ?action=resetpw&slug=tn-appliance   (or &email=owner@...)
+  if (q.action === 'resetpw') {
+    const slug = String(q.slug || '').toLowerCase().trim();
+    let ownerEmail = String(q.email || '').toLowerCase().trim();
+    if (!ownerEmail && slug) {
+      const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id&limit=1`);
+      const co = cos && cos[0];
+      if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+      const us = await rest0(`app_user?company_id=eq.${co.id}&role=eq.owner&select=email&order=created_at.asc&limit=1`);
+      ownerEmail = us && us[0] && String(us[0].email || '').toLowerCase();
+    }
+    if (!ownerEmail) return json(200, { ok: false, error: 'no owner email (pass &slug= or &email=)' });
+    // find the Supabase auth user for that email
+    const listR = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(12000) });
+    const list = await listR.json().catch(() => ({}));
+    const users = (list && (list.users || list)) || [];
+    const u = Array.isArray(users) ? users.find((x) => String(x.email || '').toLowerCase() === ownerEmail) : null;
+    if (!u) return json(200, { ok: false, error: 'auth user not found for ' + ownerEmail });
+    const newpw = tempPassword();
+    const setR = await fetch(`${url}/auth/v1/admin/users/${u.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ password: newpw }), signal: AbortSignal.timeout(12000) });
+    if (!setR.ok) { const e = await setR.text().catch(() => ''); return json(200, { ok: false, error: 'password set failed ' + setR.status + ' ' + e.slice(0, 120) }); }
+    const vaultKey = 'PLATFORM_OWNER_PW_' + (slug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    let saved = false; try { saved = await setSecret(vaultKey, newpw); } catch (_) { saved = false; }
+    return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
+  }
 
   // Diagnostic: list every tenant + its owner login, to confirm isolation.
   if (q.action === 'tenants') {
