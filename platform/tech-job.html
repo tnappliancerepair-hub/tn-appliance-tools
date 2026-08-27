@@ -121,13 +121,17 @@
   }
 
   function loadJob() {
-    sb.from('job').select(
-      'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,needs_two_techs,long_job,' +
-      'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes),' +
-      'media:job_media(kind,provider,ref,label),tdr:job_tdr(*)'
-    ).eq('id', jobId).limit(1).then(function(r){
+    var base = 'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,';
+    var tail = 'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes),media:job_media(kind,provider,ref,label),tdr:job_tdr(*)';
+    var done = function(r){
       if (r.error || !r.data || !r.data[0]) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Couldn\'t open that job. <a href="/platform/tech.html">Back</a></p></div>'; return; }
       job = r.data[0]; render();
+    };
+    // Try with the scheduling-flag columns; if they aren't there yet (migration 014 not run),
+    // fall back to the same query without them so the cockpit always opens.
+    sb.from('job').select(base + 'needs_two_techs,long_job,' + tail).eq('id', jobId).limit(1).then(function(r){
+      if (r.error) { sb.from('job').select(base + tail).eq('id', jobId).limit(1).then(done); return; }
+      done(r);
     });
   }
 

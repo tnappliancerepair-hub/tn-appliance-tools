@@ -628,10 +628,9 @@
 
   function loadBoard() {
     // RLS scopes both queries to the logged-in user's company — we never pass company_id.
-    sb.from('job').select(
-      'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,needs_two_techs,long_job,' +
-      'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)'
-    ).order('created_at', { ascending: false }).then(function (r) {
+    var base = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,';
+    var tail = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
+    var proceed = function (r) {
       if (r.error) { document.getElementById('board').innerHTML = '<div class="empty">Couldn\'t load the board: ' + esc(r.error.message) + '</div>'; return; }
       jobsCache = r.data || [];
       sb.from('invoice').select('id,job_id,status,subtotal_cents,tax_cents,total_cents,paid_at,paid_method,created_at').then(function (ir) {
@@ -639,6 +638,11 @@
         (ir.data || []).forEach(function (iv) { if (iv.job_id) { var p = invByJob[iv.job_id]; if (!p || new Date(iv.created_at) > new Date(p.created_at)) invByJob[iv.job_id] = iv; } });
         renderMoneyBar(); renderFilters(); renderBoard();
       });
+    };
+    // Try with the scheduling-flag columns; fall back without them if migration 014 isn't run.
+    sb.from('job').select(base + 'needs_two_techs,long_job,' + tail).order('created_at', { ascending: false }).then(function (r) {
+      if (r.error) { sb.from('job').select(base + tail).order('created_at', { ascending: false }).then(proceed); return; }
+      proceed(r);
     });
   }
 
