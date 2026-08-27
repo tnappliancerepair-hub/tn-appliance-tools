@@ -87,6 +87,8 @@
 <script src="/platform/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@3/dist/tus.min.js"></script>
+<script src="/ant-sounds.js"></script>
+<script src="/ant-celebrate.js"></script>
 <script>
 (function () {
   var app = document.getElementById('app');
@@ -461,6 +463,8 @@
       sb.from('invoice').update({ status:'paid', paid_method:method, paid_at:new Date().toISOString() }).eq('id',invId).then(function(r){
         if(r.error){ err.textContent=r.error.message; return; }
         var pm=document.getElementById('payMethods'); if(pm) pm.classList.add('hidden');
+        // 💵 Money in — celebrate the collect.
+        if(window.antCelebrate){ try{ window.antCelebrate({ tag:'Paid', big:'PAID! 💵', tiles:[{value:money(cents),label:'Collected · '+method,accent:'#4ade80'}], cue:'win' }); }catch(_){ } }
         loadInvoice();
       });
     });
@@ -727,6 +731,8 @@
       // "Please order" or "Missing" → the part isn't in hand, so the job waits on parts.
       var ns=(outcome==='return_needed'||partStatus==='please_order'||partStatus==='missing')?'awaiting_parts':'completed';
       sb.from('job').update({status:ns}).eq('id',jobId).then(function(){
+        // 🎉 Job done — confetti + fanfare. The reward that makes techs want to close jobs.
+        if(ns==='completed' && window.antCelebrate){ try{ window.antCelebrate({ tag:'Job complete', big:'JOB DONE! 🎉', sub:(job.customer&&fullName(job.customer))||'', cue:'win', sound:'both' }); }catch(_){ } }
         var reviewCta = ns==='completed' ? '<button class="full review" id="doneReview" style="max-width:320px;margin:14px auto 0">⭐ Text review link to customer</button>' : '';
         app.innerHTML='<div class="center"><div class="big">✅</div><h2>Report saved</h2><p>Nice work.</p>'+reviewCta+'<p style="margin-top:16px"><a href="/platform/tech.html">Back to My Jobs</a></p></div>';
         var dr=document.getElementById('doneReview'); if(dr) dr.onclick=function(){ sendReview(dr); };
