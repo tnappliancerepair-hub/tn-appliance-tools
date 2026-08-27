@@ -138,6 +138,12 @@
   .paddrow{display:flex;gap:8px;margin-top:4px}
   .paddrow input{flex:1}
   .pdel{background:none;border:none;color:#e5484d;font-weight:800;font-size:13px;padding:6px 2px;margin-top:6px}
+  /* Machines at this stop — switcher chips + add */
+  .mchips{display:flex;gap:8px;flex-wrap:wrap}
+  .mchip{border:1.5px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:9px 15px;font-weight:800;font-size:13.5px}
+  .mchip.cur{background:var(--brand-grad,var(--brand));color:#fff;border-color:transparent;box-shadow:var(--glow,0 4px 12px rgba(26,158,70,.3))}
+  .mchip.add{border-style:dashed;color:#2563eb}
+  #addMachineBox input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box}
   .note{background:var(--chip);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--muted)}
   .thr{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;padding:2px}
   .bub{max-width:88%;padding:8px 11px;border-radius:12px;font-size:14px;background:var(--chip);border:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
@@ -202,7 +208,7 @@
 
   function loadJob() {
     var base = 'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,';
-    var tail = 'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes),media:job_media(id,kind,provider,ref,label),tdr:job_tdr(*)';
+    var tail = 'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes,kind),media:job_media(id,kind,provider,ref,label),tdr:job_tdr(*)';
     var done = function(r){
       if (r.error || !r.data || !r.data[0]) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Couldn\'t open that job. <a href="/platform/tech.html">Back</a></p></div>'; return; }
       job = r.data[0]; render();
@@ -210,7 +216,7 @@
     // Try with the optional columns (scheduling flags = migration 014, status timestamps =
     // migration 018). If either set isn't there yet, fall back so the cockpit always opens.
     var flags = 'needs_two_techs,long_job,';
-    var stamps = 'en_route_at,started_at,completed_at,';
+    var stamps = 'en_route_at,started_at,completed_at,stop_id,';
     sb.from('job').select(base + flags + stamps + tail).eq('id', jobId).limit(1).then(function(r){
       if (!r.error) { done(r); return; }
       sb.from('job').select(base + flags + tail).eq('id', jobId).limit(1).then(function(r2){
@@ -245,6 +251,16 @@
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
         '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
         '</div>' +
+
+      // ── Machines at this stop — switcher + ＋ Add machine (one visit, several appliances) ──
+      '<div class="card" id="machineCard"><div class="sec">🧩 This stop</div>' +
+        '<div id="machineBox" class="mchips"><button class="mchip cur">'+esc((job.unit&&job.unit.label)||'This machine')+'</button></div>' +
+        '<div id="addMachineBox" class="hidden" style="margin-top:11px">' +
+          '<input id="amLabel" placeholder="What machine? (e.g. Kenmore dryer)">' +
+          '<input id="amProblem" placeholder="What\'s it doing? (optional)" style="margin-top:8px">' +
+          '<button class="primary full" id="amAdd" style="margin-top:8px">Add machine</button>' +
+          '<div class="err" id="amErr"></div>' +
+        '</div></div>' +
 
       // ── Status — the big three-tile row (TN's clean layout) ──
       '<div class="card"><div class="sec">🚦 Status</div>' +
@@ -425,6 +441,7 @@
     loadInvoice();
     loadThread();
     loadParts();
+    loadMachines();
   }
 
   function wire() {
@@ -492,6 +509,15 @@
       var d=e.target.closest('.del'); if(d){ e.stopPropagation(); delMedia(d.getAttribute('data-del')); return; }
       var t=e.target.closest('.mtile'); if(t) openMedia(t.getAttribute('data-kind'),t.getAttribute('data-provider'),t.getAttribute('data-ref'));
     };
+
+    // Machines at this stop — tap a chip to switch machines; ＋ Add machine reveals the form.
+    var mBox=document.getElementById('machineBox');
+    if(mBox) mBox.onclick=function(e){
+      var b=e.target.closest('.mchip'); if(!b) return;
+      if(b.id==='addMachineChip'){ var box=document.getElementById('addMachineBox'); if(box) box.classList.toggle('hidden'); return; }
+      var mid=b.getAttribute('data-mid'); if(mid && mid!==String(jobId)) location.href='?job='+mid;
+    };
+    var amAdd=document.getElementById('amAdd'); if(amAdd) amAdd.onclick=addMachine;
 
     // Parts tracker — add a part + per-part order/disposition/photo taps (delegated).
     var pAdd=document.getElementById('pAddBtn'); if(pAdd) pAdd.onclick=addPart;
@@ -820,6 +846,52 @@
         .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ loadJob(); } else { alert('Couldn\'t remove that — try again.'); } })
         .catch(function(){ alert('Couldn\'t reach the server — try again.'); });
     });
+  }
+
+  // ── MACHINES AT THIS STOP — each machine is its own job, linked by stop_id ──
+  function loadMachines(){
+    var box=document.getElementById('machineBox'); if(!box) return;
+    var sid = job.stop_id || jobId;
+    sb.from('job').select('id,unit:unit_id(label),tdr:job_tdr(id)').or('stop_id.eq.'+sid+',id.eq.'+sid).then(function(r){
+      if(r.error || !r.data || !r.data.length){ renderMachines([{id:jobId,unit:job.unit,tdr:job.tdr}]); return; }
+      renderMachines(r.data);
+    });
+  }
+  function renderMachines(list){
+    var box=document.getElementById('machineBox'); if(!box) return;
+    // current machine first, keep the rest in order
+    list.sort(function(a,b){ return (String(a.id)===String(jobId)?-1:0) - (String(b.id)===String(jobId)?-1:0); });
+    var chips = list.map(function(m){
+      var label=(m.unit&&m.unit.label)||'Machine';
+      var done=(m.tdr&&m.tdr.length)?' ✓':'';
+      var cur=String(m.id)===String(jobId);
+      return '<button class="mchip'+(cur?' cur':'')+'" data-mid="'+esc(m.id)+'">'+esc(label)+done+'</button>';
+    }).join('');
+    box.innerHTML = chips + '<button class="mchip add" id="addMachineChip">＋ Add machine</button>';
+  }
+  function addMachine(){
+    var label=(document.getElementById('amLabel').value||'').trim();
+    var prob=(document.getElementById('amProblem').value||'').trim();
+    var err=document.getElementById('amErr'); err.textContent='';
+    if(!label){ err.textContent='What machine is it?'; return; }
+    var btn=document.getElementById('amAdd'); btn.disabled=true; btn.textContent='Adding…';
+    var sid = job.stop_id || jobId;
+    var kind = (job.unit&&job.unit.kind)||'appliance';
+    var fail=function(e){ btn.disabled=false; btn.textContent='Add machine'; err.textContent=(e&&/stop_id|does not exist|column|schema cache/i.test(e.message||''))?'Run migration 020 in Supabase to enable multi-machine.':((e&&e.message)||'Couldn\'t add — try again.'); };
+    var proceed=function(){
+      sb.from('unit').insert({company_id:me.company_id, customer_id:job.customer_id, kind:kind, label:label}).select('id').then(function(ru){
+        if(ru.error||!ru.data||!ru.data[0]){ fail(ru.error); return; }
+        var uid=ru.data[0].id;
+        var ns=(job.status==='completed'||job.status==='canceled')?'scheduled':(job.status||'scheduled');
+        sb.from('job').insert({company_id:me.company_id, customer_id:job.customer_id, unit_id:uid, technician_id:job.technician_id, stop_id:sid, status:ns, problem:prob, scheduled_day:job.scheduled_day, source:'tech_add_machine'}).select('id').then(function(rj){
+          if(rj.error||!rj.data||!rj.data[0]){ fail(rj.error); return; }
+          location.href='?job='+rj.data[0].id;
+        });
+      });
+    };
+    // make THIS job the stop anchor if it isn't one yet, then create the sibling
+    if(!job.stop_id){ sb.from('job').update({stop_id:sid}).eq('id',jobId).then(function(r){ if(r.error){ fail(r.error); return; } proceed(); }); }
+    else proceed();
   }
 
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
