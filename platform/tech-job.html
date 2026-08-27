@@ -35,6 +35,8 @@
   button.primary{background:var(--brand);color:var(--brand-ink);border-color:transparent}
   button.otw{background:#2563eb;color:#fff;border-color:transparent}
   button.review{background:#f59e0b;color:#231a02;border-color:transparent}
+  button.reopen{background:#fdecea;color:#b0201a;border-color:#f4c9c4}
+  :root[data-theme="dark"] button.reopen,:root:not([data-theme="light"]) button.reopen{background:#2a1512;color:#ff9a8d;border-color:#5a2620}
   button.full{width:100%}
   button:disabled{opacity:.55}
   .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
@@ -112,7 +114,7 @@
 
   function loadJob() {
     sb.from('job').select(
-      'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,' +
+      'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,' +
       'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(*)'
     ).eq('id', jobId).limit(1).then(function(r){
@@ -145,7 +147,7 @@
       '<div class="shell">' +
 
       '<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
-        '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+'</div>' +
+        '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+(job.scheduled_day?'<div class="unit">📅 '+esc(fmtDay(job.scheduled_day))+'</div>':'')+'</div>' +
         '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>' +
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
         '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
@@ -155,6 +157,9 @@
           '<button data-status="awaiting_parts">Awaiting parts</button>' +
           '<button class="primary" data-scrollreport>Complete + report</button>' +
         '</div>' +
+        '<button class="full" id="schedBtn" style="margin-top:8px">📅 Schedule my day · move · hand off</button>' +
+        '<div id="schedBox" class="hidden" style="margin-top:10px"></div>' +
+        (job.status==='completed'||job.status==='canceled'?'<button class="full reopen" id="reopenBtn" style="margin-top:8px">↩️ Made a mistake? Reopen &amp; change how this ended</button>':'') +
         (job.status==='completed'?'<button class="full review" id="reviewBtn" style="margin-top:8px">⭐ Text review link to customer</button>':'') +
         '</div>' +
 
@@ -258,6 +263,22 @@
     var sr = app.querySelector('[data-scrollreport]'); if(sr) sr.onclick=function(){ var c=document.getElementById('reportCard'); if(c) c.scrollIntoView({behavior:'smooth'}); var e=document.getElementById('tc'); if(e) e.focus(); };
     var otw = document.getElementById('otwBtn'); if(otw) otw.onclick = onMyWay;
     var rvw = document.getElementById('reviewBtn'); if(rvw) rvw.onclick = function(){ sendReview(rvw); };
+
+    // Schedule on my day / move / hand off
+    var schedBtn=document.getElementById('schedBtn'), schedBox=document.getElementById('schedBox');
+    if(schedBtn) schedBtn.onclick=function(){
+      if(schedBox.classList.contains('hidden')){ renderSchedBox(schedBox); schedBox.classList.remove('hidden'); schedBtn.textContent='✕ Close'; }
+      else { schedBox.classList.add('hidden'); schedBtn.textContent='📅 Schedule my day · move · hand off'; }
+    };
+    // Made a mistake? Reopen a completed/canceled job to change how it ended
+    var reopenBtn=document.getElementById('reopenBtn');
+    if(reopenBtn) reopenBtn.onclick=function(){
+      reopenBtn.disabled=true; reopenBtn.textContent='Reopening…';
+      sb.from('job').update({status:'in_progress'}).eq('id',jobId).then(function(r){
+        if(r.error){ reopenBtn.disabled=false; reopenBtn.textContent='↩️ Made a mistake? Reopen & change how this ended'; return; }
+        loadJob();
+      });
+    };
 
     // model OCR
     var ocrBtn = document.getElementById('ocrBtn'), ocrFile = document.getElementById('ocrFile');
@@ -391,6 +412,57 @@
         var pm=document.getElementById('payMethods'); if(pm) pm.classList.add('hidden');
         loadInvoice();
       });
+    });
+  }
+
+  // ── SCHEDULE / MOVE / HAND OFF ──────────────────────────────────────────────
+  function dstr(dt){ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0'); }
+  function addDaysStr(n){ var d=new Date(); d.setDate(d.getDate()+n); return dstr(d); }
+  function fmtDay(d){ if(!d) return ''; var p=String(d).split('-'); if(p.length!==3) return d; var dt=new Date(+p[0],+p[1]-1,+p[2]); return dt.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
+  function renderSchedBox(box){
+    var IST='width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box';
+    box.innerHTML=
+      '<div class="note" style="margin-bottom:8px">Move this job to a different day, or hand it to another tech. Day only — no set time.</div>'+
+      '<div class="btnrow" id="dayChips">'+
+        '<button type="button" data-day="0">Today</button>'+
+        '<button type="button" data-day="1">Tomorrow</button>'+
+        '<button type="button" data-day="2">In 2 days</button>'+
+      '</div>'+
+      '<input type="date" id="schedDate" style="'+IST+';margin-top:8px">'+
+      '<button class="primary full" id="schedSave" style="margin-top:8px">📅 Set the day</button>'+
+      '<div id="handoffWrap" style="margin-top:14px"></div>'+
+      '<div class="err" id="schedMsg"></div>';
+    var di=document.getElementById('schedDate'); di.value=job.scheduled_day||dstr(new Date());
+    box.querySelectorAll('#dayChips button[data-day]').forEach(function(b){ b.onclick=function(){ di.value=addDaysStr(parseInt(b.getAttribute('data-day'),10)); }; });
+    document.getElementById('schedSave').onclick=function(){
+      var d=di.value, msg=document.getElementById('schedMsg'); msg.textContent='';
+      if(!d){ msg.textContent='Pick a day.'; return; }
+      var upd={ scheduled_day:d }; if(job.status==='new'||job.status==='awaiting_parts') upd.status='scheduled';
+      var btn=document.getElementById('schedSave'); btn.disabled=true; btn.textContent='Saving…';
+      sb.from('job').update(upd).eq('id',jobId).then(function(r){
+        if(r.error){ btn.disabled=false; btn.textContent='📅 Set the day'; msg.textContent=r.error.message; return; }
+        loadJob();
+      });
+    };
+    // hand off — the shop's active techs (RLS-scoped)
+    sb.from('technician').select('id,name').eq('active',true).order('name').then(function(r){
+      var techs=(r.data||[]), wrap=document.getElementById('handoffWrap'); if(!wrap) return;
+      if(!techs.length){ wrap.innerHTML='<div class="note">No other techs to hand off to yet.</div>'; return; }
+      wrap.innerHTML=
+        '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:0 0 4px">Hand off to</label>'+
+        '<select id="handoffSel" style="'+IST+'"><option value="">— choose a tech —</option>'+
+          techs.map(function(t){ return '<option value="'+esc(t.id)+'"'+(job.technician_id===t.id?' selected':'')+'>'+esc(t.name)+'</option>'; }).join('')+
+        '</select>'+
+        '<button class="full" id="handoffSave" style="margin-top:8px">🤝 Hand off this job</button>';
+      document.getElementById('handoffSave').onclick=function(){
+        var tid=document.getElementById('handoffSel').value, msg=document.getElementById('schedMsg'); msg.textContent='';
+        if(!tid){ msg.textContent='Pick a tech to hand off to.'; return; }
+        var btn=document.getElementById('handoffSave'); btn.disabled=true; btn.textContent='Handing off…';
+        sb.from('job').update({technician_id:tid}).eq('id',jobId).then(function(rr){
+          if(rr.error){ btn.disabled=false; btn.textContent='🤝 Hand off this job'; msg.textContent=rr.error.message; return; }
+          loadJob();
+        });
+      };
     });
   }
 
