@@ -140,11 +140,13 @@
     var phone = (cust.phone||'').replace(/[^0-9+]/g,'');
     var media = job.media || [];
     var isTech = function(m){ return /^tech/i.test(m.label||''); };
-    var cVids = media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream'&&!isTech(m);});
+    var cVids = media.filter(function(m){return m.kind==='video'&&!isTech(m);});
     var cPhos = media.filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&!isTech(m);});
-    var tVids = media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream'&&isTech(m);});
+    var tVids = media.filter(function(m){return m.kind==='video'&&isTech(m);});
     var tPhos = media.filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&isTech(m);});
-    var vidPlayer = function(m){ return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; };
+    // Cloudflare Stream clips render in the CF player; Storage-fallback clips render as a plain
+    // <video>. Either way the tech sees the customer's video.
+    var vidPlayer = function(m){ if(m.provider==='storage'){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+esc(m.ref); return '<video class="vid" src="'+u+'" controls playsinline preload="metadata"></video>'; } return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; };
     var photoThumbs = function(list){ return list.length ? '<div class="thumbs">'+list.map(function(m){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+m.ref; return '<a target="_blank" rel="noopener" href="'+esc(u)+'"><img src="'+esc(u)+'"></a>'; }).join('')+'</div>' : ''; };
     var vidHtml = cVids.length ? cVids.map(vidPlayer).join('') : '<div class="note">No video sent yet.</div>';
     var phoHtml = photoThumbs(cPhos);
