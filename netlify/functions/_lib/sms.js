@@ -70,7 +70,10 @@ async function _crewSendDirect(to, body, tag) {
 // silent on someone who just texted us). Includes the satisfaction REPLY tags
 // (satisfaction_review/ask/feedback) — the 👍 link + 👎 capture — but NOT the proactive
 // ask (satisfaction_check), which stays quiet-gated.
-const QUIET_OK_RE = /en.?route|on.?the.?way|arriv|\beta\b|running.?late|heads.?up|satisfaction_(?:review|ask|feedback)/i;
+// trial_ann_intake = the intake link Ann texts a caller the moment they hang up ("I'll
+// text you a link"). It's reactive + expected (the customer just initiated contact), so
+// quiet hours shouldn't hold it — same category as an en-route/ETA text. Opt-out still enforced.
+const QUIET_OK_RE = /en.?route|on.?the.?way|arriv|\beta\b|running.?late|heads.?up|satisfaction_(?:review|ask|feedback)|trial_ann_intake/i;
 
 async function sendSms(recipient, body, role, tag) {
   const to = toE164(recipient);
