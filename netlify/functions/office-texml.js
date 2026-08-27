@@ -25,6 +25,7 @@
 
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
+const { sendSms } = require('./_lib/sms');
 
 const SELF = 'https://tnapplianceexchange.net/.netlify/functions/office-texml';
 function esc(s) { return String(s || '').replace(/[<&>"]/g, (c) => ({ '<': '&lt;', '&': '&amp;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -289,5 +290,22 @@ exports.handler = async function (event) {
     const action = `${SELF}?${orderQS}${confirmOn ? 'cfm=1&' : ''}leg=${i + 2}`;
     return xmlResp(dialLegs(legs, callerId, stages[i].secs, action, whisperUrl));
   }
+  // ── MISSED BY EVERYONE — the cascade rang every dispatcher and nobody caught it, so
+  // there are no stages left to ring. Text the CALLER back so a dropped hand-off never
+  // loses the customer (Teddy 2026-08-27). Reactive (they just called us), customer-
+  // direction only, guarded by _lib/sms (opt-out / quiet-hours / dedup). Awaited against a
+  // 1500ms cap so it gets a real chance to send but can NEVER hang the call teardown; any
+  // failure is swallowed. Warranty-rep calls (warranty desk) are skipped — different flow.
+  try {
+    const from = String(formField(event, 'From') || '').replace(/[^\d+]/g, '');
+    const skip = !from || SHOP_DIDS.includes(from) || from === callerId || !from.startsWith('+1') || from.length < 12 || warrantyFirst;
+    if (!skip) {
+      const msg = "Sorry we missed your call to Tennessee Appliance Exchange — we'll call you right back. Or just reply to this text and we'll help you get your appliance handled.";
+      await Promise.race([
+        Promise.resolve(sendSms(from, msg, 'customer', 'missed_call_textback')).catch(() => {}),
+        new Promise((r) => setTimeout(r, 1500)),
+      ]);
+    }
+  } catch (_) {}
   return xmlResp('  <Reject/>');
 };
