@@ -85,7 +85,11 @@ exports.handler = async function (event) {
     isDealer ? (what && `Looking for: ${what}`) : isAuto ? (what && `Vehicle: ${what}`) : (what && `Appliance: ${what}`),
     detail && (isDealer ? detail : `Needs: ${detail}`),
     city && `City: ${city}`,
-    board.ok && board.portal_url ? `On your board ✅ · customer link: ${board.portal_url}` : null,
+    board.ok ? 'On your board ✅' : null,
+    // The exact intake link the customer got — so the shop can preview it, and RESEND it
+    // if the caller never taps it or Ann mishears the callback number.
+    board.ok && board.intake_url ? `📋 Their intake link (video + model photo + waiver — tap to preview / resend): ${board.intake_url}` : null,
+    board.ok && board.portal_url ? `👀 Track the job: ${board.portal_url}` : null,
     `— Ann answered this for you. Call them back and close it. 🐜`,
   ].filter(Boolean);
   const msg = lines.join('\n');
