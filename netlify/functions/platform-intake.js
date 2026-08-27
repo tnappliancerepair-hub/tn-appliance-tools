@@ -67,7 +67,7 @@ async function note(db, g, body) {
 // model # is OCR-ready, part search is a tap away, and the TDR is right there to pre-
 // diagnose. This is the hand-off: customer done -> shop opens ready to find the part.
 // Sends as an internal 'office' alert (reliable line, no quiet-hours/rate gate). Best-effort.
-async function notifyShopIntakeDone(db, base, g) {
+async function notifyShopIntakeDone(db, base, g, token) {
   if (!sms) return;
   const cos = await db.get(`company?id=eq.${g.company_id}&select=slug,name,settings&limit=1`);
   const co = (cos && cos[0]) || {};
@@ -92,8 +92,11 @@ async function notifyShopIntakeDone(db, base, g) {
     : hasVideo ? 'Video in.'
     : hasPhoto ? 'Model photo in (no video).'
     : 'Details in (no video/photo yet).';
-  const cockpit = `${SITE}/c/${g.job_id}`;
-  const msg = `✅ ${who} finished intake — ${appliance}. ${got} Open the cockpit to diagnose + find the part: ${cockpit}`;
+  // Link to the NO-LOGIN view (/v/<token>) so the shop taps their text and instantly SEES
+  // the video + model photo + report — no sign-in wall. A button in that view opens the
+  // full signed-in cockpit when they actually want to work the job.
+  const view = token ? `${SITE}/v/${token}` : `${SITE}/c/${g.job_id}`;
+  const msg = `✅ ${who} finished intake — ${appliance}. ${got} Tap to see the video + model photo (no login): ${view}`;
   try { await sms.sendSms(ownerCell, msg, 'office', 'intake_complete_cockpit'); } catch (_) {}
 }
 
@@ -218,7 +221,7 @@ exports.handler = async function (event) {
       try { const pre = await db.get(`job?id=eq.${g.job_id}&select=intake_done_at&limit=1`); already = !!(pre && pre[0] && pre[0].intake_done_at); } catch (_) {}
       await db.patch(`job?id=eq.${g.job_id}`, { intake_done_at: new Date().toISOString() });
       await note(db, g, '✅ Finished intake — ready to schedule');
-      if (!already) { try { await notifyShopIntakeDone(db, url, g); } catch (_) {} }
+      if (!already) { try { await notifyShopIntakeDone(db, url, g, token); } catch (_) {} }
       return json(200, { ok: true });
     }
 
