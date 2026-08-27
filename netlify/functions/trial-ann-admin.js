@@ -232,7 +232,7 @@ exports.handler = async function (event) {
       }
       const totalCost = Object.values(perType).reduce((s, x) => s + x.cost, 0);
       const topNumbers = Object.entries(perNumber).map(([n, v]) => ({ number: n, records: v.count, cost: Math.round(v.cost * 100) / 100 })).sort((a, b) => b.cost - a.cost).slice(0, 40);
-      return json(200, { ok: true, days, scanned, pages, total_cost: Math.round(totalCost * 100) / 100, by_type: perType, by_number: topNumbers, sample });
+      return json(200, { ok: true, days, scanned, types, total_cost: Math.round(totalCost * 100) / 100, by_type: perType, by_number: topNumbers, sample });
     }
     if (action === 'list') return json(200, await call('GET', '/ai/assistants?page[size]=20'));
     if (action === 'get') return json(200, await call('GET', `/ai/assistants/${q.id}`));
