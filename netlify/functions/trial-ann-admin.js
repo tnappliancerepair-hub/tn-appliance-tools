@@ -238,6 +238,15 @@ exports.handler = async function (event) {
     if (action === 'list') return json(200, await call('GET', '/ai/assistants?page[size]=20'));
     if (action === 'get') return json(200, await call('GET', `/ai/assistants/${q.id}`));
     if (action === 'delete') return json(200, await call('DELETE', `/ai/assistants/${q.id}`));
+    // Change ONLY the voice on an existing assistant — a partial PATCH that leaves the
+    // persona / greeting / tools untouched. Defaults to Brooke.  ?action=setvoice&id=<id>[&voice=Inworld.Max.Brooke]
+    if (action === 'setvoice') {
+      if (!q.id) return json(200, { ok: false, error: 'need ?id=' });
+      const voice = q.voice || VOICE_BROOKE;
+      const res = await call('PATCH', `/ai/assistants/${q.id}`, { voice_settings: { voice, voice_speed: 1.0 } });
+      const a = res.data && (res.data.data || res.data);
+      return json(200, { ok: res.ok, status: res.status, voice, now: a && (a.voice_settings || {}).voice });
+    }
 
     // add_shop — register a NEW shop's config in the data-driven store (Supabase),
     // so a shop can be stood up on a call with NO code edit + deploy. Idempotent by slug
