@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Applications — Ant 🐜</title>
+<style>
+  :root{ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --brand:#5bb537; --brand-ink:#08210a; --bad:#e0564b; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:640px;margin:0 auto;padding:20px 15px 60px}
+  h1{font-size:22px;margin:4px 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:13px}
+  .name{font-weight:800;font-size:18px}
+  .pill{font-size:11px;font-weight:800;padding:3px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em}
+  .pending{background:#fef3c7;color:#92400e}.approved{background:#dcfce7;color:#166534}.declined{background:#33221f;color:#ff9a8d}
+  .kv{font-size:13.5px;color:var(--muted);margin:3px 0}
+  .kv b{color:var(--ink);font-weight:700}
+  .row{display:flex;gap:8px;margin-top:12px}
+  button{flex:1;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;font-weight:800;cursor:pointer}
+  button.approve{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+  button.decline{color:#ff9a8d}
+  button:disabled{opacity:.55}
+  input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit}
+  .gate{max-width:360px;margin:14vh auto;text-align:center}
+  .gate input{margin:12px 0}
+  .result{background:#0e2a12;border:1px solid #274b2c;border-radius:10px;padding:11px 13px;margin-top:10px;font-size:13px;white-space:pre-wrap;word-break:break-word}
+  .center{text-align:center;color:var(--muted);padding:8vh 20px}
+</style>
+</head>
+<body>
+<div id="app"><div class="center">Loading…</div></div>
+<script>
+(function(){
+  var app=document.getElementById('app');
+  var API='/.netlify/functions/shop-application';
+  var secret=sessionStorage.getItem('ant_admin')||'';
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
+
+  function gate(msg){
+    app.innerHTML='<div class="gate"><div style="font-size:34px">🐜</div><h1>Applications</h1><input id="sec" type="password" placeholder="admin secret"><button class="approve" id="go" style="width:100%">Open</button><div class="sub" style="color:#ff9a8d">'+esc(msg||'')+'</div></div>';
+    document.getElementById('go').onclick=function(){ secret=document.getElementById('sec').value.trim(); sessionStorage.setItem('ant_admin',secret); load(); };
+  }
+
+  function load(){
+    app.innerHTML='<div class="center">Loading…</div>';
+    fetch(API+'?action=list&secret='+encodeURIComponent(secret)).then(function(r){ if(r.status===403){throw new Error('bad');} return r.json(); }).then(function(d){
+      if(!d||!d.ok){ gate('Try again.'); return; }
+      render(d.applications||[]);
+    }).catch(function(){ gate(secret?'Wrong secret.':''); });
+  }
+
+  function render(apps){
+    var pending=apps.filter(function(a){return a.status==='pending';});
+    var done=apps.filter(function(a){return a.status!=='pending';});
+    var head='<div class="wrap"><h1>🐜 Applications</h1><div class="sub">'+pending.length+' waiting · tap Approve to provision the whole shop (tenant + login + Ann).</div>';
+    var body=pending.map(cardHtml).join('')||'<div class="card"><div class="kv">No pending applications right now.</div></div>';
+    var hist=done.length?'<div class="sub" style="margin-top:18px">Recent</div>'+done.slice(0,30).map(cardHtml).join(''):'';
+    app.innerHTML=head+body+hist+'</div>';
+    wire();
+  }
+
+  function cardHtml(a){
+    var cls=a.status;
+    var phone=a.has_number?('has a line'+(a.number?' '+esc(a.number):'')):(a.buy_area?('buy a '+esc(a.buy_area)+' number'):'buy a number');
+    return '<div class="card" data-id="'+a.id+'">'+
+      '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div class="name">'+esc(a.name||'—')+'</div><span class="pill '+cls+'">'+esc(a.status)+'</span></div>'+
+      '<div class="kv"><b>'+esc(a.trade||'')+'</b> · '+esc(a.area||'area n/a')+' · '+esc(a.hours||'hours n/a')+'</div>'+
+      '<div class="kv">'+esc(a.owner_name||a.owner_first||'')+' · '+esc(a.owner_email||'')+' · '+esc(a.owner_cell||'')+'</div>'+
+      (a.about?'<div class="kv" style="margin-top:6px">"'+esc(a.about)+'"</div>':'')+
+      '<div class="kv">📞 Ann: '+phone+(a.pay_note?' · 💳 '+esc(a.pay_note):'')+'</div>'+
+      (a.status==='approved'&&a.ann_number?'<div class="kv">✅ live · slug '+esc(a.slug||'')+' · Ann '+esc(a.ann_number)+'</div>':'')+
+      (a.status==='pending'?'<div class="row"><button class="approve" data-approve="'+a.id+'">✅ Approve & set up</button><button class="decline" data-decline="'+a.id+'">Decline</button></div><div class="result hidden" id="res-'+a.id+'" style="display:none"></div>':'')+
+    '</div>';
+  }
+
+  function wire(){
+    app.querySelectorAll('button[data-approve]').forEach(function(b){ b.onclick=function(){ approve(b.getAttribute('data-approve'), b); }; });
+    app.querySelectorAll('button[data-decline]').forEach(function(b){ b.onclick=function(){ if(!confirm('Decline this application?'))return; act('decline',b.getAttribute('data-decline'),b); }; });
+  }
+
+  function approve(id, btn){
+    btn.disabled=true; btn.textContent='Setting up… (~30s)';
+    var res=document.getElementById('res-'+id); if(res){ res.style.display='block'; res.textContent='Provisioning tenant, login, and Ann…'; }
+    fetch(API+'?action=approve&id='+id+'&secret='+encodeURIComponent(secret),{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+      if(d&&d.ok){
+        var L=d.owner_login||{};
+        if(res) res.textContent='✅ LIVE'+(d.ready?'':' (some steps need a look)')+'\nslug: '+(d.slug||'')+'\nAnn number: '+(d.ann_number||'—')+'\nLogin: '+(L.email||'')+'\nTemp password: '+(L.temp_password||'')+'\n\nThey were texted their login + board link.';
+        btn.textContent='✅ Done';
+      } else { btn.disabled=false; btn.textContent='✅ Approve & set up'; if(res) res.textContent='⚠️ '+((d&&d.error)||'failed')+(d&&d.detail?'\n'+JSON.stringify(d.detail):''); }
+    }).catch(function(){ btn.disabled=false; btn.textContent='✅ Approve & set up'; if(res) res.textContent='⚠️ Network error — try again.'; });
+  }
+
+  function act(action, id, btn){
+    btn.disabled=true; btn.textContent='…';
+    fetch(API+'?action='+action+'&id='+id+'&secret='+encodeURIComponent(secret),{method:'POST'}).then(function(r){return r.json();}).then(function(){ load(); });
+  }
+
+  if(secret) load(); else gate();
+})();
+</script>
+</body>
+</html>

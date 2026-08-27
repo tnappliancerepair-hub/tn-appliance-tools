@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Apply — Ant 🐜</title>
+<style>
+  :root{ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --brand:#5bb537; --brand-ink:#08210a; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:560px;margin:0 auto;padding:26px 16px 60px}
+  .logo{font-size:34px}
+  h1{font-size:26px;margin:8px 0 4px}
+  .sub{color:var(--muted);font-size:15px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+  label{display:block;font-size:13px;font-weight:700;margin:12px 0 5px}
+  label .hint{font-weight:400;color:var(--muted)}
+  input,select,textarea{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  textarea{min-height:70px;resize:vertical}
+  .two{display:flex;gap:10px}.two>div{flex:1}
+  .seg{display:flex;gap:8px;margin-top:6px}
+  .seg button{flex:1;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-weight:700;cursor:pointer}
+  .seg button.on{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+  .go{width:100%;padding:15px;border:0;border-radius:12px;background:var(--brand);color:var(--brand-ink);font:inherit;font-weight:800;font-size:17px;cursor:pointer;margin-top:8px}
+  .go:disabled{opacity:.6}
+  .err{color:#ff8a7a;font-size:14px;margin-top:10px;min-height:1em}
+  .center{text-align:center;padding:12vh 20px}
+  .center .big{font-size:52px;margin-bottom:10px}
+  .feat{color:var(--muted);font-size:13.5px;margin:2px 0}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="logo">🐜</div>
+  <h1>Get Ant for your shop</h1>
+  <div class="sub">The AI that answers your phone 24/7, captures the lead, and gets the customer's video + model photo before you ever roll a truck. Tell us about your shop — we'll set you up.</div>
+
+  <div class="card">
+    <div class="feat">✅ Ann answers every call, day or night</div>
+    <div class="feat">✅ You keep full control of scheduling — nothing books itself</div>
+    <div class="feat">✅ Customer sends a video + model # + signs the release before the visit</div>
+    <div class="feat">✅ You take payments your own way — we never touch your money</div>
+  </div>
+
+  <div class="card" id="form">
+    <label>Business name</label><input id="name" placeholder="Joe's Appliance Repair">
+    <label>What do you do?</label>
+    <select id="trade">
+      <option value="appliance">Appliance repair</option>
+      <option value="automotive">Auto repair</option>
+      <option value="dealership">Car dealership</option>
+      <option value="aquarium">Aquarium service</option>
+      <option value="furniture">Furniture</option>
+      <option value="other">Other</option>
+    </select>
+    <label>Service area</label><input id="area" placeholder="Greater Nashville, TN">
+    <label>Hours <span class="hint">— when a real person is available</span></label><input id="hours" placeholder="Mon–Fri 8–5">
+    <label>What should Ann know? <span class="hint">— services, brands, rough pricing she can share</span></label>
+    <textarea id="about" placeholder="We fix refrigerators, washers, dryers, ovens, dishwashers — all major brands. $95 diagnostic, credited to the repair. Owner goes over pricing on the callback."></textarea>
+
+    <div class="two"><div><label>Your first name</label><input id="owner_first" placeholder="Joe"></div><div><label>Your full name</label><input id="owner_name" placeholder="Joe Smith"></div></div>
+    <label>Your email <span class="hint">— becomes your board login</span></label><input id="owner_email" type="email" placeholder="joe@shop.com">
+    <label>Your cell <span class="hint">— where your leads text you</span></label><input id="owner_cell" inputmode="tel" placeholder="(615) 555-1234">
+
+    <label>Phone for Ann</label>
+    <div class="seg"><button type="button" id="segBuy" class="on">Get me a number</button><button type="button" id="segHave">I have one</button></div>
+    <div id="buyBox" style="margin-top:8px"><label>Preferred area code <span class="hint">(optional)</span></label><input id="buy_area" inputmode="numeric" placeholder="615"></div>
+    <div id="haveBox" class="hidden" style="margin-top:8px"><label>Your existing number</label><input id="number" inputmode="tel" placeholder="(615) 555-1234"></div>
+
+    <label>How do you take payment? <span class="hint">(optional — you set this up yourself later)</span></label><input id="pay_note" placeholder="Zelle, Cash App, or your Square/Stripe link">
+
+    <button class="go" id="go">Apply →</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id);};
+  var API='/.netlify/functions/shop-application';
+  var wantNumber='buy';
+  $('segBuy').onclick=function(){ wantNumber='buy'; $('segBuy').classList.add('on'); $('segHave').classList.remove('on'); $('buyBox').classList.remove('hidden'); $('haveBox').classList.add('hidden'); };
+  $('segHave').onclick=function(){ wantNumber='have'; $('segHave').classList.add('on'); $('segBuy').classList.remove('on'); $('haveBox').classList.remove('hidden'); $('buyBox').classList.add('hidden'); };
+  $('go').onclick=function(){
+    var err=$('err'); err.textContent='';
+    var v=function(id){return ($(id).value||'').trim();};
+    if(!v('name')){ err.textContent='Please add your business name.'; return; }
+    if(!v('owner_email')){ err.textContent='Please add your email — that becomes your login.'; return; }
+    if(!v('owner_cell')){ err.textContent='Please add your cell — that\'s where your leads text you.'; return; }
+    var payload={ name:v('name'), trade:$('trade').value, area:v('area'), hours:v('hours'), about:v('about'),
+      owner_first:v('owner_first'), owner_name:v('owner_name'), owner_email:v('owner_email'), owner_cell:v('owner_cell'),
+      pay_note:v('pay_note') };
+    if(wantNumber==='have') payload.number=v('number'); else payload.buy_area=v('buy_area');
+    var go=$('go'); go.disabled=true; go.textContent='Sending…';
+    fetch(API+'?action=submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d&&d.ok){ $('wrap').innerHTML='<div class="center"><div class="big">🐜</div><h1>You\'re in the queue!</h1><div class="sub">Thanks — we\'ll review your shop and reach out to '+ (v('owner_cell')||'you') +' to finish setting up Ant. Usually same day.</div></div>'; return; }
+        go.disabled=false; go.textContent='Apply →'; err.textContent=(d&&d.error)||'Something went wrong — try again.';
+      }).catch(function(){ go.disabled=false; go.textContent='Apply →'; err.textContent='Couldn\'t send — check your connection and try again.'; });
+  };
+})();
+</script>
+</body>
+</html>
