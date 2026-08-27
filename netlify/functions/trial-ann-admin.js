@@ -198,10 +198,15 @@ exports.handler = async function (event) {
       const since = Date.now() - days * 86400000;
       const amt = (c) => { if (c == null) return 0; if (typeof c === 'number') return c; if (typeof c === 'string') return parseFloat(c) || 0; if (typeof c === 'object') return parseFloat(c.amount || c.total || 0) || 0; return 0; };
       const perType = {}; const perNumber = {};
+      const maxPages = Number(q.pages) > 0 ? Math.min(Number(q.pages), 4) : 2;   // stay under Netlify's 26s
       let path = '/detail_records?page[size]=250&sort=-created_at';
       let pages = 0; let stop = false; let scanned = 0; let sample = null;
-      while (path && pages < 8 && !stop) {
-        const r = await call('GET', path);
+      while (path && pages < maxPages && !stop) {
+        const r = await Promise.race([
+          call('GET', path),
+          new Promise((res) => setTimeout(() => res({ ok: false, status: 0, data: { _timeout: true } }), 9000)),
+        ]);
+        if (r.data && r.data._timeout) { stop = true; break; }
         if (!r.ok) return json(200, { ok: false, step: 'detail_records', status: r.status, error: JSON.stringify(r.data).slice(0, 300) });
         const recs = (r.data && r.data.data) || [];
         if (!sample && recs.length) sample = recs.slice(0, 2);
