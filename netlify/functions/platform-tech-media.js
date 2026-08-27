@@ -4,9 +4,10 @@
 // verified server-side; writes go through the platform service key and are scoped to the
 // tech's own shop + the job he's on. Media lands in job_media tagged "Tech photo/video".
 //
-//   POST ?do=photo        { job, access_token, data(base64 dataURL), label? } -> { ok, url }
-//   POST ?do=stream_mint  { job, access_token, bytes, filename }  -> { ok, uploadUrl, uid }
-//   POST ?do=stream_done  { job, access_token, uid, label? }      -> { ok }
+//   POST ?do=photo         { job, access_token, data(base64 dataURL), label? } -> { ok, url }
+//   POST ?do=stream_mint   { job, access_token, bytes, filename }  -> { ok, uploadUrl, uid }
+//   POST ?do=stream_done   { job, access_token, uid, label? }      -> { ok }
+//   POST ?do=delete_media  { job, access_token, id }               -> { ok }
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
@@ -28,6 +29,8 @@ function rest(base, key) {
       const r = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, { method: 'POST', headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': contentType, 'x-upsert': 'true' }, body: buf, signal: AbortSignal.timeout(15000) });
       return r.ok;
     },
+    async del(path) { const r = await fetch(`${base}/rest/v1/${path}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(8000) }); return r.ok; },
+    async storageDelete(bucket, objPath) { try { await fetch(`${base}/storage/v1/object/${bucket}/${objPath}`, { method: 'DELETE', headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(8000) }); } catch (_) {} },
   };
 }
 
@@ -110,6 +113,25 @@ exports.handler = async function (event) {
       if (!uid) return json(400, { ok: false, error: 'uid required' });
       await db.insert('job_media', { company_id: scope.company_id, job_id: jobId, kind: 'video', provider: 'cfstream', ref: uid, label: String(p.label || 'Tech video').slice(0, 80) });
       return json(200, { ok: true });
+    }
+
+    if (doo === 'delete_media') {
+      const id = String(p.id || '').trim();
+      if (!id) return json(400, { ok: false, error: 'id required' });
+      const rows = await db.get(`job_media?id=eq.${id}&job_id=eq.${jobId}&company_id=eq.${scope.company_id}&select=id,provider,ref&limit=1`);
+      const row = rows && rows[0];
+      if (!row) return json(200, { ok: false, error: 'not_found' });
+      // best-effort remove the underlying asset, then the row
+      if (row.provider === 'storage' && row.ref) { await db.storageDelete('intake-photos', row.ref); }
+      if (row.provider === 'cfstream' && row.ref) {
+        try {
+          const acct = await getSecret('CLOUDFLARE_ACCOUNT_ID');
+          const ctok = await getSecret('CLOUDFLARE_STREAM_TOKEN');
+          if (acct && ctok) await fetch(`https://api.cloudflare.com/client/v4/accounts/${acct}/stream/${encodeURIComponent(row.ref)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${ctok}` }, signal: AbortSignal.timeout(8000) });
+        } catch (_) {}
+      }
+      const ok = await db.del(`job_media?id=eq.${id}&company_id=eq.${scope.company_id}`);
+      return json(200, { ok });
     }
 
     return json(200, { ok: false, error: 'unknown do' });

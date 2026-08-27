@@ -97,6 +97,24 @@
   .wvwarn{text-align:center;color:#c67a0f;font-size:13px;font-weight:700;margin-top:9px}
   :root[data-theme="dark"] .wvwarn,:root:not([data-theme="light"]) .wvwarn{color:#f5b451}
   .wvok{text-align:center;color:var(--completed);font-size:13.5px;font-weight:700;margin-top:12px}
+  /* Photos & Video — TN's clean capture tiles + unified grid with delete */
+  .mediahead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
+  .reflink{background:none;border:none;color:#2563eb;font-weight:800;font-size:14px;padding:4px 2px}
+  .capgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+  @media (max-width:340px){ .capgrid{grid-template-columns:repeat(2,1fr)} }
+  .captile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:13px 3px;border:1.5px dashed var(--line);border-radius:13px;background:var(--bg);color:#2563eb;font-weight:800;font-size:12px;text-align:center;line-height:1.12;min-height:84px}
+  .captile .ci{font-size:23px;line-height:1}
+  .tip{background:var(--chip);border-radius:11px;padding:10px 13px;font-size:13px;color:var(--muted);margin:12px 0 2px;line-height:1.4}
+  .mgrid{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+  .mtile{position:relative;width:calc(33.333% - 6px);aspect-ratio:3/4;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#0c0c0c;cursor:pointer}
+  .mtile img,.mtile video{width:100%;height:100%;object-fit:cover;display:block}
+  .mtile .playo{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:30px;text-shadow:0 2px 10px rgba(0,0,0,.7);background:rgba(0,0,0,.14);pointer-events:none}
+  .mtile .vlabel{position:absolute;left:7px;bottom:7px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.02em}
+  .mtile .del{position:absolute;top:6px;right:6px;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,.85);background:#e5484d;color:#fff;font-size:14px;display:grid;place-items:center;box-shadow:0 2px 9px rgba(0,0,0,.4);padding:0;line-height:1}
+  .lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:120;display:grid;place-items:center;padding:18px}
+  .lb .lbx{position:absolute;top:12px;right:16px;color:#fff;font-size:32px;background:none;border:none;font-weight:400;padding:0}
+  .lb img,.lb video{max-width:100%;max-height:86vh;border-radius:12px;background:#000}
+  .lb iframe{width:min(94vw,760px);aspect-ratio:16/9;border:none;border-radius:12px;background:#000}
   .note{background:var(--chip);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--muted)}
   .thr{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;padding:2px}
   .bub{max-width:88%;padding:8px 11px;border-radius:12px;font-size:14px;background:var(--chip);border:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
@@ -161,7 +179,7 @@
 
   function loadJob() {
     var base = 'id,status,problem,availability,access_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,';
-    var tail = 'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes),media:job_media(kind,provider,ref,label),tdr:job_tdr(*)';
+    var tail = 'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes),media:job_media(id,kind,provider,ref,label),tdr:job_tdr(*)';
     var done = function(r){
       if (r.error || !r.data || !r.data[0]) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Couldn\'t open that job. <a href="/platform/tech.html">Back</a></p></div>'; return; }
       job = r.data[0]; render();
@@ -188,17 +206,10 @@
     var phone = (cust.phone||'').replace(/[^0-9+]/g,'');
     var media = job.media || [];
     var isTech = function(m){ return /^tech/i.test(m.label||''); };
-    var cVids = media.filter(function(m){return m.kind==='video'&&!isTech(m);});
-    var cPhos = media.filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&!isTech(m);});
-    var tVids = media.filter(function(m){return m.kind==='video'&&isTech(m);});
-    var tPhos = media.filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&isTech(m);});
-    // Cloudflare Stream clips render in the CF player; Storage-fallback clips render as a plain
-    // <video>. Either way the tech sees the customer's video.
-    var vidPlayer = function(m){ if(m.provider==='storage'){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+esc(m.ref); return '<video class="vid" src="'+u+'" controls playsinline preload="metadata"></video>'; } return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; };
-    var photoThumbs = function(list){ return list.length ? '<div class="thumbs">'+list.map(function(m){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+m.ref; return '<a target="_blank" rel="noopener" href="'+esc(u)+'"><img src="'+esc(u)+'"></a>'; }).join('')+'</div>' : ''; };
-    var vidHtml = cVids.length ? cVids.map(vidPlayer).join('') : '<div class="note">No video sent yet.</div>';
-    var phoHtml = photoThumbs(cPhos);
-    var techMediaHtml = (tVids.map(vidPlayer).join('')) + photoThumbs(tPhos);
+    // Unified media grid (customer shots first, then the tech's) — every pic + clip in one
+    // clean grid: tap to view big, red trash to remove. TN's setup, ported.
+    var ordered = media.filter(function(m){return !isTech(m);}).concat(media.filter(isTech));
+    var mediaGrid = ordered.length ? '<div class="mgrid">'+ordered.map(mediaTile).join('')+'</div>' : '<div class="note" style="margin-top:12px">No photos or video yet — snap the appliance, the model sticker, and a short clip of the problem.</div>';
 
     app.innerHTML =
       '<header><a class="back" href="/platform/tech.html">‹ My Jobs</a><span class="shop" id="shop"></span></header>' +
@@ -232,11 +243,25 @@
             '<div id="wvBox" class="hidden" style="margin-top:10px"></div>') +
         '</div>' +
 
-      // ── From the customer ──
-      '<div class="card"><div class="sec">From the customer</div>' +
-        (job.availability?'<div class="kv">📅 <b>'+esc(job.availability)+'</b></div>':'') +
-        (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
-        '<div style="margin-top:10px">'+vidHtml+'</div>'+phoHtml+'</div>' +
+      // ── Photos & Video — capture tiles + the unified grid (TN's clean setup) ──
+      '<div class="card">' +
+        '<div class="mediahead"><div class="sec" style="margin:0">📸 Photos &amp; Video</div><button class="reflink" id="mediaRefresh">↻ refresh</button></div>' +
+        '<div class="capgrid">' +
+          '<button class="captile" id="capPhotoTake"><span class="ci">📷</span>Take photo<input type="file" accept="image/*" capture="environment" id="fPhotoTake" class="hidden"></button>' +
+          '<button class="captile" id="capPhotoLib"><span class="ci">🖼️</span>Photo library<input type="file" accept="image/*" multiple id="fPhotoLib" class="hidden"></button>' +
+          '<button class="captile" id="capVidRec"><span class="ci">📹</span>Record video<input type="file" accept="video/*" capture="environment" id="fVidRec" class="hidden"></button>' +
+          '<button class="captile" id="capVidLib"><span class="ci">🎞️</span>Video library<input type="file" accept="video/*" id="fVidLib" class="hidden"></button>' +
+        '</div>' +
+        '<div class="tip">💡 A <b>15–30 sec</b> clip uploads fastest. Longer videos work too — they just take a little longer to upload &amp; process.</div>' +
+        mediaGrid +
+        '<div class="note hidden" id="tmMsg"></div>' +
+      '</div>' +
+      // ── From the customer (availability + access) ──
+      ((job.availability||job.access_notes) ?
+        '<div class="card"><div class="sec">From the customer</div>' +
+          (job.availability?'<div class="kv">📅 <b>'+esc(job.availability)+'</b></div>':'') +
+          (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
+        '</div>' : '') +
 
       '<div class="card"><div class="sec">📋 Heads-up for the office</div>' +
         '<div class="note" style="margin:-2px 0 9px">Flag this job so the office blocks the right slot next time — a wider window, or a second tech.</div>' +
@@ -257,13 +282,6 @@
         '<div class="note" style="margin:-2px 0 8px">Anything off? Fix it here — it updates the office tile &amp; the customer\'s record too.</div>' +
         '<button class="full" id="jdToggle">✏️ Edit job details</button>' +
         '<div id="jdBox" class="hidden" style="margin-top:10px"></div></div>' +
-
-      '<div class="card"><div class="sec">My photos &amp; videos</div>' +
-        (techMediaHtml || '<div class="note">Add your own shots of the appliance, the part, or the fix.</div>') +
-        '<div class="btnrow" style="margin-top:10px">' +
-          '<button id="tphBtn">📷 Add photo<input type="file" accept="image/*" capture="environment" id="tphFile" class="hidden"></button>' +
-          '<button id="tvidBtn">🎥 Add video<input type="file" accept="video/*" capture="environment" id="tvidFile" class="hidden"></button>' +
-        '</div><div class="note hidden" id="tmMsg"></div></div>' +
 
       '<div class="card"><div class="sec">Model number</div>' +
         '<div class="model"><span class="mval" id="modelVal">'+esc(a.model||'—')+'</span>'+(a.brand?'<span class="unit">'+esc(a.brand)+'</span>':'')+'</div>' +
@@ -425,13 +443,23 @@
     ocrBtn.onclick = function(e){ if (e.target !== ocrFile) ocrFile.click(); };
     ocrFile.onchange = function(){ if (ocrFile.files && ocrFile.files[0]) runOcr(ocrFile.files[0]); };
 
-    // tech's own photos + videos
-    var tphBtn=document.getElementById('tphBtn'), tphFile=document.getElementById('tphFile');
-    tphBtn.onclick=function(e){ if(e.target!==tphFile) tphFile.click(); };
-    tphFile.onchange=function(){ if(tphFile.files&&tphFile.files[0]) addTechPhoto(tphFile.files[0]); };
-    var tvidBtn=document.getElementById('tvidBtn'), tvidFile=document.getElementById('tvidFile');
-    tvidBtn.onclick=function(e){ if(e.target!==tvidFile) tvidFile.click(); };
-    tvidFile.onchange=function(){ if(tvidFile.files&&tvidFile.files[0]) addTechVideo(tvidFile.files[0]); };
+    // Photos & Video — four clean capture tiles (take / library × photo / video).
+    var capWire=function(btnId,fileId,handler){
+      var b=document.getElementById(btnId), f=document.getElementById(fileId); if(!b||!f) return;
+      b.onclick=function(e){ if(e.target!==f) f.click(); };
+      f.onchange=function(){ if(f.files) for(var i=0;i<f.files.length;i++) handler(f.files[i]); f.value=''; };
+    };
+    capWire('capPhotoTake','fPhotoTake',addTechPhoto);
+    capWire('capPhotoLib','fPhotoLib',addTechPhoto);
+    capWire('capVidRec','fVidRec',addTechVideo);
+    capWire('capVidLib','fVidLib',addTechVideo);
+    var mref=document.getElementById('mediaRefresh'); if(mref) mref.onclick=loadJob;
+    // Grid: tap a tile to view big; tap the red trash to remove.
+    var mg=app.querySelector('.mgrid');
+    if(mg) mg.onclick=function(e){
+      var d=e.target.closest('.del'); if(d){ e.stopPropagation(); delMedia(d.getAttribute('data-del')); return; }
+      var t=e.target.closest('.mtile'); if(t) openMedia(t.getAttribute('data-kind'),t.getAttribute('data-provider'),t.getAttribute('data-ref'));
+    };
 
     document.getElementById('brainBtn').onclick = brainLookup;
     app.querySelectorAll('button[data-src]').forEach(function(b){ b.onclick=function(){ openParts(b.getAttribute('data-src')); }; });
@@ -714,6 +742,36 @@
     if(job.started_at) p.push('▶️ Started '+tf(job.started_at));
     if(job.status==='completed'&&job.completed_at) p.push('✅ Done '+tf(job.completed_at));
     return p.join(' · ');
+  }
+
+  // ── MEDIA — one clean grid: tap to view big, red trash to remove ──
+  function mediaSrc(m){ return (cfg.url||'')+'/storage/v1/object/public/intake-photos/'+m.ref; }
+  function mediaTile(m){
+    var del='<button class="del" data-del="'+esc(m.id)+'" aria-label="Remove">🗑</button>';
+    if(m.kind==='video'){
+      var poster = m.provider==='cfstream'
+        ? '<img src="https://videodelivery.net/'+esc(m.ref)+'/thumbnails/thumbnail.jpg?time=1s&height=440" loading="lazy" onerror="this.style.opacity=0">'
+        : '<video src="'+esc(mediaSrc(m))+'" muted preload="metadata" playsinline></video>';
+      return '<div class="mtile" data-kind="video" data-provider="'+esc(m.provider)+'" data-ref="'+esc(m.ref)+'">'+poster+'<span class="playo">▶</span><span class="vlabel">video</span>'+del+'</div>';
+    }
+    return '<div class="mtile" data-kind="photo" data-provider="'+esc(m.provider)+'" data-ref="'+esc(m.ref)+'"><img src="'+esc(mediaSrc(m))+'" loading="lazy">'+del+'</div>';
+  }
+  function openMedia(kind,provider,ref){
+    var inner;
+    if(kind==='video'&&provider==='cfstream') inner='<iframe src="https://iframe.cloudflarestream.com/'+esc(ref)+'?autoplay=true" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>';
+    else if(kind==='video') inner='<video src="'+esc((cfg.url||'')+'/storage/v1/object/public/intake-photos/'+ref)+'" controls autoplay playsinline></video>';
+    else inner='<img src="'+esc((cfg.url||'')+'/storage/v1/object/public/intake-photos/'+ref)+'">';
+    var lb=document.createElement('div'); lb.className='lb'; lb.innerHTML='<button class="lbx" aria-label="Close">×</button>'+inner;
+    lb.onclick=function(e){ if(e.target===lb||(e.target.className||'')==='lbx'){ try{ document.body.removeChild(lb); }catch(_){ } } };
+    document.body.appendChild(lb);
+  }
+  function delMedia(id){
+    if(!id||!window.confirm('Remove this from the job?')) return;
+    token().then(function(tok){
+      fetch('/.netlify/functions/platform-tech-media?do=delete_media',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,id:id})})
+        .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ loadJob(); } else { alert('Couldn\'t remove that — try again.'); } })
+        .catch(function(){ alert('Couldn\'t reach the server — try again.'); });
+    });
   }
 
   function onMyWay(){
