@@ -32,15 +32,40 @@ async function fromMirror() {
 }
 
 async function fromFeed() {
-  const r = await fetch(`${SITE}/.netlify/functions/board-feed`, { signal: AbortSignal.timeout(24000) });
+  const r = await fetch(`${SITE}/.netlify/functions/board-feed`, { signal: AbortSignal.timeout(8000) });
   const d = await r.json();
   return (d && Array.isArray(d.items)) ? d.items : null;
 }
 
+// Last-good mirror snapshot held in the warm container. Once the mirror has answered
+// even once, a later slow/cold read serves this instantly instead of falling through to
+// the slow Xano feed — which is what caused the intermittent 20s board hangs.
+let _lastGood = null;
+
 exports.handler = async function () {
   let items = null, src = 'mirror';
-  try { items = await fromMirror(); } catch (_) { items = null; }
-  if (!items) { src = 'feed_fallback'; try { items = await fromFeed(); } catch (_) { items = null; } }
+  // Cap the mirror read tight (6s) so a cold/slow Supabase read can't hang the board.
+  try {
+    const raced = await Promise.race([
+      fromMirror(),
+      new Promise((res) => setTimeout(() => res('__slow__'), 6000)),
+    ]);
+    items = raced === '__slow__' ? null : raced;
+  } catch (_) { items = null; }
+
+  if (Array.isArray(items) && items.length) {
+    _lastGood = items;                                  // remember the good result
+  } else if (_lastGood) {
+    items = _lastGood; src = 'mirror_cached';           // slow this instant → serve last-good, never hang on Xano
+  } else {
+    src = 'feed_fallback';                              // nothing cached yet → bounded Xano last resort
+    try {
+      items = await Promise.race([
+        fromFeed(),
+        new Promise((res) => setTimeout(() => res(null), 8000)),
+      ]);
+    } catch (_) { items = null; }
+  }
 
   if (!items) {
     return { statusCode: 502, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }, body: JSON.stringify({ ok: false, error: 'no_source' }) };
