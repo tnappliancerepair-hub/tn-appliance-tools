@@ -50,13 +50,25 @@ Rules:
 | **Pipeline** | scheduled / awaiting-parts / in-progress / completed | ✅ now |
 | **Warranty vs cash** | mix; parts-awaiting aging | ✅ now (~97% warranty at TN) |
 
-## Leaderboard (tech side) — built to LIFT, not crush
-Multiple crowns so everyone can win one: 🥇 First-Stop King · ⚡ Workhorse (most jobs) ·
-🎯 Sharpest Diagnosis (first-guess part accuracy) · 💚 Cleanest Work (fewest callbacks) ·
-⭐ Customer Favorite (review stars) · 💵 Top Upseller. Plus a blended **Tech of the Month**
-(with a real reward). Fairness guards: **min 10 jobs/month to be ranked**; **recommend-
-replacement is NEVER a leaderboard race**; **first-stop counts warranty-part backorders as a
-parts miss, not the tech's.** Leaderboard = PERFORMANCE, never each other's pay.
+## Leaderboard (tech side) — built to LIFT, not crush — LOCKED 2026-08-27
+Eight crowns so everyone can win one (validated against field-service research — FTFR + 30-day
+callback are the industry's #1/#2 KPIs):
+| Crown | Metric | Data |
+|---|---|---|
+| 🥇 First-Stop King | first-time fix rate (fixed visit 1, no return) | TDR/return-trip |
+| 💚 Cleanest Work | lowest callback rate (same machine ≤30d) | TDR + unit linkage |
+| 💵 Top Upseller | upsell/add-on revenue $ | add-on tracking |
+| 🎯 Best Attach Rate | % of jobs with an add-on (fair to low-volume) | add-on tracking |
+| ⭐ Customer Favorite | review rating / CSAT | review capture |
+| ⚡ Workhorse | jobs completed | mirrored now (needs per-tech ✅ mapped) |
+| 🧠 Sharpest Diagnosis | first-guess part accuracy (beat Ant) | brain predict/grade |
+| 🏅 Straight Shooter | % of replace recommendations the vendor APPROVED | TDR + vendor status |
+Plus a blended **Tech of the Month** (real reward). **Recommend-replacement is shown as a
+per-tech stat but ranked ONLY via Straight Shooter (accuracy), never raw count** — ranking raw
+count rewards dodging hard repairs. Fairness guards: **min ~10 jobs/month to be ranked**;
+**first-stop counts a warranty-part backorder as a parts miss, not the tech's**; **attach-rate +
+accuracy crowns let a lower-volume, high-quality tech still win.** Leaderboard = PERFORMANCE,
+never each other's pay. Research: FTFR industry avg ~80%; failed first visit → 2.7 visits, +13 days.
 
 ## Owner app — v1 scope + roadmap
 **v1 (build now):** owner scoreboard, RLS-scoped to the company, from real data —

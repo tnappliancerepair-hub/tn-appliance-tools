@@ -94,6 +94,17 @@ async function syncTnToPlatform(limit) {
   const upUnit = await upsert(url, key, 'unit', unitRows, 'company_id,xano_id');
   const unitIdByXanoJob = new Map(upUnit.map((r) => [Number(r.xano_id), r.id]));
 
+  // Xano tech id -> platform technician uuid, so every job carries its tech and the
+  // per-tech KPIs + leaderboard resolve. (Crew rows seeded with xano_tech_id.)
+  const techByXano = new Map();
+  try {
+    const tr = await fetch(`${url}/rest/v1/technician?company_id=eq.${TN_COMPANY}&select=id,xano_tech_id`, {
+      headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(8000),
+    });
+    const td = await tr.json();
+    if (Array.isArray(td)) td.forEach((x) => { if (x.xano_tech_id != null) techByXano.set(Number(x.xano_tech_id), x.id); });
+  } catch (_) { /* leave techs unmapped rather than fail the whole mirror */ }
+
   // 3) jobs
   const jobRows = jobs.map((j) => {
     const customer_id = custIdByXano.get(Number(j.customer_id));
@@ -105,6 +116,7 @@ async function syncTnToPlatform(limit) {
     return {
       company_id: TN_COMPANY, xano_id: Number(j.id),
       customer_id, unit_id,
+      technician_id: techByXano.get(Number(j.technician_id)) || null,
       status: mapStatus(j),
       problem: String(j.problem_summary || ''),
       source: String(j.intake_source || 'xano_mirror'),
