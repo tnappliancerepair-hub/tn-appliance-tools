@@ -102,7 +102,7 @@ exports.handler = async function (event) {
   // this is a fresh lead (not a duplicate re-fire).
   let customerTexted = false;
   if (!deduped && phone && board.ok && board.intake_url) {
-    const cmsg = `${shop.name}: thanks for calling! Send a quick video + model-sticker photo & pick your days here so we show up ready: ${board.intake_url}`;
+    const cmsg = `${shop.name}: help us help you faster! When you're near your machine, tap here and show us what's going on — shoot a quick video from any phone, snap the model sticker, and pick your days so we show up ready to fix it: ${board.intake_url}`;
     try { customerTexted = await sendSms(phone, cmsg, 'customer', 'trial_ann_intake'); } catch (_) {}
   }
 
