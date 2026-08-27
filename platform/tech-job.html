@@ -115,6 +115,29 @@
   .lb .lbx{position:absolute;top:12px;right:16px;color:#fff;font-size:32px;background:none;border:none;font-weight:400;padding:0}
   .lb img,.lb video{max-width:100%;max-height:86vh;border-radius:12px;background:#000}
   .lb iframe{width:min(94vw,760px);aspect-ratio:16/9;border:none;border-radius:12px;background:#000}
+  /* Parts for this job — per-part card: order / claim-only, then Used / Return / Not here */
+  .cbwarn{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.35);border-radius:11px;padding:10px 13px;font-size:13px;font-weight:700;color:#c67a0f;margin-bottom:12px}
+  :root[data-theme="dark"] .cbwarn,:root:not([data-theme="light"]) .cbwarn{color:#f5b451}
+  .pcard{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;background:var(--bg)}
+  .pcard .pname{font-weight:800;font-size:16px;line-height:1.25}
+  .pcard .pnum{font-family:ui-monospace,Menlo,monospace;color:var(--muted);font-size:13px;margin-top:3px}
+  .pordbtn{width:100%;margin-top:11px;background:transparent;border:1.5px solid var(--in_progress);color:var(--in_progress);font-weight:800}
+  .pordbtn.sel{background:var(--in_progress);color:#fff;border-color:transparent}
+  .pclaimbtn{width:100%;margin-top:8px;background:transparent;border:1.5px solid #7c5cff;color:#7c5cff;font-weight:800}
+  .pclaimbtn.sel{background:#7c5cff;color:#fff;border-color:transparent}
+  .parrive{font-size:12.5px;color:var(--muted);margin:12px 0 7px;font-weight:600}
+  .pdisp{display:flex;gap:8px}
+  .pdisp button{flex:1;font-weight:800;border:1.5px solid var(--line);background:var(--panel)}
+  .pdisp button.pu.sel{background:#34a853;color:#fff;border-color:transparent}
+  .pdisp button.pr.sel{background:var(--in_progress);color:#fff;border-color:transparent}
+  .pdisp button.pn.sel{background:#e5484d;color:#fff;border-color:transparent}
+  .pphoto{display:flex;align-items:center;gap:10px;margin-top:11px}
+  .pphoto .snap{width:56px;height:56px;border:1.5px dashed var(--line);border-radius:11px;display:grid;place-items:center;font-size:22px;background:var(--panel);cursor:pointer;flex:0 0 auto}
+  .pphoto img{width:56px;height:56px;object-fit:cover;border-radius:11px;border:1px solid var(--line);cursor:pointer}
+  .pphoto .pptxt{font-size:12.5px;color:var(--muted)}
+  .paddrow{display:flex;gap:8px;margin-top:4px}
+  .paddrow input{flex:1}
+  .pdel{background:none;border:none;color:#e5484d;font-weight:800;font-size:13px;padding:6px 2px;margin-top:6px}
   .note{background:var(--chip);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--muted)}
   .thr{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;padding:2px}
   .bub{max-width:88%;padding:8px 11px;border-radius:12px;font-size:14px;background:var(--chip);border:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
@@ -363,6 +386,14 @@
           '<button class="primary full" id="saveTdr">Save report + finish</button><div class="err" id="tdrErr"></div>' +
         '</div></div>' +
 
+      // ── Parts for this job — TN's per-part tracker (order / claim-only, then used/return/not-here) ──
+      '<div class="card" id="partsCard"><div class="sec">📦 Parts for this job</div>' +
+        '<div class="note" style="margin:-2px 0 11px">Add each part you need. Tap <b>Please order</b> to put it on the office queue, or <b>just the part #</b> to log it for the claim. Once it arrives: <b>Used</b> if you installed it, <b>Return</b> if it ships back, <b>Not here</b> if the customer doesn\'t have it.</div>' +
+        '<div id="partsBox"><div class="note">Loading…</div></div>' +
+        '<div class="paddrow"><input id="pAddName" placeholder="Part name (e.g. water valve)"><input id="pAddNum" placeholder="Part #"></div>' +
+        '<button class="full primary" id="pAddBtn" style="margin-top:8px">➕ Add this part</button>' +
+        '<div class="err" id="pAddErr"></div></div>' +
+
       '<div class="card" id="payCard"><div class="sec">💵 Get paid</div>' +
         '<div id="payStatus" class="note" style="margin:-2px 0 10px">Set the total, then text the invoice or collect it right here.</div>' +
         '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:0 0 4px">Total to collect</label>' +
@@ -393,6 +424,7 @@
     autoModel();
     loadInvoice();
     loadThread();
+    loadParts();
   }
 
   function wire() {
@@ -460,6 +492,22 @@
       var d=e.target.closest('.del'); if(d){ e.stopPropagation(); delMedia(d.getAttribute('data-del')); return; }
       var t=e.target.closest('.mtile'); if(t) openMedia(t.getAttribute('data-kind'),t.getAttribute('data-provider'),t.getAttribute('data-ref'));
     };
+
+    // Parts tracker — add a part + per-part order/disposition/photo taps (delegated).
+    var pAdd=document.getElementById('pAddBtn'); if(pAdd) pAdd.onclick=addPart;
+    var pBox=document.getElementById('partsBox');
+    if(pBox) pBox.onclick=function(e){
+      var b=e.target.closest('[data-pact]'); if(!b) return;
+      var id=b.getAttribute('data-pid'), act=b.getAttribute('data-pact'), val=b.getAttribute('data-pval');
+      if(act==='order') partOrder(id,val);
+      else if(act==='disp') partDisp(id,val);
+      else if(act==='del') delPart(id);
+      else if(act==='photo'){ var f=pBox.querySelector('input[data-pfile="'+id+'"]'); if(f) f.click(); }
+      else if(act==='viewphoto') openMedia('photo','storage',val);
+    };
+    if(pBox) pBox.addEventListener('change',function(e){
+      var f=e.target.closest('input[data-pfile]'); if(f&&f.files&&f.files[0]){ partPhoto(f.getAttribute('data-pfile'), f.files[0]); f.value=''; }
+    });
 
     document.getElementById('brainBtn').onclick = brainLookup;
     app.querySelectorAll('button[data-src]').forEach(function(b){ b.onclick=function(){ openParts(b.getAttribute('data-src')); }; });
@@ -772,6 +820,91 @@
         .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ loadJob(); } else { alert('Couldn\'t remove that — try again.'); } })
         .catch(function(){ alert('Couldn\'t reach the server — try again.'); });
     });
+  }
+
+  // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
+  function loadParts(){
+    var box=document.getElementById('partsBox'); if(!box) return;
+    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref').eq('job_id',jobId).order('created_at').then(function(r){
+      if(r.error){
+        var card=document.getElementById('partsCard');
+        if(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')){ if(card) card.classList.add('hidden'); }
+        else box.innerHTML='<div class="note">Couldn\'t load parts.</div>';
+        return;
+      }
+      renderParts(r.data||[]);
+    });
+  }
+  function renderParts(list){
+    var box=document.getElementById('partsBox'); if(!box) return;
+    var toReturn=list.filter(function(p){return p.disposition==='return';}).length;
+    var warn=toReturn?'<div class="cbwarn">🔁 '+toReturn+' to ship back — send them or the shop eats a chargeback.</div>':'';
+    box.innerHTML = warn + (list.length ? list.map(partCard).join('') : '<div class="note" style="margin-bottom:2px">No parts yet — add the part(s) you need below.</div>');
+  }
+  function partCard(p){
+    var os=p.order_status||'', dp=p.disposition||'';
+    var photo = p.photo_ref
+      ? '<div class="pphoto"><img data-pact="viewphoto" data-pval="'+esc(p.photo_ref)+'" src="'+esc((cfg.url||'')+'/storage/v1/object/public/intake-photos/'+p.photo_ref)+'"><span class="pptxt">✓ Photo on file — tap to view</span></div>'
+      : '<div class="pphoto"><div class="snap" data-pact="photo" data-pid="'+esc(p.id)+'">📷</div><span class="pptxt">Optional: snap this part (proof of what you used / sent back)<input type="file" accept="image/*" capture="environment" data-pfile="'+esc(p.id)+'" class="hidden"></span></div>';
+    return '<div class="pcard">' +
+      '<div class="pname">'+esc(p.name||'Part')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+'</div>' +
+      (p.number?'<div class="pnum">🔩 '+esc(p.number)+'</div>':'') +
+      '<button class="pordbtn'+((os==='to_order'||os==='ordered')?' sel':'')+'" data-pact="order" data-pid="'+esc(p.id)+'" data-pval="to_order">📦 '+(os==='ordered'?'Ordered':'Please order this part')+'</button>' +
+      '<button class="pclaimbtn'+(os==='claim_only'?' sel':'')+'" data-pact="order" data-pid="'+esc(p.id)+'" data-pval="claim_only">📋 Just the part # for the claim (not ordered)</button>' +
+      '<div class="parrive">Once it arrives + you install it:</div>' +
+      '<div class="pdisp">' +
+        '<button class="pu'+(dp==='used'?' sel':'')+'" data-pact="disp" data-pid="'+esc(p.id)+'" data-pval="used">✅ Used</button>' +
+        '<button class="pr'+(dp==='return'?' sel':'')+'" data-pact="disp" data-pid="'+esc(p.id)+'" data-pval="return">↩️ Return</button>' +
+        '<button class="pn'+(dp==='not_here'?' sel':'')+'" data-pact="disp" data-pid="'+esc(p.id)+'" data-pval="not_here">❌ Not here</button>' +
+      '</div>' + photo +
+      '<button class="pdel" data-pact="del" data-pid="'+esc(p.id)+'">Remove part</button>' +
+    '</div>';
+  }
+  function addPart(){
+    var nm=(document.getElementById('pAddName').value||'').trim(), num=(document.getElementById('pAddNum').value||'').trim();
+    var err=document.getElementById('pAddErr'); err.textContent='';
+    if(!nm && !num){ err.textContent='Add a part name or number.'; return; }
+    var btn=document.getElementById('pAddBtn'); btn.disabled=true; btn.textContent='Adding…';
+    sb.from('job_part').insert({company_id:me.company_id, job_id:jobId, name:nm, number:num}).then(function(r){
+      btn.disabled=false; btn.textContent='➕ Add this part';
+      if(r.error){ err.textContent=/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')?'Parts tracking turns on once migration 019 is run in Supabase.':r.error.message; return; }
+      document.getElementById('pAddName').value=''; document.getElementById('pAddNum').value=''; loadParts();
+    });
+  }
+  function partOrder(id,val){
+    var btn=document.querySelector('[data-pact="order"][data-pid="'+id+'"][data-pval="'+val+'"]');
+    var next=(btn&&btn.classList.contains('sel'))?null:val;
+    sb.from('job_part').update({order_status:next}).eq('id',id).then(function(r){
+      if(r.error){ alert(r.error.message); return; }
+      if(next==='to_order'){ sb.from('job').update({status:'awaiting_parts'}).eq('id',jobId).then(function(){ if(job) job.status='awaiting_parts'; loadParts(); }); }
+      else loadParts();
+    });
+  }
+  function partDisp(id,val){
+    var btn=document.querySelector('[data-pact="disp"][data-pid="'+id+'"][data-pval="'+val+'"]');
+    var next=(btn&&btn.classList.contains('sel'))?null:val;
+    sb.from('job_part').update({disposition:next}).eq('id',id).then(function(r){ if(r.error){ alert(r.error.message); return; } loadParts(); });
+  }
+  function delPart(id){
+    if(!window.confirm('Remove this part?')) return;
+    sb.from('job_part').delete().eq('id',id).then(function(r){ if(r.error){ alert(r.error.message); return; } loadParts(); });
+  }
+  function partPhoto(id,file){
+    var img=new Image(), url=URL.createObjectURL(file);
+    img.onload=function(){
+      var max=1400,w=img.width,h=img.height; if(Math.max(w,h)>max){var s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url);
+      var data=cv.toDataURL('image/jpeg',0.8);
+      token().then(function(tok){
+        fetch('/.netlify/functions/platform-tech-media?do=photo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,data:data,label:'Part photo'})})
+          .then(function(r){return r.json();}).then(function(d){
+            if(d&&d.ok&&d.url){ var path=(d.url.split('/intake-photos/')[1])||''; sb.from('job_part').update({photo_ref:path}).eq('id',id).then(function(){ loadParts(); }); }
+            else alert('Couldn\'t add that photo — try again.');
+          }).catch(function(){ alert('Couldn\'t reach the server — try again.'); });
+      });
+    };
+    img.onerror=function(){ alert('That file didn\'t work — try a photo.'); };
+    img.src=url;
   }
 
   function onMyWay(){
