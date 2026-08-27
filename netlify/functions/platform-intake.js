@@ -37,6 +37,14 @@ function rest(base, key) {
       const r = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, { method: 'POST', headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': contentType, 'x-upsert': 'true' }, body: buf, signal: AbortSignal.timeout(15000) });
       return r.ok;
     },
+    // Mint a Supabase Storage signed upload URL so the browser can PUT a big file (a video)
+    // straight to Storage with no session — the fallback channel when Cloudflare is down.
+    async signUpload(bucket, path) {
+      const r = await fetch(`${base}/storage/v1/object/upload/sign/${bucket}/${path}`, { method: 'POST', headers: H, body: '{}', signal: AbortSignal.timeout(8000) });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d || !d.url) return null;
+      return `${base}/storage/v1${d.url}`;   // d.url = /object/upload/sign/<bucket>/<path>?token=<jwt>
+    },
   };
 }
 
@@ -142,6 +150,17 @@ exports.handler = async function (event) {
       const uploadUrl = r.headers.get('location') || '';
       if (!uploadUrl) { let d = ''; try { d = await r.text(); } catch (_) {} return json(200, { ok: false, error: 'cf_no_location', status: r.status, detail: d.slice(0, 200) }); }
       return json(200, { ok: true, uploadUrl, uid });
+    }
+
+    if (doo === 'storage_sign') {
+      // Fallback for video: mint a direct-to-Storage upload URL (public intake-photos bucket,
+      // under a vid/ path). Used only when Cloudflare Stream can't be reached — so a clip is
+      // never lost to a Cloudflare hiccup. Trade-agnostic; ref recorded via do=media.
+      const ext = (String(p.kind) === 'photo') ? 'jpg' : 'mp4';
+      const path = `vid/${g.company_id}/${g.job_id}/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
+      const putUrl = await db.signUpload('intake-photos', path);
+      if (!putUrl) return json(200, { ok: false, error: 'sign_failed' });
+      return json(200, { ok: true, putUrl, path, publicUrl: `${url}/storage/v1/object/public/intake-photos/${path}` });
     }
 
     if (doo === 'media') {

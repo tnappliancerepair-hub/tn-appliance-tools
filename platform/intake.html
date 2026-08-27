@@ -163,20 +163,48 @@
     var row = document.getElementById('vidRow'), prog = document.getElementById('vidProg'), bar = prog.firstChild;
     videoState = 'uploading';
     row.textContent = 'Preparing upload…'; prog.style.display = 'block'; bar.style.width = '3%';
+    var triedFallback = false;
     api('stream_upload', { bytes: file.size, filename: file.name || 'video.mp4' }).then(function (r) {
-      if (!r || !r.ok || !r.uploadUrl) { row.textContent = 'Couldn\'t start the video upload — you can skip this and we\'ll grab it on site.'; prog.style.display='none'; return; }
-      if (!window.tus) { row.textContent = 'Video tool didn\'t load — try reopening the link.'; prog.style.display='none'; return; }
+      // Cloudflare can't be reached (down / not configured) OR the tus lib didn't load →
+      // straight to the Storage fallback so the clip still lands. Never lose a video.
+      if (!r || !r.ok || !r.uploadUrl || !window.tus) { triedFallback = true; videoFallback(file); return; }
       var up = new window.tus.Upload(file, {
         // Cloudflare Stream over resumable tus — the weak-signal-proof channel. Long retry
         // ladder so a truck/driveway dead-spot resumes the SAME upload instead of failing.
         uploadUrl: r.uploadUrl, chunkSize: 5 * 1024 * 1024,
         retryDelays: [0, 3000, 5000, 10000, 20000, 30000], removeFingerprintOnSuccess: true,
         metadata: { filename: file.name || 'video.mp4', filetype: file.type || 'video/mp4' },
-        onError: function(){ videoState = 'error'; row.textContent = 'Upload hiccuped — tap Record/Upload to try again.'; prog.style.display='none'; },
+        onError: function(){ if (!triedFallback) { triedFallback = true; row.textContent = 'Trying a backup upload…'; videoFallback(file); } else { videoState = 'error'; row.textContent = 'Upload hiccuped — tap Record/Upload to try again.'; prog.style.display='none'; } },
         onProgress: function(sent, total){ var pct = Math.max(3, Math.round(sent/total*100)); bar.style.width = pct + '%'; row.textContent = 'Uploading… ' + pct + '%'; },
         onSuccess: function(){ bar.style.width = '100%'; row.textContent = 'Saving your video…'; saveVideoRecord(r.uid, 0); },
       });
       up.start();
+    });
+  }
+  // FALLBACK CHANNEL: upload the raw clip straight to Supabase Storage via a server-minted
+  // signed URL (no session, handles big files). Only runs when Cloudflare Stream fails — so a
+  // Cloudflare outage can't cost us the video.
+  function videoFallback(file) {
+    var row = document.getElementById('vidRow'), prog = document.getElementById('vidProg'), bar = prog.firstChild;
+    videoState = 'uploading'; prog.style.display = 'block'; bar.style.width = '5%'; row.textContent = 'Uploading (backup)…';
+    api('storage_sign', { kind: 'video', filename: file.name || 'video.mp4' }).then(function (r) {
+      if (!r || !r.ok || !r.putUrl) { videoState = 'error'; row.textContent = 'Couldn\'t upload the video — tap Record/Upload to try again.'; prog.style.display='none'; return; }
+      var xhr = new XMLHttpRequest();
+      xhr.open('PUT', r.putUrl, true);
+      xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+      xhr.setRequestHeader('x-upsert', 'true');
+      xhr.upload.onprogress = function(e){ if (e.lengthComputable) { var pct = Math.max(5, Math.round(e.loaded/e.total*100)); bar.style.width = pct + '%'; row.textContent = 'Uploading (backup)… ' + pct + '%'; } };
+      xhr.onload = function(){ if (xhr.status >= 200 && xhr.status < 300) { bar.style.width = '100%'; row.textContent = 'Saving your video…'; saveStorageVideo(r.path, 0); } else { videoState = 'error'; row.textContent = 'Couldn\'t upload the video — tap Record/Upload to try again.'; prog.style.display='none'; } };
+      xhr.onerror = function(){ videoState = 'error'; row.textContent = 'Couldn\'t upload the video — tap Record/Upload to try again.'; prog.style.display='none'; };
+      xhr.send(file);
+    });
+  }
+  function saveStorageVideo(path, attempt) {
+    var row = document.getElementById('vidRow');
+    api('media', { kind:'video', provider:'storage', ref: path, label:'Problem video' }).then(function (r) {
+      if (r && r.ok) { videoState = 'saved'; row.textContent = 'Got your video ✓'; markDone(2); return; }
+      if (attempt < 2) { setTimeout(function(){ saveStorageVideo(path, attempt + 1); }, 1500); return; }
+      videoState = 'error'; row.textContent = 'Your video uploaded but didn\'t save — tap Record/Upload once more.';
     });
   }
   // The tus upload to Cloudflare succeeded, but the job only shows a video once the
@@ -211,13 +239,20 @@
       var cv = document.createElement('canvas'); cv.width = w; cv.height = h;
       cv.getContext('2d').drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url);
       var data = cv.toDataURL('image/jpeg', 0.7);
-      api('photo', { data: data, filename: 'model.jpg' }).then(function (r) {
-        if (r && r.ok) { row.textContent = 'Photo added ✓ — add another if you like.'; if (r.url) { var t=document.getElementById('phThumbs'); var im=document.createElement('img'); im.src=r.url; t.appendChild(im); } markDone(3); }
-        else row.textContent = 'Couldn\'t add that one — try again.';
-      });
+      savePhoto(data, 0);
     };
     img.onerror = function(){ row.textContent = 'That file didn\'t work — try a photo.'; };
     img.src = url;
+  }
+  // The model sticker is critical — retry a couple times on a flaky connection before giving
+  // up, so a weak-signal moment doesn't cost us the photo.
+  function savePhoto(data, attempt) {
+    var row = document.getElementById('phRow');
+    api('photo', { data: data, filename: 'model.jpg' }).then(function (r) {
+      if (r && r.ok) { row.textContent = 'Photo added ✓ — add another if you like.'; if (r.url) { var t=document.getElementById('phThumbs'); var im=document.createElement('img'); im.src=r.url; t.appendChild(im); } markDone(3); return; }
+      if (attempt < 2) { row.textContent = 'Adding photo… (retrying)'; setTimeout(function(){ savePhoto(data, attempt + 1); }, 1500); return; }
+      row.textContent = 'Couldn\'t add that one — tap Take/Upload to try again.';
+    });
   }
 
   // 4) release of liability + protection options (appliance-aware, TN-style)
