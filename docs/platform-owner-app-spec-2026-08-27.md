@@ -28,6 +28,11 @@ A warranty job sits at "earned $150 · collected $0 · waiting on AHS," then upd
 visible the whole way, so a smaller check is never a surprise.
 
 Rules:
+- **Financial source of truth = the job-tile invoice the office writes as they submit it**
+  (Teddy 2026-08-27). Every money number — billed, collected, owed-to-tech, take-home — derives
+  from that single entry the office/CSR makes on the job tile. NOT from scraped claim-remittance
+  snapshots or a separate accounting tool. One entry, on the tile, once. (Claim/EFT status may be
+  mirrored as informational context for the CSR's claim tracking, but it is NOT the money number.)
 - **Pay-on-collection** ("when I get paid, they get paid") — the default; owner-configurable.
 - **Commission is an OWNER setting per shop** (% of labor / flat per repair / per-tech) — not
   hardcoded. Platform computes pay from the owner's rule + the invoice.
@@ -50,25 +55,29 @@ Rules:
 | **Pipeline** | scheduled / awaiting-parts / in-progress / completed | ✅ now |
 | **Warranty vs cash** | mix; parts-awaiting aging | ✅ now (~97% warranty at TN) |
 
-## Leaderboard (tech side) — built to LIFT, not crush — LOCKED 2026-08-27
-Eight crowns so everyone can win one (validated against field-service research — FTFR + 30-day
+## Leaderboard (tech side) — built to LIFT, not crush — LOCKED 2026-08-27 (rev: 7 crowns)
+Seven crowns so everyone can win one (validated against field-service research — FTFR + 30-day
 callback are the industry's #1/#2 KPIs):
 | Crown | Metric | Data |
 |---|---|---|
-| 🥇 First-Stop King | first-time fix rate (fixed visit 1, no return) | TDR/return-trip |
+| 🥇 First-Stop King | first-time fix rate (fixed visit 1, no return) | TDR/return-trip ✅ |
 | 💚 Cleanest Work | lowest callback rate (same machine ≤30d) | TDR + unit linkage |
 | 💵 Top Upseller | upsell/add-on revenue $ | add-on tracking |
 | 🎯 Best Attach Rate | % of jobs with an add-on (fair to low-volume) | add-on tracking |
 | ⭐ Customer Favorite | review rating / CSAT | review capture |
-| ⚡ Workhorse | jobs completed | mirrored now (needs per-tech ✅ mapped) |
+| ⚡ Workhorse | jobs completed | mirrored ✅ (per-tech mapped) |
 | 🧠 Sharpest Diagnosis | first-guess part accuracy (beat Ant) | brain predict/grade |
-| 🏅 Straight Shooter | % of replace recommendations the vendor APPROVED | TDR + vendor status |
-Plus a blended **Tech of the Month** (real reward). **Recommend-replacement is shown as a
-per-tech stat but ranked ONLY via Straight Shooter (accuracy), never raw count** — ranking raw
-count rewards dodging hard repairs. Fairness guards: **min ~10 jobs/month to be ranked**;
-**first-stop counts a warranty-part backorder as a parts miss, not the tech's**; **attach-rate +
-accuracy crowns let a lower-volume, high-quality tech still win.** Leaderboard = PERFORMANCE,
-never each other's pay. Research: FTFR industry avg ~80%; failed first visit → 2.7 visits, +13 days.
+Plus a blended **Tech of the Month** (real reward).
+
+**Recommend-replacement is NOT on the leaderboard** (Teddy 2026-08-27): it's not something to
+celebrate or reward — rewarding it would push techs to condemn machines they could fix. It lives
+on the **OWNER board as a per-tech stat** so a tech with too many is obvious to the owner. (This
+retires the earlier "Straight Shooter" crown idea entirely.)
+
+Fairness guards: **min ~10 jobs/month to be ranked**; **first-stop counts a warranty-part
+backorder as a parts miss, not the tech's**; **attach-rate lets a lower-volume, high-quality tech
+win.** Leaderboard = PERFORMANCE, never each other's pay. Research: FTFR industry avg ~80%;
+failed first visit → 2.7 visits, +13 days.
 
 ## Owner app — v1 scope + roadmap
 **v1 (build now):** owner scoreboard, RLS-scoped to the company, from real data —
