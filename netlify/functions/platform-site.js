@@ -156,8 +156,8 @@ exports.config = { timeout: 15 };
 // when the request reaches us without ?slug= (the edge router normally supplies it).
 function slugFromHost(event) {
   const host = String((event.headers && (event.headers.host || event.headers.Host)) || '').toLowerCase().split(':')[0];
-  // Brand domains the platform serves shop subdomains on (Ant 24/7 primary, applianceant legacy).
-  const m = /^([a-z0-9][a-z0-9-]{0,62})\.(?:ant24x7|applianceant)\.com$/.exec(host);
+  // Brand domains the platform serves shop subdomains on (Assistant 24/7 primary, applianceant legacy).
+  const m = /^([a-z0-9][a-z0-9-]{0,62})\.(?:assistant247\.net|applianceant\.com)$/.exec(host);
   return m ? m[1] : '';
 }
 
