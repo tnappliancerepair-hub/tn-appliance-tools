@@ -16,7 +16,7 @@
 
   // The umbrella — the master brand + generic fallback when a host isn't a known vertical.
   var UMBRELLA = {
-    key: 'ant', brand: 'Ant', trade: 'appliance', domains: [],
+    key: 'ant', brand: 'Ant 24/7', trade: 'appliance', domains: [],
     tagline: 'The AI that runs your trade.',
     hero: 'Answer every call, book every job, get every tech paid — one system your whole shop runs on.',
     proof: ['24/7 AI phone answering', 'Job board + scheduling', 'Customer portal', 'Tech pay + invoicing'],
@@ -26,7 +26,7 @@
   // The verticals. `live:true` = has a real flagship shop pulling on it today.
   var VERTICALS = [
     {
-      key: 'appliance', brand: 'Appliance Ant', trade: 'appliance', live: true,
+      key: 'appliance', brand: 'Ant 24/7', trade: 'appliance', live: true,
       domains: ['applianceant.com', 'www.applianceant.com'],
       tagline: 'The AI that runs your appliance repair shop.',
       hero: 'Answer every call, book every job, file every warranty claim — one system your whole shop runs on.',
@@ -34,7 +34,7 @@
       accent: '#3f8f24', emoji: '🔧',
     },
     {
-      key: 'auto-repair', brand: 'Auto Repair Ant', trade: 'automotive', live: false,
+      key: 'auto-repair', brand: 'Ant 24/7', trade: 'automotive', live: false,
       domains: ['autorepairant.com', 'www.autorepairant.com'],
       tagline: 'The AI that runs your auto repair shop.',
       hero: 'Answer every call, book every job, keep every bay full — one system your whole shop runs on.',
@@ -42,7 +42,7 @@
       accent: '#c0392b', emoji: '🔩',
     },
     {
-      key: 'aquarium', brand: 'Aquarium Ant', trade: 'aquarium', live: false,
+      key: 'aquarium', brand: 'Ant 24/7', trade: 'aquarium', live: false,
       domains: ['aquariumant.com', 'www.aquariumant.com'],
       tagline: 'The AI that runs your aquarium service business.',
       hero: 'Answer every call, book every maintenance visit, keep every tank on schedule — one system.',
@@ -50,7 +50,7 @@
       accent: '#1b6ca8', emoji: '🐠',
     },
     {
-      key: 'furniture', brand: 'Furniture Ant', trade: 'furniture', live: false,
+      key: 'furniture', brand: 'Ant 24/7', trade: 'furniture', live: false,
       domains: ['furnitureant.com', 'www.furnitureant.com'],
       tagline: 'The AI that runs your furniture delivery + service business.',
       hero: 'Answer every call, track every order + delivery, keep every customer in the loop — one system.',
@@ -58,7 +58,7 @@
       accent: '#8a5a2b', emoji: '🛋️',
     },
     {
-      key: 'dealership', brand: 'Dealer Ant', trade: 'dealership', live: false,
+      key: 'dealership', brand: 'Ant 24/7', trade: 'dealership', live: false,
       domains: ['dealerant.com', 'www.dealerant.com'],
       tagline: 'The AI that runs your dealership sales floor.',
       hero: 'Answer every call, work every lead, move every unit — one system your whole lot runs on.',
