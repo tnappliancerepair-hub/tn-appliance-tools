@@ -6,9 +6,17 @@ It's already ours, so no new domain to buy. Two jobs on one domain, both $0 extr
 | URL | Serves |
 |---|---|
 | `applianceant.com` (apex) | the **marketing front door** (`platform/home.html`) → funnels shop owners into `signup.html` |
-| `joeys-appliance.applianceant.com` | that **shop's auto-built website** (`platform-site` by slug) — the pro look, like `yourshop.hcp.com` |
+| `joeys.applianceant.com` | that **shop's auto-built website** — the pro look, like `yourshop.hcp.com` |
 
 One wildcard covers every shop; adding a shop costs nothing.
+
+**Short handles (Teddy 2026-08-28):** "appliance" and "repair" are already in the domain, so the
+subdomain is just the shop's *name* — **"Joey's Appliance Repair" → `joeys.applianceant.com`**, not
+`joeys-appliance-repair`. The handle is derived at provision (`shopHandle()` strips the generic
+trade/legal words, keeps the first 1–2 real tokens) and stored on `settings.site.subdomain`; the owner
+can override with `&subdomain=`. `platform-site` resolves a subdomain three ways — exact slug, the
+stored handle, or a **slug prefix** (`joeys` → `joeys-appliance`) — so short handles also work for
+shops provisioned before this existed, with no backfill. The full-slug subdomain still works too.
 
 ## The one thing to know first — the apex conflict
 
