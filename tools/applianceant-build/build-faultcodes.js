@@ -25,7 +25,7 @@ const OUT = path.join(__dirname, '..', '..', 'applianceant');
 const CORPUS = require(path.join(__dirname, '..', '..', 'netlify', 'functions', '_lib', 'ant', 'fault-codes.json'));
 const AMAZON_TAG = 'tnappliance-20';
 const REPAIR = 'https://tnapplianceexchange.net';
-const LASTMOD = '2026-08-04';
+const LASTMOD = '2026-08-28';
 
 // ---- helpers (shared with build-symptoms) ----------------------------------
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1543,8 +1543,57 @@ footer{border-top:1px solid var(--border);padding:30px 32px 42px;text-align:cent
 `;
 }
 
+// ---- WAVE 2+: auto-generate pages for the rest of the grounded corpus --------
+// The corpus (fault-codes.json) grounds ~260 codes; wave 1 hand-authored 24. This turns the
+// remaining grounded codes into the SAME page shape — quick answer, bench test, dual-buy parts,
+// safe/risk/pro, FAQ — built ONLY from corpus facts (meaning / likely_causes / test). No prices
+// or stats are invented; part cards carry the buy-loop without a fabricated number. Capped +
+// core-appliance-filtered so rollout stays in reviewable waves (WAVE2_CAP, default 45).
+const BRANDS = { whirlpool: 'Whirlpool', samsung: 'Samsung', lg: 'LG', frigidaire: 'Frigidaire', bosch: 'Bosch', ge: 'GE' };
+const PART_KW = ['pump', 'valve', 'motor', 'sensor', 'thermistor', 'thermostat', 'element', 'heater', 'latch', 'switch', 'control board', 'board', 'fuse', 'belt', 'relay', 'coil', 'fan', 'compressor', 'igniter', 'solenoid', 'actuator', 'dispenser', 'flow meter', 'pressure switch', 'door lock', 'damper', 'evaporator', 'condenser', 'wax motor'];
+const SYMPTOM = { Washer: ['washer-not-draining', 'Washer Not Draining'], Dryer: ['dryer-not-heating', 'Dryer Not Heating'], Refrigerator: ['refrigerator-not-cooling', 'Fridge Not Cooling'], Dishwasher: ['dishwasher-not-draining', 'Dishwasher Not Draining'], Range: ['oven-not-heating', 'Oven Not Heating'], Freezer: ['freezer-not-freezing', 'Freezer Not Freezing'] };
+function isPartCause(x) { return PART_KW.some((k) => String(x).toLowerCase().includes(k)); }
+function partName(x) { const s = String(x).replace(/\b(failure|faulty|fault|bad|defective|open|shorted|short|clogged|stuck|worn|blocked|frozen|kinked|leaking|leak|dirty|dead)\b/gi, '').replace(/\s+/g, ' ').trim(); return (s || String(x)).replace(/\b\w/g, (m) => m.toUpperCase()); }
+function properAppl(a) { return a.charAt(0).toUpperCase() + a.slice(1); }
+function autoRelated(appl) { const out = []; if (SYMPTOM[appl]) out.push(SYMPTOM[appl]); out.push(['fault-codes', 'All Fault Codes']); return out; }
+function autoEntry(src) {
+  const brand = BRANDS[src.family] || (src.family.charAt(0).toUpperCase() + src.family.slice(1));
+  const appl = properAppl(src.appliance), applLc = src.appliance.toLowerCase(), code = src.code;
+  const causes = src.likely_causes || [], test = src.test;
+  const partCauses = causes.filter(isPartCause), freeCauses = causes.filter((x) => !isPartCause(x));
+  const meaningLc = src.meaning.replace(/\.$/, '').toLowerCase();
+  const quick = `A ${brand} ${code} on your ${applLc} means ${meaningLc}. `
+    + (causes.length ? `On the bench the usual culprits are ${causes.slice(0, 3).join(', ')}. ` : '')
+    + `Before you spend a dime, run the free 2-minute check first — ${test} — because the boring, free stuff clears this more often than people expect. Only buy a part once the free checks don't fix it.`;
+  const bench = `Run the confirming test before buying anything: ${test}`;
+  const parts = [{ free: true, name: 'No part — run the free checks first', note: `${test} Rule these out (all free) before buying anything.` }]
+    .concat(partCauses.slice(0, 3).map((pc) => ({ name: partName(pc), diff: 'moderate', price: '', terms: `${src.family} ${applLc} ${partName(pc)}`.toLowerCase(), note: "Only if the free checks don't clear it. Match your exact model number." })));
+  const safe = ['Unplug the machine (or flip its breaker) for 60 seconds to clear a one-time glitch, then restore power and retry.', `Run the confirming test: ${test}`]
+    .concat(freeCauses.slice(0, 2).map((f) => `Check for ${String(f).toLowerCase()}.`));
+  const risk = partCauses.slice(0, 2).map((pc) => `Replacing the ${partName(pc).toLowerCase()} — doable with the power off (and water or gas shut off where it applies); match your exact model number.`);
+  if (!risk.length) risk.push('Reseating a wiring connector you can clearly see and reach — power off first.');
+  const pro = ["A wiring or main-control-board fault you can't trace with a meter."];
+  if (/Dryer|Range/.test(appl)) pro.push('Anything involving the gas valve, igniter, or a 240V heating circuit — leave gas and high voltage to a pro.');
+  if (/Refrigerator|Freezer/.test(appl)) pro.push('A sealed-system fault (compressor / no cooling) — needs EPA-certified refrigerant recovery.');
+  const worth = `Most ${code} fixes are cheap — the free checks clear a lot of them, and the common parts here are inexpensive DIY swaps. It's only worth calling a pro if it's a control board or a sealed-system fault. Rarely a reason to replace the whole ${applLc}.`;
+  const faq = [
+    { q: `What does ${code} mean on a ${brand} ${applLc}?`, a: `${src.meaning}.` + (causes.length ? ` The usual causes are ${causes.slice(0, 3).join(', ')}.` : '') },
+    { q: `How do I fix a ${brand} ${code} code myself?`, a: `Start with the free check — ${test} ` + (partCauses.length ? `If that doesn't clear it, the ${partName(partCauses[0]).toLowerCase()} is the usual part; match your exact model number.` : 'If it keeps coming back, have the wiring and control board checked.') },
+    { q: `Do I need a new ${applLc}?`, a: `Almost never over a ${code} code — it's usually a free fix or an inexpensive part. Only a control-board or sealed-system failure changes the math.` },
+  ];
+  return { family: src.family, appliance: appl, code, brand, display: code, quick, bench, parts, safe, risk, pro, worth, faq, related: autoRelated(appl) };
+}
+
 // ---- run -------------------------------------------------------------------
 const built = CODES.map(enrich);
+const authored = new Set(CODES.map((c) => `${c.family}|${c.appliance.toLowerCase()}|${c.code}`));
+const WAVE2_CAP = Number(process.env.WAVE2_CAP || 45);
+const CORE_APPL = new Set(['washer', 'dryer', 'refrigerator', 'dishwasher', 'range', 'freezer']);
+const wave2 = CORPUS.codes
+  .filter((x) => !authored.has(`${x.family}|${x.appliance}|${x.code}`) && CORE_APPL.has(x.appliance))
+  .slice(0, WAVE2_CAP).map(autoEntry).map(enrich);
+for (const c of wave2) built.push(c);
+console.log(`  + Wave 2: ${wave2.length} auto-generated grounded pages`);
 // slug collision guard
 const seen = {};
 for (const c of built) { if (seen[c.slug]) throw new Error('slug collision: ' + c.slug); seen[c.slug] = 1; }
