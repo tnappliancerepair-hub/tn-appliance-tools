@@ -72,8 +72,9 @@
 
     var vids=media.filter(function(m){return m.kind==='video';});
     var phos=media.filter(function(m){return m.kind==='photo';});
-    var vidPlayer=function(m){ if(m.provider==='storage'){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+esc(m.ref); return '<video class="vid" src="'+u+'" controls playsinline preload="metadata"></video>'; } return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; };
-    var photoThumbs=function(list){ return list.length?'<div class="thumbs">'+list.map(function(m){ var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+esc(m.ref); return '<a target="_blank" rel="noopener" href="'+u+'"><img src="'+u+'"></a>'; }).join('')+'</div>':''; };
+    var media1=function(ref){ return '/.netlify/functions/platform-media?t='+encodeURIComponent(t)+'&ref='+encodeURIComponent(ref); };
+    var vidPlayer=function(m){ if(m.provider==='storage'){ return '<video class="vid" src="'+esc(media1(m.ref))+'" controls playsinline preload="metadata"></video>'; } return '<iframe class="vid" src="https://iframe.cloudflarestream.com/'+esc(m.ref)+'" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>'; };
+    var photoThumbs=function(list){ return list.length?'<div class="thumbs">'+list.map(function(m){ var u=esc(media1(m.ref)); return '<a target="_blank" rel="noopener" href="'+u+'"><img src="'+u+'"></a>'; }).join('')+'</div>':''; };
     var vidHtml=vids.length?vids.map(vidPlayer).join(''):'<div class="note">No video sent.</div>';
     var flags=(job.needs_two_techs?'<span class="flag">🧑‍🤝‍🧑 Two-man job</span>':'')+(job.long_job?'<span class="flag">⏳ Time-consuming</span>':'');
 

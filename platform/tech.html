@@ -93,6 +93,7 @@
 
 <script src="/platform/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/platform/media-sign.js"></script>
 <script src="/ant-sounds.js"></script>
 <script src="/ant-celebrate.js"></script>
 <script>
@@ -210,8 +211,7 @@
       mediaHtml += '<a class="ilink" target="_blank" rel="noopener" href="https://iframe.cloudflarestream.com/'+esc(m.ref)+'">🎥 Watch video</a>';
     });
     media.filter(function(m){return m.kind==='photo'&&m.provider==='storage';}).forEach(function(m){
-      var u = (cfg.url||'')+'/storage/v1/object/public/intake-photos/'+m.ref;
-      mediaHtml += '<a class="ithumb" target="_blank" rel="noopener" href="'+esc(u)+'"><img src="'+esc(u)+'" alt="photo"></a>';
+      mediaHtml += '<a class="ithumb" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" alt="photo"></a>';
     });
     if (!bits.length && !mediaHtml) return '';
     return '<div class="intake">'+(bits.length?'<div class="irow">'+bits.join(' &nbsp;·&nbsp; ')+'</div>':'')+(mediaHtml?'<div class="imedia">'+mediaHtml+'</div>':'')+'</div>';

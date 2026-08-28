@@ -177,6 +177,7 @@
 
 <script src="/platform/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/platform/media-sign.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@3/dist/tus.min.js"></script>
 <script src="/ant-sounds.js"></script>
 <script src="/ant-celebrate.js"></script>
@@ -805,11 +806,14 @@
     if(attrs().model) return;
     var pho=(job.media||[]).filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&!/^tech/i.test(m.label||'');})[0];
     if(!pho) return;
-    var u=(cfg.url||'')+'/storage/v1/object/public/intake-photos/'+pho.ref;
+    var fail=function(){ var m2=document.getElementById('modelVal'); if(m2&&m2.textContent==='reading…') m2.textContent='—'; };
     var mv=document.getElementById('modelVal'); if(mv) mv.textContent='reading…';
-    fetch('/.netlify/functions/platform-ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})})
-      .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok&&d.model){ applyModel(d); } else { var m2=document.getElementById('modelVal'); if(m2&&m2.textContent==='reading…') m2.textContent='—'; } })
-      .catch(function(){ var m2=document.getElementById('modelVal'); if(m2&&m2.textContent==='reading…') m2.textContent='—'; });
+    sb.storage.from('intake-photos').createSignedUrl(pho.ref,600).then(function(sr){
+      var u=(sr&&sr.data&&sr.data.signedUrl)||''; if(!u){ fail(); return; }
+      fetch('/.netlify/functions/platform-ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})})
+        .then(function(r){return r.json();}).then(function(d){ if(d&&d.ok&&d.model){ applyModel(d); } else { fail(); } })
+        .catch(fail);
+    }).catch(fail);
   }
 
   function token(){ return sb.auth.getSession().then(function(r){ return (r.data&&r.data.session&&r.data.session.access_token)||''; }); }
@@ -833,16 +837,16 @@
     if(m.kind==='video'){
       var poster = m.provider==='cfstream'
         ? '<img src="https://videodelivery.net/'+esc(m.ref)+'/thumbnails/thumbnail.jpg?time=1s&height=440" loading="lazy" onerror="this.style.opacity=0">'
-        : '<video src="'+esc(mediaSrc(m))+'" muted preload="metadata" playsinline></video>';
+        : '<video data-ph="'+esc(m.ref)+'" muted preload="metadata" playsinline></video>';
       return '<div class="mtile" data-kind="video" data-provider="'+esc(m.provider)+'" data-ref="'+esc(m.ref)+'">'+poster+'<span class="playo">▶</span><span class="vlabel">video</span>'+del+'</div>';
     }
-    return '<div class="mtile" data-kind="photo" data-provider="'+esc(m.provider)+'" data-ref="'+esc(m.ref)+'"><img src="'+esc(mediaSrc(m))+'" loading="lazy">'+del+'</div>';
+    return '<div class="mtile" data-kind="photo" data-provider="'+esc(m.provider)+'" data-ref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" loading="lazy">'+del+'</div>';
   }
   function openMedia(kind,provider,ref){
     var inner;
     if(kind==='video'&&provider==='cfstream') inner='<iframe src="https://iframe.cloudflarestream.com/'+esc(ref)+'?autoplay=true" allow="accelerometer;gyroscope;autoplay;encrypted-media;picture-in-picture;" allowfullscreen></iframe>';
-    else if(kind==='video') inner='<video src="'+esc((cfg.url||'')+'/storage/v1/object/public/intake-photos/'+ref)+'" controls autoplay playsinline></video>';
-    else inner='<img src="'+esc((cfg.url||'')+'/storage/v1/object/public/intake-photos/'+ref)+'">';
+    else if(kind==='video') inner='<video data-ph="'+esc(ref)+'" controls autoplay playsinline></video>';
+    else inner='<img data-ph="'+esc(ref)+'">';
     var lb=document.createElement('div'); lb.className='lb'; lb.innerHTML='<button class="lbx" aria-label="Close">×</button>'+inner;
     lb.onclick=function(e){ if(e.target===lb||(e.target.className||'')==='lbx'){ try{ document.body.removeChild(lb); }catch(_){ } } };
     document.body.appendChild(lb);
@@ -924,7 +928,7 @@
   function partCard(p){
     var os=p.order_status||'', dp=p.disposition||'';
     var photo = p.photo_ref
-      ? '<div class="pphoto"><img data-pact="viewphoto" data-pval="'+esc(p.photo_ref)+'" src="'+esc((cfg.url||'')+'/storage/v1/object/public/intake-photos/'+p.photo_ref)+'"><span class="pptxt">✓ Photo on file — tap to view</span></div>'
+      ? '<div class="pphoto"><img data-pact="viewphoto" data-pval="'+esc(p.photo_ref)+'" data-ph="'+esc(p.photo_ref)+'"><span class="pptxt">✓ Photo on file — tap to view</span></div>'
       : '<div class="pphoto"><div class="snap" data-pact="photo" data-pid="'+esc(p.id)+'">📷</div><span class="pptxt">Optional: snap this part (proof of what you used / sent back)<input type="file" accept="image/*" capture="environment" data-pfile="'+esc(p.id)+'" class="hidden"></span></div>';
     return '<div class="pcard">' +
       '<div class="pname">'+esc(p.name||'Part')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+'</div>' +
