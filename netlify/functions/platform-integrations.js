@@ -8,6 +8,7 @@
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const tc = require('./_lib/tenant-creds');
+const vendorVerify = require('./_lib/vendor-verify');
 const PLATFORM_ANON = 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7';
 const MANAGE_ROLES = new Set(['owner', 'office', 'manager', 'admin']);
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization,content-type' }, body: JSON.stringify(b) }; }
@@ -45,21 +46,10 @@ async function caller(event) {
   } catch (_) { return null; }
 }
 
-// Lightweight per-vendor credential probe. Marcone is implemented (clean OAuth2 token mint);
-// others return {ok:null} = "stored, auto-verify not wired yet" (honest, not a failure).
-async function verifyVendor(vendor, creds) {
-  try {
-    if (vendor === 'marcone') {
-      const r = await fetch('https://api.msupply.com/oauth/token', {
-        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ grant_type: 'client_credentials', client_id: creds.client_id || '', client_secret: creds.client_secret || '' }),
-        signal: AbortSignal.timeout(9000),
-      });
-      return { ok: r.ok, detail: r.ok ? 'token minted' : ('auth ' + r.status) };
-    }
-  } catch (e) { return { ok: false, detail: String((e && e.message) || e).slice(0, 80) }; }
-  return { ok: null, detail: 'stored — auto-verify not wired for this vendor yet' };
-}
+// Real per-vendor credential probe — authenticates against the vendor with the tenant's own
+// creds (vendor-verify reuses each connector's transport). ok:true connected, false rejected,
+// null stored-but-not-testable (e.g. NSA, portal-only).
+async function verifyVendor(vendor, creds) { return vendorVerify.verify(vendor, creds); }
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return json(200, { ok: true });
