@@ -81,8 +81,9 @@
   function _confetti() {
     var cv = document.getElementById('ant-celebrate-confetti'); if (!cv || !cv.getContext) return;
     var ctx = cv.getContext('2d'), W = cv.width = cv.offsetWidth, H = cv.height = cv.offsetHeight;
-    var cols = ['#10b981', '#4ade80', '#ffd94a', '#38bdf8', '#f472b6', '#ffffff'];
-    var N = Math.max(90, Math.min(200, Math.round(W / 5))), P = [];
+    // Vivid full-spectrum burst — hot pink, orange, gold, green, cyan, purple, magenta, white.
+    var cols = ['#ff2d78', '#ff6a00', '#ffd400', '#22e06b', '#00d4ff', '#7c4dff', '#ff4dd2', '#ffffff'];
+    var N = Math.max(140, Math.min(300, Math.round(W / 3.5))), P = [];
     for (var i = 0; i < N; i++) P.push({ x: Math.random() * W, y: -20 - Math.random() * H * 0.6, r: 4 + Math.random() * 7, c: cols[(Math.random() * cols.length) | 0], vy: 2 + Math.random() * 4.5, vx: -2.5 + Math.random() * 5, rot: Math.random() * 6.28, vr: -0.25 + Math.random() * 0.5, sh: Math.random() < 0.5 ? 0 : 1 });
     var t0 = Date.now(), DUR = 3800;
     function frame() {
