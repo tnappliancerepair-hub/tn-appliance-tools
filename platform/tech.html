@@ -271,11 +271,12 @@
     jobsCache = jobs || [];
     var today = new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     var note = myTech ? '' : '<div class="note">Your login isn\'t linked to a technician yet, so this shows all the shop\'s open jobs. Ask the office to link you as a tech.</div>';
-    var body = (myTech ? '<div id="payCard"></div>' : '') +
+    var body = (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' +
       '<div class="daylabel">'+esc(today)+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
       (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">No open jobs right now. 🎉</div>');
     document.getElementById('body').innerHTML = body;
     if (myTech) loadPay();
+    loadLeaderboard();
     // wire actions
     var b = document.getElementById('body');
     b.querySelectorAll('button[data-act]').forEach(function(el){ el.onclick=function(){ setStatus(el.getAttribute('data-id'), el.getAttribute('data-act')); }; });
@@ -313,6 +314,41 @@
         (needsRate? '<div style="margin-top:8px;color:#b45309;font-size:13px">Your commission rate isn\'t set yet — ask the office.</div>':'')+
       '</div>';
     }).catch(function(){});
+  }
+
+  // 🏆 Leaderboard — built to LIFT. Only the crowns we have real data for today
+  // (Workhorse = jobs done, First-Stop King = first-time-fix rate); the rest are honest
+  // "coming soon". Performance only — never pay. Company-scoped (all techs).
+  function loadLeaderboard(){
+    var el=document.getElementById('lbCard'); if(!el) return;
+    var d=new Date(); var mStart=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)).toISOString();
+    Promise.all([
+      sb.from('job').select('technician_id,first_stop,completed_at').eq('status','completed').limit(5000),
+      sb.from('technician').select('id,name').limit(200)
+    ]).then(function(res){
+      var jobs=(res[0].data)||[], techs=(res[1].data)||[];
+      var name={}; techs.forEach(function(t){ name[t.id]=t.name; });
+      var agg={};
+      jobs.forEach(function(j){
+        if(!j.technician_id) return;
+        if(j.completed_at && j.completed_at < mStart) return;
+        var a=agg[j.technician_id]||(agg[j.technician_id]={done:0,fsK:0,fsY:0});
+        a.done++; if(j.first_stop===true||j.first_stop===false){ a.fsK++; if(j.first_stop===true) a.fsY++; }
+      });
+      var ids=Object.keys(agg); if(!ids.length){ el.innerHTML=''; return; }
+      var work=ids.map(function(id){return {id:id,name:name[id]||'—',v:agg[id].done};}).sort(function(a,b){return b.v-a.v;});
+      var fs=ids.filter(function(id){return agg[id].fsK>=5;}).map(function(id){return {id:id,name:name[id]||'—',v:Math.round(100*agg[id].fsY/agg[id].fsK)};}).sort(function(a,b){return b.v-a.v;});
+      function myRank(list){ if(!myTech) return null; for(var i=0;i<list.length;i++){ if(String(list[i].id)===String(myTech.id)) return i+1; } return null; }
+      function crown(icon,title,list,unit){
+        if(!list.length) return '';
+        var top=list.slice(0,3).map(function(r,i){ var me=myTech&&String(r.id)===String(myTech.id); return '<div style="display:flex;justify-content:space-between;padding:3px 0;'+(me?'font-weight:800':'')+'"><span>'+['🥇','🥈','🥉'][i]+' '+esc(r.name)+'</span><span style="font-variant-numeric:tabular-nums">'+r.v+unit+'</span></div>'; }).join('');
+        var mr=myRank(list); var meNote=(mr&&mr>3)?'<div style="color:var(--muted);font-size:12px;margin-top:2px">You: #'+mr+'</div>':'';
+        return '<div style="flex:1;min-width:150px"><div style="font-weight:700;font-size:13px;margin-bottom:4px">'+icon+' '+title+'</div>'+top+meNote+'</div>';
+      }
+      el.innerHTML='<div class="card"><div style="font-weight:800;margin-bottom:10px">🏆 Leaderboard <span style="color:var(--muted);font-size:12px;font-weight:400">this month</span></div>'+
+        '<div style="display:flex;gap:18px;flex-wrap:wrap">'+crown('⚡','Workhorse',work,'')+crown('🥇','First-Stop King',fs,'%')+'</div>'+
+        '<div style="color:var(--muted);font-size:12px;margin-top:10px">More crowns — cleanest work, top upseller, customer favorite, sharpest diagnosis — unlock as that data flows in.</div></div>';
+    }).catch(function(){ el.innerHTML=''; });
   }
 
   function loadJobs(){

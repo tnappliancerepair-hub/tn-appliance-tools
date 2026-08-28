@@ -192,11 +192,12 @@
   function renderShell() {
     app.innerHTML =
       '<header><span class="brand">🐜 Ant</span><span class="shop" id="shop">' + esc(shopName || '…') + '</span>' +
-      '<span class="sp"></span><button id="settings">⚙️ Settings</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>' +
+      '<span class="sp"></span><button id="remit">💵 Remittance</button><button id="settings">⚙️ Settings</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>' +
       '<div class="wrap"><div class="money" id="money"></div><div class="filters" id="filters"></div><div class="board" id="board"></div></div>';
     document.getElementById('out').onclick = function () { if (rt) { try { sb.removeChannel(rt); } catch (e) {} } sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick = loadBoard;
     document.getElementById('settings').onclick = openSettings;
+    var rm = document.getElementById('remit'); if (rm) rm.onclick = openRemittance;
   }
 
   // ── PAYMENTS (self-serve): the shop's OWN ways to get paid. Their money, their
@@ -334,6 +335,67 @@
       sb.from('company').update({ settings: next }).eq('id', companyId).then(function (r) {
         if (r.error) { btn.disabled = false; btn.textContent = 'Save'; document.getElementById('s_err').textContent = r.error.message; return; }
         shopSettings = next; close();
+      });
+    };
+  }
+
+  // ── warranty remittance (the accuracy hinge) ────────────────────────────────
+  // A warranty vendor pays a batch EFT/check covering several claims, often LESS than
+  // billed. Split it back to each job: set the REAL collected on each invoice. The shop's
+  // collected + take-home become accurate; the tech still earns his full labor cut (the
+  // shop absorbs the warranty haircut).
+  function openRemittance(){
+    var pending = jobsCache.filter(function(j){
+      if(!j.warranty_company) return false;
+      var iv=invByJob[j.id]; if(!iv || !(iv.total_cents>0)) return false;
+      return (iv.collected_cents||0) < iv.total_cents;
+    });
+    var ov=document.createElement('div'); ov.className='ov';
+    var rows = pending.map(function(j){
+      var iv=invByJob[j.id]; var rem=iv.total_cents-(iv.collected_cents||0);
+      return '<tr data-inv="'+iv.id+'">'+
+        '<td class="nm">'+esc(fullName(j.customer)||'Customer')+'<div class="hint">'+esc(j.warranty_company||'')+' · billed '+money(iv.total_cents)+(((iv.collected_cents||0)>0)?' · already '+money(iv.collected_cents):'')+'</div></td>'+
+        '<td style="text-align:right"><input class="remAmt" inputmode="decimal" style="width:96px" placeholder="'+(rem/100).toFixed(2)+'"></td></tr>';
+    }).join('');
+    ov.innerHTML='<div class="sheet"><h2>💵 Warranty remittance</h2>'+
+      '<div class="hint">A warranty company paid a batch (EFT/check) covering several claims — often less than billed. Enter the reference, then the amount they actually paid on each job (blank = skip). Collected + take-home update to the real money; the tech still earns his full labor cut.</div>'+
+      '<label>Reference (EFT # / check #)</label><input id="remRef" placeholder="EFT 1157090212">'+
+      '<label>Total received <span class="hint">(optional — to reconcile)</span></label><input id="remTotal" inputmode="decimal" placeholder="0.00">'+
+      '<div id="remRecon" class="hint" style="margin-top:6px"></div>'+
+      (pending.length? '<div class="ptwrap" style="margin-top:10px;max-height:48vh;overflow:auto"><table class="pt"><thead><tr><th>Job</th><th style="text-align:right">Paid on this job</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+        : '<div class="empty" style="margin-top:12px">No warranty jobs waiting on payment. As you bill warranty jobs, they show here.</div>')+
+      '<div class="err" id="remErr"></div>'+
+      '<div class="srow" style="margin-top:12px"><button id="remSave">Record remittance</button><button id="remCancel">Close</button></div></div>';
+    document.body.appendChild(ov);
+    var close=function(){ try{document.body.removeChild(ov);}catch(e){} };
+    ov.onclick=function(e){ if(e.target===ov) close(); };
+    document.getElementById('remCancel').onclick=close;
+    function recompute(){
+      var alloc=0; Array.prototype.forEach.call(ov.querySelectorAll('.remAmt'),function(i){ alloc+=cents(i.value||i.placeholder); });
+      var recv=cents(document.getElementById('remTotal').value);
+      var el=document.getElementById('remRecon');
+      if(recv>0){ var diff=recv-alloc; el.textContent='Allocated '+money(alloc)+' of '+money(recv)+' received'+(diff===0?' ✓ balanced':(diff>0?' · '+money(diff)+' unallocated':' · over by '+money(-diff))); el.style.color=diff===0?'#12a150':'#c77700'; }
+      else { el.textContent='Allocated '+money(alloc); el.style.color=''; }
+    }
+    Array.prototype.forEach.call(ov.querySelectorAll('.remAmt'),function(i){ i.oninput=recompute; });
+    document.getElementById('remTotal').oninput=recompute; recompute();
+    document.getElementById('remSave').onclick=function(){
+      var ref=document.getElementById('remRef').value.trim();
+      var updates=[];
+      Array.prototype.forEach.call(ov.querySelectorAll('tr[data-inv]'),function(tr){
+        var raw=tr.querySelector('.remAmt').value.trim(); if(!raw) return;
+        var amt=cents(raw); if(amt<=0) return;
+        updates.push({ invId:tr.getAttribute('data-inv'), amt:amt });
+      });
+      if(!updates.length){ document.getElementById('remErr').textContent='Enter the amount paid on at least one job (leave the rest blank).'; return; }
+      var btn=document.getElementById('remSave'); btn.disabled=true; btn.textContent='Recording…';
+      var now=new Date().toISOString();
+      Promise.all(updates.map(function(u){
+        return sb.from('invoice').update({ collected_cents:u.amt, status:'paid', paid_method:'warranty_eft', paid_ref:ref||null, paid_at:now }).eq('id',u.invId);
+      })).then(function(rs){
+        var err=rs.filter(function(r){return r.error;})[0];
+        if(err){ btn.disabled=false; btn.textContent='Retry'; document.getElementById('remErr').textContent=err.error.message; return; }
+        close(); loadBoard();
       });
     };
   }
@@ -586,7 +648,7 @@
     var sub=laborC+partsC+feeC, taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
     var paid=document.getElementById('jpaid').checked, method=document.getElementById('jmethod').value||null;
     var inv=invByJob[job.id]||null;
-    var row={ company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, labor_cents:laborC, subtotal_cents:sub, tax_cents:taxC, total_cents:tot, status:paid?'paid':'draft', paid_method:paid?method:null, paid_at:paid?(inv&&inv.paid_at?inv.paid_at:new Date().toISOString()):null };
+    var row={ company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, labor_cents:laborC, subtotal_cents:sub, tax_cents:taxC, total_cents:tot, status:paid?'paid':'draft', paid_method:paid?method:null, paid_at:paid?(inv&&inv.paid_at?inv.paid_at:new Date().toISOString()):null, collected_cents:paid?tot:(inv?inv.collected_cents||0:0) };
     var done=function(invoiceId){
       var newlyPaid = paid && !(inv && inv.status==='paid');
       invByJob[job.id]=Object.assign({ id:invoiceId, job_id:job.id, created_at:(inv&&inv.created_at)||new Date().toISOString() }, row);
@@ -675,12 +737,12 @@
 
   function loadBoard() {
     // RLS scopes both queries to the logged-in user's company — we never pass company_id.
-    var base = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,';
+    var base = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,warranty_company,';
     var tail = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
     var proceed = function (r) {
       if (r.error) { document.getElementById('board').innerHTML = '<div class="empty">Couldn\'t load the board: ' + esc(r.error.message) + '</div>'; return; }
       jobsCache = r.data || [];
-      sb.from('invoice').select('id,job_id,status,subtotal_cents,tax_cents,total_cents,paid_at,paid_method,created_at').then(function (ir) {
+      sb.from('invoice').select('id,job_id,status,subtotal_cents,tax_cents,total_cents,collected_cents,paid_at,paid_method,created_at').then(function (ir) {
         invByJob = {};
         (ir.data || []).forEach(function (iv) { if (iv.job_id) { var p = invByJob[iv.job_id]; if (!p || new Date(iv.created_at) > new Date(p.created_at)) invByJob[iv.job_id] = iv; } });
         renderMoneyBar(); renderFilters(); renderBoard();
