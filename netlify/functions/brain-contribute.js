@@ -14,7 +14,7 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
+  const guard = (await getSecret('ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
 
   let body = {}; try { body = JSON.parse(event.body || '{}'); } catch (_) {}

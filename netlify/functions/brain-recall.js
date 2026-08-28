@@ -25,7 +25,7 @@ async function rpc(base, key, fn, args) {
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
+  const guard = (await getSecret('ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
 
   const base = (await getSecret('SUPABASE_URL')) || '';
