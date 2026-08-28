@@ -18,10 +18,12 @@
     {
       key: 'office',
       label: 'Full Office Platform',
-      blurb: 'The job board, scheduling, customer portal, invoicing, and the tech pay spine — one system your whole shop runs on.',
+      blurb: 'The job board, scheduling, customer portal, invoicing, and the tech pay spine — plus a website we build you, Google + reviews on autopilot. One system your whole shop runs on.',
       price_cents: 9900,                 // $99/mo — LOCKED 2026-08-28 (flat per shop; undercuts HCP/Workiz, near Jobber)
       price_env: 'STRIPE_PRICE_OFFICE',
-      features: { database: true, scheduling: true, portal: true, invoicing: true, pay: true, usage_digest: true }
+      // Website + Connect-Google + reviews are INCLUDED (Teddy 2026-08-28 — matches Jobber's free,
+      // the switch hook), no longer a separate paid add-on.
+      features: { database: true, scheduling: true, portal: true, invoicing: true, pay: true, usage_digest: true, website: true, local_seo: true, reviews: true }
     }
   ];
 
@@ -34,15 +36,9 @@
       price_cents: 19900,                // $199/mo — LOCKED 2026-08-28
       price_env: 'STRIPE_PRICE_OWN_AREA',
       features: { exclusive_territory: true }
-    },
-    {
-      key: 'local_seo',
-      label: 'Local SEO / Connect Google',
-      blurb: 'Ant runs your Google Business Profile — auto-posts, review replies, screened job photos, Q&A.',
-      price_cents: 14900,                // $149/mo — LOCKED 2026-08-28
-      price_env: 'STRIPE_PRICE_LOCAL_SEO',
-      features: { local_seo: true }
     }
+    // NOTE: 'Local SEO / Connect Google' is no longer a paid add-on — website + Google + reviews
+    // are INCLUDED in Full Office (Teddy 2026-08-28). Kept out of ADDONS so it never bills separately.
   ];
 
   // Union the features across a base plan + selected add-ons → the jsonb map company.features holds.

@@ -1,3 +1,6 @@
+# Per-tenant shop websites (auto-built): /s/<slug> -> platform-site
+/s/:slug  /.netlify/functions/platform-site?slug=:slug  200
+
 # Short branded PM pay link -> regenerates a fresh Stripe checkout on each click
 /pay  /.netlify/functions/pm-pay  200
 
