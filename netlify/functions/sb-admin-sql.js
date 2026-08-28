@@ -35,13 +35,18 @@ exports.handler = async function (event) {
     let path = String(q.mgmt).trim();
     path = path.replace(/^\/?v1/, '');           // drop a leading v1 if present
     if (!path.startsWith('/')) path = '/' + path;
-    // GET (read posture) by default. DELETE allowed for deliberate teardown; a DELETE must
-    // pass &confirm=yes so it can't fire by accident. Nothing else is permitted here.
+    // GET (read posture) by default. Writes (POST/PATCH/PUT) and DELETE are allowed for
+    // deliberate config changes (e.g. the auth redirect allowlist) but MUST pass &confirm=yes
+    // so nothing fires by accident. A write body comes from the POST body (JSON).
     const method = String(q.method || 'GET').toUpperCase();
-    if (method !== 'GET' && method !== 'DELETE') return json(200, { ok: false, error: 'mgmt passthrough allows GET or DELETE only' });
-    if (method === 'DELETE' && q.confirm !== 'yes') return json(200, { ok: false, error: 'DELETE requires &confirm=yes', would_delete: `${MGMT}${path}` });
+    const WRITE = { POST: 1, PATCH: 1, PUT: 1, DELETE: 1 };
+    if (method !== 'GET' && !WRITE[method]) return json(200, { ok: false, error: 'mgmt passthrough allows GET/POST/PATCH/PUT/DELETE only' });
+    if (method !== 'GET' && q.confirm !== 'yes') return json(200, { ok: false, error: method + ' requires &confirm=yes', would_call: `${MGMT}${path}` });
+    let mgBody; try { mgBody = event.body ? JSON.parse(event.body) : undefined; } catch (_) { mgBody = undefined; }
     try {
-      const r = await fetch(`${MGMT}${path}`, { method, headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(20000) });
+      const opt = { method, headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(20000) };
+      if (mgBody !== undefined && method !== 'GET' && method !== 'DELETE') { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(mgBody); }
+      const r = await fetch(`${MGMT}${path}`, opt);
       const d = await r.json().catch(() => ({}));
       return json(200, { ok: r.ok, status: r.status, method, url: `${MGMT}${path}`, data: d });
     } catch (e) {
