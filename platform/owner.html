@@ -89,12 +89,13 @@
 
 <link rel="stylesheet" href="/platform/ant-theme.css">
 <script src="/platform/config.js"></script>
+<script src="/platform/features.js"></script>
 <script src="/platform/pay-calc.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
   var cfg = window.ANT_SUPABASE || {};
-  var sb = null, companyId = null, shopName = 'Your shop', win = 'month', settings = {}, payJobs = {};
+  var sb = null, companyId = null, shopName = 'Your shop', win = 'month', settings = {}, payJobs = {}, features = {};
   var app = document.getElementById('app');
   var USD = function(cents){ return '$' + (Math.round((cents||0)/100)).toLocaleString(); };
   var pct = function(n,d){ return d>0 ? Math.round((n/d)*100) : 0; };
@@ -149,9 +150,9 @@
 
   function boot(){
     app.innerHTML='<div class="skel" style="padding:40px 4px">Loading your numbers…</div>';
-    sb.from('company').select('id,name,settings').limit(1).then(function(r){
+    sb.from('company').select('id,name,settings,features').limit(1).then(function(r){
       if(r.error||!r.data||!r.data[0]){ renderSignIn('Could not load your shop.'); return; }
-      companyId=r.data[0].id; shopName=r.data[0].name||'Your shop'; settings=r.data[0].settings||{};
+      companyId=r.data[0].id; shopName=r.data[0].name||'Your shop'; settings=r.data[0].settings||{}; features=r.data[0].features||{};
       // First login → guided setup wizard (unless they came back on purpose).
       if(!settings.onboarded && !/[?&]setup=skip/.test(location.search)){ location.href='/platform/onboard.html'; return; }
       load();
@@ -278,6 +279,25 @@
       trows.map(function(r){ return '<tr><td class="nm">'+esc(r.name)+'</td><td>'+r.jobs+'</td><td>'+r.completed+'</td><td class="good">'+(r.fs==null?'—':r.fs+'%')+'</td><td'+(r.cond>=8?' class="hi"':'')+'>'+r.cond+'%</td><td class="mut">—</td></tr>'; }).join('')+
       '</tbody></table></div><div class="note">Condemn = recommend-replacement ÷ jobs (owner watch, not a leaderboard). First-stop from the repair reports. Reassign % lands with the next data pull.</div>'
     ) : '<div class="note">No per-tech data in this window.</div>';
+
+    // Feature gate: the office/money dashboard needs the job board (database) or pay entitlement.
+    // Default-open on an empty features map, so demo / unpopulated / pre-entitlement shops are
+    // never hidden. An AI-Answering-only shop sees Ann's usage + an upgrade path instead.
+    var PF = window.PlatformFeatures || { has: function(){ return true; } };
+    if(!(PF.has(features,'database') || PF.has(features,'pay'))){
+      shell(
+        '<div class="sec">Ann this week</div>'+
+        '<div id="annWeek"><div class="note">Loading…</div></div>'+
+        '<div class="sec">This month</div>'+
+        '<div id="usageCard"><div class="note">Loading your usage…</div></div>'+
+        '<div class="sec">Your full office</div>'+
+        '<div class="money"><div class="note">You’re on the <b>AI Answering</b> plan — Ann answers 24/7 and captures every lead. Upgrade to the <b>Full Office Platform</b> to unlock the job board, scheduling, invoicing, and tech pay — one system your whole shop runs on.</div>'+
+        '<button id="upsell" style="width:100%;margin-top:12px;padding:11px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:800;font-size:14px;cursor:pointer">See the Full Office Platform →</button></div>'
+      );
+      loadAnnWeek(); loadUsage();
+      var up=document.getElementById('upsell'); if(up) up.onclick=function(){ location.href='/platform/signup.html?plan=office'; };
+      return;
+    }
 
     var body =
       '<div class="sec">Performance — front and center</div>'+
