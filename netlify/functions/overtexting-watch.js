@@ -65,7 +65,7 @@ exports.handler = async function (event) {
     const msg = `⚠️ Over-texting check: ${over.length} customer(s) got more than ${SAFE} texts in ${WINDOW_DAYS}d (worst ${worst}).`
       + (autoPaused ? ' 🛑 Intake outreach AUTO-PAUSED — reply once fixed.' : '')
       + ' See /.netlify/functions/overtexting-watch';
-    await jpost(`${XANO}/send_sms`, { to: OWNER, message: msg, context_tag: 'overtext_alert', force_send: true });
+    if (!require('./_lib/office-gate').officeBlocked(OWNER, 'overtext_alert')) await jpost(`${XANO}/send_sms`, { to: OWNER, message: msg, context_tag: 'overtext_alert', force_send: true });
   }
 
   return j(200, { ok: true, window_days: WINDOW_DAYS, safe_threshold: SAFE, hard_threshold: HARD, phones_texted: Object.keys(byPhone).length, over_count: over.length, worst, paused, auto_paused: autoPaused, over });

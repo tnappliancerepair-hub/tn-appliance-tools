@@ -133,7 +133,7 @@ exports.handler = async function (event) {
     const lows = graded.filter((g) => g.score <= 6);
     let body = `📞 Ann call review — graded ${graded.length} new call(s), avg ${Math.round(avg * 10) / 10}/10.`;
     body += lows.length ? `\n⚠️ ${lows.length} rough:\n` + lows.slice(0, 3).map((g) => `• ${g.score}/10 — ${g.one_line}`).join('\n') : ` All clean. 🐜`;
-    try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: 'ann_call_review' }), signal: AbortSignal.timeout(9000) }); } catch (_) {}
+    try { if (!require('./_lib/office-gate').officeBlocked(OWNER, 'ann_call_review')) await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: 'ann_call_review' }), signal: AbortSignal.timeout(9000) }); } catch (_) {}
   }
 
   return j(200, { ok: true, mode: dry ? 'dry' : (scheduled ? 'scheduled' : 'manual'), conversations_in_window: convs.length, graded: graded.length, skipped: skipped.length, grades: graded.map((g) => ({ score: g.score, outcome: g.outcome, resolved: g.resolved, tools_ok: g.tools_ok, dead_air: g.dead_air_or_error, one_line: g.one_line, issues: g.issues })), skipped_sample: skipped.slice(0, 6) });

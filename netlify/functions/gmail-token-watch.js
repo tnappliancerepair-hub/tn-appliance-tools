@@ -19,6 +19,7 @@ const TEDDY = '+16154855795';
 // the ONE approved internal line + inherits the Twilio auto-failover — instead of the
 // old hardcoded unapproved 629 Twilio number.
 async function textTeddy(body) {
+  if (require('./_lib/office-gate').officeBlocked(TEDDY, 'gmail_token_alert')) return { sent: false, suppressed: true }; // 🔇 office kill
   try {
     const r = await fetch('https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA/send_sms', {
       method: 'POST',

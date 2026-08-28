@@ -43,6 +43,7 @@ async function sendCustomer(phone, msg, tag) {
   try { await sendSms(e164(phone), msg, 'customer', tag || 'satisfaction'); } catch (_) {}
 }
 async function sendOwner(msg, tag) {
+  if (require('./office-gate').officeBlocked(OWNER, tag || 'satisfaction_owner')) return; // 🔇 office kill
   try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: msg, force_send: true, context_tag: tag || 'satisfaction_owner' }), signal: AbortSignal.timeout(10000) }); } catch (_) {}
 }
 

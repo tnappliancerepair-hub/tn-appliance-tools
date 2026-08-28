@@ -54,6 +54,7 @@ async function draft(key, review) {
 }
 
 async function textOwner(body, tag) {
+  if (require('./_lib/office-gate').officeBlocked(OWNER, tag)) return; // 🔇 office kill
   try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: tag }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
 }
 

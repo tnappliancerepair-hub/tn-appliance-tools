@@ -164,7 +164,7 @@ exports.handler = async function (event) {
       const capFull = freshEx.filter((e) => /cap \(/.test(String(e.outcome))).length;
       const tail = capFull ? ` (${capFull} are at the 3-per-morning/afternoon cap — reply to ask a tech to take a 4th)` : '';
       const body = `[ant] ⚠️ ${freshEx.length} SquareTrade job(s) couldn't auto-route to a tech${tail} — need a human: ` + freshEx.slice(0, 6).map((e) => `#${e.job_id} ${e.zip}${e.period ? ' ' + e.period : ''}`).join(', ');
-      try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: 'sq_autoassign_exception' }) }); } catch (_) {}
+      try { if (!require('./_lib/office-gate').officeBlocked(OWNER, 'sq_autoassign_exception')) await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: 'sq_autoassign_exception' }) }); } catch (_) {}
       try { await crud.logEvent('sq_autoassign_warned', { ids: freshEx.map((e) => Number(e.job_id)), count: freshEx.length, at_ms: Date.now() }); } catch (_) {}
       warned = freshEx.length;
     }

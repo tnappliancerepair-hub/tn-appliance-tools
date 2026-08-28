@@ -56,7 +56,7 @@ exports.handler = async function () {
     const first = cohort[p10];
     const fwd = `[Andre — running-behind reply] ${first} (…${p10.slice(-4)}): "${body}"`;
     try {
-      await jpost(`${XANO}/send_sms`, { to: OWNER, message: fwd, recipient_role: 'owner', context_tag: 'andre_late_forward' }, 12000);
+      if (!require('./_lib/office-gate').officeBlocked(OWNER, 'andre_late_forward')) await jpost(`${XANO}/send_sms`, { to: OWNER, message: fwd, recipient_role: 'owner', context_tag: 'andre_late_forward' }, 12000);
       await jpost(`${XANO}/record_event_log`, { action: 'andre_late_reply_forwarded', metadata_json: JSON.stringify({ row_id: rid, phone: p10.slice(-4), at_ms: now }) }, 9000);
       forwarded.push({ first, last4: p10.slice(-4) });
     } catch (_) {}
