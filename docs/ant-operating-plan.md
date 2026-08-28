@@ -351,19 +351,41 @@ insurance, verified at intake.
 
 ---
 
-## 04 · How it makes money (four rails, layered over time)
+## 04 · How it makes money (five rails, layered over time)
 
 | Rail | What it is | Lands in |
 |---|---|---|
 | **Repair revenue + parts margin** | The shop. Labor by the job (~$100/hr-equiv, flat per repair) + parts at cost ÷ .75. Warranty reimbursements + self-pay. | L1 — now |
 | **Parts drop-ship spread** | Ship the customer the part (OEM or aftermarket), keep the markup, never touch it. Scales into the consumer app. | L1 → L3 |
 | **SaaS subscriptions** | Per-tech / month for shops on Ant. Free trial → paid once earning. | L2 |
+| **Marketing / advertising module** | Sell the shop their *demand*, not just their ops: the **Connect-Google / Local-SEO** add-on (GBP auto-posts, review auto-reply, screened job-photo posting, Q&A, health) — the engine already built for TN, productized per tenant. Stack managed Google Ads + review generation on top. A second recurring line item per shop. | L2 (add-on, `local_seo` in the price catalog) |
 | **Referrals + white-label** | Consumer platform routes leads to pros ($/accepted lead); big prize = a warranty co / OEM licensing a branded Ant. | L3 + partners |
+
+**Advertising cuts BOTH ways — it's a benefit *and* a rail:**
+- **The vertical front doors ARE our advertising** *(acquire shops)*: a `[Trade] Ant`
+  landing is message-matched to one trade, so paid ads convert cheaper (higher Google
+  Quality Score → lower cost-per-lead) and each domain can own its trade's search terms.
+  Nearly free to stand up a new ad front (a domain + a `verticals.js` row). *(Honest: paid
+  works day one; organic SEO is earned with real content.)*
+- **Advertising is a product we SELL** *(the module above)* — turns Ant from "runs your back
+  office" into "runs your back office **and fills your funnel**."
+- **The vertical sites also pull the shops' customers** *(feed demand)* — a homeowner searching
+  "appliance repair near me" lands on `applianceant.com` and becomes a lead routed to a tenant
+  shop. That's the L3 demand engine: the same front door **acquires the shop, sells them
+  marketing, and feeds them customers** — three jobs, one page, built once.
 
 The compounding line is the **outcomes data** under all rails: better predictions
 → higher first-visit-fix → cheaper jobs → happier customers → more jobs → more
 data. Financial layer (parts cost, margin, commissions, tax, owner P&L) automated
 in parallel so the books eventually run without a bookkeeper.
+
+**Umbrella + vertical domains** *(availability checked 2026-08-28; a registrar confirms
+purchasability):* vertical `.com` **open** — autorepairant · aquariumant · furnitureant ·
+dealerant · plumbant *(taken: autoant, poolant, hvacant → use the `[trade]repairant` form)*;
+appliance**ant.com owned**. Umbrella `.ai` **open** — useant · joinant · heyant · runant
+*(taken: tryant, antworks, antos, ant.systems)*; **`ant.repair` is open** (a strong
+consumer/umbrella candidate). **Action: grab the four staged vertical `.com`s + one umbrella
+before advertising on them.**
 
 ---
 
@@ -537,6 +559,14 @@ diagnose why — we do NOT pile on more features. Momentum = the signal climbing
 ---
 
 ## Changelog
+- **2026-08-28 — v1.7.2.** **§04 → five rails.** Added the **Marketing / advertising module**
+  rail (the Connect-Google/Local-SEO add-on, `local_seo` in the price catalog — sell the shop
+  its demand, not just its ops) and the "advertising cuts both ways" note: the vertical front
+  doors are our *ad assets* to acquire shops (message-match → cheaper ads + owned SEO), a
+  *product* we sell, and a *demand feed* that routes homeowners to tenant shops (L3). Logged the
+  **domain availability check** — all four staged vertical `.com`s open (autorepairant /
+  aquariumant / furnitureant / dealerant), umbrella `.ai` options open (useant/joinant/heyant/
+  runant), and `ant.repair` open. Module spec: `docs/connect-google-module.md`.
 - **2026-08-28 — v1.7.1.** Extended **§02⅚** with **the vertical factory** ("one factory, many
   front doors") + shipped it: `platform/verticals.js` (the `[Trade] Ant` catalog), a single
   hostname-themed landing `platform/vertical.html`, and signup theming/trade-preselect from the
