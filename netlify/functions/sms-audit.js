@@ -53,6 +53,7 @@ exports.handler = async function (event) {
   const byDest = {};        // last10 -> { count, parts, cost, inbound, outbound, who, bucket }
   const byDay = {};         // YYYY-MM-DD -> { count, cost }
   const buckets = { office: { count: 0, cost: 0 }, tech: { count: 0, cost: 0 }, customer: { count: 0, cost: 0 } };
+  const recentOffice = [];  // office-directed outbound, for the kill proof
   const people = {};        // per office/tech person -> { count, cost }
   let totalCost = 0, totalOut = 0, totalIn = 0, totalSec = 0;
 
@@ -102,6 +103,9 @@ exports.handler = async function (event) {
           byDay[d].count++; byDay[d].cost += cost;
         }
 
+        // recent office-directed outbound list (proof of the kill: see them stop at deploy time)
+        if (outbound && info.bucket === 'office') recentOffice.push({ to: info.who, at: rec.created_at || rec.completed_at || '', parts });
+
         const b = byDest[t] || (byDest[t] = { who: info.who, bucket: info.bucket, count: 0, parts: 0, cost: 0, inbound: 0, outbound: 0 });
         b.count++; b.parts += parts; b.cost += cost;
         if (outbound) b.outbound++; else b.inbound++;
@@ -132,6 +136,7 @@ exports.handler = async function (event) {
   const peopleOut = Object.entries(people).map(([who, v]) => ({ who, bucket: v.bucket, count: v.count, cost: round(v.cost) })).sort((a, b) => b.count - a.count);
 
   const officeShare = totalOut ? Math.round(buckets.office.count / totalOut * 100) : 0;
+  const recentOfficeSorted = recentOffice.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 40);
 
   return json(200, {
     ok: true, kind, partial: !!limited, limited_by: limited,
@@ -145,6 +150,7 @@ exports.handler = async function (event) {
       customer: { count: buckets.customer.count, cost: round(buckets.customer.cost) },
     },
     office_people: peopleOut,
+    recent_office_texts: recentOfficeSorted,
     top_destinations: topDest,
     daily_trend: trend,
     read_me: 'office = texts to Danielle/Sofia/Carrie/Teddy (internal). A high office pct = the flood. Cost fields best-effort from Telnyx MDR; counts are exact.',
