@@ -276,6 +276,9 @@
       '<div class="sec">Sales tax</div>' +
       '<label>Sales tax % <span class="hint">default rate on invoices</span></label>' +
       '<input id="s_tax" inputmode="decimal" placeholder="9.75" value="' + esc(s.tax_rate != null ? s.tax_rate : '') + '">' +
+      '<div class="sec">🔌 Connected accounts</div>' +
+      '<div class="hint" style="margin:-4px 0 8px">Plug in your own warranty + parts logins (AHS, ServicePower, Marcone…) and Ant runs the automations on <b>your</b> accounts. Encrypted, private to your shop, never shared. You can connect or disconnect anytime.</div>' +
+      '<a href="/platform/integrations.html" style="display:block;text-align:center;text-decoration:none;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-weight:650">Connect your vendor accounts →</a>' +
       '<div class="sec">Tools</div>' +
       '<label>Review link <span class="hint">Google, Facebook, Yelp — wherever you collect reviews. This is the link customers tap to review you.</span></label>' +
       '<input id="s_review" placeholder="https://g.page/r/…/review — or your Facebook / Yelp review URL" value="' + esc(s.review_url || '') + '">' +
