@@ -17,10 +17,28 @@ const { createLeadJob } = require('./_lib/platform-db');
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function tempPassword() { return 'Ant-' + Math.random().toString(36).slice(2, 8) + Math.floor(10 + Math.random() * 89); }
 
+// A valid Supabase operator login (Authorization: Bearer <jwt>) opens the operator tools
+// without the admin key — same one-tap session the shop apps use.
+const OPERATOR_EMAILS = ['tnappliancerepair@gmail.com'];
+const PLATFORM_ANON = 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7';
+async function operatorFromJWT(event) {
+  const h = event.headers || {};
+  const m = String(h.authorization || h.Authorization || '').match(/Bearer\s+(.+)/i);
+  if (!m) return null;
+  const base = (await getSecret('PLATFORM_SUPABASE_URL')) || 'https://tntbhfwitytkcoqlejwc.supabase.co';
+  try {
+    const r = await fetch(`${base}/auth/v1/user`, { headers: { Authorization: 'Bearer ' + m[1], apikey: PLATFORM_ANON }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const u = await r.json().catch(() => null);
+    const email = String((u && u.email) || '').toLowerCase();
+    return OPERATOR_EMAILS.includes(email) ? email : null;
+  } catch (_) { return null; }
+}
+
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (q.secret !== guard) return { statusCode: 403, body: 'forbidden' };
+  if (q.secret !== guard && !(await operatorFromJWT(event))) return { statusCode: 403, body: 'forbidden' };
 
   const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
   const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';

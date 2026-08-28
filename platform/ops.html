@@ -97,10 +97,16 @@
 
 <div id="app"><div class="note wrap" style="padding-top:40px">Loading…</div></div>
 
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
   var app = document.getElementById('app');
   var KEY = 'ant_ops_secret';
+  var sb = null, accessToken = null;
+  try { if (window.ANT_SUPABASE && window.supabase) sb = window.supabase.createClient(window.ANT_SUPABASE.url, window.ANT_SUPABASE.anonKey); } catch(_){}
+  function authHdr(){ return accessToken ? { Authorization: 'Bearer ' + accessToken } : {}; }
+  function authQS(){ return accessToken ? '' : ('secret=' + encodeURIComponent(localStorage.getItem(KEY) || '')); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(x){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[x];}); }
   function ago(iso){ if(!iso) return '—'; var d=(Date.now()-Date.parse(iso))/86400000; if(d<1) return 'today'; if(d<2) return 'yesterday'; if(d<30) return Math.round(d)+'d ago'; if(d<365) return Math.round(d/30)+'mo ago'; return Math.round(d/365)+'y ago'; }
   function joined(iso){ try{ return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'2-digit'}); }catch(_){ return '—'; } }
@@ -111,22 +117,36 @@
       '<input id="k" type="password" placeholder="admin key" autocomplete="current-password">'+
       '<button id="go">Open</button><div class="err" id="e">'+esc(msg||'')+'</div></div>';
     var go=document.getElementById('go'), k=document.getElementById('k');
-    function submit(){ var v=k.value.trim(); if(!v){document.getElementById('e').textContent='Enter the key.';return;} localStorage.setItem(KEY,v); load(); }
+    function submit(){ var v=k.value.trim(); if(!v){document.getElementById('e').textContent='Enter the key.';return;} accessToken=null; localStorage.setItem(KEY,v); fetchOps(); }
     go.onclick=submit; k.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); }); k.focus();
   }
 
-  function load(){
-    var secret = localStorage.getItem(KEY) || '';
-    if(!secret) return gate('');
+  function fetchOps(){
     app.innerHTML = '<div class="note wrap" style="padding-top:40px">Loading your clients…</div>';
-    fetch('/.netlify/functions/platform-ops?secret='+encodeURIComponent(secret))
+    var qs = authQS();
+    fetch('/.netlify/functions/platform-ops' + (qs ? '?' + qs : ''), { headers: authHdr() })
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if(d && d.error==='forbidden'){ localStorage.removeItem(KEY); return gate('That key was rejected.'); }
+        if(d && d.error==='forbidden'){
+          if(accessToken){ accessToken=null; return gate('This login isn’t set up as a platform operator. Enter the admin key, or ask to be added.'); }
+          localStorage.removeItem(KEY); return gate('That key was rejected.');
+        }
         if(!d || !d.ok){ return gate((d&&d.error)||'Could not load.'); }
         render(d);
       })
       .catch(function(e){ gate('Network error: '+e.message); });
+  }
+  function load(){
+    // Prefer your existing owner session (one-tap, no key). Fall back to the admin key.
+    if(sb){
+      sb.auth.getSession().then(function(r){
+        var s = r && r.data && r.data.session;
+        if(s && s.access_token){ accessToken = s.access_token; fetchOps(); }
+        else if(localStorage.getItem(KEY)){ fetchOps(); }
+        else gate('');
+      }).catch(function(){ if(localStorage.getItem(KEY)) fetchOps(); else gate(''); });
+    } else if(localStorage.getItem(KEY)){ fetchOps(); }
+    else gate('');
   }
 
   function tile(accent, valcls, lab, val, cap){
@@ -192,8 +212,8 @@
   }
 
   function lifecycle(action, slug, name, btn){
-    var secret = localStorage.getItem(KEY) || '';
-    var url = '/.netlify/functions/platform-provision?secret='+encodeURIComponent(secret)+'&slug='+encodeURIComponent(slug);
+    var url = '/.netlify/functions/platform-provision?slug='+encodeURIComponent(slug);
+    var qs = authQS(); if(qs) url += '&' + qs;
     if(action==='offboard'){
       if(!confirm('Offboard '+name+'?\n\nThey’ll be marked as Left and their logins revoked. All their data is KEPT for 30 days (you can Reactivate anytime in that window).')) return;
       var reason = prompt('Reason they left (optional):','') || '';
