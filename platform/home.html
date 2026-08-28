@@ -1,0 +1,256 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ant — the AI that runs your repair shop</title>
+<meta name="description" content="One system runs your whole shop: a 24/7 AI receptionist that answers every call, a job board, scheduling, invoicing, tech pay, a website we build for you, and reviews on autopilot. Flat price per shop. 14-day free trial.">
+<meta property="og:title" content="Ant — the AI that runs your repair shop">
+<meta property="og:description" content="AI answers every call 24/7. We build your website. Reviews run themselves. One flat price for the whole shop — not per seat.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --bg:#f6f7f4; --panel:#ffffff; --soft:#f0f3ec; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
+    --accent:#3f8f24; --accent-ink:#2c6b17; --chip:#eef2e8; --good:#3f8f24; --bad:#b4472e;
+    --shadow:0 1px 2px rgba(20,30,10,.05),0 8px 26px rgba(20,30,10,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1310; --panel:#181e16; --soft:#141a12; --ink:#eef2e8; --muted:#9aa595; --line:#28311f; --chip:#1e2519;
+      --accent-ink:#7fce5e; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45);
+    }
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px}
+  /* nav */
+  nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+  .navin{max-width:960px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:11px}
+  .dot{width:32px;height:32px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:18px;flex:none}
+  .wordmark{font-weight:800;letter-spacing:-.01em;font-size:17px}
+  .navcta{margin-left:auto;background:var(--accent);color:#fff;font-weight:800;font-size:14px;padding:9px 16px;border-radius:10px;text-decoration:none}
+  /* hero */
+  .hero{padding:56px 0 30px;text-align:center}
+  .eyebrow{display:inline-block;font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--accent-ink);background:var(--chip);padding:6px 12px;border-radius:999px;margin-bottom:20px}
+  h1{font-size:46px;line-height:1.08;letter-spacing:-.025em;margin:0 auto 18px;max-width:16ch;text-wrap:balance}
+  .lede{font-size:19px;color:var(--muted);margin:0 auto 30px;max-width:60ch;line-height:1.55}
+  .ctas{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;font-weight:800;font-size:16px;padding:15px 26px;border-radius:13px;text-decoration:none;box-shadow:var(--shadow)}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+  .trust{color:var(--muted);font-size:13px;margin-top:14px}
+  .statrow{display:flex;flex-wrap:wrap;gap:26px;justify-content:center;margin:38px auto 0;max-width:640px}
+  .stat{min-width:120px}
+  .stat b{display:block;font-size:26px;letter-spacing:-.02em}
+  .stat span{color:var(--muted);font-size:12.5px}
+  /* sections */
+  section{padding:44px 0}
+  .kicker{font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-ink);font-weight:800;text-align:center}
+  h2{font-size:30px;line-height:1.15;letter-spacing:-.02em;text-align:center;margin:10px auto 8px;max-width:22ch;text-wrap:balance}
+  .sub2{color:var(--muted);text-align:center;max-width:56ch;margin:0 auto 30px}
+  /* problem */
+  .pains{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .pain{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:20px;box-shadow:var(--shadow)}
+  .pain .e{font-size:22px}
+  .pain b{display:block;margin:8px 0 4px;font-size:15.5px}
+  .pain p{margin:0;color:var(--muted);font-size:14px}
+  /* features */
+  .feats{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .feat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:var(--shadow)}
+  .feat .e{width:40px;height:40px;border-radius:11px;background:var(--chip);display:grid;place-items:center;font-size:20px}
+  .feat h3{margin:14px 0 6px;font-size:17px;letter-spacing:-.01em}
+  .feat p{margin:0;color:var(--muted);font-size:14.5px}
+  .feat .free{display:inline-block;margin-top:10px;font-size:11.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--accent-ink);background:var(--chip);padding:3px 9px;border-radius:999px}
+  /* how */
+  .steps{max-width:680px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+  .step{display:flex;gap:15px;align-items:flex-start;padding:20px 22px;border-top:1px solid var(--line)}
+  .step:first-child{border-top:0}
+  .step .n{width:30px;height:30px;border-radius:9px;background:var(--accent);color:#fff;font-weight:800;display:grid;place-items:center;flex:none}
+  .step b{font-size:16px}
+  .step span{display:block;color:var(--muted);font-size:14px;margin-top:2px}
+  /* comparison */
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);background:var(--panel)}
+  table{border-collapse:collapse;width:100%;min-width:620px;font-size:14px}
+  th,td{text-align:left;padding:14px 16px;border-top:1px solid var(--line)}
+  thead th{border-top:0;font-size:12.5px;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)}
+  thead th.us{color:var(--accent-ink)}
+  td.us,th.us{background:color-mix(in srgb,var(--accent) 7%,transparent);font-weight:700}
+  td.row{font-weight:700}
+  .yes{color:var(--good);font-weight:800}
+  .no{color:var(--bad)}
+  /* pricing */
+  .price{max-width:560px;margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:26px}
+  .pline{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+  .pline:first-of-type{border-top:0}
+  .pline .l b{font-size:16px}
+  .pline .l span{display:block;color:var(--muted);font-size:13px}
+  .pline .p{font-weight:800;font-size:17px;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .pline .p small{color:var(--muted);font-weight:600;font-size:12px}
+  .pnote{color:var(--muted);font-size:13px;margin-top:16px;text-align:center}
+  /* proof */
+  .proof{background:var(--soft);border:1px solid var(--line);border-radius:18px;padding:30px;text-align:center;max-width:720px;margin:0 auto}
+  .proof p{font-size:18px;line-height:1.6;margin:0 0 14px;text-wrap:balance}
+  .proof .by{color:var(--muted);font-size:13.5px}
+  /* faq */
+  .faq{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+  .faq details{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:4px 18px;box-shadow:var(--shadow)}
+  .faq summary{cursor:pointer;font-weight:700;padding:15px 0;list-style:none;font-size:15.5px}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:'+';float:right;color:var(--muted);font-weight:800}
+  .faq details[open] summary::after{content:'–'}
+  .faq p{margin:0 0 16px;color:var(--muted);font-size:14.5px}
+  /* final */
+  .final{text-align:center;padding:56px 0 30px}
+  .final h2{max-width:20ch}
+  footer{border-top:1px solid var(--line);padding:30px 0 46px;text-align:center;color:var(--muted);font-size:12.5px}
+  @media(max-width:720px){ h1{font-size:34px} .pains{grid-template-columns:1fr} .feats{grid-template-columns:1fr} h2{font-size:25px} }
+</style></head>
+<body>
+<nav><div class="navin">
+  <span class="dot" id="emoji">🐜</span><span class="wordmark" id="brand">Ant</span>
+  <a class="navcta" id="nav-cta" href="/platform/signup.html">Start free →</a>
+</div></nav>
+
+<div class="wrap">
+  <!-- HERO -->
+  <header class="hero">
+    <span class="eyebrow" id="eyebrow">For repair shop owners</span>
+    <h1 id="h1">The AI that runs your repair shop.</h1>
+    <p class="lede" id="lede">A 24/7 AI receptionist answers every call and books the job. A website we build for you. Reviews that run themselves. Your whole office — scheduling, invoicing, tech pay — in one place. One flat price for the shop, not per seat.</p>
+    <div class="ctas">
+      <a class="btn" id="hero-cta" href="/platform/signup.html">Start free — 14 days →</a>
+      <a class="btn ghost" href="#how">See how it works</a>
+    </div>
+    <div class="trust">Card required to start · no charge for 14 days · cancel anytime · your number stays yours.</div>
+    <div class="statrow">
+      <div class="stat"><b>24/7</b><span>AI answers every call</span></div>
+      <div class="stat"><b>&lt;10 min</b><span>website + phone live</span></div>
+      <div class="stat"><b>1 flat price</b><span>every tech included</span></div>
+    </div>
+  </header>
+
+  <!-- PROBLEM -->
+  <section>
+    <div class="kicker">The problem</div>
+    <h2>Every missed call is a job that went to the other guy.</h2>
+    <p class="sub2">You're under a machine, not by the phone. The software you pay for charges by the seat, and you still don't have a real website or fresh reviews. It adds up — and it costs you jobs.</p>
+    <div class="pains">
+      <div class="pain"><div class="e">📵</div><b>Calls go to voicemail</b><p>You can't answer with your hands in a dishwasher — and most people won't leave a message, they just call the next shop.</p></div>
+      <div class="pain"><div class="e">💸</div><b>Per-seat software adds up</b><p>The big platforms charge $79–$329/mo and then $29–$54 for every extra tech. Add their AI phone and it's $500+.</p></div>
+      <div class="pain"><div class="e">🕳️</div><b>No website, no reviews</b><p>No time to build a site, post to Google, or chase reviews — so you're invisible when someone searches your town.</p></div>
+    </div>
+  </section>
+
+  <!-- WHAT YOU GET -->
+  <section>
+    <div class="kicker">What you get</div>
+    <h2>One system that answers the phone, books the job, and fills your funnel.</h2>
+    <p class="sub2">Everything a shop needs to run and to grow — and it gets smarter every job you close on it.</p>
+    <div class="feats">
+      <div class="feat"><div class="e">📞</div><h3>Ann — your AI receptionist</h3><p>Answers 24/7 in a warm, real voice, captures the lead, and texts you the job. Your phone never goes to voicemail again.</p></div>
+      <div class="feat"><div class="e">🌐</div><h3>A website, built for you</h3><p>Sign up and we generate your site from your info — with your AI number answering it. Live in minutes, no web guy needed.</p><span class="free">Built for you</span></div>
+      <div class="feat"><div class="e">⭐</div><h3>Reviews on autopilot</h3><p>Every finished job asks the customer for a Google review, and replies to reviews for you. The #1 way to rank in the map pack.</p><span class="free">Included</span></div>
+      <div class="feat"><div class="e">🗓️</div><h3>Job board + scheduling</h3><p>Every call becomes a job your office sees, your tech works, and your customer can follow — one shared source of truth.</p></div>
+      <div class="feat"><div class="e">💵</div><h3>Invoicing + tech pay</h3><p>Bill the job once and the tech's commission, collected, and paid all fall out of the same number. No spreadsheets.</p></div>
+      <div class="feat"><div class="e">📍</div><h3>Connect Google</h3><p>One click and Ant runs your Google Business Profile — posts, photos, Q&A — so you show up when your town searches.</p><span class="free">Included</span></div>
+    </div>
+  </section>
+
+  <!-- HOW -->
+  <section id="how">
+    <div class="kicker">How it works</div>
+    <h2>Up and running the same day.</h2>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div><b>Fill out a short application</b><span>Business name, phone, what you fix, your town. That's most of it.</span></div></div>
+      <div class="step"><div class="n">2</div><div><b>We build your site + turn on your AI phone</b><span>Your website generates from your application, with your Ann number answering it — in minutes.</span></div></div>
+      <div class="step"><div class="n">3</div><div><b>The calls start booking themselves</b><span>Ann answers, captures the lead, and drops it on your board. You work the jobs.</span></div></div>
+      <div class="step"><div class="n">4</div><div><b>Reviews + Google run in the background</b><span>Every job asks for a review; your profile posts itself. You climb the map pack without lifting a finger.</span></div></div>
+    </div>
+  </section>
+
+  <!-- COMPARISON -->
+  <section>
+    <div class="kicker">Why shops switch</div>
+    <h2>One flat price. The AI phone and the website come with it.</h2>
+    <p class="sub2">The big platforms nickel-and-dime you per seat, then charge extra for the phone and the website. We don't.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>&nbsp;</th><th class="us">Ant</th><th>Housecall Pro</th><th>Jobber</th><th>Workiz</th></tr></thead>
+      <tbody>
+        <tr><td class="row">Price</td><td class="us">Flat / shop</td><td>$79–$329/mo</td><td>$49–$499/mo</td><td>$225–$325/mo</td></tr>
+        <tr><td class="row">Charges per tech?</td><td class="us"><span class="yes">No</span></td><td>Yes</td><td class="no">+$29 each</td><td class="no">+$46–54 each</td></tr>
+        <tr><td class="row">AI phone receptionist</td><td class="us"><span class="yes">Included</span></td><td class="no">—</td><td class="no">—</td><td class="no">~$200/mo extra</td></tr>
+        <tr><td class="row">Website built for you</td><td class="us"><span class="yes">Yes</span></td><td class="no">Paid add-on</td><td>Basic</td><td class="no">—</td></tr>
+        <tr><td class="row">Reviews + Google on autopilot</td><td class="us"><span class="yes">Yes</span></td><td>Add-on</td><td>Requests only</td><td>Limited</td></tr>
+        <tr><td class="row">Built by a real repair shop</td><td class="us"><span class="yes">Yes</span></td><td class="no">—</td><td class="no">—</td><td class="no">—</td></tr>
+      </tbody>
+    </table></div>
+    <p class="sub2" style="margin-top:16px;font-size:13px">Competitor pricing from their published 2026 plans; features vary by tier.</p>
+  </section>
+
+  <!-- PRICING -->
+  <section>
+    <div class="kicker">Simple pricing</div>
+    <h2>Pay for the shop, not the seat.</h2>
+    <div class="price">
+      <div class="pline"><div class="l"><b>Full Office Platform</b><span>Job board, scheduling, portal, invoicing, tech pay — every tech included</span></div><div class="p">$99<small>/mo</small></div></div>
+      <div class="pline"><div class="l"><b>Ann — AI Receptionist</b><span>24/7 answering · 400 min + 100 texts, then metered</span></div><div class="p">$50<small>/wk</small></div></div>
+      <div class="pline"><div class="l"><b>Website + Connect Google + Reviews</b><span>Your site built for you, reviews + Google on autopilot</span></div><div class="p">Included</div></div>
+      <div class="pline"><div class="l"><b>Own Your Area</b><span>Optional — we won't sign another shop in your territory</span></div><div class="p">$199<small>/mo</small></div></div>
+      <div class="pnote">14-day free trial · card required to start · cancel anytime · your number stays yours.</div>
+    </div>
+  </section>
+
+  <!-- PROOF -->
+  <section>
+    <div class="proof">
+      <p>“We didn't buy this off a shelf — we built it to run our own shop.”</p>
+      <div class="by">Ant is built by the family behind <b>TN Appliance Exchange</b> — a real repair business in the trade since 2012. Every feature exists because we needed it on our own trucks first.</div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section>
+    <div class="kicker">Questions</div>
+    <h2>The honest answers.</h2>
+    <div class="faq">
+      <details><summary>Do I have to change my phone number?</summary><p>No. You can forward your existing business line to your Ann number, or get a fresh local number — your choice. Either way, your number stays yours, and it's released if you ever cancel.</p></details>
+      <details><summary>Is it really a website built for me?</summary><p>Yes. When you sign up, we generate a clean site from your application — your business name, what you fix, your town — with your AI number answering it. No web designer, no waiting.</p></details>
+      <details><summary>What does it cost if I have a bunch of techs?</summary><p>The same. We charge a flat price for the shop, not per seat. Add all the techs you want — the price doesn't move. That's the biggest difference from Housecall Pro, Jobber, and Workiz.</p></details>
+      <details><summary>How fast can I be up and running?</summary><p>The same day. Fill out the short application, enter your card for the free trial, and your website + AI phone are live in minutes.</p></details>
+      <details><summary>What happens after the free trial?</summary><p>You keep going at the price above, or cancel anytime before the 14 days are up and you're never charged. No contract.</p></details>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final">
+    <h2>Stop losing jobs to voicemail.</h2>
+    <p class="lede" style="margin-bottom:24px">Get your AI receptionist and your website live today — free for 14 days.</p>
+    <a class="btn" id="final-cta" href="/platform/signup.html">Start free — 14 days →</a>
+  </section>
+</div>
+
+<footer><span id="foot">Ant</span> · the AI that runs your shop · built by the family behind TN Appliance Exchange, in the trade since 2012.</footer>
+
+<script src="/platform/verticals.js"></script>
+<script>
+(function(){
+  try{
+    var V = window.PlatformVerticals; if(!V) return;
+    var vParam = new URLSearchParams(location.search).get('v');
+    var vert = V.resolve(location.hostname, vParam);
+    if(vert.accent) document.documentElement.style.setProperty('--accent', vert.accent);
+    document.getElementById('emoji').textContent = vert.emoji || '🐜';
+    document.getElementById('brand').textContent = vert.brand || 'Ant';
+    document.getElementById('foot').textContent = vert.brand || 'Ant';
+    var trade = (vert.trade||'appliance');
+    var noun = trade==='appliance'?'repair shop':(trade==='automotive'?'auto shop':(trade==='hvac'?'HVAC business':'shop'));
+    document.getElementById('eyebrow').textContent = 'For '+noun+' owners';
+    if(vert.key && vert.key!=='ant'){
+      document.getElementById('h1').textContent = 'The AI that runs your '+noun+'.';
+      document.title = vert.brand+' — the AI that runs your '+noun;
+    }
+    // CTAs carry the trade + vertical so signup provisions the right workflow + brand.
+    var qs = '?trade='+encodeURIComponent(trade)+'&v='+encodeURIComponent(vert.key||'ant');
+    ['nav-cta','hero-cta','final-cta'].forEach(function(id){ var a=document.getElementById(id); if(a) a.href='/platform/signup.html'+qs; });
+  }catch(_){}
+})();
+</script>
+</body></html>
