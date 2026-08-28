@@ -30,8 +30,12 @@
   .opt{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:13px 14px;margin-top:10px;cursor:pointer;background:var(--bg)}
   .opt.sel{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 22%,transparent)}
   .opt input{width:auto;margin-top:3px;flex:none}
-  .opt .t{font-weight:800;font-size:15px}
-  .opt .b{color:var(--muted);font-size:13px;margin-top:2px}
+  .opt .t{display:block;font-weight:800;font-size:15px}
+  .opt .b{display:block;color:var(--muted);font-size:13px;margin-top:3px;line-height:1.45}
+  .opt.ann{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));background:color-mix(in srgb,var(--brand) 5%,var(--bg))}
+  .opt .b b{color:var(--ink)}
+  .annline{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:10px 16px;border-radius:12px;border:1px dashed color-mix(in srgb,var(--brand) 40%,var(--line));font-size:13px;color:var(--muted)}
+  .annline b{color:var(--ink)}
   .opt .p{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
   .opt .p small{color:var(--muted);font-weight:600;font-size:11px}
   .total{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding:14px 16px;border-radius:12px;background:var(--chip);font-weight:800}
@@ -68,16 +72,20 @@
       <div><label class="fld" for="email">Email</label><input id="email" type="email" placeholder="you@shop.com" autocomplete="email"></div>
     </div>
 
-    <div class="sec" style="margin-top:18px">Pick your plan</div>
+    <div class="sec" style="margin-top:18px">Your platform</div>
     <div id="plans"></div>
+
+    <div class="sec" style="margin-top:18px">Add Ann — your AI receptionist</div>
+    <div id="annopt"></div>
 
     <div class="sec" style="margin-top:18px">Add-ons <span style="text-transform:none;font-weight:600">(optional)</span></div>
     <div id="addons"></div>
 
     <div class="total"><span>Your monthly total</span><span class="v" id="total">$0</span></div>
+    <div class="annline" id="annline" style="display:none"><span>+ <b>$50/week</b> for Ann · 400 min + 100 texts, then $0.40/min · $0.05/text</span><span>starts when your number goes live</span></div>
     <button class="go" id="go" disabled>Start my 14-day trial →</button>
     <div class="msg" id="msg"></div>
-    <div class="note">You'll enter your card on the next screen. No charge for 14 days — cancel anytime before then and you won't be billed. After that it's your monthly total above.</div>
+    <div class="note">You'll enter your card on the next screen. No charge for 14 days — cancel anytime before then and you won't be billed. After the trial it's your monthly total above<span id="annnote"></span>.</div>
   </div>
 </div>
 
@@ -99,7 +107,7 @@
     }
   } catch (_) {}
   var P = window.PlatformPlans;
-  var sel = { plan:null, addons:{} };
+  var sel = { plan:null, addons:{}, ann:false };
   function money(c){ return '$'+Math.round((c||0)/100).toLocaleString(); }
 
   function renderPlans(){
@@ -109,12 +117,22 @@
         '<span><span class="t">'+p.label+'</span><span class="b">'+p.blurb+'</span></span>'+
         '<span class="p">'+money(p.price_cents)+'<small>/mo</small></span></label>';
     }).join('');
+    // Ann — the phone. Weekly + metered, so it's shown on its own, not in the monthly total.
+    var A = P.ANN;
+    document.getElementById('annopt').innerHTML =
+      '<label class="opt ann" data-ann="1">'+
+      '<input type="checkbox" id="annchk">'+
+      '<span><span class="t">'+A.label+'</span><span class="b">'+A.blurb+
+        ' <b>$50/week</b> — '+A.included_min+' minutes + '+A.included_texts+' texts included, then $0.40/min and $0.05/text. Turns on after signup, when your number goes live.</span></span>'+
+      '<span class="p">$50<small>/wk</small></span></label>';
     document.getElementById('addons').innerHTML = P.ADDONS.map(function(a){
       return '<label class="opt" data-addon="'+a.key+'">'+
         '<input type="checkbox" value="'+a.key+'">'+
         '<span><span class="t">'+a.label+'</span><span class="b">'+a.blurb+'</span></span>'+
         '<span class="p">'+money(a.price_cents)+'<small>/mo</small></span></label>';
     }).join('');
+    // One base platform → preselect it so the flow is one fewer tap.
+    if(P.PLANS.length===1){ sel.plan=P.PLANS[0].key; var r=document.querySelector('.opt[data-plan] input'); if(r) r.checked=true; }
   }
 
   function recompute(){
@@ -122,8 +140,11 @@
     if(planMod) total += planMod.price_cents;
     Object.keys(sel.addons).forEach(function(k){ if(sel.addons[k]){ var m=P.byKey(k); if(m) total += m.price_cents; } });
     document.getElementById('total').textContent = money(total);
+    document.getElementById('annline').style.display = sel.ann ? 'flex' : 'none';
+    document.getElementById('annnote').textContent = sel.ann ? ', plus $50/week for Ann' : '';
     document.querySelectorAll('.opt[data-plan]').forEach(function(el){ el.classList.toggle('sel', el.getAttribute('data-plan')===sel.plan); });
     document.querySelectorAll('.opt[data-addon]').forEach(function(el){ el.classList.toggle('sel', !!sel.addons[el.getAttribute('data-addon')]); });
+    var annEl=document.querySelector('.opt[data-ann]'); if(annEl) annEl.classList.toggle('sel', sel.ann);
     validate();
   }
   function validate(){
@@ -141,7 +162,9 @@
   })();
 
   renderPlans();
+  recompute();
   document.getElementById('plans').addEventListener('change', function(e){ if(e.target.name==='plan'){ sel.plan=e.target.value; recompute(); } });
+  document.getElementById('annopt').addEventListener('change', function(e){ if(e.target.id==='annchk'){ sel.ann=e.target.checked; recompute(); } });
   document.getElementById('addons').addEventListener('change', function(e){ if(e.target.getAttribute && e.target.value){ sel.addons[e.target.value]=e.target.checked; recompute(); } });
   ['name','email'].forEach(function(id){ document.getElementById(id).addEventListener('input', validate); });
 
@@ -156,7 +179,8 @@
         trade: document.getElementById('trade').value,
         owner_name: document.getElementById('owner').value.trim(),
         plan: sel.plan,
-        addons: Object.keys(sel.addons).filter(function(k){return sel.addons[k];})
+        addons: Object.keys(sel.addons).filter(function(k){return sel.addons[k];}),
+        want_ann: sel.ann
       })
     }).then(function(r){return r.json();}).then(function(d){
       if(d.ok && d.checkout_url){ window.location.href = d.checkout_url; return; }

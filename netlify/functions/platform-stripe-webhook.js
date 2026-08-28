@@ -93,6 +93,15 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
   if (!pd.ok || !pd.company) { console.error('[platform-stripe-webhook] provision failed', pd && pd.error); return null; }
   const companyId = pd.company.id;
+  // Shop ticked Ann at signup → flag it so onboarding leads with "turn on your AI receptionist".
+  if (String(meta.want_ann) === '1') {
+    try {
+      const rows = await pf.get(`company?id=eq.${encodeURIComponent(companyId)}&select=settings`);
+      const s = (rows && rows[0] && rows[0].settings) || {};
+      const next = Object.assign({}, s, { ai: Object.assign({}, s.ai, { phone_requested: true }) });
+      await pf.patch('company', `id=eq.${encodeURIComponent(companyId)}`, { settings: next });
+    } catch (_) {}
+  }
   // Stamp the subscription so subscription.updated/deleted map back to this company.
   try { await stripe.subscriptions.update(sub.id, { metadata: Object.assign({}, meta, { company_id: companyId }) }); } catch (_) {}
   // Email the owner a magic login link (best-effort; dry unless EMAIL_ENABLED).

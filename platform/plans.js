@@ -10,23 +10,18 @@
 (function (root) {
   'use strict';
 
-  // Base tiers — a shop picks exactly one. Higher tiers include everything below them.
+  // The software base — the monthly Full Office Platform (the shop runs its whole back office on
+  // it). Ann (the phone) is a SEPARATE weekly metered product, see ANN below — the hybrid model
+  // (Teddy 2026-08-28): monthly software + Ann phone add-on. `phones` is NOT here — that entitlement
+  // comes from the Ann add-on. Price is a PLACEHOLDER the owner sets.
   var PLANS = [
-    {
-      key: 'answering',
-      label: 'Ann — AI Answering',
-      blurb: 'Ann answers 24/7, captures every lead, texts you the job. Your phone never goes to voicemail again.',
-      price_cents: 9900,                 // PLACEHOLDER — owner sets
-      price_env: 'STRIPE_PRICE_ANSWERING',
-      features: { phones: true }
-    },
     {
       key: 'office',
       label: 'Full Office Platform',
-      blurb: 'Everything in Answering, plus the job board, scheduling, customer portal, invoicing, and the tech pay spine — one system your whole shop runs on.',
-      price_cents: 29900,                // PLACEHOLDER — owner sets
+      blurb: 'The job board, scheduling, customer portal, invoicing, and the tech pay spine — one system your whole shop runs on.',
+      price_cents: 9900,                 // PLACEHOLDER — owner sets
       price_env: 'STRIPE_PRICE_OFFICE',
-      features: { phones: true, database: true, scheduling: true, portal: true, invoicing: true, pay: true, usage_digest: true }
+      features: { database: true, scheduling: true, portal: true, invoicing: true, pay: true, usage_digest: true }
     }
   ];
 
@@ -74,6 +69,9 @@
   // WEEKLY prices — a flat base + two metered (usage_type 'metered') for minute + text overage —
   // and vault under the price_env keys.
   var ANN = {
+    key: 'ann_phone', label: 'Ann — AI Receptionist',
+    blurb: 'Ann answers 24/7, captures every lead, and texts you the job. Your phone never goes to voicemail again.',
+    features: { phones: true },
     base_cents: 5000, period: 'week', included_min: 400, included_texts: 100,
     overage_min_cents: 40, overage_text_cents: 5,
     price_env_base: 'STRIPE_PRICE_ANN_BASE',

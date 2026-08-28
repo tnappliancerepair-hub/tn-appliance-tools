@@ -63,7 +63,7 @@ exports.handler = async function (event) {
   // Card-required Checkout. Tenant is provisioned by the webhook after the card clears.
   let out;
   try {
-    out = await billing.signupCheckout({ name, slug, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '' });
+    out = await billing.signupCheckout({ name, slug, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '', want_ann: !!b.want_ann });
   } catch (e) {
     return J(200, { ok: false, error: 'checkout_failed', detail: String((e && e.message) || e).slice(0, 160) });
   }
