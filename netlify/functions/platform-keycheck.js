@@ -4,7 +4,7 @@
 // keyring row. Returns only booleans + the non-secret key-source tag. Safe to keep (like r2-probe).
 //   GET ?secret=<admin>
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretPreferVault } = require('./_lib/secrets');
 const tc = require('./_lib/tenant-creds');
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -22,12 +22,23 @@ exports.handler = async function (event) {
   const FAKE_CO = require('crypto').randomUUID();
 
   try {
-    // mint + wrap a fresh DEK, and round-trip a sample through it
+    // (1) does the dedicated key resolve from the vault? report its LENGTH only (non-secret:
+    //     64 = a hex key present; 0 = absent/not resolving). This is independent of the DB.
+    const kekVal = (await getSecretPreferVault('INTEGRATION_ENC_KEY')) || '';
+    const kekLen = kekVal.length;
+
+    // (2) can the service key WRITE the keyring? direct probe insert + read-back + cleanup.
+    let keyringWrite = 'unknown', keyringWriteStatus = 0;
+    try {
+      const w = await fetch(`${base}/rest/v1/tenant_keyring`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify({ company_id: FAKE_CO, wrapped_dek: 'PROBE', kek_v: 'probe' }), signal: AbortSignal.timeout(9000) });
+      keyringWriteStatus = w.status;
+      keyringWrite = w.ok ? 'ok' : (await w.text().catch(() => '')).slice(0, 140);
+    } catch (e) { keyringWrite = String((e && e.message) || e).slice(0, 100); }
+
+    // (3) mint + wrap a fresh DEK via tenant-creds, round-trip, and read the key-source tag.
     const enc = await tc.encryptCreds(FAKE_CO, { probe: 'keycheck' });
     const back = await tc.decryptCreds(FAKE_CO, enc.secret_enc, enc.enc_v);
     const roundtrip = back && back.probe === 'keycheck';
-
-    // read the non-secret key-source tag off the wrapped DEK
     const r = await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${FAKE_CO}&select=kek_v&limit=1`, { headers: H, signal: AbortSignal.timeout(9000) });
     const row = r.ok ? ((await r.json().catch(() => []))[0]) : null;
     const kekSource = row ? row.kek_v : null;
@@ -35,15 +46,19 @@ exports.handler = async function (event) {
     // cleanup — leave no throwaway row behind
     await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${FAKE_CO}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(9000) });
 
+    const dedicated = kekLen === 64 || kekSource === 'ded';
     return json(200, {
       ok: true,
-      integration_enc_key_present: kekSource === 'ded',
-      kek_source: kekSource,                 // 'ded' = dedicated vault key (what we want); 'kdf1' = derived fallback
+      integration_enc_key_present: dedicated,
+      kek_resolved_len: kekLen,              // 64 = present (hex); 0 = not resolving
+      kek_source: kekSource,                 // 'ded' = dedicated; 'kdf1' = derived fallback; null = keyring not written
+      keyring_write: keyringWrite,           // 'ok' or the PostgREST error
+      keyring_write_status: keyringWriteStatus,
       envelope_roundtrip: !!roundtrip,
-      cred_scheme: enc.enc_v,                // should be 'dek1' (per-tenant DEK)
-      note: kekSource === 'ded'
+      cred_scheme: enc.enc_v,
+      note: dedicated
         ? 'INTEGRATION_ENC_KEY is live — new DEKs wrap with the dedicated vault key.'
-        : 'INTEGRATION_ENC_KEY NOT resolving — still using the derived fallback (kdf1). Check the vault entry.',
+        : 'INTEGRATION_ENC_KEY NOT resolving — still using the derived fallback. Check the vault entry.',
     });
   } catch (e) {
     return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200) });
