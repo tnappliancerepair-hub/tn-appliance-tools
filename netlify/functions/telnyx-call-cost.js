@@ -18,6 +18,7 @@
 const { getSecret } = require('./_lib/secrets');
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const TELNYX = 'https://api.telnyx.com/v2';
+exports.config = { timeout: 26 };
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
 const money = (n) => '$' + (Math.round(n * 1000) / 1000).toFixed(3);
 
@@ -42,11 +43,23 @@ exports.handler = async function (event) {
   const days = Math.max(1, Math.min(90, Number(q.days || 7)));
   const cutoff = Date.now() - days * 864e5;
 
-  let convs = [];
+  // Paginate ALL conversations in the window (was capped at the 100 most-recent, which
+  // undercounted). Walk pages newest-first; stop once a whole page is older than cutoff.
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let convs = [], pages = 0, truncated = false;
   try {
-    const d = await tx(KEY, '/ai/conversations?page[size]=100', 12000);
-    convs = (d.data || []).filter((c) => Date.parse(c.last_message_at || c.created_at || 0) >= cutoff);
-  } catch (e) { return j(200, { ok: false, error: String((e && e.message) || e) }); }
+    for (let page = 1; page <= 60; page++) {
+      const d = await tx(KEY, `/ai/conversations?page[size]=100&page[number]=${page}`, 12000);
+      const rowsp = Array.isArray(d.data) ? d.data : [];
+      pages = page;
+      if (!rowsp.length) break;
+      const inWin = rowsp.filter((c) => Date.parse(c.last_message_at || c.created_at || 0) >= cutoff);
+      convs = convs.concat(inWin);
+      if (inWin.length < rowsp.length) break;   // reached records older than the window
+      if (page === 60) { truncated = true; break; } // safety cap
+      await sleep(150);
+    }
+  } catch (e) { if (!convs.length) return j(200, { ok: false, error: String((e && e.message) || e) }); truncated = true; }
 
   const rows = [];
   for (const c of convs) {
@@ -83,8 +96,11 @@ exports.handler = async function (event) {
       orchestration: money(ORCH), telephony: money(TEL), llm_gpt54: money(LLM), all_in: money(PER_MIN),
       note: 'orchestration+telephony are published Telnyx rates; llm is a caching-aware gpt-5.4 estimate — override ?llm= to true it up to a real invoice.',
     },
+    pages_pulled: pages, truncated,
     calls_seen: rows.length,
     calls_connected: n,
+    est_cost_per_day: money(days ? totalCost / days : 0),
+    est_cost_per_month: money(days ? totalCost / days * 30 : 0),
     avg_call_minutes: Math.round(avgMin * 100) / 100,
     avg_cost_per_call: money(avgCost),
     total_cost_window: money(totalCost),
