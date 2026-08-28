@@ -94,7 +94,7 @@
 <script>
 (function(){
   var cfg = window.ANT_SUPABASE || {};
-  var sb = null, companyId = null, shopName = 'Your shop', win = 'month', settings = {};
+  var sb = null, companyId = null, shopName = 'Your shop', win = 'month', settings = {}, payJobs = {};
   var app = document.getElementById('app');
   var USD = function(cents){ return '$' + (Math.round((cents||0)/100)).toLocaleString(); };
   var pct = function(n,d){ return d>0 ? Math.round((n/d)*100) : 0; };
@@ -160,7 +160,7 @@
     shell('<div class="skel" style="padding:30px 4px">Crunching…</div>');
     // RLS scopes both queries to this company — we never pass company_id.
     var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents').limit(3000);
-    var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,status,paid_at,created_at').limit(3000);
+    var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,collected_cents,status,paid_at,created_at').limit(3000);
     var techP = sb.from('technician').select('id,name,active,commission_type,commission_pct,commission_flat_cents').limit(200);
     var payP  = sb.from('tech_payout').select('technician_id,job_id,amount_cents,paid_at').limit(5000);
     Promise.all([jobsP, invP, techP, payP]).then(function(res){
@@ -193,8 +193,8 @@
 
     // money (owner-only) from real invoices — honest, may be sparse until CSR invoicing moves here
     var invWin = invs.filter(function(v){ return inWin(v, v.paid_at||v.created_at?'created_at':'created_at'); });
-    var billed=0, collected=0; invWin.forEach(function(v){ billed+=v.total_cents||0; if(v.status==='paid'){ collected+=v.total_cents||0; } });
-    var outstanding = billed - collected;
+    var billed=0, collected=0; invWin.forEach(function(v){ billed+=v.total_cents||0; collected+=v.collected_cents||0; });
+    var outstanding = billed - collected;   // collected = REAL money in (warranty remittances included)
 
     // TECH PAY — derived from the SAME invoices via PayCalc (one source of truth, so the
     // tech app can never disagree). Commission = per-tech override else company default.
@@ -203,19 +203,22 @@
     var invByJob={}; invs.forEach(function(v){ if(v.job_id) invByJob[v.job_id]=v; });
     var paidByTechJob={}; (payouts||[]).forEach(function(p){ var key=(p.technician_id||'')+'|'+(p.job_id||''); paidByTechJob[key]=(paidByTechJob[key]||0)+(p.amount_cents||0); });
     var payAgg={};  // techId -> {earned, collectible, paid, owed}
+    payJobs={};     // techId -> [{job_id, owed_cents}]  (for the Mark-paid payout writes)
     completed.forEach(function(j){
       var inv=invByJob[j.id]; if(!inv || !j.technician_id) return;
       var rule=window.PayCalc.ruleFor(techById[j.technician_id], compDef);
       var pj=window.PayCalc.jobPay(j, inv, rule, paidByTechJob[j.technician_id+'|'+j.id]||0);
       var a=payAgg[j.technician_id]||(payAgg[j.technician_id]={earned:0,collectible:0,paid:0,owed:0});
       a.earned+=pj.earned_cents; a.collectible+=pj.collectible_cents; a.paid+=pj.paid_cents; a.owed+=pj.owed_now_cents;
+      if(pj.owed_now_cents>0){ (payJobs[j.technician_id]=payJobs[j.technician_id]||[]).push({job_id:j.id, owed_cents:pj.owed_now_cents}); }
     });
     var owedToTechs=0, techCollected=0; Object.keys(payAgg).forEach(function(id){ owedToTechs+=payAgg[id].owed; techCollected+=payAgg[id].collectible; });
     var takeHome = collected - techCollected; // collected revenue minus tech's collected cut (before parts/overhead)
     var payTable = Object.keys(payAgg).length ? (
-      '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Rule</th><th>Earned</th><th>Collected</th><th>Paid</th><th>Owed now</th></tr></thead><tbody>'+
+      '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Rule</th><th>Earned</th><th>Collected</th><th>Paid</th><th>Owed now</th><th></th></tr></thead><tbody>'+
       Object.keys(payAgg).map(function(id){ var a=payAgg[id]; var rule=window.PayCalc.ruleFor(techById[id], compDef);
-        return '<tr><td class="nm">'+esc(techById[id]?techById[id].name:'—')+'</td><td class="mut">'+esc(window.PayCalc.ruleLabel(rule))+'</td><td>'+USD(a.earned)+'</td><td>'+USD(a.collectible)+'</td><td>'+USD(a.paid)+'</td><td'+(a.owed>0?' class="good"':'')+'>'+USD(a.owed)+'</td></tr>';
+        var act=a.owed>0 ? '<button class="markpaid" data-tech="'+id+'">💵 Mark '+USD(a.owed)+' paid</button>' : '';
+        return '<tr><td class="nm">'+esc(techById[id]?techById[id].name:'—')+'</td><td class="mut">'+esc(window.PayCalc.ruleLabel(rule))+'</td><td>'+USD(a.earned)+'</td><td>'+USD(a.collectible)+'</td><td>'+USD(a.paid)+'</td><td'+(a.owed>0?' class="good"':'')+'>'+USD(a.owed)+'</td><td>'+act+'</td></tr>';
       }).join('')+'</tbody></table></div>'
     ) : '';
 
@@ -282,7 +285,27 @@
       commissionEditor(techs, compDef);
     shell(body);
     bindCommission();
+    bindPayouts();
     loadUsage();
+  }
+
+  // "Mark paid" — records a tech_payout per collected-unpaid job (so the tech's 'paid' fills
+  // in, owed drops to 0, and a per-job pay history builds). Money action → confirm first.
+  function bindPayouts(){
+    Array.prototype.forEach.call(document.querySelectorAll('.markpaid'), function(btn){
+      btn.onclick=function(){
+        var id=btn.getAttribute('data-tech'); var jobs=payJobs[id]||[]; if(!jobs.length) return;
+        var total=jobs.reduce(function(s,j){return s+j.owed_cents;},0);
+        if(!confirm('Record '+USD(total)+' paid to this tech across '+jobs.length+' job'+(jobs.length===1?'':'s')+'? This marks their pay as handed over.')) return;
+        var period=new Date().toISOString().slice(0,7);
+        var rows=jobs.map(function(j){ return { company_id:companyId, technician_id:id, job_id:j.job_id, amount_cents:j.owed_cents, period:period, note:'payout' }; });
+        btn.disabled=true; btn.textContent='Recording…';
+        sb.from('tech_payout').insert(rows).then(function(r){
+          if(r.error){ btn.disabled=false; btn.textContent='Retry'; alert('Could not record: '+r.error.message); return; }
+          load();
+        });
+      };
+    });
   }
 
   // Owner's own month-to-date phone usage vs their plan allowance. NO cost / provider —
