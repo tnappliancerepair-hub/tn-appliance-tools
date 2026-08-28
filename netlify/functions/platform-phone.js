@@ -130,7 +130,7 @@ exports.handler = async function (event) {
     return J(200, { ok: true, phone: { number: phone.number || null, live: !!phone.number && !phone.paused, paused: !!phone.paused, assistant_id: phone.assistant_id || null, mode: phone.mode || null } });
   }
 
-  // Weekly (Mon–Sun) Ann usage vs the 500-min allowance — for the owner dashboard card.
+  // Weekly (Mon–Sun) Ann usage vs the 400-min allowance — for the owner dashboard card.
   if (action === 'usage') {
     if (!phone.number) return J(200, { ok: true, has_phone: false });
     let w;
@@ -200,7 +200,7 @@ exports.handler = async function (event) {
   }
 
   // Pause / resume — the owner's toggle to stop (or restart) Ann answering, e.g. after
-  // hitting the weekly 500. Pause unbinds the number from Ann's TeXML app so calls stop being
+  // hitting the weekly 400. Pause unbinds the number from Ann's TeXML app so calls stop being
   // AI-answered (keeps the number); resume re-binds. Flag mirrored in settings.phone.paused.
   if (action === 'pause' || action === 'resume') {
     if (!phone.number) return J(200, { ok: false, error: 'no_phone' });

@@ -68,12 +68,12 @@
   }
 
   // The Ann phone plan — metered (separate from the flat software tiers above). $50/week base
-  // + 400 included minutes + 500 included texts, overage $0.40/min and $0.02/text. Billed by
-  // reporting each completed week's overage as Stripe usage records (platform-usage-bill).
-  // Stripe setup: create 3 recurring WEEKLY prices — a flat base + two metered (usage_type
-  // 'metered') for minute + text overage — and vault their ids under the price_env keys.
+  // + 400 included minutes; NO free texts — every text is $0.02 (Teddy 2026-08-28). Minutes over
+  // 400 bill at $0.40. Billed by reporting each completed week's usage as Stripe usage records
+  // (platform-usage-bill). Stripe setup: create 3 recurring WEEKLY prices — a flat base + two
+  // metered (usage_type 'metered') for minute overage + per-text — and vault under the price_env keys.
   var ANN = {
-    base_cents: 5000, period: 'week', included_min: 400, included_texts: 500,
+    base_cents: 5000, period: 'week', included_min: 400, included_texts: 0,
     overage_min_cents: 40, overage_text_cents: 2,
     price_env_base: 'STRIPE_PRICE_ANN_BASE',
     price_env_min_overage: 'STRIPE_PRICE_ANN_MIN_OVERAGE',
