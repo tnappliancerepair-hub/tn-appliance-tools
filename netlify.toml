@@ -1051,3 +1051,9 @@
 # until the write path is fixed to always stamp verified_part_number.
 [functions."part-recovery-cron"]
   schedule = "23 1,13,21 * * *"
+
+# brain-ingest — the Collective Brain contribution sweep (shadow). Daily it feeds the shared
+# de-identified corpus (brain_outcome in ANT OPS) from TN's graded eval rows + each platform
+# tenant's completed job_tdr. Structured fields only (no symptom = zero PII). Nothing reads yet.
+[functions."brain-ingest"]
+  schedule = "20 9 * * *"
