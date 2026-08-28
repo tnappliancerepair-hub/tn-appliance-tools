@@ -17,9 +17,9 @@ exports.handler = async function (event) {
   const base = ((await getSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
   const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
-  // a RANDOM throwaway company each run, so the in-memory DEK cache can't short-circuit the
-  // fresh mint (that's what returned kek_v=null before).
-  const FAKE_CO = require('crypto').randomUUID();
+  const rnd = require('crypto');
+  const CO_WRITE = rnd.randomUUID();   // probe the keyring write in isolation
+  const CO_DEK = rnd.randomUUID();     // clean slot for the real DEK mint
 
   try {
     // (1) does the dedicated key resolve from the vault? report its LENGTH only (non-secret:
@@ -27,24 +27,25 @@ exports.handler = async function (event) {
     const kekVal = (await getSecretPreferVault('INTEGRATION_ENC_KEY')) || '';
     const kekLen = kekVal.length;
 
-    // (2) can the service key WRITE the keyring? direct probe insert + read-back + cleanup.
+    // (2) can the service key WRITE the keyring? direct probe insert (separate co) + cleanup.
     let keyringWrite = 'unknown', keyringWriteStatus = 0;
     try {
-      const w = await fetch(`${base}/rest/v1/tenant_keyring`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify({ company_id: FAKE_CO, wrapped_dek: 'PROBE', kek_v: 'probe' }), signal: AbortSignal.timeout(9000) });
+      const w = await fetch(`${base}/rest/v1/tenant_keyring`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify({ company_id: CO_WRITE, wrapped_dek: 'PROBE', kek_v: 'probe' }), signal: AbortSignal.timeout(9000) });
       keyringWriteStatus = w.status;
       keyringWrite = w.ok ? 'ok' : (await w.text().catch(() => '')).slice(0, 140);
     } catch (e) { keyringWrite = String((e && e.message) || e).slice(0, 100); }
+    await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${CO_WRITE}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(9000) });
 
-    // (3) mint + wrap a fresh DEK via tenant-creds, round-trip, and read the key-source tag.
-    const enc = await tc.encryptCreds(FAKE_CO, { probe: 'keycheck' });
-    const back = await tc.decryptCreds(FAKE_CO, enc.secret_enc, enc.enc_v);
+    // (3) mint + wrap a fresh DEK via tenant-creds (clean slot), round-trip, read the key-source tag.
+    const enc = await tc.encryptCreds(CO_DEK, { probe: 'keycheck' });
+    const back = await tc.decryptCreds(CO_DEK, enc.secret_enc, enc.enc_v);
     const roundtrip = back && back.probe === 'keycheck';
-    const r = await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${FAKE_CO}&select=kek_v&limit=1`, { headers: H, signal: AbortSignal.timeout(9000) });
+    const r = await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${CO_DEK}&select=kek_v&limit=1`, { headers: H, signal: AbortSignal.timeout(9000) });
     const row = r.ok ? ((await r.json().catch(() => []))[0]) : null;
     const kekSource = row ? row.kek_v : null;
 
     // cleanup — leave no throwaway row behind
-    await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${FAKE_CO}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(9000) });
+    await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${CO_DEK}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(9000) });
 
     const dedicated = kekLen === 64 || kekSource === 'ded';
     return json(200, {
