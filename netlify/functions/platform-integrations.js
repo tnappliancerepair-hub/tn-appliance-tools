@@ -15,14 +15,18 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 // The vendors a shop can connect + the (non-secret-labeled) fields each needs. Data-driven so
 // the UI renders forms without hardcoding. `secret` fields are write-only (never read back).
 const VENDORS = {
-  servicepower: { label: 'ServicePower / SquareTrade', note: 'Warranty dispatch + claims (SquareTrade, Allstate).', fields: [
-    { k: 'user_id', label: 'ServiceDispatch User ID' }, { k: 'password', label: 'Password', secret: true }, { k: 'servicer_acct', label: 'Servicer account (e.g. TNA00001)' } ] },
-  ahs: { label: 'American Home Shield / Frontdoor', note: 'AHS dispatch + status push.', fields: [
-    { k: 'client_id', label: 'Frontdoor Client ID' }, { k: 'api_username', label: 'API username' }, { k: 'api_password', label: 'API password', secret: true }, { k: 'vendor_id', label: 'Vendor ID' } ] },
-  marcone: { label: 'Marcone / mSupply (parts)', note: 'OEM parts pricing, stock + drop-ship ordering.', fields: [
-    { k: 'client_id', label: 'mSupply Client ID' }, { k: 'client_secret', label: 'mSupply Client Secret', secret: true }, { k: 'customer_no', label: 'Customer #' } ] },
-  nsa: { label: 'NSA (National Service Alliance)', note: 'Warranty dispatch (portal).', fields: [
-    { k: 'portal_user', label: 'Portal username' }, { k: 'portal_pass', label: 'Portal password', secret: true } ] },
+  servicepower: { label: 'ServicePower / SquareTrade', note: 'Warranty dispatch + claims (SquareTrade, Allstate).',
+    portal: 'https://my.servicepower.com', where: 'From your ServicePower account: your ServiceDispatch User ID + password are your normal login; your Servicer account number (e.g. TNA00001) is on your account/profile page. Not sure? Your ServicePower rep can confirm it.',
+    fields: [ { k: 'user_id', label: 'ServiceDispatch User ID' }, { k: 'password', label: 'Password', secret: true }, { k: 'servicer_acct', label: 'Servicer account (e.g. TNA00001)' } ] },
+  ahs: { label: 'American Home Shield / Frontdoor', note: 'AHS dispatch + status push.',
+    portal: 'https://developer.frontdoorhome.com', where: 'From the Frontdoor Developer Portal (developer.frontdoorhome.com): generate an API key to get your Client ID + API username/password. Your Vendor ID is the number Frontdoor dispatches to (on your ProConnect profile). New to the dev portal? Frontdoor partner support provisions access.',
+    fields: [ { k: 'client_id', label: 'Frontdoor Client ID' }, { k: 'api_username', label: 'API username' }, { k: 'api_password', label: 'API password', secret: true }, { k: 'vendor_id', label: 'Vendor ID' } ] },
+  marcone: { label: 'Marcone / mSupply (parts)', note: 'OEM parts pricing, stock + drop-ship ordering.',
+    portal: 'https://my.marcone.com', where: 'From the mSupply / Marcone developer portal (api.msupply.com): create an app to get your Client ID + Client Secret. Your Customer # is your Marcone account number (top of your Marcone invoices). Your Marcone rep can enable API access if you don\'t see it.',
+    fields: [ { k: 'client_id', label: 'mSupply Client ID' }, { k: 'client_secret', label: 'mSupply Client Secret', secret: true }, { k: 'customer_no', label: 'Customer #' } ] },
+  nsa: { label: 'NSA (National Service Alliance)', note: 'Warranty dispatch (portal).',
+    portal: 'https://www.nationalservicealliance.com', where: 'Your NSA contractor portal username + password — the same login you use for the NSA portal today.',
+    fields: [ { k: 'portal_user', label: 'Portal username' }, { k: 'portal_pass', label: 'Portal password', secret: true } ] },
 };
 
 async function caller(event) {
