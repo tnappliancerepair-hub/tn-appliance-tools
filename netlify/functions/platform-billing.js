@@ -26,10 +26,13 @@ function J(code, body) {
 }
 
 async function stripeKey() {
-  // ONLY the dedicated platform key — never TN's live customer-payment STRIPE_SECRET_KEY.
-  // Keeps SaaS revenue isolated and makes the whole billing path inert until this is set.
-  return (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || '';
+  // Prefer a dedicated platform key; fall back to TN's Stripe account (Teddy 2026-08-28:
+  // no separate Ant business yet — bill on the same account for now). Products are named
+  // "Ant Platform — …" so SaaS subscriptions are distinguishable from customer payments.
+  // Swap PLATFORM_STRIPE_SECRET_KEY in later = one-key move to a separate account.
+  return (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await getSecret('STRIPE_SECRET_KEY')) || '';
 }
+const TRIAL_DAYS = 14;
 
 // Resolve a module (plan or add-on) to a Stripe recurring Price id. Prefer a real vaulted
 // Price id (STRIPE_PRICE_*); fall back to an ephemeral recurring price built from the
@@ -146,3 +149,51 @@ exports.handler = async function (event) {
 
   return J(400, { ok: false, error: 'unknown_action', actions: ['checkout', 'portal', 'status'] });
 };
+
+// signupCheckout — provision-on-payment. Called by platform-signup BEFORE any tenant exists:
+// creates a subscription Checkout that REQUIRES A CARD (payment_method_collection:'always'),
+// stashing the shop details in metadata. No tenant is created here — the webhook provisions
+// only after checkout completes, so a scammer who never enters a card never gets a tenant.
+// Returns { ok, url } or { ok:false, error }.
+async function signupCheckout(opts) {
+  const key = await stripeKey();
+  if (!key) return { ok: false, error: 'stripe_not_configured' };
+  const stripe = new Stripe(key);
+
+  const planKey = String(opts.plan || '').toLowerCase();
+  const addons = (opts.addons || []).map(function (s) { return String(s).toLowerCase().trim(); }).filter(Boolean);
+  const base = plans.byKey(planKey);
+  if (!base || !plans.PLANS.some(function (p) { return p.key === planKey; })) return { ok: false, error: 'unknown_plan' };
+  const mods = [base].concat(addons.map(function (k) { return plans.byKey(k); }).filter(Boolean));
+
+  const lineItems = [];
+  for (const m of mods) lineItems.push({ price: await priceIdFor(stripe, m), quantity: 1 });
+
+  // Everything the webhook needs to stand up the tenant once the card clears. (Stripe metadata
+  // values cap at 500 chars — all short fields here.)
+  const provMeta = {
+    company_provision: '1',
+    name: String(opts.name || '').slice(0, 200),
+    slug: String(opts.slug || '').slice(0, 60),
+    trade: String(opts.trade || 'appliance').slice(0, 40),
+    plan: planKey,
+    addons: addons.join(','),
+    owner_name: String(opts.owner_name || '').slice(0, 120),
+    owner_phone: String(opts.phone || '').slice(0, 40),
+    email: String(opts.email || '').slice(0, 200),
+  };
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    customer_email: opts.email || undefined,
+    line_items: lineItems,
+    payment_method_collection: 'always',          // card required even with a trial
+    subscription_data: { trial_period_days: TRIAL_DAYS, metadata: provMeta },
+    metadata: provMeta,
+    success_url: `${SITE}/platform/signup.html?billing=success`,
+    cancel_url: `${SITE}/platform/signup.html?billing=cancel`,
+  });
+  return { ok: true, url: session.url, session_id: session.id, test_mode: /^sk_test_/.test(key) };
+}
+
+module.exports.signupCheckout = signupCheckout;

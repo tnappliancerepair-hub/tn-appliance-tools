@@ -77,7 +77,7 @@
     <div class="total"><span>Your monthly total</span><span class="v" id="total">$0</span></div>
     <button class="go" id="go" disabled>Start my 14-day trial →</button>
     <div class="msg" id="msg"></div>
-    <div class="note">No charge today. We set up your shop, email you a login, and your card is only charged after the trial. Cancel anytime from your dashboard.</div>
+    <div class="note">You'll enter your card on the next screen. No charge for 14 days — cancel anytime before then and you won't be billed. After that it's your monthly total above.</div>
   </div>
 </div>
 
@@ -116,6 +116,15 @@
     var ok = document.getElementById('name').value.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(document.getElementById('email').value.trim()) && sel.plan;
     document.getElementById('go').disabled = !ok;
   }
+
+  // Returning from Stripe Checkout.
+  (function(){
+    var p = new URLSearchParams(location.search).get('billing');
+    if(!p) return;
+    var msg = document.getElementById('msg');
+    if(p==='success'){ msg.className='msg ok'; msg.textContent="You're all set! Check your email for a link to sign into your dashboard."; }
+    else if(p==='cancel'){ msg.className='msg err'; msg.textContent='No worries — nothing was charged. Pick a plan whenever you’re ready.'; }
+  })();
 
   renderPlans();
   document.getElementById('plans').addEventListener('change', function(e){ if(e.target.name==='plan'){ sel.plan=e.target.value; recompute(); } });
