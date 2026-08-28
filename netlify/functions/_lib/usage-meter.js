@@ -6,9 +6,10 @@
 'use strict';
 const { getSecret } = require('./secrets');
 
-// OUR marginal cost per unit, in cents (conservative — slightly above real cost for safety).
-// Editable here; could move to the vault later. Used only to compute margin, never shown to shops.
-const COST = { voice_min: 12, sms_out: 1, sms_in: 0.75 };
+// OUR marginal cost per unit, in cents — VERIFIED against real Telnyx records 2026-08-28
+// (voice all-in $0.084/min: orchestration $0.05 + telephony $0.004 + LLM ~$0.03; SMS ~$0.013
+// all-in on T-Mobile: rate $0.0085 + carrier $0.0045). Used only to compute margin, never shown.
+const COST = { voice_min: 8.4, sms_out: 1.3, sms_in: 0.75 };
 // Plan defaults when a shop has no client_plan row yet (generous fair-use + safety caps).
 const DEFAULT_PLAN = {
   tier: 'starter', base_price_cents: 0, included_voice_min: 500, included_sms: 200,
@@ -118,4 +119,81 @@ async function ownerDigest(companyId) {
   };
 }
 
-module.exports = { COST, DEFAULT_PLAN, getPlan, guardrail, record, rollup, ownerDigest };
+// ── WEEKLY (Mon–Sun, Central) usage read straight from Telnyx, BY NUMBER — accurate metering
+// for the $50/week/500-minute model. Texts = outbound records from the shop's number (cli);
+// minutes = the shop's Ann conversations (matched by assistant_id). Each tenant = one number +
+// one assistant, so this is exact per shop.
+function ctOffsetMin(ms) {
+  try {
+    const s = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', timeZoneName: 'shortOffset' })
+      .formatToParts(new Date(ms)).find((p) => p.type === 'timeZoneName').value;
+    const m = /GMT([+-]\d+)(?::(\d+))?/.exec(s); if (!m) return -300;
+    const h = parseInt(m[1], 10), mm = m[2] ? parseInt(m[2], 10) : 0;
+    return h * 60 + (h < 0 ? -mm : mm);
+  } catch (_) { return -300; }
+}
+function weekBoundsCT(now) {
+  now = now || Date.now();
+  const dayName = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long' }).format(new Date(now));
+  const idx = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].indexOf(dayName);
+  const daysSinceMon = (idx + 6) % 7;
+  const dstr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
+  const [y, mo, d] = dstr.split('-').map(Number);
+  const mon = new Date(Date.UTC(y, mo - 1, d) - daysSinceMon * 86400000);
+  const my = mon.getUTCFullYear(), mm = mon.getUTCMonth(), md = mon.getUTCDate();
+  const off = ctOffsetMin(Date.UTC(my, mm, md, 12, 0, 0)); // noon avoids the DST edge
+  const startMs = Date.UTC(my, mm, md, 0, 0, 0) - off * 60000;
+  const endMs = startMs + 7 * 86400000;
+  const fmt = (ms) => new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' }).format(new Date(ms));
+  return { startMs, endMs, startISO: new Date(startMs).toISOString(), label: fmt(startMs) + '–' + fmt(endMs - 1) };
+}
+async function txGet(path) {
+  const key = process.env.TELNYX_API_KEY || (await getSecret('TELNYX_API_KEY'));
+  const r = await fetch('https://api.telnyx.com/v2' + path, { headers: { Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(15000) });
+  return r.ok ? r.json().catch(() => ({})) : {};
+}
+async function weeklyTelnyx(number, assistantId, now) {
+  const wb = weekBoundsCT(now);
+  let texts = 0, minutes = 0;
+  if (number) {
+    try {
+      for (let p = 1; p <= 6; p++) {
+        const d = await txGet(`/detail_records?filter[record_type]=messaging&filter[direction]=outbound&filter[cli]=${encodeURIComponent(number)}&filter[created_at][gte]=${encodeURIComponent(wb.startISO)}&page[size]=250&page[number]=${p}`);
+        const rows = Array.isArray(d.data) ? d.data : [];
+        texts += rows.length;
+        if (rows.length < 250) break;
+        await new Promise((r) => setTimeout(r, 220));
+      }
+    } catch (_) {}
+  }
+  if (assistantId) {
+    try {
+      for (let p = 1; p <= 30; p++) {
+        const d = await txGet(`/ai/conversations?page[size]=100&page[number]=${p}`);
+        const rows = Array.isArray(d.data) ? d.data : [];
+        if (!rows.length) break;
+        let allOld = true;
+        for (const c of rows) {
+          const aid = c.assistant_id || (c.metadata && c.metadata.assistant_id);
+          const start = Date.parse(c.created_at || 0), end = Date.parse(c.last_message_at || c.created_at || 0);
+          if (start >= wb.startMs) allOld = false;
+          if (aid === assistantId && start >= wb.startMs && start < wb.endMs) {
+            const sec = Math.max(0, (end - start) / 1000);
+            if (sec >= 5) minutes += sec / 60;
+          }
+        }
+        if (allOld) break;
+        await new Promise((r) => setTimeout(r, 220));
+      }
+    } catch (_) {}
+  }
+  return { week_label: wb.label, week_start: wb.startISO, minutes: Math.round(minutes), texts };
+}
+// Shape the weekly numbers against an allowance for the owner digest / dashboard.
+function weeklyStatus(w, allowanceMin) {
+  const allow = allowanceMin || DEFAULT_PLAN.included_voice_min;
+  const pct = allow ? Math.round((w.minutes / allow) * 100) : 0;
+  return { minutes: w.minutes, texts: w.texts, allowance_min: allow, pct, over: w.minutes >= allow, near: pct >= 80, week_label: w.week_label };
+}
+
+module.exports = { COST, DEFAULT_PLAN, getPlan, guardrail, record, rollup, ownerDigest, weekBoundsCT, weeklyTelnyx, weeklyStatus };

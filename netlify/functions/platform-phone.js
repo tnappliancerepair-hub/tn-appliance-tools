@@ -126,7 +126,7 @@ exports.handler = async function (event) {
   const phone = (company.settings && company.settings.phone) || {};
 
   if (action === 'status') {
-    return J(200, { ok: true, phone: { number: phone.number || null, live: !!phone.number, assistant_id: phone.assistant_id || null, mode: phone.mode || null } });
+    return J(200, { ok: true, phone: { number: phone.number || null, live: !!phone.number && !phone.paused, paused: !!phone.paused, assistant_id: phone.assistant_id || null, mode: phone.mode || null } });
   }
 
   const LIVE = String((await getSecret('PLATFORM_PHONE_LIVE')) || '').toLowerCase() === 'true';
@@ -189,6 +189,28 @@ exports.handler = async function (event) {
     return J(200, { ok: true, number: cand, assistant_id: assistantId, voice_live: voiceOk, texting: textingOk ? 'shared' : 'pending', mode });
   }
 
+  // Pause / resume — the owner's toggle to stop (or restart) Ann answering, e.g. after
+  // hitting the weekly 500. Pause unbinds the number from Ann's TeXML app so calls stop being
+  // AI-answered (keeps the number); resume re-binds. Flag mirrored in settings.phone.paused.
+  if (action === 'pause' || action === 'resume') {
+    if (!phone.number) return J(200, { ok: false, error: 'no_phone' });
+    const paused = action === 'pause';
+    if (LIVE && phone.assistant_id) {
+      try {
+        const look = await tx('GET', `/phone_numbers?filter[phone_number]=${encodeURIComponent(phone.number)}`);
+        const rec = look.data && look.data.data && look.data.data[0];
+        if (rec) {
+          let conn = '';
+          if (!paused) { const a = await tx('GET', `/ai/assistants/${phone.assistant_id}`); conn = (a.data.telephony_settings && a.data.telephony_settings.default_texml_app_id) || ''; }
+          await tx('PATCH', `/phone_numbers/${rec.id}`, { connection_id: conn || null });
+        }
+      } catch (_) {}
+    }
+    const nextSettings = Object.assign({}, company.settings, { phone: Object.assign({}, phone, { paused: paused, paused_at: paused ? Date.now() : null }) });
+    await pf.patch('company', `id=eq.${encodeURIComponent(companyId)}`, { settings: nextSettings, updated_at: new Date().toISOString() });
+    return J(200, { ok: true, paused: paused, shadow: !LIVE });
+  }
+
   if (action === 'release') {
     if (!phone.number) return J(200, { ok: true, released: false, note: 'no number' });
     if (LIVE) {
@@ -202,5 +224,5 @@ exports.handler = async function (event) {
     return J(200, { ok: true, released: true, shadow: !LIVE });
   }
 
-  return J(400, { ok: false, error: 'unknown_action', actions: ['provision', 'status', 'release'] });
+  return J(400, { ok: false, error: 'unknown_action', actions: ['provision', 'status', 'pause', 'resume', 'release'] });
 };
