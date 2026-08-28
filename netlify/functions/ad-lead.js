@@ -50,6 +50,7 @@ exports.handler = async function (event) {
     ' — ' + (appliance || 'appliance') + (problem ? (': ' + problem.slice(0, 120)) : '') + '. Call to book.';
   try { await sendSms(OWNER, alert, 'owner', 'quick_check_lead'); } catch (_) {}
   try { await sendSms(DANIELLE, alert, 'warranty_handler', 'quick_check_lead'); } catch (_) {}
+  try { await sendSms('+16154855795', alert, 'owner', 'quick_check_lead'); } catch (_) {} // cash intake → Teddy too
 
   return jsonResp(200, { ok: true });
 };

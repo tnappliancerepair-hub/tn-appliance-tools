@@ -27,7 +27,7 @@ const TECH = { 1: { p: '+16154855795', n: 'Teddy' }, 2: { p: '+16159671304', n: 
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function ctDate(ms) { try { return new Date(Number(ms)).toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' }); } catch (_) { return ''; } }
-async function sms(to, message, tag) { try { const r = await fetch(`${INTAKE}/send_sms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to, message, context_tag: tag }), signal: AbortSignal.timeout(10000) }); return r.ok; } catch (_) { return false; } }
+async function sms(to, message, tag) { if (require('./_lib/office-gate').officeBlocked(to, tag)) return false; try { const r = await fetch(`${INTAKE}/send_sms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ to, message, context_tag: tag }), signal: AbortSignal.timeout(10000) }); return r.ok; } catch (_) { return false; } }
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};

@@ -163,6 +163,7 @@ exports.handler = async function (event) {
     + '  Job #' + (jobId || '?') + ' → GET ON IT: ' + link + areaNote;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
+  try { await sendSms('+16154855795', msg, 'owner', 'quick_check'); } catch (_) {} // cash intake → Teddy too
   if (jobId) { try { await sendAreaTechTeddyTool(areaTech, { link, customer: m.name, appliance: m.machine || 'appliance', city: m.town || m.city || '', jobId, kind: 'cash_qc' }); } catch (_) {} }
   // Mark this job as money-in-notified so the cash-in-notify backstop sweep doesn't
   // double-text Teddy. The instant siren above is the fast path; the sweep only fires

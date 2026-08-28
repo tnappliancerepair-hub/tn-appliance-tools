@@ -122,7 +122,11 @@ async function openCashJob(a) {
     if (!newId) return { error: 'create_failed' };
     // Non-blocking side effects — never make Ann wait on the office alert / address sync.
     if (a.address || a.city) { crud.update(crud.TABLES.jobs, newId, { service_address: String(a.address || '').trim(), service_city: String(a.city || '').trim(), service_zip: zip }).catch(() => {}); }
-    if (sendSms) { sendSms('+16154850713', `🐜 New cash lead via Ann - ${first || 'caller'} - ${appliance}${problem ? ' - ' + problem : ''} - ${phone}. Job #${newId} in Needs-Scheduled.`, 'danielle', 'ann_new_job').catch(() => {}); }
+    if (sendSms) {
+      const cashMsg = `🐜 New cash lead via Ann - ${first || 'caller'} - ${appliance}${problem ? ' - ' + problem : ''} - ${phone}. Job #${newId} in Needs-Scheduled.`;
+      sendSms('+16154850713', cashMsg, 'danielle', 'ann_new_job').catch(() => {});      // Danielle
+      sendSms('+16154855795', cashMsg, 'owner', 'ann_new_job').catch(() => {});          // Teddy — cash intake to both
+    }
     return { job_id: newId };
   } catch (e) { return { error: String((e && e.message) || e) }; }
 }
