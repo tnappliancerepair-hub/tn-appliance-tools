@@ -13,6 +13,7 @@
 'use strict';
 const { getSecret, setSecret } = require('./_lib/secrets');
 const { createLeadJob } = require('./_lib/platform-db');
+const { shopHandle } = require('./_lib/shop-handle');
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function tempPassword() { return 'Ant-' + Math.random().toString(36).slice(2, 8) + Math.floor(10 + Math.random() * 89); }
@@ -318,6 +319,11 @@ exports.handler = async function (event) {
   const name = (q.name || '').trim();
   if (!slug || !name) return json(200, { ok: false, error: 'slug and name required' });
   const trade = (q.trade || 'appliance').trim();
+  // Short subdomain handle: "appliance"/"repair" are already in applianceant.com, so the
+  // shop's subdomain is just their name — "Joey's Appliance Repair" -> joeys.applianceant.com.
+  // Owner can override with &subdomain=. Stored on settings.site.subdomain; platform-site
+  // resolves a subdomain hit by handle OR full slug.
+  const subdomain = String(q.subdomain || shopHandle(name)).toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '').slice(0, 40);
   const email = (q.owner_email || '').trim();
   const plan = (q.plan || 'office').trim();
 
@@ -344,7 +350,7 @@ exports.handler = async function (event) {
   const cg = await rest(`company?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,trade,plan&limit=1`);
   if (Array.isArray(cg.d) && cg.d[0]) company = cg.d[0];
   if (!company) {
-    const settings = { business: { name, phone: (q.owner_phone || '').replace(/[^\d+]/g, ''), area: q.area || '' } };
+    const settings = { business: { name, phone: (q.owner_phone || '').replace(/[^\d+]/g, ''), area: q.area || '' }, site: { subdomain } };
     const features = { database: true, scheduling: true, portal: true, invoicing: true };
     const ins = await rest('company', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ slug, name, trade, plan, features, settings }) });
     if (!ins.ok) return json(200, { ok: false, step: 'create_company', status: ins.status, error: JSON.stringify(ins.d).slice(0, 300) });

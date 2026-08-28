@@ -166,9 +166,24 @@ exports.handler = async function (event) {
   if (!slug) return J(400, { ok: false, error: 'slug required' });
   const pf = await platform();
   if (!pf) return H(200, notFound(slug).body);
+  const sel = 'select=name,slug,trade,settings&limit=1';
+  const key = encodeURIComponent(slug);
   let rows;
-  try { rows = await pf.get(`company?slug=eq.${encodeURIComponent(slug)}&select=name,slug,trade,settings&limit=1`); }
-  catch (_) { rows = []; }
+  // Resolve a subdomain hit three ways so the shop can use "the first part" of their name
+  // (joeys.applianceant.com) OR the full slug (joeys-appliance.applianceant.com):
+  //   1) exact slug              2) explicit short handle (settings.site.subdomain)
+  //   3) slug prefix — "joeys" matches slug "joeys-appliance" (works for tenants made before
+  //      the handle field existed, no backfill). The trailing "-*" keeps it a real prefix
+  //      segment ("jo" won't match "joeys").
+  const tries = [
+    `company?slug=eq.${key}&${sel}`,
+    `company?settings->site->>subdomain=eq.${key}&${sel}`,
+    `company?slug=like.${key}-*&order=slug.asc&${sel}`,
+  ];
+  for (const qy of tries) {
+    try { rows = await pf.get(qy); } catch (_) { rows = []; }
+    if (rows && rows[0]) break;
+  }
   const c = rows && rows[0];
   if (!c) return notFound(slug);
   return render(c);
