@@ -131,6 +131,7 @@
 <div id="app"></div>
 
 <script src="/platform/config.js"></script>
+<script src="/platform/features.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/platform/media-sign.js"></script>
 <script src="/ant-sounds.js"></script>
@@ -139,7 +140,7 @@
 (function () {
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
-  var sb = null, rt = null, companyId = null, shopSettings = {};
+  var sb = null, rt = null, companyId = null, shopSettings = {}, features = {};
 
   // ── STATUS COLUMNS ─────────────────────────────────────────────────────────
   var COLS = [
@@ -766,11 +767,22 @@
   function boot() {
     renderShell();
     // Company (RLS returns only this shop's row via the company_self policy).
-    sb.from('company').select('id,name,trade,settings').limit(1).then(function (r) {
-      if (!r.error && r.data && r.data[0]) { companyId = r.data[0].id; shopSettings = r.data[0].settings || {}; shopName = r.data[0].name; var el = document.getElementById('shop'); if (el) el.textContent = shopName; }
+    sb.from('company').select('id,name,trade,settings,features').limit(1).then(function (r) {
+      if (!r.error && r.data && r.data[0]) { companyId = r.data[0].id; shopSettings = r.data[0].settings || {}; features = r.data[0].features || {}; shopName = r.data[0].name; var el = document.getElementById('shop'); if (el) el.textContent = shopName; }
+      // Feature gate: the job board is the Full Office Platform (database/scheduling). Default-open
+      // on an empty features map so demo/unpopulated shops load normally; an Answering-only shop
+      // gets an upgrade nudge instead of an empty board.
+      var PF = window.PlatformFeatures || { has: function(){ return true; } };
+      if(!(PF.has(features,'database') || PF.has(features,'scheduling'))){
+        app.innerHTML = '<div style="max-width:560px;margin:60px auto;padding:0 20px;text-align:center">'+
+          '<h2 style="margin:0 0 10px">The job board is part of the Full Office Platform</h2>'+
+          '<p style="color:#64748b;line-height:1.6">You’re on the <b>AI Answering</b> plan — Ann is answering your calls and capturing leads. Upgrade to run scheduling, the job board, invoicing, and tech pay here too.</p>'+
+          '<a href="/platform/signup.html?plan=office" style="display:inline-block;margin-top:14px;padding:12px 20px;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;text-decoration:none">See the Full Office Platform →</a></div>';
+        return;
+      }
       loadBoard();
+      subscribeRealtime();
     });
-    subscribeRealtime();
   }
 
   // Resume an existing session, else sign-in.
