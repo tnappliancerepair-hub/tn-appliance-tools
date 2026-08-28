@@ -83,7 +83,7 @@ exports.handler = async function (event) {
     }
     if (!email) return json(200, { ok: false, error: 'need &email= or &slug=' });
     const redirect = String(q.redirect || 'https://tnapplianceexchange.net/platform/office-board.html');
-    const r = await fetch(`${url}/auth/v1/admin/generate_link`, { method: 'POST', headers: H, body: JSON.stringify({ type: 'magiclink', email, options: { redirect_to: redirect } }), signal: AbortSignal.timeout(12000) });
+    const r = await fetch(`${url}/auth/v1/admin/generate_link`, { method: 'POST', headers: H, body: JSON.stringify({ type: 'magiclink', email, redirect_to: redirect }), signal: AbortSignal.timeout(12000) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) return json(200, { ok: false, error: 'generate_link ' + r.status + ' ' + JSON.stringify(d).slice(0, 200) });
     const link = d.action_link || (d.properties && d.properties.action_link) || '';
