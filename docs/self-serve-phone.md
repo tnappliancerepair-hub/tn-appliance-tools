@@ -48,13 +48,40 @@ Voice answering is low-abuse. **Outbound texting is the abuse vector**, so:
 |---|---|
 | A number | ~$1 / month |
 | An SMS | ~$0.004 each |
-| Ann's voice-AI minutes | ~$0.05–0.10 / min (TN's Ann ≈ $7/day ≈ $210/mo at full shop volume) |
+| Ann's voice-AI minutes | **~$0.05–0.07 / min** (from TN's real usage: ~50 calls/day, ~2 min/call ≈ $7/day) |
 
-Plan structure: each tier **includes an allowance** (N minutes + M texts) priced so *typical*
-usage costs us a fraction of the plan price; **overage metered** at a marked-up per-unit rate.
-`usage-meter` + the daily owner usage digest already surface month-to-date vs. allowance. The
-one margin risk is a monster-volume shop — metering + allowance caps + overage protect it. Set
-allowances from real data (TN is the reference: ~50 calls/day ≈ $7/day voice).
+## THE OFFER (locked with Teddy, 2026-08-28) — best deal, structurally lossproof
+
+The principle: **give away what's free to us (software), charge for what costs us (the phone),
+metered above cost.** So it cannot lose money.
+
+- 🆓 **Software is free** — board, portal, tech app, scheduling, pay, database. Marginal cost
+  to us ≈ $0/tenant, so a free (or long-trial) offer stays safe even at hundreds of signups.
+  *This is the hook: a shop gets their whole back office free.*
+- 🎁 **First 50 Ann minutes free** — the test drive. Capped ≈ $3 of cost per account (not the
+  unbounded free-trial risk); lets them feel it before the meter starts.
+- 📞 **Ann = $50 / week includes 500 minutes**, then **$0.40 / min overage** (+ a text allowance,
+  texts metered above ~$0.004).
+- 💳 **Card on file, charged only when Ann is working.** Number provisioned only on an active
+  card/subscription; **released on cancel** (never pay $1/mo for a dead account's number).
+
+**Why it can't lose money — the math (at ~$0.06/min cost):**
+
+| Scenario | Revenue | Cost | Margin |
+|---|---|---|---|
+| 500 min (full base, ~50 calls/day weekdays) | $50 | ~$30 + $0.25 num + $1.75 Stripe | **~$18/wk (36%)** |
+| Small shop (~200 min) | $50 | ~$12 | **~$36/wk** |
+| Heavy shop (875 min, TN-level) | $50 + 375×$0.40 = **$200** | ~$52 | **~$148/wk** |
+
+500 min ÷ ~2 min/call = **250 calls/week ≈ 50 calls/day** covered by the base. Overage at $0.40
+is **~6× our cost**, so heavy shops become the *most* profitable, not a risk — the old
+"monster-volume shop loses money" worry is erased by the overage rate. `usage-meter` + the daily
+owner usage digest already track minutes/texts vs. the 500 allowance.
+
+**Weekly-billing note:** charging weekly quadruples Stripe's fixed $0.30 fee (~$1.20/mo vs
+$0.30). Minor; keep weekly for the low-commitment appeal, optionally offer a monthly equivalent
+(~$180/mo / 2,000 min) that also saves the fee. **Still to set:** the included text allowance +
+text overage rate.
 
 ## Build checklist (next)
 
