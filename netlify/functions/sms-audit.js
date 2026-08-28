@@ -41,10 +41,11 @@ exports.handler = async function (event) {
   const lte = new Date(now).toISOString();
   const H = { Authorization: 'Bearer ' + key, Accept: 'application/json' };
 
-  // Pull Telnyx Detail Records (messaging). Paginate defensively; cap pages.
-  const perPage = 250;
-  const maxPages = Math.min(120, Number(q.max_pages || 60));
-  let page = 1, sample = null, pulled = 0;
+  // Pull Telnyx Detail Records (messaging). Telnyx clamps page size (~50), so drive
+  // pagination off the response meta, not a client page size.
+  const perPage = 50;
+  const maxPages = Math.min(400, Number(q.max_pages || 300));
+  let page = 1, sample = null, pulled = 0, metaSeen = null;
   const byDest = {};        // last10 -> { count, parts, cost, inbound, outbound, who, bucket }
   const byDay = {};         // YYYY-MM-DD -> { count, cost }
   const buckets = { office: { count: 0, cost: 0 }, tech: { count: 0, cost: 0 }, customer: { count: 0, cost: 0 } };
@@ -65,6 +66,7 @@ exports.handler = async function (event) {
       }
       const j = await r.json().catch(() => ({}));
       const rows = Array.isArray(j.data) ? j.data : [];
+      metaSeen = j.meta || metaSeen;
       if (!sample && rows[0]) sample = rows[0];
       if (!rows.length) break;
 
@@ -72,14 +74,11 @@ exports.handler = async function (event) {
         pulled++;
         const dir = String(rec.direction || rec.messaging_direction || '').toLowerCase();
         const outbound = dir.includes('out') || dir === 'outbound';
-        // cost: Telnyx MDR shapes vary — try the common fields
-        const cost = Number(
-          (rec.cost && rec.cost.amount) != null ? rec.cost.amount
-          : rec.total_cost != null ? rec.total_cost
-          : rec.rate != null ? rec.rate
-          : 0
-        ) || 0;
-        const parts = Number(rec.parts || rec.number_of_segments || 1) || 1;
+        // cost: Telnyx MDR = per-message cost (string) + separate carrier_fee (string)
+        const base = Number(typeof rec.cost === 'string' ? rec.cost : (rec.cost && rec.cost.amount) || rec.rate || 0) || 0;
+        const cfee = Number(rec.carrier_fee || 0) || 0;
+        const cost = base + cfee;
+        const parts = Number(rec.parts || rec.number_of_segments || rec.count || 1) || 1;
         const dest = outbound ? (rec.to || rec.cld || rec.destination) : (rec.from || rec.cli || rec.source);
         const t = last10(dest);
         const info = whoIs(dest);
@@ -112,7 +111,7 @@ exports.handler = async function (event) {
     return json(200, { ok: false, error: 'pull_failed', detail: String(e && e.message || e), pulled });
   }
 
-  if (q.debug) return json(200, { ok: true, sample, pulled, note: 'raw first record — use to confirm field names' });
+  if (q.debug) return json(200, { ok: true, sample, pulled, meta: metaSeen, note: 'raw first record — use to confirm field names' });
 
   const round = (n) => Math.round(n * 100) / 100;
   const topDest = Object.entries(byDest)
