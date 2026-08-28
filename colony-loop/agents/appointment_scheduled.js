@@ -182,6 +182,21 @@ export async function run(signal, ctx) {
     return { success: false, action: 'context_load_failed', job_id: jobId };
   }
   const job = ctxData.job || {};
+  // TERMINAL-STATUS GUARD (Danielle 2026-08-28: "the system is adding completed jobs to
+  // schedule and texting the customer about it"). A finished/canceled job must NEVER fire a
+  // confirmation — no matter which producer wrote the scheduled_start or re-emitted this
+  // signal. This is the one chokepoint every producer flows through, so guarding here catches
+  // every path (HCP re-poll, resync, board move, availability re-emit). Reads the live job row
+  // returned by the context endpoint.
+  const TERMINAL = new Set(['completed', 'complete', 'canceled', 'cancelled', 'no_fix_possible', 'paid', 'done', 'closed']);
+  const jobStatus = String(job.scheduling_status || '').toLowerCase();
+  const jobCurrent = String(job.current_status || '').toLowerCase();
+  if (TERMINAL.has(jobStatus) || TERMINAL.has(jobCurrent)) {
+    log('appointment_scheduled_skipped_terminal', {
+      job_id: jobId, source, scheduling_status: jobStatus, current_status: jobCurrent,
+    });
+    return { success: true, action: 'skipped_terminal', job_id: jobId, status: jobStatus || jobCurrent };
+  }
   const customer = ctxData.customer || null;
   const tech = ctxData.tech || null;
   const jobLabel = job.job_number || String(job.id);
