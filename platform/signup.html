@@ -1,6 +1,18 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Start with AssistAnt 24/7</title>
+<!-- Meta Pixel (AssistAnt 24/7 retargeting + signup optimization) -->
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init','950649561404797');fbq('track','PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none" alt=""
+src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></noscript>
+<!-- End Meta Pixel -->
 <style>
   :root{
     --bg:#f6f7f4; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
@@ -184,6 +196,7 @@
         want_ann: sel.ann
       })
     }).then(function(r){return r.json();}).then(function(d){
+      if(d.ok){ try{ if(window.fbq) fbq('track','Lead',{content_name:sel.plan}); }catch(_){} }
       if(d.ok && d.checkout_url){ window.location.href = d.checkout_url; return; }
       if(d.ok){
         msg.className='msg ok';
