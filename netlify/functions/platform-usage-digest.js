@@ -15,6 +15,7 @@ const { getSecret } = require('./_lib/secrets');
 const meter = require('./_lib/usage-meter');
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const SITE = 'https://tnapplianceexchange.net';
+exports.config = { timeout: 26 };
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
 async function db() {
