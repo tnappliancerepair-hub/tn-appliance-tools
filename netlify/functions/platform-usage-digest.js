@@ -64,25 +64,24 @@ exports.handler = async function (event) {
   const today = new Date().toISOString().slice(0, 10);
   const dayStart = today + 'T00:00:00Z';
   const companies = await sget(base, H, 'company?select=id,name,status&status=neq.test&order=name');
-  const out = [];
-  for (const c of companies) {
-    let d; try { d = await meter.ownerDigest(c.id); } catch (_) { continue; }
-    if (!d.has_usage) { out.push({ shop: c.name, skipped: 'no_usage' }); continue; }
-    // dedupe: already digested today?
+  // Process tenants in parallel — sequential round-trips blew the function budget.
+  const out = await Promise.all(companies.map(async function (c) {
+    let d; try { d = await meter.ownerDigest(c.id); } catch (_) { return { shop: c.name, skipped: 'digest_err' }; }
+    if (!d.has_usage) return { shop: c.name, skipped: 'no_usage' };
     const marker = await sget(base, H, `usage_event?company_id=eq.${c.id}&kind=eq.owner_digest&at=gte.${encodeURIComponent(dayStart)}&select=id&limit=1`);
-    if (marker && marker[0]) { out.push({ shop: c.name, skipped: 'already_today' }); continue; }
+    if (marker && marker[0]) return { shop: c.name, skipped: 'already_today' };
     const owners = await sget(base, H, `app_user?company_id=eq.${c.id}&role=eq.owner&active=eq.true&select=email,name&limit=1`);
     const owner = owners && owners[0];
-    if (!owner || !owner.email) { out.push({ shop: c.name, skipped: 'no_owner_email' }); continue; }
+    if (!owner || !owner.email) return { shop: c.name, skipped: 'no_owner_email' };
     const subject = c.name + ' — your Ant usage this month';
     const body = composeBody(c.name, owner.name, d);
     const row = { shop: c.name, to: owner.email, voice_min: d.voice_min, sms: d.sms_out, mode: dry ? 'shadow' : 'live' };
-    if (dry) { console.log('[usage-digest] WOULD email', owner.email, '—', d.voice_min, 'min /', d.sms_out, 'texts'); out.push(row); continue; }
+    if (dry) { console.log('[usage-digest] WOULD email', owner.email, '—', d.voice_min, 'min /', d.sms_out, 'texts'); return row; }
     // LIVE: mark first (idempotent), then email (send-email still dry-runs unless EMAIL_ENABLED)
     try { await fetch(base + '/rest/v1/usage_event', { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify({ company_id: c.id, kind: 'owner_digest', qty: 0, cost_cents: 0, source: 'digest', meta: { date: today } }), signal: AbortSignal.timeout(8000) }); } catch (_) {}
     const er = await sendEmail(owner.email, subject, body).catch(() => ({ ok: false }));
     row.email_result = er && (er.mode || (er.ok ? 'sent' : 'fail'));
-    out.push(row);
-  }
+    return row;
+  }));
   return json(200, { ok: true, mode: dry ? 'shadow' : 'live', live_flag: LIVE, tenants: companies.length, results: out });
 };
