@@ -152,9 +152,17 @@ function sub(e){e.preventDefault();var b=document.getElementById('b'),m=document
 
 exports.config = { timeout: 15 };
 
+// Pull the shop slug from a subdomain (joeys.applianceant.com -> "joeys"), as a fallback for
+// when the request reaches us without ?slug= (the edge router normally supplies it).
+function slugFromHost(event) {
+  const host = String((event.headers && (event.headers.host || event.headers.Host)) || '').toLowerCase().split(':')[0];
+  const m = /^([a-z0-9][a-z0-9-]{0,62})\.applianceant\.com$/.exec(host);
+  return m ? m[1] : '';
+}
+
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const slug = String(q.slug || '').toLowerCase().trim();
+  const slug = String(q.slug || slugFromHost(event) || '').toLowerCase().trim();
   if (!slug) return J(400, { ok: false, error: 'slug required' });
   const pf = await platform();
   if (!pf) return H(200, notFound(slug).body);
