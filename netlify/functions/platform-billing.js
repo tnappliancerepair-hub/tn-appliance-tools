@@ -70,6 +70,24 @@ exports.handler = async function (event) {
 
   const pf = await platform();
   if (!pf) return J(200, { ok: false, error: 'platform_not_configured' });
+
+  // setup_ann — one-time: create the Ann products/meters/prices in Stripe + return the ids to
+  // vault. No company needed. Idempotent (reuses existing meters/prices by lookup_key).
+  if (action === 'setup_ann') {
+    const key = await stripeKey();
+    if (!key) return J(200, { ok: false, error: 'stripe_not_configured', note: 'set PLATFORM_STRIPE_SECRET_KEY (or STRIPE_SECRET_KEY) first' });
+    const stripe = new Stripe(key);
+    let cat; try { cat = await module.exports.ensureAnnCatalog(stripe); }
+    catch (e) { return J(200, { ok: false, error: 'stripe_err', detail: String((e && e.message) || e).slice(0, 200) }); }
+    return J(200, { ok: true, test_mode: /^sk_test_/.test(key), created: cat,
+      vault_these: {
+        STRIPE_PRICE_ANN_BASE: cat.base,
+        STRIPE_PRICE_ANN_MIN_OVERAGE: cat.min,
+        STRIPE_PRICE_ANN_TEXT_OVERAGE: cat.text,
+      },
+      note: 'Vault the 3 STRIPE_PRICE_ANN_* ids. Meter event names (ann_minutes/ann_texts) are code constants — no vault needed.' });
+  }
+
   if (!companyId) return J(400, { ok: false, error: 'company_id required' });
 
   const company = await getCompany(pf, companyId);
@@ -198,45 +216,84 @@ async function signupCheckout(opts) {
 
 module.exports.signupCheckout = signupCheckout;
 
-// ── ANN METERED BILLING ────────────────────────────────────────────────────
-// Ann is the ONE metered product: a weekly flat base ($50) + two metered overage
-// items (minutes over 400 @ $0.40, texts over 500 @ $0.02). platform-usage-bill
-// reports each completed week's overage against the metered items. These helpers
-// resolve the prices + ensure a tenant has the Ann subscription with all three items.
+// ── ANN METERED BILLING (Stripe Billing Meters API) ─────────────────────────
+// Ann is the ONE metered product: a weekly flat base ($50, includes 400 min + 100 texts)
+// + two metered overage prices (minutes over 400 @ $0.40, texts over 100 @ $0.05). Stripe
+// now REQUIRES a backing Billing Meter for every metered price (the legacy usage-records
+// path is deprecated), so we create two meters and report usage as METER EVENTS keyed to the
+// tenant's Stripe customer. platform-usage-bill reports each completed week's overage.
+//
+// Reporting is customer-scoped via event_name (constants below) — no per-item ids needed.
+const ANN_MIN_EVENT = 'ann_minutes';   // meter event_name for minute overage
+const ANN_TEXT_EVENT = 'ann_texts';    // meter event_name for text overage
 
-// Resolve the 3 Ann recurring WEEKLY prices. Prefer real vaulted Price ids
-// (STRIPE_PRICE_ANN_BASE/_MIN_OVERAGE/_TEXT_OVERAGE); else create ephemeral ones from
-// plans.ANN so the flow is testable before any Stripe products exist. Overage items are
-// usage_type:'metered' (aggregate sum) so we can post per-week usage records to them.
-async function annPriceIds(stripe) {
-  const A = plans.ANN;
-  async function resolve(env, unit, name, meta) {
-    const vaulted = String((await getSecret(env)) || '').trim();
-    if (vaulted) return vaulted;
-    const rec = Object.assign({ interval: 'week' }, meta && meta.ann_meter ? { usage_type: 'metered', aggregate_usage: 'sum' } : {});
-    const p = await stripe.prices.create({
-      currency: 'usd', unit_amount: unit, recurring: rec,
-      product_data: { name }, metadata: meta || {},
-    });
-    return p.id;
-  }
-  const base = await resolve(A.price_env_base, A.base_cents, 'Ant Platform — Ann (weekly base)', {});
-  const min = await resolve(A.price_env_min_overage, A.overage_min_cents, 'Ant Platform — Ann minute overage', { ann_meter: 'min' });
-  const text = await resolve(A.price_env_text_overage, A.overage_text_cents, 'Ant Platform — Ann text overage', { ann_meter: 'text' });
-  return { base, min, text };
+// Find an active meter by event_name, else create it (aggregation = sum, mapped to the
+// customer by id, value read from payload.value). Idempotent — never duplicates a meter.
+async function ensureMeter(stripe, eventName, displayName) {
+  const list = await stripe.billing.meters.list({ status: 'active', limit: 100 });
+  const found = (list.data || []).find(function (m) { return m.event_name === eventName; });
+  if (found) return found;
+  return stripe.billing.meters.create({
+    display_name: displayName,
+    event_name: eventName,
+    default_aggregation: { formula: 'sum' },
+    customer_mapping: { type: 'by_id', event_payload_key: 'stripe_customer_id' },
+    value_settings: { event_payload_key: 'value' },
+  });
 }
 
-// Ensure a tenant has the Ann metered subscription (base + 2 metered overage items).
-// Idempotent: reuses company.settings.phone.ann if already stored; otherwise creates the
-// subscription on the tenant's Stripe customer and persists the item ids. Returns
-// { subscription_id, item_min, item_text } or { error } when Stripe/customer isn't ready.
+// Find a price by lookup_key (stable, unique-ish), else create it. Keeps setup idempotent so
+// re-running doesn't litter the dashboard with duplicate prices.
+async function ensurePrice(stripe, lookupKey, spec) {
+  const found = await stripe.prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });
+  if (found.data && found.data[0]) return found.data[0];
+  return stripe.prices.create(Object.assign({ lookup_key: lookupKey, currency: 'usd' }, spec));
+}
+
+// Ensure the full Ann catalog exists in Stripe (2 meters + 3 prices). Idempotent. Returns the
+// ids. This is what the setup action creates + what billing falls back to when no ids are vaulted.
+async function ensureAnnCatalog(stripe) {
+  const A = plans.ANN;
+  const minMeter = await ensureMeter(stripe, ANN_MIN_EVENT, 'Ann minute overage');
+  const textMeter = await ensureMeter(stripe, ANN_TEXT_EVENT, 'Ann text overage');
+  const base = await ensurePrice(stripe, 'ann_base_wk', {
+    unit_amount: A.base_cents, recurring: { interval: 'week' },
+    product_data: { name: 'Ant Platform — Ann (weekly base)' },
+  });
+  const min = await ensurePrice(stripe, 'ann_min_overage_wk', {
+    unit_amount: A.overage_min_cents, recurring: { interval: 'week', usage_type: 'metered', meter: minMeter.id },
+    product_data: { name: 'Ant Platform — Ann minute overage' }, metadata: { ann_meter: 'min' },
+  });
+  const text = await ensurePrice(stripe, 'ann_text_overage_wk', {
+    unit_amount: A.overage_text_cents, recurring: { interval: 'week', usage_type: 'metered', meter: textMeter.id },
+    product_data: { name: 'Ant Platform — Ann text overage' }, metadata: { ann_meter: 'text' },
+  });
+  return {
+    base: base.id, min: min.id, text: text.id,
+    minutes_meter: minMeter.id, texts_meter: textMeter.id,
+    min_event: ANN_MIN_EVENT, text_event: ANN_TEXT_EVENT,
+  };
+}
+
+// Resolve the 3 Ann price ids: prefer vaulted (STRIPE_PRICE_ANN_*), else the catalog.
+async function annPriceIds(stripe) {
+  const A = plans.ANN;
+  const vBase = String((await getSecret(A.price_env_base)) || '').trim();
+  const vMin = String((await getSecret(A.price_env_min_overage)) || '').trim();
+  const vText = String((await getSecret(A.price_env_text_overage)) || '').trim();
+  if (vBase && vMin && vText) return { base: vBase, min: vMin, text: vText };
+  const cat = await ensureAnnCatalog(stripe);
+  return { base: vBase || cat.base, min: vMin || cat.min, text: vText || cat.text };
+}
+
+// Ensure a tenant has the Ann subscription (base + 2 meter-backed metered prices). Idempotent
+// via company.settings.phone.ann.subscription_id. Usage is reported by meter event (customer-
+// scoped), so no per-item ids are needed. Returns { subscription_id } or { error }.
 async function ensureAnnSubscription(pf, stripe, company) {
   const phone = (company.settings && company.settings.phone) || {};
-  if (phone.ann && phone.ann.subscription_id && phone.ann.item_min && phone.ann.item_text) return phone.ann;
-
+  if (phone.ann && phone.ann.subscription_id) return phone.ann;
   const customerId = company.stripe_customer_id;
   if (!customerId) return { error: 'no_stripe_customer' };
-
   const ids = await annPriceIds(stripe);
   const sub = await stripe.subscriptions.create({
     customer: customerId,
@@ -244,19 +301,27 @@ async function ensureAnnSubscription(pf, stripe, company) {
     collection_method: 'charge_automatically',
     metadata: { company_id: company.id, ann: '1' },
   });
-  let itemMin = '', itemText = '';
-  for (const it of (sub.items && sub.items.data) || []) {
-    const meta = (it.price && it.price.metadata) || {};
-    if (meta.ann_meter === 'min') itemMin = it.id;
-    if (meta.ann_meter === 'text') itemText = it.id;
-  }
-  const ann = { subscription_id: sub.id, item_min: itemMin, item_text: itemText, created_at: Date.now() };
-  const nextPhone = Object.assign({}, phone, { ann });
-  const nextSettings = Object.assign({}, company.settings, { phone: nextPhone });
+  const ann = { subscription_id: sub.id, created_at: Date.now() };
+  const nextSettings = Object.assign({}, company.settings, { phone: Object.assign({}, phone, { ann }) });
   await pf.patch('company', `id=eq.${encodeURIComponent(company.id)}`, { settings: nextSettings, updated_at: new Date().toISOString() });
   return ann;
 }
 
+// Report one week's overage as a meter event on the tenant's customer. identifier dedups a
+// re-run of the same week so usage can't double-count.
+async function reportAnnUsage(stripe, eventName, customerId, value, identifier, tsUnix) {
+  return stripe.billing.meterEvents.create({
+    event_name: eventName,
+    identifier: identifier,
+    timestamp: tsUnix,
+    payload: { stripe_customer_id: customerId, value: String(Math.max(0, Math.round(value))) },
+  });
+}
+
+module.exports.ANN_MIN_EVENT = ANN_MIN_EVENT;
+module.exports.ANN_TEXT_EVENT = ANN_TEXT_EVENT;
+module.exports.ensureAnnCatalog = ensureAnnCatalog;
 module.exports.annPriceIds = annPriceIds;
 module.exports.ensureAnnSubscription = ensureAnnSubscription;
+module.exports.reportAnnUsage = reportAnnUsage;
 module.exports.stripeKey = stripeKey;

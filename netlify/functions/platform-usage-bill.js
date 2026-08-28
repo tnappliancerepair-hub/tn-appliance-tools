@@ -29,13 +29,6 @@ exports.config = { timeout: 60 };
 // Anchor a week BEHIND now so we bill the just-completed Mon–Sun (this fn runs Monday).
 function lastWeekAnchor() { return Date.now() - 7 * 86400000; }
 
-// Post a usage record to a metered subscription item for the billed week. action:'set' makes it
-// idempotent — re-running the same week overwrites rather than doubles. Timestamped to the week's
-// end so it lands in the right invoice period.
-async function postUsage(stripe, itemId, qty, tsUnix) {
-  return stripe.subscriptionItems.createUsageRecord(itemId, { quantity: Math.max(0, Math.round(qty)), timestamp: tsUnix, action: 'set' });
-}
-
 async function billTenant(pf, stripe, live, company, anchorMs) {
   const A = plans.ANN;
   const phone = (company.settings && company.settings.phone) || {};
@@ -60,9 +53,12 @@ async function billTenant(pf, stripe, live, company, anchorMs) {
 
   const ann = await billing.ensureAnnSubscription(pf, stripe, company);
   if (ann.error) { out.result = 'ann_sub_' + ann.error; return out; }
+  const cust = company.stripe_customer_id;
+  const idBase = `${company.id}-${w.week_start}`;
   try {
-    if (out.over_min > 0 && ann.item_min) await postUsage(stripe, ann.item_min, out.over_min, weekEndUnix);
-    if (out.over_text > 0 && ann.item_text) await postUsage(stripe, ann.item_text, out.over_text, weekEndUnix);
+    // Report overage as METER EVENTS (customer-scoped). identifier dedups a same-week re-run.
+    if (out.over_min > 0) await billing.reportAnnUsage(stripe, billing.ANN_MIN_EVENT, cust, out.over_min, idBase + '-min', weekEndUnix);
+    if (out.over_text > 0) await billing.reportAnnUsage(stripe, billing.ANN_TEXT_EVENT, cust, out.over_text, idBase + '-text', weekEndUnix);
     out.result = 'billed'; out.billed = { min: out.over_min, text: out.over_text };
   } catch (e) { out.result = 'stripe_err'; out.error = String(e && e.message || e).slice(0, 160); }
   return out;
