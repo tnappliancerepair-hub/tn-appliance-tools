@@ -652,13 +652,20 @@ query send_sms verb=POST {
     var $sms_provider {
       value = (($env.SMS_PROVIDER ?? "telnyx")|trim)
     }
-  
-    var $is_telnyx {
-      value = ($sms_provider == "telnyx")
+
+    // 🔴 TWILIO KILL (Teddy 2026-08-28: "all twilio texts eliminated"). The 629/727 Twilio
+    // numbers are dead/unapproved; we run 100% on Telnyx. Force the Twilio branch OFF so it
+    // can NEVER send, even if SMS_PROVIDER is ever flipped to twilio. Reversible: TWILIO_KILL=0.
+    var $twilio_killed {
+      value = ((($env.TWILIO_KILL ?? "1")|trim) != "0")
     }
-  
+
+    var $is_telnyx {
+      value = ($twilio_killed == true) ? true : ($sms_provider == "telnyx")
+    }
+
     var $is_twilio {
-      value = ($sms_provider == "twilio")
+      value = ($twilio_killed == true) ? false : ($sms_provider == "twilio")
     }
   
     // ============================================================
@@ -887,7 +894,7 @@ query send_sms verb=POST {
         //      alerts) and nothing ships from 629.
         // ------------------------------------------------------------
         var $twilio_failover_on {
-          value = ((($env.SMS_TWILIO_FAILOVER ?? "")|trim) == "true")
+          value = (($twilio_killed == false) && ((($env.SMS_TWILIO_FAILOVER ?? "")|trim) == "true"))
         }
 
         conditional {
