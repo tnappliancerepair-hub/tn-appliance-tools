@@ -1,6 +1,6 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Start with Assistant 24/7</title>
+<title>Start with AssistAnt 24/7</title>
 <style>
   :root{
     --bg:#f6f7f4; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
@@ -18,6 +18,7 @@
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
   .wrap{max-width:680px;margin:0 auto;padding:20px 16px 64px}
   .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.01em;padding:6px 2px 2px}
+  .amk{color:var(--brand)}
   .brand .dot{width:28px;height:28px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
   h1{font-size:23px;margin:16px 2px 4px;letter-spacing:-.02em;text-wrap:balance}
   .lede{color:var(--muted);margin:0 2px 18px;font-size:14px}
@@ -48,7 +49,7 @@
   .msg.ok{display:block;background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good)}
 </style></head>
 <body><div class="wrap">
-  <div class="brand"><span class="dot" id="vdot">🐜</span><span id="vbrand">Assistant 24/7</span></div>
+  <div class="brand"><span class="dot" id="vdot">🐜</span><span id="vbrand">Assist<span class="amk">Ant</span> 24/7</span></div>
   <h1>Put your whole shop on one system.</h1>
   <p class="lede">Answer every call, book every job, pay every tech — one place your office, techs, and customers all run on. Start a 14-day trial; cancel anytime.</p>
 
@@ -100,7 +101,7 @@
     var vert = V.resolve(location.hostname, params.get('v'));
     if (vert) {
       if (vert.accent) document.documentElement.style.setProperty('--brand', vert.accent);
-      document.getElementById('vbrand').textContent = vert.brand;
+      document.getElementById('vbrand').innerHTML = String(vert.brand||'AssistAnt 24/7').replace('Ant','<span class="amk">Ant</span>');
       if (vert.emoji) document.getElementById('vdot').textContent = vert.emoji;
       var t = params.get('trade') || vert.trade;
       if (t) { var sel = document.getElementById('trade'); if (sel && [].some.call(sel.options, function(o){return o.value===t;})) sel.value = t; }

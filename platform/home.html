@@ -1,8 +1,8 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Assistant 24/7 — the AI that runs your shop, around the clock</title>
+<title>AssistAnt 24/7 — the AI that runs your shop, around the clock</title>
 <meta name="description" content="One system runs your whole shop: a 24/7 AI receptionist that answers every call, a job board, scheduling, invoicing, tech pay, a website we build for you, and reviews on autopilot. Flat price per shop. 14-day free trial.">
-<meta property="og:title" content="Assistant 24/7 — the AI that runs your shop, around the clock">
+<meta property="og:title" content="AssistAnt 24/7 — the AI that runs your shop, around the clock">
 <meta property="og:description" content="AI answers every call 24/7. We build your website. Reviews run themselves. One flat price for the whole shop — not per seat.">
 <meta property="og:type" content="website">
 <style>
@@ -27,6 +27,7 @@
   .navin{max-width:960px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:11px}
   .dot{width:32px;height:32px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:18px;flex:none}
   .wordmark{font-weight:800;letter-spacing:-.01em;font-size:17px}
+  .amk{color:var(--accent-ink)}
   .navcta{margin-left:auto;background:var(--accent);color:#fff;font-weight:800;font-size:14px;padding:9px 16px;border-radius:10px;text-decoration:none}
   /* hero */
   .hero{padding:56px 0 30px;text-align:center}
@@ -105,7 +106,7 @@
 </style></head>
 <body>
 <nav><div class="navin">
-  <span class="dot" id="emoji">🐜</span><span class="wordmark" id="brand">Assistant 24/7</span>
+  <span class="dot" id="emoji">🐜</span><span class="wordmark" id="brand">Assist<span class="amk">Ant</span> 24/7</span>
   <a class="navcta" id="nav-cta" href="/platform/signup.html">Start free →</a>
 </div></nav>
 
@@ -238,8 +239,8 @@
     var vert = V.resolve(location.hostname, vParam);
     if(vert.accent) document.documentElement.style.setProperty('--accent', vert.accent);
     document.getElementById('emoji').textContent = vert.emoji || '🐜';
-    document.getElementById('brand').textContent = vert.brand || 'Assistant 24/7';
-    document.getElementById('foot').textContent = vert.brand || 'Assistant 24/7';
+    document.getElementById('brand').innerHTML = (vert.brand || 'AssistAnt 24/7').replace('Ant','<span class="amk">Ant</span>');
+    document.getElementById('foot').textContent = vert.brand || 'AssistAnt 24/7';
     var trade = (vert.trade||'appliance');
     var noun = trade==='appliance'?'repair shop':(trade==='automotive'?'auto shop':(trade==='hvac'?'HVAC business':'shop'));
     document.getElementById('eyebrow').textContent = 'For '+noun+' owners';
