@@ -40,6 +40,41 @@ so it's called out here. If you ever want the DIY pages back online, park that d
   `tnapplianceexchange.net/platform/home.html`, `/platform/signup.html`, `/s/<slug>`. The applianceant.com
   wiring below is purely a nicer face on the same, already-live pages.
 
+## Branded shop subdomains on Cloudflare Registrar — use a Worker (the wildcard workaround)
+
+**Situation (2026-08-28):** the domain is registered at **Cloudflare Registrar**, which *locks the
+nameservers to Cloudflare* — so we can't move DNS to Netlify, and **Netlify won't accept a
+`*.assistant247.net` wildcard alias** (Netlify wildcards require Netlify-managed DNS). The apex +
+`www` are added on Netlify and the **front door is live**; shop sites work at
+`assistant247.net/s/<slug>`. To get the *branded* `joeys.assistant247.net` face, add a tiny
+**Cloudflare Worker** that reverse-proxies each subdomain to the shop-site function (free, ~15 lines).
+
+**Steps (one-time):**
+1. Cloudflare dash → **Workers & Pages → Create → Create Worker** → name it `shop-subdomains` → Deploy.
+2. **Edit code** → paste this, then Deploy:
+   ```js
+   export default {
+     async fetch(request) {
+       const host = (new URL(request.url).hostname || '').toLowerCase();
+       const m = /^([a-z0-9][a-z0-9-]{0,62})\.assistant247\.net$/.exec(host);
+       const RESERVED = new Set(['www', 'app', 'api', 'admin', 'platform']);
+       if (m && !RESERVED.has(m[1])) {
+         const target = 'https://superlative-naiad-233aa7.netlify.app/.netlify/functions/platform-site?slug=' + encodeURIComponent(m[1]);
+         const r = await fetch(target);
+         return new Response(r.body, { status: r.status, headers: r.headers });
+       }
+       return fetch(request); // apex/www/reserved pass straight through
+     }
+   };
+   ```
+3. Worker → **Settings → Domains & Routes → Add → Route** → Zone `assistant247.net`, Route
+   `*.assistant247.net/*`. Save.
+4. Test `https://demo.assistant247.net` → renders the demo shop. Done — every `<slug>.assistant247.net`
+   now serves that shop, no per-shop setup.
+
+(If Cloudflare ever adds Registrar support for external nameservers, or you move the domain, you can
+instead use Netlify DNS + a native `*.assistant247.net` alias and delete the Worker.)
+
 ## What you do (DNS + Netlify — I can't touch DNS)
 
 The platform site is the one this repo deploys to (`superlative-naiad-233aa7` / tnapplianceexchange.net).
