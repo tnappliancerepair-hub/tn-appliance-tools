@@ -200,6 +200,49 @@ Don't out-Jobber Jobber. **Match the table stakes so a switching shop isn't
 
 ---
 
+## 02⅚ · The brand — one colony, many trades *(locked 2026-08-28)*
+
+The realization (Teddy, 2026-08-28): *"Appliance Ant is for the appliance guys, but
+there are many more people who'll need AI assistance — and we're the guys to get it to
+them."* The product proves this is already true — the platform is **trade-agnostic at the
+core** (a new trade is a single `trade_profile` row, not a rebuild), with live tenants
+already running in **automotive, aquarium, furniture, and a dealership** beside appliance.
+So the multi-trade reach isn't a someday build — it's shipped. What we're locking in here
+is the **name and story on top of it.**
+
+**"Ant" is the master brand.** It's personal — named after Anthony — and the colony
+metaphor carries the entire pitch for free: a swarm of small, tireless workers (the AI
+agents) that quietly run the whole operation. Positioning line: **"Ant — the AI that runs
+your trade."**
+
+**The vertical formula is the asset: `[Trade] Ant`.** Appliance Ant is the first. The same
+pattern names every future vertical instantly and unmistakably on-brand:
+- **Appliance Ant** *(live)* · Auto Ant · HVAC Ant · Pool Ant · Plumb Ant · Roof Ant ·
+  Lawn Ant · Clean Ant · Pest Ant · … one for every trade that drowns in paperwork.
+- **Why it's a moat, not just cute:** a competitor has to invent (and market) a fresh brand
+  per vertical; we get a memorable, on-family name for *free, forever*. The naming system
+  itself scales as fast as `trade_profile` rows do.
+
+**Brand architecture (how the pieces ladder up):**
+- **Ant** = the mother brand + the umbrella home (needs its own address; `.ai` fits the AI
+  story — e.g. getant.ai / tryant.ai / ant.systems). Self-serve **signup lives at the
+  umbrella**; the à-la-carte builder + `company.features` already map to it 1:1.
+- **`[Trade] Ant`** = the vertical front doors. `applianceant.com` *(owned)* is the appliance
+  door; each trade gets its own landing that funnels into the **one shared platform + one
+  shared brain**. Same backend, many faces — the exact "same backend, three front doors"
+  principle in §03, now extended across trades, not just layers.
+- **Every vertical feeds one colony.** A furniture shop and an appliance shop run on the same
+  Ant Brain substrate; cross-trade data (scheduling, parts, pay, comms patterns) compounds the
+  network effect wider than appliance alone (deepens the §02 moat and the L2 flywheel).
+
+**What this locks for building:** the product stays **one trade-agnostic system**; branding is
+a presentation layer, never a fork. Vertical expansion = a `trade_profile` row + a `[Trade] Ant`
+landing + the trade's vocabulary, never a new codebase. **Open decisions:** the umbrella domain
+(shortlist + grab one), and whether TN's own consumer identity (L3) rides "Ant" or a distinct
+consumer name. *(This is the face of the L1→L2→L3 arc in §03 — the same plan, now named.)*
+
+---
+
 ## 03 · The three layers (same backend, three front doors, built in order)
 
 ### L1 — TN Appliance Exchange · the proving ground *(live today)*
@@ -469,6 +512,17 @@ diagnose why — we do NOT pile on more features. Momentum = the signal climbing
 ---
 
 ## Changelog
+- **2026-08-28 — v1.7.** Added **§02⅚ · The brand — one colony, many trades.** Locked the brand
+  architecture: **"Ant" is the master brand** (personal — named after Anthony — the colony =
+  the swarm of AI agents that runs the shop), with the repeatable vertical formula **`[Trade]
+  Ant`** (Appliance Ant live; Auto/HVAC/Pool/Plumb/Roof/… name themselves on-family for free).
+  Grounded in the fact that the platform is already trade-agnostic (a trade = one `trade_profile`
+  row; live tenants in automotive/aquarium/furniture/dealership). Architecture: Ant = umbrella +
+  self-serve signup home (`.ai`), `[Trade] Ant` = vertical front doors (applianceant.com owned)
+  funneling into one shared platform + one shared brain; every vertical feeds the same colony
+  (widens the network-effect moat past appliance). Rule: branding is a presentation layer, never
+  a code fork — expansion = a row + a landing + vocabulary. Open: pick/grab the umbrella domain;
+  decide if L3 consumer rides "Ant" or a distinct name.
 - **2026-08-28 — v1.6.** Added **§02¾ · The five inversions** — reconciling the "how do we
   single-handedly change the industry / empower the small operator" thesis. Core reframe: the
   game-changer is the **business model, not a feature** — we seed a collective and own the
