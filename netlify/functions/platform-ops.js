@@ -43,6 +43,7 @@ exports.handler = async function (event) {
   } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
 
   const now = Date.now(), DAY = 86400000;
+  const RETENTION_DAYS = 30; // keep a churned client's data 30 days, then it can be purged.
   const daysSince = (iso) => iso ? (now - Date.parse(iso)) / DAY : Infinity;
   const shape = (r) => {
     const last = r.last_job || r.created_at;
@@ -56,12 +57,18 @@ exports.handler = async function (event) {
     else if (idleDays <= 30) health = 'healthy';
     else if (idleDays <= 60) health = 'quiet';
     else health = 'at_risk';
-    return {
+    const o = {
       name: r.name, slug: r.slug, trade: r.trade || '', status: r.status,
       owner_name: r.owner_name || '', owner_email: r.owner_email || '',
       created_at: r.created_at, churned_at: r.churned_at, last_activity: last,
       jobs, health,
     };
+    if (r.status === 'churned') {
+      const since = daysSince(r.churned_at);
+      o.purge_in_days = Math.max(0, Math.ceil(RETENTION_DAYS - since));
+      o.purge_eligible = since >= RETENTION_DAYS;
+    }
+    return o;
   };
 
   const all = rows.map(shape);
@@ -83,6 +90,8 @@ exports.handler = async function (event) {
     quiet: cnt((t) => t.health === 'quiet' || t.health === 'at_risk'),
     retention_pct: clients.length ? Math.round(100 * (clients.length - churned) / clients.length) : 100,
     trades: [...new Set(clients.map((t) => t.trade).filter(Boolean))].length,
+    due_purge: cnt((t) => t.status === 'churned' && t.purge_eligible),
+    retention_days: RETENTION_DAYS,
     test: test.length,
   };
   return json(200, { ok: true, generated_at: new Date().toISOString(), totals, clients, test });
