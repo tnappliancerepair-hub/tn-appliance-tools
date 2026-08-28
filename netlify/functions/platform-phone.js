@@ -136,7 +136,8 @@ exports.handler = async function (event) {
     let w;
     try { w = meter.weeklyStatus(await meter.weeklyTelnyx(phone.number, phone.assistant_id)); }
     catch (_) { return J(200, { ok: false, error: 'meter_err' }); }
-    return J(200, { ok: true, has_phone: true, paused: !!phone.paused, number: phone.number, week: w.week_label, minutes: w.minutes, texts: w.texts, allowance_min: w.allowance_min, pct: w.pct, near: w.near, over: w.over });
+    const allowTexts = meter.DEFAULT_PLAN.included_sms;
+    return J(200, { ok: true, has_phone: true, paused: !!phone.paused, number: phone.number, week: w.week_label, minutes: w.minutes, texts: w.texts, allowance_min: w.allowance_min, allowance_texts: allowTexts, texts_over: Math.max(0, w.texts - allowTexts), pct: w.pct, near: w.near, over: w.over });
   }
 
   const LIVE = String((await getSecret('PLATFORM_PHONE_LIVE')) || '').toLowerCase() === 'true';
