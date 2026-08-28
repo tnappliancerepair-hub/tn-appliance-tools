@@ -92,6 +92,7 @@
 <div id="app"><div class="shell"><div class="empty">🐜 Loading…</div></div></div>
 
 <script src="/platform/config.js"></script>
+<script src="/platform/pay-calc.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/platform/media-sign.js"></script>
 <script src="/ant-sounds.js"></script>
@@ -100,7 +101,7 @@
 (function () {
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
-  var sb = null, me = null, myTech = null;
+  var sb = null, me = null, myTech = null, companySettings = {};
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
@@ -270,9 +271,11 @@
     jobsCache = jobs || [];
     var today = new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     var note = myTech ? '' : '<div class="note">Your login isn\'t linked to a technician yet, so this shows all the shop\'s open jobs. Ask the office to link you as a tech.</div>';
-    var body = '<div class="daylabel">'+esc(today)+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
+    var body = (myTech ? '<div id="payCard"></div>' : '') +
+      '<div class="daylabel">'+esc(today)+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
       (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">No open jobs right now. 🎉</div>');
     document.getElementById('body').innerHTML = body;
+    if (myTech) loadPay();
     // wire actions
     var b = document.getElementById('body');
     b.querySelectorAll('button[data-act]').forEach(function(el){ el.onclick=function(){ setStatus(el.getAttribute('data-id'), el.getAttribute('data-act')); }; });
@@ -281,6 +284,35 @@
     b.querySelectorAll('button[data-tdr]').forEach(function(el){ el.onclick=function(){ var p=document.getElementById('tdr_'+el.getAttribute('data-tdr')); if(p) p.classList.toggle('open'); }; });
     b.querySelectorAll('button[data-savetdr]').forEach(function(el){ el.onclick=function(){ saveTdr(el.getAttribute('data-savetdr'), el); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });
+  }
+
+  function money(c){ return '$'+(Math.round((c||0)/100)).toLocaleString(); }
+
+  // The tech's OWN pay, derived (PayCalc) from his completed jobs' invoices + his rule.
+  // earned (pending) -> collected & owed to you -> paid. Never a fabricated number.
+  function loadPay(){
+    var card=document.getElementById('payCard'); if(!card||!myTech) return;
+    var rule=window.PayCalc.ruleFor(myTech, window.PayCalc.companyDefault(companySettings));
+    var jobsP=sb.from('job').select('id,completed_at,customer:customer_id(first_name,last_name)').eq('technician_id',myTech.id).eq('status','completed').order('completed_at',{ascending:false,nullsFirst:false}).limit(500);
+    var invP=sb.from('invoice').select('job_id,labor_cents,status').limit(3000);
+    var payP=sb.from('tech_payout').select('job_id,amount_cents').eq('technician_id',myTech.id).limit(3000);
+    Promise.all([jobsP,invP,payP]).then(function(res){
+      var jobs=(res[0].data)||[], invs=(res[1].data)||[], pays=(res[2].data)||[];
+      var invByJob={}; invs.forEach(function(v){ if(v.job_id) invByJob[v.job_id]=v; });
+      var paidByJob={}; pays.forEach(function(p){ paidByJob[p.job_id]=(paidByJob[p.job_id]||0)+(p.amount_cents||0); });
+      var rows=[]; jobs.forEach(function(j){ var inv=invByJob[j.id]; if(!inv) return; var pj=window.PayCalc.jobPay(j, inv, rule, paidByJob[j.id]||0); pj._cust=j.customer; rows.push(pj); });
+      var t=window.PayCalc.totals(rows);
+      var pendingEarned = Math.max(0, t.earned_cents - t.collectible_cents);
+      var list = rows.slice(0,8).map(function(r){ var nm=r._cust?((r._cust.first_name||'')+' '+(r._cust.last_name||'')).trim():'Job'; var badge=r.state==='paid'?'<span style="color:var(--muted)">paid</span>':(r.collected?'<span style="color:#12a150;font-weight:700">collected</span>':'<span style="color:#b45309">pending</span>'); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px"><span>'+esc(nm||'Job')+'</span><span style="display:flex;gap:10px"><span>'+badge+'</span><b style="font-variant-numeric:tabular-nums">'+money(r.earned_cents)+'</b></span></div>'; }).join('');
+      var cell=function(k,v,hi){ return '<div style="flex:1;min-width:0"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">'+k+'</div><div style="font-size:21px;font-weight:800;font-variant-numeric:tabular-nums'+(hi?';color:#12a150':'')+'">'+v+'</div></div>'; };
+      var needsRate = rule.type==='labor_pct' && !rule.pct && !myTech.commission_type;
+      card.innerHTML='<div class="card">'+
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px"><b>💰 Your pay</b><span style="font-size:12px;color:var(--muted)">'+esc(window.PayCalc.ruleLabel(rule))+'</span></div>'+
+        '<div style="display:flex;gap:12px">'+cell('Earned (pending)',money(pendingEarned))+cell('Owed to you now',money(t.owed_now_cents),true)+cell('Paid',money(t.paid_cents))+'</div>'+
+        (rows.length? '<div style="margin-top:10px">'+list+'</div>' : '<div style="margin-top:8px;color:var(--muted);font-size:13px">No billed jobs yet — your pay shows here as the office bills your completed jobs.</div>')+
+        (needsRate? '<div style="margin-top:8px;color:#b45309;font-size:13px">Your commission rate isn\'t set yet — ask the office.</div>':'')+
+      '</div>';
+    }).catch(function(){});
   }
 
   function loadJobs(){
@@ -303,10 +335,10 @@
       sb.from('app_user').select('id,name,role,company_id').eq('auth_user_id', uid).limit(1).then(function(r){
         me = (r.data && r.data[0]) || null;
         if (!me) { shell('<div class="note">Your login isn\'t attached to a shop yet. Ask the office to add you.</div>'); return; }
-        sb.from('technician').select('id,name').eq('app_user_id', me.id).limit(1).then(function(t){
+        sb.from('technician').select('id,name,commission_type,commission_pct,commission_flat_cents').eq('app_user_id', me.id).limit(1).then(function(t){
           myTech = (t.data && t.data[0]) || null;
           shell('<div class="empty">Loading your day…</div>');
-          loadJobs();
+          sb.from('company').select('settings').limit(1).then(function(c){ companySettings = (c.data && c.data[0] && c.data[0].settings) || {}; loadJobs(); });
         });
       });
     });

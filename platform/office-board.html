@@ -586,7 +586,7 @@
     var sub=laborC+partsC+feeC, taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
     var paid=document.getElementById('jpaid').checked, method=document.getElementById('jmethod').value||null;
     var inv=invByJob[job.id]||null;
-    var row={ company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, subtotal_cents:sub, tax_cents:taxC, total_cents:tot, status:paid?'paid':'draft', paid_method:paid?method:null, paid_at:paid?(inv&&inv.paid_at?inv.paid_at:new Date().toISOString()):null };
+    var row={ company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, labor_cents:laborC, subtotal_cents:sub, tax_cents:taxC, total_cents:tot, status:paid?'paid':'draft', paid_method:paid?method:null, paid_at:paid?(inv&&inv.paid_at?inv.paid_at:new Date().toISOString()):null };
     var done=function(invoiceId){
       var newlyPaid = paid && !(inv && inv.status==='paid');
       invByJob[job.id]=Object.assign({ id:invoiceId, job_id:job.id, created_at:(inv&&inv.created_at)||new Date().toISOString() }, row);
