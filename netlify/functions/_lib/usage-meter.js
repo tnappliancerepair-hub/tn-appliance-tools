@@ -94,4 +94,28 @@ async function rollup(companyId, fromISO, toISO) {
   } catch (_) { return { voice_min: 0, sms_out: 0, sms_in: 0, cost_cents: 0 }; }
 }
 
-module.exports = { COST, DEFAULT_PLAN, getPlan, guardrail, record, rollup };
+// Owner-FACING month-to-date digest — usage vs the shop's plan allowance ONLY.
+// Deliberately carries NO cost / margin / provider (that's the operator-only view). This
+// is what the owner sees ("340 of 500 minutes used"), keeping the underlying provider +
+// per-unit cost ours. from = first of THIS month (UTC).
+async function ownerDigest(companyId) {
+  var d = new Date();
+  var from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+  var res = await Promise.all([rollup(companyId, from, new Date().toISOString()), getPlan(companyId)]);
+  var roll = res[0], plan = res[1];
+  var vmin = Math.round(Number(roll.voice_min) || 0);
+  var sms = Math.round(Number(roll.sms_out) || 0);
+  return {
+    period: from.slice(0, 7),
+    voice_min: vmin, sms_out: sms,
+    included_voice_min: plan.included_voice_min, included_sms: plan.included_sms,
+    voice_pct: plan.included_voice_min ? Math.round(vmin / plan.included_voice_min * 100) : 0,
+    sms_pct: plan.included_sms ? Math.round(sms / plan.included_sms * 100) : 0,
+    over_voice: Math.max(0, vmin - plan.included_voice_min),
+    over_sms: Math.max(0, sms - plan.included_sms),
+    tier: plan.tier,
+    has_usage: vmin > 0 || sms > 0,
+  };
+}
+
+module.exports = { COST, DEFAULT_PLAN, getPlan, guardrail, record, rollup, ownerDigest };
