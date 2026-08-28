@@ -14,7 +14,7 @@ $50/wk Ann, website + Google + reviews included, 14-day free trial (card require
 - **Category:** Software Company (secondary: Business Service)
 - **Profile photo:** the green 🐜 Ant logo
 - **Cover:** the headline — *"The AI that answers your phone, books the job, and builds your website."*
-- **Button:** **Sign Up** → your front-door URL (the domain you point at `home.html`)
+- **Button:** **Sign Up** → `applianceant.com` (the front door — `platform/home.html`)
 - **Intro / bio (155 char):**
   > The AI that runs your repair shop — answers every call 24/7, builds your website, runs your Google. One flat price, not per tech. Free 14-day trial.
 
@@ -25,7 +25,7 @@ $50/wk Ann, website + Google + reviews included, 14-day free trial (card require
 >
 > One flat price for the whole shop (not per tech, like Housecall Pro or Jobber). We built it to run our own appliance business — now you can run yours on it.
 >
-> 👉 Free for 14 days: [your-domain]
+> 👉 Free for 14 days: applianceant.com
 
 ---
 
