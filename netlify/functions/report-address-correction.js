@@ -65,6 +65,8 @@ async function alreadyFlagged(jobId, proposedHouse) {
 
 async function textDanielle(jobId, proposed) {
   const to = process.env.DANIELLE_PHONE_NUMBER || '+16154850713';
+  // 🔇 office kill — the board's red "tap to apply" flag already surfaces this. (Teddy 2026-08-28)
+  if (require('./_lib/office-gate').officeBlocked(to, 'address_correction')) return;
   const message = `📍 New address from a phone call on job #${jobId}: ${proposed}. Open the board — the tile has a red "tap to apply" flag. (Ann won't change it herself.)`;
   try {
     await fetch(`${XANO_BASE}/send_sms`, {

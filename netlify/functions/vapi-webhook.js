@@ -659,6 +659,11 @@ exports.handler = async function (event) {
 
 // ── Helpers ───────────────────────────────────────────────────────
 async function safePost(url, body) {
+  // 🔇 KILL ALL VAPI TEXTING (Teddy 2026-08-28). Vapi is the retired assistant; Telnyx
+  // Ann handles live calls + their texts. Every SMS Vapi still fires (office drop-alerts,
+  // owner summaries, customer hangup-intake) is a duplicate — suppress them all. Other
+  // safePost calls (event logging etc.) are untouched. Reversible: VAPI_TEXTING_OFF=0.
+  if (/\/send_sms(\?|$)/.test(String(url)) && String(process.env.VAPI_TEXTING_OFF || '1') !== '0') return;
   try {
     await fetch(url, {
       method: 'POST',

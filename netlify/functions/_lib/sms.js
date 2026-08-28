@@ -28,6 +28,7 @@ function toE164(p) {
 // hours / frequency / global-rate are shadow-logged until SMS_GUARD_ENFORCE=1.
 // allowQuiet is auto-set for same-day en-route/ETA texts the customer expects.
 const guard = require('./sms-guard');
+const officeGate = require('./office-gate');
 const INTERNAL_ROLES = new Set(['owner', 'technician', 'tech', 'warranty_handler', 'danielle', 'office']);
 
 // 🚚 INTERNAL REROUTE (Teddy 2026-08-14, broadened 2026-08-15): the Xano send_sms
@@ -80,6 +81,13 @@ async function sendSms(recipient, body, role, tag) {
   if (!to || to.length < 12 || !body) return false;
   const r = String(role || '').toLowerCase();
 
+  // 🔇 OFFICE KILL (Teddy 2026-08-28): no texts to the office except cash intake to
+  // Teddy/Danielle (+ system-health to Teddy). Board/queues still carry everything.
+  if (officeGate.officeBlocked(to, tag)) {
+    try { await require('./xano/metadata-crud').logEvent('office_sms_suppressed', { to, tag: tag || '', role: r, at_ms: Date.now() }); } catch (_) {}
+    return false;
+  }
+
   if (INTERNAL_ROLES.has(r)) {
     // Internal alert — send directly, but STILL honor a hard opt-out just in case
     // an internal number ever landed on the list (it won't, but it's free safety).
@@ -123,6 +131,10 @@ async function sendSms(recipient, body, role, tag) {
 async function sendFrom588(recipient, body, tag) {
   const to = toE164(recipient);
   if (!to || to.length < 12 || !body) return false;
+  if (officeGate.officeBlocked(to, tag)) {
+    try { await require('./xano/metadata-crud').logEvent('office_sms_suppressed', { to, tag: tag || '', role: 'from588', at_ms: Date.now() }); } catch (_) {}
+    return false;
+  }
   try { if (await guard.isOptedOut(to)) return false; } catch (_) {}
   const cr = await _crewSendDirect(to, body, tag || 'ant_dispatch');
   if (cr.ok) return true;

@@ -107,6 +107,7 @@ exports.handler = async function (event) {
     + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote + areaNote;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
+  try { await sendSms('+16154855795', msg, 'owner', 'quick_check'); } catch (_) {} // cash intake → Teddy too
   if (jobId) { try { await sendAreaTechTeddyTool(areaTech, { link, customer: m.name, appliance: machine, city: m.town || m.city || '', jobId, kind: 'free_qc' }); } catch (_) {} }
 
   // never lose the media — text the no-form finish-upload link if expected media

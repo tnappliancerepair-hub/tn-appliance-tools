@@ -94,7 +94,8 @@ exports.handler = async function (event) {
         // Danielle always; Carrie ONLY if it's a Louisiana job (she's the LA office contact)
         let _isLA = false; try { _isLA = require('./_lib/carrie-la').isLouisiana({ state: job.service_state || job.customer_state, techId: job.technician_id }); } catch (_) {}
         const cells = ['+16154850713']; if (_isLA) cells.push('+12258035669');
-        for (const cell of cells) {   // Danielle (+ Carrie when LA), internal gate-allowed
+        for (const cell of cells) {   // 🔇 office kill — on the warranty board already (Teddy 2026-08-28)
+          if (require('./_lib/office-gate').officeBlocked(cell, 'nff_warranty_claim')) continue;
           try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: cell, message: note, context_tag: 'nff_warranty_claim' }), signal: AbortSignal.timeout(8000) }); } catch (_) {}
         }
         try { await crud.logEvent('nff_warranty_needs_claim', { job_id: jobId, vendor, claim, at_ms: now }); } catch (_) {}

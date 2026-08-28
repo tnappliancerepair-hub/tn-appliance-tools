@@ -12,6 +12,12 @@ exports.handler = async function(event) {
 
     const message = `New job #${job_id} - ${customer_name}\n${appliance} | ${brand}\nIssue: ${problem}\n\nTeddy Tool: ${teddyToolUrl}`;
 
+    // 🔇 OFFICE KILL (Teddy 2026-08-28): office texts off except cash intake. A new-job
+    // pre-diagnosis link is office noise (it's on the board/Teddy Tool already) — suppress.
+    if (require('./_lib/office-gate').officeBlocked(teddyNumber, 'teddy_tool_prediag')) {
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ success: true, suppressed: true, reason: 'office_sms_off' }) };
+    }
+
     // ── SMS_ENABLED gate (call_site: send-teddy-sms.js:19) ──
     // Recipient is hardcoded owner; gate is for consistency + future-proofing.
     // See docs/sms-enabled-gate-pattern.md.

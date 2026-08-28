@@ -14,6 +14,7 @@
 //   GET ?alert=1       -> force the SMS path manually
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
+const officeGate = require('./_lib/office-gate');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 // Scheduling is delegated to Danielle + Sofia (Teddy 2026-08-14) — these accepted/no-tech
 // alerts go to THEM, not the owner. (OWNER kept only for reference; no longer texted here.)
@@ -92,8 +93,9 @@ exports.handler = async function (event) {
     if (sig !== lastSig || stale) {
       const lines = out.slice(0, 8).map((x) => `• ${x.customer} — ${x.appliance}${x.where ? ' (' + x.where + ')' : ''} [${x.vendor}]${x.no_address ? ' ⚠no addr' : ''}`);
       const msg = `🚨 ${out.length} ACCEPTED job(s) with NO TECH — not on anyone's schedule, invisible on the board:\n${lines.join('\n')}\nAssign a tech now or it gets missed (like Calvin Gibson). Board → red "Accepted but nowhere" card.`;
-      await jpost(`${XANO}/send_sms`, { to: DANIELLE, message: msg, context_tag: 'accepted_unassigned', force_send: true });
-      await jpost(`${XANO}/send_sms`, { to: SOFIA, message: msg, context_tag: 'accepted_unassigned', force_send: true });
+      // 🔇 office kill — non-cash office alert; on the board already. (Teddy 2026-08-28)
+      if (!officeGate.officeBlocked(DANIELLE, 'accepted_unassigned')) await jpost(`${XANO}/send_sms`, { to: DANIELLE, message: msg, context_tag: 'accepted_unassigned', force_send: true });
+      if (!officeGate.officeBlocked(SOFIA, 'accepted_unassigned')) await jpost(`${XANO}/send_sms`, { to: SOFIA, message: msg, context_tag: 'accepted_unassigned', force_send: true });
       await crud.logEvent('accepted_unassigned_alert', { sig, count: out.length, job_ids: out.map((x) => x.job_id), at_ms: now });
       alerted = true;
     }
