@@ -62,7 +62,7 @@ exports.handler = async function (event) {
 
   // Owner gate (same fallback provision uses — the vault key can cold-miss)
   const secret = body.secret || q.secret || '';
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || (await getSecret('ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (secret !== admin) return J(401, { ok: false, error: 'unauthorized' });
 
   const pf = await platform();
