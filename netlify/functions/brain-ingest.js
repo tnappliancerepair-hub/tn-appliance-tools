@@ -46,7 +46,7 @@ on conflict (dedup_key) do nothing;`;
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
-  const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
+  const guard = (await getSecret('ADMIN_SECRET')) || GUARD_FALLBACK;
   if (!scheduled && q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
 
   const mgmt = await getSecret('SUPABASE_MGMT_TOKEN');

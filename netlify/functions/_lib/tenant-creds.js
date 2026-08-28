@@ -18,7 +18,7 @@ async function keyFor(encV) {
     if (b.length !== 32) b = crypto.createHash('sha256').update(ded).digest();
     return { key: b, v: 'ded' };
   }
-  const ikm = (await getSecret('VAPI_ADMIN_SECRET')) || 'ant-fallback-ikm';
+  const ikm = (await getSecret('ADMIN_SECRET')) || 'ant-fallback-ikm';
   const key = Buffer.from(crypto.hkdfSync('sha256', Buffer.from(ikm), Buffer.from('ant-tenant-creds'), Buffer.from('v1'), 32));
   return { key, v: 'kdf1' };
 }

@@ -23,6 +23,17 @@ const CANDIDATE_IDS = [53, 33];
 let _tableIdCache = null;
 const _secretCache = {};
 
+// Secret-name aliases. Historically the shared owner/admin gate was named
+// VAPI_ADMIN_SECRET (from the old Vapi phone era). The phone moved to Telnyx, so that
+// name is misleading — it's just "the admin password" now. This lets us call it
+// ADMIN_SECRET going forward WITHOUT touching the ~300 functions still asking for the
+// old name: whichever one is set in the vault resolves for either request. Rename the
+// vault entry at your leisure; nothing breaks. Bidirectional.
+const ALIASES = {
+  VAPI_ADMIN_SECRET: ['ADMIN_SECRET'],
+  ADMIN_SECRET: ['VAPI_ADMIN_SECRET'],
+};
+
 function headers() {
   const t = process.env.XANO_METADATA_TOKEN;
   if (!t) throw new Error('XANO_METADATA_TOKEN not set');
@@ -58,7 +69,7 @@ async function configTableId() {
   throw new Error('app_config table not found at ids ' + CANDIDATE_IDS.join('/') + ' — confirm the table id');
 }
 
-async function fetchFromXano(name) {
+async function searchOne(name) {
   const tid = await configTableId();
   const r = await fetchT(`${XANO_META}/table/${tid}/content/search`, {
     method: 'POST', headers: headers(),
@@ -71,10 +82,22 @@ async function fetchFromXano(name) {
   return row ? String(row.value || '') : '';
 }
 
+async function fetchFromXano(name) {
+  const val = await searchOne(name);
+  if (val) return val;
+  // primary empty -> try aliases (only fires when the primary isn't set, so no added
+  // latency on the hot path where the name IS present).
+  for (const a of (ALIASES[name] || [])) {
+    try { const av = await searchOne(a); if (av) return av; } catch (_) {}
+  }
+  return '';
+}
+
 // Returns the secret value, or '' if not found anywhere. Never throws to the
 // caller for "not found" — only for a genuine config error you want surfaced.
 async function getSecret(name) {
   if (process.env[name]) return process.env[name];
+  for (const a of (ALIASES[name] || [])) if (process.env[a]) return process.env[a];
   if (_secretCache[name] !== undefined) return _secretCache[name];
   try {
     const v = await fetchFromXano(name);

@@ -8,7 +8,7 @@ function j(c, b) { return { statusCode: c, headers: { 'content-type': 'applicati
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const guard = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  const guard = (await getSecret('ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== guard) return j(403, { ok: false, error: 'forbidden' });
 
   const present = {
