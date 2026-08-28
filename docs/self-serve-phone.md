@@ -56,10 +56,10 @@ Each tenant = one number + one assistant, so **weekly minutes/texts are metered 
 (`usage-meter.weeklyTelnyx(number, assistant_id)`). Billing is by the *unit* (minutes/texts) —
 counted precisely — so it's exact even though the internal LLM cost is an estimate.
 
-**Margin reality at the verified rate ($0.084/min):** $50 for a *full* 500 min = ~$42 cost ⇒
-only ~$6–8 margin at full usage. It still wins because (a) most shops run well under 500
-(≈40–57 calls/day fills it), and (b) $0.40/min overage is ~4.75× cost. **Lever if the full-usage
-margin feels thin: drop the bucket to 400 min (~$14 margin at full) or price $60/500.**
+**Margin at the verified rate ($0.084/min):** the bucket is **400 min** (chosen 2026-08-28 over
+500 for a healthier full-usage margin). $50 for a full 400 min = ~$34 cost ⇒ **~$14/wk margin
+(28%)** even maxed; most shops run well under 400 (so they're more profitable), and $0.40/min
+overage is ~4.75× cost so heavy shops are the *most* profitable.
 
 ## THE OFFER (locked with Teddy, 2026-08-28) — best deal, structurally lossproof
 
@@ -71,23 +71,23 @@ metered above cost.** So it cannot lose money.
   *This is the hook: a shop gets their whole back office free.*
 - 🎁 **First 50 Ann minutes free** — the test drive. Capped ≈ $3 of cost per account (not the
   unbounded free-trial risk); lets them feel it before the meter starts.
-- 📞 **Ann = $50 / week includes 500 minutes**, then **$0.40 / min overage** (+ a text allowance,
-  texts metered above ~$0.004).
+- 📞 **Ann = $50 / week includes 400 minutes** (locked 2026-08-28 — 400 keeps a healthy margin
+  even at full usage), then **$0.40 / min overage** (+ ~500 texts included, metered after).
 - 💳 **Card on file, charged only when Ann is working.** Number provisioned only on an active
   card/subscription; **released on cancel** (never pay $1/mo for a dead account's number).
 
-**Why it can't lose money — the math (at ~$0.06/min cost):**
+**Why it can't lose money — the math (at the VERIFIED $0.084/min cost):**
 
 | Scenario | Revenue | Cost | Margin |
 |---|---|---|---|
-| 500 min (full base, ~50 calls/day weekdays) | $50 | ~$30 + $0.25 num + $1.75 Stripe | **~$18/wk (36%)** |
-| Small shop (~200 min) | $50 | ~$12 | **~$36/wk** |
-| Heavy shop (875 min, TN-level) | $50 + 375×$0.40 = **$200** | ~$52 | **~$148/wk** |
+| 400 min (full base, ~40 calls/day weekdays) | $50 | ~$34 + $0.25 num + $1.75 Stripe | **~$14/wk (28%)** |
+| Small shop (~150 min) | $50 | ~$13 | **~$35/wk** |
+| Heavy shop (875 min, TN-level) | $50 + 475×$0.40 = **$240** | ~$74 | **~$164/wk** |
 
-500 min ÷ ~2 min/call = **250 calls/week ≈ 50 calls/day** covered by the base. Overage at $0.40
-is **~6× our cost**, so heavy shops become the *most* profitable, not a risk — the old
+400 min ÷ ~2 min/call = **200 calls/week ≈ 40 calls/day** covered by the base. Overage at $0.40
+is **~4.75× our cost**, so heavy shops become the *most* profitable, not a risk — the
 "monster-volume shop loses money" worry is erased by the overage rate. `usage-meter` + the daily
-owner usage digest already track minutes/texts vs. the 500 allowance.
+owner digest + the owner dashboard card all track weekly minutes/texts vs. the **400** allowance.
 
 **Weekly-billing note:** charging weekly quadruples Stripe's fixed $0.30 fee (~$1.20/mo vs
 $0.30). Minor; keep weekly for the low-commitment appeal, optionally offer a monthly equivalent
@@ -109,13 +109,13 @@ text overage rate.
 - [x] **Weekly metering (Mon–Sun CT), by number** — `usage-meter.weeklyTelnyx()` reads texts
       (by `cli`) + minutes (by `assistant_id`) straight from Telnyx for the current week.
 - [x] **Daily digest → weekly** — `platform-usage-digest` now emails each shop with a phone line
-      their Ann usage **this week vs 500 min** (%, near-limit at 80%, over-limit note), so they
-      always know where they stand and can pause before/after hitting 500.
+      their Ann usage **this week vs 400 min** (%, near-limit at 80%, over-limit note), so they
+      always know where they stand and can pause before/after hitting 400.
 - [x] **Pause / resume toggle** — `platform-phone` `action=pause`/`resume` unbinds/re-binds the
-      number so the owner can stop Ann (e.g. at the 500). *(Surface a button in owner.html next.)*
+      number so the owner can stop Ann (e.g. at the 400). *(Surface a button in owner.html next.)*
 - [ ] Stripe metered billing: report the weekly minutes/texts as usage records ($50/wk base +
-      $0.40/min overage). Verified rates say **500-min bucket is thin at full usage → consider
-      400 min or $60/500.**
+      $0.40/min overage). Verified rates say **400-min bucket = ~$14/wk margin at full usage
+      (chosen over 500 for margin).
 
 ## Original checklist (reference)
 

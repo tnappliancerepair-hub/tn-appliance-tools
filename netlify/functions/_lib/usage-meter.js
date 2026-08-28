@@ -11,10 +11,13 @@ const { getSecret } = require('./secrets');
 // all-in on T-Mobile: rate $0.0085 + carrier $0.0045). Used only to compute margin, never shown.
 const COST = { voice_min: 8.4, sms_out: 1.3, sms_in: 0.75 };
 // Plan defaults when a shop has no client_plan row yet (generous fair-use + safety caps).
+// Ann plan (Teddy 2026-08-28): $50/week = 400 included minutes, $0.40/min overage. 400 (not
+// 500) keeps a healthy margin even at full usage ($50 − 400×$0.084 ≈ $14/wk). Single source —
+// the weekly digest, the owner dashboard card, and metering all read included_voice_min here.
 const DEFAULT_PLAN = {
-  tier: 'starter', base_price_cents: 0, included_voice_min: 500, included_sms: 200,
-  voice_overage_cents: 0, sms_overage_cents: 0,
-  cap_sms_per_hour: 200, cap_sms_per_day: 2000, cap_voice_min_per_day: 600, hard_stop: true,
+  tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 500,
+  voice_overage_cents: 40, sms_overage_cents: 2,
+  cap_sms_per_hour: 200, cap_sms_per_day: 2000, cap_voice_min_per_day: 600, hard_stop: false,
 };
 
 async function db() {
