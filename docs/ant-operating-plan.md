@@ -241,6 +241,31 @@ landing + the trade's vocabulary, never a new codebase. **Open decisions:** the 
 (shortlist + grab one), and whether TN's own consumer identity (L3) rides "Ant" or a distinct
 consumer name. *(This is the face of the L1→L2→L3 arc in §03 — the same plan, now named.)*
 
+**The vertical factory — "one factory, many front doors"** *(built 2026-08-28; runbook:
+`docs/vertical-factory.md`).* The trap to refuse: a repo / Netlify / Mac mini / Claude / Telnyx
+*per trade* = N copies to patch and — fatal — **N dumb brains instead of one colony.** The
+discipline: everything is built ONCE and shared; only the face forks.
+
+| Shared by every vertical (build once) | Forks per vertical (all you add) |
+|---|---|
+| GitHub repo · one Netlify site serving **many domains** · one brain runtime · one Claude/Telnyx/Stripe · multi-tenant DB + signup + billing + Ann phone | a **domain** · a row in `platform/verticals.js` · a **`trade_profile`** · that trade's **knowledge** (earned) · *(opt)* per-brand 10DLC |
+
+- **`platform/verticals.js`** = the factory catalog (one row per `[Trade] Ant`: brand, domain,
+  trade key, copy, accent). **`platform/vertical.html`** = ONE landing that reads the hostname →
+  themes to that vertical → funnels into `signup.html?trade=&v=`. `applianceant.com` and
+  `autorepairant.com` are the *same file* wearing different faces.
+- **The motion (4 steps, an afternoon):** add the `verticals.js` row → `provision?action=addtrade`
+  (stage the `trade_profile`) → point the domain at Netlify (DNS) → done. Signup + phone AI +
+  database work that day because they're trade-agnostic.
+- **The rule that keeps it honest:** signup/phone/database are *instant* per vertical; the trade's
+  troubleshooting brain is *earned* (appliance has 49k jobs + fault codes; a new vertical starts
+  empty and deepens as its shops feed it). So **open a vertical when a real flagship shop pulls on
+  it**, not speculatively — the shop is what starts filling that trade's brain.
+- **Verticals staged today** (flagships already onboarded as tenants): Appliance Ant (TN, *live*) ·
+  Auto Repair Ant (Classic Automotive) · Aquarium Ant (Music City Aquatics) · Furniture Ant (Mid
+  Tenn Furniture) · Dealer Ant (NextGen Motors). Auto-repair and dealership stay **separate**
+  verticals — different workflows already (`automotive` vs `dealership` trade profiles).
+
 ---
 
 ## 03 · The three layers (same backend, three front doors, built in order)
@@ -512,6 +537,13 @@ diagnose why — we do NOT pile on more features. Momentum = the signal climbing
 ---
 
 ## Changelog
+- **2026-08-28 — v1.7.1.** Extended **§02⅚** with **the vertical factory** ("one factory, many
+  front doors") + shipped it: `platform/verticals.js` (the `[Trade] Ant` catalog), a single
+  hostname-themed landing `platform/vertical.html`, and signup theming/trade-preselect from the
+  vertical. Runbook: `docs/vertical-factory.md`. Locks the discipline — one repo / Netlify(many
+  domains) / brain / Claude / Telnyx / Stripe shared; a new vertical = a catalog row + a
+  `trade_profile` + a domain, never a fork. Staged: Auto Repair / Aquarium / Furniture / Dealer
+  Ant (flagships already onboarded). Rule: open a vertical when a real flagship shop pulls on it.
 - **2026-08-28 — v1.7.** Added **§02⅚ · The brand — one colony, many trades.** Locked the brand
   architecture: **"Ant" is the master brand** (personal — named after Anthony — the colony =
   the swarm of AI agents that runs the shop), with the repeatable vertical formula **`[Trade]
