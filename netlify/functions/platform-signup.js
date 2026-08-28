@@ -33,6 +33,15 @@ exports.handler = async function (event) {
   let b = {};
   try { b = event.body ? JSON.parse(event.body) : {}; } catch (_) {}
 
+  // Kill switch — a PUBLIC endpoint that provisions real tenants + Supabase logins. Stays
+  // closed until the owner opens signups (vault PLATFORM_SIGNUP_LIVE=true). Admin secret
+  // bypasses so the flow can be tested end-to-end before launch.
+  const live = String((await getSecret('PLATFORM_SIGNUP_LIVE')) || '').toLowerCase() === 'true';
+  const adminBypass = (b.secret && b.secret === ((await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5'));
+  if (!live && !adminBypass) {
+    return J(200, { ok: false, error: 'signup_not_open', message: "We're onboarding shops by invite right now — leave your email and we'll reach out." });
+  }
+
   const name = String(b.name || '').trim();
   const email = String(b.email || '').trim().toLowerCase();
   const trade = String(b.trade || 'appliance').trim().toLowerCase();
