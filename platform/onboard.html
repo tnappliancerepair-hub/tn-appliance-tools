@@ -94,11 +94,17 @@
         '</div>'+
         '<label class="fld">Service area</label><input id="f-area" placeholder="e.g. Nashville + 30 miles" value="'+esc(b.area||'')+'">'+
         '<label class="fld">Business hours (for live transfers — your AI answers 24/7)</label><input id="f-hours" placeholder="Mon–Fri 8am–5pm" value="'+esc(b.hours||'')+'">'+
+        '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">'+
+          '<div style="font-weight:800;font-size:13px">Business verification <span style="color:var(--muted);font-weight:600">— for texting</span></div>'+
+          '<div class="lede" style="margin:4px 2px 0;font-size:12.5px">Required by the phone carriers to send business texts (and it keeps spammers off the platform). Kept private — only used to register your texting.</div>'+
+          '<label class="fld">Legal business name</label><input id="f-legal" placeholder="As registered — e.g. Joey&#39;s Appliance Repair LLC" value="'+esc(b.legal_name||'')+'">'+
+          '<label class="fld">EIN / Tax ID <span style="color:var(--muted);font-weight:600">(optional now, needed before texting)</span></label><input id="f-ein" inputmode="numeric" placeholder="12-3456789" value="'+esc(b.ein||'')+'">'+
+        '</div>'+
         '<div class="nav"><button class="btn pri" id="next1">Next →</button></div>'+
         '<div class="msg" id="m1"></div>'+
       '</div>';
     document.getElementById('next1').onclick=function(){
-      var biz={phone:val('f-phone'),address:val('f-addr'),city:val('f-city'),state:val('f-state'),zip:val('f-zip'),area:val('f-area'),hours:val('f-hours')};
+      var biz={phone:val('f-phone'),address:val('f-addr'),city:val('f-city'),state:val('f-state'),zip:val('f-zip'),area:val('f-area'),hours:val('f-hours'),legal_name:val('f-legal'),ein:val('f-ein').replace(/[^0-9-]/g,'')};
       var btn=this; btn.disabled=true; btn.textContent='Saving…';
       saveSettings({business:Object.assign({name:shopName}, biz)}).then(function(r){
         if(r.error){ msg('m1','Couldn’t save — try again.',true); btn.disabled=false; btn.textContent='Next →'; return; }

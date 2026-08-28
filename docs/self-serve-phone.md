@@ -28,6 +28,31 @@ Self-serve ≠ handing them a carrier account; it means *we* provision on their 
 Alternative path (offer both): **forward their existing business line** to the Ant number
 instead of buying new — for shops that want to keep their published number.
 
+## 10DLC at scale — approved numbers without the pain (+ account safety)
+
+**You don't approve numbers, you approve CAMPAIGNS.** 10DLC = Brand (business identity: EIN +
+legal name + address) → Campaign (a use case; *this* is what carriers approve, the slow part) →
+Numbers (attach to a campaign — **on an approved campaign, adding a number is INSTANT**).
+
+- **Tier 1 — shared campaign (default, instant):** we register ONE Brand + Campaign; every new
+  tenant number attaches to it → texting works day one, **no per-client approval.** This is how
+  you get "a ton of approved numbers" — they inherit our approval.
+- **Tier 2 — auto-registered own campaign (graduation / isolation):** Telnyx **has a 10DLC API**,
+  so we can programmatically create a client's Brand + Campaign from the info collected at signup
+  (legal name / EIN / address). Used to isolate a large or higher-risk shop onto its OWN
+  reputation so their traffic can't affect anyone else.
+
+**Account-safety rules (don't kill the shared campaign):** the risk is *shared reputation* — one
+spammer can drag down the pooled campaign. Guard it: **card + EIN filter** (a scammer won't give
+both), **per-tenant rate caps + opt-out + flood breaker** (our `sms-guard`), **per-tenant kill
+switch**, **honest use-case/volume** on the registration, and **don't overload one campaign** —
+spread across a few and **graduate risky/high-volume shops to their own** (Tier 2). Isolation is
+the safety.
+
+**Collected for this:** the onboarding wizard now captures **legal business name + EIN** (feeds
+both the scam filter and 10DLC registration). Stored in `company.settings.business`
+(`legal_name`, `ein`). Tier-2 auto-registration reads them server-side.
+
 ## Texting: instant voice, gated texting (the scam control)
 
 Voice answering is low-abuse. **Outbound texting is the abuse vector**, so:
