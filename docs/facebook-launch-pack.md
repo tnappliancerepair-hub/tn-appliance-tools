@@ -1,31 +1,32 @@
-# Facebook launch pack — Appliance Ant platform (paste-and-go)
+# Facebook launch pack — Ant 24/7 (paste-and-go)
 
-Everything to stand up the Facebook page + first ad campaign to find repair-shop owners.
-Audience = **shop OWNERS** (B2B), not homeowners. Destination = the marketing front door
-(`home.html` → `signup.html`). Prices/claims here match what's live: $99/mo flat Full Office +
-$50/wk Ann, website + Google + reviews included, 14-day free trial (card required).
+**Brand: Ant 24/7** — the AI that never clocks out. Domain: **ant24x7.com** (each shop's site sits
+at `theirshop.ant24x7.com`). Everything to stand up the Facebook page + first ad campaign to find
+repair-shop owners. Audience = **shop OWNERS** (B2B), not homeowners. Destination = the marketing
+front door (`home.html` → `signup.html`). Prices/claims here match what's live: $99/mo flat Full
+Office + $50/wk Ann, website + Google + reviews included, 14-day free trial (card required).
 
 ---
 
 ## 1) The Facebook Page
 
-- **Name:** `Appliance Ant` (broaden to `Ant — AI for Repair Shops` if you want it trade-agnostic)
-- **Username:** `@applianceant` (or `@getapplianceant` if taken)
+- **Name:** `Ant 24/7`
+- **Username:** `@ant247` (or `@getant247` / `@ant24x7` if taken)
 - **Category:** Software Company (secondary: Business Service)
 - **Profile photo:** the green 🐜 Ant logo
-- **Cover:** the headline — *"The AI that answers your phone, books the job, and builds your website."*
-- **Button:** **Sign Up** → `applianceant.com` (the front door — `platform/home.html`)
+- **Cover:** the headline — *"The AI that never clocks out — answers your phone, books the job, builds your website. 24/7."*
+- **Button:** **Sign Up** → `ant24x7.com` (the front door — `platform/home.html`)
 - **Intro / bio (155 char):**
-  > The AI that runs your repair shop — answers every call 24/7, builds your website, runs your Google. One flat price, not per tech. Free 14-day trial.
+  > The AI that runs your shop 24/7 — answers every call, builds your website, runs your Google. One flat price, not per tech. Free 14-day trial.
 
 ### Pinned post (first thing on the page)
 > **Repair shop owners: stop losing jobs to voicemail.** 📞
 >
-> Ant is an AI receptionist that answers your phone 24/7, captures every lead, and texts you the job — plus a website we build for you and Google reviews that run themselves.
+> Ant 24/7 is an AI receptionist that answers your phone around the clock, captures every lead, and texts you the job — plus a website we build for you and Google reviews that run themselves.
 >
-> One flat price for the whole shop (not per tech, like Housecall Pro or Jobber). We built it to run our own appliance business — now you can run yours on it.
+> One flat price for the whole shop (not per tech, like Housecall Pro or Jobber). We built it to run our own appliance business — now you can run yours on it, day and night.
 >
-> 👉 Free for 14 days: applianceant.com
+> 👉 Free for 14 days: ant24x7.com
 
 ---
 
@@ -91,8 +92,7 @@ Post value + drop the link in **appliance/HVAC/plumbing OWNER groups** on Facebo
 
 ## 5) What I still need from you to wire it fully
 
-- The **domain** you're pointing at `home.html` (so the ads/page link to a clean URL, not the
-  netlify path).
+- Buy **ant24x7.com** + point it at the platform Netlify site (front door = `home.html`).
 - The **Meta Pixel ID** (I'll drop the snippet on `home.html` + `signup.html` so you can retarget
   + optimize to signups).
 - Whether to build a **native Meta lead form** version (fills in-app, no site visit) as a 4th test —
