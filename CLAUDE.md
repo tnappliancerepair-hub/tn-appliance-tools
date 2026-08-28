@@ -54,7 +54,17 @@ Teddy: "A majority of our Telnyx costs are the flooding of texts Danielle and Ca
 3. Optional: if Teddy wants his outage alerts back (Gmail-auth-died / system-down / job-about-to-be-missed), add those `HEALTH_TAGS` to the Teddy allowlist (one line in office-gate.js).
 4. Carryover (unchanged): per-client usage meter is built + tested (`_lib/usage-meter.js`, `platform-usage.js`, `platform/usage.html`) — fills as tenants go live on their own numbers; the flat/fair-use pricing plan numbers still need finalizing.
 
+### 🐜💳 2026-08-28 (cont.) — CLONE PLATFORM: the PAY SPINE ("write once → the numbers fall out")
+Built the money spine from the 2026-08-27 owner-app spec so a tech's app + the owner board read the SAME math (the fix for TK Cousins'/TN's "the app said one thing, the check said another"). All on `main`.
+- **`platform/pay-calc.js`** = the ONE pay-math module (browser global `PayCalc`). Commission RULE (per-tech override else company default) × the invoice's **labor** → `earned → collected (pay-on-collection) → paid`. Recomputed from live rows (nothing stored) so a late/short warranty remittance just updates in place. Unit-verified: 50% of $120 labor = $60, "owed" only once the invoice is paid.
+- **SQL 022 (`docs/sql/022_commission_pay.sql`, applied to ANT Platforms via mgmt token):** `technician.commission_type/commission_pct/commission_flat_cents` (per-tech override); **`tech_payout`** ledger (the 'paid' state) with **tech-scoped RLS** (`current_technician_id()` — a tech sees ONLY his own pay; office/owner see all); **`invoice.labor_cents`** denormalized (office-board now writes it).
+- **`platform/owner.html`:** owner-only **Commission settings** (company default % of labor / flat per job + per-tech overrides → writes `company.settings.commission` + technician rows) + **Owed-to-techs / Take-home** in the money section + a per-tech **pay table**.
+- **`platform/tech.html`:** **"💰 Your pay"** card — earned (pending) → owed to you now → paid, per job, honest empty states, scoped to the signed-in tech.
+- **Demo seeded (Joey's `demo` tenant, sandbox, via mgmt token):** commission 50% labor + Joey's completed+paid job ($120 labor) → owner board Owed-to-techs $60, Joey's app Owed $60. Open `platform/owner.html` / `platform/tech.html` as the demo tenant to see it.
+- **Honest state:** pay shows **$0 until** an owner sets a rule AND a job is billed with labor (old invoices had labor_cents=0; new invoices from the updated office-board carry it). Accurate-or-absent.
+- **⏭️ NEXT (spec):** office "mark paid" → writes `tech_payout` (fills the 'paid' state + pay history); the **CSR warranty-remittance split** (the accuracy hinge); reconciliation check; then the tech leaderboard.
 
+## 🗓️🐜🏪🔎📍 2026-08-25 (Mon night) — 3 MORE PLATFORM TENANTS (2 Brandons + Jake) · dealership trade added · buddy website/SEO audit · dryer+dishwasher hub FAQs deepened · TN GBP UPGRADE — READ FIRST
 
 Continuation of the SaaS-expansion + local-SEO arc. All on `main` + `claude/shop-automation-setup-r9wzpm` (pushed). No Mac/XS pushes pending. Two blockers waiting on Teddy: friends' EMAILS (for tenant logins) + Google's Q&A API access grant (self-fires when it lands).
 
