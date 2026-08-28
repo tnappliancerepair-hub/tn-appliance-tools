@@ -89,11 +89,12 @@
 
 <link rel="stylesheet" href="/platform/ant-theme.css">
 <script src="/platform/config.js"></script>
+<script src="/platform/pay-calc.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
   var cfg = window.ANT_SUPABASE || {};
-  var sb = null, companyId = null, shopName = 'Your shop', win = 'month';
+  var sb = null, companyId = null, shopName = 'Your shop', win = 'month', settings = {};
   var app = document.getElementById('app');
   var USD = function(cents){ return '$' + (Math.round((cents||0)/100)).toLocaleString(); };
   var pct = function(n,d){ return d>0 ? Math.round((n/d)*100) : 0; };
@@ -150,7 +151,7 @@
     app.innerHTML='<div class="skel" style="padding:40px 4px">Loading your numbers…</div>';
     sb.from('company').select('id,name,settings').limit(1).then(function(r){
       if(r.error||!r.data||!r.data[0]){ renderSignIn('Could not load your shop.'); return; }
-      companyId=r.data[0].id; shopName=r.data[0].name||'Your shop';
+      companyId=r.data[0].id; shopName=r.data[0].name||'Your shop'; settings=r.data[0].settings||{};
       load();
     });
   }
@@ -159,15 +160,16 @@
     shell('<div class="skel" style="padding:30px 4px">Crunching…</div>');
     // RLS scopes both queries to this company — we never pass company_id.
     var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents').limit(3000);
-    var invP  = sb.from('invoice').select('total_cents,status,paid_at,created_at').limit(3000);
-    var techP = sb.from('technician').select('id,name,active').limit(200);
-    Promise.all([jobsP, invP, techP]).then(function(res){
-      var jobs = (res[0].data)||[], invs = (res[1].data)||[], techs = (res[2].data)||[];
-      render(jobs, invs, techs);
+    var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,status,paid_at,created_at').limit(3000);
+    var techP = sb.from('technician').select('id,name,active,commission_type,commission_pct,commission_flat_cents').limit(200);
+    var payP  = sb.from('tech_payout').select('technician_id,job_id,amount_cents,paid_at').limit(5000);
+    Promise.all([jobsP, invP, techP, payP]).then(function(res){
+      var jobs = (res[0].data)||[], invs = (res[1].data)||[], techs = (res[2].data)||[], payouts = (res[3].data)||[];
+      render(jobs, invs, techs, payouts);
     }).catch(function(){ shell('<div class="note">Could not load data. Try again.</div>'); });
   }
 
-  function render(jobs, invs, techs){
+  function render(jobs, invs, techs, payouts){
     var since = winStartMs();
     var inWin = function(row, field){ var t=row[field]?Date.parse(row[field]):0; return since===0 || t>=since; };
     // KPI base: jobs created in-window (pipeline) + completed in-window (outcomes)
@@ -193,6 +195,29 @@
     var invWin = invs.filter(function(v){ return inWin(v, v.paid_at||v.created_at?'created_at':'created_at'); });
     var billed=0, collected=0; invWin.forEach(function(v){ billed+=v.total_cents||0; if(v.status==='paid'){ collected+=v.total_cents||0; } });
     var outstanding = billed - collected;
+
+    // TECH PAY — derived from the SAME invoices via PayCalc (one source of truth, so the
+    // tech app can never disagree). Commission = per-tech override else company default.
+    var compDef = window.PayCalc.companyDefault(settings);
+    var techById={}; (techs||[]).forEach(function(t){ techById[t.id]=t; });
+    var invByJob={}; invs.forEach(function(v){ if(v.job_id) invByJob[v.job_id]=v; });
+    var paidByTechJob={}; (payouts||[]).forEach(function(p){ var key=(p.technician_id||'')+'|'+(p.job_id||''); paidByTechJob[key]=(paidByTechJob[key]||0)+(p.amount_cents||0); });
+    var payAgg={};  // techId -> {earned, collectible, paid, owed}
+    completed.forEach(function(j){
+      var inv=invByJob[j.id]; if(!inv || !j.technician_id) return;
+      var rule=window.PayCalc.ruleFor(techById[j.technician_id], compDef);
+      var pj=window.PayCalc.jobPay(j, inv, rule, paidByTechJob[j.technician_id+'|'+j.id]||0);
+      var a=payAgg[j.technician_id]||(payAgg[j.technician_id]={earned:0,collectible:0,paid:0,owed:0});
+      a.earned+=pj.earned_cents; a.collectible+=pj.collectible_cents; a.paid+=pj.paid_cents; a.owed+=pj.owed_now_cents;
+    });
+    var owedToTechs=0, techCollected=0; Object.keys(payAgg).forEach(function(id){ owedToTechs+=payAgg[id].owed; techCollected+=payAgg[id].collectible; });
+    var takeHome = collected - techCollected; // collected revenue minus tech's collected cut (before parts/overhead)
+    var payTable = Object.keys(payAgg).length ? (
+      '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Rule</th><th>Earned</th><th>Collected</th><th>Paid</th><th>Owed now</th></tr></thead><tbody>'+
+      Object.keys(payAgg).map(function(id){ var a=payAgg[id]; var rule=window.PayCalc.ruleFor(techById[id], compDef);
+        return '<tr><td class="nm">'+esc(techById[id]?techById[id].name:'—')+'</td><td class="mut">'+esc(window.PayCalc.ruleLabel(rule))+'</td><td>'+USD(a.earned)+'</td><td>'+USD(a.collectible)+'</td><td>'+USD(a.paid)+'</td><td'+(a.owed>0?' class="good"':'')+'>'+USD(a.owed)+'</td></tr>';
+      }).join('')+'</tbody></table></div>'
+    ) : '';
 
     // Per-tech watch table (owner-only): jobs, completed, first-stop %, condemn %, reassign %.
     var techName={}; (techs||[]).forEach(function(t){ techName[t.id]=t.name; });
@@ -245,12 +270,76 @@
         mrow('Invoiced (from the job tile)','',USD(billed))+
         mrow('Collected','',USD(collected))+
         mrow('Outstanding (owed to shop)','',USD(outstanding))+
+        mrow('Owed to techs (collected, not paid)','',USD(owedToTechs))+
+        mrow('Take-home (after tech pay)','before parts / overhead',USD(takeHome))+
       '</div>'+
       (invWin.length===0
-        ? '<div class="note">No invoices in this window yet. As the CSR bills jobs on the platform, billed / collected / owed-to-techs / take-home fill in here automatically — from the same invoice, entered once.</div>'
-        : '<div class="note">From '+invWin.length+' invoice'+(invWin.length===1?'':'s')+'. Owed-to-techs (pay-on-collection) + take-home land here once commission settings + the warranty-remittance split are wired.</div>')+
-      '<div class="note" style="margin-top:14px">Next: per-tech breakdown + the tech leaderboard (needs tech mapping), accurate first-stop + full recommend-replacement (needs repair-report data), and the CSR invoicing + warranty-batch split that make pay accurate to the penny.</div>';
+        ? '<div class="note">No invoices in this window yet. As jobs get billed on the platform, billed / collected / owed-to-techs / take-home fill in here automatically — from the same invoice, entered once.</div>'
+        : '<div class="note">From '+invWin.length+' invoice'+(invWin.length===1?'':'s')+'. Take-home is collected revenue minus the techs’ collected cut; parts cost + overhead land here as those get captured.</div>')+
+      (payTable ? '<div class="sec">Tech pay <span class="lock">🔒 owner only</span></div>'+payTable+'<div class="note">Earned = cut if it pays in full · Collected = invoice paid · Owed now = collected but not yet paid out. All from the job’s invoice + this tech’s commission rule.</div>' : '')+
+      commissionEditor(techs, compDef);
     shell(body);
+    bindCommission();
+  }
+
+  // Owner-only commission settings: company default + per-tech overrides.
+  function commissionEditor(techs, compDef){
+    var defVal = compDef.type==='flat_per_job' ? (compDef.flat_cents/100) : compDef.pct;
+    var rows = (techs||[]).filter(function(t){return t.active!==false;}).map(function(t){
+      var ov=t.commission_type||'';
+      var val = ov==='flat_per_job' ? ((t.commission_flat_cents||0)/100) : (ov==='labor_pct' ? (t.commission_pct==null?'':t.commission_pct) : '');
+      return '<tr data-tech="'+t.id+'"><td class="nm">'+esc(t.name)+'</td>'+
+        '<td><select class="ovType"><option value="">— use default —</option>'+
+          '<option value="labor_pct"'+(ov==='labor_pct'?' selected':'')+'>% of labor</option>'+
+          '<option value="flat_per_job"'+(ov==='flat_per_job'?' selected':'')+'>Flat per job</option></select></td>'+
+        '<td><input class="ovVal" inputmode="decimal" style="width:80px" value="'+val+'"></td>'+
+        '<td><button class="ovSave">Save</button></td></tr>';
+    }).join('');
+    return '<div class="sec">Commission <span class="lock">🔒 owner only</span></div>'+
+      '<div class="money">'+
+        '<div class="row"><span class="k">Default pay rule</span><span class="v">'+
+          '<select id="commType">'+
+            '<option value="labor_pct"'+(compDef.type==='labor_pct'?' selected':'')+'>% of labor</option>'+
+            '<option value="flat_per_job"'+(compDef.type==='flat_per_job'?' selected':'')+'>Flat per job</option>'+
+          '</select> '+
+          '<input id="commVal" inputmode="decimal" style="width:80px" value="'+defVal+'"> '+
+          '<button id="commSave">Save</button></span></div>'+
+      '</div>'+
+      '<div class="note" id="commMsg">Every tech is paid this unless you set an override.</div>'+
+      (rows ? '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Override</th><th>Value</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '');
+  }
+
+  function bindCommission(){
+    var msg=document.getElementById('commMsg');
+    var save=document.getElementById('commSave');
+    if(save) save.onclick=function(){
+      var type=document.getElementById('commType').value;
+      var v=parseFloat(document.getElementById('commVal').value)||0;
+      var comm = type==='flat_per_job' ? {type:'flat_per_job',flat_cents:Math.round(v*100)} : {type:'labor_pct',labor_pct:v};
+      save.disabled=true; save.textContent='Saving…';
+      var next=Object.assign({}, settings, {commission:comm});
+      sb.from('company').update({settings:next}).eq('id',companyId).then(function(r){
+        save.disabled=false; save.textContent='Save';
+        if(r.error){ if(msg){msg.textContent='Could not save: '+r.error.message;} return; }
+        settings=next; if(msg){msg.textContent='Saved. Every tech now defaults to '+window.PayCalc.ruleLabel(window.PayCalc.companyDefault(settings))+'.';} load();
+      });
+    };
+    Array.prototype.forEach.call(document.querySelectorAll('.ovSave'), function(btn){
+      btn.onclick=function(){
+        var tr=btn.closest('tr'); var techId=tr.getAttribute('data-tech');
+        var type=tr.querySelector('.ovType').value;
+        var v=parseFloat(tr.querySelector('.ovVal').value)||0;
+        var upd = type==='labor_pct' ? {commission_type:'labor_pct',commission_pct:v,commission_flat_cents:null}
+                : type==='flat_per_job' ? {commission_type:'flat_per_job',commission_pct:null,commission_flat_cents:Math.round(v*100)}
+                : {commission_type:null,commission_pct:null,commission_flat_cents:null};
+        btn.disabled=true; btn.textContent='…';
+        sb.from('technician').update(upd).eq('id',techId).then(function(r){
+          btn.disabled=false; btn.textContent='Save';
+          if(r.error){ if(msg){msg.textContent='Could not save override: '+r.error.message;} return; }
+          if(msg){msg.textContent='Override saved.';} load();
+        });
+      };
+    });
   }
 
   function tile(lab, big, foot, accent, badge, tip){
