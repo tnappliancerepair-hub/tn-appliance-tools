@@ -15,8 +15,8 @@ const COST = { voice_min: 8.4, sms_out: 1.3, sms_in: 0.75 };
 // 500) keeps a healthy margin even at full usage ($50 − 400×$0.084 ≈ $14/wk). Single source —
 // the weekly digest, the owner dashboard card, and metering all read included_voice_min here.
 const DEFAULT_PLAN = {
-  tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 0,
-  voice_overage_cents: 40, sms_overage_cents: 2,
+  tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 100,
+  voice_overage_cents: 40, sms_overage_cents: 5,
   cap_sms_per_hour: 200, cap_sms_per_day: 2000, cap_voice_min_per_day: 600, hard_stop: false,
 };
 
