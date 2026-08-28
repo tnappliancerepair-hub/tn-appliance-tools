@@ -19,7 +19,7 @@
       key: 'office',
       label: 'Full Office Platform',
       blurb: 'The job board, scheduling, customer portal, invoicing, and the tech pay spine — one system your whole shop runs on.',
-      price_cents: 9900,                 // PLACEHOLDER — owner sets
+      price_cents: 9900,                 // $99/mo — LOCKED 2026-08-28 (flat per shop; undercuts HCP/Workiz, near Jobber)
       price_env: 'STRIPE_PRICE_OFFICE',
       features: { database: true, scheduling: true, portal: true, invoicing: true, pay: true, usage_digest: true }
     }
@@ -31,7 +31,7 @@
       key: 'own_area',
       label: 'Own Your Area',
       blurb: "We won't sign another shop in your territory. Exclusive rights to your service area.",
-      price_cents: 19900,                // PLACEHOLDER — owner sets
+      price_cents: 19900,                // $199/mo — LOCKED 2026-08-28
       price_env: 'STRIPE_PRICE_OWN_AREA',
       features: { exclusive_territory: true }
     },
@@ -39,7 +39,7 @@
       key: 'local_seo',
       label: 'Local SEO / Connect Google',
       blurb: 'Ant runs your Google Business Profile — auto-posts, review replies, screened job photos, Q&A.',
-      price_cents: 14900,                // PLACEHOLDER — owner sets
+      price_cents: 14900,                // $149/mo — LOCKED 2026-08-28
       price_env: 'STRIPE_PRICE_LOCAL_SEO',
       features: { local_seo: true }
     }
