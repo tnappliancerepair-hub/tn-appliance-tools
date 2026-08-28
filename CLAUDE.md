@@ -30,7 +30,31 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
-## 🗓️🐜🏪🔎📍 2026-08-25 (Mon night) — 3 MORE PLATFORM TENANTS (2 Brandons + Jake) · dealership trade added · buddy website/SEO audit · dryer+dishwasher hub FAQs deepened · TN GBP UPGRADE (post + job photos + review reply + Q&A wired to self-fire) — READ FIRST
+## 🗓️🔇📱 2026-08-28 (Thu night) — KILLED THE OFFICE TEXT FLOOD: office texts now Teddy-ONLY, cash-intake + warranty-intake ONLY · built Telnyx SMS auditor · killed all Vapi texting — READ FIRST
+
+Teddy: "A majority of our Telnyx costs are the flooding of texts Danielle and Carrie have been getting bombarded... pull the Telnyx records, cut it in half... kill all texting on Vapi too." Then, final rule for the night: **"No more texting Danielle, Sofia or Carrie. Only text me cash job intake and intake for warranty jobs. Eliminate the others."** All shipped to `main` + branch (deployed).
+
+### 📊 Pulled the real Telnyx records (new tool `sms-audit.js`, owner-gated, read-only)
+- `/.netlify/functions/sms-audit?secret=tn-vapi-admin-9f83b1c4e7a206d5&days=N&kind=messaging|voice` — pulls Telnyx **Detail Records** (the carrier's own billed data, the only true source since internal office texts bypass our event_log markers), buckets outbound SMS by destination (office people vs techs vs customers) + cost + daily trend. Paginate via Telnyx `meta` (it clamps page size to ~50); **429 rate-limited** if hammered — has pacing + retry, use short `&days`. `&kind=voice` gives billed call minutes.
+- **Finding (2.5-day sample): 704 outbound texts, OFFICE = 55% of them** (390 to Danielle/Sofia/Carrie/Teddy). Office texts run long/multi-part → cost more each. SMS pacing **~$13/day ≈ $390/mo**, ~half office. Teddy's instinct was right. **Honest caveat surfaced to Teddy: the many $10 Amex auto-recharges are almost certainly VOICE (Ann AI call minutes), not texts — pull `&kind=voice` for the exact split (not yet done; Telnyx rate limit).**
+
+### 🔇 THE OFFICE-TEXT KILL — `_lib/office-gate.js` is the ONE rule
+`officeBlocked(to, tag)`: a text to an **office cell** (Danielle 6154850713 / Sofia 6292594602 / Carrie 2258035669 / Teddy 6154855795) is **suppressed** unless it's **Teddy + a cash-intake OR warranty-intake tag**. So: **Danielle/Sofia/Carrie → ZERO. Teddy → only cash + warranty intake.** Customers/techs unaffected (not office numbers). Reversible: vault/env `OFFICE_SMS_KILL=0`. Every drop logs `office_sms_suppressed`.
+- **Allowlisted tags (to Teddy only):** cash = `quick_check`, `quick_check_lead`, `ann_new_job`, `cash_intake`, `cash_lead`, `self_pay_lead`; warranty = `warranty_quick_check`, `warranty_intake`, `warranty_new_job`, `warranty_lead`. (`HEALTH_TAGS` defined but NOT allowlisted — Teddy said "eliminate the others," so system-health pings to his phone are OFF too; one-line restore if he wants them back.)
+- **Wired into BOTH send paths:** (1) `_lib/sms.js` `sendSms`/`sendFrom588` — the main path (all ~40 office alerts + Ann's per-call alerts via telnyx-ai-tool). (2) The **~24 functions that POST to Xano `/send_sms` directly** (bypass sms.js) — gated one by one: accepted-not-scheduled-watch, report-address-correction, tech-complete (NFF), parts-return-reminder, send-teddy-sms, rate-submit, gbp-post-generator, gbp-review-responder, gbp-review-autoreply, review-reply-watch, ann-call-grader, squaretrade-autoassign, andre-late-forward, social-post-generator, gmail-token-watch, sp-parts-check-reminder, ahs-training-reminder, colony-watchdog, job-safety-watch, overtexting-watch, `_lib/schedule-move`, `_lib/satisfaction`.
+- **Cash + warranty intake reach Teddy:** added a Teddy send to verify-quickcheck / free-quickcheck / ad-lead / Ann-new-job (they used to hit Danielle only); warranty-quickcheck already sends OWNER `warranty_quick_check` (now allowlisted). Danielle copies still exist in code but auto-block at the gate.
+- **⚠️ FOOTGUN documented:** there is NO single chokepoint — `sms.js` sends office alerts **directly via Telnyx from the 588 line** (`_crewSendDirect`), NOT through Xano `send_sms`; the ~24 direct posters DO hit Xano `send_sms`. So gating had to happen at BOTH the `sms.js` layer AND each direct poster. Any NEW office-texting code must call `officeGate.officeBlocked(to, tag)` or it will leak. `phone-test-blast` left alone (manual diagnostic, not a flood).
+
+### 🔕 KILLED ALL VAPI TEXTING
+`vapi-webhook.js` `safePost` now no-ops any `/send_sms` (env `VAPI_TEXTING_OFF` default on) — kills Vapi's office drop-alerts, owner call-summaries, and customer hangup-intake texts (Vapi is the retired assistant; Telnyx Ann covers live calls). `vapi-tool.js` office alerts (`vapi_callback`/`vapi_new_job`) route through sms.js → already gated.
+
+### ⏭️ NEXT (morning)
+1. **Pull the VOICE split** (`sms-audit?kind=voice&days=7`) — confirm whether the Amex $10 recharges are Ann call minutes (near-certain). If so, the real cost lever is voice, not texts — decide: shorten Ann calls / raise auto-recharge threshold ($10→$100-200 to de-clutter the statement) / committed-use.
+2. **Confirm the kill worked in the wild:** read `office_sms_suppressed` events + check the day's office SMS count on `sms-audit` drops toward ~0 (only Teddy cash/warranty intake should remain).
+3. Optional: if Teddy wants his outage alerts back (Gmail-auth-died / system-down / job-about-to-be-missed), add those `HEALTH_TAGS` to the Teddy allowlist (one line in office-gate.js).
+4. Carryover (unchanged): per-client usage meter is built + tested (`_lib/usage-meter.js`, `platform-usage.js`, `platform/usage.html`) — fills as tenants go live on their own numbers; the flat/fair-use pricing plan numbers still need finalizing.
+
+
 
 Continuation of the SaaS-expansion + local-SEO arc. All on `main` + `claude/shop-automation-setup-r9wzpm` (pushed). No Mac/XS pushes pending. Two blockers waiting on Teddy: friends' EMAILS (for tenant logins) + Google's Q&A API access grant (self-fires when it lands).
 
