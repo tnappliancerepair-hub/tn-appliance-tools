@@ -121,7 +121,7 @@ exports.handler = async function (event) {
   else if (b.access_token) companyId = await companyFromToken(b.access_token);
   if (!companyId) return J(401, { ok: false, error: 'unauthorized' });
 
-  const rows = await pf.get(`company?id=eq.${encodeURIComponent(companyId)}&select=id,name,slug,trade,status,settings&limit=1`);
+  const rows = await pf.get(`company?id=eq.${encodeURIComponent(companyId)}&select=id,name,slug,trade,status,settings,stripe_customer_id&limit=1`);
   const company = rows && rows[0];
   if (!company) return J(404, { ok: false, error: 'company_not_found' });
   const phone = (company.settings && company.settings.phone) || {};
@@ -196,7 +196,24 @@ exports.handler = async function (event) {
     });
     await pf.patch('company', `id=eq.${encodeURIComponent(companyId)}`, { settings: nextSettings, updated_at: new Date().toISOString() });
 
-    return J(200, { ok: true, number: cand, assistant_id: assistantId, voice_live: voiceOk, texting: textingOk ? 'shared' : 'pending', mode });
+    // Start the $50/week Ann subscription NOW (billing-live only) so the flat base bills from the
+    // day the phone turns on — not the following Monday. Idempotent + non-fatal (the phone still
+    // works even if this hiccups). The weekly biller adds any overage on top.
+    let annStarted = false;
+    if (String((await getSecret('PLATFORM_BILLING_LIVE')) || '').toLowerCase() === 'true' && company.stripe_customer_id) {
+      try {
+        const billing = require('./platform-billing');
+        const key = await billing.stripeKey();
+        if (key) {
+          const Stripe = require('stripe');
+          const c2 = Object.assign({}, company, { settings: nextSettings });
+          const r = await billing.ensureAnnSubscription(pf, new Stripe(key), c2);
+          annStarted = !!(r && r.subscription_id);
+        }
+      } catch (_) {}
+    }
+
+    return J(200, { ok: true, number: cand, assistant_id: assistantId, voice_live: voiceOk, texting: textingOk ? 'shared' : 'pending', mode, ann_billing: annStarted });
   }
 
   // Pause / resume — the owner's toggle to stop (or restart) Ann answering, e.g. after
@@ -229,9 +246,20 @@ exports.handler = async function (event) {
       if (rec) await tx('DELETE', `/phone_numbers/${rec.id}`);
       if (phone.assistant_id) await tx('DELETE', `/ai/assistants/${phone.assistant_id}`);
     }
-    const nextSettings = Object.assign({}, company.settings, { phone: Object.assign({}, phone, { number: null, released_at: Date.now() }) });
+    // Cancel the $50/week Ann subscription so the base stops billing on churn. Non-fatal.
+    let annCanceled = false;
+    if (phone.ann && phone.ann.subscription_id) {
+      try {
+        const billing = require('./platform-billing');
+        const key = await billing.stripeKey();
+        if (key) { await new (require('stripe'))(key).subscriptions.cancel(phone.ann.subscription_id); annCanceled = true; }
+      } catch (_) {}
+    }
+    const nextPhone = Object.assign({}, phone, { number: null, released_at: Date.now() });
+    if (annCanceled) delete nextPhone.ann;
+    const nextSettings = Object.assign({}, company.settings, { phone: nextPhone });
     await pf.patch('company', `id=eq.${encodeURIComponent(companyId)}`, { settings: nextSettings, updated_at: new Date().toISOString() });
-    return J(200, { ok: true, released: true, shadow: !LIVE });
+    return J(200, { ok: true, released: true, ann_canceled: annCanceled, shadow: !LIVE });
   }
 
   return J(400, { ok: false, error: 'unknown_action', actions: ['provision', 'status', 'pause', 'resume', 'release'] });
