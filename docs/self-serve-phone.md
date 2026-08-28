@@ -44,11 +44,22 @@ Voice answering is low-abuse. **Outbound texting is the abuse vector**, so:
 
 ## The economics — "charge more than used = win" (yes)
 
-| Cost to us (Telnyx wholesale) | Rough |
+| Cost to us | **VERIFIED (Telnyx, 2026-08-28)** |
 |---|---|
 | A number | ~$1 / month |
-| An SMS | ~$0.004 each |
-| Ann's voice-AI minutes | **~$0.05–0.07 / min** (from TN's real usage: ~50 calls/day, ~2 min/call ≈ $7/day) |
+| An SMS (segment) | **~$0.013 all-in** — rate $0.0085 + carrier fee $0.0045 (T-Mobile; others cheaper). Long texts = 2–3 segments. |
+| Ann's voice minute | **$0.084 all-in** — orchestration $0.05 + telephony $0.004 + LLM ~$0.03 (est). TN: 55 calls/day, avg 1.76 min ⇒ **$8.10/day ≈ $243/mo**. |
+
+**Verified by-number tracking:** every Telnyx message record carries `cli` (the shop's from-number)
++ `cost` + `carrier_fee`; every Ann call is an `/ai/conversations` row tagged with `assistant_id`.
+Each tenant = one number + one assistant, so **weekly minutes/texts are metered exactly per shop**
+(`usage-meter.weeklyTelnyx(number, assistant_id)`). Billing is by the *unit* (minutes/texts) —
+counted precisely — so it's exact even though the internal LLM cost is an estimate.
+
+**Margin reality at the verified rate ($0.084/min):** $50 for a *full* 500 min = ~$42 cost ⇒
+only ~$6–8 margin at full usage. It still wins because (a) most shops run well under 500
+(≈40–57 calls/day fills it), and (b) $0.40/min overage is ~4.75× cost. **Lever if the full-usage
+margin feels thin: drop the bucket to 400 min (~$14 margin at full) or price $60/500.**
 
 ## THE OFFER (locked with Teddy, 2026-08-28) — best deal, structurally lossproof
 
@@ -95,7 +106,16 @@ text overage rate.
 - [ ] **To go live:** set `TELNYX_SHARED_MESSAGING_PROFILE_ID` (create the shared 10DLC campaign
       first) + `PLATFORM_PHONE_LIVE=true`. Then the button buys a real number + turns Ann on.
 - [ ] Release the number on subscription cancel (call `action=release` from the webhook).
-- [ ] Metering: report minutes/texts to Stripe (the $50/wk/500min + $0.40 overage model).
+- [x] **Weekly metering (Mon–Sun CT), by number** — `usage-meter.weeklyTelnyx()` reads texts
+      (by `cli`) + minutes (by `assistant_id`) straight from Telnyx for the current week.
+- [x] **Daily digest → weekly** — `platform-usage-digest` now emails each shop with a phone line
+      their Ann usage **this week vs 500 min** (%, near-limit at 80%, over-limit note), so they
+      always know where they stand and can pause before/after hitting 500.
+- [x] **Pause / resume toggle** — `platform-phone` `action=pause`/`resume` unbinds/re-binds the
+      number so the owner can stop Ann (e.g. at the 500). *(Surface a button in owner.html next.)*
+- [ ] Stripe metered billing: report the weekly minutes/texts as usage records ($50/wk base +
+      $0.40/min overage). Verified rates say **500-min bucket is thin at full usage → consider
+      400 min or $60/500.**
 
 ## Original checklist (reference)
 
