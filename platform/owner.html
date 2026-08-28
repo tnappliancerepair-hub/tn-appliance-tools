@@ -338,13 +338,32 @@
       if(!d||!d.ok){ el.innerHTML='<div class="note">Usage shows here once your AI phone is on.</div>'; return; }
       if(!d.has_phone){ el.innerHTML='<div class="note">Turn on your AI receptionist to start answering calls — your weekly usage will show here.</div>'; return; }
       var p=Math.min(100,d.pct||0), col=d.over?'#d33c3c':(d.near?'#c77700':'#2f6bff');
+      var tAllow=d.allowance_texts||100, tp=Math.min(100,tAllow?Math.round((d.texts/tAllow)*100):0), tcol=(d.texts_over>0)?'#d33c3c':(tp>=80?'#c77700':'#2f6bff');
+      var btnBase='width:100%;margin-top:12px;padding:11px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;';
+      var btn=d.paused
+        ? '<button id="annToggle" style="'+btnBase+'border:0;background:#1f9d55;color:#fff">▶️ Resume Ann — start answering again</button>'
+        : '<button id="annToggle" style="'+btnBase+'border:1px solid var(--line);background:var(--bg);color:var(--ink)">⏸️ Pause Ann — stop answering calls</button>';
       el.innerHTML='<div class="money">'+
         '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:14px"><span>📞 Minutes <span style="color:var(--muted)">('+esc(d.week||'')+')</span></span><span style="font-variant-numeric:tabular-nums"><b>'+d.minutes+'</b> <span style="color:var(--muted)">of '+d.allowance_min+'</span></span></div>'+
         '<div style="height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:5px"><div style="height:100%;width:'+p+'%;background:'+col+'"></div></div></div>'+
-        '<div style="display:flex;justify-content:space-between;font-size:14px"><span>💬 Texts</span><span style="font-variant-numeric:tabular-nums"><b>'+d.texts+'</b></span></div>'+
+        '<div><div style="display:flex;justify-content:space-between;font-size:14px"><span>💬 Texts</span><span style="font-variant-numeric:tabular-nums"><b>'+d.texts+'</b> <span style="color:var(--muted)">of '+tAllow+'</span></span></div>'+
+        '<div style="height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:5px"><div style="height:100%;width:'+tp+'%;background:'+tcol+'"></div></div></div>'+
       '</div>'+
-      '<div class="note">'+(d.over?'⚠️ You’ve used all '+d.allowance_min+' minutes this week — Ann keeps answering, overage $0.40/min. Resets Monday.':(d.near?'⚠️ You’re at '+d.pct+'% of this week’s minutes. Resets Monday.':'You’re at '+d.pct+'% of this week’s minutes. Resets Monday.'))+(d.paused?' · Ann is currently paused.':'')+'</div>';
+      '<div class="note">'+(d.over?'⚠️ You’ve used all '+d.allowance_min+' minutes this week — Ann keeps answering, overage $0.40/min. Resets Monday.':(d.near?'⚠️ You’re at '+d.pct+'% of this week’s minutes. Resets Monday.':'You’re at '+d.pct+'% of this week’s minutes. Resets Monday.'))+(d.texts_over>0?' Texts over '+tAllow+' bill $0.05 each.':'')+(d.paused?' · Ann is currently paused.':'')+'</div>'+
+      btn;
+      var tb=document.getElementById('annToggle'); if(tb) tb.onclick=function(){ toggleAnn(!d.paused, tb); };
     }).catch(function(){ el.innerHTML='<div class="note">Usage shows here once your line is active.</div>'; });
+  }
+
+  // Pause / resume Ann — the owner's kill switch (e.g. after hitting the weekly minutes). Confirms
+  // first (pausing stops call answering), calls platform-phone, then refreshes the card.
+  function toggleAnn(pause, btn){
+    if(pause && !confirm('Pause Ann? Incoming calls will stop being answered by your AI until you resume. Your number stays yours.')) return;
+    btn.disabled=true; btn.textContent=pause?'Pausing…':'Resuming…';
+    sb.auth.getSession().then(function(s){
+      var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+      return fetch('/.netlify/functions/platform-phone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:pause?'pause':'resume',access_token:tok})}).then(function(r){return r.json();});
+    }).then(function(r){ loadAnnWeek(); }).catch(function(){ btn.disabled=false; loadAnnWeek(); });
   }
 
   // "Mark paid" — records a tech_payout per collected-unpaid job (so the tech's 'paid' fills
