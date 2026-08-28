@@ -17,6 +17,7 @@
 
 const { getSecret } = require('./_lib/secrets');
 const { platform } = require('./_lib/platform-rest');
+const meter = require('./_lib/usage-meter');
 
 const TELNYX = 'https://api.telnyx.com/v2';
 const SITE = 'https://tnapplianceexchange.net';
@@ -127,6 +128,15 @@ exports.handler = async function (event) {
 
   if (action === 'status') {
     return J(200, { ok: true, phone: { number: phone.number || null, live: !!phone.number && !phone.paused, paused: !!phone.paused, assistant_id: phone.assistant_id || null, mode: phone.mode || null } });
+  }
+
+  // Weekly (Mon–Sun) Ann usage vs the 500-min allowance — for the owner dashboard card.
+  if (action === 'usage') {
+    if (!phone.number) return J(200, { ok: true, has_phone: false });
+    let w;
+    try { w = meter.weeklyStatus(await meter.weeklyTelnyx(phone.number, phone.assistant_id)); }
+    catch (_) { return J(200, { ok: false, error: 'meter_err' }); }
+    return J(200, { ok: true, has_phone: true, paused: !!phone.paused, number: phone.number, week: w.week_label, minutes: w.minutes, texts: w.texts, allowance_min: w.allowance_min, pct: w.pct, near: w.near, over: w.over });
   }
 
   const LIVE = String((await getSecret('PLATFORM_PHONE_LIVE')) || '').toLowerCase() === 'true';

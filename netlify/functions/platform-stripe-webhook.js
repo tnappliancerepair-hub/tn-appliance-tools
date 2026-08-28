@@ -190,6 +190,11 @@ exports.handler = async function (event) {
       patch.features = {};
       patch.churned_at = new Date().toISOString();
       patch.churn_reason = 'subscription_canceled';
+      // Release the phone number + delete Ann so a churned shop stops costing us the ~$1/mo.
+      try {
+        const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+        await require('./platform-phone').handler({ httpMethod: 'POST', body: JSON.stringify({ action: 'release', secret: admin, company_id: companyId }) });
+      } catch (_) {}
     } else if (ent.planKey) {
       patch.plan = ent.planKey;
       patch.features = plans.featuresFor(ent.planKey, ent.addons);
