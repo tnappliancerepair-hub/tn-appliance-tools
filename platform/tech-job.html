@@ -982,7 +982,7 @@
       token().then(function(tok){
         fetch('/.netlify/functions/platform-tech-media?do=photo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,data:data,label:'Part photo'})})
           .then(function(r){return r.json();}).then(function(d){
-            if(d&&d.ok&&d.url){ var path=(d.url.split('/intake-photos/')[1])||''; sb.from('job_part').update({photo_ref:path}).eq('id',id).then(function(){ loadParts(); }); }
+            if(d&&d.ok&&(d.path||d.url)){ var path=d.path||((d.url.split('/intake-photos/')[1]||'').split('?')[0]); sb.from('job_part').update({photo_ref:path}).eq('id',id).then(function(){ loadParts(); }); }
             else alert('Couldn\'t add that photo — try again.');
           }).catch(function(){ alert('Couldn\'t reach the server — try again.'); });
       });

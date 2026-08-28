@@ -15,6 +15,7 @@
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
+const r2 = require('./_lib/r2');
 let sms = null; try { sms = require('./_lib/sms'); } catch (_) {}
 let shopsReg = null; try { shopsReg = require('./_lib/trial-shops'); } catch (_) {}
 const SITE = 'https://tnapplianceexchange.net';
@@ -186,12 +187,11 @@ exports.handler = async function (event) {
       if (buf.length > 6 * 1024 * 1024) return json(400, { ok: false, error: 'image too large' });
       const ext = contentType.split('/')[1].replace('jpeg', 'jpg');
       const path = `${g.company_id}/${g.job_id}/${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
-      const ok = await db.storagePut('intake-photos', path, buf, contentType);
-      if (!ok) return json(200, { ok: false, error: 'upload_failed' });
-      const publicUrl = `${url}/storage/v1/object/public/intake-photos/${path}`;
-      await db.insert('job_media', { company_id: g.company_id, job_id: g.job_id, kind: 'photo', provider: 'storage', ref: path, label: String(p.label || 'Model sticker').slice(0, 80) });
+      try { await r2.put(path, buf, contentType); } catch (e) { return json(200, { ok: false, error: 'upload_failed' }); }
+      await db.insert('job_media', { company_id: g.company_id, job_id: g.job_id, kind: 'photo', provider: 'r2', ref: path, label: String(p.label || 'Model sticker').slice(0, 80) });
       await note(db, g, '📸 Sent a model-number photo');
-      return json(200, { ok: true, url: publicUrl });
+      let signed = ''; try { signed = await r2.presignGet(path, 600); } catch (_) {}
+      return json(200, { ok: true, url: signed, path });
     }
 
     if (doo === 'waiver') {

@@ -7,6 +7,7 @@
 //   GET ?t=<portal_token>&ref=<company_id/.../file.jpg>   -> 302 to a 10-min signed URL
 'use strict';
 const { getSecret } = require('./_lib/secrets');
+const r2 = require('./_lib/r2');
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
@@ -27,13 +28,18 @@ exports.handler = async function (event) {
     if (g.expires_at && Date.parse(g.expires_at) < Date.now()) return { statusCode: 403, body: 'expired' };
     // 2) tenant check — the object's first folder must be this token's company
     if (String(ref).split('/')[0] !== g.company_id) return { statusCode: 403, body: 'forbidden' };
-    // 3) mint a short-lived signed URL
-    const path = ref.split('/').map(encodeURIComponent).join('/');
-    const sg = await fetch(`${base}/storage/v1/object/sign/intake-photos/${path}`, { method: 'POST', headers: H, body: JSON.stringify({ expiresIn: 600 }), signal: AbortSignal.timeout(8000) });
-    const sd = await sg.json().catch(() => ({}));
-    const signed = sd.signedURL || sd.signedUrl || '';
-    if (!signed) return { statusCode: 502, body: 'sign failed' };
-    const full = signed.startsWith('http') ? signed : `${base}/storage/v1${signed}`;
+    // 3) mint a short-lived signed URL. R2 (current) first; Supabase Storage fallback for
+    //    any legacy object still living there.
+    let full = '';
+    if (q.p !== 'storage' && await r2.isConfigured()) { try { full = await r2.presignGet(ref, 600); } catch (_) {} }
+    if (!full) {
+      const path = ref.split('/').map(encodeURIComponent).join('/');
+      const sg = await fetch(`${base}/storage/v1/object/sign/intake-photos/${path}`, { method: 'POST', headers: H, body: JSON.stringify({ expiresIn: 600 }), signal: AbortSignal.timeout(8000) });
+      const sd = await sg.json().catch(() => ({}));
+      const signed = sd.signedURL || sd.signedUrl || '';
+      if (signed) full = signed.startsWith('http') ? signed : `${base}/storage/v1${signed}`;
+    }
+    if (!full) return { statusCode: 502, body: 'sign failed' };
     return { statusCode: 302, headers: { Location: full, 'Cache-Control': 'private, max-age=300' }, body: '' };
   } catch (e) {
     return { statusCode: 502, body: 'error' };

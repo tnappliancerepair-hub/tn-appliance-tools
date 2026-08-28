@@ -11,6 +11,7 @@
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
+const r2 = require('./_lib/r2');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 function b64(str) { return Buffer.from(String(str), 'utf8').toString('base64'); }
@@ -85,10 +86,10 @@ exports.handler = async function (event) {
       if (buf.length > 6 * 1024 * 1024) return json(400, { ok: false, error: 'image too large' });
       const ext = contentType.split('/')[1].replace('jpeg', 'jpg');
       const path = `${scope.company_id}/${jobId}/tech-${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
-      const ok = await db.storagePut('intake-photos', path, buf, contentType);
-      if (!ok) return json(200, { ok: false, error: 'upload_failed' });
-      await db.insert('job_media', { company_id: scope.company_id, job_id: jobId, kind: 'photo', provider: 'storage', ref: path, label: String(p.label || 'Tech photo').slice(0, 80) });
-      return json(200, { ok: true, url: `${url}/storage/v1/object/public/intake-photos/${path}` });
+      try { await r2.put(path, buf, contentType); } catch (e) { return json(200, { ok: false, error: 'upload_failed' }); }
+      await db.insert('job_media', { company_id: scope.company_id, job_id: jobId, kind: 'photo', provider: 'r2', ref: path, label: String(p.label || 'Tech photo').slice(0, 80) });
+      let signed = ''; try { signed = await r2.presignGet(path, 600); } catch (_) {}
+      return json(200, { ok: true, url: signed, path });
     }
 
     if (doo === 'stream_mint') {
@@ -122,6 +123,7 @@ exports.handler = async function (event) {
       const row = rows && rows[0];
       if (!row) return json(200, { ok: false, error: 'not_found' });
       // best-effort remove the underlying asset, then the row
+      if (row.provider === 'r2' && row.ref) { try { await r2.del(row.ref); } catch (_) {} }
       if (row.provider === 'storage' && row.ref) { await db.storageDelete('intake-photos', row.ref); }
       if (row.provider === 'cfstream' && row.ref) {
         try {
