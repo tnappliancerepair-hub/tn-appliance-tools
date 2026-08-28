@@ -1,23 +1,25 @@
-// ant247-router — routes the platform's brand domains on the PLATFORM Netlify site.
-// Brand: Ant 24/7 (ant24x7.com). applianceant.com is kept working as a legacy/redirect domain.
+// assistant247-router — routes the platform's brand domains on the PLATFORM Netlify site.
+// Brand: Assistant 24/7 (assistant247.net). applianceant.com kept as a legacy/redirect domain.
 //
-//   ant24x7.com/            ->  /platform/home.html          (the marketing front door)
-//   www.ant24x7.com/        ->  /platform/home.html
-//   joeys.ant24x7.com       ->  platform-site?slug=joeys      (a shop's auto-built site)
-//   applianceant.com/...    ->  same behavior (legacy)
+//   assistant247.net/            ->  /platform/home.html          (the marketing front door)
+//   www.assistant247.net/        ->  /platform/home.html
+//   joeys.assistant247.net       ->  platform-site?slug=joeys      (a shop's auto-built site)
+//   applianceant.com/...         ->  same behavior (legacy)
 //
 // SAFETY: runs on every request but is a pass-through by default. It ONLY rewrites requests whose
-// Host is one of the brand domains (apex/www at "/") or a non-reserved subdomain of one. EVERY other
+// Host is one of BRAND_DOMAINS (apex/www at "/") or a non-reserved subdomain of one. EVERY other
 // host (tnapplianceexchange.net, *.netlify.app, anything unexpected) and every other path returns
 // context.next() unchanged. Wrapped in try/catch so a failure can never break a page. Reversible:
-// delete this file. Add a new brand domain by adding its bare name to BRANDS.
-const BRANDS = ['ant24x7', 'applianceant'];   // <name>.com — both apex + wildcard route here
+// delete this file. Add a new brand domain by adding its full "name.tld" to BRAND_DOMAINS.
+const BRAND_DOMAINS = ['assistant247.net', 'applianceant.com'];
 export default async (request, context) => {
   try {
     const host = (request.headers.get('host') || '').toLowerCase().split(':')[0];
     const url = new URL(request.url);
-    const apex = new RegExp('^(?:www\\.)?(' + BRANDS.join('|') + ')\\.com$');
-    const sub  = new RegExp('^([a-z0-9][a-z0-9-]{0,62})\\.(?:' + BRANDS.join('|') + ')\\.com$');
+    const esc = (s) => s.replace(/[.]/g, '\\.');
+    const group = BRAND_DOMAINS.map(esc).join('|');
+    const apex = new RegExp('^(?:www\\.)?(?:' + group + ')$');
+    const sub  = new RegExp('^([a-z0-9][a-z0-9-]{0,62})\\.(?:' + group + ')$');
 
     // ── Apex + www: serve the front door at "/" only ──
     if (apex.test(host)) {
@@ -25,7 +27,7 @@ export default async (request, context) => {
       return context.next();                               // every other path resolves normally
     }
 
-    // ── Shop subdomains: <slug>.<brand>.com -> that shop's site ──
+    // ── Shop subdomains: <slug>.<brand> -> that shop's site ──
     const m = sub.exec(host);
     if (!m) return context.next();                         // not a brand host — leave it alone
     const slug = m[1];
