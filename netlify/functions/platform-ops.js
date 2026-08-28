@@ -9,9 +9,30 @@
 const { getSecret } = require('./_lib/secrets');
 const MGMT = 'https://api.supabase.com/v1';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
+// Platform operators — a valid Supabase login for one of these emails may open the
+// operator dashboard WITHOUT the admin key (one-tap, same session the shop apps use).
+const OPERATOR_EMAILS = ['tnappliancerepair@gmail.com'];
+const PLATFORM_ANON = 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7'; // publishable, browser-safe
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(b) }; }
 function refFromUrl(u) { const m = String(u || '').match(/https?:\/\/([a-z0-9]+)\.supabase\.co/i); return m ? m[1] : ''; }
 const n = (v) => { const x = parseInt(v, 10); return isNaN(x) ? 0 : x; };
+
+// Accept a Supabase operator session (Authorization: Bearer <jwt>) as an alternative to
+// the admin key — verified against Supabase, email must be a platform operator.
+async function operatorFromJWT(event) {
+  const h = event.headers || {};
+  const auth = h.authorization || h.Authorization || '';
+  const m = String(auth).match(/Bearer\s+(.+)/i);
+  if (!m) return null;
+  const base = (await getSecret('PLATFORM_SUPABASE_URL')) || 'https://tntbhfwitytkcoqlejwc.supabase.co';
+  try {
+    const r = await fetch(`${base}/auth/v1/user`, { headers: { Authorization: 'Bearer ' + m[1], apikey: PLATFORM_ANON }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const u = await r.json().catch(() => null);
+    const email = String((u && u.email) || '').toLowerCase();
+    return OPERATOR_EMAILS.includes(email) ? email : null;
+  } catch (_) { return null; }
+}
 
 const SQL = `
 select c.name, c.slug, c.trade, coalesce(c.status,'active') status, c.plan, c.created_at, c.churned_at,
@@ -26,7 +47,7 @@ exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return json(200, { ok: true });
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
-  if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
+  if (q.secret !== guard && !(await operatorFromJWT(event))) return json(403, { ok: false, error: 'forbidden' });
   const token = await getSecret('SUPABASE_MGMT_TOKEN');
   if (!token) return json(200, { ok: false, error: 'SUPABASE_MGMT_TOKEN not vaulted' });
   const ref = refFromUrl(await getSecret('PLATFORM_SUPABASE_URL')) || 'tntbhfwitytkcoqlejwc';
