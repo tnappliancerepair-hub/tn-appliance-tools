@@ -1,5 +1,7 @@
 # Per-tenant shop websites (auto-built): /s/<slug> -> platform-site
-/s/:slug  /.netlify/functions/platform-site?slug=:slug  200
+# Use :splat (not :slug) — Netlify doesn't reliably interpolate a path placeholder into the
+# destination query string, so /s/demo was arriving with an empty slug (400). :splat works.
+/s/*  /.netlify/functions/platform-site?slug=:splat  200
 
 # Short branded PM pay link -> regenerates a fresh Stripe checkout on each click
 /pay  /.netlify/functions/pm-pay  200
