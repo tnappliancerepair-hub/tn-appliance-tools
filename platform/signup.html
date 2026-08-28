@@ -44,7 +44,7 @@
   .msg.ok{display:block;background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good)}
 </style></head>
 <body><div class="wrap">
-  <div class="brand"><span class="dot">🐜</span><span>Ant</span></div>
+  <div class="brand"><span class="dot" id="vdot">🐜</span><span id="vbrand">Ant</span></div>
   <h1>Put your whole shop on one system.</h1>
   <p class="lede">Answer every call, book every job, pay every tech — one place your office, techs, and customers all run on. Start a 14-day trial; cancel anytime.</p>
 
@@ -82,8 +82,22 @@
 </div>
 
 <script src="/platform/plans.js"></script>
+<script src="/platform/verticals.js"></script>
 <script>
 (function(){
+  // Theme to the vertical the shop came from (brand + accent + preselected trade).
+  try {
+    var V = window.PlatformVerticals;
+    var params = new URLSearchParams(location.search);
+    var vert = V.resolve(location.hostname, params.get('v'));
+    if (vert) {
+      if (vert.accent) document.documentElement.style.setProperty('--brand', vert.accent);
+      document.getElementById('vbrand').textContent = vert.brand;
+      if (vert.emoji) document.getElementById('vdot').textContent = vert.emoji;
+      var t = params.get('trade') || vert.trade;
+      if (t) { var sel = document.getElementById('trade'); if (sel && [].some.call(sel.options, function(o){return o.value===t;})) sel.value = t; }
+    }
+  } catch (_) {}
   var P = window.PlatformPlans;
   var sel = { plan:null, addons:{} };
   function money(c){ return '$'+Math.round((c||0)/100).toLocaleString(); }
