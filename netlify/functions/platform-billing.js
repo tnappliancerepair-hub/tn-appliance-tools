@@ -40,13 +40,27 @@ const TRIAL_DAYS = 14;
 async function priceIdFor(stripe, mod) {
   const vaulted = mod.price_env ? String((await getSecret(mod.price_env)) || '').trim() : '';
   if (vaulted) return vaulted;
-  const p = await stripe.prices.create({
-    currency: 'usd',
-    unit_amount: mod.price_cents,
-    recurring: { interval: 'month' },
+  // Reuse a stable price by lookup_key so repeat checkouts don't spawn duplicate $99 prices.
+  const p = await ensurePrice(stripe, 'ant_' + mod.key + '_mo', {
+    unit_amount: mod.price_cents, recurring: { interval: 'month' },
     product_data: { name: 'Ant Platform — ' + mod.label },
   });
   return p.id;
+}
+
+// Create/find the named monthly prices for every plan + add-on (idempotent via lookup_key).
+// Returns a { STRIPE_PRICE_*: priceId } map to vault (optional — checkout reuses them regardless).
+async function ensureMonthlyCatalog(stripe) {
+  const out = {};
+  const mods = plans.PLANS.concat(plans.ADDONS);
+  for (const m of mods) {
+    const p = await ensurePrice(stripe, 'ant_' + m.key + '_mo', {
+      unit_amount: m.price_cents, recurring: { interval: 'month' },
+      product_data: { name: 'Ant Platform — ' + m.label },
+    });
+    if (m.price_env) out[m.price_env] = p.id;
+  }
+  return out;
 }
 
 async function getCompany(pf, companyId) {
@@ -86,6 +100,17 @@ exports.handler = async function (event) {
         STRIPE_PRICE_ANN_TEXT_OVERAGE: cat.text,
       },
       note: 'Vault the 3 STRIPE_PRICE_ANN_* ids. Meter event names (ann_minutes/ann_texts) are code constants — no vault needed.' });
+  }
+
+  // setup_plans — one-time: create the monthly software + add-on prices in Stripe + return ids.
+  if (action === 'setup_plans') {
+    const key = await stripeKey();
+    if (!key) return J(200, { ok: false, error: 'stripe_not_configured', note: 'set PLATFORM_STRIPE_SECRET_KEY (or STRIPE_SECRET_KEY) first' });
+    const stripe = new Stripe(key);
+    let cat; try { cat = await module.exports.ensureMonthlyCatalog(stripe); }
+    catch (e) { return J(200, { ok: false, error: 'stripe_err', detail: String((e && e.message) || e).slice(0, 200) }); }
+    return J(200, { ok: true, test_mode: /^sk_test_/.test(key), vault_these: cat,
+      note: 'Optional — checkout already reuses these by lookup_key even unvaulted. Vaulting just pins the exact ids.' });
   }
 
   if (!companyId) return J(400, { ok: false, error: 'company_id required' });
@@ -322,6 +347,7 @@ async function reportAnnUsage(stripe, eventName, customerId, value, identifier, 
 module.exports.ANN_MIN_EVENT = ANN_MIN_EVENT;
 module.exports.ANN_TEXT_EVENT = ANN_TEXT_EVENT;
 module.exports.ensureAnnCatalog = ensureAnnCatalog;
+module.exports.ensureMonthlyCatalog = ensureMonthlyCatalog;
 module.exports.annPriceIds = annPriceIds;
 module.exports.ensureAnnSubscription = ensureAnnSubscription;
 module.exports.reportAnnUsage = reportAnnUsage;
