@@ -197,3 +197,66 @@ async function signupCheckout(opts) {
 }
 
 module.exports.signupCheckout = signupCheckout;
+
+// ── ANN METERED BILLING ────────────────────────────────────────────────────
+// Ann is the ONE metered product: a weekly flat base ($50) + two metered overage
+// items (minutes over 400 @ $0.40, texts over 500 @ $0.02). platform-usage-bill
+// reports each completed week's overage against the metered items. These helpers
+// resolve the prices + ensure a tenant has the Ann subscription with all three items.
+
+// Resolve the 3 Ann recurring WEEKLY prices. Prefer real vaulted Price ids
+// (STRIPE_PRICE_ANN_BASE/_MIN_OVERAGE/_TEXT_OVERAGE); else create ephemeral ones from
+// plans.ANN so the flow is testable before any Stripe products exist. Overage items are
+// usage_type:'metered' (aggregate sum) so we can post per-week usage records to them.
+async function annPriceIds(stripe) {
+  const A = plans.ANN;
+  async function resolve(env, unit, name, meta) {
+    const vaulted = String((await getSecret(env)) || '').trim();
+    if (vaulted) return vaulted;
+    const rec = Object.assign({ interval: 'week' }, meta && meta.ann_meter ? { usage_type: 'metered', aggregate_usage: 'sum' } : {});
+    const p = await stripe.prices.create({
+      currency: 'usd', unit_amount: unit, recurring: rec,
+      product_data: { name }, metadata: meta || {},
+    });
+    return p.id;
+  }
+  const base = await resolve(A.price_env_base, A.base_cents, 'Ant Platform — Ann (weekly base)', {});
+  const min = await resolve(A.price_env_min_overage, A.overage_min_cents, 'Ant Platform — Ann minute overage', { ann_meter: 'min' });
+  const text = await resolve(A.price_env_text_overage, A.overage_text_cents, 'Ant Platform — Ann text overage', { ann_meter: 'text' });
+  return { base, min, text };
+}
+
+// Ensure a tenant has the Ann metered subscription (base + 2 metered overage items).
+// Idempotent: reuses company.settings.phone.ann if already stored; otherwise creates the
+// subscription on the tenant's Stripe customer and persists the item ids. Returns
+// { subscription_id, item_min, item_text } or { error } when Stripe/customer isn't ready.
+async function ensureAnnSubscription(pf, stripe, company) {
+  const phone = (company.settings && company.settings.phone) || {};
+  if (phone.ann && phone.ann.subscription_id && phone.ann.item_min && phone.ann.item_text) return phone.ann;
+
+  const customerId = company.stripe_customer_id;
+  if (!customerId) return { error: 'no_stripe_customer' };
+
+  const ids = await annPriceIds(stripe);
+  const sub = await stripe.subscriptions.create({
+    customer: customerId,
+    items: [{ price: ids.base }, { price: ids.min }, { price: ids.text }],
+    collection_method: 'charge_automatically',
+    metadata: { company_id: company.id, ann: '1' },
+  });
+  let itemMin = '', itemText = '';
+  for (const it of (sub.items && sub.items.data) || []) {
+    const meta = (it.price && it.price.metadata) || {};
+    if (meta.ann_meter === 'min') itemMin = it.id;
+    if (meta.ann_meter === 'text') itemText = it.id;
+  }
+  const ann = { subscription_id: sub.id, item_min: itemMin, item_text: itemText, created_at: Date.now() };
+  const nextPhone = Object.assign({}, phone, { ann });
+  const nextSettings = Object.assign({}, company.settings, { phone: nextPhone });
+  await pf.patch('company', `id=eq.${encodeURIComponent(company.id)}`, { settings: nextSettings, updated_at: new Date().toISOString() });
+  return ann;
+}
+
+module.exports.annPriceIds = annPriceIds;
+module.exports.ensureAnnSubscription = ensureAnnSubscription;
+module.exports.stripeKey = stripeKey;

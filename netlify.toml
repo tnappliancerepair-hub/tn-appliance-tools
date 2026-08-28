@@ -1066,3 +1066,11 @@
 # PLATFORM_USAGE_DIGEST_LIVE=true (and send-email's EMAIL_ENABLED).
 [functions."platform-usage-digest-cron"]
   schedule = "0 13 * * *"
+
+# platform-usage-bill-cron — thin scheduled wrapper (Mondays ~10 AM CT / 15:00 UTC) that fires
+# the HTTP-callable core `platform-usage-bill`. Reports each tenant's LAST completed Mon–Sun Ann
+# overage (minutes over 400, texts over 500) as Stripe usage records. Split for the same 403
+# footgun; core stays curlable (owner-gated, ?dry=1). SHADOW-first: charges NOTHING until
+# PLATFORM_BILLING_LIVE=true (and Stripe configured). Runs Monday so the prior week is fully closed.
+[functions."platform-usage-bill-cron"]
+  schedule = "0 15 * * 1"
