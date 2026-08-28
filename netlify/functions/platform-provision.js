@@ -111,6 +111,49 @@ exports.handler = async function (event) {
     return json(200, { ok: true, job_id: job.id, portal_url: 'https://tnapplianceexchange.net/platform/portal.html?t=' + token });
   }
 
+  // Offboard a client that LEAVES — soft + reversible: mark the company churned, stamp when
+  // + why, and revoke every login for it (ban the auth users) so nobody can sign in. ALL of
+  // the shop's data is KEPT (retention) — deletion is a separate, deliberate purge later.
+  //   ?action=offboard&slug=<slug>&reason=<text>
+  if (q.action === 'offboard') {
+    const slug = String(q.slug || '').toLowerCase().trim();
+    if (!slug) return json(200, { ok: false, error: 'slug required' });
+    if (slug === 'tn-appliance') return json(200, { ok: false, error: 'refusing to offboard the flagship (tn-appliance)' });
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name,status`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+    const patch = await rest(`company?id=eq.${co.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'churned', churned_at: new Date().toISOString(), churn_reason: String(q.reason || '').slice(0, 300) || null }) });
+    if (!patch.ok) return json(200, { ok: false, error: 'status update ' + patch.status });
+    // revoke logins (best-effort)
+    const users = await rest0(`app_user?company_id=eq.${co.id}&select=auth_user_id`);
+    let revoked = 0;
+    for (const u of (Array.isArray(users) ? users : [])) {
+      if (!u.auth_user_id) continue;
+      try { const r = await fetch(`${url}/auth/v1/admin/users/${u.auth_user_id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ban_duration: '876000h' }), signal: AbortSignal.timeout(8000) }); if (r.ok) revoked++; } catch (_) {}
+    }
+    return json(200, { ok: true, slug, name: co.name, status: 'churned', logins_revoked: revoked, note: 'data retained; run a purge later to delete it' });
+  }
+
+  // Reactivate a client that came back (or was offboarded by mistake): clear churn + un-ban.
+  //   ?action=reactivate&slug=<slug>[&status=active|trial]
+  if (q.action === 'reactivate') {
+    const slug = String(q.slug || '').toLowerCase().trim();
+    if (!slug) return json(200, { ok: false, error: 'slug required' });
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+    const newStatus = ['active', 'trial', 'paused'].includes(String(q.status || '').toLowerCase()) ? String(q.status).toLowerCase() : 'active';
+    const patch = await rest(`company?id=eq.${co.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: newStatus, churned_at: null, churn_reason: null }) });
+    if (!patch.ok) return json(200, { ok: false, error: 'status update ' + patch.status });
+    const users = await rest0(`app_user?company_id=eq.${co.id}&select=auth_user_id`);
+    let restored = 0;
+    for (const u of (Array.isArray(users) ? users : [])) {
+      if (!u.auth_user_id) continue;
+      try { const r = await fetch(`${url}/auth/v1/admin/users/${u.auth_user_id}`, { method: 'PUT', headers: H, body: JSON.stringify({ ban_duration: 'none' }), signal: AbortSignal.timeout(8000) }); if (r.ok) restored++; } catch (_) {}
+    }
+    return json(200, { ok: true, slug, name: co.name, status: newStatus, logins_restored: restored });
+  }
+
   // Diagnostic: list every tenant + its owner login, to confirm isolation.
   if (q.action === 'tenants') {
     const companies = await rest0('company?select=id,slug,name,trade,plan,created_at&order=created_at.asc');

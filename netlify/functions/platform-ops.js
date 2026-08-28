@@ -1,9 +1,10 @@
-// platform-ops — the OPERATOR view of the whole Ant platform (every tenant at once).
-// A single shop's login is RLS-scoped to itself, so it can never see across tenants;
-// this owner-gated endpoint runs one aggregate query with the mgmt token and returns
-// platform-wide totals + a per-tenant row for each shop. Backs /platform/ops.html.
+// platform-ops — the OPERATOR / CRM view of the Ant platform: a client INVENTORY with
+// quality-control on growth vs churn (who's on, who's new, who's gone quiet, who left).
+// A shop's own login is RLS-scoped to itself and can never see across tenants; this
+// owner-gated endpoint aggregates every company with the mgmt token. Client-focused:
+// status + health + dates, NOT each shop's operational/money detail. Backs ops.html.
 //
-//   GET ?secret=<admin>   -> { ok, totals:{...}, tenants:[{...}] }
+//   GET ?secret=<admin>   -> { ok, totals:{...}, clients:[{...}], test:[{...}] }
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const MGMT = 'https://api.supabase.com/v1';
@@ -13,27 +14,19 @@ function refFromUrl(u) { const m = String(u || '').match(/https?:\/\/([a-z0-9]+)
 const n = (v) => { const x = parseInt(v, 10); return isNaN(x) ? 0 : x; };
 
 const SQL = `
-select
-  c.id, c.name, c.slug, c.trade, c.plan, c.created_at,
+select c.name, c.slug, c.trade, coalesce(c.status,'active') status, c.plan, c.created_at, c.churned_at,
+  (select u.name  from app_user u where u.company_id=c.id and u.role='owner' order by u.created_at asc limit 1) owner_name,
+  (select u.email from app_user u where u.company_id=c.id and u.role='owner' order by u.created_at asc limit 1) owner_email,
   (select count(*) from job j where j.company_id=c.id) jobs,
-  (select count(*) from job j where j.company_id=c.id and j.status='completed') completed,
-  (select count(*) from job j where j.company_id=c.id and j.status not in ('completed','canceled')) open_jobs,
-  (select count(*) from job j where j.company_id=c.id and j.xano_status='no_fix_possible') condemn,
-  (select count(*) from technician t where t.company_id=c.id and t.active) techs,
-  (select count(*) from customer cu where cu.company_id=c.id) customers,
-  (select count(*) from invoice i where i.company_id=c.id) invoices,
-  (select coalesce(sum(total_cents),0) from invoice i where i.company_id=c.id and i.status='paid') collected_cents,
-  (select coalesce(sum(total_cents),0) from invoice i where i.company_id=c.id) billed_cents,
-  greatest(coalesce((select max(created_at) from job j where j.company_id=c.id), c.created_at), c.created_at) last_activity
+  (select max(j.created_at) from job j where j.company_id=c.id) last_job
 from company c
-order by jobs desc, c.created_at asc`;
+order by (coalesce(c.status,'active')='test'), c.created_at asc`;
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return json(200, { ok: true });
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
-
   const token = await getSecret('SUPABASE_MGMT_TOKEN');
   if (!token) return json(200, { ok: false, error: 'SUPABASE_MGMT_TOKEN not vaulted' });
   const ref = refFromUrl(await getSecret('PLATFORM_SUPABASE_URL')) || 'tntbhfwitytkcoqlejwc';
@@ -50,27 +43,47 @@ exports.handler = async function (event) {
   } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
 
   const now = Date.now(), DAY = 86400000;
-  const tenants = rows.map((r) => ({
-    name: r.name, slug: r.slug, trade: r.trade || '', plan: r.plan || '',
-    created_at: r.created_at, last_activity: r.last_activity,
-    jobs: n(r.jobs), completed: n(r.completed), open_jobs: n(r.open_jobs), condemn: n(r.condemn),
-    techs: n(r.techs), customers: n(r.customers), invoices: n(r.invoices),
-    collected_cents: n(r.collected_cents), billed_cents: n(r.billed_cents),
-    active: n(r.jobs) > 0,
-  }));
-
-  const sum = (f) => tenants.reduce((a, t) => a + t[f], 0);
-  const within = (iso, days) => { const t = iso ? Date.parse(iso) : 0; return t && (now - t) <= days * DAY; };
-  const totals = {
-    tenants: tenants.length,
-    active_tenants: tenants.filter((t) => t.active).length,
-    new_30d: tenants.filter((t) => within(t.created_at, 30)).length,
-    new_7d: tenants.filter((t) => within(t.created_at, 7)).length,
-    active_7d: tenants.filter((t) => within(t.last_activity, 7)).length,
-    jobs: sum('jobs'), completed: sum('completed'), open_jobs: sum('open_jobs'),
-    techs: sum('techs'), customers: sum('customers'), invoices: sum('invoices'),
-    collected_cents: sum('collected_cents'), billed_cents: sum('billed_cents'),
-    trades: [...new Set(tenants.map((t) => t.trade).filter(Boolean))].length,
+  const daysSince = (iso) => iso ? (now - Date.parse(iso)) / DAY : Infinity;
+  const shape = (r) => {
+    const last = r.last_job || r.created_at;
+    const jobs = n(r.jobs);
+    const ageDays = daysSince(r.created_at);
+    const idleDays = jobs > 0 ? daysSince(r.last_job) : ageDays;
+    let health;
+    if (r.status === 'churned') health = 'left';
+    else if (r.status === 'paused') health = 'paused';
+    else if (ageDays <= 14) health = 'new';
+    else if (idleDays <= 30) health = 'healthy';
+    else if (idleDays <= 60) health = 'quiet';
+    else health = 'at_risk';
+    return {
+      name: r.name, slug: r.slug, trade: r.trade || '', status: r.status,
+      owner_name: r.owner_name || '', owner_email: r.owner_email || '',
+      created_at: r.created_at, churned_at: r.churned_at, last_activity: last,
+      jobs, health,
+    };
   };
-  return json(200, { ok: true, generated_at: new Date().toISOString(), totals, tenants });
+
+  const all = rows.map(shape);
+  const clients = all.filter((t) => t.status !== 'test');
+  const test = all.filter((t) => t.status === 'test');
+  const within = (iso, d) => { const t = iso ? Date.parse(iso) : 0; return t && (now - t) <= d * DAY; };
+  const cnt = (f) => clients.filter(f).length;
+
+  const churned = cnt((t) => t.status === 'churned');
+  const totals = {
+    clients: clients.length,
+    active: cnt((t) => t.status === 'active'),
+    trial: cnt((t) => t.status === 'trial'),
+    paused: cnt((t) => t.status === 'paused'),
+    churned,
+    new_30d: cnt((t) => within(t.created_at, 30)),
+    new_7d: cnt((t) => within(t.created_at, 7)),
+    lost_30d: cnt((t) => t.status === 'churned' && within(t.churned_at, 30)),
+    quiet: cnt((t) => t.health === 'quiet' || t.health === 'at_risk'),
+    retention_pct: clients.length ? Math.round(100 * (clients.length - churned) / clients.length) : 100,
+    trades: [...new Set(clients.map((t) => t.trade).filter(Boolean))].length,
+    test: test.length,
+  };
+  return json(200, { ok: true, generated_at: new Date().toISOString(), totals, clients, test });
 };

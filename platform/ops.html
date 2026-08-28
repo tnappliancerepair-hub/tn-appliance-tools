@@ -2,12 +2,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>Ant Platform · Operator</title>
+<title>Ant Platform · Clients</title>
 <!--
-  ops.html — the OPERATOR / god view of the whole Ant platform. Every tenant at once:
-  platform-wide KPIs on top, then a per-shop table. Owner-only (admin secret, cached in
-  localStorage). Reads /.netlify/functions/platform-ops, which aggregates across every
-  company with the mgmt token (a shop's own RLS login can never see across tenants).
+  ops.html — the OPERATOR client-inventory / quality-control view of the Ant platform.
+  Growth vs churn: who's on, who's new, who's gone quiet, who left. NOT each shop's
+  operational or money detail (a client roster / CRM health board). Owner-only (admin
+  key, cached in localStorage). Reads /.netlify/functions/platform-ops, which aggregates
+  across every company with the mgmt token — a shop's own RLS login can never see this.
 -->
 <style>
   :root{
@@ -24,7 +25,7 @@
       var(--bg);
     color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased; min-height:100vh; padding:0 0 60px;}
-  .wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+  .wrap{max-width:980px;margin:0 auto;padding:0 16px}
   header{display:flex;align-items:center;gap:12px;padding:18px 16px;position:sticky;top:0;z-index:5;
     background:linear-gradient(180deg, rgba(14,18,11,.96), rgba(14,18,11,.82) 70%, transparent);backdrop-filter:blur(6px)}
   .logo{font-size:22px;font-weight:800;letter-spacing:.2px}
@@ -36,44 +37,49 @@
   button:active{transform:translateY(1px)}
   .stamp{color:var(--dim);font-size:11.5px;text-align:right;padding:2px 18px 0}
 
-  /* KPI tiles */
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:8px 0 6px}
   .tile{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
     border-radius:18px;padding:15px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
   .tile .lab{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
-  .tile .val{font-size:30px;font-weight:800;line-height:1.05;margin-top:7px;font-variant-numeric:tabular-nums}
+  .tile .val{font-size:32px;font-weight:800;line-height:1.05;margin-top:7px;font-variant-numeric:tabular-nums}
   .tile .cap{font-size:12px;color:var(--dim);margin-top:5px}
-  .tile.hero .val{color:var(--gold);font-size:34px}
-  .tile.money .val{color:var(--green)}
-  .tile.jobs .val{color:var(--blue)}
+  .tile.hero .val{color:var(--gold);font-size:36px}
   .tile .accent{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:18px 0 0 18px}
   .a-gold{background:var(--gold)} .a-green{background:var(--green)} .a-blue{background:var(--blue)}
-  .a-violet{background:var(--violet)} .a-amber{background:var(--amber)} .a-pink{background:var(--pink)}
+  .a-violet{background:var(--violet)} .a-amber{background:var(--amber)} .a-pink{background:var(--pink)} .a-red{background:var(--red)}
+  .v-green{color:var(--green)} .v-blue{color:var(--blue)} .v-amber{color:var(--amber)} .v-red{color:var(--red)} .v-violet{color:var(--violet)}
 
   .sec{margin:24px 4px 10px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:800;display:flex;align-items:center;gap:9px}
   .lock{font-size:10.5px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:2px 8px;letter-spacing:.04em}
 
   .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
   .tblwrap{overflow-x:auto}
-  table{border-collapse:collapse;width:100%;min-width:760px}
-  th,td{padding:12px 12px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel2)}
+  table{border-collapse:collapse;width:100%;min-width:660px}
+  th,td{padding:13px 12px;text-align:left;white-space:nowrap}
+  th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);background:var(--panel2)}
   td{border-bottom:1px solid rgba(44,55,32,.6);font-size:14px}
   tr:last-child td{border-bottom:none}
-  td.nm,th.nm{text-align:left}
   td.nm{font-weight:700}
+  td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;color:var(--dim)}
   tr.flagship td{background:rgba(245,197,66,.06)}
-  tr.quiet td{color:var(--dim)}
-  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle}
-  .dot.on{background:var(--green);box-shadow:0 0 0 3px rgba(25,209,95,.16)}
-  .dot.off{background:#4a553a}
-  .chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);text-transform:capitalize}
-  .g{color:var(--green)} .mut{color:var(--dim)}
-  .barcell{min-width:120px}
-  .bar{height:7px;border-radius:6px;background:#243019;overflow:hidden;margin-top:4px}
-  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--green),#6ef0a0)}
+  tr.left td{color:var(--dim)}
 
-  /* gate */
+  .chip{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.03em;padding:3px 9px;border-radius:999px;text-transform:capitalize;border:1px solid transparent}
+  .s-active{background:rgba(25,209,95,.14);color:#6ef0a0;border-color:rgba(25,209,95,.3)}
+  .s-trial{background:rgba(75,140,255,.14);color:#9cc0ff;border-color:rgba(75,140,255,.3)}
+  .s-paused{background:rgba(247,165,59,.14);color:#ffcd8a;border-color:rgba(247,165,59,.3)}
+  .s-churned{background:rgba(255,90,90,.12);color:#ff9a9a;border-color:rgba(255,90,90,.28)}
+  .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:middle}
+  .h-new{background:var(--blue);box-shadow:0 0 0 3px rgba(75,140,255,.16)}
+  .h-healthy{background:var(--green);box-shadow:0 0 0 3px rgba(25,209,95,.16)}
+  .h-quiet{background:var(--amber);box-shadow:0 0 0 3px rgba(247,165,59,.16)}
+  .h-at_risk{background:var(--red);box-shadow:0 0 0 3px rgba(255,90,90,.16)}
+  .h-left{background:#4a553a}
+  .h-paused{background:var(--amber)}
+  .hl{font-size:12.5px;color:var(--muted);text-transform:capitalize}
+  .owner{font-size:12px;color:var(--dim)}
+  .trade{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;text-transform:capitalize}
+
   .gate{max-width:400px;margin:16vh auto;padding:26px;background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
   .gate h1{margin:0 0 6px;font-size:20px}
   .gate p{color:var(--muted);margin:0 0 16px;font-size:13.5px}
@@ -81,6 +87,7 @@
   .gate button{width:100%;background:var(--gold);color:#1a1400;border:none}
   .err{color:var(--red);font-size:13px;margin-top:10px;min-height:16px}
   .note{color:var(--muted);font-size:12.5px;padding:14px 4px 0}
+  .sand{color:var(--dim);font-size:12.5px;padding:10px 4px 0}
 </style>
 
 <div id="app"><div class="note wrap" style="padding-top:40px">Loading…</div></div>
@@ -89,15 +96,15 @@
 (function(){
   var app = document.getElementById('app');
   var KEY = 'ant_ops_secret';
-  var money = function(c){ return '$' + (Math.round((c||0)/100)).toLocaleString(); };
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(x){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[x];}); }
-  function ago(iso){ if(!iso) return '—'; var d=(Date.now()-Date.parse(iso))/86400000; if(d<1) return 'today'; if(d<2) return 'yesterday'; if(d<30) return Math.round(d)+'d ago'; return Math.round(d/30)+'mo ago'; }
-  function joined(iso){ try{ return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}); }catch(_){ return '—'; } }
+  function ago(iso){ if(!iso) return '—'; var d=(Date.now()-Date.parse(iso))/86400000; if(d<1) return 'today'; if(d<2) return 'yesterday'; if(d<30) return Math.round(d)+'d ago'; if(d<365) return Math.round(d/30)+'mo ago'; return Math.round(d/365)+'y ago'; }
+  function joined(iso){ try{ return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'2-digit'}); }catch(_){ return '—'; } }
+  var HL={new:'New',healthy:'Healthy',quiet:'Going quiet',at_risk:'At risk',left:'Left',paused:'Paused'};
 
   function gate(msg){
-    app.innerHTML = '<div class="gate"><h1>🐜 Platform Operator</h1><p>Owner access only. Enter the admin key to see every shop on the Ant platform.</p>'+
+    app.innerHTML = '<div class="gate"><h1>🐜 Platform · Clients</h1><p>Owner access only. Enter the admin key to see your client roster.</p>'+
       '<input id="k" type="password" placeholder="admin key" autocomplete="current-password">'+
-      '<button id="go">Open dashboard</button><div class="err" id="e">'+esc(msg||'')+'</div></div>';
+      '<button id="go">Open</button><div class="err" id="e">'+esc(msg||'')+'</div></div>';
     var go=document.getElementById('go'), k=document.getElementById('k');
     function submit(){ var v=k.value.trim(); if(!v){document.getElementById('e').textContent='Enter the key.';return;} localStorage.setItem(KEY,v); load(); }
     go.onclick=submit; k.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); }); k.focus();
@@ -106,7 +113,7 @@
   function load(){
     var secret = localStorage.getItem(KEY) || '';
     if(!secret) return gate('');
-    app.innerHTML = '<div class="note wrap" style="padding-top:40px">Crunching every shop…</div>';
+    app.innerHTML = '<div class="note wrap" style="padding-top:40px">Loading your clients…</div>';
     fetch('/.netlify/functions/platform-ops?secret='+encodeURIComponent(secret))
       .then(function(r){ return r.json(); })
       .then(function(d){
@@ -117,55 +124,49 @@
       .catch(function(e){ gate('Network error: '+e.message); });
   }
 
-  function tile(cls, accent, lab, val, cap){
-    return '<div class="tile '+cls+'"><span class="accent '+accent+'"></span>'+
-      '<div class="lab">'+lab+'</div><div class="val">'+val+'</div>'+(cap?'<div class="cap">'+cap+'</div>':'')+'</div>';
+  function tile(accent, valcls, lab, val, cap){
+    return '<div class="tile'+(accent==='a-gold'?' hero':'')+'"><span class="accent '+accent+'"></span>'+
+      '<div class="lab">'+lab+'</div><div class="val '+(valcls||'')+'">'+val+'</div>'+(cap?'<div class="cap">'+cap+'</div>':'')+'</div>';
   }
 
   function render(d){
-    var t = d.totals, rows = d.tenants||[];
-    var maxJobs = Math.max(1, Math.max.apply(null, rows.map(function(x){return x.jobs;})));
+    var t=d.totals, clients=d.clients||[];
     var kpis =
-      tile('tile hero','a-gold','Shops on platform', String(t.tenants), t.active_tenants+' active · '+t.trades+' trades')+
-      tile('tile jobs','a-blue','Total jobs', t.jobs.toLocaleString(), t.open_jobs.toLocaleString()+' open now')+
-      tile('tile','a-violet','Jobs completed', t.completed.toLocaleString(), t.customers.toLocaleString()+' customers')+
-      tile('tile money','a-green','Platform collected', money(t.collected_cents), 'across all shops')+
-      tile('tile','a-amber','Platform billed', money(t.billed_cents), money(t.billed_cents-t.collected_cents)+' outstanding')+
-      tile('tile','a-pink','New shops · 30d', String(t.new_30d), t.new_7d+' in the last 7d')+
-      tile('tile','a-green','Active this week', String(t.active_7d), 'shops with fresh jobs')+
-      tile('tile','a-blue','Technicians', t.techs.toLocaleString(), 'working across shops');
+      tile('a-gold','', 'Clients', String(t.clients), t.active+' active · '+t.trial+' trial · '+t.trades+' trades')+
+      tile('a-green','v-green', 'Net new · 30d', '+'+t.new_30d, t.new_7d+' in the last 7 days')+
+      tile('a-red','v-red', 'Lost · 30d', (t.lost_30d>0?'−'+t.lost_30d:'0'), t.churned+' churned all-time')+
+      tile('a-blue','v-blue', 'Retention', t.retention_pct+'%', 'of clients still with us')+
+      tile('a-amber','v-amber', 'Going quiet', String(t.quiet), 'no activity in 30d+ — check in')+
+      tile('a-violet','v-violet', 'Active this week', String(t.new_7d + clients.filter(function(c){return c.health==='healthy';}).length), 'new or working the system');
 
-    var trs = rows.map(function(r){
-      var cls = (r.slug==='tn-appliance'?'flagship':'') + (r.active?'':' quiet');
-      var pct = Math.round(100*r.jobs/maxJobs);
+    var order={new:0,healthy:1,quiet:2,at_risk:3,paused:4,left:5};
+    var rows = clients.slice().sort(function(a,b){ return (order[a.health]||9)-(order[b.health]||9); }).map(function(c){
+      var cls=(c.slug==='tn-appliance'?'flagship ':'')+(c.status==='churned'?'left':'');
+      var owner = c.owner_name || (c.owner_email||'').split('@')[0] || '—';
       return '<tr class="'+cls.trim()+'">'+
-        '<td class="nm"><span class="dot '+(r.active?'on':'off')+'"></span>'+esc(r.name)+'</td>'+
-        '<td style="text-align:left"><span class="chip">'+esc(r.trade||'—')+'</span></td>'+
-        '<td class="barcell">'+r.jobs.toLocaleString()+'<div class="bar"><i style="width:'+pct+'%"></i></div></td>'+
-        '<td>'+r.open_jobs+'</td>'+
-        '<td>'+r.completed+'</td>'+
-        '<td>'+(r.techs||'<span class="mut">0</span>')+'</td>'+
-        '<td>'+r.customers.toLocaleString()+'</td>'+
-        '<td class="g">'+money(r.collected_cents)+'</td>'+
-        '<td>'+money(r.billed_cents)+'</td>'+
-        '<td class="mut">'+joined(r.created_at)+'</td>'+
-        '<td class="mut">'+ago(r.last_activity)+'</td>'+
+        '<td class="nm">'+esc(c.name)+'<div class="owner">'+esc(owner)+'</div></td>'+
+        '<td><span class="trade">'+esc(c.trade||'—')+'</span></td>'+
+        '<td><span class="chip s-'+c.status+'">'+esc(c.status)+'</span></td>'+
+        '<td><span class="hdot h-'+c.health+'"></span><span class="hl">'+(HL[c.health]||c.health)+'</span></td>'+
+        '<td class="r">'+joined(c.created_at)+'</td>'+
+        '<td class="r">'+(c.status==='churned'? ('left '+ago(c.churned_at)) : ago(c.last_activity))+'</td>'+
       '</tr>';
     }).join('');
 
     app.innerHTML =
-      '<header><div><div class="logo">🐜 <b>Ant</b> Platform</div><div class="sub">Operator view · every shop on the platform</div></div>'+
+      '<header><div><div class="logo">🐜 <b>Ant</b> Platform</div><div class="sub">Client roster · are we growing or losing</div></div>'+
         '<div class="sp"></div><button id="rf">Refresh</button></header>'+
       '<div class="stamp">as of '+new Date(d.generated_at).toLocaleString()+'</div>'+
       '<div class="wrap">'+
-        '<div class="sec">Platform KPIs <span class="lock">🔒 operator only</span></div>'+
+        '<div class="sec">Quality control <span class="lock">🔒 operator only</span></div>'+
         '<div class="kpis">'+kpis+'</div>'+
-        '<div class="sec">Every shop ('+rows.length+')</div>'+
+        '<div class="sec">Client roster ('+clients.length+')</div>'+
         '<div class="card"><div class="tblwrap"><table>'+
-          '<thead><tr><th class="nm">Shop</th><th style="text-align:left">Trade</th><th>Jobs</th><th>Open</th><th>Done</th><th>Techs</th><th>Customers</th><th>Collected</th><th>Billed</th><th>Joined</th><th>Last job</th></tr></thead>'+
-          '<tbody>'+trs+'</tbody>'+
+          '<thead><tr><th>Client</th><th>Trade</th><th>Status</th><th>Health</th><th class="r">Joined</th><th class="r">Last active</th></tr></thead>'+
+          '<tbody>'+rows+'</tbody>'+
         '</table></div></div>'+
-        '<div class="note">Money = each shop\'s own invoices (entered once on the job tile). The platform never holds or processes funds — this is activity, not our revenue. Numbers are live from the ANT Platforms database; a shop\'s own login can only ever see its own row.</div>'+
+        '<div class="sand">🧪 '+t.test+' test tenants (clones + demo) hidden — sandbox, not counted as clients.</div>'+
+        '<div class="note">This is your inventory of the shops you\'re helping — status, health, and when each last used the system. It never shows a shop\'s customers or money. A client that goes 30+ days quiet is flagged so you can reach out before they drift.</div>'+
       '</div>';
     document.getElementById('rf').onclick=load;
   }
