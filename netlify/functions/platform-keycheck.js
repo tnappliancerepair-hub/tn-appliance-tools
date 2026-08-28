@@ -44,9 +44,6 @@ exports.handler = async function (event) {
     const row = r.ok ? ((await r.json().catch(() => []))[0]) : null;
     const kekSource = row ? row.kek_v : null;
 
-    // cleanup — leave no throwaway row behind
-    await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${CO_DEK}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(9000) });
-
     const dedicated = kekLen === 64 || kekSource === 'ded';
     return json(200, {
       ok: true,
@@ -63,5 +60,10 @@ exports.handler = async function (event) {
     });
   } catch (e) {
     return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200) });
+  } finally {
+    // ALWAYS delete both throwaway rows — even on an error path — so the keyring never leaks.
+    for (const co of [CO_WRITE, CO_DEK]) {
+      try { await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${co}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(9000) }); } catch (_) {}
+    }
   }
 };
