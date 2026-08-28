@@ -1,0 +1,175 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Ant Platform · Operator</title>
+<!--
+  ops.html — the OPERATOR / god view of the whole Ant platform. Every tenant at once:
+  platform-wide KPIs on top, then a per-shop table. Owner-only (admin secret, cached in
+  localStorage). Reads /.netlify/functions/platform-ops, which aggregates across every
+  company with the mgmt token (a shop's own RLS login can never see across tenants).
+-->
+<style>
+  :root{
+    --bg:#0e120b; --bg2:#141a10; --panel:#1a2113; --panel2:#20291a; --line:#2c3720;
+    --ink:#eef3e6; --muted:#9aa588; --dim:#6f7a5e;
+    --gold:#f5c542; --green:#19d15f; --blue:#4b8cff; --violet:#a98bff; --pink:#ff5db1; --amber:#f7a53b; --red:#ff5a5a;
+    --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 34px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:
+      radial-gradient(1200px 500px at 15% -10%, rgba(245,197,66,.10), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(75,140,255,.10), transparent 55%),
+      var(--bg);
+    color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh; padding:0 0 60px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 16px}
+  header{display:flex;align-items:center;gap:12px;padding:18px 16px;position:sticky;top:0;z-index:5;
+    background:linear-gradient(180deg, rgba(14,18,11,.96), rgba(14,18,11,.82) 70%, transparent);backdrop-filter:blur(6px)}
+  .logo{font-size:22px;font-weight:800;letter-spacing:.2px}
+  .logo b{color:var(--gold)}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:1px}
+  .sp{flex:1}
+  button{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+    border-radius:12px;padding:9px 14px;cursor:pointer}
+  button:active{transform:translateY(1px)}
+  .stamp{color:var(--dim);font-size:11.5px;text-align:right;padding:2px 18px 0}
+
+  /* KPI tiles */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:8px 0 6px}
+  .tile{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    border-radius:18px;padding:15px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .tile .lab{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .tile .val{font-size:30px;font-weight:800;line-height:1.05;margin-top:7px;font-variant-numeric:tabular-nums}
+  .tile .cap{font-size:12px;color:var(--dim);margin-top:5px}
+  .tile.hero .val{color:var(--gold);font-size:34px}
+  .tile.money .val{color:var(--green)}
+  .tile.jobs .val{color:var(--blue)}
+  .tile .accent{position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:18px 0 0 18px}
+  .a-gold{background:var(--gold)} .a-green{background:var(--green)} .a-blue{background:var(--blue)}
+  .a-violet{background:var(--violet)} .a-amber{background:var(--amber)} .a-pink{background:var(--pink)}
+
+  .sec{margin:24px 4px 10px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:800;display:flex;align-items:center;gap:9px}
+  .lock{font-size:10.5px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:2px 8px;letter-spacing:.04em}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+  .tblwrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:760px}
+  th,td{padding:12px 12px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel2)}
+  td{border-bottom:1px solid rgba(44,55,32,.6);font-size:14px}
+  tr:last-child td{border-bottom:none}
+  td.nm,th.nm{text-align:left}
+  td.nm{font-weight:700}
+  tr.flagship td{background:rgba(245,197,66,.06)}
+  tr.quiet td{color:var(--dim)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle}
+  .dot.on{background:var(--green);box-shadow:0 0 0 3px rgba(25,209,95,.16)}
+  .dot.off{background:#4a553a}
+  .chip{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);text-transform:capitalize}
+  .g{color:var(--green)} .mut{color:var(--dim)}
+  .barcell{min-width:120px}
+  .bar{height:7px;border-radius:6px;background:#243019;overflow:hidden;margin-top:4px}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--green),#6ef0a0)}
+
+  /* gate */
+  .gate{max-width:400px;margin:16vh auto;padding:26px;background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
+  .gate h1{margin:0 0 6px;font-size:20px}
+  .gate p{color:var(--muted);margin:0 0 16px;font-size:13.5px}
+  .gate input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);color:var(--ink);font:inherit;margin-bottom:12px}
+  .gate button{width:100%;background:var(--gold);color:#1a1400;border:none}
+  .err{color:var(--red);font-size:13px;margin-top:10px;min-height:16px}
+  .note{color:var(--muted);font-size:12.5px;padding:14px 4px 0}
+</style>
+
+<div id="app"><div class="note wrap" style="padding-top:40px">Loading…</div></div>
+
+<script>
+(function(){
+  var app = document.getElementById('app');
+  var KEY = 'ant_ops_secret';
+  var money = function(c){ return '$' + (Math.round((c||0)/100)).toLocaleString(); };
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(x){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[x];}); }
+  function ago(iso){ if(!iso) return '—'; var d=(Date.now()-Date.parse(iso))/86400000; if(d<1) return 'today'; if(d<2) return 'yesterday'; if(d<30) return Math.round(d)+'d ago'; return Math.round(d/30)+'mo ago'; }
+  function joined(iso){ try{ return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}); }catch(_){ return '—'; } }
+
+  function gate(msg){
+    app.innerHTML = '<div class="gate"><h1>🐜 Platform Operator</h1><p>Owner access only. Enter the admin key to see every shop on the Ant platform.</p>'+
+      '<input id="k" type="password" placeholder="admin key" autocomplete="current-password">'+
+      '<button id="go">Open dashboard</button><div class="err" id="e">'+esc(msg||'')+'</div></div>';
+    var go=document.getElementById('go'), k=document.getElementById('k');
+    function submit(){ var v=k.value.trim(); if(!v){document.getElementById('e').textContent='Enter the key.';return;} localStorage.setItem(KEY,v); load(); }
+    go.onclick=submit; k.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); }); k.focus();
+  }
+
+  function load(){
+    var secret = localStorage.getItem(KEY) || '';
+    if(!secret) return gate('');
+    app.innerHTML = '<div class="note wrap" style="padding-top:40px">Crunching every shop…</div>';
+    fetch('/.netlify/functions/platform-ops?secret='+encodeURIComponent(secret))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.error==='forbidden'){ localStorage.removeItem(KEY); return gate('That key was rejected.'); }
+        if(!d || !d.ok){ return gate((d&&d.error)||'Could not load.'); }
+        render(d);
+      })
+      .catch(function(e){ gate('Network error: '+e.message); });
+  }
+
+  function tile(cls, accent, lab, val, cap){
+    return '<div class="tile '+cls+'"><span class="accent '+accent+'"></span>'+
+      '<div class="lab">'+lab+'</div><div class="val">'+val+'</div>'+(cap?'<div class="cap">'+cap+'</div>':'')+'</div>';
+  }
+
+  function render(d){
+    var t = d.totals, rows = d.tenants||[];
+    var maxJobs = Math.max(1, Math.max.apply(null, rows.map(function(x){return x.jobs;})));
+    var kpis =
+      tile('tile hero','a-gold','Shops on platform', String(t.tenants), t.active_tenants+' active · '+t.trades+' trades')+
+      tile('tile jobs','a-blue','Total jobs', t.jobs.toLocaleString(), t.open_jobs.toLocaleString()+' open now')+
+      tile('tile','a-violet','Jobs completed', t.completed.toLocaleString(), t.customers.toLocaleString()+' customers')+
+      tile('tile money','a-green','Platform collected', money(t.collected_cents), 'across all shops')+
+      tile('tile','a-amber','Platform billed', money(t.billed_cents), money(t.billed_cents-t.collected_cents)+' outstanding')+
+      tile('tile','a-pink','New shops · 30d', String(t.new_30d), t.new_7d+' in the last 7d')+
+      tile('tile','a-green','Active this week', String(t.active_7d), 'shops with fresh jobs')+
+      tile('tile','a-blue','Technicians', t.techs.toLocaleString(), 'working across shops');
+
+    var trs = rows.map(function(r){
+      var cls = (r.slug==='tn-appliance'?'flagship':'') + (r.active?'':' quiet');
+      var pct = Math.round(100*r.jobs/maxJobs);
+      return '<tr class="'+cls.trim()+'">'+
+        '<td class="nm"><span class="dot '+(r.active?'on':'off')+'"></span>'+esc(r.name)+'</td>'+
+        '<td style="text-align:left"><span class="chip">'+esc(r.trade||'—')+'</span></td>'+
+        '<td class="barcell">'+r.jobs.toLocaleString()+'<div class="bar"><i style="width:'+pct+'%"></i></div></td>'+
+        '<td>'+r.open_jobs+'</td>'+
+        '<td>'+r.completed+'</td>'+
+        '<td>'+(r.techs||'<span class="mut">0</span>')+'</td>'+
+        '<td>'+r.customers.toLocaleString()+'</td>'+
+        '<td class="g">'+money(r.collected_cents)+'</td>'+
+        '<td>'+money(r.billed_cents)+'</td>'+
+        '<td class="mut">'+joined(r.created_at)+'</td>'+
+        '<td class="mut">'+ago(r.last_activity)+'</td>'+
+      '</tr>';
+    }).join('');
+
+    app.innerHTML =
+      '<header><div><div class="logo">🐜 <b>Ant</b> Platform</div><div class="sub">Operator view · every shop on the platform</div></div>'+
+        '<div class="sp"></div><button id="rf">Refresh</button></header>'+
+      '<div class="stamp">as of '+new Date(d.generated_at).toLocaleString()+'</div>'+
+      '<div class="wrap">'+
+        '<div class="sec">Platform KPIs <span class="lock">🔒 operator only</span></div>'+
+        '<div class="kpis">'+kpis+'</div>'+
+        '<div class="sec">Every shop ('+rows.length+')</div>'+
+        '<div class="card"><div class="tblwrap"><table>'+
+          '<thead><tr><th class="nm">Shop</th><th style="text-align:left">Trade</th><th>Jobs</th><th>Open</th><th>Done</th><th>Techs</th><th>Customers</th><th>Collected</th><th>Billed</th><th>Joined</th><th>Last job</th></tr></thead>'+
+          '<tbody>'+trs+'</tbody>'+
+        '</table></div></div>'+
+        '<div class="note">Money = each shop\'s own invoices (entered once on the job tile). The platform never holds or processes funds — this is activity, not our revenue. Numbers are live from the ANT Platforms database; a shop\'s own login can only ever see its own row.</div>'+
+      '</div>';
+    document.getElementById('rf').onclick=load;
+  }
+
+  load();
+})();
+</script>
