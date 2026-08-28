@@ -131,7 +131,7 @@ async function bucketPosted(bucketKey) {
 
 async function textDraft(post, note) {
   const sms = `📣 Google Business post${note ? ' (' + note + ')' : ''} — ready to publish:\n\n${post.title ? '“' + post.title + '”\n' : ''}${post.body}\n\n(Booking link + phone get added.)\n\nPost it here → ${GBP_POSTS_URL}`;
-  try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: sms, force_send: true, context_tag: 'gbp_post_draft' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
+  try { if (!require('./_lib/office-gate').officeBlocked(OWNER, 'gbp_post_draft')) await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: sms, force_send: true, context_tag: 'gbp_post_draft' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
 }
 
 exports.handler = async function (event) {
@@ -267,7 +267,7 @@ exports.handler = async function (event) {
       const r = await postWithPhoto(gbp, post.body, pickPhoto(wk, slot), postUrl, postAction);
       if (r.ok) {
         try { await crud.logEvent('gbp_post_published', { bucket, iso_week: wk, slot, title: post.title || '', topic, post_type: wantFixGuide ? 'fix_guide' : 'demand', fix_guide: fixGuide ? fixGuide.slug : '', action: postAction, url: postUrl, post_name: (r.data && r.data.name) || '', at_ms: Date.now() }); } catch (_) {}
-        try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: `✅ Auto-posted your Google Business update:\n\n${post.title ? '“' + post.title + '”\n' : ''}${String(post.body).slice(0, 180)}…\n\nLive now on your profile. (2×/week: Mon + Thu.)`, force_send: true, context_tag: 'gbp_post_published' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
+        try { if (!require('./_lib/office-gate').officeBlocked(OWNER, 'gbp_post_published')) await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: `✅ Auto-posted your Google Business update:\n\n${post.title ? '“' + post.title + '”\n' : ''}${String(post.body).slice(0, 180)}…\n\nLive now on your profile. (2×/week: Mon + Thu.)`, force_send: true, context_tag: 'gbp_post_published' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
         return json(200, { ok: true, mode: 'autopost', bucket, title: post.title, post_name: (r.data && r.data.name) || null });
       }
       // API said no — hand it to Teddy so the slot isn't lost.

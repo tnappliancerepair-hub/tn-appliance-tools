@@ -145,7 +145,8 @@ async function maybeAlert(scenario, details) {
   const nextStageMin = BACKOFF_STAGES_MIN[Math.min(stageIdx + 1, BACKOFF_STAGES_MIN.length - 1)];
   const body = `[ant] COLONY ALERT — ${details.reason}. Mac Mini may need a kick: launchctl kickstart -k gui/$UID com.tnappliance.colony-loop. Next alert in ${nextStageMin}min if still down.`;
   let smsOk = false;
-  try {
+  if (require('./_lib/office-gate').officeBlocked(OWNER_PHONE, 'colony_watchdog')) { smsOk = false; } // 🔇 office kill
+  else try {
     const r = await fetch(`${XANO_BASE}/send_sms`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

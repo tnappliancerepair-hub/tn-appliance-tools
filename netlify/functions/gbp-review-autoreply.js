@@ -39,6 +39,7 @@ async function saveNegSeen(set) {
   try { await crud.logEvent('review_autoreply_neg_seen', { keys: [...set].slice(-200), at_ms: Date.now() }); } catch (_) {}
 }
 async function textOwner(body, tag) {
+  if (require('./_lib/office-gate').officeBlocked(OWNER, tag)) return; // 🔇 office kill
   try {
     await fetch(`${XANO}/send_sms`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

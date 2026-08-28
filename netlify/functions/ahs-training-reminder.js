@@ -33,6 +33,7 @@ exports.handler = async function () {
   } catch (_) {}
 
   let sent = false, err = null;
+  if (require('./_lib/office-gate').officeBlocked('+1' + TEDDY, 'ahs_training_reminder')) { return { statusCode: 200, body: JSON.stringify({ ok: true, sent: false, suppressed: true }) }; } // 🔇 office kill
   try {
     const r = await fetch(`${XANO}/send_sms`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

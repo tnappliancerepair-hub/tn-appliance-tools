@@ -28,7 +28,7 @@ function e164(p) { const d = String(p || '').replace(/\D/g, ''); if (d.length ==
 function metaOf(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 
 async function sendCustomer(phone, msg, tag) { try { await sendSms(e164(phone), msg, 'customer', tag || 'schedule_move'); } catch (_) {} }
-async function sendOwner(msg, tag) { try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: msg, force_send: true, context_tag: tag || 'schedule_move_owner' }), signal: AbortSignal.timeout(10000) }); } catch (_) {} }
+async function sendOwner(msg, tag) { if (require('./office-gate').officeBlocked(OWNER, tag || 'schedule_move_owner')) return; try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: msg, force_send: true, context_tag: tag || 'schedule_move_owner' }), signal: AbortSignal.timeout(10000) }); } catch (_) {} }
 
 // YES = clearly accepts the new day. NO = clearly rejects. Anything else = unclear
 // (we do NOT move on unclear — the safe default is to leave them where they are).

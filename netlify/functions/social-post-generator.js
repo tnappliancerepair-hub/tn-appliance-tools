@@ -95,7 +95,7 @@ exports.handler = async function (event) {
     try { await crud.logEvent('social_pack_generated', { iso_week: wk, topic, auto: !!(fbToken && fbPage), at_ms: Date.now() }); } catch (_) {}
     if (!published) {
       const sms = `📣 This week's social pack — ready to post:\n\n— FACEBOOK —\n${fbMsg}\n\n— INSTAGRAM —\n${igCap}\n\n— TIKTOK (for Alec) —\nHook: ${pack.tiktok_hook}\n${pack.tiktok_script}\n${pack.tiktok_caption || ''}`;
-      try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: sms.slice(0, 1400), recipient_role: 'owner', context: 'social_pack' }) }); } catch (_) {}
+      try { if (!require('./_lib/office-gate').officeBlocked(OWNER, 'social_pack')) await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: sms.slice(0, 1400), recipient_role: 'owner', context: 'social_pack' }) }); } catch (_) {}
     }
   }
 

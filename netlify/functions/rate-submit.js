@@ -18,7 +18,7 @@ function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'applicati
 function meta(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 async function tokenSecret() { return (await getSecret('PAY_LINK_SECRET')) || (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5'; }
 async function rateToken(jobId) { return crypto.createHmac('sha256', await tokenSecret()).update('rate:' + jobId).digest('hex').slice(0, 12); }
-async function textOwner(msg) { try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: msg, force_send: true, context_tag: 'review_low_star' }), signal: AbortSignal.timeout(9000) }); } catch (_) {} }
+async function textOwner(msg) { if (require('./_lib/office-gate').officeBlocked(OWNER, 'review_low_star')) return; try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: msg, force_send: true, context_tag: 'review_low_star' }), signal: AbortSignal.timeout(9000) }); } catch (_) {} }
 
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'POST only' });

@@ -134,7 +134,7 @@ exports.handler = async function (event) {
     const body = `${head}\n${stars} from ${r.author || 'a customer'}${r.text ? ('\n"' + String(r.text).slice(0, 240) + '"') : ''}\n\nDraft reply:\n"${String(r.reply_draft || '').slice(0, 500)}"\n\n${neg ? 'Review + edit, then post: ' : 'Post it: '}${link}`;
     out.push(dry ? { author: r.author, rating, neg, review: r.text, draft: r.reply_draft } : { author: r.author, rating, neg, preview: body.slice(0, 120) });
     if (!dry) {
-      try { await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: neg ? 'review_reply_urgent' : 'review_reply_draft' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
+      try { if (!require('./_lib/office-gate').officeBlocked(OWNER, 'review_reply')) await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: OWNER, message: body, force_send: true, context_tag: neg ? 'review_reply_urgent' : 'review_reply_draft' }), signal: AbortSignal.timeout(12000) }); } catch (_) {}
     }
   }
   if (!dry) await saveKeys(seen);

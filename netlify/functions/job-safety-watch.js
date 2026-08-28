@@ -44,7 +44,7 @@ exports.handler = async () => {
   }
   if (lastErr) {
     // Failed all 3 attempts — that's a genuine "check the system" page.
-    try { await post('/send_sms', { to: TEDDY, message: '[ant safety] job_safety_sweep FAILED after 3 tries — check the system. ' + String(lastErr.message || lastErr).slice(0, 120) }); } catch (_) {}
+    try { if (!require('./_lib/office-gate').officeBlocked(TEDDY, 'job_safety')) await post('/send_sms', { to: TEDDY, message: '[ant safety] job_safety_sweep FAILED after 3 tries — check the system. ' + String(lastErr.message || lastErr).slice(0, 120) }); } catch (_) {}
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'sweep_failed' }) };
   }
 
@@ -78,8 +78,9 @@ exports.handler = async () => {
   }
 
   const msg = `[ant safety] ${issues.join('; ')}. ${total} job(s) in the schedule queue. Open: tnapplianceexchange.net/needs-scheduled.html`;
-  try { await post('/send_sms', { to: TEDDY, message: msg, context_tag: 'job_safety' }); } catch (_) {}
-  try { await post('/send_sms', { to: DANIELLE, message: msg, context_tag: 'job_safety' }); } catch (_) {}
+  const _og = require('./_lib/office-gate'); // 🔇 office kill — board still shows these
+  try { if (!_og.officeBlocked(TEDDY, 'job_safety')) await post('/send_sms', { to: TEDDY, message: msg, context_tag: 'job_safety' }); } catch (_) {}
+  try { if (!_og.officeBlocked(DANIELLE, 'job_safety')) await post('/send_sms', { to: DANIELLE, message: msg, context_tag: 'job_safety' }); } catch (_) {}
   try { await post('/record_event_log', { action: 'job_safety_alert', metadata_json: JSON.stringify({ total, recovered, mins, issues }) }); } catch (_) {}
 
   return { statusCode: 200, body: JSON.stringify({ ok: true, total, recovered, mins, alerted: true, issues, elapsed_ms: Date.now() - startedAt }) };
