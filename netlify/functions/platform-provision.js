@@ -154,6 +154,62 @@ exports.handler = async function (event) {
     return json(200, { ok: true, slug, name: co.name, status: newStatus, logins_restored: restored });
   }
 
+  // PURGE — permanently delete a churned client's data after the retention window. Hard,
+  // irreversible. Guards: must be churned; must be past 30-day retention (unless &force=yes);
+  // never the flagship; requires &confirm=yes. Deletes every tenant-scoped row + the logins.
+  //   ?action=purge&slug=<slug>&confirm=yes[&force=yes]
+  if (q.action === 'purge') {
+    const RETENTION_DAYS = 30; // Teddy 2026-08-28: keep 30 days after a client leaves, then purge.
+    const slug = String(q.slug || '').toLowerCase().trim();
+    if (!slug) return json(200, { ok: false, error: 'slug required' });
+    if (slug === 'tn-appliance') return json(200, { ok: false, error: 'refusing to purge the flagship' });
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name,status,churned_at`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+    if (co.status !== 'churned') return json(200, { ok: false, error: 'not churned — offboard the client first (status=' + co.status + ')' });
+    const force = q.force === 'yes';
+    const daysSinceChurn = co.churned_at ? (Date.now() - Date.parse(co.churned_at)) / 86400000 : 0;
+    if (!force && daysSinceChurn < RETENTION_DAYS) {
+      return json(200, { ok: false, error: 'within retention', purge_in_days: Math.ceil(RETENTION_DAYS - daysSinceChurn), note: 'still in the ' + RETENTION_DAYS + '-day window; pass &force=yes only for a deliberate early delete' });
+    }
+    if (q.confirm !== 'yes') return json(200, { ok: false, error: 'purge requires &confirm=yes', would_delete: co.name });
+    // delete the auth logins first (need their ids from app_user)
+    const users = await rest0(`app_user?company_id=eq.${co.id}&select=auth_user_id`);
+    let authDeleted = 0;
+    for (const u of (Array.isArray(users) ? users : [])) {
+      if (!u.auth_user_id) continue;
+      try { const r = await fetch(`${url}/auth/v1/admin/users/${u.auth_user_id}`, { method: 'DELETE', headers: H, signal: AbortSignal.timeout(8000) }); if (r.ok) authDeleted++; } catch (_) {}
+    }
+    // atomic cascade delete of every tenant-scoped row, children first
+    const mgmtToken = await getSecret('SUPABASE_MGMT_TOKEN');
+    const ref = ((url.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/i) || [])[1]) || 'tntbhfwitytkcoqlejwc';
+    if (!mgmtToken) return json(200, { ok: false, error: 'auth logins deleted but SUPABASE_MGMT_TOKEN missing — data not purged', auth_deleted: authDeleted });
+    const cid = co.id;
+    const sql = `do $$ declare cid uuid := '${cid}';
+      begin
+        delete from invoice_line where company_id=cid;
+        delete from invoice where company_id=cid;
+        delete from thread_message where company_id=cid;
+        delete from portal_grant where company_id=cid;
+        delete from job_media where company_id=cid;
+        delete from job_tdr where company_id=cid;
+        delete from event where company_id=cid;
+        delete from shop_application where company_id=cid;
+        delete from job where company_id=cid;
+        delete from unit where company_id=cid;
+        delete from technician where company_id=cid;
+        delete from customer where company_id=cid;
+        delete from app_user where company_id=cid;
+        delete from company where id=cid;
+      end $$;`;
+    try {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, { method: 'POST', headers: { Authorization: 'Bearer ' + mgmtToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: sql }), signal: AbortSignal.timeout(20000) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) return json(200, { ok: false, error: 'purge sql ' + r.status + ' ' + JSON.stringify(d).slice(0, 200), auth_deleted: authDeleted });
+    } catch (e) { return json(200, { ok: false, error: 'purge sql ' + String((e && e.message) || e).slice(0, 160), auth_deleted: authDeleted }); }
+    return json(200, { ok: true, purged: co.name, slug, auth_deleted: authDeleted, note: 'all data permanently deleted' });
+  }
+
   // Diagnostic: list every tenant + its owner login, to confirm isolation.
   if (q.action === 'tenants') {
     const companies = await rest0('company?select=id,slug,name,trade,plan,created_at&order=created_at.asc');

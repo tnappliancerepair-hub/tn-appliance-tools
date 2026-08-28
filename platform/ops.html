@@ -79,6 +79,11 @@
   .hl{font-size:12.5px;color:var(--muted);text-transform:capitalize}
   .owner{font-size:12px;color:var(--dim)}
   .trade{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;text-transform:capitalize}
+  td.acts{text-align:right;white-space:nowrap}
+  .mini{font-size:12px;font-weight:700;padding:5px 10px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);margin-left:6px}
+  .mini:hover{color:var(--ink);border-color:var(--dim)}
+  .mini.danger{color:#ff9a9a;border-color:rgba(255,90,90,.35);background:rgba(255,90,90,.08)}
+  .mini.danger:hover{color:#fff;background:rgba(255,90,90,.2)}
 
   .gate{max-width:400px;margin:16vh auto;padding:26px;background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
   .gate h1{margin:0 0 6px;font-size:20px}
@@ -143,13 +148,23 @@
     var rows = clients.slice().sort(function(a,b){ return (order[a.health]||9)-(order[b.health]||9); }).map(function(c){
       var cls=(c.slug==='tn-appliance'?'flagship ':'')+(c.status==='churned'?'left':'');
       var owner = c.owner_name || (c.owner_email||'').split('@')[0] || '—';
+      var last, acts='';
+      if (c.status==='churned'){
+        last = 'left '+ago(c.churned_at) + (c.purge_eligible ? ' · <span class="v-red">ready to purge</span>' : ' · purge in '+c.purge_in_days+'d');
+        acts = '<button class="mini" data-act="reactivate" data-slug="'+esc(c.slug)+'" data-name="'+esc(c.name)+'">Reactivate</button>' +
+               (c.purge_eligible ? '<button class="mini danger" data-act="purge" data-slug="'+esc(c.slug)+'" data-name="'+esc(c.name)+'">🗑 Purge</button>' : '');
+      } else {
+        last = ago(c.last_activity);
+        if (c.slug!=='tn-appliance') acts = '<button class="mini" data-act="offboard" data-slug="'+esc(c.slug)+'" data-name="'+esc(c.name)+'">Offboard</button>';
+      }
       return '<tr class="'+cls.trim()+'">'+
         '<td class="nm">'+esc(c.name)+'<div class="owner">'+esc(owner)+'</div></td>'+
         '<td><span class="trade">'+esc(c.trade||'—')+'</span></td>'+
         '<td><span class="chip s-'+c.status+'">'+esc(c.status)+'</span></td>'+
         '<td><span class="hdot h-'+c.health+'"></span><span class="hl">'+(HL[c.health]||c.health)+'</span></td>'+
         '<td class="r">'+joined(c.created_at)+'</td>'+
-        '<td class="r">'+(c.status==='churned'? ('left '+ago(c.churned_at)) : ago(c.last_activity))+'</td>'+
+        '<td class="r">'+last+'</td>'+
+        '<td class="acts">'+acts+'</td>'+
       '</tr>';
     }).join('');
 
@@ -162,13 +177,40 @@
         '<div class="kpis">'+kpis+'</div>'+
         '<div class="sec">Client roster ('+clients.length+')</div>'+
         '<div class="card"><div class="tblwrap"><table>'+
-          '<thead><tr><th>Client</th><th>Trade</th><th>Status</th><th>Health</th><th class="r">Joined</th><th class="r">Last active</th></tr></thead>'+
+          '<thead><tr><th>Client</th><th>Trade</th><th>Status</th><th>Health</th><th class="r">Joined</th><th class="r">Last active</th><th></th></tr></thead>'+
           '<tbody>'+rows+'</tbody>'+
         '</table></div></div>'+
         '<div class="sand">🧪 '+t.test+' test tenants (clones + demo) hidden — sandbox, not counted as clients.</div>'+
-        '<div class="note">This is your inventory of the shops you\'re helping — status, health, and when each last used the system. It never shows a shop\'s customers or money. A client that goes 30+ days quiet is flagged so you can reach out before they drift.</div>'+
+        '<div class="note">This is your inventory of the shops you\'re helping — status, health, and when each last used the system. It never shows a shop\'s customers or money. A client that goes 30+ days quiet is flagged so you can reach out before they drift. When a client leaves, <b>Offboard</b> marks them gone and cuts their logins but keeps their data <b>'+(t.retention_days||30)+' days</b>; after that a <b>🗑 Purge</b> button appears to delete it for good (always with a confirm — nothing auto-deletes).</div>'+
       '</div>';
     document.getElementById('rf').onclick=load;
+    var body=document.querySelector('tbody');
+    if(body) body.addEventListener('click', function(e){
+      var b=e.target.closest('button[data-act]'); if(!b) return;
+      lifecycle(b.getAttribute('data-act'), b.getAttribute('data-slug'), b.getAttribute('data-name'), b);
+    });
+  }
+
+  function lifecycle(action, slug, name, btn){
+    var secret = localStorage.getItem(KEY) || '';
+    var url = '/.netlify/functions/platform-provision?secret='+encodeURIComponent(secret)+'&slug='+encodeURIComponent(slug);
+    if(action==='offboard'){
+      if(!confirm('Offboard '+name+'?\n\nThey’ll be marked as Left and their logins revoked. All their data is KEPT for 30 days (you can Reactivate anytime in that window).')) return;
+      var reason = prompt('Reason they left (optional):','') || '';
+      url += '&action=offboard&reason='+encodeURIComponent(reason);
+    } else if(action==='reactivate'){
+      if(!confirm('Reactivate '+name+'? They’ll be able to log in again and drop back onto your roster as active.')) return;
+      url += '&action=reactivate';
+    } else if(action==='purge'){
+      if(!confirm('⚠️ PERMANENTLY DELETE all of '+name+'’s data?\n\nJobs, customers, invoices, techs, logins — everything. This CANNOT be undone.')) return;
+      if(prompt('Type the shop name to confirm deletion:','') !== name){ alert('Name didn’t match — nothing deleted.'); return; }
+      url += '&action=purge&confirm=yes';
+    } else { return; }
+    if(btn){ btn.disabled=true; btn.textContent='…'; }
+    fetch(url).then(function(r){return r.json();}).then(function(d){
+      if(!d || !d.ok){ alert('Failed: '+((d&&d.error)||'unknown')); if(btn){btn.disabled=false;} return; }
+      load();
+    }).catch(function(e){ alert('Network error: '+e.message); if(btn){btn.disabled=false;} });
   }
 
   load();
