@@ -1,0 +1,73 @@
+/* plans.js — the ONE plan/module catalog for the Ant platform. This is the à-la-carte
+   builder as data: shops pick a base tier + optional add-ons; each carries the `features`
+   it unlocks (the same jsonb bool map the surfaces already gate on) and a Stripe Price ID
+   pulled from config (empty until created in Stripe). Loads in the browser (window.PlatformPlans)
+   and in Node (module.exports) so signup, billing, and the webhook all read the same source.
+
+   PRICES ARE PLACEHOLDERS — the owner sets the real numbers before go-live. Nothing here
+   charges anyone; the price shown is display-only. The Stripe Price ID (set at flip-to-live)
+   is what actually bills. */
+(function (root) {
+  'use strict';
+
+  // Base tiers — a shop picks exactly one. Higher tiers include everything below them.
+  var PLANS = [
+    {
+      key: 'answering',
+      label: 'Ann — AI Answering',
+      blurb: 'Ann answers 24/7, captures every lead, texts you the job. Your phone never goes to voicemail again.',
+      price_cents: 9900,                 // PLACEHOLDER — owner sets
+      price_env: 'STRIPE_PRICE_ANSWERING',
+      features: { phones: true }
+    },
+    {
+      key: 'office',
+      label: 'Full Office Platform',
+      blurb: 'Everything in Answering, plus the job board, scheduling, customer portal, invoicing, and the tech pay spine — one system your whole shop runs on.',
+      price_cents: 29900,                // PLACEHOLDER — owner sets
+      price_env: 'STRIPE_PRICE_OFFICE',
+      features: { phones: true, database: true, scheduling: true, portal: true, invoicing: true, pay: true, usage_digest: true }
+    }
+  ];
+
+  // Add-ons — a shop can stack any of these on top of its base tier.
+  var ADDONS = [
+    {
+      key: 'own_area',
+      label: 'Own Your Area',
+      blurb: "We won't sign another shop in your territory. Exclusive rights to your service area.",
+      price_cents: 19900,                // PLACEHOLDER — owner sets
+      price_env: 'STRIPE_PRICE_OWN_AREA',
+      features: { exclusive_territory: true }
+    },
+    {
+      key: 'local_seo',
+      label: 'Local SEO / Connect Google',
+      blurb: 'Ant runs your Google Business Profile — auto-posts, review replies, screened job photos, Q&A.',
+      price_cents: 14900,                // PLACEHOLDER — owner sets
+      price_env: 'STRIPE_PRICE_LOCAL_SEO',
+      features: { local_seo: true }
+    }
+  ];
+
+  // Union the features across a base plan + selected add-ons → the jsonb map company.features holds.
+  function featuresFor(planKey, addonKeys) {
+    var out = {};
+    var p = PLANS.filter(function (x) { return x.key === planKey; })[0];
+    if (p) Object.keys(p.features).forEach(function (k) { out[k] = true; });
+    (addonKeys || []).forEach(function (ak) {
+      var a = ADDONS.filter(function (x) { return x.key === ak; })[0];
+      if (a) Object.keys(a.features).forEach(function (k) { out[k] = true; });
+    });
+    return out;
+  }
+
+  function byKey(key) {
+    return PLANS.filter(function (x) { return x.key === key; })[0] ||
+           ADDONS.filter(function (x) { return x.key === key; })[0] || null;
+  }
+
+  var api = { PLANS: PLANS, ADDONS: ADDONS, featuresFor: featuresFor, byKey: byKey };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (root) root.PlatformPlans = api;
+})(typeof window !== 'undefined' ? window : null);
