@@ -15,6 +15,7 @@ const MGMT = 'https://api.supabase.com/v1';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function refFromUrl(u) { const m = String(u || '').match(/https?:\/\/([a-z0-9]+)\.supabase\.co/i); return m ? m[1] : ''; }
+exports.config = { timeout: 26 };
 function fixedFrom(outcome) {
   const o = String(outcome || '').toLowerCase();
   if (/fix|complet|repair|done/.test(o)) return true;
@@ -62,7 +63,7 @@ exports.handler = async function (event) {
       const r = await fetch(`${MGMT}/projects/${opsRef}/database/query`, {
         method: 'POST', headers: { Authorization: 'Bearer ' + mgmt, 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: TN_SQL + '\nselect count(*) as tn_total from public.brain_outcome where source=\'tn\';' }),
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(15000),
       });
       const d = await r.json().catch(() => null);
       out.tn = { ran: r.ok, tn_total: Array.isArray(d) && d[0] ? d[0].tn_total : null };
