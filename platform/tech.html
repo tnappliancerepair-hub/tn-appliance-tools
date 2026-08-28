@@ -17,7 +17,7 @@
   :root{
     --bg:#f6f7f4; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
     --brand:#3f8f24; --brand-ink:#fff; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 6px 18px rgba(20,30,10,.06);
-    --new:#6b7280; --scheduled:#2563eb; --in_progress:#b45309; --awaiting_parts:#7c3aed; --completed:#3f8f24; --canceled:#9ca3af;
+    --new:#6b7280; --scheduled:#2f6bff; --in_progress:#f59e0b; --awaiting_parts:#8b5cf6; --completed:#12c256; --canceled:#9ca3af;
   }
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
     --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a;
@@ -93,6 +93,8 @@
 
 <script src="/platform/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/ant-sounds.js"></script>
+<script src="/ant-celebrate.js"></script>
 <script>
 (function () {
   var app = document.getElementById('app');
@@ -139,7 +141,15 @@
   }
 
   function setStatus(jobId, status){
-    sb.from('job').update({ status: status }).eq('id', jobId).then(function(r){ if(!r.error) loadJobs(); });
+    sb.from('job').update({ status: status }).eq('id', jobId).then(function(r){ if(!r.error){ if(status==='completed') partyJobDone(jobId); loadJobs(); } });
+  }
+
+  // 🎉 Job-done celebration — the dopamine pop, same as TN. Fires on any complete.
+  function partyJobDone(jobId){
+    if(!window.antCelebrate) return;
+    var job = jobsCache.filter(function(x){return String(x.id)===String(jobId);})[0] || {};
+    var nm = (job.customer && ((job.customer.first_name||'')+' '+(job.customer.last_name||'')).trim()) || (job.unit&&job.unit.label) || '';
+    try{ window.antCelebrate({ tag:'Job complete', big:'JOB DONE! 🎉', sub:nm, cue:'win', sound:'both' }); }catch(_){ }
   }
 
   // Save the completion report (TDR) — the brain-food. Upsert one per job, then move the
@@ -160,7 +170,7 @@
     sb.from('job_tdr').upsert(row, { onConflict: 'job_id' }).then(function(r){
       if (r.error){ if(btn){btn.disabled=false;btn.textContent='Save report + finish';} return; }
       var newStatus = outcome === 'return_needed' ? 'awaiting_parts' : 'completed';
-      sb.from('job').update({ status: newStatus }).eq('id', id).then(function(){ loadJobs(); });
+      sb.from('job').update({ status: newStatus }).eq('id', id).then(function(){ if(newStatus==='completed') partyJobDone(id); loadJobs(); });
     });
   }
 
