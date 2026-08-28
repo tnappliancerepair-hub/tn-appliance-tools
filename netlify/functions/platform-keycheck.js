@@ -7,7 +7,6 @@
 const { getSecret } = require('./_lib/secrets');
 const tc = require('./_lib/tenant-creds');
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
-const FAKE_CO = 'deadbeef-0000-4000-8000-000000000001'; // not a real tenant
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
 exports.handler = async function (event) {
@@ -18,11 +17,11 @@ exports.handler = async function (event) {
   const base = ((await getSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
   const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
+  // a RANDOM throwaway company each run, so the in-memory DEK cache can't short-circuit the
+  // fresh mint (that's what returned kek_v=null before).
+  const FAKE_CO = require('crypto').randomUUID();
 
   try {
-    // clean any prior throwaway row so we mint fresh (proves the CURRENT KEK is used)
-    await fetch(`${base}/rest/v1/tenant_keyring?company_id=eq.${FAKE_CO}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(9000) });
-
     // mint + wrap a fresh DEK, and round-trip a sample through it
     const enc = await tc.encryptCreds(FAKE_CO, { probe: 'keycheck' });
     const back = await tc.decryptCreds(FAKE_CO, enc.secret_enc, enc.enc_v);

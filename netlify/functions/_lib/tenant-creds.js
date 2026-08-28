@@ -6,12 +6,14 @@
 // getTenantVendorCreds() is what the shared vendor libs call to run automation AS a tenant.
 'use strict';
 const crypto = require('crypto');
-const { getSecret } = require('./secrets');
+const { getSecret, getSecretPreferVault } = require('./secrets');
 
 // ---- KEK (key-encryption key): from the vault, never the DB. Prefer a dedicated key; else
-// derive one from the admin secret. Tagged so we know which KEK wrapped each DEK (rotation). ----
+// derive one from the admin secret. Tagged so we know which KEK wrapped each DEK (rotation).
+// Read the dedicated key VAULT-FIRST (getSecretPreferVault) so a key added at runtime is picked
+// up immediately — getSecret caches the empty case, which would strand a just-added key. ----
 async function masterKEK(want) {
-  const ded = (await getSecret('INTEGRATION_ENC_KEY')) || '';
+  const ded = (await getSecretPreferVault('INTEGRATION_ENC_KEY')) || '';
   if ((want === 'ded' || (!want && ded)) && ded) {
     let b = /^[0-9a-f]{64}$/i.test(ded) ? Buffer.from(ded, 'hex') : Buffer.from(ded, 'base64');
     if (b.length !== 32) b = crypto.createHash('sha256').update(ded).digest();
