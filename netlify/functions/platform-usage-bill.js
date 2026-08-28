@@ -44,15 +44,25 @@ async function billTenant(pf, stripe, live, company, anchorMs) {
   out.over_text = Math.max(0, w.texts - A.included_texts);
   const weekEndUnix = Math.floor((meter.weekBoundsCT(anchorMs).endMs - 1) / 1000);
 
-  // Nothing over the buckets → nothing to report (base rides Stripe's own cycle).
-  if (out.over_min === 0 && out.over_text === 0) { out.result = 'within_allowance'; return out; }
+  const hasOver = out.over_min > 0 || out.over_text > 0;
 
-  if (!live) { out.result = 'would_bill'; out.would = { min: out.over_min, text: out.over_text }; return out; }
+  // SHADOW — show what we'd do; charge nothing.
+  if (!live) {
+    out.result = hasOver ? 'would_bill' : 'within_allowance';
+    if (hasOver) out.would = { min: out.over_min, text: out.over_text };
+    return out;
+  }
   if (!stripe) { out.result = 'stripe_not_configured'; return out; }
   if (!company.stripe_customer_id) { out.result = 'no_stripe_customer'; return out; }
 
+  // Ensure the Ann subscription EXISTS for every phone tenant (idempotent — no Stripe call after
+  // the first time). This is what makes the flat $50/week base bill on Stripe's own weekly cycle
+  // EVEN in weeks with no overage — so a shop that stays under 400 min / 100 texts still pays $50,
+  // never gets Ann free. The biller then only ADDS the overage on top.
   const ann = await billing.ensureAnnSubscription(pf, stripe, company);
   if (ann.error) { out.result = 'ann_sub_' + ann.error; return out; }
+  if (!hasOver) { out.result = 'base_only'; return out; } // sub carries the $50 base; nothing extra to report
+
   const cust = company.stripe_customer_id;
   const idBase = `${company.id}-${w.week_start}`;
   try {
