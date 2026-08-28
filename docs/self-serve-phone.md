@@ -138,9 +138,20 @@ text overage rate.
       always know where they stand and can pause before/after hitting 400.
 - [x] **Pause / resume toggle** — `platform-phone` `action=pause`/`resume` unbinds/re-binds the
       number so the owner can stop Ann (e.g. at the 400). *(Surface a button in owner.html next.)*
-- [ ] Stripe metered billing: report the weekly minutes/texts as usage records ($50/wk base +
-      $0.40/min overage). Verified rates say **400-min bucket = ~$14/wk margin at full usage
-      (chosen over 500 for margin).
+- [x] **Stripe metered billing — BUILT (shadow).** `platform-usage-bill.js` (core, owner-gated,
+      `?dry=1`) reads each tenant's LAST completed Mon–Sun week via `usage-meter.weeklyTelnyx()`,
+      computes overage (min over 400, texts over 500) and reports it as **Stripe usage records**
+      against the Ann metered subscription items. `platform-billing.ensureAnnSubscription()` stands
+      up the tenant's Ann subscription on first bill: a **weekly $50 flat base** + two
+      **`usage_type:'metered'`** items ($0.40/min, $0.02/text overage) — item ids stored on
+      `settings.phone.ann`. `platform-usage-bill-cron.js` fires it **Mondays 15:00 UTC** (prior week
+      fully closed). **SHADOW until `PLATFORM_BILLING_LIVE=true`** — computes + returns what it WOULD
+      bill, charges nothing; also no-ops when Stripe isn't configured. Base rides Stripe's own weekly
+      cycle; this only reports the OVERAGE (`action:'set'` = idempotent per week).
+- [ ] **To go live:** create the 3 recurring **weekly** Stripe prices (flat base + 2 metered
+      overage) and vault `STRIPE_PRICE_ANN_BASE` / `STRIPE_PRICE_ANN_MIN_OVERAGE` /
+      `STRIPE_PRICE_ANN_TEXT_OVERAGE` (else ephemeral test prices are created), set
+      `PLATFORM_STRIPE_SECRET_KEY` (or reuse `STRIPE_SECRET_KEY`), then `PLATFORM_BILLING_LIVE=true`.
 
 ## Original checklist (reference)
 

@@ -67,7 +67,20 @@
            ADDONS.filter(function (x) { return x.key === key; })[0] || null;
   }
 
-  var api = { PLANS: PLANS, ADDONS: ADDONS, featuresFor: featuresFor, byKey: byKey };
+  // The Ann phone plan — metered (separate from the flat software tiers above). $50/week base
+  // + 400 included minutes + 500 included texts, overage $0.40/min and $0.02/text. Billed by
+  // reporting each completed week's overage as Stripe usage records (platform-usage-bill).
+  // Stripe setup: create 3 recurring WEEKLY prices — a flat base + two metered (usage_type
+  // 'metered') for minute + text overage — and vault their ids under the price_env keys.
+  var ANN = {
+    base_cents: 5000, period: 'week', included_min: 400, included_texts: 500,
+    overage_min_cents: 40, overage_text_cents: 2,
+    price_env_base: 'STRIPE_PRICE_ANN_BASE',
+    price_env_min_overage: 'STRIPE_PRICE_ANN_MIN_OVERAGE',
+    price_env_text_overage: 'STRIPE_PRICE_ANN_TEXT_OVERAGE',
+  };
+
+  var api = { PLANS: PLANS, ADDONS: ADDONS, ANN: ANN, featuresFor: featuresFor, byKey: byKey };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.PlatformPlans = api;
 })(typeof window !== 'undefined' ? window : null);
