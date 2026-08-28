@@ -74,6 +74,45 @@ async function findCompanyId(pf, sub, session) {
   return null;
 }
 
+const SITE = 'https://tnapplianceexchange.net';
+const provision = require('./platform-provision');
+
+// Stand up a tenant from the checkout metadata (called after the card clears), stamp the new
+// company_id onto the Stripe subscription so later subscription.* events map, and email the
+// owner a one-tap login link. Returns the new company_id (or null on failure).
+async function provisionFromMeta(pf, stripe, sub, meta) {
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  const email = String(meta.email || '').trim().toLowerCase();
+  const slug = String(meta.slug || '').trim();
+  if (!slug || !email) return null;
+  const pev = { queryStringParameters: {
+    secret: admin, slug, name: meta.name || slug, trade: meta.trade || 'appliance',
+    plan: meta.plan || 'office', owner_email: email, owner_name: meta.owner_name || '', owner_phone: meta.owner_phone || '',
+  } };
+  let pd = {};
+  try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
+  if (!pd.ok || !pd.company) { console.error('[platform-stripe-webhook] provision failed', pd && pd.error); return null; }
+  const companyId = pd.company.id;
+  // Stamp the subscription so subscription.updated/deleted map back to this company.
+  try { await stripe.subscriptions.update(sub.id, { metadata: Object.assign({}, meta, { company_id: companyId }) }); } catch (_) {}
+  // Email the owner a magic login link (best-effort; dry unless EMAIL_ENABLED).
+  try {
+    const mev = { queryStringParameters: { secret: admin, action: 'magiclink', email, redirect: `${SITE}/platform/owner.html` } };
+    const md = JSON.parse((await provision.handler(mev)).body || '{}');
+    const link = md.login_link || '';
+    const shared = await getSecret('EMAIL_SHARED_SECRET');
+    if (link && shared) {
+      await fetch(`${SITE}/.netlify/functions/send-email`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Internal-Auth': shared },
+        body: JSON.stringify({ to: email, subject: 'Your Ant dashboard is ready',
+          body: `Welcome to Ant, ${meta.name || slug}!\n\nYour shop is set up and your 14-day trial is running. Tap to sign in:\n${link}\n\nAny questions, just reply.` }),
+        signal: AbortSignal.timeout(9000),
+      });
+    }
+  } catch (_) {}
+  return companyId;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
@@ -118,7 +157,15 @@ exports.handler = async function (event) {
       sub = ev.data.object; // subscription.* events carry the subscription
     }
 
-    const companyId = await findCompanyId(pf, sub, session);
+    let companyId = await findCompanyId(pf, sub, session);
+
+    // PROVISION-ON-PAYMENT: a self-serve signup checkout completed and no tenant exists yet.
+    // Stand up the shop now (card has cleared), then map the subscription to it.
+    const meta = (sub && sub.metadata) || (session && session.metadata) || {};
+    if (!companyId && ev.type === 'checkout.session.completed' && String(meta.company_provision) === '1') {
+      companyId = await provisionFromMeta(pf, stripe, sub, meta);
+    }
+
     if (!companyId) {
       console.error('[platform-stripe-webhook] no company match for', ev.type, sub && sub.id);
       return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no_company_match' }) };
