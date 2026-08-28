@@ -159,7 +159,7 @@
   function load(){
     shell('<div class="skel" style="padding:30px 4px">Crunching…</div>');
     // RLS scopes both queries to this company — we never pass company_id.
-    var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents').limit(3000);
+    var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents,customer:customer_id(first_name,last_name)').limit(3000);
     var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,collected_cents,status,paid_at,created_at').limit(3000);
     var techP = sb.from('technician').select('id,name,active,commission_type,commission_pct,commission_flat_cents').limit(200);
     var payP  = sb.from('tech_payout').select('technician_id,job_id,amount_cents,paid_at').limit(5000);
@@ -222,6 +222,38 @@
       }).join('')+'</tbody></table></div>'
     ) : '';
 
+    // 🔎 RECONCILE — audit the money that MOVED against what the rules SAY should have moved.
+    // Hands the owner only the exceptions (or one green "balanced" line). Same ledger, no guess.
+    var recExc=[], nowMs=Date.now();
+    function custName(j){ var c=j.customer; return c?(((c.first_name||'')+' '+(c.last_name||'')).trim()||'Customer'):'Customer'; }
+    // A. self-pay customer hasn't paid (a warranty invoice sitting unpaid is normal — it waits on the vendor)
+    jobs.forEach(function(j){
+      var iv=invByJob[j.id]; if(!iv) return;
+      var unpaid=(iv.total_cents||0)-(iv.collected_cents||0); if(unpaid<=0) return;
+      if(j.warranty_company) return;
+      var ageD=iv.created_at?Math.floor((nowMs-Date.parse(iv.created_at))/864e5):0;
+      if(iv.status!=='paid' && ageD>=21) recExc.push({msg:'💵 '+esc(custName(j))+' hasn’t paid — '+USD(unpaid)+', '+ageD+' days out'});
+    });
+    // B. a tech was paid MORE than the rules say he earned on collected jobs (double/override payout)
+    Object.keys(payAgg).forEach(function(id){ var a=payAgg[id]; if(a.paid > a.collectible+50) recExc.push({msg:'⚠️ '+esc(techById[id]?techById[id].name:'Tech')+' paid '+USD(a.paid)+' but rules earned-collected '+USD(a.collectible)+' — '+USD(a.paid-a.collectible)+' over'}); });
+    // C. money collected 14+ days ago but the tech still hasn't been paid out (a missed payout)
+    completed.forEach(function(j){
+      var iv=invByJob[j.id]; if(!iv || !j.technician_id) return;
+      var rule=window.PayCalc.ruleFor(techById[j.technician_id], compDef);
+      var pj=window.PayCalc.jobPay(j, iv, rule, paidByTechJob[j.technician_id+'|'+j.id]||0);
+      if(pj.owed_now_cents>0 && iv.paid_at){ var ageD=Math.floor((nowMs-Date.parse(iv.paid_at))/864e5); if(ageD>=14) recExc.push({msg:'📌 '+esc(techById[j.technician_id]?techById[j.technician_id].name:'Tech')+' owed '+USD(pj.owed_now_cents)+' — collected '+ageD+' days ago, not paid out'}); }
+    });
+    // warranty context (informational, not an exception): the expected haircut + what's still owed by vendors
+    var warrShort=0, awaitWarr=0, awaitN=0;
+    jobs.forEach(function(j){ if(!j.warranty_company) return; var iv=invByJob[j.id]; if(!iv||!(iv.total_cents>0)) return; if(iv.status==='paid'){ var s=iv.total_cents-(iv.collected_cents||0); if(s>0) warrShort+=s; } else { awaitWarr+=(iv.total_cents-(iv.collected_cents||0)); awaitN++; } });
+    var reconcileSection =
+      '<div class="sec">🔎 Reconcile <span class="lock">🔒 owner only</span></div>'+
+      (recExc.length===0
+        ? '<div class="money" style="border-left:3px solid #12a150"><div class="row"><span class="k">✅ This period balances</span><span class="v">nothing to review</span></div></div>'
+        : '<div class="money" style="border-left:3px solid #c77700">'+recExc.map(function(e){ return '<div class="row"><span class="k">'+e.msg+'</span></div>'; }).join('')+'</div>')+
+      ((warrShort>0||awaitN>0)? '<div class="note">'+(warrShort>0?'Warranty shortfall this period: '+USD(warrShort)+' (expected — vendors pay less than billed). ':'')+(awaitN>0?'Awaiting warranty payment: '+USD(awaitWarr)+' across '+awaitN+' job'+(awaitN===1?'':'s')+'.':'')+'</div>':'')+
+      '<div class="note">Checks the money that actually moved against what your rules say should have — so YOU catch any drift, not a tech.</div>';
+
     // Per-tech watch table (owner-only): jobs, completed, first-stop %, condemn %, reassign %.
     var techName={}; (techs||[]).forEach(function(t){ techName[t.id]=t.name; });
     var agg={};
@@ -282,6 +314,7 @@
         ? '<div class="note">No invoices in this window yet. As jobs get billed on the platform, billed / collected / owed-to-techs / take-home fill in here automatically — from the same invoice, entered once.</div>'
         : '<div class="note">From '+invWin.length+' invoice'+(invWin.length===1?'':'s')+'. Take-home is collected revenue minus the techs’ collected cut; parts cost + overhead land here as those get captured.</div>')+
       (payTable ? '<div class="sec">Tech pay <span class="lock">🔒 owner only</span></div>'+payTable+'<div class="note">Earned = cut if it pays in full · Collected = invoice paid · Owed now = collected but not yet paid out. All from the job’s invoice + this tech’s commission rule.</div>' : '')+
+      reconcileSection+
       commissionEditor(techs, compDef);
     shell(body);
     bindCommission();
