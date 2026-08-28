@@ -13,7 +13,9 @@ const { getSecret, getSecretPreferVault } = require('./secrets');
 // Read the dedicated key VAULT-FIRST (getSecretPreferVault) so a key added at runtime is picked
 // up immediately — getSecret caches the empty case, which would strand a just-added key. ----
 async function masterKEK(want) {
-  const ded = (await getSecretPreferVault('INTEGRATION_ENC_KEY')) || '';
+  // .trim() defends against a stray space/newline on paste (same reason the vendor connectors
+  // trim their creds). Harmless now (0 DEKs wrapped) and future-proofs any re-paste.
+  const ded = ((await getSecretPreferVault('INTEGRATION_ENC_KEY')) || '').trim();
   if ((want === 'ded' || (!want && ded)) && ded) {
     let b = /^[0-9a-f]{64}$/i.test(ded) ? Buffer.from(ded, 'hex') : Buffer.from(ded, 'base64');
     if (b.length !== 32) b = crypto.createHash('sha256').update(ded).digest();

@@ -26,6 +26,11 @@ exports.handler = async function (event) {
     //     64 = a hex key present; 0 = absent/not resolving). This is independent of the DB.
     const kekVal = (await getSecretPreferVault('INTEGRATION_ENC_KEY')) || '';
     const kekLen = kekVal.length;
+    // definitive whitespace check (non-secret booleans): is it EXACTLY 64 hex chars, and does
+    // trimming change it (i.e. did a stray space/newline get pasted)?
+    const kekCleanHex = /^[0-9a-f]{64}$/i.test(kekVal);
+    const kekHadWhitespace = kekVal !== kekVal.trim() || /\s/.test(kekVal);
+    const kekTrimmedCleanHex = /^[0-9a-f]{64}$/i.test(kekVal.trim());
 
     // (2) can the service key WRITE the keyring? direct probe insert (separate co) + cleanup.
     let keyringWrite = 'unknown', keyringWriteStatus = 0;
@@ -49,6 +54,9 @@ exports.handler = async function (event) {
       ok: true,
       integration_enc_key_present: dedicated,
       kek_resolved_len: kekLen,              // 64 = present (hex); 0 = not resolving
+      kek_clean_hex: kekCleanHex,            // true = exactly 64 hex chars, no stray space
+      kek_had_whitespace: kekHadWhitespace,  // true = a space/newline got pasted in
+      kek_ok_after_trim: kekTrimmedCleanHex, // true = trimming fixes it (masterKEK trims anyway)
       kek_source: kekSource,                 // 'ded' = dedicated; 'kdf1' = derived fallback; null = keyring not written
       keyring_write: keyringWrite,           // 'ok' or the PostgREST error
       keyring_write_status: keyringWriteStatus,
