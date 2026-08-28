@@ -78,7 +78,8 @@ exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
   const whSecret = await getSecret('PLATFORM_STRIPE_WEBHOOK_SECRET');
-  const key = (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await getSecret('STRIPE_SECRET_KEY')) || '';
+  // ONLY the dedicated platform key — never TN's live customer-payment STRIPE_SECRET_KEY.
+  const key = (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || '';
   if (!whSecret || !key) {
     console.error('[platform-stripe-webhook] missing PLATFORM_STRIPE_WEBHOOK_SECRET or stripe key');
     return { statusCode: 500, body: JSON.stringify({ error: 'not configured' }) };

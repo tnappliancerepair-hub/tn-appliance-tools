@@ -26,7 +26,9 @@ function J(code, body) {
 }
 
 async function stripeKey() {
-  return (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await getSecret('STRIPE_SECRET_KEY')) || '';
+  // ONLY the dedicated platform key — never TN's live customer-payment STRIPE_SECRET_KEY.
+  // Keeps SaaS revenue isolated and makes the whole billing path inert until this is set.
+  return (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || '';
 }
 
 // Resolve a module (plan or add-on) to a Stripe recurring Price id. Prefer a real vaulted
@@ -58,10 +60,10 @@ exports.handler = async function (event) {
   const action = String(body.action || q.action || '').toLowerCase();
   const companyId = body.company_id || q.company_id || '';
 
-  // Owner gate
+  // Owner gate (same fallback provision uses — the vault key can cold-miss)
   const secret = body.secret || q.secret || '';
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || (await getSecret('ADMIN_SECRET')) || '';
-  if (!admin || secret !== admin) return J(401, { ok: false, error: 'unauthorized' });
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || (await getSecret('ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  if (secret !== admin) return J(401, { ok: false, error: 'unauthorized' });
 
   const pf = await platform();
   if (!pf) return J(200, { ok: false, error: 'platform_not_configured' });
