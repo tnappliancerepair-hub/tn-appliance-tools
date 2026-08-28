@@ -73,12 +73,21 @@ exports.handler = async function (event) {
   // ---- B) Platform sweep (cross-DB: read Platforms job_tdr -> write ANT OPS) ----
   if (platUrl && platKey && opsUrl && opsKey) {
     try {
+      // exclude test/demo tenants (no junk in the real brain) + the tn-appliance platform
+      // company (TN already contributes via the eval harness — no double-counting).
+      const exclude = new Set();
+      try {
+        const cr = await fetch(`${platUrl}/rest/v1/company?select=id,status,slug&or=(status.eq.test,slug.eq.tn-appliance)`,
+          { headers: { apikey: platKey, Authorization: 'Bearer ' + platKey }, signal: AbortSignal.timeout(8000) });
+        if (cr.ok) (await cr.json().catch(() => [])).forEach((c) => exclude.add(String(c.id)));
+      } catch (_) {}
       const sel = 'company_id,job_id,appliance,brand,model,failed_component,part_number,outcome';
       const filt = 'or=(failed_component.not.is.null,part_number.not.is.null)';
       const r = await fetch(`${platUrl}/rest/v1/job_tdr?${filt}&select=${sel}&order=updated_at.desc&limit=1000`,
         { headers: { apikey: platKey, Authorization: 'Bearer ' + platKey }, signal: AbortSignal.timeout(12000) });
       const rows = r.ok ? (await r.json().catch(() => [])) : [];
       const corpusRows = rows
+        .filter((t) => !exclude.has(String(t.company_id)))
         .filter((t) => (t.failed_component && String(t.failed_component).trim()) || (t.part_number && String(t.part_number).trim()))
         .map((t) => ({
           source: 'platform',
