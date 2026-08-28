@@ -138,7 +138,7 @@ function render(c) {
   </form>
 </div></section>
 
-<footer>${esc(name)}${locale ? ' · ' + esc(locale) : ''}${num ? ' · ' + esc(disp) : ''}<br><span style="font-size:11px;opacity:.7">Powered by 🐜 Ant</span></footer>
+<footer>${esc(name)}${locale ? ' · ' + esc(locale) : ''}${num ? ' · ' + esc(disp) : ''}<br><span style="font-size:11px;opacity:.7">Powered by 🐜 AssistAnt 24/7</span></footer>
 ${num ? `<div class="callbar"><a class="c" href="tel:${tel}">📞 Call</a><a class="t" href="sms:${tel}">💬 Text</a></div>` : ''}
 <script>
 function sub(e){e.preventDefault();var b=document.getElementById('b'),m=document.getElementById('m');b.disabled=true;b.textContent='Sending…';m.className='msg';

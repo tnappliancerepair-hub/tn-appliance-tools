@@ -1,6 +1,6 @@
-# Facebook launch pack — Assistant 24/7 (paste-and-go)
+# Facebook launch pack — AssistAnt 24/7 (paste-and-go)
 
-**Brand: Assistant 24/7** — the AI that never clocks out. Domain: **assistant247.net** (each shop's site sits
+**Brand: AssistAnt 24/7** — the AI that never clocks out. Domain: **assistant247.net** (each shop's site sits
 at `theirshop.assistant247.net`). Everything to stand up the Facebook page + first ad campaign to find
 repair-shop owners. Audience = **shop OWNERS** (B2B), not homeowners. Destination = the marketing
 front door (`home.html` → `signup.html`). Prices/claims here match what's live: $99/mo flat Full
@@ -10,7 +10,7 @@ Office + $50/wk Ann, website + Google + reviews included, 14-day free trial (car
 
 ## 1) The Facebook Page
 
-- **Name:** `Assistant 24/7`
+- **Name:** `AssistAnt 24/7`
 - **Username:** `@assistant247` (or `@getassistant247` / `@assistant247net` if taken)
 - **Category:** Software Company (secondary: Business Service)
 - **Profile photo:** the green 🐜 Ant logo
@@ -22,7 +22,7 @@ Office + $50/wk Ann, website + Google + reviews included, 14-day free trial (car
 ### Pinned post (first thing on the page)
 > **Repair shop owners: stop losing jobs to voicemail.** 📞
 >
-> Assistant 24/7 is an AI receptionist that answers your phone around the clock, captures every lead, and texts you the job — plus a website we build for you and Google reviews that run themselves.
+> AssistAnt 24/7 is an AI receptionist that answers your phone around the clock, captures every lead, and texts you the job — plus a website we build for you and Google reviews that run themselves.
 >
 > One flat price for the whole shop (not per tech, like Housecall Pro or Jobber). We built it to run our own appliance business — now you can run yours on it, day and night.
 >
@@ -42,14 +42,14 @@ Office + $50/wk Ann, website + Google + reviews included, 14-day free trial (car
 
 ### Ad A — Pain-led (lead with the missed call)
 - **Primary text:**
-  > You're under a machine, not by the phone — and every call that hits voicemail is a job that went to the next shop. Assistant 24/7 is an AI receptionist that answers 24/7, captures the lead, and texts you the job. Plus a website we build you and Google reviews on autopilot. One flat price for the whole shop. Free for 14 days.
+  > You're under a machine, not by the phone — and every call that hits voicemail is a job that went to the next shop. AssistAnt 24/7 is an AI receptionist that answers 24/7, captures the lead, and texts you the job. Plus a website we build you and Google reviews on autopilot. One flat price for the whole shop. Free for 14 days.
 - **Headline:** `Never miss a repair call again`
 - **Description:** `AI phone + website + reviews. One flat price. Free 14-day trial.`
 - **CTA button:** `Sign Up`
 
 ### Ad B — Cost-led (hit the per-seat pricing)
 - **Primary text:**
-  > Housecall Pro, Jobber, and Workiz charge you by the tech — then charge *extra* for an AI phone and a website. Assistant 24/7 is one flat price for the whole shop, and the AI receptionist + website + Google reviews come with it. Built by a real repair shop. See what you'd save — free for 14 days.
+  > Housecall Pro, Jobber, and Workiz charge you by the tech — then charge *extra* for an AI phone and a website. AssistAnt 24/7 is one flat price for the whole shop, and the AI receptionist + website + Google reviews come with it. Built by a real repair shop. See what you'd save — free for 14 days.
 - **Headline:** `Stop paying per tech`
 - **Description:** `Flat price. AI phone + website included. Free 14 days.`
 - **CTA button:** `Learn More`
