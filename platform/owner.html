@@ -302,6 +302,8 @@
       '</div>'+
       '<div class="sec">Per-tech <span class="lock">🔒 owner only</span></div>'+
       techTable+
+      '<div class="sec">Ann this week</div>'+
+      '<div id="annWeek"><div class="note">Loading…</div></div>'+
       '<div class="sec">This month</div>'+
       '<div id="usageCard"><div class="note">Loading your usage…</div></div>'+
       '<div class="sec">Money <span class="lock">🔒 owner only</span></div>'+
@@ -321,7 +323,28 @@
     shell(body);
     bindCommission();
     bindPayouts();
+    loadAnnWeek();
     loadUsage();
+  }
+
+  // Weekly (Mon–Sun) Ann usage vs the 500-minute allowance — accurate, read by number from
+  // Telnyx via platform-phone (authed with this owner's session token). Matches the daily email.
+  function loadAnnWeek(){
+    var el=document.getElementById('annWeek'); if(!el) return;
+    sb.auth.getSession().then(function(s){
+      var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+      return fetch('/.netlify/functions/platform-phone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'usage',access_token:tok})}).then(function(r){return r.json();});
+    }).then(function(d){
+      if(!d||!d.ok){ el.innerHTML='<div class="note">Usage shows here once your AI phone is on.</div>'; return; }
+      if(!d.has_phone){ el.innerHTML='<div class="note">Turn on your AI receptionist to start answering calls — your weekly usage will show here.</div>'; return; }
+      var p=Math.min(100,d.pct||0), col=d.over?'#d33c3c':(d.near?'#c77700':'#2f6bff');
+      el.innerHTML='<div class="money">'+
+        '<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:14px"><span>📞 Minutes <span style="color:var(--muted)">('+esc(d.week||'')+')</span></span><span style="font-variant-numeric:tabular-nums"><b>'+d.minutes+'</b> <span style="color:var(--muted)">of '+d.allowance_min+'</span></span></div>'+
+        '<div style="height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:5px"><div style="height:100%;width:'+p+'%;background:'+col+'"></div></div></div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:14px"><span>💬 Texts</span><span style="font-variant-numeric:tabular-nums"><b>'+d.texts+'</b></span></div>'+
+      '</div>'+
+      '<div class="note">'+(d.over?'⚠️ You’ve used all '+d.allowance_min+' minutes this week — Ann keeps answering, overage $0.40/min. Resets Monday.':(d.near?'⚠️ You’re at '+d.pct+'% of this week’s minutes. Resets Monday.':'You’re at '+d.pct+'% of this week’s minutes. Resets Monday.'))+(d.paused?' · Ann is currently paused.':'')+'</div>';
+    }).catch(function(){ el.innerHTML='<div class="note">Usage shows here once your line is active.</div>'; });
   }
 
   // "Mark paid" — records a tech_payout per collected-unpaid job (so the tech's 'paid' fills
