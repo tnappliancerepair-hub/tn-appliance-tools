@@ -152,6 +152,8 @@
     sb.from('company').select('id,name,settings').limit(1).then(function(r){
       if(r.error||!r.data||!r.data[0]){ renderSignIn('Could not load your shop.'); return; }
       companyId=r.data[0].id; shopName=r.data[0].name||'Your shop'; settings=r.data[0].settings||{};
+      // First login → guided setup wizard (unless they came back on purpose).
+      if(!settings.onboarded && !/[?&]setup=skip/.test(location.search)){ location.href='/platform/onboard.html'; return; }
       load();
     });
   }

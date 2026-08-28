@@ -1,0 +1,215 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Set up your shop — Ant</title>
+<style>
+  :root{
+    --bg:#f6f7f4; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
+    --brand:#3f8f24; --chip:#eef2e8;
+    --shadow:0 1px 2px rgba(20,30,10,.06),0 6px 20px rgba(20,30,10,.06);
+    --good:#3f8f24; --bad:#b91c1c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0f1310; --panel:#171c16; --ink:#eef2e8; --muted:#9aa595; --line:#28311f; --chip:#1e2519;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:600px;margin:0 auto;padding:20px 16px 64px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;padding:6px 2px 2px}
+  .brand .dot{width:28px;height:28px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
+  .dots{display:flex;gap:7px;margin:18px 2px 6px}
+  .dots i{height:6px;flex:1;border-radius:999px;background:var(--line)}
+  .dots i.on{background:var(--brand)}
+  h1{font-size:23px;margin:14px 2px 4px;letter-spacing:-.02em;text-wrap:balance}
+  .lede{color:var(--muted);margin:0 2px 14px;font-size:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:18px 18px 16px;margin-top:12px}
+  label.fld{display:block;font-weight:700;font-size:12.5px;margin:12px 2px 5px;color:var(--muted)}
+  input,textarea,select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:15px;font-family:inherit}
+  textarea{min-height:78px;resize:vertical}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
+  @media(max-width:520px){.row2,.row3{grid-template-columns:1fr}}
+  .checks label{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;margin-top:9px;cursor:pointer;font-weight:600;background:var(--bg)}
+  .checks input{width:auto;margin-top:3px;flex:none}
+  .nav{display:flex;gap:10px;margin-top:18px}
+  .btn{flex:1;padding:13px;border:0;border-radius:11px;font-weight:800;font-size:15px;cursor:pointer}
+  .btn.pri{background:var(--brand);color:#fff}
+  .btn.sec{background:transparent;border:1px solid var(--line);color:var(--muted);flex:0 0 auto;padding:13px 18px}
+  .btn:disabled{opacity:.5;cursor:default}
+  .phone{margin-top:14px;padding:15px 16px;border:1px solid color-mix(in srgb,var(--brand) 40%,var(--line));border-radius:13px;background:color-mix(in srgb,var(--brand) 6%,transparent)}
+  .phone h3{margin:0 0 4px;font-size:16px}
+  .phone p{margin:0 0 12px;color:var(--muted);font-size:13px}
+  .phone button{width:100%;padding:13px;border:0;border-radius:11px;background:var(--brand);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .phone .done{color:var(--good);font-weight:700;font-size:14px}
+  .techrow{display:flex;gap:8px;margin-top:9px}
+  .techrow input{flex:1}
+  .techrow button{flex:0 0 auto;padding:0 14px;border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:10px;font-weight:800;cursor:pointer}
+  .teamlist{margin-top:10px}
+  .teamlist .t{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:10px;margin-top:7px;font-weight:600}
+  .teamlist .t .x{color:var(--bad);cursor:pointer;font-weight:800;background:none;border:0}
+  .msg{margin-top:10px;font-size:13px;min-height:16px}
+  .msg.err{color:var(--bad)} .msg.ok{color:var(--good)}
+  .gate{max-width:380px;margin:12vh auto;text-align:center;color:var(--muted)}
+  .skip{display:block;text-align:center;margin-top:12px;color:var(--muted);font-size:12.5px;text-decoration:none}
+</style></head>
+<body><div class="wrap">
+  <div class="brand"><span class="dot">🐜</span><span id="brandName">Ant</span></div>
+
+  <div id="gate" class="gate" style="display:none">Sign in from your dashboard link to finish setup.</div>
+
+  <div id="flow" style="display:none">
+    <div class="dots"><i class="on"></i><i></i><i></i></div>
+    <div id="stepbox"></div>
+  </div>
+</div>
+
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var cfg = window.ANT_SUPABASE || {};
+  var sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+  var companyId=null, shopName='', settings={}, step=0, team=[];
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  function setDots(){ var d=document.querySelectorAll('.dots i'); d.forEach(function(el,i){el.classList.toggle('on',i<=step);}); }
+  function saveSettings(patch){
+    var next=Object.assign({}, settings, patch);
+    return sb.from('company').update({settings:next}).eq('id',companyId).then(function(r){ if(!r.error) settings=next; return r; });
+  }
+
+  // ---- Step 1: your shop ----
+  function step1(){
+    var b=settings.business||{};
+    document.getElementById('stepbox').innerHTML =
+      '<h1>Tell us about your shop</h1><p class="lede">This is what your customers and your AI see. You can change any of it later.</p>'+
+      '<div class="card">'+
+        '<label class="fld">Business phone</label><input id="f-phone" placeholder="(615) 555-0100" value="'+esc(b.phone||'')+'">'+
+        '<label class="fld">Address</label><input id="f-addr" placeholder="123 Main St" value="'+esc(b.address||'')+'">'+
+        '<div class="row3">'+
+          '<div><label class="fld">City</label><input id="f-city" value="'+esc(b.city||'')+'"></div>'+
+          '<div><label class="fld">State</label><input id="f-state" maxlength="2" value="'+esc(b.state||'')+'"></div>'+
+          '<div><label class="fld">ZIP</label><input id="f-zip" value="'+esc(b.zip||'')+'"></div>'+
+        '</div>'+
+        '<label class="fld">Service area</label><input id="f-area" placeholder="e.g. Nashville + 30 miles" value="'+esc(b.area||'')+'">'+
+        '<label class="fld">Business hours (for live transfers — your AI answers 24/7)</label><input id="f-hours" placeholder="Mon–Fri 8am–5pm" value="'+esc(b.hours||'')+'">'+
+        '<div class="nav"><button class="btn pri" id="next1">Next →</button></div>'+
+        '<div class="msg" id="m1"></div>'+
+      '</div>';
+    document.getElementById('next1').onclick=function(){
+      var biz={phone:val('f-phone'),address:val('f-addr'),city:val('f-city'),state:val('f-state'),zip:val('f-zip'),area:val('f-area'),hours:val('f-hours')};
+      var btn=this; btn.disabled=true; btn.textContent='Saving…';
+      saveSettings({business:Object.assign({name:shopName}, biz)}).then(function(r){
+        if(r.error){ msg('m1','Couldn’t save — try again.',true); btn.disabled=false; btn.textContent='Next →'; return; }
+        step=1; setDots(); step2();
+      });
+    };
+  }
+
+  // ---- Step 2: AI receptionist + phone CTA ----
+  function step2(){
+    var a=settings.ai||{};
+    var phoneState = a.phone_requested
+      ? '<div class="phone"><div class="done">✅ Your AI line is being set up — we’ll email you the moment it’s answering calls.</div></div>'
+      : '<div class="phone"><h3>🎙️ Get your Ant AI answering calls now</h3><p>We’ll set up a phone line and your AI receptionist answers 24/7 — captures every lead, texts you the job. No hardware, no setup.</p><button id="getphone">Turn on my AI receptionist →</button></div>';
+    document.getElementById('stepbox').innerHTML =
+      '<h1>Set up your AI receptionist</h1><p class="lede">Your AI answers the phone in your shop’s voice. Tell it what to say.</p>'+
+      '<div class="card">'+
+        '<label class="fld">What should your AI know about your shop?</label>'+
+        '<textarea id="a-about" placeholder="We’re a family appliance repair shop serving Nashville. We do warranty and cash work, most repairs same-week. We don’t do microwaves.">'+esc(a.about||'')+'</textarea>'+
+        '<label class="fld">What should callers be able to do?</label>'+
+        '<div class="checks">'+
+          '<label><input type="checkbox" id="a-book"'+(a.can_book!==false?' checked':'')+'> Book / request an appointment</label>'+
+          '<label><input type="checkbox" id="a-status"'+(a.can_status!==false?' checked':'')+'> Check on an existing job</label>'+
+          '<label><input type="checkbox" id="a-msg"'+(a.can_message!==false?' checked':'')+'> Leave a message for the office</label>'+
+        '</div>'+
+        phoneState+
+        '<div class="nav"><button class="btn sec" id="back2">← Back</button><button class="btn pri" id="next2">Next →</button></div>'+
+        '<div class="msg" id="m2"></div>'+
+      '</div>';
+    document.getElementById('back2').onclick=function(){ step=0; setDots(); step1(); };
+    var gp=document.getElementById('getphone');
+    if(gp) gp.onclick=function(){
+      var btn=this; btn.disabled=true; btn.textContent='Setting up…';
+      // Record the request now (client-side, RLS-scoped). Server-side number purchase +
+      // assistant provisioning is the next build (docs/self-serve-phone.md) — gated on the
+      // active subscription so we only buy a number for a paying shop.
+      saveAi().then(function(){
+        return saveSettings({ai:Object.assign({}, settings.ai, {phone_requested:true, phone_requested_at:Date.now()})});
+      }).then(function(){ step2(); });
+    };
+    document.getElementById('next2').onclick=function(){
+      var btn=this; btn.disabled=true; btn.textContent='Saving…';
+      saveAi().then(function(r){
+        if(r&&r.error){ msg('m2','Couldn’t save — try again.',true); btn.disabled=false; btn.textContent='Next →'; return; }
+        step=2; setDots(); step3();
+      });
+    };
+  }
+  function saveAi(){
+    var ai=Object.assign({}, settings.ai, {
+      about:val('a-about'), can_book:document.getElementById('a-book').checked,
+      can_status:document.getElementById('a-status').checked, can_message:document.getElementById('a-msg').checked,
+    });
+    return saveSettings({ai:ai});
+  }
+
+  // ---- Step 3: your team ----
+  function step3(){
+    document.getElementById('stepbox').innerHTML =
+      '<h1>Add your techs</h1><p class="lede">Optional — you can add them later. They’ll get their own app for their jobs + pay.</p>'+
+      '<div class="card">'+
+        '<div class="techrow"><input id="t-name" placeholder="Tech name"><input id="t-phone" placeholder="Cell (optional)" style="max-width:150px"><button id="addtech">Add</button></div>'+
+        '<div class="teamlist" id="teamlist"></div>'+
+        '<div class="nav"><button class="btn sec" id="back3">← Back</button><button class="btn pri" id="finish">Finish setup →</button></div>'+
+        '<div class="msg" id="m3"></div>'+
+      '</div>'+
+      '<a class="skip" id="skip">Skip — go to my dashboard</a>';
+    renderTeam();
+    document.getElementById('back3').onclick=function(){ step=1; setDots(); step2(); };
+    document.getElementById('addtech').onclick=addTech;
+    document.getElementById('finish').onclick=finish;
+    document.getElementById('skip').onclick=function(e){ e.preventDefault(); finish(); };
+  }
+  function renderTeam(){
+    var el=document.getElementById('teamlist'); if(!el) return;
+    el.innerHTML = team.map(function(t,i){ return '<div class="t"><span>'+esc(t.name)+(t.phone?' · '+esc(t.phone):'')+'</span><button class="x" data-i="'+i+'">Remove</button></div>'; }).join('');
+    [].forEach.call(el.querySelectorAll('.x'), function(b){ b.onclick=function(){ removeTech(+b.getAttribute('data-i')); }; });
+  }
+  function addTech(){
+    var name=val('t-name').trim(); if(!name){ return; }
+    var phone=val('t-phone').trim();
+    sb.from('technician').insert({company_id:companyId, name:name, phone:phone||null, active:true}).select('id,name,phone').then(function(r){
+      if(r.error){ msg('m3','Couldn’t add — you can add techs from your dashboard.',true); return; }
+      team.push({id:r.data[0].id, name:name, phone:phone}); document.getElementById('t-name').value=''; document.getElementById('t-phone').value=''; renderTeam();
+    });
+  }
+  function removeTech(i){
+    var t=team[i]; if(!t) return;
+    sb.from('technician').update({active:false}).eq('id',t.id).then(function(){ team.splice(i,1); renderTeam(); });
+  }
+  function finish(){
+    var btn=document.getElementById('finish'); if(btn){btn.disabled=true;btn.textContent='Finishing…';}
+    saveSettings({onboarded:true}).then(function(){ location.href='/platform/owner.html'; });
+  }
+
+  function val(id){ var e=document.getElementById(id); return e?e.value:''; }
+  function msg(id,t,err){ var e=document.getElementById(id); if(e){ e.textContent=t; e.className='msg '+(err?'err':'ok'); } }
+
+  function boot(){
+    sb.from('company').select('id,name,settings').limit(1).then(function(r){
+      if(r.error||!r.data||!r.data[0]){ document.getElementById('gate').style.display='block'; return; }
+      companyId=r.data[0].id; shopName=r.data[0].name||'your shop'; settings=r.data[0].settings||{};
+      document.getElementById('brandName').textContent=shopName;
+      // load existing active techs so a re-run shows them
+      sb.from('technician').select('id,name,phone').eq('company_id',companyId).eq('active',true).then(function(tr){
+        if(!tr.error&&tr.data) team=tr.data.map(function(x){return {id:x.id,name:x.name,phone:x.phone};});
+        document.getElementById('flow').style.display='block'; step1();
+      });
+    });
+  }
+  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else document.getElementById('gate').style.display='block'; });
+})();
+</script>
+</body></html>
