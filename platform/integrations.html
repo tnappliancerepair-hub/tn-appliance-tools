@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Connect Your Accounts</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --card:#fff; --ink:#0e1320; --mut:#5b657a; --line:#e4e8f0;
+    --brand:#2f6bff; --ok:#12a150; --warn:#c77700; --err:#d33c3c; --chip:#eef1f7;
+    --shadow:0 2px 10px rgba(20,30,60,.06);
+  }
+  :root:not([data-theme="light"]){ }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#0b0e14; --card:#131926; --ink:#e8ecf4; --mut:#96a1b5; --line:#232c3d;
+    --brand:#5a86ff; --ok:#33c46a; --warn:#e0a028; --err:#ff5c5c; --chip:#1b2333;
+    --shadow:0 2px 14px rgba(0,0,0,.35);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0b0e14; --card:#131926; --ink:#e8ecf4; --mut:#96a1b5; --line:#232c3d;
+    --brand:#5a86ff; --ok:#33c46a; --warn:#e0a028; --err:#ff5c5c; --chip:#1b2333;
+    --shadow:0 2px 14px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:720px;margin:0 auto;padding:22px 16px 60px}
+  h1{font-size:22px;margin:6px 0 2px;letter-spacing:-.01em}
+  .sub{color:var(--mut);margin:0 0 18px;font-size:13.5px}
+  .trust{display:flex;gap:9px;align-items:flex-start;background:var(--chip);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:20px;font-size:13px;color:var(--mut)}
+  .trust b{color:var(--ink)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px 16px 14px;margin-bottom:14px}
+  .chd{display:flex;align-items:center;gap:10px;justify-content:space-between}
+  .cname{font-weight:700;font-size:15.5px}
+  .cnote{color:var(--mut);font-size:12.5px;margin:3px 0 0}
+  .pill{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .p-connected{background:rgba(18,161,80,.13);color:var(--ok)}
+  .p-stored{background:rgba(199,119,0,.14);color:var(--warn)}
+  .p-error{background:rgba(211,60,60,.13);color:var(--err)}
+  .p-none{background:var(--chip);color:var(--mut)}
+  .fields{margin-top:13px;display:none;grid-template-columns:1fr;gap:9px}
+  .fields.open{display:grid}
+  label{font-size:12px;color:var(--mut);display:block;margin-bottom:3px}
+  input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  input:focus{outline:2px solid var(--brand);outline-offset:-1px;border-color:transparent}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  button{font:inherit;font-weight:650;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:9px 14px;cursor:pointer}
+  button.primary{background:var(--brand);color:#fff;border-color:transparent}
+  button.ghost{background:transparent}
+  button.danger{color:var(--err);border-color:transparent;background:transparent}
+  button:disabled{opacity:.5;cursor:default}
+  .msg{font-size:12.5px;margin-top:9px;min-height:16px}
+  .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .gate{max-width:360px;margin:12vh auto;text-align:center}
+  .gate input{margin:8px 0}
+  .lastv{font-size:11.5px;color:var(--mut);margin-top:2px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="sub">Loading…</p></div>
+
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var cfg = window.ANT_SUPABASE || {};
+  var app = document.getElementById('app');
+  if(!cfg.url || !window.supabase){ app.innerHTML = '<p class="sub">Config missing.</p>'; return; }
+  var sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+  var catalog = {}, token = '';
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function api(action, body){
+    return fetch('/.netlify/functions/platform-integrations?action='+action, {
+      method:'POST', headers:{'Content-Type':'application/json', Authorization:'Bearer '+token},
+      body: JSON.stringify(body||{})
+    }).then(function(r){return r.json();});
+  }
+
+  function pill(st){
+    var m={connected:['p-connected','Connected'],stored:['p-stored','Stored — verify'],error:['p-error','Needs attention'],};
+    var x=m[st]||['p-none','Not connected'];
+    return '<span class="pill '+x[0]+'">'+x[1]+'</span>';
+  }
+  function fieldRow(f){
+    return '<div><label>'+esc(f.label)+(f.secret?' 🔒':'')+'</label>'+
+      '<input data-k="'+esc(f.k)+'" type="'+(f.secret?'password':'text')+'" autocomplete="off" placeholder="'+esc(f.label)+'"></div>';
+  }
+  function card(vendor, def, cur){
+    var st = cur ? cur.status : 'none';
+    var lastv = cur && cur.verified_at ? '<div class="lastv">✓ verified '+new Date(cur.verified_at).toLocaleDateString()+'</div>'
+      : (cur && cur.last_error ? '<div class="lastv">'+esc(cur.last_error)+'</div>' : '');
+    return '<div class="card" data-vendor="'+vendor+'">'+
+      '<div class="chd"><div><div class="cname">'+esc(def.label)+'</div><div class="cnote">'+esc(def.note)+'</div>'+lastv+'</div>'+pill(st)+'</div>'+
+      '<div class="fields" id="f-'+vendor+'">'+ def.fields.map(fieldRow).join('') +
+        '<div class="msg" id="m-'+vendor+'"></div>'+
+        '<div class="row">'+
+          '<button class="primary" data-act="save" data-v="'+vendor+'">'+(cur?'Update':'Connect')+'</button>'+
+          (cur?'<button class="ghost" data-act="verify" data-v="'+vendor+'">Test connection</button>':'')+
+          (cur?'<button class="danger" data-act="remove" data-v="'+vendor+'">Disconnect</button>':'')+
+        '</div>'+
+      '</div>'+
+      '<div class="row"><button class="ghost" data-act="toggle" data-v="'+vendor+'">'+(cur?'Manage':'Connect account')+' →</button></div>'+
+    '</div>';
+  }
+
+  function render(list){
+    var byV={}; (list||[]).forEach(function(i){ byV[i.vendor]=i; });
+    var html='<h1>🔌 Connect your accounts</h1>'+
+      '<p class="sub">Plug in your own vendor logins and Ant runs the automations — warranty submission, parts ordering, claim tracking — on <b>your</b> accounts.</p>'+
+      '<div class="trust">🔒<div>Your credentials are <b>encrypted</b> and stored only for your shop. They are <b>never shared with another shop</b>, never shown back to anyone, and you can disconnect anytime. Claims and orders go to <b>your</b> accounts — Ant never holds your money.</div></div>';
+    Object.keys(catalog).forEach(function(v){ html += card(v, catalog[v], byV[v]); });
+    app.innerHTML = html;
+    app.querySelectorAll('button[data-act]').forEach(function(b){ b.onclick = onAct; });
+  }
+
+  function onAct(e){
+    var v=e.target.getAttribute('data-v'), act=e.target.getAttribute('data-act');
+    if(act==='toggle'){ document.getElementById('f-'+v).classList.toggle('open'); return; }
+    var msg=document.getElementById('m-'+v); msg.className='msg'; msg.textContent='';
+    if(act==='save'){
+      var creds={}; document.querySelectorAll('#f-'+v+' input[data-k]').forEach(function(i){ if(i.value) creds[i.getAttribute('data-k')]=i.value; });
+      if(!Object.keys(creds).length){ msg.className='msg err'; msg.textContent='Enter your credentials first.'; return; }
+      e.target.disabled=true; e.target.textContent='Saving…';
+      fetch('/.netlify/functions/platform-integrations?action=connect&verify=1',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({vendor:v,creds:creds})})
+        .then(function(r){return r.json();}).then(function(d){
+          if(d.ok===false){ msg.className='msg err'; msg.textContent=d.error||d.note||'Could not save.'; e.target.disabled=false; e.target.textContent='Connect'; return; }
+          msg.className='msg ok'; msg.textContent='Saved securely. '+(d.status==='connected'?'Connection verified ✓':(d.note||''));
+          load();
+        }).catch(function(){ msg.className='msg err'; msg.textContent='Network error.'; e.target.disabled=false; });
+      return;
+    }
+    if(act==='verify'){ msg.textContent='Testing…'; api('verify',{vendor:v}).then(function(d){ msg.className='msg '+(d.ok?'ok':'err'); msg.textContent=d.detail||(d.ok?'Connected ✓':'Failed'); load(); }); return; }
+    if(act==='remove'){ if(!confirm('Disconnect '+v+'? Ant will stop running automations on this account.')) return; api('disconnect',{vendor:v}).then(load); return; }
+  }
+
+  function load(){
+    Promise.all([
+      fetch('/.netlify/functions/platform-integrations?action=catalog').then(function(r){return r.json();}),
+      api('list')
+    ]).then(function(res){
+      catalog = (res[0]&&res[0].vendors)||{};
+      render((res[1]&&res[1].integrations)||[]);
+    }).catch(function(){ app.innerHTML='<p class="sub">Could not load. Reload to try again.</p>'; });
+  }
+
+  function renderSignIn(msg){
+    app.innerHTML = '<div class="gate"><h1>🐜 Sign in</h1>'+
+      '<input id="em" type="email" placeholder="Email" autocomplete="username">'+
+      '<input id="pw" type="password" placeholder="Password" autocomplete="current-password">'+
+      '<div class="row" style="justify-content:center"><button class="primary" id="go">Sign in</button></div>'+
+      '<div class="msg err" id="ge">'+esc(msg||'')+'</div></div>';
+    document.getElementById('go').onclick=function(){
+      sb.auth.signInWithPassword({email:document.getElementById('em').value.trim(),password:document.getElementById('pw').value})
+        .then(function(r){ if(r.error){ document.getElementById('ge').textContent=r.error.message; return; } boot(); });
+    };
+  }
+  function boot(){ sb.auth.getSession().then(function(r){ var s=r.data&&r.data.session; if(!s){ renderSignIn(); return; } token=s.access_token; load(); }); }
+  boot();
+})();
+</script>
+</body>
+</html>
