@@ -97,7 +97,8 @@ metered above cost.** So it cannot lose money.
 - 🎁 **First 50 Ann minutes free** — the test drive. Capped ≈ $3 of cost per account (not the
   unbounded free-trial risk); lets them feel it before the meter starts.
 - 📞 **Ann = $50 / week includes 400 minutes** (locked 2026-08-28 — 400 keeps a healthy margin
-  even at full usage), then **$0.40 / min overage** (+ ~500 texts included, metered after).
+  even at full usage), then **$0.40 / min overage**. **Texts: no free bucket — $0.02 each from
+  text one** (Teddy 2026-08-28).
 - 💳 **Card on file, charged only when Ann is working.** Number provisioned only on an active
   card/subscription; **released on cancel** (never pay $1/mo for a dead account's number).
 
@@ -140,7 +141,7 @@ text overage rate.
       number so the owner can stop Ann (e.g. at the 400). *(Surface a button in owner.html next.)*
 - [x] **Stripe metered billing — BUILT (shadow).** `platform-usage-bill.js` (core, owner-gated,
       `?dry=1`) reads each tenant's LAST completed Mon–Sun week via `usage-meter.weeklyTelnyx()`,
-      computes overage (min over 400, texts over 500) and reports it as **Stripe usage records**
+      computes usage (min over 400 + every text @ $0.02, no free texts) and reports it as **Stripe usage records**
       against the Ann metered subscription items. `platform-billing.ensureAnnSubscription()` stands
       up the tenant's Ann subscription on first bill: a **weekly $50 flat base** + two
       **`usage_type:'metered'`** items ($0.40/min, $0.02/text overage) — item ids stored on

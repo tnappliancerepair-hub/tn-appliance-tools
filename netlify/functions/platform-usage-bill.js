@@ -1,6 +1,6 @@
 // platform-usage-bill — the weekly Stripe metered biller for Ann. Once a week it reads each
 // tenant's LAST completed Mon–Sun week straight from Telnyx (by number + assistant), computes
-// the overage above the included 400 min / 500 texts, and reports those as Stripe usage records
+// the min overage above the included 400 + every text (no free texts, $0.02 each), and reports as Stripe usage records
 // against the tenant's Ann metered subscription items. The flat $50 base rides Stripe's own
 // weekly cycle; this only reports the OVERAGE (usage_type:'metered' items). Billing is exact
 // per shop because each tenant = one number + one assistant (usage-meter.weeklyTelnyx).

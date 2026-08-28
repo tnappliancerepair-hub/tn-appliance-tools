@@ -15,7 +15,7 @@ const COST = { voice_min: 8.4, sms_out: 1.3, sms_in: 0.75 };
 // 500) keeps a healthy margin even at full usage ($50 − 400×$0.084 ≈ $14/wk). Single source —
 // the weekly digest, the owner dashboard card, and metering all read included_voice_min here.
 const DEFAULT_PLAN = {
-  tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 500,
+  tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 0,
   voice_overage_cents: 40, sms_overage_cents: 2,
   cap_sms_per_hour: 200, cap_sms_per_day: 2000, cap_voice_min_per_day: 600, hard_stop: false,
 };
@@ -100,7 +100,7 @@ async function rollup(companyId, fromISO, toISO) {
 
 // Owner-FACING month-to-date digest — usage vs the shop's plan allowance ONLY.
 // Deliberately carries NO cost / margin / provider (that's the operator-only view). This
-// is what the owner sees ("340 of 500 minutes used"), keeping the underlying provider +
+// is what the owner sees ("340 of 400 minutes used"), keeping the underlying provider +
 // per-unit cost ours. from = first of THIS month (UTC).
 async function ownerDigest(companyId) {
   var d = new Date();
@@ -123,7 +123,7 @@ async function ownerDigest(companyId) {
 }
 
 // ── WEEKLY (Mon–Sun, Central) usage read straight from Telnyx, BY NUMBER — accurate metering
-// for the $50/week/500-minute model. Texts = outbound records from the shop's number (cli);
+// for the $50/week/400-minute model. Texts = outbound records from the shop's number (cli);
 // minutes = the shop's Ann conversations (matched by assistant_id). Each tenant = one number +
 // one assistant, so this is exact per shop.
 function ctOffsetMin(ms) {
