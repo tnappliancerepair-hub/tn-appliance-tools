@@ -64,6 +64,53 @@ exports.handler = async function (event) {
     return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
   }
 
+  // One-tap login link (no password in chat). Uses the Admin generate_link endpoint to
+  // return a magic-login URL for an existing owner/staff email. Tapping it signs the person
+  // in on this origin; that Supabase session then covers ALL platform apps (office board,
+  // tech, owner) since they share the same origin+client. For letting Teddy SEE the apps.
+  //   ?action=magiclink&slug=tn-appliance         (owner login of that shop)
+  //   ?action=magiclink&email=someone@shop.com     (a specific login)
+  //   optional &redirect=<full url> (default: office board)
+  if (q.action === 'magiclink') {
+    let email = String(q.email || '').toLowerCase().trim();
+    const slug = String(q.slug || '').toLowerCase().trim();
+    if (!email && slug) {
+      const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id&limit=1`);
+      const co = cos && cos[0];
+      if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+      const us = await rest0(`app_user?company_id=eq.${co.id}&role=eq.owner&select=email&order=created_at.asc&limit=1`);
+      email = us && us[0] && String(us[0].email || '').toLowerCase();
+    }
+    if (!email) return json(200, { ok: false, error: 'need &email= or &slug=' });
+    const redirect = String(q.redirect || 'https://tnapplianceexchange.net/platform/office-board.html');
+    const r = await fetch(`${url}/auth/v1/admin/generate_link`, { method: 'POST', headers: H, body: JSON.stringify({ type: 'magiclink', email, options: { redirect_to: redirect } }), signal: AbortSignal.timeout(12000) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return json(200, { ok: false, error: 'generate_link ' + r.status + ' ' + JSON.stringify(d).slice(0, 200) });
+    const link = d.action_link || (d.properties && d.properties.action_link) || '';
+    return json(200, { ok: true, email, login_link: link, redirect, note: 'one tap logs in; the session then covers office board + tech + owner apps on this origin' });
+  }
+
+  // Mint (or reuse) a customer portal link for a shop's job — the CUSTOMER lens, token-gated,
+  // no login. ?action=portaltoken&slug=tn-appliance[&job_id=<uuid>]  (defaults to newest job)
+  if (q.action === 'portaltoken') {
+    const slug = String(q.slug || 'tn-appliance').toLowerCase().trim();
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id&limit=1`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+    let job = null;
+    if (q.job_id) { const js = await rest0(`job?id=eq.${encodeURIComponent(q.job_id)}&select=id,customer_id&limit=1`); job = js && js[0]; }
+    if (!job) { const js = await rest0(`job?company_id=eq.${co.id}&customer_id=not.is.null&order=created_at.desc&limit=1&select=id,customer_id`); job = js && js[0]; }
+    if (!job || !job.customer_id) return json(200, { ok: false, error: 'no job with a customer found' });
+    const existing = await rest0(`portal_grant?job_id=eq.${job.id}&revoked=eq.false&order=created_at.desc&limit=1&select=token`);
+    let token = existing && existing[0] && existing[0].token;
+    if (!token) {
+      const ins = await rest('portal_grant', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, customer_id: job.customer_id, job_id: job.id, expires_at: new Date(Date.now() + 60 * 86400000).toISOString() }) });
+      if (!ins.ok) return json(200, { ok: false, error: 'grant insert ' + ins.status + ' ' + JSON.stringify(ins.d).slice(0, 160) });
+      token = (Array.isArray(ins.d) ? ins.d[0] : ins.d) && (Array.isArray(ins.d) ? ins.d[0].token : ins.d.token);
+    }
+    return json(200, { ok: true, job_id: job.id, portal_url: 'https://tnapplianceexchange.net/platform/portal.html?t=' + token });
+  }
+
   // Diagnostic: list every tenant + its owner login, to confirm isolation.
   if (q.action === 'tenants') {
     const companies = await rest0('company?select=id,slug,name,trade,plan,created_at&order=created_at.asc');
