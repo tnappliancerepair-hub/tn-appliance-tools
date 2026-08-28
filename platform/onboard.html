@@ -132,12 +132,20 @@
     var gp=document.getElementById('getphone');
     if(gp) gp.onclick=function(){
       var btn=this; btn.disabled=true; btn.textContent='Setting up…';
-      // Record the request now (client-side, RLS-scoped). Server-side number purchase +
-      // assistant provisioning is the next build (docs/self-serve-phone.md) — gated on the
-      // active subscription so we only buy a number for a paying shop.
-      saveAi().then(function(){
-        return saveSettings({ai:Object.assign({}, settings.ai, {phone_requested:true, phone_requested_at:Date.now()})});
-      }).then(function(){ step2(); });
+      // Save Ann's config, then call the fulfillment endpoint. It's shadow-safe: nothing is
+      // purchased until PLATFORM_PHONE_LIVE=true — until then it returns a plan and we show
+      // "being set up". Server-side it gates on the active subscription + buys on our account.
+      saveAi().then(function(){ return saveSettings({ai:Object.assign({}, settings.ai, {phone_requested:true, phone_requested_at:Date.now()})}); })
+      .then(function(){ return sb.auth.getSession(); })
+      .then(function(s){
+        var tok = s && s.data && s.data.session && s.data.session.access_token;
+        return fetch('/.netlify/functions/platform-phone', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'provision', access_token: tok}) }).then(function(r){return r.json();});
+      })
+      .then(function(d){
+        if(d && d.number){ settings.phone={number:d.number}; }
+        step2();
+      })
+      .catch(function(){ step2(); });
     };
     document.getElementById('next2').onclick=function(){
       var btn=this; btn.disabled=true; btn.textContent='Saving…';

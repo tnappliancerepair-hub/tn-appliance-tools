@@ -83,7 +83,21 @@ $0.30). Minor; keep weekly for the low-commitment appeal, optionally offer a mon
 (~$180/mo / 2,000 min) that also saves the fee. **Still to set:** the included text allowance +
 text overage rate.
 
-## Build checklist (next)
+## Build status
+
+- [x] **`platform-phone.js` — BUILT (shadow).** `action=provision` gates on active subscription →
+      searches + buys a Telnyx number near the shop's area code → attaches it to the SHARED 10DLC
+      messaging profile (hybrid) → creates + binds Ann (trade persona from `company.settings.ai`,
+      lead tool → `platform-lead`) → writes `company.settings.phone`. `status` + `release` too.
+      Auth: the shop's Supabase session token (self-serve) OR admin secret. **SHADOW until
+      `PLATFORM_PHONE_LIVE=true`** — returns the plan, spends nothing.
+- [x] **Wizard wired** — `onboard.html`'s "Turn on my AI receptionist" calls `platform-phone`.
+- [ ] **To go live:** set `TELNYX_SHARED_MESSAGING_PROFILE_ID` (create the shared 10DLC campaign
+      first) + `PLATFORM_PHONE_LIVE=true`. Then the button buys a real number + turns Ann on.
+- [ ] Release the number on subscription cancel (call `action=release` from the webhook).
+- [ ] Metering: report minutes/texts to Stripe (the $50/wk/500min + $0.40 overage model).
+
+## Original checklist (reference)
 
 - [ ] `platform-phone.js` (server, service key): `action=provision` — gate on subscription →
       Telnyx number-search + order → create/bind AI assistant (trade persona + `settings.ai`) →
