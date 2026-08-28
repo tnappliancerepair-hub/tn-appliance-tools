@@ -1058,10 +1058,11 @@
 [functions."brain-ingest"]
   schedule = "20 9 * * *"
 
-# platform-usage-digest — once daily (~8 AM CT / 13:00 UTC): email each shop OWNER their
-# month-to-date call minutes + texts vs their plan allowance (customer-framed, no cost /
-# provider). SHADOW-first: skips zero-usage tenants, dedupes once/day, and only truly emails
-# when PLATFORM_USAGE_DIGEST_LIVE=true (and send-email's EMAIL_ENABLED). Fills in as tenants
-# go live on their own Ant line.
-[functions."platform-usage-digest"]
+# platform-usage-digest-cron — thin scheduled wrapper (once daily, ~8 AM CT / 13:00 UTC)
+# that fires the HTTP-callable core `platform-usage-digest`. Split this way because a
+# function with its OWN schedule block edge-403s on manual HTTP (Netlify footgun) — the
+# core stays curlable (owner-gated, ?dry=1) while the cron self-fires the live run.
+# Core is SHADOW-first: skips zero-usage tenants, dedupes once/day, only truly emails when
+# PLATFORM_USAGE_DIGEST_LIVE=true (and send-email's EMAIL_ENABLED).
+[functions."platform-usage-digest-cron"]
   schedule = "0 13 * * *"
