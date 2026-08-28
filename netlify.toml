@@ -1057,3 +1057,11 @@
 # tenant's completed job_tdr. Structured fields only (no symptom = zero PII). Nothing reads yet.
 [functions."brain-ingest"]
   schedule = "20 9 * * *"
+
+# platform-usage-digest — once daily (~8 AM CT / 13:00 UTC): email each shop OWNER their
+# month-to-date call minutes + texts vs their plan allowance (customer-framed, no cost /
+# provider). SHADOW-first: skips zero-usage tenants, dedupes once/day, and only truly emails
+# when PLATFORM_USAGE_DIGEST_LIVE=true (and send-email's EMAIL_ENABLED). Fills in as tenants
+# go live on their own Ant line.
+[functions."platform-usage-digest"]
+  schedule = "0 13 * * *"

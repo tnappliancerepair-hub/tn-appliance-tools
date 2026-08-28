@@ -265,6 +265,8 @@
       '</div>'+
       '<div class="sec">Per-tech <span class="lock">🔒 owner only</span></div>'+
       techTable+
+      '<div class="sec">This month</div>'+
+      '<div id="usageCard"><div class="note">Loading your usage…</div></div>'+
       '<div class="sec">Money <span class="lock">🔒 owner only</span></div>'+
       '<div class="money">'+
         mrow('Invoiced (from the job tile)','',USD(billed))+
@@ -280,6 +282,35 @@
       commissionEditor(techs, compDef);
     shell(body);
     bindCommission();
+    loadUsage();
+  }
+
+  // Owner's own month-to-date phone usage vs their plan allowance. NO cost / provider —
+  // just "you've used X of your Y". RLS scopes usage_event + client_plan to this shop.
+  function loadUsage(){
+    var el=document.getElementById('usageCard'); if(!el) return;
+    var d=new Date(); var mStart=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)).toISOString();
+    Promise.all([
+      sb.from('usage_event').select('kind,qty,at').gte('at',mStart).limit(10000),
+      sb.from('client_plan').select('included_voice_min,included_sms,tier').limit(1)
+    ]).then(function(res){
+      var evs=(res[0].data)||[], plan=(res[1].data&&res[1].data[0])||{included_voice_min:500,included_sms:200,tier:'starter'};
+      var vmin=0, sms=0; evs.forEach(function(e){ if(e.kind==='voice_min') vmin+=Number(e.qty)||0; else if(e.kind==='sms_out') sms+=Number(e.qty)||0; });
+      vmin=Math.round(vmin); sms=Math.round(sms);
+      var vpct=plan.included_voice_min?Math.min(100,Math.round(vmin/plan.included_voice_min*100)):0;
+      var spct=plan.included_sms?Math.min(100,Math.round(sms/plan.included_sms*100)):0;
+      function bar(p){ var col=p>=100?'#d33c3c':(p>=80?'#c77700':'#2f6bff'); return '<div style="height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:5px"><div style="height:100%;width:'+p+'%;background:'+col+'"></div></div>'; }
+      function line(icon,label,used,inc,p){ return '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:14px"><span>'+icon+' '+label+'</span><span style="font-variant-numeric:tabular-nums"><b>'+used.toLocaleString()+'</b> <span style="color:var(--muted)">of '+inc.toLocaleString()+'</span></span></div>'+bar(p)+'</div>'; }
+      var near = (vpct>=80||spct>=80);
+      el.innerHTML='<div class="money">'+
+        line('📞','Call minutes',vmin,plan.included_voice_min,vpct)+
+        line('💬','Texts',sms,plan.included_sms,spct)+
+      '</div>'+
+      '<div class="note">'+(vmin===0&&sms===0
+        ? 'No phone usage yet this month — this fills in as calls + texts run through your Ant line.'
+        : (near ? '⚠️ You’re getting close to your monthly included amount.' : 'You’re comfortably within your plan.'))+
+      ' We also email you this once a day.</div>';
+    }).catch(function(){ el.innerHTML='<div class="note">Usage will show here once your line is active.</div>'; });
   }
 
   // Owner-only commission settings: company default + per-tech overrides.
