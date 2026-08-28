@@ -132,14 +132,22 @@ text overage rate.
 - [x] **Wizard wired** — `onboard.html`'s "Turn on my AI receptionist" calls `platform-phone`.
 - [ ] **To go live:** set `TELNYX_SHARED_MESSAGING_PROFILE_ID` (create the shared 10DLC campaign
       first) + `PLATFORM_PHONE_LIVE=true`. Then the button buys a real number + turns Ann on.
-- [ ] Release the number on subscription cancel (call `action=release` from the webhook).
+- [x] **Release on cancel** — the release action deletes the number + assistant AND cancels the
+      Ann subscription so the $50/wk stops on churn (the webhook cancel branch calls `action=release`).
+- [x] **$50/wk base bills from phone-on** — provision starts the Ann subscription (billing-live,
+      idempotent); the weekly biller also ensures it for every phone tenant, so a shop under the
+      allowance still pays $50 (never Ann free). Metered overage rides on top.
+- [x] **Feature-gating (#43)** — `platform/features.js` (default-open on empty map); owner.html +
+      office-board.html gate the office/board/pay on `database`/`pay`, showing an Answering-only shop
+      a Full Office upgrade path instead of an empty dashboard.
 - [x] **Weekly metering (Mon–Sun CT), by number** — `usage-meter.weeklyTelnyx()` reads texts
       (by `cli`) + minutes (by `assistant_id`) straight from Telnyx for the current week.
 - [x] **Daily digest → weekly** — `platform-usage-digest` now emails each shop with a phone line
       their Ann usage **this week vs 400 min** (%, near-limit at 80%, over-limit note), so they
       always know where they stand and can pause before/after hitting 400.
 - [x] **Pause / resume toggle** — `platform-phone` `action=pause`/`resume` unbinds/re-binds the
-      number so the owner can stop Ann (e.g. at the 400). *(Surface a button in owner.html next.)*
+      number so the owner can stop Ann (e.g. at the 400). *(Surfaced: Pause/Resume Ann button on the
+  owner dashboard's "Ann this week" card, with a texts-vs-100 bar.)*
 - [x] **Stripe metered billing — BUILT (shadow).** `platform-usage-bill.js` (core, owner-gated,
       `?dry=1`) reads each tenant's LAST completed Mon–Sun week via `usage-meter.weeklyTelnyx()`,
       computes overage (min over 400 @ $0.40, texts over 100 @ $0.05) and reports it as **Stripe usage records**
