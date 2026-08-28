@@ -13,11 +13,23 @@
 'use strict';
 const tc = require('./tenant-creds');
 const vv = require('./vendor-verify');
+const ctx = require('./vendor-ctx');
 
 // The shop's decrypted creds for a vendor, or null if not connected.
 async function credsForTenant(companyId, vendor) {
   if (!companyId || !vendor) return null;
   return tc.getTenantVendorCreds(companyId, vendor);
+}
+
+// Run an automation AS a shop: resolve its creds for `vendor`, put them in context, run `fn`.
+// The shared connectors pick up the creds automatically. If the shop hasn't connected that
+// vendor, we run fn WITHOUT an override -> the connector falls back to TN's vault (so a TN job,
+// or a not-yet-connected tenant, behaves exactly as before). Returns { ran, usedTenantCreds }.
+async function runAsTenant(companyId, vendor, fn) {
+  const creds = await credsForTenant(companyId, vendor);
+  if (!creds) return { ran: await fn(), usedTenantCreds: false };
+  const ran = await ctx.withVendorCreds({ [vendor]: creds }, fn);
+  return { ran, usedTenantCreds: true };
 }
 
 // Live auth probe against the shop's own account for a vendor.
@@ -27,4 +39,4 @@ async function verifyForTenant(companyId, vendor) {
   return vv.verify(vendor, c);
 }
 
-module.exports = { credsForTenant, verifyForTenant };
+module.exports = { credsForTenant, verifyForTenant, runAsTenant };

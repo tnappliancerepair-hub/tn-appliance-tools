@@ -17,19 +17,27 @@
 'use strict';
 
 const { getSecret, getSecretFresh } = require('./secrets');
+const vendorCtx = require('./vendor-ctx');
 
 let _tok = null, _tokExp = 0;
 
 // Default sandbox until production access is granted. Set vault FRONTDOOR_ENV=production
 // (with prod keys) to flip live. Must match what the vaulted FRONTDOOR_* keys are for.
 async function env() { return ((await getSecretFresh('FRONTDOOR_ENV')) || 'sandbox').toLowerCase(); }
+// A connected TENANT is a real, production Frontdoor contractor — force production endpoints
+// under an override (unless the override explicitly says sandbox). TN's path uses the vault env.
+async function useSandbox() {
+  const ov = vendorCtx.current('ahs');
+  if (ov && ov.client_id) return String(ov.env || '').toLowerCase() === 'sandbox';
+  return (await env()) === 'sandbox';
+}
 async function tokenUrl() {
-  return (await env()) === 'sandbox'
+  return (await useSandbox())
     ? 'https://frontdoorhome-dev.fusionauth.io/oauth2/token'
     : 'https://login.frontdoorhome.com/oauth2/token';
 }
 async function apiBase() {
-  return (await env()) === 'sandbox'
+  return (await useSandbox())
     ? 'https://api.sandbox.frontdoorhome.com'
     : 'https://api.frontdoorhome.com';
 }
@@ -43,11 +51,14 @@ async function isConfigured() {
 }
 
 async function getToken(force) {
-  if (!force && _tok && Date.now() < _tokExp - 60000) return _tok;
-  const clientId = String(await getSecretFresh('FRONTDOOR_CLIENT_ID') || '').trim();
-  const username = String(await getSecretFresh('FRONTDOOR_API_USERNAME') || '').trim();
-  const password = String(await getSecretFresh('FRONTDOOR_API_PASSWORD') || '').trim();
-  if (!clientId || !username || !password) throw new Error('Frontdoor API keys not in vault (FRONTDOOR_CLIENT_ID / FRONTDOOR_API_USERNAME / FRONTDOOR_API_PASSWORD)');
+  // per-tenant override (inside runAsTenant); never share TN's cached token with a tenant.
+  const ov = vendorCtx.current('ahs');
+  const override = !!(ov && ov.client_id);
+  if (!force && !override && _tok && Date.now() < _tokExp - 60000) return _tok;
+  const clientId = String(ov.client_id || await getSecretFresh('FRONTDOOR_CLIENT_ID') || '').trim();
+  const username = String(ov.api_username || await getSecretFresh('FRONTDOOR_API_USERNAME') || '').trim();
+  const password = String(ov.api_password || await getSecretFresh('FRONTDOOR_API_PASSWORD') || '').trim();
+  if (!clientId || !username || !password) throw new Error('Frontdoor API keys not available (tenant override or vault FRONTDOOR_CLIENT_ID / FRONTDOOR_API_USERNAME / FRONTDOOR_API_PASSWORD)');
 
   const form = new URLSearchParams();
   form.set('grant_type', 'password');   // STATIC per spec
@@ -65,9 +76,7 @@ async function getToken(force) {
   if (!r.ok) throw new Error(`Frontdoor token ${r.status}: ${text.slice(0, 220)}`);
   const token = j.access_token || j.accessToken || j.token;
   if (!token) throw new Error(`Frontdoor token: no access_token in response: ${text.slice(0, 200)}`);
-  _tok = token;
-  const ttl = (j.expires_in || 3600) * 1000;   // JWT valid 1 hour
-  _tokExp = Date.now() + ttl;
+  if (!override) { _tok = token; _tokExp = Date.now() + (j.expires_in || 3600) * 1000; }   // cache TN only
   return token;
 }
 
@@ -96,7 +105,7 @@ async function api(method, path, bodyObj) {
 // Push a dispatch status update (+ optional note) into Frontdoor.
 //   POST /dispatch-connector/v1/webhook
 async function dispatchStatusUpdate({ dispatchId, statusCode, description, note, vendorId, source, tenant, items, startTime, endTime }) {
-  const vid = vendorId || (await getSecret('FRONTDOOR_VENDOR_ID')) || '';
+  const vid = vendorId || vendorCtx.current('ahs').vendor_id || (await getSecret('FRONTDOOR_VENDOR_ID')) || '';
   const nowIso = new Date().toISOString();
   const object = {
     source: source || 'DISPATCH_ME',

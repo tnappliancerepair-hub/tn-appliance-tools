@@ -20,6 +20,7 @@
 // Use getSecretFresh for config so vault edits (env switch, credential swap) take
 // effect immediately instead of being pinned by a warm container's cache.
 const { getSecret, getSecretFresh } = require('./secrets');
+const vendorCtx = require('./vendor-ctx');
 
 let _tok = null, _tokExp = 0;
 
@@ -29,14 +30,18 @@ async function baseUrl() {
 }
 
 async function getToken(force) {
-  if (!force && _tok && Date.now() < _tokExp - 30000) return _tok;
-  const base = await baseUrl();
-  const tokenUrl = (await getSecretFresh('MSUPPLY_TOKEN_URL')) || `${base}/AccessToken`;
+  // per-tenant override (inside runAsTenant). When present, NEVER touch the shared _tok cache —
+  // that belongs to TN — so a shop can never be handed TN's token and vice versa.
+  const ov = vendorCtx.current('marcone');
+  const override = !!(ov && ov.client_id);
+  if (!force && !override && _tok && Date.now() < _tokExp - 30000) return _tok;
+  const base = ov.base ? String(ov.base).replace(/\/+$/, '') : await baseUrl();
+  const tokenUrl = ov.token_url || (await getSecretFresh('MSUPPLY_TOKEN_URL')) || `${base}/AccessToken`;
   // Trim stray whitespace/newlines that sneak in on paste (a common invalid_client cause).
-  const clientId = String(await getSecretFresh('MSUPPLY_CLIENT_ID') || '').trim();
-  const clientSecret = String(await getSecretFresh('MSUPPLY_CLIENT_SECRET') || '').trim();
-  const scope = await getSecretFresh('MSUPPLY_SCOPE');
-  if (!clientId || !clientSecret) throw new Error('mSupply client_id/secret not in vault (MSUPPLY_CLIENT_ID / MSUPPLY_CLIENT_SECRET)');
+  const clientId = String(ov.client_id || await getSecretFresh('MSUPPLY_CLIENT_ID') || '').trim();
+  const clientSecret = String(ov.client_secret || await getSecretFresh('MSUPPLY_CLIENT_SECRET') || '').trim();
+  const scope = ov.scope || await getSecretFresh('MSUPPLY_SCOPE');
+  if (!clientId || !clientSecret) throw new Error('mSupply client_id/secret not available (tenant override or vault MSUPPLY_CLIENT_ID / MSUPPLY_CLIENT_SECRET)');
 
   const form = new URLSearchParams();
   form.set('grant_type', 'client_credentials');
@@ -63,9 +68,8 @@ async function getToken(force) {
   if (!r.ok) throw new Error(`AccessToken ${r.status}: ${text.slice(0, 220)}`);
   const token = j.access_token || j.accessToken || j.token || j.Token;
   if (!token) throw new Error(`AccessToken: no access_token in response: ${text.slice(0, 200)}`);
-  _tok = token;
-  const ttl = (j.expires_in || j.expiresIn || 1800) * 1000;
-  _tokExp = Date.now() + ttl;
+  // only cache TN's token in the shared slot; a tenant's token is never cached here.
+  if (!override) { _tok = token; _tokExp = Date.now() + (j.expires_in || j.expiresIn || 1800) * 1000; }
   return token;
 }
 
@@ -96,7 +100,7 @@ async function api(method, path, bodyObj) {
 // Returns a normalized shape the parts UI can consume directly.
 async function lookupPart(partNumber, make, opts) {
   opts = opts || {};
-  const custNo = opts.custNo || (await getSecret('MSUPPLY_CUST_NO')) || undefined;
+  const custNo = opts.custNo || vendorCtx.current('marcone').customer_no || (await getSecret('MSUPPLY_CUST_NO')) || undefined;
   const reqBody = {
     partNumber: String(partNumber || '').trim(),
     make: make ? String(make).trim() : undefined,

@@ -16,6 +16,7 @@
 'use strict';
 
 const { getSecret, getSecretFresh } = require('./secrets');
+const vendorCtx = require('./vendor-ctx');
 
 const NS = 'urn:SPDServicerService';
 
@@ -38,10 +39,12 @@ async function isConfigured() {
 }
 
 async function userInfoXml() {
-  const u = String(await getSecretFresh('SERVICEPOWER_USER_ID') || '').trim();
-  const p = String(await getSecretFresh('SERVICEPOWER_PASSWORD') || '').trim();
-  const a = String(await getSecretFresh('SERVICEPOWER_SVCR_ACCT') || '').trim();
-  if (!u || !p || !a) throw new Error('ServicePower creds not in vault (SERVICEPOWER_USER_ID / _PASSWORD / _SVCR_ACCT)');
+  // per-tenant override (when running inside runAsTenant); else TN's vault — unchanged.
+  const ov = vendorCtx.current('servicepower');
+  const u = String(ov.user_id || await getSecretFresh('SERVICEPOWER_USER_ID') || '').trim();
+  const p = String(ov.password || await getSecretFresh('SERVICEPOWER_PASSWORD') || '').trim();
+  const a = String(ov.servicer_acct || await getSecretFresh('SERVICEPOWER_SVCR_ACCT') || '').trim();
+  if (!u || !p || !a) throw new Error('ServicePower creds not available (tenant override or vault SERVICEPOWER_USER_ID / _PASSWORD / _SVCR_ACCT)');
   // elementFormDefault="unqualified" — inner elements are NOT namespace-prefixed.
   return `<UserInfo><UserID>${esc(u)}</UserID><Password>${esc(p)}</Password><SvcrAcct>${esc(a)}</SvcrAcct></UserInfo>`;
 }
