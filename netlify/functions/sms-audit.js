@@ -7,6 +7,8 @@
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
+exports.config = { timeout: 26 };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Known internal recipients (our own people), so we can separate the office flood
 // from real customer/tech texts. E.164, last-10 matched so format never bites.
@@ -35,6 +37,8 @@ exports.handler = async function (event) {
   const key = await getSecret('TELNYX_API_KEY');
   if (!key) return json(500, { ok: false, error: 'no_telnyx_key' });
 
+  // kind: 'messaging' (default) or 'voice' — same tool answers "SMS spend" and "call spend".
+  const kind = /voice|call/i.test(String(q.kind || '')) ? 'voice' : 'messaging';
   const days = Math.min(90, Math.max(1, Number(q.days || 14)));
   const now = Date.now();
   const gte = new Date(now - days * 86400e3).toISOString();
@@ -45,24 +49,28 @@ exports.handler = async function (event) {
   // pagination off the response meta, not a client page size.
   const perPage = 50;
   const maxPages = Math.min(400, Number(q.max_pages || 300));
-  let page = 1, sample = null, pulled = 0, metaSeen = null;
+  let page = 1, sample = null, pulled = 0, metaSeen = null, limited = null;
   const byDest = {};        // last10 -> { count, parts, cost, inbound, outbound, who, bucket }
   const byDay = {};         // YYYY-MM-DD -> { count, cost }
   const buckets = { office: { count: 0, cost: 0 }, tech: { count: 0, cost: 0 }, customer: { count: 0, cost: 0 } };
   const people = {};        // per office/tech person -> { count, cost }
-  let totalCost = 0, totalOut = 0, totalIn = 0;
+  let totalCost = 0, totalOut = 0, totalIn = 0, totalSec = 0;
 
   try {
     while (page <= maxPages) {
       const url = 'https://api.telnyx.com/v2/detail_records'
-        + '?filter[record_type]=messaging'
+        + '?filter[record_type]=' + kind
         + '&filter[created_at][gte]=' + encodeURIComponent(gte)
         + '&filter[created_at][lte]=' + encodeURIComponent(lte)
         + '&page[number]=' + page + '&page[size]=' + perPage;
-      const r = await fetch(url, { headers: H, signal: AbortSignal.timeout(20000) });
+      let r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) });
+      // Telnyx detail_records is rate-limited; back off + retry on 429.
+      let tries = 0;
+      while (r.status === 429 && tries < 4) { await sleep(1200 * (tries + 1)); r = await fetch(url, { headers: H, signal: AbortSignal.timeout(15000) }); tries++; }
       if (!r.ok) {
         const txt = await r.text().catch(() => '');
-        return json(200, { ok: false, error: 'telnyx_' + r.status, detail: txt.slice(0, 400), pulled, note: 'Detail-records API rejected the query — see detail; may need a different filter shape.' });
+        if (pulled === 0) return json(200, { ok: false, error: 'telnyx_' + r.status, detail: txt.slice(0, 400), pulled, note: 'Telnyx rejected/limited before any data — retry with fewer &days.' });
+        limited = 'telnyx_' + r.status; break; // use the partial aggregate we already have
       }
       const j = await r.json().catch(() => ({}));
       const rows = Array.isArray(j.data) ? j.data : [];
@@ -79,6 +87,8 @@ exports.handler = async function (event) {
         const cfee = Number(rec.carrier_fee || 0) || 0;
         const cost = base + cfee;
         const parts = Number(rec.parts || rec.number_of_segments || rec.count || 1) || 1;
+        const sec = kind === 'voice' ? Number(rec.billed_sec || rec.duration_sec || rec.call_sec || rec.duration || 0) || 0 : 0;
+        totalSec += sec;
         const dest = outbound ? (rec.to || rec.cld || rec.destination) : (rec.from || rec.cli || rec.source);
         const t = last10(dest);
         const info = whoIs(dest);
@@ -106,6 +116,7 @@ exports.handler = async function (event) {
       }
       if (rows.length < perPage) break;
       page++;
+      await sleep(180); // pace against Telnyx rate limit
     }
   } catch (e) {
     return json(200, { ok: false, error: 'pull_failed', detail: String(e && e.message || e), pulled });
@@ -123,9 +134,10 @@ exports.handler = async function (event) {
   const officeShare = totalOut ? Math.round(buckets.office.count / totalOut * 100) : 0;
 
   return json(200, {
-    ok: true,
+    ok: true, kind, partial: !!limited, limited_by: limited,
     window_days: days, records_pulled: pulled,
     outbound_total: totalOut, inbound_total: totalIn,
+    ...(kind === 'voice' ? { total_minutes: Math.round(totalSec / 60), billed_cost: round(totalCost) } : {}),
     est_total_cost: round(totalCost),
     outbound_by_bucket: {
       office: { count: buckets.office.count, cost: round(buckets.office.cost), pct_of_outbound: officeShare },
