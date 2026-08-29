@@ -11,7 +11,7 @@
 //   -> { ok, company, jobs:[{job_id, claim, customer, appliance, status}], method, vendor }
 'use strict';
 
-const { getSecret } = require('./secrets');
+const { getSecret } = require('./_lib/secrets');
 const WE = require('./_lib/warranty-email');
 let sendSms; try { ({ sendSms } = require('./_lib/sms')); } catch (_) { sendSms = null; }
 
