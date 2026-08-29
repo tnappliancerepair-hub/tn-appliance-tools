@@ -22,6 +22,7 @@ const meter = require('./_lib/usage-meter');
 const TELNYX = 'https://api.telnyx.com/v2';
 const SITE = 'https://tnapplianceexchange.net';
 const LEAD_TOOL = SITE + '/.netlify/functions/platform-lead';
+const BRAIN_TOOL = SITE + '/.netlify/functions/platform-call-brain';
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
 const MODEL = 'openai/gpt-5.4';
 
@@ -65,23 +66,49 @@ function areaCode(company) {
 
 // Ann's persona for a platform tenant — built from the shop's own settings, trade-aware,
 // captures the lead straight onto the shop's board via platform-lead.
-function assistantBody(company) {
+function assistantBody(company, toolKey) {
   const name = company.name || 'the shop';
   const ai = (company.settings && company.settings.ai) || {};
   const trade = company.trade || 'appliance';
   const canBook = ai.can_book !== false, canStatus = ai.can_status !== false, canMsg = ai.can_message !== false;
   const about = ai.about ? ('\n\nWhat to know about this shop:\n' + ai.about) : '';
+  const statusGuide = canStatus
+    ? `\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD: when a caller asks about a job they already have ("is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status?") or a warranty company asks about a dispatch, use get_status — look them up by the phone the job is under, a claim/dispatch number, or their name. READ BACK exactly what it returns; don't add to it or guess. Give the DAY, never a clock time (a live arrival window goes out the morning of). If it doesn't name a tech, say "your technician." Never read a homeowner a part or claim number. If it finds nothing, treat them as a new caller and capture a lead. Before you say whether the office is open right now, use get_hours to check the current time — don't guess.`
+    : '';
   const instr =
     `You are Ann, the warm, upbeat front-desk voice for ${name}, a ${trade} business. Your ONE job is to help every caller and never let a real lead slip away.` +
     about +
     `\n\nHow you help:` +
     (canBook ? `\n- Book / request an appointment — get their name, best callback number, what they need, and their city/address.` : '') +
-    (canStatus ? `\n- Check on an existing job — take their name + number and pass it to the office.` : '') +
+    (canStatus ? `\n- Check on an existing job by looking it up on the board (get_status) and reading back the status.` : '') +
     (canMsg ? `\n- Take a message for the office.` : '') +
+    statusGuide +
     `\n\nWhen you have a real caller with a name + callback number + what they need, ALWAYS call capture_lead before ending — that's how the lead reaches ${name}. Be concise, kind, and never make up prices, times, or promises you can't keep. If you don't know, say you'll have the office follow up.`;
   const slug = company.slug || '';
+  const kq = toolKey ? `&k=${encodeURIComponent(toolKey)}` : '';
   const q = (p) => `${LEAD_TOOL}?do=${p}&slug=${encodeURIComponent(slug)}`;
+  const bq = (p) => `${BRAIN_TOOL}?do=${p}&slug=${encodeURIComponent(slug)}${kq}`;
   const wh = (n, desc, url, props, req) => ({ type: 'webhook', webhook: { name: n, description: desc, url, method: 'POST', body_parameters: { type: 'object', properties: props, required: req || [] } } });
+  const tools = [
+    wh('capture_lead',
+      `Send the caller's lead straight to ${name}'s board + owner. Use once you have their name, callback number, and what they need. Always do this before ending a call with a real caller.`,
+      q('capture_lead'),
+      { name: { type: 'string', description: "the caller's name" }, phone: { type: 'string', description: 'best callback number, digits' }, what: { type: 'string', description: 'the appliance/vehicle/item + the problem or service they want' }, detail: { type: 'string', description: 'any extra detail (optional)' }, city: { type: 'string', description: 'their city (optional)' } },
+      ['phone']),
+    wh('message_owner', `Text a free-form note to ${name}'s owner when something should reach them that isn't a standard lead.`,
+      q('message_owner'), { message: { type: 'string', description: 'what to pass along' } }, ['message']),
+  ];
+  if (canStatus) {
+    tools.push(wh('get_status',
+      `Look up an EXISTING job on ${name}'s board and get exactly what to tell the caller — use it whenever someone asks about a job they already have, or a warranty rep asks about a dispatch. Look up by phone, claim/dispatch number, or name. Returns the exact line to read; if it finds nothing, capture a fresh lead instead.`,
+      bq('lookup'),
+      { phone: { type: 'string', description: "the customer's phone on the account, digits" }, claim: { type: 'string', description: 'a warranty claim or dispatch number (optional)' }, name: { type: 'string', description: "the customer's name (optional)" } },
+      []));
+    tools.push(wh('get_hours',
+      'Check the current day/time and whether the office is open right now before setting a callback expectation — don\'t guess the clock.',
+      bq('hours'), {}, []));
+  }
+  tools.push({ type: 'hangup', hangup: { description: 'End the call politely once everything is handled.' } });
   return {
     name: `Ann — ${name}`,
     model: MODEL,
@@ -90,16 +117,7 @@ function assistantBody(company) {
     description: `${name} phone AI — answers 24/7, captures the lead, sends it to the board.`,
     voice_settings: { voice: ai.voice || VOICE_BROOKE, voice_speed: 1.0 },
     transcription: { model: 'deepgram/flux', language: 'auto' },
-    tools: [
-      wh('capture_lead',
-        `Send the caller's lead straight to ${name}'s board + owner. Use once you have their name, callback number, and what they need. Always do this before ending a call with a real caller.`,
-        q('capture_lead'),
-        { name: { type: 'string', description: "the caller's name" }, phone: { type: 'string', description: 'best callback number, digits' }, what: { type: 'string', description: 'the appliance/vehicle/item + the problem or service they want' }, detail: { type: 'string', description: 'any extra detail (optional)' }, city: { type: 'string', description: 'their city (optional)' } },
-        ['phone']),
-      wh('message_owner', `Text a free-form note to ${name}'s owner when something should reach them that isn't a standard lead.`,
-        q('message_owner'), { message: { type: 'string', description: 'what to pass along' } }, ['message']),
-      { type: 'hangup', hangup: { description: 'End the call politely once everything is handled.' } },
-    ],
+    tools,
   };
 }
 
@@ -179,7 +197,8 @@ exports.handler = async function (event) {
     }
 
     // 3) create Ann + bind the number to her TeXML app
-    const asst = await tx('POST', '/ai/assistants', assistantBody(company));
+    const toolKey = (await getSecret('TELNYX_TOOL_SECRET')) || '';
+    const asst = await tx('POST', '/ai/assistants', assistantBody(company, toolKey));
     if (!asst.ok) return J(200, { ok: false, step: 'assistant', error: JSON.stringify(asst.data.errors || asst.data).slice(0, 200), number: cand });
     const assistantId = asst.data.id;
     const conn = asst.data.telephony_settings && asst.data.telephony_settings.default_texml_app_id;

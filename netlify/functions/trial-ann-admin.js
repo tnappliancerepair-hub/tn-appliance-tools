@@ -18,6 +18,7 @@ const TELNYX = 'https://api.telnyx.com/v2';
 const SITE = 'https://tnapplianceexchange.net';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const LEAD_TOOL = `${SITE}/.netlify/functions/trial-ann-lead`;
+const BRAIN_TOOL = `${SITE}/.netlify/functions/platform-call-brain`;
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
 const MODEL = 'openai/gpt-5.4';
 
@@ -47,6 +48,12 @@ function buildInstructions(shop) {
     ? `\n\nWHAT YOU KNOW ABOUT ${shop.name.toUpperCase()} (answer caller questions from THIS, and only this — it's what ${owner} has cleared you to share):\n${String(shop.about).trim()}\nIf a caller asks something that ISN'T covered here, don't guess — warmly say "great question, let me have ${owner} confirm that for you when he calls right back," and make sure that question rides along in the lead.`
     : '';
 
+  // When the shop is on the platform board, Ann can SEE existing jobs. Teach her to look them
+  // up and read back exactly what the board says — grounded, day-only, no guessing.
+  const statusBlock = shop.platformSlug
+    ? `\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD:\nWhen a caller asks about a job they ALREADY have — "is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status of my repair?" — OR a warranty company calls about a dispatch, use the get_status tool. Look them up by the phone number the job is under, or a claim/dispatch number, or their name. The tool hands you the exact line to say — READ IT BACK, don't add to it and don't guess:\n- Give the DAY, never a specific clock time. We don't run exact times — a live arrival window goes out the morning of.\n- If the tool doesn't name a technician, say "your technician" — never a name it didn't give you.\n- Never read a homeowner a part number or a claim number.\n- If get_status finds nothing, DON'T say "you're not in our system" — treat them like a new caller and capture a fresh lead.\n- Reading back a day the board already shows is fine and encouraged. (You still don't PROMISE a brand-new appointment time — ${owner} confirms new scheduling.)\nFor a warranty-company rep asking about a dispatch, read the rep summary the tool returns (it includes the claim and parts).\n\nKNOWING IF WE'RE OPEN: before you tell someone the office is open right now or set a callback expectation, use get_hours to check the current day and time — don't guess the clock.`
+    : '';
+
   const scopeLine = isDealer
     ? `${shop.name} is a used car lot — you're the friendly, no-pressure salesperson who helps buyers find the right vehicle. Be genuinely helpful and easygoing; the goal is to get them excited to come see it and to hand ${owner} a warm lead.`
     : isAuto
@@ -57,7 +64,7 @@ function buildInstructions(shop) {
 
   return `You are ${shop.botName || 'Ant'}, the friendly voice of ${shop.name}${area}. You answer the phone. Be warm, natural, and concise — like the best front-desk person a shop could have. Keep replies short and conversational; this is a phone call.
 
-${scopeLine}${aboutBlock}
+${scopeLine}${aboutBlock}${statusBlock}
 
 SPEAK THEIR LANGUAGE: detect the caller's language from their first words. If they speak Spanish (or another language you're genuinely fluent in), conduct the whole rest of the call in it, naturally, without announcing the switch. If it's a language you can't handle well, warmly stay in English and do your best.
 
@@ -129,7 +136,12 @@ function buildTools(shop, toolKey) {
       city: { type: 'string', description: 'their city (optional)' },
     };
 
-  return [
+  // get_status looks up the caller's job on the SHOP'S BOARD — only wired when the shop is
+  // on the platform (has a board slug). Uses the board slug (platformSlug), not the registry slug.
+  const board = shop.platformSlug ? String(shop.platformSlug) : '';
+  const qStatus = (base) => base + `&slug=${encodeURIComponent(board)}` + (toolKey ? `&k=${encodeURIComponent(toolKey)}` : '');
+
+  const tools = [
     webhookTool('capture_lead',
       isDealer
         ? "Send the buyer's lead straight to the lot owner's phone. Use once you have their name, callback number, and what vehicle they're looking for (plus budget, financing, or trade-in if they shared). This is how the lead reaches the lot — always do it before ending a call with a real buyer."
@@ -140,8 +152,23 @@ function buildTools(shop, toolKey) {
     webhookTool('message_owner',
       "Text a free-form note to the shop owner — a message, a heads-up, or a question you couldn't answer for the caller. Use when something should reach the owner that isn't a standard new lead.",
       q(`${LEAD_TOOL}?do=message_owner`), { message: { type: 'string', description: 'what to pass along to the owner' } }, ['message']),
-    { type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } },
   ];
+
+  if (board) {
+    tools.push(webhookTool('get_status',
+      "Look up an EXISTING job on the shop's board and get exactly what to tell the caller. Use it the moment a caller asks about a job they already have — \"is my tech still coming?\", \"what day am I scheduled?\", \"did my part come in?\", \"what's the status of my repair?\" — or a warranty company asking about a dispatch. Look them up by the phone number they're asking about, OR a warranty claim/dispatch number, OR their name. It returns the exact line to read — read it back, don't add to it or guess. If it finds nothing, treat them as a new caller and capture a lead.",
+      qStatus(`${BRAIN_TOOL}?do=lookup`), {
+        phone: { type: 'string', description: "the customer's phone number on the account, digits" },
+        claim: { type: 'string', description: 'a warranty claim or dispatch number, if they give one (optional)' },
+        name: { type: 'string', description: "the customer's name, if that's the only handle you have (optional)" },
+      }, []));
+    tools.push(webhookTool('get_hours',
+      "Check the CURRENT day and time before you tell a caller whether the office is open right now or set a callback expectation — don't guess the time. Returns the current day/time and whether the office is open.",
+      qStatus(`${BRAIN_TOOL}?do=hours`), {}, []));
+  }
+
+  tools.push({ type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } });
+  return tools;
 }
 
 function assistantBody(shop, toolKey) {
@@ -409,6 +436,21 @@ exports.handler = async function (event) {
 
     // list store-backed shops (curated file shops aren't listed here)
     if (action === 'shops') return json(200, { ok: true, shops: await shops.listStore() });
+
+    // preview — build the assistant body WITHOUT calling Telnyx (read-only; inspect the
+    // persona + tools Ann will be created/updated with, e.g. to confirm get_status wiring).
+    if (action === 'preview') {
+      const shop = await shops.getAsync(q.shop);
+      if (!shop) return json(200, { ok: false, error: 'unknown shop: ' + (q.shop || '') });
+      shop.slug = String(q.shop).toLowerCase().trim();
+      const toolKey = q.tool_key || (await getSecret('TELNYX_TOOL_SECRET')) || '';
+      const body = assistantBody(shop, toolKey);
+      return json(200, {
+        ok: true, shop: shop.name, board_slug: shop.platformSlug || null,
+        tool_names: (body.tools || []).map((t) => (t.webhook && t.webhook.name) || t.type),
+        tools: body.tools, instructions: body.instructions,
+      });
+    }
 
     if (action === 'create' || action === 'update') {
       const shop = await shops.getAsync(q.shop);
