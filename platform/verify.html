@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Proof of Insurance</title>
+<style>
+  :root{ --bg:#f6f7f4; --panel:#fff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd; --brand:#3f8f24; --good:#3f8f24; --bad:#b4472e; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 8px 26px rgba(20,30,10,.07); }
+  @media(prefers-color-scheme:dark){ :root:not([data-theme="light"]){ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --brand:#5bb537; --chip:#20281a; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4); } }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:520px;margin:0 auto;padding:40px 20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:26px;text-align:center}
+  .shop{font-size:22px;font-weight:800;letter-spacing:-.02em;margin:2px 0 4px}
+  .sub{color:var(--muted);font-size:13.5px;margin-bottom:20px}
+  .seal{display:inline-flex;align-items:center;gap:9px;background:var(--chip);color:var(--good);font-weight:800;font-size:15px;padding:11px 18px;border-radius:999px;margin-bottom:20px}
+  .list{text-align:left;margin-top:8px}
+  .item{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line)} .item:first-child{border-top:0}
+  .item .k{flex:1;font-weight:600} .st{font-size:11.5px;font-weight:800;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .g{color:var(--good);background:var(--chip)} .b{color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+  .foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:20px}
+  .center{text-align:center;padding:60px 20px;color:var(--muted)} .big{font-size:44px}
+</style></head>
+<body>
+<div class="wrap" id="app"><div class="center"><div class="big">🐜</div><p>Loading…</p></div></div>
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var app=document.getElementById('app');
+  var cfg=window.ANT_SUPABASE||{};
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
+  var KIND={ coi_gl:'General Liability', coi_wc:"Workers' Compensation", coi_auto:'Commercial Auto', license:'Business License', w9:'W-9 on file', cert:'Certification', other:'Document' };
+  var slug=new URLSearchParams(location.search).get('c')||'';
+  function center(icon,msg){ app.innerHTML='<div class="center"><div class="big">'+icon+'</div><p>'+esc(msg)+'</p></div>'; }
+
+  if(!cfg.url||!cfg.anonKey){ center('🐜','Not connected yet.'); return; }
+  if(!slug){ center('🔗','This link is missing the shop.'); return; }
+  var sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+
+  sb.rpc('credentials_summary',{p_slug:slug}).then(function(r){
+    var d=r.data;
+    if(r.error||!d||d.ok===false){ center('🔎','We couldn\'t find that business.'); return; }
+    var creds=d.credentials||[];
+    var insured=creds.some(function(c){ return (c.kind==='coi_gl'||c.kind==='coi_wc') && c.current; });
+    var seal=insured ? '<div class="seal">🛡️ Licensed &amp; Insured</div>' : (creds.length ? '<div class="seal" style="color:var(--muted)">📄 Credentials on file</div>' : '');
+    var list=creds.length ? creds.map(function(c){
+      var lab=KIND[c.kind]||'Document'; if(c.label) lab+=' — '+esc(c.label);
+      var st=(c.expires_on==null && c.kind==='w9') ? '' : (c.current ? '<span class="st g">Current</span>' : '<span class="st b">Expired</span>');
+      return '<div class="item"><span class="k">'+esc(lab)+'</span>'+st+'</div>';
+    }).join('') : '<div class="center" style="padding:20px">No documents published yet.</div>';
+    app.innerHTML='<div class="card">'+seal+
+      '<div class="shop">'+esc(d.shop||'This business')+'</div>'+
+      '<div class="sub">Proof of insurance &amp; credentials</div>'+
+      '<div class="list">'+list+'</div></div>'+
+      '<div class="foot">🐜 Verified by AssistAnt 24/7 · a live summary from the shop\'s records</div>';
+  });
+})();
+</script>
+</body></html>
