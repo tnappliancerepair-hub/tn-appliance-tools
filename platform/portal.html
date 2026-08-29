@@ -70,9 +70,19 @@
   .vtile .play{position:absolute;color:#fff;font-size:23px;line-height:1;text-shadow:0 1px 5px rgba(0,0,0,.7);pointer-events:none}
   .bill{margin-top:12px;border-radius:11px;padding:11px 13px;font-size:14px;font-weight:700}
   .bill.covered{background:rgba(63,143,36,.1);color:var(--accent)}
-  .bill.paid{background:rgba(18,161,80,.12);color:#12a150}
-  .bill.due{background:var(--panel);border:1px solid var(--line);color:var(--ink);display:flex;justify-content:space-between;align-items:center}
-  .bill.due b{font-size:17px;font-variant-numeric:tabular-nums}
+  .invoice{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:var(--panel)}
+  .invoice .ihead{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:14px;margin-bottom:8px}
+  .invoice .ipill{font-size:11px;font-weight:800;letter-spacing:.04em;padding:3px 9px;border-radius:999px}
+  .invoice .ipill.paidp{background:rgba(18,161,80,.14);color:#12a150}
+  .invoice .ipill.duep{background:rgba(180,83,9,.14);color:#b45309}
+  .invoice .ir{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:5px 0;font-variant-numeric:tabular-nums}
+  .invoice .ir span:first-child{color:var(--ink)}
+  .invoice .ir.sub{color:var(--muted);font-size:13px;padding:3px 0}
+  .invoice .ir.sub span{color:var(--muted)}
+  .invoice .ir.itotal{border-top:1px solid var(--line);margin-top:5px;padding-top:9px;font-weight:800;font-size:16px}
+  .invoice .ifoot{margin-top:9px;font-size:13px;font-weight:700}
+  .invoice .ifoot.ipaid{color:#12a150}
+  .invoice .ifoot.idue{color:var(--muted);font-weight:600}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -155,15 +165,29 @@
       });
       var vidHtml = tiles ? '<div class="plabel">What you sent us</div><div class="pmedia">'+tiles+'</div>' : '';
       // The invoice's third leg: the customer's own receipt. Warranty = covered (never the
-      // claim amount); self-pay = their total + paid state. null bill → nothing shown.
+      // claim amount); self-pay = an itemized breakdown of THEIR cost + paid/unpaid state.
       var bill = j.bill, billHtml = '';
       if (bill) {
-        if (bill.covered) billHtml = '<div class="bill covered">🛡️ Covered by your warranty — no charge from us.</div>';
-        else if (bill.total_cents != null) {
-          var amt = '$' + (bill.total_cents/100).toFixed(2);
-          billHtml = bill.paid
-            ? '<div class="bill paid">✅ Paid — ' + amt + (bill.paid_method ? ' (' + esc(bill.paid_method) + ')' : '') + '. Thank you!</div>'
-            : '<div class="bill due"><span>Balance due</span><b>' + amt + '</b></div>';
+        if (bill.covered) {
+          billHtml = '<div class="bill covered">🛡️ Covered by your warranty — no charge to you.</div>';
+        } else if (bill.total_cents != null) {
+          var fmt = function(c){ return '$' + ((c||0)/100).toFixed(2); };
+          var lines = (bill.lines || []).map(function(l){
+            return '<div class="ir"><span>' + esc(l.description||'') + '</span><span>' + fmt(l.amount_cents) + '</span></div>';
+          }).join('');
+          var paidWhen = '';
+          if (bill.paid && bill.paid_at) { try { paidWhen = ' · ' + new Date(bill.paid_at).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){} }
+          var footer = bill.paid
+            ? '<div class="ifoot ipaid">✅ Paid' + (bill.paid_method ? ' · ' + esc(bill.paid_method) : '') + paidWhen + '. Thank you!</div>'
+            : '<div class="ifoot idue">Balance due — reply below or call us to take care of it.</div>';
+          billHtml =
+            '<div class="invoice">' +
+              '<div class="ihead"><span>Your invoice</span><span class="' + (bill.paid?'ipill paidp':'ipill duep') + '">' + (bill.paid?'PAID':'UNPAID') + '</span></div>' +
+              lines +
+              (bill.tax_cents ? '<div class="ir sub"><span>Subtotal</span><span>' + fmt(bill.subtotal_cents) + '</span></div><div class="ir sub"><span>Tax</span><span>' + fmt(bill.tax_cents) + '</span></div>' : '') +
+              '<div class="ir itotal"><span>Total</span><span>' + fmt(bill.total_cents) + '</span></div>' +
+              footer +
+            '</div>';
         }
       }
       return '<div class="card"><div class="job-top"><div>' +

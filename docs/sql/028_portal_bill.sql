@@ -40,14 +40,24 @@ begin
                'unit_label', (select u.label from public.unit u where u.id = j.unit_id),
                'tech', (select split_part(coalesce(t.name, ''), ' ', 1)
                         from public.technician t where t.id = j.technician_id),
-               -- customer-safe bill: warranty = covered only; self-pay = their own total + paid state
+               -- customer-safe bill: warranty = covered only (claim amount NEVER shown);
+               -- self-pay = the customer's own itemized invoice + paid state + line breakdown.
+               -- Line DESCRIPTIONS only (Labor / Parts / Trip-fee) — no part numbers, no cost/margin.
                'bill', (case
                           when nullif(btrim(coalesce(j.warranty_company, '')), '') is not null
                             then jsonb_build_object('covered', true)
                           else (select case when iv.id is null then null else jsonb_build_object(
+                                  'subtotal_cents', iv.subtotal_cents,
+                                  'tax_cents', iv.tax_cents,
                                   'total_cents', iv.total_cents,
                                   'paid', (iv.status = 'paid' or coalesce(iv.collected_cents,0) >= coalesce(iv.total_cents,0)),
-                                  'paid_method', iv.paid_method) end
+                                  'paid_method', iv.paid_method,
+                                  'paid_at', iv.paid_at,
+                                  'lines', (select coalesce(jsonb_agg(jsonb_build_object(
+                                              'description', coalesce(nullif(btrim(il.description), ''), initcap(il.kind)),
+                                              'amount_cents', round(coalesce(il.unit_cents,0) * coalesce(il.qty,1))
+                                            ) order by il.created_at), '[]'::jsonb)
+                                            from public.invoice_line il where il.invoice_id = iv.id)) end
                                 from public.invoice iv
                                 where iv.job_id = j.id
                                 order by iv.created_at desc limit 1)
