@@ -180,7 +180,20 @@ const INTENTS = {
       return { target_table: 'job', target_id: a.job_id, path: null, op: 'update', before, after: patch, label: 'Unscheduled the job (back to New)' };
     },
   },
+  // ---- tech self-serve (the ONLY intent a non-management tech may call) ----
+  request_day_off: {
+    args: 'day (YYYY-MM-DD), optional reason. Puts in a day-off request for the SIGNED-IN tech only.',
+    apply: async (ctx, a) => {
+      if (!ctx.technicianId) throw new Error('not linked to a technician');
+      const day = String(a.day || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('day must be YYYY-MM-DD');
+      const row = await ctx.d.insert('tech_time_off', { company_id: ctx.companyId, technician_id: ctx.technicianId, day, reason: a.reason || null });
+      return { target_table: 'tech_time_off', target_id: row.id, path: null, op: 'insert', before: null, after: { technician_id: ctx.technicianId, day, reason: a.reason || null }, label: 'Requested ' + prettyDay(day) + ' off' };
+    },
+  },
 };
+// the only intent a non-management (tech) caller is allowed to apply/undo — self-scoped
+const TECH_ALLOWED = ['request_day_off'];
 const INTENTS_META = Object.keys(INTENTS).map((k) => ({ intent: k, args: INTENTS[k].args }));
 
 async function reverseAction(ctx, row) {
@@ -274,4 +287,4 @@ async function learnPatterns(ctx) {
   return patterns.slice(0, 6);
 }
 
-module.exports = { resolveCaller, applyIntent, undoAction, listActions, learnPatterns, INTENTS, INTENTS_META, MGMT, cfg, db, centsMoney };
+module.exports = { resolveCaller, applyIntent, undoAction, listActions, learnPatterns, INTENTS, INTENTS_META, MGMT, TECH_ALLOWED, cfg, db, centsMoney };
