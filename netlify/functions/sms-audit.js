@@ -37,8 +37,17 @@ exports.handler = async function (event) {
   const key = await getSecret('TELNYX_API_KEY');
   if (!key) return json(500, { ok: false, error: 'no_telnyx_key' });
 
-  // kind: 'messaging' (default) or 'voice' — same tool answers "SMS spend" and "call spend".
-  const kind = /voice|call/i.test(String(q.kind || '')) ? 'voice' : 'messaging';
+  // record_type: Telnyx has NO "voice" type. Ann's cost lives in TWO record types —
+  //   call-control       = the phone call legs (minutes)
+  //   ai-voice-assistant = Ann's AI usage (STT + LLM + TTS) — the pricey part
+  // Pass ?record_type= explicitly, or a friendly ?kind=. Default messaging.
+  const KIND_MAP = {
+    messaging: 'messaging', sms: 'messaging',
+    voice: 'call-control', call: 'call-control', calls: 'call-control', 'call-control': 'call-control',
+    ai: 'ai-voice-assistant', assistant: 'ai-voice-assistant', ann: 'ai-voice-assistant', 'ai-voice-assistant': 'ai-voice-assistant',
+  };
+  const recordType = String(q.record_type || KIND_MAP[String(q.kind || '').toLowerCase()] || 'messaging');
+  const kind = recordType === 'messaging' ? 'messaging' : 'voice'; // 'voice' flags call/AI aggregation (minutes + billed cost)
   const days = Math.min(90, Math.max(1, Number(q.days || 14)));
   const now = Date.now();
   const gte = new Date(now - days * 86400e3).toISOString();
@@ -60,7 +69,7 @@ exports.handler = async function (event) {
   try {
     while (page <= maxPages) {
       const url = 'https://api.telnyx.com/v2/detail_records'
-        + '?filter[record_type]=' + kind
+        + '?filter[record_type]=' + recordType
         + '&filter[created_at][gte]=' + encodeURIComponent(gte)
         + '&filter[created_at][lte]=' + encodeURIComponent(lte)
         + '&page[number]=' + page + '&page[size]=' + perPage;
@@ -84,11 +93,17 @@ exports.handler = async function (event) {
         const dir = String(rec.direction || rec.messaging_direction || '').toLowerCase();
         const outbound = dir.includes('out') || dir === 'outbound';
         // cost: Telnyx MDR = per-message cost (string) + separate carrier_fee (string)
-        const base = Number(typeof rec.cost === 'string' ? rec.cost : (rec.cost && rec.cost.amount) || rec.rate || 0) || 0;
+        const base = Number(
+          (typeof rec.cost === 'string' ? rec.cost : (rec.cost && rec.cost.amount))
+          || rec.total_cost || rec.billed_amount || rec.rate || 0
+        ) || 0;
         const cfee = Number(rec.carrier_fee || 0) || 0;
         const cost = base + cfee;
         const parts = Number(rec.parts || rec.number_of_segments || rec.count || 1) || 1;
-        const sec = kind === 'voice' ? Number(rec.billed_sec || rec.duration_sec || rec.call_sec || rec.duration || 0) || 0 : 0;
+        const sec = kind === 'voice'
+          ? (Number(rec.billed_sec || rec.duration_sec || rec.duration_seconds || rec.call_sec || rec.duration || 0) || 0)
+            || (Number(rec.duration_millis || rec.billed_ms || 0) / 1000 || 0)
+          : 0;
         totalSec += sec;
         const dest = outbound ? (rec.to || rec.cld || rec.destination) : (rec.from || rec.cli || rec.source);
         const t = last10(dest);
@@ -139,7 +154,7 @@ exports.handler = async function (event) {
   const recentOfficeSorted = recentOffice.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 40);
 
   return json(200, {
-    ok: true, kind, partial: !!limited, limited_by: limited,
+    ok: true, kind, record_type: recordType, partial: !!limited, limited_by: limited,
     window_days: days, records_pulled: pulled,
     outbound_total: totalOut, inbound_total: totalIn,
     ...(kind === 'voice' ? { total_minutes: Math.round(totalSec / 60), billed_cost: round(totalCost) } : {}),
