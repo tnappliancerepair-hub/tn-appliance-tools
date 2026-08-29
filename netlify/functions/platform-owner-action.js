@@ -25,6 +25,7 @@ exports.handler = async function (event) {
 
   try {
     if (doAction === 'intents') return json(200, { ok: true, intents: OA.INTENTS_META });
+    if (doAction === 'patterns') return json(200, { ok: true, patterns: await OA.learnPatterns(ctx) });
     if (doAction === 'list') return json(200, await OA.listActions(ctx, p.limit));
     if (doAction === 'apply') {
       if (!OA.INTENTS[String(p.intent || '')]) return json(400, { ok: false, error: 'unknown intent: ' + p.intent });

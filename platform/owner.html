@@ -111,6 +111,15 @@
   .lrow .undo{border:1px solid var(--line);background:var(--bg);color:var(--muted);font-weight:700;font-size:11.5px;padding:5px 10px;border-radius:8px;cursor:pointer;flex:none}
   .lrow .undo:hover{color:var(--warn);border-color:var(--warn)}
   .lrow .revd{font-size:11px;font-weight:800;color:var(--warn);flex:none;align-self:center}
+  /* what Ant learned */
+  .learned{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .lp{display:flex;gap:11px;align-items:center;padding:12px 15px;border-top:1px solid var(--line)}
+  .lp:first-child{border-top:0}
+  .lp .li{width:26px;height:26px;border-radius:8px;background:var(--chip);display:grid;place-items:center;font-size:13px;flex:none}
+  .lp .b{flex:1;min-width:0}.lp .t{font-weight:700;font-size:13px}.lp .d{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .lp .go{border:1px solid color-mix(in srgb,var(--brand) 45%,var(--line));background:var(--chip);color:var(--brand);font-weight:700;font-size:11.5px;padding:7px 11px;border-radius:8px;cursor:pointer;flex:none}
+  .lp .go:hover{background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;border-color:transparent}
+  .lp.avoid .li{background:color-mix(in srgb,var(--warn) 16%,transparent)}
   /* Ant partner dock */
   .antfab{position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;border:0;cursor:pointer;background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;font-size:26px;box-shadow:0 8px 24px color-mix(in srgb,var(--brand) 45%,transparent);display:grid;place-items:center}
   .antfab:hover{transform:translateY(-1px)}
@@ -367,6 +376,7 @@
 
     var body =
       goalsCard(settings, takeHome, collected, win)+
+      '<div id="antLearned"></div>'+
       '<div class="sec">Performance — front and center</div>'+
       '<div class="hero">'+
         tile('🥇 First-Stop Completion', firstStop+'%', 'of '+fsKnown.length+' completed jobs with a report', true, '', 'Fixed on the first visit, no return trip for parts. From the tech\'s repair report; only counts jobs we have a report for.')+
@@ -418,6 +428,7 @@
     bindPartsPricing();
     bindPayouts();
     bindGoals();
+    loadLearned();
     loadAnnWeek();
     loadUsage();
     loadPayments();
@@ -473,6 +484,21 @@
           ownerAction('apply',{intent:'set_goal',args:{kind:'rating',value:nr},via:'ui'}).then(function(r){ if(r&&r.ok){ load(); } else { alert('Could not save: '+((r&&r.error)||'error')); btn.disabled=false; btn.textContent=orig; } });
         }
       };
+    });
+  }
+  // #4 — what Ant has learned about the shop (from the action log). Insight + one-tap default.
+  function loadLearned(){
+    var el=document.getElementById('antLearned'); if(!el) return;
+    ownerAction('patterns',{}).then(function(r){
+      var pats=(r&&r.ok&&r.patterns)||[];
+      if(!pats.length){ el.innerHTML=''; return; }
+      el.innerHTML='<div class="sec">🐜 What Ant has learned about your shop <span class="lock">gets sharper as you work</span></div><div class="learned">'+
+        pats.map(function(p,i){
+          var ic=p.avoid?'↩️':(p.key&&p.key.indexOf('area:')===0?'📍':(p.key==='margin_default'?'🔧':(p.key&&p.key.indexOf('comms:')===0?'🔕':'🐜')));
+          var go=p.suggest?'<button class="go" data-lp="'+i+'">'+esc(p.suggest.label)+'</button>':'';
+          return '<div class="lp'+(p.avoid?' avoid':'')+'"><div class="li">'+ic+'</div><div class="b"><div class="t">'+esc(p.title)+'</div><div class="d">'+esc(p.detail||'')+'</div></div>'+go+'</div>';
+        }).join('')+'</div>';
+      Array.prototype.forEach.call(el.querySelectorAll('.go'), function(btn){ btn.onclick=function(){ var p=pats[+btn.getAttribute('data-lp')]; if(!p||!p.suggest) return; btn.disabled=true; btn.textContent='…'; ownerAction('apply',{intent:p.suggest.intent,args:p.suggest.args,via:'ui'}).then(function(x){ if(x&&x.ok){ load(); } else { btn.textContent='Failed'; } }); }; });
     });
   }
   var LEDGER_IC={set_parts_margin:'🔧',toggle_comms:'🔕',set_comms_text:'✏️',set_goal:'🎯',set_tech_commission:'💰',set_tech_stops:'🚚',set_tech_area:'📍',add_tech_dayoff:'🌴'};
