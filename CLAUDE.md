@@ -1,5 +1,17 @@
 # Appliance Ant
 
+## 🗓️🐜📅 2026-08-29 (Fri, late) — CSR SCHEDULING HANDS: the Ant partner can now BOOK/MOVE/UNSCHEDULE jobs (logged + reversible) — READ FIRST
+
+Gave the front-desk/CSR Ant real hands on top of the reversible ledger + brain (043 / owner-actions / platform-ant). Danielle's Ant can now actually run the board by chat, not just advise.
+
+- **2 new intents in `_lib/owner-actions.js`** (the shared engine both the UI and the brain use): **`schedule_job`** {job_id, technician_id?, day?, tech_name?} = book OR move (sets tech and/or day, status→scheduled) and **`unschedule_job`** {job_id} = back to New. Both **reversible** — the ledger stores the job's before-state {technician_id, scheduled_day, status} and undo restores it (reversal generalized to any row-scoped update, not just technician). **UUID-guarded** ids (uid()) so a model-supplied id can't warp the PostgREST filter.
+- **`platform-ant.js` snapshot enriched for office/CSR:** adds `today` (date + weekday) + a **`needs_scheduling` queue** (job_id, customer, ZIP, city, warranty, **covering_techs [{id,name}]** computed by zone match) so the brain can pick a covering tech with room and resolve "Thursday" → a real date. Office/CSR system prompt now teaches booking (pick a covering tech, prefer one routed nearby with capacity, note the office texts the customer the window). Office role is MGMT so it already gets act tools.
+- **Ant dock on `platform/dispatch.html`** (the CSR board): the same floating 🐜 panel (leash advise/propose/act + thread + scheduling quick-prompts). Brain actions refresh the board; proposals → Confirm buttons that apply via the ledger. Owner dock (owner.html) already shipped.
+- **VERIFIED live on demo — 11/11 across two runs:** schedule_job books (tech+day+scheduled) → undo restores unscheduled; unschedule_job → New → undo restores scheduled; **the brain itself calls schedule_job** ("Book job <id> with ZZ Booker for 2026-09-11" → "Done. …booked …Friday, September 11. …you've got an Undo", ledger actor=ant/via=ant). Cleaned to zero residue each run. NOTE: `needs_scheduling` caps at 12 — a throwaway job crowded out of the first 12 made the brain honestly say "I don't see that job" (correct, not a hallucination); referencing by explicit id books fine.
+
+### Partner build order — status
+✅ #1 reversible ledger (043) · ✅ #2 goals + owner UI through the ledger · ✅ #3 role-aware brain (owner + CSR docks) · ✅ CSR scheduling hands. **Remaining: #4 pattern-learning** ("easier and easier" — the owner_action log IS the training set; learn repeated owner/CSR actions → pre-do them). Possible adds: a `notify_customer` intent so booking also (reversibly-noted) texts the window; raise/paginate the needs_scheduling cap; wire the dock into office-board.html too.
+
 ## 🗓️🐜🧠 2026-08-29 (Fri, late) — THE ANT PARTNER, LIVE: goals model + role-aware brain that acts through the reversible ledger — READ FIRST
 
 Built partner steps #2 + #3 on top of the reversible ledger (043). The owner/CSR now has a real AI partner that SEES their live shop numbers and ACTS through the same audited, undoable path.
