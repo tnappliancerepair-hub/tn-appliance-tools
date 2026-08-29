@@ -19,6 +19,18 @@
   .day .dow{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em} .day .dnum{font-size:17px;font-weight:800;line-height:1.1}
   .day .cnt{font-size:10.5px;color:var(--brand);font-weight:800;min-height:13px}
   .day.today .dnum{color:var(--brand)}
+  /* calendar: availability above the name, click a day to see the schedule */
+  .weeknav{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px}
+  .weeknav .wklabel{font-weight:800;font-size:14px}
+  .calwrap{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+  .calcol{flex:0 0 auto;min-width:78px;background:var(--panel);border:1px solid var(--line);border-radius:11px;overflow:hidden}
+  .calcol.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+  .calhd{text-align:center;padding:7px 4px;cursor:pointer;border-bottom:1px solid var(--line)}
+  .calhd .dow{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em} .calhd .dnum{font-size:16px;font-weight:800;line-height:1.1}
+  .calhd.today .dnum{color:var(--brand)}
+  .acell{text-align:center;padding:6px 4px;border-top:1px solid var(--line)} .acell:first-of-type{border-top:0}
+  .acell .avail{font-size:11px;font-weight:800} .acell .aname{font-size:11px;color:var(--muted)}
+  .acell.open .avail{color:var(--brand)} .acell.low .avail{color:var(--warn)} .acell.full .avail{color:var(--bad)}
   /* unscheduled */
   .sec-h{font-size:12px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);margin:14px 2px 8px}
   .tray{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
@@ -80,11 +92,16 @@
   function render(){
     var days=[]; for(var i=0;i<7;i++) days.push(isoDay(addDays(sel,i)));
     var today=isoDay(new Date());
-    // counts per day (scheduled jobs)
-    var cntByDay={}; jobs.forEach(function(j){ if(j.scheduled_day && j.status!=='completed'&&j.status!=='canceled'){ cntByDay[j.scheduled_day]=(cntByDay[j.scheduled_day]||0)+1; } });
+    // Calendar: each day column shows every tech's AVAILABILITY (open slots) above the name.
     var dow=['SUN','MON','TUE','WED','THU','FRI','SAT'];
-    var weekHtml=days.map(function(d){ var dt=new Date(d+'T12:00:00'); var c=cntByDay[d]||0;
-      return '<div class="day'+(d===selDay?' on':'')+(d===today?' today':'')+'" data-day="'+d+'"><div class="dow">'+dow[dt.getDay()]+'</div><div class="dnum">'+dt.getDate()+'</div><div class="cnt">'+(c?c+' job'+(c>1?'s':''):'')+'</div></div>'; }).join('');
+    var CAP=6; // stops/day a tech can take (default; per-tech capacity is a later setting)
+    function bookedOn(techId,d){ var n=0; jobs.forEach(function(j){ if(j.technician_id===techId&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
+    var calHtml=days.map(function(d){ var dt=new Date(d+'T12:00:00');
+      var cells=techs.length ? techs.map(function(t){ var open=Math.max(0,CAP-bookedOn(t.id,d)); var cls=open===0?'full':(open<=2?'low':'open');
+        return '<div class="acell '+cls+'"><div class="avail">'+(open===0?'Full':open+' open')+'</div><div class="aname">'+esc((t.name||'Tech').split(' ')[0])+'</div></div>'; }).join('')
+        : '<div class="acell"><div class="aname" style="font-weight:600">—</div></div>';
+      return '<div class="calcol'+(d===selDay?' on':'')+'"><div class="calhd'+(d===today?' today':'')+'" data-day="'+d+'"><div class="dow">'+dow[dt.getDay()]+'</div><div class="dnum">'+dt.getDate()+'</div></div>'+cells+'</div>'; }).join('');
+    var wkLabel=new Date(days[0]+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})+' – '+new Date(days[6]+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
 
     var uns=jobs.filter(needsDispatch);
     var unsHtml=uns.length ? uns.map(function(j){ return '<div class="ujob" data-job="'+j.id+'"><div class="u1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div></div>'; }).join('') : '<div class="tray-empty">Nothing waiting — every job has a tech and a day. ✅</div>';
@@ -100,16 +117,17 @@
     app.innerHTML=
       '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/office-board.html">Board</a><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
-        '<div class="week"><button class="warrow" id="wprev">‹</button><div class="days">'+weekHtml+'</div><button class="warrow" id="wnext">›</button></div>'+
+        '<div class="weeknav"><button class="warrow" id="wprev">‹</button><span class="wklabel">'+esc(wkLabel)+'</span><button class="warrow" id="wnext">›</button></div>'+
+        '<div class="calwrap">'+calHtml+'</div>'+
         '<div class="sec-h">🚨 Unscheduled — tap to assign</div><div class="tray">'+unsHtml+'</div>'+
-        '<div class="sec-h">'+esc(selLabel)+'</div><div class="techs">'+lanes+'</div>'+
+        '<div class="sec-h">📋 '+esc(selLabel)+' — full schedule</div><div class="techs">'+lanes+'</div>'+
       '</div>';
 
     document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick=load;
     document.getElementById('wprev').onclick=function(){ sel=addDays(sel,-7); render(); };
     document.getElementById('wnext').onclick=function(){ sel=addDays(sel,7); render(); };
-    Array.prototype.forEach.call(document.querySelectorAll('.day[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); render(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.calhd[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); render(); }; });
     Array.prototype.forEach.call(document.querySelectorAll('[data-job]'),function(el){ el.onclick=function(){ var j=jobs.filter(function(x){return x.id===el.getAttribute('data-job');})[0]; if(j) openAssign(j); }; });
   }
 
