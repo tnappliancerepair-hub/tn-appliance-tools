@@ -30,6 +30,18 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🎯 2026-08-29 (Fri, late) — BEST TECH+DAY AUTO-SUGGEST: the scheduling capstone (zones + PTO + capacity + route in one tap) — READ FIRST
+
+The capstone that ties the whole scheduling arc together. On the dispatch board, `suggestSlot(job)` scores every (tech × next-10-days) pair and hands the office the single best booking — **"🐜 Ant suggests: Lee · Thursday, Sep 4"** — computed entirely client-side over already-loaded data (no new query/SQL). `platform/dispatch.html` only.
+
+- **The scorer** (priority order): **covers the ZIP** (zones) ≫ everything (+2000) → hard-excludes **day-off/PTO** + **full days** (per-tech `max_stops`) → **route-fit** (already routed near this ZIP that day → fill the truck, +up to 120 by ZIP proximity) → **soonest** (+8/day earlier) → mild weekend nudge (−25). Candidates = anyone who serves the ZIP (explicit area match OR a no-area "covers-everywhere" tech); if a shop's areas all exclude the ZIP, falls back to the whole crew.
+- **Where it shows:** (1) the **assign modal** — a "🐜 Ant suggests {tech} · {day}" banner with the reason ("covers 37013 · already routed nearby · 3 slots left") + a **"Use this"** button that one-taps the tech+day into the form (office still reviews + Saves — office keeps final say); (2) each **unscheduled tray card** gets a compact "🐜 {tech} · {short day}" at-a-glance hint (or "no one available").
+- **UNIT-VERIFIED:** covering tech wins over non-covering; a nearby existing stop pulls the pick to that route day; a fully-booked covering tech falls back to a covers-all tech; a tech off today is pushed to a later day. All correct.
+- **Hoisted `capOf`/`bookedOn` to module scope** (were local to render) so the scorer + the grid share one definition.
+
+### This closes the scheduling-smarts arc
+Per-tech capacity (036) + day-off/PTO (039) + service zones (040) + route order (layer 3) were the inputs; this is the payoff that uses all four to auto-pick. **HONEST LIMIT:** still ZIP-proximity, not true drive-time — a geocode+distance-matrix optimizer (per-shop opt-in, cost) is the future upgrade for both route order AND this scorer's route-fit term.
+
 ## 🗓️🐜🧠 2026-08-29 (Fri, late) — DEEPEN THE BRAIN (platform): tiered, trade-aware, cross-shop "what usually fixes this" flywheel — READ FIRST
 
 The #1 north star, platform edition. The old `brain_lookup` read only `job_tdr` on an EXACT brand+model match → starved (1 TDR / 384 completed jobs) + brittle. Rebuilt it into a grounded, tiered, cross-shop flywheel. `docs/sql/042_brain_deepen.sql` (APPLIED + committed).
