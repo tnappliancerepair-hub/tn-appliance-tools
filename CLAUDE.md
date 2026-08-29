@@ -1,5 +1,19 @@
 # Appliance Ant
 
+## 🗓️🐜🔧💵 2026-08-29 (Fri, late) — THE TECHS' ANT: the money-makers get their partner (money-scoped brain + fix lookup + self-serve day-off) — READ FIRST
+
+Completed the three-seat partner: owner, CSR, and now the **techs**. A tech's Ant leans into what a money-maker cares about — their money, their day, and fixing things — and is tightly scoped + safe.
+
+- **`platform-ant` TECH lens (`buildTechSnapshot`)** — when the caller is a non-mgmt tech (technicianId set), the snapshot is scoped STRICTLY to their own technician_id: **their** earned-this-month / owed-to-them-now / paid-this-month (cut = commission × labor on their completed jobs; owed = collected-on-their-jobs minus paid-out), their day (today + upcoming), their month (jobs done + first-trip-fix). NEVER the shop's totals or another tech's pay (the brain uses the service key, so this is scoped in code, not RLS).
+- **Two safe tech tools:** `whats_usually_fixes` (calls the `brain_lookup` RPC — de-identified cross-shop repair knowledge, "most common fix is part #X, N fixes/comebacks, confidence") and `request_day_off` (self only — new intent in owner-actions, uses ctx.technicianId so a tech can't day-off anyone else; logged + reversible).
+- **Gating:** `TECH_ALLOWED=['request_day_off']` in owner-actions; `platform-owner-action` lets a non-mgmt tech apply/undo ONLY that (and returns empty for list/patterns — no shop-wide leak). `platform-ant` gives techs `[whats_usually_fixes, dayOffTool]` and hard-refuses apply_intent/undo_action for non-mgmt inside the tool loop too.
+- **Ant dock on `platform/tech.html`** — money/day/fix flavored (no leash; quick prompts My money / My day / Fix help). Talks to platform-ant tech-scoped.
+- **VERIFIED live on demo — 13/13:** money reply scoped ("You've earned $0… 50% commission on labor"); fix lookup returned trade knowledge; day-off applied+undone (row for THAT tech only); **tech BLOCKED from set_parts_margin + schedule_job** ("not allowed for your role"), list/patterns empty, and the brain refused a shop-settings change (margin unchanged, 0 actions). Cleaned to zero residue.
+
+### THE PARTNER IS COMPLETE — all three seats
+✅ #1 reversible ledger (043) · ✅ #2 goals + owner UI through the ledger · ✅ #3 role-aware brain · ✅ CSR scheduling hands · ✅ #4 pattern-learning · ✅ **techs' Ant**. Owner opens his app → partner on his goals + money (acts + reverses, learns his playbook). Danielle opens the board → Ant teaches + books her day. A tech opens his app → Ant shows his money, helps him fix things, puts in his day off. One brain (`platform-ant`), one safe/undoable ledger (`owner_action` via `_lib/owner-actions`), a different badge per seat — RLS + code scoping keep every seat to its own lane and every shop to its own data.
+- **Future polish (not built):** `notify_customer` intent; a proactive "Ant noticed…" pre-do nudge; raise the needs_scheduling 12-cap; drop the dock onto office-board.html; wire whats_usually_fixes into the existing tech-job.html "what usually fixes this" button.
+
 ## 🗓️🐜📈 2026-08-29 (Fri, late) — #4 THE PATTERN-LEARNING LAYER: the Ant partner gets easier every day (the ledger IS the training set) — READ FIRST
 
 Closed the partner arc. The `owner_action` ledger is now mined for how THIS shop actually operates, and that playbook feeds the brain + a "what Ant learned" card. No new data collection — it learns from what already accrues.
