@@ -567,6 +567,14 @@
     }).catch(function(){ btn.disabled=false; btn.textContent='Offer to customer'; alert('Could not send — try again.'); });
   }
 
+  // Fire-and-forget: text the newly-assigned tech that a job is on their plate.
+  function notifyAssigned(jobId){
+    sb.auth.getSession().then(function(s){
+      var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
+      fetch('/.netlify/functions/platform-tech-notify?do=notify_assigned',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok})}).catch(function(){});
+    });
+  }
+
   // R2 photos are tenant-scoped behind a signer — batch-sign refs with the staff session
   // token and drop the real URL into each <img src> (and its wrapping link).
   function hydratePics(scope){
@@ -696,7 +704,7 @@
 
     // Assign / reassign the tech — office dispatch (RLS lets the office write its own job rows).
     var jt=document.getElementById('jtech');
-    if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; loadBoard(); }); }; }
+    if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; if(val) notifyAssigned(job.id); loadBoard(); }); }; }
 
     // status buttons
     var sb2=document.getElementById('jstatus');

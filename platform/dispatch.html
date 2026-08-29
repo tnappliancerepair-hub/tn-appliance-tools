@@ -192,9 +192,16 @@
       var btn=this; btn.disabled=true; btn.textContent='Saving…';
       var patch={ technician_id:tech, scheduled_day:day };
       if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
-      sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(r.error){ btn.disabled=false; btn.textContent='Save'; document.getElementById('a-err').textContent=r.error.message; return; } if(day) selDay=day; close(); load(); });
+      sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(r.error){ btn.disabled=false; btn.textContent='Save'; document.getElementById('a-err').textContent=r.error.message; return; } if(day) selDay=day; if(tech) notifyAssigned(job.id); close(); load(); });
     };
     document.getElementById('a-unsched').onclick=function(){ var patch={scheduled_day:null}; if(job.status==='scheduled') patch.status='new'; sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(!r.error){ close(); load(); } }); };
+  }
+  // Fire-and-forget: text the newly-assigned tech that a job is on their plate.
+  function notifyAssigned(jobId){
+    sb.auth.getSession().then(function(s){
+      var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
+      fetch('/.netlify/functions/platform-tech-notify?do=notify_assigned',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok})}).catch(function(){});
+    });
   }
 
   function load(){

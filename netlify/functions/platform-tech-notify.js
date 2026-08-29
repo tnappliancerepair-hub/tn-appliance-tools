@@ -119,6 +119,47 @@ exports.handler = async function (event) {
       return json(200, { ok: true, texted: sent, no_phone: !phone, url: link });
     }
 
+    if (doo === 'notify_assigned') {
+      // Text the ASSIGNED tech that a job is on their plate (internal alert). The office calls
+      // this right after it sets technician_id. Best-effort + deduped so board churn can't spam.
+      const jrow = (await db.get(`job?id=eq.${jobId}&company_id=eq.${companyId}&select=technician_id,scheduled_day,problem,unit_id&limit=1`))[0] || {};
+      if (!jrow.technician_id) return json(200, { ok: true, texted: false, note: 'no_tech' });
+      const trow = (await db.get(`technician?id=eq.${jrow.technician_id}&select=name,app_user_id&limit=1`))[0] || {};
+      let tphone = '';
+      if (trow.app_user_id) { const au = (await db.get(`app_user?id=eq.${trow.app_user_id}&select=phone&limit=1`))[0]; tphone = au && au.phone ? String(au.phone).trim() : ''; }
+      if (!tphone) return json(200, { ok: true, texted: false, note: 'no_tech_phone', tech: trow.name });
+      const since = new Date(Date.now() - 10 * 60000).toISOString();
+      const recent = await db.get(`thread_message?job_id=eq.${jobId}&channel=eq.assign&created_at=gt.${encodeURIComponent(since)}&select=id&limit=1`);
+      if (recent && recent.length) return json(200, { ok: true, texted: false, note: 'deduped' });
+      const unit = jrow.unit_id ? (((await db.get(`unit?id=eq.${jrow.unit_id}&select=label&limit=1`))[0]) || {}).label : '';
+      const day = jrow.scheduled_day ? dayLabel(jrow.scheduled_day) : 'soon';
+      const msg = `${shop}: new job — ${cus.first_name || 'customer'}${unit ? ' · ' + unit : ''}${jrow.problem ? ' · ' + jrow.problem : ''} · ${day}. Open your app: ${SITE}/platform/tech.html`;
+      let sent = false; try { sent = await sendSms(tphone, msg, 'technician', 'platform_assigned'); } catch (_) {}
+      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'assign', sender: 'system', body: `🧰 Assigned to ${trow.name || 'the tech'} — texted them.` });
+      return json(200, { ok: true, texted: sent, tech: trow.name });
+    }
+
+    if (doo === 'arrived') {
+      // Customer heads-up the moment the tech starts the job on site.
+      const msg = `Hi ${first} — your technician from ${shop} has arrived and is getting started. 🔧`;
+      let sent = false;
+      if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_arrived'); } catch (_) {} }
+      await logThread('sms', '🔧 Tech arrived');
+      return json(200, { ok: true, texted: sent });
+    }
+
+    if (doo === 'complete') {
+      // Customer gets the "repair done" note + a link to their summary/receipt in the portal.
+      let grant = (await db.get(`portal_grant?company_id=eq.${companyId}&customer_id=eq.${job.customer_id}&job_id=eq.${job.id}&revoked=eq.false&select=token&limit=1`))[0];
+      if (!grant) grant = await db.insertRet('portal_grant', { company_id: companyId, customer_id: job.customer_id, job_id: job.id });
+      const tk = grant && grant.token; const link = tk ? `${SITE}/platform/portal.html?t=${tk}` : '';
+      const msg = `Hi ${first} — your repair with ${shop} is complete. ✅${link ? ' Your summary + receipt: ' + link : ''}`;
+      let sent = false;
+      if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_complete'); } catch (_) {} }
+      await logThread('sms', '✅ Job complete' + (link ? ' — sent summary link' : ''));
+      return json(200, { ok: true, texted: sent, url: link });
+    }
+
     if (doo === 'waiver_link') {
       // Text the customer the intake/sign link (same /i/<token> the lead flow uses) so they
       // can sign the release on their own phone — for when they didn't sign before the visit.

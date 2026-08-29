@@ -1009,7 +1009,7 @@
       sb.from('job').update({ status:'scheduled' }).eq('id',jobId).then(loadJob);
       return;
     }
-    var upd={ status:'in_progress' }; if(!job.started_at) upd.started_at=new Date().toISOString();
+    var upd={ status:'in_progress' }; if(!job.started_at){ upd.started_at=new Date().toISOString(); notify('arrived'); } // customer heads-up on first start
     sb.from('job').update(upd).eq('id',jobId).then(function(r){
       if(r.error && /started_at/i.test(r.error.message||'')){ sb.from('job').update({ status:'in_progress' }).eq('id',jobId).then(loadJob); return; }
       loadJob();
@@ -1211,6 +1211,7 @@
       var ns=(outcome==='return_needed'||partStatus==='please_order'||partStatus==='missing')?'awaiting_parts':'completed';
       var ju={status:ns}; if(ns==='completed') ju.completed_at=new Date().toISOString();
       var finish=function(){
+        if(ns==='completed'){ notify('complete'); } // text the customer their repair is done + receipt link
         // 🎉 Job done — confetti + fanfare. The reward that makes techs want to close jobs.
         if(ns==='completed' && window.antCelebrate){ try{ window.antCelebrate({ tag:'Job complete', big:'JOB DONE! 🎉', sub:(job.customer&&fullName(job.customer))||'', cue:'win', sound:'both' }); }catch(_){ } }
         var head = ns==='completed' ? '<div class="big">✅</div><h2>Report saved</h2><p>Nice work.</p>' : '<div class="big">🔁</div><h2>Report saved</h2><p>Logged for a return — the office will line up the part.</p>';
