@@ -754,18 +754,28 @@
       });
     } else { recompute(); }
 
-    // 🔧 Parts the tech logged in the field → price each here; the sum feeds Parts $ and each
-    // part becomes its own line on the receipt (no more re-keying "what parts + what they cost").
+    // 🔧 Parts the tech logged in the field → enter COST, the owner's margin fills the customer
+    // price. The retail sum feeds Parts $ and each part becomes its own receipt line. Nobody asks
+    // "what do we charge" and nobody re-keys it — the margin does the pricing.
     (function loadInvoiceParts(){
       var box=document.getElementById('jparts'); if(!box) return;
-      sb.from('job_part').select('id,name,number,sell_cents,disposition').eq('job_id',job.id).order('created_at').then(function(r){
+      var pc=(shopSettings&&shopSettings.parts)||{}, mPct=(pc.markup_pct!=null?+pc.markup_pct:50), mAdd=(+pc.min_add_cents||0);
+      var retail=function(costC){ costC=+costC||0; if(costC<=0) return 0; return Math.max(Math.round(costC*(1+mPct/100)), costC+mAdd); };
+      sb.from('job_part').select('id,name,number,cost_cents,sell_cents,disposition').eq('job_id',job.id).order('created_at').then(function(r){
         var parts=(r.data||[]).filter(function(p){ var d=(p.disposition||''); return d!=='return'&&d!=='unused'&&d!=='missing'; }); // don't bill returned/unused/missing
         if(!parts.length){ box.innerHTML=''; return; }
-        box.innerHTML='<div class="sec" style="margin-top:2px">🔧 Parts the tech used <span class="hint" style="font-weight:400">— price each; it fills Parts $</span></div>'+
-          parts.map(function(p){ var nm=(p.name||'Part'); return '<div class="row" style="gap:8px;align-items:center"><span class="k" style="flex:1">'+esc(nm)+(p.number?' <span class="mono">'+esc(p.number)+'</span>':'')+'</span><span class="v">$<input class="pp" data-part="'+esc(p.id)+'" data-name="'+esc(nm)+'" inputmode="decimal" style="width:80px" value="'+(p.sell_cents?(p.sell_cents/100).toFixed(2):'')+'"></span></div>'; }).join('');
+        box.innerHTML='<div class="sec" style="margin-top:2px">🔧 Parts the tech used <span class="hint" style="font-weight:400">— enter cost, the '+mPct+'% margin sets the price</span></div>'+
+          parts.map(function(p){ var nm=(p.name||'Part');
+            var costV=p.cost_cents?(p.cost_cents/100).toFixed(2):'';
+            var sellV=(p.sell_cents!=null?p.sell_cents:retail(p.cost_cents)); sellV=sellV?(sellV/100).toFixed(2):'';
+            return '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><span class="k" style="flex:1;min-width:120px">'+esc(nm)+(p.number?' <span class="mono">'+esc(p.number)+'</span>':'')+'</span>'+
+              '<span class="v" style="font-size:12px;color:var(--muted)">cost $<input class="pc" data-part="'+esc(p.id)+'" inputmode="decimal" style="width:64px" value="'+costV+'"></span>'+
+              '<span class="v">charge $<input class="pp" data-part="'+esc(p.id)+'" data-name="'+esc(nm)+'" inputmode="decimal" style="width:72px" value="'+sellV+'"></span></div>'; }).join('');
         var sumParts=function(){ var s=0; box.querySelectorAll('.pp').forEach(function(i){ s+=cents(i.value); }); document.getElementById('parts').value=s?(s/100).toFixed(2):''; recompute(); };
+        // typing cost auto-fills the charge from the owner's margin; charge stays editable (override).
+        box.querySelectorAll('.pc').forEach(function(i){ i.oninput=function(){ var pid=i.getAttribute('data-part'); var sc=retail(cents(i.value)); var ppi=box.querySelector('.pp[data-part="'+pid+'"]'); if(ppi){ ppi.value=sc?(sc/100).toFixed(2):''; } sumParts(); }; });
         box.querySelectorAll('.pp').forEach(function(i){ i.oninput=sumParts; });
-        var pre=0; parts.forEach(function(p){ pre+=(p.sell_cents||0); });
+        var pre=0; parts.forEach(function(p){ pre+=(p.sell_cents!=null?p.sell_cents:retail(p.cost_cents))||0; });
         if(pre>0){ document.getElementById('parts').value=(pre/100).toFixed(2); recompute(); }
       });
     })();
@@ -834,9 +844,13 @@
     document.getElementById('jerr').textContent='';
     var g=function(id){ return document.getElementById(id).value; };
     var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee'));
-    // the tech's parts, priced in the drawer → itemized lines + persist the price back on each part
-    var pricedParts=[]; Array.prototype.forEach.call(document.querySelectorAll('#jparts .pp'), function(i){ pricedParts.push({id:i.getAttribute('data-part'), name:i.getAttribute('data-name'), cents:cents(i.value)}); });
-    pricedParts.forEach(function(p){ if(p.id) sb.from('job_part').update({sell_cents:p.cents>0?p.cents:null}).eq('id',p.id).then(function(){}); });
+    // the tech's parts, priced in the drawer → itemized lines + persist cost + price back on each part
+    var pricedParts=[]; Array.prototype.forEach.call(document.querySelectorAll('#jparts .pp'), function(i){
+      var pid=i.getAttribute('data-part');
+      var costI=document.querySelector('#jparts .pc[data-part="'+pid+'"]');
+      pricedParts.push({id:pid, name:i.getAttribute('data-name'), cents:cents(i.value), costC:costI?cents(costI.value):0});
+    });
+    pricedParts.forEach(function(p){ if(p.id) sb.from('job_part').update({sell_cents:p.cents>0?p.cents:null, cost_cents:p.costC>0?p.costC:null}).eq('id',p.id).then(function(){}); });
     var tripApply=document.getElementById('jtripapply'); var applied=tripApply&&tripApply.checked && (laborC+partsC)>0;
     var sub=laborC+partsC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
     var paid=document.getElementById('jpaid').checked, method=document.getElementById('jmethod').value||null;

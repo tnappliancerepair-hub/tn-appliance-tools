@@ -167,13 +167,15 @@
     var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,collected_cents,status,paid_at,created_at').limit(3000);
     var techP = sb.from('technician').select('id,name,active,commission_type,commission_pct,commission_flat_cents,max_stops').limit(200);
     var payP  = sb.from('tech_payout').select('technician_id,job_id,amount_cents,paid_at').limit(5000);
-    Promise.all([jobsP, invP, techP, payP]).then(function(res){
-      var jobs = (res[0].data)||[], invs = (res[1].data)||[], techs = (res[2].data)||[], payouts = (res[3].data)||[];
-      render(jobs, invs, techs, payouts);
+    var partP = sb.from('job_part').select('job_id,cost_cents,sell_cents,disposition').limit(10000);
+    Promise.all([jobsP, invP, techP, payP, partP]).then(function(res){
+      var jobs = (res[0].data)||[], invs = (res[1].data)||[], techs = (res[2].data)||[], payouts = (res[3].data)||[], parts = (res[4]&&res[4].data)||[];
+      render(jobs, invs, techs, payouts, parts);
     }).catch(function(){ shell('<div class="note">Could not load data. Try again.</div>'); });
   }
 
-  function render(jobs, invs, techs, payouts){
+  function render(jobs, invs, techs, payouts, parts){
+    parts = parts || [];
     var since = winStartMs();
     var inWin = function(row, field){ var t=row[field]?Date.parse(row[field]):0; return since===0 || t>=since; };
     // KPI base: jobs created in-window (pipeline) + completed in-window (outcomes)
@@ -217,7 +219,12 @@
       if(pj.owed_now_cents>0){ (payJobs[j.technician_id]=payJobs[j.technician_id]||[]).push({job_id:j.id, owed_cents:pj.owed_now_cents}); }
     });
     var owedToTechs=0, techCollected=0; Object.keys(payAgg).forEach(function(id){ owedToTechs+=payAgg[id].owed; techCollected+=payAgg[id].collectible; });
-    var takeHome = collected - techCollected; // collected revenue minus tech's collected cut (before parts/overhead)
+    // PARTS — cost vs charge on billed jobs in this window (the margin the owner set, realized).
+    var winJobIds={}; invWin.forEach(function(v){ if(v.job_id) winJobIds[v.job_id]=1; });
+    var partsRev=0, partsCost=0; parts.forEach(function(p){ if(!winJobIds[p.job_id]) return; var d=(p.disposition||''); if(d==='return'||d==='unused'||d==='missing') return; partsRev+=(p.sell_cents||0); partsCost+=(p.cost_cents||0); });
+    var partsMargin=partsRev-partsCost;
+    var mPct=(settings.parts&&settings.parts.markup_pct!=null)?+settings.parts.markup_pct:50;
+    var takeHome = collected - techCollected - partsCost; // collected revenue minus tech cut AND parts cost (before overhead)
     var payTable = Object.keys(payAgg).length ? (
       '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Rule</th><th>Earned</th><th>Collected</th><th>Paid</th><th>Owed now</th><th></th></tr></thead><tbody>'+
       Object.keys(payAgg).map(function(id){ var a=payAgg[id]; var rule=window.PayCalc.ruleFor(techById[id], compDef);
@@ -333,18 +340,21 @@
         mrow('Collected','',USD(collected))+
         mrow('Outstanding (owed to shop)','',USD(outstanding))+
         mrow('Owed to techs (collected, not paid)','',USD(owedToTechs))+
-        mrow('Take-home (after tech pay)','before parts / overhead',USD(takeHome))+
+        (partsCost>0||partsRev>0 ? mrow('Parts margin','charged '+USD(partsRev)+' · cost '+USD(partsCost),USD(partsMargin)) : '')+
+        mrow('Take-home (after tech pay + parts)','before overhead',USD(takeHome))+
       '</div>'+
       (invWin.length===0
         ? '<div class="note">No invoices in this window yet. As jobs get billed on the platform, billed / collected / owed-to-techs / take-home fill in here automatically — from the same invoice, entered once.</div>'
-        : '<div class="note">From '+invWin.length+' invoice'+(invWin.length===1?'':'s')+'. Take-home is collected revenue minus the techs’ collected cut; parts cost + overhead land here as those get captured.</div>')+
+        : '<div class="note">From '+invWin.length+' invoice'+(invWin.length===1?'':'s')+'. Take-home is collected revenue minus the techs’ collected cut and what the parts cost you. Your parts margin ('+mPct+'%) is set below — the tech only enters cost, the price fills itself in.</div>')+
       (payTable ? '<div class="sec">Tech pay <span class="lock">🔒 owner only</span></div>'+payTable+'<div class="note">Earned = cut if it pays in full · Collected = invoice paid · Owed now = collected but not yet paid out. All from the job’s invoice + this tech’s commission rule.</div>' : '')+
       '<div class="sec">Card payments <span class="lock">🔒 owner only</span></div>'+
       '<div id="payConnect"><div class="note">Loading…</div></div>'+
       reconcileSection+
-      commissionEditor(techs, compDef);
+      commissionEditor(techs, compDef)+
+      partsPricingEditor(settings);
     shell(body);
     bindCommission();
+    bindPartsPricing();
     bindPayouts();
     loadAnnWeek();
     loadUsage();
@@ -530,6 +540,46 @@
     }).catch(function(){ btn.disabled=false; btn.textContent=old; if(m) m.textContent='Could not update — try again.'; });
   }
 
+  // Parts margin — ONE slider sets what every part is marked up. The tech enters only the cost;
+  // the customer price = max(cost × (1+markup), cost + minimum-added), everywhere, automatically.
+  function partsPricingEditor(settings){
+    var p=(settings&&settings.parts)||{};
+    var pct=(p.markup_pct!=null?+p.markup_pct:50), minAdd=(+p.min_add_cents||0);
+    return '<div class="sec">Parts pricing <span class="lock">🔒 owner only</span></div>'+
+      '<div class="money" style="padding:16px">'+
+        '<div class="note" style="margin:0 0 12px">Set your parts margin once. Your tech just enters what the part <b>cost</b> — the customer price fills in by itself, so nobody has to ask or look it up.</div>'+
+        '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px"><span style="font-weight:800;font-size:14px">Markup on parts</span><span style="font-size:22px;font-weight:800;font-variant-numeric:tabular-nums"><span id="ppPctV">'+pct+'</span>%</span></div>'+
+        '<input id="ppSlider" type="range" min="0" max="200" step="5" value="'+pct+'" style="width:100%;accent-color:#2f6bff">'+
+        '<div class="row" style="margin-top:12px"><span class="k">And add at least</span><span class="v">$<input id="ppMin" inputmode="decimal" style="width:70px" value="'+(minAdd?(minAdd/100).toFixed(2):'')+'" placeholder="0.00"></span></div>'+
+        '<div class="note" style="margin:2px 0 12px">Protects small parts — e.g. a $3 part still adds a fair minimum, not pennies. Leave blank for none.</div>'+
+        '<div id="ppEx" style="border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13px"></div>'+
+        '<button id="ppSave" style="width:100%;margin-top:12px;padding:11px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;border:0;background:#2f6bff;color:#fff">Save parts margin</button>'+
+        '<div id="ppMsg" class="note" style="margin-top:8px"></div>'+
+      '</div>';
+  }
+  function bindPartsPricing(){
+    var sl=document.getElementById('ppSlider'); if(!sl) return;
+    var pctV=document.getElementById('ppPctV'), minI=document.getElementById('ppMin'), ex=document.getElementById('ppEx'), save=document.getElementById('ppSave'), msg=document.getElementById('ppMsg');
+    var retail=function(costC,pct,minAdd){ costC=+costC||0; if(costC<=0) return 0; return Math.max(Math.round(costC*(1+pct/100)), costC+minAdd); };
+    var money=function(c){ return '$'+((+c||0)/100).toFixed(2); };
+    function draw(){
+      var pct=+sl.value; pctV.textContent=pct;
+      var minAdd=Math.round((parseFloat(minI.value)||0)*100);
+      ex.innerHTML='<div class="row" style="background:var(--bg,rgba(0,0,0,.02));font-weight:700"><span class="k">A part that costs you</span><span class="v">the customer pays</span></div>'+
+        [500,2500,9000].map(function(c){ return '<div class="row"><span class="k">'+money(c)+'</span><span class="v" style="color:#12a150;font-weight:800">'+money(retail(c,pct,minAdd))+'</span></div>'; }).join('');
+    }
+    sl.oninput=draw; minI.oninput=draw; draw();
+    save.onclick=function(){
+      var pct=+sl.value, minAdd=Math.round((parseFloat(minI.value)||0)*100);
+      save.disabled=true; save.textContent='Saving…';
+      var next=Object.assign({}, settings, { parts: Object.assign({}, settings.parts||{}, { markup_pct:pct, min_add_cents:minAdd>0?minAdd:0 }) });
+      sb.from('company').update({settings:next}).eq('id',companyId).then(function(r){
+        save.disabled=false; save.textContent='Save parts margin';
+        if(r.error){ msg.textContent='Could not save: '+r.error.message; return; }
+        settings=next; msg.textContent='Saved. Every part is now marked up '+pct+'%'+(minAdd>0?' (min +'+money(minAdd)+')':'')+' — techs enter cost, the price fills itself in.'; load();
+      });
+    };
+  }
   function bindCommission(){
     var msg=document.getElementById('commMsg');
     var save=document.getElementById('commSave');
