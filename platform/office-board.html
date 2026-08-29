@@ -683,6 +683,7 @@
       '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
       '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
       '<div class="sec">Pay / invoice</div>' +
+      '<div id="jparts"></div>' +
       '<div class="pay">' +
         fld('labor','Labor $') + fld('parts','Parts $') + fld('fee','Trip / fee $') + fld('tax','Tax %') +
       '</div>' +
@@ -753,6 +754,22 @@
       });
     } else { recompute(); }
 
+    // 🔧 Parts the tech logged in the field → price each here; the sum feeds Parts $ and each
+    // part becomes its own line on the receipt (no more re-keying "what parts + what they cost").
+    (function loadInvoiceParts(){
+      var box=document.getElementById('jparts'); if(!box) return;
+      sb.from('job_part').select('id,name,number,sell_cents,disposition').eq('job_id',job.id).order('created_at').then(function(r){
+        var parts=(r.data||[]).filter(function(p){ var d=(p.disposition||''); return d!=='return'&&d!=='unused'&&d!=='missing'; }); // don't bill returned/unused/missing
+        if(!parts.length){ box.innerHTML=''; return; }
+        box.innerHTML='<div class="sec" style="margin-top:2px">🔧 Parts the tech used <span class="hint" style="font-weight:400">— price each; it fills Parts $</span></div>'+
+          parts.map(function(p){ var nm=(p.name||'Part'); return '<div class="row" style="gap:8px;align-items:center"><span class="k" style="flex:1">'+esc(nm)+(p.number?' <span class="mono">'+esc(p.number)+'</span>':'')+'</span><span class="v">$<input class="pp" data-part="'+esc(p.id)+'" data-name="'+esc(nm)+'" inputmode="decimal" style="width:80px" value="'+(p.sell_cents?(p.sell_cents/100).toFixed(2):'')+'"></span></div>'; }).join('');
+        var sumParts=function(){ var s=0; box.querySelectorAll('.pp').forEach(function(i){ s+=cents(i.value); }); document.getElementById('parts').value=s?(s/100).toFixed(2):''; recompute(); };
+        box.querySelectorAll('.pp').forEach(function(i){ i.oninput=sumParts; });
+        var pre=0; parts.forEach(function(p){ pre+=(p.sell_cents||0); });
+        if(pre>0){ document.getElementById('parts').value=(pre/100).toFixed(2); recompute(); }
+      });
+    })();
+
     document.getElementById('jpaySave').onclick=function(){ savePay(job); };
     document.getElementById('jstmt').onclick=function(){ openStatement(job); };
     document.getElementById('jsend').onclick=function(){ sendInvoice(job); };
@@ -817,6 +834,9 @@
     document.getElementById('jerr').textContent='';
     var g=function(id){ return document.getElementById(id).value; };
     var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee'));
+    // the tech's parts, priced in the drawer → itemized lines + persist the price back on each part
+    var pricedParts=[]; Array.prototype.forEach.call(document.querySelectorAll('#jparts .pp'), function(i){ pricedParts.push({id:i.getAttribute('data-part'), name:i.getAttribute('data-name'), cents:cents(i.value)}); });
+    pricedParts.forEach(function(p){ if(p.id) sb.from('job_part').update({sell_cents:p.cents>0?p.cents:null}).eq('id',p.id).then(function(){}); });
     var tripApply=document.getElementById('jtripapply'); var applied=tripApply&&tripApply.checked && (laborC+partsC)>0;
     var sub=laborC+partsC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
     var paid=document.getElementById('jpaid').checked, method=document.getElementById('jmethod').value||null;
@@ -833,7 +853,10 @@
     var writeLines=function(invoiceId){
       sb.from('invoice_line').delete().eq('invoice_id',invoiceId).then(function(){
         var lines=[]; if(laborC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'labor',description:'Labor',qty:1,unit_cents:laborC});
-        if(partsC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:'Parts',qty:1,unit_cents:partsC});
+        // itemize the tech's priced parts as their own lines; fall back to one lump "Parts" line
+        var pp=pricedParts.filter(function(p){return p.cents>0;});
+        if(pp.length){ pp.forEach(function(p){ lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:p.name||'Part',qty:1,unit_cents:p.cents}); }); }
+        else if(partsC){ lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:'Parts',qty:1,unit_cents:partsC}); }
         if(feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'fee',description:'Trip charge',qty:1,unit_cents:feeC});
         if(applied&&feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'credit',description:'Trip applied to repair',qty:1,unit_cents:-feeC});
         if(lines.length) sb.from('invoice_line').insert(lines).then(function(){ done(invoiceId); }); else done(invoiceId);
