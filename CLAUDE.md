@@ -30,6 +30,40 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🤝 2026-08-29 (Fri) — ASSISTANT 24/7 PLATFORM: THREE-WAY SCHEDULING HANDSHAKE + SELF-SERVE CREW MGMT + FULL CLICK-TEST — READ FIRST
+
+Marathon "dial the platform in all the way" day on the multi-tenant Supabase platform (office ↔ tech ↔ customer). All on `main` + `claude/shop-automation-setup-r9wzpm` (Netlify auto-deploys). Every piece verified live on the **demo** tenant (Joey's Appliance Repair, slug `demo`, company `60a599af-…`) via `sb-admin-sql` (Management token) + real function calls, then cleaned up. **All migrations applied live + committed to `docs/sql/`.**
+
+### 🤝 THREE-WAY SCHEDULING HANDSHAKE (Teddy's idea — all three sides help schedule, low-promise)
+The scheduling loop now has texts on BOTH sides so nobody has to watch the board.
+- **Intake low-promise windows** (`platform/intake.html`): availability sub-question adds *Wide open / Mornings / Afternoons* chips (`#win`, default `any`) → availability string `days · window`. Gives the tech grace.
+- **Migration `docs/sql/032_schedule_handshake.sql`** (APPLIED): `schedule_offer` table (direction `customer|shop`, proposed_day, win `am|pm|any`, status `pending|accepted|declined|withdrawn`) + tenant RLS; RPCs `portal_request_day(token,day,win,note)`, `portal_respond_offer(token,offer_id,accept)`; `portal_get` re-created to return per-job pending `offers`.
+- **Customer → scheduler TEXT** (`platform-schedule-request.js`, NEW): customer taps "request a day" in `portal.html` → records via the token-gated RPC AND **texts the shop's scheduler cell** (`company.settings.business.phone`) with who + day + window + note + a **deep-link to the job on the board** (`office-board.html?job=<id>`). `portal.html requestDay()` calls it; falls back to the direct RPC if the endpoint is unreachable so the request always lands.
+- **Office → customer TEXT** (`platform-tech-notify.js` new `do=schedule_offer`): office taps "Offer to customer" in `office-board.html` (`#jsched` drawer section) → one atomic server call records the shop offer, mints/reuses a portal grant, and **texts the customer** the day + a one-tap portal link to confirm-or-pick-another, logging the shared thread. `office-board.html sendOffer()` repointed to it (was a client-side insert). Customer accepts in the portal → `portal_respond_offer` sets `scheduled_day` + status.
+
+### 🔧 SELF-SERVE CREW MANAGEMENT (the tenant onboarding hole — closed)
+Techs had NO way to get a login for a new tenant. Now owners manage their own crew end-to-end, no operator.
+- **`platform-provision.js` `?action=addtech`** (NEW): creates (or reuses) the tech's Supabase auth login + `app_user` (role=tech) + linked `technician` row. **Idempotent**, and **ADOPTS a same-name seeded technician that has no login yet** (no duplicates). Admin path vaults the temp pw; **owner-self-serve path** (owner's session token, scoped STRICTLY to their own company — a passed `&slug=` is ignored) returns the pw directly.
+- **`?action=settech_active`** (NEW): remove/restore a crew member — flips `technician.active` AND bans/unbans the login (removed tech can't sign in), **keeps all history** (jobs/pay/leaderboard), fully reversible. Owner-scoped or admin.
+- **Top gate relaxed:** `OWNER_OK = {addtech, settech_active}` — those two are owner-callable; every other provision action stays admin/operator-only.
+- **`platform/owner.html`:** commission card gained **"Add a crew member"** (name + email + pay %, shows temp pw once) + a **✕ Remove** per active tech + an **"Inactive crew"** list with **Restore**. All via the owner's session token.
+
+### 🗓 DISPATCH UNSCHEDULE FIX
+`platform/dispatch.html` Unschedule now reverts `scheduled → new` (symmetric with assign, which only flips `new → scheduled`) so an unscheduled job leaves the board's scheduled state cleanly. in_progress/awaiting_parts/completed untouched.
+
+### ✅ FULL CLICK-TEST ON DEMO — 12/12 (real functions as real actors)
+Fresh lead (`platform-lead?slug=demo`) → owner session via **magic-link** (`provision?action=magiclink&email=demo@assistant247.net`, followed the redirect + parsed `#access_token`) → assign tech (RLS staff PATCH) → office offers day → customer accepts → tech start→complete (**first_stop auto-set via trigger 031**) → TDR → invoice (paid, `labor_cents`+`collected_cents` set) → portal shows tech+day+status + **itemized receipt** ($224, Labor $140 + part $65) + **no part#/pay leak** → owner reads collected labor for commission. Cleaned to zero residue. (Only initial red was my harness using a non-existent `diagnosis` column — `job_tdr` uses `failed_component`/`root_cause`/`part_status`/`part_number`/`labor_hours`; corrected + verified.) Pay spine confirmed intact: office `savePay` already writes both `labor_cents` + `collected_cents`, so owner "collected" + commission are honest (audit bug #4 was a TN `tech-job.html` issue, NOT the platform).
+
+### FOOTGUNS this session
+- **`sb-admin-sql` returns only the LAST statement's rows** + occasionally blips an empty body → wrap calls in a retry helper (`for i<5; if(!text) sleep+continue`).
+- **`jsonb_set` won't create a missing parent** — `jsonb_set(settings,'{business,phone}',…)` is a NO-OP when `settings.business` doesn't exist; use `settings || jsonb_build_object('business', coalesce(settings->'business','{}') || '{"phone":…}')`.
+- **`provision?action=magiclink` needs the admin `secret`** + resolves owner email by `app_user.role=owner` (demo's first owner had a null `app_user.email` → pass `&email=` explicitly; demo login = `demo@assistant247.net`).
+- **A `+` in a URL query becomes a space** — test emails/phones with `+` fail validation; use plain values.
+- **customer-direction `sendSms`** routes through `guardedSend` (hard opt-out enforced, rest shadow); TN's `officeGate` only blocks TN's 4 cells so a tenant's own numbers pass. A reserved 555-01xx number returns `texted:false` (non-routable) — not a code fault.
+
+### OPEN / NEXT
+- Optional polish only — the office↔tech↔customer loop runs end-to-end. Standing pending (unrelated): #13 Marshall Reddick vendor onboarding, #23 Xano saturation meeting, #46 root-cause what re-schedules COMPLETED jobs (Danielle 8/28).
+
 ## 🗓️🔇📱 2026-08-28 (Thu night) — KILLED THE OFFICE TEXT FLOOD: office texts now Teddy-ONLY, cash-intake + warranty-intake ONLY · built Telnyx SMS auditor · killed all Vapi texting — READ FIRST
 
 Teddy: "A majority of our Telnyx costs are the flooding of texts Danielle and Carrie have been getting bombarded... pull the Telnyx records, cut it in half... kill all texting on Vapi too." Then, final rule for the night: **"No more texting Danielle, Sofia or Carrie. Only text me cash job intake and intake for warranty jobs. Eliminate the others."** All shipped to `main` + branch (deployed).
