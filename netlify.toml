@@ -18,6 +18,11 @@
 [functions."return-label-find"]
   timeout = 26
 
+# Warranty-email intake: a dispatch in a format we've never seen falls back to a Claude
+# extraction (a few seconds). Give it the full sync budget so that never 502s the worker.
+[functions."platform-email-intake"]
+  timeout = 26
+
 # Security headers — applied to every page served from this site.
 # Keeps office surfaces hardened: CSP limits where scripts/connections
 # can come from, X-Frame-Options blocks click-jacking, Referrer-Policy
