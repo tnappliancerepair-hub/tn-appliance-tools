@@ -15,6 +15,7 @@
 
 const OA = require('./_lib/owner-actions');
 const { getSecret } = require('./_lib/secrets');
+let sendSms; try { ({ sendSms } = require('./_lib/sms')); } catch (_) { sendSms = null; }
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 const MODEL = 'claude-sonnet-4-5-20250929';
@@ -103,6 +104,22 @@ async function brainLookup(base, key, a) {
     return { ok: true, results: Array.isArray(rows) ? rows.slice(0, 5) : rows };
   } catch (e) { return { ok: false, error: String(e && e.message || e).slice(0, 80) }; }
 }
+// text the signed-in tech a reminder on their OWN phone (technician -> app_user.phone). Not reversible.
+async function textTech(caller, ctx, message) {
+  if (!ctx.technicianId) return { ok: false, error: 'not a tech' };
+  if (!sendSms) return { ok: false, error: 'texting unavailable' };
+  try {
+    const tr = await ctx.d.get(`technician?id=eq.${ctx.technicianId}&company_id=eq.${ctx.companyId}&select=app_user_id`);
+    const auId = tr && tr[0] && tr[0].app_user_id;
+    if (!auId) return { ok: false, error: 'no login linked' };
+    const ur = await ctx.d.get(`app_user?id=eq.${auId}&select=phone`);
+    const phone = ur && ur[0] && ur[0].phone;
+    if (!phone) return { ok: false, error: 'no phone on file — ask the office to add your cell' };
+    const body = '🔧 Ant reminder: ' + String(message || '').slice(0, 300);
+    await sendSms(phone, body, 'technician', 'tech_reminder');
+    return { ok: true, texted: true };
+  } catch (e) { return { ok: false, error: String(e && e.message || e).slice(0, 100) }; }
+}
 async function buildTechSnapshot(ctx) {
   const TID = ctx.technicianId, d = ctx.d;
   const [meRows, jobs, invs, payouts, coRows] = await Promise.all([
@@ -129,8 +146,9 @@ async function buildTechSnapshot(ctx) {
   let paidLife = 0, paidMonth = 0; payouts.forEach((p) => { paidLife += p.amount_cents || 0; if (inMonthTs(p.paid_at, ms)) paidMonth += p.amount_cents || 0; });
   const owedNow = Math.max(0, collectedEarnedLife - paidLife);
   const todayIso = new Date().toISOString().slice(0, 10);
-  const upcoming = jobs.filter((j) => j.status !== 'completed' && j.status !== 'canceled' && j.scheduled_day).sort((a, b) => String(a.scheduled_day).localeCompare(String(b.scheduled_day))).slice(0, 12).map((j) => ({ customer: custName(j), day: j.scheduled_day, appliance_problem: j.problem || '', zip: (j.customer && j.customer.zip) || '', city: (j.customer && j.customer.city) || '' }));
-  const todays = upcoming.filter((j) => j.day === todayIso);
+  // today = anything scheduled today OR worked/finished today (so Ant can reference "the X job from today")
+  const todays = jobs.filter((j) => j.scheduled_day === todayIso || String(j.completed_at || '').slice(0, 10) === todayIso).map((j) => ({ job_id: j.id, customer: custName(j), status: j.status, appliance_problem: j.problem || '', zip: (j.customer && j.customer.zip) || '' }));
+  const upcoming = jobs.filter((j) => j.status !== 'completed' && j.status !== 'canceled' && j.scheduled_day && j.scheduled_day > todayIso).sort((a, b) => String(a.scheduled_day).localeCompare(String(b.scheduled_day))).slice(0, 12).map((j) => ({ job_id: j.id, customer: custName(j), day: j.scheduled_day, appliance_problem: j.problem || '', zip: (j.customer && j.customer.zip) || '', city: (j.customer && j.customer.city) || '' }));
   const doneMonth = jobs.filter((j) => j.status === 'completed' && inMonthTs(j.completed_at || j.created_at, ms)).length;
   const fsK = jobs.filter((j) => j.status === 'completed' && (j.first_stop === true || j.first_stop === false));
   const fsY = fsK.filter((j) => j.first_stop === true).length;
@@ -149,7 +167,7 @@ function systemPrompt(role, mode, snap) {
   const seat = role === 'office' || role === 'manager' ? 'the front desk / dispatcher' : (role === 'owner' ? 'the owner' : 'a technician — a money-maker out in the field');
   const intentDoc = OA.INTENTS_META.map((i) => `  - ${i.intent}: ${i.args}`).join('\n');
   let handMode;
-  if (!isMgmt) handMode = 'You help the tech make money and get through the day. You CAN: look up what usually fixes an appliance (whats_usually_fixes) and put in a day-off request for THEM (request_day_off, logged with an Undo). You canNOT change shop settings, pay, pricing, or anyone else’s schedule — if they ask for that, tell them the office/owner handles it.';
+  if (!isMgmt) handMode = 'You help the tech make money and get through the day, hands-free — they\'re often driving, so keep it short and just DO it. You CAN: look up what usually fixes an appliance (whats_usually_fixes); flag a part the office needs to order on one of THEIR OWN jobs (add_part_needed — find the job by name in your_day and use its job_id); text the tech a reminder to their own phone (text_me_reminder, e.g. to grab an exact part number later); and put in a day-off for THEM (request_day_off). All logged/reversible where it makes sense. If they ask you to do several of these at once, do them all. You canNOT change shop settings, pay, pricing, or anyone else’s schedule — the office/owner handles that.';
   else if (mode === 'advise') handMode = 'ADVISE ONLY right now — recommend the change in plain words, do NOT call any tool.';
   else if (mode === 'propose') handMode = 'PROPOSE mode — when a change is warranted, call propose_change to stage it (this does NOT execute); the person will tap Confirm. Describe what you staged.';
   else handMode = 'ACT mode — when the person clearly wants a change, DO IT by calling apply_intent. Tell them it is done and logged with an Undo. Use undo_action to reverse a prior action by its id. Only act on clear requests; if unsure, ask first.';
@@ -196,8 +214,10 @@ exports.handler = async function (event) {
   const proposeTool = { name: 'propose_change', description: 'Stage a change for the person to Confirm (does NOT execute). Provide intent and args.', input_schema: { type: 'object', properties: { intent: { type: 'string', enum: intentEnum }, args: { type: 'object' } }, required: ['intent', 'args'] } };
   const fixesTool = { name: 'whats_usually_fixes', description: 'Look up what usually fixes an appliance across the trade (de-identified). Use when asked to diagnose or "how do I fix this".', input_schema: { type: 'object', properties: { brand: { type: 'string' }, model: { type: 'string' }, symptom: { type: 'string' }, unit_kind: { type: 'string', description: 'washer, dryer, fridge, etc.' } }, required: ['brand'] } };
   const dayOffTool = { name: 'request_day_off', description: 'Put in a day-off request for the signed-in tech (themselves only). Logged with an Undo.', input_schema: { type: 'object', properties: { day: { type: 'string', description: 'YYYY-MM-DD' }, reason: { type: 'string' } }, required: ['day'] } };
+  const partTool = { name: 'add_part_needed', description: 'Flag a part the office needs to order on one of the tech\'s OWN jobs. Use the job_id from your_day in the snapshot. If the tech doesn\'t have the exact part number yet, leave number out.', input_schema: { type: 'object', properties: { job_id: { type: 'string' }, part: { type: 'string', description: 'the part, e.g. "water filter"' }, number: { type: 'string', description: 'part number if known' } }, required: ['job_id', 'part'] } };
+  const textMeTool = { name: 'text_me_reminder', description: 'Text the signed-in tech a short reminder to their own phone (e.g. to look up an exact part number later). Say exactly what to remind them.', input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] } };
   let tools = [fixesTool];
-  if (isTech) tools.push(dayOffTool);
+  if (isTech) tools.push(dayOffTool, partTool, textMeTool);
   else if (isMgmt && mode === 'act') tools.push(applyTool, undoTool);
   else if (isMgmt && mode === 'propose') tools.push(proposeTool);
 
@@ -233,6 +253,8 @@ exports.handler = async function (event) {
         try {
           if (tu.name === 'whats_usually_fixes') { out = await brainLookup(caller.base, caller.key, tu.input || {}); }
           else if (tu.name === 'request_day_off') { if (!isTech) { out = { ok: false, error: 'only a tech can use this' }; } else { const r = await OA.applyIntent(ctx, 'request_day_off', { day: tu.input.day, reason: tu.input.reason }, { via: 'ant' }); if (r.ok) actions.push({ action_id: r.action_id, label: r.label }); out = r; } }
+          else if (tu.name === 'add_part_needed') { const r = await OA.applyIntent(ctx, 'add_part_needed', { job_id: tu.input.job_id, part: tu.input.part, number: tu.input.number }, { via: 'ant' }); if (r.ok) actions.push({ action_id: r.action_id, label: r.label }); out = r; }
+          else if (tu.name === 'text_me_reminder') { out = await textTech(caller, ctx, String(tu.input.message || '')); }
           else if (tu.name === 'apply_intent') { if (!isMgmt) { out = { ok: false, error: 'not allowed for your role' }; } else { const r = await OA.applyIntent(ctx, String(tu.input.intent), tu.input.args || {}, { via: 'ant', reason: 'via Ant chat' }); if (r.ok) actions.push({ action_id: r.action_id, label: r.label }); out = r; } }
           else if (tu.name === 'undo_action') { if (!isMgmt) { out = { ok: false, error: 'not allowed for your role' }; } else { const r = await OA.undoAction(ctx, String(tu.input.action_id)); if (r.ok) actions.push({ action_id: r.action_id, label: 'Undid: ' + (r.label || '') }); out = r; } }
           else if (tu.name === 'propose_change') { proposals.push({ intent: String(tu.input.intent), args: tu.input.args || {} }); out = { ok: true, staged: true }; }

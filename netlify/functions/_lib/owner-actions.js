@@ -180,7 +180,22 @@ const INTENTS = {
       return { target_table: 'job', target_id: a.job_id, path: null, op: 'update', before, after: patch, label: 'Unscheduled the job (back to New)' };
     },
   },
-  // ---- tech self-serve (the ONLY intent a non-management tech may call) ----
+  // ---- tech self-serve intents ----
+  add_part_needed: {
+    args: 'job_id, part (name, e.g. "water filter"), optional number, optional tech_name. Flags a part the office needs to order on that job.',
+    apply: async (ctx, a) => {
+      const jid = uid(a.job_id);
+      const rows = await ctx.d.get(`job?id=eq.${jid}&company_id=eq.${ctx.companyId}&select=technician_id,customer:customer_id(first_name,last_name)`);
+      const job = rows && rows[0];
+      if (!job) throw new Error('job not found in this shop');
+      if (!MGMT.includes(ctx.role) && String(job.technician_id) !== String(ctx.technicianId)) throw new Error('that is not your job');
+      const part = String(a.part || '').trim();
+      if (!part) throw new Error('what part?');
+      const row = await ctx.d.insert('job_part', { company_id: ctx.companyId, job_id: jid, name: part, number: a.number ? String(a.number) : null, disposition: 'please_order', order_status: 'to_order' });
+      const who = job.customer ? ((job.customer.first_name || '') + ' ' + (job.customer.last_name || '')).trim() : '';
+      return { target_table: 'job_part', target_id: row.id, path: null, op: 'insert', before: null, after: { job_id: jid, name: part }, label: 'Added “' + part + '” to parts needed' + (who ? ' on ' + who + '’s job' : '') };
+    },
+  },
   request_day_off: {
     args: 'day (YYYY-MM-DD), optional reason. Puts in a day-off request for the SIGNED-IN tech only.',
     apply: async (ctx, a) => {
@@ -192,8 +207,8 @@ const INTENTS = {
     },
   },
 };
-// the only intent a non-management (tech) caller is allowed to apply/undo — self-scoped
-const TECH_ALLOWED = ['request_day_off'];
+// the intents a non-management (tech) caller may apply/undo — self-scoped (own jobs / self)
+const TECH_ALLOWED = ['request_day_off', 'add_part_needed'];
 const INTENTS_META = Object.keys(INTENTS).map((k) => ({ intent: k, args: INTENTS[k].args }));
 
 async function reverseAction(ctx, row) {
