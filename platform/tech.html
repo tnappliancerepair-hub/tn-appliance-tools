@@ -68,6 +68,14 @@
   .tdr .outc label{display:flex;gap:8px;align-items:center}
   .tdrdone{margin-top:9px;background:var(--chip);border-radius:9px;padding:8px 11px;font-size:13px;color:var(--muted)}
   .tdr .cameback{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--muted)}
+  .tdr select,.tdr textarea{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  .tdr textarea{resize:none;min-height:54px}
+  .needpart{width:100%;background:#c2571f;color:#fff;border:none;border-radius:11px;padding:12px;font-weight:800;font-size:14.5px;box-shadow:0 0 0 1px rgba(194,87,31,.35),0 6px 16px rgba(194,87,31,.22)}
+  .findpart{background:var(--chip);border:1px solid var(--line);border-radius:11px;padding:11px 12px}
+  .findpart .fh{font-weight:800;color:var(--brand);font-size:13.5px;margin-bottom:7px}
+  .findpart input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px}
+  .findpart .fg{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .findpart .fg button{font-size:12.5px;font-weight:700;padding:9px 6px;border-radius:9px}
   .links{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
   .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px}
   .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
@@ -163,9 +171,11 @@
     var outcome = 'fixed'; var rs = document.getElementsByName('o'+id);
     for (var i=0;i<rs.length;i++){ if(rs[i].checked) outcome = rs[i].value; }
     if (btn){ btn.disabled=true; btn.textContent='Saving…'; }
+    var lhe = document.getElementById('th'+id); var lh = lhe ? parseFloat(lhe.value) : NaN;
     var row = { company_id: me.company_id, job_id: id,
       appliance: (job.unit&&job.unit.label)||'', brand: v('tb'), model: v('tm'), symptom: job.problem||'',
       failed_component: comp, part_number: v('tp'), root_cause: v('tr'),
+      part_status: v('tps')||null, labor_hours: isNaN(lh)?null:lh, notes: v('tno')||null,
       outcome: outcome, held: !(document.getElementById('tcb'+id) && document.getElementById('tcb'+id).checked),
       tech: myTech ? myTech.name : (me.name||'') };
     if (row.held === false) row.reopened_at = new Date().toISOString();
@@ -173,6 +183,35 @@
       if (r.error){ if(btn){btn.disabled=false;btn.textContent='Save report + finish';} return; }
       var newStatus = outcome === 'return_needed' ? 'awaiting_parts' : 'completed';
       sb.from('job').update({ status: newStatus }).eq('id', id).then(function(){ if(newStatus==='completed') partyJobDone(id); loadJobs(); });
+    });
+  }
+
+  // 🔩 Find the part — open the model/part # on a supplier's site (no login needed).
+  var FIND_SITES = {
+    sears:'https://www.searspartsdirect.com/search?q=',
+    app:'https://www.appliancepartspros.com/search.aspx?model=',
+    rc:'https://www.repairclinic.com/Shop-For-Parts?query=',
+    enc:'https://encompass.com/search?searchTerm=',
+    ps:'https://www.partselect.com/Search.aspx?SearchTerm='
+  };
+  function findPart(id, site){
+    var inp = document.getElementById('fp'+id); var q = inp ? inp.value.trim() : '';
+    if(!q){ if(inp) inp.focus(); return; }
+    var base = FIND_SITES[site]; if(!base) return;
+    window.open(base + encodeURIComponent(q), '_blank', 'noopener');
+  }
+
+  // 🔧 Office — I need this part. Flags the job for the office in one tap (mid-job or on the
+  // report): sets status → awaiting parts and marks the part "please order" so it lands on
+  // the office board + dispatch tray. Partial upsert — never clobbers other TDR fields.
+  function officeNeedPart(id){
+    var v = function(pre){ var e=document.getElementById(pre+id); return e?e.value.trim():''; };
+    var guess = v('tp') || v('tc') || '';
+    var what = prompt('What part does the office need to order?', guess);
+    if(what==null) return; what = what.trim(); if(!what) return;
+    sb.from('job_tdr').upsert({ company_id: me.company_id, job_id: id, part_number: what, part_status:'please_order' }, { onConflict:'job_id' }).then(function(r){
+      if(r.error){ alert('Couldn\'t flag it: '+r.error.message); return; }
+      sb.from('job').update({ status:'awaiting_parts' }).eq('id', id).then(function(){ alert('✅ Office flagged — '+what+' queued to order.'); loadJobs(); });
     });
   }
 
@@ -252,17 +291,33 @@
     if (j.status !== 'completed') acts += '<button data-move="'+j.id+'">📅 Move</button>';
     acts += '<button class="primary" data-tdr="'+j.id+'">'+(tdr?'Edit report':'Complete + report')+'</button>';
     // the TDR (completion report) — structured so it feeds the brain
+    var pst = tdr ? (tdr.part_status||'') : '';
+    function pso(v,l){ return '<option value="'+v+'"'+(pst===v?' selected':'')+'>'+l+'</option>'; }
+    var findQ = esc((tdr&&tdr.model)||model||(tdr&&tdr.part_number)||'');
     var tdrPanel = '<div class="tdr" id="tdr_'+j.id+'">' +
       '<div class="two"><input id="tb'+j.id+'" placeholder="Brand" value="'+esc(tdr?tdr.brand||brand:brand)+'"><input id="tm'+j.id+'" placeholder="Model #" value="'+esc(tdr?tdr.model||model:model)+'"></div>' +
-      '<input id="tc'+j.id+'" placeholder="Failed component (e.g. heating element)" value="'+esc(tdr?tdr.failed_component||'':'')+'">' +
+      '<input id="tc'+j.id+'" placeholder="What failed (e.g. heating element)" value="'+esc(tdr?tdr.failed_component||'':'')+'">' +
       '<input id="tp'+j.id+'" placeholder="Part number used" value="'+esc(tdr?tdr.part_number||'':'')+'">' +
-      '<input id="tr'+j.id+'" placeholder="Root cause (short)">' +
+      '<select id="tps'+j.id+'"><option value="">Part status…</option>'+pso('used','Installed it')+pso('truck','Off my truck stock')+pso('please_order','Office needs to order it')+pso('return','Old / unused — send back')+pso('missing','Not here / discrepancy')+'</select>' +
+      '<input id="tr'+j.id+'" placeholder="Root cause (short)" value="'+esc(tdr?tdr.root_cause||'':'')+'">' +
+      '<input id="th'+j.id+'" type="number" inputmode="decimal" step="0.25" min="0" placeholder="Labor hours" value="'+esc(tdr&&tdr.labor_hours!=null?tdr.labor_hours:'')+'">' +
+      '<textarea id="tno'+j.id+'" placeholder="Notes for the office">'+esc(tdr?tdr.notes||'':'')+'</textarea>' +
       '<div class="outc">' +
         '<label><input type="radio" name="o'+j.id+'" value="fixed"'+(!tdr||tdr.outcome==='fixed'?' checked':'')+'> Fixed today</label>' +
         '<label><input type="radio" name="o'+j.id+'" value="return_needed"'+(tdr&&tdr.outcome==='return_needed'?' checked':'')+'> Needs a return / part</label>' +
         '<label><input type="radio" name="o'+j.id+'" value="not_fixable"'+(tdr&&tdr.outcome==='not_fixable'?' checked':'')+'> Not fixable</label>' +
       '</div>' +
       (tdr ? '<label class="cameback"><input type="checkbox" id="tcb'+j.id+'"'+(tdr.held===false?' checked':'')+'> This came back — the last fix didn\'t hold</label>' : '') +
+      '<div class="findpart"><div class="fh">🔩 Find the part</div>' +
+        '<input id="fp'+j.id+'" placeholder="Model # or part #" value="'+findQ+'">' +
+        '<div class="fg">' +
+          '<button type="button" data-find="sears" data-find-id="'+j.id+'">🔍 Sears PartsDirect</button>' +
+          '<button type="button" data-find="app" data-find-id="'+j.id+'">🔍 AppliancePartsPros</button>' +
+          '<button type="button" data-find="rc" data-find-id="'+j.id+'">🔍 RepairClinic</button>' +
+          '<button type="button" data-find="enc" data-find-id="'+j.id+'">🔍 Encompass</button>' +
+          '<button type="button" data-find="ps" data-find-id="'+j.id+'">🔍 PartSelect</button>' +
+        '</div></div>' +
+      '<button type="button" class="needpart" data-needpart="'+j.id+'">🔧 Office — I need this part</button>' +
       '<button class="primary" data-savetdr="'+j.id+'">Save report + finish</button></div>';
     var tdrDone = tdr ? '<div class="tdrdone">📋 Report: <b>'+esc(tdr.failed_component||'')+'</b>'+(tdr.part_number?' · '+esc(tdr.part_number):'')+' · '+esc(tdr.outcome)+(tdr.held===false?' · came back':'')+'</div>' : '';
     var openUrl = '/platform/tech-job.html?job='+encodeURIComponent(j.id);
@@ -302,6 +357,8 @@
     b.querySelectorAll('button[data-send]').forEach(function(el){ el.onclick=function(){ var id=el.getAttribute('data-send'); var job=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; var t=document.getElementById('m_'+id); if(job&&t) sendToCustomer(job, t.value, el); }; });
     b.querySelectorAll('button[data-tdr]').forEach(function(el){ el.onclick=function(){ var p=document.getElementById('tdr_'+el.getAttribute('data-tdr')); if(p) p.classList.toggle('open'); }; });
     b.querySelectorAll('button[data-savetdr]').forEach(function(el){ el.onclick=function(){ saveTdr(el.getAttribute('data-savetdr'), el); }; });
+    b.querySelectorAll('button[data-find]').forEach(function(el){ el.onclick=function(){ findPart(el.getAttribute('data-find-id'), el.getAttribute('data-find')); }; });
+    b.querySelectorAll('button[data-needpart]').forEach(function(el){ el.onclick=function(){ officeNeedPart(el.getAttribute('data-needpart')); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });
   }
 
@@ -420,7 +477,7 @@
     var q = sb.from('job').select(
       'id,status,problem,scheduled_day,availability,waiver_name,waiver_signed_at,customer_id,' +
       'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(label,attributes),' +
-      'media:job_media(kind,provider,ref,label),tdr:job_tdr(failed_component,part_number,outcome,held)'
+      'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held)'
     ).not('status','in','(completed,canceled)').order('scheduled_day',{ascending:true,nullsFirst:false});
     if (myTech) q = q.eq('technician_id', myTech.id);   // my jobs; else (owner/office demo) all open jobs
     q.then(function(r){
