@@ -194,7 +194,7 @@
       if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
       sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(r.error){ btn.disabled=false; btn.textContent='Save'; document.getElementById('a-err').textContent=r.error.message; return; } if(day) selDay=day; close(); load(); });
     };
-    document.getElementById('a-unsched').onclick=function(){ sb.from('job').update({scheduled_day:null}).eq('id',job.id).then(function(r){ if(!r.error){ close(); load(); } }); };
+    document.getElementById('a-unsched').onclick=function(){ var patch={scheduled_day:null}; if(job.status==='scheduled') patch.status='new'; sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(!r.error){ close(); load(); } }); };
   }
 
   function load(){
