@@ -30,6 +30,21 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🧠 2026-08-29 (Fri, late) — DEEPEN THE BRAIN (platform): tiered, trade-aware, cross-shop "what usually fixes this" flywheel — READ FIRST
+
+The #1 north star, platform edition. The old `brain_lookup` read only `job_tdr` on an EXACT brand+model match → starved (1 TDR / 384 completed jobs) + brittle. Rebuilt it into a grounded, tiered, cross-shop flywheel. `docs/sql/042_brain_deepen.sql` (APPLIED + committed).
+
+- **`brain_lookup(p_brand, p_model, p_symptom, p_unit_kind, p_trade)`** (SECURITY DEFINER, de-identified, grant anon+authenticated) pools over the LIVE tables — **no corpus table, no cron, no drift**: every completed job's TDR (component→part→outcome) UNION every USED part logged on a completed job (a part installed IS knowledge, even without a TDR), joined `job→unit` (brand/model/kind) + `company` (trade).
+- **TIERED — picks the BEST tier that has data:** this exact model → model **family** (`brain_family()` strips a trailing rev run, WTW5000DW1→WTW5000DW) → brand → unit **type** → your whole **trade**. So a shop with thin history still gets grounded answers from same-trade peers (the moat). Symptom is a soft filter (narrows if it still yields rows, else ignored). Returns component · part# · fixes/comebacks · observations · **distinct shops** · tier label · confidence (building/medium/high). Grade-weighted rank (first-trip fix=2, fix=1, comeback=0.25).
+- **Proven live** (seeded 4 real completed-job TDRs across shops, then deleted — 0 residue): exact-model tier returns the model's parts; an unseen sibling model falls to the **family** tier (picks up the sibling's data); brand-only works; `symptom=drain` narrows to the drain pump; **shops=2** confirms cross-shop pooling. RPC callable from an authenticated tech session.
+- **Wired both tech surfaces** (`tech.html` + `tech-job.html`): the "🧠 What usually fixes this" button now passes unit **kind** + company **trade**, shows the **tier** ("this exact model" / "this model family" / "your trade") + a confidence dot (🟢/🟡/⚪) + "N repairs across M shops," and an honest "Still learning" empty state. Both load `company.trade` now.
+- **De-identified / safe** (consistent with the RLS audit): returns ONLY aggregates — component, part#, counts, distinct-shop-count, tier, confidence. Never a company id, customer, job, symptom text, or price. SECURITY DEFINER pools across shops; the caller sees only anonymized knowledge.
+
+### NOTES
+- The flywheel is now automatic: a tech closing a job with a report (or logging a used part) instantly enriches `brain_lookup` for every same-trade shop. The old starvation was seed data (completed jobs without TDRs), not the code.
+- A pre-existing junk TDR ("Test321") surfaces at the trade tier for appliance shops when nothing specific matches — harmless demo noise, outweighed as real TDRs accrue.
+- **Future upgrade (not built):** an appliance-specific fault-code / model-knowledge layer (TN's `_lib/ant/`) for appliance-trade shops, and a nightly self-grading accuracy scorecard per shop.
+
 ## 🗓️🐜🔒 2026-08-29 (Fri, late) — RLS SECURITY AUDIT: cross-tenant isolation PROVEN solid; closed a tech→owner self-escalation hole — READ FIRST
 
 Full multi-tenant RLS audit of the platform (ANT Platforms Supabase) before onboarding paying strangers. Method: dumped every table's RLS state + policy USING/WITH CHECK, the SECURITY DEFINER resolvers, the `authenticated` grants, then **tested live** with a real cross-tenant read/write + a real throwaway-tech escalation (before/after). `docs/sql/041_rls_privilege_gates.sql` (APPLIED + committed).
