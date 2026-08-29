@@ -76,6 +76,10 @@
   .findpart input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px}
   .findpart .fg{display:grid;grid-template-columns:1fr 1fr;gap:7px}
   .findpart .fg button{font-size:12.5px;font-weight:700;padding:9px 6px;border-radius:9px}
+  .rel{margin-top:10px;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .rel.signed{background:var(--chip);color:var(--muted)}
+  .rel.unsigned{background:rgba(194,87,31,.13);color:#c2571f;border:1px solid rgba(194,87,31,.4)}
+  .rel .relbtn{margin-left:auto;background:#c2571f;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-weight:800;font-size:12.5px}
   .links{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
   .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px}
   .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
@@ -182,7 +186,26 @@
     sb.from('job_tdr').upsert(row, { onConflict: 'job_id' }).then(function(r){
       if (r.error){ if(btn){btn.disabled=false;btn.textContent='Save report + finish';} return; }
       var newStatus = outcome === 'return_needed' ? 'awaiting_parts' : 'completed';
-      sb.from('job').update({ status: newStatus }).eq('id', id).then(function(){ if(newStatus==='completed') partyJobDone(id); loadJobs(); });
+      var jobUpd = { status: newStatus };
+      if (newStatus==='completed' && !job.waiver_signed_at && window.confirm('Release isn\'t signed. Confirm the customer signed it?')){
+        var by = myTech ? myTech.name : (me.name||'');
+        jobUpd.waiver_signed_at = new Date().toISOString();
+        jobUpd.waiver_name = (fullName(job.customer)||'Customer')+(by?' (confirmed by '+by+')':'');
+      }
+      sb.from('job').update(jobUpd).eq('id', id).then(function(){ if(newStatus==='completed') partyJobDone(id); loadJobs(); });
+    });
+  }
+
+  // Capture the liability release on site — signed here, or the tech confirms the customer
+  // signed it. Stamps who + when so the office/portal shows it as covered.
+  function confirmRelease(id){
+    var job = jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; if(!job) return;
+    var who = prompt('Who signed the release?', (fullName(job.customer)||'Customer'));
+    if(who==null) return; who=(who||'').trim()||'Customer';
+    var by = myTech ? myTech.name : (me.name||'');
+    sb.from('job').update({ waiver_signed_at:new Date().toISOString(), waiver_name: who+(by?' (confirmed by '+by+')':'') }).eq('id', id).then(function(r){
+      if(r.error){ alert('Couldn\'t save the release: '+r.error.message); return; }
+      loadJobs();
     });
   }
 
@@ -272,6 +295,12 @@
     if (!bits.length && !mediaHtml) return '';
     return '<div class="intake">'+(bits.length?'<div class="irow">'+bits.join(' &nbsp;·&nbsp; ')+'</div>':'')+(mediaHtml?'<div class="imedia">'+mediaHtml+'</div>':'')+'</div>';
   }
+  // The liability RELEASE (waiver). Every job should be signed or confirmed-signed before
+  // it's finished — so the tech can capture it on site when it isn't already digital.
+  function releaseHtml(j){
+    if (j.waiver_signed_at) return '<div class="rel signed">✍️ Release signed'+(j.waiver_name?' — '+esc(j.waiver_name):'')+'</div>';
+    return '<div class="rel unsigned">⚠️ Release not signed yet<button class="relbtn" data-release="'+j.id+'">Confirm signed</button></div>';
+  }
   function cardHtml(j){
     var s = st(j.status);
     var unit = j.unit && j.unit.label ? j.unit.label : '';
@@ -327,6 +356,7 @@
       (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
       '<a class="openbtn" href="'+openUrl+'">Open job — video, model &amp; report →</a>' +
       intakeHtml(j) +
+      releaseHtml(j) +
       '<button class="brainbtn" data-brain="'+j.id+'">🧠 What usually fixes this</button>' +
       '<div class="brainbox" id="brain_'+j.id+'"></div>' +
       (links?'<div class="links">'+links+'</div>':'') +
@@ -359,6 +389,7 @@
     b.querySelectorAll('button[data-savetdr]').forEach(function(el){ el.onclick=function(){ saveTdr(el.getAttribute('data-savetdr'), el); }; });
     b.querySelectorAll('button[data-find]').forEach(function(el){ el.onclick=function(){ findPart(el.getAttribute('data-find-id'), el.getAttribute('data-find')); }; });
     b.querySelectorAll('button[data-needpart]').forEach(function(el){ el.onclick=function(){ officeNeedPart(el.getAttribute('data-needpart')); }; });
+    b.querySelectorAll('button[data-release]').forEach(function(el){ el.onclick=function(){ confirmRelease(el.getAttribute('data-release')); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });
   }
 
