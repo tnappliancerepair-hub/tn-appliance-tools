@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en" data-live="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Messages — Ant</title>
+<!--
+  Ant platform — COMMUNICATION CENTER. Every automated text a shop sends, in one place:
+  toggle each on/off + edit the exact wording. Stored in company.settings.comms; the server
+  (_lib/comms.js) honors it on every send. Sign in (owner/dispatch) → RLS scopes to this shop.
+-->
+<style>
+  :root{ --bg:#f6f7f4; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd; --brand:#2f6bff; --good:#12a150; --shadow:0 1px 2px rgba(0,0,0,.05); }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0f1210; --panel:#171b17; --ink:#eef1ea; --muted:#9aa392; --line:#282e26; --shadow:0 1px 2px rgba(0,0,0,.4); } }
+  :root[data-theme="dark"]{ --bg:#0f1210; --panel:#171b17; --ink:#eef1ea; --muted:#9aa392; --line:#282e26; }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+  header .brand{font-weight:800} header .sp{flex:1} header a,header button{font:inherit;font-size:13px;text-decoration:none;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;font-weight:700;cursor:pointer}
+  .wrap{max-width:720px;margin:0 auto;padding:16px}
+  .lead{color:var(--muted);font-size:14px;margin:2px 0 16px}
+  .msgcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:13px;box-shadow:var(--shadow)}
+  .mc-h{display:flex;align-items:center;gap:10px}
+  .mc-h .t{font-weight:800;font-size:15.5px;flex:1}
+  .mc-help{color:var(--muted);font-size:12.5px;margin:3px 0 10px}
+  .off .mc-body{opacity:.45}
+  textarea{width:100%;min-height:74px;resize:vertical;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .chip{font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;color:var(--brand);background:color-mix(in srgb,var(--brand) 12%,transparent);border:0;border-radius:8px;padding:4px 8px;cursor:pointer}
+  .prev{margin-top:8px;font-size:13.5px;color:var(--muted);background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:9px 11px}
+  .prev b{color:var(--ink)}
+  .reset{background:none;border:0;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;padding:6px 0 0}
+  /* toggle switch */
+  .sw{position:relative;width:44px;height:26px;flex:none} .sw input{opacity:0;width:0;height:0;position:absolute}
+  .sw .track{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.15s;cursor:pointer}
+  .sw .track::before{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .sw input:checked + .track{background:var(--good)} .sw input:checked + .track::before{transform:translateX(18px)}
+  .savebar{position:sticky;bottom:0;background:linear-gradient(to top,var(--bg) 60%,transparent);padding:12px 0 16px;margin-top:4px}
+  .save{width:100%;padding:13px;border:0;border-radius:11px;background:var(--brand);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .msg{color:var(--good);font-size:13px;text-align:center;margin-top:8px;min-height:16px}
+  .gate{max-width:340px;margin:12vh auto;padding:24px;text-align:center}
+  .gate input{width:100%;margin:6px 0;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit}
+  .gate .primary{background:var(--brand);color:#fff;border:0;font-weight:800;cursor:pointer}
+  .err{color:#d33c3c;font-size:13px;min-height:16px}
+</style>
+</head>
+<body>
+<div id="app"><div class="wrap"><div class="lead">Loading…</div></div></div>
+<script src="/platform/config.js"></script>
+<script src="/platform/comms-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var app=document.getElementById('app');
+  var cfg=window.ANT_SUPABASE||{}, sb=null, companyId=null, settings={}, shopName='your shop';
+  var C=window.AntComms||{DEFAULTS:{},ORDER:[],SAMPLE:{},render:function(t){return t;}};
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  if(!cfg.url||!window.supabase){ app.innerHTML='<div class="wrap"><div class="lead">Supabase config missing.</div></div>'; return; }
+  sb=window.supabase.createClient(cfg.url, cfg.anonKey);
+
+  function renderSignIn(m){
+    app.innerHTML='<div class="gate"><h2>🐜 Messages</h2><p style="color:var(--muted)">Sign in to manage your shop’s texts.</p>'+
+      '<input id="em" type="email" placeholder="you@shop.com" autocomplete="username">'+
+      '<input id="pw" type="password" placeholder="Password" autocomplete="current-password">'+
+      '<button class="gate primary" id="go" style="width:100%;padding:11px;border-radius:10px">Sign in</button>'+
+      '<div class="err">'+esc(m||'')+'</div></div>';
+    var go=document.getElementById('go');
+    function submit(){ var em=document.getElementById('em').value.trim(), pw=document.getElementById('pw').value; if(!em||!pw)return; go.disabled=true; go.textContent='Signing in…'; sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){ if(r.error) renderSignIn(r.error.message); else boot(); }); }
+    go.onclick=submit; document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
+  }
+
+  function boot(){
+    sb.from('company').select('id,name,settings').limit(1).then(function(r){
+      if(r.error||!r.data||!r.data[0]){ renderSignIn('Could not load your shop.'); return; }
+      companyId=r.data[0].id; shopName=r.data[0].name||'your shop'; settings=r.data[0].settings||{};
+      renderEditor();
+    });
+  }
+
+  function cur(id){ var c=(settings.comms&&settings.comms[id])||{}; var d=C.DEFAULTS[id]||{}; return { on: c.on!==false, text:(c.text&&String(c.text).trim())?String(c.text):(d.text||'') }; }
+  function sampleVars(){ var v=Object.assign({}, C.SAMPLE); v.shop=shopName; return v; }
+  function previewHtml(id, text){ return '<b>Preview:</b> '+esc(C.render(text, sampleVars())); }
+
+  function renderEditor(){
+    var cards=C.ORDER.map(function(id){
+      var d=C.DEFAULTS[id]||{}; var st=cur(id);
+      var chips=(d.vars||[]).map(function(v){ return '<button class="chip" data-ins="'+id+'" data-var="{'+v+'}">{'+v+'}</button>'; }).join('');
+      return '<div class="msgcard'+(st.on?'':' off')+'" data-card="'+id+'">'+
+        '<div class="mc-h"><span class="t">'+esc(d.label||id)+'</span>'+
+          '<label class="sw"><input type="checkbox" data-on="'+id+'"'+(st.on?' checked':'')+'><span class="track"></span></label></div>'+
+        '<div class="mc-body">'+
+          (d.help?'<div class="mc-help">'+esc(d.help)+'</div>':'')+
+          '<textarea data-text="'+id+'" maxlength="600">'+esc(st.text)+'</textarea>'+
+          '<div class="chips">'+chips+'</div>'+
+          '<div class="prev" data-prev="'+id+'">'+previewHtml(id, st.text)+'</div>'+
+          '<button class="reset" data-reset="'+id+'">Reset to the default wording</button>'+
+        '</div></div>';
+    }).join('');
+    app.innerHTML='<header><span class="brand">🐜 Messages</span><span class="sp"></span>'+
+        '<a href="/platform/owner.html">Owner</a><a href="/platform/office-board.html">Board</a><button id="out">Sign out</button></header>'+
+      '<div class="wrap">'+
+        '<div class="lead">Every automated text your shop sends — flip any off, or reword it. Tap a <b>{tag}</b> to drop it in; it fills with the real value when the text goes out.</div>'+
+        cards+
+        '<div class="savebar"><button class="save" id="save">Save all messages</button><div class="msg" id="smsg"></div></div>'+
+      '</div>';
+    document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
+    bind();
+  }
+
+  function bind(){
+    // toggle → dim body + live
+    Array.prototype.forEach.call(document.querySelectorAll('[data-on]'), function(cb){ cb.onchange=function(){ var card=cb.closest('[data-card]'); if(card) card.classList.toggle('off', !cb.checked); }; });
+    // textarea → live preview
+    Array.prototype.forEach.call(document.querySelectorAll('[data-text]'), function(ta){ ta.oninput=function(){ var id=ta.getAttribute('data-text'); var pv=document.querySelector('[data-prev="'+id+'"]'); if(pv) pv.innerHTML=previewHtml(id, ta.value); }; });
+    // chip → insert token at caret
+    Array.prototype.forEach.call(document.querySelectorAll('[data-ins]'), function(b){ b.onclick=function(){ var id=b.getAttribute('data-ins'); var tok=b.getAttribute('data-var'); var ta=document.querySelector('[data-text="'+id+'"]'); if(!ta)return; var s=ta.selectionStart||ta.value.length, e=ta.selectionEnd||ta.value.length; ta.value=ta.value.slice(0,s)+tok+ta.value.slice(e); ta.focus(); ta.selectionStart=ta.selectionEnd=s+tok.length; ta.oninput(); }; });
+    // reset → default wording
+    Array.prototype.forEach.call(document.querySelectorAll('[data-reset]'), function(b){ b.onclick=function(){ var id=b.getAttribute('data-reset'); var d=C.DEFAULTS[id]||{}; var ta=document.querySelector('[data-text="'+id+'"]'); if(ta){ ta.value=d.text||''; ta.oninput(); } }; });
+    document.getElementById('save').onclick=save;
+  }
+
+  function save(){
+    var btn=document.getElementById('save'), sm=document.getElementById('smsg');
+    var comms={};
+    C.ORDER.forEach(function(id){
+      var cb=document.querySelector('[data-on="'+id+'"]'); var ta=document.querySelector('[data-text="'+id+'"]');
+      comms[id]={ on: cb?cb.checked:true, text:(ta?ta.value:'').trim() };
+    });
+    btn.disabled=true; btn.textContent='Saving…'; sm.textContent='';
+    var next=Object.assign({}, settings, { comms: comms });
+    sb.from('company').update({settings:next}).eq('id',companyId).then(function(r){
+      btn.disabled=false; btn.textContent='Save all messages';
+      if(r.error){ sm.style.color='#d33c3c'; sm.textContent='Could not save: '+r.error.message; return; }
+      settings=next; sm.style.color='var(--good)'; sm.textContent='Saved — your texts now send this way.';
+    });
+  }
+
+  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else renderSignIn(); });
+})();
+</script>
+</body></html>

@@ -11,6 +11,7 @@
 
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const { msg: commsMsg } = require('./_lib/comms');
 const SITE = 'https://tnapplianceexchange.net';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -69,9 +70,10 @@ exports.handler = async function (event) {
 
   try {
     if (doo === 'otw') {
-      const msg = `Hi ${first} — your technician from ${shop} is on the way. See you soon! 🚚`;
+      const text = commsMsg(co.settings, 'otw', { first, shop, tech: techName || 'your technician' });
+      if (!text) return json(200, { ok: true, texted: false, off: true });
       let sent = false;
-      if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_otw'); } catch (_) {} }
+      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_otw'); } catch (_) {} }
       await logThread('sms', '🚚 On my way');
       return json(200, { ok: true, texted: sent });
     }
@@ -114,7 +116,9 @@ exports.handler = async function (event) {
       const link = tk ? `${SITE}/platform/portal.html?t=${tk}` : '';
       const lbl = dayLabel(day) + (win === 'any' ? '' : ' (' + winLabel(win) + ')');
       let sent = false;
-      if (phone && link) { const msg = `${shop}: we can come out ${lbl} for your repair${note ? ' — ' + note : ''}. Tap to confirm, or pick a different day: ${link}`; try { sent = await sendSms(phone, msg, 'customer', 'platform_schedule_offer'); } catch (_) {} }
+      let offText = commsMsg(co.settings, 'offer', { first, shop, day: lbl, link });
+      if (offText && note) offText += ' — ' + note;
+      if (phone && link && offText) { try { sent = await sendSms(phone, offText, 'customer', 'platform_schedule_offer'); } catch (_) {} }
       await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'portal', sender: techName ? ('office:' + techName) : 'office', body: '📅 Offered ' + lbl + (phone ? ' — texted them to confirm.' : ' — no phone on file; ask them to open their link.') });
       return json(200, { ok: true, texted: sent, no_phone: !phone, url: link });
     }
@@ -133,17 +137,19 @@ exports.handler = async function (event) {
       if (recent && recent.length) return json(200, { ok: true, texted: false, note: 'deduped' });
       const unit = jrow.unit_id ? (((await db.get(`unit?id=eq.${jrow.unit_id}&select=label&limit=1`))[0]) || {}).label : '';
       const day = jrow.scheduled_day ? dayLabel(jrow.scheduled_day) : 'soon';
-      const msg = `${shop}: new job — ${cus.first_name || 'customer'}${unit ? ' · ' + unit : ''}${jrow.problem ? ' · ' + jrow.problem : ''} · ${day}. Open your app: ${SITE}/platform/tech.html`;
-      let sent = false; try { sent = await sendSms(tphone, msg, 'technician', 'platform_assigned'); } catch (_) {}
+      const text = commsMsg(co.settings, 'assigned', { shop, first: cus.first_name || 'customer', unit: unit ? ' · ' + unit : '', problem: jrow.problem || '', day, link: `${SITE}/platform/tech.html` });
+      if (!text) return json(200, { ok: true, texted: false, off: true, tech: trow.name });
+      let sent = false; try { sent = await sendSms(tphone, text, 'technician', 'platform_assigned'); } catch (_) {}
       await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'assign', sender: 'system', body: `🧰 Assigned to ${trow.name || 'the tech'} — texted them.` });
       return json(200, { ok: true, texted: sent, tech: trow.name });
     }
 
     if (doo === 'arrived') {
       // Customer heads-up the moment the tech starts the job on site.
-      const msg = `Hi ${first} — your technician from ${shop} has arrived and is getting started. 🔧`;
+      const text = commsMsg(co.settings, 'arrived', { first, shop, tech: techName || 'your technician' });
+      if (!text) return json(200, { ok: true, texted: false, off: true });
       let sent = false;
-      if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_arrived'); } catch (_) {} }
+      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_arrived'); } catch (_) {} }
       await logThread('sms', '🔧 Tech arrived');
       return json(200, { ok: true, texted: sent });
     }
@@ -153,9 +159,10 @@ exports.handler = async function (event) {
       let grant = (await db.get(`portal_grant?company_id=eq.${companyId}&customer_id=eq.${job.customer_id}&job_id=eq.${job.id}&revoked=eq.false&select=token&limit=1`))[0];
       if (!grant) grant = await db.insertRet('portal_grant', { company_id: companyId, customer_id: job.customer_id, job_id: job.id });
       const tk = grant && grant.token; const link = tk ? `${SITE}/platform/portal.html?t=${tk}` : '';
-      const msg = `Hi ${first} — your repair with ${shop} is complete. ✅${link ? ' Your summary + receipt: ' + link : ''}`;
+      const text = commsMsg(co.settings, 'complete', { first, shop, link });
+      if (!text) return json(200, { ok: true, texted: false, off: true, url: link });
       let sent = false;
-      if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_complete'); } catch (_) {} }
+      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_complete'); } catch (_) {} }
       await logThread('sms', '✅ Job complete' + (link ? ' — sent summary link' : ''));
       return json(200, { ok: true, texted: sent, url: link });
     }
@@ -179,9 +186,10 @@ exports.handler = async function (event) {
     if (doo === 'review') {
       const settings = co.settings || {};
       const reviewUrl = String(settings.review_url || '').trim() || `https://www.google.com/search?q=${encodeURIComponent(shop + ' reviews')}`;
-      const msg = `Hi ${first}, how did ${shop} do today? If we earned it, a quick Google review means the world 🙏 ${reviewUrl} — and if anything was off, just reply here and we'll make it right.`;
+      const text = commsMsg(settings, 'review', { first, shop, review: reviewUrl });
+      if (!text) return json(200, { ok: true, texted: false, off: true, url: reviewUrl });
       let sent = false;
-      if (phone) { try { sent = await sendSms(phone, msg, 'customer', 'platform_review'); } catch (_) {} }
+      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_review'); } catch (_) {} }
       await logThread('sms', `⭐ Review request sent: ${reviewUrl}`);
       return json(200, { ok: true, texted: sent, url: reviewUrl });
     }

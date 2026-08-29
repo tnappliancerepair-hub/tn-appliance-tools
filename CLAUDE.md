@@ -30,6 +30,21 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜💬 2026-08-29 (Fri, late) — COMMUNICATION CENTER: per-shop control over EVERY automated text (toggle + reword) + day-before reminder — READ FIRST
+
+Teddy's ask: a page where each shop's owner/dispatcher controls what texts go out and how — "some of these texts are annoying and need to be adjusted." Built a full comms control layer so no shop is stuck with wording (or a text) it doesn't want. All on `main` + branch, comms logic unit-verified.
+
+- **`netlify/functions/_lib/comms.js` (NEW, the one source of truth):** `DEFAULTS` for every automated message (id → {on, label, help, vars, default text}) + `render(tpl,vars)` ({first}/{shop}/{tech}/{day}/{unit}/{link}/{review}/{problem} → values) + `commsFor(settings,key)` (shop override else default) + `msg(settings,key,vars)` (returns the rendered text, or **null when the shop turned it off**). Messages: reminder · otw · arrived · complete · review · offer · assigned.
+- **Server now honors it — `platform-tech-notify.js`:** every send (otw / arrived / complete / review / offer / notify_assigned) routes through `commsMsg(co.settings, key, vars)` — off → skip (returns `off:true`, no text, no thread bubble); custom wording → used verbatim. Nothing is hardcoded anymore.
+- **🔔 Day-before reminder (NEW, the "you're scheduled tomorrow with {tech}" text):** `platform-appt-reminder.js` (core, HTTP-callable, `?dry=1` / `?company=` / self-auth on `next_run`) + `platform-appt-reminder-cron.js` (thin wrapper, **netlify.toml `30 19 * * *` = ~2:30 PM CT**). Finds every platform job scheduled **tomorrow (CT)** in status new/scheduled, texts each customer using THAT shop's reminder template — **gated on `comms.reminder.on`** — per-job deduped via a `thread_message channel='reminder'` marker. Split core+cron because a scheduled fn edge-403s on manual HTTP (documented footgun).
+- **`platform/comms.html` (NEW) — the Communication Center:** sign in (owner/dispatch) → a card per message with a **toggle switch** + an **editable template box** + tap-to-insert **{placeholder} chips** + a **live preview** (real shop name + sample values) + "reset to default." One **Save all** writes `company.settings.comms`. Linked from owner.html (💬 Messages) + office-board.html header. `platform/comms-config.js` = the browser twin of the defaults (KEEP IN SYNC with `_lib/comms.js`).
+- **UNIT-VERIFIED:** default renders · off→null (no send) · custom wording with placeholders · empty custom→falls back to default · assigned unit-prefix collapse · commsFor off-flag. All correct.
+
+### FOOTGUNS / NOTES
+- **Two copies of DEFAULTS** (`_lib/comms.js` server + `comms-config.js` browser) — edit BOTH when changing default copy. The server is the one that actually sends; the browser copy is only the pre-edit preview.
+- The reminder cron **sends by default** (the per-shop `reminder` toggle IS the gate — default on). Use `?dry=1&secret=<admin>` to shadow. No global LIVE flag: a shop that wants no reminders flips it off in the Center.
+- Review link comes from `settings.review_url` (set in shop settings); reminder/otw/arrived don't need external config.
+
 ## 🗓️🐜📅 2026-08-29 (Fri, late) — SCHEDULING SMARTS: tech day-off/PTO + service zones on the dispatch board — READ FIRST
 
 Two clean layers so the board stops booking the wrong tech. All on `main` + branch, each verified live on demo (RLS insert/read/delete + company_roster round-trip) then reverted to zero residue.
