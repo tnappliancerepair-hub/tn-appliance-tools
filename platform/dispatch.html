@@ -56,6 +56,11 @@
   .ujob .u1{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .ujob .u2{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tray-empty{color:var(--muted);font-size:13px;padding:4px 2px}
   .ujob .ucov{margin-top:4px;font-size:11.5px;font-weight:700;color:var(--brand);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .ujob .ucov.none{color:var(--muted);font-weight:600}
+  .ujob .usug{margin-top:5px;font-size:11.5px;font-weight:800;color:var(--brand);background:var(--chip);border-radius:7px;padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .suggest{display:flex;align-items:center;gap:10px;margin:8px 0 4px;padding:10px 12px;border:1px solid var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent);border-radius:11px}
+  .suggest .sg-l{flex:1;min-width:0} .suggest .sg-t{font-size:11px;font-weight:800;color:var(--brand);text-transform:uppercase;letter-spacing:.03em}
+  .suggest .sg-b{font-size:15px;font-weight:800;margin-top:1px} .suggest .sg-w{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .suggest .sg-use{flex:none;border:0;background:var(--brand);color:#fff;font-weight:800;font-size:13px;border-radius:9px;padding:8px 12px;cursor:pointer}
   /* tech lanes */
   .techs{display:flex;flex-direction:column;gap:12px;margin-top:6px}
   .lane{background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);overflow:hidden}
@@ -94,6 +99,49 @@
   function areaList(t){ return String((t&&t.service_area)||'').split(',').map(function(s){return s.trim();}).filter(Boolean); }
   function coversZip(t, zip){ var a=areaList(t); if(!a.length) return true; zip=String(zip||'').trim(); if(!zip) return true; return a.some(function(p){ return zip===p || zip.indexOf(p)===0; }); }
   function jobZip(j){ return (j&&j.customer&&j.customer.zip)||''; }
+  function capOf(t){ var m=t&&t.max_stops; return (m!=null&&m>0)?m:6; }   // per-tech stops/day (owner-set; default 6)
+  function bookedOn(techId,d){ var n=0; jobs.forEach(function(j){ if(j.technician_id===techId&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
+  // 🐜 Best tech + day — the scheduling capstone. Scores every (tech, next-10-days) pair on the
+  // inputs the office already set: covers-the-ZIP (zones) ≫ everything, then not-off (PTO), has
+  // open capacity (stops/day), route-fit (already routed near this ZIP that day → fill the truck),
+  // soonest, mild weekend nudge. Returns the single best pair (or null if nobody's free). Pure
+  // client-side over already-loaded data — no new query.
+  function suggestSlot(job){
+    var zip=jobZip(job);
+    // candidates = anyone who SERVES this ZIP (an explicit area match OR a tech with no area set,
+    // who covers everywhere). If a shop's areas all exclude this ZIP, fall back to the whole crew.
+    var cands=techs.filter(function(t){ return coversZip(t, zip); });
+    if(!cands.length) cands=techs;
+    if(!cands.length) return null;
+    var start=new Date(), HORIZON=10, best=null, jz=zip5(zip);
+    for(var i=0;i<HORIZON;i++){
+      var d=isoDay(addDays(start,i)); var dow=new Date(d+'T12:00:00').getDay(); var weekend=(dow===0||dow===6);
+      for(var k=0;k<cands.length;k++){
+        var t=cands[k];
+        if(offOn(t.id,d)) continue;                    // day off / PTO
+        var booked=bookedOn(t.id,d); var cap=capOf(t);
+        if(booked>=cap) continue;                      // full that day
+        var covers=coversZip(t,zip);
+        var routeBonus=0, near=null;                   // route-fit: nearest existing same-day stop by ZIP
+        if(jz!=null){
+          var md=Infinity;
+          jobs.forEach(function(j){ if(j.technician_id===t.id&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled'){ var z=zip5(jobZip(j)); if(z!=null){ var diff=Math.abs(z-jz); if(diff<md) md=diff; } } });
+          if(md<Infinity){ routeBonus=Math.max(0,120-md); near=md; }
+        }
+        var score=(covers?2000:0)+(HORIZON-i)*8+routeBonus-(weekend?25:0);
+        if(!best||score>best.score) best={ tech:t, day:d, score:score, covers:covers, booked:booked, cap:cap, near:near, i:i };
+      }
+    }
+    return best;
+  }
+  function suggestReason(b, zip){
+    var bits=[];
+    if(b.covers && zip) bits.push('covers '+zip);
+    if(b.near!=null && b.near<=60) bits.push('already routed nearby');
+    else bits.push(b.i<=1?'soonest opening':'open day');
+    var open=b.cap-b.booked; bits.push(open+' slot'+(open===1?'':'s')+' left');
+    return bits.join(' · ');
+  }
   function coveringTechs(zip){ return techs.filter(function(t){ return areaList(t).length && coversZip(t,zip); }); }
   // 🧭 Suggested route order — nearest-neighbor by 5-digit ZIP proximity. No geocoding: it clusters
   // same-area stops together + sweeps low→high so the tech isn't crossing town twice. A heuristic,
@@ -118,6 +166,8 @@
   function addDays(d,n){ var x=new Date(d); x.setDate(x.getDate()+n); return x; }
   function firstOfMonth(d){ var x=new Date(d); x.setDate(1); x.setHours(0,0,0,0); return x; }
   function addMonths(d,n){ var x=new Date(d); x.setMonth(x.getMonth()+n); return x; }
+  function fmtDayLong(iso){ try{ return new Date(iso+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); }catch(e){ return iso; } }
+  function fmtDayShort(iso){ try{ return new Date(iso+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return iso; } }
 
   if(!cfg.url||!cfg.anonKey){ app.innerHTML='<div class="gate"><h1>🐜 Not connected</h1></div>'; return; }
   sb=window.supabase.createClient(cfg.url,cfg.anonKey);
@@ -138,9 +188,7 @@
     var days=[]; for(var i=0;i<7;i++) days.push(isoDay(addDays(sel,i)));
     var today=isoDay(new Date());
     var dow=['SUN','MON','TUE','WED','THU','FRI','SAT'];
-    function capOf(t){ var m=t&&t.max_stops; return (m!=null&&m>0)?m:6; } // per-tech stops/day (owner-set; default 6)
     var crewCap=techs.length ? techs.reduce(function(s,t){ return s+capOf(t); },0) : 6;
-    function bookedOn(techId,d){ var n=0; jobs.forEach(function(j){ if(j.technician_id===techId&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
     function bookedAll(d){ var n=0; jobs.forEach(function(j){ if(j.scheduled_day===d&&j.technician_id&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
 
     var toggleHtml='<div class="viewtoggle"><button data-view="week" class="'+(view==='week'?'on':'')+'">Week</button><button data-view="month" class="'+(view==='month'?'on':'')+'">Month</button></div>';
@@ -174,12 +222,12 @@
     var uns=jobs.filter(needsDispatch);
     var unsHtml=uns.length ? uns.map(function(j){
       var tag=j.status==='awaiting_parts'?'<div class="u2" style="color:var(--awaiting_parts);font-weight:800">📦 awaiting parts</div>':'';
-      var zip=jobZip(j); var cov=zip?coveringTechs(zip):[];
-      var covHtml='';
-      if(zip){ covHtml = cov.length
-          ? '<div class="ucov">📍 '+esc(zip)+' — '+esc(cov.map(function(t){return (t.name||'Tech').split(' ')[0];}).join(', '))+'</div>'
-          : '<div class="ucov none">📍 '+esc(zip)+' — no one’s area</div>'; }
-      return '<div class="ujob" data-job="'+j.id+'"><div class="u1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+covHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting — every job has a tech and a day. ✅</div>';
+      var zip=jobZip(j);
+      var sug=suggestSlot(j);
+      var sugHtml = sug
+        ? '<div class="usug">🐜 '+esc((sug.tech.name||'Tech').split(' ')[0])+' · '+esc(fmtDayShort(sug.day))+'</div>'
+        : (zip?'<div class="ucov none">📍 '+esc(zip)+' — no one available</div>':'');
+      return '<div class="ujob" data-job="'+j.id+'"><div class="u1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+sugHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting — every job has a tech and a day. ✅</div>';
 
     var lanes=techs.map(function(t){
       var mine=jobs.filter(function(j){ return j.technician_id===t.id && j.scheduled_day===selDay && j.status!=='completed' && j.status!=='canceled'; });
@@ -228,7 +276,9 @@
       var lab=esc(t.name||'Tech'); if(zip && areaList(t).length){ lab += coversZip(t,zip)?' ⭐ covers':' · out of area'; }
       return '<option value="'+t.id+'"'+(t.id===job.technician_id?' selected':'')+'>'+lab+'</option>'; }).join('');
     var covNote = zip ? '<div class="msub" style="margin:-2px 0 4px">📍 '+esc(zip)+(job.customer&&job.customer.city?' · '+esc(job.customer.city):'')+'</div>' : '';
-    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+
+    var sug = suggestSlot(job);
+    var sugHtml = sug ? '<div class="suggest"><div class="sg-l"><div class="sg-t">🐜 Ant suggests</div><div class="sg-b">'+esc(sug.tech.name||'Tech')+' · '+esc(fmtDayLong(sug.day))+'</div><div class="sg-w">'+esc(suggestReason(sug, zip))+'</div></div><button class="sg-use" id="a-suggest">Use this</button></div>' : '';
+    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+sugHtml+
       '<label>Tech</label><select id="a-tech">'+techOpts+'</select>'+
       '<label>Day</label><input id="a-day" type="date" value="'+esc(job.scheduled_day||selDay)+'">'+
       '<div class="srow"><button id="a-cancel">Cancel</button><button class="primary" id="a-save">Save</button></div>'+
@@ -237,6 +287,8 @@
     document.body.appendChild(ov);
     var close=function(){ try{document.body.removeChild(ov);}catch(e){} }; ov.onclick=function(e){ if(e.target===ov) close(); };
     document.getElementById('a-cancel').onclick=close;
+    var sgBtn=document.getElementById('a-suggest');
+    if(sgBtn) sgBtn.onclick=function(){ document.getElementById('a-tech').value=sug.tech.id; document.getElementById('a-day').value=sug.day; sgBtn.textContent='✓ Filled'; };
     document.getElementById('a-save').onclick=function(){
       var tech=document.getElementById('a-tech').value||null; var day=document.getElementById('a-day').value||null;
       if(tech && day && offOn(tech,day) && !window.confirm('That tech is marked OFF on '+day+'. Book them anyway?')) return;
