@@ -21,16 +21,19 @@ const MODEL = 'claude-sonnet-4-5-20250929';
 const USD = (c) => '$' + Math.round(Number(c || 0) / 100).toLocaleString('en-US');
 
 function monthStartISO() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1).toISOString(); }
+function areaList(t) { return String(t.service_area || '').split(',').map((s) => s.trim()).filter(Boolean); }
+function coversZip(t, zip) { const a = areaList(t); if (!a.length) return true; zip = String(zip || '').trim(); if (!zip) return true; return a.some((p) => zip === p || zip.indexOf(p) === 0); }
 
 async function buildSnapshot(ctx) {
   const CID = ctx.companyId, d = ctx.d;
-  const [coRows, invs, jobs, parts, payouts, techs] = await Promise.all([
+  const [coRows, invs, jobs, parts, payouts, techs, nsRows] = await Promise.all([
     d.get(`company?id=eq.${CID}&select=name,settings`),
     d.get(`invoice?select=job_id,total_cents,collected_cents,status,paid_at,created_at&limit=3000`),
     d.get(`job?select=id,status,technician_id,warranty_company,completed_at,created_at&limit=3000`),
     d.get(`job_part?select=job_id,cost_cents,disposition&limit=10000`),
     d.get(`tech_payout?select=amount_cents,paid_at&limit=5000`),
     d.get(`technician?select=id,name,active,commission_pct,max_stops,service_area&limit=200`),
+    d.get(`job?select=id,status,problem,scheduled_day,technician_id,warranty_company,customer:customer_id(first_name,last_name,zip,city)&status=not.in.(completed,canceled)&limit=500`),
   ]);
   const co = (coRows && coRows[0]) || {}; const settings = co.settings || {};
   const ms = Date.parse(monthStartISO());
@@ -64,8 +67,17 @@ async function buildSnapshot(ctx) {
   // comms that are OFF
   const comms = settings.comms || {}; const commsOff = Object.keys(comms).filter((k) => comms[k] && comms[k].on === false);
   const crew = (techs || []).filter((t) => t.active !== false).map((t) => ({ id: t.id, name: t.name, commission_pct: t.commission_pct, max_stops: t.max_stops, service_area: t.service_area || '' }));
+  const activeCrew = (techs || []).filter((t) => t.active !== false);
+  // the unscheduled queue (jobs needing a tech and/or a day) + who covers each ZIP
+  const needs = (nsRows || []).filter((j) => (!j.scheduled_day || !j.technician_id)).slice(0, 12).map((j) => {
+    const c = j.customer || {}; const zip = String(c.zip || '');
+    const cov = activeCrew.filter((t) => coversZip(t, zip)).map((t) => ({ id: t.id, name: t.name }));
+    return { job_id: j.id, customer: ((c.first_name || '') + ' ' + (c.last_name || '')).trim() || 'Customer', problem: j.problem || '', zip, city: c.city || '', warranty: !!j.warranty_company, covering_techs: cov };
+  });
+  const now2 = new Date();
   return {
     shop: co.name || 'the shop',
+    today: now2.toISOString().slice(0, 10) + ' (' + now2.toLocaleDateString('en-US', { weekday: 'long' }) + ')',
     goals: { take_home_cents: goals.take_home != null ? goals.take_home : null, rating: goals.rating != null ? goals.rating : null },
     money_this_month: { collected: USD(collected), billed: USD(billed), take_home_est: USD(takeHome), take_home_note: 'estimate = collected − paid-out crew − parts cost; excludes crew pay still owed' },
     pace: pace ? { percent_to_goal: pace.pct, status: pace.ahead ? 'ahead' : 'behind', by: USD(pace.delta_cents), remaining_to_goal: USD(pace.remaining_cents) } : 'no take-home goal set yet',
@@ -77,6 +89,7 @@ async function buildSnapshot(ctx) {
     texts_turned_off: commsOff.length ? commsOff : 'none (all automated texts on)',
     crew,
     board: { scheduled: board.scheduled || 0, awaiting_parts: board.awaiting_parts || 0, in_progress: board.in_progress || 0, completed: board.completed || 0, new: board['new'] || 0 },
+    needs_scheduling: { count: needs.length, jobs: needs },
   };
 }
 
@@ -93,7 +106,7 @@ function systemPrompt(role, mode, snap) {
     `You are Ant 🐜, the AI partner inside AssistAnt, talking with ${seat} at ${snap.shop}.`,
     `You are a genuine partner in this business — warm, brief, and concrete. Use REAL numbers from the snapshot. Never invent figures. One or two short paragraphs, plain language, like a sharp colleague who's caught up. Never mention tables, SQL, or internal fields.`,
     role === 'owner' ? `Orient everything toward the owner's two goals (take-home + rating). When money comes up, name the fastest way to close the gap using the levers (finished-not-billed, unpaid invoices).` : '',
-    (role === 'office' || role === 'manager') ? `You help run the board and the day. You can answer scheduling/board questions from the snapshot. You can also toggle customer texts and set days off. Booking a specific job onto a tech isn't wired into your tools yet — if asked, say you'll have it soon and offer what you can do now.` : '',
+    (role === 'office' || role === 'manager') ? `You run the board and the day. You can BOOK, MOVE, and UNSCHEDULE jobs, plus toggle customer texts and set days off.\n- To book: schedule_job { job_id, technician_id, day:"YYYY-MM-DD", tech_name }. Pick a tech from that job's covering_techs (they cover the ZIP); prefer one already routed nearby that day and with room (max_stops). Resolve weekday names to a real date using 'today' in the snapshot (e.g. the next Thursday on/after today). Pass tech_name for a clean log line.\n- To move: schedule_job with a new day and/or technician_id. To pull one back: unschedule_job { job_id }.\n- The 'needs_scheduling' list is your work queue — job_id, customer, ZIP, and who covers it. After you book, tell them the office will text the customer their arrival window.` : '',
     `\nWhat you can change (each maps to a real control and is fully reversible):\n${intentDoc}`,
     `\nHands: ${handMode}`,
     `\nSAFETY: everything you touch is scoped to THIS shop only and logged with an Undo. You can never see or change another shop.`,
