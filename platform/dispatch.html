@@ -109,8 +109,8 @@
     var days=[]; for(var i=0;i<7;i++) days.push(isoDay(addDays(sel,i)));
     var today=isoDay(new Date());
     var dow=['SUN','MON','TUE','WED','THU','FRI','SAT'];
-    var CAP=6; // stops/day a tech can take (default; per-tech capacity is a later setting)
-    var crewCap=CAP*Math.max(techs.length,1);
+    function capOf(t){ var m=t&&t.max_stops; return (m!=null&&m>0)?m:6; } // per-tech stops/day (owner-set; default 6)
+    var crewCap=techs.length ? techs.reduce(function(s,t){ return s+capOf(t); },0) : 6;
     function bookedOn(techId,d){ var n=0; jobs.forEach(function(j){ if(j.technician_id===techId&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
     function bookedAll(d){ var n=0; jobs.forEach(function(j){ if(j.scheduled_day===d&&j.technician_id&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
 
@@ -119,7 +119,7 @@
     if(view==='week'){
       // Week: each day column shows every tech's AVAILABILITY (open slots) above the name.
       var calHtml=days.map(function(d){ var dt=new Date(d+'T12:00:00');
-        var cells=techs.length ? techs.map(function(t){ var open=Math.max(0,CAP-bookedOn(t.id,d)); var cls=open===0?'full':(open<=2?'low':'open');
+        var cells=techs.length ? techs.map(function(t){ var open=Math.max(0,capOf(t)-bookedOn(t.id,d)); var cls=open===0?'full':(open<=2?'low':'open');
           return '<div class="acell '+cls+'"><div class="avail">'+(open===0?'Full':open+' open')+'</div><div class="aname">'+esc((t.name||'Tech').split(' ')[0])+'</div></div>'; }).join('')
           : '<div class="acell"><div class="aname" style="font-weight:600">—</div></div>';
         return '<div class="calcol'+(d===selDay?' on':'')+'"><div class="calhd'+(d===today?' today':'')+'" data-day="'+d+'"><div class="dow">'+dow[dt.getDay()]+'</div><div class="dnum">'+dt.getDate()+'</div></div>'+cells+'</div>'; }).join('');

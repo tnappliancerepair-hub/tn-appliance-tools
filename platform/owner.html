@@ -165,7 +165,7 @@
     // RLS scopes both queries to this company — we never pass company_id.
     var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents,customer:customer_id(first_name,last_name)').limit(3000);
     var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,collected_cents,status,paid_at,created_at').limit(3000);
-    var techP = sb.from('technician').select('id,name,active,commission_type,commission_pct,commission_flat_cents').limit(200);
+    var techP = sb.from('technician').select('id,name,active,commission_type,commission_pct,commission_flat_cents,max_stops').limit(200);
     var payP  = sb.from('tech_payout').select('technician_id,job_id,amount_cents,paid_at').limit(5000);
     Promise.all([jobsP, invP, techP, payP]).then(function(res){
       var jobs = (res[0].data)||[], invs = (res[1].data)||[], techs = (res[2].data)||[], payouts = (res[3].data)||[];
@@ -446,6 +446,7 @@
           '<option value="flat_per_job"'+(ov==='flat_per_job'?' selected':'')+'>Flat per job</option></select></td>'+
         '<td><input class="ovVal" inputmode="decimal" style="width:70px" value="'+val+'"></td>'+
         '<td><input class="ovPhone" type="tel" style="width:120px" placeholder="cell for texts"></td>'+
+        '<td><input class="ovStops" inputmode="numeric" style="width:48px" placeholder="6" value="'+(t.max_stops!=null?t.max_stops:'')+'"></td>'+
         '<td><button class="ovSave">Save</button> <button class="ovRemove" title="Remove crew member">✕</button></td></tr>';
     }).join('');
     var inactive=(techs||[]).filter(function(t){return t.active===false;});
@@ -463,7 +464,7 @@
           '<button id="commSave">Save</button></span></div>'+
       '</div>'+
       '<div class="note" id="commMsg">Every tech is paid this unless you set an override.</div>'+
-      (rows ? '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Override</th><th>Value</th><th>Cell</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '')+
+      (rows ? '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Override</th><th>Value</th><th>Cell</th><th>Stops</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '')+
       inactiveHtml+
       '<div class="sec">Add a crew member</div>'+
       '<div class="money">'+
@@ -545,6 +546,7 @@
         var upd = type==='labor_pct' ? {commission_type:'labor_pct',commission_pct:v,commission_flat_cents:null}
                 : type==='flat_per_job' ? {commission_type:'flat_per_job',commission_pct:null,commission_flat_cents:Math.round(v*100)}
                 : {commission_type:null,commission_pct:null,commission_flat_cents:null};
+        var stEl=tr.querySelector('.ovStops'); var st=stEl?parseInt(stEl.value,10):NaN; upd.max_stops=(!isNaN(st)&&st>0)?st:null;
         var phEl=tr.querySelector('.ovPhone'); var ph=(phEl&&phEl.value||'').trim();
         btn.disabled=true; btn.textContent='…';
         sb.from('technician').update(upd).eq('id',techId).then(function(r){
