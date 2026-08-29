@@ -147,11 +147,21 @@
     if (!day) { if (d) d.focus(); return; }
     var w = document.querySelector('#rw_'+jid+' .wc.on'); var win = w ? w.getAttribute('data-w') : 'any';
     btn.disabled = true; btn.textContent = 'Sending…';
-    sb.rpc('portal_request_day', { p_token: token, p_day: day, p_win: win }).then(function(r){
-      btn.disabled = false; btn.textContent = 'Send request';
-      if (r.error || (r.data && r.data.ok === false)) { alert((r.data && r.data.error) || 'Please try again.'); return; }
-      load(true);
-    });
+    // Record the request AND text the shop's scheduler so it hits their phone right away.
+    // (Falls back to the direct RPC if the endpoint is unreachable — the request still lands.)
+    fetch('/.netlify/functions/platform-schedule-request', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ t: token, day: day, win: win }) })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (res && res.ok) { btn.disabled=false; btn.textContent='Send request'; load(true); return; }
+        throw new Error((res && res.error) || 'failed');
+      })
+      .catch(function(){
+        sb.rpc('portal_request_day', { p_token: token, p_day: day, p_win: win }).then(function(r){
+          btn.disabled = false; btn.textContent = 'Send request';
+          if (r.error || (r.data && r.data.ok === false)) { alert((r.data && r.data.error) || 'Please try again.'); return; }
+          load(true);
+        });
+      });
   }
   function fmtTime(iso){ if(!iso) return ''; try { var dt=new Date(iso); return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+dt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } }
   function whoLabel(m){ if(m.direction==='in') return 'You'; var s=String(m.sender||''); if(/^office:/.test(s)) return s.slice(7); if(/^tech:/.test(s)) return s.slice(5); if(s==='ann'||s==='') return 'Ann'; return s; }
