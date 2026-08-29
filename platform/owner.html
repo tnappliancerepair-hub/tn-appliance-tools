@@ -82,6 +82,35 @@
   .gate button{width:100%;margin-top:16px;padding:12px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
   .gate .err{color:var(--bad);font-size:12.5px;margin-top:10px;min-height:16px}
   .skel{color:var(--muted)}
+  /* goals + ledger */
+  .goals2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:560px){.goals2{grid-template-columns:1fr}}
+  .goal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .goal::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--brand),color-mix(in srgb,var(--brand) 55%,#e0a63e))}
+  .goal .gt{font-weight:800;font-size:13px;display:flex;align-items:center;gap:7px}
+  .goal .gbar{height:10px;border-radius:999px;background:var(--chip);margin:14px 0 9px;overflow:hidden}
+  .goal .gfill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--brand),color-mix(in srgb,var(--brand) 55%,#e0a63e));transition:width .8s cubic-bezier(.2,.7,.2,1)}
+  .goal .gnums{font-size:13px;color:var(--muted)}.goal .gnums b{color:var(--ink);font-size:20px;font-variant-numeric:tabular-nums}
+  .goal .gbig{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:8px 0 6px}
+  .goal .gmut{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
+  .goal .pace{display:inline-flex;align-items:center;gap:6px;margin-top:11px;padding:5px 10px;border-radius:999px;font-weight:800;font-size:12px}
+  .goal .pace.ahead{background:color-mix(in srgb,var(--good) 15%,transparent);color:var(--good)}
+  .goal .pace.behind{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+  .goal .glink,.goal .gset{margin-top:13px;border:1px solid var(--line);background:var(--bg);color:var(--muted);font-weight:700;font-size:12px;padding:7px 12px;border-radius:9px;cursor:pointer}
+  .goal .gset{background:var(--brand);color:#fff;border-color:transparent}
+  .goal .glink:hover{color:var(--ink);border-color:var(--brand)}
+  .ledger{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .lrow{display:flex;gap:11px;align-items:flex-start;padding:12px 15px;border-top:1px solid var(--line)}
+  .lrow:first-child{border-top:0}
+  .lrow .li{width:26px;height:26px;border-radius:8px;background:var(--chip);display:grid;place-items:center;font-size:13px;flex:none}
+  .lrow .lb{flex:1;min-width:0}
+  .lrow .la{font-weight:700;font-size:13px}
+  .lrow .lm{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .lrow .lm .who{font-weight:700;color:var(--brand)}
+  .lrow.rev{opacity:.55}.lrow.rev .la{text-decoration:line-through}
+  .lrow .undo{border:1px solid var(--line);background:var(--bg);color:var(--muted);font-weight:700;font-size:11.5px;padding:5px 10px;border-radius:8px;cursor:pointer;flex:none}
+  .lrow .undo:hover{color:var(--warn);border-color:var(--warn)}
+  .lrow .revd{font-size:11px;font-weight:800;color:var(--warn);flex:none;align-self:center}
 </style>
 </head>
 <body>
@@ -309,6 +338,7 @@
     }
 
     var body =
+      goalsCard(settings, takeHome, collected, win)+
       '<div class="sec">Performance — front and center</div>'+
       '<div class="hero">'+
         tile('🥇 First-Stop Completion', firstStop+'%', 'of '+fsKnown.length+' completed jobs with a report', true, '', 'Fixed on the first visit, no return trip for parts. From the tech\'s repair report; only counts jobs we have a report for.')+
@@ -352,14 +382,87 @@
       '<div id="payConnect"><div class="note">Loading…</div></div>'+
       reconcileSection+
       commissionEditor(techs, compDef)+
-      partsPricingEditor(settings);
+      partsPricingEditor(settings)+
+      '<div class="sec">🐜 Ant’s activity — what changed <span class="lock">↩ reversible</span></div>'+
+      '<div id="antLedger"><div class="note">Loading…</div></div>';
     shell(body);
     bindCommission();
     bindPartsPricing();
     bindPayouts();
+    bindGoals();
     loadAnnWeek();
     loadUsage();
     loadPayments();
+    loadLedger();
+  }
+
+  // ---- Ant action ledger bridge: the human UI writes through the SAME audited path Ant uses,
+  // so every change lands in owner_action with an Undo (platform-owner-action.js).
+  function sessTok(){ return sb.auth.getSession().then(function(s){ return (s&&s.data&&s.data.session&&s.data.session.access_token)||''; }); }
+  function ownerAction(doo, body){ return sessTok().then(function(tok){ return fetch('/.netlify/functions/platform-owner-action?do='+doo,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({access_token:tok},body||{}))}).then(function(r){return r.json();}).catch(function(){return {ok:false,error:'network'};}); }); }
+
+  function windowWord(w){ return w==='month'?'this month':(w==='week'?'this week':(w==='quarter'?'this quarter':(w==='year'?'this year':''))); }
+  function goalsCard(settings, takeHome, collected, win){
+    var g=(settings&&settings.goals)||{};
+    var thGoal=(g.take_home!=null)?+g.take_home:null, rGoal=(g.rating!=null)?+g.rating:null, thTile, rTile;
+    if(thGoal>0){
+      var prog=Math.max(0,Math.min(1, takeHome/thGoal)), p=Math.round(prog*100), pace='';
+      if(win==='month'){
+        var now=new Date(), dim=new Date(now.getFullYear(),now.getMonth()+1,0).getDate(), el=now.getDate()/dim, d=(prog-el)*thGoal;
+        pace = d>=0 ? '<span class="pace ahead">▲ Ahead of pace by '+USD(Math.round(d))+'</span>'
+                    : '<span class="pace behind">▼ Behind pace by '+USD(Math.round(-d))+'</span>';
+      }
+      thTile='<div class="goal"><div class="gt">💰 Take-home goal</div>'+
+        '<div class="gbar"><div class="gfill" style="width:'+p+'%"></div></div>'+
+        '<div class="gnums"><b>'+USD(takeHome)+'</b> of '+USD(thGoal)+' · '+p+'% '+windowWord(win)+'</div>'+pace+
+        '<div><button class="glink" data-goal="take_home">Edit goal</button></div></div>';
+    } else {
+      thTile='<div class="goal"><div class="gt">💰 Take-home goal</div><div class="gmut">🐜 Set your monthly take-home target and I’ll chase it with you — and show you the fastest way to close the gap.</div><button class="gset" data-goal="take_home">Set my goal</button></div>';
+    }
+    if(rGoal){
+      rTile='<div class="goal"><div class="gt">⭐ Rating goal</div><div class="gbig">'+(+rGoal).toFixed(1)+'★</div><div class="gmut">I’ll track this as your reviews come in. Connect your Google reviews to see live progress toward it.</div><button class="glink" data-goal="rating">Edit goal</button></div>';
+    } else {
+      rTile='<div class="goal"><div class="gt">⭐ Rating goal</div><div class="gmut">🐜 Set a customer-rating target too — happy customers are what feed the take-home goal.</div><button class="gset" data-goal="rating">Set my goal</button></div>';
+    }
+    return '<div class="sec">Your goals <span class="lock">🔒 you set them, Ant chases them</span></div><div class="goals2">'+thTile+rTile+'</div>';
+  }
+  function bindGoals(){
+    Array.prototype.forEach.call(document.querySelectorAll('[data-goal]'), function(btn){
+      btn.onclick=function(){
+        var kind=btn.getAttribute('data-goal'), g=(settings&&settings.goals)||{}, orig=btn.textContent;
+        if(kind==='take_home'){
+          var cur=(g.take_home!=null)?Math.round(g.take_home/100):'';
+          var v=prompt('Your take-home goal for the month ($):', cur); if(v==null) return;
+          var n=parseInt(String(v).replace(/[^0-9]/g,''),10); if(!n) return;
+          btn.disabled=true; btn.textContent='Saving…';
+          ownerAction('apply',{intent:'set_goal',args:{kind:'take_home',value:n*100},via:'ui'}).then(function(r){ if(r&&r.ok){ load(); } else { alert('Could not save: '+((r&&r.error)||'error')); btn.disabled=false; btn.textContent=orig; } });
+        } else {
+          var curR=(g.rating!=null)?g.rating:'';
+          var vr=prompt('Your customer-rating goal (e.g. 4.7):', curR); if(vr==null) return;
+          var nr=parseFloat(vr); if(!nr||nr>5) return;
+          btn.disabled=true; btn.textContent='Saving…';
+          ownerAction('apply',{intent:'set_goal',args:{kind:'rating',value:nr},via:'ui'}).then(function(r){ if(r&&r.ok){ load(); } else { alert('Could not save: '+((r&&r.error)||'error')); btn.disabled=false; btn.textContent=orig; } });
+        }
+      };
+    });
+  }
+  var LEDGER_IC={set_parts_margin:'🔧',toggle_comms:'🔕',set_comms_text:'✏️',set_goal:'🎯',set_tech_commission:'💰',set_tech_stops:'🚚',set_tech_area:'📍',add_tech_dayoff:'🌴'};
+  function loadLedger(){
+    var el=document.getElementById('antLedger'); if(!el) return;
+    ownerAction('list',{limit:12}).then(function(r){
+      if(!r||!r.ok){ el.innerHTML='<div class="note">Couldn’t load the activity log.</div>'; return; }
+      var rows=r.actions||[];
+      if(!rows.length){ el.innerHTML='<div class="note">Nothing yet. When you or Ant change a setting — a margin, a text, a day off — it shows here with an Undo. Nothing is a one-way door.</div>'; return; }
+      el.innerHTML='<div class="ledger">'+rows.map(function(a){
+        var who=(a.actor==='ant')?'🐜 Ant':'You';
+        var when=a.created_at?new Date(a.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+        var rev=(a.status==='reversed');
+        var right = rev ? '<span class="revd">↩ Reversed</span>' : '<button class="undo" data-uid="'+esc(a.id)+'">Undo</button>';
+        return '<div class="lrow'+(rev?' rev':'')+'"><div class="li">'+(LEDGER_IC[a.intent]||'🐜')+'</div>'+
+          '<div class="lb"><div class="la">'+esc(a.label)+'</div><div class="lm"><span class="who">'+who+'</span> · '+esc(when)+(a.via==='ant'?' · acted for you':'')+'</div></div>'+right+'</div>';
+      }).join('')+'</div>';
+      Array.prototype.forEach.call(el.querySelectorAll('.undo'), function(b){ b.onclick=function(){ b.disabled=true; b.textContent='…'; ownerAction('undo',{action_id:b.getAttribute('data-uid')}).then(function(r){ if(r&&r.ok){ load(); } else { alert('Undo failed: '+((r&&r.error)||'error')); b.disabled=false; b.textContent='Undo'; } }); }; });
+    });
   }
 
   // Card payments (Stripe Connect) — the shop connects its OWN Stripe account; customers pay the
@@ -574,11 +677,11 @@
     save.onclick=function(){
       var pct=+sl.value, minAdd=Math.round((parseFloat(minI.value)||0)*100);
       save.disabled=true; save.textContent='Saving…';
-      var next=Object.assign({}, settings, { parts: Object.assign({}, settings.parts||{}, { markup_pct:pct, min_add_cents:minAdd>0?minAdd:0 }) });
-      sb.from('company').update({settings:next}).eq('id',companyId).then(function(r){
+      // route through the ledger — same audited path Ant uses, so this change gets an Undo too
+      ownerAction('apply',{intent:'set_parts_margin',args:{markup_pct:pct,min_add_cents:minAdd>0?minAdd:0},via:'ui'}).then(function(r){
         save.disabled=false; save.textContent='Save parts margin';
-        if(r.error){ msg.textContent='Could not save: '+r.error.message; return; }
-        settings=next; msg.textContent='Saved. Every part is now marked up '+pct+'%'+(minAdd>0?' (min +'+money(minAdd)+')':'')+' — techs enter cost, the price fills itself in.'; load();
+        if(!r||!r.ok){ msg.textContent='Could not save: '+((r&&r.error)||'try again'); return; }
+        msg.textContent='Saved. Every part is now marked up '+pct+'%'+(minAdd>0?' (min +'+money(minAdd)+')':'')+' — techs enter cost, the price fills itself in. (Undo below.)'; load();
       });
     };
   }
