@@ -1,5 +1,15 @@
 # Appliance Ant
 
+## 🗓️🐜🚗 2026-08-29 (Fri, late) — TECH ANT HANDS-FREE: "I'm driving — add a part to the Johnson job + text me" (flag part needed + self-reminder text) — READ FIRST
+
+Extended the techs' Ant with the driving-flow Teddy asked for: a tech behind the wheel says *"add to the Johnson job from today, they asked for a water filter — put that in parts needed and text me so I can get the exact part number later,"* and Ant does BOTH in one turn, hands-free, scoped to that tech's own job.
+
+- **New tech-safe intent `add_part_needed`** in `_lib/owner-actions.js` (added to `TECH_ALLOWED`): flags a part on one of the tech's OWN jobs → inserts a `job_part` row (`order_status:'to_order'`, no disposition — a needed-not-yet-installed part has none). **Reversible** (insert → undo deletes the row). **Ownership-gated in code**: `if (!MGMT && job.technician_id !== ctx.technicianId) throw 'that is not your job'` — a tech can only flag parts on his own stops. The brain resolves "the Johnson job from today" from the `your_day` queue (now carries `job_id`).
+- **New brain tool `text_me_reminder`** (`platform-ant.js textTech`): texts the SIGNED-IN tech's own phone (technician→app_user.phone) via `sendSms(...,'technician','tech_reminder')` — "🔧 Ant reminder: …". Self-only, not reversible (it's just a nudge to his own phone).
+- **Both tools run in one turn**: the tech's Ant pushed `[whats_usually_fixes, request_day_off, add_part_needed, text_me_reminder]`; systemPrompt teaches "keep it short, they're driving, just DO it, do all of them if asked." Reply landed: *"Water filter flagged for the Johnson job and the office has been notified to order it. Text is on its way to remind you to grab the exact part number when you're able. Drive safe! 🚗"*
+- **FOOTGUN burned:** `job_part_disposition_check` allows ONLY `used|return|not_here` — the first cut set `disposition:'please_order'` and every insert 23514'd. Fix: OMIT disposition (a needed part has none); `order_status:'to_order'` is the valid queue signal (`job_part_order_status_check` = `to_order|claim_only|ordered`). A needed part = order_status only, disposition null.
+- **VERIFIED live on demo — 9/9:** the driving ask flagged the water filter (order_status=to_order, disposition null), the reminder text fired, the brain identified the caller as tech, **the ownership gate BLOCKED flagging a part on another tech's job** ("I can only flag parts for your own jobs"), and the tech's own Undo removed it. Cleaned to zero residue (throwaway tech + job + part + owner_action all gone). NOTE: platform-ant can transiently RemoteDisconnect on a cold start while still committing the side-effect — retry the client read, the action already landed.
+
 ## 🗓️🐜🔧💵 2026-08-29 (Fri, late) — THE TECHS' ANT: the money-makers get their partner (money-scoped brain + fix lookup + self-serve day-off) — READ FIRST
 
 Completed the three-seat partner: owner, CSR, and now the **techs**. A tech's Ant leans into what a money-maker cares about — their money, their day, and fixing things — and is tightly scoped + safe.
