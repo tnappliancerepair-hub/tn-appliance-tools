@@ -570,6 +570,10 @@
       '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
       '<div class="sec">Office notes</div><textarea id="jnotes" placeholder="Parts on order, gate code, upsell offered, anything the team should see…">'+esc(job.office_notes||'')+'</textarea>' +
       '<div class="srow" style="margin-top:8px"><button class="primary" id="jnotesSave">Save notes</button></div>' +
+      '<div class="sec">Conversation <span class="hint" style="font-weight:400">— texts with the customer</span></div>' +
+      '<div id="jthread" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;font-size:13px">Loading…</div>' +
+      '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
+      '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
       '<div class="sec">Pay / invoice</div>' +
       '<div class="pay">' +
         fld('labor','Labor $') + fld('parts','Parts $') + fld('fee','Trip / fee $') + fld('tax','Tax %') +
@@ -598,6 +602,12 @@
     sb2.querySelectorAll('button[data-s]').forEach(function(b){ b.onclick=function(){ var ns=b.getAttribute('data-s'); sb.from('job').update({status:ns}).eq('id',job.id).then(function(r){ if(!r.error){ job.status=ns; sb2.querySelectorAll('button').forEach(function(x){ x.className=''; x.style.background=''; }); b.className='on'; b.style.background=statusMeta(ns).color; if(ns==='completed' && window.antCelebrate){ try{ window.antCelebrate({ tag:'Job done', big:'JOB COMPLETE! 🎉', sub:fullName(job.customer)||'', sound:'both' }); }catch(_){ } } loadBoard(); } }); }; });
 
     document.getElementById('jnotesSave').onclick=function(){ var t=document.getElementById('jnotes').value; var btn=document.getElementById('jnotesSave'); btn.disabled=true; btn.textContent='Saving…'; sb.from('job').update({office_notes:t}).eq('id',job.id).then(function(r){ job.office_notes=t; btn.disabled=false; btn.textContent=r.error?'Try again':'Saved ✓'; setTimeout(function(){ btn.textContent='Save notes'; },1500); }); };
+
+    // Conversation — office reads the shared thread + texts the customer (office_message).
+    loadThread(job);
+    document.getElementById('jmsgSend').onclick=function(){ sendCustomerText(job); };
+    var jmsgTa=document.getElementById('jmsg');
+    if(jmsgTa){ jmsgTa.addEventListener('keydown',function(e){ if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){ e.preventDefault(); sendCustomerText(job); } }); }
 
     // scheduling flags — office can set/clear (slot a wider window or a second tech)
     document.querySelectorAll('#jflags button[data-flag]').forEach(function(b){ b.onclick=function(){ var col=b.getAttribute('data-flag')==='two'?'needs_two_techs':'long_job'; var now=!b.classList.contains('on'); b.disabled=true; var upd={}; upd[col]=now; sb.from('job').update(upd).eq('id',job.id).then(function(r){ b.disabled=false; if(r.error)return; b.classList.toggle('on',now); job[col]=now; loadBoard(); }); }; });
@@ -629,6 +639,44 @@
     document.getElementById('jstmt').onclick=function(){ openStatement(job); };
     document.getElementById('jsend').onclick=function(){ sendInvoice(job); };
     function g(id){ return document.getElementById(id).value; }
+  }
+
+  function threadBubble(m){
+    var out=(m.direction==='out'); var s=String(m.sender||'');
+    var who = out
+      ? (s.indexOf('office:')===0 ? '🏢 '+s.slice(7)
+         : s.indexOf('tech:')===0 ? '🔧 '+s.slice(5)
+         : s==='ann' ? '🐜 Ann' : s==='tech' ? '🔧 Tech' : '🏢 Office')
+      : '👤 Customer';
+    var align=out?'flex-end':'flex-start';
+    var bg=out?'var(--brand)':'var(--chip)';
+    var col=out?'var(--brand-ink,#fff)':'var(--ink)';
+    return '<div style="align-self:'+align+';max-width:82%;background:'+bg+';color:'+col+';padding:7px 10px;border-radius:12px;line-height:1.35"><div style="font-size:10px;opacity:.75;margin-bottom:2px">'+esc(who)+'</div>'+esc(m.body||'')+'</div>';
+  }
+  function loadThread(job){
+    var box=document.getElementById('jthread'); if(!box) return;
+    sb.from('thread_message').select('sender,direction,body,created_at,channel').eq('job_id',job.id).order('created_at').then(function(r){
+      var b=document.getElementById('jthread'); if(!b) return;
+      if(r.error){ b.innerHTML='<div class="hint">Couldn\'t load messages.</div>'; return; }
+      var rows=r.data||[];
+      b.innerHTML = rows.length ? rows.map(threadBubble).join('') : '<div class="hint">No messages yet.</div>';
+      b.scrollTop=b.scrollHeight;
+    });
+  }
+  function sendCustomerText(job){
+    var ta=document.getElementById('jmsg'), btn=document.getElementById('jmsgSend'), hint=document.getElementById('jmsgHint');
+    var text=(ta&&ta.value||'').trim(); if(hint) hint.textContent='';
+    if(!text) return;
+    btn.disabled=true; btn.textContent='Sending…';
+    sb.auth.getSession().then(function(r){
+      var tok=(r.data&&r.data.session&&r.data.session.access_token)||'';
+      return fetch('/.netlify/functions/platform-tech-notify?do=office_message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:job.id,access_token:tok,body:text})})
+        .then(function(x){return x.json();}).then(function(d){
+          btn.disabled=false; btn.textContent='Send text';
+          if(d&&d.ok){ ta.value=''; if(d.no_phone&&hint) hint.textContent='Saved — no phone on file to text.'; loadThread(job); }
+          else if(hint){ hint.textContent=(d&&d.error)||'Couldn\'t send — try again.'; }
+        });
+    }).catch(function(){ btn.disabled=false; btn.textContent='Send text'; if(hint) hint.textContent='Network error — try again.'; });
   }
 
   function sendInvoice(job){

@@ -85,6 +85,18 @@ exports.handler = async function (event) {
       return json(200, { ok: true, texted: sent, no_phone: !phone });
     }
 
+    if (doo === 'office_message') {
+      // Same as `message`, but from the OFFICE (an app_user without a tech role). Auth is
+      // already company-scoped above, so this is safe; we only relabel the sender as
+      // 'office:<name>' so the shared thread shows who spoke — office, tech, or customer.
+      const text = String(p.body || '').trim().slice(0, 1000);
+      if (!text) return json(200, { ok: false, error: 'empty' });
+      let sent = false;
+      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_office_msg'); } catch (_) {} }
+      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'sms', sender: techName ? ('office:' + techName) : 'office', body: text });
+      return json(200, { ok: true, texted: sent, no_phone: !phone });
+    }
+
     if (doo === 'waiver_link') {
       // Text the customer the intake/sign link (same /i/<token> the lead flow uses) so they
       // can sign the release on their own phone — for when they didn't sign before the visit.
