@@ -128,6 +128,9 @@
   .mtile img{width:100%;height:100%;object-fit:cover;display:block}
   .vtile .vcover{position:absolute;inset:0}
   .vtile .play{position:absolute;color:#fff;font-size:20px;line-height:1;text-shadow:0 1px 5px rgba(0,0,0,.7);pointer-events:none}
+  .cardmedia{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
+  .cardmedia .mtile{width:44px;height:44px;border-radius:7px;margin-right:0}
+  .cardmedia .vtile .play{font-size:15px}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -412,7 +415,7 @@
   function statusMeta(k){ for(var i=0;i<ALLSTATUS.length;i++){ if(ALLSTATUS[i].key===k) return ALLSTATUS[i]; } return { key:k, label:(k||'').replace(/_/g,' '), color:'var(--canceled)' }; }
 
   // ── board state ──────────────────────────────────────────────────────────────
-  var activeFilter = 'all', jobsCache = [], invByJob = {};
+  var activeFilter = 'all', jobsCache = [], invByJob = {}, mediaByJob = {};
 
   function renderFilters(){
     var counts = { all: jobsCache.length };
@@ -457,6 +460,19 @@
     requestAnimationFrame(step);
   }
 
+  // Compact media strip on the board tile (video first), so the office can eyeball the
+  // customer's video + model-# photo without opening the job — the inputs for filing the
+  // warranty claim by hand. Tiles stop propagation so a tap opens the media, not the drawer.
+  function cardMediaHtml(j){
+    var media = mediaByJob[j.id] || []; if(!media.length) return '';
+    var tiles='', n=0;
+    media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream';}).forEach(function(v){ if(n>=4) return; n++; var uid=esc(v.ref);
+      tiles += '<a class="mtile vtile" onclick="event.stopPropagation()" target="_blank" rel="noopener" href="https://iframe.cloudflarestream.com/'+uid+'"><img class="vcover" src="https://videodelivery.net/'+uid+'/thumbnails/thumbnail.jpg?time=1s&height=140" alt="" onerror="this.style.display=\'none\'"><span class="play">▶</span></a>'; });
+    media.filter(function(m){return m.kind==='photo'&&m.provider==='storage';}).forEach(function(p){ if(n>=4) return; n++;
+      tiles += '<a class="mtile ptile" onclick="event.stopPropagation()" target="_blank" rel="noopener" data-phhref="'+esc(p.ref)+'"><img data-ph="'+esc(p.ref)+'" alt="photo"></a>'; });
+    return tiles ? '<div class="cardmedia">'+tiles+'</div>' : '';
+  }
+
   function renderBoard(){
     var jobs = jobsCache.filter(function(j){ return activeFilter==='all' || j.status===activeFilter; });
     var groups = activeFilter==='all' ? ALLSTATUS.map(function(s){return s.key;}) : [activeFilter];
@@ -483,6 +499,7 @@
           (unit?'<div class="unit">'+esc(unit)+'</div>':'') +
           (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
           (flags?'<div class="flags">'+flags+'</div>':'') +
+          cardMediaHtml(j) +
           '<div class="foot"><span class="pill" style="background:'+m.color+'">'+esc(m.label)+'</span>' +
           '<span class="tech">'+esc(tech)+(badge?' '+badge:'')+'</span></div></div>';
       }).join('');
@@ -490,6 +507,7 @@
     }).join('') || '<div class="empty">Nothing here yet.</div>';
     var b=document.getElementById('board'); b.innerHTML=html;
     b.querySelectorAll('.card[data-job]').forEach(function(c){ c.onclick=function(){ var j=jobsCache.filter(function(x){return x.id===c.getAttribute('data-job');})[0]; if(j) openJob(j); }; });
+    hydratePics(b);
   }
 
   // ── Customer intake relay — the owner's "Teddy Tool" view: what the customer sent
@@ -836,9 +854,19 @@
     var proceed = function (r) {
       if (r.error) { document.getElementById('board').innerHTML = '<div class="empty">Couldn\'t load the board: ' + esc(r.error.message) + '</div>'; return; }
       jobsCache = r.data || [];
-      sb.from('invoice').select('id,job_id,status,subtotal_cents,tax_cents,total_cents,collected_cents,paid_at,paid_method,created_at').then(function (ir) {
+      var jids = jobsCache.map(function(j){ return j.id; });
+      // batch the customer's uploaded media so the office sees video + model photo right on
+      // the tile — needed to process the warranty claim by hand (until a claim API lands).
+      var mediaP = jids.length ? sb.from('job_media').select('job_id,kind,provider,ref').in('job_id', jids) : Promise.resolve({ data: [] });
+      Promise.all([
+        sb.from('invoice').select('id,job_id,status,subtotal_cents,tax_cents,total_cents,collected_cents,paid_at,paid_method,created_at'),
+        mediaP
+      ]).then(function (res) {
+        var ir = res[0] || {}, mr = res[1] || {};
         invByJob = {};
         (ir.data || []).forEach(function (iv) { if (iv.job_id) { var p = invByJob[iv.job_id]; if (!p || new Date(iv.created_at) > new Date(p.created_at)) invByJob[iv.job_id] = iv; } });
+        mediaByJob = {};
+        (mr.data || []).forEach(function (m) { if (!m.job_id) return; (mediaByJob[m.job_id] = mediaByJob[m.job_id] || []).push(m); });
         renderMoneyBar(); renderFilters(); renderBoard();
       });
     };
