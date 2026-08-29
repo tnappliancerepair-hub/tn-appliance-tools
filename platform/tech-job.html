@@ -121,6 +121,11 @@
   .pcard{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;background:var(--bg)}
   .pcard .pname{font-weight:800;font-size:16px;line-height:1.25}
   .pcard .pnum{font-family:ui-monospace,Menlo,monospace;color:var(--muted);font-size:13px;margin-top:3px}
+  .pprice{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;padding:9px 11px;border:1px solid var(--line);border-radius:11px;background:var(--panel,rgba(0,0,0,.02))}
+  .pcost{display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;white-space:nowrap}
+  .pcost .pdol{color:var(--muted)}
+  .pcost input{width:84px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-weight:700}
+  .pretail{font-size:14px;color:var(--muted)} .pretail b{color:var(--completed);font-size:16px}
   .pordbtn{width:100%;margin-top:11px;background:transparent;border:1.5px solid var(--in_progress);color:var(--in_progress);font-weight:800}
   .pordbtn.sel{background:var(--in_progress);color:#fff;border-color:transparent}
   .pclaimbtn{width:100%;margin-top:8px;background:transparent;border:1.5px solid #7c5cff;color:#7c5cff;font-weight:800}
@@ -416,6 +421,8 @@
         '<div class="note" style="margin:-2px 0 11px">Add each part you need. Tap <b>Please order</b> to put it on the office queue, or <b>just the part #</b> to log it for the claim. Once it arrives: <b>Used</b> if you installed it, <b>Return</b> if it ships back, <b>Not here</b> if the customer doesn\'t have it.</div>' +
         '<div id="partsBox"><div class="note">Loading…</div></div>' +
         '<div class="paddrow"><input id="pAddName" placeholder="Part name (e.g. water valve)"><input id="pAddNum" placeholder="Part #"></div>' +
+        '<div class="paddrow" style="margin-top:8px"><input id="pAddCost" inputmode="decimal" placeholder="Your cost $ (optional)"></div>' +
+        '<div class="note" style="margin:6px 0 0">Enter what it <b>cost you</b> — the office/owner set the margin, so the customer price fills in automatically. Never guess what to charge.</div>' +
         '<button class="full primary" id="pAddBtn" style="margin-top:8px">➕ Add this part</button>' +
         '<div class="err" id="pAddErr"></div></div>' +
 
@@ -542,6 +549,12 @@
     };
     if(pBox) pBox.addEventListener('change',function(e){
       var f=e.target.closest('input[data-pfile]'); if(f&&f.files&&f.files[0]){ partPhoto(f.getAttribute('data-pfile'), f.files[0]); f.value=''; }
+      var c=e.target.closest('input[data-pcost]'); if(c){ partCost(c.getAttribute('data-pcost'), c.value); }
+    });
+    if(pBox) pBox.addEventListener('input',function(e){
+      var c=e.target.closest('input[data-pcost]'); if(!c) return;   // live retail preview as they type (persists on blur/change)
+      var lab=pBox.querySelector('[data-pretail="'+c.getAttribute('data-pcost')+'"]'); if(!lab) return;
+      var cc=dollarsToCents(c.value); lab.innerHTML = cc>0 ? 'Customer pays <b>'+fmtUSD(retailCents(cc))+'</b>' : 'Enter cost → price fills in';
     });
 
     document.getElementById('brainBtn').onclick = brainLookup;
@@ -909,7 +922,7 @@
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
   function loadParts(){
     var box=document.getElementById('partsBox'); if(!box) return;
-    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref').eq('job_id',jobId).order('created_at').then(function(r){
+    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref,cost_cents,sell_cents').eq('job_id',jobId).order('created_at').then(function(r){
       if(r.error){
         var card=document.getElementById('partsCard');
         if(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')){ if(card) card.classList.add('hidden'); }
@@ -919,6 +932,12 @@
       renderParts(r.data||[]);
     });
   }
+  // Parts pricing — the owner sets ONE margin (settings.parts); the tech only ever enters COST.
+  // retail = max(cost × (1 + markup%), cost + minimum-added). The tech never asks "what do we charge."
+  function partsCfg(){ var p=(shopSettings&&shopSettings.parts)||{}; return { pct:(p.markup_pct!=null?+p.markup_pct:50), minAdd:(+p.min_add_cents||0) }; }
+  function retailCents(costCents){ costCents=+costCents||0; if(costCents<=0) return 0; var c=partsCfg(); return Math.max(Math.round(costCents*(1+c.pct/100)), costCents+c.minAdd); }
+  function dollarsToCents(v){ var n=parseFloat(String(v==null?'':v).replace(/[^0-9.]/g,'')); return isNaN(n)?0:Math.round(n*100); }
+  function fmtUSD(c){ c=+c||0; return '$'+(c/100).toFixed(2); }
   function renderParts(list){
     var box=document.getElementById('partsBox'); if(!box) return;
     var toReturn=list.filter(function(p){return p.disposition==='return';}).length;
@@ -930,9 +949,17 @@
     var photo = p.photo_ref
       ? '<div class="pphoto"><img data-pact="viewphoto" data-pval="'+esc(p.photo_ref)+'" data-ph="'+esc(p.photo_ref)+'"><span class="pptxt">✓ Photo on file — tap to view</span></div>'
       : '<div class="pphoto"><div class="snap" data-pact="photo" data-pid="'+esc(p.id)+'">📷</div><span class="pptxt">Optional: snap this part (proof of what you used / sent back)<input type="file" accept="image/*" capture="environment" data-pfile="'+esc(p.id)+'" class="hidden"></span></div>';
+    // Cost → auto retail (the office/owner never re-key it; the margin does the pricing).
+    var costV = p.cost_cents ? (p.cost_cents/100).toFixed(2) : '';
+    var retail = retailCents(p.cost_cents);
+    var priceRow = '<div class="pprice">' +
+        '<label class="pcost">Your cost <span class="pdol">$</span><input inputmode="decimal" data-pcost="'+esc(p.id)+'" value="'+costV+'" placeholder="0.00"></label>' +
+        '<span class="pretail" data-pretail="'+esc(p.id)+'">'+(p.cost_cents?('Customer pays <b>'+fmtUSD(retail)+'</b>'):'Enter cost → price fills in')+'</span>' +
+      '</div>';
     return '<div class="pcard">' +
       '<div class="pname">'+esc(p.name||'Part')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+'</div>' +
       (p.number?'<div class="pnum">🔩 '+esc(p.number)+'</div>':'') +
+      priceRow +
       '<button class="pordbtn'+((os==='to_order'||os==='ordered')?' sel':'')+'" data-pact="order" data-pid="'+esc(p.id)+'" data-pval="to_order">📦 '+(os==='ordered'?'Ordered':'Please order this part')+'</button>' +
       '<button class="pclaimbtn'+(os==='claim_only'?' sel':'')+'" data-pact="order" data-pid="'+esc(p.id)+'" data-pval="claim_only">📋 Just the part # for the claim (not ordered)</button>' +
       '<div class="parrive">Once it arrives + you install it:</div>' +
@@ -946,14 +973,24 @@
   }
   function addPart(){
     var nm=(document.getElementById('pAddName').value||'').trim(), num=(document.getElementById('pAddNum').value||'').trim();
+    var cc=dollarsToCents(document.getElementById('pAddCost').value);
     var err=document.getElementById('pAddErr'); err.textContent='';
     if(!nm && !num){ err.textContent='Add a part name or number.'; return; }
     var btn=document.getElementById('pAddBtn'); btn.disabled=true; btn.textContent='Adding…';
-    sb.from('job_part').insert({company_id:me.company_id, job_id:jobId, name:nm, number:num}).then(function(r){
+    var row={company_id:me.company_id, job_id:jobId, name:nm, number:num};
+    if(cc>0){ row.cost_cents=cc; row.sell_cents=retailCents(cc); }   // cost → auto retail (owner's margin)
+    sb.from('job_part').insert(row).then(function(r){
       btn.disabled=false; btn.textContent='➕ Add this part';
       if(r.error){ err.textContent=/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')?'Parts tracking turns on once migration 019 is run in Supabase.':r.error.message; return; }
-      document.getElementById('pAddName').value=''; document.getElementById('pAddNum').value=''; loadParts();
+      document.getElementById('pAddName').value=''; document.getElementById('pAddNum').value=''; document.getElementById('pAddCost').value=''; loadParts();
     });
+  }
+  // Tech edits a part's cost → recompute retail from the owner's margin, store both, live-update the row.
+  function partCost(id, val){
+    var cc=dollarsToCents(val), sc=retailCents(cc);
+    var lab=document.querySelector('[data-pretail="'+id+'"]');
+    if(lab) lab.innerHTML = cc>0 ? 'Customer pays <b>'+fmtUSD(sc)+'</b>' : 'Enter cost → price fills in';
+    sb.from('job_part').update({cost_cents:cc>0?cc:null, sell_cents:cc>0?sc:null}).eq('id',id).then(function(){});
   }
   function partOrder(id,val){
     var btn=document.querySelector('[data-pact="order"][data-pid="'+id+'"][data-pval="'+val+'"]');

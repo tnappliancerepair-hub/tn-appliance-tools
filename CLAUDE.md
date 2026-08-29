@@ -30,6 +30,18 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🔩 2026-08-29 (Fri, late) — PARTS-MARGIN AUTOPILOT: owner sets ONE margin, tech enters only COST, retail fills itself in everywhere — READ FIRST
+
+Teddy's idea: a **slider on the owner page for parts margin**. The tech never asks "what do we charge for this part" — he just enters the shop's **cost**, the owner's margin sets the customer price, and the cost→retail breakdown flows to the office tile invoice + the owner's money view. All on `main` + branch.
+
+- **`docs/sql/038_part_cost.sql` (APPLIED):** `job_part.cost_cents` (what the part cost the shop; `sell_cents` already existed from 034).
+- **The ONE rule (identical in all 3 pages):** `retail = max(cost × (1 + markup%), cost + min_add)`. Owner sets `company.settings.parts.markup_pct` (default **50**) + optional `min_add_cents` (protects tiny parts). Proven live: $50 cost @ 60% + $10 floor → **$80.00**.
+- **`platform/owner.html` — "Parts pricing" card (the slider):** range 0–200% + "add at least $X" + a **live example table** ($5/$25/$90 cost → customer pays) that updates as you drag; Save writes `settings.parts`. Plus a **Parts margin** line in the Money section (charged vs cost vs margin) and take-home now nets parts cost.
+- **`platform/tech-job.html` — tech enters COST only:** a "Your cost $" field on the add-part form + on each part card, with a live "**Customer pays $X**" readout. On add/edit it stores `cost_cents` AND the auto-derived `sell_cents` (reads the shop's margin from `shopSettings.parts`). The tech literally never types or looks up a charge.
+- **`platform/office-board.html` — invoice drawer mirrors it:** each logged part shows **cost $[ ] → charge $[ ]**; typing cost auto-fills the charge from the margin (charge stays an editable override); the charge sum feeds Parts $, each part becomes its own receipt line, and Save persists both `cost_cents` + `sell_cents`. No more "price each" guessing.
+- **VERIFIED live on demo:** `settings.parts` round-trips; `job_part.cost_cents` write + the retail formula = $80.00 on a $50/60%/$10 part; cleaned to zero residue.
+- **FOOTGUN:** margin is stored as **markup** (cost × (1+pct)), not gross-margin-on-sell — the slider label + live example make it unambiguous ("a part that costs you $X → customer pays $Y"). Existing parts with a `sell_cents` but no `cost_cents` still bill at their stored price; the office can backfill cost anytime.
+
 ## 🗓️🐜💳 2026-08-29 (Fri, late) — PLATFORM CARD PAYMENTS: Stripe Connect (Express), money-straight-to-shop — READ FIRST
 
 Completed the payments fork that was deliberately left un-built (KYC/liability). Chose **Stripe Connect (Express)** so it keeps the platform's core money rule intact: **the shop connects its OWN Stripe account, the customer pays the exact invoice by card, and the funds land in the SHOP's Stripe — the platform never holds money** (a *direct* charge on the connected account, optional `settings.pay.platform_fee_bps` fee, default 0). Invoice auto-marks paid via **verify-on-redirect** (no Connect-webhook config dependency). All on `main` + branch.
