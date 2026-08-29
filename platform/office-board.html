@@ -564,6 +564,7 @@
       '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
       '<div class="schedflags" id="jflags"><button type="button" data-flag="two" class="'+(job.needs_two_techs?'on':'')+'">🧑‍🤝‍🧑 Two-man</button><button type="button" data-flag="long" class="'+(job.long_job?'on':'')+'">⏳ Long job</button></div>' +
+      '<div class="sec">Assigned tech</div><div class="srow"><select id="jtech" style="flex:1"><option value="">Unassigned</option>'+techOptions(job.technician_id)+'</select></div>' +
       '<div id="jintake"></div>' +
       '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
@@ -586,6 +587,10 @@
     document.getElementById('jclose').onclick=close;
     loadIntake(job);
     loadDetails(job);
+
+    // Assign / reassign the tech — office dispatch (RLS lets the office write its own job rows).
+    var jt=document.getElementById('jtech');
+    if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; loadBoard(); }); }; }
 
     // status buttons
     var sb2=document.getElementById('jstatus');
@@ -736,6 +741,19 @@
     });
   }
 
+  // The shop's techs — loaded once at boot so the drawer can assign/reassign a job.
+  var techsCache = [];
+  function loadTechs() {
+    sb.from('technician').select('id,name,active').order('name').then(function (r) {
+      if (r.error) return; techsCache = (r.data || []).filter(function (t) { return t.active !== false; });
+    });
+  }
+  function techOptions(sel) {
+    return techsCache.map(function (t) {
+      return '<option value="' + t.id + '"' + (String(t.id) === String(sel) ? ' selected' : '') + '>' + esc(t.name || ('Tech ' + t.id)) + '</option>';
+    }).join('');
+  }
+
   function loadBoard() {
     // RLS scopes both queries to the logged-in user's company — we never pass company_id.
     var base = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,warranty_company,';
@@ -781,6 +799,7 @@
         return;
       }
       loadBoard();
+      loadTechs();
       subscribeRealtime();
     });
   }
