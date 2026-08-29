@@ -95,6 +95,11 @@
   .reqform{margin-top:9px;display:flex;flex-direction:column;gap:9px}
   .canrow{margin-top:12px;text-align:center}
   .canbtn{background:none;border:none;color:var(--muted);font-size:12.5px;text-decoration:underline;cursor:pointer;padding:4px}
+  .payways{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+  .payways .pw-t{font-weight:800;font-size:13px}
+  .paybtn{display:block;text-align:center;background:var(--accent);color:var(--accent-ink,#fff);text-decoration:none;border-radius:11px;padding:12px;font-weight:800;font-size:15px}
+  .payline{display:flex;justify-content:space-between;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:14px}
+  .payways .pw-x{font-size:12.5px;color:var(--muted)}
   .reqform input[type=date]{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
   .wsel{display:flex;gap:7px;flex-wrap:wrap}
   .wsel .wc{border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-weight:700;font-size:13.5px;cursor:pointer}
@@ -182,6 +187,22 @@
 
   function render() {
     var co = state.company || {}, cust = state.customer || {}, jobs = state.jobs || [], thread = state.thread || [];
+    // The shop's OWN ways to pay (Zelle / Cash App / their card link) — surfaced so an unpaid
+    // customer can pay right from the portal. The money goes straight to the shop, never through us.
+    var payCfg = (co.settings && co.settings.pay) || null, payInstr = (co.settings && co.settings.pay_instructions) || '';
+    function payWaysHtml(){
+      var isUrl=function(v){ return /^https?:\/\//i.test(String(v||'')); };
+      if (payCfg && payCfg.methods && payCfg.methods.length) {
+        var items = payCfg.methods.map(function(m){
+          var label = esc(m.label||m.type||'Pay');
+          if (m.type==='link' || isUrl(m.value)) { var href=isUrl(m.value)?m.value:('https://'+m.value); return '<a class="paybtn" href="'+esc(href)+'" target="_blank" rel="noopener">💳 '+label+' →</a>'; }
+          return '<div class="payline"><span>'+label+'</span><b>'+esc(m.value||'')+'</b></div>';
+        }).join('');
+        return '<div class="payways"><div class="pw-t">Ways to pay</div>'+items+(payCfg.note?'<div class="pw-x">'+esc(payCfg.note)+'</div>':'')+'</div>';
+      }
+      if (payInstr) return '<div class="payways">'+esc(payInstr)+'</div>';
+      return '';
+    }
     var settings = co.settings || {};
     var accent = settings.brand_color || '#3f8f24';
     document.documentElement.style.setProperty('--accent', accent);
@@ -226,9 +247,10 @@
           }).join('');
           var paidWhen = '';
           if (bill.paid && bill.paid_at) { try { paidWhen = ' · ' + new Date(bill.paid_at).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){} }
+          var pw = payWaysHtml();
           var footer = bill.paid
             ? '<div class="ifoot ipaid">✅ Paid' + (bill.paid_method ? ' · ' + esc(bill.paid_method) : '') + paidWhen + '. Thank you!</div>'
-            : '<div class="ifoot idue">Balance due — reply below or call us to take care of it.</div>';
+            : '<div class="ifoot idue">Balance due' + (pw ? '.' : ' — reply below or call us to take care of it.') + '</div>' + pw;
           billHtml =
             '<div class="invoice">' +
               '<div class="ihead"><span>Your invoice</span><span class="' + (bill.paid?'ipill paidp':'ipill duep') + '">' + (bill.paid?'PAID':'UNPAID') + '</span></div>' +
