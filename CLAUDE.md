@@ -44,8 +44,15 @@ Two clean layers so the board stops booking the wrong tech. All on `main` + bran
 - **`platform/owner.html` — "Area (ZIPs)" input** per tech in the crew table (next to Cell + Stops); `ovSave` persists `service_area`.
 - **`platform/dispatch.html`:** each **unscheduled job card shows 📍 ZIP → the covering techs** (or "no one's area"); the assign modal **sorts covering techs first**, labels each `⭐ covers` / `· out of area`, and **warns before an out-of-area assignment**.
 
+### 🧭 Layer 3 — suggested route order (no migration, pure client)
+- **Shared heuristic** in `dispatch.html` + `tech.html` (identical `routeOrder` — nearest-neighbor by **5-digit ZIP proximity**, seeded at the lowest ZIP so it sweeps low→high + clusters same-area stops; **no geocoding, deterministic**, so both surfaces agree on the numbers). 1–2 stop days are left as-is (order moot); only 3+ stop days get numbered.
+- **`platform/dispatch.html`:** the selected day's lane renders stops in route order with a **numbered badge (1,2,3…)** + the stop's ZIP + a "🧭 route order" tag on the lane.
+- **`platform/tech.html`:** `renderJobs` route-orders each scheduled day and shows a **🧭 N** stop badge on each card, so the tech drives the same sequence the office sees.
+- Unit-verified: scrambled `38401,37013,38501,37211,37076` → `37013→37076→37211→38401→38501` (Nashville cluster then Cookeville cluster, no cross-town zig-zag).
+- **HONEST LIMIT:** ZIP-proximity ≠ true drive-time — a real geocode+distance-matrix optimizer (Google, opt-in per shop for cost) is the future upgrade. This is the zero-cost, works-for-every-tenant version and clearly labelled "suggested."
+
 ### Still the future layer (NOT built — offered next)
-Full route optimization (order stops by drive time / geocode), day-off reasons/ranges UI, and auto-suggesting the single best tech+day (covers zip + not off + open capacity) in one tap. Per-tech capacity (036), day-off (039), and zones (040) are the inputs that make that possible now.
+True drive-time route optimization (geocode + distance matrix, per-shop opt-in), day-off reasons/ranges UI, and one-tap "best tech+day" auto-suggest (covers zip + not off + open capacity). Per-tech capacity (036), day-off (039), zones (040), and route order (layer 3) are the inputs that make that possible now.
 
 ### FOOTGUNS
 - `create or replace function` **can't change return type** → `drop function` first (hit again recreating `company_roster` for `service_area`; 036 hit the same).
