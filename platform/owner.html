@@ -445,8 +445,12 @@
           '<option value="labor_pct"'+(ov==='labor_pct'?' selected':'')+'>% of labor</option>'+
           '<option value="flat_per_job"'+(ov==='flat_per_job'?' selected':'')+'>Flat per job</option></select></td>'+
         '<td><input class="ovVal" inputmode="decimal" style="width:80px" value="'+val+'"></td>'+
-        '<td><button class="ovSave">Save</button></td></tr>';
+        '<td><button class="ovSave">Save</button> <button class="ovRemove" title="Remove crew member">✕</button></td></tr>';
     }).join('');
+    var inactive=(techs||[]).filter(function(t){return t.active===false;});
+    var inactiveHtml = inactive.length ? '<div class="sec">Inactive crew</div>'+
+      '<div class="note">Kept for history + pay records. Restore anytime.</div>'+
+      '<div class="money">'+inactive.map(function(t){ return '<div class="row"><span class="k">'+esc(t.name)+'</span><span class="v"><button class="ovRestore" data-tech="'+t.id+'">Restore</button></span></div>'; }).join('')+'</div>' : '';
     return '<div class="sec">Commission <span class="lock">🔒 owner only</span></div>'+
       '<div class="money">'+
         '<div class="row"><span class="k">Default pay rule</span><span class="v">'+
@@ -459,6 +463,7 @@
       '</div>'+
       '<div class="note" id="commMsg">Every tech is paid this unless you set an override.</div>'+
       (rows ? '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Override</th><th>Value</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '')+
+      inactiveHtml+
       '<div class="sec">Add a crew member</div>'+
       '<div class="money">'+
         '<div class="row"><span class="k">Name</span><span class="v"><input id="ntName" style="width:170px" placeholder="Jane Tech"></span></div>'+
@@ -469,9 +474,31 @@
       '<div class="note" id="ntMsg">They get their own login for the tech app and see only their own jobs and pay.</div>';
   }
 
+  // Remove (deactivate) or restore a crew member — keeps their history, flips active + their
+  // login. Scoped to this shop server-side via the owner's own session token.
+  function setTechActive(techId, active, btn){
+    if(!active && !confirm('Remove this crew member? They keep their job + pay history, but can no longer sign in or get new work. You can restore them anytime.')) return;
+    var m=document.getElementById('commMsg'); var old=btn.textContent; btn.disabled=true; btn.textContent='…';
+    sb.auth.getSession().then(function(s){
+      var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
+      return fetch('/.netlify/functions/platform-provision?action=settech_active',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,tech_id:techId,active:active})}).then(function(r){return r.json();});
+    }).then(function(d){
+      btn.disabled=false; btn.textContent=old;
+      if(!d||!d.ok){ if(m) m.textContent='Could not update: '+((d&&d.error)||'try again'); return; }
+      if(m) m.textContent=(d.tech&&d.tech.name?d.tech.name:'Crew member')+(active?' restored.':' removed — they keep their history.');
+      load();
+    }).catch(function(){ btn.disabled=false; btn.textContent=old; if(m) m.textContent='Could not update — try again.'; });
+  }
+
   function bindCommission(){
     var msg=document.getElementById('commMsg');
     var save=document.getElementById('commSave');
+    Array.prototype.forEach.call(document.querySelectorAll('.ovRemove'), function(btn){
+      btn.onclick=function(){ var tr=btn.closest('tr'); setTechActive(tr.getAttribute('data-tech'), false, btn); };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.ovRestore'), function(btn){
+      btn.onclick=function(){ setTechActive(btn.getAttribute('data-tech'), true, btn); };
+    });
     // Add a crew member — creates their login + technician row, scoped to THIS shop (the
     // function derives the company from the owner's own session token). Shows the temp
     // password once so the owner can hand it to their tech.

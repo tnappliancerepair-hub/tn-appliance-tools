@@ -40,9 +40,10 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   const isAdmin = q.secret === guard || !!(await operatorFromJWT(event));
-  // addtech is ALSO owner-self-serve (scoped to their own company via their session token);
-  // every other action stays admin/operator-only.
-  if (!isAdmin && q.action !== 'addtech') return { statusCode: 403, body: 'forbidden' };
+  // addtech + settech_active are ALSO owner-self-serve (scoped to their own company via their
+  // session token); every other action stays admin/operator-only.
+  const OWNER_OK = { addtech: 1, settech_active: 1 };
+  if (!isAdmin && !OWNER_OK[q.action]) return { statusCode: 403, body: 'forbidden' };
 
   const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
   const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
@@ -414,6 +415,52 @@ exports.handler = async function (event) {
         : (viaOwner ? 'Give your tech this email + temporary password — they sign in and change it.' : 'Read the password from admin-secrets.html under vault_key.'))
         + ' The tech signs into the tech app and sees only their own jobs and pay.',
     });
+  }
+
+  // Deactivate (or restore) a crew member — the owner "remove" that pairs with addtech. Keeps
+  // ALL of the tech's history (jobs, pay, leaderboard); just flips technician.active and
+  // bans/unbans their login so a removed tech can't sign in. Reversible. Owner-scoped (their
+  // own company only) or admin by &slug=.
+  //   POST { access_token, tech_id, active:false }   (or true to restore)
+  if (q.action === 'settech_active') {
+    let ab = {}; try { ab = JSON.parse(event.body || '{}'); } catch (_) {}
+    const techId = String(q.tech_id || ab.tech_id || '').trim();
+    const rawA = (ab.active != null ? ab.active : q.active);
+    const active = (rawA === true || rawA === 'true' || rawA === '1') ? true
+      : (rawA === false || rawA === 'false' || rawA === '0') ? false : null;
+    if (!techId || active === null) return json(200, { ok: false, error: 'tech_id and active (true|false) required' });
+    let co = null;
+    if (isAdmin) {
+      const slug0 = String(q.slug || ab.slug || '').toLowerCase().trim();
+      if (!slug0) return json(200, { ok: false, error: 'slug required' });
+      const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id&limit=1`);
+      co = cos && cos[0];
+    } else {
+      const tok = String(ab.access_token || q.access_token || '');
+      try {
+        const ur = await fetch(`${url}/auth/v1/user`, { headers: { Authorization: 'Bearer ' + tok, apikey: PLATFORM_ANON }, signal: AbortSignal.timeout(8000) });
+        if (ur.ok) { const uu = await ur.json().catch(() => null);
+          if (uu && uu.id) { const rows = await rest0(`app_user?auth_user_id=eq.${encodeURIComponent(uu.id)}&role=eq.owner&select=company_id&limit=1`);
+            const cid = rows && rows[0] && rows[0].company_id;
+            if (cid) { const cos = await rest0(`company?id=eq.${cid}&select=id&limit=1`); co = cos && cos[0]; } } }
+      } catch (_) {}
+      if (!co) return json(200, { ok: false, error: 'sign in as the shop owner' });
+    }
+    if (!co) return json(200, { ok: false, error: 'unknown company' });
+    // the technician must belong to this company
+    const techs = await rest0(`technician?id=eq.${encodeURIComponent(techId)}&company_id=eq.${co.id}&select=id,name,app_user_id&limit=1`);
+    const t = techs && techs[0];
+    if (!t) return json(200, { ok: false, error: 'not your technician' });
+    const patch = await rest(`technician?id=eq.${t.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ active }) });
+    if (!patch.ok) return json(200, { ok: false, error: 'update ' + patch.status });
+    // ban / unban the login so a removed tech can't sign in (best-effort; history is kept)
+    let auth = 'no_login';
+    if (t.app_user_id) {
+      const au = await rest0(`app_user?id=eq.${t.app_user_id}&select=auth_user_id&limit=1`);
+      const uid = au && au[0] && au[0].auth_user_id;
+      if (uid) { try { const r = await fetch(`${url}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: H, body: JSON.stringify({ ban_duration: active ? 'none' : '876000h' }), signal: AbortSignal.timeout(8000) }); auth = r.ok ? (active ? 'unbanned' : 'banned') : ('ban_' + r.status); } catch (_) { auth = 'ban_error'; } }
+    }
+    return json(200, { ok: true, tech: { id: t.id, name: t.name, active }, auth });
   }
 
   const slug = String(q.slug || '').toLowerCase().trim();
