@@ -49,9 +49,11 @@
   .prob{margin-top:9px;font-size:14.5px}
   .intake{margin-top:10px;background:var(--chip);border-radius:10px;padding:10px 12px;font-size:13.5px}
   .intake .irow{color:var(--ink)}
-  .intake .imedia{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
-  .intake .ilink{font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px;background:var(--panel)}
-  .intake .ithumb img{width:54px;height:54px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+  .intake .imedia{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;align-items:center}
+  .mtile{position:relative;display:inline-flex;width:68px;height:68px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#0b0d08;align-items:center;justify-content:center;flex:0 0 auto}
+  .mtile img{width:100%;height:100%;object-fit:cover;display:block}
+  .vtile .vcover{position:absolute;inset:0}
+  .vtile .play{position:absolute;color:#fff;font-size:22px;line-height:1;text-shadow:0 1px 5px rgba(0,0,0,.7);pointer-events:none}
   .brainbtn{margin-top:9px;font-size:13px;font-weight:700;color:var(--brand);background:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer}
   .brainbox{margin-top:9px;background:var(--chip);border-radius:10px;padding:10px 12px;font-size:13px;display:none}
   .brainbox.open{display:block}
@@ -283,17 +285,39 @@
   function intakeHtml(j){
     var bits = [];
     if (j.availability) bits.push('📅 <b>'+esc(j.availability)+'</b>');
-    if (j.waiver_signed_at) bits.push('✍️ Waiver signed'+(j.waiver_name?' — '+esc(j.waiver_name):''));
     var media = j.media || [];
     var mediaHtml = '';
+    // Video → a real play tile (Cloudflare Stream thumbnail if it loads, else a dark ▶ tile).
     media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream';}).forEach(function(m){
-      mediaHtml += '<a class="ilink" target="_blank" rel="noopener" href="https://iframe.cloudflarestream.com/'+esc(m.ref)+'">🎥 Watch video</a>';
+      var uid = esc(m.ref);
+      mediaHtml += '<a class="mtile vtile" target="_blank" rel="noopener" href="https://iframe.cloudflarestream.com/'+uid+'">' +
+        '<img class="vcover" src="https://videodelivery.net/'+uid+'/thumbnails/thumbnail.jpg?time=1s&height=140" alt="" onerror="this.style.display=\'none\'">' +
+        '<span class="play">▶</span></a>';
     });
+    // Photo → a thumbnail (src is hydrated after render via the tenant-scoped signer).
     media.filter(function(m){return m.kind==='photo'&&m.provider==='storage';}).forEach(function(m){
-      mediaHtml += '<a class="ithumb" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" alt="photo"></a>';
+      mediaHtml += '<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" alt="photo"></a>';
     });
     if (!bits.length && !mediaHtml) return '';
     return '<div class="intake">'+(bits.length?'<div class="irow">'+bits.join(' &nbsp;·&nbsp; ')+'</div>':'')+(mediaHtml?'<div class="imedia">'+mediaHtml+'</div>':'')+'</div>';
+  }
+
+  // Photos live in R2 behind a tenant-scoped signer. After each render, batch-sign every
+  // photo ref with the tech's own session token and drop the real URL into <img src>.
+  function hydratePhotos(){
+    var imgs = document.querySelectorAll('#body img[data-ph]'); if(!imgs.length) return;
+    var refs = []; Array.prototype.forEach.call(imgs, function(el){ var r=el.getAttribute('data-ph'); if(r && refs.indexOf(r)<0) refs.push(r); });
+    sb.auth.getSession().then(function(s){
+      var tok = s && s.data && s.data.session && s.data.session.access_token; if(!tok) return;
+      fetch('/.netlify/functions/platform-media-urls',{ method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok}, body: JSON.stringify({ refs: refs }) })
+        .then(function(x){ return x.json(); }).then(function(d){
+          var urls = (d && d.urls) || {};
+          Array.prototype.forEach.call(document.querySelectorAll('#body img[data-ph]'), function(el){
+            var u = urls[el.getAttribute('data-ph')]; if(!u) return;
+            el.src = u; var a = el.closest('a[data-phhref]'); if(a) a.href = u;
+          });
+        }).catch(function(){});
+    });
   }
   // The liability RELEASE (waiver). Every job should be signed or confirmed-signed before
   // it's finished — so the tech can capture it on site when it isn't already digital.
@@ -391,6 +415,7 @@
     b.querySelectorAll('button[data-needpart]').forEach(function(el){ el.onclick=function(){ officeNeedPart(el.getAttribute('data-needpart')); }; });
     b.querySelectorAll('button[data-release]').forEach(function(el){ el.onclick=function(){ confirmRelease(el.getAttribute('data-release')); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });
+    hydratePhotos();
   }
 
   // Techs adjust their own schedule: move a job to another day and/or hand it to another tech.
