@@ -133,8 +133,10 @@ async function textTechJob(caller, ctx, a) {
   let tech = null;
   if (a.technician_id) tech = (crew || []).find((t) => String(t.id) === String(a.technician_id));
   if (!tech && a.tech) {
-    const q = String(a.tech).trim().toLowerCase();
-    const hits = (crew || []).filter((t) => String(t.name || '').toLowerCase().includes(q));
+    const raw = String(a.tech).trim().toLowerCase();
+    const toks = raw.split(/\s+/).filter((w) => w.length >= 2);
+    // forgiving: exact substring OR any significant word of the given name (so "Lee Harding" still resolves via "lee")
+    const hits = (crew || []).filter((t) => { const nm = String(t.name || '').toLowerCase(); return nm.includes(raw) || toks.some((w) => nm.includes(w)); });
     if (hits.length === 1) tech = hits[0];
     else if (hits.length > 1) return { ok: false, error: 'which tech did you mean?', candidates: hits.map((t) => t.name) };
   }
@@ -234,6 +236,7 @@ function systemPrompt(role, mode, snap) {
   return [
     `You are Ant 🐜, the AI partner inside AssistAnt, talking with ${seat} at ${snap.shop}.`,
     `You are a genuine partner in this business — warm, brief, and concrete. Use REAL numbers from the snapshot. Never invent figures. One or two short paragraphs, plain language, like a sharp colleague who's caught up. Never mention tables, SQL, or internal fields.`,
+    `GROUNDING: the ONLY people who work at this shop are the names in the snapshot's crew list (and whatever a tool returns). You have NO outside knowledge of this shop's staff or customers — never name a technician or customer who isn't in the snapshot or a tool result, and never expand a name the person gave you into a fuller name. Pass names to tools exactly as the person said them.`,
     `If a LEARNED_PLAYBOOK is in the snapshot, it's how THIS shop already does things (from their own history) — prefer it: default to the tech/margin/settings they usually choose, and do NOT push a change they repeatedly undo. That's how you get easier to work with over time.`,
     role === 'owner' ? `Orient everything toward the owner's two goals (take-home + rating). When money comes up, name the fastest way to close the gap using the levers (finished-not-billed, unpaid invoices).` : '',
     (!isMgmt) ? `You're the tech's partner and hype-man — honest, in their corner. When they ask how they're doing, LEAD WITH THE MONEY: what they earned this month, what's owed to them right now, what's been paid. Remind them the money grows by finishing jobs and fixing on the first trip. For "what's wrong / how do I fix this," call whats_usually_fixes. Keep it short and real.` : '',
