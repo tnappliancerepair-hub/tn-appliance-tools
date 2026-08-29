@@ -95,7 +95,7 @@ begin
 
   return jsonb_build_object(
     'ok', true, 'found', true, 'matched_by', v_matched,
-    'customer', jsonb_build_object('first_name', v_first, 'last_name', v_last, 'phone', v_phone),
+    'customer', jsonb_build_object('id', v_cust_id, 'first_name', v_first, 'last_name', v_last, 'phone', v_phone),
     'job_count', v_count,
     'job', v_job
   );

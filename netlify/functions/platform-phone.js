@@ -24,6 +24,7 @@ const SITE = 'https://tnapplianceexchange.net';
 const LEAD_TOOL = SITE + '/.netlify/functions/platform-lead';
 const BRAIN_TOOL = SITE + '/.netlify/functions/platform-call-brain';
 const PRECALL_TOOL = SITE + '/.netlify/functions/platform-precall';
+const ACT_TOOL = SITE + '/.netlify/functions/platform-call-act';
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
 const MODEL = 'openai/gpt-5.4';
 
@@ -74,7 +75,7 @@ function assistantBody(company, toolKey) {
   const canBook = ai.can_book !== false, canStatus = ai.can_status !== false, canMsg = ai.can_message !== false;
   const about = ai.about ? ('\n\nWhat to know about this shop:\n' + ai.about) : '';
   const statusGuide = canStatus
-    ? `\n\nWHO'S ON THE LINE (may be filled in the moment they call, before they speak — if so, lean on it warmly and don't re-ask what you already know): {{system_context}}\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD: when a caller asks about a job they already have ("is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status?") or a warranty company asks about a dispatch, use get_status — look them up by the phone the job is under, a claim/dispatch number, or their name. READ BACK exactly what it returns; don't add to it or guess. Give the DAY, never a clock time (a live arrival window goes out the morning of). If it doesn't name a tech, say "your technician." Never read a homeowner a part or claim number. If it finds nothing, treat them as a new caller and capture a lead. Before you say whether the office is open right now, use get_hours to check the current time — don't guess.`
+    ? `\n\nWHO'S ON THE LINE (may be filled in the moment they call, before they speak — if so, lean on it warmly and don't re-ask what you already know): {{system_context}}\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD: when a caller asks about a job they already have ("is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status?") or a warranty company asks about a dispatch, use get_status — look them up by the phone the job is under, a claim/dispatch number, or their name. READ BACK exactly what it returns; don't add to it or guess. Give the DAY, never a clock time (a live arrival window goes out the morning of). If it doesn't name a tech, say "your technician." Never read a homeowner a part or claim number. If it finds nothing, treat them as a new caller and capture a lead. Before you say whether the office is open right now, use get_hours to check the current time — don't guess.\n\nTAKING ACTION (do these right on the call): BOOK A DAY — when a caller wants an appointment, get the DAY that works (+ morning/afternoon) and use request_day (we book by day, never a clock time; the office confirms + texts them). NEVER LOSE A CALLER — use callback with their name/number/need if you can't fully handle it. SEND A LINK — use send_link for the intake link (video + model-sticker photo) or the portal link. CONNECT A PERSON — only during business hours (check get_hours FIRST): if we're open, say "let me connect you" and use the transfer tool; after hours, take a message with callback instead of ringing anyone.`
     : '';
   const instr =
     `You are Ann, the warm, upbeat front-desk voice for ${name}, a ${trade} business. Your ONE job is to help every caller and never let a real lead slip away.` +
@@ -108,6 +109,27 @@ function assistantBody(company, toolKey) {
     tools.push(wh('get_hours',
       'Check the current day/time and whether the office is open right now before setting a callback expectation — don\'t guess the clock.',
       bq('hours'), {}, []));
+    // ── ACTIONS — Ann can take the wheel (all land on the board) ──
+    const aq = (pth) => `${ACT_TOOL}?do=${pth}&slug=${encodeURIComponent(slug)}${kq}`;
+    tools.push(wh('request_day',
+      'Put in a request for the DAY the caller wants (we book by day, not a clock time). Pass the day as they said it ("Thursday", "tomorrow", a date) + a window if given. The office confirms and texts them.',
+      aq('request_day'), { day: { type: 'string', description: 'the day they want' }, win: { type: 'string', description: 'morning/afternoon/anytime (optional)' }, phone: { type: 'string', description: 'their phone, digits (optional)' }, name: { type: 'string', description: 'their name (optional)' }, note: { type: 'string', description: 'scheduling note (optional)' } },
+      ['day']));
+    tools.push(wh('callback',
+      "Flag a callback so the office reaches out — use when you can't fully resolve something. Lands on the board + pings the office.",
+      aq('callback'), { phone: { type: 'string', description: 'best callback number, digits' }, name: { type: 'string', description: 'their name (optional)' }, note: { type: 'string', description: 'what they need (optional)' } },
+      ['phone']));
+    tools.push(wh('send_link',
+      "Text the caller their link — 'intake' (a quick video + model-sticker photo, default) or 'portal' (track their repair).",
+      aq('send_link'), { phone: { type: 'string', description: 'their mobile, digits' }, kind: { type: 'string', description: "'intake' (default) or 'portal'" } },
+      ['phone']));
+  }
+  // ── TRANSFER (Telnyx native) — only when we have the shop's Ann number + a cell to ring.
+  // Hours gating lives in the instructions (Ann checks get_hours first).
+  const annNum = (company.settings && company.settings.phone && company.settings.phone.number) || '';
+  const transferTo = (ai.transfer_to) || (company.settings && company.settings.business && company.settings.business.phone) || '';
+  if (annNum && transferTo) {
+    tools.push({ type: 'transfer', transfer: { from: annNum, timeout_secs: 45, targets: [{ name: 'Office', to: transferTo }] } });
   }
   tools.push({ type: 'hangup', hangup: { description: 'End the call politely once everything is handled.' } });
   const defaultGreeting = ai.greeting || `Thanks for calling ${name}, this is Ann — how can I help you today?`;

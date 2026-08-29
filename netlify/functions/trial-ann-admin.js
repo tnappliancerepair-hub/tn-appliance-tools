@@ -20,6 +20,7 @@ const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const LEAD_TOOL = `${SITE}/.netlify/functions/trial-ann-lead`;
 const BRAIN_TOOL = `${SITE}/.netlify/functions/platform-call-brain`;
 const PRECALL_TOOL = `${SITE}/.netlify/functions/platform-precall`;
+const ACT_TOOL = `${SITE}/.netlify/functions/platform-call-act`;
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
 const MODEL = 'openai/gpt-5.4';
 
@@ -52,7 +53,7 @@ function buildInstructions(shop) {
   // When the shop is on the platform board, Ann can SEE existing jobs. Teach her to look them
   // up and read back exactly what the board says — grounded, day-only, no guessing.
   const statusBlock = shop.platformSlug
-    ? `\n\nWHO'S ON THE LINE (this may be filled in the MOMENT they call, before they say a word — if so, lean on it warmly and don't re-ask what you already know): {{system_context}}\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD:\nWhen a caller asks about a job they ALREADY have — "is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status of my repair?" — OR a warranty company calls about a dispatch, use the get_status tool. Look them up by the phone number the job is under, or a claim/dispatch number, or their name. The tool hands you the exact line to say — READ IT BACK, don't add to it and don't guess:\n- Give the DAY, never a specific clock time. We don't run exact times — a live arrival window goes out the morning of.\n- If the tool doesn't name a technician, say "your technician" — never a name it didn't give you.\n- Never read a homeowner a part number or a claim number.\n- If get_status finds nothing, DON'T say "you're not in our system" — treat them like a new caller and capture a fresh lead.\n- Reading back a day the board already shows is fine and encouraged. (You still don't PROMISE a brand-new appointment time — ${owner} confirms new scheduling.)\nFor a warranty-company rep asking about a dispatch, read the rep summary the tool returns (it includes the claim and parts).\n\nKNOWING IF WE'RE OPEN: before you tell someone the office is open right now or set a callback expectation, use get_hours to check the current day and time — don't guess the clock.`
+    ? `\n\nWHO'S ON THE LINE (this may be filled in the MOMENT they call, before they say a word — if so, lean on it warmly and don't re-ask what you already know): {{system_context}}\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD:\nWhen a caller asks about a job they ALREADY have — "is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status of my repair?" — OR a warranty company calls about a dispatch, use the get_status tool. Look them up by the phone number the job is under, or a claim/dispatch number, or their name. The tool hands you the exact line to say — READ IT BACK, don't add to it and don't guess:\n- Give the DAY, never a specific clock time. We don't run exact times — a live arrival window goes out the morning of.\n- If the tool doesn't name a technician, say "your technician" — never a name it didn't give you.\n- Never read a homeowner a part number or a claim number.\n- If get_status finds nothing, DON'T say "you're not in our system" — treat them like a new caller and capture a fresh lead.\n- Reading back a day the board already shows is fine and encouraged. (You still don't PROMISE a brand-new appointment time — ${owner} confirms new scheduling.)\nFor a warranty-company rep asking about a dispatch, read the rep summary the tool returns (it includes the claim and parts).\n\nKNOWING IF WE'RE OPEN: before you tell someone the office is open right now or set a callback expectation, use get_hours to check the current day and time — don't guess the clock.\n\nTAKING ACTION (you can do these right on the call):\n- BOOK A DAY: when a caller wants an appointment, get the DAY that works (and morning/afternoon if they have a preference) and use request_day — pass the day as they said it. We book by DAY, never a clock time; the office confirms the day and texts them. Read back the confirmation the tool returns.\n- NEVER LOSE A CALLER: if you can't fully handle something, use callback with their name, number, and what they need — it reaches the office and lands on the board.\n- SEND A LINK: use send_link to text them the intake link (a quick video + a photo of the model-number sticker) or the portal link to follow their repair.\n- CONNECT A PERSON: only during business hours (check get_hours FIRST) may you transfer to the office. If they ask for a person and we're open, warmly say "let me connect you" and use the transfer tool. If it's after hours, DON'T ring anyone — take a message with callback and reassure them the office will call right back.`
     : '';
 
   const scopeLine = isDealer
@@ -166,6 +167,37 @@ function buildTools(shop, toolKey) {
     tools.push(webhookTool('get_hours',
       "Check the CURRENT day and time before you tell a caller whether the office is open right now or set a callback expectation — don't guess the time. Returns the current day/time and whether the office is open.",
       qStatus(`${BRAIN_TOOL}?do=hours`), {}, []));
+
+    // ── ACTIONS — Ann can take the wheel (all land on the shop's board) ──
+    tools.push(webhookTool('request_day',
+      "Put in a request for the DAY the caller wants for their appointment (we book by DAY, not clock time). Use once they tell you a day that works. Pass the day as they said it (\"Thursday\", \"tomorrow\", or a date) and a window if they gave one (morning/afternoon). The office confirms the day and texts them. Returns the exact confirmation to read back.",
+      qStatus(`${ACT_TOOL}?do=request_day`), {
+        day: { type: 'string', description: 'the day they want — "Thursday", "tomorrow", or a date' },
+        win: { type: 'string', description: 'morning / afternoon / anytime, if they said (optional)' },
+        phone: { type: 'string', description: "the customer's phone, digits (optional if already known)" },
+        name: { type: 'string', description: "the customer's name (optional)" },
+        note: { type: 'string', description: 'any scheduling note (optional)' },
+      }, ['day']));
+    tools.push(webhookTool('callback',
+      "Flag a callback so the office reaches out — use when you can't fully resolve something and the caller needs a person, so nobody is ever lost. It lands on the board and pings the office. Returns what to say.",
+      qStatus(`${ACT_TOOL}?do=callback`), {
+        phone: { type: 'string', description: 'best callback number, digits' },
+        name: { type: 'string', description: "the caller's name (optional)" },
+        note: { type: 'string', description: 'what they need / what to tell the office (optional)' },
+      }, ['phone']));
+    tools.push(webhookTool('send_link',
+      "Text the caller their link — 'intake' to send a quick video + model-sticker photo to get set up (default), or 'portal' to track their repair and message the shop. Use their mobile number.",
+      qStatus(`${ACT_TOOL}?do=send_link`), {
+        phone: { type: 'string', description: 'their mobile number, digits' },
+        kind: { type: 'string', description: "'intake' (default) or 'portal'" },
+      }, ['phone']));
+  }
+
+  // ── TRANSFER to a live person (Telnyx native) — only when we have the shop's Ann number
+  // (from) + a cell to ring. Business-hours gating lives in the instructions (Ann checks
+  // get_hours first); off-hours she takes a message instead of ringing anyone.
+  if (shop.annNumber && shop.ownerCell) {
+    tools.push({ type: 'transfer', transfer: { from: shop.annNumber, timeout_secs: 45, targets: [{ name: 'Office', to: shop.ownerCell }] } });
   }
 
   tools.push({ type: 'hangup', hangup: { description: 'End the call politely once the conversation is complete and there is nothing left to help with.' } });
