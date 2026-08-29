@@ -555,11 +555,16 @@
     var day=document.getElementById('soDay').value, win=document.getElementById('soWin').value||'any';
     if(!day){ document.getElementById('soDay').focus(); return; }
     btn.disabled=true; btn.textContent='Sending…';
-    sb.from('schedule_offer').insert({company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, direction:'shop', proposed_day:day, win:win, status:'pending', created_by:'office'}).then(function(r){
+    // Server-side: records the shop offer AND texts the customer the day + a one-tap portal
+    // link to confirm (or pick another). One atomic call so the customer hears about it.
+    sb.auth.getSession().then(function(s){
+      var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
+      return fetch('/.netlify/functions/platform-tech-notify?do=schedule_offer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:job.id,access_token:tok,day:day,win:win})}).then(function(r){return r.json();});
+    }).then(function(res){
       btn.disabled=false; btn.textContent='Offer to customer';
-      if(r.error){ alert(r.error.message); return; }
-      sb.from('thread_message').insert({company_id:companyId, customer_id:job.customer_id||null, job_id:job.id, direction:'out', channel:'portal', sender:'office', body:'📅 We can come '+day+' — open your link to confirm.'}).then(function(){ loadSched(job); });
-    });
+      if(!res||!res.ok){ alert((res&&res.error)||'Could not send.'); return; }
+      loadSched(job);
+    }).catch(function(){ btn.disabled=false; btn.textContent='Offer to customer'; alert('Could not send — try again.'); });
   }
 
   // R2 photos are tenant-scoped behind a signer — batch-sign refs with the staff session
