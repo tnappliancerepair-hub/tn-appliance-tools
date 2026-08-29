@@ -339,6 +339,8 @@
         ? '<div class="note">No invoices in this window yet. As jobs get billed on the platform, billed / collected / owed-to-techs / take-home fill in here automatically — from the same invoice, entered once.</div>'
         : '<div class="note">From '+invWin.length+' invoice'+(invWin.length===1?'':'s')+'. Take-home is collected revenue minus the techs’ collected cut; parts cost + overhead land here as those get captured.</div>')+
       (payTable ? '<div class="sec">Tech pay <span class="lock">🔒 owner only</span></div>'+payTable+'<div class="note">Earned = cut if it pays in full · Collected = invoice paid · Owed now = collected but not yet paid out. All from the job’s invoice + this tech’s commission rule.</div>' : '')+
+      '<div class="sec">Card payments <span class="lock">🔒 owner only</span></div>'+
+      '<div id="payConnect"><div class="note">Loading…</div></div>'+
       reconcileSection+
       commissionEditor(techs, compDef);
     shell(body);
@@ -346,6 +348,41 @@
     bindPayouts();
     loadAnnWeek();
     loadUsage();
+    loadPayments();
+  }
+
+  // Card payments (Stripe Connect) — the shop connects its OWN Stripe account; customers pay the
+  // exact invoice by card and the money lands in the SHOP's account (the platform never holds it).
+  // Shows connect / finish-setup / active, and refreshes after Stripe redirects back (?connect=done).
+  function loadPayments(){
+    var el=document.getElementById('payConnect'); if(!el) return;
+    sb.auth.getSession().then(function(s){
+      var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+      return fetch('/.netlify/functions/platform-payments?do=connect_status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok})}).then(function(r){return r.json();});
+    }).then(function(d){
+      var btnBase='width:100%;margin-top:12px;padding:11px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;border:0;color:#fff;';
+      if(!d||!d.ok){ el.innerHTML='<div class="money"><div class="note">Card payments aren’t available yet. '+esc((d&&d.error)||'')+'</div></div>'; return; }
+      if(d.enabled){
+        el.innerHTML='<div class="money"><div class="row"><span class="k">💳 Card payments</span><span class="v" style="color:#12a150">Active</span></div>'+
+          '<div class="note">Customers can pay their invoice by card from their status page — the money goes straight to <b>your</b> Stripe account. Manage payouts in your Stripe dashboard.</div></div>';
+        return;
+      }
+      var label = d.needs_onboarding && d.connected ? '💳 Finish card-payment setup' : '💳 Set up card payments';
+      var sub = d.connected ? 'You started setup but Stripe still needs a few details before you can take cards.' : 'Let customers pay their invoice by card. Connect your Stripe account (or make one in a few minutes) — funds go straight to you, we never hold your money.';
+      el.innerHTML='<div class="money"><div class="note">'+sub+'</div>'+
+        '<button id="connectBtn" style="'+btnBase+'background:#635bff">'+label+'</button></div>';
+      var b=document.getElementById('connectBtn'); if(b) b.onclick=startConnect;
+    }).catch(function(){ el.innerHTML='<div class="money"><div class="note">Card-payment setup shows here in a moment.</div></div>'; });
+  }
+  function startConnect(){
+    var b=document.getElementById('connectBtn'); if(b){ b.disabled=true; b.textContent='Opening Stripe…'; }
+    sb.auth.getSession().then(function(s){
+      var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+      return fetch('/.netlify/functions/platform-payments?do=connect_start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok})}).then(function(r){return r.json();});
+    }).then(function(d){
+      if(d&&d.ok&&d.url){ location.href=d.url; return; }
+      alert((d&&d.error)||'Could not start setup right now.'); if(b){ b.disabled=false; b.textContent='💳 Set up card payments'; }
+    }).catch(function(){ if(b){ b.disabled=false; b.textContent='💳 Set up card payments'; } });
   }
 
   // Weekly (Mon–Sun) Ann usage vs the 400-minute allowance — accurate, read by number from
