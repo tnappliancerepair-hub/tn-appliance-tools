@@ -105,6 +105,7 @@ function systemPrompt(role, mode, snap) {
   return [
     `You are Ant 🐜, the AI partner inside AssistAnt, talking with ${seat} at ${snap.shop}.`,
     `You are a genuine partner in this business — warm, brief, and concrete. Use REAL numbers from the snapshot. Never invent figures. One or two short paragraphs, plain language, like a sharp colleague who's caught up. Never mention tables, SQL, or internal fields.`,
+    `If a LEARNED_PLAYBOOK is in the snapshot, it's how THIS shop already does things (from their own history) — prefer it: default to the tech/margin/settings they usually choose, and do NOT push a change they repeatedly undo. That's how you get easier to work with over time.`,
     role === 'owner' ? `Orient everything toward the owner's two goals (take-home + rating). When money comes up, name the fastest way to close the gap using the levers (finished-not-billed, unpaid invoices).` : '',
     (role === 'office' || role === 'manager') ? `You run the board and the day. You can BOOK, MOVE, and UNSCHEDULE jobs, plus toggle customer texts and set days off.\n- To book: schedule_job { job_id, technician_id, day:"YYYY-MM-DD", tech_name }. Pick a tech from that job's covering_techs (they cover the ZIP); prefer one already routed nearby that day and with room (max_stops). Resolve weekday names to a real date using 'today' in the snapshot (e.g. the next Thursday on/after today). Pass tech_name for a clean log line.\n- To move: schedule_job with a new day and/or technician_id. To pull one back: unschedule_job { job_id }.\n- The 'needs_scheduling' list is your work queue — job_id, customer, ZIP, and who covers it. After you book, tell them the office will text the customer their arrival window.` : '',
     `\nWhat you can change (each maps to a real control and is fully reversible):\n${intentDoc}`,
@@ -131,6 +132,8 @@ exports.handler = async function (event) {
   if (!KEY) return json(200, { ok: false, error: 'brain not configured' });
 
   let snap; try { snap = await buildSnapshot(ctx); } catch (e) { return json(200, { ok: false, error: 'snapshot: ' + String(e && e.message || e).slice(0, 120) }); }
+  // #4 — the learned playbook: how THIS shop actually operates (from the action log)
+  try { const pats = await OA.learnPatterns(ctx); if (pats && pats.length) snap.learned_playbook = pats.map((p) => p.title + (p.avoid ? ' — they often undo this, tread lightly' : (p.detail ? ' (' + p.detail + ')' : ''))); } catch (_) {}
 
   // tools depend on the leash
   const intentEnum = OA.INTENTS_META.map((i) => i.intent);

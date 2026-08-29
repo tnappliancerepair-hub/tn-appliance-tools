@@ -227,4 +227,51 @@ async function listActions(ctx, limit) {
   return { ok: true, actions: rows };
 }
 
-module.exports = { resolveCaller, applyIntent, undoAction, listActions, INTENTS, INTENTS_META, MGMT, cfg, db, centsMoney };
+// ---- #4 the pattern-learning layer ----
+// The owner_action log IS the training set: no new data collection, we learn from what
+// already accrues. Detects recurring behavior so Ant can act like THIS shop + stop pushing
+// changes the person keeps undoing. Pure read; best-effort; degrades to [].
+function modeOf(arr) { const c = {}; arr.forEach((v) => { c[v] = (c[v] || 0) + 1; }); let val = null, count = 0; Object.keys(c).forEach((k) => { if (c[k] > count) { count = c[k]; val = k; } }); return { val: (val != null && !isNaN(+val)) ? +val : val, count }; }
+async function learnPatterns(ctx) {
+  let rows = [];
+  try { rows = await ctx.d.get(`owner_action?company_id=eq.${ctx.companyId}&order=created_at.desc&limit=300&select=intent,after_value,before_value,status,target_id,label,created_at`); } catch (_) { return []; }
+  if (!rows || !rows.length) return [];
+  const byIntent = {}; rows.forEach((r) => { (byIntent[r.intent] = byIntent[r.intent] || []).push(r); });
+  const patterns = [];
+
+  // 1. undo-prone intents — Ant should tread lightly here
+  Object.keys(byIntent).forEach((intent) => {
+    const list = byIntent[intent]; const rev = list.filter((r) => r.status === 'reversed').length;
+    if (list.length >= 3 && rev / list.length >= 0.5) patterns.push({ key: 'undo_prone:' + intent, strength: rev + 2, avoid: true, title: 'You often undo “' + intent.replace(/_/g, ' ') + '”', detail: rev + ' of the last ' + list.length + ' were reversed — Ant will suggest this cautiously.' });
+  });
+
+  // 2. a go-to parts margin
+  const margins = (byIntent['set_parts_margin'] || []).map((r) => r.after_value && r.after_value.markup_pct).filter((v) => v != null);
+  if (margins.length >= 2) { const m = modeOf(margins); if (m.count >= 2) patterns.push({ key: 'margin_default', strength: m.count, title: 'Your go-to parts margin is ' + m.val + '%', detail: 'You’ve landed on ' + m.val + '% ' + m.count + ' times.', suggest: { intent: 'set_parts_margin', args: { markup_pct: m.val }, label: 'Make ' + m.val + '% the margin' } }); }
+
+  // 3. a text they keep turning to the same state
+  const commsCount = {};
+  (byIntent['toggle_comms'] || []).forEach((r) => { const m = /Turned (ON|OFF) the (.+)/.exec(r.label || ''); if (m) { const k = m[1] + '|' + m[2]; commsCount[k] = (commsCount[k] || 0) + 1; } });
+  Object.keys(commsCount).forEach((k) => { if (commsCount[k] >= 2) { const parts = k.split('|'); patterns.push({ key: 'comms:' + k, strength: commsCount[k], title: 'You keep turning ' + parts[0] + ' the ' + parts[1], detail: 'Done ' + commsCount[k] + ' times — Ant treats ' + parts[0].toLowerCase() + ' as your preference here.' }); } });
+
+  // 4. booking defaults by area (schedule_job → job ZIP3 → the tech it usually goes to)
+  const sj = (byIntent['schedule_job'] || []).filter((r) => r.after_value && r.after_value.technician_id && r.target_id);
+  if (sj.length >= 3) {
+    try {
+      const jobIds = [...new Set(sj.map((r) => r.target_id))];
+      const jr = await ctx.d.get(`job?id=in.(${jobIds.join(',')})&select=id,customer:customer_id(zip)`);
+      const zipByJob = {}; jr.forEach((j) => { zipByJob[j.id] = (j.customer && j.customer.zip) || ''; });
+      const techIds = [...new Set(sj.map((r) => r.after_value.technician_id))];
+      const tr = await ctx.d.get(`technician?id=in.(${techIds.join(',')})&company_id=eq.${ctx.companyId}&select=id,name`);
+      const techName = {}; tr.forEach((t) => { techName[t.id] = t.name; });
+      const area = {};
+      sj.forEach((r) => { const z = String(zipByJob[r.target_id] || '').slice(0, 3); if (!z) return; const t = r.after_value.technician_id; (area[z] = area[z] || {})[t] = (area[z][t] || 0) + 1; });
+      Object.keys(area).forEach((z) => { const counts = area[z]; const tot = Object.keys(counts).reduce((a, k) => a + counts[k], 0); const top = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0]; if (tot >= 3 && counts[top] / tot >= 0.6) patterns.push({ key: 'area:' + z, strength: counts[top] + 1, title: 'ZIP ' + z + 'xx jobs usually go to ' + (techName[top] || 'one tech'), detail: counts[top] + ' of your last ' + tot + ' bookings in ' + z + 'xx went to ' + (techName[top] || 'them') + ' — Ant will default to that.', tech_id: top, zip3: z }); });
+    } catch (_) { /* booking-area learning is best-effort */ }
+  }
+
+  patterns.sort((a, b) => (b.strength || 0) - (a.strength || 0));
+  return patterns.slice(0, 6);
+}
+
+module.exports = { resolveCaller, applyIntent, undoAction, listActions, learnPatterns, INTENTS, INTENTS_META, MGMT, cfg, db, centsMoney };
