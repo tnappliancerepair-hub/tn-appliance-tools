@@ -157,7 +157,8 @@
   }
 
   function setStatus(jobId, status){
-    sb.from('job').update({ status: status }).eq('id', jobId).then(function(r){ if(!r.error){ if(status==='completed') partyJobDone(jobId); loadJobs(); } });
+    var upd = { status: status }; if(status==='completed') upd.completed_at = new Date().toISOString();
+    sb.from('job').update(upd).eq('id', jobId).then(function(r){ if(!r.error){ if(status==='completed') partyJobDone(jobId); loadJobs(); } });
   }
 
   // 🎉 Job-done celebration — the dopamine pop, same as TN. Fires on any complete.
@@ -189,6 +190,7 @@
       if (r.error){ if(btn){btn.disabled=false;btn.textContent='Save report + finish';} return; }
       var newStatus = outcome === 'return_needed' ? 'awaiting_parts' : 'completed';
       var jobUpd = { status: newStatus };
+      if (newStatus==='completed') jobUpd.completed_at = new Date().toISOString();
       if (newStatus==='completed' && !job.waiver_signed_at && window.confirm('Release isn\'t signed. Confirm the customer signed it?')){
         var by = myTech ? myTech.name : (me.name||'');
         jobUpd.waiver_signed_at = new Date().toISOString();

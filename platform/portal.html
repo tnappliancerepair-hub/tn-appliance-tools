@@ -68,6 +68,11 @@
   .mtile img{width:100%;height:100%;object-fit:cover;display:block}
   .vtile .vcover{position:absolute;inset:0}
   .vtile .play{position:absolute;color:#fff;font-size:23px;line-height:1;text-shadow:0 1px 5px rgba(0,0,0,.7);pointer-events:none}
+  .bill{margin-top:12px;border-radius:11px;padding:11px 13px;font-size:14px;font-weight:700}
+  .bill.covered{background:rgba(63,143,36,.1);color:var(--accent)}
+  .bill.paid{background:rgba(18,161,80,.12);color:#12a150}
+  .bill.due{background:var(--panel);border:1px solid var(--line);color:var(--ink);display:flex;justify-content:space-between;align-items:center}
+  .bill.due b{font-size:17px;font-variant-numeric:tabular-nums}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -149,13 +154,25 @@
         tiles += '<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(p.ref)+'"><img data-ph="'+esc(p.ref)+'" alt="photo"></a>';
       });
       var vidHtml = tiles ? '<div class="plabel">What you sent us</div><div class="pmedia">'+tiles+'</div>' : '';
+      // The invoice's third leg: the customer's own receipt. Warranty = covered (never the
+      // claim amount); self-pay = their total + paid state. null bill → nothing shown.
+      var bill = j.bill, billHtml = '';
+      if (bill) {
+        if (bill.covered) billHtml = '<div class="bill covered">🛡️ Covered by your warranty — no charge from us.</div>';
+        else if (bill.total_cents != null) {
+          var amt = '$' + (bill.total_cents/100).toFixed(2);
+          billHtml = bill.paid
+            ? '<div class="bill paid">✅ Paid — ' + amt + (bill.paid_method ? ' (' + esc(bill.paid_method) + ')' : '') + '. Thank you!</div>'
+            : '<div class="bill due"><span>Balance due</span><b>' + amt + '</b></div>';
+        }
+      }
       return '<div class="card"><div class="job-top"><div>' +
         '<div class="job-unit">' + esc(unit) + '</div>' +
         (j.problem ? '<div class="job-prob">' + esc(j.problem) + '</div>' : '') +
         '</div><span class="badge" style="background:' + st.color + '">' + esc(st.label) + '</span></div>' +
         '<div class="statusline">' + esc(st.line) + '</div>' +
         (day ? '<div class="meta"><span>Scheduled: <b>' + esc(day) + '</b></span></div>' : '') +
-        techHtml + vidHtml +
+        techHtml + vidHtml + billHtml +
         '</div>';
     }).join('') : '<div class="card"><div class="empty">No open repairs on file. Reply below if you need us.</div></div>';
 
