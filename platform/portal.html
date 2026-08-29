@@ -97,7 +97,8 @@
   .canbtn{background:none;border:none;color:var(--muted);font-size:12.5px;text-decoration:underline;cursor:pointer;padding:4px}
   .payways{margin-top:10px;display:flex;flex-direction:column;gap:8px}
   .payways .pw-t{font-weight:800;font-size:13px}
-  .paybtn{display:block;text-align:center;background:var(--accent);color:var(--accent-ink,#fff);text-decoration:none;border-radius:11px;padding:12px;font-weight:800;font-size:15px}
+  .paybtn{display:block;width:100%;box-sizing:border-box;text-align:center;background:var(--accent);color:var(--accent-ink,#fff);text-decoration:none;border:0;cursor:pointer;font-family:inherit;border-radius:11px;padding:12px;font-weight:800;font-size:15px}
+  .cardpay{margin-top:8px}
   .payline{display:flex;justify-content:space-between;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:14px}
   .payways .pw-x{font-size:12.5px;color:var(--muted)}
   .reqform input[type=date]{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
@@ -248,9 +249,13 @@
           var paidWhen = '';
           if (bill.paid && bill.paid_at) { try { paidWhen = ' · ' + new Date(bill.paid_at).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){} }
           var pw = payWaysHtml();
+          // Pay-by-card (Stripe Connect) — appears only when the shop finished card-payment setup.
+          // Straight to the shop's Stripe; we resolve the invoice server-side from the portal token.
+          var cardBtn = (!bill.paid && co.payments_enabled)
+            ? '<button class="paybtn cardpay" data-paycard="1">💳 Pay ' + fmt(bill.total_cents) + ' by card</button>' : '';
           var footer = bill.paid
             ? '<div class="ifoot ipaid">✅ Paid' + (bill.paid_method ? ' · ' + esc(bill.paid_method) : '') + paidWhen + '. Thank you!</div>'
-            : '<div class="ifoot idue">Balance due' + (pw ? '.' : ' — reply below or call us to take care of it.') + '</div>' + pw;
+            : '<div class="ifoot idue">Balance due' + ((pw||cardBtn) ? '.' : ' — reply below or call us to take care of it.') + '</div>' + cardBtn + pw;
           billHtml =
             '<div class="invoice">' +
               '<div class="ihead"><span>Your invoice</span><span class="' + (bill.paid?'ipill paidp':'ipill duep') + '">' + (bill.paid?'PAID':'UNPAID') + '</span></div>' +
@@ -328,6 +333,16 @@
         });
       };
     });
+    // Pay-by-card — mint a Stripe Checkout on the shop's connected account, then redirect.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-paycard]'), function (b) {
+      b.onclick = function () {
+        b.disabled = true; var old = b.textContent; b.textContent = 'Opening secure payment…';
+        fetch('/.netlify/functions/platform-payments?do=pay', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ t: token }) })
+          .then(function(r){ return r.json(); })
+          .then(function(d){ if (d && d.ok && d.url) { location.href = d.url; return; } b.disabled=false; b.textContent=old; alert((d && d.error) || 'Card payment isn’t available right now.'); })
+          .catch(function(){ b.disabled=false; b.textContent=old; alert('Please try again in a moment.'); });
+      };
+    });
     // scheduling handshake wiring
     Array.prototype.forEach.call(document.querySelectorAll('[data-accept]'), function(b){ b.onclick=function(){ respondOffer(b.getAttribute('data-accept'), true, b); }; });
     Array.prototype.forEach.call(document.querySelectorAll('[data-decline]'), function(b){ b.onclick=function(){ respondOffer(b.getAttribute('data-decline'), false, b); }; });
@@ -346,7 +361,16 @@
     });
   }
 
-  load(false);
+  // Returned from Stripe Checkout? Verify the session so the invoice flips to paid, then load.
+  var _qs = new URLSearchParams(location.search);
+  if (_qs.get('paid') === '1' && _qs.get('sess')) {
+    fetch('/.netlify/functions/platform-payments?do=verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ t: token, session: _qs.get('sess') }) })
+      .then(function(r){ return r.json(); })
+      .catch(function(){})
+      .then(function(){ try { history.replaceState(null, '', location.pathname + '?t=' + encodeURIComponent(token)); } catch(e){} load(false); });
+  } else {
+    load(false);
+  }
   // Light poll so shop replies appear without a manual refresh (Realtime can't gate an
   // anon token, so the portal polls the SECURITY DEFINER read instead).
   pollTimer = setInterval(function(){ if (document.visibilityState === 'visible') load(true); }, 25000);
