@@ -39,7 +39,10 @@ async function operatorFromJWT(event) {
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  if (q.secret !== guard && !(await operatorFromJWT(event))) return { statusCode: 403, body: 'forbidden' };
+  const isAdmin = q.secret === guard || !!(await operatorFromJWT(event));
+  // addtech is ALSO owner-self-serve (scoped to their own company via their session token);
+  // every other action stays admin/operator-only.
+  if (!isAdmin && q.action !== 'addtech') return { statusCode: 403, body: 'forbidden' };
 
   const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
   const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
@@ -323,13 +326,31 @@ exports.handler = async function (event) {
   //   ?action=addtech&secret=<admin>&slug=<shop>&tech_email=<email>&tech_name=<name>
   //     [&tech_phone=+1…][&commission_pct=50]
   if (q.action === 'addtech') {
-    const slug = String(q.slug || '').toLowerCase().trim();
-    const techEmail = String(q.tech_email || '').toLowerCase().trim();
-    const techName = String(q.tech_name || '').trim();
-    if (!slug || !techEmail || !techName) return json(200, { ok: false, error: 'slug, tech_email, tech_name required' });
-    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name&limit=1`);
-    const co = cos && cos[0];
-    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+    let ab = {}; try { ab = JSON.parse(event.body || '{}'); } catch (_) {}
+    const techEmail = String(q.tech_email || ab.tech_email || '').toLowerCase().trim();
+    const techName = String(q.tech_name || ab.tech_name || '').trim();
+    if (!techEmail || !techName) return json(200, { ok: false, error: 'tech_email and tech_name required' });
+    // Resolve which company: admin/operator picks by &slug=; an owner is locked to their own
+    // company, derived from their session token (they can never add crew to another shop).
+    let co = null, viaOwner = false;
+    if (isAdmin) {
+      const slug0 = String(q.slug || ab.slug || '').toLowerCase().trim();
+      if (!slug0) return json(200, { ok: false, error: 'slug required' });
+      const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id,name,slug&limit=1`);
+      co = cos && cos[0];
+      if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug0 });
+    } else {
+      const tok = String(ab.access_token || q.access_token || '');
+      try {
+        const ur = await fetch(`${url}/auth/v1/user`, { headers: { Authorization: 'Bearer ' + tok, apikey: PLATFORM_ANON }, signal: AbortSignal.timeout(8000) });
+        if (ur.ok) { const uu = await ur.json().catch(() => null);
+          if (uu && uu.id) { const rows = await rest0(`app_user?auth_user_id=eq.${encodeURIComponent(uu.id)}&role=eq.owner&select=company_id&limit=1`);
+            const cid = rows && rows[0] && rows[0].company_id;
+            if (cid) { const cos = await rest0(`company?id=eq.${cid}&select=id,name,slug&limit=1`); co = cos && cos[0]; viaOwner = true; } } }
+      } catch (_) {}
+      if (!co) return json(200, { ok: false, error: 'sign in as the shop owner to add crew' });
+    }
+    const slug = co.slug;
 
     // 1) auth login — create; if the email already exists, find + reuse the uid.
     let uid = null, tempPw = tempPassword(), userNote = 'created';
@@ -375,18 +396,23 @@ exports.handler = async function (event) {
       techRow = Array.isArray(ti.d) ? ti.d[0] : ti.d; techNote = 'created';
     }
 
-    // Drop the temp password in the vault (never returned through chat/logs when it's fresh).
+    // Admin path: drop the temp password in the vault (never returned through chat/logs).
+    // Owner path: hand the password straight back so the owner can give it to their tech.
     let vaultKey = null, saved = false;
-    if (tempPw) {
+    if (tempPw && !viaOwner) {
       vaultKey = 'PLATFORM_TECH_PW_' + slug.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_' + techName.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 20);
       try { saved = await setSecret(vaultKey, tempPw); } catch (_) { saved = false; }
     }
+    const givePw = tempPw && (viaOwner || !saved);   // return the pw when the owner needs it, or vaulting failed
     return json(200, {
       ok: true, slug, shop: co.name, tech: { id: techRow.id, name: techName, email: techEmail },
-      login: { email: techEmail, note: userNote, temp_password: saved ? undefined : tempPw, vault_key: vaultKey, saved },
+      login: { email: techEmail, note: userNote, temp_password: givePw ? tempPw : undefined, vault_key: vaultKey || undefined, saved: vaultKey ? saved : undefined },
       technician: techNote, app_user_id: appUserId,
       login_url: 'https://tnapplianceexchange.net/platform/tech.html',
-      note: (userNote === 'existing_user' ? 'reused an existing login (no new password).' : 'read the password from admin-secrets.html under vault_key.') + ' Tech signs into the tech app + sees only their own jobs/pay.',
+      note: (userNote === 'existing_user'
+        ? 'Reused an existing login (no new password).'
+        : (viaOwner ? 'Give your tech this email + temporary password — they sign in and change it.' : 'Read the password from admin-secrets.html under vault_key.'))
+        + ' The tech signs into the tech app and sees only their own jobs and pay.',
     });
   }
 
