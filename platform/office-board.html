@@ -623,6 +623,7 @@
       '<div class="pay">' +
         fld('labor','Labor $') + fld('parts','Parts $') + fld('fee','Trip / fee $') + fld('tax','Tax %') +
       '</div>' +
+      '<label class="triprow" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin:2px 0 6px;cursor:pointer"><input type="checkbox" id="jtripapply" checked> Apply the trip charge toward the repair (credit it — they don\'t pay it twice)</label>' +
       '<div class="totals" id="jtotals"></div>' +
       '<div class="paidrow"><label style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px"><input type="checkbox" id="jpaid"> Paid</label>' +
         '<select id="jmethod"><option value="">method…</option><option>Cash</option><option>Card</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Warranty</option></select></div>' +
@@ -661,21 +662,29 @@
     var inv=invByJob[job.id]||null;
     document.getElementById('tax').value = (shopSettings.tax_rate!=null?shopSettings.tax_rate:'');
     var recompute=function(){
-      var sub=cents(g('labor'))+cents(g('parts'))+cents(g('fee'));
-      var taxp=parseFloat(g('tax'))||0; var tax=Math.round(sub*taxp/100); var tot=sub+tax;
-      document.getElementById('jtotals').innerHTML='<div class="tr"><span>Subtotal</span><span>'+money(sub)+'</span></div><div class="tr"><span>Tax ('+taxp+'%)</span><span>'+money(tax)+'</span></div><div class="tr grand"><span>Total</span><span>'+money(tot)+'</span></div>';
+      var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee'));
+      var applied=document.getElementById('jtripapply').checked && (laborC+partsC)>0;   // credit only when there's a repair
+      var taxable=laborC+partsC+(applied?0:feeC);
+      var taxp=parseFloat(g('tax'))||0; var tax=Math.round(taxable*taxp/100); var tot=taxable+tax;
+      var credit=(applied&&feeC)?'<div class="tr"><span>Trip charge</span><span>'+money(feeC)+'</span></div><div class="tr" style="color:#12a150"><span>Applied to the repair</span><span>−'+money(feeC)+'</span></div>':'';
+      document.getElementById('jtotals').innerHTML=credit+'<div class="tr"><span>Subtotal</span><span>'+money(taxable)+'</span></div><div class="tr"><span>Tax ('+taxp+'%)</span><span>'+money(tax)+'</span></div><div class="tr grand"><span>Total</span><span>'+money(tot)+'</span></div>';
     };
     ['labor','parts','fee','tax'].forEach(function(id){ document.getElementById(id).oninput=recompute; });
+    document.getElementById('jtripapply').onchange=recompute;
     if(inv){
       document.getElementById('jpaid').checked = inv.status==='paid';
       if(inv.paid_method){ document.getElementById('jmethod').value=inv.paid_method; }
       // recover the labor/parts/fee split from the lines
       sb.from('invoice_line').select('kind,unit_cents,qty').eq('invoice_id',inv.id).then(function(r){
-        var sums={labor:0,part:0,fee:0}; (r.data||[]).forEach(function(l){ sums[l.kind]=(sums[l.kind]||0)+Math.round((l.unit_cents||0)*(l.qty||1)); });
+        var rows=r.data||[]; var sums={labor:0,part:0,fee:0}; var hasFee=false, hasCredit=false;
+        rows.forEach(function(l){ if(l.kind==='credit'){ hasCredit=true; return; } if(l.kind==='fee') hasFee=true; sums[l.kind]=(sums[l.kind]||0)+Math.round((l.unit_cents||0)*(l.qty||1)); });
         if(sums.labor) document.getElementById('labor').value=(sums.labor/100).toFixed(2);
         if(sums.part)  document.getElementById('parts').value=(sums.part/100).toFixed(2);
         if(sums.fee)   document.getElementById('fee').value=(sums.fee/100).toFixed(2);
-        if(inv.tax_cents && (sums.labor+sums.part+sums.fee)) document.getElementById('tax').value=(Math.round(inv.tax_cents/((sums.labor+sums.part+sums.fee))*10000)/100);
+        // restore the checkbox: credit line present = applied; a lone fee (no credit) = it was billed on top
+        document.getElementById('jtripapply').checked = hasCredit || !hasFee;
+        var taxBase=sums.labor+sums.part+(hasCredit?0:sums.fee);
+        if(inv.tax_cents && taxBase) document.getElementById('tax').value=(Math.round(inv.tax_cents/taxBase*10000)/100);
         recompute();
       });
     } else { recompute(); }
@@ -744,7 +753,8 @@
     document.getElementById('jerr').textContent='';
     var g=function(id){ return document.getElementById(id).value; };
     var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee'));
-    var sub=laborC+partsC+feeC, taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
+    var tripApply=document.getElementById('jtripapply'); var applied=tripApply&&tripApply.checked && (laborC+partsC)>0;
+    var sub=laborC+partsC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
     var paid=document.getElementById('jpaid').checked, method=document.getElementById('jmethod').value||null;
     var inv=invByJob[job.id]||null;
     var row={ company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, labor_cents:laborC, subtotal_cents:sub, tax_cents:taxC, total_cents:tot, status:paid?'paid':'draft', paid_method:paid?method:null, paid_at:paid?(inv&&inv.paid_at?inv.paid_at:new Date().toISOString()):null, collected_cents:paid?tot:(inv?inv.collected_cents||0:0) };
@@ -760,7 +770,8 @@
       sb.from('invoice_line').delete().eq('invoice_id',invoiceId).then(function(){
         var lines=[]; if(laborC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'labor',description:'Labor',qty:1,unit_cents:laborC});
         if(partsC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:'Parts',qty:1,unit_cents:partsC});
-        if(feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'fee',description:'Trip / fee',qty:1,unit_cents:feeC});
+        if(feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'fee',description:'Trip charge',qty:1,unit_cents:feeC});
+        if(applied&&feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'credit',description:'Trip applied to repair',qty:1,unit_cents:-feeC});
         if(lines.length) sb.from('invoice_line').insert(lines).then(function(){ done(invoiceId); }); else done(invoiceId);
       });
     };
@@ -772,13 +783,15 @@
   function openStatement(job){
     var g=function(id){ var e=document.getElementById(id); return e?e.value:''; };
     var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee'));
-    var sub=laborC+partsC+feeC, taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
+    var tripApply=document.getElementById('jtripapply'); var applied=tripApply&&tripApply.checked && (laborC+partsC)>0;
+    var sub=laborC+partsC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
     var paid=document.getElementById('jpaid') && document.getElementById('jpaid').checked;
     var cust=job.customer||{}, unit=job.unit&&job.unit.label?job.unit.label:'';
     var rows='';
     if(laborC)rows+='<tr><td>Labor</td><td style="text-align:right">'+money(laborC)+'</td></tr>';
     if(partsC)rows+='<tr><td>Parts</td><td style="text-align:right">'+money(partsC)+'</td></tr>';
-    if(feeC)rows+='<tr><td>Trip / fee</td><td style="text-align:right">'+money(feeC)+'</td></tr>';
+    if(feeC)rows+='<tr><td>Trip charge</td><td style="text-align:right">'+money(feeC)+'</td></tr>';
+    if(applied&&feeC)rows+='<tr><td style="color:#166534">Trip applied to repair</td><td style="text-align:right;color:#166534">−'+money(feeC)+'</td></tr>';
     var today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
     var biz=(shopSettings.business)||{}; var bizName=biz.name||shopName||'Invoice';
     var bizbits=[biz.address,[biz.phone,biz.email].filter(Boolean).join(' · '),biz.tax_id?('Tax ID: '+biz.tax_id):'',biz.license?('Lic# '+biz.license):''].filter(Boolean).join('<br>');

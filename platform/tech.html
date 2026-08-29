@@ -413,12 +413,13 @@
     _payoutDone = false; earnByJob = {};
     var today = new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     var note = myTech ? '' : '<div class="note">Your login isn\'t linked to a technician yet, so this shows all the shop\'s open jobs. Ask the office to link you as a tech.</div>';
-    var body = (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' +
+    var body = (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' + (myTech ? '<div id="statsCard"></div>' : '') +
       '<div class="daylabel">'+esc(today)+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
       (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">No open jobs right now. 🎉</div>');
     document.getElementById('body').innerHTML = body;
     if (myTech) loadPay();
     loadLeaderboard();
+    if (myTech) loadStats();
     // wire actions
     var b = document.getElementById('body');
     b.querySelectorAll('button[data-act]').forEach(function(el){ el.onclick=function(){ setStatus(el.getAttribute('data-id'), el.getAttribute('data-act')); }; });
@@ -581,6 +582,47 @@
         '<div style="color:var(--muted);font-size:12px;margin-top:10px">More crowns — cleanest work, top upseller, customer favorite, sharpest diagnosis — unlock as that data flows in.</div></div>';
       renderLbOwed(); maybeCelebratePayout();
     }).catch(function(){ el.innerHTML=''; });
+  }
+
+  // 📊 Vivid 2-week chart of the tech's STOPS (scheduled visits) + COMPLETIONS per day.
+  // Self-contained inline SVG — no chart library, CSP-safe.
+  function loadStats(){
+    var el=document.getElementById('statsCard'); if(!el||!myTech) return;
+    sb.from('job').select('scheduled_day,completed_at,status').eq('technician_id',myTech.id).limit(3000).then(function(r){
+      var jobs=r.data||[]; var days=[], idx={}, today=new Date();
+      for(var i=13;i>=0;i--){ var d=new Date(today); d.setDate(d.getDate()-i); var key=d.toISOString().slice(0,10); var o={key:key,dom:d.getDate(),stops:0,done:0}; days.push(o); idx[key]=o; }
+      jobs.forEach(function(j){
+        if(j.scheduled_day && idx[j.scheduled_day]) idx[j.scheduled_day].stops++;
+        if(j.completed_at){ var ck=String(j.completed_at).slice(0,10); if(idx[ck]) idx[ck].done++; }
+      });
+      var totStops=0,totDone=0; days.forEach(function(o){ totStops+=o.stops; totDone+=o.done; });
+      if(totStops+totDone===0){ el.innerHTML='<div class="card"><b>📊 Your last 2 weeks</b><div style="margin-top:8px;color:var(--muted);font-size:13px">Your stops and completions chart here as you work your days.</div></div>'; return; }
+      var rate=totStops?Math.round(100*totDone/totStops):0;
+      el.innerHTML='<div class="card">'+
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px"><b>📊 Your last 2 weeks</b>'+
+        '<span style="font-size:12px;color:var(--muted)"><b style="color:#12a150">'+totDone+'</b> done · '+totStops+' stops · '+rate+'% closed</span></div>'+
+        '<div style="display:flex;gap:14px;font-size:11.5px;font-weight:800;margin-bottom:6px"><span style="color:#12a150">■ Completions</span><span style="color:#0aa5c4">■ Stops</span></div>'+
+        buildStatsChart(days)+'</div>';
+    }).catch(function(){ el.innerHTML=''; });
+  }
+  function buildStatsChart(days){
+    var maxV=1; days.forEach(function(o){ maxV=Math.max(maxV,o.stops,o.done); });
+    var GW=26, BW=9, GAP=3, H=150, PAD=22, top=10, plotH=H-PAD-top, W=days.length*GW+8;
+    var bars='', labels='';
+    days.forEach(function(o,i){
+      var x=6+i*GW;
+      var sH=Math.round(o.stops/maxV*plotH), dH=Math.round(o.done/maxV*plotH);
+      bars+='<rect x="'+x+'" y="'+(top+plotH-sH)+'" width="'+BW+'" height="'+sH+'" rx="2" fill="url(#gStop)"/>';
+      bars+='<rect x="'+(x+BW+GAP)+'" y="'+(top+plotH-dH)+'" width="'+BW+'" height="'+dH+'" rx="2" fill="url(#gDone)"/>';
+      if(i%2===0) labels+='<text x="'+(x+BW)+'" y="'+(H-5)+'" text-anchor="middle" font-size="9" fill="#8a95a0">'+o.dom+'</text>';
+    });
+    return '<div style="overflow-x:auto"><svg viewBox="0 0 '+W+' '+H+'" width="100%" style="max-width:100%;min-width:'+Math.min(W,360)+'px;height:auto;display:block" role="img" aria-label="Stops and completions over the last two weeks">'+
+      '<defs>'+
+        '<linearGradient id="gDone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2ef07a"/><stop offset="1" stop-color="#0f9e46"/></linearGradient>'+
+        '<linearGradient id="gStop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3ddcf5"/><stop offset="1" stop-color="#0a91b1"/></linearGradient>'+
+      '</defs>'+
+      '<line x1="0" y1="'+(top+plotH)+'" x2="'+W+'" y2="'+(top+plotH)+'" stroke="#8a95a044" stroke-width="1"/>'+
+      bars+labels+'</svg></div>';
   }
 
   // 💸 Payday celebration: fires when this tech's PAID total rises since last view. Baseline
