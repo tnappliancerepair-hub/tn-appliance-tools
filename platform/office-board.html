@@ -468,6 +468,12 @@
         var iv = invByJob[j.id];
         var badge = iv ? '<span class="money-badge '+(iv.status==='paid'?'paid':'due')+'">'+(iv.status==='paid'?'PAID ':'')+money(iv.total_cents)+'</span>' : '';
         var flags=(j.needs_two_techs?'<span class="flag">🧑‍🤝‍🧑 2-man</span>':'')+(j.long_job?'<span class="flag">⏳ Long job</span>':'');
+        // days-waiting chip (colors as it ages) — only on active jobs, never completed/canceled.
+        var terminal=(j.status==='completed'||j.status==='canceled');
+        var age=j.created_at?Math.floor((Date.now()-new Date(j.created_at).getTime())/86400000):-1;
+        if(!terminal && age>=1){ flags+='<span class="flag" style="'+(age>=4?'color:#b4472e':(age>=2?'color:#b45309':''))+'">🕒 '+age+'d</span>'; }
+        // office-note flag — a note the team should see is on this job
+        if(j.office_notes && String(j.office_notes).trim()){ flags+='<span class="flag" title="Office note">📋</span>'; }
         return '<div class="card'+(iv&&iv.status==='paid'?' paidcard':'')+'" data-job="'+j.id+'" style="--sc:'+m.color+'">' +
           '<div class="name">'+esc(fullName(j.customer)||'Customer')+'</div>' +
           (unit?'<div class="unit">'+esc(unit)+'</div>':'') +
