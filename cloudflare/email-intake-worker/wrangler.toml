@@ -1,0 +1,15 @@
+name = "assistant-email-intake"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Non-secret vars (secrets go via `wrangler secret put` or the dashboard):
+[vars]
+INTAKE_BASE = "https://tnapplianceexchange.net"
+
+# Secrets to set (NOT stored here):
+#   wrangler secret put PLATFORM_EMAIL_SECRET   # must equal the platform vault key of the same name
+#   wrangler secret put FALLBACK_INBOX          # a verified Email Routing destination address
+#
+# Then, in the Cloudflare dashboard: Email → Email Routing (on the jobs.assistant247.net zone)
+#   → Email Workers → bind a CATCH-ALL rule to this worker (assistant-email-intake).

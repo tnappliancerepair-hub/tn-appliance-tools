@@ -111,6 +111,14 @@
   .lrow .undo{border:1px solid var(--line);background:var(--bg);color:var(--muted);font-weight:700;font-size:11.5px;padding:5px 10px;border-radius:8px;cursor:pointer;flex:none}
   .lrow .undo:hover{color:var(--warn);border-color:var(--warn)}
   .lrow .revd{font-size:11px;font-weight:800;color:var(--warn);flex:none;align-self:center}
+  .intakeaddr{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:10px}
+  .ia-t{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .ia-a{display:flex;gap:8px;align-items:center;margin:5px 0 2px}
+  .ia-a .mono{font-size:15px;font-weight:800;color:var(--ink,#111)}
+  .ia-copy{border:1px solid var(--line);background:var(--bg);color:var(--muted);font-weight:700;font-size:11.5px;padding:4px 10px;border-radius:8px;cursor:pointer}
+  .ia-copy:hover{border-color:var(--brand,#c8901f);color:var(--brand,#c8901f)}
+  .ia-h{font-size:12px;color:var(--muted);margin-top:4px}
+  .ist{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:999px;margin-left:6px;white-space:nowrap}
   /* what Ant learned */
   .learned{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
   .lp{display:flex;gap:11px;align-items:center;padding:12px 15px;border-top:1px solid var(--line)}
@@ -161,7 +169,7 @@
 <script>
 (function(){
   var cfg = window.ANT_SUPABASE || {};
-  var sb = null, companyId = null, shopName = 'Your shop', win = 'month', settings = {}, payJobs = {}, features = {};
+  var sb = null, companyId = null, shopName = 'Your shop', slug = '', win = 'month', settings = {}, payJobs = {}, features = {};
   var app = document.getElementById('app');
   var USD = function(cents){ return '$' + (Math.round((cents||0)/100)).toLocaleString(); };
   var pct = function(n,d){ return d>0 ? Math.round((n/d)*100) : 0; };
@@ -218,9 +226,9 @@
 
   function boot(){
     app.innerHTML='<div class="skel" style="padding:40px 4px">Loading your numbers…</div>';
-    sb.from('company').select('id,name,settings,features').limit(1).then(function(r){
+    sb.from('company').select('id,name,slug,settings,features').limit(1).then(function(r){
       if(r.error||!r.data||!r.data[0]){ renderSignIn('Could not load your shop.'); return; }
-      companyId=r.data[0].id; shopName=r.data[0].name||'Your shop'; settings=r.data[0].settings||{}; features=r.data[0].features||{};
+      companyId=r.data[0].id; shopName=r.data[0].name||'Your shop'; slug=r.data[0].slug||''; settings=r.data[0].settings||{}; features=r.data[0].features||{};
       // First login → guided setup wizard (unless they came back on purpose).
       if(!settings.onboarded && !/[?&]setup=skip/.test(location.search)){ location.href='/platform/onboard.html'; return; }
       load();
@@ -397,6 +405,8 @@
         spill('#3f8f24','Warranty', warranty)+
         spill('#b45309','Cash / self-pay', cash)+
       '</div>'+
+      '<div class="sec">📥 Emailed jobs <span class="lock">warranty dispatches, automatic</span></div>'+
+      '<div id="emailIntake"><div class="note">Loading…</div></div>'+
       '<div class="sec">Per-tech <span class="lock">🔒 owner only</span></div>'+
       techTable+
       '<div class="sec">Ann this week</div>'+
@@ -432,6 +442,7 @@
     loadAnnWeek();
     loadUsage();
     loadPayments();
+    loadEmailIntake();
     loadLedger();
     mountAnt();
   }
@@ -517,6 +528,38 @@
           '<div class="lb"><div class="la">'+esc(a.label)+'</div><div class="lm"><span class="who">'+who+'</span> · '+esc(when)+(a.via==='ant'?' · acted for you':'')+'</div></div>'+right+'</div>';
       }).join('')+'</div>';
       Array.prototype.forEach.call(el.querySelectorAll('.undo'), function(b){ b.onclick=function(){ b.disabled=true; b.textContent='…'; ownerAction('undo',{action_id:b.getAttribute('data-uid')}).then(function(r){ if(r&&r.ok){ load(); } else { alert('Undo failed: '+((r&&r.error)||'error')); b.disabled=false; b.textContent='Undo'; } }); }; });
+    });
+  }
+
+  // 📥 Emailed jobs — the shop's warranty-dispatch inbound address + a live feed of what came in.
+  // Reads email_intake (RLS-scoped to this shop). This is the warranty shop's "does it just work?" card.
+  var INTAKE_ST={created:['#e8f5e9','#1b5e20','✅ On your board'],deduped:['#eceff1','#455a64','↩ Already on board'],skipped:['#fff8e1','#8d6e00','— Not a new job'],unparsed:['#fdecea','#b71c1c','⚠ Couldn’t read'],error:['#fdecea','#b71c1c','⚠ Error'],received:['#eceff1','#455a64','· Received']};
+  function loadEmailIntake(){
+    var el=document.getElementById('emailIntake'); if(!el) return;
+    var addr=(slug||'your-shop')+'@jobs.assistant247.net';
+    var head='<div class="intakeaddr"><div class="ia-l"><div class="ia-t">Forward your warranty dispatches to</div>'+
+      '<div class="ia-a"><span class="mono" id="iaAddr">'+esc(addr)+'</span> <button class="ia-copy" id="iaCopy">Copy</button></div>'+
+      '<div class="ia-h">AHS · ServicePower · SquareTrade · Frontdoor · any warranty company — every dispatch lands here as a job, automatically.</div></div></div>';
+    el.innerHTML=head+'<div class="note">Loading recent…</div>';
+    var cp=document.getElementById('iaCopy'); if(cp) cp.onclick=function(){ try{ navigator.clipboard.writeText(addr); cp.textContent='Copied ✓'; setTimeout(function(){cp.textContent='Copy';},1500);}catch(e){} };
+    sb.from('email_intake').select('vendor,method,confidence,email_type,status,claim_number,from_addr,subject,created_at').order('created_at',{ascending:false}).limit(15).then(function(r){
+      var feed;
+      if(r.error){ feed='<div class="note">Couldn’t load the feed.</div>'; }
+      else if(!r.data||!r.data.length){ feed='<div class="note">No emailed jobs yet. Once a warranty company sends a dispatch to the address above, it shows up here and on your board.</div>'; }
+      else {
+        feed='<div class="ledger">'+r.data.map(function(a){
+          var st=INTAKE_ST[a.status]||INTAKE_ST.received;
+          var when=a.created_at?new Date(a.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
+          var vend=esc((a.vendor||'').toUpperCase()||'—');
+          var conf=(a.method==='claude'&&a.confidence)?' · '+esc(a.confidence)+' confidence':'';
+          var claim=a.claim_number?' · #'+esc(a.claim_number):'';
+          var subj=esc(a.subject||a.from_addr||'');
+          return '<div class="lrow"><div class="li">📥</div><div class="lb"><div class="la">'+vend+claim+' <span class="ist" style="background:'+st[0]+';color:'+st[1]+'">'+st[2]+'</span></div>'+
+            '<div class="lm">'+subj+'</div><div class="lm">'+esc(when)+conf+(a.method==='claude'?' · read by Ant':'')+'</div></div></div>';
+        }).join('')+'</div>';
+      }
+      el.innerHTML=head+feed;
+      var cp2=document.getElementById('iaCopy'); if(cp2) cp2.onclick=function(){ try{ navigator.clipboard.writeText(addr); cp2.textContent='Copied ✓'; setTimeout(function(){cp2.textContent='Copy';},1500);}catch(e){} };
     });
   }
 
