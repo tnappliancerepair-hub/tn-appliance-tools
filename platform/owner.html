@@ -458,12 +458,43 @@
           '<button id="commSave">Save</button></span></div>'+
       '</div>'+
       '<div class="note" id="commMsg">Every tech is paid this unless you set an override.</div>'+
-      (rows ? '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Override</th><th>Value</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '');
+      (rows ? '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Override</th><th>Value</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '')+
+      '<div class="sec">Add a crew member</div>'+
+      '<div class="money">'+
+        '<div class="row"><span class="k">Name</span><span class="v"><input id="ntName" style="width:170px" placeholder="Jane Tech"></span></div>'+
+        '<div class="row"><span class="k">Email (their login)</span><span class="v"><input id="ntEmail" type="email" style="width:200px" placeholder="jane@shop.com"></span></div>'+
+        '<div class="row"><span class="k">Pay</span><span class="v"><input id="ntPct" inputmode="decimal" style="width:70px" value="'+(compDef.type==='labor_pct'?defVal:50)+'"> % of labor</span></div>'+
+        '<div class="row"><span class="k"></span><span class="v"><button id="ntAdd">Add tech + create login</button></span></div>'+
+      '</div>'+
+      '<div class="note" id="ntMsg">They get their own login for the tech app and see only their own jobs and pay.</div>';
   }
 
   function bindCommission(){
     var msg=document.getElementById('commMsg');
     var save=document.getElementById('commSave');
+    // Add a crew member — creates their login + technician row, scoped to THIS shop (the
+    // function derives the company from the owner's own session token). Shows the temp
+    // password once so the owner can hand it to their tech.
+    var ntAdd=document.getElementById('ntAdd');
+    if(ntAdd) ntAdd.onclick=function(){
+      var nm=(document.getElementById('ntName').value||'').trim();
+      var em=(document.getElementById('ntEmail').value||'').trim();
+      var pc=parseFloat(document.getElementById('ntPct').value);
+      var nmsg=document.getElementById('ntMsg');
+      if(!nm||!em){ if(nmsg) nmsg.textContent='Enter a name and an email.'; return; }
+      ntAdd.disabled=true; ntAdd.textContent='Adding…';
+      sb.auth.getSession().then(function(s){
+        var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+        return fetch('/.netlify/functions/platform-provision?action=addtech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,tech_email:em,tech_name:nm,commission_pct:isNaN(pc)?undefined:pc})}).then(function(r){return r.json();});
+      }).then(function(d){
+        ntAdd.disabled=false; ntAdd.textContent='Add tech + create login';
+        if(!d||!d.ok){ if(nmsg) nmsg.textContent='Could not add: '+((d&&d.error)||'try again'); return; }
+        var pw=d.login&&d.login.temp_password;
+        if(nmsg) nmsg.innerHTML='✅ '+esc(nm)+' added. '+(pw? 'Temp password: <b>'+esc(pw)+'</b> — give it to them with their email ('+esc(em)+'); they change it on first sign-in at the tech app.' : 'They already had a login — no new password needed.');
+        document.getElementById('ntName').value=''; document.getElementById('ntEmail').value='';
+        load();
+      }).catch(function(){ ntAdd.disabled=false; ntAdd.textContent='Add tech + create login'; if(nmsg) nmsg.textContent='Could not add — try again.'; });
+    };
     if(save) save.onclick=function(){
       var type=document.getElementById('commType').value;
       var v=parseFloat(document.getElementById('commVal').value)||0;
