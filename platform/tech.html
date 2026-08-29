@@ -124,7 +124,7 @@
 (function () {
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
-  var sb = null, me = null, myTech = null, companySettings = {};
+  var sb = null, me = null, myTech = null, companySettings = {}, companyTrade = '';
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
@@ -259,14 +259,17 @@
     var box = document.getElementById('brain_'+id); if(!box) return;
     box.classList.add('open'); box.innerHTML = '<div class="bh">🧠 Checking across shops…</div>';
     var attrs = (job.unit && job.unit.attributes) || {};
-    sb.rpc('brain_lookup', { p_brand: attrs.brand||'', p_model: attrs.model||'', p_symptom: job.problem||'' }).then(function(r){
+    var kind = (job.unit && (job.unit.kind || job.unit.label)) || '';
+    sb.rpc('brain_lookup', { p_brand: attrs.brand||'', p_model: attrs.model||'', p_symptom: job.problem||'', p_unit_kind: kind, p_trade: companyTrade||'' }).then(function(r){
       if (r.error){ box.innerHTML = '<div class="bh">🧠 Not available yet</div>'; return; }
       var rows = r.data || [];
-      if (!rows.length){ box.innerHTML = '<div class="bh">🧠 No data yet</div><div class="bp">As shops file reports, this fills in with what usually fixes this model.</div>'; return; }
-      box.innerHTML = '<div class="bh">🧠 What usually fixes this — across '+ (rows[0].shops||0) +'+ shops</div>' + rows.map(function(x){
+      if (!rows.length){ box.innerHTML = '<div class="bh">🧠 Still learning</div><div class="bp">As jobs get closed out with a report, this fills in with what usually fixes this — first for your shop, then across every shop in your trade.</div>'; return; }
+      var top = rows[0];
+      var conf = top.confidence==='high' ? '🟢 strong signal' : (top.confidence==='medium' ? '🟡 forming' : '⚪ early');
+      box.innerHTML = '<div class="bh">🧠 What usually fixes this — <b>'+esc(top.tier||'similar jobs')+'</b></div>' + rows.map(function(x){
         return '<div class="brainrow"><div><b>'+esc(x.failed_component||'')+'</b>'+(x.part_number?' <span class="bp">'+esc(x.part_number)+'</span>':'')+'</div>'+
           '<div class="bp">'+(x.fixes||0)+' fixed'+(x.comebacks?' · '+x.comebacks+' came back':'')+'</div></div>';
-      }).join('');
+      }).join('') + '<div class="bp" style="margin-top:6px">'+conf+' · '+(top.observations||0)+' repair'+(top.observations===1?'':'s')+' across '+(top.shops||1)+' shop'+(top.shops===1?'':'s')+'</div>';
     });
   }
   function sendToCustomer(job, body, btn){
@@ -729,7 +732,7 @@
         sb.from('technician').select('id,name,commission_type,commission_pct,commission_flat_cents').eq('app_user_id', me.id).limit(1).then(function(t){
           myTech = (t.data && t.data[0]) || null;
           shell('<div class="empty">Loading your day…</div>');
-          sb.from('company').select('settings').limit(1).then(function(c){ companySettings = (c.data && c.data[0] && c.data[0].settings) || {}; loadJobs(); });
+          sb.from('company').select('settings,trade').limit(1).then(function(c){ var co=(c.data&&c.data[0])||{}; companySettings = co.settings || {}; companyTrade = co.trade || ''; loadJobs(); });
         });
       });
     });

@@ -191,7 +191,7 @@
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
   var jobId = new URLSearchParams(location.search).get('job');
-  var sb = null, me = null, myTech = null, job = null, shopSettings = {}, partStatus = '', outcomeSel = 'fixed', invoice = null;
+  var sb = null, me = null, myTech = null, job = null, shopSettings = {}, companyTrade = '', partStatus = '', outcomeSel = 'fixed', invoice = null;
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
@@ -451,7 +451,7 @@
 
       '</div>';
 
-    sb.from('company').select('name,settings').limit(1).then(function(r){ if(r.data&&r.data[0]){ shopSettings=r.data[0].settings||{}; var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; var db=document.getElementById('distBtn'); if(db&&shopSettings.distributor_name) db.textContent='🏭 '+shopSettings.distributor_name; } });
+    sb.from('company').select('name,settings,trade').limit(1).then(function(r){ if(r.data&&r.data[0]){ shopSettings=r.data[0].settings||{}; companyTrade=r.data[0].trade||''; var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; var db=document.getElementById('distBtn'); if(db&&shopSettings.distributor_name) db.textContent='🏭 '+shopSettings.distributor_name; } });
     wire();
     autoModel();
     loadInvoice();
@@ -1147,13 +1147,16 @@
   function brainLookup() {
     var box=document.getElementById('brainBox'); box.classList.remove('hidden'); box.innerHTML='<div>🧠 Checking across shops…</div>';
     var a=attrs();
-    sb.rpc('brain_lookup',{p_brand:a.brand||document.getElementById('tb').value||'',p_model:a.model||document.getElementById('tm').value||'',p_symptom:job.problem||''}).then(function(r){
+    var kind=(job.unit&&(job.unit.kind||job.unit.label))||'';
+    sb.rpc('brain_lookup',{p_brand:a.brand||document.getElementById('tb').value||'',p_model:a.model||document.getElementById('tm').value||'',p_symptom:job.problem||'',p_unit_kind:kind,p_trade:companyTrade||''}).then(function(r){
       if(r.error){box.innerHTML='<div>🧠 Not available yet</div>';return;}
       var rows=r.data||[];
-      if(!rows.length){box.innerHTML='<div><b>🧠 No data yet</b></div><div class="bp">As shops file reports, this fills in with what usually fixes this model.</div>';return;}
-      box.innerHTML='<div style="font-weight:800;margin-bottom:6px">🧠 What usually fixes this — across '+(rows[0].shops||0)+'+ shops</div>'+rows.map(function(x){
+      if(!rows.length){box.innerHTML='<div><b>🧠 Still learning</b></div><div class="bp">As jobs get closed out with a report, this fills in with what usually fixes this — first for your shop, then across every shop in your trade.</div>';return;}
+      var top=rows[0];
+      var conf=top.confidence==='high'?'🟢 strong signal':(top.confidence==='medium'?'🟡 forming':'⚪ early');
+      box.innerHTML='<div style="font-weight:800;margin-bottom:6px">🧠 What usually fixes this — '+esc(top.tier||'similar jobs')+'</div>'+rows.map(function(x){
         return '<div class="brainrow"><div><b>'+esc(x.failed_component||'')+'</b>'+(x.part_number?' <span class="bp">'+esc(x.part_number)+'</span>':'')+'</div><div class="bp">'+(x.fixes||0)+' fixed'+(x.comebacks?' · '+x.comebacks+' came back':'')+'</div></div>';
-      }).join('');
+      }).join('')+'<div class="bp" style="margin-top:6px">'+conf+' · '+(top.observations||0)+' repair'+(top.observations===1?'':'s')+' across '+(top.shops||1)+' shop'+(top.shops===1?'':'s')+'</div>';
     });
   }
 
