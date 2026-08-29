@@ -118,12 +118,16 @@
       var st = statusOf(j.status);
       var unit = j.unit_label || (j.unit && j.unit.label) || 'Your service';
       var day = fmtDay(j.scheduled_day);
+      var techHtml = j.tech ? '<div class="meta"><span>Your tech: <b>' + esc(j.tech) + '</b></span></div>' : '';
+      var vid = (j.media || []).filter(function(m){ return m.kind==='video' && m.provider==='cfstream'; })[0];
+      var vidHtml = vid ? '<div class="meta"><a href="https://iframe.cloudflarestream.com/' + esc(vid.ref) + '" target="_blank" rel="noopener">🎥 The video you sent</a></div>' : '';
       return '<div class="card"><div class="job-top"><div>' +
         '<div class="job-unit">' + esc(unit) + '</div>' +
         (j.problem ? '<div class="job-prob">' + esc(j.problem) + '</div>' : '') +
         '</div><span class="badge" style="background:' + st.color + '">' + esc(st.label) + '</span></div>' +
         '<div class="statusline">' + esc(st.line) + '</div>' +
         (day ? '<div class="meta"><span>Scheduled: <b>' + esc(day) + '</b></span></div>' : '') +
+        techHtml + vidHtml +
         '</div>';
     }).join('') : '<div class="card"><div class="empty">No open repairs on file. Reply below if you need us.</div></div>';
 
