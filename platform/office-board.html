@@ -193,7 +193,7 @@
   function renderShell() {
     app.innerHTML =
       '<header><span class="brand">🐜 Ant</span><span class="shop" id="shop">' + esc(shopName || '…') + '</span>' +
-      '<span class="sp"></span><button id="remit">💵 Remittance</button><button id="settings">⚙️ Settings</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>' +
+      '<span class="sp"></span><a href="/platform/dispatch.html" style="text-decoration:none;background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:7px 11px;font-weight:700;font-size:12.5px">📅 Dispatch</a><button id="remit">💵 Remittance</button><button id="settings">⚙️ Settings</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>' +
       '<div class="wrap"><div class="money" id="money"></div><div class="filters" id="filters"></div><div class="board" id="board"></div></div>';
     document.getElementById('out').onclick = function () { if (rt) { try { sb.removeChannel(rt); } catch (e) {} } sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick = loadBoard;
