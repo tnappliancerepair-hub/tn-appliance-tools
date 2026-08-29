@@ -146,6 +146,7 @@ async function parseWithClaude(email) {
     + '{"is_dispatch":true|false,"email_type":"dispatch|status|payment|other","confidence":"high|medium|low","warranty_company":"","jobs":[{'
     + '"first":"","last":"","phone":"","email":"","address":"","city":"","state":"","zip":"","appliance":"refrigerator|washer|dryer|dishwasher|range|microwave|disposal|water heater|other","brand":"","model":"","serial":"","claim_number":"","dispatch_id":"","problem":"","service_window":""}]}. '
     + 'is_dispatch=false for payment remittances, status-request reminders, or anything that is not a NEW job to schedule (then jobs=[]). '
+    + 'claim_number = whatever number identifies this job to the warranty company — a claim #, work order #, dispatch #, or reference #. Put that same value in both claim_number and dispatch_id if only one number is given. '
     + 'Normalize appliance to one lowercase word from the list. phone = digits only. Never invent a value; leave it "" if not present. A dispatch can list more than one appliance = more than one job.';
   const usr = 'FROM: ' + (email.from || '') + '\nSUBJECT: ' + (email.subject || '') + '\n\n' + body + xml;
   try {

@@ -47,9 +47,11 @@ async function createWarrantyJob(db, co, n) {
   const companyId = co.id;
   const appl = n.appliance || '';
   const kind = co.trade === 'automotive' ? 'vehicle' : (appl || 'appliance');
-  // dedup by claim # within this shop — a re-sent dispatch must not double-create
-  if (n.claim_number) {
-    const dup = await db.get(`job?company_id=eq.${companyId}&claim_number=eq.${encodeURIComponent(n.claim_number)}&select=id&limit=1`);
+  // dedup by claim # (or dispatch #) within this shop — a re-sent dispatch must not double-create
+  const dedupKey = n.claim_number || n.dispatch_id || '';
+  if (dedupKey) {
+    const col = n.claim_number ? 'claim_number' : 'dispatch_id';
+    const dup = await db.get(`job?company_id=eq.${companyId}&${col}=eq.${encodeURIComponent(dedupKey)}&select=id&limit=1`);
     if (dup && dup[0]) return { job_id: dup[0].id, deduped: true };
   }
   // upsert customer by phone, else by exact name within the shop
