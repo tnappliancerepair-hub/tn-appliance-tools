@@ -249,6 +249,7 @@
     var acts = '';
     if (j.status !== 'in_progress' && j.status !== 'completed') acts += '<button class="primary" data-act="in_progress" data-id="'+j.id+'">Start</button>';
     if (j.status !== 'awaiting_parts' && j.status !== 'completed') acts += '<button data-act="awaiting_parts" data-id="'+j.id+'">Awaiting parts</button>';
+    if (j.status !== 'completed') acts += '<button data-move="'+j.id+'">📅 Move</button>';
     acts += '<button class="primary" data-tdr="'+j.id+'">'+(tdr?'Edit report':'Complete + report')+'</button>';
     // the TDR (completion report) — structured so it feeds the brain
     var tdrPanel = '<div class="tdr" id="tdr_'+j.id+'">' +
@@ -296,11 +297,59 @@
     // wire actions
     var b = document.getElementById('body');
     b.querySelectorAll('button[data-act]').forEach(function(el){ el.onclick=function(){ setStatus(el.getAttribute('data-id'), el.getAttribute('data-act')); }; });
+    b.querySelectorAll('button[data-move]').forEach(function(el){ el.onclick=function(){ var id=el.getAttribute('data-move'); var job=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; if(job) moveJob(job); }; });
     b.querySelectorAll('button[data-msg]').forEach(function(el){ el.onclick=function(){ var w=document.getElementById('mw_'+el.getAttribute('data-msg')); if(w) w.classList.toggle('open'); }; });
     b.querySelectorAll('button[data-send]').forEach(function(el){ el.onclick=function(){ var id=el.getAttribute('data-send'); var job=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; var t=document.getElementById('m_'+id); if(job&&t) sendToCustomer(job, t.value, el); }; });
     b.querySelectorAll('button[data-tdr]').forEach(function(el){ el.onclick=function(){ var p=document.getElementById('tdr_'+el.getAttribute('data-tdr')); if(p) p.classList.toggle('open'); }; });
     b.querySelectorAll('button[data-savetdr]').forEach(function(el){ el.onclick=function(){ saveTdr(el.getAttribute('data-savetdr'), el); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });
+  }
+
+  // Techs adjust their own schedule: move a job to another day and/or hand it to another tech.
+  function moveJob(job){
+    var today = new Date().toISOString().slice(0,10);
+    var day = job.scheduled_day || today;
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9999;';
+    var who = (job.customer ? (job.customer.first_name||'')+' '+(job.customer.last_name||'') : '').trim() || 'this job';
+    ov.innerHTML =
+      '<div style="background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;max-width:420px;width:100%;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.35);">'+
+        '<div style="font-weight:800;font-size:17px;margin-bottom:2px;">📅 Move job</div>'+
+        '<div style="color:var(--muted);font-size:13px;margin-bottom:14px;">'+esc(who)+'</div>'+
+        '<label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">Day</label>'+
+        '<input id="mv-day" type="date" value="'+esc(day)+'" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:15px;margin-bottom:14px;">'+
+        '<label style="display:block;font-size:12px;color:var(--muted);margin-bottom:4px;">Hand off to</label>'+
+        '<select id="mv-tech" style="width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:15px;margin-bottom:18px;"><option value="">— keep it on me —</option></select>'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end;">'+
+          '<button id="mv-cancel" style="padding:11px 16px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);font-weight:700;cursor:pointer;">Cancel</button>'+
+          '<button id="mv-save" style="padding:11px 18px;border:0;border-radius:10px;background:var(--brand);color:var(--brand-ink);font-weight:800;cursor:pointer;">Save</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(ov);
+    function close(){ if(ov.parentNode) ov.parentNode.removeChild(ov); }
+    ov.addEventListener('click', function(e){ if(e.target===ov) close(); });
+    document.getElementById('mv-cancel').onclick = close;
+    // populate hand-off list (exclude current tech)
+    sb.from('technician').select('id,name,active').order('name').then(function(r){
+      var sel = document.getElementById('mv-tech'); if(!sel) return;
+      (r.data||[]).forEach(function(t){
+        if (t.active===false) return;
+        if (myTech && String(t.id)===String(myTech.id)) return;
+        var o=document.createElement('option'); o.value=t.id; o.textContent=t.name||('Tech '+t.id); sel.appendChild(o);
+      });
+    });
+    document.getElementById('mv-save').onclick = function(){
+      var btn=this; btn.disabled=true; btn.textContent='Saving…';
+      var newDay = (document.getElementById('mv-day').value||'').trim() || today;
+      var newTech = (document.getElementById('mv-tech').value||'').trim();
+      var patch = { scheduled_day: newDay };
+      if (newTech) patch.technician_id = newTech;
+      if (job.status==='new' || job.status==='awaiting_parts') patch.status='scheduled';
+      sb.from('job').update(patch).eq('id', job.id).then(function(r){
+        if (r.error){ btn.disabled=false; btn.textContent='Save'; alert('Could not save: '+r.error.message); return; }
+        close(); loadJobs();
+      });
+    };
   }
 
   function money(c){ return '$'+(Math.round((c||0)/100)).toLocaleString(); }
