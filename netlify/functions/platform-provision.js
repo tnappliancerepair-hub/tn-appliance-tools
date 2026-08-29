@@ -42,7 +42,7 @@ exports.handler = async function (event) {
   const isAdmin = q.secret === guard || !!(await operatorFromJWT(event));
   // addtech + settech_active are ALSO owner-self-serve (scoped to their own company via their
   // session token); every other action stays admin/operator-only.
-  const OWNER_OK = { addtech: 1, settech_active: 1 };
+  const OWNER_OK = { addtech: 1, settech_active: 1, settech_phone: 1 };
   if (!isAdmin && !OWNER_OK[q.action]) return { statusCode: 403, body: 'forbidden' };
 
   const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
@@ -372,7 +372,7 @@ exports.handler = async function (event) {
     const auEx = await rest(`app_user?company_id=eq.${co.id}&auth_user_id=eq.${uid}&select=id,role&limit=1`);
     if (Array.isArray(auEx.d) && auEx.d[0]) appUserId = auEx.d[0].id;
     else {
-      const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, auth_user_id: uid, role: 'tech', name: techName, phone: (q.tech_phone || ''), email: techEmail }) });
+      const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, auth_user_id: uid, role: 'tech', name: techName, phone: (q.tech_phone || ab.tech_phone || ''), email: techEmail }) });
       if (!ai.ok) return json(200, { ok: false, step: 'link_app_user', status: ai.status, error: JSON.stringify(ai.d).slice(0, 300) });
       appUserId = (Array.isArray(ai.d) ? ai.d[0] : ai.d).id;
     }
@@ -461,6 +461,39 @@ exports.handler = async function (event) {
       if (uid) { try { const r = await fetch(`${url}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: H, body: JSON.stringify({ ban_duration: active ? 'none' : '876000h' }), signal: AbortSignal.timeout(8000) }); auth = r.ok ? (active ? 'unbanned' : 'banned') : ('ban_' + r.status); } catch (_) { auth = 'ban_error'; } }
     }
     return json(200, { ok: true, tech: { id: t.id, name: t.name, active }, auth });
+  }
+
+  // Set a tech's phone (on their app_user) so assignment texts can reach them. Owner-scoped
+  // (their own company) or admin by &slug=.   POST { access_token, tech_id, phone }
+  if (q.action === 'settech_phone') {
+    let ab = {}; try { ab = JSON.parse(event.body || '{}'); } catch (_) {}
+    const techId = String(q.tech_id || ab.tech_id || '').trim();
+    const phone = String(q.phone || ab.phone || '').trim();
+    if (!techId) return json(200, { ok: false, error: 'tech_id required' });
+    let co = null;
+    if (isAdmin) {
+      const slug0 = String(q.slug || ab.slug || '').toLowerCase().trim();
+      if (!slug0) return json(200, { ok: false, error: 'slug required' });
+      const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id&limit=1`); co = cos && cos[0];
+    } else {
+      const tok = String(ab.access_token || q.access_token || '');
+      try {
+        const ur = await fetch(`${url}/auth/v1/user`, { headers: { Authorization: 'Bearer ' + tok, apikey: PLATFORM_ANON }, signal: AbortSignal.timeout(8000) });
+        if (ur.ok) { const uu = await ur.json().catch(() => null);
+          if (uu && uu.id) { const rows = await rest0(`app_user?auth_user_id=eq.${encodeURIComponent(uu.id)}&role=eq.owner&select=company_id&limit=1`);
+            const cid = rows && rows[0] && rows[0].company_id;
+            if (cid) { const cos = await rest0(`company?id=eq.${cid}&select=id&limit=1`); co = cos && cos[0]; } } }
+      } catch (_) {}
+      if (!co) return json(200, { ok: false, error: 'sign in as the shop owner' });
+    }
+    if (!co) return json(200, { ok: false, error: 'unknown company' });
+    const techs = await rest0(`technician?id=eq.${encodeURIComponent(techId)}&company_id=eq.${co.id}&select=id,name,app_user_id&limit=1`);
+    const t = techs && techs[0];
+    if (!t) return json(200, { ok: false, error: 'not your technician' });
+    if (!t.app_user_id) return json(200, { ok: false, error: 'that tech has no login yet' });
+    const patch = await rest(`app_user?id=eq.${t.app_user_id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ phone }) });
+    if (!patch.ok) return json(200, { ok: false, error: 'update ' + patch.status });
+    return json(200, { ok: true, tech: { id: t.id, name: t.name, phone } });
   }
 
   const slug = String(q.slug || '').toLowerCase().trim();
