@@ -30,6 +30,27 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🔒 2026-08-29 (Fri, late) — RLS SECURITY AUDIT: cross-tenant isolation PROVEN solid; closed a tech→owner self-escalation hole — READ FIRST
+
+Full multi-tenant RLS audit of the platform (ANT Platforms Supabase) before onboarding paying strangers. Method: dumped every table's RLS state + policy USING/WITH CHECK, the SECURITY DEFINER resolvers, the `authenticated` grants, then **tested live** with a real cross-tenant read/write + a real throwaway-tech escalation (before/after). `docs/sql/041_rls_privilege_gates.sql` (APPLIED + committed).
+
+### ✅ Cross-tenant isolation = SOLID (the thing that matters for selling to strangers)
+Every table has RLS **on**, and every tenant policy scopes to `company_id = current_company_id()` on BOTH using + with_check — **no `using(true)` holes.** Proven live as demo's owner against Classic Automotive: their customers/jobs read back `[]`, an unfiltered read returned only demo (1 distinct company), and a cross-tenant INSERT was blocked (42501). Secret stores (`tenant_integration.secret_enc`, `tenant_keyring`) have **no authenticated grant** at all — server-only.
+
+### 🔴 FOUND + FIXED — intra-tenant privilege escalation (not a cross-tenant leak, but real)
+`current_app_role()` reads `app_user.role` live, and `app_user` + `company` + `company_credential` were `[ALL]` with **no role gate** (only company scoping) while `authenticated` holds full DML. **Proven live**: a throwaway TECH `UPDATE app_user SET role='owner'` on itself → **self-promoted to owner**, then rewrote `company.settings`. Fix (041, mirrors the technician table's own policies):
+- **app_user** → SELECT open within the shop (the app resolves names); INSERT/UPDATE/DELETE gated to `owner/office/manager/admin`. Kills self-promotion.
+- **company** → SELECT open within the shop; UPDATE gated to management (protects commission / parts-margin / comms / payment settings). No client insert/delete (server-side only).
+- **company_credential** (insurance docs) → all ops management-only.
+- **Hardening:** `revoke truncate on all tables from authenticated` (TRUNCATE bypasses RLS; no client needs it).
+- **AFTER fix, re-tested the same tech token:** both exploits now **BLOCKED** (0 rows), while the tech's legit READS still work and the OWNER's legit settings/crew writes still succeed. Throwaway tech + all test residue fully removed (technician + app_user + auth user); demo settings restored.
+
+### Notes / residual (low, documented — not fixed)
+- `tech_time_off` is `[ALL]` company-scoped, any role — intended (techs self-serve their own PTO), but a tech could also toggle a coworker's day. Low-risk annoyance, not a data issue; left as-is.
+- `customer` / `job` / `thread_message` / `job_*` stay writable by any shop member — techs legitimately need them. Correct.
+- Four tables have RLS on + **0 policies = deny-all** to clients (`tenant_keyring`, `tenant_integration`(secrets), `shop_application`, `trial_shop`, `trade_profile`) — safe by default; nothing client-side reads them.
+- **FOOTGUN:** an RLS UPDATE that fails the USING gate returns an **empty result (0 rows), not a 42501** — "blocked" looks like success-with-no-rows. Test writes by re-reading, not by trusting a non-error.
+
 ## 🗓️🐜💬 2026-08-29 (Fri, late) — COMMUNICATION CENTER: per-shop control over EVERY automated text (toggle + reword) + day-before reminder — READ FIRST
 
 Teddy's ask: a page where each shop's owner/dispatcher controls what texts go out and how — "some of these texts are annoying and need to be adjusted." Built a full comms control layer so no shop is stuck with wording (or a text) it doesn't want. All on `main` + branch, comms logic unit-verified.
