@@ -412,6 +412,8 @@
       techTable+
       '<div class="sec">Ann this week</div>'+
       '<div id="annWeek"><div class="note">Loading…</div></div>'+
+      '<div class="sec">📞 Ann’s accuracy <span class="lock">graded daily</span></div>'+
+      '<div id="annAccuracy"><div class="note">Checking…</div></div>'+
       '<div class="sec">This month</div>'+
       '<div id="usageCard"><div class="note">Loading your usage…</div></div>'+
       '<div class="sec">Money <span class="lock">🔒 owner only</span></div>'+
@@ -441,6 +443,7 @@
     bindGoals();
     loadLearned();
     loadAnnWeek();
+    loadAnnAccuracy();
     loadUsage();
     loadPayments();
     loadEmailIntake();
@@ -562,6 +565,29 @@
       el.innerHTML=head+feed;
       var cp2=document.getElementById('iaCopy'); if(cp2) cp2.onclick=function(){ try{ navigator.clipboard.writeText(addr); cp2.textContent='Copied ✓'; setTimeout(function(){cp2.textContent='Copy';},1500);}catch(e){} };
     });
+  }
+
+  // 📞 Ann’s accuracy — runs the phone-AI accuracy audit (platform-call-score) over this shop’s
+  // active jobs and shows the % Ann would answer correctly (day-only, right tech, no invented
+  // times) + any scheduled-no-day gaps she has to hedge. Each view also stores a call_score row
+  // so a trend builds; the nightly cron keeps it fresh even when no one opens the page.
+  async function loadAnnAccuracy(){
+    var el=document.getElementById('annAccuracy'); if(!el) return;
+    var tok=''; try{ var s=await sb.auth.getSession(); tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||''; }catch(e){}
+    if(!tok){ el.innerHTML='<div class="note">Sign in to see Ann’s accuracy.</div>'; return; }
+    try{
+      var r=await fetch('/.netlify/functions/platform-call-score?do=audit',{method:'POST',headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'}});
+      var d=await r.json();
+      if(!d||!d.ok){ el.innerHTML='<div class="note">Ann’s accuracy is graded nightly — check back after tonight’s run.</div>'; return; }
+      if(!d.sampled){ el.innerHTML='<div class="note">No active jobs to grade yet. Once you have live jobs, Ann’s accuracy shows here — she answers status calls straight from your board.</div>'; return; }
+      var color=d.pct>=95?'#1b7f3b':(d.pct>=80?'#b45309':'#b71c1c');
+      var gapNote=d.gaps>0?'<div class="lm" style="color:#b45309;margin-top:4px">⚠ '+d.gaps+' scheduled job'+(d.gaps===1?'':'s')+' with no day set — Ann has to hedge on those. Set a day and she’ll name it on the call.</div>':'';
+      el.innerHTML='<div class="money">'+
+        '<div class="row"><span class="k">📞 Answers correctly</span><span class="v" style="color:'+color+';font-weight:700">'+d.pct+'%</span></div>'+
+        '<div class="lm">Graded '+d.sampled+' active job'+(d.sampled===1?'':'s')+' through the real call brain — day-only, right tech, no invented times.</div>'+
+        gapNote+
+      '</div>';
+    }catch(e){ el.innerHTML='<div class="note">Couldn’t load Ann’s accuracy right now.</div>'; }
   }
 
   // Card payments (Stripe Connect) — the shop connects its OWN Stripe account; customers pay the
