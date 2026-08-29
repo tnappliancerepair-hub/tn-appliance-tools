@@ -20,11 +20,21 @@ exports.handler = async function (event) {
 
   const caller = await OA.resolveCaller(String(p.access_token || '').trim());
   if (caller.error) return json(caller.error === 'not signed in' ? 401 : 403, { ok: false, error: caller.error });
-  if (!OA.MGMT.includes(caller.role)) return json(403, { ok: false, error: 'role not allowed', role: caller.role });
-  const ctx = { d: caller.d, companyId: caller.companyId, role: caller.role };
+  const isMgmt = OA.MGMT.includes(caller.role);
+  const ctx = { d: caller.d, companyId: caller.companyId, role: caller.role, technicianId: caller.technicianId };
 
   try {
     if (doAction === 'intents') return json(200, { ok: true, intents: OA.INTENTS_META });
+    // techs: read nothing shop-wide; may self-serve only the tech-allowed intents (and undo their own)
+    if (!isMgmt) {
+      if (doAction === 'list' || doAction === 'patterns') return json(200, { ok: true, actions: [], patterns: [] });
+      if (doAction === 'apply' && !OA.TECH_ALLOWED.includes(String(p.intent || ''))) return json(403, { ok: false, error: 'not allowed for your role' });
+      if (doAction === 'undo') {
+        const id = String(p.action_id || '').replace(/[^0-9a-fA-F-]/g, '');
+        const rows = await caller.d.get(`owner_action?id=eq.${id}&company_id=eq.${caller.companyId}&select=intent`);
+        if (!rows || !rows[0] || !OA.TECH_ALLOWED.includes(rows[0].intent)) return json(403, { ok: false, error: 'not allowed' });
+      }
+    }
     if (doAction === 'patterns') return json(200, { ok: true, patterns: await OA.learnPatterns(ctx) });
     if (doAction === 'list') return json(200, await OA.listActions(ctx, p.limit));
     if (doAction === 'apply') {

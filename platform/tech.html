@@ -109,6 +109,27 @@
   .empty{color:var(--muted);text-align:center;padding:32px 12px}
   .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--chip);padding:1px 5px;border-radius:5px}
   .note{background:var(--chip);border-radius:10px;padding:11px 13px;color:var(--muted);font-size:13px;margin-bottom:14px}
+  /* Ant dock (tech) */
+  .antfab{position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;border:0;cursor:pointer;background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;font-size:26px;box-shadow:0 8px 24px color-mix(in srgb,var(--brand) 45%,transparent);display:grid;place-items:center}
+  .antpanel{position:fixed;right:18px;bottom:84px;z-index:60;width:min(380px,calc(100vw - 36px));max-height:min(72vh,640px);background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.28);display:none;flex-direction:column;overflow:hidden}
+  .antpanel.open{display:flex}
+  .aph{display:flex;align-items:center;gap:11px;padding:14px 16px;border-bottom:1px solid var(--line);background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 12%,var(--panel)),var(--panel))}
+  .aph .m{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--brand),#e0a63e);display:grid;place-items:center;font-size:18px;flex:none}
+  .aph h4{margin:0;font-size:14px;font-weight:800}.aph p{margin:1px 0 0;font-size:11.5px;color:var(--muted)}
+  .aph .x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer;line-height:1}
+  .athread{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:9px;min-height:150px}
+  .abub{max-width:88%;padding:9px 12px;border-radius:13px;font-size:13px;line-height:1.45}
+  .abub.ant{align-self:flex-start;background:var(--chip);border-bottom-left-radius:4px}
+  .abub.me{align-self:flex-end;background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;border-bottom-right-radius:4px}
+  .abub.ant b,.abub.ant strong{color:var(--brand)}
+  .atype{align-self:flex-start;display:flex;gap:4px;padding:11px 13px;background:var(--chip);border-radius:13px;border-bottom-left-radius:4px}
+  .atype span{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:ab 1.2s infinite}.atype span:nth-child(2){animation-delay:.2s}.atype span:nth-child(3){animation-delay:.4s}
+  @keyframes ab{0%,60%,100%{opacity:.3}30%{opacity:1}}
+  .aquick{display:flex;gap:6px;flex-wrap:wrap;padding:2px 12px 10px}
+  .aquick button{border:1px solid var(--line);background:var(--bg);color:var(--muted);font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:999px;cursor:pointer}
+  .acomp{display:flex;gap:8px;padding:11px 12px;border-top:1px solid var(--line)}
+  .acomp input{flex:1;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:10px 12px;font-size:13px}
+  .acomp .s{width:40px;height:40px;border-radius:11px;border:0;background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;font-size:16px;font-weight:800;cursor:pointer;flex:none}
 </style>
 </head>
 <body>
@@ -732,10 +753,40 @@
         sb.from('technician').select('id,name,commission_type,commission_pct,commission_flat_cents').eq('app_user_id', me.id).limit(1).then(function(t){
           myTech = (t.data && t.data[0]) || null;
           shell('<div class="empty">Loading your day…</div>');
+          mountAntDock();
           sb.from('company').select('settings,trade').limit(1).then(function(c){ var co=(c.data&&c.data[0])||{}; companySettings = co.settings || {}; companyTrade = co.trade || ''; loadJobs(); });
         });
       });
     });
+  }
+
+  // ---- Ant dock (tech / money-maker): your money, your day, and "what usually fixes this."
+  // Can also put in a day-off request for you. Talks to platform-ant (tech-scoped, your data only).
+  var antHist=[];
+  function sessTok(){ return sb.auth.getSession().then(function(s){ return (s&&s.data&&s.data.session&&s.data.session.access_token)||''; }); }
+  function antAsk(message){ return sessTok().then(function(tok){ return fetch('/.netlify/functions/platform-ant',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,message:message,history:antHist.slice(-8)})}).then(function(r){return r.json();}).catch(function(){return {ok:false,error:'network'};}); }); }
+  function mountAntDock(){
+    if(window.__antMounted) return; window.__antMounted=true;
+    var fab=document.createElement('button'); fab.className='antfab'; fab.title='Ask Ant'; fab.textContent='🐜'; document.body.appendChild(fab);
+    var pan=document.createElement('div'); pan.className='antpanel';
+    pan.innerHTML=
+      '<div class="aph"><div class="m">🐜</div><div><h4>Ant</h4><p>Your money, your day, your fixes</p></div><button class="x" title="Close">×</button></div>'+
+      '<div class="athread" id="athread"><div class="abub ant">What\'s up 🐜 — I\'ve got your back. Ask me <b>“how much have I made this month?”</b>, <b>“what\'s owed to me?”</b>, or <b>“what usually fixes a Whirlpool dryer with no heat?”</b> Need a day off? Just tell me and I\'ll put it in.</div></div>'+
+      '<div class="aquick"><button data-say="How much have I made this month, and what\'s owed to me?">My money</button><button data-say="What\'s on my plate today?">My day</button><button data-say="What usually fixes a dryer that won\'t heat?">Fix help</button></div>'+
+      '<form class="acomp" id="acomp"><input id="aask" placeholder="Ask Ant…" autocomplete="off"><button class="s" type="submit" title="Send">↑</button></form>';
+    document.body.appendChild(pan);
+    var thread=pan.querySelector('#athread');
+    fab.onclick=function(){ pan.classList.toggle('open'); if(pan.classList.contains('open')) pan.querySelector('#aask').focus(); };
+    pan.querySelector('.x').onclick=function(){ pan.classList.remove('open'); };
+    function bub(html,who){ var d=document.createElement('div'); d.className='abub '+who; d.innerHTML=html; thread.appendChild(d); thread.scrollTop=thread.scrollHeight; return d; }
+    function md(s){ return esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>'); }
+    function send(text){
+      if(!text) return; antHist.push({role:'user',content:text}); bub(esc(text),'me');
+      var typing=document.createElement('div'); typing.className='atype'; typing.innerHTML='<span></span><span></span><span></span>'; thread.appendChild(typing); thread.scrollTop=thread.scrollHeight;
+      antAsk(text).then(function(r){ typing.remove(); if(!r||!r.ok){ bub('Sorry — snag: '+esc((r&&r.error)||'try again')+'.','ant'); return; } antHist.push({role:'assistant',content:r.reply||''}); bub(md(r.reply||'Got it.'),'ant'); });
+    }
+    Array.prototype.forEach.call(pan.querySelectorAll('.aquick button'), function(b){ b.onclick=function(){ pan.classList.add('open'); send(b.getAttribute('data-say')); }; });
+    pan.querySelector('#acomp').addEventListener('submit',function(e){ e.preventDefault(); var i=pan.querySelector('#aask'); var v=i.value.trim(); i.value=''; send(v); });
   }
 
   sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else renderSignIn(); });
