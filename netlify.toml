@@ -1067,6 +1067,12 @@
 [functions."platform-usage-digest-cron"]
   schedule = "0 13 * * *"
 
+# platform-appt-reminder-cron — day-before appointment reminders to each shop's customers,
+# ~2:30 PM CT / 19:30 UTC (so "tomorrow" is set the afternoon before). Per-shop toggle +
+# template in the Communication Center gates every send.
+[functions."platform-appt-reminder-cron"]
+  schedule = "30 19 * * *"
+
 # platform-usage-bill-cron — thin scheduled wrapper (Mondays ~10 AM CT / 15:00 UTC) that fires
 # the HTTP-callable core `platform-usage-bill`. Reports each tenant's LAST completed Mon–Sun Ann
 # overage (minutes over 400, texts over 500) as Stripe usage records. Split for the same 403
