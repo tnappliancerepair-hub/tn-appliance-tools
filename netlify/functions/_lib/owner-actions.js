@@ -191,7 +191,7 @@ const INTENTS = {
       if (!MGMT.includes(ctx.role) && String(job.technician_id) !== String(ctx.technicianId)) throw new Error('that is not your job');
       const part = String(a.part || '').trim();
       if (!part) throw new Error('what part?');
-      const row = await ctx.d.insert('job_part', { company_id: ctx.companyId, job_id: jid, name: part, number: a.number ? String(a.number) : null, disposition: 'please_order', order_status: 'to_order' });
+      const row = await ctx.d.insert('job_part', { company_id: ctx.companyId, job_id: jid, name: part, number: a.number ? String(a.number) : null, order_status: 'to_order' });
       const who = job.customer ? ((job.customer.first_name || '') + ' ' + (job.customer.last_name || '')).trim() : '';
       return { target_table: 'job_part', target_id: row.id, path: null, op: 'insert', before: null, after: { job_id: jid, name: part }, label: 'Added “' + part + '” to parts needed' + (who ? ' on ' + who + '’s job' : '') };
     },
