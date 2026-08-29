@@ -315,6 +315,81 @@ exports.handler = async function (event) {
     return json(200, { ok: ins.ok, status: ins.status, trade: t.trade, staged: ins.ok, error: ins.ok ? undefined : JSON.stringify(d).slice(0, 300) });
   }
 
+  // Onboard a TECHNICIAN with a working login — the missing piece so a new tenant's crew can
+  // actually sign into the tech app. Creates (or reuses) the tech's Supabase auth login, an
+  // app_user row (role=tech), and links a technician row to it. Idempotent, and it ADOPTS an
+  // existing seeded technician of the same name that has no login yet (so an owner who typed
+  // their roster in first doesn't get duplicates). The temp password drops in the vault.
+  //   ?action=addtech&secret=<admin>&slug=<shop>&tech_email=<email>&tech_name=<name>
+  //     [&tech_phone=+1…][&commission_pct=50]
+  if (q.action === 'addtech') {
+    const slug = String(q.slug || '').toLowerCase().trim();
+    const techEmail = String(q.tech_email || '').toLowerCase().trim();
+    const techName = String(q.tech_name || '').trim();
+    if (!slug || !techEmail || !techName) return json(200, { ok: false, error: 'slug, tech_email, tech_name required' });
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name&limit=1`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+
+    // 1) auth login — create; if the email already exists, find + reuse the uid.
+    let uid = null, tempPw = tempPassword(), userNote = 'created';
+    const cu = await fetch(`${url}/auth/v1/admin/users`, { method: 'POST', headers: H, body: JSON.stringify({ email: techEmail, password: tempPw, email_confirm: true }), signal: AbortSignal.timeout(10000) });
+    const cud = await cu.json().catch(() => ({}));
+    if (cu.ok && cud && cud.id) { uid = cud.id; }
+    else {
+      const lu = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(10000) });
+      const lud = await lu.json().catch(() => ({}));
+      const arr = Array.isArray(lud.users) ? lud.users : (Array.isArray(lud) ? lud : []);
+      const ex = arr.find((u) => String(u.email || '').toLowerCase() === techEmail);
+      if (ex) { uid = ex.id; userNote = 'existing_user'; tempPw = null; }
+      else return json(200, { ok: false, step: 'create_user', status: cu.status, error: JSON.stringify(cud).slice(0, 300) });
+    }
+
+    // 2) app_user (role=tech), idempotent by company + uid.
+    let appUserId = null;
+    const auEx = await rest(`app_user?company_id=eq.${co.id}&auth_user_id=eq.${uid}&select=id,role&limit=1`);
+    if (Array.isArray(auEx.d) && auEx.d[0]) appUserId = auEx.d[0].id;
+    else {
+      const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, auth_user_id: uid, role: 'tech', name: techName, phone: (q.tech_phone || ''), email: techEmail }) });
+      if (!ai.ok) return json(200, { ok: false, step: 'link_app_user', status: ai.status, error: JSON.stringify(ai.d).slice(0, 300) });
+      appUserId = (Array.isArray(ai.d) ? ai.d[0] : ai.d).id;
+    }
+
+    // 3) technician row — reuse one already linked to this login; else ADOPT a same-name
+    //    technician with no login yet; else create a fresh one.
+    const pct = q.commission_pct != null && q.commission_pct !== '' ? Number(q.commission_pct) : 50;
+    let techRow = null, techNote = '';
+    const linked = await rest(`technician?company_id=eq.${co.id}&app_user_id=eq.${appUserId}&select=id,name&limit=1`);
+    if (Array.isArray(linked.d) && linked.d[0]) { techRow = linked.d[0]; techNote = 'already_linked'; }
+    if (!techRow) {
+      const orphan = await rest(`technician?company_id=eq.${co.id}&app_user_id=is.null&name=eq.${encodeURIComponent(techName)}&select=id,name&limit=1`);
+      if (Array.isArray(orphan.d) && orphan.d[0]) {
+        const patch = await rest(`technician?id=eq.${orphan.d[0].id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ app_user_id: appUserId, active: true }) });
+        if (!patch.ok) return json(200, { ok: false, step: 'adopt_technician', status: patch.status, error: JSON.stringify(patch.d).slice(0, 300) });
+        techRow = Array.isArray(patch.d) ? patch.d[0] : patch.d; techNote = 'adopted_existing';
+      }
+    }
+    if (!techRow) {
+      const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: techName, active: true, commission_type: 'pct', commission_pct: pct }) });
+      if (!ti.ok) return json(200, { ok: false, step: 'create_technician', status: ti.status, error: JSON.stringify(ti.d).slice(0, 300) });
+      techRow = Array.isArray(ti.d) ? ti.d[0] : ti.d; techNote = 'created';
+    }
+
+    // Drop the temp password in the vault (never returned through chat/logs when it's fresh).
+    let vaultKey = null, saved = false;
+    if (tempPw) {
+      vaultKey = 'PLATFORM_TECH_PW_' + slug.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_' + techName.toUpperCase().replace(/[^A-Z0-9]/g, '_').slice(0, 20);
+      try { saved = await setSecret(vaultKey, tempPw); } catch (_) { saved = false; }
+    }
+    return json(200, {
+      ok: true, slug, shop: co.name, tech: { id: techRow.id, name: techName, email: techEmail },
+      login: { email: techEmail, note: userNote, temp_password: saved ? undefined : tempPw, vault_key: vaultKey, saved },
+      technician: techNote, app_user_id: appUserId,
+      login_url: 'https://tnapplianceexchange.net/platform/tech.html',
+      note: (userNote === 'existing_user' ? 'reused an existing login (no new password).' : 'read the password from admin-secrets.html under vault_key.') + ' Tech signs into the tech app + sees only their own jobs/pay.',
+    });
+  }
+
   const slug = String(q.slug || '').toLowerCase().trim();
   const name = (q.name || '').trim();
   if (!slug || !name) return json(200, { ok: false, error: 'slug and name required' });
