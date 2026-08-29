@@ -30,6 +30,28 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜📅 2026-08-29 (Fri, late) — SCHEDULING SMARTS: tech day-off/PTO + service zones on the dispatch board — READ FIRST
+
+Two clean layers so the board stops booking the wrong tech. All on `main` + branch, each verified live on demo (RLS insert/read/delete + company_roster round-trip) then reverted to zero residue.
+
+### 🌴 Layer 1 — day-off / PTO (`docs/sql/039_tech_time_off.sql`, APPLIED)
+- New `tech_time_off (company_id, technician_id, day, reason, unique(technician_id,day))`, tenant RLS (a shop's own staff manage it). **RLS insert requires `company_id` in the body** (WITH CHECK = current_company_id()) — the client always passes `me.company_id`; an insert without it correctly 42501s.
+- **`platform/tech.html` — self-serve "🌴 Your days off" card:** the tech adds/removes their own upcoming off-days (date picker + list). This is where a tech says "I'm off Friday."
+- **`platform/dispatch.html` — the board respects it:** week grid shows a striped **🌴 Off** cell (0 open) for a tech's day off; the day-lane header has a **Mark off / 🌴 Off** toggle so the office can set it right on the board; the assign modal **warns before booking a tech on a day they're off**.
+
+### 📍 Layer 2 — service zones (`docs/sql/040_tech_service_area.sql`, APPLIED)
+- `technician.service_area` = comma list of ZIPs / 3-digit prefixes (e.g. `370,371`); **empty = covers everywhere**. Match rule: a job's ZIP `===` or `startsWith` a listed entry (transparent prefix match — 37211 is ZIP3 372, so a `370,371` tech does NOT cover it; owner just lists 372 too). `company_roster()` recreated to return `service_area` (drop+recreate — return-type change).
+- **`platform/owner.html` — "Area (ZIPs)" input** per tech in the crew table (next to Cell + Stops); `ovSave` persists `service_area`.
+- **`platform/dispatch.html`:** each **unscheduled job card shows 📍 ZIP → the covering techs** (or "no one's area"); the assign modal **sorts covering techs first**, labels each `⭐ covers` / `· out of area`, and **warns before an out-of-area assignment**.
+
+### Still the future layer (NOT built — offered next)
+Full route optimization (order stops by drive time / geocode), day-off reasons/ranges UI, and auto-suggesting the single best tech+day (covers zip + not off + open capacity) in one tap. Per-tech capacity (036), day-off (039), and zones (040) are the inputs that make that possible now.
+
+### FOOTGUNS
+- `create or replace function` **can't change return type** → `drop function` first (hit again recreating `company_roster` for `service_area`; 036 hit the same).
+- `platform-provision` is the magic-link fn (NOT `provision` — that 404s).
+- Prefix match is ZIP3-literal: `370` covers `37013` but not `37211` (that's ZIP3 372). By design + transparent; owners list every prefix they want.
+
 ## 🗓️🐜🔩 2026-08-29 (Fri, late) — PARTS-MARGIN AUTOPILOT: owner sets ONE margin, tech enters only COST, retail fills itself in everywhere — READ FIRST
 
 Teddy's idea: a **slider on the owner page for parts margin**. The tech never asks "what do we charge for this part" — he just enters the shop's **cost**, the owner's margin sets the customer price, and the cost→retail breakdown flows to the office tile invoice + the owner's money view. All on `main` + branch.
