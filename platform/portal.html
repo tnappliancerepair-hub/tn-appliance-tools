@@ -62,6 +62,12 @@
   .center h2{color:var(--ink);margin:0 0 6px}
   .empty{color:var(--muted);font-size:14px;padding:4px 2px}
   .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:26px}
+  .pmedia{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .plabel{font-size:12px;color:var(--muted);font-weight:700;margin-top:12px}
+  .mtile{position:relative;display:inline-flex;width:70px;height:70px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#0b0d08;align-items:center;justify-content:center;flex:0 0 auto}
+  .mtile img{width:100%;height:100%;object-fit:cover;display:block}
+  .vtile .vcover{position:absolute;inset:0}
+  .vtile .play{position:absolute;color:#fff;font-size:23px;line-height:1;text-shadow:0 1px 5px rgba(0,0,0,.7);pointer-events:none}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -99,6 +105,18 @@
   function fmtTime(iso){ if(!iso) return ''; try { var dt=new Date(iso); return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+dt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } }
   function whoLabel(m){ if(m.direction==='in') return 'You'; var s=String(m.sender||''); if(/^office:/.test(s)) return s.slice(7); if(/^tech:/.test(s)) return s.slice(5); if(s==='ann'||s==='') return 'Ann'; return s; }
 
+  // Photos live in tenant-scoped R2. Batch-sign the refs with THIS customer's portal token
+  // (the signer folder-prefix-checks the token's company) and drop the URL into each tile.
+  function hydratePortalPics() {
+    var imgs = app.querySelectorAll('img[data-ph]'); if (!imgs.length) return;
+    var refs = []; Array.prototype.forEach.call(imgs, function(el){ var r=el.getAttribute('data-ph'); if(r && refs.indexOf(r)<0) refs.push(r); });
+    fetch('/.netlify/functions/platform-media-urls?t=' + encodeURIComponent(token), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ refs: refs }) })
+      .then(function(x){ return x.json(); }).then(function(d){
+        var urls = (d && d.urls) || {};
+        Array.prototype.forEach.call(app.querySelectorAll('img[data-ph]'), function(el){ var u=urls[el.getAttribute('data-ph')]; if(!u) return; el.src=u; var a=el.closest('a[data-phhref]'); if(a) a.href=u; });
+      }).catch(function(){});
+  }
+
   function render() {
     var co = state.company || {}, cust = state.customer || {}, jobs = state.jobs || [], thread = state.thread || [];
     var settings = co.settings || {};
@@ -119,8 +137,18 @@
       var unit = j.unit_label || (j.unit && j.unit.label) || 'Your service';
       var day = fmtDay(j.scheduled_day);
       var techHtml = j.tech ? '<div class="meta"><span>Your tech: <b>' + esc(j.tech) + '</b></span></div>' : '';
-      var vid = (j.media || []).filter(function(m){ return m.kind==='video' && m.provider==='cfstream'; })[0];
-      var vidHtml = vid ? '<div class="meta"><a href="https://iframe.cloudflarestream.com/' + esc(vid.ref) + '" target="_blank" rel="noopener">🎥 The video you sent</a></div>' : '';
+      var media = j.media || [];
+      var tiles = '';
+      media.filter(function(m){ return m.kind==='video' && m.provider==='cfstream'; }).forEach(function(v){
+        var uid = esc(v.ref);
+        tiles += '<a class="mtile vtile" target="_blank" rel="noopener" href="https://iframe.cloudflarestream.com/'+uid+'">' +
+          '<img class="vcover" src="https://videodelivery.net/'+uid+'/thumbnails/thumbnail.jpg?time=1s&height=140" alt="" onerror="this.style.display=\'none\'">' +
+          '<span class="play">▶</span></a>';
+      });
+      media.filter(function(m){ return m.kind==='photo' && m.provider==='storage'; }).forEach(function(p){
+        tiles += '<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(p.ref)+'"><img data-ph="'+esc(p.ref)+'" alt="photo"></a>';
+      });
+      var vidHtml = tiles ? '<div class="plabel">What you sent us</div><div class="pmedia">'+tiles+'</div>' : '';
       return '<div class="card"><div class="job-top"><div>' +
         '<div class="job-unit">' + esc(unit) + '</div>' +
         (j.problem ? '<div class="job-prob">' + esc(j.problem) + '</div>' : '') +
@@ -141,6 +169,7 @@
       '<div class="sec-title">Messages</div><div class="thread" id="thread">' + bubbles + '</div>' +
       '<div class="composer"><textarea id="msg" placeholder="Type a message to the shop…"></textarea><button id="send">Send</button></div>' +
       '<div class="foot">🐜 Powered by Ant</div>';
+    hydratePortalPics();
 
     var ta = document.getElementById('msg'), btn = document.getElementById('send');
     ta.addEventListener('input', function(){ ta.style.height='auto'; ta.style.height=Math.min(140, ta.scrollHeight)+'px'; });
