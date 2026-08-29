@@ -20,6 +20,7 @@
 'use strict';
 
 const { getSecret, getSecretFresh } = require('./secrets');
+const vendorCtx = require('./vendor-ctx');
 
 async function isProd() {
   const env = ((await getSecretFresh('SERVICEPOWER_ENV')) || 'production').toLowerCase();
@@ -39,10 +40,14 @@ async function isConfigured() {
   return !!(u && p && a);
 }
 
+// Per-tenant aware: if we're inside a tenant context (vendor-ctx has an override for
+// 'servicepower'), authenticate AS that shop; otherwise fall through to TN's vault. Mirrors
+// the dispatch connector so claims (invoicing + payment reconcile) are multi-tenant too.
 async function auth() {
-  const userId = String(await getSecretFresh('SERVICEPOWER_USER_ID') || '').trim();
-  const password = String(await getSecretFresh('SERVICEPOWER_PASSWORD') || '').trim();
-  if (!userId || !password) throw new Error('ServicePower creds not in vault (SERVICEPOWER_USER_ID / _PASSWORD)');
+  const ov = vendorCtx.current('servicepower');
+  const userId = String(ov.user_id || await getSecretFresh('SERVICEPOWER_USER_ID') || '').trim();
+  const password = String(ov.password || await getSecretFresh('SERVICEPOWER_PASSWORD') || '').trim();
+  if (!userId || !password) throw new Error('ServicePower creds not available (tenant override or vault SERVICEPOWER_USER_ID / _PASSWORD)');
   return { userId, password };
 }
 
@@ -54,9 +59,10 @@ async function auth() {
 // READ-ONLY — safe to call anytime.
 async function retrieveClaims(q = {}) {
   const a = await auth();
+  const ov = vendorCtx.current('servicepower');
   const svcAcct = q.serviceCenterNumber != null
     ? String(q.serviceCenterNumber)
-    : String(await getSecretFresh('SERVICEPOWER_SVCR_ACCT') || '').trim();
+    : String(ov.servicer_acct || await getSecretFresh('SERVICEPOWER_SVCR_ACCT') || '').trim();
   // All our ServicePower work dispatches from ONE client: "SQUARE TRADE". Default to it
   // (overridable via vault SERVICEPOWER_MFG_NAME) so callers only pass the call/dispatch number.
   const mfgName = (q.manufacturerName != null && q.manufacturerName !== '')
