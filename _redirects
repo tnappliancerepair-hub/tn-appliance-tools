@@ -23,6 +23,7 @@
 # Clone machine: public application + your admin review page
 /apply         /apply.html          200
 /applications  /applications.html   200
+/verify        /platform/verify.html  200
 
 # ── AI PAGE IS THE PRIMARY DOOR (2026-07-15, Teddy) ──
 # Teddy's call: the appliance-AI chat converts best, so every "Book a Repair"
