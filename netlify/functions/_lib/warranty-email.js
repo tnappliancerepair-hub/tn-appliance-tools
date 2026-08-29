@@ -17,7 +17,10 @@ const { getSecret } = require('./secrets');
 let parseServicePowerBody; try { ({ parseServicePowerBody } = require('./parsers/servicepower')); } catch (_) { parseServicePowerBody = null; }
 
 const INTAKE_DOMAIN = 'jobs.assistant247.net';
-const MODEL = 'claude-sonnet-4-5-20250929';
+// Haiku for the fallback: fast enough to finish inside a synchronous function, cheap per email,
+// and plenty accurate for field extraction. Known vendors never hit the LLM — this is only for
+// a format we have no parser for.
+const MODEL = 'claude-haiku-4-5-20251001';
 
 // ── small text helpers ──────────────────────────────────────────────
 function decodeEntities(s) {
