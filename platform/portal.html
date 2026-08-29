@@ -79,6 +79,7 @@
   .invoice .ir span:first-child{color:var(--ink)}
   .invoice .ir.sub{color:var(--muted);font-size:13px;padding:3px 0}
   .invoice .ir.sub span{color:var(--muted)}
+  .invoice .ir.credit span{color:#12a150;font-weight:700}
   .invoice .ir.itotal{border-top:1px solid var(--line);margin-top:5px;padding-top:9px;font-weight:800;font-size:16px}
   .invoice .ifoot{margin-top:9px;font-size:13px;font-weight:700}
   .invoice .ifoot.ipaid{color:#12a150}
@@ -171,9 +172,10 @@
         if (bill.covered) {
           billHtml = '<div class="bill covered">🛡️ Covered by your warranty — no charge to you.</div>';
         } else if (bill.total_cents != null) {
-          var fmt = function(c){ return '$' + ((c||0)/100).toFixed(2); };
+          var fmt = function(c){ c = c||0; return (c<0?'−$':'$') + (Math.abs(c)/100).toFixed(2); };
           var lines = (bill.lines || []).map(function(l){
-            return '<div class="ir"><span>' + esc(l.description||'') + '</span><span>' + fmt(l.amount_cents) + '</span></div>';
+            var neg = (l.amount_cents||0) < 0;
+            return '<div class="ir' + (neg?' credit':'') + '"><span>' + esc(l.description||'') + '</span><span>' + fmt(l.amount_cents) + '</span></div>';
           }).join('');
           var paidWhen = '';
           if (bill.paid && bill.paid_at) { try { paidWhen = ' · ' + new Date(bill.paid_at).toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){} }
