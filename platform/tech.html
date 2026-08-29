@@ -42,6 +42,7 @@
   .torow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:14px;font-weight:600} .torow:first-of-type{border-top:0}
   .tox{border:0;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 6px}
   .toadd{border:0;background:var(--ink);color:var(--panel);font-weight:800;border-radius:9px;padding:9px 14px;cursor:pointer;white-space:nowrap}
+  .stopno{display:inline-block;font-size:12px;font-weight:800;color:var(--panel);background:var(--brand,#2f6bff);border-radius:999px;padding:1px 8px;vertical-align:middle}
   .row1{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .opencard{text-decoration:none;color:inherit;display:block}
   .cust{font-weight:800;font-size:17px}
@@ -388,8 +389,10 @@
     // completed job → a tappable "You earned" chip (filled once pay data loads); tap = confetti.
     var earnSlot = (myTech && j.status==='completed') ? '<div class="earnslot" id="earn_'+j.id+'"></div>' : '';
     var openUrl = '/platform/tech-job.html?job='+encodeURIComponent(j.id);
+    var stopNo = stopByJob[j.id];
+    var stopBadge = stopNo ? '<span class="stopno" title="Suggested stop order for the day">🧭 '+stopNo+'</span> ' : '';
     return '<div class="card" data-card="'+j.id+'">' +
-      '<div class="row1"><a class="opencard" href="'+openUrl+'"><div class="cust">'+esc(fullName(cust)||'Customer')+' <span class="chev">›</span></div>'+(unit?'<div class="unit">'+esc(unit)+'</div>':'')+'</a>' +
+      '<div class="row1"><a class="opencard" href="'+openUrl+'"><div class="cust">'+stopBadge+esc(fullName(cust)||'Customer')+' <span class="chev">›</span></div>'+(unit?'<div class="unit">'+esc(unit)+'</div>':'')+'</a>' +
       '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>' +
       (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
       '<a class="openbtn" href="'+openUrl+'">Open job — video, model &amp; report →</a>' +
@@ -409,10 +412,39 @@
   var jobsCache = [];
   var earnByJob = {};      // jobId -> PayCalc pay row (his cut), for the "You earned" flash
   var payState = null;     // {paid_cents, owed_cents, pending_cents} from loadPay
+  var stopByJob = {};      // job_id -> route stop number (only on multi-stop days)
+  // 🧭 Same route heuristic the dispatch board uses (nearest-neighbor by 5-digit ZIP), so the
+  // numbers agree. Groups a day's stops by area + sweeps low→high; no geocoding, deterministic.
+  function zip5(z){ var m=String(z||'').match(/\d{5}/); return m?parseInt(m[0],10):null; }
+  function jZip(j){ return (j&&j.customer&&j.customer.zip)||''; }
+  function routeOrder(stops){
+    var pool=stops.slice(); if(pool.length<3) return pool;
+    var start=null; pool.forEach(function(s){ var z=zip5(jZip(s)); if(z!=null&&(start==null||z<start)) start=z; });
+    var out=[], cur=start;
+    while(pool.length){ var bi=0,bd=Infinity; for(var i=0;i<pool.length;i++){ var z=zip5(jZip(pool[i])); var d=(cur==null)?0:(z==null?1e12:Math.abs(z-cur)); if(d<bd){bd=d;bi=i;} }
+      var nx=pool.splice(bi,1)[0]; out.push(nx); var nz=zip5(jZip(nx)); if(nz!=null) cur=nz; }
+    return out;
+  }
+  // Reorder open jobs so each scheduled day runs in route order; number the stops of any 3+ day.
+  function routeSequence(jobs){
+    stopByJob={};
+    var byDay={}, order=[];
+    jobs.forEach(function(j){ var k=j.scheduled_day||'~'; if(!byDay[k]){ byDay[k]=[]; order.push(k); } byDay[k].push(j); });
+    var out=[];
+    order.forEach(function(k){
+      var open=byDay[k].filter(function(j){ return j.status!=='completed'; });
+      var done=byDay[k].filter(function(j){ return j.status==='completed'; });
+      var seq=routeOrder(open);
+      if(k!=='~' && seq.length>=3){ seq.forEach(function(j,i){ stopByJob[j.id]=i+1; }); }
+      out=out.concat(seq, done);
+    });
+    return out;
+  }
   var crownState = null;   // crowns where THIS tech is #1 (leader) — for the payday fireworks
   var _payoutDone = false; // guard: run the payday check once per render cycle
   function renderJobs(jobs){
-    jobsCache = jobs || [];
+    jobs = routeSequence(jobs || []);   // route-order each day + assign stop numbers
+    jobsCache = jobs;
     _payoutDone = false; earnByJob = {};
     var today = new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     var note = myTech ? '' : '<div class="note">Your login isn\'t linked to a technician yet, so this shows all the shop\'s open jobs. Ask the office to link you as a tech.</div>';
@@ -677,7 +709,7 @@
   function loadJobs(){
     var q = sb.from('job').select(
       'id,status,problem,scheduled_day,availability,waiver_name,waiver_signed_at,customer_id,' +
-      'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(label,attributes),' +
+      'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held)'
     ).not('status','in','(completed,canceled)').order('scheduled_day',{ascending:true,nullsFirst:false});
     if (myTech) q = q.eq('technician_id', myTech.id);   // my jobs; else (owner/office demo) all open jobs

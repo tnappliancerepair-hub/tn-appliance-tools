@@ -64,6 +64,8 @@
   .lane-h .load.busy{color:var(--warn)} .lane-h .load.max{color:var(--bad)}
   .stop{display:flex;align-items:center;gap:9px;padding:10px 13px;border-top:1px solid var(--line);cursor:pointer} .stop:first-child{border-top:0}
   .stop .pill{width:9px;height:9px;border-radius:50%;flex:none}
+  .stop .rn{flex:none;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--panel);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .routetag{font-size:11px;font-weight:800;color:var(--brand);background:var(--chip);padding:2px 8px;border-radius:999px;margin-left:8px}
   .stop .s1{font-weight:600;font-size:14px} .stop .s2{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stop .info{flex:1;min-width:0}
   .lane-empty{padding:12px 13px;color:var(--muted);font-size:13px}
@@ -93,6 +95,19 @@
   function coversZip(t, zip){ var a=areaList(t); if(!a.length) return true; zip=String(zip||'').trim(); if(!zip) return true; return a.some(function(p){ return zip===p || zip.indexOf(p)===0; }); }
   function jobZip(j){ return (j&&j.customer&&j.customer.zip)||''; }
   function coveringTechs(zip){ return techs.filter(function(t){ return areaList(t).length && coversZip(t,zip); }); }
+  // 🧭 Suggested route order — nearest-neighbor by 5-digit ZIP proximity. No geocoding: it clusters
+  // same-area stops together + sweeps low→high so the tech isn't crossing town twice. A heuristic,
+  // labelled as "suggested"; the office can still work the lane in any order. Deterministic, so the
+  // tech app + the board agree on the numbers.
+  function zip5(z){ var m=String(z||'').match(/\d{5}/); return m?parseInt(m[0],10):null; }
+  function routeOrder(stops){
+    var pool=stops.slice(); if(pool.length<3) return pool;   // 1–2 stops: order is moot
+    var start=null; pool.forEach(function(s){ var z=zip5(jobZip(s)); if(z!=null&&(start==null||z<start)) start=z; });
+    var out=[], cur=start;
+    while(pool.length){ var bi=0,bd=Infinity; for(var i=0;i<pool.length;i++){ var z=zip5(jobZip(pool[i])); var d=(cur==null)?0:(z==null?1e12:Math.abs(z-cur)); if(d<bd){bd=d;bi=i;} }
+      var nx=pool.splice(bi,1)[0]; out.push(nx); var nz=zip5(jobZip(nx)); if(nz!=null) cur=nz; }
+    return out;
+  }
   var sel=startOfWeek(new Date()); var selDay=isoDay(new Date());
   var view='week'; var monthAnchor=firstOfMonth(new Date());
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
@@ -171,9 +186,11 @@
       var isOff=offOn(t.id,selDay);
       var loadCls=mine.length>=7?'max':(mine.length>=5?'busy':'');
       var offTog='<button class="offtog'+(isOff?' on':'')+'" data-off="'+t.id+'" title="'+(isOff?'Mark working':'Mark day off')+'">'+(isOff?'🌴 Off':'Mark off')+'</button>';
-      var stops=mine.length ? mine.map(function(j){ return '<div class="stop" data-job="'+j.id+'"><span class="pill" style="background:'+(SC[j.status]||'var(--new)')+'"></span><div class="info"><div class="s1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="s2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div></div></div>'; }).join('')
+      var route=routeOrder(mine);
+      var stops=route.length ? route.map(function(j,idx){ var z=jobZip(j); return '<div class="stop" data-job="'+j.id+'"><span class="rn">'+(idx+1)+'</span><span class="pill" style="background:'+(SC[j.status]||'var(--new)')+'"></span><div class="info"><div class="s1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="s2">'+esc((j.unit&&j.unit.label)||j.problem||'')+(z?' · '+esc(z):'')+'</div></div></div>'; }).join('')
         : (isOff ? '<div class="lane-empty">🌴 Off this day — not available to book.</div>' : '<div class="lane-empty">No stops this day — drop one from Unscheduled.</div>');
-      return '<div class="lane'+(isOff?' laneoff':'')+'"><div class="lane-h"><span class="tn">'+esc(t.name||'Tech')+'</span>'+offTog+'<span class="load '+loadCls+'">'+mine.length+' stop'+(mine.length===1?'':'s')+'</span></div>'+stops+'</div>';
+      var routeTag=mine.length>=3?'<span class="routetag">🧭 route order</span>':'';
+      return '<div class="lane'+(isOff?' laneoff':'')+'"><div class="lane-h"><span class="tn">'+esc(t.name||'Tech')+'</span>'+routeTag+offTog+'<span class="load '+loadCls+'">'+mine.length+' stop'+(mine.length===1?'':'s')+'</span></div>'+stops+'</div>';
     }).join('') || '<div class="tray-empty">No techs yet — add your crew on the onboarding page.</div>';
 
     var selLabel=new Date(selDay+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
