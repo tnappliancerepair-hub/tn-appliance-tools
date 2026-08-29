@@ -193,13 +193,29 @@
     });
   }
   function sendToCustomer(job, body, btn){
-    if(!body.trim()) return;
+    body = (body||'').trim();
+    if(!body) return;
     btn.disabled = true;
-    sb.from('thread_message').insert({
-      company_id: me.company_id, customer_id: job.customer_id, job_id: job.id,
-      direction: 'out', channel: 'sms', sender: 'tech:' + (myTech ? myTech.name : (me.name||'Tech')),
-      body: body.trim()
-    }).then(function(r){ btn.disabled=false; if(!r.error){ var t=document.getElementById('m_'+job.id); if(t){t.value='';} var w=document.getElementById('mw_'+job.id); if(w) w.classList.remove('open'); } });
+    // Route through platform-tech-notify (server, service key) so it BOTH logs the
+    // thread row AND actually sends the SMS — same path the cockpit uses. (A raw
+    // thread insert here used to log the message without ever texting the customer.)
+    sb.auth.getSession().then(function(r){
+      var tok = r && r.data && r.data.session && r.data.session.access_token;
+      if(!tok){ btn.disabled=false; alert('Session expired — sign in again.'); return; }
+      return fetch('/.netlify/functions/platform-tech-notify?do=message',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ job: job.id, access_token: tok, body: body })
+      }).then(function(x){ return x.json(); }).then(function(d){
+        btn.disabled=false;
+        if(d && d.ok){
+          var t=document.getElementById('m_'+job.id); if(t){t.value='';}
+          var w=document.getElementById('mw_'+job.id); if(w) w.classList.remove('open');
+          if(d.no_phone) alert('Saved to the thread — but there\'s no phone on file to text.');
+        } else {
+          alert((d && d.error) || 'Couldn\'t send — try again.');
+        }
+      });
+    }).catch(function(){ btn.disabled=false; alert('Couldn\'t reach the server — try again.'); });
   }
 
   function intakeHtml(j){
