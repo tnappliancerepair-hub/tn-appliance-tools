@@ -30,6 +30,25 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜💳 2026-08-29 (Fri, late) — PLATFORM CARD PAYMENTS: Stripe Connect (Express), money-straight-to-shop — READ FIRST
+
+Completed the payments fork that was deliberately left un-built (KYC/liability). Chose **Stripe Connect (Express)** so it keeps the platform's core money rule intact: **the shop connects its OWN Stripe account, the customer pays the exact invoice by card, and the funds land in the SHOP's Stripe — the platform never holds money** (a *direct* charge on the connected account, optional `settings.pay.platform_fee_bps` fee, default 0). Invoice auto-marks paid via **verify-on-redirect** (no Connect-webhook config dependency). All on `main` + branch.
+
+- **`docs/sql/037_payments_connect.sql` (APPLIED):** `company.stripe_connect_id` (acct_…) + `company.payments_enabled` (mirrors `charges_enabled`), and recreated `portal_get` to surface `company.payments_enabled` + `bill.invoice_id`.
+- **`netlify/functions/platform-payments.js` (NEW):** one function, 5 actions. Owner (session token): `connect_start` (create/reuse Express acct → Stripe onboarding link), `connect_status` (retrieve acct, flip `payments_enabled` when `charges_enabled`). Customer (portal token): `pay` (resolve grant→job→latest invoice, mint a Checkout Session **on the shop's connected account** for the due amount, `success_url → portal.html?t=…&paid=1&sess={CHECKOUT_SESSION_ID}`), `verify` (retrieve the session on the connected acct; if paid, set invoice `status=paid`/`paid_method=card`/`collected_cents=total`/`paid_ref=session` + thread note — idempotent). Admin: `diag [&probe=1]` (returns key_mode + whether Connect is enabled; the probe create+immediately-deletes a throwaway Express acct — safe, no residue).
+- **`platform/owner.html`:** a **"Card payments"** card — *Set up card payments* / *Finish setup* / *Active* — via `connect_start`/`connect_status` (button `#635bff`, returns from Stripe to `owner.html?connect=done` → auto-rechecks).
+- **`platform/portal.html`:** a **"💳 Pay $X by card"** button on unpaid self-pay invoices, **gated on `company.payments_enabled`** (hidden until the shop finishes onboarding); on return, `?paid=1&sess=` fires `verify` → invoice flips to paid → thread shows "💳 Paid the invoice by card."
+- **VERIFIED live (as far as possible without Connect enabled):** `connect_status` (demo owner) → `{connected:false, needs_onboarding:true}`; `connect_start` → graceful "sign up for Connect" error (owner-resolve + Stripe path proven, **no residue** — account create threw before any DB write); customer `pay` → "card payments not set up for this shop" (payments_enabled gate); `verify` → arg guard. `portal_get` confirmed returning `payments_enabled`.
+
+### ⚠️ GO-LIVE (2 steps, both off-platform — the code is done)
+1. **Teddy: enable Connect ONCE** at `https://dashboard.stripe.com/connect` on the **live** platform Stripe account. Until then every `connect_start` returns the "sign up for Connect" message (harmless).
+2. **Each shop: click "Set up card payments"** on owner.html → completes Stripe Express onboarding/KYC → `payments_enabled` flips true automatically → the customer's portal shows the pay-by-card button. Funds settle to the shop's own Stripe (payouts managed in *their* dashboard).
+
+### FOOTGUNS
+- **The vaulted Stripe key is LIVE (`sk_live_`)** — `diag` reports `key_mode`. Do NOT run `probe=1` casually against live unless you accept a throwaway Express acct is created+deleted (the probe does delete it). Never run real `pay`/`connect_start` against a shop you don't intend to actually onboard.
+- **Connect not enabled yet** on the platform account → `connect_ok:false` from `diag&probe=1`. That's the gate, not a code bug.
+- Platform-fee is **0 by default** (money-to-shop model); set `company.settings.pay.platform_fee_bps` (basis points, capped 3000) only if we ever decide to take a cut.
+
 ## 🗓️🐜🏁 2026-08-29 (Fri PM) — PLATFORM GAP-CLOSE MARATHON: schema-reconcile + notifications + parts→invoice + cancel + portal-pay + per-tech capacity — READ FIRST
 
 Ran a grounded Explore audit of every platform surface (office ↔ tech ↔ customer + owner), then closed all six non-blocked gaps. All on `main` + branch, each verified live on the demo/throwaway tenants then cleaned up. Migrations 033–036 applied live + committed.
