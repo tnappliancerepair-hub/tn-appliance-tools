@@ -1,5 +1,19 @@
 # Appliance Ant
 
+## 🗓️🐜📈 2026-08-29 (Fri, late) — #4 THE PATTERN-LEARNING LAYER: the Ant partner gets easier every day (the ledger IS the training set) — READ FIRST
+
+Closed the partner arc. The `owner_action` ledger is now mined for how THIS shop actually operates, and that playbook feeds the brain + a "what Ant learned" card. No new data collection — it learns from what already accrues.
+
+- **`learnPatterns(ctx)` in `_lib/owner-actions.js`** (pure read over owner_action, best-effort → []): detects 4 pattern classes — **go-to parts margin** (same % set ≥2×), **comms preference** (a text repeatedly toggled to the same state), **booking-by-area** (schedule_job rows joined job→customer.zip, ZIP3 → dominant tech when ≥3 bookings & ≥60% to one), and **undo-prone intents** (reversed ≥50% of ≥3 tries → Ant treads lightly). Ranked, top 6.
+- **Exposed** as `platform-owner-action ?do=patterns` (MGMT-gated, one impl two consumers).
+- **Fed into the brain**: `platform-ant` snapshot gains `learned_playbook` + a prompt rule — *prefer how this shop already does things; never push a change they repeatedly undo.* So the brain answers/acts like THIS shop (compounding "you-ness").
+- **Surfaced** on owner.html: a "🐜 What Ant has learned about your shop" card (insight + one-tap "make it the default" where a suggestion applies, e.g. lock in the go-to margin).
+- **VERIFIED live on demo — 6/6:** seeded all 4 pattern types → each detected; the brain then answered *"Your usual parts margin is 55% — you've settled on that twice, so that's your standard… you've turned the on-my-way text off twice, so Ant treats that as your preference"* (reading the learned playbook, not generic). Cleaned to zero residue.
+
+### PARTNER ARC COMPLETE
+✅ #1 reversible ledger (043) · ✅ #2 goals + owner UI through the ledger · ✅ #3 role-aware brain (owner + CSR docks) · ✅ CSR scheduling hands (schedule_job/unschedule_job) · ✅ #4 pattern-learning. The owner opens his app to a partner that greets him, tracks his goals, acts on his money, and gets more like him daily; Danielle's Ant teaches + books her board. Same brain, same safe/undoable ledger, different badge.
+- **Future polish (not built):** `notify_customer` intent (booking also texts the window, reversibly noted); paginate/raise the needs_scheduling 12-cap; drop the Ant dock onto office-board.html; a proactive "Ant noticed…" nudge that pre-drafts the next booking from the learned area-defaults (pre-do vs suggest).
+
 ## 🗓️🐜📅 2026-08-29 (Fri, late) — CSR SCHEDULING HANDS: the Ant partner can now BOOK/MOVE/UNSCHEDULE jobs (logged + reversible) — READ FIRST
 
 Gave the front-desk/CSR Ant real hands on top of the reversible ledger + brain (043 / owner-actions / platform-ant). Danielle's Ant can now actually run the board by chat, not just advise.
