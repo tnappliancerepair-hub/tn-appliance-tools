@@ -84,6 +84,20 @@
   .invoice .ifoot{margin-top:9px;font-size:13px;font-weight:700}
   .invoice .ifoot.ipaid{color:#12a150}
   .invoice .ifoot.idue{color:var(--muted);font-weight:600}
+  .offer{margin-top:12px;border:1px solid var(--accent);border-radius:12px;padding:12px 13px;background:rgba(63,143,36,.07)}
+  .offer .ohd{font-weight:800;font-size:14.5px;margin-bottom:9px}
+  .offer .orow{display:flex;gap:9px}
+  .offer .oyes{flex:1;background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:12px;font-weight:800;font-size:15px;cursor:pointer}
+  .offer .ono{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:12px 15px;font-weight:700;cursor:pointer}
+  .offer.pend{border-color:var(--line);background:var(--panel);font-weight:600;font-size:13.5px;color:var(--muted)}
+  .reqwrap{margin-top:12px}
+  .reqbtn{width:100%;background:var(--panel);border:1px dashed var(--accent);color:var(--accent);border-radius:11px;padding:12px;font-weight:800;font-size:14.5px;cursor:pointer}
+  .reqform{margin-top:9px;display:flex;flex-direction:column;gap:9px}
+  .reqform input[type=date]{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  .wsel{display:flex;gap:7px;flex-wrap:wrap}
+  .wsel .wc{border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-weight:700;font-size:13.5px;cursor:pointer}
+  .wsel .wc.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+  .reqsend{background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:12px;font-weight:800;cursor:pointer}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -118,6 +132,27 @@
   function statusOf(k){ return STATUS[k] || { label: (k||'Open'), color: '#6b7280', line: 'We\'re on it — reply below anytime with questions.' }; }
 
   function fmtDay(d){ if(!d) return ''; try { return new Date(d + 'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); } catch(e){ return d; } }
+  function fmtWin(w){ return w==='am' ? 'mornings' : (w==='pm' ? 'afternoons' : 'anytime'); }
+  // The three-way handshake, customer side: accept/decline a shop offer, or request a day.
+  function respondOffer(id, accept, btn){
+    btn.disabled = true;
+    sb.rpc('portal_respond_offer', { p_token: token, p_offer_id: id, p_accept: accept }).then(function(r){
+      btn.disabled = false;
+      if (r.error || (r.data && r.data.ok === false)) { alert((r.data && r.data.error) || 'Please try again.'); return; }
+      load(true);
+    });
+  }
+  function requestDay(jid, btn){
+    var d = document.getElementById('rd_'+jid); var day = d ? d.value : '';
+    if (!day) { if (d) d.focus(); return; }
+    var w = document.querySelector('#rw_'+jid+' .wc.on'); var win = w ? w.getAttribute('data-w') : 'any';
+    btn.disabled = true; btn.textContent = 'Sending…';
+    sb.rpc('portal_request_day', { p_token: token, p_day: day, p_win: win }).then(function(r){
+      btn.disabled = false; btn.textContent = 'Send request';
+      if (r.error || (r.data && r.data.ok === false)) { alert((r.data && r.data.error) || 'Please try again.'); return; }
+      load(true);
+    });
+  }
   function fmtTime(iso){ if(!iso) return ''; try { var dt=new Date(iso); return dt.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+dt.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); } catch(e){ return ''; } }
   function whoLabel(m){ if(m.direction==='in') return 'You'; var s=String(m.sender||''); if(/^office:/.test(s)) return s.slice(7); if(/^tech:/.test(s)) return s.slice(5); if(s==='ann'||s==='') return 'Ann'; return s; }
 
@@ -192,13 +227,32 @@
             '</div>';
         }
       }
+      // scheduling handshake — a shop offer to accept, your pending request, or a request button
+      var offers = j.offers || [];
+      var shopOffer = offers.filter(function(o){ return o.direction==='shop'; })[0];
+      var myReq = offers.filter(function(o){ return o.direction==='customer'; })[0];
+      var schedHtml = '';
+      if (shopOffer) {
+        schedHtml = '<div class="offer"><div class="ohd">📅 We can come <b>' + esc(fmtDay(shopOffer.proposed_day)) + '</b> · ' + fmtWin(shopOffer.win) + '</div>' +
+          '<div class="orow"><button class="oyes" data-accept="' + esc(shopOffer.id) + '">Yes, book it</button>' +
+          '<button class="ono" data-decline="' + esc(shopOffer.id) + '">Another day</button></div></div>';
+      } else if (myReq) {
+        schedHtml = '<div class="offer pend">📅 You asked for <b>' + esc(fmtDay(myReq.proposed_day)) + '</b> · ' + fmtWin(myReq.win) + ' — we\'ll confirm shortly.</div>';
+      } else if (!day && j.status!=='completed' && j.status!=='canceled') {
+        var today = new Date().toISOString().slice(0,10);
+        schedHtml = '<div class="reqwrap"><button class="reqbtn" data-req="' + esc(j.id) + '">📅 Request a day that works</button>' +
+          '<div class="reqform" id="rf_' + esc(j.id) + '" hidden>' +
+            '<input type="date" id="rd_' + esc(j.id) + '" min="' + today + '">' +
+            '<div class="wsel" id="rw_' + esc(j.id) + '"><span class="wc on" data-w="any">Wide open</span><span class="wc" data-w="am">Mornings</span><span class="wc" data-w="pm">Afternoons</span></div>' +
+            '<button class="reqsend" data-reqsend="' + esc(j.id) + '">Send request</button></div></div>';
+      }
       return '<div class="card"><div class="job-top"><div>' +
         '<div class="job-unit">' + esc(unit) + '</div>' +
         (j.problem ? '<div class="job-prob">' + esc(j.problem) + '</div>' : '') +
         '</div><span class="badge" style="background:' + st.color + '">' + esc(st.label) + '</span></div>' +
         '<div class="statusline">' + esc(st.line) + '</div>' +
         (day ? '<div class="meta"><span>Scheduled: <b>' + esc(day) + '</b></span></div>' : '') +
-        techHtml + vidHtml + billHtml +
+        schedHtml + techHtml + vidHtml + billHtml +
         '</div>';
     }).join('') : '<div class="card"><div class="empty">No open repairs on file. Reply below if you need us.</div></div>';
 
@@ -227,6 +281,12 @@
     }
     btn.onclick = send;
     ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } });
+    // scheduling handshake wiring
+    Array.prototype.forEach.call(document.querySelectorAll('[data-accept]'), function(b){ b.onclick=function(){ respondOffer(b.getAttribute('data-accept'), true, b); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-decline]'), function(b){ b.onclick=function(){ respondOffer(b.getAttribute('data-decline'), false, b); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-req]'), function(b){ b.onclick=function(){ var f=document.getElementById('rf_'+b.getAttribute('data-req')); if(f) f.hidden=!f.hidden; }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.wsel .wc'), function(c){ c.onclick=function(){ var p=c.parentNode; Array.prototype.forEach.call(p.querySelectorAll('.wc'),function(x){x.classList.remove('on');}); c.classList.add('on'); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-reqsend]'), function(b){ b.onclick=function(){ requestDay(b.getAttribute('data-reqsend'), b); }; });
     var th = document.getElementById('thread'); if (th) th.scrollTop = th.scrollHeight;
   }
 

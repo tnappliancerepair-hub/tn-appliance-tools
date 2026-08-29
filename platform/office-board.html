@@ -101,6 +101,15 @@
   .totals .tr.grand{font-size:17px;font-weight:800;border-top:1px solid var(--line);margin-top:5px;padding-top:8px}
   .paidrow{display:flex;align-items:center;gap:9px;margin-top:11px;flex-wrap:wrap}
   .paidrow select{padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+  /* schedule handshake (office) */
+  #jsched .offrow{display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--chip);border:1px solid var(--line);border-radius:11px;padding:9px 12px;margin-bottom:8px}
+  #jsched .offrow.pend{opacity:.85}
+  #jsched .offrow .ot{font-size:13px;line-height:1.35}
+  #jsched .offrow .book{background:var(--accent,#2f7d32);color:#fff;border:none;border-radius:9px;padding:8px 14px;font-weight:800;font-size:12.5px;white-space:nowrap;cursor:pointer}
+  #jsched .offrow .wd{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:7px 12px;font-weight:700;font-size:12px;white-space:nowrap;cursor:pointer}
+  #jsched .offform{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}
+  #jsched .offform input,#jsched .offform select{flex:1 1 auto;min-width:120px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+  #jsched .offform .primary{background:var(--ink);color:var(--bg);border:none;border-radius:9px;padding:9px 14px;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap}
   /* printable statement */
   @media print{ body *{visibility:hidden} #stmt,#stmt *{visibility:visible} #stmt{position:absolute;inset:0;padding:24px} .noprint{display:none!important} }
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:var(--chip);padding:1px 5px;border-radius:5px}
@@ -513,6 +522,46 @@
   // ── Customer intake relay — the owner's "Teddy Tool" view: what the customer sent
   // in from the link Ann texted them (video, model photo, availability, signed release,
   // and the wear-item / floor-protection choices), pulled straight from the tenant DB.
+  // ── SCHEDULE HANDSHAKE (office side): see the customer's day requests (one-tap book) and
+  // offer a day back to them (they accept from their portal). Three sides, everyone helps.
+  function schWin(w){ return w==='am'?'mornings':(w==='pm'?'afternoons':'anytime'); }
+  function schDay(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return d; } }
+  function loadSched(job){
+    var box=document.getElementById('jsched'); if(!box) return;
+    sb.from('schedule_offer').select('id,direction,proposed_day,win,note,status').eq('job_id',job.id).eq('status','pending').order('created_at',{ascending:false}).then(function(r){
+      var offers=(r.data)||[]; var html='';
+      if(job.scheduled_day) html+='<div class="hint" style="margin-bottom:8px">Booked: <b>'+esc(schDay(job.scheduled_day))+'</b></div>';
+      offers.filter(function(o){return o.direction==='customer';}).forEach(function(o){
+        html+='<div class="offrow"><div class="ot">🙋 Customer wants <b>'+esc(schDay(o.proposed_day))+'</b> · '+schWin(o.win)+(o.note?' — '+esc(o.note):'')+'</div><button class="book" data-book="'+esc(o.id)+'" data-day="'+esc(o.proposed_day)+'">Book it</button></div>';
+      });
+      offers.filter(function(o){return o.direction==='shop';}).forEach(function(o){
+        html+='<div class="offrow pend"><div class="ot">📤 You offered <b>'+esc(schDay(o.proposed_day))+'</b> · '+schWin(o.win)+' — waiting on customer</div><button class="wd" data-withdraw="'+esc(o.id)+'">Withdraw</button></div>';
+      });
+      html+='<div class="offform"><input type="date" id="soDay" min="'+new Date().toISOString().slice(0,10)+'"><select id="soWin"><option value="any">Wide open</option><option value="am">Mornings</option><option value="pm">Afternoons</option></select><button class="primary" id="soSend">Offer to customer</button></div>';
+      box.innerHTML=html;
+      box.querySelectorAll('button[data-book]').forEach(function(b){ b.onclick=function(){ bookRequest(job, b.getAttribute('data-book'), b.getAttribute('data-day'), b); }; });
+      box.querySelectorAll('button[data-withdraw]').forEach(function(b){ b.onclick=function(){ b.disabled=true; sb.from('schedule_offer').update({status:'withdrawn',decided_at:new Date().toISOString()}).eq('id',b.getAttribute('data-withdraw')).then(function(){ loadSched(job); }); }; });
+      var ss=document.getElementById('soSend'); if(ss) ss.onclick=function(){ sendOffer(job, ss); };
+    });
+  }
+  function bookRequest(job, offerId, day, btn){
+    btn.disabled=true; btn.textContent='Booking…';
+    sb.from('schedule_offer').update({status:'accepted',decided_at:new Date().toISOString()}).eq('id',offerId)
+      .then(function(){ return sb.from('job').update({scheduled_day:day, status:(job.status==='new'||!job.status)?'scheduled':job.status}).eq('id',job.id); })
+      .then(function(){ return sb.from('thread_message').insert({company_id:companyId, customer_id:job.customer_id||null, job_id:job.id, direction:'out', channel:'portal', sender:'office', body:'✅ Booked you for '+day}); })
+      .then(function(){ job.scheduled_day=day; loadSched(job); loadBoard(); });
+  }
+  function sendOffer(job, btn){
+    var day=document.getElementById('soDay').value, win=document.getElementById('soWin').value||'any';
+    if(!day){ document.getElementById('soDay').focus(); return; }
+    btn.disabled=true; btn.textContent='Sending…';
+    sb.from('schedule_offer').insert({company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, direction:'shop', proposed_day:day, win:win, status:'pending', created_by:'office'}).then(function(r){
+      btn.disabled=false; btn.textContent='Offer to customer';
+      if(r.error){ alert(r.error.message); return; }
+      sb.from('thread_message').insert({company_id:companyId, customer_id:job.customer_id||null, job_id:job.id, direction:'out', channel:'portal', sender:'office', body:'📅 We can come '+day+' — open your link to confirm.'}).then(function(){ loadSched(job); });
+    });
+  }
+
   // R2 photos are tenant-scoped behind a signer — batch-sign refs with the staff session
   // token and drop the real URL into each <img src> (and its wrapping link).
   function hydratePics(scope){
@@ -610,6 +659,7 @@
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
       '<div class="schedflags" id="jflags"><button type="button" data-flag="two" class="'+(job.needs_two_techs?'on':'')+'">🧑‍🤝‍🧑 Two-man</button><button type="button" data-flag="long" class="'+(job.long_job?'on':'')+'">⏳ Long job</button></div>' +
       '<div class="sec">Assigned tech</div><div class="srow"><select id="jtech" style="flex:1"><option value="">Unassigned</option>'+techOptions(job.technician_id)+'</select></div>' +
+      '<div class="sec">📅 Schedule</div><div id="jsched"><div class="hint">Loading…</div></div>' +
       '<div id="jintake"></div>' +
       '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
@@ -637,6 +687,7 @@
     document.getElementById('jclose').onclick=close;
     loadIntake(job);
     loadDetails(job);
+    loadSched(job);
 
     // Assign / reassign the tech — office dispatch (RLS lets the office write its own job rows).
     var jt=document.getElementById('jtech');
