@@ -23,6 +23,7 @@ const TELNYX = 'https://api.telnyx.com/v2';
 const SITE = 'https://tnapplianceexchange.net';
 const LEAD_TOOL = SITE + '/.netlify/functions/platform-lead';
 const BRAIN_TOOL = SITE + '/.netlify/functions/platform-call-brain';
+const PRECALL_TOOL = SITE + '/.netlify/functions/platform-precall';
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
 const MODEL = 'openai/gpt-5.4';
 
@@ -73,7 +74,7 @@ function assistantBody(company, toolKey) {
   const canBook = ai.can_book !== false, canStatus = ai.can_status !== false, canMsg = ai.can_message !== false;
   const about = ai.about ? ('\n\nWhat to know about this shop:\n' + ai.about) : '';
   const statusGuide = canStatus
-    ? `\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD: when a caller asks about a job they already have ("is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status?") or a warranty company asks about a dispatch, use get_status — look them up by the phone the job is under, a claim/dispatch number, or their name. READ BACK exactly what it returns; don't add to it or guess. Give the DAY, never a clock time (a live arrival window goes out the morning of). If it doesn't name a tech, say "your technician." Never read a homeowner a part or claim number. If it finds nothing, treat them as a new caller and capture a lead. Before you say whether the office is open right now, use get_hours to check the current time — don't guess.`
+    ? `\n\nWHO'S ON THE LINE (may be filled in the moment they call, before they speak — if so, lean on it warmly and don't re-ask what you already know): {{system_context}}\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD: when a caller asks about a job they already have ("is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status?") or a warranty company asks about a dispatch, use get_status — look them up by the phone the job is under, a claim/dispatch number, or their name. READ BACK exactly what it returns; don't add to it or guess. Give the DAY, never a clock time (a live arrival window goes out the morning of). If it doesn't name a tech, say "your technician." Never read a homeowner a part or claim number. If it finds nothing, treat them as a new caller and capture a lead. Before you say whether the office is open right now, use get_hours to check the current time — don't guess.`
     : '';
   const instr =
     `You are Ann, the warm, upbeat front-desk voice for ${name}, a ${trade} business. Your ONE job is to help every caller and never let a real lead slip away.` +
@@ -109,16 +110,26 @@ function assistantBody(company, toolKey) {
       bq('hours'), {}, []));
   }
   tools.push({ type: 'hangup', hangup: { description: 'End the call politely once everything is handled.' } });
-  return {
+  const defaultGreeting = ai.greeting || `Thanks for calling ${name}, this is Ann — how can I help you today?`;
+  const body = {
     name: `Ann — ${name}`,
     model: MODEL,
     instructions: instr,
-    greeting: ai.greeting || `Thanks for calling ${name}, this is Ann — how can I help you today?`,
+    greeting: defaultGreeting,
     description: `${name} phone AI — answers 24/7, captures the lead, sends it to the board.`,
     voice_settings: { voice: ai.voice || VOICE_BROOKE, voice_speed: 1.0 },
     transcription: { model: 'deepgram/flux', language: 'auto' },
     tools,
   };
+  // Pre-call recognition: Telnyx hits platform-precall (shop baked into the URL) at pickup,
+  // filling {{greeting}} + {{system_context}} with the caller's name + situation. Safety-net
+  // defaults keep the placeholders clean if it's slow.
+  if (canStatus && slug) {
+    body.dynamic_variables_webhook_url = `${PRECALL_TOOL}?slug=${encodeURIComponent(slug)}${kq}`;
+    body.greeting = '{{greeting}}';
+    body.dynamic_variables = { greeting: defaultGreeting, system_context: '', caller_first: '' };
+  }
+  return body;
 }
 
 exports.config = { timeout: 26 };

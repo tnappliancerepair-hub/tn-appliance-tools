@@ -19,6 +19,7 @@ const SITE = 'https://tnapplianceexchange.net';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const LEAD_TOOL = `${SITE}/.netlify/functions/trial-ann-lead`;
 const BRAIN_TOOL = `${SITE}/.netlify/functions/platform-call-brain`;
+const PRECALL_TOOL = `${SITE}/.netlify/functions/platform-precall`;
 const VOICE_BROOKE = 'Inworld.Max.Brooke';
 const MODEL = 'openai/gpt-5.4';
 
@@ -51,7 +52,7 @@ function buildInstructions(shop) {
   // When the shop is on the platform board, Ann can SEE existing jobs. Teach her to look them
   // up and read back exactly what the board says — grounded, day-only, no guessing.
   const statusBlock = shop.platformSlug
-    ? `\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD:\nWhen a caller asks about a job they ALREADY have — "is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status of my repair?" — OR a warranty company calls about a dispatch, use the get_status tool. Look them up by the phone number the job is under, or a claim/dispatch number, or their name. The tool hands you the exact line to say — READ IT BACK, don't add to it and don't guess:\n- Give the DAY, never a specific clock time. We don't run exact times — a live arrival window goes out the morning of.\n- If the tool doesn't name a technician, say "your technician" — never a name it didn't give you.\n- Never read a homeowner a part number or a claim number.\n- If get_status finds nothing, DON'T say "you're not in our system" — treat them like a new caller and capture a fresh lead.\n- Reading back a day the board already shows is fine and encouraged. (You still don't PROMISE a brand-new appointment time — ${owner} confirms new scheduling.)\nFor a warranty-company rep asking about a dispatch, read the rep summary the tool returns (it includes the claim and parts).\n\nKNOWING IF WE'RE OPEN: before you tell someone the office is open right now or set a callback expectation, use get_hours to check the current day and time — don't guess the clock.`
+    ? `\n\nWHO'S ON THE LINE (this may be filled in the MOMENT they call, before they say a word — if so, lean on it warmly and don't re-ask what you already know): {{system_context}}\n\nCHECKING ON AN EXISTING JOB — YOU CAN SEE THE BOARD:\nWhen a caller asks about a job they ALREADY have — "is my tech still coming?", "what day am I scheduled?", "did my part come in?", "what's the status of my repair?" — OR a warranty company calls about a dispatch, use the get_status tool. Look them up by the phone number the job is under, or a claim/dispatch number, or their name. The tool hands you the exact line to say — READ IT BACK, don't add to it and don't guess:\n- Give the DAY, never a specific clock time. We don't run exact times — a live arrival window goes out the morning of.\n- If the tool doesn't name a technician, say "your technician" — never a name it didn't give you.\n- Never read a homeowner a part number or a claim number.\n- If get_status finds nothing, DON'T say "you're not in our system" — treat them like a new caller and capture a fresh lead.\n- Reading back a day the board already shows is fine and encouraged. (You still don't PROMISE a brand-new appointment time — ${owner} confirms new scheduling.)\nFor a warranty-company rep asking about a dispatch, read the rep summary the tool returns (it includes the claim and parts).\n\nKNOWING IF WE'RE OPEN: before you tell someone the office is open right now or set a callback expectation, use get_hours to check the current day and time — don't guess the clock.`
     : '';
 
   const scopeLine = isDealer
@@ -172,7 +173,7 @@ function buildTools(shop, toolKey) {
 }
 
 function assistantBody(shop, toolKey) {
-  return {
+  const body = {
     name: `${shop.botName || 'Ant'} — ${shop.name} (trial)`,
     model: MODEL,
     instructions: buildInstructions(shop),
@@ -182,6 +183,16 @@ function assistantBody(shop, toolKey) {
     transcription: { model: 'deepgram/flux', language: 'auto' },
     tools: buildTools(shop, toolKey),
   };
+  // Board-connected shops get pre-call recognition: Telnyx hits platform-precall (shop baked
+  // into the URL) before Ann speaks, filling {{greeting}} + {{system_context}} with the
+  // caller's name + situation. Safety-net defaults keep the placeholders clean if it's slow.
+  if (shop.platformSlug) {
+    const kq = toolKey ? `&k=${encodeURIComponent(toolKey)}` : '';
+    body.dynamic_variables_webhook_url = `${PRECALL_TOOL}?slug=${encodeURIComponent(shop.platformSlug)}${kq}`;
+    body.greeting = '{{greeting}}';
+    body.dynamic_variables = { greeting: defaultGreeting(shop), system_context: '', caller_first: '' };
+  }
+  return body;
 }
 
 exports.handler = async function (event) {

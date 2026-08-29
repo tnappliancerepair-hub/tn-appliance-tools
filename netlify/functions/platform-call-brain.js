@@ -108,7 +108,16 @@ function compose(shopName, r) {
     ? `${nm || 'Caller'} · ${appl} · ${st}${day ? ` · ${day}` : ''}${tech ? ` · ${tech}` : ''}${flags.length ? ` · ⚠ ${flags.join(', ')}` : ''}`
     : `${nm || 'Caller'} · on file, no active job`;
 
-  return { customer: cust, warranty: warr, office };
+  // ---- situation: a CONFIDENT one-liner for a pre-call greeting (blank when unsure, so we
+  // never open with a wrong assumption — a completed/canceled/no-day job just greets by name).
+  let situation = '';
+  if (j && !TERMINAL[st]) {
+    if (AWAIT_PARTS[st] || AWAIT_PARTS[String(j.parts_status || '')]) situation = `we've got the part for your ${appl} on order${partEta ? `, expected ${partEta}` : ''}`;
+    else if (j.started_at) situation = `${techPhrase} is working on your ${appl} right now`;
+    else if (day) situation = `you're scheduled with ${techPhrase} for ${day}${appl !== 'appliance' ? ` for your ${appl}` : ''}`;
+  }
+
+  return { customer: cust, warranty: warr, office, situation };
 }
 
 exports.handler = async function (event) {
@@ -169,11 +178,13 @@ exports.handler = async function (event) {
     const lens = String(g('lens') || '').toLowerCase();
     return json(200, {
       ok: true,
+      shop: co.name || slug,
       found: !!facts.found,
       matched_by: facts.matched_by || null,
       customer: facts.customer || null,
       job: facts.job || null,
       job_count: facts.job_count || 0,
+      situation: answers.situation || '',
       answer: lens && answers[lens] ? answers[lens] : answers.customer,
       answers,
     });
