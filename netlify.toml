@@ -74,6 +74,11 @@
 [functions."platform-warm"]
   schedule = "2-59/5 * * * *"
 
+# platform-call-score-cron — grade each active shop's Ann accuracy nightly (~7:40am CT),
+# storing a call_score row so the owner sees a fresh read + trend (the Phase 5 flywheel).
+[functions."platform-call-score-cron"]
+  schedule = "40 12 * * *"
+
 # phone-hours-gate — flips LIVE human transfer ON at 9 AM / OFF at 6 PM Central,
 # Mon–Fri only. Off-hours the transferCall tool is physically removed so Ann
 # can't ring a tech/Danielle/office — she takes a message. Runs every 15 min so

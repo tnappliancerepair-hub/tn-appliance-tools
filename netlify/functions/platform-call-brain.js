@@ -192,3 +192,7 @@ exports.handler = async function (event) {
 
   return json(400, { ok: false, error: 'unknown do: ' + doo });
 };
+
+// reused by platform-call-score (the accuracy audit) so it grades the EXACT phrasing Ann speaks.
+exports.compose = compose;
+exports.dayLabel = dayLabel;
