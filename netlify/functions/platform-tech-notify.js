@@ -14,6 +14,8 @@ const { sendSms } = require('./_lib/sms');
 const SITE = 'https://tnapplianceexchange.net';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
+function winLabel(w) { return w === 'am' ? 'mornings' : (w === 'pm' ? 'afternoons' : 'anytime'); }
+function dayLabel(d) { try { return new Date(String(d) + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); } catch (_) { return String(d); } }
 
 async function cfg() {
   const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
@@ -95,6 +97,26 @@ exports.handler = async function (event) {
       if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_office_msg'); } catch (_) {} }
       await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'sms', sender: techName ? ('office:' + techName) : 'office', body: text });
       return json(200, { ok: true, texted: sent, no_phone: !phone });
+    }
+
+    if (doo === 'schedule_offer') {
+      // The office offers the customer a day. Record the shop offer (they accept/decline from
+      // their portal) AND text them the day + a one-tap portal link so it hits their phone —
+      // not just the board. The handshake works both ways: customer requests, shop offers.
+      const day = String(p.day || '').trim();
+      const win = ['am', 'pm', 'any'].includes(String(p.win || '')) ? String(p.win) : 'any';
+      const note = String(p.note || '').trim().slice(0, 200);
+      if (!day) return json(200, { ok: false, error: 'need day' });
+      await db.insert('schedule_offer', { company_id: companyId, job_id: job.id, customer_id: job.customer_id, direction: 'shop', proposed_day: day, win, note: note || null, status: 'pending', created_by: techName ? ('office:' + techName) : 'office' });
+      let grant = (await db.get(`portal_grant?company_id=eq.${companyId}&customer_id=eq.${job.customer_id}&job_id=eq.${job.id}&revoked=eq.false&select=token&limit=1`))[0];
+      if (!grant) grant = await db.insertRet('portal_grant', { company_id: companyId, customer_id: job.customer_id, job_id: job.id });
+      const tk = grant && grant.token;
+      const link = tk ? `${SITE}/platform/portal.html?t=${tk}` : '';
+      const lbl = dayLabel(day) + (win === 'any' ? '' : ' (' + winLabel(win) + ')');
+      let sent = false;
+      if (phone && link) { const msg = `${shop}: we can come out ${lbl} for your repair${note ? ' — ' + note : ''}. Tap to confirm, or pick a different day: ${link}`; try { sent = await sendSms(phone, msg, 'customer', 'platform_schedule_offer'); } catch (_) {} }
+      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'portal', sender: techName ? ('office:' + techName) : 'office', body: '📅 Offered ' + lbl + (phone ? ' — texted them to confirm.' : ' — no phone on file; ask them to open their link.') });
+      return json(200, { ok: true, texted: sent, no_phone: !phone, url: link });
     }
 
     if (doo === 'waiver_link') {
