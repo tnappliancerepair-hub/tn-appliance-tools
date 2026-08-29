@@ -459,6 +459,9 @@ exports.handler = async function (event) {
       return json(200, {
         ok: true, shop: shop.name, board_slug: shop.platformSlug || null,
         tool_names: (body.tools || []).map((t) => (t.webhook && t.webhook.name) || t.type),
+        greeting: body.greeting,
+        dynamic_variables_webhook_url: body.dynamic_variables_webhook_url || null,
+        precall_wired: !!body.dynamic_variables_webhook_url,
         tools: body.tools, instructions: body.instructions,
       });
     }
