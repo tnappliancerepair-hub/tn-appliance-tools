@@ -127,6 +127,18 @@ exports.handler = async function (event) {
     if (tk && g('k') !== tk) return json(403, { ok: false, error: 'forbidden' });
   }
 
+  // get_hours — the current CT day/time (LLMs guess "what time is it" wrong) + a default
+  // office-open hint. No DB, so Ann can always check the clock even if the board blips.
+  if (doo === 'hours') {
+    const now = new Date();
+    const now_ct = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long', hour: 'numeric', minute: '2-digit', hour12: true }).format(now);
+    const dow = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(now);
+    const h24 = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: '2-digit', hour12: false }).format(now).replace(/\D/g, ''));
+    const weekend = dow === 'Sat' || dow === 'Sun';
+    const office_open = !weekend && h24 >= 8 && h24 < 18;
+    return json(200, { ok: true, now_ct, office_open, note: "office_open is a default Mon-Fri 8am-6pm CT window; if the shop's stated hours differ, use those." });
+  }
+
   const { url, key } = await cfg();
   if (!key) return json(200, { ok: false, error: 'platform_not_configured' });
   const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
