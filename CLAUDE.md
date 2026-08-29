@@ -30,6 +30,28 @@ pitch). It's the source of truth for strategy/sequencing/moat/risks/money.
 - When strategy/direction is discussed, reconcile it INTO this plan (don't let the
   plan drift from what we're actually doing). Teddy loves this doc — treat it as the spine.
 
+## 🗓️🐜🏁 2026-08-29 (Fri PM) — PLATFORM GAP-CLOSE MARATHON: schema-reconcile + notifications + parts→invoice + cancel + portal-pay + per-tech capacity — READ FIRST
+
+Ran a grounded Explore audit of every platform surface (office ↔ tech ↔ customer + owner), then closed all six non-blocked gaps. All on `main` + branch, each verified live on the demo/throwaway tenants then cleaned up. Migrations 033–036 applied live + committed.
+
+- **🔴 033 schema-reconcile (the deploy landmine):** the live `job` table + `usage_event`/`client_plan` had ~16 columns + 2 tables no migration created (TN mirror / usage meter / plan catalog) → a clean deploy from `docs/sql` would break owner/office/portal/mirror. 033 = `ADD COLUMN IF NOT EXISTS` every live `job` col beyond base 004 + the mirror's `(company_id,xano_id)` unique index + `CREATE TABLE IF NOT EXISTS usage_event/client_plan` with exact RLS. Idempotent — verified a clean no-op on live.
+- **🔔 Notifications (was: booked job left tech un-pinged + customer un-notified):** `platform-tech-notify` gained `notify_assigned` (texts the assigned tech — office-board reassign + dispatch assign fire it, deduped 10min), `arrived` (customer on first Start), `complete` (customer "repair done" + portal receipt link). **Tech-phone plumbing** was the hidden blocker (phone lives on `app_user.phone`, `addtech` read query-only, no owner UI) → fixed: `addtech` reads body, new `settech_phone` action, owner add-crew form + per-tech **Cell** input. Verified: assign→texted:true + thread + dedup; arrived/complete threads + receipt link.
+- **🧾 034 parts→invoice auto-feed:** `job_part.sell_cents` added; office invoice drawer lists the tech's logged parts with a price each → sum drives Parts $ (labor/trip/tax math untouched) → each priced part becomes its own invoice line (**name only, no part# to the customer**); prices persist on `job_part`; returned/unused excluded. Verified itemized receipt ($ per part, no leak).
+- **🚫 035 customer self-cancel:** `portal_cancel_job` RPC (token-gated) cancels only a `new`/`scheduled` job (once en route/on site/done → "reply or call"), logs a thread note, reversible by office. Portal shows a subtle "Need to cancel?" link. Verified cancel + refusal.
+- **💳 Portal pay methods:** portal now surfaces the shop's OWN configured ways-to-pay (Zelle/Cash App/their card link) on an unpaid bill — **straight-to-shop, no platform money-handling** (same model as invoice.html). Platform-hosted card processing (Stripe Connect) is a deliberate **business decision left un-built**.
+- **🗓 036 per-tech dispatch capacity:** replaced the hardcoded global `CAP=6` — `technician.max_stops` + `company_roster` returns it; dispatch availability uses each tech's own stops/day; owner crew table gains a **Stops/day** input. Verified owner-set + roster read.
+
+### Still open by design (NOT gaps I can close)
+- **Warranty claim submission** — no AHS/ServicePower claims API on the platform; office processes by hand "until the api." Blocked on the vendor, not us.
+- **Platform card processing (Stripe Connect)** — a liability/business decision (KYC, payouts, fees). Current model = money straight to the shop, now surfaced on the portal.
+- **Full scheduling intelligence** — per-tech capacity is done; day-off/PTO, zones, and route optimization remain the future layer (the handshake covers the immediate need).
+
+### Marathon footguns
+- `create or replace function` **can't change a return type** → `drop function` first (hit on `company_roster` in 036; the whole batch rolled back until fixed).
+- `jsonb_set` **won't create a missing parent key** (hit setting `settings.business.phone` again) — use `settings || jsonb_build_object(...)`.
+- A `+` in a URL query becomes a space (test emails/phones).
+- `sb-admin-sql` returns only the LAST statement's rows + occasional empty-body blips → always retry-wrap.
+
 ## 🗓️🐜🤝 2026-08-29 (Fri) — ASSISTANT 24/7 PLATFORM: THREE-WAY SCHEDULING HANDSHAKE + SELF-SERVE CREW MGMT + FULL CLICK-TEST — READ FIRST
 
 Marathon "dial the platform in all the way" day on the multi-tenant Supabase platform (office ↔ tech ↔ customer). All on `main` + `claude/shop-automation-setup-r9wzpm` (Netlify auto-deploys). Every piece verified live on the **demo** tenant (Joey's Appliance Repair, slug `demo`, company `60a599af-…`) via `sb-admin-sql` (Management token) + real function calls, then cleaned up. **All migrations applied live + committed to `docs/sql/`.**
