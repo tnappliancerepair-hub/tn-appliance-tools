@@ -1,5 +1,26 @@
 # Appliance Ant
 
+## 🗓️🐜🧠 2026-08-29 (Fri, late) — THE ANT PARTNER, LIVE: goals model + role-aware brain that acts through the reversible ledger — READ FIRST
+
+Built partner steps #2 + #3 on top of the reversible ledger (043). The owner/CSR now has a real AI partner that SEES their live shop numbers and ACTS through the same audited, undoable path.
+
+### ✅ #2 — Goals model + owner page routed through the ledger (owner.html, LIVE)
+- **"Your goals" hero**: owner sets take-home ($) + rating (★) targets. Take-home renders **live pace** (▲ahead/▼behind by $X, % to goal) from real collected/take-home. Saves via `set_goal` through **platform-owner-action** → goals are themselves ledgered + undoable. Rating goal = honest "tracking as reviews come in" (no review source on the platform yet).
+- **"🐜 Ant's activity — what changed" feed**: reads the `owner_action` log, **You vs 🐜 Ant** attribution, one-tap **Undo** per row.
+- **Parts-margin Save now routes through the ledger** (not a raw company UPDATE) → every settings change has an Undo. The human UI and Ant now share ONE audited write path.
+
+### ✅ #3 — The role-aware Ant brain (`netlify/functions/platform-ant.js`, LIVE)
+- **`netlify/functions/_lib/owner-actions.js` (NEW)** = the ONE intent engine (resolveCaller/applyIntent/undoAction/listActions + the 8-intent whitelist + generic reversal). **platform-owner-action.js is now a thin wrapper** over it, so the UI and the brain can never drift.
+- **platform-ant** = a server-side tool-calling Claude (sonnet-4-5, reuses `ANTHROPIC_API_KEY`), authed as the caller, scoped to their shop. **EYES** = a company-scoped live snapshot (goals, collected/take-home + pace, the levers = finished-not-billed + unpaid invoices, crew, board counts, current settings). **HANDS** = the same whitelisted intents, `via:'ant'` so the ledger reads "🐜 Ant", every act reversible. **Leash**: advise (no tools) · propose (stages `proposals[]` for a Confirm button) · act (apply_intent + undo_action execute). **Techs are read-only** (forced advise). Returns `{reply, actions, proposals, mode, role}`.
+- **Owner-page dock (owner.html)**: floating 🐜 panel — leash toggle + thread + quick prompts. Brain actions refresh the page + land in the activity feed with Undo; proposals become Confirm buttons that apply through the ledger.
+- **VERIFIED live on demo — 12/12**: READ ("You're $11,835 short of your $12,000 goal… 383 completed jobs sitting without invoices" — real snapshot + goal-oriented); ACT "set parts margin to 60%" → applied via ledger (actor=ant/via=ant), "Done, now 60% (up from 50%)"; undo restored; ADVISE changed nothing; PROPOSE staged toggle_comms without executing; a TECH token was forced read-only. Cleaned to zero residue.
+
+### NOTES / NEXT
+- Partner build order: ✅#1 reversible ledger (043) · ✅#2 goals + UI-through-ledger · ✅#3 role-aware brain. **Remaining #4** = the pattern-learning "easier and easier" layer (the ledger IS the training log — learn the owner/CSR's repeated actions → pre-do them).
+- CSR scheduling intents (book/move a job onto a tech) are NOT in the whitelist yet — the brain answers board questions + can toggle comms / add day-off; booking is honestly deferred. Add `book_job`/`move_job` intents to owner-actions to give the CSR brain real hands.
+- Vivid mockup that started this arc: `Owner Command Center` artifact `https://claude.ai/code/artifact/79946fd2-d1cf-460e-a4df-4ddfe7f2c283`.
+- FOOTGUN: brain-core's `runBrainTurn` tool executor is a FIXED TN registry (not pluggable) — platform-ant runs its OWN small tool loop over the Anthropic messages API rather than fighting it.
+
 ## 🗓️🐜🧾 2026-08-29 (Fri, late) — THE REVERSIBLE ACTION LEDGER: the spine of the Ant owner/CSR partner (act AND undo) — READ FIRST
 
 Vision (Teddy): the owner app should feel like a brand-new iPhone — the owner opens it and his AssistAnt greets him, teaches him, and becomes his **partner** in hitting his goals; it can **act for him AND reverse any action**. Same for the CSR learning the new scheduling board — her own Ant teaches + does the work, getting easier every day. Vivid mockup published (`Owner Command Center` artifact `https://claude.ai/code/artifact/79946fd2-d1cf-460e-a4df-4ddfe7f2c283`) = two owner-set goals (take-home + rating) as the glowing hero, the Ant partner docked with a reversible action ledger, a first-run welcome + guided coach tour, and a **role switch** (Owner ⇄ Front desk/CSR) where each role gets its own greeting + teaching Ant + one-tap suggestSlot booking. Design: midnight-workshop identity (warm ink + molten-brass amber + emerald/clay), Fraunces + Archivo + Spline Sans Mono.
