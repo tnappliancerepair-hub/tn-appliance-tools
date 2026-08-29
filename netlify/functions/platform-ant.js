@@ -120,6 +120,66 @@ async function textTech(caller, ctx, message) {
     return { ok: true, texted: true };
   } catch (e) { return { ok: false, error: String(e && e.message || e).slice(0, 100) }; }
 }
+// office/owner -> text a chosen TECH a link to a specific customer's job + a note. Not reversible
+// (a text can't be unsent), so it's a brain tool, not a ledger intent. Resolves tech + job by name.
+const SITE = 'https://tnapplianceexchange.net';
+const ilk = (s) => 'ilike.*' + encodeURIComponent(String(s || '').trim()) + '*';
+async function textTechJob(caller, ctx, a) {
+  if (!OA.MGMT.includes(ctx.role)) return { ok: false, error: 'only the office or owner can text a tech' };
+  if (!sendSms) return { ok: false, error: 'texting unavailable' };
+  const d = ctx.d, CID = ctx.companyId;
+  // 1) resolve the tech (by id from a prior candidates list, else fuzzy by name)
+  const crew = await d.get(`technician?company_id=eq.${CID}&active=neq.false&select=id,name,app_user_id&limit=200`);
+  let tech = null;
+  if (a.technician_id) tech = (crew || []).find((t) => String(t.id) === String(a.technician_id));
+  if (!tech && a.tech) {
+    const q = String(a.tech).trim().toLowerCase();
+    const hits = (crew || []).filter((t) => String(t.name || '').toLowerCase().includes(q));
+    if (hits.length === 1) tech = hits[0];
+    else if (hits.length > 1) return { ok: false, error: 'which tech did you mean?', candidates: hits.map((t) => t.name) };
+  }
+  if (!tech) return { ok: false, error: 'no tech by that name', crew: (crew || []).map((t) => t.name) };
+  // 2) their cell
+  let phone = '';
+  if (tech.app_user_id) { const au = await d.get(`app_user?id=eq.${tech.app_user_id}&select=phone`); phone = (au && au[0] && au[0].phone) ? String(au[0].phone).trim() : ''; }
+  if (!phone) return { ok: false, error: 'no cell on file for ' + tech.name + ' — add it on the crew page first' };
+  // 3) resolve the job (explicit job_id, else by customer name -> their open job)
+  let job = null, custName2 = '';
+  if (a.job_id) {
+    const jid = String(a.job_id).replace(/[^0-9a-fA-F-]/g, '');
+    const jr = await d.get(`job?id=eq.${jid}&company_id=eq.${CID}&select=id,problem,status,unit_id,customer:customer_id(first_name,last_name)`);
+    job = jr && jr[0];
+    if (job) { const c = job.customer || {}; custName2 = ((c.first_name || '') + ' ' + (c.last_name || '')).trim(); }
+  } else if (a.customer) {
+    const nm = String(a.customer).trim(); const parts = nm.split(/\s+/).filter(Boolean);
+    const first = parts[0] || '', last = parts.length > 1 ? parts[parts.length - 1] : '';
+    let cust = await d.get(`customer?company_id=eq.${CID}&last_name=${ilk(last || nm)}&select=id,first_name,last_name&limit=25`);
+    if ((!cust || !cust.length)) cust = await d.get(`customer?company_id=eq.${CID}&first_name=${ilk(first || nm)}&select=id,first_name,last_name&limit=25`);
+    if (cust && cust.length > 1 && first) { const f = first.toLowerCase(); const nar = cust.filter((c) => String(c.first_name || '').toLowerCase().startsWith(f)); if (nar.length) cust = nar; }
+    if (!cust || !cust.length) return { ok: false, error: 'no customer named "' + nm + '" in this shop' };
+    const ids = cust.map((c) => c.id);
+    const nameById = {}; cust.forEach((c) => { nameById[c.id] = ((c.first_name || '') + ' ' + (c.last_name || '')).trim(); });
+    // open (non-terminal) jobs first; fall back to any non-canceled
+    let jrows = await d.get(`job?company_id=eq.${CID}&customer_id=in.(${ids.join(',')})&status=not.in.(completed,canceled)&select=id,problem,status,unit_id,customer_id,scheduled_day&order=created_at.desc&limit=25`);
+    if (!jrows || !jrows.length) jrows = await d.get(`job?company_id=eq.${CID}&customer_id=in.(${ids.join(',')})&status=neq.canceled&select=id,problem,status,unit_id,customer_id,scheduled_day&order=created_at.desc&limit=25`);
+    if (!jrows || !jrows.length) return { ok: false, error: 'no active job for ' + nm };
+    if (jrows.length > 1) return { ok: false, error: 'more than one job for that customer — which one?', candidates: jrows.map((j) => ({ job_id: j.id, customer: nameById[j.customer_id] || nm, problem: j.problem || '', status: j.status, day: j.scheduled_day || 'unscheduled' })) };
+    job = jrows[0]; custName2 = nameById[job.customer_id] || nm;
+  } else {
+    return { ok: false, error: 'which customer’s job?' };
+  }
+  if (!job) return { ok: false, error: 'job not found' };
+  // 4) build the link + message + send
+  const unit = job.unit_id ? (((await d.get(`unit?id=eq.${job.unit_id}&select=label`))[0]) || {}).label : '';
+  const detail = unit || job.problem || '';
+  const note = String(a.note || '').trim();
+  const link = `${SITE}/platform/tech-job.html?job=${encodeURIComponent(job.id)}`;
+  const body = '🧰 From the office' + (note ? ': ' + note.slice(0, 200) : '') + '\n' + (custName2 || 'Customer') + (detail ? ' · ' + detail : '') + '\n' + link;
+  let sent = false; try { sent = await sendSms(phone, body, 'technician', 'platform_office_to_tech'); } catch (_) {}
+  // reflect it on the job thread so the board shows the office pinged the tech
+  try { const c2 = await d.get(`job?id=eq.${job.id}&select=customer_id`); const cid2 = c2 && c2[0] && c2[0].customer_id; if (cid2) await ctx.d.insert('thread_message', { company_id: CID, customer_id: cid2, job_id: job.id, direction: 'out', channel: 'assign', sender: 'office', body: '🧰 Texted ' + tech.name + ' the job link' + (note ? ' — "' + note.slice(0, 120) + '"' : '') }); } catch (_) {}
+  return { ok: true, texted: sent, tech: tech.name, customer: custName2 || 'the customer', job_id: job.id, link };
+}
 async function buildTechSnapshot(ctx) {
   const TID = ctx.technicianId, d = ctx.d;
   const [meRows, jobs, invs, payouts, coRows] = await Promise.all([
@@ -177,7 +237,7 @@ function systemPrompt(role, mode, snap) {
     `If a LEARNED_PLAYBOOK is in the snapshot, it's how THIS shop already does things (from their own history) — prefer it: default to the tech/margin/settings they usually choose, and do NOT push a change they repeatedly undo. That's how you get easier to work with over time.`,
     role === 'owner' ? `Orient everything toward the owner's two goals (take-home + rating). When money comes up, name the fastest way to close the gap using the levers (finished-not-billed, unpaid invoices).` : '',
     (!isMgmt) ? `You're the tech's partner and hype-man — honest, in their corner. When they ask how they're doing, LEAD WITH THE MONEY: what they earned this month, what's owed to them right now, what's been paid. Remind them the money grows by finishing jobs and fixing on the first trip. For "what's wrong / how do I fix this," call whats_usually_fixes. Keep it short and real.` : '',
-    (role === 'office' || role === 'manager') ? `You run the board and the day. You can BOOK, MOVE, and UNSCHEDULE jobs, plus toggle customer texts and set days off.\n- To book: schedule_job { job_id, technician_id, day:"YYYY-MM-DD", tech_name }. Pick a tech from that job's covering_techs (they cover the ZIP); prefer one already routed nearby that day and with room (max_stops). Resolve weekday names to a real date using 'today' in the snapshot (e.g. the next Thursday on/after today). Pass tech_name for a clean log line.\n- To move: schedule_job with a new day and/or technician_id. To pull one back: unschedule_job { job_id }.\n- The 'needs_scheduling' list is your work queue — job_id, customer, ZIP, and who covers it. After you book, tell them the office will text the customer their arrival window.` : '',
+    (role === 'office' || role === 'manager') ? `You run the board and the day. You can BOOK, MOVE, and UNSCHEDULE jobs, plus toggle customer texts and set days off.\n- To book: schedule_job { job_id, technician_id, day:"YYYY-MM-DD", tech_name }. Pick a tech from that job's covering_techs (they cover the ZIP); prefer one already routed nearby that day and with room (max_stops). Resolve weekday names to a real date using 'today' in the snapshot (e.g. the next Thursday on/after today). Pass tech_name for a clean log line.\n- To move: schedule_job with a new day and/or technician_id. To pull one back: unschedule_job { job_id }.\n- The 'needs_scheduling' list is your work queue — job_id, customer, ZIP, and who covers it. After you book, tell them the office will text the customer their arrival window.\n- To send a tech to a job: text_tech_job { tech, customer (or job_id), note } — texts that tech a link straight to the customer's job with your note (e.g. "text Lee the Larry Johnson job link, I need it completed asap"). If it asks which tech or which job, ask them and call again with the pick.` : '',
     `\nWhat you can change (each maps to a real control and is fully reversible):\n${intentDoc}`,
     `\nHands: ${handMode}`,
     `\nSAFETY: everything you touch is scoped to THIS shop only and logged with an Undo. You can never see or change another shop.`,
@@ -216,10 +276,11 @@ exports.handler = async function (event) {
   const dayOffTool = { name: 'request_day_off', description: 'Put in a day-off request for the signed-in tech (themselves only). Logged with an Undo.', input_schema: { type: 'object', properties: { day: { type: 'string', description: 'YYYY-MM-DD' }, reason: { type: 'string' } }, required: ['day'] } };
   const partTool = { name: 'add_part_needed', description: 'Flag a part the office needs to order on one of the tech\'s OWN jobs. Use the job_id from your_day in the snapshot. If the tech doesn\'t have the exact part number yet, leave number out.', input_schema: { type: 'object', properties: { job_id: { type: 'string' }, part: { type: 'string', description: 'the part, e.g. "water filter"' }, number: { type: 'string', description: 'part number if known' } }, required: ['job_id', 'part'] } };
   const textMeTool = { name: 'text_me_reminder', description: 'Text the signed-in tech a short reminder to their own phone (e.g. to look up an exact part number later). Say exactly what to remind them.', input_schema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] } };
+  const textTechJobTool = { name: 'text_tech_job', description: "Text a technician a link to a specific customer's job, with a short note. Use when the office says something like 'text Lee the Larry Johnson job link, I need it completed asap'. Give the tech's name and the customer's name (or a job_id from a candidates list) plus the note. If it comes back asking which tech or which job, ask the person, then call again with the choice.", input_schema: { type: 'object', properties: { tech: { type: 'string', description: "the technician's name, e.g. Lee" }, customer: { type: 'string', description: 'the customer whose job, e.g. Larry Johnson' }, job_id: { type: 'string', description: 'a specific job id (use when disambiguating from candidates)' }, note: { type: 'string', description: 'the message to include, e.g. "I need this completed asap"' } }, required: ['tech'] } };
   let tools = [fixesTool];
   if (isTech) tools.push(dayOffTool, partTool, textMeTool);
-  else if (isMgmt && mode === 'act') tools.push(applyTool, undoTool);
-  else if (isMgmt && mode === 'propose') tools.push(proposeTool);
+  else if (isMgmt && mode === 'act') tools.push(applyTool, undoTool, textTechJobTool);
+  else if (isMgmt && mode === 'propose') tools.push(proposeTool, textTechJobTool);
 
   const messages = [];
   (Array.isArray(p.history) ? p.history : []).slice(-8).forEach((t) => { if (t && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string') messages.push({ role: t.role, content: t.content }); });
@@ -255,6 +316,7 @@ exports.handler = async function (event) {
           else if (tu.name === 'request_day_off') { if (!isTech) { out = { ok: false, error: 'only a tech can use this' }; } else { const r = await OA.applyIntent(ctx, 'request_day_off', { day: tu.input.day, reason: tu.input.reason }, { via: 'ant' }); if (r.ok) actions.push({ action_id: r.action_id, label: r.label }); out = r; } }
           else if (tu.name === 'add_part_needed') { const r = await OA.applyIntent(ctx, 'add_part_needed', { job_id: tu.input.job_id, part: tu.input.part, number: tu.input.number }, { via: 'ant' }); if (r.ok) actions.push({ action_id: r.action_id, label: r.label }); out = r; }
           else if (tu.name === 'text_me_reminder') { out = await textTech(caller, ctx, String(tu.input.message || '')); }
+          else if (tu.name === 'text_tech_job') { if (!isMgmt) { out = { ok: false, error: 'not allowed for your role' }; } else { out = await textTechJob(caller, ctx, tu.input || {}); if (out.ok) actions.push({ label: 'Texted ' + out.tech + ' the ' + out.customer + ' job link' }); } }
           else if (tu.name === 'apply_intent') { if (!isMgmt) { out = { ok: false, error: 'not allowed for your role' }; } else { const r = await OA.applyIntent(ctx, String(tu.input.intent), tu.input.args || {}, { via: 'ant', reason: 'via Ant chat' }); if (r.ok) actions.push({ action_id: r.action_id, label: r.label }); out = r; } }
           else if (tu.name === 'undo_action') { if (!isMgmt) { out = { ok: false, error: 'not allowed for your role' }; } else { const r = await OA.undoAction(ctx, String(tu.input.action_id)); if (r.ok) actions.push({ action_id: r.action_id, label: 'Undid: ' + (r.label || '') }); out = r; } }
           else if (tu.name === 'propose_change') { proposals.push({ intent: String(tu.input.intent), args: tu.input.args || {} }); out = { ok: true, staged: true }; }
