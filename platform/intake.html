@@ -35,6 +35,8 @@
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
   .chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:8px 13px;font-weight:600;font-size:14px;cursor:pointer}
   .chip.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+  .sublbl{font-size:13px;color:var(--muted);font-weight:700;margin:2px 0 7px}
+  .sublbl .lo{font-weight:400}
   textarea,input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
   textarea{resize:none;min-height:52px}
   .btn{border:none;background:var(--accent);color:var(--accent-ink);border-radius:11px;padding:12px 16px;font-weight:800;font-size:15px;cursor:pointer;width:100%;margin-top:10px}
@@ -142,8 +144,9 @@
 
   // 1) availability
   function availBody() {
-    return '<div class="chips" id="days"></div>' +
-      '<textarea id="avNotes" placeholder="Anything else? Gate code, best time of day, pets…"></textarea>' +
+    return '<div class="sublbl">Which days work for you?</div><div class="chips" id="days"></div>' +
+      '<div class="sublbl">What time of day? <span class="lo">— keep it loose, we\'ll text a window</span></div><div class="chips" id="win"></div>' +
+      '<textarea id="avNotes" placeholder="Anything else? Gate code, pets, best entrance…"></textarea>' +
       '<button class="btn" id="avSave">Save my availability</button><div class="err" id="avErr"></div>';
   }
   function wireAvail() {
@@ -151,12 +154,19 @@
     var box = document.getElementById('days');
     box.innerHTML = days.map(function(d){ return '<span class="chip" data-d="'+d+'">'+d+'</span>'; }).join('');
     box.querySelectorAll('.chip').forEach(function(c){ c.onclick = function(){ var d=c.getAttribute('data-d'); sel[d]=!sel[d]; c.classList.toggle('on', sel[d]); }; });
+    // low-promise window — one pick, "Wide open" default so the tech has grace
+    var wins = [['any','🕐 Wide open'],['am','🌅 Mornings'],['pm','🌆 Afternoons']], wsel = 'any';
+    var wbox = document.getElementById('win');
+    wbox.innerHTML = wins.map(function(w){ return '<span class="chip'+(w[0]==='any'?' on':'')+'" data-w="'+w[0]+'">'+w[1]+'</span>'; }).join('');
+    wbox.querySelectorAll('.chip').forEach(function(c){ c.onclick = function(){ wsel=c.getAttribute('data-w'); wbox.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');}); c.classList.add('on'); }; });
     document.getElementById('avSave').onclick = function () {
       var picked = Object.keys(sel).filter(function(d){ return sel[d]; });
       var notes = document.getElementById('avNotes').value.trim();
       if (!picked.length && !notes) { document.getElementById('avErr').textContent = 'Tap the days that work for you.'; return; }
+      var winLabel = { any:'Wide open', am:'Mornings', pm:'Afternoons' }[wsel];
+      var avail = (picked.length ? picked.join(', ') : 'Any day') + ' · ' + winLabel;
       var btn = document.getElementById('avSave'); btn.disabled = true; btn.textContent = 'Saving…';
-      api('availability', { availability: picked.join(', '), access_notes: notes }).then(function(r){
+      api('availability', { availability: avail, access_notes: notes }).then(function(r){
         btn.disabled = false; btn.textContent = 'Saved ✓';
         if (r && r.ok) markDone(1); else document.getElementById('avErr').textContent = 'Try again.';
       });
