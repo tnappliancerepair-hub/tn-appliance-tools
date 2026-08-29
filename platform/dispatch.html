@@ -31,6 +31,11 @@
   .acell{text-align:center;padding:6px 4px;border-top:1px solid var(--line)} .acell:first-of-type{border-top:0}
   .acell .avail{font-size:11px;font-weight:800} .acell .aname{font-size:11px;color:var(--muted)}
   .acell.open .avail{color:var(--brand)} .acell.low .avail{color:var(--warn)} .acell.full .avail{color:var(--bad)}
+  .acell.offday{background:repeating-linear-gradient(45deg,transparent,transparent 5px,var(--chip) 5px,var(--chip) 10px)} .acell.offday .avail{color:var(--muted)}
+  .offtog{margin-left:auto;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer}
+  .offtog.on{background:var(--chip);color:var(--ink);border-color:transparent}
+  .lane-h .offtog + .load{margin-left:8px}
+  .laneoff{opacity:.72}
   /* month grid */
   .viewtoggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
   .viewtoggle button{background:var(--panel);border:0;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;color:var(--muted)}
@@ -50,6 +55,7 @@
   .ujob{flex:0 0 auto;max-width:230px;background:var(--panel);border:1px solid var(--warn);border-radius:11px;padding:9px 11px;cursor:pointer;box-shadow:var(--shadow)}
   .ujob .u1{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .ujob .u2{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tray-empty{color:var(--muted);font-size:13px;padding:4px 2px}
+  .ujob .ucov{margin-top:4px;font-size:11.5px;font-weight:700;color:var(--brand);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .ujob .ucov.none{color:var(--muted);font-weight:600}
   /* tech lanes */
   .techs{display:flex;flex-direction:column;gap:12px;margin-top:6px}
   .lane{background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);overflow:hidden}
@@ -78,7 +84,15 @@
 <script>
 (function(){
   var app=document.getElementById('app');
-  var cfg=window.ANT_SUPABASE||{}; var sb=null, company=null, techs=[], jobs=[];
+  var cfg=window.ANT_SUPABASE||{}; var sb=null, company=null, techs=[], jobs=[], timeOff=[];
+  var offSet={};                                   // "techId|YYYY-MM-DD" -> true (day-off / PTO)
+  function offOn(techId,d){ return !!offSet[techId+'|'+d]; }
+  // Service zones — a tech's service_area is a comma list of ZIPs / 3-digit prefixes. A tech with
+  // no area covers everywhere. A job's ZIP matches when it equals, or starts with, a listed entry.
+  function areaList(t){ return String((t&&t.service_area)||'').split(',').map(function(s){return s.trim();}).filter(Boolean); }
+  function coversZip(t, zip){ var a=areaList(t); if(!a.length) return true; zip=String(zip||'').trim(); if(!zip) return true; return a.some(function(p){ return zip===p || zip.indexOf(p)===0; }); }
+  function jobZip(j){ return (j&&j.customer&&j.customer.zip)||''; }
+  function coveringTechs(zip){ return techs.filter(function(t){ return areaList(t).length && coversZip(t,zip); }); }
   var sel=startOfWeek(new Date()); var selDay=isoDay(new Date());
   var view='week'; var monthAnchor=firstOfMonth(new Date());
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
@@ -119,7 +133,9 @@
     if(view==='week'){
       // Week: each day column shows every tech's AVAILABILITY (open slots) above the name.
       var calHtml=days.map(function(d){ var dt=new Date(d+'T12:00:00');
-        var cells=techs.length ? techs.map(function(t){ var open=Math.max(0,capOf(t)-bookedOn(t.id,d)); var cls=open===0?'full':(open<=2?'low':'open');
+        var cells=techs.length ? techs.map(function(t){
+          if(offOn(t.id,d)){ return '<div class="acell offday"><div class="avail">🌴 Off</div><div class="aname">'+esc((t.name||'Tech').split(' ')[0])+'</div></div>'; }
+          var open=Math.max(0,capOf(t)-bookedOn(t.id,d)); var cls=open===0?'full':(open<=2?'low':'open');
           return '<div class="acell '+cls+'"><div class="avail">'+(open===0?'Full':open+' open')+'</div><div class="aname">'+esc((t.name||'Tech').split(' ')[0])+'</div></div>'; }).join('')
           : '<div class="acell"><div class="aname" style="font-weight:600">—</div></div>';
         return '<div class="calcol'+(d===selDay?' on':'')+'"><div class="calhd'+(d===today?' today':'')+'" data-day="'+d+'"><div class="dow">'+dow[dt.getDay()]+'</div><div class="dnum">'+dt.getDate()+'</div></div>'+cells+'</div>'; }).join('');
@@ -141,13 +157,23 @@
     }
 
     var uns=jobs.filter(needsDispatch);
-    var unsHtml=uns.length ? uns.map(function(j){ var tag=j.status==='awaiting_parts'?'<div class="u2" style="color:var(--awaiting_parts);font-weight:800">📦 awaiting parts</div>':''; return '<div class="ujob" data-job="'+j.id+'"><div class="u1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting — every job has a tech and a day. ✅</div>';
+    var unsHtml=uns.length ? uns.map(function(j){
+      var tag=j.status==='awaiting_parts'?'<div class="u2" style="color:var(--awaiting_parts);font-weight:800">📦 awaiting parts</div>':'';
+      var zip=jobZip(j); var cov=zip?coveringTechs(zip):[];
+      var covHtml='';
+      if(zip){ covHtml = cov.length
+          ? '<div class="ucov">📍 '+esc(zip)+' — '+esc(cov.map(function(t){return (t.name||'Tech').split(' ')[0];}).join(', '))+'</div>'
+          : '<div class="ucov none">📍 '+esc(zip)+' — no one’s area</div>'; }
+      return '<div class="ujob" data-job="'+j.id+'"><div class="u1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+covHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting — every job has a tech and a day. ✅</div>';
 
     var lanes=techs.map(function(t){
       var mine=jobs.filter(function(j){ return j.technician_id===t.id && j.scheduled_day===selDay && j.status!=='completed' && j.status!=='canceled'; });
+      var isOff=offOn(t.id,selDay);
       var loadCls=mine.length>=7?'max':(mine.length>=5?'busy':'');
-      var stops=mine.length ? mine.map(function(j){ return '<div class="stop" data-job="'+j.id+'"><span class="pill" style="background:'+(SC[j.status]||'var(--new)')+'"></span><div class="info"><div class="s1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="s2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div></div></div>'; }).join('') : '<div class="lane-empty">No stops this day — drop one from Unscheduled.</div>';
-      return '<div class="lane"><div class="lane-h"><span class="tn">'+esc(t.name||'Tech')+'</span><span class="load '+loadCls+'">'+mine.length+' stop'+(mine.length===1?'':'s')+'</span></div>'+stops+'</div>';
+      var offTog='<button class="offtog'+(isOff?' on':'')+'" data-off="'+t.id+'" title="'+(isOff?'Mark working':'Mark day off')+'">'+(isOff?'🌴 Off':'Mark off')+'</button>';
+      var stops=mine.length ? mine.map(function(j){ return '<div class="stop" data-job="'+j.id+'"><span class="pill" style="background:'+(SC[j.status]||'var(--new)')+'"></span><div class="info"><div class="s1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="s2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div></div></div>'; }).join('')
+        : (isOff ? '<div class="lane-empty">🌴 Off this day — not available to book.</div>' : '<div class="lane-empty">No stops this day — drop one from Unscheduled.</div>');
+      return '<div class="lane'+(isOff?' laneoff':'')+'"><div class="lane-h"><span class="tn">'+esc(t.name||'Tech')+'</span>'+offTog+'<span class="load '+loadCls+'">'+mine.length+' stop'+(mine.length===1?'':'s')+'</span></div>'+stops+'</div>';
     }).join('') || '<div class="tray-empty">No techs yet — add your crew on the onboarding page.</div>';
 
     var selLabel=new Date(selDay+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
@@ -173,12 +199,19 @@
       Array.prototype.forEach.call(document.querySelectorAll('.mcell[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); sel=startOfWeek(new Date(selDay+'T12:00:00')); render(); var t=document.querySelector('.techs'); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }; });
     }
     Array.prototype.forEach.call(document.querySelectorAll('[data-job]'),function(el){ el.onclick=function(){ var j=jobs.filter(function(x){return x.id===el.getAttribute('data-job');})[0]; if(j) openAssign(j); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-off]'),function(el){ el.onclick=function(e){ e.stopPropagation(); toggleOff(el.getAttribute('data-off'), selDay); }; });
   }
 
   function openAssign(job){
     var ov=document.createElement('div'); ov.className='ov';
-    var techOpts='<option value="">— unassigned —</option>'+techs.map(function(t){ return '<option value="'+t.id+'"'+(t.id===job.technician_id?' selected':'')+'>'+esc(t.name||'Tech')+'</option>'; }).join('');
-    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+
+    var zip=jobZip(job);
+    // Covering techs first, each labelled by whether they serve this job's ZIP.
+    var ordered=techs.slice().sort(function(a,b){ var ca=coversZip(a,zip)&&areaList(a).length, cb=coversZip(b,zip)&&areaList(b).length; return (cb?1:0)-(ca?1:0); });
+    var techOpts='<option value="">— unassigned —</option>'+ordered.map(function(t){
+      var lab=esc(t.name||'Tech'); if(zip && areaList(t).length){ lab += coversZip(t,zip)?' ⭐ covers':' · out of area'; }
+      return '<option value="'+t.id+'"'+(t.id===job.technician_id?' selected':'')+'>'+lab+'</option>'; }).join('');
+    var covNote = zip ? '<div class="msub" style="margin:-2px 0 4px">📍 '+esc(zip)+(job.customer&&job.customer.city?' · '+esc(job.customer.city):'')+'</div>' : '';
+    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+
       '<label>Tech</label><select id="a-tech">'+techOpts+'</select>'+
       '<label>Day</label><input id="a-day" type="date" value="'+esc(job.scheduled_day||selDay)+'">'+
       '<div class="srow"><button id="a-cancel">Cancel</button><button class="primary" id="a-save">Save</button></div>'+
@@ -189,6 +222,8 @@
     document.getElementById('a-cancel').onclick=close;
     document.getElementById('a-save').onclick=function(){
       var tech=document.getElementById('a-tech').value||null; var day=document.getElementById('a-day').value||null;
+      if(tech && day && offOn(tech,day) && !window.confirm('That tech is marked OFF on '+day+'. Book them anyway?')) return;
+      if(tech && zip){ var tt=techs.filter(function(x){return x.id===tech;})[0]; if(tt && areaList(tt).length && !coversZip(tt,zip) && !window.confirm((tt.name||'That tech')+' doesn’t cover '+zip+'. Assign anyway?')) return; }
       var btn=this; btn.disabled=true; btn.textContent='Saving…';
       var patch={ technician_id:tech, scheduled_day:day };
       if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
@@ -205,12 +240,25 @@
   }
 
   function load(){
+    var todayIso=isoDay(new Date());
     sb.rpc('company_roster').then(function(tr){
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
-      sb.from('job').select('id,status,problem,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000).then(function(jr){
-        jobs=(jr.data)||[]; render();
+      var jP=sb.from('job').select('id,status,problem,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
+      var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
+      Promise.all([jP,oP]).then(function(res){
+        jobs=(res[0].data)||[];
+        timeOff=(res[1]&&res[1].data)||[]; offSet={}; timeOff.forEach(function(o){ offSet[o.technician_id+'|'+o.day]=true; });
+        render();
       });
     });
+  }
+  // Toggle a tech's day off (office action, right on the board). Insert = off, delete = working.
+  function toggleOff(techId, day){
+    if(offOn(techId,day)){
+      sb.from('tech_time_off').delete().eq('technician_id',techId).eq('day',day).then(function(r){ if(r.error){ alert(r.error.message); return; } load(); });
+    } else {
+      sb.from('tech_time_off').insert({company_id:(company&&company.id), technician_id:techId, day:day}).then(function(r){ if(r.error){ alert(r.error.message); return; } load(); });
+    }
   }
   function boot(){ sb.from('company').select('id,name').limit(1).then(function(r){ if(!r.error&&r.data&&r.data[0]) company=r.data[0]; load(); }); }
   sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else renderSignIn(); });

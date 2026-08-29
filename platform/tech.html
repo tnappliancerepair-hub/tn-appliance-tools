@@ -39,6 +39,9 @@
   button:disabled{opacity:.5;cursor:default}
   .daylabel{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:6px 2px 12px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:13px;box-shadow:var(--shadow)}
+  .torow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:14px;font-weight:600} .torow:first-of-type{border-top:0}
+  .tox{border:0;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 6px}
+  .toadd{border:0;background:var(--ink);color:var(--panel);font-weight:800;border-radius:9px;padding:9px 14px;cursor:pointer;white-space:nowrap}
   .row1{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .opencard{text-decoration:none;color:inherit;display:block}
   .cust{font-weight:800;font-size:17px}
@@ -413,13 +416,13 @@
     _payoutDone = false; earnByJob = {};
     var today = new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     var note = myTech ? '' : '<div class="note">Your login isn\'t linked to a technician yet, so this shows all the shop\'s open jobs. Ask the office to link you as a tech.</div>';
-    var body = (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' + (myTech ? '<div id="statsCard"></div>' : '') +
+    var body = (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' + (myTech ? '<div id="statsCard"></div><div id="timeoffCard"></div>' : '') +
       '<div class="daylabel">'+esc(today)+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
       (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">No open jobs right now. 🎉</div>');
     document.getElementById('body').innerHTML = body;
     if (myTech) loadPay();
     loadLeaderboard();
-    if (myTech) loadStats();
+    if (myTech){ loadStats(); loadTimeOff(); }
     // wire actions
     var b = document.getElementById('body');
     b.querySelectorAll('button[data-act]').forEach(function(el){ el.onclick=function(){ setStatus(el.getAttribute('data-id'), el.getAttribute('data-act')); }; });
@@ -646,6 +649,31 @@
       tiles: tiles.slice(0,2), cue:'win', sound:'both' }); }catch(_){ }
   }
 
+  // 🌴 Days off — the tech marks their own PTO; the office dispatch board greys those days so
+  // they never get booked when they're not working. Same tenant table the board reads.
+  function loadTimeOff(){
+    var card=document.getElementById('timeoffCard'); if(!card||!myTech) return;
+    var todayIso=new Date(new Date().getTime()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+    sb.from('tech_time_off').select('id,day').eq('technician_id',myTech.id).gte('day',todayIso).order('day').then(function(r){
+      if(r.error){ card.innerHTML=''; return; }   // table not migrated yet → hide silently
+      var rows=r.data||[];
+      var list=rows.length ? rows.map(function(o){ var d=new Date(o.day+'T12:00:00');
+        return '<div class="torow"><span>'+esc(d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}))+'</span><button class="tox" data-tooff="'+esc(o.id)+'">✕</button></div>'; }).join('')
+        : '<div class="note" style="margin:0">No days off scheduled. Add one so the office won\'t book you.</div>';
+      card.innerHTML='<div class="card"><div style="font-weight:800;margin-bottom:9px">🌴 Your days off</div>'+list+
+        '<div class="torow" style="margin-top:10px;gap:8px"><input type="date" id="toDay" min="'+todayIso+'" style="flex:1;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit"><button class="toadd" id="toAdd">Add day off</button></div></div>';
+      var add=document.getElementById('toAdd'); if(add) add.onclick=function(){
+        var d=document.getElementById('toDay').value; if(!d) return; add.disabled=true; add.textContent='Adding…';
+        sb.from('tech_time_off').insert({company_id:me.company_id, technician_id:myTech.id, day:d}).then(function(rr){
+          add.disabled=false; add.textContent='Add day off';
+          if(rr.error && !/duplicate|unique/i.test(rr.error.message||'')){ alert(rr.error.message); return; } loadTimeOff();
+        });
+      };
+      Array.prototype.forEach.call(card.querySelectorAll('[data-tooff]'), function(b){ b.onclick=function(){
+        sb.from('tech_time_off').delete().eq('id',b.getAttribute('data-tooff')).then(function(rr){ if(rr.error){ alert(rr.error.message); return; } loadTimeOff(); });
+      }; });
+    });
+  }
   function loadJobs(){
     var q = sb.from('job').select(
       'id,status,problem,scheduled_day,availability,waiver_name,waiver_signed_at,customer_id,' +
