@@ -444,7 +444,8 @@
         '<td><select class="ovType"><option value="">— use default —</option>'+
           '<option value="labor_pct"'+(ov==='labor_pct'?' selected':'')+'>% of labor</option>'+
           '<option value="flat_per_job"'+(ov==='flat_per_job'?' selected':'')+'>Flat per job</option></select></td>'+
-        '<td><input class="ovVal" inputmode="decimal" style="width:80px" value="'+val+'"></td>'+
+        '<td><input class="ovVal" inputmode="decimal" style="width:70px" value="'+val+'"></td>'+
+        '<td><input class="ovPhone" type="tel" style="width:120px" placeholder="cell for texts"></td>'+
         '<td><button class="ovSave">Save</button> <button class="ovRemove" title="Remove crew member">✕</button></td></tr>';
     }).join('');
     var inactive=(techs||[]).filter(function(t){return t.active===false;});
@@ -462,12 +463,13 @@
           '<button id="commSave">Save</button></span></div>'+
       '</div>'+
       '<div class="note" id="commMsg">Every tech is paid this unless you set an override.</div>'+
-      (rows ? '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Override</th><th>Value</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '')+
+      (rows ? '<div class="ptwrap"><table class="pt"><thead><tr><th>Tech</th><th>Override</th><th>Value</th><th>Cell</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>' : '')+
       inactiveHtml+
       '<div class="sec">Add a crew member</div>'+
       '<div class="money">'+
         '<div class="row"><span class="k">Name</span><span class="v"><input id="ntName" style="width:170px" placeholder="Jane Tech"></span></div>'+
         '<div class="row"><span class="k">Email (their login)</span><span class="v"><input id="ntEmail" type="email" style="width:200px" placeholder="jane@shop.com"></span></div>'+
+        '<div class="row"><span class="k">Cell (for job texts)</span><span class="v"><input id="ntPhone" type="tel" style="width:170px" placeholder="(615) 555-0123"></span></div>'+
         '<div class="row"><span class="k">Pay</span><span class="v"><input id="ntPct" inputmode="decimal" style="width:70px" value="'+(compDef.type==='labor_pct'?defVal:50)+'"> % of labor</span></div>'+
         '<div class="row"><span class="k"></span><span class="v"><button id="ntAdd">Add tech + create login</button></span></div>'+
       '</div>'+
@@ -506,19 +508,20 @@
     if(ntAdd) ntAdd.onclick=function(){
       var nm=(document.getElementById('ntName').value||'').trim();
       var em=(document.getElementById('ntEmail').value||'').trim();
+      var ph=(document.getElementById('ntPhone').value||'').trim();
       var pc=parseFloat(document.getElementById('ntPct').value);
       var nmsg=document.getElementById('ntMsg');
       if(!nm||!em){ if(nmsg) nmsg.textContent='Enter a name and an email.'; return; }
       ntAdd.disabled=true; ntAdd.textContent='Adding…';
       sb.auth.getSession().then(function(s){
         var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
-        return fetch('/.netlify/functions/platform-provision?action=addtech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,tech_email:em,tech_name:nm,commission_pct:isNaN(pc)?undefined:pc})}).then(function(r){return r.json();});
+        return fetch('/.netlify/functions/platform-provision?action=addtech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,tech_email:em,tech_name:nm,tech_phone:ph||undefined,commission_pct:isNaN(pc)?undefined:pc})}).then(function(r){return r.json();});
       }).then(function(d){
         ntAdd.disabled=false; ntAdd.textContent='Add tech + create login';
         if(!d||!d.ok){ if(nmsg) nmsg.textContent='Could not add: '+((d&&d.error)||'try again'); return; }
         var pw=d.login&&d.login.temp_password;
         if(nmsg) nmsg.innerHTML='✅ '+esc(nm)+' added. '+(pw? 'Temp password: <b>'+esc(pw)+'</b> — give it to them with their email ('+esc(em)+'); they change it on first sign-in at the tech app.' : 'They already had a login — no new password needed.');
-        document.getElementById('ntName').value=''; document.getElementById('ntEmail').value='';
+        document.getElementById('ntName').value=''; document.getElementById('ntEmail').value=''; document.getElementById('ntPhone').value='';
         load();
       }).catch(function(){ ntAdd.disabled=false; ntAdd.textContent='Add tech + create login'; if(nmsg) nmsg.textContent='Could not add — try again.'; });
     };
@@ -542,11 +545,20 @@
         var upd = type==='labor_pct' ? {commission_type:'labor_pct',commission_pct:v,commission_flat_cents:null}
                 : type==='flat_per_job' ? {commission_type:'flat_per_job',commission_pct:null,commission_flat_cents:Math.round(v*100)}
                 : {commission_type:null,commission_pct:null,commission_flat_cents:null};
+        var phEl=tr.querySelector('.ovPhone'); var ph=(phEl&&phEl.value||'').trim();
         btn.disabled=true; btn.textContent='…';
         sb.from('technician').update(upd).eq('id',techId).then(function(r){
-          btn.disabled=false; btn.textContent='Save';
-          if(r.error){ if(msg){msg.textContent='Could not save override: '+r.error.message;} return; }
-          if(msg){msg.textContent='Override saved.';} load();
+          if(r.error){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Could not save override: '+r.error.message;} return; }
+          if(!ph){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Override saved.';} load(); return; }
+          // also set the tech's cell so assignment texts reach them
+          sb.auth.getSession().then(function(s){
+            var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
+            return fetch('/.netlify/functions/platform-provision?action=settech_phone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,tech_id:techId,phone:ph})}).then(function(x){return x.json();});
+          }).then(function(d){
+            btn.disabled=false; btn.textContent='Save';
+            if(msg){ msg.textContent=(d&&d.ok)?'Saved — cell set for job texts.':('Override saved, but cell: '+((d&&d.error)||'failed')); }
+            load();
+          }).catch(function(){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Override saved (cell save failed).';} load(); });
         });
       };
     });
