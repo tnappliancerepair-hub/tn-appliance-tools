@@ -460,7 +460,7 @@
     ov.addEventListener('click', function(e){ if(e.target===ov) close(); });
     document.getElementById('mv-cancel').onclick = close;
     // populate hand-off list (exclude current tech)
-    sb.from('technician').select('id,name,active').order('name').then(function(r){
+    sb.rpc('company_roster').then(function(r){
       var sel = document.getElementById('mv-tech'); if(!sel) return;
       (r.data||[]).forEach(function(t){
         if (t.active===false) return;
@@ -553,7 +553,7 @@
     var d=new Date(); var mStart=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)).toISOString();
     Promise.all([
       sb.from('job').select('technician_id,first_stop,completed_at').eq('status','completed').limit(5000),
-      sb.from('technician').select('id,name').limit(200)
+      sb.rpc('company_roster')
     ]).then(function(res){
       var jobs=(res[0].data)||[], techs=(res[1].data)||[];
       var name={}; techs.forEach(function(t){ name[t.id]=t.name; });

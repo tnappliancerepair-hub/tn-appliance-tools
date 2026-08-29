@@ -716,9 +716,9 @@
         loadJob();
       });
     };
-    // hand off — the shop's active techs (RLS-scoped)
-    sb.from('technician').select('id,name').eq('active',true).order('name').then(function(r){
-      var techs=(r.data||[]), wrap=document.getElementById('handoffWrap'); if(!wrap) return;
+    // hand off — the shop's active techs (names-only roster; no commission exposed)
+    sb.rpc('company_roster').then(function(r){
+      var techs=(r.data||[]).filter(function(t){return t.active!==false;}), wrap=document.getElementById('handoffWrap'); if(!wrap) return;
       if(!techs.length){ wrap.innerHTML='<div class="note">No other techs to hand off to yet.</div>'; return; }
       wrap.innerHTML=
         '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:0 0 4px">Hand off to</label>'+

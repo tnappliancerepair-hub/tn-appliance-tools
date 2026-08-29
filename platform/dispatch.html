@@ -198,7 +198,7 @@
   }
 
   function load(){
-    sb.from('technician').select('id,name,active').order('name').then(function(tr){
+    sb.rpc('company_roster').then(function(tr){
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
       sb.from('job').select('id,status,problem,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000).then(function(jr){
         jobs=(jr.data)||[]; render();

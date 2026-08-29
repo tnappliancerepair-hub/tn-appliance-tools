@@ -850,7 +850,7 @@
   // The shop's techs — loaded once at boot so the drawer can assign/reassign a job.
   var techsCache = [];
   function loadTechs() {
-    sb.from('technician').select('id,name,active').order('name').then(function (r) {
+    sb.rpc('company_roster').then(function (r) {
       if (r.error) return; techsCache = (r.data || []).filter(function (t) { return t.active !== false; });
     });
   }
