@@ -54,6 +54,9 @@ function setPath(obj, keys, value) {
 }
 const centsMoney = (c) => '$' + (Math.round(Number(c || 0)) / 100).toLocaleString('en-US', { minimumFractionDigits: 0 });
 const commsLabel = { reminder: 'day-before reminder', otw: 'on-my-way text', arrived: 'arrived text', complete: 'job-done text', review: 'review request', offer: 'schedule offer', assigned: 'tech-assigned text' };
+const UUID = /^[0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12}$/;
+function uid(x) { const s = String(x || ''); if (!UUID.test(s)) throw new Error('bad id'); return s; }
+function prettyDay(d) { try { return new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); } catch (_) { return String(d); } }
 
 async function applyCompanySettingsPath(ctx, keys, newVal) {
   const rows = await ctx.d.get(`company?id=eq.${ctx.companyId}&select=settings`);
@@ -141,10 +144,40 @@ const INTENTS = {
     apply: async (ctx, a) => {
       const day = String(a.day || '').slice(0, 10);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('day must be YYYY-MM-DD');
-      const tk = await ctx.d.get(`technician?id=eq.${a.technician_id}&company_id=eq.${ctx.companyId}&select=id`);
+      const tk = await ctx.d.get(`technician?id=eq.${uid(a.technician_id)}&company_id=eq.${ctx.companyId}&select=id`);
       if (!tk || !tk[0]) throw new Error('tech not found in this shop');
       const row = await ctx.d.insert('tech_time_off', { company_id: ctx.companyId, technician_id: a.technician_id, day, reason: a.reason || null });
-      return { target_table: 'tech_time_off', target_id: row.id, path: null, op: 'insert', before: null, after: { technician_id: a.technician_id, day, reason: a.reason || null }, label: `Gave ${a.tech_name || 'tech'} ${new Date(day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} off` };
+      return { target_table: 'tech_time_off', target_id: row.id, path: null, op: 'insert', before: null, after: { technician_id: a.technician_id, day, reason: a.reason || null }, label: `Gave ${a.tech_name || 'tech'} ${prettyDay(day)} off` };
+    },
+  },
+  // ---- CSR / dispatch hands: book, move, unschedule a job (all reversible) ----
+  schedule_job: {
+    args: 'job_id, optional technician_id, optional day (YYYY-MM-DD), optional tech_name. Books/moves a job — sets the tech and/or day and marks it scheduled.',
+    apply: async (ctx, a) => {
+      const jid = uid(a.job_id);
+      const rows = await ctx.d.get(`job?id=eq.${jid}&company_id=eq.${ctx.companyId}&select=technician_id,scheduled_day,status`);
+      if (!rows || !rows[0]) throw new Error('job not found in this shop');
+      const before = { technician_id: rows[0].technician_id, scheduled_day: rows[0].scheduled_day, status: rows[0].status };
+      const patch = { status: 'scheduled' };
+      if (a.technician_id) { const tk = await ctx.d.get(`technician?id=eq.${uid(a.technician_id)}&company_id=eq.${ctx.companyId}&select=id`); if (!tk || !tk[0]) throw new Error('tech not found in this shop'); patch.technician_id = a.technician_id; }
+      if (a.day) { const day = String(a.day).slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('day must be YYYY-MM-DD'); patch.scheduled_day = day; }
+      if (!patch.technician_id && !patch.scheduled_day) throw new Error('need a technician_id or a day');
+      await ctx.d.patch(`job?id=eq.${jid}&company_id=eq.${ctx.companyId}`, patch);
+      const moved = before.scheduled_day && before.technician_id;
+      const label = (moved ? 'Moved ' : 'Booked ') + (a.tech_name ? a.tech_name + '’s job' : 'the job') + (patch.scheduled_day ? ' for ' + prettyDay(patch.scheduled_day) : '');
+      return { target_table: 'job', target_id: a.job_id, path: null, op: 'update', before, after: patch, label };
+    },
+  },
+  unschedule_job: {
+    args: 'job_id. Takes a job back off the schedule (back to New).',
+    apply: async (ctx, a) => {
+      const jid = uid(a.job_id);
+      const rows = await ctx.d.get(`job?id=eq.${jid}&company_id=eq.${ctx.companyId}&select=technician_id,scheduled_day,status`);
+      if (!rows || !rows[0]) throw new Error('job not found in this shop');
+      const before = { technician_id: rows[0].technician_id, scheduled_day: rows[0].scheduled_day, status: rows[0].status };
+      const patch = { scheduled_day: null, status: 'new' };
+      await ctx.d.patch(`job?id=eq.${jid}&company_id=eq.${ctx.companyId}`, patch);
+      return { target_table: 'job', target_id: a.job_id, path: null, op: 'update', before, after: patch, label: 'Unscheduled the job (back to New)' };
     },
   },
 };
@@ -159,7 +192,8 @@ async function reverseAction(ctx, row) {
     await ctx.d.patch(`company?id=eq.${ctx.companyId}`, { settings: setPath(settings, keys, restore) });
     return;
   }
-  if (row.op === 'update' && row.target_table === 'technician' && row.target_id) { await ctx.d.patch(`technician?id=eq.${row.target_id}&company_id=eq.${ctx.companyId}`, row.before_value || {}); return; }
+  // any other row-scoped update (technician, job) → restore the before-state on that row
+  if (row.op === 'update' && row.target_table && row.target_table !== 'company' && row.target_id) { await ctx.d.patch(`${row.target_table}?id=eq.${row.target_id}&company_id=eq.${ctx.companyId}`, row.before_value || {}); return; }
   throw new Error('cannot reverse this action');
 }
 
