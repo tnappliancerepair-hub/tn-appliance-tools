@@ -31,6 +31,19 @@
   .acell{text-align:center;padding:6px 4px;border-top:1px solid var(--line)} .acell:first-of-type{border-top:0}
   .acell .avail{font-size:11px;font-weight:800} .acell .aname{font-size:11px;color:var(--muted)}
   .acell.open .avail{color:var(--brand)} .acell.low .avail{color:var(--warn)} .acell.full .avail{color:var(--bad)}
+  /* month grid */
+  .viewtoggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .viewtoggle button{background:var(--panel);border:0;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;color:var(--muted)}
+  .viewtoggle button.on{background:var(--brand);color:var(--brand-ink)}
+  .mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .mdow{text-align:center;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:800;padding:2px 0}
+  .mcell{background:var(--panel);border:1px solid var(--line);border-radius:9px;min-height:56px;padding:5px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+  .mcell.off{opacity:.38}
+  .mcell.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+  .mcell .mnum{font-size:13px;font-weight:800;line-height:1}
+  .mcell.today .mnum{color:var(--brand)}
+  .mcell .mld{margin-top:auto;font-size:10.5px;font-weight:800}
+  .mcell .mld.open{color:var(--brand)} .mcell .mld.low{color:var(--warn)} .mcell .mld.full{color:var(--bad)}
   /* unscheduled */
   .sec-h{font-size:12px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--muted);margin:14px 2px 8px}
   .tray{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
@@ -67,12 +80,15 @@
   var app=document.getElementById('app');
   var cfg=window.ANT_SUPABASE||{}; var sb=null, company=null, techs=[], jobs=[];
   var sel=startOfWeek(new Date()); var selDay=isoDay(new Date());
+  var view='week'; var monthAnchor=firstOfMonth(new Date());
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
   function fullName(c){ return c?[c.first_name,c.last_name].filter(Boolean).join(' ').trim():''; }
   var SC={ new:'var(--new)',scheduled:'var(--scheduled)',in_progress:'var(--in_progress)',awaiting_parts:'var(--awaiting_parts)',completed:'var(--completed)',canceled:'var(--canceled)' };
   function isoDay(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
   function startOfWeek(d){ var x=new Date(d); var day=x.getDay(); x.setDate(x.getDate()-day); x.setHours(0,0,0,0); return x; } // Sunday start
   function addDays(d,n){ var x=new Date(d); x.setDate(x.getDate()+n); return x; }
+  function firstOfMonth(d){ var x=new Date(d); x.setDate(1); x.setHours(0,0,0,0); return x; }
+  function addMonths(d,n){ var x=new Date(d); x.setMonth(x.getMonth()+n); return x; }
 
   if(!cfg.url||!cfg.anonKey){ app.innerHTML='<div class="gate"><h1>🐜 Not connected</h1></div>'; return; }
   sb=window.supabase.createClient(cfg.url,cfg.anonKey);
@@ -92,19 +108,40 @@
   function render(){
     var days=[]; for(var i=0;i<7;i++) days.push(isoDay(addDays(sel,i)));
     var today=isoDay(new Date());
-    // Calendar: each day column shows every tech's AVAILABILITY (open slots) above the name.
     var dow=['SUN','MON','TUE','WED','THU','FRI','SAT'];
     var CAP=6; // stops/day a tech can take (default; per-tech capacity is a later setting)
+    var crewCap=CAP*Math.max(techs.length,1);
     function bookedOn(techId,d){ var n=0; jobs.forEach(function(j){ if(j.technician_id===techId&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
-    var calHtml=days.map(function(d){ var dt=new Date(d+'T12:00:00');
-      var cells=techs.length ? techs.map(function(t){ var open=Math.max(0,CAP-bookedOn(t.id,d)); var cls=open===0?'full':(open<=2?'low':'open');
-        return '<div class="acell '+cls+'"><div class="avail">'+(open===0?'Full':open+' open')+'</div><div class="aname">'+esc((t.name||'Tech').split(' ')[0])+'</div></div>'; }).join('')
-        : '<div class="acell"><div class="aname" style="font-weight:600">—</div></div>';
-      return '<div class="calcol'+(d===selDay?' on':'')+'"><div class="calhd'+(d===today?' today':'')+'" data-day="'+d+'"><div class="dow">'+dow[dt.getDay()]+'</div><div class="dnum">'+dt.getDate()+'</div></div>'+cells+'</div>'; }).join('');
-    var wkLabel=new Date(days[0]+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})+' – '+new Date(days[6]+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+    function bookedAll(d){ var n=0; jobs.forEach(function(j){ if(j.scheduled_day===d&&j.technician_id&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
+
+    var toggleHtml='<div class="viewtoggle"><button data-view="week" class="'+(view==='week'?'on':'')+'">Week</button><button data-view="month" class="'+(view==='month'?'on':'')+'">Month</button></div>';
+    var navHtml, calBlock;
+    if(view==='week'){
+      // Week: each day column shows every tech's AVAILABILITY (open slots) above the name.
+      var calHtml=days.map(function(d){ var dt=new Date(d+'T12:00:00');
+        var cells=techs.length ? techs.map(function(t){ var open=Math.max(0,CAP-bookedOn(t.id,d)); var cls=open===0?'full':(open<=2?'low':'open');
+          return '<div class="acell '+cls+'"><div class="avail">'+(open===0?'Full':open+' open')+'</div><div class="aname">'+esc((t.name||'Tech').split(' ')[0])+'</div></div>'; }).join('')
+          : '<div class="acell"><div class="aname" style="font-weight:600">—</div></div>';
+        return '<div class="calcol'+(d===selDay?' on':'')+'"><div class="calhd'+(d===today?' today':'')+'" data-day="'+d+'"><div class="dow">'+dow[dt.getDay()]+'</div><div class="dnum">'+dt.getDate()+'</div></div>'+cells+'</div>'; }).join('');
+      var wkLabel=new Date(days[0]+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})+' – '+new Date(days[6]+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      navHtml='<button class="warrow" id="wprev">‹</button><span class="wklabel">'+esc(wkLabel)+'</span><button class="warrow" id="wnext">›</button>'+toggleHtml;
+      calBlock='<div class="calwrap">'+calHtml+'</div>';
+    } else {
+      // Month: full grid, tap any future day (e.g. the day parts land) to book onto it.
+      var gStart=startOfWeek(monthAnchor); var mm=monthAnchor.getMonth();
+      var dowH=dow.map(function(x){ return '<div class="mdow">'+x+'</div>'; }).join('');
+      var cellsH=''; for(var k=0;k<42;k++){ var cd=addDays(gStart,k); var ci=isoDay(cd);
+        var b=bookedAll(ci); var open=Math.max(0,crewCap-b);
+        var ldTxt = b>0 ? (open===0?'Full':b+' bk') : '';
+        var ldCls = b===0?'open':(open===0?'full':(open<=Math.ceil(crewCap*0.34)?'low':'open'));
+        var off=cd.getMonth()!==mm?' off':''; var tdy=ci===today?' today':''; var on=ci===selDay?' on':'';
+        cellsH+='<div class="mcell'+off+tdy+on+'" data-day="'+ci+'"><div class="mnum">'+cd.getDate()+'</div><div class="mld '+ldCls+'">'+ldTxt+'</div></div>'; }
+      navHtml='<button class="warrow" id="mprev">‹</button><span class="wklabel">'+esc(monthAnchor.toLocaleDateString(undefined,{month:'long',year:'numeric'}))+'</span><button class="warrow" id="mnext">›</button>'+toggleHtml;
+      calBlock='<div class="mgrid">'+dowH+cellsH+'</div>';
+    }
 
     var uns=jobs.filter(needsDispatch);
-    var unsHtml=uns.length ? uns.map(function(j){ return '<div class="ujob" data-job="'+j.id+'"><div class="u1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div></div>'; }).join('') : '<div class="tray-empty">Nothing waiting — every job has a tech and a day. ✅</div>';
+    var unsHtml=uns.length ? uns.map(function(j){ var tag=j.status==='awaiting_parts'?'<div class="u2" style="color:var(--awaiting_parts);font-weight:800">📦 awaiting parts</div>':''; return '<div class="ujob" data-job="'+j.id+'"><div class="u1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting — every job has a tech and a day. ✅</div>';
 
     var lanes=techs.map(function(t){
       var mine=jobs.filter(function(j){ return j.technician_id===t.id && j.scheduled_day===selDay && j.status!=='completed' && j.status!=='canceled'; });
@@ -117,17 +154,24 @@
     app.innerHTML=
       '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/office-board.html">Board</a><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
-        '<div class="weeknav"><button class="warrow" id="wprev">‹</button><span class="wklabel">'+esc(wkLabel)+'</span><button class="warrow" id="wnext">›</button></div>'+
-        '<div class="calwrap">'+calHtml+'</div>'+
+        '<div class="weeknav">'+navHtml+'</div>'+
+        calBlock+
         '<div class="sec-h">🚨 Unscheduled — tap to assign</div><div class="tray">'+unsHtml+'</div>'+
         '<div class="sec-h">📋 '+esc(selLabel)+' — full schedule</div><div class="techs">'+lanes+'</div>'+
       '</div>';
 
     document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick=load;
-    document.getElementById('wprev').onclick=function(){ sel=addDays(sel,-7); render(); };
-    document.getElementById('wnext').onclick=function(){ sel=addDays(sel,7); render(); };
-    Array.prototype.forEach.call(document.querySelectorAll('.calhd[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); render(); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.viewtoggle button[data-view]'),function(el){ el.onclick=function(){ view=el.getAttribute('data-view'); if(view==='month') monthAnchor=firstOfMonth(new Date(selDay+'T12:00:00')); render(); }; });
+    if(view==='week'){
+      document.getElementById('wprev').onclick=function(){ sel=addDays(sel,-7); render(); };
+      document.getElementById('wnext').onclick=function(){ sel=addDays(sel,7); render(); };
+      Array.prototype.forEach.call(document.querySelectorAll('.calhd[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); render(); }; });
+    } else {
+      document.getElementById('mprev').onclick=function(){ monthAnchor=addMonths(monthAnchor,-1); render(); };
+      document.getElementById('mnext').onclick=function(){ monthAnchor=addMonths(monthAnchor,1); render(); };
+      Array.prototype.forEach.call(document.querySelectorAll('.mcell[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); sel=startOfWeek(new Date(selDay+'T12:00:00')); render(); var t=document.querySelector('.techs'); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }; });
+    }
     Array.prototype.forEach.call(document.querySelectorAll('[data-job]'),function(el){ el.onclick=function(){ var j=jobs.filter(function(x){return x.id===el.getAttribute('data-job');})[0]; if(j) openAssign(j); }; });
   }
 
