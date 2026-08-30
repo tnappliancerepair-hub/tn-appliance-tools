@@ -77,7 +77,7 @@ exports.handler = async function (event) {
 
   const source = String(p.source || 'housecallpro').toLowerCase();
   const adapter = ADAPTERS[source];
-  if (!adapter) return json(400, { ok: false, error: 'unsupported source: ' + source + ' (housecallpro only for now)' });
+  if (!adapter) return json(400, { ok: false, error: 'unsupported source: ' + source + ' (housecallpro | jobber | workiz)' });
   const key = String(p.key || '').trim() || (await getSecret('HCP_API_KEY')) || '';
   const do_ = String(p.do || 'probe');
 
