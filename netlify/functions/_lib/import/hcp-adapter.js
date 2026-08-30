@@ -32,7 +32,18 @@ function toCents(v) {
   if (/\./.test(s)) return Math.round(parseFloat(s) * 100) || 0;
   const n = parseInt(s, 10); return Number.isFinite(n) ? n : 0;
 }
-function pick(o, keys) { for (const k of keys) { const v = o && o[k]; if (v != null && v !== '') return v; } return ''; }
+// scalar-only: HCP fields like description/notes are sometimes objects/arrays — never let one
+// stringify to "[object Object]" in a board column.
+function pick(o, keys) { for (const k of keys) { const v = o && o[k]; if ((typeof v === 'string' && v !== '') || typeof v === 'number') return v; } return ''; }
+// text — coerce a scalar, or flatten an array/object of note-ish shapes, to a plain string.
+function text(v) {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number') return String(v);
+  if (Array.isArray(v)) return v.map(text).filter(Boolean).join(' · ');
+  if (typeof v === 'object') { for (const k of ['content', 'text', 'note', 'message', 'body', 'value', 'name']) if (typeof v[k] === 'string' && v[k]) return v[k]; }
+  return '';
+}
 
 // ---- status map (HCP work_status -> board status) ----
 function mapStatus(ws) {
@@ -66,7 +77,7 @@ function normCustomer(o) {
       city: String(pick(addr, ['city']) || ''),
       state: String(pick(addr, ['state']) || ''),
       zip: String(pick(addr, ['zip', 'postal_code']) || ''),
-      notes: String(pick(o, ['notes']) || '').slice(0, 2000) || null,
+      notes: (text(o.notes).slice(0, 2000)) || null,
     },
   };
 }
@@ -86,7 +97,7 @@ function normJob(o) {
     _tech_ext: emp ? String(emp.id || emp.uuid || '') : '',
     row: {
       status: mapStatus(o.work_status),
-      problem: String(pick(o, ['description', 'note', 'notes']) || '').slice(0, 4000) || null,
+      problem: ((text(o.description) || text(o.notes)).slice(0, 4000)) || null,
       source: 'import_hcp',
       scheduled_day: day,
       scheduled_start: startIso || null,
