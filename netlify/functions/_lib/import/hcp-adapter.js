@@ -35,13 +35,22 @@ function toCents(v) {
 // scalar-only: HCP fields like description/notes are sometimes objects/arrays — never let one
 // stringify to "[object Object]" in a board column.
 function pick(o, keys) { for (const k of keys) { const v = o && o[k]; if ((typeof v === 'string' && v !== '') || typeof v === 'number') return v; } return ''; }
-// text — coerce a scalar, or flatten an array/object of note-ish shapes, to a plain string.
+// HCP descriptions are often rich text (dispatch.me <a> tags, <br>, entities) — strip to clean,
+// safe plain text before it lands in a board column.
+function clean(s) {
+  return String(s)
+    .replace(/<\s*br\s*\/?\s*>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#39;|&apos;/gi, "'").replace(/&quot;/gi, '"')
+    .replace(/\s+/g, ' ').trim();
+}
+// text — coerce a scalar, or flatten an array/object of note-ish shapes, to clean plain text.
 function text(v) {
   if (v == null) return '';
-  if (typeof v === 'string') return v;
+  if (typeof v === 'string') return clean(v);
   if (typeof v === 'number') return String(v);
   if (Array.isArray(v)) return v.map(text).filter(Boolean).join(' · ');
-  if (typeof v === 'object') { for (const k of ['content', 'text', 'note', 'message', 'body', 'value', 'name']) if (typeof v[k] === 'string' && v[k]) return v[k]; }
+  if (typeof v === 'object') { for (const k of ['content', 'text', 'note', 'message', 'body', 'value', 'name']) if (typeof v[k] === 'string' && v[k]) return clean(v[k]); }
   return '';
 }
 
