@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AssistAnt — the system that runs your repair shop</title>
+<meta name="description" content="One system for the whole shop: a 24/7 AI that answers the phone, an office board, a tech app, and a customer portal — all talking to each other.">
+<style>
+  :root{
+    --bg:#f5f7f3; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --faint:#8a9280; --line:#e3e7db;
+    --brand:#3f8f24; --brand-2:#2f6f18; --brand-ink:#fff; --chip:#eef3e8; --gold:#b8860b;
+    --good:#3f8f24; --warn:#b45309; --slate:#64748b; --info:#2563eb;
+    --shadow:0 1px 2px rgba(20,30,10,.05),0 10px 30px rgba(20,30,10,.07);
+    --hero:radial-gradient(120% 120% at 15% 0%, #ffffff 0%, #eef4e9 55%, #e4efdc 100%);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#4aa32e; --gold:#d9a441;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.4);
+    --hero:radial-gradient(120% 120% at 15% 0%, #18211300 0%, #12180f 55%, #0e120c 100%);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#4aa32e; --gold:#d9a441;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 34px rgba(0,0,0,.4);
+    --hero:radial-gradient(120% 120% at 15% 0%, #18211300 0%, #12180f 55%, #0e120c 100%);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:var(--brand);text-decoration:none}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 18px}
+  .btn{display:inline-flex;align-items:center;gap:8px;border-radius:11px;padding:12px 18px;font-weight:800;font-size:15px;cursor:pointer;border:1px solid transparent;text-decoration:none}
+  .btn.p{background:var(--brand);color:#fff}
+  .btn.g{background:var(--panel);color:var(--ink);border-color:var(--line);box-shadow:var(--shadow)}
+  .btn.sm{padding:9px 13px;font-size:13.5px;border-radius:9px}
+
+  /* Hero */
+  header.hero{background:var(--hero);border-bottom:1px solid var(--line)}
+  .navrow{display:flex;align-items:center;justify-content:space-between;padding:16px 0}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:-.02em;font-size:18px}
+  .brand .dot{width:30px;height:30px;border-radius:9px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:17px}
+  .brand small{display:block;font-weight:700;font-size:11px;color:var(--muted);letter-spacing:.02em}
+  .hero-in{padding:34px 0 44px;max-width:760px}
+  .kick{font-size:12.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--brand-2)}
+  h1{font-size:clamp(30px,6vw,50px);line-height:1.04;letter-spacing:-.02em;margin:12px 0 10px;text-wrap:balance}
+  .lede{font-size:18px;color:var(--muted);max-width:60ch;margin:0 0 22px}
+  .cta{display:flex;gap:12px;flex-wrap:wrap}
+
+  .sec-h{font-size:12.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
+  section{padding:40px 0}
+  h2{font-size:clamp(22px,4vw,30px);letter-spacing:-.01em;margin:0 0 4px;text-wrap:balance}
+  .sub{color:var(--muted);margin:0 0 22px;max-width:60ch}
+
+  /* Tour */
+  .tour{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);overflow:hidden}
+  .tour-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .dots{display:flex;gap:7px;flex-wrap:wrap}
+  .dots button{width:11px;height:11px;border-radius:50%;border:0;background:var(--line);cursor:pointer;padding:0}
+  .dots button.on{background:var(--brand);transform:scale(1.15)}
+  .stepno{font-size:12.5px;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+  .stage{display:grid;grid-template-columns:1.05fr .95fr;gap:0}
+  @media(max-width:720px){.stage{grid-template-columns:1fr}}
+  .say{padding:26px 22px}
+  .say .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--brand-2);background:var(--chip);padding:3px 9px;border-radius:999px}
+  .say h3{font-size:23px;letter-spacing:-.01em;margin:12px 0 12px;text-wrap:balance}
+  .pain,.fix{display:flex;gap:10px;margin:9px 0;font-size:15.5px}
+  .pain .i,.fix .i{flex:none;width:22px;text-align:center}
+  .pain{color:var(--muted)} .fix{color:var(--ink);font-weight:600}
+  .say .live{margin-top:16px}
+  .show{background:linear-gradient(160deg,var(--chip),transparent);border-left:1px solid var(--line);padding:26px 22px;display:flex;flex-direction:column;justify-content:center;min-height:230px}
+  @media(max-width:720px){.show{border-left:0;border-top:1px solid var(--line)}}
+  .mock{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px;font-size:13.5px}
+  .mock .mh{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px;margin-bottom:10px}
+  .mock .mh .d{width:20px;height:20px;border-radius:6px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:12px}
+  .bub{background:var(--chip);border-radius:10px;padding:9px 11px;margin:7px 0;color:var(--ink)}
+  .bub.me{background:var(--brand);color:#fff;margin-left:26px}
+  .rowline{display:flex;justify-content:space-between;padding:7px 2px;border-top:1px solid var(--line)}
+  .rowline:first-child{border-top:0}
+  .rowline b{font-variant-numeric:tabular-nums}
+  .cols{display:flex;gap:7px}
+  .col{flex:1;background:var(--chip);border-radius:8px;padding:8px 6px;text-align:center;font-size:11px;font-weight:700;color:var(--muted)}
+  .col .n{display:block;font-size:18px;color:var(--ink);font-weight:800}
+  .tour-nav{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--line)}
+
+  /* Pillars */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:16px 17px;box-shadow:var(--shadow)}
+  .card .ic{font-size:22px}
+  .card h4{margin:8px 0 5px;font-size:16.5px;letter-spacing:-.01em}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+
+  /* Operator control tower */
+  .op{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:20px}
+  .op .gate input{width:100%;max-width:320px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:15px}
+  .seatgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:6px}
+  .seat{border:1px solid var(--line);border-radius:13px;padding:13px 14px;background:var(--bg)}
+  .seat .st{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--good)}
+  .seat h4{margin:4px 0 3px;font-size:15.5px}
+  .seat p{margin:0 0 10px;color:var(--muted);font-size:13px}
+  .seat .go{display:inline-flex;gap:6px;font-weight:800;font-size:13.5px}
+  .statuslist{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;margin-top:8px}
+  .stat{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+  .chip{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .chip.live{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+  .chip.gated{background:color-mix(in srgb,var(--info) 15%,transparent);color:var(--info)}
+  .chip.shadow,.chip.pending{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+  .stat .nm{font-weight:700;font-size:13.5px}
+  .stat .de{color:var(--faint);font-size:12px}
+  .ready{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:8px}
+  @media(max-width:760px){.ready{grid-template-columns:1fr}}
+  .rbucket{border:1px solid var(--line);border-radius:13px;padding:13px 14px;background:var(--bg)}
+  .rbucket h5{margin:0 0 8px;font-size:13px;letter-spacing:.02em}
+  .rbucket ul{margin:0;padding-left:2px;list-style:none}
+  .rbucket li{font-size:13px;color:var(--muted);margin:7px 0;display:flex;gap:8px}
+  .rbucket li .i{flex:none}
+  .rbucket.ok h5{color:var(--good)} .rbucket.now h5{color:var(--warn)} .rbucket.later h5{color:var(--slate)}
+  .foot{padding:34px 0 60px;color:var(--faint);font-size:13px;text-align:center}
+  .oplink{color:var(--faint);cursor:pointer;font-size:12.5px;text-decoration:underline}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="navrow">
+      <div class="brand"><span class="dot">🐜</span><div>AssistAnt<small>24/7 for your repair shop</small></div></div>
+      <a class="btn p sm" id="cta-top" href="/platform/signup.html">Start free trial</a>
+    </div>
+    <div class="hero-in">
+      <div class="kick">One system · every seat</div>
+      <h1>The whole shop, finally talking to itself.</h1>
+      <p class="lede">A 24/7 AI answers your phone, the office board runs the day, your techs work from an app, and your customers follow along — all one system, all in sync. Nobody re-types anything. Nothing falls through.</p>
+      <div class="cta">
+        <a class="btn p" id="cta-hero" href="/platform/signup.html">Start your 14-day free trial</a>
+        <a class="btn g" href="#tour">Take the 90-second tour ↓</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="tour" class="wrap">
+  <p class="sec-h">Interactive tour</p>
+  <h2>See how it makes the day easier</h2>
+  <p class="sub">Click through — each step is a headache a shop owner knows, and how AssistAnt kills it.</p>
+  <div class="tour">
+    <div class="tour-top">
+      <div class="dots" id="dots"></div>
+      <div class="stepno" id="stepno"></div>
+    </div>
+    <div class="stage">
+      <div class="say" id="say"></div>
+      <div class="show" id="show"></div>
+    </div>
+    <div class="tour-nav">
+      <button class="btn g sm" id="prev">← Back</button>
+      <a class="btn p sm hidden" id="tour-cta" href="/platform/signup.html">Start free trial →</a>
+      <button class="btn p sm" id="next">Next →</button>
+    </div>
+  </div>
+</section>
+
+<section class="wrap">
+  <p class="sec-h">Everything in the box</p>
+  <h2>Six tools, one login, one price</h2>
+  <p class="sub">$99/mo per shop. The AI phone line is an add-on. No per-seat games.</p>
+  <div class="grid" id="pillars"></div>
+  <div style="margin-top:22px"><a class="btn p" id="cta-mid" href="/platform/signup.html">Start your free trial</a></div>
+</section>
+
+<section class="wrap">
+  <div id="op-entry" style="text-align:center">
+    <span class="oplink" id="op-open">🔒 Operator sign-in</span>
+  </div>
+  <div class="op hidden" id="op">
+    <div class="gate" id="op-gate">
+      <p class="sec-h" style="margin-bottom:8px">Operator</p>
+      <h2 style="font-size:20px">Control tower</h2>
+      <p class="sub">Enter the admin key to see every surface, live status, and TN-cutover readiness.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><input id="op-key" type="password" placeholder="admin key" autocomplete="current-password"><button class="btn p" id="op-go">Unlock</button></div>
+      <p id="op-err" style="color:var(--warn);font-size:13px;margin-top:8px"></p>
+    </div>
+    <div id="op-body" class="hidden"></div>
+  </div>
+</section>
+
+<div class="foot wrap">AssistAnt — the AI that runs your repair shop. <span id="year"></span></div>
+
+<script>
+(function(){
+  var REF = (new URLSearchParams(location.search).get('ref')||'').slice(0,60);
+  var signup = '/platform/signup.html' + (REF ? ('?ref='+encodeURIComponent(REF)) : '');
+  ['cta-top','cta-hero','cta-mid','tour-cta'].forEach(function(id){ var e=document.getElementById(id); if(e) e.href=signup; });
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  // ---- Interactive tour ----
+  var DEMO_PORTAL = '/platform/portal.html?t=72103f6e-2931-4dd9-9bab-37eaf8143849';
+  var STEPS = [
+    { tag:'24/7 Phone AI', h:'Ann answers every call — even at 2 a.m.',
+      pain:'A missed call is a lost job. Voicemail is where customers hang up.',
+      fix:'Ann picks up 24/7, knows who’s calling, reads back their real appointment, books a day, and texts them a link — grounded in your board, never guessing.',
+      live:null, mock:'<div class="mock"><div class="mh"><span class="d">🐜</span> Ann · live call</div><div class="bub">Hi Maria! I see you’re scheduled with Joey Wednesday for your Whirlpool fridge — is that what you’re calling about?</div><div class="bub me">Yes — can he come earlier?</div><div class="bub">Let me get that to the office and text you the new day. 👍</div></div>' },
+    { tag:'Office board', h:'One board instead of sticky notes and a whiteboard.',
+      pain:'Jobs live in three places. Something always slips.',
+      fix:'Every job on one board — new, scheduled, in progress, waiting on parts, done. Drag it, and everyone sees it.',
+      live:null, mock:'<div class="mock"><div class="mh"><span class="d">📋</span> Today’s board</div><div class="cols"><div class="col"><span class="n">4</span>New</div><div class="col"><span class="n">7</span>Scheduled</div><div class="col"><span class="n">3</span>Parts</div><div class="col"><span class="n">5</span>Done</div></div></div>' },
+    { tag:'Dispatch', h:'Stop guessing who’s free and who’s nearby.',
+      pain:'Double-booked one tech, sent another across town for one stop.',
+      fix:'Schedule by area, capacity, and time-off. Ant even suggests the best tech + day in one tap.',
+      live:null, mock:'<div class="mock"><div class="mh"><span class="d">📅</span> Ant suggests</div><div class="bub">Lee · Thursday — covers 37013, already routed nearby, 3 slots left.</div><div class="rowline"><span>Jimmy</span><b>6/6 full</b></div><div class="rowline"><span>Lee</span><b>3 open</b></div></div>' },
+    { tag:'Tech app', h:'Your techs stop texting you for the address.',
+      pain:'“What’s the model? Where am I going? How do I get paid?”',
+      fix:'Their whole day, tap-to-navigate, the report fills itself from the call, parts + photos, and get paid at the door.',
+      live:null, mock:'<div class="mock"><div class="mh"><span class="d">🔧</span> Lee · next stop</div><div class="rowline"><span>Maria Ruiz · Antioch</span><b>9–11</b></div><div class="bub">Whirlpool fridge · not cooling — Ann’s note: likely start relay.</div><div class="bub me">On my way 🚚</div></div>' },
+    { tag:'Customer portal', h:'“When’s my tech coming?” — they check themselves.',
+      pain:'The office phone rings all day with status questions.',
+      fix:'Customers see their status, message you, and pay by card — no app, no login, just a link.',
+      live:DEMO_PORTAL, mock:'<div class="mock"><div class="mh"><span class="d">👤</span> Your repair</div><div class="bub">Scheduled with Joey · Wednesday. We’ll text a live window that morning.</div><div class="rowline"><span>Balance</span><b>$185.25</b></div><div class="bub me">Pay by card 💳</div></div>' },
+    { tag:'The money', h:'The app and the check finally agree.',
+      pain:'Commissions off. Warranty remittances a guessing game.',
+      fix:'Invoice → commission → payout, one math, computed live. A short warranty check just updates in place.',
+      live:null, mock:'<div class="mock"><div class="mh"><span class="d">💵</span> Lee · this week</div><div class="rowline"><span>Collected</span><b>$1,940</b></div><div class="rowline"><span>His cut (50% labor)</span><b>$620</b></div><div class="rowline"><span>Owed now</span><b>$620</b></div></div>' },
+    { tag:'AI partner', h:'An assistant that actually does the work — and can undo it.',
+      pain:'You don’t have time to run reports and chase every lever.',
+      fix:'Ask Ant in plain words. It sees your numbers, acts for you, and every action has a one-tap Undo.',
+      live:null, mock:'<div class="mock"><div class="mh"><span class="d">🐜</span> Ask Ant</div><div class="bub me">Book the Johnson job with Lee for Friday.</div><div class="bub">Done — booked Friday with Lee. You’ve got an Undo. 👍</div></div>' },
+  ];
+  var i = 0;
+  var dots = document.getElementById('dots');
+  STEPS.forEach(function(_,n){ var b=document.createElement('button'); b.onclick=function(){ i=n; render(); }; dots.appendChild(b); });
+  function render(){
+    var s = STEPS[i];
+    document.getElementById('say').innerHTML =
+      '<span class="tag">'+s.tag+'</span><h3>'+s.h+'</h3>'+
+      '<div class="pain"><span class="i">😖</span><span>'+s.pain+'</span></div>'+
+      '<div class="fix"><span class="i">✅</span><span>'+s.fix+'</span></div>'+
+      (s.live ? '<div class="live"><a class="btn g sm" href="'+s.live+'" target="_blank" rel="noopener">See it live →</a></div>' : '');
+    document.getElementById('show').innerHTML = s.mock;
+    document.getElementById('stepno').textContent = 'Step '+(i+1)+' of '+STEPS.length;
+    Array.prototype.forEach.call(dots.children, function(b,n){ b.className = n===i?'on':''; });
+    document.getElementById('prev').style.visibility = i===0 ? 'hidden':'visible';
+    var last = i===STEPS.length-1;
+    document.getElementById('next').classList.toggle('hidden', last);
+    document.getElementById('tour-cta').classList.toggle('hidden', !last);
+  }
+  document.getElementById('next').onclick=function(){ if(i<STEPS.length-1){i++;render();} };
+  document.getElementById('prev').onclick=function(){ if(i>0){i--;render();} };
+  document.addEventListener('keydown', function(e){ if(e.key==='ArrowRight'&&i<STEPS.length-1){i++;render();} if(e.key==='ArrowLeft'&&i>0){i--;render();} });
+  render();
+
+  // ---- Pillars ----
+  var PILL = [
+    ['📞','24/7 phone AI','Ann answers, recognizes the caller, books the day, never sleeps.'],
+    ['📋','Office board','Every job, every status, one place the whole team sees.'],
+    ['📅','Smart dispatch','Schedule by area, capacity, and time-off — or let Ant pick.'],
+    ['🔧','Tech app','The day, the report, the parts, and get paid at the door.'],
+    ['👤','Customer portal','Status, messages, and pay-by-card — no app, just a link.'],
+    ['💵','Money that matches','Invoice → commission → payout, one honest math.'],
+  ];
+  document.getElementById('pillars').innerHTML = PILL.map(function(p){
+    return '<div class="card"><div class="ic">'+p[0]+'</div><h4>'+p[1]+'</h4><p>'+p[2]+'</p></div>';
+  }).join('');
+
+  // ---- Operator control tower ----
+  var KEY='ant_ops_secret', op=document.getElementById('op');
+  document.getElementById('op-open').onclick=function(){ op.classList.remove('hidden'); document.getElementById('op-entry').classList.add('hidden'); if(localStorage.getItem(KEY)) load(); else document.getElementById('op-key').focus(); };
+  document.getElementById('op-go').onclick=function(){ var v=document.getElementById('op-key').value.trim(); if(!v){document.getElementById('op-err').textContent='Enter the key.';return;} localStorage.setItem(KEY,v); load(); };
+  document.getElementById('op-key').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('op-go').click(); });
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
+  function load(){
+    var err=document.getElementById('op-err'); err.textContent='Loading…';
+    fetch('/.netlify/functions/platform-status?secret='+encodeURIComponent(localStorage.getItem(KEY)||''))
+      .then(function(r){ if(r.status===403){ throw new Error('key'); } return r.json(); })
+      .then(function(d){ if(!d.ok) throw new Error('load'); err.textContent=''; document.getElementById('op-gate').classList.add('hidden'); render(d); })
+      .catch(function(e){ localStorage.removeItem(KEY); err.textContent = e.message==='key' ? 'That key was rejected.' : 'Could not load. Try again.'; });
+  }
+  function render(d){
+    var L=d.seat_links||{}, demo=d.demo||{}, co=d.cutover||{};
+    var seats=[
+      ['Owner','The numbers, goals, money, the AI partner.',L.owner,'sign in as '+esc(d.demo_owner_email||'demo')],
+      ['Office board','Jobs, scheduling, invoicing, remittance.',L.office,''],
+      ['Dispatch','Calendar, assign techs, time-off.',L.dispatch,''],
+      ['Tech app','The tech’s day + report + get paid.',L.tech,''],
+      ['Customer portal','Live status, messages, pay by card.',L.customer_portal,'no login — real demo customer'],
+      ['Proof of insurance','Public licensed-&-insured page.',L.customer_verify,'public'],
+      ['Operator · clients','Your client roster + health.',L.operator,''],
+      ['Partner dashboard','A reseller’s referrals + commission.',L.partner,'needs ?token='],
+    ];
+    var seatHtml = seats.map(function(s){
+      var link = s[2] ? '<a class="go" href="'+s[2]+'" target="_blank" rel="noopener">Open it →</a>' : '<span class="de" style="color:var(--faint)">link n/a</span>';
+      return '<div class="seat"><div class="st">● working</div><h4>'+s[0]+'</h4><p>'+s[1]+'</p>'+link+(s[3]?'<div class="de" style="margin-top:6px;color:var(--faint);font-size:12px">'+esc(s[3])+'</div>':'')+'</div>';
+    }).join('');
+    var statHtml = (d.areas||[]).map(function(a){
+      return '<div class="stat"><span class="chip '+esc(a.state)+'">'+esc(a.state)+'</span><div><div class="nm">'+esc(a.name)+'</div><div class="de">'+esc(a.detail)+(a.flag&&a.state!=='live'?' · '+esc(a.flag):'')+'</div></div></div>';
+    }).join('');
+    function bucket(cls,icon,title,items){ return '<div class="rbucket '+cls+'"><h5>'+title+'</h5><ul>'+(items||[]).map(function(x){return '<li><span class="i">'+icon+'</span><span>'+esc(x)+'</span></li>';}).join('')+'</ul></div>'; }
+    document.getElementById('op-body').classList.remove('hidden');
+    document.getElementById('op-body').innerHTML =
+      '<p class="sec-h" style="margin-top:4px">Every seat · click into the live demo</p><div class="seatgrid">'+seatHtml+'</div>'+
+      '<p class="sec-h" style="margin-top:24px">System status ('+(demo.jobs!=null?demo.jobs+' demo jobs · '+demo.customers+' customers · '+demo.techs+' techs':'demo')+')</p><div class="statuslist">'+statHtml+'</div>'+
+      '<p class="sec-h" style="margin-top:24px">Switching TN over — the honest picture</p>'+
+      '<div class="ready">'+
+        bucket('ok','✓','Ready now',co.ready)+
+        bucket('now','◻','Real remaining',co.remaining)+
+        bucket('later','·','Roadmap (not a blocker)',co.roadmap)+
+      '</div>';
+  }
+})();
+</script>
+</body>
+</html>
