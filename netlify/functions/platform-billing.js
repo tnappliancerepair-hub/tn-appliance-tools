@@ -225,6 +225,7 @@ async function signupCheckout(opts) {
     owner_phone: String(opts.phone || '').slice(0, 40),
     email: String(opts.email || '').slice(0, 200),
     want_ann: opts.want_ann ? '1' : '',
+    ref: String(opts.ref || '').slice(0, 60),   // referral partner code (reseller attribution)
   };
 
   const session = await stripe.checkout.sessions.create({
