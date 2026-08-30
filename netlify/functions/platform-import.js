@@ -16,14 +16,14 @@ const { getSecret } = require('./_lib/secrets');
 const { platform, cfg } = require('./_lib/platform-rest');
 const land = require('./_lib/import/land');
 const hcp = require('./_lib/import/hcp-adapter');
+const jobber = require('./_lib/import/jobber-adapter');
+const workiz = require('./_lib/import/workiz-adapter');
 
 const PLATFORM_ANON = 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7';
 const OPERATOR_EMAILS = ['tnappliancerepair@gmail.com'];
-const ADAPTERS = { housecallpro: hcp };
-// commit lands kinds in FK order: techs + customers first (no deps), then jobs (+invoices inline).
-const PHASES = ['technicians', 'customers', 'jobs'];
+const ADAPTERS = { housecallpro: hcp, jobber, workiz };
+// each adapter declares its own PHASES (FK order) + START cursor; commit iterates them generically.
 const PAGES_PER_COMMIT = 3;              // bounded per call so we stay under the 26s cap
-const PREVIEW_PAGE_CAP = 1;              // preview only samples page 1 of each kind
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -109,9 +109,9 @@ exports.handler = async function (event) {
     // sample page 1 of each kind for the eyeball screen
     const sample = { customers: [], jobs: [] };
     let money_cents = 0, paid_cents = 0;
-    const cust1 = await adapter.page(key, 'customers', 1);
+    const cust1 = await adapter.page(key, 'customers', adapter.START);
     sample.customers = cust1.records.slice(0, 6).map((r) => ({ name: [r.row.first_name, r.row.last_name].filter(Boolean).join(' ') || '(no name)', phone: r.row.phone, city: r.row.city, state: r.row.state }));
-    const job1 = await adapter.page(key, 'jobs', 1);
+    const job1 = await adapter.page(key, 'jobs', adapter.START);
     sample.jobs = job1.records.slice(0, 6).map((r) => ({ status: r.row.status, problem: (r.row.problem || '').slice(0, 60), day: r.row.scheduled_day, total: r.invoice ? money(r.invoice.total_cents) : '—' }));
     for (const r of job1.records) { if (r.invoice) { money_cents += r.invoice.total_cents; if (r.invoice.paid) paid_cents += r.invoice.total_cents; } }
 
@@ -126,7 +126,7 @@ exports.handler = async function (event) {
     const run = await runInsert({
       company_id: company.id, source, status: 'preview', key_hint,
       totals: { technicians: est.technicians, customers: est.customers, jobs: est.jobs },
-      cursor: { phase: 'technicians', page: 0, limit },
+      cursor: { phase: adapter.PHASES[0].kind, cur: adapter.START, n: 0, limit },
       sample, note: limit ? ('capped at ' + limit + ' pages/kind') : null,
     });
     return json(200, { ok: true, run_id: run.id, company: { id: company.id, name: company.name, slug: company.slug }, source, key_hint, estimate: est, sample });
@@ -138,34 +138,33 @@ exports.handler = async function (event) {
     if (!run || run.company_id !== company.id) return json(400, { ok: false, error: 'run not found for this company — start with do=preview' });
     if (run.status === 'committed') return json(200, { ok: true, done: true, landed: run.landed, note: 'already complete' });
 
-    const cursor = run.cursor || { phase: 'technicians', page: 0 };
+    const PHASES = adapter.PHASES;
+    const cursor = run.cursor || { phase: PHASES[0].kind, cur: adapter.START, n: 0 };
     const landed = { technicians: 0, customers: 0, jobs: 0, invoices: 0, invoice_lines: 0, ...(run.landed || {}) };
     const skipped = { technicians: 0, customers: 0, jobs: 0, ...(run.skipped || {}) };
 
-    let phaseIdx = Math.max(0, PHASES.indexOf(cursor.phase));
+    let phaseIdx = Math.max(0, PHASES.findIndex((p) => p.kind === cursor.phase));
     let pagesDone = 0;
     try {
       while (pagesDone < PAGES_PER_COMMIT && phaseIdx < PHASES.length) {
-        const phase = PHASES[phaseIdx];
-        const pageNum = (cursor.page || 0) + 1;
-        const pg = await adapter.page(key, phase, pageNum);
-        if (pg.status >= 400) return json(200, { ok: false, error: 'source error on ' + phase + ' p' + pageNum + ' (http ' + pg.status + ')', run_id: run.id });
+        const ph = PHASES[phaseIdx];
+        const pg = await adapter.page(key, ph.kind, cursor.cur);
+        if (pg.status >= 400) return json(200, { ok: false, error: 'source error on ' + ph.kind + ' (http ' + pg.status + ')', run_id: run.id });
 
         if (pg.records.length) {
-          if (phase === 'jobs') {
+          if (ph.fk) {
             const res = await land.landJobs({ companyId: company.id, source, runId: run.id, records: pg.records });
             landed.jobs += res.landed; skipped.jobs += res.skipped; landed.invoices += res.invoices; landed.invoice_lines += res.invoice_lines;
           } else {
-            const table = phase === 'technicians' ? 'technician' : 'customer';
-            const kind = phase === 'technicians' ? 'technician' : 'customer';
-            const res = await land.landSimple(kind, table, { companyId: company.id, source, runId: run.id, records: pg.records });
-            landed[phase] += res.landed; skipped[phase] += res.skipped;
+            const res = await land.landSimple(ph.mapKind, ph.table, { companyId: company.id, source, runId: run.id, records: pg.records });
+            landed[ph.kind] = (landed[ph.kind] || 0) + res.landed; skipped[ph.kind] = (skipped[ph.kind] || 0) + res.skipped;
           }
-          cursor.page = pageNum;
+          cursor.n = (cursor.n || 0) + 1;
           pagesDone++;
         }
-        const capped = cursor.limit && cursor.page >= cursor.limit;
-        if (pg.short || !pg.records.length || capped) { phaseIdx++; cursor.phase = PHASES[phaseIdx] || 'done'; const lim = cursor.limit; cursor.page = 0; cursor.limit = lim; }
+        cursor.cur = pg.next;
+        const capped = cursor.limit && cursor.n >= cursor.limit;
+        if (!pg.next || !pg.records.length || capped) { phaseIdx++; cursor.phase = (PHASES[phaseIdx] && PHASES[phaseIdx].kind) || 'done'; cursor.cur = adapter.START; cursor.n = 0; }
       }
     } catch (e) {
       await runPatch(run.id, { status: 'failed', cursor, landed, skipped, note: String(e.message || e).slice(0, 300) });

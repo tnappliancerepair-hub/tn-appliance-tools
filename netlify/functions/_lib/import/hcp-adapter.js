@@ -146,13 +146,24 @@ async function probe(key) {
   return out;
 }
 
-// page — one normalized page of a kind. { status, total, records:[normalized], short }
-async function page(key, kind, pageNum) {
+// page — one normalized page of a kind. Uniform cursor contract shared by every source adapter:
+//   cursor in  -> the token to fetch (START=1 for HCP's page numbers)
+//   { status, total, records:[normalized], next }  next = cursor for the following page, null when done.
+async function page(key, kind, cursor) {
   const cfg = KINDS[kind];
   if (!cfg) throw new Error('unknown kind ' + kind);
+  const pageNum = Number(cursor) || 1;
   const p = await fetchPage(key, cfg.path, cfg.arrayKeys, pageNum);
   const records = (p.list || []).map(cfg.norm).filter((x) => x.external_id);
-  return { status: p.status, total: p.total, records, short: (p.list || []).length < PAGE_SIZE };
+  const next = (p.list || []).length < PAGE_SIZE ? null : pageNum + 1;
+  return { status: p.status, total: p.total, records, next };
 }
 
-module.exports = { probe, page, KINDS: Object.keys(KINDS), PAGE_SIZE, mapStatus, toCents };
+// PHASES — the landing order (FK deps first). fk:true routes through land.landJobs.
+const PHASES = [
+  { kind: 'technicians', table: 'technician', mapKind: 'technician' },
+  { kind: 'customers',   table: 'customer',   mapKind: 'customer' },
+  { kind: 'jobs',        table: 'job',         mapKind: 'job', fk: true },
+];
+
+module.exports = { probe, page, PHASES, START: 1, KINDS: Object.keys(KINDS), PAGE_SIZE, mapStatus, toCents };

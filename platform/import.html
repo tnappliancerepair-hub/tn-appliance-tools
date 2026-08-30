@@ -85,15 +85,15 @@
   <div class="card" id="step-connect" style="display:none">
     <div class="subhd">Where's the data now?</div>
     <div class="srcrow">
-      <button class="src on" data-src="housecallpro"><b>Housecall Pro</b><span>API — full history</span></button>
-      <button class="src soon" disabled><b>Jobber</b><span>coming next</span></button>
-      <button class="src soon" disabled><b>Workiz</b><span>coming next</span></button>
+      <button class="src on" data-src="housecallpro"><b>Housecall Pro</b><span>API key · verified live</span></button>
+      <button class="src" data-src="jobber"><b>Jobber</b><span>OAuth token</span></button>
+      <button class="src" data-src="workiz"><b>Workiz</b><span>API token</span></button>
     </div>
     <label>Which shop is it landing on? <span style="font-weight:400;color:var(--faint)">(their board slug or id)</span></label>
     <input id="company" placeholder="e.g. joeys-appliance" autocomplete="off">
-    <label>Housecall Pro API key</label>
+    <label id="keylabel">Housecall Pro API key</label>
     <input id="key" type="password" placeholder="paste the shop's HCP key" autocomplete="off">
-    <div class="hint">Get it in HCP → Settings → API. Leave blank in a demo to use the vaulted key. We never store the key — only the last 4.</div>
+    <div class="hint" id="keyhint">Get it in HCP → Settings → API. Leave blank in a demo to use the vaulted key. We never store the key — only the last 4.</div>
     <label style="margin-top:14px"><input type="checkbox" id="demo" style="width:auto;margin-right:6px">Demo mode — import just the first few pages so I can watch it land fast</label>
     <div class="row"><button id="btn-preview">Preview my data →</button></div>
     <div class="err" id="err-connect"></div>
@@ -109,8 +109,8 @@
     <div class="subhd">A few of the jobs</div>
     <table id="pv-jobs"><thead><tr><th>Status</th><th>Job</th><th>Day</th><th>Total</th></tr></thead><tbody></tbody></table>
     <div class="note"><b>What comes over:</b> every customer, every job (with its status &amp; scheduled day), your techs, and each job's invoice total &amp; paid status.</div>
-    <div class="note warn"><b>What fills in as you work:</b> Housecall Pro doesn't store the appliance as its own record or itemize old invoices, so imported jobs land with the description as the problem and a single-line invoice total — your crew fills appliance details going forward. Photos come in a later pass.</div>
-    <div class="note"><b>Nothing is deleted.</b> Their Housecall Pro stays exactly as-is. Run both side by side for a week — this import can be re-run safely and never double-creates.</div>
+    <div class="note warn"><b>What fills in as you work:</b> field-service systems usually don't store the appliance as its own record or itemize old invoices, so imported jobs land with the description as the problem and a single-line invoice total — your crew fills appliance details going forward. Photos come in a later pass.</div>
+    <div class="note"><b>Nothing is deleted.</b> Their old system stays exactly as-is. Run both side by side for a week — this import can be re-run safely and never double-creates.</div>
     <div class="row"><button id="btn-commit">Bring it all over →</button><button class="ghost" id="btn-back">Start over</button></div>
     <div class="err" id="err-preview"></div>
   </div>
@@ -151,6 +151,20 @@
   function money(n){return n;} // already formatted server-side
   function tiles(where,arr){ el(where).innerHTML=arr.map(function(t){return '<div class="tile"><div class="v">'+t.v+'</div><div class="l">'+t.l+'</div></div>';}).join(''); }
 
+  // source picker
+  var SRC={
+    housecallpro:{name:'Housecall Pro',label:'Housecall Pro API key',ph:"paste the shop's HCP key",hint:'Get it in HCP → Settings → API. Leave blank in a demo to use the vaulted key. We never store the key — only the last 4.'},
+    jobber:{name:'Jobber',label:'Jobber access token',ph:'paste the Jobber OAuth token',hint:'From the shop authorizing Jobber (OAuth). Built to Jobber’s API — the first real Jobber shop fine-tunes field quirks. We store only the last 4.'},
+    workiz:{name:'Workiz',label:'Workiz API token',ph:'paste the Workiz API token',hint:'Workiz → Settings → API. Built to Workiz’s API — the first real Workiz shop fine-tunes field quirks. We store only the last 4.'}
+  };
+  Array.prototype.forEach.call(document.querySelectorAll('.src[data-src]'),function(b){
+    b.addEventListener('click',function(){
+      Array.prototype.forEach.call(document.querySelectorAll('.src[data-src]'),function(x){x.classList.remove('on');});
+      b.classList.add('on'); state.source=b.dataset.src;
+      var s=SRC[state.source]; el('keylabel').textContent=s.label; el('key').placeholder=s.ph; el('keyhint').textContent=s.hint;
+    });
+  });
+
   // gate
   function gated(){ if(ops()){ el('gate').style.display='none'; show('connect'); } else { el('gate').style.display='block'; ['connect','preview','commit','done'].forEach(function(s){el('step-'+s).style.display='none';}); } }
   el('unlock').addEventListener('click',function(){ var v=el('ops').value.trim(); if(v){ localStorage.setItem('ant_ops_secret',v); gated(); } });
@@ -165,7 +179,7 @@
       b.disabled=false; b.textContent='Preview my data →';
       if(!d.ok){ el('err-connect').textContent=d.error||'Could not read the source.'; return; }
       state.run=d.run_id;
-      el('pv-sub').textContent='From Housecall Pro (key •••'+d.key_hint+') → '+d.company.name;
+      el('pv-sub').textContent='From '+((SRC[state.source]||{}).name||state.source)+' (key •••'+d.key_hint+') → '+d.company.name;
       tiles('pv-tiles',[
         {v:(d.estimate.customers||0).toLocaleString(),l:'customers'},
         {v:(d.estimate.jobs||0).toLocaleString(),l:'jobs'},

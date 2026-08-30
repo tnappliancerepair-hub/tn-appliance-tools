@@ -26,6 +26,13 @@ async function conn() {
 }
 
 const qId = (s) => '"' + String(s).replace(/"/g, '') + '"';
+// first-wins dedup by external_id (a source can repeat a record within a page — e.g. Workiz
+// derives a customer per job, so one client appears on several jobs in the same batch).
+function dedup(records) {
+  const seen = new Set(), out = [];
+  for (const r of records) { const k = String(r.external_id); if (!seen.has(k)) { seen.add(k); out.push(r); } }
+  return out;
+}
 
 // external_id -> internal_id for a (source, kind), for the given ids.
 async function loadMap(c, companyId, source, kind, ids) {
@@ -47,6 +54,7 @@ async function recordMap(c, companyId, source, kind, runId, pairs) {
 // Land technicians or customers (no foreign keys). records: [{external_id,row}]
 async function landSimple(kind, table, { companyId, source, runId, records }) {
   const c = await conn();
+  records = dedup(records);
   const existing = await loadMap(c, companyId, source, kind, records.map((r) => r.external_id));
   const fresh = records.filter((r) => !existing.has(String(r.external_id)));
   let landed = 0;
@@ -62,6 +70,7 @@ async function landSimple(kind, table, { companyId, source, runId, records }) {
 // inline for jobs that carry a total. records: [{external_id,_customer_ext,_tech_ext,row,invoice}]
 async function landJobs({ companyId, source, runId, records }) {
   const c = await conn();
+  records = dedup(records);
   const existing = await loadMap(c, companyId, source, 'job', records.map((r) => r.external_id));
   const fresh = records.filter((r) => !existing.has(String(r.external_id)));
   const out = { landed: 0, skipped: records.length - fresh.length, invoices: 0, invoice_lines: 0 };
