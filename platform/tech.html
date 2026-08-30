@@ -332,7 +332,7 @@
         '<span class="play">▶</span></a>';
     });
     // Photo → a thumbnail (src is hydrated after render via the tenant-scoped signer).
-    media.filter(function(m){return m.kind==='photo'&&m.provider==='storage';}).forEach(function(m){
+    media.filter(function(m){return m.kind==='photo'&&(m.provider==='storage'||m.provider==='r2');}).forEach(function(m){
       mediaHtml += '<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" alt="photo"></a>';
     });
     if (!bits.length && !mediaHtml) return '';

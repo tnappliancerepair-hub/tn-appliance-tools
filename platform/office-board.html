@@ -477,7 +477,7 @@
     var tiles='', n=0;
     media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream';}).forEach(function(v){ if(n>=4) return; n++; var uid=esc(v.ref);
       tiles += '<a class="mtile vtile" onclick="event.stopPropagation()" target="_blank" rel="noopener" href="https://iframe.cloudflarestream.com/'+uid+'"><img class="vcover" src="https://videodelivery.net/'+uid+'/thumbnails/thumbnail.jpg?time=1s&height=140" alt="" onerror="this.style.display=\'none\'"><span class="play">▶</span></a>'; });
-    media.filter(function(m){return m.kind==='photo'&&m.provider==='storage';}).forEach(function(p){ if(n>=4) return; n++;
+    media.filter(function(m){return m.kind==='photo'&&(m.provider==='storage'||m.provider==='r2');}).forEach(function(p){ if(n>=4) return; n++;
       tiles += '<a class="mtile ptile" onclick="event.stopPropagation()" target="_blank" rel="noopener" data-phhref="'+esc(p.ref)+'"><img data-ph="'+esc(p.ref)+'" alt="photo"></a>'; });
     return tiles ? '<div class="cardmedia">'+tiles+'</div>' : '';
   }
@@ -603,7 +603,7 @@
       var jj=(res[1]&&res[1].data)||{};
       var msgs=((res[2]&&res[2].data)||[]).map(function(m){return String(m.body||'');});
       var vids=media.filter(function(m){return m.kind==='video'&&m.provider==='cfstream';});
-      var pics=media.filter(function(m){return m.kind==='photo'&&m.provider==='storage';});
+      var pics=media.filter(function(m){return m.kind==='photo'&&(m.provider==='storage'||m.provider==='r2');});
       var choices=msgs.filter(function(b){return /🔧|🛟/.test(b);});
       var mediaHtml='';
       vids.forEach(function(m){ var uid=esc(m.ref); mediaHtml+='<a class="mtile vtile" target="_blank" rel="noopener" href="https://iframe.cloudflarestream.com/'+uid+'"><img class="vcover" src="https://videodelivery.net/'+uid+'/thumbnails/thumbnail.jpg?time=1s&height=140" alt="" onerror="this.style.display=\'none\'"><span class="play">▶</span></a> '; });

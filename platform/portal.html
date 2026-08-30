@@ -230,7 +230,7 @@
           '<img class="vcover" src="https://videodelivery.net/'+uid+'/thumbnails/thumbnail.jpg?time=1s&height=140" alt="" onerror="this.style.display=\'none\'">' +
           '<span class="play">▶</span></a>';
       });
-      media.filter(function(m){ return m.kind==='photo' && m.provider==='storage'; }).forEach(function(p){
+      media.filter(function(m){ return m.kind==='photo' && (m.provider==='storage'||m.provider==='r2'); }).forEach(function(p){
         tiles += '<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(p.ref)+'"><img data-ph="'+esc(p.ref)+'" alt="photo"></a>';
       });
       var vidHtml = tiles ? '<div class="plabel">What you sent us</div><div class="pmedia">'+tiles+'</div>' : '';

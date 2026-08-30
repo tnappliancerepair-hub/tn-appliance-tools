@@ -817,7 +817,7 @@
   // intake, read it automatically so the model is already in the parts search + report.
   function autoModel(){
     if(attrs().model) return;
-    var pho=(job.media||[]).filter(function(m){return m.kind==='photo'&&m.provider==='storage'&&!/^tech/i.test(m.label||'');})[0];
+    var pho=(job.media||[]).filter(function(m){return m.kind==='photo'&&(m.provider==='storage'||m.provider==='r2')&&!/^tech/i.test(m.label||'');})[0];
     if(!pho) return;
     var fail=function(){ var m2=document.getElementById('modelVal'); if(m2&&m2.textContent==='reading…') m2.textContent='—'; };
     var mv=document.getElementById('modelVal'); if(mv) mv.textContent='reading…';
