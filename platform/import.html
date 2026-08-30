@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Bring your data over</title>
+<style>
+  :root{
+    --bg:#f5f7f3; --panel:#fff; --ink:#12160f; --muted:#5b6152; --faint:#8a9280; --line:#e3e7db;
+    --brand:#3f8f24; --brand-2:#2f6f18; --chip:#eef3e8; --warn:#b45309; --warnbg:#f6ecdc; --hcp:#2563eb;
+    --shadow:0 1px 2px rgba(20,30,10,.05),0 8px 24px rgba(20,30,10,.06);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#7bd15c; --warn:#e0a54a; --warnbg:#2a2213; --hcp:#5b8bf0;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4);
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:26px 18px 90px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:16px}
+  .brand .dot{width:28px;height:28px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
+  h1{font-size:clamp(24px,5vw,33px);letter-spacing:-.02em;margin:16px 0 4px;text-wrap:balance}
+  .lede{color:var(--muted);margin:0 0 4px;font-size:16px}
+  .steps{display:flex;gap:6px;margin:20px 0 14px;font-size:12px;font-weight:800;letter-spacing:.02em;color:var(--faint);flex-wrap:wrap}
+  .steps .s{padding:4px 10px;border-radius:999px;background:var(--chip)}
+  .steps .s.on{background:var(--brand);color:#fff}
+  .steps .s.done{color:var(--brand)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);margin-top:14px}
+  label{display:block;font-weight:700;font-size:13px;margin:12px 0 5px}
+  input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:15px}
+  .hint{color:var(--faint);font-size:12.5px;margin-top:5px}
+  button{border:0;border-radius:11px;padding:12px 18px;font-weight:800;font-size:15px;cursor:pointer;background:var(--brand);color:#fff;box-shadow:var(--shadow)}
+  button.ghost{background:transparent;color:var(--muted);box-shadow:none;border:1px solid var(--line)}
+  button[disabled]{opacity:.5;cursor:not-allowed}
+  .srcrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+  .src{flex:1;min-width:150px;border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;cursor:pointer;background:var(--panel);text-align:left}
+  .src.on{border-color:var(--hcp);box-shadow:0 0 0 3px color-mix(in srgb,var(--hcp) 18%,transparent)}
+  .src.soon{opacity:.5;cursor:not-allowed}
+  .src b{display:block;font-size:15px} .src span{color:var(--muted);font-size:12.5px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:6px 0 4px}
+  .tile{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .tile .v{font-size:27px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .tile .l{color:var(--muted);font-size:12.5px;font-weight:700}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+  th{color:var(--muted);font-size:11px;letter-spacing:.03em;text-transform:uppercase;border-top:0}
+  .subhd{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 2px}
+  .note{background:var(--chip);border-radius:10px;padding:11px 13px;font-size:13.5px;margin-top:12px}
+  .note.warn{background:var(--warnbg);color:var(--warn)}
+  .note b{color:var(--ink)} @media (prefers-color-scheme:dark){.note.warn b{color:var(--warn)}}
+  .bar{height:12px;border-radius:999px;background:var(--chip);overflow:hidden;margin:14px 0 6px}
+  .bar i{display:block;height:100%;width:0;background:var(--brand);transition:width .4s ease}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .st{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:2px 7px;border-radius:999px;background:var(--chip);color:var(--muted)}
+  .st.new{background:color-mix(in srgb,var(--muted) 18%,transparent)} .st.scheduled{background:color-mix(in srgb,var(--hcp) 18%,transparent);color:var(--hcp)}
+  .st.completed{background:color-mix(in srgb,var(--brand) 18%,transparent);color:var(--brand)} .st.in_progress{background:var(--warnbg);color:var(--warn)}
+  a{color:var(--brand)} .err{color:#b91c1c;font-size:13.5px;margin-top:8px}
+  .big{font-size:19px;font-weight:800;margin:2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="dot">🐜</span> AssistAnt</div>
+  <h1>Bring your data over</h1>
+  <p class="lede">Move a shop off Housecall Pro and onto the board — customers, jobs, techs and invoices. See exactly what's coming before anything lands, and their old system stays untouched.</p>
+
+  <div class="steps" id="crumbs">
+    <span class="s on" data-k="connect">1 · Connect</span>
+    <span class="s" data-k="preview">2 · Preview</span>
+    <span class="s" data-k="commit">3 · Import</span>
+    <span class="s" data-k="done">4 · Done</span>
+  </div>
+
+  <!-- unlock -->
+  <div class="card" id="gate" style="display:none">
+    <label>Operator key</label>
+    <input id="ops" type="password" placeholder="ant ops key" autocomplete="off">
+    <div class="hint">Same key as the operator tools. Stored in this browser only.</div>
+    <div class="row"><button id="unlock">Unlock</button></div>
+  </div>
+
+  <!-- 1 connect -->
+  <div class="card" id="step-connect" style="display:none">
+    <div class="subhd">Where's the data now?</div>
+    <div class="srcrow">
+      <button class="src on" data-src="housecallpro"><b>Housecall Pro</b><span>API — full history</span></button>
+      <button class="src soon" disabled><b>Jobber</b><span>coming next</span></button>
+      <button class="src soon" disabled><b>Workiz</b><span>coming next</span></button>
+    </div>
+    <label>Which shop is it landing on? <span style="font-weight:400;color:var(--faint)">(their board slug or id)</span></label>
+    <input id="company" placeholder="e.g. joeys-appliance" autocomplete="off">
+    <label>Housecall Pro API key</label>
+    <input id="key" type="password" placeholder="paste the shop's HCP key" autocomplete="off">
+    <div class="hint">Get it in HCP → Settings → API. Leave blank in a demo to use the vaulted key. We never store the key — only the last 4.</div>
+    <label style="margin-top:14px"><input type="checkbox" id="demo" style="width:auto;margin-right:6px">Demo mode — import just the first few pages so I can watch it land fast</label>
+    <div class="row"><button id="btn-preview">Preview my data →</button></div>
+    <div class="err" id="err-connect"></div>
+  </div>
+
+  <!-- 2 preview -->
+  <div class="card" id="step-preview" style="display:none">
+    <div class="big" id="pv-title">Here's what's coming over</div>
+    <p class="hint" id="pv-sub"></p>
+    <div class="tiles" id="pv-tiles"></div>
+    <div class="subhd">A few of the customers</div>
+    <table id="pv-cust"><thead><tr><th>Name</th><th>Phone</th><th>City</th></tr></thead><tbody></tbody></table>
+    <div class="subhd">A few of the jobs</div>
+    <table id="pv-jobs"><thead><tr><th>Status</th><th>Job</th><th>Day</th><th>Total</th></tr></thead><tbody></tbody></table>
+    <div class="note"><b>What comes over:</b> every customer, every job (with its status &amp; scheduled day), your techs, and each job's invoice total &amp; paid status.</div>
+    <div class="note warn"><b>What fills in as you work:</b> Housecall Pro doesn't store the appliance as its own record or itemize old invoices, so imported jobs land with the description as the problem and a single-line invoice total — your crew fills appliance details going forward. Photos come in a later pass.</div>
+    <div class="note"><b>Nothing is deleted.</b> Their Housecall Pro stays exactly as-is. Run both side by side for a week — this import can be re-run safely and never double-creates.</div>
+    <div class="row"><button id="btn-commit">Bring it all over →</button><button class="ghost" id="btn-back">Start over</button></div>
+    <div class="err" id="err-preview"></div>
+  </div>
+
+  <!-- 3 commit -->
+  <div class="card" id="step-commit" style="display:none">
+    <div class="big">Landing it on the board…</div>
+    <div class="bar"><i id="pbar"></i></div>
+    <p class="hint" id="cm-phase">Starting…</p>
+    <div class="tiles" id="cm-tiles"></div>
+    <div class="err" id="err-commit"></div>
+  </div>
+
+  <!-- 4 done -->
+  <div class="card" id="step-done" style="display:none">
+    <div class="big">✅ It's on the board.</div>
+    <div class="tiles" id="dn-tiles"></div>
+    <p style="margin-top:10px">Open <b><a href="/platform/office-board.html">the office board</a></b> (sign in as this shop) and you'll see the imported customers and jobs across the columns. Their Housecall Pro is still right where it was — keep both up for a week until you're sure.</p>
+    <div class="row"><a href="/platform/office-board.html"><button>Open the board →</button></a><button class="ghost" id="btn-again">Import another shop</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var F='/.netlify/functions/platform-import';
+  var el=function(id){return document.getElementById(id);};
+  var state={source:'housecallpro',run:null,company:'',key:'',demo:false};
+  function ops(){ return localStorage.getItem('ant_ops_secret')||''; }
+  function q(o){ o.secret=ops(); return o; }
+  function post(o){ return fetch(F,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(q(o))}).then(function(r){return r.json();}); }
+  function show(k){
+    ['connect','preview','commit','done'].forEach(function(s){ el('step-'+s).style.display = s===k?'block':'none'; });
+    Array.prototype.forEach.call(el('crumbs').children,function(c){
+      var order=['connect','preview','commit','done'], i=order.indexOf(c.dataset.k), cur=order.indexOf(k);
+      c.className='s'+(i===cur?' on':(i<cur?' done':''));
+    });
+  }
+  function money(n){return n;} // already formatted server-side
+  function tiles(where,arr){ el(where).innerHTML=arr.map(function(t){return '<div class="tile"><div class="v">'+t.v+'</div><div class="l">'+t.l+'</div></div>';}).join(''); }
+
+  // gate
+  function gated(){ if(ops()){ el('gate').style.display='none'; show('connect'); } else { el('gate').style.display='block'; ['connect','preview','commit','done'].forEach(function(s){el('step-'+s).style.display='none';}); } }
+  el('unlock').addEventListener('click',function(){ var v=el('ops').value.trim(); if(v){ localStorage.setItem('ant_ops_secret',v); gated(); } });
+
+  // preview
+  el('btn-preview').addEventListener('click',function(){
+    var b=this; el('err-connect').textContent='';
+    state.company=el('company').value.trim(); state.key=el('key').value.trim(); state.demo=el('demo').checked;
+    if(!state.company){ el('err-connect').textContent='Which shop is it landing on?'; return; }
+    b.disabled=true; b.textContent='Reading Housecall Pro…';
+    post({do:'preview',source:state.source,company:state.company,key:state.key,limit_pages:state.demo?2:0}).then(function(d){
+      b.disabled=false; b.textContent='Preview my data →';
+      if(!d.ok){ el('err-connect').textContent=d.error||'Could not read the source.'; return; }
+      state.run=d.run_id;
+      el('pv-sub').textContent='From Housecall Pro (key •••'+d.key_hint+') → '+d.company.name;
+      tiles('pv-tiles',[
+        {v:(d.estimate.customers||0).toLocaleString(),l:'customers'},
+        {v:(d.estimate.jobs||0).toLocaleString(),l:'jobs'},
+        {v:(d.estimate.technicians||0).toLocaleString(),l:'techs'},
+      ]);
+      el('pv-cust').querySelector('tbody').innerHTML=(d.sample.customers||[]).map(function(c){return '<tr><td>'+esc(c.name)+'</td><td>'+esc(c.phone||'—')+'</td><td>'+esc([c.city,c.state].filter(Boolean).join(', ')||'—')+'</td></tr>';}).join('')||'<tr><td colspan=3 style="color:var(--faint)">—</td></tr>';
+      el('pv-jobs').querySelector('tbody').innerHTML=(d.sample.jobs||[]).map(function(j){return '<tr><td><span class="st '+esc(j.status)+'">'+esc(j.status)+'</span></td><td>'+esc(j.problem||'—')+'</td><td>'+esc(j.day||'—')+'</td><td>'+esc(j.total)+'</td></tr>';}).join('')||'<tr><td colspan=4 style="color:var(--faint)">—</td></tr>';
+      show('preview');
+    }).catch(function(){ b.disabled=false; b.textContent='Preview my data →'; el('err-connect').textContent='Network error — try again.'; });
+  });
+
+  el('btn-back').addEventListener('click',function(){ show('connect'); });
+  el('btn-again').addEventListener('click',function(){ state.run=null; el('company').value=''; el('key').value=''; show('connect'); });
+
+  // commit loop
+  el('btn-commit').addEventListener('click',function(){
+    show('commit'); el('err-commit').textContent=''; el('pbar').style.width='4%';
+    var total=0; // we don't know exact; animate by phase + landed
+    function step(){
+      post({do:'commit',source:state.source,company:state.company,run:state.run}).then(function(d){
+        if(!d.ok){ el('err-commit').textContent=d.error||'Import hit a snag.'; return; }
+        var L=d.landed||{};
+        tiles('cm-tiles',[
+          {v:(L.customers||0).toLocaleString(),l:'customers'},
+          {v:(L.jobs||0).toLocaleString(),l:'jobs'},
+          {v:(L.technicians||0).toLocaleString(),l:'techs'},
+          {v:(L.invoices||0).toLocaleString(),l:'invoices'},
+        ]);
+        el('cm-phase').textContent = d.done ? 'Wrapping up…' : ('Importing '+(d.phase||'')+'…');
+        var pct = d.done?100:Math.min(94,(el('pbar').style.width?parseFloat(el('pbar').style.width):4)+9);
+        el('pbar').style.width=pct+'%';
+        if(d.done){
+          tiles('dn-tiles',[
+            {v:(L.customers||0).toLocaleString(),l:'customers'},
+            {v:(L.jobs||0).toLocaleString(),l:'jobs'},
+            {v:(L.technicians||0).toLocaleString(),l:'techs'},
+            {v:(L.invoices||0).toLocaleString(),l:'invoices'},
+          ]);
+          setTimeout(function(){ show('done'); },500);
+        } else { setTimeout(step, 350); }
+      }).catch(function(){ el('err-commit').textContent='Network error mid-import — reopen and it picks up where it left off (nothing double-creates).'; });
+    }
+    step();
+  });
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
+  gated();
+})();
+</script>
+</body>
+</html>

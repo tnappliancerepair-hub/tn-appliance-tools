@@ -1,0 +1,181 @@
+// platform-import — the data-migration engine behind the "Bring your data over" wizard
+// (platform/import.html). Operator/admin-gated. Reads a shop's OLD system (Housecall Pro
+// today) and lands customers, jobs, techs + invoices onto their board — idempotently, so a
+// re-run never double-creates. Resumable (Netlify's 26s cap) via a cursor on import_run.
+//
+//   ?do=probe    {source,key?,company}                 auth + true source totals (no writes)
+//   ?do=preview  {source,key?,company}                 sample bundle + counts, opens an import_run
+//   ?do=commit   {source,key?,company,run}             land ~a few pages; call until done=true
+//   ?do=status   {run}                                  read an import_run
+//
+// Gate: ?secret=<admin>  OR  operator Supabase JWT (Bearer). `key` = the shop's HCP API key
+// (pasted in the wizard); omit it to fall back to the vaulted HCP_API_KEY for a demo. The raw
+// key is NEVER stored — only its last 4 (key_hint).
+'use strict';
+const { getSecret } = require('./_lib/secrets');
+const { platform, cfg } = require('./_lib/platform-rest');
+const land = require('./_lib/import/land');
+const hcp = require('./_lib/import/hcp-adapter');
+
+const PLATFORM_ANON = 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7';
+const OPERATOR_EMAILS = ['tnappliancerepair@gmail.com'];
+const ADAPTERS = { housecallpro: hcp };
+// commit lands kinds in FK order: techs + customers first (no deps), then jobs (+invoices inline).
+const PHASES = ['technicians', 'customers', 'jobs'];
+const PAGES_PER_COMMIT = 3;              // bounded per call so we stay under the 26s cap
+const PREVIEW_PAGE_CAP = 1;              // preview only samples page 1 of each kind
+
+function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
+
+async function operatorFromJWT(event) {
+  const h = event.headers || {};
+  const m = String(h.authorization || h.Authorization || '').match(/Bearer\s+(.+)/i);
+  if (!m) return null;
+  const base = (await getSecret('PLATFORM_SUPABASE_URL')) || 'https://tntbhfwitytkcoqlejwc.supabase.co';
+  try {
+    const r = await fetch(`${base}/auth/v1/user`, { headers: { Authorization: 'Bearer ' + m[1], apikey: PLATFORM_ANON }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const u = await r.json().catch(() => null);
+    return OPERATOR_EMAILS.includes(String((u && u.email) || '').toLowerCase()) ? String(u.email).toLowerCase() : null;
+  } catch (_) { return null; }
+}
+
+async function resolveCompany(pf, ref) {
+  ref = String(ref || '').trim();
+  if (!ref) return null;
+  const isUuid = /^[0-9a-f-]{36}$/i.test(ref);
+  const rows = await pf.get(isUuid ? `company?id=eq.${ref}&select=id,name,slug&limit=1` : `company?slug=eq.${encodeURIComponent(ref)}&select=id,name,slug&limit=1`);
+  return (rows && rows[0]) || null;
+}
+
+// low-level import_run read/write via service key
+async function runGet(pf, id) { const r = await pf.get(`import_run?id=eq.${id}&select=*&limit=1`); return (r && r[0]) || null; }
+async function runInsert(row) {
+  const { url, key } = await cfg();
+  const r = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/import_run`, { method: 'POST', headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(row) });
+  const d = await r.json().catch(() => null); if (!r.ok) throw new Error((d && d.message) || 'run insert ' + r.status); return Array.isArray(d) ? d[0] : d;
+}
+async function runPatch(id, patch) {
+  const { url, key } = await cfg();
+  const r = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/import_run?id=eq.${id}`, { method: 'PATCH', headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(patch) });
+  const d = await r.json().catch(() => null); if (!r.ok) throw new Error((d && d.message) || 'run patch ' + r.status); return Array.isArray(d) ? d[0] : d;
+}
+
+const money = (c) => '$' + (Math.round((c || 0) / 100)).toLocaleString();
+
+exports.handler = async function (event) {
+  const q = event.queryStringParameters || {};
+  const body = (() => { try { return JSON.parse(event.body || '{}'); } catch (_) { return {}; } })();
+  const p = { ...q, ...body };
+
+  const guard = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  const isAdmin = p.secret === guard || !!(await operatorFromJWT(event));
+  if (!isAdmin) return { statusCode: 403, body: 'forbidden' };
+
+  const pf = await platform();
+  if (!pf) return json(200, { ok: false, error: 'platform not configured' });
+
+  const source = String(p.source || 'housecallpro').toLowerCase();
+  const adapter = ADAPTERS[source];
+  if (!adapter) return json(400, { ok: false, error: 'unsupported source: ' + source + ' (housecallpro only for now)' });
+  const key = String(p.key || '').trim() || (await getSecret('HCP_API_KEY')) || '';
+  const do_ = String(p.do || 'probe');
+
+  // ---- STATUS ----
+  if (do_ === 'status') {
+    const run = await runGet(pf, String(p.run || ''));
+    if (!run) return json(404, { ok: false, error: 'run not found' });
+    return json(200, { ok: true, run });
+  }
+
+  if (!key) return json(200, { ok: false, error: 'no API key — paste the shop’s Housecall Pro key, or vault HCP_API_KEY for a demo' });
+  const key_hint = key.slice(-4);
+
+  // ---- PROBE ----
+  if (do_ === 'probe') {
+    const totals = await adapter.probe(key);
+    const ok = Object.values(totals).every((t) => t.ok);
+    return json(200, { ok, source, key_hint, totals });
+  }
+
+  const company = await resolveCompany(pf, p.company);
+  if (!company) return json(400, { ok: false, error: 'unknown company (pass ?company=slug or uuid)' });
+
+  // ---- PREVIEW ----  true totals + a small normalized sample; opens an import_run.
+  if (do_ === 'preview') {
+    const totals = await adapter.probe(key);
+    if (!Object.values(totals).every((t) => t.ok)) return json(200, { ok: false, error: 'could not read the source — check the API key', totals });
+
+    // sample page 1 of each kind for the eyeball screen
+    const sample = { customers: [], jobs: [] };
+    let money_cents = 0, paid_cents = 0;
+    const cust1 = await adapter.page(key, 'customers', 1);
+    sample.customers = cust1.records.slice(0, 6).map((r) => ({ name: [r.row.first_name, r.row.last_name].filter(Boolean).join(' ') || '(no name)', phone: r.row.phone, city: r.row.city, state: r.row.state }));
+    const job1 = await adapter.page(key, 'jobs', 1);
+    sample.jobs = job1.records.slice(0, 6).map((r) => ({ status: r.row.status, problem: (r.row.problem || '').slice(0, 60), day: r.row.scheduled_day, total: r.invoice ? money(r.invoice.total_cents) : '—' }));
+    for (const r of job1.records) { if (r.invoice) { money_cents += r.invoice.total_cents; if (r.invoice.paid) paid_cents += r.invoice.total_cents; } }
+
+    const est = {
+      technicians: totals.technicians.total || 0,
+      customers: totals.customers.total || 0,
+      jobs: totals.jobs.total || 0,
+      invoices_on_page1: job1.records.filter((r) => r.invoice).length,
+      page1_billed: money(money_cents),
+    };
+    const limit = Math.max(0, parseInt(p.limit_pages, 10) || 0); // 0 = no cap (full migration)
+    const run = await runInsert({
+      company_id: company.id, source, status: 'preview', key_hint,
+      totals: { technicians: est.technicians, customers: est.customers, jobs: est.jobs },
+      cursor: { phase: 'technicians', page: 0, limit },
+      sample, note: limit ? ('capped at ' + limit + ' pages/kind') : null,
+    });
+    return json(200, { ok: true, run_id: run.id, company: { id: company.id, name: company.name, slug: company.slug }, source, key_hint, estimate: est, sample });
+  }
+
+  // ---- COMMIT ----  resumable: lands ~PAGES_PER_COMMIT pages of the current phase, advances the cursor.
+  if (do_ === 'commit') {
+    const run = await runGet(pf, String(p.run || ''));
+    if (!run || run.company_id !== company.id) return json(400, { ok: false, error: 'run not found for this company — start with do=preview' });
+    if (run.status === 'committed') return json(200, { ok: true, done: true, landed: run.landed, note: 'already complete' });
+
+    const cursor = run.cursor || { phase: 'technicians', page: 0 };
+    const landed = { technicians: 0, customers: 0, jobs: 0, invoices: 0, invoice_lines: 0, ...(run.landed || {}) };
+    const skipped = { technicians: 0, customers: 0, jobs: 0, ...(run.skipped || {}) };
+
+    let phaseIdx = Math.max(0, PHASES.indexOf(cursor.phase));
+    let pagesDone = 0;
+    try {
+      while (pagesDone < PAGES_PER_COMMIT && phaseIdx < PHASES.length) {
+        const phase = PHASES[phaseIdx];
+        const pageNum = (cursor.page || 0) + 1;
+        const pg = await adapter.page(key, phase, pageNum);
+        if (pg.status >= 400) return json(200, { ok: false, error: 'source error on ' + phase + ' p' + pageNum + ' (http ' + pg.status + ')', run_id: run.id });
+
+        if (pg.records.length) {
+          if (phase === 'jobs') {
+            const res = await land.landJobs({ companyId: company.id, source, runId: run.id, records: pg.records });
+            landed.jobs += res.landed; skipped.jobs += res.skipped; landed.invoices += res.invoices; landed.invoice_lines += res.invoice_lines;
+          } else {
+            const table = phase === 'technicians' ? 'technician' : 'customer';
+            const kind = phase === 'technicians' ? 'technician' : 'customer';
+            const res = await land.landSimple(kind, table, { companyId: company.id, source, runId: run.id, records: pg.records });
+            landed[phase] += res.landed; skipped[phase] += res.skipped;
+          }
+          cursor.page = pageNum;
+          pagesDone++;
+        }
+        const capped = cursor.limit && cursor.page >= cursor.limit;
+        if (pg.short || !pg.records.length || capped) { phaseIdx++; cursor.phase = PHASES[phaseIdx] || 'done'; const lim = cursor.limit; cursor.page = 0; cursor.limit = lim; }
+      }
+    } catch (e) {
+      await runPatch(run.id, { status: 'failed', cursor, landed, skipped, note: String(e.message || e).slice(0, 300) });
+      return json(200, { ok: false, error: String(e.message || e), run_id: run.id, landed });
+    }
+
+    const done = phaseIdx >= PHASES.length;
+    await runPatch(run.id, { status: done ? 'committed' : 'committing', cursor: done ? { phase: 'done', page: 0 } : cursor, landed, skipped, committed_at: done ? new Date().toISOString() : null });
+    return json(200, { ok: true, done, phase: done ? 'done' : cursor.phase, landed, skipped, run_id: run.id, next: done ? null : 'call do=commit again' });
+  }
+
+  return json(400, { ok: false, error: 'pass ?do=probe|preview|commit|status' });
+};
