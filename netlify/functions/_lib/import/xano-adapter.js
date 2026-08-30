@@ -69,31 +69,36 @@ function normCustomer(o) {
 }
 function normJob(o) {
   const sched = firstIso(pick(o, ['scheduled_start']));
-  const appl = [pick(o, ['appliance_brand', 'brand']), pick(o, ['appliance_type', 'appliance'])].filter(Boolean).join(' ').trim();
-  const prob = clean(pick(o, ['problem_summary', 'problem', 'description', 'issue']));
-  const problem = [appl, prob].filter(Boolean).join(' — ') || null; // fold the appliance into the problem (units are a phase-2 enrichment)
+  const done = firstIso(pick(o, ['job_completed_at']));
+  const appl = [pick(o, ['appliance_brand', 'brand']), pick(o, ['appliance_type']), pick(o, ['model_number', 'appliance_model'])].filter(Boolean).join(' ').trim();
+  const prob = clean(pick(o, ['problem_summary', 'problem_description', 'recommended_service']));
+  const problem = [appl, prob].filter(Boolean).join(' — ') || null; // fold appliance into problem (units are phase-2)
   const st = mapStatus(pick(o, ['scheduling_status', 'current_status']));
   return {
     external_id: String(o.id),
     _customer_ext: String(pick(o, ['customer_id']) || ''),
-    _tech_ext: String(pick(o, ['technician_id']) || ''),
+    _tech_ext: String(pick(o, ['technician_id', 'accepted_by_tech_id']) || ''),
     row: {
       status: st,
       problem,
       source: 'import_xano',
       scheduled_day: sched ? sched.slice(0, 10) : null,
       scheduled_start: sched || null,
+      completed_at: done || null,
       warranty_company: String(pick(o, ['warranty_company']) || '') || null,
       claim_number: String(pick(o, ['claim_number']) || '') || null,
-      dispatch_id: String(pick(o, ['dispatch_source_id', 'dispatch_id']) || '') || null,
+      dispatch_id: String(pick(o, ['dispatch_source_id']) || '') || null,
       parts_status: String(pick(o, ['parts_status']) || '') || null,
+      service_window: String(pick(o, ['service_eta_window']) || '') || null,
       xano_id: o.id,
       xano_status: String(pick(o, ['scheduling_status']) || '') || null,
       xano_current_status: String(pick(o, ['current_status']) || '') || null,
     },
-    invoice: null, // money layer (office_invoice_logged / warranty_submissions) is a phase-2 pass
+    invoice: null, // money layer (total_amount_cents + warranty remittance) is its own careful phase-2 pass
   };
 }
+// TN's Xano carries throwaway test jobs (test_run_id) — never migrate those onto a real board.
+function isTestJob(o) { const t = o && o.test_run_id; return t != null && t !== '' && t !== false; }
 const NORM = { technicians: normTech, customers: normCustomer, jobs: normJob };
 
 async function headers() {
@@ -132,7 +137,9 @@ async function page(_key, kind, cursor) {
   if (!id) throw new Error('unknown kind ' + kind);
   const pageNum = Number(cursor) || 1;
   const p = await readTable(id, pageNum);
-  const records = (p.list || []).map(NORM[kind]).filter((x) => x.external_id && x.external_id !== 'undefined');
+  let list = p.list || [];
+  if (kind === 'jobs') list = list.filter((o) => !isTestJob(o)); // drop TN's test jobs
+  const records = list.map(NORM[kind]).filter((x) => x.external_id && x.external_id !== 'undefined');
   const next = (p.list || []).length < PER_PAGE ? null : pageNum + 1;
   return { status: p.status, total: p.total ?? null, records, next };
 }
