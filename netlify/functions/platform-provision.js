@@ -507,6 +507,7 @@ exports.handler = async function (event) {
   const subdomain = String(q.subdomain || shopHandle(name)).toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '').slice(0, 40);
   const email = (q.owner_email || '').trim();
   const plan = (q.plan || 'office').trim();
+  const ref = String(q.ref || '').trim();   // referral partner code (e.g. TK) — attributes this shop to a reseller
 
   // 1) Owner auth login — create it; if the email already exists, find + reuse the uid.
   let uid = null, tempPw = null, userNote = 'no_email';
@@ -528,14 +529,19 @@ exports.handler = async function (event) {
 
   // 2) Company (idempotent by slug).
   let company = null;
-  const cg = await rest(`company?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,trade,plan&limit=1`);
+  const cg = await rest(`company?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,trade,plan,referred_by&limit=1`);
   if (Array.isArray(cg.d) && cg.d[0]) company = cg.d[0];
   if (!company) {
     const settings = { business: { name, phone: (q.owner_phone || '').replace(/[^\d+]/g, ''), area: q.area || '' }, site: { subdomain } };
     const features = { database: true, scheduling: true, portal: true, invoicing: true };
-    const ins = await rest('company', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ slug, name, trade, plan, features, settings }) });
+    const row = { slug, name, trade, plan, features, settings };
+    if (ref) { row.referred_by = ref; row.referred_at = new Date().toISOString(); }
+    const ins = await rest('company', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
     if (!ins.ok) return json(200, { ok: false, step: 'create_company', status: ins.status, error: JSON.stringify(ins.d).slice(0, 300) });
     company = Array.isArray(ins.d) ? ins.d[0] : ins.d;
+  } else if (ref && !company.referred_by) {
+    // Existing shop, not yet attributed — gentle backfill (never clobbers an existing referrer).
+    try { await rest(`company?id=eq.${company.id}`, { method: 'PATCH', body: JSON.stringify({ referred_by: ref, referred_at: new Date().toISOString() }) }); company.referred_by = ref; } catch (_) {}
   }
 
   // 3) Owner app_user link (idempotent by company + uid).
@@ -572,7 +578,7 @@ exports.handler = async function (event) {
   return json(200, {
     ok: true,
     seeded,
-    company: { id: company.id, slug: company.slug, name: company.name, trade: company.trade, plan: company.plan },
+    company: { id: company.id, slug: company.slug, name: company.name, trade: company.trade, plan: company.plan, referred_by: company.referred_by || (ref || null) },
     login: { email, temp_password: tempPw, note: userNote },
     owner_linked: ownerLinked,
     surfaces: {

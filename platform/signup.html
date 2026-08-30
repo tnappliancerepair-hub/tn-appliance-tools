@@ -193,7 +193,8 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
         owner_name: document.getElementById('owner').value.trim(),
         plan: sel.plan,
         addons: Object.keys(sel.addons).filter(function(k){return sel.addons[k];}),
-        want_ann: sel.ann
+        want_ann: sel.ann,
+        ref: (new URLSearchParams(location.search).get('ref')||'').slice(0,60)  // reseller referral code (?ref=TK)
       })
     }).then(function(r){return r.json();}).then(function(d){
       if(d.ok){ try{ if(window.fbq) fbq('track','Lead',{content_name:sel.plan}); }catch(_){} }

@@ -85,9 +85,20 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   const email = String(meta.email || '').trim().toLowerCase();
   const slug = String(meta.slug || '').trim();
   if (!slug || !email) return null;
+  // Referral attribution — only credit a code that matches a real ACTIVE partner (a stray
+  // ?ref= from the URL must not attribute to a nobody). Validated via the service key.
+  let refCode = '';
+  const rawRef = String(meta.ref || '').trim();
+  if (rawRef) {
+    try {
+      const pr = await pf.get(`partner?code=eq.${encodeURIComponent(rawRef)}&active=eq.true&select=code&limit=1`);
+      if (pr && pr[0] && pr[0].code) refCode = pr[0].code;
+    } catch (_) {}
+  }
   const pev = { queryStringParameters: {
     secret: admin, slug, name: meta.name || slug, trade: meta.trade || 'appliance',
     plan: meta.plan || 'office', owner_email: email, owner_name: meta.owner_name || '', owner_phone: meta.owner_phone || '',
+    ref: refCode,
   } };
   let pd = {};
   try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
