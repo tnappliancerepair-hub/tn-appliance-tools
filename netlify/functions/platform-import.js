@@ -18,10 +18,12 @@ const land = require('./_lib/import/land');
 const hcp = require('./_lib/import/hcp-adapter');
 const jobber = require('./_lib/import/jobber-adapter');
 const workiz = require('./_lib/import/workiz-adapter');
+const xano = require('./_lib/import/xano-adapter');
 
 const PLATFORM_ANON = 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7';
 const OPERATOR_EMAILS = ['tnappliancerepair@gmail.com'];
-const ADAPTERS = { housecallpro: hcp, jobber, workiz };
+const ADAPTERS = { housecallpro: hcp, jobber, workiz, xano };
+const KEYLESS = { xano: true }; // TN's own system reads a vaulted token, no pasted key
 // each adapter declares its own PHASES (FK order) + START cursor; commit iterates them generically.
 const PAGES_PER_COMMIT = 3;              // bounded per call so we stay under the 26s cap
 
@@ -78,7 +80,8 @@ exports.handler = async function (event) {
   const source = String(p.source || 'housecallpro').toLowerCase();
   const adapter = ADAPTERS[source];
   if (!adapter) return json(400, { ok: false, error: 'unsupported source: ' + source + ' (housecallpro | jobber | workiz)' });
-  const key = String(p.key || '').trim() || (await getSecret('HCP_API_KEY')) || '';
+  let key = String(p.key || '').trim();
+  if (!key && source === 'housecallpro') key = (await getSecret('HCP_API_KEY')) || ''; // demo fallback for HCP only
   const do_ = String(p.do || 'probe');
 
   // ---- STATUS ----
@@ -88,8 +91,8 @@ exports.handler = async function (event) {
     return json(200, { ok: true, run });
   }
 
-  if (!key) return json(200, { ok: false, error: 'no API key — paste the shop’s Housecall Pro key, or vault HCP_API_KEY for a demo' });
-  const key_hint = key.slice(-4);
+  if (!key && !KEYLESS[source]) return json(200, { ok: false, error: 'no API key — paste the shop’s key' });
+  const key_hint = KEYLESS[source] ? 'vault' : key.slice(-4);
 
   // ---- PROBE ----
   if (do_ === 'probe') {
