@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Run the demo</title>
+<style>
+  :root{
+    --bg:#f5f7f3; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --faint:#8a9280; --line:#e3e7db;
+    --brand:#3f8f24; --brand-2:#2f6f18; --chip:#eef3e8; --warn:#b45309; --warnbg:#f6ecdc; --jab:#5b3fb4; --jabbg:#efeaf9;
+    --shadow:0 1px 2px rgba(20,30,10,.05),0 8px 24px rgba(20,30,10,.06);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#7bd15c; --warn:#e0a54a; --warnbg:#2a2213; --jab:#b7a6ee; --jabbg:#211a33;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4);
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:780px;margin:0 auto;padding:26px 18px 90px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:-.01em;font-size:17px}
+  .brand .dot{width:28px;height:28px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
+  h1{font-size:clamp(26px,5vw,36px);letter-spacing:-.02em;margin:16px 0 6px;text-wrap:balance}
+  .lede{color:var(--muted);font-size:17px;margin:0 0 8px}
+  .facts{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);margin:20px 0}
+  .facts .row{display:flex;flex-wrap:wrap;gap:4px 10px;margin:5px 0;font-size:14.5px}
+  .facts b{font-weight:800;min-width:118px;display:inline-block}
+  .facts a,.facts code{color:var(--brand);text-decoration:none;word-break:break-all}
+  .facts code{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:13.5px}
+  .num{font-size:20px;font-weight:900;letter-spacing:-.01em;color:var(--ink)}
+  .warmnote{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:10px 13px;font-size:14.5px;margin-top:10px;display:flex;gap:8px}
+  h2{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:800;margin:34px 0 2px}
+  .act{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px 10px;box-shadow:var(--shadow);margin-top:10px}
+  .act .n{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .act .n .b{width:30px;height:30px;flex:none;border-radius:9px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:15px;font-weight:800}
+  .act .n .t{font-size:20px;font-weight:800;letter-spacing:-.01em}
+  .act .n .t small{display:block;font-size:12.5px;font-weight:600;color:var(--faint);letter-spacing:0;text-transform:none}
+  .do{margin:8px 0} .do p{margin:5px 0}
+  .do .lab{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--brand)}
+  .say{background:var(--jabbg);border-radius:11px;padding:11px 14px;margin:10px 0 4px;font-size:15px;color:var(--ink)}
+  .say .lab{font-size:11.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--jab);display:block;margin-bottom:3px}
+  code.k{background:var(--chip);border-radius:5px;padding:1px 6px;font-size:13.5px}
+  a{color:var(--brand)}
+  .fix{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px 6px;box-shadow:var(--shadow);margin-top:10px}
+  .fix ul{margin:6px 0 8px;padding-left:20px} .fix li{margin:6px 0;font-size:14.5px;color:var(--muted)} .fix li b{color:var(--ink)}
+  .close{margin-top:26px;font-size:15px;color:var(--muted)}
+  .foot{color:var(--faint);font-size:13px;margin-top:26px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="dot">🐜</span> AssistAnt</div>
+  <h1>Run the demo</h1>
+  <p class="lede">Four moments, in order. Everything below is live and pre-checked. Keep this open on your phone or a second screen and walk the beats — the phone call is the opener, the honesty close is the mic-drop.</p>
+
+  <div class="facts">
+    <div class="row"><b>📞 Ann's live line</b> <span class="num">+1 615-588-9400</span></div>
+    <div class="row"><b>🖥️ Front door</b> <a href="/platform/system.html">system.html</a> — the product tour + your operator tower (unlock with your ops key)</div>
+    <div class="row"><b>🏪 Demo shop</b> Joey's Appliance Repair — sign in at <a href="/platform/office-board.html">office-board</a> / <a href="/platform/owner.html">owner</a> as <code>demo@assistant247.net</code></div>
+    <div class="row"><b>👤 Customer view</b> <a href="/platform/portal.html?t=72103f6e-2931-4dd9-9bab-37eaf8143849">the customer's portal</a> (no login — it's a tokenized link)</div>
+    <div class="row"><b>🔁 Move data</b> <a href="/platform/import.html">import.html</a> (unlock with your ops key)</div>
+    <div class="warmnote"><span>🔥</span><span><b>Warm the line first.</b> Call +1 615-588-9400 once ~30 seconds before you demo. A cold first call can miss the by-name greeting; the second call nails it.</span></div>
+  </div>
+
+  <h2>The four beats</h2>
+
+  <!-- ACT 1 -->
+  <div class="act">
+    <div class="n"><span class="b">1</span><span class="t">Ann answers live<small>the opener — do this first</small></span></div>
+    <div class="do">
+      <span class="lab">Do</span>
+      <p>Call <b>+1 615-588-9400 from your cell.</b> She opens: <em>"Hi Teddy! Thanks for calling Joey's Appliance Repair — I see you're scheduled with Joey Wednesday for your Whirlpool refrigerator. Is that what you're calling about?"</em> She knows who you are and the job. Ask her to move the day, text you a link, or reach a person — she does it.</p>
+      <p style="color:var(--muted);font-size:14px">To show <b>new-lead</b> handling instead, call from any other phone — she greets warm, captures the lead, and books it onto the board.</p>
+    </div>
+    <div class="say"><span class="lab">Say</span>Podium runs an ad bragging their bot answers every after-hours call — but it just takes a message. Mine knows who's calling, reads the board, and books the day. That's the difference between voicemail and an employee.</div>
+  </div>
+
+  <!-- ACT 2 -->
+  <div class="act">
+    <div class="n"><span class="b">2</span><span class="t">It runs the whole day<small>one system, not five tabs</small></span></div>
+    <div class="do">
+      <span class="lab">Do</span>
+      <p>On the <a href="/platform/office-board.html">office board</a>, open a job → assign a tech, <b>text the customer</b> (watch it send), build the invoice. Open <a href="/platform/dispatch.html">Dispatch</a> → it <b>auto-suggests the best tech + day</b>. Open the <a href="/platform/tech.html">tech app</a> → the tech's day + pay. Then open the <a href="/platform/portal.html?t=72103f6e-2931-4dd9-9bab-37eaf8143849">customer's portal</a> → your text is right there in their thread.</p>
+    </div>
+    <div class="say"><span class="lab">Say</span>This isn't five apps duct-taped together. It's one system — the office, the tech in the truck, and the homeowner all see the same job the second it changes. That's what "connected" actually means.</div>
+  </div>
+
+  <!-- ACT 3 -->
+  <div class="act">
+    <div class="n"><span class="b">3</span><span class="t">Bring your data over<small>kills the fear of switching</small></span></div>
+    <div class="do">
+      <span class="lab">Do</span>
+      <p>Open <a href="/platform/import.html">import.html</a> → pick <b>Housecall Pro</b> → <b>Preview</b>. Their real customers and jobs show up in the count tiles, then land on a fresh board. Point out: <em>nothing is deleted — the old system keeps running.</em></p>
+    </div>
+    <div class="say"><span class="lab">Say</span>Workiz runs ads saying "you're not married to your software." Cute — they just tell you you're <em>allowed</em> to leave. We actually move you: your whole history off Housecall Pro, Jobber, or Workiz in an afternoon, and we keep the old system running until you're 100% sure. That's what makes switching feel safe.</div>
+  </div>
+
+  <!-- ACT 4 -->
+  <div class="act">
+    <div class="n"><span class="b">4</span><span class="t">AI partner + honest pricing<small>the mic-drop</small></span></div>
+    <div class="do">
+      <span class="lab">Do</span>
+      <p>On <a href="/platform/owner.html">owner.html</a>, open the <b>🐜 Ant dock</b>. Tell it to do something — "set my parts margin to 55%" or "give Lee Friday off." It does it, and there's an <b>Undo</b>. Then show the <b>4-option pricing</b> — the customer picks OEM or aftermarket, DIY-ship or we-install.</p>
+    </div>
+    <div class="say"><span class="lab">Say</span>Look at Housecall Pro's own ad comments — "don't tell me what to charge." We flipped it: the customer sees four honest options and picks. And the AI partner acts <em>for</em> you but you can undo anything it does. It's a teammate, not a black box — and it's real, not a spokesperson in a studio.</div>
+  </div>
+
+  <h2>If something's off</h2>
+  <div class="fix">
+    <ul>
+      <li><b>Ann greets generically</b> (no "Hi Teddy") → the line went cold. Call once more to warm it, then the by-name greeting lands.</li>
+      <li><b>Board looks thin / a link 404s</b> → open <a href="/platform/system.html">system.html</a> and unlock the operator tower — it shows live status for every area.</li>
+      <li><b>Calling from a number that isn't seeded</b> → she treats you as a new lead (correct). For the by-name wow, call from your own cell, or add the caller as a demo customer first.</li>
+    </ul>
+  </div>
+
+  <p class="close"><b>To close:</b> send them to <a href="/platform/system.html">the free-trial CTA on system.html</a> — it carries your <code class="k">?ref=</code> so a TK-referred shop stays credited to him.</p>
+
+  <p class="foot">Internal demo runbook · demo shop = fake data · warm the phone line before you go live.</p>
+</div>
+</body>
+</html>
