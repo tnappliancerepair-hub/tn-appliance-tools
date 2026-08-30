@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Your day on the new board</title>
+<style>
+  :root{
+    --bg:#f5f7f3; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --faint:#8a9280; --line:#e3e7db;
+    --brand:#3f8f24; --brand-2:#2f6f18; --chip:#eef3e8; --warn:#b45309; --warnbg:#f6ecdc;
+    --shadow:0 1px 2px rgba(20,30,10,.05),0 8px 24px rgba(20,30,10,.06);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#7bd15c; --warn:#e0a54a; --warnbg:#2a2213;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4);
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto;padding:26px 18px 80px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:-.01em;font-size:17px}
+  .brand .dot{width:28px;height:28px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
+  h1{font-size:clamp(25px,5vw,34px);letter-spacing:-.02em;margin:16px 0 6px;text-wrap:balance}
+  .lede{color:var(--muted);font-size:17px;margin:0 0 8px}
+  .signin{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);margin:20px 0}
+  .signin b{font-weight:800}
+  .signin code{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:14px}
+  h2{font-size:20px;letter-spacing:-.01em;margin:30px 0 4px;display:flex;align-items:center;gap:9px}
+  h2 .n{width:26px;height:26px;flex:none;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:14px;font-weight:800}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px 8px;box-shadow:var(--shadow);margin-top:8px}
+  ol.steps{margin:2px 0 8px;padding-left:20px} ol.steps li{margin:5px 0}
+  .card p{margin:6px 0} .card p.where{color:var(--muted);font-size:14px;margin-top:0}
+  .tell{background:var(--warnbg);border-radius:9px;padding:9px 12px;margin:8px 0 4px;font-size:14.5px;color:var(--warn);display:flex;gap:8px}
+  .tell .i{flex:none}
+  .fb{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 10px;box-shadow:var(--shadow);margin-top:30px}
+  .fb h2{margin-top:0}
+  .fb ul{margin:6px 0 0;padding-left:20px} .fb li{margin:9px 0;color:var(--muted)} .fb li b{color:var(--ink)}
+  .foot{color:var(--faint);font-size:13px;margin-top:26px;text-align:center}
+  a{color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="dot">🐜</span> AssistAnt</div>
+  <h1>Danielle — your day on the new board</h1>
+  <p class="lede">This is a test copy of the office board loaded with a normal day of jobs. Nothing here is a real customer. Poke at everything, do the things you'd do on a real day, and jot down anything that feels harder than the old way — that list is what we fix next.</p>
+
+  <div class="signin">
+    <b>Signing in</b> — open <code>tnapplianceexchange.net/platform/office-board.html</code> and enter the email + password Teddy gives you. Same login works for the scheduling calendar and messages.
+  </div>
+
+  <h2><span class="n">1</span> See your whole day</h2>
+  <div class="card">
+    <p class="where">office-board.html</p>
+    <p>Every job is a card in a column by where it's at: <b>New · Scheduled · In progress · Waiting on parts · Completed</b>. The little number on each column button is the count. The money bar up top shows collected, outstanding, and tax for the month.</p>
+    <div class="tell"><span class="i">💬</span><span>Right now you find a job by tapping a column to filter, then scrolling — there's <b>no search box yet</b>. If you catch yourself wanting to type a name to jump to it, tell us — that's an easy add.</span></div>
+  </div>
+
+  <h2><span class="n">2</span> Schedule a job</h2>
+  <div class="card">
+    <p class="where">Dispatch (top of the board → 📅 Dispatch)</p>
+    <ol class="steps">
+      <li>The <b>Unscheduled</b> tray lists every job with no day/tech.</li>
+      <li>Tap one — it <b>suggests the best tech + day</b> (who covers that ZIP, who has room, who's already routed nearby).</li>
+      <li>Tap <b>Use this</b>, or pick your own tech + day, then Save.</li>
+    </ol>
+    <p>It lands on the board as Scheduled and texts the tech. You can also drag/assign right from a job card.</p>
+  </div>
+
+  <h2><span class="n">3</span> Open a job — assign, text, notes</h2>
+  <div class="card">
+    <p class="where">office-board.html → tap any card</p>
+    <p>The drawer is the job's cockpit: <b>assign or change the tech</b>, flag 2-man / long job, add office notes, and <b>text the customer</b> right there — the whole conversation is in the drawer (their texts and yours, plus any photos/video they sent). Their stated availability shows under intake.</p>
+  </div>
+
+  <h2><span class="n">4</span> Build the invoice &amp; take payment</h2>
+  <div class="card">
+    <p class="where">job drawer → invoice worksheet</p>
+    <ol class="steps">
+      <li>Enter labor, parts (type your cost — the customer price fills in from your margin), trip fee, tax. Totals add up live.</li>
+      <li><b>Save</b>, then <b>Text invoice</b> or <b>Print</b>.</li>
+      <li>On the payment card: <b>Take card</b> (texts a pay link) or <b>Mark cash / check</b>.</li>
+    </ol>
+  </div>
+
+  <h2><span class="n">5</span> Warranty jobs</h2>
+  <div class="card">
+    <p>Warranty jobs carry the company (AHS, SquareTrade…) and claim #. The drawer holds everything you file with: the customer's video, the model-sticker photo, the diagnosis, and the parts.</p>
+    <div class="tell"><span class="i">💬</span><span>You still <b>file the claim by hand in the vendor's portal</b> (same as today) by copying those fields over. The old board gave you one-tap "copy this field" cards and a parts-owed-back list — those aren't here yet. As you file a couple, tell us how much you miss them.</span></div>
+    <p><b>When the warranty check comes in:</b> tap <b>Remittance</b> on the board and split the EFT/check back across the jobs it paid — set what actually came in per job and mark them paid.</p>
+  </div>
+
+  <h2><span class="n">6</span> Parts you're waiting on</h2>
+  <div class="card">
+    <p>A job waiting on a part sits in the <b>Waiting on parts</b> column, and the part shows in the drawer.</p>
+    <div class="tell"><span class="i">💬</span><span>There's <b>no separate "to-order" list</b> yet (with a required ETA + auto-text to the customer) like the old one. If you rely on that to keep parts moving, flag it.</span></div>
+  </div>
+
+  <h2><span class="n">7</span> Settings</h2>
+  <div class="card">
+    <p class="where">office-board.html → Settings</p>
+    <p>Business info, sales tax, ways to pay, the review link, and your own password — all in one place.</p>
+  </div>
+
+  <div class="fb">
+    <h2>✍️ Before you close it — jot this down</h2>
+    <p style="color:var(--muted);margin-top:0">One or two lines each is plenty. Be blunt — "this was slower," "I couldn't find X," "the old way was better because…" This is exactly what we build next.</p>
+    <ul>
+      <li><b>Scheduling</b> — could you get a job onto a tech's day as fast as today?</li>
+      <li><b>Warranty</b> — filing a claim + tracking the money and parts-owed-back: what slowed you down?</li>
+      <li><b>Parts</b> — could you keep track of what's on order and chase it?</li>
+      <li><b>Invoicing &amp; money</b> — build it, send it, mark it paid: anything clunky?</li>
+      <li><b>Texting customers</b> — was the conversation easy to find and use?</li>
+      <li><b>Trusting the board</b> — did you ever worry a job was missing or dropped? (The old "everything's accounted for" banner isn't here yet — did you miss it?)</li>
+    </ul>
+  </div>
+
+  <p class="foot">Test board · not real customers · your notes go straight into the next round.</p>
+</div>
+</body>
+</html>
