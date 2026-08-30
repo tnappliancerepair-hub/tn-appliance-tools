@@ -139,6 +139,9 @@ async function page(_key, kind, cursor) {
   const p = await readTable(id, pageNum);
   let list = p.list || [];
   if (kind === 'jobs') list = list.filter((o) => !isTestJob(o)); // drop TN's test jobs
+  // only the current roster (the 5 active techs: Teddy/Jimmy/Andre/Lee/John) — skip departed
+  // (Billy) + the blank orphan, both stored active:false in Xano.
+  if (kind === 'technicians') list = list.filter((o) => o.active !== false);
   const records = list.map(NORM[kind]).filter((x) => x.external_id && x.external_id !== 'undefined');
   const next = (p.list || []).length < PER_PAGE ? null : pageNum + 1;
   return { status: p.status, total: p.total ?? null, records, next };
