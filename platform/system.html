@@ -203,9 +203,55 @@
   .card:hover,.ptile:hover,.win:hover{transform:translateY(-3px);box-shadow:0 6px 16px rgba(20,30,10,.09),0 18px 40px rgba(20,30,10,.11)}
   .btn{transition:transform .12s ease} .btn:active{transform:translateY(1px)}
 
+  /* nav right cluster + theme toggle */
+  .navrow .right{display:flex;align-items:center;gap:12px}
+  .themebtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;font-size:16px;display:grid;place-items:center;box-shadow:var(--shadow);transition:transform .15s ease,background-color .35s ease,border-color .35s ease}
+  .themebtn:hover{transform:translateY(-1px)}
+  body{transition:background-color .35s ease,color .35s ease}
+  header.hero,.tour,.op,.anncard,.auth,.ctaband,.tryann,.jcard,.seat,.stat,.rbucket{transition:background-color .35s ease,border-color .35s ease}
+
+  /* Hear Ann + tilt glare + success pulse */
+  .annfoot .acts{display:flex;gap:15px;align-items:center}
+  .voicebtn{font-size:12.5px;color:var(--brand-2);font-weight:800;cursor:pointer;background:none;border:0;padding:0}
+  .anncard{transform-style:preserve-3d;will-change:transform}
+  .annglare{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:0;transition:opacity .3s;background:radial-gradient(circle at var(--gx,50%) var(--gy,0%),rgba(255,255,255,.26),transparent 46%)}
+  .anncard.tilt .annglare{opacity:1}
+  .successpop{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:3}
+  .successpop .ck{width:66px;height:66px;border-radius:50%;background:var(--good);color:#fff;display:grid;place-items:center;font-size:34px;box-shadow:0 8px 32px color-mix(in srgb,var(--good) 55%,transparent);animation:ckpop .75s cubic-bezier(.2,1.4,.4,1) forwards}
+  @keyframes ckpop{0%{transform:scale(.3);opacity:0}45%{transform:scale(1.08);opacity:1}100%{transform:scale(1);opacity:0}}
+
+  /* one-job journey */
+  .journey{position:relative;padding-left:36px;margin-top:6px}
+  .journey::before{content:"";position:absolute;left:14px;top:10px;bottom:14px;width:2px;background:var(--line)}
+  .jstep{position:relative;margin:0 0 14px}
+  .jnode{position:absolute;left:-36px;top:2px;width:30px;height:30px;border-radius:50%;background:var(--panel);border:2px solid var(--line);display:grid;place-items:center;font-size:14px;z-index:1;transition:border-color .45s ease,background-color .45s ease,transform .45s ease}
+  .jstep.in .jnode{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 15%,var(--panel));transform:scale(1.08)}
+  .jcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:15px 17px}
+  .jcard .seatn{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--brand-2)}
+  .jcard h4{margin:5px 0 6px;font-size:17px;letter-spacing:-.01em}
+  .jcard p{margin:0;color:var(--muted);font-size:14px}
+  .jcard .jchip{display:inline-block;margin-top:10px;font-size:12px;font-weight:700;color:var(--ink);background:var(--chip);border-radius:8px;padding:5px 10px}
+
+  /* try Ann yourself */
+  .tryann{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px 24px}
+  .tryhead{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px}
+  .tryhead .d{width:26px;height:26px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:14px}
+  .trysub{color:var(--muted);font-size:14px;margin:6px 0 14px;max-width:62ch}
+  .tryform{display:flex;gap:10px;flex-wrap:wrap}
+  .tryform input{flex:1;min-width:210px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink);font-size:15px}
+  .trychips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .trychips button{font-size:12.5px;font-weight:700;color:var(--brand-2);background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;transition:transform .12s ease}
+  .trychips button:hover{transform:translateY(-1px)}
+  .tryout{margin-top:15px;display:none}
+  .tryout.show{display:block}
+  .tryout .cb.ann{max-width:100%;font-size:14.5px}
+  .tryout .after{margin-top:11px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .tryout .after .lnk{font-weight:800;font-size:14px;color:var(--brand-2)}
+
   @media (prefers-reduced-motion: reduce){
-    header.hero::before,.callbtn::after,.cb,.hero-in .kick,.hero-in h1,.hero-in .lede,.hero-in .heroctas,.typing span,.liveping i{animation:none!important}
+    header.hero::before,.callbtn::after,.cb,.hero-in .kick,.hero-in h1,.hero-in .lede,.hero-in .heroctas,.typing span,.liveping i,.successpop .ck,.jstep.in .jnode{animation:none!important}
     .rv{opacity:1!important;transform:none!important} .cb{opacity:1!important;transform:none!important}
+    body,.themebtn,header.hero,.tour,.op,.anncard,.auth,.ctaband,.tryann,.jcard,.jnode{transition:none!important}
   }
 </style>
 </head>
@@ -215,7 +261,7 @@
   <div class="wrap">
     <div class="navrow">
       <div class="brand"><span class="dot">🐜</span><div>AssistAnt<small>24/7 for your repair shop</small></div></div>
-      <a class="btn p sm" id="cta-top" href="/platform/signup.html">Start free trial</a>
+      <div class="right"><button class="themebtn" id="themebtn" type="button" aria-label="Toggle light or dark">🌙</button><a class="btn p sm" id="cta-top" href="/platform/signup.html">Start free trial</a></div>
     </div>
     <div class="hero-grid">
       <div class="hero-in">
@@ -234,7 +280,8 @@
       <div class="anncard" id="anncard">
         <div class="annbar"><span class="d">🐜</span> Ann · live call <span class="liveping"><i></i> live</span></div>
         <div class="annbody" id="annbody"></div>
-        <div class="annfoot"><span class="cap" id="anncap">watch her handle a real call →</span><button class="replay" id="annreplay" type="button" hidden>▶ replay</button></div>
+        <div class="annfoot"><span class="cap" id="anncap">watch her handle a real call →</span><div class="acts"><button class="voicebtn" id="annvoice" type="button" aria-pressed="false" hidden>🔊 Hear Ann</button><button class="replay" id="annreplay" type="button" hidden>▶ replay</button></div></div>
+        <div class="annglare" aria-hidden="true"></div>
       </div>
     </div>
   </div>
@@ -246,6 +293,32 @@
     <div class="ptile"><div class="pn" data-text="24/7">24/7</div><div class="pl">Ann never sleeps</div></div>
     <div class="ptile"><div class="pn" data-count="6" data-suffix=" seats">0</div><div class="pl">one login · one team</div></div>
     <div class="ptile"><div class="pn" data-count="99" data-prefix="$" data-suffix="/mo">$0</div><div class="pl">per shop · AI line add-on</div></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <p class="sec-h rv">One job, start to finish</p>
+  <h2 class="rv">Watch a single call become a paid repair.</h2>
+  <p class="sub rv">Maria’s fridge stopped cooling at 9 p.m. Here’s every hand-off — and nobody re-typed a thing.</p>
+  <div class="journey" id="journey">
+    <div class="jstep rv"><div class="jnode">📞</div><div class="jcard"><div class="seatn">Ann · 24/7 phone AI</div><h4>She calls at 9 p.m. Ann picks up.</h4><p>Ann captures the fridge and the address and books Wednesday — grounded in the board. No voicemail, no lost lead.</p><span class="jchip">🧊 Maria Ruiz · Whirlpool fridge · not cooling</span></div></div>
+    <div class="jstep rv" style="--d:.05s"><div class="jnode">📋</div><div class="jcard"><div class="seatn">Office board</div><h4>The job’s already on the board.</h4><p>It lands in Scheduled the second Ann books it. The office assigns Lee — closest tech, open Wednesday.</p><span class="jchip">🧊 Maria Ruiz · Whirlpool fridge · not cooling</span></div></div>
+    <div class="jstep rv" style="--d:.1s"><div class="jnode">🔧</div><div class="jcard"><div class="seatn">Tech app</div><h4>Lee sees it before he leaves.</h4><p>His whole day, tap-to-navigate, and Ann’s note — “likely start relay.” He rolls up with the part, fixes it, files the report from his phone.</p><span class="jchip">🧊 Maria Ruiz · Whirlpool fridge · not cooling</span></div></div>
+    <div class="jstep rv" style="--d:.15s"><div class="jnode">👤</div><div class="jcard"><div class="seatn">Customer portal</div><h4>Maria watched the whole thing.</h4><p>Live status, a text when Lee was on the way, and she paid by card from the link — no app, no phone tag with the office.</p><span class="jchip">🧊 Maria Ruiz · Whirlpool fridge · fixed ✅</span></div></div>
+    <div class="jstep rv" style="--d:.2s"><div class="jnode">💵</div><div class="jcard"><div class="seatn">The money</div><h4>Lee’s pay and the books already agree.</h4><p>Invoice → commission → payout, computed live off what was collected. One call at 9 p.m., and every number lines up.</p><span class="jchip">💵 Collected $185 · Lee’s cut $92 · owed now</span></div></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="tryann rv">
+    <div class="tryhead"><span class="d">🐜</span> Try Ann yourself</div>
+    <p class="trysub">Tell her what your appliance is doing — she’ll tell you what’s likely wrong. A quick taste; the real Ann does this on every call, grounded in your model number.</p>
+    <form class="tryform" id="tryform">
+      <input id="tryin" type="text" placeholder="e.g. my dryer won’t heat" autocomplete="off" aria-label="Describe your appliance problem">
+      <button class="btn p" type="submit">Ask Ann</button>
+    </form>
+    <div class="trychips" id="trychips"></div>
+    <div class="tryout" id="tryout" aria-live="polite"></div>
   </div>
 </section>
 
@@ -360,19 +433,114 @@
       annTimers.push(setTimeout(function(){
         var tp=document.getElementById('ann-typing'); if(tp) tp.remove();
         var b=document.createElement('div'); b.className='cb '+(isAnn?'ann':'cust'); b.innerHTML=m.t; annBody.appendChild(b);
-        if(idx===ANN.length-1){ annReplay.hidden=false; if(annCap) annCap.textContent='that whole call — no human touched it.'; }
+        if(idx===ANN.length-1){ annReplay.hidden=false; if(annCap) annCap.textContent='that whole call — no human touched it.'; successPulse(); }
       }, delay));
       delay += isAnn ? 520 : 780;
     });
   }
   annReplay.onclick = annPlay;
+  var annCard = document.getElementById('anncard');
+  function successPulse(){
+    if(reduce || !annCard) return;
+    var sp=document.createElement('div'); sp.className='successpop'; sp.innerHTML='<div class="ck">✓</div>';
+    annCard.classList.add('done'); annCard.appendChild(sp);
+    setTimeout(function(){ if(sp.remove) sp.remove(); annCard.classList.remove('done'); }, 780);
+  }
   // play once when the card scrolls into view (or immediately if reduced-motion → static)
   if(reduce){ annStatic(); }
   else if('IntersectionObserver' in window){
     var annSeen=false;
     var aio=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting && !annSeen){ annSeen=true; annPlay(); aio.disconnect(); } }); },{threshold:.4});
-    aio.observe(document.getElementById('anncard'));
+    aio.observe(annCard);
   } else { annPlay(); }
+
+  // ---- Hear Ann (browser voice preview) ----
+  var annVoice = document.getElementById('annvoice');
+  var synth = window.speechSynthesis;
+  if(synth && window.SpeechSynthesisUtterance && annVoice){
+    annVoice.hidden = false;
+    var speaking = false;
+    function pickVoice(){
+      var vs = (synth.getVoices && synth.getVoices()) || [];
+      return vs.filter(function(v){ return /en[-_]US/i.test(v.lang) && /female|samantha|zira|aria|jenny|google us english/i.test(v.name); })[0]
+          || vs.filter(function(v){ return /en[-_]US/i.test(v.lang); })[0]
+          || vs.filter(function(v){ return /^en/i.test(v.lang); })[0] || null;
+    }
+    annVoice.onclick = function(){
+      if(speaking){ synth.cancel(); return; }
+      var text = ANN.filter(function(m){ return m.who==='ann'; }).map(function(m){ return m.t.replace(/<[^>]+>/g,''); }).join('   ');
+      var u = new window.SpeechSynthesisUtterance(text); u.rate=1.03; u.pitch=1.06;
+      var v = pickVoice(); if(v) u.voice=v;
+      u.onstart = function(){ speaking=true; annVoice.setAttribute('aria-pressed','true'); annVoice.textContent='⏹ Stop'; };
+      u.onend = u.onerror = function(){ speaking=false; annVoice.setAttribute('aria-pressed','false'); annVoice.textContent='🔊 Hear Ann'; };
+      synth.cancel(); synth.speak(u);
+    };
+    if(synth.onvoiceschanged !== undefined){ synth.onvoiceschanged = function(){}; } // warm the voice list
+  }
+
+  // ---- desktop tilt + glare on the Ann card ----
+  var fine = window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+  if(fine && !reduce && annCard){
+    var glare = annCard.querySelector('.annglare');
+    annCard.addEventListener('pointermove', function(e){
+      var r = annCard.getBoundingClientRect(); var px=(e.clientX-r.left)/r.width, py=(e.clientY-r.top)/r.height;
+      annCard.style.transform = 'perspective(920px) rotateX('+((py-0.5)*-5).toFixed(2)+'deg) rotateY('+((px-0.5)*7).toFixed(2)+'deg)';
+      annCard.classList.add('tilt');
+      if(glare){ glare.style.setProperty('--gx',(px*100).toFixed(1)+'%'); glare.style.setProperty('--gy',(py*100).toFixed(1)+'%'); }
+    });
+    annCard.addEventListener('pointerleave', function(){ annCard.style.transform=''; annCard.classList.remove('tilt'); });
+  }
+
+  // ---- theme toggle (☀️/🌙) ----
+  var THEMEK='ant_theme', tbtn=document.getElementById('themebtn'), root=document.documentElement;
+  function curDark(){ var t=root.getAttribute('data-theme'); if(t==='dark') return true; if(t==='light') return false; return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme:dark)').matches); }
+  function applyTheme(t){ if(t==='dark'||t==='light'){ root.setAttribute('data-theme',t); } else if(root.removeAttribute){ root.removeAttribute('data-theme'); } if(tbtn) tbtn.textContent = curDark() ? '☀️' : '🌙'; }
+  var savedTheme=''; try{ savedTheme = localStorage.getItem(THEMEK) || ''; }catch(_){}
+  applyTheme(savedTheme);
+  if(tbtn) tbtn.onclick = function(){ var next = curDark() ? 'light' : 'dark'; try{ localStorage.setItem(THEMEK,next); }catch(_){} applyTheme(next); };
+
+  // ---- Try Ann yourself (scripted taste of the diagnostic brain) ----
+  var TRY_RULES = [
+    { k:['dryer'], s:['heat','hot','warm','dry'], a:'A dryer that runs but won’t heat is almost always a failed <b>heating element</b> or a blown <b>thermal fuse</b> — often from a clogged vent. On a real call I’d pull your model and have the tech roll up with the element already on the truck.' },
+    { k:['fridge','refrigerat'], s:['cool','cold','warm','freez'], a:'A fridge not cooling usually comes down to the <b>start relay</b>, the <b>evaporator fan</b>, or a frost-blocked coil. I’d grab your model number and line up the likely part before the visit — no wasted trip.' },
+    { k:['washer','washing'], s:['drain','water','pump'], a:'A washer that won’t drain is typically a clogged or failed <b>drain pump</b> — sometimes just a sock in the filter. Quick fix once we’re there.' },
+    { k:['washer','washing'], s:['spin','agitat'], a:'Won’t spin is usually a worn <b>drive belt</b>, the <b>lid switch</b>, or a motor coupler. I’d bring the common ones so it’s one trip.' },
+    { k:['dishwash'], s:['drain','water','clean'], a:'A dishwasher not draining is normally the <b>drain pump</b>, a clogged hose, or the check valve. Easy visit — want a day this week?' },
+    { k:['oven','range','stove'], s:['heat','bake','hot','temp'], a:'An oven that won’t heat is usually a failed <b>bake element</b> or, on gas, the <b>igniter</b>. I’d confirm your model and bring the exact part.' },
+    { k:['ice','icemaker'], s:[], a:'An ice maker that stopped is often the <b>maker module</b> itself or the <b>water inlet valve</b>. I’d pull your model to bring the right one first time.' },
+    { k:['microwave'], s:[], a:'Microwaves are usually a <b>door switch</b>, the <b>diode</b>, or the magnetron — some we fix, some it’s smarter to replace. I’d take a look and give it to you straight.' },
+    { k:['freezer'], s:[], a:'A freezer not freezing is commonly the <b>evaporator fan</b>, the <b>start relay</b>, or a frost-blocked coil. I’d line up the part before rolling out.' },
+  ];
+  var TRY_FALLBACK = 'Got it. On a real call I’d ask a couple quick questions, pull your model number, and tell you the most likely fix before a tech ever rolls out — usually with the part already on the truck.';
+  function annReply(q){
+    var t = q.toLowerCase();
+    var best=null, bestScore=0;
+    TRY_RULES.forEach(function(r){
+      var hitK = r.k.some(function(w){ return t.indexOf(w)>=0; });
+      if(!hitK) return;
+      var score = 1 + (r.s.some(function(w){ return t.indexOf(w)>=0; }) ? 1 : 0);
+      if(score>bestScore){ bestScore=score; best=r; }
+    });
+    return (best ? best.a : TRY_FALLBACK) + ' <b>Want me to get you on the schedule?</b>';
+  }
+  var tryForm=document.getElementById('tryform'), tryIn=document.getElementById('tryin'), tryOut=document.getElementById('tryout'), tryChips=document.getElementById('trychips');
+  function runTry(q){
+    q = String(q||'').trim(); if(!q) return;
+    tryOut.classList.add('show');
+    tryOut.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+    setTimeout(function(){
+      tryOut.innerHTML = '<div class="cb ann" style="opacity:1;transform:none">'+annReply(q)+'</div>'+
+        '<div class="after"><a class="lnk" id="try-cta" href="'+signup+'">Start your free trial →</a><a class="lnk" href="tel:+16155889400">📞 or ask the real Ann</a></div>';
+    }, reduce ? 0 : 650);
+  }
+  if(tryForm){ tryForm.addEventListener('submit', function(e){ e.preventDefault(); runTry(tryIn && tryIn.value); }); }
+  if(tryChips){
+    ['my dryer won’t heat','fridge not cooling','washer won’t drain','dishwasher won’t drain','oven won’t heat','ice maker stopped'].forEach(function(c){
+      var b=document.createElement('button'); b.type='button'; b.textContent=c;
+      b.onclick=function(){ if(tryIn) tryIn.value=c; runTry(c); };
+      tryChips.appendChild(b);
+    });
+  }
 
   // ---- count-up stat tiles ----
   function countUp(el){
