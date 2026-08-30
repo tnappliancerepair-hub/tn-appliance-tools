@@ -248,10 +248,41 @@
   .tryout .after{margin-top:11px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .tryout .after .lnk{font-weight:800;font-size:14px;color:var(--brand-2)}
 
+  /* ── "one link lights up the shop" spark section ── */
+  .spark{background:linear-gradient(180deg,color-mix(in srgb,var(--brand) 7%,var(--panel)),var(--panel));border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:26px 24px}
+  .sparkgrid{display:grid;grid-template-columns:.82fr 1.18fr;gap:30px;align-items:center;margin-top:18px}
+  @media(max-width:840px){.sparkgrid{grid-template-columns:1fr;gap:24px}}
+  .phone{width:100%;max-width:280px;margin:0 auto;background:#0c0f0a;border-radius:30px;padding:12px;box-shadow:0 18px 50px rgba(10,20,6,.28);position:relative}
+  .phone .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:96px;height:20px;background:#0c0f0a;border-radius:0 0 14px 14px;z-index:3}
+  .pscreen{background:var(--panel);border-radius:20px;overflow:hidden;min-height:392px}
+  .pbar{display:flex;align-items:center;gap:7px;padding:12px 13px;border-bottom:1px solid var(--line);font-weight:800;font-size:12.5px}
+  .pbar .d{width:20px;height:20px;border-radius:6px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:11px}
+  .pbody{padding:9px 12px 14px}
+  .plabel{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:11px 2px 5px}
+  .vidwrap{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:16/10;cursor:pointer}
+  .vidwrap img,.vidwrap iframe{width:100%;height:100%;object-fit:cover;display:block;border:0}
+  .vidwrap .play{position:absolute;inset:0;display:grid;place-items:center}
+  .vidwrap .play .pc{width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.94);color:#12160f;display:grid;place-items:center;font-size:19px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  .vidwrap .tag{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:7px}
+  .photorow{display:flex;gap:10px;align-items:center}
+  .photorow img{width:74px;height:46px;object-fit:cover;border-radius:9px;border:1px solid var(--line)}
+  .photofeed{font-size:12px;color:var(--muted);line-height:1.35}
+  .photofeed b{color:var(--brand-2);font-family:ui-monospace,Menlo,monospace}
+  .availchip{display:inline-block;font-size:12px;font-weight:700;color:var(--ink);background:var(--chip);border-radius:8px;padding:6px 10px}
+  .chain{display:flex;flex-direction:column;gap:11px}
+  .cstep{display:grid;grid-template-columns:auto 18px 1fr;align-items:center;gap:11px;background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:12px 15px;transition:transform .18s ease,box-shadow .18s ease}
+  .cstep:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(20,30,10,.10)}
+  .cstep .in{font-size:13px;font-weight:800;color:var(--brand-2);white-space:nowrap}
+  .cstep .ar{color:var(--brand);font-weight:900;text-align:center}
+  .cstep .out b{color:var(--ink);font-weight:800} .cstep .out span{color:var(--muted);font-size:13px}
+  @media(max-width:520px){.cstep{grid-template-columns:1fr;gap:3px}.cstep .ar{display:none}}
+  .jab{margin-top:18px;font-size:15.5px;color:var(--ink);font-weight:600;text-align:center;text-wrap:balance}
+  .jab b{color:var(--brand-2)}
+
   @media (prefers-reduced-motion: reduce){
     header.hero::before,.callbtn::after,.cb,.hero-in .kick,.hero-in h1,.hero-in .lede,.hero-in .heroctas,.typing span,.liveping i,.successpop .ck,.jstep.in .jnode{animation:none!important}
     .rv{opacity:1!important;transform:none!important} .cb{opacity:1!important;transform:none!important}
-    body,.themebtn,header.hero,.tour,.op,.anncard,.auth,.ctaband,.tryann,.jcard,.jnode{transition:none!important}
+    body,.themebtn,header.hero,.tour,.op,.anncard,.auth,.ctaband,.tryann,.jcard,.jnode,.cstep{transition:none!important}
   }
 </style>
 </head>
@@ -293,6 +324,44 @@
     <div class="ptile"><div class="pn" data-text="24/7">24/7</div><div class="pl">Ann never sleeps</div></div>
     <div class="ptile"><div class="pn" data-count="6" data-suffix=" seats">0</div><div class="pl">one login · one team</div></div>
     <div class="ptile"><div class="pn" data-count="99" data-prefix="$" data-suffix="/mo">$0</div><div class="pl">per shop · AI line add-on</div></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="spark rv">
+    <p class="sec-h">Why we're not like the others</p>
+    <h2>One intake link. The whole shop lights up.</h2>
+    <p class="sub">Their bot takes a message. Ours turns a single text-back link into a job that's already <b>parted, priced, and routed</b> — before anyone picks up the phone.</p>
+    <div class="sparkgrid">
+      <div class="phone rv">
+        <div class="notch"></div>
+        <div class="pscreen">
+          <div class="pbar"><span class="d">🐜</span> Rebecca's intake · GE dryer</div>
+          <div class="pbody">
+            <div class="plabel">🎥 Problem video</div>
+            <div class="vidwrap" id="sparkvid" data-uid="1143968fdadadb88c48c3dab18031661">
+              <img src="https://videodelivery.net/1143968fdadadb88c48c3dab18031661/thumbnails/thumbnail.jpg?time=2s&height=320" alt="the customer's problem video" onerror="this.style.display='none'">
+              <div class="play"><div class="pc">▶</div></div>
+              <span class="tag">tap to play — the customer's own clip</span>
+            </div>
+            <div class="plabel">📸 Model sticker</div>
+            <div class="photorow">
+              <img src="/platform/demo-sticker.jpg" alt="model sticker photo">
+              <div class="photofeed">auto-read → <b>GTD45EASJWS</b><br>dropped into the parts finder 🔩</div>
+            </div>
+            <div class="plabel">📅 Availability</div>
+            <div class="availchip">“Tue or Wed, mornings best”</div>
+          </div>
+        </div>
+      </div>
+      <div class="chain">
+        <div class="cstep rv"><span class="in">📸 Model photo</span><span class="ar">→</span><span class="out"><b>Parts finder auto-loads.</b> <span>The tech rolls up with the exact part — first trip, no wasted second visit.</span></span></div>
+        <div class="cstep rv" style="--d:.06s"><span class="in">🎥 Problem video</span><span class="ar">→</span><span class="out"><b>Skips the diagnosis call.</b> <span>You saw it before you dialed — no phone tag, no “describe the noise for me.”</span></span></div>
+        <div class="cstep rv" style="--d:.12s"><span class="in">📅 Availability</span><span class="ar">→</span><span class="out"><b>Your dispatcher books smart.</b> <span>Right tech, right day — off the customer’s own words, not a guess.</span></span></div>
+        <div class="cstep rv" style="--d:.18s"><span class="in">🧭 Tech runs ahead</span><span class="ar">→</span><span class="out"><b>Dead time turns into money.</b> <span>He looks ahead and knocks out a nearby job instead of sitting in a parking lot.</span></span></div>
+      </div>
+    </div>
+    <p class="jab rv">Podium takes a message. Workiz hands you five tabs. <b>AssistAnt turns one link into a booked, parted, routed job.</b></p>
   </div>
 </section>
 
@@ -564,6 +633,14 @@
     var rio=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); rio.unobserve(e.target); } }); },{threshold:.15});
     rv.forEach(function(el){ rio.observe(el); });
   }
+
+  // ---- spark: play the customer's problem clip on tap ----
+  var sv = document.getElementById('sparkvid');
+  if(sv){ sv.addEventListener('click', function(){
+    if(sv.getAttribute('data-done')) return; sv.setAttribute('data-done','1');
+    var uid = sv.getAttribute('data-uid');
+    sv.innerHTML = '<iframe src="https://iframe.cloudflarestream.com/'+uid+'?autoplay=true&muted=true" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen title="customer problem video"></iframe>';
+  }); }
 
   // ---- Interactive tour ----
   var DEMO_PORTAL = '/platform/portal.html?t=cbe72a90-bd33-4eeb-98a6-28d42f7a9c95';
