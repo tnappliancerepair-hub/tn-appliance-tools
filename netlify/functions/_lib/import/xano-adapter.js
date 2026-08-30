@@ -120,7 +120,7 @@ async function probe(_key) {
   const out = {};
   for (const [kind, id] of Object.entries(TABLE)) {
     const p = await readTable(id, 1);
-    out[kind] = { http: p.status, total: p.total ?? null, ok: p.status < 400, sample_keys: p.list[0] ? Object.keys(p.list[0]).slice(0, 24) : [] };
+    out[kind] = { http: p.status, total: p.total ?? null, ok: p.status < 400, sample_keys: p.list[0] ? Object.keys(p.list[0]) : [] };
     await sleep(150);
   }
   return out;
