@@ -271,10 +271,10 @@
     var err=document.getElementById('op-err'); err.textContent='Loading…';
     fetch('/.netlify/functions/platform-status?secret='+encodeURIComponent(localStorage.getItem(KEY)||''))
       .then(function(r){ if(r.status===403){ throw new Error('key'); } return r.json(); })
-      .then(function(d){ if(!d.ok) throw new Error('load'); err.textContent=''; document.getElementById('op-gate').classList.add('hidden'); render(d); })
+      .then(function(d){ if(!d.ok) throw new Error('load'); err.textContent=''; document.getElementById('op-gate').classList.add('hidden'); renderStatus(d); })
       .catch(function(e){ localStorage.removeItem(KEY); err.textContent = e.message==='key' ? 'That key was rejected.' : 'Could not load. Try again.'; });
   }
-  function render(d){
+  function renderStatus(d){
     var L=d.seat_links||{}, demo=d.demo||{}, co=d.cutover||{};
     var seats=[
       ['Owner','The numbers, goals, money, the AI partner.',L.owner,'sign in as '+esc(d.demo_owner_email||'demo')],
