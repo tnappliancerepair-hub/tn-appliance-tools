@@ -279,10 +279,37 @@
   .jab{margin-top:18px;font-size:15.5px;color:var(--ink);font-weight:600;text-align:center;text-wrap:balance}
   .jab b{color:var(--brand-2)}
 
+  /* ── cinematic scene player ── */
+  .scene{background:var(--panel);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);overflow:hidden}
+  .scenetop{padding:16px 18px 0}
+  .scenetabs{display:flex;gap:8px;flex-wrap:wrap}
+  .scenetabs button{font-size:12.5px;font-weight:800;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:8px 13px;cursor:pointer;transition:all .15s}
+  .scenetabs button.on{color:#fff;background:var(--brand);border-color:transparent}
+  .sceneprog{height:3px;background:var(--line);border-radius:3px;margin-top:14px;overflow:hidden}
+  .sceneprog .bar{height:100%;width:0;background:var(--brand);transition:width .35s ease}
+  .scenefeed{padding:16px 18px;min-height:342px;max-height:452px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;scroll-behavior:smooth}
+  .scenefeed .msg{display:flex;gap:9px;align-items:flex-start;animation:pop .34s both}
+  .msg .av{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;background:var(--chip)}
+  .msg .who{font-size:10.5px;font-weight:800;letter-spacing:.03em;color:var(--faint);margin:0 0 3px 2px;text-transform:uppercase}
+  .msg .bubble{border-radius:13px;padding:9px 13px;font-size:14px;line-height:1.42}
+  .msg.ann .av{background:color-mix(in srgb,var(--brand) 18%,var(--panel))} .msg.ann .bubble{background:var(--chip);color:var(--ink);border-bottom-left-radius:4px}
+  .msg.cust{flex-direction:row-reverse} .msg.cust .who{text-align:right;margin:0 2px 3px 0} .msg.cust .bubble{background:var(--brand);color:#fff;border-bottom-right-radius:4px} .msg.cust .av{background:color-mix(in srgb,var(--info) 20%,var(--panel))}
+  .msg.tech .av{background:color-mix(in srgb,var(--warn) 24%,var(--panel))} .msg.tech .bubble{background:color-mix(in srgb,var(--warn) 13%,var(--panel));color:var(--ink);border-bottom-left-radius:4px}
+  .msg.office .av{background:color-mix(in srgb,var(--slate) 22%,var(--panel))} .msg.office .bubble{background:color-mix(in srgb,var(--slate) 13%,var(--panel));color:var(--ink);border-bottom-left-radius:4px}
+  .actchip{align-self:center;text-align:center;font-size:12.5px;font-weight:700;color:var(--brand-2);background:color-mix(in srgb,var(--brand) 9%,var(--panel));border:1px dashed color-mix(in srgb,var(--brand) 40%,var(--line));border-radius:999px;padding:7px 14px;margin:2px 0;max-width:90%;animation:pop .34s both}
+  .actchip.win{color:var(--ink);background:color-mix(in srgb,var(--brand) 15%,var(--panel));border-style:solid;border-color:transparent;font-weight:800}
+  .scenefeed .typing{margin:0}
+  .scenectl{display:flex;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid var(--line)}
+  .scenebtn{display:inline-flex;align-items:center;gap:7px;font-weight:800;font-size:14px;color:#fff;background:var(--brand);border:0;border-radius:10px;padding:9px 15px;cursor:pointer;transition:transform .12s ease}
+  .scenebtn:active{transform:translateY(1px)}
+  .scenebtn.ghost{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+  .scenehint{margin-left:auto;font-size:12px;color:var(--faint)}
+
   @media (prefers-reduced-motion: reduce){
-    header.hero::before,.callbtn::after,.cb,.hero-in .kick,.hero-in h1,.hero-in .lede,.hero-in .heroctas,.typing span,.liveping i,.successpop .ck,.jstep.in .jnode{animation:none!important}
+    header.hero::before,.callbtn::after,.cb,.hero-in .kick,.hero-in h1,.hero-in .lede,.hero-in .heroctas,.typing span,.liveping i,.successpop .ck,.jstep.in .jnode,.scenefeed .msg,.actchip{animation:none!important}
     .rv{opacity:1!important;transform:none!important} .cb{opacity:1!important;transform:none!important}
-    body,.themebtn,header.hero,.tour,.op,.anncard,.auth,.ctaband,.tryann,.jcard,.jnode,.cstep{transition:none!important}
+    body,.themebtn,header.hero,.tour,.op,.anncard,.auth,.ctaband,.tryann,.jcard,.jnode,.cstep,.scenebtn,.scenetabs button,.sceneprog .bar{transition:none!important}
+    .scenefeed{scroll-behavior:auto!important}
   }
 </style>
 </head>
@@ -324,6 +351,24 @@
     <div class="ptile"><div class="pn" data-text="24/7">24/7</div><div class="pl">Ann never sleeps</div></div>
     <div class="ptile"><div class="pn" data-count="6" data-suffix=" seats">0</div><div class="pl">one login · one team</div></div>
     <div class="ptile"><div class="pn" data-count="99" data-prefix="$" data-suffix="/mo">$0</div><div class="pl">per shop · AI line add-on</div></div>
+  </div>
+</section>
+
+<section class="wrap">
+  <p class="sec-h rv">Watch it work</p>
+  <h2 class="rv">A call comes in. Watch the whole shop move.</h2>
+  <p class="sub rv">Not a slideshow — the real flow, acted out step by step across Ann, the customer, your tech, and the office. Pick a scenario and press play.</p>
+  <div class="scene rv" id="scene">
+    <div class="scenetop">
+      <div class="scenetabs" id="scenetabs"></div>
+      <div class="sceneprog"><div class="bar" id="sceneprog"></div></div>
+    </div>
+    <div class="scenefeed" id="scenefeed"></div>
+    <div class="scenectl">
+      <button class="scenebtn" id="scenetoggle" type="button">▶ Play</button>
+      <button class="scenebtn ghost" id="scenereplay" type="button">↻ Replay</button>
+      <span class="scenehint" id="scenehint"></span>
+    </div>
   </div>
 </section>
 
@@ -641,6 +686,90 @@
     var uid = sv.getAttribute('data-uid');
     sv.innerHTML = '<iframe src="https://iframe.cloudflarestream.com/'+uid+'?autoplay=true&muted=true" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen title="customer problem video"></iframe>';
   }); }
+
+  // ---- cinematic scene player: "watch the whole shop move" ----
+  var SCENES = [
+    { t:'① New customer — end to end', c:[
+      {k:'act',x:'☎️ Incoming call · unknown number'},
+      {w:'ann',x:'Thanks for calling Joey’s Appliance Repair — this is Ann! What’s going on with your appliance?'},
+      {w:'cust',n:'Donna',x:'My dryer just stopped heating up.'},
+      {w:'ann',x:'Oh no — I’ll get you taken care of. Can I grab your name and best cell?'},
+      {w:'cust',n:'Donna',x:'Donna Jones — 615-555-0148.'},
+      {w:'ann',x:'Perfect, Donna. I’m texting you a link right now — tap it and send a 10-second video of the dryer plus a photo of the model sticker. Gets you fixed faster.'},
+      {k:'act',x:'📲 Intake link texted to Donna'},
+      {w:'cust',n:'Donna',x:'🎥 sent a video · 📸 model sticker'},
+      {k:'act',x:'🔩 Model auto-read: GTD45EASJWS → parts finder loaded'},
+      {k:'act',x:'📱 Teddy gets a text: “New job — Donna Jones, dryer not heating. Tap to review.”'},
+      {w:'tech',n:'Teddy',x:'▶ Watching Donna’s clip… yep, element’s not glowing.'},
+      {w:'tech',n:'Teddy',x:'Pre-diagnosed it: heating element + thermal fuse. Part’s already in the finder.'},
+      {w:'office',n:'Office',x:'🏢 “Teddy pre-diagnosed Donna Jones — heating element. Part needed.”'},
+      {k:'act',x:'🛒 Office taps Order Part → ordered · ETA Wednesday'},
+      {k:'act',x:'📅 Part lands Wed → schedule on/after Wednesday'},
+      {w:'office',n:'Office',x:'Donna said Thursday/Friday mornings — easy. Teddy’s open Thursday AM.'},
+      {k:'act win',x:'✅ Booked — Thursday AM with Teddy'},
+      {w:'ann',x:'Hi Donna! You’re confirmed for Thursday morning with Teddy for your dryer. We’ll text a live arrival window that morning. 👍'},
+      {k:'act win',x:'One call → parted, scheduled, confirmed. Nobody re-typed a thing.'},
+    ]},
+    { t:'② She knows the caller', c:[
+      {k:'act',x:'☎️ Incoming call · Maria Ruiz'},
+      {w:'ann',x:'Hi Maria! Thanks for calling Joey’s — I see you’re scheduled with Lee Thursday for your Whirlpool fridge. Is that what you’re calling about?'},
+      {w:'cust',n:'Maria',x:'Yes — can I talk to Lee real quick? I want to ask him about a noise it’s making.'},
+      {w:'ann',x:'Absolutely — let me connect you. One second.'},
+      {k:'act',x:'📞 Forwarding to Lee’s cell…'},
+      {w:'tech',n:'Lee',x:'Hey Maria, it’s Lee — what’s it doing?'},
+      {k:'act win',x:'Recognized her, pulled her job, put her tech on the phone. That’s not voicemail.'},
+    ]},
+    { t:'③ Reschedule, handled', c:[
+      {k:'act',x:'☎️ Incoming call · Donna Jones'},
+      {w:'ann',x:'Hi Donna! You’re set for Thursday morning with Teddy. What can I do for you?'},
+      {w:'cust',n:'Donna',x:'Something came up — can we push it to next week? I’ve got some other things going on.'},
+      {w:'ann',x:'Totally fine. Teddy’s open next Tuesday or Wednesday morning — which works better?'},
+      {w:'cust',n:'Donna',x:'Tuesday’s perfect.'},
+      {w:'ann',x:'Done — you’re moved to Tuesday morning. Texting your confirmation now. Anything else?'},
+      {k:'act',x:'📅 Moved to Tuesday AM · board updated · Teddy notified'},
+      {w:'ann',x:'Confirmed — Tuesday morning with Teddy. 👍'},
+      {k:'act win',x:'Rescheduled in 20 seconds. Board, tech, and customer all in sync.'},
+    ]},
+  ];
+  var scFeed=document.getElementById('scenefeed'), scTabsEl=document.getElementById('scenetabs'), scBar=document.getElementById('sceneprog'),
+      scToggle=document.getElementById('scenetoggle'), scReplay=document.getElementById('scenereplay'), scHint=document.getElementById('scenehint');
+  if(scFeed && scTabsEl){
+    var scI=0, scStep=0, scPlaying=false, scTimers=[];
+    function scAM(w){ return {ann:{n:'Ann',ic:'🐜',c:'ann'},cust:{n:'Customer',ic:'👤',c:'cust'},tech:{n:'Tech',ic:'🔧',c:'tech'},office:{n:'Office',ic:'🏢',c:'office'}}[w]||{n:'',ic:'•',c:'ann'}; }
+    function scClearT(){ scTimers.forEach(clearTimeout); scTimers=[]; }
+    function scRmTyping(){ var t=document.getElementById('sc-typing'); if(t&&t.remove) t.remove(); }
+    function scEnd(){ return scStep>=SCENES[scI].c.length; }
+    function scTyping(w){ scRmTyping(); var m=scAM(w); var r=document.createElement('div'); r.className='msg '+m.c; r.id='sc-typing';
+      r.innerHTML='<div class="av">'+m.ic+'</div><div class="typing"><span></span><span></span><span></span></div>'; scFeed.appendChild(r); scFeed.scrollTop=scFeed.scrollHeight; }
+    function scAppend(st){
+      if(st.k){ var a=document.createElement('div'); a.className='actchip'+(/win/.test(st.k)?' win':''); a.innerHTML=st.x; scFeed.appendChild(a); scFeed.scrollTop=scFeed.scrollHeight; return; }
+      var m=scAM(st.w); var row=document.createElement('div'); row.className='msg '+m.c;
+      row.innerHTML='<div class="av">'+m.ic+'</div><div class="bwrap"><div class="who">'+(st.n||m.n)+'</div><div class="bubble">'+st.x+'</div></div>';
+      scFeed.appendChild(row); scFeed.scrollTop=scFeed.scrollHeight;
+    }
+    function scProg(p){ if(scBar) scBar.style.width=(p*100).toFixed(1)+'%'; }
+    function scIcon(){ if(scToggle) scToggle.textContent = scPlaying ? '⏸ Pause' : (scEnd() ? '↻ Replay' : '▶ Play'); if(scHint) scHint.textContent = scPlaying ? 'playing…' : (scEnd() ? 'that’s the whole flow — no human re-typed anything' : 'press play'); }
+    function scTick(){
+      if(!scPlaying) return;
+      if(scEnd()){ scPlaying=false; scIcon(); return; }
+      var st=SCENES[scI].c[scStep];
+      var run=function(){ if(!scPlaying) return; scRmTyping(); scAppend(st); scStep++; scProg(scStep/SCENES[scI].c.length); scTimers.push(setTimeout(scTick, st.k?680:880)); };
+      if(!st.k && st.w!=='cust'){ scTyping(st.w); scTimers.push(setTimeout(run, 720)); }
+      else scTimers.push(setTimeout(run, 340));
+    }
+    function scLoad(i){ scI=i; scStep=0; scFeed.innerHTML=''; scProg(0); Array.prototype.forEach.call(scTabsEl.children,function(b,n){ b.className=n===i?'on':''; }); }
+    function scPlay(){ if(scEnd()) scLoad(scI); scPlaying=true; scIcon(); scTick(); }
+    function scPause(){ scPlaying=false; scClearT(); scRmTyping(); scIcon(); }
+    SCENES.forEach(function(s,n){ var b=document.createElement('button'); b.type='button'; b.textContent=s.t; b.onclick=function(){ scPause(); scLoad(n); scPlay(); }; scTabsEl.appendChild(b); });
+    scLoad(0); scIcon();
+    if(scToggle) scToggle.onclick=function(){ if(scPlaying) scPause(); else scPlay(); };
+    if(scReplay) scReplay.onclick=function(){ scPause(); scLoad(scI); scPlay(); };
+    if(reduce){ SCENES[0].c.forEach(scAppend); scProg(1); scIcon(); }
+    else if('IntersectionObserver' in window){
+      var scSeen=false; var scio=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting && !scSeen){ scSeen=true; scPlay(); scio.disconnect(); } }); },{threshold:.35});
+      scio.observe(document.getElementById('scene'));
+    }
+  }
 
   // ---- Interactive tour ----
   var DEMO_PORTAL = '/platform/portal.html?t=cbe72a90-bd33-4eeb-98a6-28d42f7a9c95';
