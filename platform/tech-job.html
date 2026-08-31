@@ -174,6 +174,11 @@
   .err{color:#c0392b;font-size:13px;margin-top:8px;min-height:1em}
   :root[data-theme="dark"] .err,:root:not([data-theme="light"]) .err{color:#ff8a7a}
   .hidden{display:none}
+  /* How to finish this job — the at-a-glance numbered flow (TN's orientation card) */
+  .guide{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:g}
+  .guide li{position:relative;padding:1px 2px 1px 36px;font-size:14px;line-height:1.42;counter-increment:g}
+  .guide li b{font-weight:800}
+  .guide li::before{content:counter(g);position:absolute;left:0;top:-1px;width:25px;height:25px;border-radius:50%;background:var(--brand-grad,var(--brand));color:#fff;font-weight:800;font-size:12.5px;display:grid;place-items:center;box-shadow:var(--glow,0 2px 8px rgba(63,143,36,.32))}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -261,10 +266,20 @@
       // ── Who / what / call · navigate ──
       '<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
         '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+(job.scheduled_day?'<div class="unit">📅 '+esc(fmtDay(job.scheduled_day))+'</div>':'')+'</div>' +
-        '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>' +
+        '<span class="spill s-'+esc(job.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
         '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
         '</div>' +
+
+      // ── How to finish this job — the at-a-glance flow (orientation, TN's card) ──
+      (job.status!=='completed' && job.status!=='canceled' ?
+      '<div class="card"><div class="sec">✅ How to finish this job</div>' +
+        '<ol class="guide">' +
+          '<li>🚦 Tap <b>On my way</b> when you roll out, then <b>Start job</b> at the door.</li>' +
+          '<li>📸 Snap the model # and a couple photos — the customer’s video is already here.</li>' +
+          '<li>📋 Fill the <b>completion report</b>: what failed, the part, labor hours.</li>' +
+          '<li>💵 <b>Get paid</b> or text the invoice, then hit <b>Complete</b>.</li>' +
+        '</ol></div>' : '') +
 
       // ── Machines at this stop — switcher + ＋ Add machine (one visit, several appliances) ──
       '<div class="card" id="machineCard"><div class="sec">🧩 This stop</div>' +

@@ -418,7 +418,7 @@
     var stopBadge = stopNo ? '<span class="stopno" title="Suggested stop order for the day">🧭 '+stopNo+'</span> ' : '';
     return '<div class="card" data-card="'+j.id+'">' +
       '<div class="row1"><a class="opencard" href="'+openUrl+'"><div class="cust">'+stopBadge+esc(fullName(cust)||'Customer')+' <span class="chev">›</span></div>'+(unit?'<div class="unit">'+esc(unit)+'</div>':'')+'</a>' +
-      '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>' +
+      '<span class="spill s-'+esc(j.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
       (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
       '<a class="openbtn" href="'+openUrl+'">Open job — video, model &amp; report →</a>' +
       intakeHtml(j) +
@@ -563,11 +563,16 @@
       var list = rows.slice(0,8).map(function(r){ var nm=r._cust?((r._cust.first_name||'')+' '+(r._cust.last_name||'')).trim():'Job'; var badge=r.state==='paid'?'<span style="color:var(--muted)">paid</span>':(r.collected?'<span style="color:#12a150;font-weight:700">collected</span>':'<span style="color:#b45309">pending</span>'); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px"><span>'+esc(nm||'Job')+'</span><span style="display:flex;gap:10px"><span>'+badge+'</span><b style="font-variant-numeric:tabular-nums">'+money(r.earned_cents)+'</b></span></div>'; }).join('');
       var cell=function(k,v,hi){ return '<div style="flex:1;min-width:0"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">'+k+'</div><div style="font-size:21px;font-weight:800;font-variant-numeric:tabular-nums'+(hi?';color:#12a150':'')+'">'+v+'</div></div>'; };
       var needsRate = rule.type==='labor_pct' && !rule.pct && !myTech.commission_type;
-      card.innerHTML='<div class="card">'+
-        '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px"><b>💰 Your pay</b><span style="font-size:12px;color:var(--muted)">'+esc(window.PayCalc.ruleLabel(rule))+'</span></div>'+
-        '<div style="display:flex;gap:12px">'+cell('Earned (pending)',money(pendingEarned))+cell('Owed to you now',money(t.owed_now_cents),true)+cell('Paid',money(t.paid_cents))+'</div>'+
-        (rows.length? '<div style="margin-top:10px">'+list+'</div>' : '<div style="margin-top:8px;color:var(--muted);font-size:13px">No billed jobs yet — your pay shows here as the office bills your completed jobs.</div>')+
-        (needsRate? '<div style="margin-top:8px;color:#b45309;font-size:13px">Your commission rate isn\'t set yet — ask the office.</div>':'')+
+      // Gold stat tiles + a per-job list styled to read on the green "in the bank" hero.
+      var tile=function(k,v){ return '<div class="moneytile" style="flex:1;min-width:0"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;opacity:.72">'+k+'</div><div class="n">'+v+'</div></div>'; };
+      var glist = rows.slice(0,8).map(function(r){ var nm=r._cust?((r._cust.first_name||'')+' '+(r._cust.last_name||'')).trim():'Job'; var badge=r.state==='paid'?'<span style="opacity:.72">paid</span>':(r.collected?'<span style="color:#bbf7d0;font-weight:700">collected</span>':'<span style="color:#ffe08a;font-weight:700">pending</span>'); return '<div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid rgba(255,255,255,.16);font-size:13.5px"><span>'+esc(nm||'Job')+'</span><span style="display:flex;gap:10px;align-items:center"><span>'+badge+'</span><b style="font-variant-numeric:tabular-nums;font-family:\'IBM Plex Mono\',ui-monospace,monospace">'+money(r.earned_cents)+'</b></span></div>'; }).join('');
+      card.innerHTML='<div class="card bankcard">'+
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px"><b style="font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;opacity:.85">💰 In the bank</b><span style="font-size:11.5px;opacity:.82">'+esc(window.PayCalc.ruleLabel(rule))+'</span></div>'+
+        '<div class="big">'+money(t.owed_now_cents)+'</div>'+
+        '<div style="font-size:12.5px;opacity:.86;margin:1px 0 13px">owed to you right now'+(pendingEarned>0?' · '+money(pendingEarned)+' more earning':'')+'</div>'+
+        '<div style="display:flex;gap:10px">'+tile('Earned (pending)',money(pendingEarned))+tile('Paid out',money(t.paid_cents))+'</div>'+
+        (rows.length? '<div style="margin-top:12px">'+glist+'</div>' : '<div style="margin-top:10px;font-size:13px;opacity:.85">No billed jobs yet — your pay shows here as the office bills your completed jobs.</div>')+
+        (needsRate? '<div style="margin-top:10px;font-size:13px;color:#ffe08a">Your commission rate isn\'t set yet — ask the office.</div>':'')+
       '</div>';
       paintEarnChips(); renderLbOwed(); maybeCelebratePayout();
     }).catch(function(){});
