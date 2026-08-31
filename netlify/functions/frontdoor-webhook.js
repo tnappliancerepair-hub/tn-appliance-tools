@@ -34,6 +34,10 @@ async function xanoPost(path, payload, ms) {
   });
   return r.json().catch(() => ({}));
 }
+async function xanoGet(path, ms) {
+  const r = await fetch(XANO + path, { signal: AbortSignal.timeout(ms || 12000) });
+  return r.json().catch(() => ({}));
+}
 // AHS/HSA/FTDR/2-10 tenant code -> the warranty_company label we store on a job.
 const TENANT_LABEL = { AHS: 'AHS', HSA: 'HSA', FTDR: 'Frontdoor', '2-10': '2-10' };
 function metaHeaders() {
@@ -138,6 +142,70 @@ function buildIntake(s, live) {
   };
 }
 
+// ── INBOUND APPLY (Frontdoor status/notes/ncc → the matching Ant job) ──────────────
+// Every AHS-initiated update lands on the job as an office_note Danielle sees on the
+// board. A SMALL whitelist of codes also auto-moves the card's scheduling_status — we
+// deliberately do NOT reverse-map the whole catalog (many codes, e.g. EN_ROUTE/COMPLETE,
+// are things WE report TO them; echoing one back must never flip our card). Cancel + hold
+// are the safe auto-moves; auth denials/approvals get a loud note for the office to act on.
+const INBOUND_STATUS = {
+  40: 'canceled',   // Job Cancelled
+  230: 'canceled',  // Appointment Cancelled
+  150: 'held',      // On Hold
+};
+// Codes worth a highlighted note even though they don't move the card.
+const NOTE_PREFIX = {
+  350: '✅ AUTH APPROVED', 360: '⚠️ AUTH DENIED', 370: '✅ AUTH APPROVED (with limitations)',
+  120: '⚠️ Customer missed appointment', 130: '⚠️ Possible denial', 140: '⚠️ Incomplete',
+  270: '🔄 Reschedule appointment set', 60: '⚠️ Unable to contact customer',
+};
+
+// Resolve the Ant job for a dispatch. find_job_by_claim_number checks BOTH claim_number
+// and dispatch_source_id, so the Frontdoor DispatchNumber (s.dispatch_id) matches either.
+async function resolveJobId(s) {
+  const key = s.dispatch_id || '';
+  if (!key) return null;
+  const d = await xanoGet('/find_job_by_claim_number?claim_number=' + encodeURIComponent(key));
+  const best = d && (d.best || (Array.isArray(d.candidates) && d.candidates[0]));
+  return (best && (best.job_id || best.id)) || null;
+}
+
+// Compose the office-note text for an inbound event.
+function inboundNote(s) {
+  if (s.operation === 'notes') return '📥 AHS note: ' + String(s.note || '').slice(0, 400);
+  if (s.operation === 'ncc') return '⚠️ AHS NCC (no-charge callback): ' + (s.ncc_status || '') + ' — finish on the original claim, do not close out.';
+  // status
+  const code = (s.status_code != null) ? Number(s.status_code) : null;
+  const pre = (code != null && NOTE_PREFIX[code]) ? NOTE_PREFIX[code] + ' — ' : '';
+  return '📥 AHS status: ' + pre + (s.status || '') + (code != null ? ' (code ' + code + ')' : '');
+}
+
+// Apply a status/notes/ncc event to the job. Read-only (resolve + preview) in dark mode;
+// writes the office_note + optional status move only when live. Mirrors the schedule
+// branch's dry-run discipline so we validate matching against real sandbox payloads first.
+async function applyInbound(s, live) {
+  const jobId = await resolveJobId(s);
+  if (!jobId) {
+    await logEvent('frontdoor_dispatch_unmatched', { ...s, at_ms: Date.now() });
+    return { operation: s.operation, dispatch_id: s.dispatch_id, mode: live ? 'unmatched' : 'dry_unmatched', matched: false };
+  }
+  const note = inboundNote(s);
+  const code = (s.operation === 'status' && s.status_code != null) ? Number(s.status_code) : null;
+  const newStatus = (code != null) ? INBOUND_STATUS[code] : null;
+  if (!live) {
+    await logEvent('frontdoor_dispatch_apply_preview', { job_id: jobId, would_note: note, would_status: newStatus || null, ...s, at_ms: Date.now() });
+    return { operation: s.operation, dispatch_id: s.dispatch_id, job_id: jobId, mode: 'dry_run', would_status: newStatus || null };
+  }
+  // 1) always drop the office note (the board + job-truth read 'office_note' events)
+  await logEvent('office_note', { job_id: jobId, text: note, by: 'AHS', source: 'frontdoor_api', at_ms: Date.now() });
+  // 2) whitelisted codes also move the card
+  if (newStatus) {
+    await xanoPost('/office_set_job_status', { job_id: jobId, scheduling_status: newStatus, actor: 'AHS (Frontdoor API)' });
+  }
+  await logEvent('frontdoor_dispatch_applied', { job_id: jobId, operation: s.operation, status_code: code, moved_to: newStatus || null, at_ms: Date.now() });
+  return { operation: s.operation, dispatch_id: s.dispatch_id, job_id: jobId, mode: 'applied', moved_to: newStatus || null };
+}
+
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
@@ -188,11 +256,14 @@ exports.handler = async function (event) {
         await logEvent('frontdoor_dispatch_scheduled', { dispatch_id: s.dispatch_id, vendor_id: s.vendor_id, area: s.area, tenant: s.tenant, job_id: jobId, dry_run: !live, at_ms: Date.now() });
         results.push({ operation: 'schedule', dispatch_id: s.dispatch_id, area: s.area, job_id: jobId, mode: live ? 'created' : 'dry_run' });
       } else if (s.operation === 'status' || s.operation === 'notes' || s.operation === 'ncc') {
-        // Frontdoor-initiated status / note / NCC. Recorded against the dispatch so it's
-        // captured + auditable now; the direct job update rides on a find-by-dispatch
-        // lookup (thin XS endpoint, next step) to attach it to the matching Ant job.
+        // Frontdoor-initiated status / note / NCC. Resolve the matching Ant job by dispatch#
+        // and apply it: every update lands as an office_note the board shows, and a small
+        // whitelist of codes (cancel/hold) auto-moves the card. Read-only preview in dark
+        // mode (dry_run) so we validate matching against real sandbox payloads before flipping
+        // FRONTDOOR_WEBHOOK_LIVE=1. Also keep the raw audit row.
         await logEvent('frontdoor_dispatch_' + s.operation, { ...s, at_ms: Date.now() });
-        results.push({ operation: s.operation, dispatch_id: s.dispatch_id, mode: 'recorded' });
+        const applied = await applyInbound(s, live);
+        results.push(applied);
       } else {
         results.push({ operation: s.operation, dispatch_id: s.dispatch_id, mode: 'unknown_op' });
       }
