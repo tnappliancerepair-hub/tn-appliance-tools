@@ -86,6 +86,11 @@
   .sheet .srow{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
   .sheet.drawer{max-width:520px}
   .sheet .sec{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:18px 0 8px}
+  .sheet .sec button.supcfg{float:right;text-transform:none;letter-spacing:0;margin-top:-3px;padding:2px 8px;border:1px dashed var(--line);border-radius:8px;background:transparent;color:var(--muted);font-size:11.5px;font-weight:600;cursor:pointer}
+  .sheet .sec button.supcfg:hover{color:var(--ink);border-color:var(--brand)}
+  .jfindg{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .jfindg button{font-size:12.5px;font-weight:700;padding:9px 6px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);cursor:pointer}
+  .jfindg button:hover{border-color:var(--brand)}
   .sheet .custname{font-size:20px;font-weight:800}
   .sheet .sub{color:var(--muted);font-size:14px;margin-top:1px}
   .statusbtns{display:flex;flex-wrap:wrap;gap:7px}
@@ -204,6 +209,7 @@
 <script src="/platform/features.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/platform/media-sign.js"></script>
+<script src="/platform/ant-suppliers.js"></script>
 <script src="/ant-sounds.js"></script>
 <script src="/ant-magic.js"></script>
 <script src="/ant-celebrate.js"></script>
@@ -295,6 +301,7 @@
         '</div>' +
         '<nav class="hop" aria-label="Jump to">' +
           '<a href="/platform/dispatch.html">📅 Dispatch</a>' +
+          '<a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a>' +
           '<a href="/platform/comms.html">💬 Messages</a>' +
           '<a href="/platform/owner.html">💰 Owner</a>' +
         '</nav>' +
@@ -1036,6 +1043,10 @@
       '<div id="jthread" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;font-size:13px">Loading…</div>' +
       '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
       '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
+      // ── 🔩 FIND THE PART — CSR parts search across the shop's suppliers (interchangeable) ──
+      '<div class="sec">🔩 Find the part <button type="button" class="supcfg" id="jfindCfg" title="Choose your suppliers">⚙️ Suppliers</button></div>' +
+      '<input id="jfindq" placeholder="Model # or part #" value="'+esc(unit||'')+'" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace;box-sizing:border-box;margin-bottom:7px">' +
+      '<div id="jfindbtns" class="jfindg"></div>' +
       '<div class="sec" id="jpaysec">Pay / invoice</div>' +
       '<div id="jparts"></div>' +
       '<div class="pay">' +
@@ -1065,6 +1076,17 @@
     loadSched(job);
     renderPaymentPanel(job);
     renderChecklist(job);
+
+    // ── 🔩 FIND THE PART — supplier buttons from the shared interchangeable catalog ──
+    function jFindQ(){ var i=document.getElementById('jfindq'); var v=i?i.value.trim():''; if(v) return v; var dm=document.getElementById('d_model'); return (dm&&dm.value.trim())||(unit||''); }
+    function renderFindBtns(){
+      var host=document.getElementById('jfindbtns'); if(!host) return;
+      var subs=(window.AntSuppliers?AntSuppliers.list(shopSettings):[{key:'sears',label:'Sears PartsDirect',icon:'🔩'}]);
+      host.innerHTML=subs.map(function(s){ return '<button type="button" data-fsrc="'+s.key+'">'+s.icon+' '+esc(s.label)+'</button>'; }).join('');
+      host.querySelectorAll('button[data-fsrc]').forEach(function(b){ b.onclick=function(){ var q=jFindQ(); if(!q){ var i=document.getElementById('jfindq'); if(i) i.focus(); return; } if(window.AntSuppliers) AntSuppliers.open(b.getAttribute('data-fsrc'), q, shopSettings); }; });
+    }
+    renderFindBtns();
+    var jfc=document.getElementById('jfindCfg'); if(jfc) jfc.onclick=function(){ AntSuppliers.chooser(shopSettings, renderFindBtns); };
 
     // ── ⏰ Customer hard cutoff — save to job.customer_cutoff (blank clears it) ──
     var jco=document.getElementById('jcutoffSave');

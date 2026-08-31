@@ -29,6 +29,8 @@
   .badge{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;color:#fff}
   .prob{margin-top:9px;font-size:15px}
   .sec{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:2px 0 9px}
+  button.supcfg{float:right;margin-top:-3px;padding:2px 7px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--muted);font-size:13px;line-height:1.4;cursor:pointer}
+  button.supcfg:hover{color:var(--ink);border-color:var(--brand)}
   .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
   .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:8px 12px}
   button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px 13px;font-weight:700}
@@ -188,6 +190,7 @@
 <script src="/platform/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/platform/media-sign.js"></script>
+<script src="/platform/ant-suppliers.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@3/dist/tus.min.js"></script>
 <script src="/ant-sounds.js"></script>
 <script src="/ant-celebrate.js"></script>
@@ -356,15 +359,10 @@
         '<div class="btnrow"><button class="full" id="ocrBtn">📸 Capture model # <input type="file" accept="image/*" capture="environment" id="ocrFile" class="hidden"></button></div>' +
         '<div class="note hidden" id="ocrMsg"></div></div>' +
 
-      '<div class="card"><div class="sec">Parts catalog</div>' +
+      '<div class="card"><div class="sec">Parts catalog <button type="button" class="supcfg" id="supCfg" title="Choose your suppliers">⚙️</button></div>' +
         '<input class="partq" id="partq" placeholder="Model # or part #" value="'+esc(a.model||'')+'">' +
-        '<div class="note" style="margin:2px 0 9px">Reads the model off the customer\'s photo automatically — or tap 📸 Capture model # above.</div>' +
-        '<button class="full primary" data-src="sears">🔩 Sears PartsDirect — parts for this model</button>' +
-        '<div class="btnrow">' +
-          '<button data-src="amazon">📦 Amazon</button>' +
-          '<button data-src="marcone" id="distBtn">🏭 Marcone</button>' +
-          '<button data-src="ebay">🛒 eBay</button>' +
-        '</div></div>' +
+        '<div class="note" style="margin:2px 0 9px">Reads the model off the customer\'s photo automatically — or tap 📸 Capture model # above. Tap ⚙️ to swap in your own suppliers.</div>' +
+        '<div id="partbtns"></div></div>' +
 
       '<div class="card"><div class="sec">Diagnose</div>' +
         '<button class="full" id="brainBtn">🧠 What usually fixes this</button>' +
@@ -466,7 +464,7 @@
 
       '</div>';
 
-    sb.from('company').select('name,settings,trade').limit(1).then(function(r){ if(r.data&&r.data[0]){ shopSettings=r.data[0].settings||{}; companyTrade=r.data[0].trade||''; var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; var db=document.getElementById('distBtn'); if(db&&shopSettings.distributor_name) db.textContent='🏭 '+shopSettings.distributor_name; } });
+    sb.from('company').select('name,settings,trade').limit(1).then(function(r){ if(r.data&&r.data[0]){ shopSettings=r.data[0].settings||{}; companyTrade=r.data[0].trade||''; var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; renderPartBtns(); } });
     wire();
     autoModel();
     loadInvoice();
@@ -573,7 +571,8 @@
     });
 
     document.getElementById('brainBtn').onclick = brainLookup;
-    app.querySelectorAll('button[data-src]').forEach(function(b){ b.onclick=function(){ openParts(b.getAttribute('data-src')); }; });
+    renderPartBtns();
+    var sc=document.getElementById('supCfg'); if(sc) sc.onclick=function(){ AntSuppliers.chooser(shopSettings, renderPartBtns); };
     // Part status — the TN set (please order / truck stock / used / return / missing).
     partStatus = (tdr() && tdr().part_status) || '';
     app.querySelectorAll('#psrow button[data-ps]').forEach(function(b){
@@ -1175,21 +1174,22 @@
     });
   }
 
-  function openParts(src) {
+  // 🔩 Parts catalog — buttons from the shared, INTERCHANGEABLE supplier catalog
+  // (per-device tech choice ▸ shop default ▸ built-in; the shop's distributor folds in).
+  function renderPartBtns(){
+    var host=document.getElementById('partbtns'); if(!host) return;
+    var subs=(window.AntSuppliers?AntSuppliers.list(shopSettings):[{key:'sears',label:'Sears PartsDirect',icon:'🔩'}]);
+    var first=subs[0], rest=subs.slice(1);
+    var html='<button class="full primary" data-src="'+first.key+'">'+first.icon+' '+esc(first.label)+' — parts for this model</button>';
+    if(rest.length){ html+='<div class="btnrow">'+rest.map(function(s){ return '<button data-src="'+s.key+'">'+s.icon+' '+esc(s.label)+'</button>'; }).join('')+'</div>'; }
+    host.innerHTML=html;
+    host.querySelectorAll('button[data-src]').forEach(function(b){ b.onclick=function(){ openParts(b.getAttribute('data-src')); }; });
+  }
+  function openParts(key) {
     var pq=document.getElementById('partq');
     var q=((pq&&pq.value)||'').trim() || (document.getElementById('tp').value||'').trim() || (attrs().model||'') || (job.unit&&job.unit.label) || '';
     if (!q) { alert('Add a model # or part # first — tap 📸 Capture model # to read it off the sticker.'); return; }
-    var e=encodeURIComponent(q), url;
-    if (src==='amazon') url='https://www.amazon.com/s?k='+encodeURIComponent(q+' appliance part');
-    else if (src==='ebay') url='https://www.ebay.com/sch/i.html?_nkw='+encodeURIComponent(q+' appliance part');
-    else if (src==='marcone') {
-      var tpl=String(shopSettings.distributor_search_url||'').trim();   // shop's own distributor (set in settings)
-      if (tpl && tpl.indexOf('{q}')>=0) url=tpl.replace('{q}', e);
-      else if (tpl) url=tpl+e;
-      else url='https://www.google.com/search?q='+encodeURIComponent(q+' marcone parts');
-    }
-    else url='https://www.searspartsdirect.com/search?q='+e;
-    window.open(url, '_blank', 'noopener');
+    if(window.AntSuppliers) AntSuppliers.open(key, q, shopSettings);
   }
 
   // Green-fill feedback: a report field shows green once it has something in it (the

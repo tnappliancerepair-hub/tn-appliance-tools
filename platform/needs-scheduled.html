@@ -1,0 +1,381 @@
+<!doctype html><html lang="en" data-live="1"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Needs Scheduled — Ant</title>
+<!--
+  Ant platform — NEEDS SCHEDULED (the dedicated scheduling queue).
+  A vertical list of every unscheduled job, grouped under the tech whose service
+  zone covers it, each rendered as a rich decision card (vendor/claim · city ·
+  availability) with the prominent "🐜 Ant suggests: day · tech" block + one-tap
+  ✓ Use this / ✗ Not quite. Runs against the Supabase platform project; RLS scopes
+  it to this shop. Reuses dispatch.html's scheduling brain verbatim (suggestSlot /
+  coversZip / jobRegion / the assign+notify flow) so a booking here behaves exactly
+  like one from the board. Additive + null-safe: a job with no warranty, no
+  availability, or no covering tech still renders; a failed query never blanks the page.
+-->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:9px;padding:11px 14px;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  header .brand{font-weight:800}
+  header .sp{flex:1}
+  header a,header button{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+  .wrap{max-width:760px;margin:0 auto;padding:12px 12px 60px}
+  .toprow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 2px 12px}
+  .toprow .ttl{font-size:15px;font-weight:800}
+  .toprow .sub{color:var(--muted);font-size:12.5px;font-weight:600}
+  .regtog{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-left:auto}
+  .regtog button{background:var(--panel);border:0;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;color:var(--muted)}
+  .regtog button.on{background:var(--brand);color:var(--brand-ink)}
+  /* group */
+  .nsgrp{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;letter-spacing:.02em;color:var(--ink);margin:18px 2px 9px;padding:8px 12px;border-radius:11px;background:var(--chip);border:1px solid var(--line)}
+  .nsgrp.unmapped{background:rgba(255,120,70,.12);border-color:rgba(255,120,70,.42);color:var(--warn,#b45309)}
+  .nsgrp .n{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:800}
+  /* card */
+  .nsjob{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:11px;box-shadow:var(--shadow);box-shadow:inset 4px 0 0 var(--sc,var(--line)),var(--shadow)}
+  .nsjob .name{font-weight:800;font-size:16px}
+  .nsjob .unit{color:var(--muted);font-size:13px;margin-top:2px}
+  .nsjob .chdr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+  .copychip{display:inline-flex;align-items:center;gap:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;font-weight:700;letter-spacing:.02em;padding:3px 8px;border-radius:7px;white-space:nowrap;cursor:pointer;border:1px solid var(--line);background:var(--chip);color:var(--ink)}
+  .copychip .cc-ico{opacity:.55;font-size:10px}
+  .copychip.cc-ref{background:rgba(90,169,255,.14);color:#4b93e6;border-color:rgba(90,169,255,.42)}
+  .nsvendor{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:var(--gold-grad,linear-gradient(135deg,#ffd75a,#f5a623));color:#231a02;border:1px solid transparent}
+  .citychip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;color:var(--muted);padding:2px 2px}
+  .nsavail{margin-top:9px;padding:7px 10px;border-radius:9px;background:rgba(90,169,255,.12);border:1px solid rgba(90,169,255,.42);color:#4b93e6;font-size:12.5px;font-weight:800;line-height:1.4}
+  .nsavail.nsavail-empty{background:var(--chip);border-color:var(--line);color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .nsavail .ns-intake{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:4px 9px;font-size:11.5px;font-weight:800;cursor:pointer}
+  /* suggest */
+  .nssug{display:flex;align-items:center;gap:10px;margin-top:11px;padding:10px 12px;border:1px solid var(--brand);background:color-mix(in srgb,var(--brand) 8%,transparent);border-radius:12px;flex-wrap:wrap}
+  .nssug.out{border-color:var(--warn,#b45309);background:color-mix(in srgb,var(--warn,#b45309) 8%,transparent)}
+  .nssug.none{border-color:var(--line);background:var(--chip)}
+  .nssug .sg-l{flex:1;min-width:150px}
+  .nssug .sg-t{font-size:11px;font-weight:800;color:var(--brand);text-transform:uppercase;letter-spacing:.03em}
+  .nssug.out .sg-t{color:var(--warn,#b45309)}
+  .nssug .sg-b{font-size:15.5px;font-weight:800;margin-top:1px}
+  .nssug .sg-w{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .nssug .sg-acts{display:flex;gap:7px;flex:none}
+  .nssug button{border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:800;font-size:13px;border-radius:9px;padding:8px 12px;cursor:pointer}
+  .nssug .sg-use{border:0;background:var(--brand);color:#fff}
+  /* inline picker */
+  .nspick{display:none;margin-top:10px;padding:11px;border:1px dashed var(--line);border-radius:11px;background:var(--bg)}
+  .nspick.open{display:block}
+  .nspick label{display:block;font-weight:700;font-size:12px;margin:8px 0 4px;color:var(--muted)}
+  .nspick label:first-child{margin-top:0}
+  .nspick select,.nspick input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit}
+  .nspick .prow{display:flex;gap:8px;margin-top:12px}
+  .nspick .prow button{flex:1;border-radius:10px;padding:11px;font-weight:800;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+  .nspick .prow .primary{background:var(--brand);color:var(--brand-ink);border:none}
+  .nsopen{margin-top:9px;font-size:12.5px}
+  .nsopen a{color:var(--brand);font-weight:700;text-decoration:none}
+  .err{color:var(--bad,#b4472e);font-size:12px;margin-top:6px;min-height:1em}
+  .qempty{color:var(--muted);font-size:14px;padding:28px 12px;text-align:center}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;font-weight:700;z-index:40;box-shadow:0 8px 24px rgba(0,0,0,.3);opacity:0;transition:opacity .2s}
+  .toast.on{opacity:1}
+  /* gate */
+  .gate{max-width:340px;margin:64px auto;padding:0 20px;text-align:center}
+  .gate input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;margin-bottom:8px;text-align:left}
+  .gate label{display:block;font-weight:700;font-size:12.5px;text-align:left;margin:4px 0 4px}
+  .gate .primary{width:100%;background:var(--brand);color:var(--brand-ink);border:none;border-radius:10px;padding:12px;font-weight:800;cursor:pointer}
+</style>
+<link rel="stylesheet" href="/platform/ant-theme.css">
+<link rel="stylesheet" href="/platform/skin-jackpot.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var app=document.getElementById('app');
+  var cfg=window.ANT_SUPABASE||{}; var sb=null, company=null, techs=[], jobs=[], timeOff=[];
+  var offSet={};                                   // "techId|YYYY-MM-DD" -> true (day-off / PTO)
+  function offOn(techId,d){ return !!offSet[techId+'|'+d]; }
+
+  // ── skin gate — mirrors office-board.html: default-on 🎰 Jackpot (cream/gold);
+  // settings.skin==='clean' reverts to the platform's dark-vivid ant-theme look.
+  function applySkin(sk){
+    try{
+      var root=document.documentElement;
+      if(sk==='clean'){ root.setAttribute('data-skin',''); root.removeAttribute('data-theme'); }
+      else { root.setAttribute('data-skin','jackpot'); root.setAttribute('data-theme','light'); }
+    }catch(_){}
+  }
+
+  // ── service zones (verbatim from dispatch.html) ──────────────────────────────
+  function areaList(t){ return String((t&&t.service_area)||'').split(',').map(function(s){return s.trim();}).filter(Boolean); }
+  function coversZip(t, zip){ var a=areaList(t); if(!a.length) return true; zip=String(zip||'').trim(); if(!zip) return true; return a.some(function(p){ return zip===p || zip.indexOf(p)===0; }); }
+  function jobZip(j){ return (j&&j.customer&&j.customer.zip)||''; }
+  function capOf(t){ var m=t&&t.max_stops; return (m!=null&&m>0)?m:6; }
+  function bookedOn(techId,d){ var n=0; jobs.forEach(function(j){ if(j.technician_id===techId&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
+  function zip5(z){ var m=String(z||'').match(/\d{5}/); return m?parseInt(m[0],10):null; }
+  // 🐜 Best tech + day — scores every (tech, next-10-days) pair on the inputs the office
+  // already set: covers-the-ZIP ≫ everything, then not-off (PTO), open capacity, route-fit,
+  // soonest, mild weekend nudge. Pure client-side over already-loaded data. (dispatch.html)
+  function suggestSlot(job){
+    var zip=jobZip(job);
+    var cands=techs.filter(function(t){ return coversZip(t, zip); });
+    if(!cands.length) cands=techs;
+    if(!cands.length) return null;
+    var start=new Date(), HORIZON=10, best=null, jz=zip5(zip);
+    for(var i=0;i<HORIZON;i++){
+      var d=isoDay(addDays(start,i)); var dow=new Date(d+'T12:00:00').getDay(); var weekend=(dow===0||dow===6);
+      for(var k=0;k<cands.length;k++){
+        var t=cands[k];
+        if(offOn(t.id,d)) continue;
+        var booked=bookedOn(t.id,d); var cap=capOf(t);
+        if(booked>=cap) continue;
+        var covers=coversZip(t,zip);
+        var routeBonus=0, near=null;
+        if(jz!=null){
+          var md=Infinity;
+          jobs.forEach(function(j){ if(j.technician_id===t.id&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled'){ var z=zip5(jobZip(j)); if(z!=null){ var diff=Math.abs(z-jz); if(diff<md) md=diff; } } });
+          if(md<Infinity){ routeBonus=Math.max(0,120-md); near=md; }
+        }
+        var score=(covers?2000:0)+(HORIZON-i)*8+routeBonus-(weekend?25:0);
+        if(!best||score>best.score) best={ tech:t, day:d, score:score, covers:covers, booked:booked, cap:cap, near:near, i:i };
+      }
+    }
+    return best;
+  }
+  function suggestReason(b, zip){
+    var bits=[];
+    if(b.covers && zip) bits.push('covers '+zip);
+    if(b.near!=null && b.near<=60) bits.push('already routed nearby');
+    else bits.push(b.i<=1?'soonest opening':'open day');
+    var open=b.cap-b.booked; bits.push(open+' slot'+(open===1?'':'s')+' left');
+    return bits.join(' · ');
+  }
+  // techs whose EXPLICIT service_area covers this ZIP (a no-area tech is not an anchor —
+  // matches office-board's coveringTechs) → used to bucket jobs under a tech.
+  function coveringTechs(zip){ return techs.filter(function(t){ return areaList(t).length && coversZip(t,zip); }); }
+
+  // ── TN / NOLA region split (verbatim from dispatch.html) ─────────────────────
+  var region='';
+  var LA_CITIES={'new orleans':1,'metairie':1,'kenner':1,'gretna':1,'chalmette':1,'harvey':1,'marrero':1,'westwego':1,'slidell':1,'hammond':1,'covington':1,'mandeville':1,'ponchatoula':1,'baton rouge':1,'denham springs':1,'walker':1,'laplace':1};
+  function jobRegion(j){ var c=(j&&j.customer)||{}; var st=String(c.state||'').trim().toUpperCase(); if(st==='LA'||st==='LOUISIANA') return 'LA'; if(st==='TN'||st==='TENNESSEE') return 'TN'; if(!st){ var city=String(c.city||'').trim().toLowerCase(); if(LA_CITIES[city]) return 'LA'; } return 'TN'; }
+  function defaultRegion(list){ var tn=0,la=0; (list||[]).forEach(function(j){ if(jobRegion(j)==='LA') la++; else tn++; }); return la>tn?'LA':'TN'; }
+
+  // ── small helpers ────────────────────────────────────────────────────────────
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
+  function fullName(c){ return c?[c.first_name,c.last_name].filter(Boolean).join(' ').trim():''; }
+  function isoDay(d){ return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+  function addDays(d,n){ var x=new Date(d); x.setDate(x.getDate()+n); return x; }
+  function fmtDayLong(iso){ try{ return new Date(iso+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); }catch(e){ return iso; } }
+  function fmtDayShort(iso){ try{ return new Date(iso+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return iso; } }
+  var SC={ new:'var(--new,#6b7280)',scheduled:'var(--scheduled,#2563eb)',in_progress:'var(--in_progress,#b45309)',awaiting_parts:'var(--awaiting_parts,#7c3aed)',completed:'var(--completed,#3f8f24)',canceled:'var(--canceled,#9ca3af)' };
+  function firstNameOf(t){ return String((t&&t.name)||'Tech').split(' ')[0]; }
+  // customer name, falling back to the warranty vendor + claim# so a warranty shell still reads.
+  function jobTitle(j){
+    var nm=fullName(j.customer); if(nm) return nm;
+    var co=String(j.warranty_company||'').trim(), cl=String(j.claim_number||'').trim();
+    if(co||cl) return (co||'Warranty')+(cl?' #'+cl:'');
+    return 'Customer';
+  }
+  // vendor → tidy badge (AHS / SquareTrade / ServicePower / NSA) — from office-board.
+  function vendorBadge(co){
+    co=String(co||'').trim(); if(!co) return '';
+    var n=co.toLowerCase(), lbl=co;
+    if(/ahs|american\s*home|frontdoor/.test(n)) lbl='AHS';
+    else if(/square\s*trade|allstate/.test(n)) lbl='SquareTrade';
+    else if(/service\s*power/.test(n)) lbl='ServicePower';
+    else if(/\bnsa\b|national\s*service/.test(n)) lbl='NSA';
+    return '<span class="nsvendor" title="'+esc(co)+'">'+esc(lbl)+'</span>';
+  }
+  function copyChip(label,value,kind){ return '<span class="copychip cc-'+kind+'" data-copy="'+esc(value)+'" title="Tap to copy">'+esc(label)+' <span class="cc-ico">⧉</span></span>'; }
+  function availBlock(j){
+    var a=String(j.availability||'').trim();
+    if(a) return '<div class="nsavail">🔒 Customer available '+esc(a.slice(0,140))+'</div>';
+    return '<div class="nsavail nsavail-empty">🕒 No time captured yet <button type="button" class="ns-intake" data-job="'+esc(j.id)+'">📲 Text intake link</button></div>';
+  }
+
+  if(!cfg.url||!cfg.anonKey){ app.innerHTML='<div class="gate"><h1>🐜 Not connected</h1></div>'; return; }
+  sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+
+  function toast(msg){
+    var t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.body.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('on'); });
+    setTimeout(function(){ t.classList.remove('on'); setTimeout(function(){ try{document.body.removeChild(t);}catch(e){} },250); },1900);
+  }
+
+  function renderSignIn(msg){
+    app.innerHTML='<div class="gate"><h1>🗓 Needs Scheduled</h1><p>Sign in to your shop.</p>'+
+      '<label>Email</label><input id="em" type="email" autocomplete="username">'+
+      '<label>Password</label><input id="pw" type="password" autocomplete="current-password">'+
+      '<button class="primary" id="go">Sign in</button><div class="err" id="err">'+esc(msg||'')+'</div></div>';
+    var go=document.getElementById('go');
+    function submit(){ var em=document.getElementById('em').value.trim(), pw=document.getElementById('pw').value; if(!em||!pw){document.getElementById('err').textContent='Enter email and password.';return;} go.disabled=true; go.textContent='Signing in…'; sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){ if(r.error) renderSignIn(r.error.message); else boot(); }); }
+    go.onclick=submit; document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
+  }
+
+  function needsDispatch(j){ return (!j.scheduled_day || !j.technician_id) && j.status!=='completed' && j.status!=='canceled'; }
+
+  function render(){
+    var uns=jobs.filter(needsDispatch);
+    if(region!=='TN'&&region!=='LA') region=defaultRegion(uns);
+    var tnN=0, laN=0; uns.forEach(function(j){ if(jobRegion(j)==='LA') laN++; else tnN++; });
+    var unsRegion=uns.filter(function(j){ return jobRegion(j)===region; });
+
+    // bucket each job under a covering tech (explicit service_area), else "area not mapped".
+    // when several cover, prefer the tech the scorer would pick (keeps the group == the CTA).
+    var buckets={}, order=[], unmapped=[];
+    function bucketFor(j){
+      var covs=coveringTechs(jobZip(j));
+      if(!covs.length) return null;
+      var sug=suggestSlot(j);
+      if(sug && covs.some(function(t){return t.id===sug.tech.id;})) return sug.tech;
+      return covs[0];
+    }
+    unsRegion.forEach(function(j){
+      var t=bucketFor(j);
+      if(!t){ unmapped.push(j); return; }
+      if(!buckets[t.id]){ buckets[t.id]={ tech:t, list:[] }; order.push(t.id); }
+      buckets[t.id].list.push(j);
+    });
+
+    var body='';
+    if(!unsRegion.length){
+      body='<div class="qempty">Nothing waiting in '+(region==='LA'?'Louisiana':'Middle TN')+' — every job has a tech and a day. ✅</div>';
+    } else {
+      order.forEach(function(id){ var g=buckets[id];
+        body+='<div class="nsgrp">🔧 '+esc(firstNameOf(g.tech))+'<span class="n">'+g.list.length+'</span></div>';
+        body+=g.list.map(function(j){ return cardHtml(j,false); }).join('');
+      });
+      if(unmapped.length){
+        body+='<div class="nsgrp unmapped">⚠️ Area not mapped — pick a tech<span class="n">'+unmapped.length+'</span></div>';
+        body+=unmapped.map(function(j){ return cardHtml(j,true); }).join('');
+      }
+    }
+
+    var regBar='<div class="regtog"><button data-reg="TN" class="'+(region==='TN'?'on':'')+'">Middle TN'+(tnN?' · '+tnN:'')+'</button><button data-reg="LA" class="'+(region==='LA'?'on':'')+'">Louisiana'+(laN?' · '+laN:'')+'</button></div>';
+
+    app.innerHTML=
+      '<header><span class="brand">🗓 Needs Scheduled</span><span class="sp"></span>'+
+        '<a href="/platform/office-board.html">Board</a><a href="/platform/dispatch.html">Dispatch</a>'+
+        '<button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
+      '<div class="wrap">'+
+        '<div class="toprow"><div><div class="ttl">Jobs waiting to be scheduled</div><div class="sub">'+unsRegion.length+' in '+(region==='LA'?'Louisiana':'Middle TN')+' · grouped by who covers the ZIP</div></div>'+regBar+'</div>'+
+        body+
+      '</div>';
+
+    document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
+    document.getElementById('refresh').onclick=load;
+    Array.prototype.forEach.call(document.querySelectorAll('.regtog button[data-reg]'),function(el){ el.onclick=function(){ region=el.getAttribute('data-reg'); render(); }; });
+    wireCards();
+  }
+
+  // A full decision card. `unmapped` = no tech's zone covers it → the primary CTA is "Pick a tech".
+  function cardHtml(j, unmapped){
+    var title=jobTitle(j);
+    var unit=(j.unit&&j.unit.label)?j.unit.label:'';
+    var prob=String(j.problem||'').trim();
+    var sub=[unit, prob].filter(Boolean).join(' · ');
+    var claim=String(j.claim_number||'').trim();
+    var refChip=claim?copyChip('Claim '+claim, claim, 'ref'):'';
+    var vendor=vendorBadge(j.warranty_company);
+    var city=(j.customer&&j.customer.city)?String(j.customer.city).trim():'';
+    var cityChip=city?'<span class="citychip">📍 '+esc(city)+'</span>':'';
+    var hdr=(refChip||vendor||cityChip)?'<div class="chdr">'+refChip+vendor+cityChip+'</div>':'';
+    var avail=availBlock(j);
+    var sug=suggestSlot(j);
+    var zip=jobZip(j);
+
+    var sugHtml;
+    if(unmapped){
+      var line=sug?(esc(firstNameOf(sug.tech))+' · '+esc(fmtDayLong(sug.day))):'no one available';
+      sugHtml='<div class="nssug out"><div class="sg-l"><div class="sg-t">🐜 Pick a tech</div><div class="sg-b">'+line+'</div><div class="sg-w">'+(zip?'no zone covers '+esc(zip):'no zone set')+' — choose who goes</div></div>'+
+        '<div class="sg-acts"><button type="button" class="sg-use" data-pick="'+esc(j.id)+'">Pick a tech</button></div></div>';
+    } else if(sug){
+      sugHtml='<div class="nssug"><div class="sg-l"><div class="sg-t">🐜 Ant suggests</div><div class="sg-b">'+esc(sug.tech.name||'Tech')+' · '+esc(fmtDayLong(sug.day))+'</div><div class="sg-w">'+esc(suggestReason(sug, zip))+'</div></div>'+
+        '<div class="sg-acts"><button type="button" data-not="'+esc(j.id)+'">✗ Not quite</button><button type="button" class="sg-use" data-use="'+esc(j.id)+'">✓ Use this</button></div></div>';
+    } else {
+      sugHtml='<div class="nssug none"><div class="sg-l"><div class="sg-t">🐜 No opening found</div><div class="sg-b">Everyone\'s full or off</div></div>'+
+        '<div class="sg-acts"><button type="button" class="sg-use" data-pick="'+esc(j.id)+'">Pick a tech</button></div></div>';
+    }
+
+    // hidden inline picker (tech select covers-first, day input) — the ✗ Not quite / Pick a tech panel.
+    var ordered=techs.slice().sort(function(a,b){ var ca=coversZip(a,zip)&&areaList(a).length, cb=coversZip(b,zip)&&areaList(b).length; return (cb?1:0)-(ca?1:0); });
+    var selTech=(sug&&sug.tech&&sug.tech.id)||'';
+    var techOpts='<option value="">— unassigned —</option>'+ordered.map(function(t){
+      var lab=esc(t.name||'Tech'); if(zip && areaList(t).length){ lab+=coversZip(t,zip)?' ⭐ covers':' · out of area'; }
+      return '<option value="'+esc(t.id)+'"'+(t.id===selTech?' selected':'')+'>'+lab+'</option>'; }).join('');
+    var defDay=(sug&&sug.day)||isoDay(new Date());
+    var picker='<div class="nspick" id="pick-'+esc(j.id)+'">'+
+      '<label>Tech</label><select class="pk-tech">'+techOpts+'</select>'+
+      '<label>Day</label><input class="pk-day" type="date" value="'+esc(defDay)+'">'+
+      '<div class="prow"><button type="button" class="pk-cancel">Cancel</button><button type="button" class="primary pk-save" data-job="'+esc(j.id)+'">Save</button></div>'+
+      '<div class="err pk-err"></div></div>';
+
+    return '<div class="nsjob" data-jobcard="'+esc(j.id)+'" style="--sc:'+(SC[j.status]||'var(--line)')+'">'+
+      '<div class="name">'+esc(title)+'</div>'+
+      (sub?'<div class="unit">'+esc(sub)+'</div>':'')+
+      hdr+avail+sugHtml+picker+
+      '<div class="nsopen"><a href="/platform/office-board.html?job='+encodeURIComponent(j.id)+'">Open job →</a></div>'+
+    '</div>';
+  }
+
+  function jobById(id){ return jobs.filter(function(x){ return String(x.id)===String(id); })[0]; }
+
+  function wireCards(){
+    // copy chips
+    Array.prototype.forEach.call(document.querySelectorAll('.copychip[data-copy]'),function(el){ el.onclick=function(ev){ ev.stopPropagation(); var t=el.getAttribute('data-copy'); try{ if(navigator.clipboard) navigator.clipboard.writeText(t); }catch(_){} var ico=el.querySelector('.cc-ico'); if(ico){ var old=ico.textContent; ico.textContent='✓'; setTimeout(function(){ ico.textContent=old; },1000); } }; });
+    // intake — no platform-side sender wired yet; honest stub (Part-B deferred item)
+    Array.prototype.forEach.call(document.querySelectorAll('.ns-intake[data-job]'),function(el){ el.onclick=function(ev){ ev.stopPropagation(); toast('📲 Intake-link texting is coming soon'); }; });
+    // ✓ Use this — book the suggested tech+day
+    Array.prototype.forEach.call(document.querySelectorAll('[data-use]'),function(el){ el.onclick=function(){ var j=jobById(el.getAttribute('data-use')); if(!j) return; var sug=suggestSlot(j); if(!sug){ togglePick(j.id,true); return; } book(j, sug.tech.id, sug.day, el); }; });
+    // ✗ Not quite / Pick a tech — open the inline picker
+    Array.prototype.forEach.call(document.querySelectorAll('[data-not],[data-pick]'),function(el){ el.onclick=function(){ togglePick(el.getAttribute('data-not')||el.getAttribute('data-pick'),true); }; });
+    // picker cancel / save
+    Array.prototype.forEach.call(document.querySelectorAll('.pk-cancel'),function(el){ el.onclick=function(){ var card=el.closest('.nspick'); if(card) card.classList.remove('open'); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.pk-save[data-job]'),function(el){ el.onclick=function(){
+      var id=el.getAttribute('data-job'); var j=jobById(id); if(!j) return;
+      var panel=document.getElementById('pick-'+id); if(!panel) return;
+      var tech=panel.querySelector('.pk-tech').value||null; var day=panel.querySelector('.pk-day').value||null;
+      var errEl=panel.querySelector('.pk-err'); errEl.textContent='';
+      if(tech && day && offOn(tech,day) && !window.confirm('That tech is marked OFF on '+day+'. Book them anyway?')) return;
+      var zip=jobZip(j);
+      if(tech && zip){ var tt=techs.filter(function(x){return x.id===tech;})[0]; if(tt && areaList(tt).length && !coversZip(tt,zip) && !window.confirm((tt.name||'That tech')+' doesn’t cover '+zip+'. Assign anyway?')) return; }
+      book(j, tech, day, el, errEl);
+    }; });
+  }
+  function togglePick(id, open){ var p=document.getElementById('pick-'+id); if(!p) return; if(open){ p.classList.add('open'); var s=p.querySelector('.pk-tech'); if(s) s.focus(); } else p.classList.remove('open'); }
+
+  // Book a job → identical write + notify to dispatch.html's assign Save.
+  function book(job, tech, day, btn, errEl){
+    if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
+    var patch={ technician_id:(tech||null), scheduled_day:(day||null) };
+    if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
+    sb.from('job').update(patch).eq('id',job.id).then(function(r){
+      if(r.error){ if(btn){ btn.disabled=false; btn.textContent='Save'; } if(errEl) errEl.textContent=r.error.message; else toast('Couldn’t book — '+r.error.message); return; }
+      if(tech) notifyAssigned(job.id);
+      toast('✓ Booked '+ (jobTitle(job)) );
+      load();   // re-pull: the booked job drops out of the queue
+    });
+  }
+  // Fire-and-forget: text the newly-assigned tech (dispatch.html pattern).
+  function notifyAssigned(jobId){
+    sb.auth.getSession().then(function(s){
+      var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
+      fetch('/.netlify/functions/platform-tech-notify?do=notify_assigned',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok})}).catch(function(){});
+    });
+  }
+
+  function load(){
+    var todayIso=isoDay(new Date());
+    sb.rpc('company_roster').then(function(tr){
+      techs=((tr&&tr.data)||[]).filter(function(t){ return t.active!==false; });
+      var jP=sb.from('job').select('id,status,problem,scheduled_day,technician_id,availability,warranty_company,claim_number,customer_id,customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
+      var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
+      Promise.all([jP,oP]).then(function(res){
+        jobs=(res[0]&&res[0].data)||[];
+        timeOff=(res[1]&&res[1].data)||[]; offSet={}; timeOff.forEach(function(o){ offSet[o.technician_id+'|'+o.day]=true; });
+        render();
+      }, function(){ jobs=[]; render(); });
+    }, function(){ techs=[]; jobs=[]; render(); });
+  }
+
+  function boot(){ sb.from('company').select('id,name,settings').limit(1).then(function(r){ if(!r.error&&r.data&&r.data[0]){ company=r.data[0]; applySkin(company.settings&&company.settings.skin); } load(); }); }
+
+  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else renderSignIn(); });
+})();
+</script>
+</body></html>

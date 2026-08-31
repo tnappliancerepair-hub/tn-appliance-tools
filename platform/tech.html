@@ -87,6 +87,8 @@
   .findpart input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px}
   .findpart .fg{display:grid;grid-template-columns:1fr 1fr;gap:7px}
   .findpart .fg button{font-size:12.5px;font-weight:700;padding:9px 6px;border-radius:9px}
+  .findpart .fg button.supcfg{grid-column:1/-1;background:transparent;color:var(--muted);border:1px dashed var(--line);font-weight:600}
+  .findpart .fg button.supcfg:hover{color:var(--ink);border-color:var(--brand)}
   .rel{margin-top:10px;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .rel.signed{background:var(--chip);color:var(--muted)}
   .rel.unsigned{background:rgba(194,87,31,.13);color:#c2571f;border:1px solid rgba(194,87,31,.4)}
@@ -140,6 +142,7 @@
 <script src="/platform/pay-calc.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="/platform/media-sign.js"></script>
+<script src="/platform/ant-suppliers.js"></script>
 <script src="/ant-sounds.js"></script>
 <script src="/ant-celebrate.js"></script>
 <script>
@@ -247,18 +250,25 @@
   }
 
   // 🔩 Find the part — open the model/part # on a supplier's site (no login needed).
-  var FIND_SITES = {
-    sears:'https://www.searspartsdirect.com/search?q=',
-    app:'https://www.appliancepartspros.com/search.aspx?model=',
-    rc:'https://www.repairclinic.com/Shop-For-Parts?query=',
-    enc:'https://encompass.com/search?searchTerm=',
-    ps:'https://www.partselect.com/Search.aspx?SearchTerm='
-  };
-  function findPart(id, site){
+  // 🔩 Find the part — buttons come from the shared, INTERCHANGEABLE supplier catalog
+  // (per-device tech choice ▸ shop default ▸ built-in). "Guys have different suppliers."
+  function supplierBtnsHtml(id){
+    var subs = (window.AntSuppliers ? AntSuppliers.list(companySettings) : [{key:'sears',label:'Sears PartsDirect',icon:'🔩'}]);
+    return subs.map(function(s){ return '<button type="button" data-find="'+s.key+'" data-find-id="'+id+'">'+s.icon+' '+esc(s.label)+'</button>'; }).join('') +
+      '<button type="button" class="supcfg" data-supcfg="'+id+'" title="Choose your suppliers">⚙️ Suppliers</button>';
+  }
+  function findPart(id, key){
     var inp = document.getElementById('fp'+id); var q = inp ? inp.value.trim() : '';
     if(!q){ if(inp) inp.focus(); return; }
-    var base = FIND_SITES[site]; if(!base) return;
-    window.open(base + encodeURIComponent(q), '_blank', 'noopener');
+    if(window.AntSuppliers) AntSuppliers.open(key, q, companySettings);
+  }
+  // Re-render the supplier buttons on one card after the tech changes their set.
+  function refreshSuppliers(id){
+    var g = document.querySelector('.findpart button[data-find-id="'+id+'"]');
+    var fg = g ? g.parentNode : null; if(!fg) return;
+    fg.innerHTML = supplierBtnsHtml(id);
+    fg.querySelectorAll('button[data-find]').forEach(function(el){ el.onclick=function(){ findPart(el.getAttribute('data-find-id'), el.getAttribute('data-find')); }; });
+    fg.querySelectorAll('button[data-supcfg]').forEach(function(el){ el.onclick=function(){ AntSuppliers.chooser(companySettings, function(){ refreshSuppliers(el.getAttribute('data-supcfg')); }); }; });
   }
 
   // 🔧 Office — I need this part. Flags the job for the office in one tap (mid-job or on the
@@ -401,13 +411,7 @@
       (tdr ? '<label class="cameback"><input type="checkbox" id="tcb'+j.id+'"'+(tdr.held===false?' checked':'')+'> This came back — the last fix didn\'t hold</label>' : '') +
       '<div class="findpart"><div class="fh">🔩 Find the part</div>' +
         '<input id="fp'+j.id+'" placeholder="Model # or part #" value="'+findQ+'">' +
-        '<div class="fg">' +
-          '<button type="button" data-find="sears" data-find-id="'+j.id+'">🔍 Sears PartsDirect</button>' +
-          '<button type="button" data-find="app" data-find-id="'+j.id+'">🔍 AppliancePartsPros</button>' +
-          '<button type="button" data-find="rc" data-find-id="'+j.id+'">🔍 RepairClinic</button>' +
-          '<button type="button" data-find="enc" data-find-id="'+j.id+'">🔍 Encompass</button>' +
-          '<button type="button" data-find="ps" data-find-id="'+j.id+'">🔍 PartSelect</button>' +
-        '</div></div>' +
+        '<div class="fg">' + supplierBtnsHtml(j.id) + '</div></div>' +
       '<button type="button" class="needpart" data-needpart="'+j.id+'">🔧 Office — I need this part</button>' +
       '<button class="primary" data-savetdr="'+j.id+'">Save report + finish</button></div>';
     var tdrDone = tdr ? '<div class="tdrdone">📋 Report: <b>'+esc(tdr.failed_component||'')+'</b>'+(tdr.part_number?' · '+esc(tdr.part_number):'')+' · '+esc(tdr.outcome)+(tdr.held===false?' · came back':'')+'</div>' : '';
@@ -489,6 +493,7 @@
     b.querySelectorAll('button[data-tdr]').forEach(function(el){ el.onclick=function(){ var p=document.getElementById('tdr_'+el.getAttribute('data-tdr')); if(p) p.classList.toggle('open'); }; });
     b.querySelectorAll('button[data-savetdr]').forEach(function(el){ el.onclick=function(){ saveTdr(el.getAttribute('data-savetdr'), el); }; });
     b.querySelectorAll('button[data-find]').forEach(function(el){ el.onclick=function(){ findPart(el.getAttribute('data-find-id'), el.getAttribute('data-find')); }; });
+    b.querySelectorAll('button[data-supcfg]').forEach(function(el){ el.onclick=function(){ AntSuppliers.chooser(companySettings, function(){ refreshSuppliers(el.getAttribute('data-supcfg')); }); }; });
     b.querySelectorAll('button[data-needpart]').forEach(function(el){ el.onclick=function(){ officeNeedPart(el.getAttribute('data-needpart')); }; });
     b.querySelectorAll('button[data-release]').forEach(function(el){ el.onclick=function(){ confirmRelease(el.getAttribute('data-release')); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });

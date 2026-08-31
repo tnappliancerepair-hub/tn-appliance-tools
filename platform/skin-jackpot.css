@@ -131,3 +131,46 @@
 
 /* The invoice PAID money-badge on a card — keep it money-green + legible on cream. */
 :root[data-skin="jackpot"] .money-badge.due{ background:#fbeecb !important; color:#8a5a10 !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   NEEDS SCHEDULED (platform/needs-scheduled.html) — the coin-chip treatment for
+   the queue's own classes. The page is token-driven, so the cream/gold palette
+   above already recolors most of it; these rules give the group header, the
+   suggest banner, and the vendor/availability chips the same casino look the
+   board's cards wear. Scoped to [data-skin="jackpot"]; clean skin is untouched.
+   ══════════════════════════════════════════════════════════════════════════════ */
+:root[data-skin="jackpot"] .nsgrp{
+  background:linear-gradient(180deg, rgba(255,253,247,.85), rgba(251,241,221,.6)) !important;
+  border:1px solid #e7cfa0 !important; border-left:4px solid var(--gold) !important;
+  font-family:"Orbitron",Georgia,sans-serif; letter-spacing:.05em; text-transform:uppercase; color:#7a4a1f !important;
+  box-shadow:0 2px 10px rgba(142,14,34,.08);
+}
+:root[data-skin="jackpot"] .nsgrp .n{ background:var(--gold-grad) !important; color:#3a2400 !important; border-color:transparent !important; }
+:root[data-skin="jackpot"] .nsgrp.unmapped{
+  background:rgba(224,30,55,.10) !important; border-color:rgba(224,30,55,.42) !important;
+  border-left-color:#c01230 !important; color:#c01230 !important;
+}
+:root[data-skin="jackpot"] .nsjob{
+  box-shadow: inset 4px 0 0 var(--sc,var(--gold)), 0 2px 12px rgba(142,14,34,.08) !important;
+}
+:root[data-skin="jackpot"] .nsjob:hover{
+  box-shadow: inset 4px 0 0 var(--sc,var(--gold)), 0 0 0 1px var(--gold), 0 8px 22px rgba(246,180,0,.30) !important;
+}
+:root[data-skin="jackpot"] .nsvendor{ background:var(--gold-grad) !important; color:#231a02 !important; border-color:transparent !important; }
+:root[data-skin="jackpot"] .citychip{ color:#7a4a2f !important; }
+:root[data-skin="jackpot"] .nsavail{
+  background:rgba(30,136,229,.10) !important; border-color:rgba(30,136,229,.42) !important; color:#155bb0 !important;
+}
+:root[data-skin="jackpot"] .nsavail.nsavail-empty{
+  background:#f6e6c3 !important; border-color:#e0c48f !important; color:#7a4a2f !important;
+}
+:root[data-skin="jackpot"] .nssug{
+  background:rgba(201,138,0,.10) !important; border-color:rgba(201,138,0,.5) !important;
+}
+:root[data-skin="jackpot"] .nssug .sg-t{ color:#a5670a !important; }
+:root[data-skin="jackpot"] .nssug.out{ background:rgba(224,30,55,.10) !important; border-color:rgba(224,30,55,.44) !important; }
+:root[data-skin="jackpot"] .nssug.out .sg-t{ color:#c01230 !important; }
+:root[data-skin="jackpot"] .nssug .sg-use{
+  background:linear-gradient(180deg,#ffd54a,#f6b400) !important; color:#3a1400 !important; border:none !important;
+  box-shadow:0 0 10px rgba(246,180,0,.5) !important;
+}
