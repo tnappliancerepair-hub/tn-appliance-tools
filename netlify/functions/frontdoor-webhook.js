@@ -21,10 +21,28 @@
 
 const { getSecret } = require('./_lib/secrets');
 const { areaForVendor } = require('./_lib/frontdoor');
+const sms = require('./_lib/sms');
+const { payToken } = require('./pay-owed');
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const FN = 'https://tnapplianceexchange.net/.netlify/functions';
 const EVENT_LOG_TABLE = 3;
+// Owner alerts (expedited / auth-denied). Tagged 'warranty_intake' — the ONLY class the
+// office-gate lets reach Teddy's cell (any other tag is silently suppressed). See _lib/office-gate.
+const OWNER_CELL = process.env.OWNER_CELL || '+16154855795';
+async function alertOwner(body) { try { await sms.sendSms(OWNER_CELL, body, 'owner', 'warranty_intake'); } catch (_) {} }
+// Best-effort "is there money owed on this job" check (warranty-safe: out-of-pocket only).
+async function owedCentsFor(jobId) {
+  try {
+    const t = await payToken(jobId);
+    const r = await fetch(`${FN}/pay-owed?job=${jobId}&t=${t}`, { signal: AbortSignal.timeout(8000) }).then((x) => x.json());
+    return (r && r.owed_cents) || 0;
+  } catch (_) { return 0; }
+}
+async function sendPayLink(jobId) { try { await fetch(`${FN}/send-pay-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(12000) }); } catch (_) {} }
+// Structured authorization outcome (a real flag the rest of the system reads), keyed by FD code.
+const AUTHO_CODES = { 350: 'approved', 360: 'denied', 370: 'approved_limited' };
 
 function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }; }
 async function xanoPost(path, payload, ms) {
@@ -203,6 +221,20 @@ async function applyInbound(s, live) {
     await xanoPost('/office_set_job_status', { job_id: jobId, scheduling_status: newStatus, actor: 'AHS (Frontdoor API)' });
   }
   await logEvent('frontdoor_dispatch_applied', { job_id: jobId, operation: s.operation, status_code: code, moved_to: newStatus || null, at_ms: Date.now() });
+
+  // 3) REACTIONS ─────────────────────────────────────────────────────────────
+  // Autho-gate: an authorization Approved/Denied/w-limits → a structured flag the rest of
+  // the system reads (same shape the voice agent writes), and a loud alert to Teddy on DENIED.
+  if (s.operation === 'status' && code != null && AUTHO_CODES[code]) {
+    await logEvent('ahs_authorization_response', { job_id: jobId, outcome: AUTHO_CODES[code], status_code: code, dispatch_id: s.dispatch_id, source: 'frontdoor_api', at_ms: Date.now() });
+    if (code === 360) await alertOwner('⚠️ AHS AUTH DENIED — job #' + jobId + ' (dispatch ' + s.dispatch_id + '). ' + (s.status || '') + ' — check the claim.');
+  }
+  // NCC (no-charge callback): not covered → customer pays out of pocket. Flag Teddy so the
+  // office collects, and if there's already a balance, text the customer their durable pay link.
+  if (s.operation === 'ncc') {
+    await alertOwner('⚠️ AHS NCC (no-charge callback) — job #' + jobId + ' (dispatch ' + s.dispatch_id + '). Not covered; customer pays out of pocket — collect at the visit.');
+    if ((await owedCentsFor(jobId)) > 0) { await sendPayLink(jobId); await logEvent('frontdoor_ncc_paylink', { job_id: jobId, dispatch_id: s.dispatch_id, at_ms: Date.now() }); }
+  }
   return { operation: s.operation, dispatch_id: s.dispatch_id, job_id: jobId, mode: 'applied', moved_to: newStatus || null };
 }
 
@@ -254,6 +286,11 @@ exports.handler = async function (event) {
         const r = await xanoPost('/create_job_from_email', intake);
         const jobId = r && (r.job_id || r.id || (r.job && r.job.id)) || null;
         await logEvent('frontdoor_dispatch_scheduled', { dispatch_id: s.dispatch_id, vendor_id: s.vendor_id, area: s.area, tenant: s.tenant, job_id: jobId, dry_run: !live, at_ms: Date.now() });
+        // Expedited / medical / emergency dispatch → alert Teddy the second it lands (live only).
+        if (live && /expedit|emerg|medic|urgent/i.test(String(s.priority || '') + ' ' + String(s.dispatch_type || ''))) {
+          await alertOwner('🚨 AHS EXPEDITED dispatch — ' + (s.customer || 'customer') + ' · ' + (s.appliance || 'appliance') + (s.city ? ' · ' + s.city : '') + ' (dispatch ' + s.dispatch_id + ', job #' + (jobId || '?') + ').');
+          await logEvent('frontdoor_expedited_alert', { dispatch_id: s.dispatch_id, priority: s.priority, job_id: jobId, at_ms: Date.now() });
+        }
         results.push({ operation: 'schedule', dispatch_id: s.dispatch_id, area: s.area, job_id: jobId, mode: live ? 'created' : 'dry_run' });
       } else if (s.operation === 'status' || s.operation === 'notes' || s.operation === 'ncc') {
         // Frontdoor-initiated status / note / NCC. Resolve the matching Ant job by dispatch#
