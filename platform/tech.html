@@ -131,6 +131,7 @@
   .acomp input{flex:1;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:10px 12px;font-size:13px}
   .acomp .s{width:40px;height:40px;border-radius:11px;border:0;background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;font-size:16px;font-weight:800;cursor:pointer;flex:none}
 </style>
+<link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
 <body>
 <div id="app"><div class="shell"><div class="empty">🐜 Loading…</div></div></div>
@@ -792,5 +793,6 @@
   sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else renderSignIn(); });
 })();
 </script>
+<script src="/platform/ant-nav.js"></script>
 </body>
 </html>

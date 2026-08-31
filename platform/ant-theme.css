@@ -7,7 +7,7 @@
    CTAs with a light-sweep, springy taps, and cards that rise in as the page loads.
    Motion is gated so the live-polling pages (office board, portal) never re-animate. */
 
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=IBM+Plex+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* ══ Palette — vivid, chosen. Green with a lift, a gold accent for money/celebration ══ */
 :root{
@@ -152,3 +152,79 @@ iframe.vid, video.vid{ border-radius:16px !important; }
   button.primary::after,.btn:not(.sec)::after,.go::after,a.cta::after,button.approve::after{ display:none; }
   .shell,.wrap,.card{ animation:none !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════════
+   APP SHELL — bottom tab bar + a floating progress pill. Opt-in: a page injects these
+   via ant-nav.js, so seats that don't use them are untouched. This is what turns the
+   platform from "a web form" into "a real app."
+   ════════════════════════════════════════════════════════════════════════════════ */
+body.has-tabbar{ padding-bottom:calc(66px + env(safe-area-inset-bottom,0)) !important; }
+.tabbar{
+  position:fixed; left:0; right:0; bottom:0; z-index:70; display:flex; align-items:stretch;
+  background:color-mix(in srgb,var(--panel) 90%, transparent);
+  backdrop-filter:saturate(1.2) blur(18px); -webkit-backdrop-filter:saturate(1.2) blur(18px);
+  border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom,0);
+  box-shadow:0 -10px 34px rgba(0,0,0,.20);
+}
+.tabbar .tab{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:9px 4px 9px; text-decoration:none; border:0; background:none; cursor:pointer;
+  color:var(--muted); font-weight:800; font-size:10.5px; letter-spacing:.02em; border-radius:0 !important;
+}
+.tabbar .tab .ic{ font-size:21px; line-height:1; opacity:.72; transition:transform .16s cubic-bezier(.2,1.3,.4,1); }
+.tabbar .tab.on{ color:var(--brand); }
+.tabbar .tab.on .ic{ opacity:1; transform:translateY(-1px) scale(1.08); }
+.tabbar .tab:active .ic{ transform:scale(.88); }
+.tabbar .tab:hover{ transform:none !important; }
+
+/* the glowing report/progress pill floating just above the tab bar */
+.progpill{
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:calc(60px + env(safe-area-inset-bottom,0)); z-index:71;
+  display:inline-flex; align-items:center; gap:9px;
+  background:var(--brand-grad) !important; color:var(--brand-ink) !important;
+  border-radius:999px !important; padding:10px 9px 10px 17px; font-weight:800; font-size:14px;
+  text-decoration:none; border:0; cursor:pointer; white-space:nowrap;
+  box-shadow:var(--glow-strong);
+  animation:pillGlow 2.6s ease-in-out infinite;
+}
+.progpill .pct{ font-family:'IBM Plex Mono',ui-monospace,monospace; background:rgba(255,255,255,.24); border-radius:999px; padding:3px 11px; font-size:13px; }
+@keyframes pillGlow{
+  0%,100%{ box-shadow:var(--glow), 0 0 0 3px color-mix(in srgb,var(--brand) 15%, transparent); }
+  50%{ box-shadow:var(--glow-strong), 0 0 0 8px color-mix(in srgb,var(--brand) 7%, transparent); }
+}
+@media (prefers-reduced-motion: reduce){ .progpill{ animation:none; } }
+/* lift the Ant dock FAB above the tab bar so they don't collide */
+body.has-tabbar .antfab{ bottom:calc(78px + env(safe-area-inset-bottom,0)) !important; }
+body.has-tabbar .antpanel{ bottom:calc(146px + env(safe-area-inset-bottom,0)) !important; }
+
+/* ════ Card headers — an emoji title + a muted hint on the right (the guided, friendly feel) ════ */
+.chd{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:0 0 12px; }
+.chd .t{ font-family:'Bricolage Grotesque','Plus Jakarta Sans',sans-serif; font-weight:800; font-size:16.5px; letter-spacing:-.01em; display:flex; align-items:center; gap:8px; }
+.chd .hint{ font-size:12px; color:var(--muted); font-weight:600; text-align:right; flex:none; }
+
+/* ════ Semantic card variants — a colored left-edge (+ a whisper of tint) per purpose ════ */
+.card.pay{ border-left:3px solid var(--brand) !important; }
+.card.warranty{ border-left:3px solid var(--gold) !important; background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 9%,var(--panel)),var(--panel)) !important; }
+.card.release{ border-left:3px solid #8b6cff !important; }
+.card.addon{ border-left:3px solid #3a8ef0 !important; }
+.card.danger{ border-left:3px solid #e5544a !important; background:linear-gradient(180deg,color-mix(in srgb,#e5544a 6%,var(--panel)),var(--panel)) !important; }
+
+/* ════ The money moment — a green "in the bank" hero + gold stat tiles ════ */
+.bankcard{ background:var(--brand-grad) !important; color:var(--brand-ink) !important; border:0 !important; box-shadow:var(--glow-strong) !important; }
+.bankcard::before{ display:none; }
+.bankcard .big{ font-family:'Bricolage Grotesque',sans-serif; font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+.moneytile{ background:var(--gold-grad); color:#2a1e02; border-radius:14px; padding:12px 14px; }
+.moneytile .n{ font-family:'IBM Plex Mono',ui-monospace,monospace; font-weight:800; font-size:20px; }
+
+/* ════ Status pills — translucent fill + colored border + bright text (the field-legible formula) ════ */
+.spill{ display:inline-flex; align-items:center; gap:5px; font-family:'IBM Plex Mono',ui-monospace,monospace; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:4px 9px; border-radius:999px; border:1px solid; white-space:nowrap; }
+.spill.s-new{ color:#8aa0c0; background:rgba(122,150,190,.14); border-color:rgba(122,150,190,.42); }
+.spill.s-scheduled{ color:#5aa9ff; background:rgba(90,169,255,.14); border-color:rgba(90,169,255,.44); }
+.spill.s-in_progress,.spill.s-started{ color:#f5a623; background:rgba(245,166,35,.16); border-color:rgba(245,166,35,.46); }
+.spill.s-awaiting_parts{ color:#b48cff; background:rgba(180,140,255,.16); border-color:rgba(180,140,255,.44); }
+.spill.s-completed,.spill.s-done{ color:#00d68f; background:rgba(0,214,143,.16); border-color:rgba(0,214,143,.46); }
+.spill.s-canceled{ color:#9aa6b2; background:rgba(150,162,175,.12); border-color:rgba(150,162,175,.36); }
+
+/* ════ Mono treatment for data (money, model #, part #) — the "technical/premium" touch ════ */
+.mono,.mval,.money-big,.amount-mono{ font-family:'IBM Plex Mono',ui-monospace,monospace !important; }

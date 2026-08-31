@@ -426,7 +426,7 @@
         '<button class="full primary" id="pAddBtn" style="margin-top:8px">➕ Add this part</button>' +
         '<div class="err" id="pAddErr"></div></div>' +
 
-      '<div class="card" id="payCard"><div class="sec">💵 Get paid</div>' +
+      '<div class="card pay" id="payCard"><div class="sec">💵 Get paid</div>' +
         '<div id="payStatus" class="note" style="margin:-2px 0 10px">Set the total, then text the invoice or collect it right here.</div>' +
         '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:0 0 4px">Total to collect</label>' +
         '<div style="display:flex;align-items:center;gap:8px">' +
@@ -1180,13 +1180,19 @@
   // Green-fill feedback: a report field shows green once it has something in it (the
   // "Job status" card is always green — an outcome is always chosen). Matches TN's cards.
   function paintFlds(){
-    app.querySelectorAll('#reportCard .fld').forEach(function(f){
-      if(f.hasAttribute('data-always')){ f.classList.add('filled'); f.classList.remove('empty'); return; }
-      var any=false;
-      f.querySelectorAll('input:not([type=checkbox])').forEach(function(i){ if((i.value||'').trim()) any=true; });
-      if(f.querySelector('#psrow') && partStatus) any=true;
-      f.classList.toggle('filled', any); f.classList.toggle('empty', !any);
+    var flds=app.querySelectorAll('#reportCard .fld'), filled=0, total=0;
+    flds.forEach(function(f){
+      if(f.hasAttribute('data-always')){ f.classList.add('filled'); f.classList.remove('empty'); }
+      else{
+        var any=false;
+        f.querySelectorAll('input:not([type=checkbox])').forEach(function(i){ if((i.value||'').trim()) any=true; });
+        if(f.querySelector('#psrow') && partStatus) any=true;
+        f.classList.toggle('filled', any); f.classList.toggle('empty', !any);
+      }
+      total++; if(f.classList.contains('filled')) filled++;
     });
+    // feed the floating "📋 Report N%" pill (ant-nav.js)
+    if(total){ window.antProg={ icon:'📋', label:'Report', pct:Math.round(filled/total*100), href:'#reportCard' }; if(window.antProgUpdate) window.antProgUpdate(); }
   }
 
   // 🔧 Office — I need this part: puts the job on the office parts queue right now (marks
@@ -1274,5 +1280,6 @@
   sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else signIn(); });
 })();
 </script>
+<script src="/platform/ant-nav.js"></script>
 </body>
 </html>
