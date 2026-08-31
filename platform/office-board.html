@@ -665,11 +665,42 @@
   function openJob(job){
     var cust=job.customer||{}, unit=job.unit&&job.unit.label?job.unit.label:'';
     var phone=(cust.phone||'').replace(/[^0-9+]/g,'');
+    var rsWk=['Mo','Tu','We','Th','Fr','Sa','Su'].map(function(d){return '<div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted)">'+d+'</div>';}).join('');
+    var JBTN='width:100%;font-size:12.5px;padding:9px 8px;text-align:center';
     var ov=document.createElement('div'); ov.className='ov';
     ov.innerHTML='<div class="sheet drawer">' +
-      '<div class="custname">'+esc(fullName(cust)||'Customer')+'</div>' +
+      '<div class="custname" id="jcusthead">'+esc(fullName(cust)||'Customer')+'</div>' +
       '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
+      // ── ↔ JUMP TO — cross-tool deep-link grid (scroll targets in this drawer + the tech workspace) ──
+      '<div class="sec">↔ Jump to</div>' +
+      '<div id="jjump" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+        '<button type="button" data-jump="warranty" style="'+JBTN+'">📦 Warranty</button>' +
+        '<button type="button" data-jump="schedule" style="'+JBTN+'">🗓 Schedule</button>' +
+        '<button type="button" data-jump="parts" style="'+JBTN+'">🧾 Parts $</button>' +
+        '<button type="button" data-jump="invoice" style="'+JBTN+'">📄 Invoice</button>' +
+        '<button type="button" data-jump="tech" style="'+JBTN+'">🔧 Tech · find parts</button>' +
+        '<button type="button" data-jump="customer" style="'+JBTN+'">👤 Customer</button>' +
+      '</div>' +
+      // ── 🔄 RESCHEDULE (tech + day) — inline month calendar, sets it straight on the job ──
+      '<div class="sec">🔄 Reschedule (tech + day)</div>' +
+      '<div id="jresched">' +
+        '<div class="hint" id="rsCtx" style="margin-bottom:4px"></div>' +
+        '<div class="hint" style="margin-bottom:8px">The time is office-only — the customer still gets the day, with a live arrival window the morning of.</div>' +
+        '<select id="rsTech" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"><option value="">— pick tech —</option>'+techOptions(job.technician_id)+'</select>' +
+        '<div style="border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--bg);margin-top:8px">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+            '<button type="button" id="rsPrev" style="padding:4px 13px;font-weight:800">‹</button>' +
+            '<div id="rsCalHead" style="font-weight:800;font-size:14px"></div>' +
+            '<button type="button" id="rsNext" style="padding:4px 13px;font-weight:800">›</button>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">'+rsWk+'</div>' +
+          '<div id="rsCalGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>' +
+          '<div id="rsSelBar" style="margin-top:9px;font-weight:700;font-size:13px;text-align:center"></div>' +
+        '</div>' +
+        '<button class="primary" id="rsGo" style="width:100%;margin-top:10px">Reschedule</button>' +
+        '<div class="err" id="rsErr"></div>' +
+      '</div>' +
       '<div class="schedflags" id="jflags"><button type="button" data-flag="two" class="'+(job.needs_two_techs?'on':'')+'">🧑‍🤝‍🧑 Two-man</button><button type="button" data-flag="long" class="'+(job.long_job?'on':'')+'">⏳ Long job</button></div>' +
       '<div class="sec">Assigned tech</div><div class="srow"><select id="jtech" style="flex:1"><option value="">Unassigned</option>'+techOptions(job.technician_id)+'</select></div>' +
       '<div class="sec">📅 Schedule</div><div id="jsched"><div class="hint">Loading…</div></div>' +
@@ -682,7 +713,7 @@
       '<div id="jthread" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;font-size:13px">Loading…</div>' +
       '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
       '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
-      '<div class="sec">Pay / invoice</div>' +
+      '<div class="sec" id="jpaysec">Pay / invoice</div>' +
       '<div id="jparts"></div>' +
       '<div class="pay">' +
         fld('labor','Labor $') + fld('parts','Parts $') + fld('fee','Trip / fee $') + fld('tax','Tax %') +
@@ -702,6 +733,81 @@
     loadIntake(job);
     loadDetails(job);
     loadSched(job);
+
+    // ── ↔ JUMP TO — scroll to a section in this drawer, or open the tech workspace ──
+    var jj=document.getElementById('jjump');
+    if(jj){ jj.querySelectorAll('button[data-jump]').forEach(function(b){ b.onclick=function(){
+      var t=b.getAttribute('data-jump');
+      if(t==='tech'){ try{ window.open('/platform/tech-job.html?job='+encodeURIComponent(job.id),'_blank'); }catch(e){} return; }
+      // Warranty/Invoice/Parts $ all live in the invoice worksheet; Schedule = the reschedule panel; Customer = the header card.
+      var idMap={ warranty:'jpaysec', invoice:'jpaysec', parts:'jpaysec', schedule:'jresched', customer:'jcusthead' };
+      var el=document.getElementById(idMap[t]||''); if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+    }; }); }
+
+    // ── 🔄 RESCHEDULE — tappable inline month calendar + tech picker → sets it on the job ──
+    var techName=function(id){ if(id==null||id==='') return ''; for(var i=0;i<techsCache.length;i++){ if(String(techsCache[i].id)===String(id)) return techsCache[i].name; } return ''; };
+    var pad2=function(n){ return (n<10?'0':'')+n; };
+    var ymd=function(y,m,d){ return y+'-'+pad2(m+1)+'-'+pad2(d); };
+    var todayD=new Date(); var todayStr=ymd(todayD.getFullYear(),todayD.getMonth(),todayD.getDate());
+    var rsSel=(job.scheduled_day&&/^\d{4}-\d{2}-\d{2}$/.test(job.scheduled_day))?job.scheduled_day:todayStr;
+    if(rsSel<todayStr) rsSel=todayStr;  // never seed a past day as the pick
+    var rsMonth=(function(){ var p=rsSel.split('-'); return new Date(parseInt(p[0],10), parseInt(p[1],10)-1, 1); })();
+    var rsFmt=function(s){ try{ return new Date(s+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:'numeric'}); }catch(e){ return s; } };
+    function rsCtxNote(){
+      var ce=document.getElementById('rsCtx'); if(!ce) return;
+      var tn=techName(job.technician_id)||(job.technician&&job.technician.name)||'no tech';
+      var day=job.scheduled_day?rsFmt(job.scheduled_day):'not scheduled';
+      ce.innerHTML='Currently: <b>'+esc(tn)+'</b> on <b>'+esc(day)+'</b>. Pick a new day (and/or tech) below, then tap Reschedule.';
+    }
+    function rsRenderCal(){
+      var head=document.getElementById('rsCalHead'), grid=document.getElementById('rsCalGrid'), bar=document.getElementById('rsSelBar');
+      if(!grid) return;
+      var y=rsMonth.getFullYear(), m=rsMonth.getMonth();
+      if(head) head.textContent=rsMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+      var firstDow=(new Date(y,m,1).getDay()+6)%7;                 // Monday-first offset
+      var start=new Date(y,m,1-firstDow);
+      var cells='';
+      for(var i=0;i<42;i++){
+        var c=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i);
+        var cs=ymd(c.getFullYear(),c.getMonth(),c.getDate());
+        var inMonth=(c.getMonth()===m && c.getFullYear()===y);
+        var isToday=(cs===todayStr), isPast=(cs<todayStr), isSel=(cs===rsSel);
+        var st='display:flex;align-items:center;justify-content:center;height:38px;border-radius:9px;font-weight:700;font-variant-numeric:tabular-nums;';
+        if(isSel){ st+='background:var(--brand);color:#fff;'; }
+        else if(isToday){ st+='box-shadow:inset 0 0 0 2px var(--brand);color:var(--ink);'; }
+        else { st+='color:var(--ink);'; }
+        if(!inMonth) st+='opacity:.32;';
+        if(isPast){ st+='opacity:.28;color:var(--muted);cursor:default;'; } else { st+='cursor:pointer;'; }
+        cells+='<div '+(isPast?'':'data-d="'+cs+'" ')+'style="'+st+'">'+c.getDate()+'</div>';
+      }
+      grid.innerHTML=cells;
+      if(bar) bar.textContent=rsFmt(rsSel);
+      grid.querySelectorAll('[data-d]').forEach(function(el){ el.onclick=function(){ rsSel=el.getAttribute('data-d'); rsRenderCal(); }; });
+    }
+    var rsPrev=document.getElementById('rsPrev'), rsNext=document.getElementById('rsNext');
+    if(rsPrev) rsPrev.onclick=function(){ rsMonth=new Date(rsMonth.getFullYear(),rsMonth.getMonth()-1,1); rsRenderCal(); };
+    if(rsNext) rsNext.onclick=function(){ rsMonth=new Date(rsMonth.getFullYear(),rsMonth.getMonth()+1,1); rsRenderCal(); };
+    rsCtxNote(); rsRenderCal();
+    var rsGo=document.getElementById('rsGo');
+    if(rsGo) rsGo.onclick=function(){
+      var te=document.getElementById('rsTech'); var tv=te?te.value:'';
+      var techId=(tv!=='')?tv:(job.technician_id||null);        // "— pick tech —" keeps the current tech
+      var ee=document.getElementById('rsErr'); if(ee) ee.textContent='';
+      var prevTech=job.technician_id;
+      rsGo.disabled=true; rsGo.textContent='Saving…';
+      sb.from('job').update({ technician_id:techId, scheduled_day:rsSel, status:'scheduled' }).eq('id',job.id).then(function(r){
+        rsGo.disabled=false;
+        if(r.error){ rsGo.textContent='Reschedule'; if(ee) ee.textContent=r.error.message||'Couldn\'t reschedule — try again.'; return; }
+        job.scheduled_day=rsSel; job.technician_id=techId; job.status='scheduled';
+        // reflect the change in the assigned-tech select + the status buttons already in this drawer
+        var jt=document.getElementById('jtech'); if(jt) jt.value=techId||'';
+        var st=document.getElementById('jstatus');
+        if(st){ st.querySelectorAll('button').forEach(function(x){ x.className=''; x.style.background=''; }); var on=st.querySelector('button[data-s="scheduled"]'); if(on){ on.className='on'; on.style.background=statusMeta('scheduled').color; } }
+        if(techId && String(techId)!==String(prevTech||'')) notifyAssigned(job.id);
+        rsGo.textContent='Rescheduled ✓'; setTimeout(function(){ if(rsGo) rsGo.textContent='Reschedule'; },1600);
+        rsCtxNote(); loadSched(job); loadBoard();
+      });
+    };
 
     // Assign / reassign the tech — office dispatch (RLS lets the office write its own job rows).
     var jt=document.getElementById('jtech');
