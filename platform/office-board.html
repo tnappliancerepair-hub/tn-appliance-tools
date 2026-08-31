@@ -140,6 +140,31 @@
   .cardmedia{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
   .cardmedia .mtile{width:44px;height:44px;border-radius:7px;margin-right:0}
   .cardmedia .vtile .play{font-size:15px}
+  /* ── DENSE CARDS: legacy TN information design on the platform's dark-vivid theme ── */
+  .card .ctop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+  .card .agechip{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+  .card .chdr{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:6px}
+  .copychip{display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;font-weight:700;letter-spacing:.02em;padding:3px 8px;border-radius:7px;white-space:nowrap;cursor:pointer;border:1px solid;background:var(--chip);color:var(--ink)}
+  .copychip .cc-ico{opacity:.55;font-size:10px}
+  .copychip.cc-ref{background:rgba(90,169,255,.14);color:#5aa9ff;border-color:rgba(90,169,255,.42)}
+  .copychip.cc-part{background:rgba(0,214,143,.14);color:#00d68f;border-color:rgba(0,214,143,.42)}
+  .vbadge{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:var(--gold-grad,linear-gradient(135deg,#ffd75a,#f5a623));color:#231a02;border:1px solid transparent}
+  .citychip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;color:var(--muted);padding:2px 2px}
+  .card .availc{margin-top:7px;padding:7px 10px;border-radius:9px;background:rgba(90,169,255,.12);border:1px solid rgba(90,169,255,.42);color:#4b93e6;font-size:12.5px;font-weight:800;line-height:1.4}
+  :root:not([data-theme="light"]) .card .availc,:root[data-theme="dark"] .card .availc{color:#8cc0ff}
+  .card .cmsg{margin-top:7px;padding:7px 10px;border-radius:10px;background:rgba(26,158,70,.10);border:1px solid rgba(26,158,70,.34);color:var(--ink);font-size:12.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .flags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .fchip{display:inline-flex;align-items:center;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:2px 8px;border-radius:999px;white-space:nowrap;border:1px solid var(--line);background:var(--chip);color:var(--muted)}
+  .fchip.fover{background:rgba(255,90,70,.16);color:#ff6a52;border-color:rgba(255,90,70,.46)}
+  .fchip.fparts{background:rgba(245,166,35,.16);color:#f5a623;border-color:rgba(245,166,35,.46)}
+  .fchip.fclose{background:rgba(255,120,70,.14);color:#ff8a52;border-color:rgba(255,120,70,.42)}
+  .fchip.fdiag{background:rgba(90,169,255,.14);color:#5aa9ff;border-color:rgba(90,169,255,.42)}
+  .fchip.fmm{background:rgba(180,140,255,.16);color:#b48cff;border-color:rgba(180,140,255,.46)}
+  .fchip.fnote{background:rgba(245,166,35,.14);color:#e0a11a;border-color:rgba(245,166,35,.4)}
+  .cardacts{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+  .cardact{flex:1;min-width:118px;font-size:12px;font-weight:800;padding:8px 6px;border-radius:9px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
+  .card .act-complete{background:rgba(0,214,143,.14);color:#00d68f;border-color:rgba(0,214,143,.42)}
+  .card .act-report{background:rgba(245,166,35,.14);color:#e0a11a;border-color:rgba(245,166,35,.42)}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -424,7 +449,7 @@
   function statusMeta(k){ for(var i=0;i<ALLSTATUS.length;i++){ if(ALLSTATUS[i].key===k) return ALLSTATUS[i]; } return { key:k, label:(k||'').replace(/_/g,' '), color:'var(--canceled)' }; }
 
   // ── board state ──────────────────────────────────────────────────────────────
-  var activeFilter = 'all', jobsCache = [], invByJob = {}, mediaByJob = {};
+  var activeFilter = 'all', jobsCache = [], invByJob = {}, mediaByJob = {}, msgByJob = {}, partsByJob = {}, stopCounts = {};
 
   function renderFilters(){
     var counts = { all: jobsCache.length };
@@ -482,7 +507,73 @@
     return tiles ? '<div class="cardmedia">'+tiles+'</div>' : '';
   }
 
+  // ── DENSE-CARD helpers — the legacy TN board's information design, on this theme ──
+  // A small copyable chip: the office grabs a claim # / part # for the warranty portal
+  // straight off the tile. Copy is wired after render so it stops propagation (won't open
+  // the drawer) — the raw value rides on data-copy.
+  function copyChip(label, value, kind){
+    return '<span class="copychip cc-'+kind+'" data-copy="'+esc(value)+'" title="Tap to copy">'+esc(label)+' <span class="cc-ico">⧉</span></span>';
+  }
+  // Normalize the warranty vendor to a tidy badge (AHS / SquareTrade / ServicePower / NSA).
+  function vendorBadge(co){
+    co = String(co||'').trim(); if(!co) return '';
+    var n = co.toLowerCase(), lbl = co;
+    if(/ahs|american\s*home|frontdoor/.test(n)) lbl='AHS';
+    else if(/square\s*trade|allstate/.test(n)) lbl='SquareTrade';
+    else if(/service\s*power/.test(n)) lbl='ServicePower';
+    else if(/\bnsa\b|national\s*service/.test(n)) lbl='NSA';
+    return '<span class="vbadge" title="'+esc(co)+'">'+esc(lbl)+'</span>';
+  }
+  // 🔒 Customer available — the day/window the customer agreed to (texted availability, else
+  // the vendor-promised service window on the scheduled day). Locked blue like the legacy tile.
+  function availChip(j){
+    var a = String(j.availability||'').trim();
+    if(a) return '<div class="availc">🔒 Customer available '+esc(a.slice(0,120))+'</div>';
+    var win = String(j.service_window||'').trim();
+    if(win){ var day = j.scheduled_day ? schDay(j.scheduled_day) : ''; return '<div class="availc">🔒 Customer available '+(day?esc(day)+': ':'')+esc(win.slice(0,60))+'</div>'; }
+    return '';
+  }
+  function todayCT(){ try{ return new Date().toLocaleDateString('en-CA',{timeZone:'America/Chicago'}); }catch(e){ return new Date().toISOString().slice(0,10); } }
+  var PARTS_WAIT_RE = /to_order|await|order|need|backorder/i;
+  // OVERDUE — the job slipped its expected timing (not merely old): parts past their ETA, or a
+  // scheduled day that already passed without completing. ISO YYYY-MM-DD compares as strings.
+  function isOverdue(j){
+    if(j.status==='completed'||j.status==='canceled') return false;
+    var today = todayCT();
+    var eta = String(j.parts_eta||'').trim();
+    if((j.status==='awaiting_parts' || PARTS_WAIT_RE.test(String(j.parts_status||''))) && eta && eta < today) return true;
+    var sd = String(j.scheduled_day||'').trim();
+    if(sd && sd < today) return true;
+    return false;
+  }
+  function hasReport(j){ return !!(j.tdr_diagnosis || j.tdr_failed_component || j.tdr_part_number); }
+  // The compact flag set — only what actually applies to this job.
+  function buildFlags(j, iv, terminal){
+    var f=[];
+    var n = j.stop_id ? (stopCounts[j.stop_id]||0) : 0;
+    if(n>1) f.push('<span class="fchip fmm" title="Multi-appliance stop — each machine has its own report">🧩 '+n+' machines</span>');
+    if(isOverdue(j)) f.push('<span class="fchip fover">⏰ OVERDUE</span>');
+    var needsParts = j.status==='awaiting_parts' || PARTS_WAIT_RE.test(String(j.parts_status||''));
+    if(needsParts && !terminal) f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
+    if(j.status==='completed' && !iv) f.push('<span class="fchip fclose" title="Completed but no invoice — finish the paperwork">⚠️ NOT CLOSED OUT</span>');
+    if(!hasReport(j) && (j.status==='scheduled'||j.status==='in_progress')) f.push('<span class="fchip fdiag" title="No tech report on file yet">🔍 DIAGNOSIS</span>');
+    if(j.office_notes && String(j.office_notes).trim()) f.push('<span class="fchip fnote" title="Office note on this job">📋 NOTE</span>');
+    if(j.needs_two_techs) f.push('<span class="fchip">🧑‍🤝‍🧑 2-man</span>');
+    if(j.long_job) f.push('<span class="fchip">⏳ Long job</span>');
+    return f.join('');
+  }
+  // Inline actions by status — wired after render (stopPropagation).
+  function buildActions(j, terminal){
+    var out='';
+    if(j.status==='scheduled' || j.status==='in_progress') out += '<button type="button" class="cardact act-complete" data-job="'+j.id+'">✓ Mark complete</button>';
+    if(!hasReport(j) && !terminal && (j.technician && j.technician.name) && (j.status==='in_progress'||j.status==='completed')) out += '<button type="button" class="cardact act-report" data-job="'+j.id+'">📋 Request report</button>';
+    return out ? '<div class="cardacts">'+out+'</div>' : '';
+  }
+
   function renderBoard(){
+    // multi-machine: count jobs sharing a stop_id, computed from the loaded set (no query).
+    stopCounts = {};
+    jobsCache.forEach(function(j){ if(j.stop_id){ stopCounts[j.stop_id]=(stopCounts[j.stop_id]||0)+1; } });
     var jobs = jobsCache.filter(function(j){ return activeFilter==='all' || j.status===activeFilter; });
     var groups = activeFilter==='all' ? ALLSTATUS.map(function(s){return s.key;}) : [activeFilter];
     var extra = {}; jobs.forEach(function(j){ if(groups.indexOf(j.status)<0){ extra[j.status]=1; } });
@@ -495,26 +586,57 @@
         var unit = j.unit && j.unit.label ? j.unit.label : '';
         var tech = j.technician && j.technician.name ? j.technician.name : 'Unassigned';
         var iv = invByJob[j.id];
+        var terminal = (j.status==='completed'||j.status==='canceled');
         var badge = iv ? '<span class="money-badge '+(iv.status==='paid'?'paid':'due')+'">'+(iv.status==='paid'?'PAID ':'')+money(iv.total_cents)+'</span>' : '';
-        var flags=(j.needs_two_techs?'<span class="flag">🧑‍🤝‍🧑 2-man</span>':'')+(j.long_job?'<span class="flag">⏳ Long job</span>':'');
-        // days-waiting chip (colors as it ages) — only on active jobs, never completed/canceled.
-        var terminal=(j.status==='completed'||j.status==='canceled');
-        var age=j.created_at?Math.floor((Date.now()-new Date(j.created_at).getTime())/86400000):-1;
-        if(!terminal && age>=1){ flags+='<span class="flag" style="'+(age>=4?'color:#b4472e':(age>=2?'color:#b45309':''))+'">🕒 '+age+'d</span>'; }
-        // office-note flag — a note the team should see is on this job
-        if(j.office_notes && String(j.office_notes).trim()){ flags+='<span class="flag" title="Office note">📋</span>'; }
+
+        // top row: mono status pill (theme .spill) + days-waiting chip (colors as it ages)
+        var age = j.created_at ? Math.floor((Date.now()-new Date(j.created_at).getTime())/86400000) : -1;
+        var ageChip = (!terminal && age>=1) ? '<span class="agechip" style="'+(age>30?'color:#ff6a52':(age>14?'color:var(--gold)':''))+'">⏳ '+age+'d</span>' : '';
+        var topRow = '<div class="ctop"><span class="spill s-'+esc(j.status)+'">'+esc(statusMeta(j.status).label)+'</span>'+ageChip+'</div>';
+
+        // header chips: claim/dispatch ref (copyable) · part # (copyable) · vendor · city
+        var refChip='', claim=String(j.claim_number||'').trim(), disp=String(j.dispatch_id||'').trim();
+        if(claim) refChip = copyChip('Claim '+claim, claim, 'ref');
+        else if(disp) refChip = copyChip('Disp '+disp, disp, 'ref');
+        var pnum = String(j.tdr_part_number||'').trim();
+        if(!pnum){ var jp=partsByJob[j.id]; if(jp && jp.length){ pnum=String(jp[0].number||'').trim(); } }
+        var partChip = pnum ? copyChip('🔧 '+pnum, pnum, 'part') : '';
+        var vendor = vendorBadge(j.warranty_company);
+        var city = j.customer && j.customer.city ? String(j.customer.city).trim() : '';
+        var cityChip = city ? '<span class="citychip">📍 '+esc(city)+'</span>' : '';
+        var hdr = (refChip||partChip||vendor||cityChip) ? '<div class="chdr">'+refChip+partChip+vendor+cityChip+'</div>' : '';
+
+        // customer-agreed availability / promised window
+        var avail = availChip(j);
+        // latest inbound customer message — green bubble, 2-line clamp
+        var msg = msgByJob[j.id];
+        var msgHtml = (msg && msg.body) ? '<div class="cmsg">💬 '+esc(String(msg.body).slice(0,160))+'</div>' : '';
+        // status / urgency flags (only what applies)
+        var flags = buildFlags(j, iv, terminal);
+        var actions = buildActions(j, terminal);
+
         return '<div class="card'+(iv&&iv.status==='paid'?' paidcard':'')+'" data-job="'+j.id+'" style="--sc:'+m.color+'">' +
+          topRow +
           '<div class="name">'+esc(fullName(j.customer)||'Customer')+'</div>' +
+          hdr +
           (unit?'<div class="unit">'+esc(unit)+'</div>':'') +
           (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
+          avail +
+          msgHtml +
           (flags?'<div class="flags">'+flags+'</div>':'') +
           cardMediaHtml(j) +
-          '<div class="foot"><span class="pill" style="background:'+m.color+'">'+esc(m.label)+'</span>' +
-          '<span class="tech">'+esc(tech)+(badge?' '+badge:'')+'</span></div></div>';
+          actions +
+          '<div class="foot"><span class="tech">'+esc(tech)+'</span>'+(badge||'')+'</div></div>';
       }).join('');
       return '<div class="col"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span></h3>'+cards+'</div>';
     }).join('') || '<div class="empty">Nothing here yet.</div>';
     var b=document.getElementById('board'); b.innerHTML=html;
+    // copy chips — grab claim/part # for the warranty portal without opening the drawer
+    b.querySelectorAll('.copychip[data-copy]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var t=el.getAttribute('data-copy'); try{ if(navigator.clipboard) navigator.clipboard.writeText(t); }catch(_){} var ico=el.querySelector('.cc-ico'); if(ico){ var old=ico.textContent; ico.textContent='✓'; setTimeout(function(){ ico.textContent=old; },1000); } }; });
+    // ✓ Mark complete — set the job completed straight from the tile
+    b.querySelectorAll('.act-complete[data-job]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var id=el.getAttribute('data-job'); el.disabled=true; el.textContent='Saving…'; sb.from('job').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',id).then(function(r){ if(r.error){ el.disabled=false; el.textContent='✓ Mark complete'; return; } loadBoard(); }); }; });
+    // 📋 Request report — flag the tech (office note) that the report is needed
+    b.querySelectorAll('.act-report[data-job]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var id=el.getAttribute('data-job'); var j=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; el.disabled=true; el.textContent='Requested ✓'; var line='📋 Tech report requested — '+new Date().toLocaleDateString(); var prev=(j&&j.office_notes)?j.office_notes+'\n':''; sb.from('job').update({office_notes:prev+line}).eq('id',id).then(function(){ if(j) j.office_notes=prev+line; }); }; });
     b.querySelectorAll('.card[data-job]').forEach(function(c){ c.onclick=function(){ var j=jobsCache.filter(function(x){return x.id===c.getAttribute('data-job');})[0]; if(j) openJob(j); }; });
     hydratePics(b);
   }
@@ -1068,32 +1190,50 @@
   }
 
   function loadBoard() {
-    // RLS scopes both queries to the logged-in user's company — we never pass company_id.
-    var base = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,warranty_company,';
-    var tail = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
+    // RLS scopes every query to the logged-in user's company — we never pass company_id.
+    // The dense card needs the warranty/parts/report/stop columns; customer.city rides along
+    // for the 📍 chip. All are from applied migrations (033/044/020/019/004).
+    var baseMin  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,warranty_company,';
+    var baseRich = baseMin + 'claim_number,dispatch_id,service_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,';
+    var tailRich = 'customer:customer_id(first_name,last_name,phone,city),unit:unit_id(label),technician:technician_id(name)';
+    var tailMin  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
     var proceed = function (r) {
       if (r.error) { document.getElementById('board').innerHTML = '<div class="empty">Couldn\'t load the board: ' + esc(r.error.message) + '</div>'; return; }
       jobsCache = r.data || [];
       var jids = jobsCache.map(function(j){ return j.id; });
+      var none = Promise.resolve({ data: [] });
       // batch the customer's uploaded media so the office sees video + model photo right on
       // the tile — needed to process the warranty claim by hand (until a claim API lands).
-      var mediaP = jids.length ? sb.from('job_media').select('job_id,kind,provider,ref').in('job_id', jids) : Promise.resolve({ data: [] });
+      var mediaP = jids.length ? sb.from('job_media').select('job_id,kind,provider,ref').in('job_id', jids) : none;
+      // latest inbound customer message per job → the green message bubble on the tile
+      var msgP   = jids.length ? sb.from('thread_message').select('job_id,body,direction,created_at').eq('direction','in').in('job_id', jids).order('created_at',{ascending:false}) : none;
+      // the parts the tech logged → the 🔧 part-# chip (fallback when the job row has none)
+      var partsP = jids.length ? sb.from('job_part').select('job_id,number,name,disposition').in('job_id', jids) : none;
       Promise.all([
         sb.from('invoice').select('id,job_id,status,subtotal_cents,tax_cents,total_cents,collected_cents,paid_at,paid_method,created_at'),
-        mediaP
+        mediaP, msgP, partsP
       ]).then(function (res) {
-        var ir = res[0] || {}, mr = res[1] || {};
+        var ir = res[0] || {}, mr = res[1] || {}, sr = res[2] || {}, pr = res[3] || {};
         invByJob = {};
         (ir.data || []).forEach(function (iv) { if (iv.job_id) { var p = invByJob[iv.job_id]; if (!p || new Date(iv.created_at) > new Date(p.created_at)) invByJob[iv.job_id] = iv; } });
         mediaByJob = {};
         (mr.data || []).forEach(function (m) { if (!m.job_id) return; (mediaByJob[m.job_id] = mediaByJob[m.job_id] || []).push(m); });
+        // ordered newest-first → keep the first seen per job (the latest inbound)
+        msgByJob = {};
+        (sr.data || []).forEach(function (m) { if (!m.job_id || msgByJob[m.job_id]) return; if (String(m.body||'').trim()) msgByJob[m.job_id] = m; });
+        partsByJob = {};
+        (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; var d=String(p.disposition||''); if (d==='return'||d==='not_here') return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name }); });
         renderMoneyBar(); renderFilters(); renderBoard();
       });
     };
-    // Try with the scheduling-flag columns; fall back without them if migration 014 isn't run.
-    sb.from('job').select(base + 'needs_two_techs,long_job,' + tail).order('created_at', { ascending: false }).then(function (r) {
-      if (r.error) { sb.from('job').select(base + tail).order('created_at', { ascending: false }).then(proceed); return; }
-      proceed(r);
+    // Try enriched + scheduling flags → enriched only → the minimal legacy select. So a
+    // missing new column can never blank the board.
+    sb.from('job').select(baseRich + 'needs_two_techs,long_job,' + tailRich).order('created_at', { ascending: false }).then(function (r) {
+      if (!r.error) { proceed(r); return; }
+      sb.from('job').select(baseRich + tailRich).order('created_at', { ascending: false }).then(function (r2) {
+        if (!r2.error) { proceed(r2); return; }
+        sb.from('job').select(baseMin + tailMin).order('created_at', { ascending: false }).then(proceed);
+      });
     });
   }
 
