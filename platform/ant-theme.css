@@ -228,3 +228,26 @@ body.has-tabbar .antpanel{ bottom:calc(146px + env(safe-area-inset-bottom,0)) !i
 
 /* ════ Mono treatment for data (money, model #, part #) — the "technical/premium" touch ════ */
 .mono,.mval,.money-big,.amount-mono{ font-family:'IBM Plex Mono',ui-monospace,monospace !important; }
+
+/* ════ Tech job — vivid STATUS tiles + a real GET-PAID money panel (matches TN's punch) ════
+   These selectors live only on tech-job.html, so they refine that screen without touching
+   any other seat. Resting tiles carry a colored glassy border; the active step fills with a
+   gradient + glow so the tech's current state reads across the room. */
+.statustiles .stile{ border-width:1.5px !important; border-radius:16px !important; min-height:104px !important; background:var(--chip) !important; transition:transform .12s cubic-bezier(.2,1.3,.4,1), box-shadow .2s, background .2s; }
+.statustiles .stile .ic{ font-size:29px !important; }
+.statustiles .stile.otw{ border-color:rgba(90,169,255,.5) !important; }
+.statustiles .stile.run{ border-color:rgba(245,166,35,.5) !important; }
+.statustiles .stile.done{ border-color:rgba(0,214,143,.5) !important; }
+.statustiles .stile:active{ transform:scale(.96); }
+.statustiles .stile.on{ transform:translateY(-1px); color:#fff !important; }
+.statustiles .stile.otw.on{ background:linear-gradient(135deg,#5aa9ff,#1f6fed) !important; box-shadow:0 10px 26px rgba(47,107,255,.5) !important; }
+.statustiles .stile.run.on{ background:linear-gradient(135deg,#ffbe3d,#f59e0b) !important; box-shadow:0 10px 26px rgba(245,158,11,.5) !important; color:#2a1e02 !important; }
+.statustiles .stile.done.on{ background:var(--brand-grad) !important; box-shadow:var(--glow-strong) !important; }
+
+/* Get paid — a real money panel: mono hero amount with a ring on focus, a gold "text pay
+   link" CTA (money = gold), a solid green "mark collected". */
+#payCard .sec{ font-size:13px; }
+#payAmt{ font-family:'IBM Plex Mono',ui-monospace,monospace !important; border-width:2px !important; border-radius:12px !important; }
+#payAmt:focus{ border-color:var(--brand) !important; box-shadow:0 0 0 4px var(--ring) !important; outline:none; }
+.card.pay #payText{ background:var(--gold-grad) !important; color:#2a1e02 !important; border-color:transparent !important; box-shadow:0 6px 18px rgba(247,181,0,.42) !important; font-weight:800 !important; }
+.card.pay #payCollect{ background:var(--brand-grad) !important; color:var(--brand-ink) !important; border-color:transparent !important; box-shadow:var(--glow) !important; font-weight:800 !important; }
