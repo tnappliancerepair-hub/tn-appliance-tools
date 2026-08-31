@@ -165,6 +165,20 @@
   .cardact{flex:1;min-width:118px;font-size:12px;font-weight:800;padding:8px 6px;border-radius:9px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
   .card .act-complete{background:rgba(0,214,143,.14);color:#00d68f;border-color:rgba(0,214,143,.42)}
   .card .act-report{background:rgba(245,166,35,.14);color:#e0a11a;border-color:rgba(245,166,35,.42)}
+  /* ── ✅ OFFICE CHECKLIST (shared, saved to job.checklist) ── */
+  .cklist{display:flex;flex-direction:column;gap:5px}
+  .ckrow{display:flex;align-items:center;gap:10px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink);user-select:none;-webkit-user-select:none}
+  .ckrow .cknum{flex:0 0 auto;font-size:11px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums;min-width:15px;text-align:right}
+  .ckrow .ckbox{flex:0 0 auto;width:20px;height:20px;border-radius:6px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:transparent;background:var(--panel)}
+  .ckrow .cklab{flex:1}
+  .ckrow.on{background:rgba(0,214,143,.10);border-color:rgba(0,214,143,.42)}
+  .ckrow.on .ckbox{background:#00d68f;border-color:#00d68f;color:#06231a}
+  .ckrow.on .cklab{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+  .sec .ckprog{font-weight:600;color:var(--muted);font-size:11px;margin-left:6px;letter-spacing:0}
+  /* ── 💰 PAYMENT panel + ⏰ cutoff ── */
+  .paycovered{padding:9px 12px;border-radius:10px;background:rgba(90,169,255,.12);border:1px solid rgba(90,169,255,.42);color:#4b93e6;font-size:13px;font-weight:700}
+  :root:not([data-theme="light"]) .paycovered,:root[data-theme="dark"] .paycovered{color:#8cc0ff}
+  .paydue{font-weight:800;font-size:15px;margin-bottom:8px;font-variant-numeric:tabular-nums}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -553,6 +567,7 @@
     var n = j.stop_id ? (stopCounts[j.stop_id]||0) : 0;
     if(n>1) f.push('<span class="fchip fmm" title="Multi-appliance stop — each machine has its own report">🧩 '+n+' machines</span>');
     if(isOverdue(j)) f.push('<span class="fchip fover">⏰ OVERDUE</span>');
+    if(j.customer_cutoff && String(j.customer_cutoff).trim()) f.push('<span class="fchip fover" title="Customer has a hard cutoff — must leave by this time">⏰ Leave by '+esc(String(j.customer_cutoff).trim().slice(0,12))+'</span>');
     var needsParts = j.status==='awaiting_parts' || PARTS_WAIT_RE.test(String(j.parts_status||''));
     if(needsParts && !terminal) f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
     if(j.status==='completed' && !iv) f.push('<span class="fchip fclose" title="Completed but no invoice — finish the paperwork">⚠️ NOT CLOSED OUT</span>');
@@ -783,6 +798,102 @@
       };
     }).catch(function(){ if(box) box.innerHTML='<div style="font-size:12.5px;color:var(--muted)">Couldn\'t load details.</div>'; });
   }
+  // ── 💰 PAYMENT panel (warranty-aware) ───────────────────────────────────────
+  // Warranty jobs → nothing due. Cash jobs → the amount from the saved invoice + three
+  // ways to collect. Reuses existing paths: card + pay-link ride the "Text invoice" send
+  // (the hosted invoice takes a card); cash/check marks the saved invoice paid. No new
+  // Stripe wiring, no dead buttons.
+  function renderPaymentPanel(job){
+    var box=document.getElementById('jpayment'); if(!box) return;
+    if(job.warranty_company){
+      box.innerHTML='<div class="paycovered">🛡 Covered by warranty — nothing due</div>';
+      return;
+    }
+    var iv=invByJob[job.id]||null;
+    var dueTxt = iv ? (iv.status==='paid' ? 'Paid — '+money(iv.total_cents) : 'Amount due '+money(iv.total_cents)) : 'Save the invoice above to set the amount due';
+    box.innerHTML=
+      '<div class="paydue">'+esc(dueTxt)+'</div>'+
+      '<div class="cardacts" style="margin-top:0">'+
+        '<button type="button" class="cardact" id="payCard">💳 Take card</button>'+
+        '<button type="button" class="cardact" id="payCash">💵 Mark cash/check</button>'+
+        '<button type="button" class="cardact" id="payLink">📲 Text pay link</button>'+
+      '</div>'+
+      '<div id="payCashConfirm" style="display:none;margin-top:8px;align-items:center;gap:7px;flex-wrap:wrap"></div>'+
+      '<span class="hint" id="payMsg" style="display:block;margin-top:6px"></span>';
+    var pc=document.getElementById('payCard'); if(pc) pc.onclick=function(){ sendInvoice(job); };   // hosted invoice takes a card
+    var pl=document.getElementById('payLink'); if(pl) pl.onclick=function(){ sendInvoice(job); };   // same durable pay link
+    var pcash=document.getElementById('payCash');
+    if(pcash) pcash.onclick=function(){
+      var iv2=invByJob[job.id]||null, msg=document.getElementById('payMsg');
+      if(!iv2){ if(msg) msg.textContent='Save the invoice above first, then mark it paid.'; return; }
+      var cf=document.getElementById('payCashConfirm'); if(!cf) return;
+      cf.style.display='flex';
+      cf.innerHTML='<span class="hint">Mark paid:</span>'+
+        '<button type="button" class="cardact" data-m="Cash" style="flex:0 0 auto;min-width:0">💵 Cash</button>'+
+        '<button type="button" class="cardact" data-m="Check" style="flex:0 0 auto;min-width:0">🧾 Check</button>'+
+        '<button type="button" class="cardact" data-m="" style="flex:0 0 auto;min-width:0">Cancel</button>';
+      cf.querySelectorAll('button[data-m]').forEach(function(b){ b.onclick=function(){
+        var m=b.getAttribute('data-m');
+        if(!m){ cf.style.display='none'; cf.innerHTML=''; return; }
+        b.disabled=true;
+        var now=new Date().toISOString();
+        sb.from('invoice').update({status:'paid',paid_method:m,collected_cents:iv2.total_cents,paid_at:now}).eq('id',iv2.id).then(function(r){
+          if(r.error){ b.disabled=false; if(msg) msg.textContent=r.error.message; return; }
+          invByJob[job.id]=Object.assign({},iv2,{status:'paid',paid_method:m,collected_cents:iv2.total_cents,paid_at:now});
+          // reflect in the invoice worksheet controls if present
+          var jp=document.getElementById('jpaid'); if(jp) jp.checked=true;
+          var jm=document.getElementById('jmethod'); if(jm) jm.value=m;
+          renderPaymentPanel(job); loadBoard();
+        });
+      }; });
+    };
+  }
+
+  // ── ✅ OFFICE CHECKLIST — shared, persisted to job.checklist (jsonb) ─────────
+  // Stored as { "<key>": true } — ticked keys only; unticking drops the key. Using the
+  // column (not localStorage) is the point: any office person on any device sees the same ticks.
+  var CHECKLIST_STEPS = [
+    { k:'info_captured',       l:'Info captured' },
+    { k:'video_prediag',       l:'Video call / prediag' },
+    { k:'collect_payment',     l:'Collect payment due' },
+    { k:'schedule_appt',       l:'Schedule appointment' },
+    { k:'report_tech',         l:'Report from technician' },
+    { k:'order_parts',         l:'Order the parts' },
+    { k:'part_tracking',       l:'Add to part list / tracking' },
+    { k:'report_warranty',     l:'Report to warranty / estimate' },
+    { k:'call_text_status',    l:'Call & text customer w/ status' },
+    { k:'schedule_completion', l:'Schedule completion (if needed)' },
+    { k:'follow_up',           l:'Follow up with customer' },
+    { k:'return_parts',        l:'Return any parts (if needed)' },
+    { k:'invoice',             l:'Invoice' },
+    { k:'payout_deductible',   l:'Pay out deductible (payroll)' },
+    { k:'payout_invoice',      l:'Pay out invoice (payroll)' },
+  ];
+  function checklistState(job){ var c=job.checklist; return (c && typeof c==='object') ? c : {}; }
+  function checklistProgress(st){ var d=0; CHECKLIST_STEPS.forEach(function(s){ if(st[s.k]) d++; }); return d; }
+  function setChecklistProg(st){ var ph=document.getElementById('jchecklistProg'); if(ph) ph.textContent=checklistProgress(st)+' / '+CHECKLIST_STEPS.length+' done'; }
+  function renderChecklist(job){
+    var box=document.getElementById('jchecklist'); if(!box) return;
+    var st=checklistState(job);
+    box.innerHTML='<div class="cklist">'+CHECKLIST_STEPS.map(function(s,i){
+      return '<div class="ckrow'+(st[s.k]?' on':'')+'" data-k="'+esc(s.k)+'"><span class="cknum">'+(i+1)+'</span><span class="ckbox">✓</span><span class="cklab">'+esc(s.l)+'</span></div>';
+    }).join('')+'</div>';
+    setChecklistProg(st);
+    box.querySelectorAll('.ckrow[data-k]').forEach(function(el){ el.onclick=function(){ toggleChecklist(job, el.getAttribute('data-k'), el); }; });
+  }
+  function toggleChecklist(job, key, el){
+    var cur=checklistState(job), next=Object.assign({}, cur), willBeOn=!next[key];
+    if(willBeOn) next[key]=true; else delete next[key];
+    var wasOn=el.classList.contains('on');
+    // optimistic
+    el.classList.toggle('on', willBeOn); setChecklistProg(next); el.style.pointerEvents='none';
+    sb.from('job').update({ checklist: next }).eq('id', job.id).then(function(r){
+      el.style.pointerEvents='';
+      if(r.error){ el.classList.toggle('on', wasOn); setChecklistProg(cur); return; }  // revert on error
+      job.checklist=next;
+    });
+  }
+
   // ── JOB DRAWER — status buttons, notes, pay, statement ──────────────────────
   function openJob(job){
     var cust=job.customer||{}, unit=job.unit&&job.unit.label?job.unit.label:'';
@@ -824,6 +935,13 @@
         '<div class="err" id="rsErr"></div>' +
       '</div>' +
       '<div class="schedflags" id="jflags"><button type="button" data-flag="two" class="'+(job.needs_two_techs?'on':'')+'">🧑‍🤝‍🧑 Two-man</button><button type="button" data-flag="long" class="'+(job.long_job?'on':'')+'">⏳ Long job</button></div>' +
+      // ── ⏰ CUSTOMER HARD CUTOFF — a red flag on the tile so it never gets missed ──
+      '<div class="sec">⏰ Customer must leave by</div>' +
+      '<div id="jcutoff">' +
+        '<div class="hint" style="margin:-2px 0 7px">If the customer has a hard cutoff — work, pickup, etc. Shows as a red flag on the tile so it never gets missed.</div>' +
+        '<div style="display:flex;gap:8px;align-items:center"><input id="jcutoffVal" placeholder="e.g. 2:00 PM" value="'+esc(job.customer_cutoff||'')+'" style="flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"><button class="primary" id="jcutoffSave">Save</button></div>' +
+        '<span class="hint" id="jcutoffMsg" style="display:block;margin-top:5px"></span>' +
+      '</div>' +
       '<div class="sec">Assigned tech</div><div class="srow"><select id="jtech" style="flex:1"><option value="">Unassigned</option>'+techOptions(job.technician_id)+'</select></div>' +
       '<div class="sec">📅 Schedule</div><div id="jsched"><div class="hint">Loading…</div></div>' +
       '<div id="jintake"></div>' +
@@ -846,6 +964,13 @@
         '<select id="jmethod"><option value="">method…</option><option>Cash</option><option>Card</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Warranty</option></select></div>' +
       '<div class="srow" style="flex-wrap:wrap"><button id="jstmt">📄 Print</button><button id="jsend">📤 Text invoice</button><button class="primary" id="jpaySave">Save invoice</button></div>' +
       '<div class="err" id="jerr"></div>' +
+      // ── 💰 PAYMENT (warranty-aware) — take card / mark cash-check / text pay link ──
+      '<div class="sec">💰 Payment</div>' +
+      '<div id="jpayment"></div>' +
+      // ── ✅ OFFICE CHECKLIST — shared across devices via job.checklist ──
+      '<div class="sec ckhead">✅ Office checklist<span class="ckprog" id="jchecklistProg"></span></div>' +
+      '<div class="hint" style="margin:-2px 0 8px">Tick each step as you handle it.</div>' +
+      '<div id="jchecklist"></div>' +
       '<div class="srow" style="margin-top:16px;justify-content:center"><button id="jclose">Close</button></div>' +
       '</div>';
     document.body.appendChild(ov);
@@ -855,6 +980,23 @@
     loadIntake(job);
     loadDetails(job);
     loadSched(job);
+    renderPaymentPanel(job);
+    renderChecklist(job);
+
+    // ── ⏰ Customer hard cutoff — save to job.customer_cutoff (blank clears it) ──
+    var jco=document.getElementById('jcutoffSave');
+    if(jco) jco.onclick=function(){
+      var el=document.getElementById('jcutoffVal'), msg=document.getElementById('jcutoffMsg');
+      var v=el?el.value.trim():'';
+      jco.disabled=true; jco.textContent='Saving…';
+      sb.from('job').update({ customer_cutoff: v||null }).eq('id',job.id).then(function(r){
+        jco.disabled=false; jco.textContent='Save';
+        if(r.error){ if(msg) msg.textContent=r.error.message; return; }
+        job.customer_cutoff=v||null;
+        if(msg){ msg.textContent='Saved ✓'; setTimeout(function(){ if(msg) msg.textContent=''; },2000); }
+        loadBoard();
+      });
+    };
 
     // ── ↔ JUMP TO — scroll to a section in this drawer, or open the tech workspace ──
     var jj=document.getElementById('jjump');
@@ -1194,7 +1336,7 @@
     // The dense card needs the warranty/parts/report/stop columns; customer.city rides along
     // for the 📍 chip. All are from applied migrations (033/044/020/019/004).
     var baseMin  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,warranty_company,';
-    var baseRich = baseMin + 'claim_number,dispatch_id,service_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,';
+    var baseRich = baseMin + 'claim_number,dispatch_id,service_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
     var tailRich = 'customer:customer_id(first_name,last_name,phone,city),unit:unit_id(label),technician:technician_id(name)';
     var tailMin  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
     var proceed = function (r) {
