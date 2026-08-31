@@ -1,0 +1,133 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   skin-jackpot.css — the legacy TN "🎰 Jackpot" casino skin, ported onto the
+   PLATFORM office board (platform/office-board.html).
+
+   Loads AFTER ant-theme.css, so it wins the cascade. Every rule is scoped to
+   :root[data-skin="jackpot"] — flip settings.skin to 'clean' (which clears the
+   data-skin attribute) and the board reverts fully to the platform's dark-vivid
+   look. The tech app is never affected (it never carries data-skin).
+
+   Purely cosmetic: nothing about the layout, ids, handlers, or reliability
+   changes. Most of the page + ant-theme.css are token-driven, so redeclaring the
+   palette in cream/gold/red recolors cards, buttons, chips and inputs for free;
+   the rest below is the red-velvet marquee, the gold slot-reel columns, the
+   coin-chip cards, and !important touch-ups where a color was hard-coded.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Palette: cream felt, gold marquee, casino red. Token-driven recolor. ──────── */
+:root[data-skin="jackpot"]{
+  --bg:#fbf1dd; --panel:#fffdf7; --ink:#2a1410; --muted:#7a4a2f; --line:#e7cfa0;
+  --brand:#c98a00; --accent:#c98a00; --brand-ink:#3a1400; --accent-ink:#3a1400; --ok:#10a54a;
+  --chip:#f6e6c3;
+  --gold:#f6b400;
+  --brand-grad:linear-gradient(135deg,#ffd54a 0%,#f6b400 100%);
+  --gold-grad:linear-gradient(135deg,#ffd75a 0%,#f5a623 100%);
+  --ring:rgba(246,180,0,.30);
+  --glow:0 6px 20px rgba(246,180,0,.34);
+  --glow-strong:0 8px 30px rgba(246,180,0,.5);
+  --shadow:0 1px 2px rgba(142,14,34,.06), 0 6px 18px rgba(142,14,34,.08), 0 20px 44px rgba(142,14,34,.06);
+}
+
+/* ── Casino-felt body: warm cream with a red + gold glow at the top corners. ───── */
+:root[data-skin="jackpot"] body{
+  background:
+    radial-gradient(1100px 560px at 84% -12%, rgba(224,30,55,.14), transparent 60%),
+    radial-gradient(900px 520px at 8% -8%, rgba(246,180,0,.16), transparent 60%),
+    linear-gradient(180deg,#fdf6e6,#f7ead0) !important;
+  color:var(--ink) !important;
+}
+
+/* ── Red-velvet + gold marquee topbar, with a chase-light dot garland. ─────────── */
+:root[data-skin="jackpot"] header.topbar{
+  background:
+    radial-gradient(circle at 8px 6px, rgba(255,225,120,.9) 1.6px, transparent 2.4px) 0 0/28px 100%,
+    linear-gradient(180deg,#8e0e22 0%,#c01230 55%,#8e0e22 100%) !important;
+  border-bottom:3px solid var(--gold) !important;
+  box-shadow:0 2px 0 rgba(246,180,0,.6), 0 10px 26px rgba(90,8,20,.4) !important;
+  backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+}
+/* The shop name becomes the gold Orbitron marquee. 🎰 leads the wordmark. */
+:root[data-skin="jackpot"] header.topbar .brand{
+  font-family:"Orbitron","Arial Black",sans-serif;
+  font-weight:800; letter-spacing:.09em; text-transform:uppercase; font-size:16px;
+  color:#ffe08a;
+  text-shadow:0 0 8px rgba(246,180,0,.9), 0 0 18px rgba(224,30,55,.7), 0 1px 0 #4a0812;
+}
+:root[data-skin="jackpot"] header.topbar .brand::before{ content:'🎰 '; }
+:root[data-skin="jackpot"] header.topbar .shop{
+  font-family:"Orbitron","Arial Black",sans-serif;
+  font-weight:700; letter-spacing:.05em; font-size:13px; color:#ffdf9e;
+  text-shadow:0 1px 0 #4a0812;
+}
+
+/* Header controls — legible gold-on-velvet. */
+:root[data-skin="jackpot"] header.topbar .tb-row button{
+  background:rgba(0,0,0,.18) !important; color:#ffe9b8 !important;
+  border:1px solid rgba(246,180,0,.55) !important; box-shadow:none !important;
+}
+:root[data-skin="jackpot"] header.topbar .tb-row button.primary{
+  background:linear-gradient(180deg,#ffd54a,#f6b400) !important; color:#3a1400 !important;
+  border-color:transparent !important; box-shadow:0 0 10px rgba(246,180,0,.6) !important;
+}
+
+/* Region toggle (TN / NOLA) — gold pill on velvet. */
+:root[data-skin="jackpot"] header.topbar .seg{
+  background:rgba(0,0,0,.18) !important; border:1px solid rgba(246,180,0,.6) !important;
+}
+:root[data-skin="jackpot"] header.topbar .seg button{ color:#ffe9b8 !important; }
+:root[data-skin="jackpot"] header.topbar .seg button.on{
+  background:linear-gradient(180deg,#ffd54a,#f6b400) !important; color:#3a1400 !important;
+  box-shadow:0 0 10px rgba(246,180,0,.7) !important;
+}
+
+/* Quick-hop pills — gold-on-velvet. */
+:root[data-skin="jackpot"] header.topbar .hop a{
+  background:rgba(0,0,0,.16); color:#ffe9b8; border:1px solid rgba(246,180,0,.5);
+}
+:root[data-skin="jackpot"] header.topbar .hop a:active{ background:rgba(246,180,0,.28); }
+
+/* ── Slot-reel columns: cream panel, a gold top rail, an Orbitron header. ──────── */
+:root[data-skin="jackpot"] .board .col{
+  background:linear-gradient(180deg, rgba(255,253,247,.72), rgba(251,241,221,.5));
+  border:1px solid #e7cfa0; border-top:4px solid var(--gold);
+  border-radius:14px; padding:11px 11px 3px; margin-bottom:12px;
+  box-shadow:0 2px 12px rgba(142,14,34,.08);
+}
+:root[data-skin="jackpot"] .col h3{
+  font-family:"Orbitron",Georgia,sans-serif; letter-spacing:.07em; text-transform:uppercase; color:#7a4a1f;
+}
+:root[data-skin="jackpot"] .col h3 .n{ background:var(--gold-grad) !important; color:#3a2400 !important; }
+
+/* ── Coin-chip cards: cream (via tokens) with a gold glow on hover. ────────────── */
+:root[data-skin="jackpot"] .board .card:hover{
+  box-shadow: inset 4px 0 0 var(--sc,var(--gold)), 0 0 0 1px var(--gold), 0 8px 22px rgba(246,180,0,.32) !important;
+}
+
+/* ── !important touch-ups: hard-coded card colors → legible on cream ──────────── */
+:root[data-skin="jackpot"] .card .cmsg{
+  background:rgba(16,165,74,.10) !important; border-color:rgba(16,165,74,.34) !important; color:#2a1410 !important;
+}
+:root[data-skin="jackpot"] .card .availc{
+  background:rgba(30,136,229,.10) !important; border-color:rgba(30,136,229,.42) !important; color:#155bb0 !important;
+}
+:root[data-skin="jackpot"] .copychip{ background:#f6e6c3 !important; color:#3a1f0a !important; border-color:#e0c48f !important; }
+:root[data-skin="jackpot"] .copychip.cc-ref{ background:rgba(30,136,229,.14) !important; color:#155bb0 !important; border-color:rgba(30,136,229,.42) !important; }
+:root[data-skin="jackpot"] .copychip.cc-part{ background:rgba(16,165,74,.14) !important; color:#0c7a44 !important; border-color:rgba(16,165,74,.42) !important; }
+:root[data-skin="jackpot"] .vbadge{ background:var(--gold-grad) !important; color:#231a02 !important; border-color:transparent !important; }
+:root[data-skin="jackpot"] .agechip{ color:#8a5a2f !important; }
+:root[data-skin="jackpot"] .citychip{ color:#7a4a2f !important; }
+:root[data-skin="jackpot"] .fchip{ background:#f4e2bd !important; color:#7a4a1f !important; border-color:#e0c48f !important; }
+:root[data-skin="jackpot"] .fchip.fover{ background:rgba(224,30,55,.14) !important; color:#c01230 !important; border-color:rgba(224,30,55,.44) !important; }
+:root[data-skin="jackpot"] .fchip.fparts,
+:root[data-skin="jackpot"] .fchip.fnote{ background:rgba(201,138,0,.16) !important; color:#a5670a !important; border-color:rgba(201,138,0,.44) !important; }
+:root[data-skin="jackpot"] .fchip.fclose{ background:rgba(255,120,70,.16) !important; color:#c85018 !important; border-color:rgba(255,120,70,.44) !important; }
+:root[data-skin="jackpot"] .fchip.fdiag{ background:rgba(30,136,229,.14) !important; color:#155bb0 !important; border-color:rgba(30,136,229,.42) !important; }
+:root[data-skin="jackpot"] .fchip.fmm{ background:rgba(142,36,170,.14) !important; color:#8e24aa !important; border-color:rgba(142,36,170,.44) !important; }
+
+/* status pill (.spill) — nudge the light-grey "new" so it reads on cream */
+:root[data-skin="jackpot"] .spill.s-new{
+  color:#5b6b86 !important; background:rgba(91,107,134,.14) !important; border-color:rgba(91,107,134,.4) !important;
+}
+
+/* The invoice PAID money-badge on a card — keep it money-green + legible on cream. */
+:root[data-skin="jackpot"] .money-badge.due{ background:#fbeecb !important; color:#8a5a10 !important; }
