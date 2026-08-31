@@ -110,6 +110,18 @@
   .acomp{display:flex;gap:8px;padding:11px 12px;border-top:1px solid var(--line)}
   .acomp input{flex:1;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:10px 12px;font-size:13px}
   .acomp .s{width:40px;height:40px;border-radius:11px;border:0;background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;font-size:16px;font-weight:800;cursor:pointer;flex:none}
+  /* unscheduled map (ported from legacy office scheduler) */
+  .uns-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 2px 8px}
+  .regtog{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .regtog button{background:var(--panel);border:0;padding:6px 13px;font-weight:800;font-size:12px;cursor:pointer;color:var(--muted)}
+  .regtog button.on{background:var(--brand);color:var(--brand-ink)}
+  #schedmap{height:300px;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:0 0 6px;background:var(--chip)}
+  #schedmap .leaflet-container{background:var(--chip)}
+  .mapnote{font-size:11.5px;color:var(--muted);margin:0 2px 8px}
+  .schedpin-wrap{background:transparent;border:0}
+  .schedpin{width:30px;height:30px;border-radius:50%;background:#f97316;color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .schedpin.approx{background:#fb923c;opacity:.85;border-style:dashed}
+  .unum{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#f97316;color:#fff;font-size:11px;font-weight:800;margin-right:5px;vertical-align:middle}
 </style></head>
 <body>
 <div id="app"></div>
@@ -183,6 +195,81 @@
       var nx=pool.splice(bi,1)[0]; out.push(nx); var nz=zip5(jobZip(nx)); if(nz!=null) cur=nz; }
     return out;
   }
+  // ── MAP of the UNSCHEDULED jobs (ported from the legacy office scheduler,
+  // new-scheduling.html). Numbered orange pins, region toggle (Middle TN / Louisiana),
+  // geocoded via Nominatim with the shared tn_geo_v3 localStorage cache (SAME key as the
+  // legacy map, so resolved coords carry over). Everything here is ADDITIVE — a Leaflet
+  // or geocode failure only leaves the tray without pins; it never breaks the board.
+  var region='';                                   // 'TN' | 'LA'; defaults to the busier region on first render
+  var LA_CITIES={'new orleans':1,'metairie':1,'kenner':1,'gretna':1,'chalmette':1,'harvey':1,'marrero':1,'westwego':1,'slidell':1,'hammond':1,'covington':1,'mandeville':1,'ponchatoula':1,'baton rouge':1,'denham springs':1,'walker':1,'laplace':1};
+  function jobRegion(j){ var c=(j&&j.customer)||{}; var st=String(c.state||'').trim().toUpperCase(); if(st==='LA'||st==='LOUISIANA') return 'LA'; if(st==='TN'||st==='TENNESSEE') return 'TN'; if(!st){ var city=String(c.city||'').trim().toLowerCase(); if(LA_CITIES[city]) return 'LA'; } return 'TN'; }
+  function defaultRegion(list){ var tn=0,la=0; (list||[]).forEach(function(j){ if(jobRegion(j)==='LA') la++; else tn++; }); return la>tn?'LA':'TN'; }
+  var GEO_PREFIX='tn_geo_v3:', GEO_TTL=30*24*60*60*1000, _lastGeo=0;
+  var US_STATES={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'};
+  function stateFull(st){ return US_STATES[String(st||'').trim().toUpperCase()]||String(st||'').trim(); }
+  function geoHash(s){ var h=0; for(var i=0;i<s.length;i++){ h=((h<<5)-h)+s.charCodeAt(i); h|=0; } return String(Math.abs(h)); }
+  var _schedGen=0, _schedMap=null, _schedCoords={};   // gen counter cancels stale geocode loops; in-memory memo = instant re-mounts
+  function ensureLeaflet(){ return new Promise(function(res,rej){
+    if(window.L) return res();
+    if(!document.querySelector('link[href*="leaflet"]')){ var c=document.createElement('link'); c.rel='stylesheet'; c.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(c); }
+    var sc=document.querySelector('script[src*="leaflet@1.9.4"]');
+    if(sc){ if(window.L) return res(); sc.addEventListener('load',function(){ res(); }); sc.addEventListener('error',rej); return; }
+    sc=document.createElement('script'); sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; sc.onload=function(){ res(); }; sc.onerror=rej; document.head.appendChild(sc);
+  }); }
+  // Tiered geocode: real street → ZIP centroid → city+state. Spell the state out so a bare
+  // "LA" isn't read as Los Angeles. Skip placeholder streets ("1"/""). Cached in localStorage.
+  async function schedGeocode(j){
+    var c=(j&&j.customer)||{};
+    var street=String(c.address||'').trim();
+    var city=String(c.city||'').trim();
+    var st=stateFull(c.state);
+    var zip=String(c.zip||'').replace(/\D/g,'').slice(0,5);
+    var key=GEO_PREFIX+geoHash([street,city,st,zip].join('|'));
+    if(_schedCoords[key]) return _schedCoords[key];
+    try{ var raw=localStorage.getItem(key); if(raw){ var p=JSON.parse(raw); if(p&&(Date.now()-p.ts)<GEO_TTL){ _schedCoords[key]={lat:p.lat,lng:p.lng,approx:!!p.approx}; return _schedCoords[key]; } } }catch(e){}
+    var realStreet=street&&/\d/.test(street)&&/[a-z]/i.test(street);
+    async function nom(params){
+      var wait=Math.max(0,(_lastGeo+1100)-Date.now()); _lastGeo=Date.now()+wait;   // Nominatim: ≤1 req/sec
+      await new Promise(function(r){ setTimeout(r,wait); });
+      try{ var res=await fetch('https://nominatim.openstreetmap.org/search?'+params.toString()); var d=await res.json(); if(Array.isArray(d)&&d.length){ var lat=parseFloat(d[0].lat),lng=parseFloat(d[0].lon); if(isFinite(lat)&&isFinite(lng)) return {lat:lat,lng:lng}; } }catch(e){} return null;
+    }
+    var hit=null, approx=false;
+    if(realStreet){ var p1=new URLSearchParams({format:'json',limit:'1',countrycodes:'us',street:street}); if(city)p1.set('city',city); if(st)p1.set('state',st); if(zip)p1.set('postalcode',zip); hit=await nom(p1); }
+    if(!hit&&zip){ hit=await nom(new URLSearchParams({format:'json',limit:'1',countrycodes:'us',postalcode:zip})); if(hit) approx=true; }
+    if(!hit&&city&&st){ hit=await nom(new URLSearchParams({format:'json',limit:'1',countrycodes:'us',city:city,state:st})); if(hit) approx=true; }
+    if(!hit) return null;
+    var out={lat:hit.lat,lng:hit.lng,approx:approx}; _schedCoords[key]=out;
+    try{ localStorage.setItem(key,JSON.stringify({lat:out.lat,lng:out.lng,approx:approx,ts:Date.now()})); }catch(e){}
+    return out;
+  }
+  // Build the map into #schedmap for the region's unscheduled jobs, numbered 1..N in tray order.
+  async function mountSchedMap(list){
+    var myGen=++_schedGen;                          // supersede any in-flight loop (region switch / re-render)
+    if(!document.getElementById('schedmap')) return;
+    try{ await ensureLeaflet(); }catch(e){ if(_schedGen===myGen){ var nn=document.querySelector('.mapnote'); if(nn) nn.textContent='⚠ map failed to load — the tray below still works.'; } return; }
+    var el=document.getElementById('schedmap'); if(!el||!window.L||_schedGen!==myGen) return;
+    if(_schedMap){ try{ _schedMap.remove(); }catch(e){} _schedMap=null; }
+    var map; try{ map=L.map(el,{scrollWheelZoom:false}).setView([35.9,-87.5],6); }catch(e){ return; }
+    _schedMap=map;
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
+    var bounds=[], seen={};
+    for(var i=0;i<list.length;i++){
+      if(_schedGen!==myGen) return;
+      var j=list[i]; var g=await schedGeocode(j);
+      if(_schedGen!==myGen) return;
+      if(!g) continue;
+      var plat=g.lat, plng=g.lng;
+      var sk=plat.toFixed(4)+','+plng.toFixed(4); var dup=(seen[sk]=(seen[sk]||0)); seen[sk]++;
+      if(dup>0){ var ang=dup*(Math.PI/4); var rad=0.00045*(1+Math.floor(dup/8)); plat=g.lat+rad*Math.sin(ang); plng=g.lng+rad*Math.cos(ang); }   // fan out stacked stops
+      var icon=L.divIcon({className:'schedpin-wrap',html:'<div class="schedpin'+(g.approx?' approx':'')+'">'+(i+1)+'</div>',iconSize:[30,30],iconAnchor:[15,15]});
+      var mk=L.marker([plat,plng],{icon:icon}).addTo(map);
+      (function(job){ mk.on('click',function(){ openAssign(job); }); })(j);   // tap a pin = same as tapping its tray card
+      bounds.push([plat,plng]);
+    }
+    if(_schedGen!==myGen) return;
+    if(bounds.length>=2){ try{ map.fitBounds(bounds,{padding:[30,30],maxZoom:12}); }catch(e){} }
+    else if(bounds.length===1){ try{ map.setView(bounds[0],11); }catch(e){} }
+  }
   var sel=startOfWeek(new Date()); var selDay=isoDay(new Date());
   var view='week'; var monthAnchor=firstOfMonth(new Date());
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
@@ -247,14 +334,20 @@
     }
 
     var uns=jobs.filter(needsDispatch);
-    var unsHtml=uns.length ? uns.map(function(j){
+    if(region!=='TN'&&region!=='LA') region=defaultRegion(uns);   // first render only — user toggle persists after
+    var tnN=0, laN=0; uns.forEach(function(j){ if(jobRegion(j)==='LA') laN++; else tnN++; });
+    var unsRegion=uns.filter(function(j){ return jobRegion(j)===region; });   // tray + pins both scoped to the region
+    var regBar='<div class="regtog"><button data-reg="TN" class="'+(region==='TN'?'on':'')+'">Middle TN'+(tnN?' · '+tnN:'')+'</button><button data-reg="LA" class="'+(region==='LA'?'on':'')+'">Louisiana'+(laN?' · '+laN:'')+'</button></div>';
+    var unsHtml=unsRegion.length ? unsRegion.map(function(j,idx){
       var tag=j.status==='awaiting_parts'?'<div class="u2" style="color:var(--awaiting_parts);font-weight:800">📦 awaiting parts</div>':'';
       var zip=jobZip(j);
       var sug=suggestSlot(j);
       var sugHtml = sug
         ? '<div class="usug">🐜 '+esc((sug.tech.name||'Tech').split(' ')[0])+' · '+esc(fmtDayShort(sug.day))+'</div>'
         : (zip?'<div class="ucov none">📍 '+esc(zip)+' — no one available</div>':'');
-      return '<div class="ujob" data-job="'+j.id+'"><div class="u1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+sugHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting — every job has a tech and a day. ✅</div>';
+      return '<div class="ujob" data-job="'+j.id+'"><div class="u1"><span class="unum">'+(idx+1)+'</span>'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+sugHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting in '+(region==='LA'?'Louisiana':'Middle TN')+'. ✅</div>';
+    var mapBlock=unsRegion.length ? '<div id="schedmap"></div><div class="mapnote">Needs scheduling — cluster these · tap a pin to assign</div>' : '';
+    var unsSection='<div class="uns-h"><div class="sec-h" style="margin:0">🚨 Unscheduled — tap to assign</div>'+regBar+'</div>'+mapBlock+'<div class="tray">'+unsHtml+'</div>';
 
     var lanes=techs.map(function(t){
       var mine=jobs.filter(function(j){ return j.technician_id===t.id && j.scheduled_day===selDay && j.status!=='completed' && j.status!=='canceled'; });
@@ -274,7 +367,7 @@
       '<div class="wrap">'+
         '<div class="weeknav">'+navHtml+'</div>'+
         calBlock+
-        '<div class="sec-h">🚨 Unscheduled — tap to assign</div><div class="tray">'+unsHtml+'</div>'+
+        unsSection+
         '<div class="sec-h">📋 '+esc(selLabel)+' — full schedule</div><div class="techs">'+lanes+'</div>'+
       '</div>';
 
@@ -292,6 +385,8 @@
     }
     Array.prototype.forEach.call(document.querySelectorAll('[data-job]'),function(el){ el.onclick=function(){ var j=jobs.filter(function(x){return x.id===el.getAttribute('data-job');})[0]; if(j) openAssign(j); }; });
     Array.prototype.forEach.call(document.querySelectorAll('[data-off]'),function(el){ el.onclick=function(e){ e.stopPropagation(); toggleOff(el.getAttribute('data-off'), selDay); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('.regtog button[data-reg]'),function(el){ el.onclick=function(){ region=el.getAttribute('data-reg'); render(); }; });
+    if(unsRegion.length){ mountSchedMap(unsRegion); } else { _schedGen++; if(_schedMap){ try{ _schedMap.remove(); }catch(e){} _schedMap=null; } }
   }
 
   function openAssign(job){
@@ -339,7 +434,7 @@
     var todayIso=isoDay(new Date());
     sb.rpc('company_roster').then(function(tr){
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
-      var jP=sb.from('job').select('id,status,problem,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
+      var jP=sb.from('job').select('id,status,problem,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
       var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
       Promise.all([jP,oP]).then(function(res){
         jobs=(res[0].data)||[];
