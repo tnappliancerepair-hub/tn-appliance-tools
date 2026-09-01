@@ -8,12 +8,32 @@
 // (HTML + JS/CSS) — serve from cache immediately so the page opens with zero
 // network wait, then refresh the cache in the background. Job DATA (API /
 // Netlify-function GETs) stays network-first so it's never stale.
-const CACHE_VERSION = 'ant-field-v63-2026-08-27-autosync';
+const CACHE_VERSION = 'ant-field-v64-2026-09-01-offlineheal';
+
+// Self-healing offline page. NEVER a dead plain-text dead-end — it auto-retries every
+// couple seconds + on 'online', so a transient blip on live signal recovers itself
+// instead of stranding a tech on "Offline". Proper charset so the em-dash renders.
+function offlineResponse() {
+  const html = '<!doctype html><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Reconnecting…</title>'
+    + '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0e120c;color:#eef2e8;'
+    + 'font:16px/1.5 system-ui,-apple-system,sans-serif;text-align:center;padding:24px}'
+    + 'button{margin-top:18px;padding:13px 22px;border:0;border-radius:11px;background:#3f8f24;color:#fff;'
+    + 'font-weight:800;font-size:16px}</style>'
+    + '<div><div style="font-size:44px">🐜</div>'
+    + '<p><b>Couldn’t reach the network just now.</b><br>Reconnecting automatically…</p>'
+    + '<button onclick="location.reload()">Reload now</button></div>'
+    + '<script>var t=setInterval(function(){fetch(location.href,{method:"HEAD",cache:"no-store"})'
+    + '.then(function(r){if(r){clearInterval(t);location.reload();}}).catch(function(){});},2500);'
+    + 'addEventListener("online",function(){location.reload();});</script>';
+  return new Response(html, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
 
 // Pre-cache the pages techs actually work from + shared assets. Pre-caching
 // happens on install (good signal — first visit / add-to-home-screen); after
 // that the page opens from cache even with no signal.
 const STATIC_FILES = [
+  '/tech.html',
   '/tech-job.html',
   '/tech-ant-chat.html',
   '/tech-daily-dashboard.html',
@@ -72,21 +92,21 @@ self.addEventListener('fetch', (event) => {
       // have it, and refresh the cache in the background — techs in the field
       // need the job to open on the first tap, not wait on a slow network.
       if (isHTML) {
+        // Navigation: serve the cached page INSTANTLY if we have it (revalidate in bg).
+        // If it's NOT cached, WAIT for the network — do NOT apply the short asset timeout
+        // to a full-page open, since there's no cached alternative and a slow-but-alive
+        // 5G fetch would otherwise be abandoned and dead-end on the offline page. Only
+        // show the (self-healing) offline page if the network genuinely fails.
         const cachedNow = await cache.match(req);
         if (cachedNow) { net.catch(() => {}); return cachedNow; }  // instant, revalidates in bg
+        const res = await net;                                     // wait for the real network
+        return res || (await cache.match(req)) || offlineResponse();
       }
       // Shell assets (JS/CSS): short network race, fast fallback to cache.
       const timeout = new Promise((r) => setTimeout(() => r('__TIMEOUT__'), 1200));
       const first = await Promise.race([net, timeout]);
       if (first && first !== '__TIMEOUT__') return first;     // network won → fresh
-      const cached = await cache.match(req);                  // slow/offline → cache
-      return (
-        cached ||
-        (await net) ||
-        new Response('Offline — reconnect to load.', {
-          status: 503, headers: { 'Content-Type': 'text/plain' },
-        })
-      );
+      return (await cache.match(req)) || (await net) || offlineResponse();  // slow/offline → cache
     })());
     return;
   }
