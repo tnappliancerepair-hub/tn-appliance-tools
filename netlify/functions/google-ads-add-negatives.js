@@ -10,10 +10,22 @@ const { getSecret } = require('./_lib/secrets');
 const ads = require('./_lib/google-ads');
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
-const CAMPAIGNS = ['23985730202', '23990301052']; // Dryer + Refrigerator (Ant)
+const CAMPAIGNS = [
+  '24154623729', // After-Hours Appliance Repair — Nashville Metro (Ant) — the LIVE one
+  '23985730202', // Dryer — Smyrna/Murfreesboro (paused; negatives sit ready)
+  '23990301052', // Refrigerator — Smyrna/Murfreesboro (paused)
+  '24165216430', // After-Hours Louisiana Dryer & Fridge (paused)
+];
 
 // BROAD negatives: block a query if it contains these terms. Grouped by why.
 const NEGATIVES = [
+  // OFF-TARGET SERVICES — things we do NOT fix (2026-09-01 search-terms report: 37%
+  // of spend, ~$69/mo, went to TV/vacuum/electronics queries with 0 conversions).
+  'tv', 'television', 'vacuum', 'hoover', 'dyson', 'kirby', 'shark',
+  'cell phone', 'iphone', 'phone repair', 'screen repair', 'computer', 'laptop', 'pc repair',
+  'camera', 'printer', 'xbox', 'playstation', 'watch', 'generator',
+  'lawn mower', 'mower', 'garage door', 'water heater', 'furnace', 'hvac', 'pool',
+  'car', 'auto', 'vehicle',
   // DIY / research intent (they fix it themselves, click and leave)
   'how to', 'troubleshooting', 'troubleshoot', 'diy', 'do it yourself', 'reset',
   'replacement', 'manual', 'wiring diagram', 'parts', 'youtube', 'tutorial', 'fix myself',
