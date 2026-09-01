@@ -126,7 +126,9 @@
 <body>
 <div id="app"></div>
 <script src="/platform/config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/platform/vendor/supabase-js.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
+<script src="/platform/vendor/supa-guard.js"></script>
 <script>
 (function(){
   var app=document.getElementById('app');
