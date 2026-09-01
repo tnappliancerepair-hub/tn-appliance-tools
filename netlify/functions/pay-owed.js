@@ -60,6 +60,16 @@ exports.handler = async function (event) {
     getJSON(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }) }),
   ]);
 
+  // If the invoice-status read STALLED (Xano queuing under load) it comes back
+  // null — and we must NOT guess. Falling through would flip self_pay→false, hit
+  // the add-on branch, and show a self-pay customer "No balance due" (a wrong $0
+  // that kills the sale). Return ok:false so pay.html shows the recoverable
+  // "we couldn't load your invoice — text us" instead. addons-for-job is the
+  // known intermittent staller behind pay-owed; this is the guard for it.
+  if (inv === null) {
+    return json(200, { ok: false, error: 'unavailable', retry: true, job_id: jobId });
+  }
+
   const cust = (dash && dash.customer) || {};
   const first = cust.first_name || 'there';
   const appl = String((dash && dash.appliance && dash.appliance.type) || (dash && dash.job && dash.job.appliance_type) || '').trim();

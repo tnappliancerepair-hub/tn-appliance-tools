@@ -17,19 +17,38 @@ function headers() {
   if (!t) throw new Error('XANO_METADATA_TOKEN not set');
   return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
 }
+// Short per-container cache. The three action scans (addon_requested/fulfilled/
+// voided) are IDENTICAL for every job on every call — they don't filter by job in
+// the query (job_id lives only inside the metadata JSON, which the Metadata API
+// can't search on). So under office concurrency (many drawers/pay hits) this would
+// re-scan the 156k-row event_log again and again, spiking Xano into the queuing
+// that freezes the system. Collapse it to one scan/action per ~60s per warm
+// container. Add-on lines are slow-changing, so 60s staleness is immaterial and
+// self-heals. Serve stale-on-error so a transient Xano stall never empties a bill.
+const _CACHE = {}; // action -> { at, rows }
+const CACHE_MS = 60000;
 async function fetchByAction(action) {
+  const hit = _CACHE[action];
+  if (hit && (Date.now() - hit.at) < CACHE_MS) return hit.rows;
   const out = [];
+  let ok = true;
   for (let page = 1; page <= 4; page++) {
-    const r = await fetch(`${META}/table/${EVENT_LOG_TABLE}/content/search`, {
-      method: 'POST', headers: headers(),
-      body: JSON.stringify({ search: { action }, sort: { created_at: 'desc' }, per_page: 500, page }),
-    });
+    let r;
+    try {
+      r = await fetch(`${META}/table/${EVENT_LOG_TABLE}/content/search`, {
+        method: 'POST', headers: headers(),
+        signal: AbortSignal.timeout(9000),
+        body: JSON.stringify({ search: { action }, sort: { created_at: 'desc' }, per_page: 500, page }),
+      });
+    } catch (_) { ok = false; break; } // timeout/stall -> fall back to stale cache
     if (!r.ok) break;
     const d = await r.json();
     const items = (d && d.items) || [];
     out.push(...items);
     if (items.length < 500) break;
   }
+  if (!ok && hit) return hit.rows; // stall + we have prior data -> serve it
+  _CACHE[action] = { at: Date.now(), rows: out };
   return out;
 }
 function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
