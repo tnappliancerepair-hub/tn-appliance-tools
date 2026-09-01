@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>The Appliance Guy — Office</title>
+<style>
+  :root{
+    --bg:#f5f7f3; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --faint:#8a9280; --line:#e3e7db;
+    --brand:#3f8f24; --brand-2:#2f6f18; --gold:#c98a00; --goldbg:#fbf1d8;
+    --chip:#eef3e8; --warn:#b45309; --warnbg:#f7ecdb;
+    --keep:#2f8f2a; --remove:#c0392b; --change:#b8860b;
+    --shadow:0 1px 2px rgba(20,30,10,.05),0 8px 24px rgba(20,30,10,.06);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#7bd15c; --gold:#e0b24a; --goldbg:#241d0e;
+    --warn:#e0a54a; --warnbg:#2a2213;
+    --keep:#5cbb3a; --remove:#e0705f; --change:#e0b24a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#7bd15c; --gold:#e0b24a; --goldbg:#241d0e;
+    --warn:#e0a54a; --warnbg:#2a2213;
+    --keep:#5cbb3a; --remove:#e0705f; --change:#e0b24a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:24px 18px 120px}
+  a{color:var(--brand)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:-.01em;font-size:16px}
+  .brand .dot{width:28px;height:28px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
+  h1{font-size:clamp(25px,5.4vw,34px);letter-spacing:-.02em;margin:14px 0 6px;text-wrap:balance}
+  .lede{color:var(--muted);font-size:16.5px;margin:0;max-width:60ch}
+  .lede b{color:var(--ink)}
+
+  /* sign-in strip */
+  .signin{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:12px;padding:13px 15px;box-shadow:var(--shadow);margin:20px 0 8px}
+  .signin b{font-weight:800}
+  .signin .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:9px}
+  .signin input{flex:1 1 180px;min-width:0;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+  .signin button{flex:none;padding:10px 16px;border:0;border-radius:9px;background:var(--brand);color:#fff;font-weight:800;cursor:pointer}
+  .signin .ok{color:var(--keep);font-weight:700}
+  .signin .err{color:var(--remove);font-size:13.5px;margin-top:6px;min-height:1px}
+  .signin code{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:14px}
+
+  .sec{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);font-weight:800;margin:28px 2px 4px}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px 16px 13px;box-shadow:var(--shadow);margin-top:11px}
+  .card.marked{border-left:4px solid var(--line)}
+  .card.v-keep{border-left-color:var(--keep)} .card.v-remove{border-left-color:var(--remove)} .card.v-change{border-left-color:var(--change)}
+  .chd{display:flex;align-items:flex-start;gap:11px}
+  .chd .ic{font-size:24px;line-height:1;flex:none}
+  .chd h2{font-size:19px;letter-spacing:-.01em;margin:1px 0 0;flex:1}
+  .chd .open{flex:none;text-decoration:none;background:var(--brand);color:#fff;border-radius:999px;padding:8px 15px;font-size:13.5px;font-weight:800;white-space:nowrap}
+  .chd .open:hover{background:var(--brand-2)}
+  .what{color:var(--ink);font-size:14.5px;margin:9px 0 0}
+  .miss{background:var(--warnbg);border-radius:9px;padding:8px 11px;margin:9px 0 0;font-size:13.5px;color:var(--warn);display:flex;gap:7px}
+  .miss .i{flex:none}
+
+  .rev{margin-top:11px;border-top:1px dashed var(--line);padding-top:11px}
+  .verds{display:flex;gap:7px;flex-wrap:wrap}
+  .verds button{flex:1 1 0;min-width:92px;padding:9px 8px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--muted);font-weight:800;font-size:13.5px;cursor:pointer}
+  .verds button[data-v="keep"].on{border-color:var(--keep);color:var(--keep);background:color-mix(in srgb,var(--keep) 10%,transparent)}
+  .verds button[data-v="remove"].on{border-color:var(--remove);color:var(--remove);background:color-mix(in srgb,var(--remove) 10%,transparent)}
+  .verds button[data-v="change"].on{border-color:var(--change);color:var(--change);background:color-mix(in srgb,var(--change) 12%,transparent)}
+  .rev textarea{width:100%;margin-top:8px;min-height:44px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical}
+
+  .addbox{background:var(--goldbg);border:1px solid var(--gold);border-radius:14px;padding:16px;margin-top:24px}
+  .addbox h2{margin:0 0 4px;font-size:19px;color:var(--gold)}
+  .addbox p{margin:0 0 9px;color:var(--muted);font-size:14px}
+  .addbox textarea{width:100%;min-height:90px;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);font:inherit;resize:vertical}
+
+  /* sticky copy bar */
+  .bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);
+       box-shadow:0 -6px 22px rgba(20,30,10,.1);padding:11px 16px;display:flex;gap:11px;align-items:center;z-index:50}
+  .bar .cnt{font-size:13px;color:var(--muted);flex:1;min-width:0}
+  .bar .cnt b{color:var(--ink)}
+  .bar button{flex:none;padding:12px 18px;border:0;border-radius:11px;background:var(--brand);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .bar button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+
+  /* copied-review sheet */
+  .sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:100}
+  .sheet.open{display:flex}
+  .sheet .box{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:560px;width:100%;max-height:84vh;overflow:auto;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.4)}
+  .sheet h3{margin:0 0 4px;font-size:18px}
+  .sheet p{margin:0 0 10px;color:var(--muted);font-size:13.5px}
+  .sheet textarea{width:100%;min-height:220px;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:13px/1.5 ui-monospace,Menlo,monospace;resize:vertical}
+  .sheet .btns{display:flex;gap:9px;justify-content:flex-end;margin-top:12px}
+  .sheet .btns button{padding:10px 15px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:700;cursor:pointer}
+  .sheet .btns button.primary{border:0;background:var(--brand);color:#fff}
+  .foot{color:var(--faint);font-size:13px;margin-top:26px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="dot">🐜</span> AssistAnt</div>
+  <h1>Your office, all in one place</h1>
+  <p class="lede">Welcome to The Appliance Guy on AssistAnt. This is your whole office side — the board, scheduling, texts, warranty, parts, the money. Open each one on <b>your own shop</b>, run it like a real day, and mark it <b>Keep</b>, <b>Change</b>, or <b>Remove</b> with a note. Tap <b>Copy my review</b> at the bottom and send it back to <b>TK</b> — that's exactly what we tailor to how you work. Nothing here is set in stone; it's built around you.</p>
+
+  <div class="signin" id="signin"></div>
+
+  <div class="sec">The office, day-to-day</div>
+  <div id="surf"></div>
+
+  <div class="sec">Reference</div>
+  <div id="ref"></div>
+
+  <div class="addbox">
+    <h2>➕ What's missing? — your "add" list</h2>
+    <p>Anything you do in Workiz today that you don't see here — a search box, a "nothing's dropped" banner, the parts to-order list, warranty copy-cards, anything at all. List it, one line each, and we'll build it.</p>
+    <textarea id="addlist" placeholder="e.g. I need a search box to jump to a customer by name…"></textarea>
+  </div>
+
+  <p class="foot">Your shop's board · your notes go straight into setup. 🐜</p>
+</div>
+
+<div class="bar">
+  <div class="cnt" id="cnt">Mark each one as you go…</div>
+  <button class="ghost" id="reset">Reset</button>
+  <button id="copy">📋 Copy my review</button>
+</div>
+
+<div class="sheet" id="sheet"><div class="box">
+  <h3>Your review — ready to send</h3>
+  <p>Copied to your clipboard. If it didn't copy, tap inside, select all, and copy — then paste it into a text to TK.</p>
+  <textarea id="revtext" readonly></textarea>
+  <div class="btns"><button id="sclose">Close</button><button class="primary" id="scopy">Copy again</button></div>
+</div></div>
+
+<script src="/platform/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var esc = function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); };
+  var LS = 'ant_office_review_tk_v1';
+  var state = (function(){ try{ return JSON.parse(localStorage.getItem(LS)||'{}')||{}; }catch(e){ return {}; } })();
+  function save(){ try{ localStorage.setItem(LS, JSON.stringify(state)); }catch(e){} }
+
+  // ── The office surfaces the CSR reviews ───────────────────────────────────
+  var SURF = [
+    { id:'board', icon:'📋', name:'Daily board', url:'/platform/office-board.html', open:'Open the board →',
+      what:'Every job is a card in a column — New · Scheduled · In progress · Waiting on parts · Completed. The money bar up top shows collected, outstanding and tax for the month. Tap a card to open its drawer: assign the tech, text the customer, build the invoice, take payment.',
+      miss:'No search box yet to jump to a name, and a "nothing’s dropped" banner isn’t here yet.' },
+    { id:'dispatch', icon:'📅', name:'Scheduling · Dispatch', url:'/platform/dispatch.html', open:'Open dispatch →',
+      what:'The Unscheduled tray plus a calendar and a map. Tap a job and it suggests the best tech + day — who covers that ZIP, who has room, who’s already routed nearby. Use it, or pick your own tech + day, then Save — it texts the tech.', miss:'' },
+    { id:'needs', icon:'🗓', name:'Needs Scheduled queue', url:'/platform/needs-scheduled.html', open:'Open the queue →',
+      what:'A clean list of every job with no day/tech yet, grouped under the tech who covers the area, each with a one-tap "🐜 Ant suggests: day · tech."', miss:'' },
+    { id:'messages', icon:'💬', name:'Messages', url:'/platform/comms.html', open:'Open messages →',
+      what:'Every customer text conversation in one place — their texts and yours, plus any photos or video they sent.', miss:'' },
+    { id:'owner', icon:'💰', name:'Owner · the money', url:'/platform/owner.html', open:'Open owner →',
+      what:'The numbers — collected, outstanding, tax, and the goals — plus the 🐜 Ant partner you can just ask about the shop. (You’ll see this because the review login can see everything.)', miss:'' },
+    { id:'warranty', icon:'🛡️', name:'Warranty filing', url:'/platform/office-board.html', open:'Open the board →',
+      what:'Warranty jobs carry the company (AHS, SquareTrade…) and claim #. The drawer holds what you file with — the customer’s video, the model-sticker photo, the diagnosis, the parts. When the check comes in, Remittance on the board splits the EFT back across the jobs it paid.',
+      miss:'You still file the claim by hand in the vendor portal for now. One-tap "copy this field" cards and the parts-owed-back list are on the way; automatic status-sync with your warranty companies is on the roadmap.' },
+    { id:'parts', icon:'🔧', name:'Parts you’re waiting on', url:'/platform/office-board.html', open:'Open the board →',
+      what:'A job waiting on a part sits in the Waiting on parts column and the part shows in the drawer. You (or the tech) can Find the part across your own suppliers right from the drawer.',
+      miss:'No separate "to-order" list yet with a required ETA + an auto-text to the customer.' },
+    { id:'vendors', icon:'🔌', name:'Vendors & insurance', url:'/platform/integrations.html', open:'Open vendors →',
+      what:'Connect the warranty companies (AHS / Frontdoor…) and store your proof of insurance / COI so it’s ready to hand over.', miss:'' }
+  ];
+  var REF = [
+    { id:'guide', icon:'📖', name:'The written walkthrough', url:'/platform/office-guide.html', open:'Read it →',
+      what:'"Your day on the new board" — the same tour, step by step, if any surface isn’t obvious.' },
+    { id:'import', icon:'📥', name:'Bring data over (setup)', url:'/platform/import.html', open:'Open import →',
+      what:'The migration wizard (Housecall Pro / Jobber / Workiz). Needs the ops key — a setup tool we run with you, here so you know it exists.' }
+  ];
+
+  function cardHtml(s, isRef){
+    var v = (state[s.id] && state[s.id].verdict) || '';
+    var note = (state[s.id] && state[s.id].note) || '';
+    var rev = isRef ? '' :
+      '<div class="rev">' +
+        '<div class="verds">' +
+          '<button type="button" data-v="keep" class="'+(v==='keep'?'on':'')+'" data-id="'+s.id+'">✓ Keep</button>' +
+          '<button type="button" data-v="change" class="'+(v==='change'?'on':'')+'" data-id="'+s.id+'">✎ Change</button>' +
+          '<button type="button" data-v="remove" class="'+(v==='remove'?'on':'')+'" data-id="'+s.id+'">✕ Remove</button>' +
+        '</div>' +
+        '<textarea data-note="'+s.id+'" placeholder="What’s good, what’s missing, what’s clunky…">'+esc(note)+'</textarea>' +
+      '</div>';
+    return '<div class="card marked'+(v?(' v-'+v):'')+'" id="card_'+s.id+'">' +
+      '<div class="chd"><span class="ic">'+s.icon+'</span><h2>'+esc(s.name)+'</h2>' +
+        '<a class="open" href="'+s.url+'" target="_blank" rel="noopener">'+esc(s.open)+'</a></div>' +
+      '<div class="what">'+s.what+'</div>' +
+      (s.miss ? '<div class="miss"><span class="i">💡</span><span>'+s.miss+'</span></div>' : '') +
+      rev + '</div>';
+  }
+
+  function render(){
+    document.getElementById('surf').innerHTML = SURF.map(function(s){ return cardHtml(s,false); }).join('');
+    document.getElementById('ref').innerHTML  = REF.map(function(s){ return cardHtml(s,true); }).join('');
+    document.getElementById('addlist').value = state._add || '';
+    wire(); tally();
+  }
+  function wire(){
+    document.querySelectorAll('.verds button').forEach(function(b){ b.onclick=function(){
+      var id=b.getAttribute('data-id'), v=b.getAttribute('data-v');
+      state[id]=state[id]||{}; state[id].verdict=(state[id].verdict===v?'':v); save();
+      // repaint just this card
+      var host=document.getElementById('card_'+id); if(host){ var s=SURF.filter(function(x){return x.id===id;})[0]; if(s){ host.outerHTML=cardHtml(s,false); wire(); } }
+      tally();
+    }; });
+    document.querySelectorAll('textarea[data-note]').forEach(function(t){ t.oninput=function(){
+      var id=t.getAttribute('data-note'); state[id]=state[id]||{}; state[id].note=t.value; save(); tally();
+    }; });
+    var al=document.getElementById('addlist'); if(al) al.oninput=function(){ state._add=al.value; save(); tally(); };
+  }
+  function tally(){
+    var marked=0; SURF.forEach(function(s){ if(state[s.id]&&state[s.id].verdict) marked++; });
+    document.getElementById('cnt').innerHTML='<b>'+marked+'</b> of '+SURF.length+' marked'+(state._add&&state._add.trim()?' · add-list started':'');
+  }
+
+  function buildReview(){
+    var d=new Date().toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+    var L=['The Appliance Guy — office review — '+d, ''];
+    var VMAP={keep:'KEEP',change:'CHANGE',remove:'REMOVE'};
+    SURF.forEach(function(s){
+      var e=state[s.id]||{}; if(!e.verdict && !(e.note&&e.note.trim())) return;
+      L.push((e.verdict?VMAP[e.verdict]:'—')+'  ·  '+s.name);
+      if(e.note&&e.note.trim()) L.push('    "'+e.note.trim()+'"');
+    });
+    if(L.length===2) L.push('(nothing marked yet)');
+    if(state._add && state._add.trim()){ L.push(''); L.push('➕ ADD / missing:'); state._add.trim().split(/\n+/).forEach(function(x){ if(x.trim()) L.push('  - '+x.trim()); }); }
+    return L.join('\n');
+  }
+  function openSheet(){
+    var txt=buildReview();
+    document.getElementById('revtext').value=txt;
+    document.getElementById('sheet').classList.add('open');
+    try{ navigator.clipboard.writeText(txt); }catch(e){}
+  }
+  document.getElementById('copy').onclick=openSheet;
+  document.getElementById('scopy').onclick=function(){ var t=document.getElementById('revtext'); t.select(); try{ navigator.clipboard.writeText(t.value); }catch(e){ document.execCommand&&document.execCommand('copy'); } };
+  document.getElementById('sclose').onclick=function(){ document.getElementById('sheet').classList.remove('open'); };
+  document.getElementById('sheet').onclick=function(e){ if(e.target.id==='sheet') document.getElementById('sheet').classList.remove('open'); };
+  document.getElementById('reset').onclick=function(){ if(confirm('Clear all your marks and notes?')){ state={}; save(); render(); } };
+
+  // ── Optional inline sign-in (so the Open buttons land in-session) ──────────
+  var cfg = window.ANT_SUPABASE || {}; var sb = (cfg.url && cfg.anonKey && window.supabase) ? window.supabase.createClient(cfg.url, cfg.anonKey) : null;
+  var si = document.getElementById('signin');
+  function signedInView(email){
+    si.innerHTML = '<b>✅ Signed in'+(email?(' as '+esc(email)):'')+'</b> — the <b>Open</b> buttons will drop you straight in. ' +
+      '<a href="#" id="sout" style="margin-left:6px">sign out</a>';
+    var o=document.getElementById('sout'); if(o) o.onclick=function(e){ e.preventDefault(); if(sb) sb.auth.signOut().then(signInView); };
+  }
+  function signInView(msg){
+    si.innerHTML = '<b>Sign in once</b> so every <b>Open</b> button opens straight in (use the login we set up for you). You can also just tap a card — it’ll ask you to sign in there.' +
+      '<div class="row"><input id="em" type="email" placeholder="you@…" autocomplete="username"><input id="pw" type="password" placeholder="password" autocomplete="current-password"><button id="go">Sign in</button></div>' +
+      '<div class="err" id="er">'+esc(msg||'')+'</div>';
+    var go=document.getElementById('go');
+    function submit(){ var em=(document.getElementById('em').value||'').trim(), pw=document.getElementById('pw').value;
+      if(!em||!pw){ document.getElementById('er').textContent='Enter your email and password.'; return; }
+      if(!sb){ document.getElementById('er').textContent='Sign-in isn’t available here — open a card and sign in there.'; return; }
+      go.disabled=true; go.textContent='Signing in…';
+      sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){ if(r.error){ signInView(r.error.message); } else { signedInView((r.data&&r.data.user&&r.data.user.email)||em); } });
+    }
+    go.onclick=submit;
+    var pwEl=document.getElementById('pw'); if(pwEl) pwEl.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
+  }
+  if(sb){ sb.auth.getSession().then(function(r){ var u=r&&r.data&&r.data.session&&r.data.session.user; if(u) signedInView(u.email); else signInView(); }); }
+  else { signInView(); }
+
+  render();
+})();
+</script>
+</body>
+</html>

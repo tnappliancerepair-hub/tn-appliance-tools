@@ -119,9 +119,10 @@ exports.handler = async function (event) {
     for (const r of job1.records) { if (r.invoice) { money_cents += r.invoice.total_cents; if (r.invoice.paid) paid_cents += r.invoice.total_cents; } }
 
     const est = {
-      technicians: totals.technicians.total || 0,
-      customers: totals.customers.total || 0,
-      jobs: totals.jobs.total || 0,
+      // optional-chain: some sources (e.g. Workiz) return no `technicians` key in probe — don't crash preview.
+      technicians: totals.technicians?.total || 0,
+      customers: totals.customers?.total || 0,
+      jobs: totals.jobs?.total || 0,
       invoices_on_page1: job1.records.filter((r) => r.invoice).length,
       page1_billed: money(money_cents),
     };

@@ -174,7 +174,7 @@
     var b=this; el('err-connect').textContent='';
     state.company=el('company').value.trim(); state.key=el('key').value.trim(); state.demo=el('demo').checked;
     if(!state.company){ el('err-connect').textContent='Which shop is it landing on?'; return; }
-    b.disabled=true; b.textContent='Reading Housecall Pro…';
+    b.disabled=true; b.textContent='Reading '+((SRC[state.source]||{}).name||'the source')+'…';
     post({do:'preview',source:state.source,company:state.company,key:state.key,limit_pages:state.demo?2:0}).then(function(d){
       b.disabled=false; b.textContent='Preview my data →';
       if(!d.ok){ el('err-connect').textContent=d.error||'Could not read the source.'; return; }
@@ -199,7 +199,7 @@
     show('commit'); el('err-commit').textContent=''; el('pbar').style.width='4%';
     var total=0; // we don't know exact; animate by phase + landed
     function step(){
-      post({do:'commit',source:state.source,company:state.company,run:state.run}).then(function(d){
+      post({do:'commit',source:state.source,company:state.company,run:state.run,key:state.key}).then(function(d){
         if(!d.ok){ el('err-commit').textContent=d.error||'Import hit a snag.'; return; }
         var L=d.landed||{};
         tiles('cm-tiles',[
