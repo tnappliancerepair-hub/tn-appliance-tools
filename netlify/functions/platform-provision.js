@@ -84,7 +84,10 @@ exports.handler = async function (event) {
     if (!setR.ok) { const e = await setR.text().catch(() => ''); return json(200, { ok: false, error: 'password set failed ' + setR.status + ' ' + e.slice(0, 120) }); }
     const vaultKey = 'PLATFORM_OWNER_PW_' + (slug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
     let saved = false; try { saved = await setSecret(vaultKey, newpw); } catch (_) { saved = false; }
-    return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
+    // &reveal=1: hand the plaintext back to the admin caller (they already hold the admin
+    // secret). For seeding a demo/sandbox hub or a controlled onboarding hand-off — never log it.
+    const reveal = q.reveal === '1' || q.reveal === 'true';
+    return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved, new_password: reveal ? newpw : undefined, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
   }
 
   // One-tap login link (no password in chat). Uses the Admin generate_link endpoint to

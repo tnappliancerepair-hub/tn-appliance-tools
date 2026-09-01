@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Explore the System</title>
+<style>
+  :root{
+    --bg:#f5f7f3; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --faint:#8a9280; --line:#e3e7db;
+    --brand:#3f8f24; --brand-2:#2f6f18; --gold:#c98a00; --goldbg:#fbf1d8;
+    --chip:#eef3e8; --warn:#b45309; --warnbg:#f7ecdb;
+    --office:#3f8f24; --tech:#1d6fb8; --cust:#a3308f; --prospect:#c98a00; --op:#5b6152;
+    --shadow:0 1px 2px rgba(20,30,10,.05),0 8px 24px rgba(20,30,10,.06);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#7bd15c; --gold:#e0b24a; --goldbg:#241d0e; --warn:#e0a54a; --warnbg:#2a2213;
+    --office:#5cbb3a; --tech:#5aa9e6; --cust:#e07ac9; --prospect:#e0b24a; --op:#9aa593;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0e120c; --panel:#161c13; --ink:#eef2e8; --muted:#9aa593; --faint:#6f7a66; --line:#26301d; --chip:#1c2417;
+    --brand:#5cbb3a; --brand-2:#7bd15c; --gold:#e0b24a; --goldbg:#241d0e; --warn:#e0a54a; --warnbg:#2a2213;
+    --office:#5cbb3a; --tech:#5aa9e6; --cust:#e07ac9; --prospect:#e0b24a; --op:#9aa593;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1140px;margin:0 auto;padding:26px 20px 90px}
+  a{color:var(--brand)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900;letter-spacing:-.01em;font-size:16px}
+  .brand .dot{width:28px;height:28px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
+  h1{font-size:clamp(26px,4.6vw,38px);letter-spacing:-.02em;margin:14px 0 6px;text-wrap:balance}
+  .lede{color:var(--muted);font-size:16.5px;margin:0;max-width:74ch}
+  .lede b{color:var(--ink)}
+
+  /* Demo-logins box */
+  .keys{background:var(--goldbg);border:1px solid var(--gold);border-radius:16px;padding:16px 18px;margin:22px 0 8px;box-shadow:var(--shadow)}
+  .keys h2{margin:0 0 3px;font-size:18px;color:var(--gold)}
+  .keys .sub{margin:0 0 12px;color:var(--muted);font-size:13.5px}
+  .keygrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+  .keycard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+  .keycard .kh{font-weight:800;font-size:14px;display:flex;align-items:center;gap:7px}
+  .keycard .kh .tag{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:999px;background:var(--chip);color:var(--muted)}
+  .kv{margin-top:8px;font:13px/1.5 ui-monospace,Menlo,monospace}
+  .kv .row{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap}
+  .kv .lab{color:var(--faint);flex:none;width:34px}
+  .kv code{background:var(--chip);border-radius:6px;padding:2px 7px;color:var(--ink);word-break:break-all}
+  .kv .cp{cursor:pointer;border:0;background:transparent;color:var(--brand);font-weight:800;font-size:12px;font-family:inherit}
+  .keycard .fill{margin-top:9px;width:100%;padding:9px;border:0;border-radius:9px;background:var(--brand);color:#fff;font-weight:800;font-size:13px;cursor:pointer}
+  .keycard .fill.tech{background:var(--tech)}
+  .keycard a.gobtn{display:block;margin-top:9px;text-align:center;text-decoration:none;padding:9px;border-radius:9px;background:var(--cust);color:#fff;font-weight:800;font-size:13px}
+  .keycard .np{margin-top:9px;font-size:12px;color:var(--muted)}
+
+  /* sign-in strip */
+  .signin{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:12px;padding:12px 15px;box-shadow:var(--shadow);margin:10px 0 4px;font-size:14.5px}
+  .signin b{font-weight:800}
+  .signin .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:9px}
+  .signin input{flex:1 1 170px;min-width:0;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+  .signin button{flex:none;padding:10px 16px;border:0;border-radius:9px;background:var(--brand);color:#fff;font-weight:800;cursor:pointer}
+  .signin .ok{color:var(--brand);font-weight:700}
+  .signin .err{color:#c0392b;font-size:13px;margin-top:6px;min-height:1px}
+
+  .sec{display:flex;align-items:baseline;gap:9px;margin:30px 2px 2px}
+  .sec .dotc{width:9px;height:9px;border-radius:50%;flex:none}
+  .sec h3{font-size:13px;text-transform:uppercase;letter-spacing:.07em;font-weight:800;margin:0}
+  .sec .hint{font-size:12.5px;color:var(--faint);margin-left:auto;font-weight:600}
+
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));margin-top:8px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px 13px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .card.office{border-top:3px solid var(--office)} .card.tech{border-top:3px solid var(--tech)}
+  .card.cust{border-top:3px solid var(--cust)} .card.prospect{border-top:3px solid var(--prospect)} .card.op{border-top:3px solid var(--op)}
+  .chd{display:flex;align-items:flex-start;gap:10px}
+  .chd .ic{font-size:22px;line-height:1;flex:none}
+  .chd h2{font-size:17px;letter-spacing:-.01em;margin:1px 0 0;flex:1}
+  .what{color:var(--muted);font-size:13.5px;margin:8px 0 0;flex:1}
+  .cfoot{display:flex;align-items:center;gap:9px;margin-top:11px}
+  .cfoot .open{flex:none;text-decoration:none;background:var(--brand);color:#fff;border-radius:999px;padding:8px 15px;font-size:13px;font-weight:800;white-space:nowrap}
+  .cfoot .open:hover{background:var(--brand-2)}
+  .cfoot .need{font-size:11.5px;color:var(--faint);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .foot{color:var(--faint);font-size:13px;margin-top:34px;text-align:center}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:13.5px;font-weight:700;opacity:0;transition:opacity .18s;pointer-events:none;z-index:200}
+  .toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="dot">🐜</span> AssistAnt</div>
+  <h1>See the whole system — one link into everything</h1>
+  <p class="lede">Every seat of the platform, running on the <b>demo shop (Joey's Appliance Repair)</b> so nothing's blank. Sign in once with a demo login below and the <b>Open</b> buttons drop you straight in. This is the same software TN — and every shop we onboard — runs on.</p>
+
+  <!-- Demo logins -->
+  <div class="keys">
+    <h2>🔑 Demo logins</h2>
+    <p class="sub">Sandbox data — not real customers. Tap <b>Use</b> to auto-fill the sign-in below, then Sign in. Office surfaces need the <b>owner</b> login; the tech app needs the <b>tech</b> login (sign out and back in to switch).</p>
+    <div class="keygrid">
+      <div class="keycard">
+        <div class="kh">🏢 Office / owner <span class="tag">opens office</span></div>
+        <div class="kv">
+          <div class="row"><span class="lab">email</span><code id="ow-em">demo@assistant247.net</code><button class="cp" data-cp="ow-em">copy</button></div>
+          <div class="row"><span class="lab">pass</span><code id="ow-pw">__DEMO_OWNER_PW__</code><button class="cp" data-cp="ow-pw">copy</button></div>
+        </div>
+        <button class="fill" data-fill="owner">Use this login ↑</button>
+      </div>
+      <div class="keycard">
+        <div class="kh">🔧 Technician <span class="tag">opens tech app</span></div>
+        <div class="kv">
+          <div class="row"><span class="lab">email</span><code id="tk-em">demo-tech@assistant247.net</code><button class="cp" data-cp="tk-em">copy</button></div>
+          <div class="row"><span class="lab">pass</span><code id="tk-pw">__DEMO_TECH_PW__</code><button class="cp" data-cp="tk-pw">copy</button></div>
+        </div>
+        <button class="fill tech" data-fill="tech">Use this login ↑</button>
+      </div>
+      <div class="keycard">
+        <div class="kh">👤 Customer portal <span class="tag">no login</span></div>
+        <div class="np">A tokenized link — no password. This is exactly what a customer taps from their text.</div>
+        <a class="gobtn" href="/platform/portal.html?t=cbe72a90-bd33-4eeb-98a6-28d42f7a9c95" target="_blank" rel="noopener">Open a customer's portal →</a>
+      </div>
+      <div class="keycard">
+        <div class="kh">🛠 Operator tools <span class="tag">ops key</span></div>
+        <div class="np">The operator pages ask for the <b>ops key</b> (the same admin secret as ops.html). It's deliberately not stored on this page — paste it when prompted.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="signin" id="signin"></div>
+
+  <!-- OFFICE -->
+  <div class="sec"><span class="dotc" style="background:var(--office)"></span><h3>Office — the CSR / dispatcher's day</h3><span class="hint">owner login</span></div>
+  <div class="grid" id="g-office"></div>
+
+  <!-- TECH -->
+  <div class="sec"><span class="dotc" style="background:var(--tech)"></span><h3>Tech — in the truck</h3><span class="hint">tech login</span></div>
+  <div class="grid" id="g-tech"></div>
+
+  <!-- CUSTOMER -->
+  <div class="sec"><span class="dotc" style="background:var(--cust)"></span><h3>Customer — what the homeowner sees</h3><span class="hint">no login · tokenized link</span></div>
+  <div class="grid" id="g-cust"></div>
+
+  <!-- PROSPECT -->
+  <div class="sec"><span class="dotc" style="background:var(--prospect)"></span><h3>Prospect — what a new shop sees</h3><span class="hint">public</span></div>
+  <div class="grid" id="g-prospect"></div>
+
+  <!-- OPERATOR -->
+  <div class="sec"><span class="dotc" style="background:var(--op)"></span><h3>Operator — running the platform</h3><span class="hint">ops key</span></div>
+  <div class="grid" id="g-op"></div>
+
+  <p class="foot">Demo tenant · Joey's Appliance Repair · not real customers · 🐜</p>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="/platform/config.js"></script>
+<script src="/platform/vendor/supabase-js.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
+<script src="/platform/vendor/supa-guard.js"></script>
+<script>
+(function(){
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];});};
+
+  var SEATS = {
+    office: [
+      { ic:'📋', name:'Daily board', url:'/platform/office-board.html', open:'Open board →', need:'owner login',
+        what:'Every job as a card in a column — New · Scheduled · In progress · Waiting on parts · Completed. Money bar up top; tap a card for the drawer (assign, text, invoice, take payment).' },
+      { ic:'📅', name:'Scheduling · Dispatch', url:'/platform/dispatch.html', open:'Open dispatch →', need:'owner login',
+        what:'The Unscheduled tray + a calendar + a map. Tap a job → "🐜 Ant suggests" the best tech + day (covers the ZIP, has room, routed nearby). Save texts the tech.' },
+      { ic:'🗓', name:'Needs-Scheduled queue', url:'/platform/needs-scheduled.html', open:'Open queue →', need:'owner login',
+        what:'A clean list of every job with no day/tech yet, grouped under the tech who covers the area, each with a one-tap suggestion.' },
+      { ic:'💬', name:'Messages', url:'/platform/comms.html', open:'Open messages →', need:'owner login',
+        what:'Every customer text conversation in one place — theirs and yours, plus any photos or video they sent in.' },
+      { ic:'💰', name:'Owner · the money', url:'/platform/owner.html', open:'Open owner →', need:'owner login',
+        what:'Collected · outstanding · tax · the goals — plus the 🐜 Ant partner you can just ask about the shop.' },
+      { ic:'🗂', name:'Office overview (review)', url:'/platform/office-overview.html', open:'Open overview →', need:'owner login',
+        what:'The walk-every-surface review page — mark Keep / Change / Remove and copy the list back. (What Danielle uses.)' },
+      { ic:'🔌', name:'Vendors & insurance', url:'/platform/integrations.html', open:'Open vendors →', need:'owner login',
+        what:'Connect warranty companies (AHS / Frontdoor / ServicePower) and store proof of insurance / COI, ready to hand over.' }
+    ],
+    tech: [
+      { ic:'🔧', name:'Tech app — the day', url:'/platform/tech.html', open:'Open tech app →', need:'tech login',
+        what:"The technician's home: today's stops in route order, their money (earned · owed · paid), a day-off request, and fix-help. Opens straight to the daily schedule." }
+    ],
+    cust: [
+      { ic:'👤', name:'Customer portal', url:'/platform/portal.html?t=cbe72a90-bd33-4eeb-98a6-28d42f7a9c95', open:'Open portal →', need:'no login',
+        what:'Status of their repair, their tech + day, the two-way message thread, and pay-by-card when there’s a balance. Reached by a tokenized link they get in a text.' }
+    ],
+    prospect: [
+      { ic:'🗺️', name:'System tour + "what you can attach"', url:'/platform/system.html', open:'Open the tour →', need:'public',
+        what:'The public product tour a prospect sees — the pain→fix walkthrough, the six seats, and the new "connect everything you already run" catalog (bring your data, your warranty companies, your bank, Ann).' },
+      { ic:'🚀', name:'Prospect signup', url:'/platform/signup.html', open:'Open signup →', need:'public',
+        what:'What a shop sees when they start a free trial. (Self-serve signup is invite-only right now, so the CTA lands on onboarding-by-invite.)' }
+    ],
+    op: [
+      { ic:'🛠', name:'Ops console', url:'/platform/ops.html', open:'Open ops →', need:'ops key',
+        what:'The operator control surface — tenants, health, the levers. Asks for the ops key.' },
+      { ic:'📥', name:'Bring data over (import)', url:'/platform/import.html', open:'Open import →', need:'ops key',
+        what:'The migration wizard — Housecall Pro (live) · Jobber · Workiz. Pulls a shop’s whole book onto its board. Ops key.' },
+      { ic:'🎬', name:'Demo runbook', url:'/platform/demo-run.html', open:'Open runbook →', need:'ops key',
+        what:'The teleprompter for demoing the system live — the four "wow" acts, the warm-the-line note, recovery box.' }
+    ]
+  };
+
+  function cardHtml(s, seat){
+    return '<div class="card '+seat+'">'+
+      '<div class="chd"><span class="ic">'+s.ic+'</span><h2>'+esc(s.name)+'</h2></div>'+
+      '<div class="what">'+s.what+'</div>'+
+      '<div class="cfoot"><a class="open" href="'+s.url+'" target="_blank" rel="noopener">'+esc(s.open)+'</a>'+
+      '<span class="need">'+esc(s.need)+'</span></div></div>';
+  }
+  Object.keys(SEATS).forEach(function(seat){
+    var el=document.getElementById('g-'+seat); if(el) el.innerHTML=SEATS[seat].map(function(s){return cardHtml(s,seat);}).join('');
+  });
+
+  // toast + copy buttons
+  var toast=document.getElementById('toast'), tt;
+  function say(m){ toast.textContent=m; toast.classList.add('on'); clearTimeout(tt); tt=setTimeout(function(){toast.classList.remove('on');},1400); }
+  document.querySelectorAll('.cp').forEach(function(b){ b.onclick=function(){
+    var t=document.getElementById(b.getAttribute('data-cp')); if(!t) return;
+    var v=t.textContent; try{ navigator.clipboard.writeText(v); say('Copied'); }catch(e){ say('Select + copy'); }
+  };});
+
+  // ── in-session sign-in (shared origin → covers every Open button) ──────────
+  var cfg=window.ANT_SUPABASE||{}; var sb=(cfg.url&&cfg.anonKey&&window.supabase)?window.supabase.createClient(cfg.url,cfg.anonKey):null;
+  var si=document.getElementById('signin');
+  function signedIn(email){
+    si.innerHTML='<b class="ok">✅ Signed in'+(email?(' as '+esc(email)):'')+'</b> — the <b>Open</b> buttons drop you straight in. <a href="#" id="sout" style="margin-left:6px">sign out</a> to switch logins.';
+    var o=document.getElementById('sout'); if(o) o.onclick=function(e){ e.preventDefault(); if(sb) sb.auth.signOut().then(function(){ signIn(); }); };
+  }
+  function signIn(msg){
+    si.innerHTML='<b>Sign in once</b> so every <b>Open</b> button opens in-session. Tap <b>Use this login</b> above to fill this, then Sign in.'+
+      '<div class="row"><input id="em" type="email" placeholder="you@…" autocomplete="username"><input id="pw" type="password" placeholder="password" autocomplete="current-password"><button id="go">Sign in</button></div>'+
+      '<div class="err" id="er">'+esc(msg||'')+'</div>';
+    var go=document.getElementById('go');
+    function submit(){ var em=(document.getElementById('em').value||'').trim(), pw=document.getElementById('pw').value;
+      if(!em||!pw){ document.getElementById('er').textContent='Enter an email and password.'; return; }
+      if(!sb){ document.getElementById('er').textContent='Sign-in isn’t available here — open a card and sign in there.'; return; }
+      go.disabled=true; go.textContent='Signing in…';
+      sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){ if(r.error){ signIn(r.error.message); } else { signedIn((r.data&&r.data.user&&r.data.user.email)||em); } });
+    }
+    go.onclick=submit;
+    var pwEl=document.getElementById('pw'); if(pwEl) pwEl.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
+  }
+  // "Use this login" quick-fill
+  document.querySelectorAll('.fill').forEach(function(b){ b.onclick=function(){
+    var which=b.getAttribute('data-fill');
+    var em=which==='tech'?'tk-em':'ow-em', pw=which==='tech'?'tk-pw':'ow-pw';
+    var e=document.getElementById('em'), p=document.getElementById('pw');
+    if(e&&p){ e.value=document.getElementById(em).textContent.trim(); p.value=document.getElementById(pw).textContent.trim(); p.focus(); say('Filled — tap Sign in'); window.scrollTo({top:si.offsetTop-16,behavior:'smooth'}); }
+  };});
+  if(sb){ sb.auth.getSession().then(function(r){ var u=r&&r.data&&r.data.session&&r.data.session.user; if(u) signedIn(u.email); else signIn(); }); }
+  else signIn();
+})();
+</script>
+</body>
+</html>

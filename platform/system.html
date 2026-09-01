@@ -91,6 +91,11 @@
   .card .ic{font-size:22px}
   .card h4{margin:8px 0 5px;font-size:16.5px;letter-spacing:-.01em}
   .card p{margin:0;color:var(--muted);font-size:14px}
+  .card .chip{margin-top:10px}
+  .cat{font-size:14.5px;font-weight:800;color:var(--ink);margin:24px 0 4px;display:flex;align-items:center;gap:8px}
+  .cat:first-of-type{margin-top:14px}
+  .fineprint{font-size:13px;color:var(--muted);margin:20px 0 0;max-width:80ch;line-height:1.65}
+  .fineprint b{color:var(--ink)}
 
   /* Operator control tower */
   .op{background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:20px}
@@ -457,6 +462,39 @@
   </div>
 </section>
 
+<section class="wrap" id="connect">
+  <p class="sec-h">Connect what you already run</p>
+  <h2>Bring your whole shop with you.</h2>
+  <p class="sub">You don’t rip anything out. Point your data, your warranty companies, and your payments at Ant — and keep your old system running until you’re sure.</p>
+
+  <p class="cat">📦 Bring your customers &amp; jobs over</p>
+  <div class="grid">
+    <div class="card"><div class="ic">🏠</div><h4>Housecall Pro</h4><p>Your whole book — customers and jobs — onto your board in an afternoon. Nothing deleted; run both a week.</p><span class="chip live">Live</span></div>
+    <div class="card"><div class="ic">🟩</div><h4>Jobber</h4><p>Clients and jobs come across the same way — built to Jobber’s API.</p><span class="chip pending">Built</span></div>
+    <div class="card"><div class="ic">🟦</div><h4>Workiz</h4><p>Your customers and jobs, imported straight off your Workiz account.</p><span class="chip pending">Built</span></div>
+    <div class="card"><div class="ic">📄</div><h4>Your own system / CSV</h4><p>On a homegrown tool or a spreadsheet? Send it over — we map it on request.</p><span class="chip gated">On request</span></div>
+  </div>
+
+  <p class="cat">🛡️ Connect your warranty companies</p>
+  <div class="grid">
+    <div class="card"><div class="ic">🏡</div><h4>AHS · Frontdoor</h4><p>Dispatches land on your board; status flows both ways so you stop retyping it in the portal.</p><span class="chip gated">Per-shop API</span></div>
+    <div class="card"><div class="ic">🔧</div><h4>ServicePower</h4><p>SquareTrade &amp; Allstate work — dispatches in, claim status tracked.</p><span class="chip gated">Per-shop API</span></div>
+    <div class="card"><div class="ic">📨</div><h4>Emailed dispatches</h4><p>Any warranty company: forward the dispatch email and the job auto-appears on your board. Works day one, no approval.</p><span class="chip live">Live</span></div>
+    <div class="card"><div class="ic">➕</div><h4>Others — on request</h4><p>NSA and more. New warranty company? We wire it up — just ask.</p><span class="chip gated">On request</span></div>
+  </div>
+
+  <p class="cat">💳 Get paid &amp; answer every call</p>
+  <div class="grid">
+    <div class="card"><div class="ic">🏦</div><h4>Link your bank (Stripe)</h4><p>Connect your Stripe account — customers pay by card and the money lands in <b>your</b> account, not ours.</p><span class="chip live">Live</span></div>
+    <div class="card"><div class="ic">🐜</div><h4>24/7 AI phone — Ann</h4><p>Point your line at Ann. She knows your callers by name, reads your board, and books the day.</p><span class="chip live">Live · add-on</span></div>
+    <div class="card"><div class="ic">📧</div><h4>Your intake email</h4><p>Give out a ‹yourshop›@jobs address — anything sent there becomes a job. Web leads, referrals, anything.</p><span class="chip live">Live</span></div>
+  </div>
+
+  <p class="fineprint">Straight about where we are: the <b>Housecall Pro</b> import is proven live; <b>Jobber</b> and <b>Workiz</b> are built to each platform’s API and ready for your first real account. Warranty connections are <b>per shop</b> — the API path needs the warranty company to grant <i>your</i> shop access (we set it up, they approve), which is why the <b>emailed-dispatch</b> path is there to cover you day one. Others — Old Republic, First American, NSA — we wire <b>on request</b>, not out of the box yet. Bank payouts run through <b>Stripe Connect</b> straight to your account. Onboarding is by invite right now — start below and we’ll get you set up.</p>
+
+  <div style="margin-top:22px"><a class="btn p" id="cta-connect" href="/platform/signup.html">Start your free trial</a></div>
+</section>
+
 <section class="wrap">
   <p class="sec-h">Everything in the box</p>
   <h2>Six tools, one login, one price</h2>
@@ -514,7 +552,7 @@
 (function(){
   var REF = (new URLSearchParams(location.search).get('ref')||'').slice(0,60);
   var signup = '/platform/signup.html' + (REF ? ('?ref='+encodeURIComponent(REF)) : '');
-  ['cta-top','cta-hero','cta-mid','cta-band','tour-cta'].forEach(function(id){ var e=document.getElementById(id); if(e) e.href=signup; });
+  ['cta-top','cta-hero','cta-mid','cta-band','tour-cta','cta-connect'].forEach(function(id){ var e=document.getElementById(id); if(e) e.href=signup; });
   document.getElementById('year').textContent = new Date().getFullYear();
 
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
