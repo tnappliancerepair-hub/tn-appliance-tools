@@ -38,12 +38,17 @@
   button.primary{background:var(--brand);color:var(--brand-ink);border-color:transparent}
   button:disabled{opacity:.55;cursor:default}
   .wrap{padding:14px;max-width:720px;margin:0 auto}
+  @media(min-width:800px){ .wrap{max-width:1200px} }
   /* vertical board — no side-scroll */
   .filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch}
   .filters button{white-space:nowrap;border-radius:999px;padding:7px 13px;font-size:13px}
   .filters button.on{background:var(--ink);color:var(--bg);border-color:transparent}
-  .board{display:block}
-  .col{width:auto;margin-bottom:6px}
+  /* horizontal kanban — swipe between columns (MeisterTask-style); every column is a drop target */
+  .board{display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:14px;align-items:flex-start}
+  .col{flex:0 0 264px;width:264px;margin-bottom:0;border-radius:12px;padding:4px;transition:background .12s ease,box-shadow .12s ease}
+  .col.dragover{background:var(--chip);box-shadow:inset 0 0 0 2px var(--gold,#f6b01f)}
+  .card.dragging{opacity:.45}
+  .card select.mv{margin-top:8px;width:100%;font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--chip);color:var(--muted);font-weight:700;-webkit-appearance:menulist;appearance:auto;cursor:pointer}
   .money{display:flex;gap:10px;overflow-x:auto;padding-bottom:12px;margin-bottom:2px}
   .stat{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow)}
   .stat .lab{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
@@ -231,6 +236,63 @@
     { key: 'awaiting_parts', label: 'Awaiting parts', color: 'var(--awaiting_parts)' },
     { key: 'completed',      label: 'Completed',      color: 'var(--completed)' },
   ];
+
+  // ── BOARD COLUMNS (workflow stages) — the office board's REAL columns, matching the legacy
+  // board. Cards group by stageOf(job): a manual placement (job.board_stage, written on move)
+  // wins; otherwise a sensible default is derived from status/tech/invoice. board_stage is
+  // orthogonal to the coarse status enum — moving a card never changes its status/tech.
+  var BASE_STAGES = [
+    { key:'needs_scheduled', label:'Needs Scheduled',   color:'var(--new)' },
+    { key:'pre_diagnosed',   label:'Pre-Diagnosed',     color:'#7c9cff' },
+    { key:'needs_parts',     label:'Needs Parts',       color:'#e0a458' },
+    { key:'scheduled',       label:'Scheduled',         color:'var(--scheduled)' },
+    { reports:true },                                    // → one "{Tech} Reports" column per tech
+    { key:'upgrade',         label:'Upgrade',           color:'#c084fc' },
+    { key:'waiting_parts',   label:'Waiting for Parts', color:'var(--awaiting_parts)' },
+    { key:'completion',      label:'Completion',        color:'var(--completed)' },
+    { key:'needs_invoiced',  label:'Needs Invoiced',    color:'#f59e0b' },
+    { invoiced:true },                                   // → one "{Tech} Invoiced" column per tech
+    { key:'shop_paid',       label:'Shop Money Paid',   color:'#16a34a' },
+  ];
+  function firstName(n){ return (String(n||'').trim().split(/\s+/)[0]) || 'Tech'; }
+  // Active techs scoped to the selected region (by service_area ZIP prefix when known; a
+  // covers-everywhere tech with no area shows in both). demo shop → demo techs; TN → real crew.
+  function regionTechs(){
+    return techsCache.filter(function(t){
+      var sa=String(t.service_area||'').trim();
+      if(!sa) return true;
+      var laHit=/(^|[^0-9])(70|71)\d?/.test(sa), tnHit=/(^|[^0-9])(37|38|42)\d?/.test(sa);
+      if(region==='LA') return laHit || !tnHit;
+      return tnHit || !laHit;
+    });
+  }
+  // The ordered column list for the current region (per-tech Report/Invoiced expanded).
+  function boardStages(){
+    var techs=regionTechs(), out=[];
+    BASE_STAGES.forEach(function(s){
+      if(s.reports){ techs.forEach(function(t){ out.push({ key:'rep:'+t.id, label:firstName(t.name)+' Reports',  color:'#38bdf8', tech:t.id }); }); }
+      else if(s.invoiced){ techs.forEach(function(t){ out.push({ key:'inv:'+t.id, label:firstName(t.name)+' Invoiced', color:'#22c55e', tech:t.id }); }); }
+      else out.push(s);
+    });
+    return out;
+  }
+  function stageMeta(key, cols){ cols=cols||boardStages(); for(var i=0;i<cols.length;i++){ if(cols[i].key===key) return cols[i]; } return { key:key, label:String(key||'').replace(/[:_]/g,' '), color:'var(--muted)' }; }
+  // Default column when nothing has been placed manually — derived from the job's live state.
+  function derivedStage(j){
+    var st=j.status, iv=invByJob[j.id], t=(j.technician_id!=null&&j.technician_id!=='');
+    if(st==='completed'){ if(!iv) return 'needs_invoiced'; if(iv.status!=='paid') return t?('inv:'+j.technician_id):'needs_invoiced'; return 'shop_paid'; }
+    if(st==='awaiting_parts') return 'waiting_parts';
+    if(st==='in_progress') return t?('rep:'+j.technician_id):'scheduled';
+    if(st==='scheduled') return 'scheduled';
+    return 'needs_scheduled';
+  }
+  // Where a job sits: a manual board_stage placement wins, but if that column no longer exists
+  // in this region (tech gone / wrong region) re-home it to the derived default so it's never lost.
+  function stageOf(j, cols){
+    var s=String(j.board_stage||'').trim();
+    if(s){ cols=cols||boardStages(); for(var i=0;i<cols.length;i++){ if(cols[i].key===s) return s; } return derivedStage(j); }
+    return derivedStage(j);
+  }
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
 
@@ -670,19 +732,48 @@
     return out ? '<div class="cardacts">'+out+'</div>' : '';
   }
 
+  // Move a card to another board column. Optimistic (the card jumps immediately), then
+  // persists job.board_stage; on error we reload to revert. board_stage is orthogonal to
+  // status — moving a card never changes the job's status, tech, or invoice.
+  function moveJobToStage(id, stage){
+    if(!stage) return;
+    var j=null; for(var i=0;i<jobsCache.length;i++){ if(String(jobsCache[i].id)===String(id)){ j=jobsCache[i]; break; } }
+    if(!j || String(j.board_stage||'')===String(stage)) return;
+    j.board_stage=stage; renderBoard();
+    try{ if(window.AntMagic){ AntMagic.award('file', window.innerWidth/2, 120); } }catch(_){}
+    sb.from('job').update({ board_stage:stage }).eq('id',id).then(function(r){ if(r.error){ loadBoard(); } });
+  }
+  // Wire the per-card "Move →" picker (mobile) + desktop drag-and-drop between columns.
+  function wireBoardMoves(b){
+    b.querySelectorAll('select.mv[data-job]').forEach(function(sel){
+      sel.addEventListener('click', function(ev){ ev.stopPropagation(); });
+      sel.addEventListener('mousedown', function(ev){ ev.stopPropagation(); });
+      sel.onchange=function(ev){ ev.stopPropagation(); moveJobToStage(sel.getAttribute('data-job'), sel.value); };
+    });
+    b.querySelectorAll('.card[draggable]').forEach(function(card){
+      card.addEventListener('dragstart', function(ev){ try{ ev.dataTransfer.setData('text/plain', card.getAttribute('data-job')); ev.dataTransfer.effectAllowed='move'; }catch(_){} card.classList.add('dragging'); });
+      card.addEventListener('dragend', function(){ card.classList.remove('dragging'); });
+    });
+    b.querySelectorAll('.col[data-stage]').forEach(function(col){
+      col.addEventListener('dragover', function(ev){ ev.preventDefault(); try{ ev.dataTransfer.dropEffect='move'; }catch(_){} col.classList.add('dragover'); });
+      col.addEventListener('dragleave', function(){ col.classList.remove('dragover'); });
+      col.addEventListener('drop', function(ev){ ev.preventDefault(); col.classList.remove('dragover'); var id=''; try{ id=ev.dataTransfer.getData('text/plain'); }catch(_){} if(id) moveJobToStage(id, col.getAttribute('data-stage')); });
+    });
+  }
+
   function renderBoard(){
     // multi-machine: count jobs sharing a stop_id, computed from the loaded set (no query).
     stopCounts = {};
     jobsCache.forEach(function(j){ if(j.stop_id){ stopCounts[j.stop_id]=(stopCounts[j.stop_id]||0)+1; } });
     if(region!=='TN' && region!=='LA') region = defaultRegion(jobsCache);   // scope the board to the selected region
-    var jobs = jobsCache.filter(function(j){ return jobRegion(j)===region && (activeFilter==='all' || j.status===activeFilter); });
-    var groups = activeFilter==='all' ? ALLSTATUS.map(function(s){return s.key;}) : [activeFilter];
-    var extra = {}; jobs.forEach(function(j){ if(groups.indexOf(j.status)<0){ extra[j.status]=1; } });
-    Object.keys(extra).forEach(function(k){ groups.push(k); });
-    var html = groups.map(function(k){
-      var list = jobs.filter(function(j){ return j.status===k; });
-      if(!list.length) return '';
-      var m = statusMeta(k);
+    var jobs = jobsCache.filter(function(j){ return jobRegion(j)===region && (activeFilter==='all' ? j.status!=='canceled' : j.status===activeFilter); });
+    var cols = boardStages();
+    // one <select> option per column — the mobile-friendly "move this card" control
+    var moveOpts = '<option value="" selected disabled>Move →</option>' + cols.map(function(c){ return '<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>'; }).join('');
+    var byStage = {}; cols.forEach(function(c){ byStage[c.key]=[]; });
+    jobs.forEach(function(j){ var k=stageOf(j, cols); (byStage[k]=byStage[k]||[]).push(j); });
+    var html = cols.map(function(col){
+      var k=col.key, list=byStage[k]||[], m=col;   // render EVERY column (even empty) as a drop target
       var cards = list.map(function(j){
         var unit = j.unit && j.unit.label ? j.unit.label : '';
         var tech = j.technician && j.technician.name ? j.technician.name : 'Unassigned';
@@ -716,7 +807,7 @@
         var flags = buildFlags(j, iv, terminal);
         var actions = buildActions(j, terminal);
 
-        return '<div class="card'+(iv&&iv.status==='paid'?' paidcard':'')+'" data-job="'+j.id+'" style="--sc:'+m.color+'">' +
+        return '<div class="card'+(iv&&iv.status==='paid'?' paidcard':'')+'" data-job="'+j.id+'" draggable="true" style="--sc:'+m.color+'">' +
           topRow +
           '<div class="name">'+esc(fullName(j.customer)||'Customer')+'</div>' +
           hdr +
@@ -727,11 +818,14 @@
           (flags?'<div class="flags">'+flags+'</div>':'') +
           cardMediaHtml(j) +
           actions +
-          '<div class="foot"><span class="tech">'+esc(tech)+'</span>'+(badge||'')+'</div></div>';
+          '<div class="foot"><span class="tech">'+esc(tech)+'</span>'+(badge||'')+'</div>' +
+          '<select class="mv" data-job="'+j.id+'" title="Move to another column">'+moveOpts+'</select>' +
+          '</div>';
       }).join('');
-      return '<div class="col"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span></h3>'+cards+'</div>';
+      return '<div class="col" data-stage="'+esc(k)+'"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span></h3>'+cards+'</div>';
     }).join('') || '<div class="empty">Nothing here yet.</div>';
     var b=document.getElementById('board'); b.innerHTML=html;
+    wireBoardMoves(b);
     // copy chips — grab claim/part # for the warranty portal without opening the drawer
     b.querySelectorAll('.copychip[data-copy]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var t=el.getAttribute('data-copy'); try{ if(navigator.clipboard) navigator.clipboard.writeText(t); }catch(_){} var ico=el.querySelector('.cc-ico'); if(ico){ var old=ico.textContent; ico.textContent='✓'; setTimeout(function(){ ico.textContent=old; },1000); } }; });
     // ✓ Mark complete — set the job completed straight from the tile (a card moving column = a "file")
@@ -1447,8 +1541,8 @@
     // RLS scopes every query to the logged-in user's company — we never pass company_id.
     // The dense card needs the warranty/parts/report/stop columns; customer.city rides along
     // for the 📍 chip. All are from applied migrations (033/044/020/019/004).
-    var baseMin  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,warranty_company,';
-    var baseRich = baseMin + 'claim_number,dispatch_id,service_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
+    var baseMin  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,technician_id,warranty_company,';
+    var baseRich = baseMin + 'board_stage,claim_number,dispatch_id,service_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
     var tailRich = 'customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
     var tailMin  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
     var proceed = function (r) {
