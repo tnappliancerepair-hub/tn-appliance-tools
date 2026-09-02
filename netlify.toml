@@ -336,11 +336,13 @@
 [functions."google-ads-conversion-sweep"]
   schedule = "0 */6 * * *"
 
-# openai-ads-conversion-sweep — the ChatGPT Ads money loop. Uploads self-pay
-# booked/paid conversions (matched by hashed phone/email) so OpenAI learns we
-# convert → better placement for less spend. Offset from the Google sweep. DARK:
-# no-ops until OPENAI_ADS_API_KEY + OPENAI_ADS_PIXEL_ID are vaulted. ?dryrun=1.
-[functions."openai-ads-conversion-sweep"]
+# openai-ads-conversion-sweep-cron — the ChatGPT Ads money loop. Fires the
+# HTTP-callable core `openai-ads-conversion-sweep` (which stays curlable for a
+# ?dryrun=1 check — a scheduled fn would edge-403 on manual HTTP, so it's split).
+# Uploads self-pay booked/paid conversions (matched by hashed phone/email) so
+# OpenAI learns we convert. Offset from the Google sweep. DARK: no-ops until
+# OPENAI_ADS_API_KEY + OPENAI_ADS_PIXEL_ID are vaulted.
+[functions."openai-ads-conversion-sweep-cron"]
   schedule = "10 */6 * * *"
 
 # Google Ads optimizer + daily scoreboard digest — SAFE levers only (block junk

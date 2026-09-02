@@ -24,16 +24,17 @@ const SELF_PAY = new Set(['self_pay', 'cash', 'customer_pay']);
 const MAX_JOBS = 25;   // cap heavy per-job reads per run (each is a metadata round-trip)
 
 // Extended window so a manual ?dryrun=1 (which still does the per-job reads) doesn't
-// hit the ~10s sync cap under Xano load. The cron run gets the full 15-min budget.
+// hit the ~10s sync cap under Xano load. This fn is HTTP-callable (NOT scheduled) so
+// it stays curlable; the scheduled cron wrapper (openai-ads-conversion-sweep-cron)
+// fires runSweep(false) in-process for the live run.
 exports.config = { timeout: 26 };
 
-exports.handler = async function (event) {
-  const q = event.queryStringParameters || {};
-  const dry = q.dryrun === '1';
+// Core sweep — returns a plain result object. dry=true uploads nothing.
+async function runSweep(dry) {
 
   // Fail fast (and cheap) if the key isn't vaulted yet — nothing to sweep.
   const check = await oa.creds();
-  if (!check.key && !dry) return json(200, { ok: false, configured: false, note: 'OPENAI_ADS_API_KEY not vaulted — nothing uploaded' });
+  if (!check.key && !dry) return { ok: false, configured: false, note: 'OPENAI_ADS_API_KEY not vaulted — nothing uploaded' };
 
   const [invoices, stripePays, offline, qc, uploaded] = await Promise.all([
     rows('office_invoice_logged', 600), rows('customer_payment_received', 600),
@@ -82,7 +83,7 @@ exports.handler = async function (event) {
     if (wantPaid) plan.push({ job_id: jobId, event_type: 'order_created', value: paidByJob[jobId] || invByJob[jobId] || 0, phone, email });
   }
 
-  if (dry) return json(200, { ok: true, mode: 'dryrun', configured: !!check.key, candidates: candidateIds.size, would_upload: plan.length, skipped, plan: plan.slice(0, 20).map((p) => ({ job_id: p.job_id, event_type: p.event_type, value: p.value, has_phone: !!p.phone, has_email: !!p.email })) });
+  if (dry) return { ok: true, mode: 'dryrun', configured: !!check.key, candidates: candidateIds.size, would_upload: plan.length, skipped, plan: plan.slice(0, 20).map((p) => ({ job_id: p.job_id, event_type: p.event_type, value: p.value, has_phone: !!p.phone, has_email: !!p.email })) };
 
   let uploadedCount = 0; const fails = [];
   for (const p of plan) {
@@ -90,5 +91,13 @@ exports.handler = async function (event) {
     if (res && res.ok) { uploadedCount++; try { await crud.logEvent('openai_conversion_uploaded', { job_id: p.job_id, event_type: p.event_type, value: p.value, at_ms: Date.now() }); } catch (_) {} }
     else fails.push({ job_id: p.job_id, event_type: p.event_type, error: (res && (res.raw_error || res.error)) || 'failed' });
   }
-  return json(200, { ok: true, mode: 'live', uploaded: uploadedCount, failed: fails.length, fail_list: fails.slice(0, 8) });
+  return { ok: true, mode: 'live', uploaded: uploadedCount, failed: fails.length, fail_list: fails.slice(0, 8) };
+}
+
+exports.handler = async function (event) {
+  const q = (event && event.queryStringParameters) || {};
+  const res = await runSweep(q.dryrun === '1');
+  return json(200, res);
 };
+
+exports.runSweep = runSweep;
