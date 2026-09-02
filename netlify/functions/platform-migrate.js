@@ -24,6 +24,13 @@ const MIGRATIONS = {
   tdr_outcomes: `alter table public.job_tdr drop constraint if exists job_tdr_outcome_check;
                  alter table public.job_tdr add constraint job_tdr_outcome_check
                    check (outcome in ('fixed','return_needed','not_fixable','second_opinion','no_failure'));`,
+
+  // Per-part fulfillment: where the part is COMING FROM (source — warranty co / warehouse /
+  // Amazon / free text), the delivery ROUTE (distributor pickup vs shipped to the customer's
+  // home), and the ETA. So the office (and Ann) can answer "when are my parts coming?".
+  part_fulfillment: `alter table public.job_part add column if not exists source  text;
+                     alter table public.job_part add column if not exists ship_to text;
+                     alter table public.job_part add column if not exists eta     date;`,
 };
 
 exports.handler = async (event) => {
