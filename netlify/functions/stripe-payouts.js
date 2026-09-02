@@ -122,34 +122,54 @@ exports.handler = async function (event) {
         }
       }
 
-      // 3) resolve jobs -> customer + tech + commission, in bulk (one event_log pull each)
-      const jobIds = [...new Set(charges.map((c) => c.job_id).filter(Boolean))];
+      // 3) resolve jobs -> customer + tech + commission
       const jobMap = {}, techName = {};
       try { const techs = await crud.searchPage(crud.TABLES.technicians, {}, { id: 'asc' }, 100); (techs || []).forEach((t) => { techName[String(t.id)] = ((t.first_name || t.name || '') + ' ' + (t.last_name || '')).trim() || ('Tech ' + t.id); }); } catch (_) {}
-      for (const jid of jobIds) {
-        try { const j = await crud.searchOne(crud.TABLES.jobs, { id: parseInt(jid, 10) }); if (j) jobMap[jid] = j; } catch (_) {}
-      }
-      // pull recent invoice logs + payout records once, filter by our job ids in JS (Xano single-field search)
+      async function getJob(jid) { jid = String(jid || ''); if (!jid) return null; if (jobMap[jid] !== undefined) return jobMap[jid]; try { jobMap[jid] = (await crud.searchOne(crud.TABLES.jobs, { id: parseInt(jid, 10) })) || null; } catch (_) { jobMap[jid] = null; } return jobMap[jid]; }
+      function custName(j, fallback) { if (!j) return fallback || 'Customer'; const f = j.customer_first || (j.customer && j.customer.first_name) || ''; const l = j.customer_last || (j.customer && j.customer.last_name) || ''; return (f + ' ' + l).trim() || fallback || 'Customer'; }
+      function lastTok(s) { const p = String(s || '').trim().split(/\s+/).filter(Boolean); return p.length ? p[p.length - 1].toLowerCase().replace(/[^a-z]/g, '') : ''; }
+
+      // pull recent invoice logs + payout records once, filter in JS (Xano single-field search)
       let invLogs = [], payoutLogs = [];
       try { invLogs = await crud.searchPage(crud.TABLES.event_log, { action: 'office_invoice_logged' }, { created_at: 'desc' }, 800); } catch (_) {}
       try { payoutLogs = await crud.searchPage(crud.TABLES.event_log, { action: 'tech_payout_recorded' }, { created_at: 'desc' }, 800); } catch (_) {}
-      const invByJob = {}, paidByJob = {};
-      (invLogs || []).forEach((r) => { const m = r.metadata || {}; const jid = String(m.job_id || ''); if (jid && !invByJob[jid]) invByJob[jid] = m; });   // latest wins (desc order)
+      const invByJob = {}, paidByJob = {}, invAll = [];
+      (invLogs || []).forEach((r) => { const m = r.metadata || {}; const jid = String(m.job_id || ''); if (!jid) return; if (!invByJob[jid]) invByJob[jid] = m; invAll.push({ job_id: jid, technician_id: String(m.technician_id || ''), tech_pay: parseFloat(m.tech_pay) || 0, amount: parseFloat(m.amount_invoiced) || 0, at: parseInt(m.logged_at_ms, 10) || 0 }); });
       (payoutLogs || []).forEach((r) => { const m = r.metadata || {}; const jid = String(m.job_id || ''); if (jid) paidByJob[jid] = (paidByJob[jid] || 0) + (parseFloat(m.amount) || 0); });
+
+      // best-guess for a charge with NO job_id: an invoice whose total ≈ what the customer paid,
+      // preferring one whose customer last-name matches the card's billing name. Marked 'guess' so
+      // Danielle verifies before paying — never auto-applied.
+      async function guessJob(gross, billName) {
+        const near = invAll.filter((i) => i.amount > 0 && Math.abs(i.amount - gross) <= 1.0);
+        if (!near.length) return null;
+        near.sort((a, b) => (Math.abs(a.amount - gross) - Math.abs(b.amount - gross)) || (b.at - a.at));
+        const want = lastTok(billName);
+        for (const cand of near.slice(0, 8)) {                 // check the closest few for a name hit
+          const j = await getJob(cand.job_id);
+          const nm = custName(j, '');
+          if (want && lastTok(nm) === want) return { inv: cand, job: j, conf: 'name+amount' };
+        }
+        const top = near[0]; const j = await getJob(top.job_id);   // else the closest amount, low confidence
+        return { inv: top, job: j, conf: 'amount' };
+      }
 
       const matched = [], unmatched = [];
       for (const c of charges) {
-        const j = c.job_id ? jobMap[c.job_id] : null;
-        const inv = c.job_id ? invByJob[c.job_id] : null;
-        if (!j && !inv) { unmatched.push(c); continue; }
-        const custFirst = (j && (j.customer_first || (j.customer && j.customer.first_name))) || '';
-        const custLast = (j && (j.customer_last || (j.customer && j.customer.last_name))) || '';
-        const cust = (custFirst + ' ' + custLast).trim() || c.name || 'Customer';
-        const tId = String((inv && inv.technician_id) || (j && j.technician_id) || '');
-        const techPay = inv ? (parseFloat(inv.tech_pay) || 0) : 0;
-        const alreadyPaid = paidByJob[c.job_id] || 0;
+        let inv = c.job_id ? invByJob[c.job_id] : null;
+        let j = c.job_id ? await getJob(c.job_id) : null;
+        let matchType = (c.job_id && (inv || j)) ? 'exact' : '';
+        let jobId = c.job_id, techPay = inv ? (parseFloat(inv.tech_pay) || 0) : 0, tId = String((inv && inv.technician_id) || (j && j.technician_id) || '');
+        if (!matchType && c.kind !== 'tip') {                  // no metadata job -> try a guess
+          const g2 = await guessJob(c.gross, c.name);
+          if (g2 && g2.inv) { matchType = 'guess'; jobId = g2.inv.job_id; j = g2.job; techPay = g2.inv.tech_pay; tId = String(g2.inv.technician_id || (g2.job && g2.job.technician_id) || ''); c.conf = g2.conf; }
+        }
+        if (!matchType) { unmatched.push(c); continue; }
+        const cust = custName(j, c.name);
+        const alreadyPaid = paidByJob[jobId] || 0;
         matched.push({
-          charge_id: c.charge_id, job_id: c.job_id, kind: c.kind, gross: c.gross, fee: c.fee, net: c.net,
+          charge_id: c.charge_id, job_id: jobId, kind: c.kind, gross: c.gross, fee: c.fee, net: c.net,
+          match: matchType, confidence: c.conf || 'exact',
           customer: cust,
           appliance: (j && (j.appliance_type || (j.appliance && j.appliance.type))) || '',
           tech_id: tId ? parseInt(tId, 10) : null,
@@ -157,7 +177,7 @@ exports.handler = async function (event) {
           tech_pay: techPay,                                  // commission owed for this job (from the invoice)
           already_paid: alreadyPaid,
           owed: Math.max(0, techPay - alreadyPaid),
-          has_invoice: !!inv,
+          has_invoice: matchType === 'exact' ? !!inv : true,
           created: c.created,
         });
       }

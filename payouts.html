@@ -105,7 +105,9 @@
     if((d.charges||[]).length){
       body+='<table><thead><tr><th>Customer / job</th><th class="num">Paid</th><th>Tech</th><th class="num">Commission</th><th></th></tr></thead><tbody>'+
         d.charges.map(function(c){
-          var owed=c.owed||0; var jobsub='job #'+esc(c.job_id)+(c.appliance?' · '+esc(c.appliance):'')+(c.kind&&c.kind!=='invoice'?'<span class="tag">'+esc(c.kind)+'</span>':'');
+          var owed=c.owed||0;
+          var guess = c.match==='guess' ? '<span class="tag" style="background:#fef0dd;color:#b7791f">🔎 likely — verify</span>' : '';
+          var jobsub='job #'+esc(c.job_id)+(c.appliance?' · '+esc(c.appliance):'')+(c.kind&&c.kind!=='invoice'?'<span class="tag">'+esc(c.kind)+'</span>':'')+guess;
           var payCell;
           if(!c.has_invoice){ payCell='<span class="noinv">no invoice logged</span>'; }
           else if(owed<=0 && c.already_paid>0){ payCell='<span class="paid-badge">✓ paid '+money(c.already_paid)+'</span>'; }
