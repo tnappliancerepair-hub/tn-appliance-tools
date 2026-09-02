@@ -186,11 +186,6 @@
   .rmenu button .rp{color:var(--completed);font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
   .rmenu button .rh{color:var(--muted);font-size:12px;font-weight:600}
   .rmenu button:hover{border-color:var(--brand)}
-  /* How to finish this job — the at-a-glance numbered flow (TN's orientation card) */
-  .guide{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:g}
-  .guide li{position:relative;padding:1px 2px 1px 36px;font-size:14px;line-height:1.42;counter-increment:g}
-  .guide li b{font-weight:800}
-  .guide li::before{content:counter(g);position:absolute;left:0;top:-1px;width:25px;height:25px;border-radius:50%;background:var(--brand-grad,var(--brand));color:#fff;font-weight:800;font-size:12.5px;display:grid;place-items:center;box-shadow:var(--glow,0 2px 8px rgba(63,143,36,.32))}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
