@@ -31,6 +31,40 @@ const MIGRATIONS = {
   part_fulfillment: `alter table public.job_part add column if not exists source  text;
                      alter table public.job_part add column if not exists ship_to text;
                      alter table public.job_part add column if not exists eta     date;`,
+
+  // Editable, per-shop TAGS (MeisterTask-style): a `tag` library each shop builds itself, and a
+  // `job_tag` join so a job can carry several. Both RLS-scoped to the shop; any shop member
+  // manages them (operational, like customer/job). Cards show the colorful chips.
+  tags: `create table if not exists public.tag (
+           id uuid primary key default gen_random_uuid(),
+           company_id uuid not null references public.company(id) on delete cascade,
+           label text not null,
+           color text,
+           created_at timestamptz not null default now()
+         );
+         create index if not exists tag_company_idx on public.tag (company_id);
+         alter table public.tag enable row level security;
+         drop policy if exists tag_tenant on public.tag;
+         create policy tag_tenant on public.tag
+           using (company_id = public.current_company_id())
+           with check (company_id = public.current_company_id());
+         grant select, insert, update, delete on public.tag to authenticated;
+         create table if not exists public.job_tag (
+           id uuid primary key default gen_random_uuid(),
+           company_id uuid not null references public.company(id) on delete cascade,
+           job_id uuid not null references public.job(id) on delete cascade,
+           tag_id uuid not null references public.tag(id) on delete cascade,
+           created_at timestamptz not null default now(),
+           unique (job_id, tag_id)
+         );
+         create index if not exists job_tag_job_idx on public.job_tag (job_id);
+         create index if not exists job_tag_company_idx on public.job_tag (company_id);
+         alter table public.job_tag enable row level security;
+         drop policy if exists job_tag_tenant on public.job_tag;
+         create policy job_tag_tenant on public.job_tag
+           using (company_id = public.current_company_id())
+           with check (company_id = public.current_company_id());
+         grant select, insert, update, delete on public.job_tag to authenticated;`,
 };
 
 exports.handler = async (event) => {
