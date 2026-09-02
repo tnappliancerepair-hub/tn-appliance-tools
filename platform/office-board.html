@@ -180,6 +180,18 @@
   .totals .tr.grand{font-size:17px;font-weight:800;border-top:1px solid var(--line);margin-top:5px;padding-top:8px}
   .paidrow{display:flex;align-items:center;gap:9px;margin-top:11px;flex-wrap:wrap}
   .paidrow select{padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+  /* 🔍 big office-wide customer search */
+  #searchwrap{position:relative;margin:0 0 12px}
+  #jobsearch{width:100%;box-sizing:border-box;padding:14px 16px;font-size:17px;border:2px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);font-weight:600}
+  #jobsearch::placeholder{color:var(--muted);font-weight:600}
+  #jobsearch:focus{border-color:var(--brand);outline:none}
+  .searchres{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 44px rgba(0,0,0,.45);max-height:62vh;overflow:auto;padding:6px}
+  .searchres .sr-row{padding:11px 12px;border-radius:9px;cursor:pointer}
+  .searchres .sr-row:hover{background:var(--chip)}
+  .searchres .sr-nm{font-weight:800;font-size:15px}
+  .searchres .sr-ph{font-weight:600;color:var(--muted);font-size:13px;margin-left:6px}
+  .searchres .sr-meta{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .searchres .sr-empty{padding:13px;color:var(--muted);font-size:13.5px}
   .tiprow{display:flex;align-items:center;gap:9px;margin:8px 0 2px;flex-wrap:wrap}
   .tiprow label{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
   .tiprow input{flex:0 0 auto;width:100px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-variant-numeric:tabular-nums}
@@ -462,12 +474,72 @@
           '<a href="/platform/office-overview.html">🗂 Overview</a>' +
         '</nav>' +
       '</header>' +
-      '<div class="wrap"><div class="money" id="money"></div><div class="filters" id="filters"></div><input type="range" class="boardslide" id="boardslide" min="0" max="0" value="0" step="1" aria-label="Slide across the columns"><div class="board" id="board"></div></div>';
+      '<div class="wrap">' +
+        '<div id="searchwrap"><input id="jobsearch" type="search" autocomplete="off" placeholder="🔍 Search a customer — name, phone, or work order / claim #"><div class="searchres" id="searchres" hidden></div></div>' +
+        '<div class="money" id="money"></div><div class="filters" id="filters"></div><input type="range" class="boardslide" id="boardslide" min="0" max="0" value="0" step="1" aria-label="Slide across the columns"><div class="board" id="board"></div></div>';
     document.getElementById('out').onclick = function () { if (rt) { try { sb.removeChannel(rt); } catch (e) {} } sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick = loadBoard;
     document.getElementById('settings').onclick = openSettings;
     var rm = document.getElementById('remit'); if (rm) rm.onclick = openRemittance;
     renderRegionToggle();
+    wireSearch();
+  }
+
+  // ── 🔍 CUSTOMER SEARCH — reliable lookup by name / phone / work-order (claim/dispatch) #.
+  // Instant client scan of loaded jobs (normalized phone match) + a live RLS-scoped DB query so
+  // even old jobs surface. A result opens the full job tile. ──
+  var searchResults={}, searchSeq=0, searchTimer=null;
+  var SR_SEL='id,status,problem,scheduled_day,claim_number,dispatch_id,warranty_company,office_notes,customer_id,technician_id,customer_cutoff,needs_two_techs,long_job,created_at,customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
+  function srSanitize(t){ return String(t||'').replace(/[%,()*]/g,' ').replace(/\s+/g,' ').trim(); }
+  function hideSearch(){ var r=document.getElementById('searchres'); if(r){ r.hidden=true; r.innerHTML=''; } }
+  function wireSearch(){
+    var inp=document.getElementById('jobsearch'); if(!inp) return;
+    inp.oninput=function(){ clearTimeout(searchTimer); var t=inp.value.trim(); if(t.length<2){ hideSearch(); return; } searchTimer=setTimeout(function(){ runSearch(t); },200); };
+    inp.onkeydown=function(e){ if(e.key==='Escape'){ hideSearch(); inp.blur(); } };
+    document.addEventListener('click', function(e){ var w=document.getElementById('searchwrap'); if(w && !w.contains(e.target)) hideSearch(); }, true);
+  }
+  function clientMatches(t){
+    var q=t.toLowerCase(); var d10=t.replace(/\D/g,'').slice(-10);
+    return jobsCache.filter(function(j){
+      var c=j.customer||{};
+      var hay=((c.first_name||'')+' '+(c.last_name||'')+' '+(c.phone||'')+' '+(j.claim_number||'')+' '+(j.dispatch_id||'')+' '+((j.unit&&j.unit.label)||'')).toLowerCase();
+      if(hay.indexOf(q)>=0) return true;
+      if(d10.length>=7){ var pn=String(c.phone||'').replace(/\D/g,'').slice(-10); if(pn && pn.indexOf(d10)>=0) return true; }
+      return false;
+    });
+  }
+  function runSearch(term){
+    var seq=++searchSeq; var t=srSanitize(term); if(!t){ hideSearch(); return; }
+    var cm=clientMatches(t); renderSearch(cm, term);          // instant from the loaded set
+    var like='%'+t+'%', digits=t.replace(/\D/g,'');
+    var orJobs='claim_number.ilike.'+like+',dispatch_id.ilike.'+like;
+    var orCust='first_name.ilike.'+like+',last_name.ilike.'+like+(digits.length>=3?',phone.ilike.%'+digits+'%':'');
+    Promise.all([ sb.from('job').select(SR_SEL).or(orJobs).limit(20), sb.from('customer').select('id').or(orCust).limit(30) ]).then(function(res){
+      if(seq!==searchSeq) return;
+      var jobs=(res[0]&&res[0].data)||[]; var ids=((res[1]&&res[1].data)||[]).map(function(c){return c.id;});
+      var finish=function(custJobs){ if(seq!==searchSeq) return;
+        var all=cm.concat(jobs, custJobs||[]); var seen={}, uniq=[];
+        all.forEach(function(j){ if(j&&j.id&&!seen[j.id]){ seen[j.id]=1; uniq.push(j); } });
+        uniq.sort(function(a,b){ return new Date(b.created_at||0)-new Date(a.created_at||0); });
+        renderSearch(uniq.slice(0,18), term);
+      };
+      if(ids.length) sb.from('job').select(SR_SEL).in('customer_id', ids).order('created_at',{ascending:false}).limit(30).then(function(r2){ finish((r2&&r2.data)||[]); });
+      else finish([]);
+    }).catch(function(){});
+  }
+  function renderSearch(list, term){
+    var r=document.getElementById('searchres'); if(!r) return;
+    if(!list.length){ r.innerHTML='<div class="sr-empty">No matches for “'+esc(term)+'” — try a last name, phone, or work-order #.</div>'; r.hidden=false; return; }
+    searchResults={}; list.forEach(function(j){ searchResults[j.id]=j; });
+    r.innerHTML=list.map(function(j){
+      var nm=fullName(j.customer)||'Customer'; var ph=(j.customer&&j.customer.phone)||''; var appl=(j.unit&&j.unit.label)||'';
+      var ref=j.claim_number?('Claim '+j.claim_number):(j.dispatch_id?('Disp '+j.dispatch_id):'');
+      var day=j.scheduled_day?('📅 '+schDay(j.scheduled_day)):'';
+      var meta=[appl, ref, day, statusMeta(j.status).label].filter(Boolean).join(' · ');
+      return '<div class="sr-row" data-job="'+esc(j.id)+'"><div class="sr-nm">'+esc(nm)+(ph?'<span class="sr-ph">'+esc(ph)+'</span>':'')+'</div><div class="sr-meta">'+esc(meta)+'</div></div>';
+    }).join('');
+    r.hidden=false;
+    r.querySelectorAll('.sr-row[data-job]').forEach(function(el){ el.onclick=function(){ var j=searchResults[el.getAttribute('data-job')]; hideSearch(); var inp=document.getElementById('jobsearch'); if(inp) inp.value=''; if(j) openJob(j); }; });
   }
 
   // The TN / NOLA region toggle — lives in .tb-row (as the .seg element ant-magic
