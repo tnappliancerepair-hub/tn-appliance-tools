@@ -169,7 +169,25 @@
   .wblk .r1 .pos{color:var(--muted);font-weight:700;flex:none} .wblk .r1 .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
   .wblk .r2{margin-top:2px;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .wk-empty{color:var(--muted);opacity:.5;font-size:12px;padding:2px 0}
+  /* a HELD slot — office offered it, customer hasn't accepted yet. Distinct amber + dashed. */
+  .wblk.hold{background:repeating-linear-gradient(45deg,color-mix(in srgb,#e0a63e 16%,var(--bg)),color-mix(in srgb,#e0a63e 16%,var(--bg)) 6px,color-mix(in srgb,#e0a63e 6%,var(--bg)) 6px,color-mix(in srgb,#e0a63e 6%,var(--bg)) 12px);border:1px dashed #c79a17;border-left:3px dashed #c79a17}
+  .wblk.hold:hover{background:color-mix(in srgb,#e0a63e 22%,var(--bg))} .wblk.hold .r1 .pos{color:#a67c10}
   @media(max-width:640px){ .wk-th .wk-num{display:none} .wblk .r2{display:none} }
+  /* customer scheduling-REQUEST inbox — needs the dispatcher's approve/counter/deny */
+  .reqwrap{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+  .reqcard{background:var(--panel);border:1px solid var(--scheduled);border-left:4px solid var(--scheduled);border-radius:11px;padding:10px 12px;box-shadow:var(--shadow)}
+  .reqcard .rq-top{font-weight:800;font-size:14px}
+  .reqcard .rq-want{margin:3px 0 2px;font-size:13px;font-weight:800;color:#1d6fd6}
+  @media(prefers-color-scheme:dark){ :root:not([data-theme="light"]) .reqcard .rq-want{color:#7db4f0} }
+  .reqcard .rq-sub{font-size:12px;color:var(--muted)}
+  .reqcard .rq-note{font-size:12px;margin-top:3px;font-style:italic;color:var(--ink)}
+  .reqcard .rq-acts{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+  .reqcard .rq-acts button{flex:1;min-width:84px;border-radius:9px;padding:9px;font-weight:800;font-size:13px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+  .reqcard .rq-acts .ok{background:var(--brand);color:#fff;border-color:transparent} .reqcard .rq-acts .no{color:var(--bad)}
+  /* held-job banner in the assign panel + tray */
+  .holdbanner{font-size:12.5px;font-weight:800;color:#a67c10;background:color-mix(in srgb,#e0a63e 15%,transparent);border:1px solid color-mix(in srgb,#e0a63e 45%,transparent);border-radius:9px;padding:8px 10px;margin:2px 0 6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .holdbanner button{margin-left:auto;border:1px solid #c79a17;background:transparent;color:#a67c10;font-weight:800;font-size:11.5px;border-radius:7px;padding:4px 9px;cursor:pointer}
+  .ujob .uheld{font-size:11.5px;font-weight:800;color:#a67c10;background:color-mix(in srgb,#e0a63e 15%,transparent);border:1px solid color-mix(in srgb,#e0a63e 40%,transparent);border-radius:7px;padding:3px 8px;margin-top:5px;white-space:normal}
 </style></head>
 <body>
 <div id="app"></div>
@@ -184,7 +202,20 @@
   var app=document.getElementById('app');
   var cfg=window.ANT_SUPABASE||{}; var sb=null, company=null, techs=[], jobs=[], timeOff=[];
   var offSet={};                                   // "techId|YYYY-MM-DD" -> true (day-off / PTO)
+  var offers=[];                                   // pending schedule_offer rows (holds + customer requests)
   function offOn(techId,d){ return !!offSet[techId+'|'+d]; }
+  function jobById(id){ return jobs.filter(function(x){ return String(x.id)===String(id); })[0]||null; }
+  function jobOffers(jobId){ return offers.filter(function(o){ return String(o.job_id)===String(jobId); }); }
+  function shopHold(jobId){ return jobOffers(jobId).filter(function(o){ return o.direction==='shop'; })[0]||null; }   // office's pending hold
+  function custReqs(){ return offers.filter(function(o){ return o.direction==='customer'; }).sort(function(a,b){ return String(a.proposed_day).localeCompare(String(b.proposed_day)); }); }
+  function holdsOn(techId,d){ var n=0; offers.forEach(function(o){ if(o.direction==='shop'&&String(o.technician_id)===String(techId)&&o.proposed_day===d) n++; }); return n; }
+  function winLbl(w){ return w==='am'?'mornings':w==='pm'?'afternoons':'anytime'; }
+  // Best tech for a REQUESTED day: a covering tech with the most open room (real stops + holds), not off.
+  function bestTechForDay(job,d){ var zip=jobZip(job); var cands=techs.filter(function(t){ return coversZip(t,zip); }); if(!cands.length) cands=techs;
+    var best=null; cands.forEach(function(t){ if(offOn(t.id,d)) return; var used=bookedOn(t.id,d)+holdsOn(t.id,d); if(used>=capOf(t)) return; var s=(coversZip(t,zip)?1000:0)+(capOf(t)-used); if(!best||s>best.s) best={t:t,s:s}; }); return best?best.t:null; }
+  function nowIso(){ return new Date().toISOString(); }
+  // Withdraw every OTHER pending offer on a job (one live proposal at a time), then run cb.
+  function withdrawOtherOffers(jobId,keepId,cb){ sb.from('schedule_offer').update({status:'withdrawn',decided_at:nowIso()}).eq('job_id',jobId).eq('status','pending').neq('id',keepId||'00000000-0000-0000-0000-000000000000').then(function(){ if(cb)cb(); }); }
   // Service zones — a tech's service_area is a comma list of ZIPs / 3-digit prefixes. A tech with
   // no area covers everywhere. A job's ZIP matches when it equals, or starts with, a listed entry.
   function areaList(t){ return String((t&&t.service_area)||'').split(',').map(function(s){return s.trim();}).filter(Boolean); }
@@ -407,13 +438,17 @@
             var offBtn='<button class="wk-off'+(isOff?' on':'')+'" data-off="'+t.id+'" data-offday="'+d+'" title="'+(isOff?'Mark working':'Mark day off')+'">'+(isOff?'✓ off':'🌴 off')+'</button>';
             if(isOff){ return '<div class="wk-cell off">'+offBtn+'<div class="wk-cap"><span class="wk-n">⛔</span><span class="wk-lbl">off</span></div></div>'; }
             var mine=jobs.filter(function(j){ return j.technician_id===t.id && j.scheduled_day===d && j.status!=='completed' && j.status!=='canceled'; });
-            var cap=capOf(t); var cnt=mine.length; var rem=Math.max(0,cap-cnt);
+            var cellHolds=offers.filter(function(o){ return o.direction==='shop' && String(o.technician_id)===String(t.id) && o.proposed_day===d; });
+            var cap=capOf(t); var cnt=mine.length+cellHolds.length; var rem=Math.max(0,cap-cnt);
             var tier=cnt>=5?'red':(cnt>=3?'yellow':'green');
             var route=routeOrder(mine);
-            var blocks=route.length ? route.map(function(j,idx){ var city=(j.customer&&j.customer.city)||'';
+            var blocks=route.map(function(j,idx){ var city=(j.customer&&j.customer.city)||'';
                 var bk=String(j.warranty_company||'').trim()?'warranty':'self'; if(j.status==='awaiting_parts') bk='parts';
-                return '<div class="wblk bk-'+bk+'" data-job="'+j.id+'"><div class="r1"><span class="pos">'+ordinal(idx+1)+' stop</span><span class="nm">'+esc(fullName(j.customer)||'Customer')+'</span></div><div class="r2">'+esc((j.unit&&j.unit.label)||j.problem||'')+(city?' · '+esc(city):'')+'</div></div>'; }).join('')
-              : '<div class="wk-empty">—</div>';
+                return '<div class="wblk bk-'+bk+'" data-job="'+j.id+'"><div class="r1"><span class="pos">'+ordinal(idx+1)+' stop</span><span class="nm">'+esc(fullName(j.customer)||'Customer')+'</span></div><div class="r2">'+esc((j.unit&&j.unit.label)||j.problem||'')+(city?' · '+esc(city):'')+'</div></div>'; }).join('');
+            // held (tentative) slots — office offered, waiting on the customer. Ghosted amber; tap to confirm/release.
+            blocks += cellHolds.map(function(o){ var j=jobById(o.job_id); var nm=j?(fullName(j.customer)||'Customer'):'Customer';
+                return '<div class="wblk hold" data-job="'+o.job_id+'"><div class="r1"><span class="pos">⏳ held</span><span class="nm">'+esc(nm)+'</span></div><div class="r2">offered · '+esc(winLbl(o.win))+' · awaiting reply</div></div>'; }).join('');
+            if(!blocks) blocks='<div class="wk-empty">—</div>';
             return '<div class="wk-cell '+tier+(d===selDay?' selday':'')+'">'+offBtn+'<div class="wk-cap"><span class="wk-n">'+rem+'</span><span class="wk-den">/'+cap+'</span><span class="wk-lbl">'+(rem===1?'slot':'slots')+'</span></div><div class="wblocks">'+blocks+'</div></div>'; }).join('');
           return dl+cells; }).join('');
         calBlock='<div class="wkgrid" style="grid-template-columns:56px repeat('+techs.length+',minmax(150px,1fr))"><div class="wk-corner"></div>'+headCells+rowsH+'</div>';
@@ -446,6 +481,8 @@
         : (zip?'<div class="ucov none">📍 '+esc(zip)+' — no one available</div>':'');
       var av=availText(j);
       var avHtml = av ? '<div class="uavail">🗓 '+esc(av)+'</div>' : '<div class="uavail none">🗓 availability not given</div>';
+      var hold=shopHold(j.id);
+      if(hold){ var ht=hold.technician_id?techById(hold.technician_id):null; sugHtml='<div class="uheld">⏳ Held · offered '+esc(fmtDayShort(hold.proposed_day))+' ('+esc(winLbl(hold.win))+')'+(ht?' · '+esc((ht.name||'').split(' ')[0]):'')+' — awaiting reply</div>'; }
       return '<div class="ujob" data-job="'+j.id+'">'+avHtml+'<div class="u1"><span class="unum">'+(idx+1)+'</span>'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+sugHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting in '+(region==='LA'?'Louisiana':'Middle TN')+'. ✅</div>';
     // Scheduled stops for the day the office is looking at (region-scoped) — the "who's where today" view.
     var schedDay=jobs.filter(function(j){ return j.scheduled_day===selDay && j.technician_id && j.status!=='completed' && j.status!=='canceled' && jobRegion(j)===region; });
@@ -468,9 +505,24 @@
     var mapSection='<div class="uns-h"><div class="sec-h" style="margin:0">🗺 Area map</div>'+mapToggle+regBar+'</div>'+mapBlock;
     var traySection='<div class="sec-h">🚨 Unscheduled — tap to assign</div><div class="tray">'+unsHtml+'</div>';
 
+    // 📥 Customer scheduling REQUESTS — a customer asked for a specific day; the office approves,
+    // counters (offer another day), or denies. Sits at the very top so it "pops up" for the dispatcher.
+    var reqs=custReqs();
+    var reqSection = reqs.length ? '<div class="sec-h" style="margin-top:0">📥 Customer requests ('+reqs.length+')</div><div class="reqwrap">'+reqs.map(function(o){
+      var j=jobById(o.job_id); var nm=j?(fullName(j.customer)||'Customer'):'Customer'; var appl=j?((j.unit&&j.unit.label)||j.problem||''):'';
+      var lbl=fmtDayShort(o.proposed_day)+' · '+winLbl(o.win);
+      var t=j?bestTechForDay(j,o.proposed_day):null;
+      var fit=t?('✓ '+esc((t.name||'Tech').split(' ')[0])+' is open that day'):'⚠ no tech open that day — counter with another';
+      return '<div class="reqcard"><div class="rq-top">'+esc(nm)+(appl?' · <span style="font-weight:600;color:var(--muted)">'+esc(appl)+'</span>':'')+'</div>'+
+        '<div class="rq-want">🗓 Wants '+esc(lbl)+'</div>'+
+        '<div class="rq-sub">'+fit+'</div>'+
+        (o.note?'<div class="rq-note">“'+esc(o.note)+'”</div>':'')+
+        '<div class="rq-acts"><button class="ok" data-approve="'+o.id+'">✓ Approve</button><button data-counter="'+o.id+'">Counter</button><button class="no" data-deny="'+o.id+'">Deny</button></div></div>'; }).join('')+'</div>' : '';
+
     app.innerHTML=
       '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a><a href="/platform/office-board.html">Board</a><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
+        reqSection+
         '<div class="weeknav">'+navHtml+'</div>'+
         (view==='week'?'<div class="sec-h" style="margin-top:0">📋 Schedule — tap a job to reschedule/reassign, or a day to focus the map</div>':'')+
         calBlock+
@@ -496,7 +548,24 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-off]'),function(el){ el.onclick=function(e){ e.stopPropagation(); toggleOff(el.getAttribute('data-off'), el.getAttribute('data-offday')||selDay); }; });
     Array.prototype.forEach.call(document.querySelectorAll('.regtog button[data-reg]'),function(el){ el.onclick=function(){ region=el.getAttribute('data-reg'); render(); }; });
     Array.prototype.forEach.call(document.querySelectorAll('.maptog button[data-map]'),function(el){ el.onclick=function(){ mapMode=el.getAttribute('data-map'); render(); }; });
+    // Customer-request actions: ✓ Approve (book the requested day), Counter (offer another), Deny.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-approve]'),function(el){ el.onclick=function(){ var o=offerById(el.getAttribute('data-approve')); if(o) approveRequest(o,el); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-counter]'),function(el){ el.onclick=function(){ var o=offerById(el.getAttribute('data-counter')); var j=o&&jobById(o.job_id); if(j) openAssign(j); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-deny]'),function(el){ el.onclick=function(){ var o=offerById(el.getAttribute('data-deny')); if(!o) return; if(!window.confirm('Deny this request? (You can Counter instead to offer another day.)')) return; el.disabled=true; sb.from('schedule_offer').update({status:'declined',decided_at:nowIso()}).eq('id',o.id).then(function(){ load(); }); }; });
     if(mapList.length){ mountSchedMap(mapList, {mode:mapMode}); } else { _schedGen++; if(_schedMap){ try{ _schedMap.remove(); }catch(e){} _schedMap=null; } }
+  }
+  function offerById(id){ return offers.filter(function(o){ return String(o.id)===String(id); })[0]||null; }
+  // ✓ Approve a customer request: book the requested day with the best open covering tech, accept the
+  // offer, and clear any other pending offers on the job. No covering tech open → nudge to Counter.
+  function approveRequest(o,btn){
+    var j=jobById(o.job_id); if(!j) return;
+    var t=bestTechForDay(j,o.proposed_day);
+    if(!t){ alert('No tech is open on '+fmtDayShort(o.proposed_day)+'. Use Counter to offer another day.'); return; }
+    if(btn){ btn.disabled=true; btn.textContent='…'; }
+    var patch={ technician_id:t.id, scheduled_day:o.proposed_day, status:(j.status==='new'||!j.status)?'scheduled':j.status };
+    sb.from('job').update(patch).eq('id',j.id).then(function(r){ if(r.error){ alert(r.error.message); if(btn){btn.disabled=false;btn.textContent='✓ Approve';} return; }
+      sb.from('schedule_offer').update({status:'accepted',decided_at:nowIso()}).eq('id',o.id).then(function(){
+        withdrawOtherOffers(j.id,o.id,function(){ notifyAssigned(j.id); load(); }); }); });
   }
 
   function openAssign(job){
@@ -512,17 +581,25 @@
     var avRow = av ? '<div class="availrow">🗓 Customer’s availability: '+esc(av)+'</div>' : '';
     var sug = suggestSlot(job);
     var sugHtml = sug ? '<div class="suggest"><div class="sg-l"><div class="sg-t">🐜 Ant suggests</div><div class="sg-b">'+esc(sug.tech.name||'Tech')+' · '+esc(fmtDayLong(sug.day))+'</div><div class="sg-w">'+esc(suggestReason(sug, zip))+'</div></div><button class="sg-use" id="a-suggest">Use this</button></div>' : '';
-    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+avRow+sugHtml+
+    // If this job is currently HELD (office offered, awaiting the customer), show it + a Release option.
+    var hold=shopHold(job.id);
+    var ht=hold&&hold.technician_id?techById(hold.technician_id):null;
+    var holdHtml = hold ? '<div class="holdbanner">⏳ Held — offered '+esc(fmtDayLong(hold.proposed_day))+' ('+esc(winLbl(hold.win))+')'+(ht?' · '+esc((ht.name||'').split(' ')[0]):'')+', waiting on the customer.<button id="a-release">Release hold</button></div>' : '';
+    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+avRow+holdHtml+sugHtml+
       '<label>Tech</label><select id="a-tech">'+techOpts+'</select>'+
-      '<label>Day</label><input id="a-day" type="date" value="'+esc(job.scheduled_day||selDay)+'">'+
-      '<div class="srow"><button id="a-cancel">Cancel</button><button class="primary" id="a-save">Save</button></div>'+
+      '<label>Day</label><input id="a-day" type="date" value="'+esc((hold&&hold.proposed_day)||job.scheduled_day||selDay)+'">'+
+      '<label>Window (for an offer)</label><select id="a-win"><option value="any"'+(hold&&hold.win==='any'?' selected':'')+'>Anytime</option><option value="am"'+(hold&&hold.win==='am'?' selected':'')+'>Morning (8–12)</option><option value="pm"'+(hold&&hold.win==='pm'?' selected':'')+'>Afternoon (12–5)</option></select>'+
+      '<div class="srow"><button id="a-cancel">Cancel</button><button class="primary" id="a-save">Book now</button></div>'+
+      '<div class="srow" style="margin-top:8px"><button id="a-offer" style="flex:1;background:linear-gradient(135deg,#e0a63e,#c79a17);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;cursor:pointer">📤 Offer a hold (text customer)</button></div>'+
       '<div class="linkrow"><button class="link" id="a-unsched">Unschedule</button><a href="/platform/office-board.html?job='+encodeURIComponent(job.id)+'">Open full job →</a></div>'+
       '<div class="err" id="a-err"></div></div>';
     document.body.appendChild(ov);
     var close=function(){ try{document.body.removeChild(ov);}catch(e){} }; ov.onclick=function(e){ if(e.target===ov) close(); };
     document.getElementById('a-cancel').onclick=close;
+    var errEl=document.getElementById('a-err');
     var sgBtn=document.getElementById('a-suggest');
     if(sgBtn) sgBtn.onclick=function(){ document.getElementById('a-tech').value=sug.tech.id; document.getElementById('a-day').value=sug.day; sgBtn.textContent='✓ Filled'; };
+    // Book NOW — firm booking (no waiting on the customer). Accepts any pending offer on the job.
     document.getElementById('a-save').onclick=function(){
       var tech=document.getElementById('a-tech').value||null; var day=document.getElementById('a-day').value||null;
       if(tech && day && offOn(tech,day) && !window.confirm('That tech is marked OFF on '+day+'. Book them anyway?')) return;
@@ -530,8 +607,23 @@
       var btn=this; btn.disabled=true; btn.textContent='Saving…';
       var patch={ technician_id:tech, scheduled_day:day };
       if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
-      sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(r.error){ btn.disabled=false; btn.textContent='Save'; document.getElementById('a-err').textContent=r.error.message; return; } if(day) selDay=day; if(tech) notifyAssigned(job.id); close(); load(); });
+      sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(r.error){ btn.disabled=false; btn.textContent='Book now'; errEl.textContent=r.error.message; return; }
+        withdrawOtherOffers(job.id,null,function(){ if(day) selDay=day; if(tech) notifyAssigned(job.id); close(); load(); }); });
     };
+    // Offer a HOLD — records a shop offer + texts the customer their portal link to accept/counter.
+    document.getElementById('a-offer').onclick=function(){
+      var tech=document.getElementById('a-tech').value||null; var day=document.getElementById('a-day').value||null; var win=document.getElementById('a-win').value||'any';
+      if(!tech){ errEl.textContent='Pick which tech to hold the slot for.'; return; }
+      if(!day){ errEl.textContent='Pick a day to offer.'; return; }
+      var btn=this; btn.disabled=true; btn.textContent='Sending offer…';
+      sessTok().then(function(tok){
+        fetch('/.netlify/functions/platform-tech-notify?do=schedule_offer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:job.id,tech:tech,day:day,win:win,access_token:tok})})
+          .then(function(r){return r.json();}).then(function(res){ if(res&&res.ok){ close(); load(); } else { btn.disabled=false; btn.textContent='📤 Offer a hold (text customer)'; errEl.textContent=(res&&res.error)||'could not send offer'; } })
+          .catch(function(){ btn.disabled=false; btn.textContent='📤 Offer a hold (text customer)'; errEl.textContent='network error'; });
+      });
+    };
+    var relBtn=document.getElementById('a-release');
+    if(relBtn) relBtn.onclick=function(){ relBtn.disabled=true; relBtn.textContent='…'; sb.from('schedule_offer').update({status:'withdrawn',decided_at:nowIso()}).eq('id',hold.id).then(function(){ close(); load(); }); };
     document.getElementById('a-unsched').onclick=function(){ var patch={scheduled_day:null}; if(job.status==='scheduled') patch.status='new'; sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(!r.error){ close(); load(); } }); };
   }
   // Fire-and-forget: text the newly-assigned tech that a job is on their plate.
@@ -548,9 +640,11 @@
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
       var jP=sb.from('job').select('id,status,problem,availability,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
       var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
-      Promise.all([jP,oP]).then(function(res){
+      var offerP=sb.from('schedule_offer').select('id,job_id,customer_id,direction,proposed_day,win,note,technician_id,status,created_at').eq('status','pending').gte('proposed_day',todayIso).limit(1000);
+      Promise.all([jP,oP,offerP]).then(function(res){
         jobs=(res[0].data)||[];
         timeOff=(res[1]&&res[1].data)||[]; offSet={}; timeOff.forEach(function(o){ offSet[o.technician_id+'|'+o.day]=true; });
+        offers=(res[2]&&res[2].data)||[];
         render();
       });
     });

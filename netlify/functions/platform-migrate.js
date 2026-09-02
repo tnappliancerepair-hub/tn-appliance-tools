@@ -140,6 +140,52 @@ const MIGRATIONS = {
       insert into job(company_id,customer_id,unit_id,status,problem,source) values(v_co,v_c,v_u,'new','Dishwasher not cleaning dishes','dispatch_seed');
     end $seed$;`,
 
+  // A shop-offered HOLD is for a specific TECH + day (so it shows in that tech's column, ghosted).
+  // Add technician_id to schedule_offer + book the held tech when the customer accepts the offer.
+  schedule_offer_tech: `alter table public.schedule_offer add column if not exists technician_id uuid references public.technician(id) on delete set null;
+create or replace function public.portal_respond_offer(p_token uuid, p_offer_id uuid, p_accept boolean)
+returns jsonb language plpgsql security definer set search_path = public as $fn$
+declare g record; o record; lbl text;
+begin
+  select * into g from public.portal_grant where token=p_token and not revoked and (expires_at is null or expires_at>now());
+  if not found then return jsonb_build_object('ok',false,'error','link expired'); end if;
+  select * into o from public.schedule_offer where id=p_offer_id and company_id=g.company_id and customer_id=g.customer_id and direction='shop' and status='pending';
+  if not found then return jsonb_build_object('ok',false,'error','offer not found'); end if;
+  lbl := to_char(o.proposed_day,'Dy, Mon DD') || ' · ' || (case coalesce(o.win,'any') when 'am' then 'mornings' when 'pm' then 'afternoons' else 'anytime' end);
+  if p_accept then
+    update public.schedule_offer set status='accepted', decided_at=now() where id=o.id;
+    update public.job set scheduled_day=o.proposed_day, technician_id=coalesce(o.technician_id, technician_id), status = case when status in ('new','') then 'scheduled' else status end where id=o.job_id;
+    update public.schedule_offer set status='withdrawn', decided_at=now() where job_id=o.job_id and status='pending' and id<>o.id;
+    insert into public.thread_message (company_id, customer_id, job_id, direction, channel, sender, body) values (g.company_id, g.customer_id, o.job_id, 'in', 'portal', 'customer', '✅ Accepted ' || lbl);
+  else
+    update public.schedule_offer set status='declined', decided_at=now() where id=o.id;
+    insert into public.thread_message (company_id, customer_id, job_id, direction, channel, sender, body) values (g.company_id, g.customer_id, o.job_id, 'in', 'portal', 'customer', '🙅 Passed on ' || lbl);
+  end if;
+  return jsonb_build_object('ok',true);
+end $fn$;
+grant execute on function public.portal_respond_offer(uuid, uuid, boolean) to anon, authenticated;`,
+
+  // Demo the scheduling handshake: one CUSTOMER request (shows in the dispatch inbox) + one shop HOLD
+  // (ghosted in a tech's column). Idempotent — clears prior demo offers first. Re-run to reset.
+  demo_handshake_seed: `do $h$
+    declare v_co uuid; v_joey uuid; v_latoya_job uuid; v_latoya_c uuid; v_derek_job uuid; v_derek_c uuid;
+    begin
+      select id into v_co from company where slug='demo' limit 1;
+      if v_co is null then return; end if;
+      delete from schedule_offer where company_id=v_co and created_by like 'demo\\_%';
+      select id into v_joey from technician where company_id=v_co and lower(name) like 'joey%' order by created_at limit 1;
+      select j.id, j.customer_id into v_latoya_job, v_latoya_c from job j join customer c on c.id=j.customer_id where j.company_id=v_co and c.phone='6150005507' and j.status not in ('completed','canceled') order by j.created_at desc limit 1;
+      select j.id, j.customer_id into v_derek_job, v_derek_c from job j join customer c on c.id=j.customer_id where j.company_id=v_co and c.phone='6150005508' and j.status not in ('completed','canceled') order by j.created_at desc limit 1;
+      if v_latoya_job is not null then
+        insert into schedule_offer(company_id,job_id,customer_id,direction,proposed_day,win,note,status,created_by)
+          values(v_co,v_latoya_job,v_latoya_c,'customer',current_date+2,'am','Kids at school after 9 — mornings best','pending','demo_customer');
+      end if;
+      if v_derek_job is not null then
+        insert into schedule_offer(company_id,job_id,customer_id,direction,proposed_day,win,technician_id,status,created_by)
+          values(v_co,v_derek_job,v_derek_c,'shop',current_date+3,'pm',v_joey,'pending','demo_shop');
+      end if;
+    end $h$;`,
+
   // Teach the call resolver to surface the best PART's source + route + ETA (from job_part), so
   // Ann can answer "when are my parts coming?" with "shipping from American Home Shield, ETA …".
   // CREATE OR REPLACE the same SECURITY DEFINER resolver, adding part_source/part_ship_to/part_eta.

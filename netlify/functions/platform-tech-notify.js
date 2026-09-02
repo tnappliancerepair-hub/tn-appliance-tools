@@ -29,6 +29,7 @@ function rest(base, key) {
     async get(path) { const r = await fetch(`${base}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(8000) }); return r.ok ? r.json() : []; },
     async insert(table, row) { try { await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) }); } catch (_) {} },
     async insertRet(table, row) { const r = await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) }); const d = await r.json().catch(() => null); return Array.isArray(d) ? d[0] : d; },
+    async patch(path, row) { try { await fetch(`${base}/rest/v1/${path}`, { method: 'PATCH', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) }); } catch (_) {} },
   };
 }
 async function authUser(base, key, accessToken) {
@@ -109,7 +110,11 @@ exports.handler = async function (event) {
       const win = ['am', 'pm', 'any'].includes(String(p.win || '')) ? String(p.win) : 'any';
       const note = String(p.note || '').trim().slice(0, 200);
       if (!day) return json(200, { ok: false, error: 'need day' });
-      await db.insert('schedule_offer', { company_id: companyId, job_id: job.id, customer_id: job.customer_id, direction: 'shop', proposed_day: day, win, note: note || null, status: 'pending', created_by: techName ? ('office:' + techName) : 'office' });
+      // A shop offer is a HOLD for a specific tech + day (renders ghosted in that tech's column).
+      const holdTech = /^[0-9a-f-]{36}$/i.test(String(p.tech || '')) ? String(p.tech) : null;
+      // Supersede any prior pending offers on this job — one live proposal at a time.
+      try { await db.patch(`schedule_offer?job_id=eq.${job.id}&company_id=eq.${companyId}&status=eq.pending`, { status: 'withdrawn', decided_at: new Date().toISOString() }); } catch (_) {}
+      await db.insert('schedule_offer', { company_id: companyId, job_id: job.id, customer_id: job.customer_id, direction: 'shop', proposed_day: day, win, note: note || null, technician_id: holdTech, status: 'pending', created_by: techName ? ('office:' + techName) : 'office' });
       let grant = (await db.get(`portal_grant?company_id=eq.${companyId}&customer_id=eq.${job.customer_id}&job_id=eq.${job.id}&revoked=eq.false&select=token&limit=1`))[0];
       if (!grant) grant = await db.insertRet('portal_grant', { company_id: companyId, customer_id: job.customer_id, job_id: job.id });
       const tk = grant && grant.token;
