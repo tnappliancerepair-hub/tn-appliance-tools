@@ -176,6 +176,14 @@
   .totals .tr.grand{font-size:17px;font-weight:800;border-top:1px solid var(--line);margin-top:5px;padding-top:8px}
   .paidrow{display:flex;align-items:center;gap:9px;margin-top:11px;flex-wrap:wrap}
   .paidrow select{padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+  .tiprow{display:flex;align-items:center;gap:9px;margin:8px 0 2px;flex-wrap:wrap}
+  .tiprow label{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+  .tiprow input{flex:0 0 auto;width:100px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-variant-numeric:tabular-nums}
+  .econ{background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-top:11px;font-variant-numeric:tabular-nums}
+  .econ .er{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px}
+  .econ .er .k{color:var(--muted)}
+  .econ .er.hd{font-weight:800;text-transform:uppercase;letter-spacing:.05em;font-size:11px;color:var(--muted);margin-bottom:2px;padding-bottom:2px}
+  .econ input{width:88px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;text-align:right;font-variant-numeric:tabular-nums}
   /* schedule handshake (office) */
   #jsched .offrow{display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--chip);border:1px solid var(--line);border-radius:11px;padding:9px 12px;margin-bottom:8px}
   #jsched .offrow.pend{opacity:.85}
@@ -1501,10 +1509,14 @@
       '<div class="sec" id="jpaysec">Pay / invoice</div>' +
       '<div id="jparts"></div>' +
       '<div class="pay">' +
-        fld('labor','Labor $') + fld('parts','Parts $') + fld('fee','Trip / fee $') + fld('tax','Tax %') +
+        fld('labor','Labor $') + fld('parts','Parts $') + fld('fee','Trip / fee $') + fld('ship','Shipping & handling $') + fld('tax','Tax %') +
       '</div>' +
       '<label class="triprow" style="display:block;font-size:13px;color:var(--muted);margin:6px 0 8px;cursor:pointer;line-height:1.4;overflow-wrap:break-word"><input type="checkbox" id="jtripapply" checked style="vertical-align:middle;margin-right:7px"> Apply the trip charge toward the repair (credit it — they don\'t pay it twice)</label>' +
+      '<div class="tiprow"><label>💚 Tip for the tech $</label><input id="tip" inputmode="decimal" placeholder="0"><span class="hint" style="font-size:11.5px">100% to the tech · not taxed</span></div>' +
       '<div class="totals" id="jtotals"></div>' +
+      // ── 💵 SHOP ECONOMICS — part cost, the auto margin, and the tech\'s pay (auto from
+      // commission + tips), all editable so the office can adjust the math on the spot. ──
+      '<div class="econ" id="jecon"></div>' +
       '<div class="paidrow"><label style="display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px"><input type="checkbox" id="jpaid"> Paid</label>' +
         '<select id="jmethod"><option value="">method…</option><option>Cash</option><option>Card</option><option>Check</option><option>Zelle</option><option>Venmo</option><option>Warranty</option></select></div>' +
       '<div class="srow" style="flex-wrap:wrap"><button id="jstmt">📄 Print</button><button id="jsend">📤 Text invoice</button><button class="primary" id="jpaySave">Save invoice</button></div>' +
@@ -1659,29 +1671,57 @@
     // pay — prefill from existing invoice + lines, live totals
     var inv=invByJob[job.id]||null;
     document.getElementById('tax').value = (shopSettings.tax_rate!=null?shopSettings.tax_rate:'');
+    // commission rule for the assigned tech: company default now, refined by the tech's override.
+    var techRule=(function(){ var c=(shopSettings&&shopSettings.commission)||{}; if(c.type==='flat_per_job') return {type:'flat_per_job',flat_cents:Math.round(+c.flat_cents||0)}; return {type:'labor_pct',pct:+c.labor_pct||0}; })();
+    function commissionCents(laborC){ if(!techRule) return 0; if(techRule.type==='flat_per_job') return techRule.flat_cents||0; return Math.round(laborC*(techRule.pct||0)/100); }
+    function commissionNote(){ if(techRule&&techRule.type==='flat_per_job') return '(flat '+money(techRule.flat_cents||0)+' + tips)'; return '('+(techRule&&techRule.pct||0)+'% of labor + tips)'; }
+    function partsCostCents(){ var s=0; document.querySelectorAll('#jparts .pc').forEach(function(i){ s+=cents(i.value); }); return s; }
+    var techPayTouched=false;
+    // build the economics panel ONCE (its techpay input keeps focus); recompute updates the numbers.
+    document.getElementById('jecon').innerHTML=
+      '<div class="er hd">💵 Shop economics <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:600">— adjust as needed</span></div>'+
+      '<div class="er"><span class="k">Parts cost (your cost)</span><span id="ec_cost">$0</span></div>'+
+      '<div class="er"><span class="k">Parts margin</span><span id="ec_margin">$0</span></div>'+
+      '<div class="er"><span class="k">Tech pay <span id="ec_note" class="hint" style="font-weight:600"></span></span><span>$<input id="techpay" inputmode="decimal" placeholder="0"></span></div>';
+    document.getElementById('techpay').oninput=function(){ techPayTouched=true; };
     var recompute=function(){
-      var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee'));
+      var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee')), shipC=cents(g('ship')), tipC=cents(g('tip'));
       var applied=document.getElementById('jtripapply').checked && (laborC+partsC)>0;   // credit only when there's a repair
-      var taxable=laborC+partsC+(applied?0:feeC);
-      var taxp=parseFloat(g('tax'))||0; var tax=Math.round(taxable*taxp/100); var tot=taxable+tax;
+      var taxable=laborC+partsC+shipC+(applied?0:feeC);
+      var taxp=parseFloat(g('tax'))||0; var tax=Math.round(taxable*taxp/100); var tot=taxable+tax+tipC;   // tip on top, untaxed
       var credit=(applied&&feeC)?'<div class="tr"><span>Trip charge</span><span>'+money(feeC)+'</span></div><div class="tr" style="color:#12a150"><span>Applied to the repair</span><span>−'+money(feeC)+'</span></div>':'';
-      document.getElementById('jtotals').innerHTML=credit+'<div class="tr"><span>Subtotal</span><span>'+money(taxable)+'</span></div><div class="tr"><span>Tax ('+taxp+'%)</span><span>'+money(tax)+'</span></div><div class="tr grand"><span>Total</span><span>'+money(tot)+'</span></div>';
+      var shipRow=shipC?'<div class="tr"><span>Shipping &amp; handling</span><span>'+money(shipC)+'</span></div>':'';
+      var tipRow=tipC?'<div class="tr" style="color:#12a150"><span>💚 Tip (to the tech)</span><span>'+money(tipC)+'</span></div>':'';
+      document.getElementById('jtotals').innerHTML=credit+shipRow+'<div class="tr"><span>Subtotal</span><span>'+money(taxable)+'</span></div><div class="tr"><span>Tax ('+taxp+'%)</span><span>'+money(tax)+'</span></div>'+tipRow+'<div class="tr grand"><span>Total</span><span>'+money(tot)+'</span></div>';
+      // economics: cost / margin / auto tech pay
+      var costC=partsCostCents(); var margin=partsC-costC;
+      var ec=document.getElementById('ec_cost'); if(ec) ec.textContent=money(costC);
+      var em=document.getElementById('ec_margin'); if(em){ em.textContent=money(margin); em.style.color = margin<0?'#e5484d':''; }
+      var en=document.getElementById('ec_note'); if(en) en.textContent=commissionNote();
+      var autoPay=commissionCents(laborC)+tipC;   // % of labor + 100% of the tip
+      var tp=document.getElementById('techpay'); if(tp && !techPayTouched) tp.value = autoPay? (autoPay/100).toFixed(2) : '';
     };
-    ['labor','parts','fee','tax'].forEach(function(id){ document.getElementById(id).oninput=recompute; });
+    ['labor','parts','fee','ship','tax','tip'].forEach(function(id){ var e=document.getElementById(id); if(e) e.oninput=recompute; });
     document.getElementById('jtripapply').onchange=recompute;
+    // refine the commission with the assigned tech's own override, then recompute.
+    if(job.technician_id){ sb.from('technician').select('commission_type,commission_pct,commission_flat_cents').eq('id',job.technician_id).limit(1).single().then(function(r){ var t=(r&&r.data)||{}; if(t.commission_type==='labor_pct'&&t.commission_pct!=null) techRule={type:'labor_pct',pct:+t.commission_pct}; else if(t.commission_type==='flat_per_job'&&t.commission_flat_cents!=null) techRule={type:'flat_per_job',flat_cents:Math.round(+t.commission_flat_cents)}; recompute(); }).catch(function(){}); }
     if(inv){
       document.getElementById('jpaid').checked = inv.status==='paid';
       if(inv.paid_method){ document.getElementById('jmethod').value=inv.paid_method; }
-      // recover the labor/parts/fee split from the lines
+      if(inv.shipping_cents) document.getElementById('ship').value=(inv.shipping_cents/100).toFixed(2);
+      if(inv.tip_cents) document.getElementById('tip').value=(inv.tip_cents/100).toFixed(2);
+      if(inv.tech_pay_cents!=null){ document.getElementById('techpay').value=(inv.tech_pay_cents/100).toFixed(2); techPayTouched=true; }
+      // recover the labor/parts/fee/shipping split from the lines
       sb.from('invoice_line').select('kind,unit_cents,qty').eq('invoice_id',inv.id).then(function(r){
-        var rows=r.data||[]; var sums={labor:0,part:0,fee:0}; var hasFee=false, hasCredit=false;
-        rows.forEach(function(l){ if(l.kind==='credit'){ hasCredit=true; return; } if(l.kind==='fee') hasFee=true; sums[l.kind]=(sums[l.kind]||0)+Math.round((l.unit_cents||0)*(l.qty||1)); });
+        var rows=r.data||[]; var sums={labor:0,part:0,fee:0,shipping:0}; var hasFee=false, hasCredit=false;
+        rows.forEach(function(l){ if(l.kind==='credit'){ hasCredit=true; return; } if(l.kind==='tip') return; if(l.kind==='fee') hasFee=true; sums[l.kind]=(sums[l.kind]||0)+Math.round((l.unit_cents||0)*(l.qty||1)); });
         if(sums.labor) document.getElementById('labor').value=(sums.labor/100).toFixed(2);
         if(sums.part)  document.getElementById('parts').value=(sums.part/100).toFixed(2);
         if(sums.fee)   document.getElementById('fee').value=(sums.fee/100).toFixed(2);
+        if(sums.shipping && !document.getElementById('ship').value) document.getElementById('ship').value=(sums.shipping/100).toFixed(2);
         // restore the checkbox: credit line present = applied; a lone fee (no credit) = it was billed on top
         document.getElementById('jtripapply').checked = hasCredit || !hasFee;
-        var taxBase=sums.labor+sums.part+(hasCredit?0:sums.fee);
+        var taxBase=sums.labor+sums.part+sums.shipping+(hasCredit?0:sums.fee);
         if(inv.tax_cents && taxBase) document.getElementById('tax').value=(Math.round(inv.tax_cents/taxBase*10000)/100);
         recompute();
       });
@@ -1813,11 +1853,13 @@
       pricedParts.push({id:pid, name:i.getAttribute('data-name'), cents:cents(i.value), costC:costI?cents(costI.value):0});
     });
     pricedParts.forEach(function(p){ if(p.id) sb.from('job_part').update({sell_cents:p.cents>0?p.cents:null, cost_cents:p.costC>0?p.costC:null}).eq('id',p.id).then(function(){}); });
+    var shipC=cents(g('ship')), tipC=cents(g('tip')), techPayC=cents(g('techpay'));
+    var partsCostC=0; document.querySelectorAll('#jparts .pc').forEach(function(i){ partsCostC+=cents(i.value); });
     var tripApply=document.getElementById('jtripapply'); var applied=tripApply&&tripApply.checked && (laborC+partsC)>0;
-    var sub=laborC+partsC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
+    var sub=laborC+partsC+shipC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC+tipC;
     var paid=document.getElementById('jpaid').checked, method=document.getElementById('jmethod').value||null;
     var inv=invByJob[job.id]||null;
-    var row={ company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, labor_cents:laborC, subtotal_cents:sub, tax_cents:taxC, total_cents:tot, status:paid?'paid':'draft', paid_method:paid?method:null, paid_at:paid?(inv&&inv.paid_at?inv.paid_at:new Date().toISOString()):null, collected_cents:paid?tot:(inv?inv.collected_cents||0:0) };
+    var row={ company_id:companyId, job_id:job.id, customer_id:job.customer_id||null, labor_cents:laborC, shipping_cents:shipC, tip_cents:tipC, tech_pay_cents:techPayC>0?techPayC:null, parts_cost_cents:partsCostC>0?partsCostC:null, subtotal_cents:sub, tax_cents:taxC, total_cents:tot, status:paid?'paid':'draft', paid_method:paid?method:null, paid_at:paid?(inv&&inv.paid_at?inv.paid_at:new Date().toISOString()):null, collected_cents:paid?tot:(inv?inv.collected_cents||0:0) };
     var done=function(invoiceId){
       var newlyPaid = paid && !(inv && inv.status==='paid');
       invByJob[job.id]=Object.assign({ id:invoiceId, job_id:job.id, created_at:(inv&&inv.created_at)||new Date().toISOString() }, row);
@@ -1837,6 +1879,8 @@
         else if(partsC){ lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:'Parts',qty:1,unit_cents:partsC}); }
         if(feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'fee',description:'Trip charge',qty:1,unit_cents:feeC});
         if(applied&&feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'credit',description:'Trip applied to repair',qty:1,unit_cents:-feeC});
+        if(shipC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'shipping',description:'Shipping & handling',qty:1,unit_cents:shipC});
+        if(tipC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'tip',description:'Tip (to your technician)',qty:1,unit_cents:tipC});
         if(lines.length) sb.from('invoice_line').insert(lines).then(function(){ done(invoiceId); }); else done(invoiceId);
       });
     };
@@ -1849,7 +1893,8 @@
     var g=function(id){ var e=document.getElementById(id); return e?e.value:''; };
     var laborC=cents(g('labor')), partsC=cents(g('parts')), feeC=cents(g('fee'));
     var tripApply=document.getElementById('jtripapply'); var applied=tripApply&&tripApply.checked && (laborC+partsC)>0;
-    var sub=laborC+partsC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC;
+    var shipC=cents(g('ship')), tipC=cents(g('tip'));
+    var sub=laborC+partsC+shipC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC+tipC;
     var paid=document.getElementById('jpaid') && document.getElementById('jpaid').checked;
     var cust=job.customer||{}, unit=job.unit&&job.unit.label?job.unit.label:'';
     var rows='';
@@ -1857,6 +1902,7 @@
     if(partsC)rows+='<tr><td>Parts</td><td style="text-align:right">'+money(partsC)+'</td></tr>';
     if(feeC)rows+='<tr><td>Trip charge</td><td style="text-align:right">'+money(feeC)+'</td></tr>';
     if(applied&&feeC)rows+='<tr><td style="color:#166534">Trip applied to repair</td><td style="text-align:right;color:#166534">−'+money(feeC)+'</td></tr>';
+    if(shipC)rows+='<tr><td>Shipping &amp; handling</td><td style="text-align:right">'+money(shipC)+'</td></tr>';
     var today=new Date().toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
     var biz=(shopSettings.business)||{}; var bizName=biz.name||shopName||'Invoice';
     var bizbits=[biz.address,[biz.phone,biz.email].filter(Boolean).join(' · '),biz.tax_id?('Tax ID: '+biz.tax_id):'',biz.license?('Lic# '+biz.license):''].filter(Boolean).join('<br>');
@@ -1865,7 +1911,7 @@
       '<style>body{font:15px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#111;max-width:640px;margin:0 auto;padding:26px}h1{font-size:22px;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 0;border-bottom:1px solid #eee}.grand td{font-size:19px;font-weight:800;border-bottom:none}.muted{color:#666;font-size:13px}.pill{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:800;font-size:13px}.paid{background:#dcfce7;color:#166534}.due{background:#fef3c7;color:#92400e}.note{background:#f6f6f4;border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-top:16px;white-space:pre-line}.pr{margin-top:22px}@media print{.pr{display:none}}</style>' +
       '<h1>'+esc(bizName)+'</h1>'+(bizbits?'<div class="muted" style="margin-top:3px">'+bizbits+'</div>':'')+'<div class="muted" style="margin-top:6px">Invoice · '+today+'</div>' +
       '<div style="margin-top:16px"><b>'+esc(fullName(cust)||'Customer')+'</b>'+(cust.phone?' · '+esc(cust.phone):'')+(unit?'<br>'+esc(unit):'')+(job.problem?'<br><span class="muted">'+esc(job.problem)+'</span>':'')+'</div>' +
-      '<table>'+rows+'<tr><td class="muted">Subtotal</td><td style="text-align:right">'+money(sub)+'</td></tr><tr><td class="muted">Tax ('+taxp+'%)</td><td style="text-align:right">'+money(taxC)+'</td></tr><tr class="grand"><td>Total</td><td style="text-align:right">'+money(tot)+'</td></tr></table>' +
+      '<table>'+rows+'<tr><td class="muted">Subtotal</td><td style="text-align:right">'+money(sub)+'</td></tr><tr><td class="muted">Tax ('+taxp+'%)</td><td style="text-align:right">'+money(taxC)+'</td></tr>'+(tipC?'<tr><td>💚 Tip</td><td style="text-align:right">'+money(tipC)+'</td></tr>':'')+'<tr class="grand"><td>Total</td><td style="text-align:right">'+money(tot)+'</td></tr></table>' +
       '<div style="margin-top:16px"><span class="pill '+(paid?'paid':'due')+'">'+(paid?'PAID IN FULL':'BALANCE DUE '+money(tot))+'</span></div>' +
       (payNote&&!paid?'<div class="note">'+payNote+'</div>':'') +
       '<div class="pr"><button onclick="window.print()" style="padding:12px 18px;font-size:16px;font-weight:700;border:0;border-radius:10px;background:#3f8f24;color:#fff">🖨️ Print / Save as PDF</button></div>' +

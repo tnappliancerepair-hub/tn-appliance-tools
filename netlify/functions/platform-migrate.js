@@ -66,6 +66,13 @@ const MIGRATIONS = {
            with check (company_id = public.current_company_id());
          grant select, insert, update, delete on public.job_tag to authenticated;`,
 
+  // Invoice worksheet upgrade: shipping & handling, tips (100% to the tech, not taxed), the
+  // office-adjustable tech pay, and the parts cost (for the margin readout). All editable.
+  invoice_extras: `alter table public.invoice add column if not exists shipping_cents  integer not null default 0;
+                   alter table public.invoice add column if not exists tip_cents       integer not null default 0;
+                   alter table public.invoice add column if not exists tech_pay_cents   integer;
+                   alter table public.invoice add column if not exists parts_cost_cents integer;`,
+
   // Teach the call resolver to surface the best PART's source + route + ETA (from job_part), so
   // Ann can answer "when are my parts coming?" with "shipping from American Home Shield, ETA …".
   // CREATE OR REPLACE the same SECURITY DEFINER resolver, adding part_source/part_ship_to/part_eta.
