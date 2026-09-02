@@ -1687,11 +1687,15 @@
     function commissionNote(){ if(techRule&&techRule.type==='flat_per_job') return '(flat '+money(techRule.flat_cents||0)+' + tips)'; return '('+(techRule&&techRule.pct||0)+'% of labor + tips)'; }
     function partsCostCents(){ var s=0; document.querySelectorAll('#jparts .pc').forEach(function(i){ s+=cents(i.value); }); return s; }
     var techPayTouched=false;
+    // parts pricing rule (shared with the parts editor): customer cost = our cost + markup %,
+    // but never less than a $10 margin on a small part.
+    var partsPc=(shopSettings&&shopSettings.parts)||{}, mPct=(partsPc.markup_pct!=null?+partsPc.markup_pct:50), mAdd=(partsPc.min_add_cents!=null?+partsPc.min_add_cents:1000);
+    var marginRuleNote='(cost + '+mPct+'%'+(mAdd>0?', min '+money(mAdd)+' margin':'')+')';
     // build the economics panel ONCE (its techpay input keeps focus); recompute updates the numbers.
     document.getElementById('jecon').innerHTML=
       '<div class="er hd">💵 Shop economics <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:600">— adjust as needed</span></div>'+
       '<div class="er"><span class="k">Parts cost (your cost)</span><span id="ec_cost">$0</span></div>'+
-      '<div class="er"><span class="k">Parts margin</span><span id="ec_margin">$0</span></div>'+
+      '<div class="er"><span class="k">Parts margin <span class="hint" style="font-weight:600">'+marginRuleNote+'</span></span><span id="ec_margin">$0</span></div>'+
       '<div class="er"><span class="k">Tech pay <span id="ec_note" class="hint" style="font-weight:600"></span></span><span>$<input id="techpay" inputmode="decimal" placeholder="0"></span></div>';
     document.getElementById('techpay').oninput=function(){ techPayTouched=true; };
     var recompute=function(){
@@ -1742,22 +1746,25 @@
     // "what do we charge" and nobody re-keys it — the margin does the pricing.
     (function loadInvoiceParts(){
       var box=document.getElementById('jparts'); if(!box) return;
-      var pc=(shopSettings&&shopSettings.parts)||{}, mPct=(pc.markup_pct!=null?+pc.markup_pct:50), mAdd=(+pc.min_add_cents||0);
+      // customer cost = our cost + markup %, floored so the margin is never under $10 (mAdd).
       var retail=function(costC){ costC=+costC||0; if(costC<=0) return 0; return Math.max(Math.round(costC*(1+mPct/100)), costC+mAdd); };
+      var pmUpd=function(pid){ var c=box.querySelector('.pc[data-part="'+pid+'"]'), p=box.querySelector('.pp[data-part="'+pid+'"]'), m=box.querySelector('.pm[data-part="'+pid+'"]'); if(!c||!p||!m) return; var mar=cents(p.value)-cents(c.value); m.textContent=(cents(p.value)||cents(c.value))?('margin '+money(mar)):''; m.style.color=mar<0?'#e5484d':'#1f7a37'; };
       sb.from('job_part').select('id,name,number,cost_cents,sell_cents,disposition').eq('job_id',job.id).order('created_at').then(function(r){
         var parts=(r.data||[]).filter(function(p){ var d=(p.disposition||''); return d!=='return'&&d!=='unused'&&d!=='missing'; }); // don't bill returned/unused/missing
         if(!parts.length){ box.innerHTML=''; return; }
-        box.innerHTML='<div class="sec" style="margin-top:2px">🔧 Parts the tech used <span class="hint" style="font-weight:400">— enter cost, the '+mPct+'% margin sets the price</span></div>'+
+        box.innerHTML='<div class="sec" style="margin-top:2px">🔧 Parts the tech used <span class="hint" style="font-weight:400">— enter your cost; customer pays cost + '+mPct+'%'+(mAdd>0?' (min '+money(mAdd)+' margin)':'')+'</span></div>'+
           parts.map(function(p){ var nm=(p.name||'Part');
             var costV=p.cost_cents?(p.cost_cents/100).toFixed(2):'';
             var sellV=(p.sell_cents!=null?p.sell_cents:retail(p.cost_cents)); sellV=sellV?(sellV/100).toFixed(2):'';
-            return '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><span class="k" style="flex:1;min-width:120px">'+esc(nm)+(p.number?' <span class="mono">'+esc(p.number)+'</span>':'')+'</span>'+
-              '<span class="v" style="font-size:12px;color:var(--muted)">cost $<input class="pc" data-part="'+esc(p.id)+'" inputmode="decimal" style="width:64px" value="'+costV+'"></span>'+
-              '<span class="v">charge $<input class="pp" data-part="'+esc(p.id)+'" data-name="'+esc(nm)+'" inputmode="decimal" style="width:72px" value="'+sellV+'"></span></div>'; }).join('');
+            return '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px"><span class="k" style="flex:1 1 140px;min-width:120px">'+esc(nm)+(p.number?' <span class="mono">'+esc(p.number)+'</span>':'')+'</span>'+
+              '<span class="v" style="font-size:12px;color:var(--muted)">Our cost $<input class="pc" data-part="'+esc(p.id)+'" inputmode="decimal" style="width:66px" value="'+costV+'"></span>'+
+              '<span class="v" style="font-size:12px">Customer $<input class="pp" data-part="'+esc(p.id)+'" data-name="'+esc(nm)+'" inputmode="decimal" style="width:74px" value="'+sellV+'"></span>'+
+              '<span class="pm" data-part="'+esc(p.id)+'" style="font-size:11.5px;font-weight:700;flex:1 1 100%;margin-left:2px"></span></div>'; }).join('');
         var sumParts=function(){ var s=0; box.querySelectorAll('.pp').forEach(function(i){ s+=cents(i.value); }); document.getElementById('parts').value=s?(s/100).toFixed(2):''; recompute(); };
-        // typing cost auto-fills the charge from the owner's margin; charge stays editable (override).
-        box.querySelectorAll('.pc').forEach(function(i){ i.oninput=function(){ var pid=i.getAttribute('data-part'); var sc=retail(cents(i.value)); var ppi=box.querySelector('.pp[data-part="'+pid+'"]'); if(ppi){ ppi.value=sc?(sc/100).toFixed(2):''; } sumParts(); }; });
-        box.querySelectorAll('.pp').forEach(function(i){ i.oninput=sumParts; });
+        box.querySelectorAll('.pm').forEach(function(m){ pmUpd(m.getAttribute('data-part')); });
+        // typing cost auto-fills the customer price from the owner's margin; the price stays editable (override).
+        box.querySelectorAll('.pc').forEach(function(i){ i.oninput=function(){ var pid=i.getAttribute('data-part'); var sc=retail(cents(i.value)); var ppi=box.querySelector('.pp[data-part="'+pid+'"]'); if(ppi){ ppi.value=sc?(sc/100).toFixed(2):''; } pmUpd(pid); sumParts(); }; });
+        box.querySelectorAll('.pp').forEach(function(i){ i.oninput=function(){ pmUpd(i.getAttribute('data-part')); sumParts(); }; });
         var pre=0; parts.forEach(function(p){ pre+=(p.sell_cents!=null?p.sell_cents:retail(p.cost_cents))||0; });
         if(pre>0){ document.getElementById('parts').value=(pre/100).toFixed(2); recompute(); }
       });
