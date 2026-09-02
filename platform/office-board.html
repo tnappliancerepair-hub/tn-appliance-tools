@@ -185,6 +185,16 @@
   .cardmedia{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
   .cardmedia .mtile{width:44px;height:44px;border-radius:7px;margin-right:0}
   .cardmedia .vtile .play{font-size:15px}
+  /* ── 📷 MEDIA GALLERY — the shareable photos/videos section on the drawer ── */
+  #jmedia .mgal{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:4px}
+  #jmedia .mgitem{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+  #jmedia .mgthumb{position:relative;display:block;width:100%;aspect-ratio:4/3;background:#0b0d08}
+  #jmedia .mgthumb img{width:100%;height:100%;object-fit:cover;display:block}
+  #jmedia .mgthumb .play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;text-shadow:0 1px 6px rgba(0,0,0,.7);pointer-events:none}
+  #jmedia .mglabel{font-size:11px;color:var(--muted);padding:6px 8px 0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #jmedia .mgacts{display:flex;gap:6px;padding:5px 8px 8px}
+  #jmedia .mgacts a,#jmedia .mgacts button{flex:1;text-align:center;font-size:11px;font-weight:700;border:1px solid var(--line);border-radius:7px;padding:6px 4px;background:var(--panel);color:var(--ink);cursor:pointer;text-decoration:none}
+  #jmedia .mgacts a:hover,#jmedia .mgacts button:hover{border-color:var(--brand)}
   /* ── DENSE CARDS: legacy TN information design on the platform's dark-vivid theme ── */
   .card .ctop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
   .card .agechip{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
@@ -998,6 +1008,37 @@
     }).catch(function(){ if(box) box.innerHTML=''; });
   }
 
+  // ── 📷 PHOTOS & VIDEOS — the shared media gallery. Every video (Cloudflare Stream) + photo
+  // (signed) the customer or tech uploaded, viewable here and open/copy-link-able so the office
+  // can attach them to a warranty claim. Same files every surface (tech/customer) sees. ──
+  function loadMedia(job){
+    var box=document.getElementById('jmedia'); if(!box) return;
+    box.innerHTML='<div class="sec">📷 Photos &amp; videos</div><div class="hint">Loading…</div>';
+    sb.from('job_media').select('id,kind,provider,ref,label,created_at').eq('job_id',job.id).order('created_at').then(function(r){
+      if(r.error){ box.innerHTML='<div class="sec">📷 Photos &amp; videos</div><div class="hint">Couldn\'t load media.</div>'; return; }
+      var media=(r&&r.data)||[];
+      if(!media.length){ box.innerHTML='<div class="sec">📷 Photos &amp; videos</div><div class="hint">No photos or videos yet — they land here the moment the customer or tech uploads them.</div>'; return; }
+      var items=media.map(function(m){
+        if(m.kind==='video'&&m.provider==='cfstream'){ var uid=esc(m.ref); var href='https://iframe.cloudflarestream.com/'+uid;
+          return '<div class="mgitem"><a class="mgthumb" target="_blank" rel="noopener" href="'+href+'"><img src="https://videodelivery.net/'+uid+'/thumbnails/thumbnail.jpg?time=1s&height=200" alt="" onerror="this.style.display=\'none\'"><span class="play">▶</span></a>'+
+            '<div class="mglabel">🎥 '+esc(m.label||'Video')+'</div>'+
+            '<div class="mgacts"><a target="_blank" rel="noopener" href="'+href+'">▶ Open</a><button type="button" class="mgcopy" data-link="'+href+'">Copy link</button></div></div>';
+        }
+        // photo — signed by hydratePics (sets the thumb anchor href + img src)
+        return '<div class="mgitem"><a class="mgthumb" data-phhref="'+esc(m.ref)+'" target="_blank" rel="noopener"><img data-ph="'+esc(m.ref)+'" alt="photo"></a>'+
+          '<div class="mglabel">📷 '+esc(m.label||'Photo')+'</div>'+
+          '<div class="mgacts"><button type="button" class="mgopen" data-ph="'+esc(m.ref)+'">Open / save</button><button type="button" class="mgcopy" data-ph="'+esc(m.ref)+'">Copy link</button></div></div>';
+      }).join('');
+      box.innerHTML='<div class="sec">📷 Photos &amp; videos <span class="hint" style="font-weight:400">— shared with the tech &amp; customer · open or copy a link to attach to a warranty claim</span></div><div class="mgal">'+items+'</div>';
+      hydratePics(box);
+      var linkFor=function(b){ var l=b.getAttribute('data-link'); if(l) return l; var ref=b.getAttribute('data-ph'); var a=ref?box.querySelector('a[data-phhref="'+ref+'"]'):null; return (a&&a.getAttribute('href'))||''; };
+      box.querySelectorAll('.mgopen').forEach(function(b){ b.onclick=function(){ var u=linkFor(b); if(u) window.open(u,'_blank','noopener'); }; });
+      box.querySelectorAll('.mgcopy').forEach(function(b){ b.onclick=function(){ var u=linkFor(b); if(!u){ b.textContent='Not ready'; setTimeout(function(){b.textContent='Copy link';},1200); return; }
+        var done=function(){ b.textContent='Copied ✓'; setTimeout(function(){ b.textContent='Copy link'; },1400); };
+        try{ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(u).then(done,done); } else { done(); } }catch(_){ done(); } }; });
+    }).catch(function(){ if(box) box.innerHTML='<div class="sec">📷 Photos &amp; videos</div><div class="hint">Couldn\'t load media.</div>'; });
+  }
+
   // ── Shared JOB DETAILS — the single-write record. Whoever inputs first (Ann on the
   // call, the customer via intake, the tech in the cockpit) fills it; anyone can correct
   // it here, and it writes to the SAME customer/unit/job rows every surface reads. Input
@@ -1301,6 +1342,9 @@
       // ── STATUS + PARTS — directly under the TDR so the office adjusts them together ──
       '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
       '<div id="jtparts"></div>' +
+      // ── 📷 PHOTOS & VIDEOS — the shared media (customer + tech uploads), viewable here and
+      // openable / copy-linkable so the office can attach them to a warranty claim. ──
+      '<div id="jmedia"></div>' +
       // ── ↔ JUMP TO — cross-tool deep-link grid (scroll targets in this drawer + the tech workspace) ──
       '<div class="sec">↔ Jump to</div>' +
       '<div id="jjump" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
@@ -1360,6 +1404,7 @@
     loadIntake(job);
     loadTdr(job);
     loadTparts(job);
+    loadMedia(job);
     loadDetails(job);
     loadPrevVisits(job);
     loadSched(job);
