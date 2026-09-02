@@ -1422,7 +1422,6 @@
     var cust=job.customer||{}, unit=job.unit&&job.unit.label?job.unit.label:'';
     var phone=(cust.phone||'').replace(/[^0-9+]/g,'');
     var rsWk=['Mo','Tu','We','Th','Fr','Sa','Su'].map(function(d){return '<div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted)">'+d+'</div>';}).join('');
-    var JBTN='width:100%;font-size:12.5px;padding:9px 8px;text-align:center';
     var ov=document.createElement('div'); ov.className='ov';
     ov.innerHTML='<div class="sheet drawer">' +
       '<div class="custname" id="jcusthead">'+esc(fullName(cust)||'Customer')+'</div>' +
@@ -1486,16 +1485,6 @@
       // ── 📷 PHOTOS & VIDEOS — the shared media (customer + tech uploads), viewable here and
       // openable / copy-linkable so the office can attach them to a warranty claim. ──
       '<div id="jmedia"></div>' +
-      // ── ↔ JUMP TO — cross-tool deep-link grid (scroll targets in this drawer + the tech workspace) ──
-      '<div class="sec">↔ Jump to</div>' +
-      '<div id="jjump" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-        '<button type="button" data-jump="warranty" style="'+JBTN+'">📦 Warranty</button>' +
-        '<button type="button" data-jump="schedule" style="'+JBTN+'">🗓 Schedule</button>' +
-        '<button type="button" data-jump="parts" style="'+JBTN+'">🧾 Parts $</button>' +
-        '<button type="button" data-jump="invoice" style="'+JBTN+'">📄 Invoice</button>' +
-        '<button type="button" data-jump="tech" style="'+JBTN+'">🔧 Tech · find parts</button>' +
-        '<button type="button" data-jump="customer" style="'+JBTN+'">👤 Customer</button>' +
-      '</div>' +
       // ── ⏰ CUSTOMER HARD CUTOFF — a red flag on the tile so it never gets missed ──
       '<div class="sec">⏰ Customer must leave by</div>' +
       '<div id="jcutoff">' +
@@ -1581,16 +1570,6 @@
         loadBoard();
       });
     };
-
-    // ── ↔ JUMP TO — scroll to a section in this drawer, or open the tech workspace ──
-    var jj=document.getElementById('jjump');
-    if(jj){ jj.querySelectorAll('button[data-jump]').forEach(function(b){ b.onclick=function(){
-      var t=b.getAttribute('data-jump');
-      if(t==='tech'){ try{ window.open('/platform/tech-job.html?job='+encodeURIComponent(job.id),'_blank'); }catch(e){} return; }
-      // Warranty/Invoice/Parts $ all live in the invoice worksheet; Schedule = the reschedule panel; Customer = the header card.
-      var idMap={ warranty:'jpaysec', invoice:'jpaysec', parts:'jpaysec', schedule:'jresched', customer:'jcusthead' };
-      var el=document.getElementById(idMap[t]||''); if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
-    }; }); }
 
     // ── 🔄 RESCHEDULE — tappable inline month calendar + tech picker → sets it on the job ──
     var techName=function(id){ if(id==null||id==='') return ''; for(var i=0;i<techsCache.length;i++){ if(String(techsCache[i].id)===String(id)) return techsCache[i].name; } return ''; };
