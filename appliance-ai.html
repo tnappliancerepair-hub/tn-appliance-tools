@@ -11,6 +11,12 @@
   gtag('config', 'AW-11509905666');  // Google Ads — sets the _gcl cookie from the gclid so conversions attribute
 </script>
 
+<!-- OpenAI ChatGPT Ads pixel (browser-side advanced matching). The real conversion
+     tracking is server-side (openai-ads-conversion-sweep sends booked/paid jobs to the
+     Conversions API); this supplements attribution. Flip debug:false once verified in
+     the Ads Manager Event Stream. -->
+<script>!function(w,d,s,u){if(w.oaiq)return;var q=function(){q.q.push(arguments)};q.q=[];w.oaiq=q;var j=d.createElement(s);j.async=1;j.src=u;var f=d.getElementsByTagName(s)[0];f.parentNode.insertBefore(j,f)}(window,document,"script","https://bzrcdn.openai.com/sdk/oaiq.min.js");oaiq("init",{pixelId:"MhsNTkuZkm3L3fkcTXbM7J",debug:false});</script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Appliance Repair Nashville & Middle TN — Same-Day, 4.5★ | TN Appliance Exchange</title>
