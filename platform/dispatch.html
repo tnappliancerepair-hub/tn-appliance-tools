@@ -54,6 +54,12 @@
   .tray{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
   .ujob{flex:0 0 auto;max-width:230px;background:var(--panel);border:1px solid var(--warn);border-radius:11px;padding:9px 11px;cursor:pointer;box-shadow:var(--shadow)}
   .ujob .u1{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .ujob .u2{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* customer's stated availability — the dispatcher's key signal, sits ABOVE the name (bright) */
+  .uavail{display:block;font-size:12px;font-weight:800;color:#a2560c;background:color-mix(in srgb,var(--warn) 15%,transparent);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:7px;padding:3px 8px;margin:0 0 5px;white-space:normal;line-height:1.3}
+  .uavail.none{color:var(--muted);background:transparent;border-color:var(--line);font-weight:600}
+  @media(prefers-color-scheme:dark){ :root:not([data-theme="light"]) .uavail{color:#f0b45f} }
+  .availrow{font-size:13px;font-weight:800;color:#a2560c;background:color-mix(in srgb,var(--warn) 15%,transparent);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:9px;padding:7px 10px;margin:2px 0 6px;line-height:1.35}
+  @media(prefers-color-scheme:dark){ :root:not([data-theme="light"]) .availrow{color:#f0b45f} }
   .tray-empty{color:var(--muted);font-size:13px;padding:4px 2px}
   .ujob .ucov{margin-top:4px;font-size:11.5px;font-weight:700;color:var(--brand);white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .ujob .ucov.none{color:var(--muted);font-weight:600}
   .ujob .usug{margin-top:5px;font-size:11.5px;font-weight:800;color:var(--brand);background:var(--chip);border-radius:7px;padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -184,6 +190,9 @@
   function areaList(t){ return String((t&&t.service_area)||'').split(',').map(function(s){return s.trim();}).filter(Boolean); }
   function coversZip(t, zip){ var a=areaList(t); if(!a.length) return true; zip=String(zip||'').trim(); if(!zip) return true; return a.some(function(p){ return zip===p || zip.indexOf(p)===0; }); }
   function jobZip(j){ return (j&&j.customer&&j.customer.zip)||''; }
+  // What the customer typed for availability at intake — the dispatcher's #1 signal. Shown ABOVE
+  // the name on every unscheduled card + in the assign panel. Trimmed/capped; blank when none given.
+  function availText(j){ var a=String((j&&j.availability)||'').replace(/\s+/g,' ').trim(); return a; }
   function capOf(t){ var m=t&&t.max_stops; return (m!=null&&m>0)?m:6; }   // per-tech stops/day (owner-set; default 6)
   function bookedOn(techId,d){ var n=0; jobs.forEach(function(j){ if(j.technician_id===techId&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
   // Each tech gets a stable color (by position in the roster) used EVERYWHERE the tech appears —
@@ -435,7 +444,9 @@
       var sugHtml = sug
         ? '<div class="usug">🐜 '+esc((sug.tech.name||'Tech').split(' ')[0])+' · '+esc(fmtDayShort(sug.day))+'</div>'
         : (zip?'<div class="ucov none">📍 '+esc(zip)+' — no one available</div>':'');
-      return '<div class="ujob" data-job="'+j.id+'"><div class="u1"><span class="unum">'+(idx+1)+'</span>'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+sugHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting in '+(region==='LA'?'Louisiana':'Middle TN')+'. ✅</div>';
+      var av=availText(j);
+      var avHtml = av ? '<div class="uavail">🗓 '+esc(av)+'</div>' : '<div class="uavail none">🗓 availability not given</div>';
+      return '<div class="ujob" data-job="'+j.id+'">'+avHtml+'<div class="u1"><span class="unum">'+(idx+1)+'</span>'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+sugHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting in '+(region==='LA'?'Louisiana':'Middle TN')+'. ✅</div>';
     // Scheduled stops for the day the office is looking at (region-scoped) — the "who's where today" view.
     var schedDay=jobs.filter(function(j){ return j.scheduled_day===selDay && j.technician_id && j.status!=='completed' && j.status!=='canceled' && jobRegion(j)===region; });
     var mapList = mapMode==='scheduled' ? schedDay : unsRegion;
@@ -497,9 +508,11 @@
       var lab=esc(t.name||'Tech'); if(zip && areaList(t).length){ lab += coversZip(t,zip)?' ⭐ covers':' · out of area'; }
       return '<option value="'+t.id+'"'+(t.id===job.technician_id?' selected':'')+'>'+lab+'</option>'; }).join('');
     var covNote = zip ? '<div class="msub" style="margin:-2px 0 4px">📍 '+esc(zip)+(job.customer&&job.customer.city?' · '+esc(job.customer.city):'')+'</div>' : '';
+    var av=availText(job);
+    var avRow = av ? '<div class="availrow">🗓 Customer’s availability: '+esc(av)+'</div>' : '';
     var sug = suggestSlot(job);
     var sugHtml = sug ? '<div class="suggest"><div class="sg-l"><div class="sg-t">🐜 Ant suggests</div><div class="sg-b">'+esc(sug.tech.name||'Tech')+' · '+esc(fmtDayLong(sug.day))+'</div><div class="sg-w">'+esc(suggestReason(sug, zip))+'</div></div><button class="sg-use" id="a-suggest">Use this</button></div>' : '';
-    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+sugHtml+
+    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+avRow+sugHtml+
       '<label>Tech</label><select id="a-tech">'+techOpts+'</select>'+
       '<label>Day</label><input id="a-day" type="date" value="'+esc(job.scheduled_day||selDay)+'">'+
       '<div class="srow"><button id="a-cancel">Cancel</button><button class="primary" id="a-save">Save</button></div>'+
@@ -533,7 +546,7 @@
     var todayIso=isoDay(new Date());
     sb.rpc('company_roster').then(function(tr){
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
-      var jP=sb.from('job').select('id,status,problem,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
+      var jP=sb.from('job').select('id,status,problem,availability,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
       var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
       Promise.all([jP,oP]).then(function(res){
         jobs=(res[0].data)||[];

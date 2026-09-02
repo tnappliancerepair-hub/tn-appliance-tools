@@ -41,7 +41,7 @@
   .copychip.cc-ref{background:rgba(90,169,255,.14);color:#4b93e6;border-color:rgba(90,169,255,.42)}
   .nsvendor{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:var(--gold-grad,linear-gradient(135deg,#ffd75a,#f5a623));color:#231a02;border:1px solid transparent}
   .citychip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;color:var(--muted);padding:2px 2px}
-  .nsavail{margin-top:9px;padding:7px 10px;border-radius:9px;background:rgba(90,169,255,.12);border:1px solid rgba(90,169,255,.42);color:#4b93e6;font-size:12.5px;font-weight:800;line-height:1.4}
+  .nsavail{margin:0 0 8px;padding:7px 10px;border-radius:9px;background:rgba(90,169,255,.12);border:1px solid rgba(90,169,255,.42);color:#4b93e6;font-size:12.5px;font-weight:800;line-height:1.4}
   .nsavail.nsavail-empty{background:var(--chip);border-color:var(--line);color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .nsavail .ns-intake{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:4px 9px;font-size:11.5px;font-weight:800;cursor:pointer}
   /* suggest */
@@ -187,9 +187,9 @@
   }
   function copyChip(label,value,kind){ return '<span class="copychip cc-'+kind+'" data-copy="'+esc(value)+'" title="Tap to copy">'+esc(label)+' <span class="cc-ico">⧉</span></span>'; }
   function availBlock(j){
-    var a=String(j.availability||'').trim();
-    if(a) return '<div class="nsavail">🔒 Customer available '+esc(a.slice(0,140))+'</div>';
-    return '<div class="nsavail nsavail-empty">🕒 No time captured yet</div>';
+    var a=String(j.availability||'').replace(/\s+/g,' ').trim();
+    if(a) return '<div class="nsavail">🗓 Available: '+esc(a.slice(0,160))+'</div>';
+    return '<div class="nsavail nsavail-empty">🗓 Availability not given</div>';
   }
 
   if(!cfg.url||!cfg.anonKey){ app.innerHTML='<div class="gate"><h1>🐜 Not connected</h1></div>'; return; }
@@ -310,9 +310,10 @@
       '<div class="err pk-err"></div></div>';
 
     return '<div class="nsjob" data-jobcard="'+esc(j.id)+'" style="--sc:'+(SC[j.status]||'var(--line)')+'">'+
+      avail+
       '<div class="name">'+esc(title)+'</div>'+
       (sub?'<div class="unit">'+esc(sub)+'</div>':'')+
-      hdr+avail+sugHtml+picker+
+      hdr+sugHtml+picker+
       '<div class="nsopen"><a href="/platform/office-board.html?job='+encodeURIComponent(j.id)+'">Open job →</a></div>'+
     '</div>';
   }
