@@ -205,7 +205,9 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
         btn.textContent='All set ✓';
         return;
       }
-      msg.className='msg err'; msg.textContent = d.error || 'Something went wrong — try again.';
+      // Prefer the friendly d.message (e.g. the invite-only note) over the raw d.error
+      // code ("signup_not_open") so a gated/failed signup never shows a machine string.
+      msg.className='msg err'; msg.textContent = d.message || d.error || 'Something went wrong — try again.';
       btn.disabled=false; btn.textContent='Start my 14-day trial →';
     }).catch(function(){
       msg.className='msg err'; msg.textContent='Network hiccup — try again.';

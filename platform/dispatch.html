@@ -129,6 +129,7 @@
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/vendor/boot-watchdog.js"></script>
 <script>
 (function(){
   var app=document.getElementById('app');
@@ -211,12 +212,17 @@
   function stateFull(st){ return US_STATES[String(st||'').trim().toUpperCase()]||String(st||'').trim(); }
   function geoHash(s){ var h=0; for(var i=0;i<s.length;i++){ h=((h<<5)-h)+s.charCodeAt(i); h|=0; } return String(Math.abs(h)); }
   var _schedGen=0, _schedMap=null, _schedCoords={};   // gen counter cancels stale geocode loops; in-memory memo = instant re-mounts
+  // Leaflet: self-hosted local-first (survives a demo network that blocks unpkg), with the
+  // unpkg CDN as an automatic fallback if the local file is unreachable.
   function ensureLeaflet(){ return new Promise(function(res,rej){
     if(window.L) return res();
-    if(!document.querySelector('link[href*="leaflet"]')){ var c=document.createElement('link'); c.rel='stylesheet'; c.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(c); }
-    var sc=document.querySelector('script[src*="leaflet@1.9.4"]');
-    if(sc){ if(window.L) return res(); sc.addEventListener('load',function(){ res(); }); sc.addEventListener('error',rej); return; }
-    sc=document.createElement('script'); sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; sc.onload=function(){ res(); }; sc.onerror=rej; document.head.appendChild(sc);
+    if(!document.querySelector('link[href*="leaflet.css"]')){ var c=document.createElement('link'); c.rel='stylesheet'; c.href='/platform/vendor/leaflet.css'; c.onerror=function(){ c.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; }; document.head.appendChild(c); }
+    var ex=document.querySelector('script[data-leaflet]');
+    if(ex){ if(window.L) return res(); ex.addEventListener('load',function(){ res(); }); ex.addEventListener('error',rej); return; }
+    var sc=document.createElement('script'); sc.setAttribute('data-leaflet','1'); sc.src='/platform/vendor/leaflet.js';
+    sc.onload=function(){ res(); };
+    sc.onerror=function(){ var cdn=document.createElement('script'); cdn.setAttribute('data-leaflet','1'); cdn.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; cdn.onload=function(){ res(); }; cdn.onerror=rej; document.head.appendChild(cdn); };
+    document.head.appendChild(sc);
   }); }
   // Tiered geocode: real street → ZIP centroid → city+state. Spell the state out so a bare
   // "LA" isn't read as Los Angeles. Skip placeholder streets ("1"/""). Cached in localStorage.

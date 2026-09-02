@@ -86,6 +86,7 @@
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/vendor/boot-watchdog.js"></script>
 <script>
 (function(){
   var app=document.getElementById('app');
@@ -187,7 +188,7 @@
   function availBlock(j){
     var a=String(j.availability||'').trim();
     if(a) return '<div class="nsavail">🔒 Customer available '+esc(a.slice(0,140))+'</div>';
-    return '<div class="nsavail nsavail-empty">🕒 No time captured yet <button type="button" class="ns-intake" data-job="'+esc(j.id)+'">📲 Text intake link</button></div>';
+    return '<div class="nsavail nsavail-empty">🕒 No time captured yet</div>';
   }
 
   if(!cfg.url||!cfg.anonKey){ app.innerHTML='<div class="gate"><h1>🐜 Not connected</h1></div>'; return; }
@@ -320,8 +321,7 @@
   function wireCards(){
     // copy chips
     Array.prototype.forEach.call(document.querySelectorAll('.copychip[data-copy]'),function(el){ el.onclick=function(ev){ ev.stopPropagation(); var t=el.getAttribute('data-copy'); try{ if(navigator.clipboard) navigator.clipboard.writeText(t); }catch(_){} var ico=el.querySelector('.cc-ico'); if(ico){ var old=ico.textContent; ico.textContent='✓'; setTimeout(function(){ ico.textContent=old; },1000); } }; });
-    // intake — no platform-side sender wired yet; honest stub (Part-B deferred item)
-    Array.prototype.forEach.call(document.querySelectorAll('.ns-intake[data-job]'),function(el){ el.onclick=function(ev){ ev.stopPropagation(); toast('📲 Intake-link texting is coming soon'); }; });
+    // (intake-link pill removed — the office texts customers from the Messages page)
     // ✓ Use this — book the suggested tech+day
     Array.prototype.forEach.call(document.querySelectorAll('[data-use]'),function(el){ el.onclick=function(){ var j=jobById(el.getAttribute('data-use')); if(!j) return; var sug=suggestSlot(j); if(!sug){ togglePick(j.id,true); return; } book(j, sug.tech.id, sug.day, el); }; });
     // ✗ Not quite / Pick a tech — open the inline picker

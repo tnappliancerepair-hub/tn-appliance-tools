@@ -88,6 +88,7 @@
       <button class="src on" data-src="housecallpro"><b>Housecall Pro</b><span>API key · verified live</span></button>
       <button class="src" data-src="jobber"><b>Jobber</b><span>OAuth token</span></button>
       <button class="src" data-src="workiz"><b>Workiz</b><span>API token</span></button>
+      <button class="src" data-src="xano"><b>TN (Xano)</b><span>your legacy system · no key</span></button>
     </div>
     <label>Which shop is it landing on? <span style="font-weight:400;color:var(--faint)">(their board slug or id)</span></label>
     <input id="company" placeholder="e.g. joeys-appliance" autocomplete="off">
@@ -155,13 +156,22 @@
   var SRC={
     housecallpro:{name:'Housecall Pro',label:'Housecall Pro API key',ph:"paste the shop's HCP key",hint:'Get it in HCP → Settings → API. Leave blank in a demo to use the vaulted key. We never store the key — only the last 4.'},
     jobber:{name:'Jobber',label:'Jobber access token',ph:'paste the Jobber OAuth token',hint:'From the shop authorizing Jobber (OAuth). Built to Jobber’s API — the first real Jobber shop fine-tunes field quirks. We store only the last 4.'},
-    workiz:{name:'Workiz',label:'Workiz API token',ph:'paste the Workiz API token',hint:'Workiz → Settings → API. Built to Workiz’s API — the first real Workiz shop fine-tunes field quirks. We store only the last 4.'}
+    workiz:{name:'Workiz',label:'Workiz API token',ph:'paste the Workiz API token',hint:'Workiz → Settings → API. Built to Workiz’s API — the first real Workiz shop fine-tunes field quirks. We store only the last 4.'},
+    // TN's own legacy system — keyless: reads a vaulted token server-side, read-only (the old system is untouched).
+    xano:{name:'TN (Xano)',label:'',ph:'',hint:'',keyless:true}
   };
   Array.prototype.forEach.call(document.querySelectorAll('.src[data-src]'),function(b){
     b.addEventListener('click',function(){
       Array.prototype.forEach.call(document.querySelectorAll('.src[data-src]'),function(x){x.classList.remove('on');});
       b.classList.add('on'); state.source=b.dataset.src;
-      var s=SRC[state.source]; el('keylabel').textContent=s.label; el('key').placeholder=s.ph; el('keyhint').textContent=s.hint;
+      var s=SRC[state.source];
+      // Keyless sources (TN/Xano) hide the key field entirely — nothing to paste.
+      var keyless=!!s.keyless;
+      el('keylabel').style.display=keyless?'none':'';
+      el('key').style.display=keyless?'none':'';
+      el('keyhint').style.display=keyless?'none':'';
+      if(keyless){ el('key').value=''; }
+      else { el('keylabel').textContent=s.label; el('key').placeholder=s.ph; el('keyhint').textContent=s.hint; }
     });
   });
 

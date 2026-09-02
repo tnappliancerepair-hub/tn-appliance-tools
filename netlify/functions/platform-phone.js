@@ -315,5 +315,23 @@ exports.handler = async function (event) {
     return J(200, { ok: true, released: true, ann_canceled: annCanceled, shadow: !LIVE });
   }
 
-  return J(400, { ok: false, error: 'unknown_action', actions: ['provision', 'status', 'pause', 'resume', 'release'] });
+  // Update / rebuild — re-push the assistant config to an existing Ann. THIS is what
+  // lands the live warm-transfer tool: on a first provision the number is written to
+  // settings.phone AFTER the assistant is built, so assistantBody() omits transfer
+  // (it needs settings.phone.number). Now that the number is persisted, re-PATCHing the
+  // assistant adds transfer + picks up any tool/persona changes — WITHOUT releasing the
+  // DID. Mirrors the curated trial-ann-admin action=update re-push.
+  if (action === 'update' || action === 'rebuild') {
+    if (!phone.number || !phone.assistant_id) return J(200, { ok: false, error: 'no_assistant', note: 'provision Ann first' });
+    const toolKey = (await getSecret('TELNYX_TOOL_SECRET')) || '';
+    const body = assistantBody(company, toolKey);
+    const hasTransfer = (body.tools || []).some((t) => t && t.type === 'transfer');
+    if (!LIVE) return J(200, { ok: true, shadow: true, would_push: { assistant_id: phone.assistant_id, tools: (body.tools || []).map((t) => t.type === 'webhook' ? (t.webhook && t.webhook.name) : t.type), transfer: hasTransfer }, note: 'PLATFORM_PHONE_LIVE!=true — nothing pushed.' });
+    const res = await tx('PATCH', `/ai/assistants/${phone.assistant_id}`, body);
+    if (!res.ok) return J(200, { ok: false, step: 'update', error: JSON.stringify(res.data.errors || res.data).slice(0, 200) });
+    await pf.patch('company', `id=eq.${encodeURIComponent(companyId)}`, { updated_at: new Date().toISOString() });
+    return J(200, { ok: true, updated: true, assistant_id: phone.assistant_id, transfer_wired: hasTransfer });
+  }
+
+  return J(400, { ok: false, error: 'unknown_action', actions: ['provision', 'update', 'status', 'usage', 'pause', 'resume', 'release'] });
 };
