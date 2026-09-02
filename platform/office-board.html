@@ -249,6 +249,8 @@
   .citychip{display:inline-flex;align-items:center;font-size:11.5px;font-weight:700;color:var(--muted);padding:2px 2px}
   .card .availc{margin-top:7px;padding:7px 10px;border-radius:9px;background:rgba(90,169,255,.12);border:1px solid rgba(90,169,255,.42);color:#4b93e6;font-size:12.5px;font-weight:800;line-height:1.4}
   :root:not([data-theme="light"]) .card .availc,:root[data-theme="dark"] .card .availc{color:#8cc0ff}
+  .card .schedc{margin-top:7px;padding:6px 10px;border-radius:9px;background:rgba(31,122,55,.14);border:1px solid rgba(31,122,55,.45);color:#1f7a37;font-size:12.5px;font-weight:800;line-height:1.35}
+  :root:not([data-theme="light"]) .card .schedc,:root[data-theme="dark"] .card .schedc{color:#7fdd97}
   .card .cmsg{margin-top:7px;padding:7px 10px;border-radius:10px;background:rgba(26,158,70,.10);border:1px solid rgba(26,158,70,.34);color:var(--ink);font-size:12.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .card .flags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
   .fchip{display:inline-flex;align-items:center;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:2px 8px;border-radius:999px;white-space:nowrap;border:1px solid var(--line);background:var(--chip);color:var(--muted)}
@@ -966,6 +968,9 @@
         var cityChip = city ? '<span class="citychip">📍 '+esc(city)+'</span>' : '';
         var hdr = (refChip||partChip||vendor||cityChip) ? '<div class="chdr">'+refChip+partChip+vendor+cityChip+'</div>' : '';
 
+        // the booked date — shown right on the card so it's visible in the column view
+        var schChip = (String(j.scheduled_day||'').trim() && j.status!=='canceled')
+          ? '<div class="schedc">📅 Scheduled '+esc(schDay(j.scheduled_day))+(j.technician&&j.technician.name?' · '+esc(firstName(j.technician.name)):'')+'</div>' : '';
         // customer-agreed availability / promised window
         var avail = availChip(j);
         // latest inbound customer message — green bubble, 2-line clamp
@@ -984,6 +989,7 @@
           hdr +
           (unit?'<div class="unit">'+esc(unit)+'</div>':'') +
           (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
+          schChip +
           avail +
           msgHtml +
           (flags?'<div class="flags">'+flags+'</div>':'') +
