@@ -61,7 +61,8 @@ async function uploadOpenAiConversion({ event_type, value, phone, email, when_ms
     action_source: 'web',
     user,
   };
-  if (source_url) ev.source_url = String(source_url);
+  // OpenAI requires source_url on every "web" action_source event — default it so any caller is safe.
+  ev.source_url = String(source_url || 'https://tnapplianceexchange.net/appliance-ai.html');
   const v = Number(value) || 0;
   // amount must be an integer in ISO-4217 MINOR units (cents); the sweep passes dollars.
   const cents = v > 0 ? Math.round(v * 100) : null;
