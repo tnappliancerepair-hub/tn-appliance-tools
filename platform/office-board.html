@@ -1094,17 +1094,12 @@
       '<div class="custname" id="jcusthead">'+esc(fullName(cust)||'Customer')+'</div>' +
       '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
-      // ── ↔ JUMP TO — cross-tool deep-link grid (scroll targets in this drawer + the tech workspace) ──
-      '<div class="sec">↔ Jump to</div>' +
-      '<div id="jjump" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
-        '<button type="button" data-jump="warranty" style="'+JBTN+'">📦 Warranty</button>' +
-        '<button type="button" data-jump="schedule" style="'+JBTN+'">🗓 Schedule</button>' +
-        '<button type="button" data-jump="parts" style="'+JBTN+'">🧾 Parts $</button>' +
-        '<button type="button" data-jump="invoice" style="'+JBTN+'">📄 Invoice</button>' +
-        '<button type="button" data-jump="tech" style="'+JBTN+'">🔧 Tech · find parts</button>' +
-        '<button type="button" data-jump="customer" style="'+JBTN+'">👤 Customer</button>' +
-      '</div>' +
-      // ── 🔄 RESCHEDULE (tech + day) — inline month calendar, sets it straight on the job ──
+      // ── 📩 CUSTOMER INTAKE — what the customer sent (their info, availability, video/model).
+      // Sits right under the header so scheduling is done off the customer's own availability. ──
+      '<div id="jintake"></div>' +
+      // ── SCHEDULING CLUSTER — the calendar + tech + schedule, grouped directly beneath the
+      // intake so (re)scheduling is one convenient block right where the customer's info is. ──
+      // 🔄 Reschedule (tech + day) — inline month calendar, sets it straight on the job.
       '<div class="sec">🔄 Reschedule (tech + day)</div>' +
       '<div id="jresched">' +
         '<div class="hint" id="rsCtx" style="margin-bottom:4px"></div>' +
@@ -1123,7 +1118,19 @@
         '<button class="primary" id="rsGo" style="width:100%;margin-top:10px">Reschedule</button>' +
         '<div class="err" id="rsErr"></div>' +
       '</div>' +
+      '<div class="sec">Assigned tech</div><div class="srow"><select id="jtech" style="flex:1"><option value="">Unassigned</option>'+techOptions(job.technician_id)+'</select></div>' +
+      '<div class="sec">📅 Schedule</div><div id="jsched"><div class="hint">Loading…</div></div>' +
       '<div class="schedflags" id="jflags"><button type="button" data-flag="two" class="'+(job.needs_two_techs?'on':'')+'">🧑‍🤝‍🧑 Two-man</button><button type="button" data-flag="long" class="'+(job.long_job?'on':'')+'">⏳ Long job</button></div>' +
+      // ── ↔ JUMP TO — cross-tool deep-link grid (scroll targets in this drawer + the tech workspace) ──
+      '<div class="sec">↔ Jump to</div>' +
+      '<div id="jjump" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+        '<button type="button" data-jump="warranty" style="'+JBTN+'">📦 Warranty</button>' +
+        '<button type="button" data-jump="schedule" style="'+JBTN+'">🗓 Schedule</button>' +
+        '<button type="button" data-jump="parts" style="'+JBTN+'">🧾 Parts $</button>' +
+        '<button type="button" data-jump="invoice" style="'+JBTN+'">📄 Invoice</button>' +
+        '<button type="button" data-jump="tech" style="'+JBTN+'">🔧 Tech · find parts</button>' +
+        '<button type="button" data-jump="customer" style="'+JBTN+'">👤 Customer</button>' +
+      '</div>' +
       // ── ⏰ CUSTOMER HARD CUTOFF — a red flag on the tile so it never gets missed ──
       '<div class="sec">⏰ Customer must leave by</div>' +
       '<div id="jcutoff">' +
@@ -1131,9 +1138,6 @@
         '<div style="display:flex;gap:8px;align-items:center"><input id="jcutoffVal" placeholder="e.g. 2:00 PM" value="'+esc(job.customer_cutoff||'')+'" style="flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"><button class="primary" id="jcutoffSave">Save</button></div>' +
         '<span class="hint" id="jcutoffMsg" style="display:block;margin-top:5px"></span>' +
       '</div>' +
-      '<div class="sec">Assigned tech</div><div class="srow"><select id="jtech" style="flex:1"><option value="">Unassigned</option>'+techOptions(job.technician_id)+'</select></div>' +
-      '<div class="sec">📅 Schedule</div><div id="jsched"><div class="hint">Loading…</div></div>' +
-      '<div id="jintake"></div>' +
       '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
       '<div class="sec">Office notes</div><textarea id="jnotes" placeholder="Parts on order, gate code, upsell offered, anything the team should see…">'+esc(job.office_notes||'')+'</textarea>' +
