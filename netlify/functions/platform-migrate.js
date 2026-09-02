@@ -73,6 +73,73 @@ const MIGRATIONS = {
                    alter table public.invoice add column if not exists tech_pay_cents   integer;
                    alter table public.invoice add column if not exists parts_cost_cents integer;`,
 
+  // Sample data for iterating on the DISPATCH page: seeds the DEMO tenant with a handful of
+  // scheduled jobs spread across techs (next few days) + some needing scheduling, plus a couple
+  // extra demo techs with Nashville service zones. Idempotent — re-run refreshes (seed customers
+  // use the reserved 61500055xx phone range so the prior batch is cleaned first).
+  demo_dispatch_seed: `do $seed$
+    declare v_co uuid; v_t1 uuid; v_t2 uuid; v_t3 uuid; v_t4 uuid; v_c uuid; v_u uuid;
+      d0 date := current_date; d1 date := current_date+1; d2 date := current_date+2; d3 date := current_date+3;
+    begin
+      select id into v_co from company where slug='demo' limit 1;
+      if v_co is null then return; end if;
+      -- clean any prior seed (jobs -> units -> customers, matched by the reserved phone range)
+      delete from job where company_id=v_co and source='dispatch_seed';
+      delete from unit where company_id=v_co and customer_id in (select id from customer where company_id=v_co and phone like '61500055%');
+      delete from customer where company_id=v_co and phone like '61500055%';
+      -- ensure 4 demo techs with service zones (display-only rows; select-by-name so re-run won't dup)
+      select id into v_t1 from technician where company_id=v_co and lower(name) like 'joey%' order by created_at limit 1;
+      if v_t1 is null then insert into technician(company_id,name,active,service_area) values(v_co,'Joey Grover',true,'370,371') returning id into v_t1; else update technician set service_area='370,371', active=true where id=v_t1; end if;
+      select id into v_t2 from technician where company_id=v_co and lower(name) like 'demo tech%' order by created_at limit 1;
+      if v_t2 is null then insert into technician(company_id,name,active,service_area) values(v_co,'Demo Tech',true,'372,373') returning id into v_t2; else update technician set service_area='372,373', active=true where id=v_t2; end if;
+      select id into v_t3 from technician where company_id=v_co and name='Marcus Lee' order by created_at limit 1;
+      if v_t3 is null then insert into technician(company_id,name,active,service_area) values(v_co,'Marcus Lee',true,'370,380') returning id into v_t3; end if;
+      select id into v_t4 from technician where company_id=v_co and name='Andre Boyd' order by created_at limit 1;
+      if v_t4 is null then insert into technician(company_id,name,active,service_area) values(v_co,'Andre Boyd',true,'371,384') returning id into v_t4; end if;
+
+      -- ── SCHEDULED (6, across the 4 techs + next few days) ─────────────────────────────
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Donna','Pierce','6150005501','812 Bell Rd','Antioch','TN','37013') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'Whirlpool refrigerator','refrigerator','{"brand":"Whirlpool","model":"WRF535SWHZ"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,scheduled_day,technician_id,source) values(v_co,v_c,v_u,'scheduled','Refrigerator not cooling',d0,v_t1,'dispatch_seed');
+
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Marcus','Webb','6150005502','1907 Nolensville Pike','Nashville','TN','37211') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'Maytag dryer','dryer','{"brand":"Maytag","model":"MEDC465HW"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,scheduled_day,technician_id,source) values(v_co,v_c,v_u,'scheduled','Dryer not heating',d1,v_t1,'dispatch_seed');
+
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Rebecca','Alvarez','6150005503','340 W Northfield Blvd','Murfreesboro','TN','37130') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'LG dishwasher','dishwasher','{"brand":"LG","model":"LDFN4542"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,scheduled_day,technician_id,source) values(v_co,v_c,v_u,'scheduled','Dishwasher won''t drain',d0,v_t2,'dispatch_seed');
+
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Kevin','Tran','6150005504','215 Sam Ridley Pkwy','Smyrna','TN','37167') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'Samsung washer','washer','{"brand":"Samsung","model":"WF45T6000AW"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,scheduled_day,technician_id,source) values(v_co,v_c,v_u,'scheduled','Washer stops mid-cycle',d2,v_t2,'dispatch_seed');
+
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Sara','Bennett','6150005505','120 4th Ave S','Franklin','TN','37064') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'GE oven','oven','{"brand":"GE","model":"JB645RKSS"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,scheduled_day,technician_id,source) values(v_co,v_c,v_u,'scheduled','Oven not reaching temp',d1,v_t3,'dispatch_seed');
+
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'James','Holloway','6150005506','4012 Lebanon Pike','Hermitage','TN','37076') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'Frigidaire refrigerator','refrigerator','{"brand":"Frigidaire","model":"FFHB2750TS"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,scheduled_day,technician_id,parts_status,parts_eta,source) values(v_co,v_c,v_u,'awaiting_parts','Ice maker not working — part on order',d2,v_t4,'ordered',current_date+3,'dispatch_seed');
+
+      -- ── NEEDS SCHEDULING (4, no tech / no day) ────────────────────────────────────────
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Latoya','Green','6150005507','528 Harding Pl','Nashville','TN','37211') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'Whirlpool washer','washer','{"brand":"Whirlpool","model":"WTW5000DW"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,availability,source) values(v_co,v_c,v_u,'new','Washer won''t drain','Mornings this week','dispatch_seed');
+
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Derek','Foster','6150005508','3137 Skinner Dr','Antioch','TN','37013') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'KitchenAid dishwasher','dishwasher','{"brand":"KitchenAid","model":"KDTM404KPS"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,source) values(v_co,v_c,v_u,'new','Dishwasher leaking','dispatch_seed');
+
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Angela','Ruiz','6150005509','5310 Murfreesboro Rd','La Vergne','TN','37086') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'Samsung dryer','dryer','{"brand":"Samsung","model":"DVE45T6100W"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,warranty_company,claim_number,availability,source) values(v_co,v_c,v_u,'new','Dryer making loud noise','AHS','61658400','Any weekday afternoon','dispatch_seed');
+
+      insert into customer(company_id,first_name,last_name,phone,address,city,state,zip) values(v_co,'Nathan','Cole','6150005510','330 Franklin Rd','Brentwood','TN','37027') returning id into v_c;
+      insert into unit(company_id,customer_id,label,kind,attributes) values(v_co,v_c,'Bosch dishwasher','dishwasher','{"brand":"Bosch","model":"SHEM63W55N"}'::jsonb) returning id into v_u;
+      insert into job(company_id,customer_id,unit_id,status,problem,source) values(v_co,v_c,v_u,'new','Dishwasher not cleaning dishes','dispatch_seed');
+    end $seed$;`,
+
   // Teach the call resolver to surface the best PART's source + route + ETA (from job_part), so
   // Ann can answer "when are my parts coming?" with "shipping from American Home Shield, ETA …".
   // CREATE OR REPLACE the same SECURITY DEFINER resolver, adding part_source/part_ship_to/part_eta.
