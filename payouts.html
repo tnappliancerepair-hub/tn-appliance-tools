@@ -1,0 +1,139 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Payouts — reconcile & pay techs</title>
+<style>
+  :root{--bg:#f5f6f2;--panel:#fff;--ink:#12160f;--muted:#5b6152;--line:#e3e6dc;--brand:#2f7d1f;--green:#1c8a3a;--amber:#b7791f;--red:#b4472e;--blue:#2563eb;--chip:#eef2e8;--shadow:0 1px 2px rgba(20,30,10,.06),0 6px 20px rgba(20,30,10,.05)}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:5;background:rgba(245,246,242,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:12px 16px}
+  header .b{font-weight:800;font-size:16px}.sp{flex:1}
+  header a,header button{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:7px 12px;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+  .wrap{max-width:940px;margin:0 auto;padding:16px}
+  .gate{max-width:340px;margin:64px auto;text-align:center;padding:0 20px}
+  .gate input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;margin:8px 0;font:inherit}
+  .gate button{width:100%;background:var(--brand);color:#fff;border:0;border-radius:10px;padding:12px;font-weight:800;cursor:pointer}
+  .lead{color:var(--muted);font-size:13.5px;margin:0 2px 14px}
+  .live{display:inline-block;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:6px}
+  .live.on{background:#e7f6ea;color:var(--green)}.live.test{background:#fdeee6;color:var(--amber)}
+  .po{background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);margin-bottom:10px;overflow:hidden}
+  .po-h{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer}
+  .po-amt{font-size:22px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .po-meta{flex:1;min-width:0}.po-meta .d{font-weight:700;font-size:13.5px}.po-meta .s{color:var(--muted);font-size:12px}
+  .pill{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px}
+  .pill.paid{background:#e7f6ea;color:var(--green)}.pill.pending,.pill.in_transit{background:#eef3fb;color:var(--blue)}.pill.failed,.pill.canceled{background:#fdeaea;color:var(--red)}
+  .po-caret{color:var(--muted);font-size:18px;transition:transform .15s}.po.open .po-caret{transform:rotate(90deg)}
+  .po-body{border-top:1px solid var(--line);padding:6px 16px 14px;display:none}.po.open .po-body{display:block}
+  .sumrow{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--muted);margin:8px 2px 12px}
+  .sumrow b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .owed{color:var(--brand);font-weight:800}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:800;padding:6px 8px;border-bottom:1px solid var(--line)}
+  td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cust{font-weight:700}.jobsub{color:var(--muted);font-size:11.5px}
+  .tag{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:6px;background:var(--chip);color:var(--muted);margin-left:5px}
+  .paybtn{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:7px 11px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap}
+  .paybtn:disabled{background:var(--chip);color:var(--muted);cursor:default}
+  .paid-badge{color:var(--green);font-weight:800;font-size:12px}
+  .noinv{color:var(--amber);font-size:11.5px;font-weight:700}
+  .unmatched{margin-top:12px;padding:10px 12px;border:1px dashed var(--amber);border-radius:10px;background:#fef7ee}
+  .unmatched .u1{font-weight:800;color:var(--amber);font-size:12.5px;margin-bottom:4px}
+  .empty{color:var(--muted);padding:24px;text-align:center}
+  .spin{color:var(--muted);padding:18px;text-align:center}
+  .err{color:var(--red);font-size:13px;margin:8px 2px}
+</style></head>
+<body>
+<div id="app"><div class="spin">Loading…</div></div>
+<script>
+(function(){
+  var app=document.getElementById('app');
+  var FN='/.netlify/functions/';
+  var pw=''; try{ pw=localStorage.getItem('ant_office_pw')||''; }catch(e){}
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];}); }
+  function money(n){ return '$'+(Number(n)||0).toFixed(2); }
+  function fdate(iso){ try{ return new Date(iso).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return iso||''; } }
+  function api(payload){ return fetch(FN+'stripe-payouts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({password:pw},payload))}).then(function(r){return r.json();}); }
+
+  function gate(msg){
+    app.innerHTML='<div class="gate"><h1>💰 Payouts</h1><p class="lead">Reconcile Stripe deposits &amp; pay the techs. Office password:</p>'+
+      '<input id="pw" type="password" placeholder="Office password" autocomplete="current-password"><button id="go">Unlock</button>'+(msg?'<div class="err">'+esc(msg)+'</div>':'')+'</div>';
+    var go=document.getElementById('go'), inp=document.getElementById('pw');
+    function submit(){ pw=inp.value.trim(); if(!pw)return; try{localStorage.setItem('ant_office_pw',pw);}catch(e){} go.disabled=true; go.textContent='Checking…'; loadList(true); }
+    go.onclick=submit; inp.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); }); inp.focus();
+  }
+
+  var payouts=[], openId=null, breakdowns={};
+  function loadList(fromGate){
+    if(!pw){ gate(); return; }
+    if(!fromGate) app.innerHTML='<div class="spin">Loading payouts…</div>';
+    api({do:'list',limit:25}).then(function(d){
+      if(d&&d.error==='unauthorized'){ gate(fromGate?'Wrong password — try again.':''); return; }
+      if(!d||!d.ok){ app.innerHTML=shell('<div class="err">'+esc((d&&d.error)||'could not load')+'</div>'); return; }
+      payouts=d.payouts||[]; render(d.live);
+    }).catch(function(){ app.innerHTML=shell('<div class="err">Network error — reload.</div>'); });
+  }
+  function shell(inner,live){
+    return '<header><span class="b">💰 Payouts</span>'+(live!=null?'<span class="live '+(live?'on':'test')+'">'+(live?'LIVE':'TEST MODE')+'</span>':'')+'<span class="sp"></span><a href="/money.html">Money</a><a href="/office-board.html">Board</a><button id="rf">Refresh</button></header><div class="wrap">'+inner+'</div>';
+  }
+  function render(live){
+    var rows = payouts.length ? payouts.map(function(p){
+      var st=esc(p.status||'');
+      var open = p.id===openId;
+      var head='<div class="po-h" data-po="'+esc(p.id)+'"><div class="po-amt">'+money(p.amount)+'</div>'+
+        '<div class="po-meta"><div class="d">'+fdate(p.arrival||p.created)+(p.bank?' · '+esc(String(p.bank)):'')+'</div><div class="s">'+esc(p.id)+'</div></div>'+
+        '<span class="pill '+st+'">'+st+'</span><span class="po-caret">›</span></div>';
+      var body='<div class="po-body" id="body-'+esc(p.id)+'">'+(open?(breakdowns[p.id]?renderBreak(breakdowns[p.id],p.id):'<div class="spin">Opening…</div>'):'')+'</div>';
+      return '<div class="po'+(open?' open':'')+'" id="po-'+esc(p.id)+'">'+head+body+'</div>';
+    }).join('') : '<div class="empty">No payouts yet. When Stripe deposits to the bank they show here.</div>';
+    app.innerHTML=shell('<p class="lead">Each deposit Stripe sends to the bank — opened up so you can see which jobs it paid for and pay the techs their cut.</p>'+rows,live);
+    document.getElementById('rf').onclick=function(){ breakdowns={}; loadList(); };
+    Array.prototype.forEach.call(document.querySelectorAll('[data-po]'),function(el){ el.onclick=function(){ toggle(el.getAttribute('data-po')); }; });
+  }
+  function toggle(id){
+    if(openId===id){ openId=null; render(); return; }
+    openId=id; render();
+    if(!breakdowns[id]){
+      api({do:'breakdown',payout:id}).then(function(d){ breakdowns[id]=d; if(openId===id) paintBody(id); });
+    }
+  }
+  function paintBody(id){ var el=document.getElementById('body-'+id); if(el) el.innerHTML=renderBreak(breakdowns[id],id); wirePay(id); }
+  function renderBreak(d,poId){
+    if(!d||!d.ok) return '<div class="err">'+esc((d&&d.error)||'could not open this payout')+'</div>';
+    var t=d.totals||{};
+    var sum='<div class="sumrow"><span>Gross <b>'+money(t.gross)+'</b></span><span>Stripe fees <b>'+money(t.fees)+'</b></span>'+(t.refunds?'<span>Refunds <b>'+money(t.refunds)+'</b></span>':'')+'<span>Deposited <b>'+money(t.net_deposited)+'</b></span><span>Techs owed <b class="owed">'+money(t.tech_owed)+'</b></span></div>';
+    var body='';
+    if((d.charges||[]).length){
+      body+='<table><thead><tr><th>Customer / job</th><th class="num">Paid</th><th>Tech</th><th class="num">Commission</th><th></th></tr></thead><tbody>'+
+        d.charges.map(function(c){
+          var owed=c.owed||0; var jobsub='job #'+esc(c.job_id)+(c.appliance?' · '+esc(c.appliance):'')+(c.kind&&c.kind!=='invoice'?'<span class="tag">'+esc(c.kind)+'</span>':'');
+          var payCell;
+          if(!c.has_invoice){ payCell='<span class="noinv">no invoice logged</span>'; }
+          else if(owed<=0 && c.already_paid>0){ payCell='<span class="paid-badge">✓ paid '+money(c.already_paid)+'</span>'; }
+          else if(!c.tech_id||owed<=0){ payCell='<span class="jobsub">—</span>'; }
+          else { payCell='<button class="paybtn" data-pay="'+esc(c.job_id)+'" data-tech="'+c.tech_id+'" data-amt="'+owed.toFixed(2)+'" data-po="'+esc(poId)+'">Pay '+esc((c.tech_name||'tech').split(' ')[0])+' '+money(owed)+'</button>'; }
+          return '<tr><td><div class="cust">'+esc(c.customer)+'</div><div class="jobsub">'+jobsub+'</div></td><td class="num">'+money(c.gross)+'</td><td>'+esc(c.tech_name||'—')+'</td><td class="num">'+(c.has_invoice?money(c.tech_pay):'—')+(c.already_paid>0&&owed>0?'<div class="jobsub">'+money(c.already_paid)+' paid</div>':'')+'</td><td class="num">'+payCell+'</td></tr>';
+        }).join('')+'</tbody></table>';
+    } else { body+='<div class="empty">No card charges in this payout (may be a fee, refund, or adjustment).</div>'; }
+    if((d.unmatched||[]).length){
+      body+='<div class="unmatched"><div class="u1">⚠ '+d.unmatched.length+' charge'+(d.unmatched.length>1?'s':'')+' couldn’t be matched to a job — eyeball these</div>'+
+        d.unmatched.map(function(u){ return '<div class="jobsub">'+money(u.gross)+' · '+esc(u.name||u.kind||'unknown')+(u.job_id?' · job #'+esc(u.job_id):' · no job on file')+'</div>'; }).join('')+'</div>';
+    }
+    return sum+body;
+  }
+  function wirePay(id){
+    Array.prototype.forEach.call(document.querySelectorAll('#body-'+id+' [data-pay]'),function(el){ el.onclick=function(){
+      var jobId=el.getAttribute('data-pay'), tech=parseInt(el.getAttribute('data-tech'),10), amt=el.getAttribute('data-amt'), po=el.getAttribute('data-po');
+      if(!window.confirm('Record $'+amt+' paid to this tech for job #'+jobId+'?')) return;
+      el.disabled=true; el.textContent='Saving…';
+      fetch(FN+'record-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({technician_id:tech,amount:parseFloat(amt),job_id:jobId,period:'stripe_payout',note:'Payout '+po,recorded_by:'office'})})
+        .then(function(r){return r.json();}).then(function(r){ if(r&&r.success){ el.outerHTML='<span class="paid-badge">✓ paid '+money(parseFloat(amt))+'</span>'; delete breakdowns[po]; api({do:'breakdown',payout:po}).then(function(d){ breakdowns[po]=d; if(openId===po) paintBody(po); }); } else { el.disabled=false; el.textContent='Retry'; alert((r&&r.error)||'could not record'); } })
+        .catch(function(){ el.disabled=false; el.textContent='Retry'; });
+    }; });
+  }
+  // paint an already-open body after render() rebuilds the DOM
+  var _render=render; render=function(live){ _render(live); if(openId&&breakdowns[openId]) paintBody(openId); };
+
+  if(pw) loadList(); else gate();
+})();
+</script>
+</body></html>
