@@ -18,6 +18,12 @@ const MIGRATIONS = {
   // The office board's per-job "which column" placement (mirrors the legacy office_stage).
   // Nullable + additive: existing jobs derive a default column until one is set here.
   board_stage: `alter table public.job add column if not exists board_stage text;`,
+
+  // Widen the TDR outcome set to the office's full claim dispositions: the original three
+  // (fixed / return_needed / not_fixable=replacement) plus second_opinion + no_failure (NFF).
+  tdr_outcomes: `alter table public.job_tdr drop constraint if exists job_tdr_outcome_check;
+                 alter table public.job_tdr add constraint job_tdr_outcome_check
+                   check (outcome in ('fixed','return_needed','not_fixable','second_opinion','no_failure'));`,
 };
 
 exports.handler = async (event) => {
