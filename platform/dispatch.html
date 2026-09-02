@@ -120,8 +120,18 @@
   .mapnote{font-size:11.5px;color:var(--muted);margin:0 2px 8px}
   .schedpin-wrap{background:transparent;border:0}
   .schedpin{width:30px;height:30px;border-radius:50%;background:#f97316;color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)}
-  .schedpin.approx{background:#fb923c;opacity:.85;border-style:dashed}
+  .schedpin.approx{opacity:.85;border-style:dashed}
   .unum{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#f97316;color:#fff;font-size:11px;font-weight:800;margin-right:5px;vertical-align:middle}
+  /* map mode toggle (Needs scheduling ⇄ Scheduled) + tech color legend */
+  .maptog{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .maptog button{background:var(--panel);border:0;padding:6px 11px;font-weight:800;font-size:12px;cursor:pointer;color:var(--muted);white-space:nowrap}
+  .maptog button.on{background:var(--brand);color:var(--brand-ink)}
+  .maplegend{display:flex;flex-wrap:wrap;gap:6px 13px;margin:0 2px 8px;padding:2px 0}
+  .maplegend .lgd{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--muted)}
+  .maplegend .lgd i{width:11px;height:11px;border-radius:50%;flex:none;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.18)}
+  .maplegend .lgd.off i{opacity:.5}
+  .mapempty{padding:11px 12px;border:1px dashed var(--line);border-radius:10px;font-size:12.5px;color:var(--muted);margin:0 0 8px}
+  .techdot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.2);margin-right:2px;vertical-align:middle}
 </style></head>
 <body>
 <div id="app"></div>
@@ -144,6 +154,21 @@
   function jobZip(j){ return (j&&j.customer&&j.customer.zip)||''; }
   function capOf(t){ var m=t&&t.max_stops; return (m!=null&&m>0)?m:6; }   // per-tech stops/day (owner-set; default 6)
   function bookedOn(techId,d){ var n=0; jobs.forEach(function(j){ if(j.technician_id===techId&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled') n++; }); return n; }
+  // Each tech gets a stable color (by position in the roster) used EVERYWHERE the tech appears —
+  // the map pins in "Scheduled" mode, the lane-header dot, and the map legend — so at a glance you
+  // see who's clustered in which area on a given day. 10 high-contrast hues, cycles past 10 techs.
+  var TECH_PALETTE=['#2563eb','#dc2626','#16a34a','#9333ea','#ea580c','#0891b2','#ca8a04','#db2777','#4f46e5','#0f766e'];
+  function techIdx(id){ for(var i=0;i<techs.length;i++){ if(techs[i].id===id) return i; } return -1; }
+  function techColor(id){ var i=techIdx(id); return TECH_PALETTE[(i<0?0:i)%TECH_PALETTE.length]; }
+  function techById(id){ var i=techIdx(id); return i<0?null:techs[i]; }
+  function techInitial(id){ var t=techById(id); var nm=String((t&&t.name)||'').trim(); return (nm.charAt(0)||'?').toUpperCase(); }
+  // Legend under a Scheduled-mode map: one color swatch per tech who has a stop that day, with count.
+  function buildLegend(list){
+    var byTech={}, order=[]; list.forEach(function(j){ var id=j.technician_id; if(!id) return; if(!byTech[id]){ byTech[id]=0; order.push(id); } byTech[id]++; });
+    if(!order.length) return '';
+    order.sort(function(a,b){ return techIdx(a)-techIdx(b); });
+    return '<div class="maplegend">'+order.map(function(id){ var t=techById(id); var nm=((t&&t.name)||'Tech').split(' ')[0]; var off=offOn(id,selDay)?' off':''; return '<span class="lgd'+off+'"><i style="background:'+techColor(id)+'"></i>'+esc(nm)+' · '+byTech[id]+(off?' 🌴':'')+'</span>'; }).join('')+'</div>';
+  }
   // 🐜 Best tech + day — the scheduling capstone. Scores every (tech, next-10-days) pair on the
   // inputs the office already set: covers-the-ZIP (zones) ≫ everything, then not-off (PTO), has
   // open capacity (stops/day), route-fit (already routed near this ZIP that day → fill the truck),
@@ -205,6 +230,7 @@
   // legacy map, so resolved coords carry over). Everything here is ADDITIVE — a Leaflet
   // or geocode failure only leaves the tray without pins; it never breaks the board.
   var region='';                                   // 'TN' | 'LA'; defaults to the busier region on first render
+  var mapMode='needs';                             // 'needs' (orange numbered pins) | 'scheduled' (pins colored per tech, for the selected day)
   var LA_CITIES={'new orleans':1,'metairie':1,'kenner':1,'gretna':1,'chalmette':1,'harvey':1,'marrero':1,'westwego':1,'slidell':1,'hammond':1,'covington':1,'mandeville':1,'ponchatoula':1,'baton rouge':1,'denham springs':1,'walker':1,'laplace':1};
   function jobRegion(j){ var c=(j&&j.customer)||{}; var st=String(c.state||'').trim().toUpperCase(); if(st==='LA'||st==='LOUISIANA') return 'LA'; if(st==='TN'||st==='TENNESSEE') return 'TN'; if(!st){ var city=String(c.city||'').trim().toLowerCase(); if(LA_CITIES[city]) return 'LA'; } return 'TN'; }
   function defaultRegion(list){ var tn=0,la=0; (list||[]).forEach(function(j){ if(jobRegion(j)==='LA') la++; else tn++; }); return la>tn?'LA':'TN'; }
@@ -251,8 +277,12 @@
     try{ localStorage.setItem(key,JSON.stringify({lat:out.lat,lng:out.lng,approx:approx,ts:Date.now()})); }catch(e){}
     return out;
   }
-  // Build the map into #schedmap for the region's unscheduled jobs, numbered 1..N in tray order.
-  async function mountSchedMap(list){
+  // Build the map into #schedmap. Two modes:
+  //   'needs'     — orange numbered pins (1..N in tray order), tap to assign (default).
+  //   'scheduled' — one pin per stop that day, COLORED to its tech + the tech's initial inside,
+  //                 so you see who's clustered in which area. tap a pin to open/reassign.
+  async function mountSchedMap(list, opts){
+    opts=opts||{};
     var myGen=++_schedGen;                          // supersede any in-flight loop (region switch / re-render)
     if(!document.getElementById('schedmap')) return;
     try{ await ensureLeaflet(); }catch(e){ if(_schedGen===myGen){ var nn=document.querySelector('.mapnote'); if(nn) nn.textContent='⚠ map failed to load — the tray below still works.'; } return; }
@@ -270,7 +300,10 @@
       var plat=g.lat, plng=g.lng;
       var sk=plat.toFixed(4)+','+plng.toFixed(4); var dup=(seen[sk]=(seen[sk]||0)); seen[sk]++;
       if(dup>0){ var ang=dup*(Math.PI/4); var rad=0.00045*(1+Math.floor(dup/8)); plat=g.lat+rad*Math.sin(ang); plng=g.lng+rad*Math.cos(ang); }   // fan out stacked stops
-      var icon=L.divIcon({className:'schedpin-wrap',html:'<div class="schedpin'+(g.approx?' approx':'')+'">'+(i+1)+'</div>',iconSize:[30,30],iconAnchor:[15,15]});
+      var inner, col;
+      if(opts.mode==='scheduled'){ col=techColor(j.technician_id); inner='<div class="schedpin'+(g.approx?' approx':'')+'" style="background:'+col+'" title="'+esc(fullName(j.customer)||'')+'">'+esc(techInitial(j.technician_id))+'</div>'; }
+      else { inner='<div class="schedpin'+(g.approx?' approx':'')+'" style="background:#f97316">'+(i+1)+'</div>'; }
+      var icon=L.divIcon({className:'schedpin-wrap',html:inner,iconSize:[30,30],iconAnchor:[15,15]});
       var mk=L.marker([plat,plng],{icon:icon}).addTo(map);
       (function(job){ mk.on('click',function(){ openAssign(job); }); })(j);   // tap a pin = same as tapping its tray card
       bounds.push([plat,plng]);
@@ -355,8 +388,26 @@
         ? '<div class="usug">🐜 '+esc((sug.tech.name||'Tech').split(' ')[0])+' · '+esc(fmtDayShort(sug.day))+'</div>'
         : (zip?'<div class="ucov none">📍 '+esc(zip)+' — no one available</div>':'');
       return '<div class="ujob" data-job="'+j.id+'"><div class="u1"><span class="unum">'+(idx+1)+'</span>'+esc(fullName(j.customer)||'Customer')+'</div><div class="u2">'+esc((j.unit&&j.unit.label)||j.problem||'')+'</div>'+tag+sugHtml+'</div>'; }).join('') : '<div class="tray-empty">Nothing waiting in '+(region==='LA'?'Louisiana':'Middle TN')+'. ✅</div>';
-    var mapBlock=unsRegion.length ? '<div id="schedmap"></div><div class="mapnote">Needs scheduling — cluster these · tap a pin to assign</div>' : '';
-    var unsSection='<div class="uns-h"><div class="sec-h" style="margin:0">🚨 Unscheduled — tap to assign</div>'+regBar+'</div>'+mapBlock+'<div class="tray">'+unsHtml+'</div>';
+    // Scheduled stops for the day the office is looking at (region-scoped) — the "who's where today" view.
+    var schedDay=jobs.filter(function(j){ return j.scheduled_day===selDay && j.technician_id && j.status!=='completed' && j.status!=='canceled' && jobRegion(j)===region; });
+    var mapList = mapMode==='scheduled' ? schedDay : unsRegion;
+    var mapToggle='<div class="maptog">'+
+      '<button data-map="needs" class="'+(mapMode==='needs'?'on':'')+'">🚨 Needs scheduling'+(unsRegion.length?' · '+unsRegion.length:'')+'</button>'+
+      '<button data-map="scheduled" class="'+(mapMode==='scheduled'?'on':'')+'">📅 Scheduled · '+esc(fmtDayShort(selDay))+(schedDay.length?' · '+schedDay.length:'')+'</button></div>';
+    var mapBlock;
+    if(mapList.length){
+      var note = mapMode==='scheduled'
+        ? 'Scheduled '+esc(fmtDayShort(selDay))+' — pins colored by tech · tap to open'
+        : 'Needs scheduling — cluster these · tap a pin to assign';
+      var legend = mapMode==='scheduled' ? buildLegend(schedDay) : '';
+      mapBlock='<div id="schedmap"></div>'+legend+'<div class="mapnote">'+note+'</div>';
+    } else {
+      mapBlock='<div class="mapempty">'+(mapMode==='scheduled'
+        ? 'No jobs scheduled in '+(region==='LA'?'Louisiana':'Middle TN')+' on '+esc(fmtDayShort(selDay))+'. Change the day above, or drop one from Unscheduled.'
+        : 'Nothing needs scheduling in '+(region==='LA'?'Louisiana':'Middle TN')+'. ✅')+'</div>';
+    }
+    var mapSection='<div class="uns-h"><div class="sec-h" style="margin:0">🗺 Area map</div>'+mapToggle+regBar+'</div>'+mapBlock;
+    var traySection='<div class="sec-h">🚨 Unscheduled — tap to assign</div><div class="tray">'+unsHtml+'</div>';
 
     var lanes=techs.map(function(t){
       var mine=jobs.filter(function(j){ return j.technician_id===t.id && j.scheduled_day===selDay && j.status!=='completed' && j.status!=='canceled'; });
@@ -367,7 +418,7 @@
       var stops=route.length ? route.map(function(j,idx){ var z=jobZip(j); return '<div class="stop" data-job="'+j.id+'"><span class="rn">'+(idx+1)+'</span><span class="pill" style="background:'+(SC[j.status]||'var(--new)')+'"></span><div class="info"><div class="s1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="s2">'+esc((j.unit&&j.unit.label)||j.problem||'')+(z?' · '+esc(z):'')+'</div></div></div>'; }).join('')
         : (isOff ? '<div class="lane-empty">🌴 Off this day — not available to book.</div>' : '<div class="lane-empty">No stops this day — drop one from Unscheduled.</div>');
       var routeTag=mine.length>=3?'<span class="routetag">🧭 route order</span>':'';
-      return '<div class="lane'+(isOff?' laneoff':'')+'"><div class="lane-h"><span class="tn">'+esc(t.name||'Tech')+'</span>'+routeTag+offTog+'<span class="load '+loadCls+'">'+mine.length+' stop'+(mine.length===1?'':'s')+'</span></div>'+stops+'</div>';
+      return '<div class="lane'+(isOff?' laneoff':'')+'"><div class="lane-h"><span class="techdot" style="background:'+techColor(t.id)+'"></span><span class="tn">'+esc(t.name||'Tech')+'</span>'+routeTag+offTog+'<span class="load '+loadCls+'">'+mine.length+' stop'+(mine.length===1?'':'s')+'</span></div>'+stops+'</div>';
     }).join('') || '<div class="tray-empty">No techs yet — add your crew on the onboarding page.</div>';
 
     var selLabel=new Date(selDay+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
@@ -376,7 +427,8 @@
       '<div class="wrap">'+
         '<div class="weeknav">'+navHtml+'</div>'+
         calBlock+
-        unsSection+
+        mapSection+
+        traySection+
         '<div class="sec-h">📋 '+esc(selLabel)+' — full schedule</div><div class="techs">'+lanes+'</div>'+
       '</div>';
 
@@ -395,7 +447,8 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-job]'),function(el){ el.onclick=function(){ var j=jobs.filter(function(x){return x.id===el.getAttribute('data-job');})[0]; if(j) openAssign(j); }; });
     Array.prototype.forEach.call(document.querySelectorAll('[data-off]'),function(el){ el.onclick=function(e){ e.stopPropagation(); toggleOff(el.getAttribute('data-off'), selDay); }; });
     Array.prototype.forEach.call(document.querySelectorAll('.regtog button[data-reg]'),function(el){ el.onclick=function(){ region=el.getAttribute('data-reg'); render(); }; });
-    if(unsRegion.length){ mountSchedMap(unsRegion); } else { _schedGen++; if(_schedMap){ try{ _schedMap.remove(); }catch(e){} _schedMap=null; } }
+    Array.prototype.forEach.call(document.querySelectorAll('.maptog button[data-map]'),function(el){ el.onclick=function(){ mapMode=el.getAttribute('data-map'); render(); }; });
+    if(mapList.length){ mountSchedMap(mapList, {mode:mapMode}); } else { _schedGen++; if(_schedMap){ try{ _schedMap.remove(); }catch(e){} _schedMap=null; } }
   }
 
   function openAssign(job){
