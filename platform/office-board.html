@@ -96,10 +96,10 @@
   /* 📋 TDR — the office claim surface */
   #jtdr .tinp{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box;margin-bottom:8px}
   #jtdr .tlab{font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:6px 0 3px}
-  #jtdr .tpart{display:flex;gap:7px;align-items:center;margin-bottom:7px}
-  #jtdr .tpart input{flex:1 1 auto;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace}
-  #jtdr .tpart .del{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:8px;padding:7px 10px;font-weight:800;cursor:pointer}
-  #jtdr .tpadd{background:var(--ink);color:var(--bg);border:none;border-radius:9px;padding:9px 13px;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  #jtdr .tpart,#jtparts .tpart{display:flex;gap:7px;align-items:center;margin-bottom:7px}
+  #jtdr .tpart input,#jtparts .tpart input{flex:1 1 auto;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace}
+  #jtdr .tpart .del,#jtparts .tpart .del{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:8px;padding:7px 10px;font-weight:800;cursor:pointer}
+  #jtdr .tpadd,#jtparts .tpadd{background:var(--ink);color:var(--bg);border:none;border-radius:9px;padding:9px 13px;font-weight:800;font-size:12.5px;cursor:pointer;white-space:nowrap}
   #jtdr .touts{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:2px 0 4px}
   #jtdr .tout{display:flex;align-items:center;gap:7px;justify-content:flex-start;text-align:left;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px 11px;font-weight:700;font-size:13px;cursor:pointer}
   #jtdr .tout.on{color:#fff;border-color:transparent}
@@ -1133,32 +1133,19 @@
     box.innerHTML='<div class="sec">📋 TDR — technician report</div><div class="hint">Loading…</div>';
     Promise.all([
       sb.from('job_tdr').select('*').eq('job_id',job.id).limit(1),
-      sb.from('job_part').select('id,number,name').eq('job_id',job.id).order('created_at'),
       sb.from('job').select('unit_id,unit:unit_id(id,label,attributes)').eq('id',job.id).limit(1).single()
     ]).then(function(res){
       var t=((res[0]&&res[0].data)||[])[0]||{};
-      var parts=(res[1]&&res[1].data)||[];
-      var jj=(res[2]&&res[2].data)||{}; var unitRow=jj.unit||{}; var attrs=unitRow.attributes||{};
+      var jj=(res[1]&&res[1].data)||{}; var unitRow=jj.unit||{}; var attrs=unitRow.attributes||{};
       var unitId=jj.unit_id||unitRow.id||null;
       var curModel=t.model||attrs.model||'';
       var IN='class="tinp"';
-      // parts rows (editable) + remove
-      var partsRows=parts.map(function(p){
-        return '<div class="tpart" data-pid="'+esc(p.id)+'">'+
-          '<input class="tp_num" value="'+esc(p.number||'')+'" placeholder="Part #">'+
-          '<input class="tp_name" value="'+esc(p.name||'')+'" placeholder="Name (optional)">'+
-          '<button type="button" class="del" data-del="'+esc(p.id)+'" title="Remove">✕</button></div>';
-      }).join('');
-      // outcome buttons
       var outs=TDR_OUTCOMES.map(function(o){ return '<button type="button" class="tout'+(t.outcome===o[0]?' on':'')+'" data-o="'+o[0]+'"><span>'+o[1]+'</span>'+o[2]+'</button>'; }).join('');
       box.innerHTML=
         '<div class="sec">📋 TDR — technician report <span class="hint" style="font-weight:400">— what the office files the claim from</span></div>'+
         '<span class="tlab">Model #</span><input '+IN+' id="t_model" value="'+esc(curModel)+'" placeholder="off the sticker" style="font-family:ui-monospace,Menlo,monospace">'+
         '<span class="tlab">What failed</span><input '+IN+' id="t_fc" value="'+esc(t.failed_component||'')+'" placeholder="e.g. heating element">'+
         '<span class="tlab">What happened to the machine</span><textarea '+IN+' id="t_rc" placeholder="Details for the claim" style="min-height:56px;resize:vertical">'+esc(t.root_cause||'')+'</textarea>'+
-        '<span class="tlab">Part number(s) — add as many as needed</span>'+
-        '<div id="t_parts">'+partsRows+'</div>'+
-        '<div class="tpart"><input id="t_np_num" placeholder="Part #" style="font-family:ui-monospace,Menlo,monospace"><input id="t_np_name" placeholder="Name (optional)"><button type="button" class="tpadd" id="t_addpart">+ Add</button></div>'+
         '<span class="tlab">Labor hours</span><input '+IN+' id="t_lh" inputmode="decimal" value="'+esc(t.labor_hours!=null?t.labor_hours:'')+'" placeholder="e.g. 1.5">'+
         '<span class="tlab">Outcome — how the job ended (for the claim)</span>'+
         '<div class="touts" id="t_outs">'+outs+'</div>'+
@@ -1170,28 +1157,38 @@
         box.querySelectorAll('#t_outs .tout').forEach(function(x){ x.classList.remove('on'); }); btn.classList.add('on');
         sb.from('job_tdr').upsert({ company_id:companyId, job_id:job.id, outcome:o },{onConflict:'job_id'}).then(function(){ var m=document.getElementById('t_msg'); if(m){ m.textContent='Outcome saved ✓'; setTimeout(function(){ if(m)m.textContent=''; },1500); } });
       }; });
-      // remove a part
-      box.querySelectorAll('#t_parts .del[data-del]').forEach(function(b){ b.onclick=function(){ b.disabled=true; sb.from('job_part').delete().eq('id',b.getAttribute('data-del')).then(function(){ loadTdr(job); loadBoard(); }); }; });
-      // add a part
-      var addb=document.getElementById('t_addpart');
-      if(addb) addb.onclick=function(){ var num=(document.getElementById('t_np_num').value||'').trim(), nm=(document.getElementById('t_np_name').value||'').trim(); if(!num && !nm) return; addb.disabled=true; sb.from('job_part').insert({ company_id:companyId, job_id:job.id, number:num||null, name:nm||null }).then(function(r){ if(r.error){ addb.disabled=false; return; } loadTdr(job); loadBoard(); }); };
-      // save report — job_tdr fields + model onto the unit + any edited existing parts
+      // save report — job_tdr fields + model onto the unit
       var sv=document.getElementById('t_save');
       if(sv) sv.onclick=function(){
         var msg=document.getElementById('t_msg'); sv.disabled=true; sv.textContent='Saving…'; if(msg) msg.textContent='';
         var onBtn=box.querySelector('#t_outs .tout.on'); var cur=onBtn?onBtn.getAttribute('data-o'):(t.outcome||'fixed');
         var lhv=(document.getElementById('t_lh').value||'').trim();
         var row={ company_id:companyId, job_id:job.id, model:(document.getElementById('t_model').value||'').trim()||null, failed_component:(document.getElementById('t_fc').value||'').trim()||null, root_cause:(document.getElementById('t_rc').value||'').trim()||null, outcome:cur };
-        var firstNum=(box.querySelector('#t_parts .tp_num')||{}).value; if(firstNum) row.part_number=String(firstNum).trim();
         if(lhv && !isNaN(parseFloat(lhv))) row.labor_hours=parseFloat(lhv);
         var ops=[ sb.from('job_tdr').upsert(row,{onConflict:'job_id'}) ];
-        // model also onto the unit so the board card + Job details agree
         if(unitId){ var na=Object.assign({},attrs,{model:row.model}); ops.push(sb.from('unit').update({attributes:na}).eq('id',unitId)); }
-        // persist any inline edits to existing part rows
-        box.querySelectorAll('#t_parts .tpart[data-pid]').forEach(function(rowEl){ var pid=rowEl.getAttribute('data-pid'); var num=(rowEl.querySelector('.tp_num').value||'').trim(); var nm=(rowEl.querySelector('.tp_name').value||'').trim(); ops.push(sb.from('job_part').update({number:num||null,name:nm||null}).eq('id',pid)); });
         Promise.all(ops).then(function(rr){ var err=rr.filter(function(x){return x&&x.error;})[0]; sv.disabled=false; sv.textContent='💾 Save report'; if(err){ if(msg) msg.textContent=(err.error.message||'save failed'); return; } if(msg){ msg.textContent='Saved ✓'; setTimeout(function(){ if(msg)msg.textContent=''; },2000); } loadBoard(); });
       };
     }).catch(function(){ if(box) box.innerHTML='<div class="sec">📋 TDR — technician report</div><div class="hint">Couldn\'t load the report.</div>'; });
+  }
+
+  // ── 🔩 PARTS — the office parts editor, directly under Status. Add / remove / adjust the part
+  // numbers on the job (job_part). Add + remove are immediate; an inline edit saves on change. ──
+  function loadTparts(job){
+    var box=document.getElementById('jtparts'); if(!box) return;
+    box.innerHTML='<div class="sec">🔩 Parts</div><div class="hint">Loading…</div>';
+    sb.from('job_part').select('id,number,name').eq('job_id',job.id).order('created_at').then(function(r){
+      var parts=(r&&r.data)||[];
+      var rows=parts.map(function(p){ return '<div class="tpart" data-pid="'+esc(p.id)+'"><input class="tp_num" value="'+esc(p.number||'')+'" placeholder="Part #"><input class="tp_name" value="'+esc(p.name||'')+'" placeholder="Name (optional)"><button type="button" class="del" data-del="'+esc(p.id)+'" title="Remove">✕</button></div>'; }).join('');
+      box.innerHTML='<div class="sec">🔩 Parts <span class="hint" style="font-weight:400">— add or adjust the parts on this job</span></div>'+
+        '<div id="jtp_rows">'+rows+'</div>'+
+        '<div class="tpart"><input id="jtp_num" placeholder="Part #" style="font-family:ui-monospace,Menlo,monospace"><input id="jtp_name" placeholder="Name (optional)"><button type="button" class="tpadd" id="jtp_add">+ Add part</button></div>'+
+        '<div class="hint" id="jtp_msg" style="margin-top:4px"></div>';
+      box.querySelectorAll('#jtp_rows .del[data-del]').forEach(function(b){ b.onclick=function(){ b.disabled=true; sb.from('job_part').delete().eq('id',b.getAttribute('data-del')).then(function(){ loadTparts(job); loadBoard(); }); }; });
+      var ab=document.getElementById('jtp_add');
+      if(ab) ab.onclick=function(){ var num=(document.getElementById('jtp_num').value||'').trim(), nm=(document.getElementById('jtp_name').value||'').trim(); if(!num && !nm) return; ab.disabled=true; sb.from('job_part').insert({ company_id:companyId, job_id:job.id, number:num||null, name:nm||null }).then(function(rr){ if(rr.error){ ab.disabled=false; var m=document.getElementById('jtp_msg'); if(m)m.textContent='Couldn\'t add — try again.'; return; } loadTparts(job); loadBoard(); }); };
+      box.querySelectorAll('#jtp_rows .tpart[data-pid]').forEach(function(rowEl){ var pid=rowEl.getAttribute('data-pid'); rowEl.querySelectorAll('input').forEach(function(inp){ inp.onchange=function(){ var num=(rowEl.querySelector('.tp_num').value||'').trim(), nm=(rowEl.querySelector('.tp_name').value||'').trim(); sb.from('job_part').update({number:num||null,name:nm||null}).eq('id',pid).then(function(){ var m=document.getElementById('jtp_msg'); if(m){m.textContent='Saved ✓'; setTimeout(function(){if(m)m.textContent='';},1200);} loadBoard(); }); }; }); });
+    }).catch(function(){ if(box) box.innerHTML='<div class="sec">🔩 Parts</div><div class="hint">Couldn\'t load parts.</div>'; });
   }
 
   function openJob(job){
@@ -1240,6 +1237,9 @@
       // ── 📋 TDR — the technician report the office submits the claim from (model · failure ·
       // multiple part #s · labor · outcome) + the photos/videos. Loaded/edited by loadTdr(). ──
       '<div id="jtdr"></div>' +
+      // ── STATUS + PARTS — directly under the TDR so the office adjusts them together ──
+      '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
+      '<div id="jtparts"></div>' +
       // ── ↔ JUMP TO — cross-tool deep-link grid (scroll targets in this drawer + the tech workspace) ──
       '<div class="sec">↔ Jump to</div>' +
       '<div id="jjump" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
@@ -1258,7 +1258,6 @@
         '<span class="hint" id="jcutoffMsg" style="display:block;margin-top:5px"></span>' +
       '</div>' +
       '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
-      '<div class="sec">Status</div><div class="statusbtns" id="jstatus"></div>' +
       '<div class="sec">Office notes</div><textarea id="jnotes" placeholder="Parts on order, gate code, upsell offered, anything the team should see…">'+esc(job.office_notes||'')+'</textarea>' +
       '<div class="srow" style="margin-top:8px"><button class="primary" id="jnotesSave">Save notes</button></div>' +
       '<div class="sec">Conversation <span class="hint" style="font-weight:400">— texts with the customer</span></div>' +
@@ -1304,6 +1303,7 @@
       }); };
     loadIntake(job);
     loadTdr(job);
+    loadTparts(job);
     loadDetails(job);
     loadSched(job);
     renderPaymentPanel(job);
