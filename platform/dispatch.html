@@ -132,6 +132,38 @@
   .maplegend .lgd.off i{opacity:.5}
   .mapempty{padding:11px 12px;border:1px dashed var(--line);border-radius:10px;font-size:12.5px;color:var(--muted);margin:0 0 8px}
   .techdot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.2);margin-right:2px;vertical-align:middle}
+  /* ── WEEK GRID: tech columns × day rows (the legacy scheduler layout). Each cell = a tech's
+     stops that day + a big colored OPEN-SLOTS badge — schedule + availability in one view. ── */
+  .wkgrid{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:auto;margin-bottom:6px}
+  .wk-corner{background:var(--panel);position:sticky;left:0;z-index:3}
+  .wk-th{background:var(--panel);padding:9px 10px;display:flex;align-items:center;gap:5px;font-weight:800;font-size:13px;position:sticky;top:0;z-index:2;white-space:nowrap;border-bottom:2px solid var(--line)}
+  .wk-th .wk-tn{overflow:hidden;text-overflow:ellipsis} .wk-th .wk-num{margin-left:auto;font-size:11px;color:var(--muted);font-weight:800}
+  .wk-daylabel{background:var(--panel);padding:9px 6px;text-align:center;cursor:pointer;position:sticky;left:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:1px}
+  .wk-daylabel .dow{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:800}
+  .wk-daylabel .dn{font-size:19px;font-weight:800;line-height:1}
+  .wk-daylabel.today .dn{color:var(--brand)} .wk-daylabel.today .dow{color:var(--brand)}
+  .wk-daylabel.on{box-shadow:inset 3px 0 0 var(--brand)}
+  .wk-cell{background:var(--panel);padding:8px 8px 9px;position:relative;min-height:56px;display:flex;flex-direction:column;gap:5px;overflow:hidden}
+  .wk-cell.green{background:color-mix(in srgb,var(--completed) 6%,var(--panel))}
+  .wk-cell.yellow{background:color-mix(in srgb,var(--warn) 8%,var(--panel))}
+  .wk-cell.red{background:color-mix(in srgb,var(--bad) 8%,var(--panel))}
+  .wk-cell.off{background:repeating-linear-gradient(135deg,var(--chip),var(--chip) 7px,transparent 7px,transparent 13px)}
+  .wk-cell.selday{outline:2px solid color-mix(in srgb,var(--brand) 55%,transparent);outline-offset:-2px}
+  .wk-cap{display:flex;align-items:baseline;gap:3px;line-height:1;user-select:none}
+  .wk-cap .wk-n{font-size:26px;font-weight:900;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+  .wk-cell.green .wk-n{color:var(--completed)} .wk-cell.yellow .wk-n{color:var(--warn)} .wk-cell.red .wk-n{color:var(--bad)} .wk-cell.off .wk-n{color:var(--muted)}
+  .wk-cap .wk-den{font-size:13px;color:var(--muted);font-weight:700} .wk-cap .wk-lbl{margin-left:auto;font-size:8.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800}
+  .wk-off{position:absolute;top:5px;right:5px;z-index:3;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:3px 6px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 80%,transparent);color:var(--muted);cursor:pointer;opacity:.5}
+  .wk-cell:hover .wk-off{opacity:1} .wk-off.on{opacity:1;background:var(--bad);color:#fff;border-color:transparent}
+  .wblocks{display:flex;flex-direction:column;gap:4px}
+  .wblk{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--scheduled);border-radius:6px;padding:5px 8px;cursor:pointer;min-height:30px}
+  .wblk:hover{background:color-mix(in srgb,var(--brand) 12%,var(--bg));border-left-color:var(--brand)}
+  .wblk.bk-warranty{border-left-color:var(--awaiting_parts)} .wblk.bk-self{border-left-color:var(--completed)} .wblk.bk-parts{border-left-color:var(--awaiting_parts)}
+  .wblk .r1{display:flex;align-items:center;gap:6px;font-size:11px}
+  .wblk .r1 .pos{color:var(--muted);font-weight:700;flex:none} .wblk .r1 .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  .wblk .r2{margin-top:2px;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wk-empty{color:var(--muted);opacity:.5;font-size:12px;padding:2px 0}
+  @media(max-width:640px){ .wk-th .wk-num{display:none} .wblk .r2{display:none} }
 </style></head>
 <body>
 <div id="app"></div>
@@ -324,6 +356,7 @@
   function addMonths(d,n){ var x=new Date(d); x.setMonth(x.getMonth()+n); return x; }
   function fmtDayLong(iso){ try{ return new Date(iso+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); }catch(e){ return iso; } }
   function fmtDayShort(iso){ try{ return new Date(iso+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return iso; } }
+  function ordinal(n){ var s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }   // 1st, 2nd, 3rd… — stop position, never a clock time
 
   if(!cfg.url||!cfg.anonKey){ app.innerHTML='<div class="gate"><h1>🐜 Not connected</h1></div>'; return; }
   sb=window.supabase.createClient(cfg.url,cfg.anonKey);
@@ -350,17 +383,32 @@
     var toggleHtml='<div class="viewtoggle"><button data-view="week" class="'+(view==='week'?'on':'')+'">Week</button><button data-view="month" class="'+(view==='month'?'on':'')+'">Month</button></div>';
     var navHtml, calBlock;
     if(view==='week'){
-      // Week: each day column shows every tech's AVAILABILITY (open slots) above the name.
-      var calHtml=days.map(function(d){ var dt=new Date(d+'T12:00:00');
-        var cells=techs.length ? techs.map(function(t){
-          if(offOn(t.id,d)){ return '<div class="acell offday"><div class="avail">🌴 Off</div><div class="aname">'+esc((t.name||'Tech').split(' ')[0])+'</div></div>'; }
-          var open=Math.max(0,capOf(t)-bookedOn(t.id,d)); var cls=open===0?'full':(open<=2?'low':'open');
-          return '<div class="acell '+cls+'"><div class="avail">'+(open===0?'Full':open+' open')+'</div><div class="aname">'+esc((t.name||'Tech').split(' ')[0])+'</div></div>'; }).join('')
-          : '<div class="acell"><div class="aname" style="font-weight:600">—</div></div>';
-        return '<div class="calcol'+(d===selDay?' on':'')+'"><div class="calhd'+(d===today?' today':'')+'" data-day="'+d+'"><div class="dow">'+dow[dt.getDay()]+'</div><div class="dnum">'+dt.getDate()+'</div></div>'+cells+'</div>'; }).join('');
+      // Week GRID — tech COLUMNS × day ROWS (the layout Teddy picked). Each cell shows a tech's
+      // stops that day + a big colored OPEN-SLOTS badge (green→plenty, yellow→filling, red→full,
+      // striped→off). One glance = who's where, how full, and where the open room is.
       var wkLabel=new Date(days[0]+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})+' – '+new Date(days[6]+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'});
       navHtml='<button class="warrow" id="wprev">‹</button><span class="wklabel">'+esc(wkLabel)+'</span><button class="warrow" id="wnext">›</button>'+toggleHtml;
-      calBlock='<div class="calwrap">'+calHtml+'</div>';
+      if(!techs.length){ calBlock='<div class="tray-empty">No techs yet — add your crew on the onboarding page.</div>'; }
+      else {
+        var headCells=techs.map(function(t){ return '<div class="wk-th"><span class="techdot" style="background:'+techColor(t.id)+'"></span><span class="wk-tn">'+esc(t.name||'Tech')+'</span><span class="wk-num">#'+(techIdx(t.id)+1)+'</span></div>'; }).join('');
+        var rowsH=days.map(function(d){ var dt=new Date(d+'T12:00:00');
+          var dl='<div class="wk-daylabel'+(d===today?' today':'')+(d===selDay?' on':'')+'" data-day="'+d+'"><div class="dow">'+dow[dt.getDay()]+'</div><div class="dn">'+dt.getDate()+'</div></div>';
+          var cells=techs.map(function(t){
+            var isOff=offOn(t.id,d);
+            var offBtn='<button class="wk-off'+(isOff?' on':'')+'" data-off="'+t.id+'" data-offday="'+d+'" title="'+(isOff?'Mark working':'Mark day off')+'">'+(isOff?'✓ off':'🌴 off')+'</button>';
+            if(isOff){ return '<div class="wk-cell off">'+offBtn+'<div class="wk-cap"><span class="wk-n">⛔</span><span class="wk-lbl">off</span></div></div>'; }
+            var mine=jobs.filter(function(j){ return j.technician_id===t.id && j.scheduled_day===d && j.status!=='completed' && j.status!=='canceled'; });
+            var cap=capOf(t); var cnt=mine.length; var rem=Math.max(0,cap-cnt);
+            var tier=cnt>=5?'red':(cnt>=3?'yellow':'green');
+            var route=routeOrder(mine);
+            var blocks=route.length ? route.map(function(j,idx){ var city=(j.customer&&j.customer.city)||'';
+                var bk=String(j.warranty_company||'').trim()?'warranty':'self'; if(j.status==='awaiting_parts') bk='parts';
+                return '<div class="wblk bk-'+bk+'" data-job="'+j.id+'"><div class="r1"><span class="pos">'+ordinal(idx+1)+' stop</span><span class="nm">'+esc(fullName(j.customer)||'Customer')+'</span></div><div class="r2">'+esc((j.unit&&j.unit.label)||j.problem||'')+(city?' · '+esc(city):'')+'</div></div>'; }).join('')
+              : '<div class="wk-empty">—</div>';
+            return '<div class="wk-cell '+tier+(d===selDay?' selday':'')+'">'+offBtn+'<div class="wk-cap"><span class="wk-n">'+rem+'</span><span class="wk-den">/'+cap+'</span><span class="wk-lbl">'+(rem===1?'slot':'slots')+'</span></div><div class="wblocks">'+blocks+'</div></div>'; }).join('');
+          return dl+cells; }).join('');
+        calBlock='<div class="wkgrid" style="grid-template-columns:56px repeat('+techs.length+',minmax(150px,1fr))"><div class="wk-corner"></div>'+headCells+rowsH+'</div>';
+      }
     } else {
       // Month: full grid, tap any future day (e.g. the day parts land) to book onto it.
       var gStart=startOfWeek(monthAnchor); var mm=monthAnchor.getMonth();
@@ -409,27 +457,14 @@
     var mapSection='<div class="uns-h"><div class="sec-h" style="margin:0">🗺 Area map</div>'+mapToggle+regBar+'</div>'+mapBlock;
     var traySection='<div class="sec-h">🚨 Unscheduled — tap to assign</div><div class="tray">'+unsHtml+'</div>';
 
-    var lanes=techs.map(function(t){
-      var mine=jobs.filter(function(j){ return j.technician_id===t.id && j.scheduled_day===selDay && j.status!=='completed' && j.status!=='canceled'; });
-      var isOff=offOn(t.id,selDay);
-      var loadCls=mine.length>=7?'max':(mine.length>=5?'busy':'');
-      var offTog='<button class="offtog'+(isOff?' on':'')+'" data-off="'+t.id+'" title="'+(isOff?'Mark working':'Mark day off')+'">'+(isOff?'🌴 Off':'Mark off')+'</button>';
-      var route=routeOrder(mine);
-      var stops=route.length ? route.map(function(j,idx){ var z=jobZip(j); return '<div class="stop" data-job="'+j.id+'"><span class="rn">'+(idx+1)+'</span><span class="pill" style="background:'+(SC[j.status]||'var(--new)')+'"></span><div class="info"><div class="s1">'+esc(fullName(j.customer)||'Customer')+'</div><div class="s2">'+esc((j.unit&&j.unit.label)||j.problem||'')+(z?' · '+esc(z):'')+'</div></div></div>'; }).join('')
-        : (isOff ? '<div class="lane-empty">🌴 Off this day — not available to book.</div>' : '<div class="lane-empty">No stops this day — drop one from Unscheduled.</div>');
-      var routeTag=mine.length>=3?'<span class="routetag">🧭 route order</span>':'';
-      return '<div class="lane'+(isOff?' laneoff':'')+'"><div class="lane-h"><span class="techdot" style="background:'+techColor(t.id)+'"></span><span class="tn">'+esc(t.name||'Tech')+'</span>'+routeTag+offTog+'<span class="load '+loadCls+'">'+mine.length+' stop'+(mine.length===1?'':'s')+'</span></div>'+stops+'</div>';
-    }).join('') || '<div class="tray-empty">No techs yet — add your crew on the onboarding page.</div>';
-
-    var selLabel=new Date(selDay+'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
     app.innerHTML=
       '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a><a href="/platform/office-board.html">Board</a><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
         '<div class="weeknav">'+navHtml+'</div>'+
+        (view==='week'?'<div class="sec-h" style="margin-top:0">📋 Schedule — tap a job to reschedule/reassign, or a day to focus the map</div>':'')+
         calBlock+
         mapSection+
         traySection+
-        '<div class="sec-h">📋 '+esc(selLabel)+' — full schedule</div><div class="techs">'+lanes+'</div>'+
       '</div>';
 
     document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
@@ -438,14 +473,16 @@
     if(view==='week'){
       document.getElementById('wprev').onclick=function(){ sel=addDays(sel,-7); render(); };
       document.getElementById('wnext').onclick=function(){ sel=addDays(sel,7); render(); };
-      Array.prototype.forEach.call(document.querySelectorAll('.calhd[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); render(); }; });
+      // Tap a day label in the grid → focus that day (highlights the row + scopes the map's Scheduled view).
+      Array.prototype.forEach.call(document.querySelectorAll('.wk-daylabel[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); render(); }; });
     } else {
       document.getElementById('mprev').onclick=function(){ monthAnchor=addMonths(monthAnchor,-1); render(); };
       document.getElementById('mnext').onclick=function(){ monthAnchor=addMonths(monthAnchor,1); render(); };
-      Array.prototype.forEach.call(document.querySelectorAll('.mcell[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); sel=startOfWeek(new Date(selDay+'T12:00:00')); render(); var t=document.querySelector('.techs'); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }; });
+      // Tap a day in the month → jump to that week's grid.
+      Array.prototype.forEach.call(document.querySelectorAll('.mcell[data-day]'),function(el){ el.onclick=function(){ selDay=el.getAttribute('data-day'); sel=startOfWeek(new Date(selDay+'T12:00:00')); view='week'; render(); }; });
     }
     Array.prototype.forEach.call(document.querySelectorAll('[data-job]'),function(el){ el.onclick=function(){ var j=jobs.filter(function(x){return x.id===el.getAttribute('data-job');})[0]; if(j) openAssign(j); }; });
-    Array.prototype.forEach.call(document.querySelectorAll('[data-off]'),function(el){ el.onclick=function(e){ e.stopPropagation(); toggleOff(el.getAttribute('data-off'), selDay); }; });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-off]'),function(el){ el.onclick=function(e){ e.stopPropagation(); toggleOff(el.getAttribute('data-off'), el.getAttribute('data-offday')||selDay); }; });
     Array.prototype.forEach.call(document.querySelectorAll('.regtog button[data-reg]'),function(el){ el.onclick=function(){ region=el.getAttribute('data-reg'); render(); }; });
     Array.prototype.forEach.call(document.querySelectorAll('.maptog button[data-map]'),function(el){ el.onclick=function(){ mapMode=el.getAttribute('data-map'); render(); }; });
     if(mapList.length){ mountSchedMap(mapList, {mode:mapMode}); } else { _schedGen++; if(_schedMap){ try{ _schedMap.remove(); }catch(e){} _schedMap=null; } }
