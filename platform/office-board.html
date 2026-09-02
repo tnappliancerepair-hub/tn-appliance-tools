@@ -68,6 +68,19 @@
   .col h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;gap:8px}
   .col h3 .n{background:var(--chip);color:var(--muted);border-radius:999px;padding:1px 8px;font-size:11px}
   .col h3 .dot{width:8px;height:8px;border-radius:50%}
+  .col h3 .colmenu{margin-left:auto;border:1px solid transparent;background:transparent;color:var(--muted);border-radius:7px;padding:1px 6px;font-size:15px;line-height:1;cursor:pointer;letter-spacing:1px}
+  .col h3 .colmenu:hover{border-color:var(--line);color:var(--ink)}
+  .col h3 .colmenu.on{color:var(--gold)}
+  .col h3 .sortlbl{background:var(--chip);color:var(--muted);border-radius:999px;padding:1px 7px;font-size:10px;text-transform:none;letter-spacing:0;font-weight:700}
+  .colmenu-pop{position:fixed;z-index:9000;min-width:190px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.4);padding:7px;font-size:13px}
+  .colmenu-pop .cmh{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;padding:5px 8px 6px}
+  .colmenu-pop button{display:flex;width:100%;align-items:center;gap:8px;text-align:left;border:0;background:transparent;color:var(--ink);border-radius:8px;padding:8px 9px;font:inherit;cursor:pointer}
+  .colmenu-pop button:hover{background:var(--chip)}
+  .colmenu-pop button .ck{margin-left:auto;color:var(--gold);font-weight:800}
+  .colmenu-pop .cmdiv{height:1px;background:var(--line);margin:5px 2px}
+  .colmenu-pop .cmdir{display:flex;gap:6px;padding:2px}
+  .colmenu-pop .cmdir button{justify-content:center;border:1px solid var(--line);flex:1}
+  .colmenu-pop .cmdir button.on{border-color:var(--brand);color:var(--brand);font-weight:800}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:var(--shadow)}
   .card .name{font-weight:700}
   .card .unit{color:var(--muted);font-size:13px;margin-top:1px}
@@ -821,6 +834,67 @@
     window.addEventListener('resize', updateSlide);
   }
 
+  // ── ⋯ PER-COLUMN SORT — the MeisterTask "Sort section" menu on each column header. Sort the
+  // cards WITHIN a column by a field; the choice persists per device (localStorage). ──
+  var SORT_FIELDS = [
+    ['name',    '🔤 Customer name'],
+    ['tech',    '🔧 Tech (assignee)'],
+    ['created', '🆕 Date created'],
+    ['due',     '📅 Scheduled day'],
+    ['status',  '📊 Status'],
+    ['vendor',  '🏷️ Warranty company'],
+    ['city',    '📍 City']
+  ];
+  var colSort = (function(){ try{ return JSON.parse(localStorage.getItem('ant_office_colsort')||'{}')||{}; }catch(_){ return {}; } })();
+  function saveColSort(){ try{ localStorage.setItem('ant_office_colsort', JSON.stringify(colSort)); }catch(_){} }
+  function sortFieldLabel(by){ for(var i=0;i<SORT_FIELDS.length;i++){ if(SORT_FIELDS[i][0]===by) return SORT_FIELDS[i][1].replace(/^[^ ]+ /,''); } return by; }
+  function jobSortVal(j, by){
+    switch(by){
+      case 'name':    return (fullName(j.customer)||'').toLowerCase();
+      case 'tech':    return (j.technician&&j.technician.name?j.technician.name:'').toLowerCase();
+      case 'created': return j.created_at ? new Date(j.created_at).getTime() : 0;
+      case 'due':     return j.scheduled_day ? String(j.scheduled_day) : '';
+      case 'status':  return (statusMeta(j.status).label||'').toLowerCase();
+      case 'vendor':  return (j.warranty_company||'').toLowerCase();
+      case 'city':    return (j.customer&&j.customer.city?String(j.customer.city):'').toLowerCase();
+    }
+    return '';
+  }
+  function sortList(list, s){
+    if(!s||!s.by) return list;
+    var dir = s.dir==='desc' ? -1 : 1;
+    return list.slice().sort(function(a,b){
+      var va=jobSortVal(a,s.by), vb=jobSortVal(b,s.by);
+      var ea=(va===''||va==null||va===0&&s.by==='created'), eb=(vb===''||vb==null||vb===0&&s.by==='created');
+      if(ea&&!eb) return 1; if(eb&&!ea) return -1;    // blanks always to the bottom
+      if(va<vb) return -1*dir; if(va>vb) return 1*dir; return 0;
+    });
+  }
+  function closeColMenu(){ var e=document.getElementById('ant-colmenu'); if(e){ try{ e.parentNode.removeChild(e); }catch(_){} } document.removeEventListener('click', colMenuOutside, true); }
+  function colMenuOutside(ev){ var e=document.getElementById('ant-colmenu'); if(e && !e.contains(ev.target) && !(ev.target.classList&&ev.target.classList.contains('colmenu'))) closeColMenu(); }
+  function openColMenu(stageKey, anchor){
+    closeColMenu();
+    var s = colSort[stageKey] || {};
+    var pop=document.createElement('div'); pop.className='colmenu-pop'; pop.id='ant-colmenu';
+    var fields = SORT_FIELDS.map(function(f){ var on=s.by===f[0]; return '<button type="button" data-by="'+f[0]+'">'+esc(f[1])+(on?'<span class="ck">✓</span>':'')+'</button>'; }).join('');
+    var dir = s.dir==='desc'?'desc':'asc';
+    pop.innerHTML='<div class="cmh">Sort section</div>'+fields+
+      '<div class="cmdiv"></div>'+
+      '<div class="cmdir"><button type="button" data-dir="asc" class="'+(dir==='asc'?'on':'')+'">A → Z</button><button type="button" data-dir="desc" class="'+(dir==='desc'?'on':'')+'">Z → A</button></div>'+
+      '<div class="cmdiv"></div>'+
+      '<button type="button" data-clear="1">↩︎ Manual order (clear)</button>';
+    document.body.appendChild(pop);
+    // position under the ⋯, kept on-screen
+    var r=anchor.getBoundingClientRect(); var w=pop.offsetWidth||200, h=pop.offsetHeight||260;
+    var left=Math.min(r.left, window.innerWidth-w-8); if(left<8) left=8;
+    var top=r.bottom+6; if(top+h>window.innerHeight-8) top=Math.max(8, r.top-h-6);
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+    pop.querySelectorAll('button[data-by]').forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); var by=b.getAttribute('data-by'); var cur=colSort[stageKey]||{}; colSort[stageKey]={ by:by, dir:cur.dir||'asc' }; saveColSort(); closeColMenu(); renderBoard(); }; });
+    pop.querySelectorAll('button[data-dir]').forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); var d=b.getAttribute('data-dir'); var cur=colSort[stageKey]||{}; if(!cur.by){ return; } colSort[stageKey]={ by:cur.by, dir:d }; saveColSort(); closeColMenu(); renderBoard(); }; });
+    var cb=pop.querySelector('button[data-clear]'); if(cb) cb.onclick=function(ev){ ev.stopPropagation(); delete colSort[stageKey]; saveColSort(); closeColMenu(); renderBoard(); };
+    setTimeout(function(){ document.addEventListener('click', colMenuOutside, true); }, 0);
+  }
+
   function renderBoard(){
     // multi-machine: count jobs sharing a stop_id, computed from the loaded set (no query).
     stopCounts = {};
@@ -833,7 +907,7 @@
     var byStage = {}; cols.forEach(function(c){ byStage[c.key]=[]; });
     jobs.forEach(function(j){ var k=stageOf(j, cols); (byStage[k]=byStage[k]||[]).push(j); });
     var html = cols.map(function(col){
-      var k=col.key, list=byStage[k]||[], m=col;   // render EVERY column (even empty) as a drop target
+      var k=col.key, list=sortList(byStage[k]||[], colSort[k]), m=col;   // render EVERY column (even empty) as a drop target, honoring its ⋯ sort
       var cards = list.map(function(j){
         var unit = j.unit && j.unit.label ? j.unit.label : '';
         var tech = j.technician && j.technician.name ? j.technician.name : 'Unassigned';
@@ -882,9 +956,12 @@
           '<select class="mv" data-job="'+j.id+'" title="Move to another column">'+moveOpts+'</select>' +
           '</div>';
       }).join('');
-      return '<div class="col" data-stage="'+esc(k)+'"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span></h3>'+cards+'</div>';
+      var s=colSort[k]; var sLbl = (s&&s.by) ? '<span class="sortlbl">↕ '+esc(sortFieldLabel(s.by))+(s.dir==='desc'?' ↓':' ↑')+'</span>' : '';
+      return '<div class="col" data-stage="'+esc(k)+'"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span>'+sLbl+'<button type="button" class="colmenu'+((s&&s.by)?' on':'')+'" data-stage="'+esc(k)+'" title="Sort this column">⋯</button></h3>'+cards+'</div>';
     }).join('') || '<div class="empty">Nothing here yet.</div>';
     var b=document.getElementById('board'); b.innerHTML=html;
+    // ⋯ per-column sort menu (MeisterTask-style "Sort section")
+    b.querySelectorAll('.colmenu[data-stage]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); openColMenu(el.getAttribute('data-stage'), el); }; });
     wireBoardMoves(b);
     wireSlide(); updateSlide();   // top slider follows the board's scroll range
     // copy chips — grab claim/part # for the warranty portal without opening the drawer
