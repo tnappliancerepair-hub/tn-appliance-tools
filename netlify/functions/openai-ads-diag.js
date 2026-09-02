@@ -18,12 +18,14 @@ exports.handler = async function (event) {
   const check = await oa.configured();
   return json(200, {
     ok: true, mode: 'diag',
-    has_api_key: !!c.key, has_pixel_id: !!c.pixelId,
+    has_api_key: !!c.key,
+    has_conversion_key: !!(c.convKey && c.convKey !== c.key),
+    has_pixel_id: !!c.pixelId,
     configured: check.configured, http: check.status || null,
     account: check.account || null,
     error: check.error || null,
     note: check.configured
-      ? 'ChatGPT Ads key is live — ready to launch a test campaign.'
-      : 'Vault OPENAI_ADS_API_KEY (and OPENAI_ADS_PIXEL_ID) via admin-secrets.html, then re-run.',
+      ? 'ChatGPT Ads management key is live — ready to launch a test campaign. For the conversion loop, also vault OPENAI_ADS_CONVERSION_KEY + OPENAI_ADS_PIXEL_ID.'
+      : 'Vault OPENAI_ADS_API_KEY (management), OPENAI_ADS_CONVERSION_KEY, and OPENAI_ADS_PIXEL_ID via admin-secrets.html, then re-run.',
   });
 };

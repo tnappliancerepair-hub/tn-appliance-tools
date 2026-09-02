@@ -69,7 +69,9 @@ async function uploadOpenAiConversion({ event_type, value, phone, email, when_ms
   const url = `${oa.CONV_BASE}/events?pid=${encodeURIComponent(c.pixelId)}`;
   const body = JSON.stringify({ validate_only: !!validate_only, events: [ev] });
   let r, d;
-  try { r = await fetch(url, { method: 'POST', headers: oa.apiHeaders(c.key), body, signal: AbortSignal.timeout(12000) }); d = await r.json().catch(() => ({})); }
+  // Conversions API (bzr.openai.com) authorizes with the SEPARATE conversion key, not the
+  // management key. c.convKey falls back to c.key when only one is vaulted.
+  try { r = await fetch(url, { method: 'POST', headers: oa.apiHeaders(c.convKey), body, signal: AbortSignal.timeout(12000) }); d = await r.json().catch(() => ({})); }
   catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
   return {
     ok: r.ok, http: r.status, event_type: type, value: v, validate_only: !!validate_only,

@@ -5,8 +5,16 @@
 // token, NO manager/MCC login-cid fallback.
 //
 // Vault keys (set via admin-secrets.html once Teddy has the account):
-//   OPENAI_ADS_API_KEY    (Bearer key from Ads Manager → Settings)
-//   OPENAI_ADS_PIXEL_ID   (from the Conversions tab — for the Conversions API pid)
+//   OPENAI_ADS_API_KEY         (Ads MANAGEMENT key: Ads Manager → Settings → Create New API Key)
+//   OPENAI_ADS_CONVERSION_KEY  (SEPARATE conversion key: Ads Manager → "Manage conversion keys")
+//   OPENAI_ADS_PIXEL_ID        (the pid, from the Conversions area — for the Conversions API)
+//
+// ⚠️ OpenAI issues TWO keys, not one. The Ads Manager modal says it verbatim: "Ads Manager API
+// keys grant Ads Management API access only. Use a separate conversion key for Conversions API
+// events." So the management key authorizes api.ads.openai.com (campaigns/insights) and the
+// conversion key authorizes bzr.openai.com (Conversions API /events). We keep them separate; if
+// only OPENAI_ADS_API_KEY is set, convKey falls back to it so nothing throws (it just won't
+// authorize the /events call — graceful, not fatal).
 //
 // Built DARK: every reader returns { ok:false, configured:false } cleanly until the
 // key is vaulted, so nothing throws and nothing charges before Teddy launches.
@@ -18,11 +26,16 @@ const API_BASE = 'https://api.ads.openai.com/v1';
 const CONV_BASE = 'https://bzr.openai.com/v1';
 
 async function creds() {
-  const [key, pixelId] = await Promise.all([
+  const [key, convKey, pixelId] = await Promise.all([
     getSecretPreferVault('OPENAI_ADS_API_KEY'),
+    getSecretPreferVault('OPENAI_ADS_CONVERSION_KEY'),
     getSecretPreferVault('OPENAI_ADS_PIXEL_ID'),
   ]);
-  return { key: (key || '').trim(), pixelId: (pixelId || '').trim() };
+  const k = (key || '').trim();
+  const ck = (convKey || '').trim();
+  // convKey authorizes the Conversions API (bzr.openai.com); fall back to the management key so a
+  // single-key setup degrades gracefully rather than crashing.
+  return { key: k, convKey: ck || k, pixelId: (pixelId || '').trim() };
 }
 
 function apiHeaders(key) {
@@ -48,7 +61,10 @@ async function configured() {
   const res = await api('GET', '/ad_account', c.key);
   return {
     ok: res.ok, configured: !!res.ok, status: res.status,
-    has_pixel: !!c.pixelId, account: res.ok ? (res.d && (res.d.ad_account || res.d)) : null,
+    has_pixel: !!c.pixelId,
+    // true only when a DISTINCT conversion key is vaulted (not the fallback-to-management value)
+    has_conversion_key: !!(c.convKey && c.convKey !== c.key),
+    account: res.ok ? (res.d && (res.d.ad_account || res.d)) : null,
     error: res.ok ? null : res.err,
   };
 }
