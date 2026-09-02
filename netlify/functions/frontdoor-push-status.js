@@ -27,6 +27,11 @@ const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 
+// Give the live push the full window (was defaulting to ~10s) so the bounded round-trip
+// (token 6s + webhook 7s + a ~16s overall deadline in _lib/frontdoor) reports a real
+// result instead of hitting Netlify's sync limit first.
+exports.config = { timeout: 26 };
+
 function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }; }
 async function logEvent(action, metadata) {
   const t = process.env.XANO_METADATA_TOKEN; if (!t) return;

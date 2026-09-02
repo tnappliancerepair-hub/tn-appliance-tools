@@ -69,7 +69,7 @@ async function getToken(force) {
   const r = await fetch(await tokenUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-    body: form.toString(), signal: AbortSignal.timeout(12000),
+    body: form.toString(), signal: AbortSignal.timeout(6000),
   });
   const text = await r.text();
   let j = {}; try { j = JSON.parse(text); } catch (_) {}
@@ -87,13 +87,13 @@ async function api(method, path, bodyObj) {
     method,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: bodyObj ? JSON.stringify(bodyObj) : undefined,
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(7000),
   });
   if (r.status === 401) {   // token expired mid-flight → one retry
     const t2 = await getToken(true);
     const r2 = await fetch(`${base}${path}`, {
       method, headers: { Authorization: `Bearer ${t2}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: bodyObj ? JSON.stringify(bodyObj) : undefined, signal: AbortSignal.timeout(15000),
+      body: bodyObj ? JSON.stringify(bodyObj) : undefined, signal: AbortSignal.timeout(7000),
     });
     const tx2 = await r2.text(); let j2 = {}; try { j2 = JSON.parse(tx2); } catch (_) {}
     return { ok: r2.ok, status: r2.status, data: j2, raw: tx2 };
@@ -120,7 +120,12 @@ async function dispatchStatusUpdate({ dispatchId, statusCode, description, note,
     end_time: endTime || nowIso,
   };
   if (Array.isArray(items) && items.length) object.items = items;
-  return api('POST', '/dispatch-connector/v1/webhook', { data: [{ type: 'status', object }] });
+  // Overall deadline: token(6s) + webhook(7s) + any 401 retry can never collectively hang past
+  // ~16s, so a slow/unresponsive Frontdoor endpoint fails fast with a clear error instead of
+  // stalling the caller past the function/client cap (this was the 25s HTTP-000 hang).
+  const call = api('POST', '/dispatch-connector/v1/webhook', { data: [{ type: 'status', object }] });
+  const deadline = new Promise((_, rej) => setTimeout(() => rej(new Error('Frontdoor push deadline exceeded (16s)')), 16000));
+  return Promise.race([call, deadline]);
 }
 
 // Status-code catalog (subset we use) — see spec doc for the full list.
