@@ -1204,6 +1204,12 @@
       '<div class="custname" id="jcusthead">'+esc(fullName(cust)||'Customer')+'</div>' +
       '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
+      // ── 📁 MOVE TO FOLDER — every board column as a folder; pick one to move the job there ──
+      '<div class="sec">📁 Move to folder</div>' +
+      '<select id="jmovefolder" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-weight:700;box-sizing:border-box">' +
+        boardStages().map(function(c){ return '<option value="'+esc(c.key)+'"'+(stageOf(job)===c.key?' selected':'')+'>'+esc(c.label)+'</option>'; }).join('') +
+      '</select>' +
+      '<div class="hint" id="jmovemsg" style="margin:5px 0 0"></div>' +
       // ── 📩 CUSTOMER INTAKE — what the customer sent (their info, availability, video/model).
       // Sits right under the header so scheduling is done off the customer's own availability. ──
       '<div id="jintake"></div>' +
@@ -1287,6 +1293,15 @@
     var close=function(){ try{document.body.removeChild(ov);}catch(e){} };
     ov.onclick=function(e){ if(e.target===ov) close(); };
     document.getElementById('jclose').onclick=close;
+    // 📁 Move to folder — pick any column from the drawer to move the job there (writes board_stage)
+    var mf=document.getElementById('jmovefolder');
+    if(mf) mf.onchange=function(){ var v=mf.value; if(!v || v===stageOf(job)) return; mf.disabled=true; var mm=document.getElementById('jmovemsg'); if(mm) mm.textContent='Moving…';
+      sb.from('job').update({ board_stage:v }).eq('id',job.id).then(function(r){ mf.disabled=false;
+        if(r.error){ if(mm) mm.textContent='Couldn\'t move — try again.'; return; }
+        job.board_stage=v; if(mm){ mm.textContent='Moved to '+(stageMeta(v).label||v)+' ✓'; setTimeout(function(){ if(mm) mm.textContent=''; },1800); }
+        try{ if(window.AntMagic){ AntMagic.award('file', window.innerWidth/2, 120); } }catch(_){}
+        loadBoard();
+      }); };
     loadIntake(job);
     loadTdr(job);
     loadDetails(job);
