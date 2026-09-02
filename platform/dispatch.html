@@ -162,9 +162,9 @@
   .wk-off{position:absolute;top:5px;right:5px;z-index:3;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding:3px 6px;border-radius:999px;border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 80%,transparent);color:var(--muted);cursor:pointer;opacity:.5}
   .wk-cell:hover .wk-off{opacity:1} .wk-off.on{opacity:1;background:var(--bad);color:#fff;border-color:transparent}
   .wblocks{display:flex;flex-direction:column;gap:4px}
-  .wblk{background:var(--bg);border:1px solid var(--line);border-left:3px solid var(--scheduled);border-radius:6px;padding:5px 8px;cursor:pointer;min-height:30px}
-  .wblk:hover{background:color-mix(in srgb,var(--brand) 12%,var(--bg));border-left-color:var(--brand)}
-  .wblk.bk-warranty{border-left-color:var(--awaiting_parts)} .wblk.bk-self{border-left-color:var(--completed)} .wblk.bk-parts{border-left-color:var(--awaiting_parts)}
+  /* 🟩 CONFIRMED / on the schedule = GREEN (the base block) */
+  .wblk{background:color-mix(in srgb,var(--completed) 13%,var(--bg));border:1px solid color-mix(in srgb,var(--completed) 32%,var(--line));border-left:3px solid var(--completed);border-radius:6px;padding:5px 8px;cursor:pointer;min-height:30px}
+  .wblk:hover{background:color-mix(in srgb,var(--completed) 24%,var(--bg))}
   .wblk .r1{display:flex;align-items:center;gap:6px;font-size:11px}
   .wblk .r1 .pos{color:var(--muted);font-weight:700;flex:none} .wblk .r1 .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
   .wblk .r2{margin-top:2px;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -172,6 +172,13 @@
   /* a HELD slot — office offered it, customer hasn't accepted yet. Distinct amber + dashed. */
   .wblk.hold{background:repeating-linear-gradient(45deg,color-mix(in srgb,#e0a63e 16%,var(--bg)),color-mix(in srgb,#e0a63e 16%,var(--bg)) 6px,color-mix(in srgb,#e0a63e 6%,var(--bg)) 6px,color-mix(in srgb,#e0a63e 6%,var(--bg)) 12px);border:1px dashed #c79a17;border-left:3px dashed #c79a17}
   .wblk.hold:hover{background:color-mix(in srgb,#e0a63e 22%,var(--bg))} .wblk.hold .r1 .pos{color:#a67c10}
+  /* the color key — three scheduling states at a glance */
+  .schlegend{display:flex;flex-wrap:wrap;gap:6px 15px;margin:0 2px 9px;font-size:11.5px;font-weight:800;color:var(--muted)}
+  .schlegend .lg{display:inline-flex;align-items:center;gap:6px}
+  .schlegend .lg i{width:13px;height:13px;border-radius:3px;flex:none;border:1px solid rgba(0,0,0,.14)}
+  .schlegend .lg.sched i{background:color-mix(in srgb,var(--completed) 55%,transparent);border-color:var(--completed)}
+  .schlegend .lg.hold i{background:repeating-linear-gradient(45deg,#e0a63e,#e0a63e 3px,transparent 3px,transparent 6px);border-color:#c79a17}
+  .schlegend .lg.req i{background:color-mix(in srgb,var(--scheduled) 55%,transparent);border-color:var(--scheduled)}
   @media(max-width:640px){ .wk-th .wk-num{display:none} .wblk .r2{display:none} }
   /* customer scheduling-REQUEST inbox — needs the dispatcher's approve/counter/deny */
   .reqwrap{display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
@@ -443,8 +450,8 @@
             var tier=cnt>=5?'red':(cnt>=3?'yellow':'green');
             var route=routeOrder(mine);
             var blocks=route.map(function(j,idx){ var city=(j.customer&&j.customer.city)||'';
-                var bk=String(j.warranty_company||'').trim()?'warranty':'self'; if(j.status==='awaiting_parts') bk='parts';
-                return '<div class="wblk bk-'+bk+'" data-job="'+j.id+'"><div class="r1"><span class="pos">'+ordinal(idx+1)+' stop</span><span class="nm">'+esc(fullName(j.customer)||'Customer')+'</span></div><div class="r2">'+esc((j.unit&&j.unit.label)||j.problem||'')+(city?' · '+esc(city):'')+'</div></div>'; }).join('');
+                var hint = j.status==='awaiting_parts' ? '📦 ' : (String(j.warranty_company||'').trim() ? '🛡 ' : '');
+                return '<div class="wblk" data-job="'+j.id+'"><div class="r1"><span class="pos">'+ordinal(idx+1)+' stop</span><span class="nm">'+esc(fullName(j.customer)||'Customer')+'</span></div><div class="r2">'+hint+esc((j.unit&&j.unit.label)||j.problem||'')+(city?' · '+esc(city):'')+'</div></div>'; }).join('');
             // held (tentative) slots — office offered, waiting on the customer. Ghosted amber; tap to confirm/release.
             blocks += cellHolds.map(function(o){ var j=jobById(o.job_id); var nm=j?(fullName(j.customer)||'Customer'):'Customer';
                 return '<div class="wblk hold" data-job="'+o.job_id+'"><div class="r1"><span class="pos">⏳ held</span><span class="nm">'+esc(nm)+'</span></div><div class="r2">offered · '+esc(winLbl(o.win))+' · awaiting reply</div></div>'; }).join('');
@@ -524,7 +531,8 @@
       '<div class="wrap">'+
         reqSection+
         '<div class="weeknav">'+navHtml+'</div>'+
-        (view==='week'?'<div class="sec-h" style="margin-top:0">📋 Schedule — tap a job to reschedule/reassign, or a day to focus the map</div>':'')+
+        (view==='week'?'<div class="sec-h" style="margin-top:0">📋 Schedule — tap a job to reschedule/reassign, or a day to focus the map</div>'+
+          '<div class="schlegend"><span class="lg sched"><i></i>🟩 On the schedule</span><span class="lg hold"><i></i>🟨 Held — office offer</span><span class="lg req"><i></i>🟦 Customer request</span></div>':'')+
         calBlock+
         mapSection+
         traySection+
