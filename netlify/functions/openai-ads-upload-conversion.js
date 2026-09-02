@@ -57,14 +57,24 @@ async function uploadOpenAiConversion({ event_type, value, phone, email, when_ms
     id: String(event_id || (type + '-' + (when_ms || Date.now()))),
     type,
     timestamp_ms: Number(when_ms) || Date.now(),
-    action_source: 'website',
+    // OpenAI action_source enum: web | mobile_app | offline | physical_store | phone_call | email | other
+    action_source: 'web',
     user,
   };
   if (source_url) ev.source_url = String(source_url);
   const v = Number(value) || 0;
-  // data carries the transaction value for order_created; amount 0 → skip so a
-  // booked (no-$) conversion still records cleanly.
-  if (v > 0) ev.data = { type, amount: v, currency: 'USD' };
+  // amount must be an integer in ISO-4217 MINOR units (cents); the sweep passes dollars.
+  const cents = v > 0 ? Math.round(v * 100) : null;
+  // data.type is the event's taxonomy CATEGORY, not the event name:
+  //   order_created         -> "contents"        (revenue: amount/currency + a contents[] line)
+  //   appointment_scheduled -> "customer_action" (a booking; amount optional/null)
+  if (type === 'order_created') {
+    ev.data = { type: 'contents', amount: cents, currency: cents != null ? 'USD' : null };
+    if (cents != null) ev.data.contents = [{ id: 'appliance-repair', name: 'Appliance repair', quantity: 1, amount: cents, currency: 'USD' }];
+  } else {
+    // booked / lead — a customer action, no revenue attributed
+    ev.data = { type: 'customer_action', amount: null, currency: null };
+  }
 
   const url = `${oa.CONV_BASE}/events?pid=${encodeURIComponent(c.pixelId)}`;
   const body = JSON.stringify({ validate_only: !!validate_only, events: [ev] });
