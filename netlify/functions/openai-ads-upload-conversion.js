@@ -77,6 +77,10 @@ async function uploadOpenAiConversion({ event_type, value, phone, email, when_ms
     ok: r.ok, http: r.status, event_type: type, value: v, validate_only: !!validate_only,
     matched_on: [email_hash ? 'email' : null, phone_hash ? 'phone' : null].filter(Boolean),
     raw_error: r.ok ? null : ((d && d.error && (d.error.message || d.error)) || d),
+    // full response body on failure — surfaces OpenAI's field-level "errors[]" detail so the
+    // event payload can be tuned to the schema (see the "See errors for details" message).
+    raw_response: r.ok ? undefined : d,
+    sent_event: r.ok ? undefined : ev,
     response: r.ok ? d : undefined,
   };
 }
