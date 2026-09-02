@@ -109,6 +109,12 @@
   #jtdr .tout.on[data-o="second_opinion"]{background:#7c3aed}
   #jtdr .tout.on[data-o="no_failure"]{background:#6b7280}
   #jtdr .tmedia{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  #jprev .prevrow{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:9px 11px;margin-bottom:7px;line-height:1.42}
+  #jprev .prevrow>div{margin-top:2px}
+  #jprev .prevhd{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:700;margin-top:0}
+  #jprev .prevbadge{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+  #jmsgtoggle{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:11px 12px;font:inherit;cursor:pointer}
+  #jmsgtoggle:hover{border-color:var(--brand)}
   .sheet .sec{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin:18px 0 8px}
   .sheet .sec button.supcfg{float:right;text-transform:none;letter-spacing:0;margin-top:-3px;padding:2px 8px;border:1px dashed var(--line);border-radius:8px;background:transparent;color:var(--muted);font-size:11.5px;font-weight:600;cursor:pointer}
   .sheet .sec button.supcfg:hover{color:var(--ink);border-color:var(--brand)}
@@ -1209,6 +1215,18 @@
         boardStages().map(function(c){ return '<option value="'+esc(c.key)+'"'+(stageOf(job)===c.key?' selected':'')+'>'+esc(c.label)+'</option>'; }).join('') +
       '</select>' +
       '<div class="hint" id="jmovemsg" style="margin:5px 0 0"></div>' +
+      // ── 🔁 PREVIOUS VISITS — prior jobs for THIS customer (recalls / repeat visits over the
+      // lifetime) so the office sees what happened last time before working this one. ──
+      '<div class="sec">🔁 Previous visits <span class="hint" style="font-weight:400">— what happened last time</span></div>' +
+      '<div id="jprev" style="font-size:13px">Loading…</div>' +
+      // ── 💬 MESSAGES — the full customer conversation, behind a button so it never fills the
+      // screen. Collapsed by default; click to open the thread + text box. ──
+      '<div class="sec" style="margin-bottom:6px"><button type="button" id="jmsgtoggle" style="width:100%;text-align:left;font-weight:800">💬 Messages<span class="hint" id="jmsgcount" style="font-weight:600"></span> <span id="jmsgcaret" style="float:right">▸</span></button></div>' +
+      '<div id="jconvo" style="display:none">' +
+        '<div id="jthread" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;font-size:13px">Loading…</div>' +
+        '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
+        '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
+      '</div>' +
       // ── 📩 CUSTOMER INTAKE — what the customer sent (their info, availability, video/model).
       // Sits right under the header so scheduling is done off the customer's own availability. ──
       '<div id="jintake"></div>' +
@@ -1261,10 +1279,6 @@
       '</div>' +
       '<div class="sec">Office notes</div><textarea id="jnotes" placeholder="Parts on order, gate code, upsell offered, anything the team should see…">'+esc(job.office_notes||'')+'</textarea>' +
       '<div class="srow" style="margin-top:8px"><button class="primary" id="jnotesSave">Save notes</button></div>' +
-      '<div class="sec">Conversation <span class="hint" style="font-weight:400">— texts with the customer</span></div>' +
-      '<div id="jthread" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;font-size:13px">Loading…</div>' +
-      '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
-      '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
       // ── 🔩 FIND THE PART — CSR parts search across the shop's suppliers (interchangeable) ──
       '<div class="sec">🔩 Find the part <button type="button" class="supcfg" id="jfindCfg" title="Choose your suppliers">⚙️ Suppliers</button></div>' +
       '<input id="jfindq" placeholder="Model # or part #" value="'+esc(unit||'')+'" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace;box-sizing:border-box;margin-bottom:7px">' +
@@ -1306,9 +1320,13 @@
     loadTdr(job);
     loadTparts(job);
     loadDetails(job);
+    loadPrevVisits(job);
     loadSched(job);
     renderPaymentPanel(job);
     renderChecklist(job);
+    // 💬 Messages — collapsed by default so the thread never fills the screen; button opens it.
+    var jmt=document.getElementById('jmsgtoggle'), jcv=document.getElementById('jconvo');
+    if(jmt&&jcv){ jmt.onclick=function(){ var open=jcv.style.display==='none'; jcv.style.display=open?'block':'none'; var cr=document.getElementById('jmsgcaret'); if(cr) cr.textContent=open?'▾':'▸'; if(open){ var b=document.getElementById('jthread'); if(b) b.scrollTop=b.scrollHeight; try{ jcv.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(_){} } }; }
 
     // ── 🔩 FIND THE PART — supplier buttons from the shared interchangeable catalog ──
     function jFindQ(){ var i=document.getElementById('jfindq'); var v=i?i.value.trim():''; if(v) return v; var dm=document.getElementById('d_model'); return (dm&&dm.value.trim())||(unit||''); }
@@ -1514,7 +1532,36 @@
       var rows=r.data||[];
       b.innerHTML = rows.length ? rows.map(threadBubble).join('') : '<div class="hint">No messages yet.</div>';
       b.scrollTop=b.scrollHeight;
+      var cnt=document.getElementById('jmsgcount'); if(cnt) cnt.textContent=rows.length?' ('+rows.length+')':'';
     });
+  }
+  // ── 🔁 PREVIOUS VISITS — prior jobs for this customer, newest first, with each visit's
+  // outcome + what failed / what happened (from its TDR) so recalls & repeat trips have context.
+  function loadPrevVisits(job){
+    var box=document.getElementById('jprev'); if(!box) return;
+    if(!job.customer_id){ box.innerHTML='<div class="hint">No customer on file — no visit history.</div>'; return; }
+    sb.from('job').select('id,created_at,scheduled_day,problem,status,warranty_company,unit:unit_id(label)').eq('customer_id',job.customer_id).neq('id',job.id).order('created_at',{ascending:false}).limit(10).then(function(r){
+      if(r.error){ box.innerHTML='<div class="hint">Couldn\'t load visit history.</div>'; return; }
+      var jobs=r.data||[];
+      if(!jobs.length){ box.innerHTML='<div class="hint">First visit — no previous jobs for this customer.</div>'; return; }
+      var jids=jobs.map(function(j){return j.id;});
+      sb.from('job_tdr').select('job_id,failed_component,root_cause,outcome,model,labor_hours').in('job_id',jids).then(function(tr){
+        var byJob={}; ((tr&&tr.data)||[]).forEach(function(t){ byJob[t.job_id]=t; });
+        box.innerHTML=jobs.map(function(j){
+          var t=byJob[j.id]||{};
+          var dt=j.scheduled_day||(j.created_at?String(j.created_at).slice(0,10):'');
+          var appl=(j.unit&&j.unit.label)||'';
+          var oc=null; for(var k=0;k<TDR_OUTCOMES.length;k++){ if(TDR_OUTCOMES[k][0]===t.outcome){ oc=TDR_OUTCOMES[k]; break; } }
+          var badge=oc?'<span class="prevbadge">'+oc[1]+' '+esc(oc[2])+'</span>':(j.status?'<span class="prevbadge">'+esc(j.status)+'</span>':'');
+          var wc=j.warranty_company?' · '+esc(j.warranty_company):'';
+          var fc=t.failed_component?'<div><b>Failed:</b> '+esc(t.failed_component)+'</div>':'';
+          var rc=t.root_cause?'<div><b>What happened:</b> '+esc(t.root_cause)+'</div>':'';
+          var pr=(!fc&&!rc&&j.problem)?'<div>'+esc(j.problem)+'</div>':'';
+          var mdl=t.model?'<div class="hint">Model '+esc(t.model)+(t.labor_hours!=null?' · '+esc(t.labor_hours)+'h labor':'')+'</div>':'';
+          return '<div class="prevrow"><div class="prevhd"><span>'+esc(dt||'—')+(appl?' · '+esc(appl):'')+wc+'</span>'+badge+'</div>'+fc+rc+pr+mdl+'</div>';
+        }).join('');
+      }).catch(function(){ box.innerHTML='<div class="hint">Couldn\'t load visit history.</div>'; });
+    }).catch(function(){ if(box) box.innerHTML='<div class="hint">Couldn\'t load visit history.</div>'; });
   }
   function sendCustomerText(job){
     var ta=document.getElementById('jmsg'), btn=document.getElementById('jmsgSend'), hint=document.getElementById('jmsgHint');
