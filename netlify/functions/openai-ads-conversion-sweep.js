@@ -21,7 +21,11 @@ function amtOf(m) { if (m.amount_cents != null) return num(m.amount_cents) / 100
 async function rows(action, n) { try { return await crud.searchPage(crud.TABLES.event_log, { action }, { id: 'desc' }, n || 400); } catch (_) { return []; } }
 
 const SELF_PAY = new Set(['self_pay', 'cash', 'customer_pay']);
-const MAX_JOBS = 80;   // cap heavy per-job reads per run
+const MAX_JOBS = 25;   // cap heavy per-job reads per run (each is a metadata round-trip)
+
+// Extended window so a manual ?dryrun=1 (which still does the per-job reads) doesn't
+// hit the ~10s sync cap under Xano load. The cron run gets the full 15-min budget.
+exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
@@ -62,9 +66,16 @@ exports.handler = async function (event) {
     looked++;
     let job = {}; try { job = await crud.searchOne(crud.TABLES.jobs, { id: jobId }) || {}; } catch (_) {}
     if (!SELF_PAY.has(String(job.customer_type || '').toLowerCase())) { skipped.not_self_pay++; continue; }
-    let cust = {}; try { if (job.customer_id) cust = (await crud.searchOne(crud.TABLES.customer, { id: job.customer_id })) || {}; } catch (_) {}
-    const phone = cust.phone || job.customer_phone || '';
-    const email = cust.email || job.customer_email || '';
+    // phone is denormalized onto the job (kanban denorm) — use it and SKIP the
+    // customer-table read. Only fall back to the customer row when phone is missing
+    // (or to pick up an email, which isn't denormalized) — keeps reads bounded.
+    let phone = job.customer_phone || '';
+    let email = '';
+    if (!phone) {
+      let cust = {}; try { if (job.customer_id) cust = (await crud.searchOne(crud.TABLES.customer, { id: job.customer_id })) || {}; } catch (_) {}
+      phone = cust.phone || '';
+      email = cust.email || '';
+    }
     if (!phone && !email) { skipped.no_contact++; continue; }
 
     if (wantBooked) plan.push({ job_id: jobId, event_type: 'appointment_scheduled', value: invByJob[jobId] || paidByJob[jobId] || 0, phone, email });
