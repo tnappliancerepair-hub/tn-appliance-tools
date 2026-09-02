@@ -43,15 +43,11 @@
   .filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch}
   .filters button{white-space:nowrap;border-radius:999px;padding:7px 13px;font-size:13px}
   .filters button.on{background:var(--ink);color:var(--bg);border-color:transparent}
-  /* column navigator — top strip; tap a column to slide the board to it */
-  .colnav{display:flex;gap:7px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding:2px 0 12px;position:sticky;top:0;z-index:5;background:var(--bg)}
-  .cnav{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;box-shadow:var(--shadow)}
-  .cnav.on{background:var(--ink);color:var(--bg);border-color:transparent}
-  .cnav .cdot{width:8px;height:8px;border-radius:50%}
-  .cnav .cn{background:var(--chip);color:var(--muted);border-radius:999px;padding:0 7px;font-size:11px}
-  .cnav.on .cn{background:rgba(255,255,255,.22);color:#fff}
-  /* horizontal kanban — swipe between columns (MeisterTask-style); every column is a drop target */
-  .board{display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:14px;align-items:flex-start}
+  /* top slider — drag it to slide the WHOLE board across (the bottom scrollbar is hidden) */
+  .boardslide{display:block;width:100%;margin:2px 0 12px;height:22px;cursor:pointer;accent-color:var(--gold,#f6b01f);position:sticky;top:0;z-index:5;background:var(--bg)}
+  /* horizontal kanban — the columns slide together; scrollbar hidden (the top slider drives it) */
+  .board{display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;align-items:flex-start;scrollbar-width:none;-ms-overflow-style:none}
+  .board::-webkit-scrollbar{display:none}
   .col{flex:0 0 264px;width:264px;margin-bottom:0;border-radius:12px;padding:4px;transition:background .12s ease,box-shadow .12s ease}
   .col.dragover{background:var(--chip);box-shadow:inset 0 0 0 2px var(--gold,#f6b01f)}
   .card.dragging{opacity:.45}
@@ -396,7 +392,7 @@
           '<a href="/platform/office-overview.html">🗂 Overview</a>' +
         '</nav>' +
       '</header>' +
-      '<div class="wrap"><div class="money" id="money"></div><div class="filters" id="filters"></div><div class="colnav" id="colnav"></div><div class="board" id="board"></div></div>';
+      '<div class="wrap"><div class="money" id="money"></div><div class="filters" id="filters"></div><input type="range" class="boardslide" id="boardslide" min="0" max="0" value="0" step="1" aria-label="Slide across the columns"><div class="board" id="board"></div></div>';
     document.getElementById('out').onclick = function () { if (rt) { try { sb.removeChannel(rt); } catch (e) {} } sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick = loadBoard;
     document.getElementById('settings').onclick = openSettings;
@@ -784,6 +780,21 @@
     });
   }
 
+  // Top slider ⇄ board: drag the slider and the WHOLE board slides across; scroll the board and
+  // the slider follows. Wired once; updateSlide() re-fits the range after each render / resize.
+  function updateSlide(){
+    var s=document.getElementById('boardslide'), b=document.getElementById('board'); if(!s||!b) return;
+    var max=Math.max(0, b.scrollWidth - b.clientWidth);
+    s.max=max; s.value=Math.min(b.scrollLeft, max);
+    s.style.display = max>2 ? 'block' : 'none';
+  }
+  function wireSlide(){
+    var s=document.getElementById('boardslide'), b=document.getElementById('board'); if(!s||!b||s._wired) return; s._wired=true;
+    s.addEventListener('input', function(){ b.scrollLeft = +s.value; });
+    b.addEventListener('scroll', function(){ if(document.activeElement!==s) s.value = b.scrollLeft; });
+    window.addEventListener('resize', updateSlide);
+  }
+
   function renderBoard(){
     // multi-machine: count jobs sharing a stop_id, computed from the loaded set (no query).
     stopCounts = {};
@@ -849,12 +860,7 @@
     }).join('') || '<div class="empty">Nothing here yet.</div>';
     var b=document.getElementById('board'); b.innerHTML=html;
     wireBoardMoves(b);
-    // top column navigator — a chip per column; tap to slide the board straight to it
-    var nav=document.getElementById('colnav');
-    if(nav){
-      nav.innerHTML = cols.map(function(c){ var n=(byStage[c.key]||[]).length; return '<button type="button" class="cnav" data-goto="'+esc(c.key)+'"><span class="cdot" style="background:'+c.color+'"></span>'+esc(c.label)+'<span class="cn">'+n+'</span></button>'; }).join('');
-      nav.querySelectorAll('.cnav[data-goto]').forEach(function(btn){ btn.onclick=function(){ var col=b.querySelector('.col[data-stage="'+btn.getAttribute('data-goto')+'"]'); if(col){ try{ col.scrollIntoView({behavior:'smooth', inline:'start', block:'nearest'}); }catch(_){ col.scrollIntoView(); } } nav.querySelectorAll('.cnav').forEach(function(x){ x.classList.remove('on'); }); btn.classList.add('on'); }; });
-    }
+    wireSlide(); updateSlide();   // top slider follows the board's scroll range
     // copy chips — grab claim/part # for the warranty portal without opening the drawer
     b.querySelectorAll('.copychip[data-copy]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var t=el.getAttribute('data-copy'); try{ if(navigator.clipboard) navigator.clipboard.writeText(t); }catch(_){} var ico=el.querySelector('.cc-ico'); if(ico){ var old=ico.textContent; ico.textContent='✓'; setTimeout(function(){ ico.textContent=old; },1000); } }; });
     // ✓ Mark complete — set the job completed straight from the tile (a card moving column = a "file")
@@ -1128,13 +1134,11 @@
     Promise.all([
       sb.from('job_tdr').select('*').eq('job_id',job.id).limit(1),
       sb.from('job_part').select('id,number,name').eq('job_id',job.id).order('created_at'),
-      sb.from('job').select('unit_id,unit:unit_id(id,label,attributes)').eq('id',job.id).limit(1).single(),
-      sb.from('job_media').select('id,kind,provider,ref,label').eq('job_id',job.id)
+      sb.from('job').select('unit_id,unit:unit_id(id,label,attributes)').eq('id',job.id).limit(1).single()
     ]).then(function(res){
       var t=((res[0]&&res[0].data)||[])[0]||{};
       var parts=(res[1]&&res[1].data)||[];
       var jj=(res[2]&&res[2].data)||{}; var unitRow=jj.unit||{}; var attrs=unitRow.attributes||{};
-      var media=(res[3]&&res[3].data)||[];
       var unitId=jj.unit_id||unitRow.id||null;
       var curModel=t.model||attrs.model||'';
       var IN='class="tinp"';
@@ -1147,15 +1151,6 @@
       }).join('');
       // outcome buttons
       var outs=TDR_OUTCOMES.map(function(o){ return '<button type="button" class="tout'+(t.outcome===o[0]?' on':'')+'" data-o="'+o[0]+'"><span>'+o[1]+'</span>'+o[2]+'</button>'; }).join('');
-      // media strip (all photos + videos on the job)
-      var mediaHtml='';
-      media.forEach(function(m){
-        if(m.kind==='video'){ var uid=esc(m.ref);
-          if(m.provider==='cfstream'){ mediaHtml+='<a class="mtile vtile" target="_blank" rel="noopener" href="https://iframe.cloudflarestream.com/'+uid+'"><img class="vcover" src="https://videodelivery.net/'+uid+'/thumbnails/thumbnail.jpg?time=1s&height=140" alt="" onerror="this.style.display=\'none\'"><span class="play">▶</span></a> '; }
-          else { mediaHtml+='<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'" style="display:grid;place-items:center;font-size:22px">🎥</a> '; }
-        } else if(m.kind==='photo'){ mediaHtml+='<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" alt="photo"></a> '; }
-      });
-      if(!mediaHtml) mediaHtml='<span class="hint">No photos or video on this job yet.</span>';
       box.innerHTML=
         '<div class="sec">📋 TDR — technician report <span class="hint" style="font-weight:400">— what the office files the claim from</span></div>'+
         '<span class="tlab">Model #</span><input '+IN+' id="t_model" value="'+esc(curModel)+'" placeholder="off the sticker" style="font-family:ui-monospace,Menlo,monospace">'+
@@ -1167,9 +1162,7 @@
         '<span class="tlab">Labor hours</span><input '+IN+' id="t_lh" inputmode="decimal" value="'+esc(t.labor_hours!=null?t.labor_hours:'')+'" placeholder="e.g. 1.5">'+
         '<span class="tlab">Outcome — how the job ended (for the claim)</span>'+
         '<div class="touts" id="t_outs">'+outs+'</div>'+
-        '<div class="srow" style="justify-content:flex-start"><button class="primary" id="t_save">💾 Save report</button><span class="hint" id="t_msg" style="align-self:center"></span></div>'+
-        '<span class="tlab">📸 Photos &amp; video</span><div class="tmedia" id="t_media">'+mediaHtml+'</div>';
-      try{ hydratePics(box); }catch(_){}
+        '<div class="srow" style="justify-content:flex-start"><button class="primary" id="t_save">💾 Save report</button><span class="hint" id="t_msg" style="align-self:center"></span></div>';
 
       // outcome — save immediately
       box.querySelectorAll('#t_outs .tout[data-o]').forEach(function(btn){ btn.onclick=function(){
