@@ -13,10 +13,11 @@
   everything to this shop.
 -->
 <style>
-  :root{ --bg:#f6f7f4; --panel:#fff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd; --brand:#3f8f24; --brand-ink:#fff; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 6px 18px rgba(20,30,10,.06);
-    --new:#6b7280; --scheduled:#2f6bff; --in_progress:#f59e0b; --awaiting_parts:#8b5cf6; --completed:#12c256; --canceled:#9ca3af; }
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a; --brand:#5bb537; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.4); }}
-  :root[data-theme="dark"]{ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a; --brand:#5bb537; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.4); }
+  /* Bright-on-dark: a deep navy ground with bright, meaningful accents (the look Teddy picked). */
+  :root{ --bg:#0a1120; --panel:#111d33; --ink:#eaf1fb; --muted:#93a3bd; --line:#233450; --brand:#3d7bef; --brand-ink:#fff; --chip:#16243c; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.45);
+    --new:#7c8aa5; --scheduled:#3d7bef; --in_progress:#f5a623; --awaiting_parts:#a855f7; --completed:#22c55e; --canceled:#64748b; }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0a1120; --panel:#111d33; --ink:#eaf1fb; --muted:#93a3bd; --line:#233450; --chip:#16243c; --brand:#3d7bef; --brand-ink:#fff; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.45); }}
+  :root[data-theme="dark"]{ --bg:#0a1120; --panel:#111d33; --ink:#eaf1fb; --muted:#93a3bd; --line:#233450; --chip:#16243c; --brand:#3d7bef; --brand-ink:#fff; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.45); }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
   header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:12px 15px;background:var(--panel);border-bottom:1px solid var(--line)}
@@ -52,6 +53,9 @@
   .kv b{font-weight:700}
   .model{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .model .mval{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px;background:var(--chip);padding:4px 9px;border-radius:7px}
+  .mrow{display:flex;gap:8px;margin-top:9px}
+  .mrow input{flex:1;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace}
+  .mrow input:first-child{max-width:40%;font-family:inherit}
   input.partq{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace}
   .brainbox{background:var(--chip);border-radius:10px;padding:11px 12px;font-size:13.5px;margin-top:8px}
   .brainrow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-top:1px solid var(--line)}
@@ -176,6 +180,12 @@
   .err{color:#c0392b;font-size:13px;margin-top:8px;min-height:1em}
   :root[data-theme="dark"] .err,:root:not([data-theme="light"]) .err{color:#ff8a7a}
   .hidden{display:none}
+  /* Flat-rate repair menu — the Teddy-Tool "price" helper, folded into Diagnose */
+  .rmenu{display:flex;flex-direction:column;gap:6px}
+  .rmenu button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;font-weight:700;border:1px solid var(--line);background:var(--bg);padding:11px 13px}
+  .rmenu button .rp{color:var(--completed);font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .rmenu button .rh{color:var(--muted);font-size:12px;font-weight:600}
+  .rmenu button:hover{border-color:var(--brand)}
   /* How to finish this job — the at-a-glance numbered flow (TN's orientation card) */
   .guide{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:g}
   .guide li{position:relative;padding:1px 2px 1px 36px;font-size:14px;line-height:1.42;counter-increment:g}
@@ -270,7 +280,7 @@
       '<header><a class="back" href="/platform/tech.html">‹ My Jobs</a><span class="shop" id="shop"></span></header>' +
       '<div class="shell">' +
 
-      // ── Who / what / call · navigate ──
+      // ── 1 · Who / what · call · navigate ──
       '<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
         '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+(job.scheduled_day?'<div class="unit">📅 '+esc(fmtDay(job.scheduled_day))+'</div>':'')+'</div>' +
         '<span class="spill s-'+esc(job.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
@@ -278,28 +288,8 @@
         '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
         '</div>' +
 
-      // ── How to finish this job — the at-a-glance flow (orientation, TN's card) ──
-      (job.status!=='completed' && job.status!=='canceled' ?
-      '<div class="card"><div class="sec">✅ How to finish this job</div>' +
-        '<ol class="guide">' +
-          '<li>🚦 Tap <b>On my way</b> when you roll out, then <b>Start job</b> at the door.</li>' +
-          '<li>📸 Snap the model # and a couple photos — the customer’s video is already here.</li>' +
-          '<li>📋 Fill the <b>completion report</b>: what failed, the part, labor hours.</li>' +
-          '<li>💵 <b>Get paid</b> or text the invoice, then hit <b>Complete</b>.</li>' +
-        '</ol></div>' : '') +
-
-      // ── Machines at this stop — switcher + ＋ Add machine (one visit, several appliances) ──
-      '<div class="card" id="machineCard"><div class="sec">🧩 This stop</div>' +
-        '<div id="machineBox" class="mchips"><button class="mchip cur">'+esc((job.unit&&job.unit.label)||'This machine')+'</button></div>' +
-        '<div id="addMachineBox" class="hidden" style="margin-top:11px">' +
-          '<input id="amLabel" placeholder="What machine? (e.g. Kenmore dryer)">' +
-          '<input id="amProblem" placeholder="What\'s it doing? (optional)" style="margin-top:8px">' +
-          '<button class="primary full" id="amAdd" style="margin-top:8px">Add machine</button>' +
-          '<div class="err" id="amErr"></div>' +
-        '</div></div>' +
-
-      // ── Status — the big three-tile row (TN's clean layout) ──
-      '<div class="card"><div class="sec">🚦 Status</div>' +
+      // ── 2 · The job — On my way / Start / Complete + schedule + waiver ──
+      '<div class="card"><div class="sec">🚦 The job</div>' +
         '<div class="statustiles">' +
           '<button class="stile otw'+(job.en_route_at?' on':'')+'" id="otwBtn"'+(addr?'':' disabled')+'><span class="ic">🚚</span>On my way</button>' +
           '<button class="stile run'+(job.status==='in_progress'?' on':'')+'" id="startBtn"><span class="ic">'+(job.status==='in_progress'?'⏸':'▶️')+'</span>'+(job.status==='in_progress'?'Pause':(job.started_at?'Resume':'Start job'))+'</button>' +
@@ -318,7 +308,36 @@
             '<div id="wvBox" class="hidden" style="margin-top:10px"></div>') +
         '</div>' +
 
-      // ── Photos & Video — capture tiles + the unified grid (TN's clean setup) ──
+      // ── 3 · What the customer told us (problem · availability · access · their media) ──
+      ((job.problem||job.availability||job.access_notes) ?
+        '<div class="card"><div class="sec">🗣️ What the customer told us</div>' +
+          (job.problem?'<div class="kv">🧰 <b>'+esc(job.problem)+'</b></div>':'') +
+          (job.availability?'<div class="kv">📅 '+esc(job.availability)+'</div>':'') +
+          (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
+          '<div class="note" style="margin-top:8px">📹 Their video &amp; photos are in <b>Photos &amp; Video</b> below.</div>' +
+        '</div>' : '') +
+
+      // ── 4 · 🧠 Diagnose & price — the Teddy Tool, folded into the job tile ──
+      '<div class="card"><div class="sec">🧠 Diagnose &amp; price</div>' +
+        // Model # (scanned off the sticker) — the same #tb/#tm the report saves from
+        '<div class="model"><span class="mval" id="modelVal">'+esc(a.model||'—')+'</span>'+(a.brand?'<span class="unit">'+esc(a.brand)+'</span>':'')+'</div>' +
+        '<div class="mrow"><input id="tb" placeholder="Brand" value="'+esc(t?t.brand||a.brand:a.brand||'')+'"><input id="tm" placeholder="Model #" value="'+esc(t?t.model||a.model:a.model||'')+'"></div>' +
+        '<div class="btnrow"><button class="full" id="ocrBtn">📸 Scan model # off the sticker<input type="file" accept="image/*" capture="environment" id="ocrFile" class="hidden"></button></div>' +
+        '<div class="note hidden" id="ocrMsg"></div>' +
+        // What usually fixes this — the cross-shop brain
+        '<button class="full" id="brainBtn" style="margin-top:11px">🧠 What usually fixes this</button>' +
+        '<div class="brainbox hidden" id="brainBox"></div>' +
+        // Find the part — the SHOP-CONFIGURABLE supplier area (⚙️ add/swap your own sources)
+        '<div class="sec" style="margin:16px 0 8px">🔩 Find the part <button type="button" class="supcfg" id="supCfg" title="Add or swap your part sources">⚙️</button></div>' +
+        '<input class="partq" id="partq" placeholder="Model # or part #" value="'+esc(a.model||'')+'">' +
+        '<div class="note" style="margin:2px 0 9px">Reads the model off the customer\'s photo automatically. Tap ⚙️ to <b>add or remove part sources</b> — log into whichever supplier your shop uses. The built-in helpers stay.</div>' +
+        '<div id="partbtns"></div>' +
+        // Flat-rate repair menu — the "price" half; taps fill labor + the total to collect
+        '<button class="full" id="menuBtn" style="margin-top:14px">💲 Flat-rate repair menu</button>' +
+        '<div id="menuBox" class="hidden" style="margin-top:8px"></div>' +
+        '</div>' +
+
+      // ── 5 · 📸 Photos & Video — the customer's clip + your shots, one grid ──
       '<div class="card">' +
         '<div class="mediahead"><div class="sec" style="margin:0">📸 Photos &amp; Video</div><button class="reflink" id="mediaRefresh">↻ refresh</button></div>' +
         '<div class="capgrid">' +
@@ -331,56 +350,10 @@
         mediaGrid +
         '<div class="note hidden" id="tmMsg"></div>' +
       '</div>' +
-      // ── From the customer (availability + access) ──
-      ((job.availability||job.access_notes) ?
-        '<div class="card"><div class="sec">From the customer</div>' +
-          (job.availability?'<div class="kv">📅 <b>'+esc(job.availability)+'</b></div>':'') +
-          (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
-        '</div>' : '') +
 
-      '<div class="card"><div class="sec">📋 Heads-up for the office</div>' +
-        '<div class="note" style="margin:-2px 0 9px">Flag this job so the office blocks the right slot next time — a wider window, or a second tech.</div>' +
-        '<div class="btnrow psrow" id="schedflags">' +
-          '<button type="button" data-flag="two" class="'+(job.needs_two_techs?'sel':'')+'">🧑‍🤝‍🧑 Two-man job</button>' +
-          '<button type="button" data-flag="long" class="'+(job.long_job?'sel':'')+'">⏳ Time-consuming</button>' +
-        '</div><div class="err" id="flagMsg"></div></div>' +
-
-      '<div class="card"><div class="sec">💬 Conversation — every text on this job</div>' +
-        '<div class="note" style="margin:-2px 0 8px">🤖 Ant (AI) · 🏢 office · 👤 the customer — the whole thread, and text them yourself below.</div>' +
-        '<div class="thr" id="thr"><div class="note">Loading…</div></div>' +
-        '<div style="display:flex;gap:8px;margin-top:10px">' +
-          '<textarea id="msgBox" placeholder="Type a message to '+esc((cust.first_name||'the customer'))+'…" style="flex:1;resize:none;min-height:44px;max-height:120px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"></textarea>' +
-          '<button class="primary" id="msgSend" style="align-self:stretch;min-width:74px">Send</button>' +
-        '</div><div class="err" id="msgErr"></div></div>' +
-
-      '<div class="card"><div class="sec">Job details</div>' +
-        '<div class="note" style="margin:-2px 0 8px">Anything off? Fix it here — it updates the office tile &amp; the customer\'s record too.</div>' +
-        '<button class="full" id="jdToggle">✏️ Edit job details</button>' +
-        '<div id="jdBox" class="hidden" style="margin-top:10px"></div></div>' +
-
-      '<div class="card"><div class="sec">Model number</div>' +
-        '<div class="model"><span class="mval" id="modelVal">'+esc(a.model||'—')+'</span>'+(a.brand?'<span class="unit">'+esc(a.brand)+'</span>':'')+'</div>' +
-        '<div class="btnrow"><button class="full" id="ocrBtn">📸 Capture model # <input type="file" accept="image/*" capture="environment" id="ocrFile" class="hidden"></button></div>' +
-        '<div class="note hidden" id="ocrMsg"></div></div>' +
-
-      '<div class="card"><div class="sec">Parts catalog <button type="button" class="supcfg" id="supCfg" title="Choose your suppliers">⚙️</button></div>' +
-        '<input class="partq" id="partq" placeholder="Model # or part #" value="'+esc(a.model||'')+'">' +
-        '<div class="note" style="margin:2px 0 9px">Reads the model off the customer\'s photo automatically — or tap 📸 Capture model # above. Tap ⚙️ to swap in your own suppliers.</div>' +
-        '<div id="partbtns"></div></div>' +
-
-      '<div class="card"><div class="sec">Diagnose</div>' +
-        '<button class="full" id="brainBtn">🧠 What usually fixes this</button>' +
-        '<div class="brainbox hidden" id="brainBox"></div></div>' +
-
-      '<div class="card" id="reportCard"><div class="sec">Completion report</div>' +
+      // ── 6 · 📝 The report (TDR) ──
+      '<div class="card" id="reportCard"><div class="sec">📝 The report</div>' +
         '<div class="tdr">' +
-          // 🏷️ Model # & brand — off the sticker
-          '<div class="fld">' +
-            '<div class="fld-ic">🏷️</div><div class="fld-body">' +
-              '<div class="fld-lab">Model # &amp; brand</div>' +
-              '<div class="fld-hint">Off the sticker — e.g. WED4815EW1</div>' +
-              '<div class="two"><input id="tb" placeholder="Brand" value="'+esc(t?t.brand||a.brand:a.brand||'')+'"><input id="tm" placeholder="Model #" value="'+esc(t?t.model||a.model:a.model||'')+'"></div>' +
-            '</div></div>' +
           // 🔍 What failed (required)
           '<div class="fld">' +
             '<div class="fld-ic">🔍</div><div class="fld-body">' +
@@ -433,7 +406,7 @@
           '<button class="primary full" id="saveTdr">Save report + finish</button><div class="err" id="tdrErr"></div>' +
         '</div></div>' +
 
-      // ── Parts for this job — TN's per-part tracker (order / claim-only, then used/return/not-here) ──
+      // ── 6b · 📦 Parts for this job — TN's per-part tracker (order / claim-only, then used/return/not-here) ──
       '<div class="card" id="partsCard"><div class="sec">📦 Parts for this job</div>' +
         '<div class="note" style="margin:-2px 0 11px">Add each part you need. Tap <b>Please order</b> to put it on the office queue, or <b>just the part #</b> to log it for the claim. Once it arrives: <b>Used</b> if you installed it, <b>Return</b> if it ships back, <b>Not here</b> if the customer doesn\'t have it.</div>' +
         '<div id="partsBox"><div class="note">Loading…</div></div>' +
@@ -443,6 +416,7 @@
         '<button class="full primary" id="pAddBtn" style="margin-top:8px">➕ Add this part</button>' +
         '<div class="err" id="pAddErr"></div></div>' +
 
+      // ── 7 · 💵 Get paid ──
       '<div class="card pay" id="payCard"><div class="sec">💵 Get paid</div>' +
         '<div id="payStatus" class="note" style="margin:-2px 0 10px">Set the total, then text the invoice or collect it right here.</div>' +
         '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:0 0 4px">Total to collect</label>' +
@@ -465,6 +439,37 @@
           '</div>' +
         '</div>' +
         '<div class="err" id="payErr"></div></div>' +
+
+      // ── 8 · 💬 Conversation — Ann (AI) · office · customer · you ──
+      '<div class="card"><div class="sec">💬 Conversation — every text on this job</div>' +
+        '<div class="note" style="margin:-2px 0 8px">🤖 Ant (AI) · 🏢 office · 👤 the customer — the whole thread, and text them yourself below.</div>' +
+        '<div class="thr" id="thr"><div class="note">Loading…</div></div>' +
+        '<div style="display:flex;gap:8px;margin-top:10px">' +
+          '<textarea id="msgBox" placeholder="Type a message to '+esc((cust.first_name||'the customer'))+'…" style="flex:1;resize:none;min-height:44px;max-height:120px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"></textarea>' +
+          '<button class="primary" id="msgSend" style="align-self:stretch;min-width:74px">Send</button>' +
+        '</div><div class="err" id="msgErr"></div></div>' +
+
+      // ── 9 · 🧩 This stop + heads-up for the office ──
+      '<div class="card" id="machineCard"><div class="sec">🧩 This stop — machines</div>' +
+        '<div class="note" style="margin:-2px 0 9px">Several appliances on one visit? Switch between them or add another — each keeps its own report.</div>' +
+        '<div id="machineBox" class="mchips"><button class="mchip cur">'+esc((job.unit&&job.unit.label)||'This machine')+'</button></div>' +
+        '<div id="addMachineBox" class="hidden" style="margin-top:11px">' +
+          '<input id="amLabel" placeholder="What machine? (e.g. Kenmore dryer)">' +
+          '<input id="amProblem" placeholder="What\'s it doing? (optional)" style="margin-top:8px">' +
+          '<button class="primary full" id="amAdd" style="margin-top:8px">Add machine</button>' +
+          '<div class="err" id="amErr"></div>' +
+        '</div></div>' +
+
+      '<div class="card"><div class="sec">📋 Heads-up for the office</div>' +
+        '<div class="note" style="margin:-2px 0 9px">Flag this job so the office blocks the right slot next time — a wider window, or a second tech.</div>' +
+        '<div class="btnrow psrow" id="schedflags">' +
+          '<button type="button" data-flag="two" class="'+(job.needs_two_techs?'sel':'')+'">🧑‍🤝‍🧑 Two-man job</button>' +
+          '<button type="button" data-flag="long" class="'+(job.long_job?'sel':'')+'">⏳ Time-consuming</button>' +
+        '</div>' +
+        '<button class="full" id="jdToggle" style="margin-top:10px">✏️ Edit job details</button>' +
+        '<div class="note" style="margin:6px 0 0">Anything off — address, model, name? Fix it here; it updates the office tile &amp; the customer\'s record too.</div>' +
+        '<div id="jdBox" class="hidden" style="margin-top:10px"></div>' +
+        '<div class="err" id="flagMsg"></div></div>' +
 
       '</div>';
 
@@ -577,6 +582,12 @@
     document.getElementById('brainBtn').onclick = brainLookup;
     renderPartBtns();
     var sc=document.getElementById('supCfg'); if(sc) sc.onclick=function(){ AntSuppliers.chooser(shopSettings, renderPartBtns); };
+    // Flat-rate repair menu — the Teddy-Tool "price" helper. Taps prefill labor + the total.
+    var menuBtn=document.getElementById('menuBtn'), menuBox=document.getElementById('menuBox');
+    if(menuBtn) menuBtn.onclick=function(){
+      if(menuBox.classList.contains('hidden')){ renderRepairMenu(menuBox); menuBox.classList.remove('hidden'); menuBtn.textContent='✕ Close the menu'; }
+      else { menuBox.classList.add('hidden'); menuBtn.textContent='💲 Flat-rate repair menu'; }
+    };
     // Part status — the TN set (please order / truck stock / used / return / missing).
     partStatus = (tdr() && tdr().part_status) || '';
     app.querySelectorAll('#psrow button[data-ps]').forEach(function(b){
@@ -1159,6 +1170,41 @@
           });
           up.start();
         }).catch(function(){ tm('Couldn\'t reach the server — try again.'); });
+    });
+  }
+
+  // 💲 Flat-rate repair menu — the Teddy-Tool "price" half, folded in. A shop can set its own
+  // menu in settings.repair_menu (list of {job, hours, price}); until then a sensible default
+  // shows. Tapping a row fills the report's Labor + the "Total to collect" so diagnose → price
+  // → report → get-paid all flow from one tap. (Parts are priced separately by the owner margin.)
+  var DEFAULT_MENU = [
+    { job:'Diagnostic / service call', hours:0.5, price:95 },
+    { job:'Dryer — heating element', hours:1, price:150 },
+    { job:'Dryer — thermal fuse / thermostat', hours:0.75, price:125 },
+    { job:'Washer — drain pump', hours:1.25, price:185 },
+    { job:'Washer — door boot / gasket', hours:1.5, price:215 },
+    { job:'Fridge — evaporator fan', hours:1, price:175 },
+    { job:'Fridge — defrost thermostat', hours:1, price:160 },
+    { job:'Dishwasher — drain pump', hours:1, price:165 },
+    { job:'Oven — bake / broil element', hours:0.75, price:145 },
+    { job:'Ice maker — replace', hours:1, price:180 }
+  ];
+  function repairMenu(){ var m=(shopSettings&&shopSettings.repair_menu); return (Array.isArray(m)&&m.length)?m:DEFAULT_MENU; }
+  function renderRepairMenu(box){
+    var menu=repairMenu();
+    box.innerHTML =
+      '<div class="note" style="margin:0 0 8px">Tap a repair to drop in the labor hours + the total to collect. Adjust the number anytime — the parts price is added by the owner\'s margin.</div>' +
+      '<div class="rmenu">' + menu.map(function(r,i){
+        return '<button type="button" data-rm="'+i+'"><span>'+esc(r.job)+(r.hours!=null?' <span class="rh">· '+esc(r.hours)+'h</span>':'')+'</span><span class="rp">'+fmtUSD((+r.price||0)*100)+'</span></button>';
+      }).join('') + '</div>';
+    box.querySelectorAll('button[data-rm]').forEach(function(b){
+      b.onclick=function(){
+        var r=menu[+b.getAttribute('data-rm')]; if(!r) return;
+        var th=document.getElementById('th'); if(th){ th.value=(r.hours!=null?r.hours:''); }
+        var pa=document.getElementById('payAmt'); if(pa){ pa.value=(+r.price||0).toFixed(2); }
+        try{ if(typeof paintFlds==='function') paintFlds(); }catch(_){ }
+        b.style.borderColor='var(--completed)'; b.querySelector('.rp').textContent='✓ '+fmtUSD((+r.price||0)*100);
+      };
     });
   }
 
