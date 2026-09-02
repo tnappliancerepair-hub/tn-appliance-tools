@@ -60,7 +60,15 @@ function compose(shopName, r) {
   const day = j ? dayLabel(j.scheduled_day) : '';
   const st = j ? String(j.status || '') : '';
   const warranty = !!(j && String(j.warranty_company || '').trim());
-  const partEta = j && j.parts_eta ? dayLabel(j.parts_eta) : '';
+  // Parts the office logged (job_part): where it's COMING FROM + the ETA. Prefer the per-part ETA,
+  // fall back to the job-level parts_eta. A logged part source/ETA is itself an "awaiting parts"
+  // signal (the office may not have flipped the job's parts_status), so Ann still references it.
+  const partSource = (j && j.part_source ? String(j.part_source).trim() : '');
+  const partShip = (j && j.part_ship_to ? String(j.part_ship_to).trim() : '');
+  const partEta = (j && j.part_eta ? dayLabel(j.part_eta) : '') || (j && j.parts_eta ? dayLabel(j.parts_eta) : '');
+  const hasPartOrder = !!(partSource || partEta);
+  const partsPending = !!(j && (AWAIT_PARTS[st] || AWAIT_PARTS[String(j.parts_status || '')] || hasPartOrder));
+  const srcBit = partSource ? ` from ${partSource}` : '';   // "from American Home Shield"
 
   // ---- customer (homeowner) lens: day-only, grounded, no part#/claim# ----
   let cust;
@@ -72,10 +80,12 @@ function compose(shopName, r) {
       : `${hi} — that ${appl} job is marked complete. Anything else I can help with?`;
   } else if (st === 'canceled') {
     cust = `${hi} — let me have the office confirm the details on your ${appl} and get right back to you.`;
-  } else if (AWAIT_PARTS[st] || AWAIT_PARTS[String(j.parts_status || '')]) {
+  } else if (partsPending) {
+    const destBit = partShip === 'customer' ? ', shipping to your home' : '';
+    const nextBit = day ? ` You're still set with ${techPhrase} for ${day}.` : " We'll text you to schedule the moment it lands.";
     cust = partEta
-      ? `${hi} — your part for the ${appl} is on order, expected around ${partEta}. We'll text you to schedule the moment it lands.`
-      : `${hi} — your part for the ${appl} is on order. We'll text you to schedule as soon as it arrives.`;
+      ? `${hi} — your part for the ${appl} is on order${srcBit}${destBit}, expected around ${partEta}.${nextBit}`
+      : `${hi} — your part for the ${appl} is on order${srcBit}.${nextBit}`;
   } else if (day) {
     cust = `${hi} — you're scheduled with ${techPhrase} for ${day} for your ${appl}. We don't run exact times, but we'll text you a live arrival window that morning.`;
   } else {
@@ -93,7 +103,7 @@ function compose(shopName, r) {
     else if (st === 'canceled') bits.push('the office is confirming this one');
     else if (j.started_at) bits.push('tech on site');
     else if (j.en_route_at) bits.push(`${techPhrase} en route`);
-    else if (AWAIT_PARTS[st] || AWAIT_PARTS[String(j.parts_status || '')]) bits.push(partEta ? `part on order, ETA ${partEta}` : 'part on order');
+    else if (partsPending) bits.push(`part on order${srcBit}${partEta ? `, ETA ${partEta}` : ''}`);
     else if (day) bits.push(`scheduled ${day} with ${techPhrase}`);
     else bits.push('being scheduled');
     if (j.service_window) bits.push(`window ${j.service_window}`);
@@ -103,7 +113,7 @@ function compose(shopName, r) {
   // ---- office lens: terse + flags ----
   const flags = [];
   if (j && !tech && !TERMINAL[st]) flags.push('NO TECH');
-  if (j && (AWAIT_PARTS[st] || AWAIT_PARTS[String(j.parts_status || '')])) flags.push('AWAITING PARTS' + (partEta ? ` (ETA ${partEta})` : ''));
+  if (j && !TERMINAL[st] && partsPending) flags.push('AWAITING PARTS' + (partSource ? ` from ${partSource}` : '') + (partEta ? ` (ETA ${partEta})` : ''));
   const office = j
     ? `${nm || 'Caller'} · ${appl} · ${st}${day ? ` · ${day}` : ''}${tech ? ` · ${tech}` : ''}${flags.length ? ` · ⚠ ${flags.join(', ')}` : ''}`
     : `${nm || 'Caller'} · on file, no active job`;
@@ -112,7 +122,7 @@ function compose(shopName, r) {
   // never open with a wrong assumption — a completed/canceled/no-day job just greets by name).
   let situation = '';
   if (j && !TERMINAL[st]) {
-    if (AWAIT_PARTS[st] || AWAIT_PARTS[String(j.parts_status || '')]) situation = `we've got the part for your ${appl} on order${partEta ? `, expected ${partEta}` : ''}`;
+    if (partsPending) situation = `we've got the part for your ${appl} on order${srcBit}${partEta ? `, expected ${partEta}` : ''}`;
     else if (j.started_at) situation = `${techPhrase} is working on your ${appl} right now`;
     else if (day) situation = `you're scheduled with ${techPhrase} for ${day}${appl !== 'appliance' ? ` for your ${appl}` : ''}`;
   }
