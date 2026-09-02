@@ -1201,6 +1201,8 @@
       '<div class="custname" id="jcusthead">'+esc(fullName(cust)||'Customer')+'</div>' +
       '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
+      // ── 📝 JOB DETAILS — the editable job/customer record, moved to the very top ──
+      '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       // ── 📁 MOVE TO FOLDER — every board column as a folder; pick one to move the job there ──
       '<div class="sec">📁 Move to folder</div>' +
       '<select id="jmovefolder" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-weight:700;box-sizing:border-box">' +
@@ -1257,7 +1259,6 @@
         '<div style="display:flex;gap:8px;align-items:center"><input id="jcutoffVal" placeholder="e.g. 2:00 PM" value="'+esc(job.customer_cutoff||'')+'" style="flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"><button class="primary" id="jcutoffSave">Save</button></div>' +
         '<span class="hint" id="jcutoffMsg" style="display:block;margin-top:5px"></span>' +
       '</div>' +
-      '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       '<div class="sec">Office notes</div><textarea id="jnotes" placeholder="Parts on order, gate code, upsell offered, anything the team should see…">'+esc(job.office_notes||'')+'</textarea>' +
       '<div class="srow" style="margin-top:8px"><button class="primary" id="jnotesSave">Save notes</button></div>' +
       '<div class="sec">Conversation <span class="hint" style="font-weight:400">— texts with the customer</span></div>' +
