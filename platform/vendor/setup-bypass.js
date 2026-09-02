@@ -1,19 +1,23 @@
-// setup-bypass — TEMPORARY, flag-gated auto-login for the office seats.
+// setup-bypass — TEMPORARY, flag-gated auto-login for the demo seats (office + tech).
 //
-// WHY: while Teddy + Danielle are lining up the office board (bouncing in and out of every
-// office surface for hours), a login screen on each page is pure friction. Naively removing
-// the auth gate would BREAK the pages — the data is RLS-scoped to the authenticated user, so
-// an anonymous client returns an EMPTY board. So instead of removing the gate, this silently
-// establishes the demo owner's session (RLS then resolves + data loads) with no login screen.
+// WHY: while we're building/polishing the demo (bouncing in and out of every surface for hours),
+// a login screen on each page is pure friction. Naively removing the auth gate would BREAK the
+// pages — the data is RLS-scoped to the authenticated user, so an anonymous client returns an
+// EMPTY board. So instead of removing the gate, this silently establishes the right demo session
+// (RLS then resolves + data loads) with no login screen.
 //
-// TOGGLE (one place): it is a NO-OP unless window.ANT_SETUP_BYPASS is true (set in config.js).
-// Flip that flag to false / delete the line = "put the logins back" across every page in one edit.
+// ROLE-AWARE: the tech surfaces (tech.html / tech-job.html) sign in as the demo TECHNICIAN so the
+// day view + pay are properly tech-scoped; every other seat signs in as the demo OWNER. Because a
+// Supabase session is per-origin, crossing office<->tech switches the session (a quick reload);
+// bouncing within a role is seamless.
 //
-// SAFETY: only acts when there is NO session (never clobbers a real login); force-targets the
-// DEMO owner only (can never surface a real customer's tenant); once-per-tab guard so a failed
-// sign-in can't reload-loop; entirely try/caught so it can never break a page. The demo creds
-// below are for the synthetic demo tenant only — remove this file + the flag before real
-// customers exist (folds into the self-serve-signup go-live sequence).
+// TOGGLE (one place): NO-OP unless window.ANT_SETUP_BYPASS is true (set in config.js). Flip that
+// flag to false / delete the line = "put the logins back" across every page in one edit.
+//
+// SAFETY: force-targets the synthetic DEMO tenant only (can never surface a real customer's data);
+// a circuit-breaker guard means a failed sign-in falls back to the page's own login instead of
+// reload-looping; entirely try/caught so it can never break a page. Remove this file + the flag
+// before real customers exist (folds into the self-serve-signup go-live sequence).
 //
 // Loads in the head AFTER config.js (window.ANT_SUPABASE + the flag) and vendor/supabase-js.js
 // (window.supabase). Its own throwaway client shares localStorage with the page's client, so a
@@ -24,17 +28,37 @@
     if (!window.ANT_SETUP_BYPASS) return;                        // flag off => inert
     var cfg = window.ANT_SUPABASE;
     if (!cfg || !cfg.url || !cfg.anonKey || !window.supabase) return;
+
+    // pick the demo login for THIS page: tech surfaces -> demo tech, everything else -> demo owner
+    var path = (location.pathname || '').toLowerCase();
+    var isTech = /\/tech\.html$|\/tech-job\.html$/.test(path);
+    var target = isTech
+      ? { email: 'demo-tech@assistant247.net', password: 'Ant-v77hr393' }
+      : { email: 'demo@assistant247.net', password: 'Ant-lp1xvv89' };
+    var want = target.email.toLowerCase();
+    var GUARD = 'ant_bypass_fail';                               // circuit-breaker (only trips on a failed sign-in)
+
     var sb = window.supabase.createClient(cfg.url, cfg.anonKey);
     sb.auth.getSession().then(function (r) {
-      if (r && r.data && r.data.session) return;                 // already signed in — do nothing
-      try { if (sessionStorage.getItem('ant_bypass_done')) return; } catch (_) {}
-      try { sessionStorage.setItem('ant_bypass_done', '1'); } catch (_) {}
-      sb.auth.signInWithPassword({
-        email: 'demo@assistant247.net',
-        password: 'Ant-lp1xvv89'
-      }).then(function (res) {
-        if (!res || !res.error) { try { location.reload(); } catch (_) {} }
-      }).catch(function () {});
+      var sess = r && r.data && r.data.session;
+      var cur = sess && sess.user && (sess.user.email || '').toLowerCase();
+      if (sess && cur === want) {                                // already the right login for this page
+        try { sessionStorage.removeItem(GUARD); } catch (_) {}   // clear the breaker so a later switch can run
+        return;                                                  // let the page's own gate boot
+      }
+      try { if (sessionStorage.getItem(GUARD)) return; } catch (_) {}   // a prior sign-in failed — fall back to the page login
+      try { sessionStorage.setItem(GUARD, '1'); } catch (_) {}
+
+      var signIn = function () {
+        return sb.auth.signInWithPassword(target).then(function (res) {
+          if (res && !res.error) { try { sessionStorage.removeItem(GUARD); } catch (_) {} try { location.reload(); } catch (_) {} }
+        });
+      };
+      if (sess && cur && cur !== want) {                         // signed in as the WRONG demo role for this page — switch
+        sb.auth.signOut().then(signIn).catch(signIn);
+      } else {
+        signIn();
+      }
     }).catch(function () {});
   } catch (_) { /* never let the setup shim break a page */ }
 })();
