@@ -106,6 +106,42 @@
   .wsel .wc{border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-weight:700;font-size:13.5px;cursor:pointer}
   .wsel .wc.on{background:var(--accent);color:var(--accent-ink);border-color:transparent}
   .reqsend{background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:12px;font-weight:800;cursor:pointer}
+  /* ── premium polish: give the primary buttons depth in the shop's own accent ── */
+  .paybtn,.composer button,.reqsend,.offer .oyes,.askfab,.askpanel .asend{
+    background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 72%,#000));
+    box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent)}
+  .paybtn:active,.composer button:active,.reqsend:active,.offer .oyes:active{transform:translateY(1px)}
+  header .logo{font-weight:900;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#000));box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 38%,transparent)}
+  .badge{box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .shopcred{color:var(--muted);font-size:11.5px;font-weight:600;margin:-2px 2px 16px;letter-spacing:.01em}
+  /* ── "Help us fix it right" card — links to the token-gated capture page (add media / sign / options) ── */
+  .helpcard .hh{font-weight:800;font-size:15px;margin-bottom:3px}
+  .helpcard .hs{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .helpacts{display:flex;flex-direction:column;gap:9px}
+  .helpacts a{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-weight:700;font-size:14.5px}
+  .helpacts a .hi{font-size:19px;line-height:1;flex:none}
+  .helpacts a .ha{flex:1;min-width:0}
+  .helpacts a .ha small{display:block;color:var(--muted);font-weight:600;font-size:12px;margin-top:1px}
+  .helpacts a .hc{color:var(--accent);font-weight:800}
+  .helpacts a.protect{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
+  /* ── footer white-label: subtle "Powered by Ant" + the little ant ── */
+  .foot{opacity:.85}
+  .foot .antdot{font-size:14px;vertical-align:-1px}
+  /* ── Ask Ann — floating question button + mini panel ── */
+  .askfab{position:fixed;right:16px;bottom:16px;z-index:60;display:flex;align-items:center;gap:8px;border:0;border-radius:999px;padding:12px 16px;color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+  .askfab .af{font-size:18px;line-height:1}
+  .askpanel{position:fixed;right:16px;bottom:74px;z-index:61;width:min(340px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.3);display:none;flex-direction:column;overflow:hidden}
+  .askpanel.open{display:flex}
+  .askpanel .ahd{display:flex;align-items:center;gap:9px;padding:13px 14px;border-bottom:1px solid var(--line)}
+  .askpanel .ahd .m{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#000));display:grid;place-items:center;font-size:16px;flex:none}
+  .askpanel .ahd h4{margin:0;font-size:14px;font-weight:800}
+  .askpanel .ahd p{margin:1px 0 0;font-size:11px;color:var(--muted)}
+  .askpanel .ahd .x{margin-left:auto;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer;line-height:1}
+  .askpanel textarea{border:0;border-bottom:1px solid var(--line);resize:none;min-height:80px;padding:13px 14px;background:var(--panel);color:var(--ink);font:inherit}
+  .askpanel .arow{display:flex;gap:8px;padding:11px 12px;align-items:center}
+  .askpanel .arow .hint{flex:1;font-size:11.5px;color:var(--muted)}
+  .askpanel .asend{border:0;border-radius:10px;padding:9px 16px;color:#fff;font-weight:800;font-size:14px;cursor:pointer}
+  .asksent{padding:20px 16px;text-align:center;color:var(--ink);font-weight:700;font-size:14px}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
 </head>
@@ -213,12 +249,28 @@
     document.documentElement.style.setProperty('--bubble-out', accent);
     var phone = settings.phone || '';
     var first = (cust.first_name || '').trim();
+    var shopName = co.name || 'Your shop';
+    try { document.title = shopName + ' — Your repair'; } catch(e){}
+    var initial = esc((shopName.trim()[0] || '🐜').toUpperCase());
 
-    var head = '<header><span class="logo">🐜</span><span class="shop">' + esc(co.name || 'Your shop') + '</span>' +
+    // WHITE-LABEL: the shop's own name + identity up top (their initial in their accent).
+    var head = '<header><span class="logo">' + initial + '</span><span class="shop">' + esc(shopName) + '</span>' +
       (phone ? '<a class="call" href="tel:' + esc(phone.replace(/[^0-9+]/g,'')) + '">Call us</a>' : '') + '</header>';
 
     var greet = '<h1 class="greet">Hi' + (first ? ' ' + esc(first) : '') + ' 👋</h1>' +
       '<p class="sub">Here\'s where your ' + (jobs.length > 1 ? 'repairs stand' : 'repair stands') + ' — and you can message us anytime right here.</p>';
+
+    // Everything the shop needs from the customer lives on the token-gated capture page
+    // (same link they were texted): add media, sign the release, pick optional add-ons.
+    var iLink = '/platform/intake.html?t=' + encodeURIComponent(token);
+    var helpCard = '<div class="card helpcard">' +
+      '<div class="hh">📎 Help us fix it right</div>' +
+      '<div class="hs">A minute here means we show up ready to fix it the first trip.</div>' +
+      '<div class="helpacts">' +
+        '<a href="' + iLink + '#step2"><span class="hi">📷</span><span class="ha">Add photos or a video<small>Show us the problem + the model sticker</small></span><span class="hc">›</span></a>' +
+        '<a href="' + iLink + '#step4"><span class="hi">✍️</span><span class="ha">Sign your release of liability<small>Quick liability release — about 20 seconds</small></span><span class="hc">›</span></a>' +
+        '<a class="protect" href="' + iLink + '#step4"><span class="hi">🛡️</span><span class="ha">Protect your appliance<small>Optional add-ons — like a smart leak-detector kit</small></span><span class="hc">›</span></a>' +
+      '</div></div>';
 
     var jobsHtml = jobs.length ? jobs.map(function (j) {
       var st = statusOf(j.status);
@@ -305,10 +357,16 @@
         '<span class="tm">' + esc(fmtTime(m.created_at)) + '</span></div>';
     }).join('') : '<div class="empty">No messages yet — say hi 👇</div>';
 
-    app.innerHTML = head + greet + jobsHtml +
+    app.innerHTML = head + greet + helpCard + jobsHtml +
       '<div class="sec-title">Messages</div><div class="thread" id="thread">' + bubbles + '</div>' +
-      '<div class="composer"><textarea id="msg" placeholder="Type a message to the shop…"></textarea><button id="send">Send</button></div>' +
-      '<div class="foot">🐜 Powered by Ant</div>';
+      '<div class="composer"><textarea id="msg" placeholder="Type a message to ' + esc(shopName) + '…"></textarea><button id="send">Send</button></div>' +
+      '<div class="foot"><span class="antdot">🐜</span> Powered by Ant</div>' +
+      '<button class="askfab" id="askfab"><span class="af">🐜</span> Ask Ann</button>' +
+      '<div class="askpanel" id="askpanel">' +
+        '<div class="ahd"><div class="m">🐜</div><div><h4>Ask Ann</h4><p>' + esc(shopName) + ' will get right back to you</p></div><button class="x" id="askx" title="Close">×</button></div>' +
+        '<textarea id="askq" placeholder="Ask a question — parts, timing, anything…"></textarea>' +
+        '<div class="arow"><span class="hint">Your answer shows up in Messages.</span><button class="asend" id="asksend">Send</button></div>' +
+      '</div>';
     hydratePortalPics();
 
     var ta = document.getElementById('msg'), btn = document.getElementById('send');
@@ -352,6 +410,22 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-req]'), function(b){ b.onclick=function(){ var f=document.getElementById('rf_'+b.getAttribute('data-req')); if(f) f.hidden=!f.hidden; }; });
     Array.prototype.forEach.call(document.querySelectorAll('.wsel .wc'), function(c){ c.onclick=function(){ var p=c.parentNode; Array.prototype.forEach.call(p.querySelectorAll('.wc'),function(x){x.classList.remove('on');}); c.classList.add('on'); }; });
     Array.prototype.forEach.call(document.querySelectorAll('[data-reqsend]'), function(b){ b.onclick=function(){ requestDay(b.getAttribute('data-reqsend'), b); }; });
+    // Ask Ann — a quick question lands in the shared thread (the shop / Ann replies there).
+    var afab=document.getElementById('askfab'), apan=document.getElementById('askpanel');
+    if(afab&&apan){
+      afab.onclick=function(){ apan.classList.toggle('open'); if(apan.classList.contains('open')){ var q=document.getElementById('askq'); if(q) q.focus(); } };
+      var ax=document.getElementById('askx'); if(ax) ax.onclick=function(){ apan.classList.remove('open'); };
+      var asend=document.getElementById('asksend');
+      if(asend) asend.onclick=function(){
+        var q=document.getElementById('askq'); var body=q?q.value.trim():''; if(!body) { if(q) q.focus(); return; }
+        asend.disabled=true; asend.textContent='Sending…';
+        sb.rpc('portal_post_message', { p_token: token, p_body: '❓ ' + body }).then(function(r){
+          if (r.error || (r.data && r.data.ok === false)) { asend.disabled=false; asend.textContent='Send'; alert((r.data && r.data.error) || 'Please try again.'); return; }
+          apan.innerHTML='<div class="asksent">✓ Sent! ' + esc(shopName) + ' will reply in Messages below.</div>';
+          setTimeout(function(){ apan.classList.remove('open'); load(true); }, 1400);
+        });
+      };
+    }
     var th = document.getElementById('thread'); if (th) th.scrollTop = th.scrollHeight;
   }
 

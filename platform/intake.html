@@ -133,6 +133,9 @@
 
     wireAvail(); wireVideo(); wirePhoto(); wireWaiver();
     document.getElementById('finish').onclick = finish;
+    // Deep-link: the portal sends the customer straight to the step they tapped (add media /
+    // sign release / options). Scroll it into view since the DOM is built after page load.
+    try{ var h=location.hash; if(/^#step[1-4]$/.test(h)){ var t=document.getElementById(h.slice(1)); if(t) setTimeout(function(){ t.scrollIntoView({behavior:'smooth',block:'start'}); },60); } }catch(e){}
   }
 
   function section(n, title, isDone, inner) {
