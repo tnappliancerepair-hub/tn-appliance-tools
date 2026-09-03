@@ -235,7 +235,9 @@ async function signupCheckout(opts) {
     payment_method_collection: 'always',          // card required even with a trial
     subscription_data: { trial_period_days: TRIAL_DAYS, metadata: provMeta },
     metadata: provMeta,
-    success_url: `${SITE}/platform/signup.html?billing=success`,
+    // Carry the session id back so provision-on-redirect (platform-signup-verify) can stand up
+    // the tenant immediately, with no dependency on the webhook signing secret.
+    success_url: `${SITE}/platform/signup.html?billing=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${SITE}/platform/signup.html?billing=cancel`,
   });
   return { ok: true, url: session.url, session_id: session.id, test_mode: /^sk_test_/.test(key) };

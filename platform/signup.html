@@ -127,6 +127,8 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
   var sel = { plan:null, addons:{}, ann:false };
   // Comp / no-card setup: signup.html?comp=<token> provisions the shop with no Stripe.
   var COMP = (new URLSearchParams(location.search).get('comp')||'').trim();
+  // ?key=<admin> opens the CARD flow while public signups are still gated (bypasses the closed gate).
+  var KEY = (new URLSearchParams(location.search).get('key')||'').trim();
   function money(c){ return '$'+Math.round((c||0)/100).toLocaleString(); }
 
   function renderPlans(){
@@ -171,13 +173,23 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
     document.getElementById('go').disabled = !ok;
   }
 
-  // Returning from Stripe Checkout.
+  // Returning from Stripe Checkout — provision-on-redirect: read the session + stand up the shop
+  // now (no webhook dependency), then drop the owner straight into setup.
   (function(){
-    var p = new URLSearchParams(location.search).get('billing');
+    var params = new URLSearchParams(location.search);
+    var p = params.get('billing');
     if(!p) return;
     var msg = document.getElementById('msg');
-    if(p==='success'){ msg.className='msg ok'; msg.textContent="You're all set! Check your email for a link to sign into your dashboard."; }
-    else if(p==='cancel'){ msg.className='msg err'; msg.textContent='No worries — nothing was charged. Pick a plan whenever you’re ready.'; }
+    if(p==='cancel'){ msg.className='msg err'; msg.textContent='No worries — nothing was charged. Pick a plan whenever you’re ready.'; return; }
+    if(p!=='success') return;
+    var sid = params.get('session_id')||'';
+    msg.className='msg ok'; msg.textContent='Payment received — finishing your setup…';
+    if(!sid){ msg.textContent="You're all set! Check your email for a link to sign into your dashboard."; return; }
+    fetch('/.netlify/functions/platform-signup-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.ok && d.login_url){ window.location.href=d.login_url; return; }
+        msg.textContent=(d&&d.message)||"You're all set! Check your email for a link to sign into your dashboard.";
+      }).catch(function(){ msg.textContent="You're all set! Check your email for a link to sign into your dashboard."; });
   })();
 
   renderPlans();
@@ -208,6 +220,7 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
         addons: Object.keys(sel.addons).filter(function(k){return sel.addons[k];}),
         want_ann: sel.ann,
         comp: !!COMP, comp_token: COMP,   // no-card founder/comp setup
+        secret: KEY,                       // ?key=<admin> opens the card flow while signups are gated
         ref: (new URLSearchParams(location.search).get('ref')||'').slice(0,60)  // reseller referral code (?ref=TK)
       })
     }).then(function(r){return r.json();}).then(function(d){

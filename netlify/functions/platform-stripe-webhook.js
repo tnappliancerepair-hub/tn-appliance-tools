@@ -246,3 +246,8 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: e.message }) };
   }
 };
+
+// Reused by platform-signup-verify (provision-on-redirect) so the tenant is stood up even when
+// the webhook signing secret isn't configured — one source of truth, no drift.
+module.exports.provisionFromMeta = provisionFromMeta;
+module.exports.findCompanyId = findCompanyId;
