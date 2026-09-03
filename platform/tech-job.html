@@ -179,6 +179,27 @@
   .err{color:#c0392b;font-size:13px;margin-top:8px;min-height:1em}
   :root[data-theme="dark"] .err,:root:not([data-theme="light"]) .err{color:#ff8a7a}
   .hidden{display:none}
+  /* Invoice builder — the tech's full invoicing area. Purple-on-dark (Teddy's pick). */
+  .invcard{border-color:rgba(168,85,247,.42);box-shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(124,92,255,.14)}
+  .invcard .sec{color:#c4b5fd}
+  .invlab{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 5px}
+  .invmoney{display:flex;align-items:center;gap:9px}
+  .invmoney .d{font-size:18px;font-weight:800;color:var(--muted)}
+  .invmoney input{flex:1;min-width:0;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .invrow{display:flex;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+  .invrow:first-child{border-top:none}
+  .invrow .nm{flex:1;min-width:0;font-weight:600}
+  .invrow .d{color:var(--muted);font-weight:700}
+  .invrow .amt{width:88px;padding:8px 9px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .invrow .rm{border:none;background:none;color:#ef4444;font-size:16px;font-weight:800;padding:2px 5px;cursor:pointer;flex:0 0 auto;line-height:1}
+  .invadd{display:flex;gap:8px;margin-top:10px}
+  .invadd select{flex:1;min-width:0;padding:11px 10px;border:1.5px solid rgba(168,85,247,.5);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-weight:600}
+  .invadd button{background:#7c5cff;color:#fff;border-color:transparent;font-weight:800;white-space:nowrap;box-shadow:0 3px 10px rgba(124,92,255,.32)}
+  .invtot{margin-top:14px;border-top:1px dashed rgba(168,85,247,.4);padding-top:11px}
+  .invtot .tr{display:flex;justify-content:space-between;font-size:14px;padding:3px 0;color:var(--muted)}
+  .invtot .tr b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .invtot .grand{font-size:20px;font-weight:900;padding-top:7px;margin-top:3px;border-top:1px solid rgba(168,85,247,.28)}
+  .invtot .grand span,.invtot .grand b{color:#c4b5fd}
   /* Flat-rate repair menu — the Teddy-Tool "price" helper, folded into Diagnose */
   .rmenu{display:flex;flex-direction:column;gap:6px}
   .rmenu button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;font-weight:700;border:1px solid var(--line);background:var(--bg);padding:11px 13px}
@@ -411,15 +432,19 @@
         '<button class="full primary" id="pAddBtn" style="margin-top:8px">➕ Add this part</button>' +
         '<div class="err" id="pAddErr"></div></div>' +
 
-      // ── 7 · 💵 Get paid ──
-      '<div class="card pay" id="payCard"><div class="sec">💵 Get paid</div>' +
-        '<div id="payStatus" class="note" style="margin:-2px 0 10px">Set the total, then text the invoice or collect it right here.</div>' +
-        '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:0 0 4px">Total to collect</label>' +
-        '<div style="display:flex;align-items:center;gap:8px">' +
-          '<span style="font-size:20px;font-weight:800">$</span>' +
-          '<input id="payAmt" inputmode="decimal" placeholder="0.00" style="flex:1;padding:12px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-size:20px;font-weight:800;font-variant-numeric:tabular-nums">' +
-        '</div>' +
-        '<div class="btnrow" style="margin-top:10px">' +
+      // ── 7 · 🧾 Invoice — the tech builds the whole thing (labor · parts · add-on services · tax) ──
+      '<div class="card invcard" id="payCard"><div class="sec">🧾 Invoice — build it &amp; get paid</div>' +
+        '<div id="payStatus" class="note" style="margin:-2px 0 12px">Build the invoice right here — labor, the parts you used, and add services with one tap. Tax + margins are built in. <b>The customer never sees your cost.</b></div>' +
+        '<div class="invlab">Labor</div>' +
+        '<div class="invmoney"><span class="d">$</span><input id="invLabor" inputmode="decimal" placeholder="0.00"></div>' +
+        '<div class="invlab">Parts &amp; services</div>' +
+        '<div id="invItems"><div class="note" style="margin:0">Nothing added yet — the parts you logged pull in automatically, and you can add a service below.</div></div>' +
+        '<div class="invadd"><select id="invAddSel"></select><button id="invAddBtn">＋ Add</button></div>' +
+        '<div class="invlab">Trip / diagnostic fee</div>' +
+        '<div class="invmoney"><span class="d">$</span><input id="invFee" inputmode="decimal" placeholder="0.00"></div>' +
+        '<div class="invtot" id="invTotals"></div>' +
+        '<input type="hidden" id="payAmt">' +   // computed total, for the send/collect plumbing
+        '<div class="btnrow" style="margin-top:12px">' +
           '<button class="primary" id="payText">💳 Text invoice / pay link</button>' +
           '<button id="payCollect">✅ Mark collected</button>' +
         '</div>' +
@@ -468,7 +493,7 @@
 
       '</div>';
 
-    sb.from('company').select('name,settings,trade').limit(1).then(function(r){ if(r.data&&r.data[0]){ shopSettings=r.data[0].settings||{}; companyTrade=r.data[0].trade||''; var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; renderPartBtns(); } });
+    sb.from('company').select('name,settings,trade').limit(1).then(function(r){ if(r.data&&r.data[0]){ shopSettings=r.data[0].settings||{}; companyTrade=r.data[0].trade||''; var el=document.getElementById('shop'); if(el) el.textContent=r.data[0].name; renderPartBtns(); loadInvoiceBuilder(); } });
     wire();
     autoModel();
     loadInvoice();
@@ -625,7 +650,11 @@
       else { wvBox.classList.add('hidden'); wvToggle.textContent=wvLabel; }
     }; }
 
-    // Get paid — set the total, then text the invoice/pay link or record it collected here.
+    // Invoice builder — labor/fee inputs recompute; the ＋ Add dropdown adds a service/part.
+    var invLabor=document.getElementById('invLabor'); if(invLabor) invLabor.oninput=recomputeInv;
+    var invFee=document.getElementById('invFee'); if(invFee) invFee.oninput=recomputeInv;
+    var invAddBtn=document.getElementById('invAddBtn'); if(invAddBtn) invAddBtn.onclick=invAddLine;
+    // Get paid — build the invoice above, then text the pay link or record it collected here.
     var payText=document.getElementById('payText'), payCollect=document.getElementById('payCollect');
     if(payText) payText.onclick=sendPayLink;
     if(payCollect) payCollect.onclick=function(){ var pm=document.getElementById('payMethods'); if(pm) pm.classList.toggle('hidden'); };
@@ -658,7 +687,7 @@
     };
   }
 
-  // ── GET PAID ────────────────────────────────────────────────────────────────
+  // ── INVOICE (the tech builds it) + GET PAID ─────────────────────────────────
   function loadInvoice(){
     sb.from('invoice').select('id,status,total_cents,paid_method,paid_at').eq('job_id',jobId).order('created_at',{ascending:false}).limit(1).then(function(r){
       invoice=(r.data&&r.data[0])||null; renderPayStatus();
@@ -666,26 +695,103 @@
   }
   function money(c){ c=Math.round(c||0); return '$'+(c/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function renderPayStatus(){
-    var st=document.getElementById('payStatus'), amt=document.getElementById('payAmt'); if(!st) return;
+    var st=document.getElementById('payStatus'); if(!st) return;
     if(invoice){
-      if(amt && !amt.value && invoice.total_cents) amt.value=(invoice.total_cents/100).toFixed(2);
       if(invoice.status==='paid'){ st.innerHTML='<b style="color:var(--completed)">✅ PAID '+money(invoice.total_cents)+'</b>'+(invoice.paid_method?' · '+esc(invoice.paid_method):''); }
-      else if(invoice.status==='sent'){ st.innerHTML='🧾 Invoice sent — '+money(invoice.total_cents)+' due. Collect it, or resend the link.'; }
-      else { st.textContent='Draft invoice '+money(invoice.total_cents)+' — text it or collect it.'; }
-    } else { st.textContent='Set the total, then text the invoice or collect it right here.'; }
+      else if(invoice.status==='sent'){ st.innerHTML='🧾 Invoice sent — '+money(invoice.total_cents)+' due. Add to it, collect it, or resend the link.'; }
+      else { st.innerHTML='Draft saved — build it below, then text it or collect it. <b>The customer never sees your cost.</b>'; }
+    } else { st.innerHTML='Build the invoice below — labor, parts, add services. Tax + margins are built in. <b>The customer never sees your cost.</b>'; }
   }
-  function amountCents(){ var v=parseFloat((document.getElementById('payAmt').value||'').replace(/[^0-9.]/g,'')); return v>0?Math.round(v*100):0; }
-  // Create-or-update THE job's invoice (RLS scopes it to this shop) with a single line so the
-  // hosted invoice reads clean. Returns the invoice id.
-  function ensureInvoice(cents, status){
-    var row={ company_id:me.company_id, job_id:jobId, customer_id:job.customer_id||null, status:status||'draft', subtotal_cents:cents, tax_cents:0, total_cents:cents };
+  function amountCents(){ var v=parseFloat((document.getElementById('payAmt')||{}).value||''); return v>0?Math.round(v*100):0; }
+
+  // The tech's FULL invoice — labor + itemized parts/services + trip fee, taxed at the shop
+  // rate (settings.tax_rate). Add-on services come from a shop-editable catalog
+  // (settings.addons) so the tech adds a vent hose / supply line / cleanout in one tap, no
+  // call to the office. Costs are NEVER shown (retail only); the office reads the SAME numbers
+  // back off the invoice lines (kind labor/part/fee — the exact split the office worksheet uses).
+  var INVOICE_ADDONS_DEFAULT = [
+    { name:'Dryer vent cleaning', price:120 },
+    { name:'Dryer cleanout (deep clean)', price:80 },
+    { name:'Dryer vent hose replacement', price:45 },
+    { name:'Washer fill hoses (pair, installed)', price:60 },
+    { name:'Dishwasher supply line', price:65 },
+    { name:'Refrigerator water line', price:55 },
+    { name:'Ice maker water line', price:55 },
+    { name:'Refrigerator condenser coil cleaning', price:70 },
+    { name:'Anti-tip bracket (range)', price:50 }
+  ];
+  function invAddons(){ var a=(shopSettings&&shopSettings.addons); return (Array.isArray(a)&&a.length)?a:INVOICE_ADDONS_DEFAULT; }
+  function invTaxRate(){ var t=(shopSettings&&shopSettings.tax_rate); return (t!=null&&!isNaN(+t))?+t:0; }
+  var invItems=[];   // [{desc, cents}] — every billable line item (parts you logged + services you add)
+
+  function loadInvoiceBuilder(){
+    var sel=document.getElementById('invAddSel');
+    if(sel){ sel.innerHTML='<option value="">＋ Add a service or part…</option>'+invAddons().map(function(a,i){ return '<option value="'+i+'">'+esc(a.name)+' — '+fmtUSD(Math.round((+a.price||0)*100))+'</option>'; }).join('')+'<option value="__custom">✎ Custom line…</option>'; }
+    sb.from('invoice').select('id').eq('job_id',jobId).order('created_at',{ascending:false}).limit(1).then(function(r){
+      var inv=(r.data&&r.data[0])||null;
+      if(inv){
+        // an invoice already exists → it's authoritative; load its lines back in
+        sb.from('invoice_line').select('kind,description,unit_cents,qty').eq('invoice_id',inv.id).then(function(lr){
+          var rows=lr.data||[], lab=0, fee=0; invItems=[];
+          rows.forEach(function(l){ var c=(+l.unit_cents||0)*(+l.qty||1); if(l.kind==='labor') lab+=c; else if(l.kind==='fee') fee+=c; else invItems.push({desc:l.description||'Item',cents:c}); });
+          var li=document.getElementById('invLabor'); if(li&&lab) li.value=(lab/100).toFixed(2);
+          var fi=document.getElementById('invFee'); if(fi&&fee) fi.value=(fee/100).toFixed(2);
+          renderInvItems(); recomputeInv();
+        });
+      } else {
+        // fresh → seed the parts you logged at RETAIL (owner's margin); costs stay hidden
+        sb.from('job_part').select('name,number,cost_cents,sell_cents').eq('job_id',jobId).order('created_at').then(function(pr){
+          invItems=[]; (pr.data||[]).forEach(function(p){ var retail=p.sell_cents||retailCents(p.cost_cents); if(retail>0) invItems.push({ desc:(p.name||'Part')+(p.number?' · '+p.number:''), cents:retail }); });
+          renderInvItems(); recomputeInv();
+        });
+      }
+    });
+  }
+  function renderInvItems(){
+    var box=document.getElementById('invItems'); if(!box) return;
+    if(!invItems.length){ box.innerHTML='<div class="note" style="margin:0">Nothing added yet — the parts you logged pull in automatically, and you can add a service below.</div>'; return; }
+    box.innerHTML=invItems.map(function(it,i){
+      return '<div class="invrow"><span class="nm">'+esc(it.desc)+'</span><span class="d">$</span><input class="amt" inputmode="decimal" data-inv="'+i+'" value="'+(((+it.cents||0))/100).toFixed(2)+'"><button class="rm" data-invrm="'+i+'" title="Remove">✕</button></div>';
+    }).join('');
+    box.querySelectorAll('input[data-inv]').forEach(function(el){ el.oninput=function(){ var it=invItems[+el.getAttribute('data-inv')]; if(it){ it.cents=dollarsToCents(el.value); recomputeInv(); } }; });
+    box.querySelectorAll('button[data-invrm]').forEach(function(el){ el.onclick=function(){ invItems.splice(+el.getAttribute('data-invrm'),1); renderInvItems(); recomputeInv(); }; });
+  }
+  function recomputeInv(){
+    var labor=dollarsToCents((document.getElementById('invLabor')||{}).value);
+    var fee=dollarsToCents((document.getElementById('invFee')||{}).value);
+    var items=invItems.reduce(function(s,it){ return s+(+it.cents||0); },0);
+    var sub=labor+fee+items, rate=invTaxRate(), tax=Math.round(sub*rate/100), total=sub+tax;
+    var t=document.getElementById('invTotals');
+    if(t){ t.innerHTML='<div class="tr"><span>Subtotal</span><b>'+fmtUSD(sub)+'</b></div>'+
+      '<div class="tr"><span>Tax ('+rate+'%)</span><b>'+fmtUSD(tax)+'</b></div>'+
+      '<div class="tr grand"><span>Total to collect</span><b>'+fmtUSD(total)+'</b></div>'; }
+    var pa=document.getElementById('payAmt'); if(pa) pa.value=(total/100).toFixed(2);
+    return { labor:labor, fee:fee, items:items, sub:sub, tax:tax, total:total, rate:rate };
+  }
+  function invAddLine(){
+    var sel=document.getElementById('invAddSel'); if(!sel) return; var v=sel.value; if(!v) return;
+    if(v==='__custom'){ var nm=window.prompt('What line item?'); nm=(nm||'').trim(); if(!nm){ sel.value=''; return; } var pr=window.prompt('Price for "'+nm+'"? ($)'); invItems.push({ desc:nm, cents:dollarsToCents(pr) }); }
+    else { var a=invAddons()[+v]; if(a) invItems.push({ desc:a.name, cents:Math.round((+a.price||0)*100) }); }
+    sel.value=''; renderInvItems(); recomputeInv();
+  }
+
+  // Create-or-update THE job's invoice (RLS scopes it to this shop) and write EVERY line item
+  // (labor · each part/service · trip fee) so the office invoice reads back the SAME numbers.
+  function ensureInvoice(_ignored, status){
+    var brk=recomputeInv();
+    var row={ company_id:me.company_id, job_id:jobId, customer_id:job.customer_id||null, status:status||'draft', subtotal_cents:brk.sub, tax_cents:brk.tax, total_cents:brk.total, labor_cents:brk.labor };
     var p = invoice
       ? sb.from('invoice').update(row).eq('id',invoice.id).select('id').then(function(r){ return (r.data&&r.data[0])?r.data[0].id:invoice.id; })
       : sb.from('invoice').insert(row).select('id').then(function(r){ return (r.data&&r.data[0])?r.data[0].id:null; });
     return p.then(function(invId){
       if(!invId) return null;
       return sb.from('invoice_line').delete().eq('invoice_id',invId).then(function(){
-        return sb.from('invoice_line').insert({ company_id:me.company_id, invoice_id:invId, kind:'labor', description:(job.unit&&job.unit.label?job.unit.label+' repair':'Appliance repair'), qty:1, unit_cents:cents }).then(function(){ return invId; });
+        var lines=[];
+        if(brk.labor>0) lines.push({ company_id:me.company_id, invoice_id:invId, kind:'labor', description:'Labor', qty:1, unit_cents:brk.labor });
+        invItems.forEach(function(it){ if((+it.cents||0)>0) lines.push({ company_id:me.company_id, invoice_id:invId, kind:'part', description:it.desc, qty:1, unit_cents:Math.round(+it.cents) }); });
+        if(brk.fee>0) lines.push({ company_id:me.company_id, invoice_id:invId, kind:'fee', description:'Trip / diagnostic fee', qty:1, unit_cents:brk.fee });
+        if(!lines.length) lines.push({ company_id:me.company_id, invoice_id:invId, kind:'labor', description:(job.unit&&job.unit.label?job.unit.label+' repair':'Appliance repair'), qty:1, unit_cents:brk.total });
+        return sb.from('invoice_line').insert(lines).then(function(){ return invId; });
       });
     });
   }
@@ -1192,7 +1298,7 @@
       b.onclick=function(){
         var r=menu[+b.getAttribute('data-rm')]; if(!r) return;
         var th=document.getElementById('th'); if(th){ th.value=(r.hours!=null?r.hours:''); }
-        var pa=document.getElementById('payAmt'); if(pa){ pa.value=(+r.price||0).toFixed(2); }
+        var li=document.getElementById('invLabor'); if(li){ li.value=(+r.price||0).toFixed(2); try{ recomputeInv(); }catch(_){ } }
         try{ if(typeof paintFlds==='function') paintFlds(); }catch(_){ }
         b.style.borderColor='var(--completed)'; b.querySelector('.rp').textContent='✓ '+fmtUSD((+r.price||0)*100);
       };
