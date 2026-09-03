@@ -671,7 +671,7 @@
       '<div class="note" style="margin-bottom:8px">Hand the phone to the customer to sign, or text them the link to sign on their own phone.</div>'+
       '<input id="wvName" placeholder="Customer\'s full name" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:8px;box-sizing:border-box">'+
       '<button class="primary full" id="wvSign">✍️ Sign on this device</button>'+
-      '<button class="full" id="wvText" style="margin-top:8px">📲 Text the customer the sign link</button>'+
+      '<button class="full" id="wvText" style="margin-top:8px;background:linear-gradient(135deg,#16d267,#0fa34e);color:#fff;border:none;box-shadow:0 4px 14px rgba(18,190,90,.35)">📲 Text the customer the sign link</button>'+
       '<div class="err" id="wvErr"></div>';
     document.getElementById('wvSign').onclick=function(){
       var nm=(document.getElementById('wvName').value||'').trim();

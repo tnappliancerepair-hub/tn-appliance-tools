@@ -97,7 +97,9 @@
   .rel{margin-top:10px;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .rel.signed{background:var(--chip);color:var(--muted)}
   .rel.unsigned{background:rgba(194,87,31,.13);color:#c2571f;border:1px solid rgba(194,87,31,.4)}
-  .rel .relbtn{margin-left:auto;background:#c2571f;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-weight:800;font-size:12.5px}
+  .rel .relbtns{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .rel .relbtn{background:#c2571f;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-weight:800;font-size:12.5px}
+  .rel .waivetext{background:linear-gradient(135deg,#16d267,#0fa34e);color:#fff;border:none;border-radius:9px;padding:8px 13px;font-weight:800;font-size:12.5px;box-shadow:0 4px 14px rgba(18,190,90,.4)}
   .links{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
   .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px}
   .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
@@ -351,6 +353,26 @@
     }).catch(function(){ btn.disabled=false; alert('Couldn\'t reach the server — try again.'); });
   }
 
+  // Text the customer a link to sign the liability release on their own phone.
+  // Server (platform-tech-notify do=waiver_link) mints their portal token + texts /i/<token>,
+  // where the intake page shows the release + captures the signature.
+  function textWaiver(id, btn){
+    var orig = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    sb.auth.getSession().then(function(r){
+      var tok = r && r.data && r.data.session && r.data.session.access_token;
+      if(!tok){ btn.disabled=false; btn.textContent=orig; alert('Session expired — sign in again.'); return; }
+      return fetch('/.netlify/functions/platform-tech-notify?do=waiver_link',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ job: id, access_token: tok })
+      }).then(function(x){ return x.json(); }).then(function(d){
+        if(d && d.texted){ btn.textContent='✓ Sent — link texted'; }
+        else if(d && d.error==='no_phone'){ btn.disabled=false; btn.textContent='No phone on file'; }
+        else { btn.disabled=false; btn.textContent=orig; alert((d && d.error) || 'Couldn\'t send — try again.'); }
+      });
+    }).catch(function(){ btn.disabled=false; btn.textContent=orig; alert('Couldn\'t reach the server — try again.'); });
+  }
+
   function intakeHtml(j){
     var bits = [];
     if (j.availability) bits.push('📅 <b>'+esc(j.availability)+'</b>');
@@ -392,7 +414,7 @@
   // it's finished — so the tech can capture it on site when it isn't already digital.
   function releaseHtml(j){
     if (j.waiver_signed_at) return '<div class="rel signed">✍️ Release signed'+(j.waiver_name?' — '+esc(j.waiver_name):'')+'</div>';
-    return '<div class="rel unsigned">⚠️ Release not signed yet<button class="relbtn" data-release="'+j.id+'">Confirm signed</button></div>';
+    return '<div class="rel unsigned">⚠️ Release not signed yet<span class="relbtns"><button class="waivetext" data-waivertext="'+j.id+'">📲 Text waiver</button><button class="relbtn" data-release="'+j.id+'">Confirm signed</button></span></div>';
   }
   // PARTS STATUS — where's the tech's part? (Teddy: "part at customer / pick up at Marcone /
   // parts status would be helpful to the tech"). Derived from job_part: ship_to + source + eta +
@@ -551,6 +573,7 @@
     b.querySelectorAll('button[data-supcfg]').forEach(function(el){ el.onclick=function(){ AntSuppliers.chooser(companySettings, function(){ refreshSuppliers(el.getAttribute('data-supcfg')); }); }; });
     b.querySelectorAll('button[data-needpart]').forEach(function(el){ el.onclick=function(){ officeNeedPart(el.getAttribute('data-needpart')); }; });
     b.querySelectorAll('button[data-release]').forEach(function(el){ el.onclick=function(){ confirmRelease(el.getAttribute('data-release')); }; });
+    b.querySelectorAll('button[data-waivertext]').forEach(function(el){ el.onclick=function(){ textWaiver(el.getAttribute('data-waivertext'), el); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });
     hydratePhotos();
   }
