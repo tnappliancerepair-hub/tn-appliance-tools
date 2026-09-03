@@ -17,17 +17,17 @@
   /* Two themes, toggle-able (Teddy's night/day). LIGHT = the office colors; DARK = the tech-app
      navy + bright purple/orange/green. Each device pins its choice; default follows the phone. */
   :root{
-    --bg:#f6f7f4; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
-    --brand:#3f8f24; --brand-ink:#fff; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 6px 18px rgba(20,30,10,.06);
-    --new:#6b7280; --scheduled:#2f6bff; --in_progress:#f59e0b; --awaiting_parts:#8b5cf6; --completed:#12c256; --canceled:#9ca3af;
+    --bg:#f7f4ec; --panel:#ffffff; --ink:#171207; --muted:#6b6250; --line:#e8e1d2;
+    --brand:#c98a00; --brand-ink:#3a1400; --chip:#f2ecdd; --shadow:0 1px 2px rgba(60,40,10,.06),0 6px 18px rgba(60,40,10,.07);
+    --new:#8a8676; --scheduled:#8b5cf6; --in_progress:#e07d0a; --awaiting_parts:#8b5cf6; --completed:#12a150; --canceled:#a39a86;
   }
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-    --bg:#0a1120; --panel:#111d33; --ink:#eaf1fb; --muted:#93a3bd; --line:#233450; --chip:#16243c;
-    --brand:#3d7bef; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.45);
+    --bg:#100a1c; --panel:#1a1230; --ink:#f1ecfb; --muted:#a99fc4; --line:#2e2348; --chip:#241a3c;
+    --brand:#a78bfa; --brand-ink:#150a26; --scheduled:#a78bfa; --in_progress:#f5a623; --awaiting_parts:#c084fc; --completed:#22c55e; --canceled:#7d7395; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.55);
   }}
   :root[data-theme="dark"]{
-    --bg:#0a1120; --panel:#111d33; --ink:#eaf1fb; --muted:#93a3bd; --line:#233450; --chip:#16243c;
-    --brand:#3d7bef; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.45);
+    --bg:#100a1c; --panel:#1a1230; --ink:#f1ecfb; --muted:#a99fc4; --line:#2e2348; --chip:#241a3c;
+    --brand:#a78bfa; --brand-ink:#150a26; --scheduled:#a78bfa; --in_progress:#f5a623; --awaiting_parts:#c084fc; --completed:#22c55e; --canceled:#7d7395; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.55);
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
@@ -44,7 +44,7 @@
   .torow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:14px;font-weight:600} .torow:first-of-type{border-top:0}
   .tox{border:0;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;padding:2px 6px}
   .toadd{border:0;background:var(--ink);color:var(--panel);font-weight:800;border-radius:9px;padding:9px 14px;cursor:pointer;white-space:nowrap}
-  .stopno{display:inline-block;font-size:12px;font-weight:800;color:var(--panel);background:var(--brand,#2f6bff);border-radius:999px;padding:1px 8px;vertical-align:middle}
+  .stopno{display:inline-block;font-size:12px;font-weight:800;color:var(--brand-ink);background:var(--brand);border-radius:999px;padding:1px 8px;vertical-align:middle}
   .row1{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
   .opencard{text-decoration:none;color:inherit;display:block}
   .cust{font-weight:800;font-size:17px}
