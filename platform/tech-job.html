@@ -296,7 +296,9 @@
         (job.status==='completed'?reviewAskHtml():'') +
         // Release of liability — big and unmissable, right where the tech works the job.
         (job.waiver_signed_at
-          ? '<div class="wvok">✍️ Release of liability signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>'
+          ? '<button class="bigwaiver" id="wvToggle" style="margin-top:12px">✍️ Release signed — tap to re-sign</button>'+
+            '<div id="wvBox" class="hidden" style="margin-top:10px"></div>'+
+            '<div class="wvok">✅ Release of liability signed'+(job.waiver_name?' — '+esc(job.waiver_name):'')+'</div>'
           : '<button class="bigwaiver" id="wvToggle" style="margin-top:12px">✍️ Customer signs release of liability</button>'+
             '<div class="wvwarn">⚠️ Not signed yet — have the customer sign before you start</div>'+
             '<div id="wvBox" class="hidden" style="margin-top:10px"></div>') +
@@ -618,10 +620,10 @@
 
     // Waiver — sign on this device (hand the phone over) or text the customer the sign link.
     var wvToggle=document.getElementById('wvToggle'), wvBox=document.getElementById('wvBox');
-    if(wvToggle) wvToggle.onclick=function(){
+    if(wvToggle){ var wvLabel=wvToggle.textContent; wvToggle.onclick=function(){
       if(wvBox.classList.contains('hidden')){ renderWaiverBox(wvBox); wvBox.classList.remove('hidden'); wvToggle.textContent='✕ Close'; }
-      else { wvBox.classList.add('hidden'); wvToggle.textContent='✍️ Get the waiver signed'; }
-    };
+      else { wvBox.classList.add('hidden'); wvToggle.textContent=wvLabel; }
+    }; }
 
     // Get paid — set the total, then text the invoice/pay link or record it collected here.
     var payText=document.getElementById('payText'), payCollect=document.getElementById('payCollect');
