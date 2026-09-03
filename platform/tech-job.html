@@ -78,7 +78,6 @@
   .fld input:not([type=checkbox]){margin-bottom:0 !important}
   .fld .two{margin:0}
   .fld .two input:first-child{max-width:42%}
-  .needpart{width:100%;margin-top:10px;background:#c2410c;color:#fff;border-color:transparent;box-shadow:0 3px 9px rgba(194,65,12,.28)}
   .statusgrid{display:flex;flex-direction:column;gap:8px}
   .sbtn{width:100%;text-align:left;font-weight:700;border:1.5px solid var(--line);background:var(--bg);padding:13px 14px}
   .sbtn.sel{border-color:transparent;color:#fff}
@@ -369,7 +368,6 @@
                 '<button type="button" data-ps="return">↩️ Return</button>' +
                 '<button type="button" data-ps="missing">⚠️ Missing</button>' +
               '</div>' +
-              '<button type="button" class="needpart" id="needPart">🔧 Office — I need this part</button>' +
             '</div></div>' +
           // ⏱️ Labor hours
           '<div class="fld">' +
@@ -605,10 +603,6 @@
         if (sv) sv.textContent = outcomeSel === 'reassign' ? 'Send back to the office' : 'Save report + finish';
       };
     });
-    // 🔧 Office — I need this part: flags the job onto the office parts queue right now
-    // (sets "Please order" + moves the job to Awaiting parts) without finishing the job.
-    var np = document.getElementById('needPart');
-    if (np) np.onclick = needThisPart;
     // Live green-fill feedback as the tech types — the same satisfying TN behavior.
     app.querySelectorAll('#reportCard .fld input:not([type=checkbox])').forEach(function(i){ i.addEventListener('input', paintFlds); });
     paintFlds();
@@ -1253,28 +1247,6 @@
     });
     // feed the floating "📋 Report N%" pill (ant-nav.js)
     if(total){ window.antProg={ icon:'📋', label:'Report', pct:Math.round(filled/total*100), href:'#reportCard' }; if(window.antProgUpdate) window.antProgUpdate(); }
-  }
-
-  // 🔧 Office — I need this part: puts the job on the office parts queue right now (marks
-  // "Please order" + moves it to Awaiting parts) WITHOUT finishing the job. Saves whatever's
-  // filled so the part # + model ride along. The office board lights it up in Awaiting parts.
-  function needThisPart(){
-    var v=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
-    var np=document.getElementById('needPart'); np.disabled=true; var was=np.textContent; np.textContent='Sending to the office…';
-    // select the "Please order" chip so it's visible + carried on the report
-    app.querySelectorAll('#psrow button[data-ps]').forEach(function(x){ x.classList.toggle('sel', x.getAttribute('data-ps')==='please_order'); });
-    partStatus='please_order'; paintFlds();
-    var row={ company_id:me.company_id, job_id:jobId, appliance:(job.unit&&job.unit.label)||'', brand:v('tb'), model:v('tm'), symptom:job.problem||'', part_number:v('tp'), part_status:'please_order', tech: myTech?myTech.name:(me.name||'') };
-    var fc=v('tc'); if(fc) row.failed_component=fc;
-    var done=function(r){
-      if(r.error && /part_status/i.test(r.error.message||'')){ delete row.part_status; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done); return; }
-      sb.from('job').update({status:'awaiting_parts'}).eq('id',jobId).then(function(){
-        if(job) job.status='awaiting_parts';
-        np.disabled=false; np.textContent='✓ Office notified — on the parts queue';
-        setTimeout(function(){ np.textContent=was; }, 3500);
-      });
-    };
-    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done);
   }
 
   function saveTdr() {
