@@ -40,15 +40,15 @@ exports.handler = async function (event) {
   const slug = String(q.slug || '').toLowerCase().trim();
   if (!slug) return json(400, { ok: false, error: 'no_slug' });
 
-  // Tool-key gate for REAL shops; the 'demo' tenant is an open sandbox. Fail-open only
-  // when TELNYX_TOOL_SECRET isn't vaulted (matches platform-call-brain / platform-lead).
+  // Gates for REAL shops; the 'demo' tenant is a fully open sandbox (matches
+  // platform-call-brain / platform-lead). (1) our tool-key in the URL — fail-open only
+  // when TELNYX_TOOL_SECRET isn't vaulted; (2) optional Frontdoor bearer (defense in depth).
   if (slug !== 'demo') {
     const tk = await getSecret('TELNYX_TOOL_SECRET');
     if (tk && q.k !== tk) return json(403, { ok: false, error: 'forbidden' });
+    const expectedBearer = (await getSecret('FRONTDOOR_WEBHOOK_TOKEN')) || '';
+    if (expectedBearer && bearerOf(event) !== expectedBearer) return json(401, { ok: false, error: 'unauthorized' });
   }
-  // Optional Frontdoor bearer (defense in depth). When configured we always enforce it.
-  const expectedBearer = (await getSecret('FRONTDOOR_WEBHOOK_TOKEN')) || '';
-  if (expectedBearer && bearerOf(event) !== expectedBearer) return json(401, { ok: false, error: 'unauthorized' });
 
   const live = (await getSecret('PLATFORM_FRONTDOOR_WEBHOOK_LIVE')) === '1';
 
