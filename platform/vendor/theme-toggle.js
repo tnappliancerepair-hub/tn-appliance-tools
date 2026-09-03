@@ -13,7 +13,9 @@
     var KEY = 'ant_theme';                 // 'light' | 'dark'  (absent = follow the system)
     var root = document.documentElement;
     var saved = null; try { saved = localStorage.getItem(KEY); } catch (_) {}
-    if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);  // pre-paint stamp
+    // DEFAULT = light (white). The pages no longer auto-follow the phone's dark mode — a page
+    // opens white unless the person has explicitly tapped ☀️/🌙 to pick dark (which then sticks).
+    root.setAttribute('data-theme', (saved === 'dark') ? 'dark' : 'light');  // pre-paint stamp (no flash)
 
     function current() {
       var a = root.getAttribute('data-theme');
