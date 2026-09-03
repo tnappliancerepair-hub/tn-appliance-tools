@@ -13,6 +13,7 @@
   which posts into the same thread the customer sees in their portal. Same core as
   the office board + portal; a third lens.
 -->
+<link rel="stylesheet" href="/platform/ant-theme.css">
 <style>
   /* Two themes, toggle-able (Teddy's night/day). LIGHT = the office colors; DARK = the tech-app
      navy + bright purple/orange/green. Each device pins its choice; default follows the phone. */
@@ -32,6 +33,11 @@
     --brand:#b794ff; --brand-ink:#180a2e; --scheduled:#b794ff; --in_progress:#ffa233; --awaiting_parts:#c77dff; --completed:#22c55e; --canceled:#7d7395; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.55);
     --pop:linear-gradient(135deg,#9b5cff,#c77dff); --pop-ink:#fff; --pop-glow:0 8px 26px rgba(155,92,255,.6); --done-grad:linear-gradient(135deg,#22c55e,#16a34a); --done-glow:0 6px 22px rgba(34,197,94,.42);
   }
+  /* ant-theme.css loads FIRST now (base), so re-point its green brand tokens to our purple.
+     --pop is theme-aware, so one :root rule covers light + dark. Money tiles keep --gold-grad. */
+  :root{ --brand:#7c3aed; --brand-grad:var(--pop); --accent:#a855f7; --accent-ink:#fff; --glow:0 6px 22px rgba(139,60,255,.42); --glow-strong:0 10px 34px rgba(139,60,255,.55); --ring:rgba(139,60,255,.26); }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --brand:#b794ff; --brand-grad:var(--pop); --accent:#c77dff; --glow:0 7px 24px rgba(155,92,255,.5); --glow-strong:0 10px 34px rgba(155,92,255,.62); --ring:rgba(155,92,255,.32); } }
+  :root[data-theme="dark"]{ --brand:#b794ff; --brand-grad:var(--pop); --accent:#c77dff; --glow:0 7px 24px rgba(155,92,255,.5); --glow-strong:0 10px 34px rgba(155,92,255,.62); --ring:rgba(155,92,255,.32); }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
   header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:12px 15px;background:var(--panel);border-bottom:1px solid var(--line)}
@@ -151,7 +157,6 @@
   .acomp input{flex:1;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:11px;padding:10px 12px;font-size:13px}
   .acomp .s{width:40px;height:40px;border-radius:11px;border:0;background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;font-size:16px;font-weight:800;cursor:pointer;flex:none}
 </style>
-<link rel="stylesheet" href="/platform/ant-theme.css">
 <script src="/platform/vendor/theme-toggle.js"></script>
 </head>
 <body>
