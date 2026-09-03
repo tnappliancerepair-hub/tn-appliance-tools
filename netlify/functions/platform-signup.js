@@ -67,12 +67,12 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   const compToken = String((await getSecret('PLATFORM_COMP_TOKEN')) || '');
   const wantComp = b.comp === true || b.comp === 1 || b.comp === '1';
-  // Comp is authorized by a matching PLATFORM_COMP_TOKEN, or the admin secret (founder's own walk).
-  const compAuthed = wantComp && (
-    (!!compToken && b.comp_token === compToken) ||
-    (b.comp_token && b.comp_token === admin) ||
-    (b.secret && b.secret === admin)
-  );
+  // Comp is authorized ONLY by a matching dedicated PLATFORM_COMP_TOKEN — a low-privilege
+  // "free-setup" token. The master admin secret is NEVER accepted as comp auth: comp arrives via
+  // the signup.html URL, which loads the Meta Pixel, so a token here can reach Facebook — it must
+  // be low-blast-radius (worst case: a free trial shop), never the platform's admin key. Comp is
+  // disabled until a PLATFORM_COMP_TOKEN is vaulted.
+  const compAuthed = wantComp && !!compToken && b.comp_token === compToken;
 
   // Kill switch — public endpoint. Stays closed until the owner opens signups
   // (vault PLATFORM_SIGNUP_LIVE=true). Admin secret + an authorized comp both bypass it.

@@ -57,6 +57,10 @@ async function fetchT(url, opts, ms) {
 // returns 2xx, wrong ids 4xx).
 async function configTableId() {
   if (_tableIdCache) return _tableIdCache;
+  // A timeout / 5xx / rate-limit means the metadata API is BUSY (Xano under load), NOT that the
+  // table is missing — surface those differently so callers never advise creating a duplicate
+  // app_config table under load (which would split the working vault).
+  let transient = false;
   for (const id of CANDIDATE_IDS) {
     try {
       const r = await fetchT(`${XANO_META}/table/${id}/content/search`, {
@@ -64,8 +68,10 @@ async function configTableId() {
         body: JSON.stringify({ search: { name: '__probe__' }, per_page: 1, page: 1 }),
       });
       if (r.ok) { _tableIdCache = id; return id; }
-    } catch (_) {}
+      if (r.status >= 500 || r.status === 408 || r.status === 429) transient = true;
+    } catch (_) { transient = true; }   // AbortSignal timeout / network error = busy, not missing
   }
+  if (transient) throw new Error('vault_busy: app_config probe timed out (system under load) — retry, do NOT create the table');
   throw new Error('app_config table not found at ids ' + CANDIDATE_IDS.join('/') + ' — confirm the table id');
 }
 

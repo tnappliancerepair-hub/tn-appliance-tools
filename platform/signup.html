@@ -1,6 +1,19 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Start with AssistAnt 24/7</title>
+<!-- Capture + STRIP any sensitive setup token from the URL BEFORE the Meta Pixel (below) reads
+     location.href — otherwise the query string (a comp token) would ship to Facebook + sit in
+     browser history. Runs first (document order), so the Pixel only ever sees the clean URL. -->
+<script>
+(function(){try{
+  var u=new URL(location.href);
+  window.__ANT_COMP=(u.searchParams.get('comp')||'').trim();
+  if(u.searchParams.has('comp')||u.searchParams.has('key')){
+    u.searchParams.delete('comp'); u.searchParams.delete('key');
+    history.replaceState(null,'',u.pathname+(u.search||'')+u.hash);
+  }
+}catch(_){ window.__ANT_COMP=''; }})();
+</script>
 <!-- Meta Pixel (AssistAnt 24/7 retargeting + signup optimization) -->
 <script>
 !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -125,10 +138,11 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
   } catch (_) {}
   var P = window.PlatformPlans;
   var sel = { plan:null, addons:{}, ann:false };
-  // Comp / no-card setup: signup.html?comp=<token> provisions the shop with no Stripe.
-  var COMP = (new URLSearchParams(location.search).get('comp')||'').trim();
-  // ?key=<admin> opens the CARD flow while public signups are still gated (bypasses the closed gate).
-  var KEY = (new URLSearchParams(location.search).get('key')||'').trim();
+  // Comp / no-card setup: signup.html?comp=<token> provisions the shop with no Stripe. The token
+  // was captured + stripped from the URL up in <head> (before the Pixel) so it never leaks — read
+  // it from the global, not the (now-clean) query string. comp uses a dedicated low-privilege
+  // PLATFORM_COMP_TOKEN only; the master admin secret is NEVER accepted via URL (it would leak).
+  var COMP = String(window.__ANT_COMP||'').trim();
   function money(c){ return '$'+Math.round((c||0)/100).toLocaleString(); }
 
   function renderPlans(){
@@ -219,8 +233,7 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
         plan: sel.plan,
         addons: Object.keys(sel.addons).filter(function(k){return sel.addons[k];}),
         want_ann: sel.ann,
-        comp: !!COMP, comp_token: COMP,   // no-card founder/comp setup
-        secret: KEY,                       // ?key=<admin> opens the card flow while signups are gated
+        comp: !!COMP, comp_token: COMP,   // no-card founder/comp setup (dedicated PLATFORM_COMP_TOKEN)
         ref: (new URLSearchParams(location.search).get('ref')||'').slice(0,60)  // reseller referral code (?ref=TK)
       })
     }).then(function(r){return r.json();}).then(function(d){
