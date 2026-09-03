@@ -42,8 +42,15 @@
       if (el && el.parentNode) el.parentNode.removeChild(el);
     }
 
+    // A rendered sign-in form means the page booted fine and is just waiting on the USER
+    // (a logged-out Supabase getSession reads localStorage and makes NO network fetch, so
+    // `alive` never flips) — that is NOT a hung/blocked connection, so never panel over it.
+    function loginFormUp() {
+      try { return !!document.querySelector('input[type="password"]'); } catch (_) { return false; }
+    }
+
     function show() {
-      if (okd || alive) return;                                   // page is fine
+      if (okd || alive || loginFormUp()) return;                  // page is fine (booted / logged-in fetch / login form)
       if (document.getElementById('ant-supa-guard')) return;      // library-missing panel owns the screen
       if (document.getElementById('ant-boot-watchdog')) return;
       var d = document.createElement('div');
@@ -73,7 +80,7 @@
       show();
       var tries = 0;
       var t = setInterval(function () {
-        if (okd || alive) { hide(); clearInterval(t); return; }
+        if (okd || alive || loginFormUp()) { hide(); clearInterval(t); return; }
         if (++tries > 30) clearInterval(t); // ~1 min then rest (the Reload button remains)
       }, 2000);
     }, TIMEOUT_MS);
