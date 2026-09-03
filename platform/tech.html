@@ -17,20 +17,20 @@
   /* Two themes, toggle-able (Teddy's night/day). LIGHT = the office colors; DARK = the tech-app
      navy + bright purple/orange/green. Each device pins its choice; default follows the phone. */
   :root{
-    --bg:#f7f4ec; --panel:#ffffff; --ink:#171207; --muted:#6b6250; --line:#e8e1d2;
-    --brand:#c98a00; --brand-ink:#3a1400; --chip:#f2ecdd; --shadow:0 1px 2px rgba(60,40,10,.06),0 6px 18px rgba(60,40,10,.07);
-    --new:#8a8676; --scheduled:#8b5cf6; --in_progress:#f5921b; --awaiting_parts:#8b5cf6; --completed:#12a150; --canceled:#a39a86;
-    --pop:linear-gradient(135deg,#ff6a13,#ff8c1f); --pop-ink:#fff; --pop-glow:0 6px 20px rgba(255,110,20,.42); --done-grad:linear-gradient(135deg,#16b657,#0f9247); --done-glow:0 6px 20px rgba(18,160,80,.36);
+    --bg:#f5f3fb; --panel:#ffffff; --ink:#1c1330; --muted:#6b6482; --line:#e7e2f4;
+    --brand:#7c3aed; --brand-ink:#fff; --chip:#f1ecfb; --shadow:0 1px 2px rgba(80,50,130,.06),0 6px 18px rgba(90,55,150,.09);
+    --new:#8b86a0; --scheduled:#8b5cf6; --in_progress:#f5921b; --awaiting_parts:#a855f7; --completed:#12a150; --canceled:#a39ab8;
+    --pop:linear-gradient(135deg,#7b2ff7,#b14bff); --pop-ink:#fff; --pop-glow:0 8px 24px rgba(139,60,255,.45); --done-grad:linear-gradient(135deg,#16b657,#0f9247); --done-glow:0 6px 20px rgba(18,160,80,.34);
   }
   @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
     --bg:#100a1c; --panel:#1a1230; --ink:#f1ecfb; --muted:#a99fc4; --line:#2e2348; --chip:#241a3c;
-    --brand:#a78bfa; --brand-ink:#150a26; --scheduled:#a78bfa; --in_progress:#f5a623; --awaiting_parts:#c084fc; --completed:#22c55e; --canceled:#7d7395; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.55);
-    --pop:linear-gradient(135deg,#ff7a1f,#ffa23d); --pop-ink:#2a1200; --pop-glow:0 6px 22px rgba(255,140,30,.5); --done-grad:linear-gradient(135deg,#22c55e,#16a34a); --done-glow:0 6px 22px rgba(34,197,94,.42);
+    --brand:#b794ff; --brand-ink:#180a2e; --scheduled:#b794ff; --in_progress:#ffa233; --awaiting_parts:#c77dff; --completed:#22c55e; --canceled:#7d7395; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.55);
+    --pop:linear-gradient(135deg,#9b5cff,#c77dff); --pop-ink:#fff; --pop-glow:0 8px 26px rgba(155,92,255,.6); --done-grad:linear-gradient(135deg,#22c55e,#16a34a); --done-glow:0 6px 22px rgba(34,197,94,.42);
   }}
   :root[data-theme="dark"]{
     --bg:#100a1c; --panel:#1a1230; --ink:#f1ecfb; --muted:#a99fc4; --line:#2e2348; --chip:#241a3c;
-    --brand:#a78bfa; --brand-ink:#150a26; --scheduled:#a78bfa; --in_progress:#f5a623; --awaiting_parts:#c084fc; --completed:#22c55e; --canceled:#7d7395; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.55);
-    --pop:linear-gradient(135deg,#ff7a1f,#ffa23d); --pop-ink:#2a1200; --pop-glow:0 6px 22px rgba(255,140,30,.5); --done-grad:linear-gradient(135deg,#22c55e,#16a34a); --done-glow:0 6px 22px rgba(34,197,94,.42);
+    --brand:#b794ff; --brand-ink:#180a2e; --scheduled:#b794ff; --in_progress:#ffa233; --awaiting_parts:#c77dff; --completed:#22c55e; --canceled:#7d7395; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.55);
+    --pop:linear-gradient(135deg,#9b5cff,#c77dff); --pop-ink:#fff; --pop-glow:0 8px 26px rgba(155,92,255,.6); --done-grad:linear-gradient(135deg,#22c55e,#16a34a); --done-glow:0 6px 22px rgba(34,197,94,.42);
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
@@ -103,7 +103,7 @@
   .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
   .actions button{flex:1;min-width:96px}
   /* Semantic action colors (match the job tile): Start=orange, Complete=green, others neutral, Open=brand */
-  .actions .act-start{background:var(--pop);color:var(--pop-ink);border-color:transparent;box-shadow:var(--pop-glow)}
+  .actions .act-start{background:linear-gradient(135deg,#ff6a13,#ff8c1f);color:#fff;border-color:transparent;box-shadow:0 6px 20px rgba(255,110,20,.44)}
   .actions .act-done{background:var(--done-grad);color:#fff;border-color:transparent;box-shadow:var(--done-glow)}
   /* Parts status — where's the tech's part (at customer / pick up at supplier / on order / installed) */
   .partsbox{margin-top:10px;display:flex;flex-direction:column;gap:6px}
