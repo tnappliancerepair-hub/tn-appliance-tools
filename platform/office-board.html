@@ -1153,6 +1153,24 @@
     });
   }
 
+  // 📲 Office texts the ASSIGNED tech the actual job-tile link + a note ("need the part # for
+  // this one — what happened?"). Server resolves the tech's cell + logs the ask to the thread.
+  function textTileToTech(jobId, note, btn, msgEl){
+    var orig=btn.textContent; btn.disabled=true; btn.textContent='Sending…'; if(msgEl) msgEl.textContent='';
+    sb.auth.getSession().then(function(s){
+      var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
+      if(!tok){ btn.disabled=false; btn.textContent=orig; if(msgEl) msgEl.textContent='Session expired — sign in again.'; return; }
+      return fetch('/.netlify/functions/platform-tech-notify?do=tech_job_link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,body:note})})
+        .then(function(r){return r.json();}).then(function(d){
+          btn.disabled=false; btn.textContent=orig;
+          if(d&&d.ok&&d.texted){ if(msgEl) msgEl.textContent='✓ Texted '+(d.tech||'the tech')+' the job tile.'; var ni=document.getElementById('jtileNote'); if(ni) ni.value=''; }
+          else if(d&&d.error==='no_tech'){ if(msgEl) msgEl.textContent='Assign a tech first, then text them the tile.'; }
+          else if(d&&d.error==='no_tech_phone'){ if(msgEl) msgEl.textContent='No cell on file for '+(d.tech||'that tech')+'.'; }
+          else { if(msgEl) msgEl.textContent=(d&&d.error)||'Couldn\'t send — try again.'; }
+        });
+    }).catch(function(){ btn.disabled=false; btn.textContent=orig; if(msgEl) msgEl.textContent='Couldn\'t reach the server — try again.'; });
+  }
+
   // R2 photos are tenant-scoped behind a signer — batch-sign refs with the staff session
   // token and drop the real URL into each <img src> (and its wrapping link).
   function hydratePics(scope){
@@ -1565,6 +1583,8 @@
         '<div class="err" id="rsErr"></div>' +
       '</div>' +
       '<div class="sec">Assigned tech</div><div class="srow"><select id="jtech" style="flex:1"><option value="">Unassigned</option>'+techOptions(job.technician_id)+'</select></div>' +
+      '<div class="srow" style="margin-top:8px;gap:8px;flex-wrap:wrap"><input id="jtileNote" placeholder="Note to the tech (e.g. need the part # — what happened?)" style="flex:1;min-width:180px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"><button id="jtileSend">📲 Text tile to tech</button></div>' +
+      '<span class="hint" id="jtileMsg" style="display:block;margin-top:4px">Texts the assigned tech a link straight to this job\'s tile with your note.</span>' +
       '<div class="sec">📅 Schedule</div><div id="jsched"><div class="hint">Loading…</div></div>' +
       '<div class="schedflags" id="jflags"><button type="button" data-flag="two" class="'+(job.needs_two_techs?'on':'')+'">🧑‍🤝‍🧑 Two-man</button><button type="button" data-flag="long" class="'+(job.long_job?'on':'')+'">⏳ Long job</button></div>' +
       // ── 📋 TDR — the technician report the office submits the claim from (model · failure ·
@@ -1734,6 +1754,8 @@
     // Assign / reassign the tech — office dispatch (RLS lets the office write its own job rows).
     var jt=document.getElementById('jtech');
     if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; if(val) notifyAssigned(job.id); loadBoard(); }); }; }
+    var jtile=document.getElementById('jtileSend');
+    if(jtile){ jtile.onclick=function(){ var ni=document.getElementById('jtileNote'); textTileToTech(job.id, ni?ni.value:'', jtile, document.getElementById('jtileMsg')); }; }
 
     // status buttons
     var sb2=document.getElementById('jstatus');

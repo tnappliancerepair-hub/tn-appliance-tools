@@ -137,6 +137,34 @@
   .empty{color:var(--muted);text-align:center;padding:32px 12px}
   .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--chip);padding:1px 5px;border-radius:5px}
   .note{background:var(--chip);border-radius:10px;padding:11px 13px;color:var(--muted);font-size:13px;margin-bottom:14px}
+  /* ── My Day topbar: day-picker + customer search + bird's-eye stops map ── */
+  .topbar{margin-bottom:14px;display:flex;flex-direction:column;gap:11px}
+  .daypick{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .daypick .dnav{width:38px;height:38px;padding:0;font-size:15px;font-weight:800;flex:none}
+  .daypick .dlabel{position:relative;flex:1;min-width:120px;text-align:center;font-weight:800;font-size:14px;padding:9px 8px}
+  .daypick .dlabel input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+  .daypick .chip{font-size:12.5px;font-weight:800;padding:8px 12px}
+  .daypick .chip.on{background:var(--pop);color:var(--pop-ink);border-color:transparent;box-shadow:var(--pop-glow)}
+  .csearch{position:relative}
+  .csearch input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--ink);font:inherit}
+  .cresults{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:40;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.22);overflow:hidden;display:none;max-height:60vh;overflow-y:auto}
+  .cresults.open{display:block}
+  .cres{display:block;width:100%;text-align:left;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);padding:11px 13px;cursor:pointer;font:inherit}
+  .cres:first-child{border-top:0}
+  .cres .cn{font-weight:800;font-size:14.5px}
+  .cres .cm{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .cres .mine{color:var(--completed);font-weight:800}
+  .cres:hover{background:var(--chip)}
+  .maptoggle{width:100%;text-align:left;font-weight:800;font-size:14px;border:1px solid var(--line);background:var(--panel);border-radius:11px;padding:11px 13px}
+  #techmap{height:280px;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:9px;background:var(--chip);display:none}
+  #techmap.open{display:block}
+  #techmap .leaflet-container{background:var(--chip)}
+  .techpin-wrap{background:transparent;border:0}
+  .techpin{width:30px;height:30px;border-radius:50%;background:#7c3aed;color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 3px 8px rgba(124,58,237,.5)}
+  .techpin.approx{opacity:.85;border-style:dashed}
+  .mapnote{font-size:11.5px;color:var(--muted);margin:7px 2px 0}
+  .card.flash{animation:cardflash 1.5s ease}
+  @keyframes cardflash{0%,100%{box-shadow:var(--shadow)}22%{box-shadow:0 0 0 3px var(--ring),var(--glow-strong)}}
   /* Ant dock (tech) */
   .antfab{position:fixed;right:18px;bottom:18px;z-index:60;width:56px;height:56px;border-radius:50%;border:0;cursor:pointer;background:linear-gradient(135deg,var(--brand),#e0a63e);color:#fff;font-size:26px;box-shadow:0 8px 24px color-mix(in srgb,var(--brand) 45%,transparent);display:grid;place-items:center}
   .antpanel{position:fixed;right:18px;bottom:84px;z-index:60;width:min(380px,calc(100vw - 36px));max-height:min(72vh,640px);background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.28);display:none;flex-direction:column;overflow:hidden}
@@ -555,15 +583,179 @@
   }
   var crownState = null;   // crowns where THIS tech is #1 (leader) — for the payday fireworks
   var _payoutDone = false; // guard: run the payday check once per render cycle
+
+  // ── Day-picker: scroll back/forward through days (past = what's done, future = scheduled).
+  // viewDay=null → the default "all open jobs" view; a 'YYYY-MM-DD' → that one day (incl. completed).
+  var viewDay = null, mapOpen = false;
+  function todayIso(){ return new Date(new Date().getTime()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10); }
+  function shiftDay(iso, delta){ var d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+delta); return d.toISOString().slice(0,10); }
+  function fmtDayLabel(iso){ var d=new Date(iso+'T12:00:00'); if(isNaN(d)) return iso; return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
+  function topbarHtml(){
+    var cur = viewDay || todayIso(), allOn = !viewDay;
+    return '<div class="topbar">'+
+      '<div class="daypick">'+
+        '<button class="dnav" data-dshift="-1" title="Previous day">◀</button>'+
+        '<button class="dlabel">'+(allOn?'All open jobs':esc(fmtDayLabel(cur)))+'<input type="date" id="dpDate" value="'+esc(cur)+'"></button>'+
+        '<button class="dnav" data-dshift="1" title="Next day">▶</button>'+
+        '<button class="chip'+(!allOn&&cur===todayIso()?' on':'')+'" data-dtoday>Today</button>'+
+        '<button class="chip'+(allOn?' on':'')+'" data-dall>All open</button>'+
+      '</div>'+
+      '<div class="csearch"><input id="csearch" placeholder="🔎 Look up a customer…" autocomplete="off"><div class="cresults" id="cresults"></div></div>'+
+      '<div class="mapwrap"><button class="maptoggle" id="mapToggle">🗺️ '+(mapOpen?'Hide map ▾':'Map of my stops — bird’s-eye ▸')+'</button>'+
+        '<div id="techmap" class="'+(mapOpen?'open':'')+'"></div><div class="mapnote"'+(mapOpen?'':' style="display:none"')+'></div></div>'+
+      '</div>';
+  }
+  function wireTopbar(b){
+    b.querySelectorAll('[data-dshift]').forEach(function(el){ el.onclick=function(){ var base=viewDay||todayIso(); viewDay=shiftDay(base, parseInt(el.getAttribute('data-dshift'),10)); loadJobs(); }; });
+    var dpd=document.getElementById('dpDate'); if(dpd) dpd.onchange=function(){ if(dpd.value){ viewDay=dpd.value; loadJobs(); } };
+    var dtoday=b.querySelector('[data-dtoday]'); if(dtoday) dtoday.onclick=function(){ viewDay=todayIso(); loadJobs(); };
+    var dall=b.querySelector('[data-dall]'); if(dall) dall.onclick=function(){ viewDay=null; loadJobs(); };
+    var mt=document.getElementById('mapToggle'); if(mt) mt.onclick=function(){
+      mapOpen=!mapOpen; var mp=document.getElementById('techmap'), nn=document.querySelector('.mapnote');
+      if(mp) mp.classList.toggle('open',mapOpen); if(nn) nn.style.display=mapOpen?'':'none';
+      mt.textContent='🗺️ '+(mapOpen?'Hide map ▾':'Map of my stops — bird’s-eye ▸');
+      if(mapOpen) mountTechMap(jobsCache.slice());
+    };
+    if(mapOpen) mountTechMap(jobsCache.slice());
+    wireSearch();
+  }
+
+  // ── Bird's-eye stops map — same geocode + Leaflet the dispatch board uses (self-hosted,
+  // tn_geo_v3 shared cache, Nominatim ≤1/s). Purple pins numbered by the day's route order;
+  // tap a pin → scroll to that job's card. Only geocodes when the tech opens the map.
+  var GEO_PREFIX='tn_geo_v3:', GEO_TTL=30*24*60*60*1000, _lastGeo=0;
+  var US_STATES={AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',DC:'District of Columbia',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming'};
+  function stateFull(st){ return US_STATES[String(st||'').trim().toUpperCase()]||String(st||'').trim(); }
+  function geoHash(s){ var h=0; for(var i=0;i<s.length;i++){ h=((h<<5)-h)+s.charCodeAt(i); h|=0; } return String(Math.abs(h)); }
+  var _techGen=0, _techMap=null, _techCoords={};
+  function ensureLeaflet(){ return new Promise(function(res,rej){
+    if(window.L) return res();
+    if(!document.querySelector('link[href*="leaflet.css"]')){ var c=document.createElement('link'); c.rel='stylesheet'; c.href='/platform/vendor/leaflet.css'; c.onerror=function(){ c.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; }; document.head.appendChild(c); }
+    var ex=document.querySelector('script[data-leaflet]');
+    if(ex){ if(window.L) return res(); ex.addEventListener('load',function(){ res(); }); ex.addEventListener('error',rej); return; }
+    var sc=document.createElement('script'); sc.setAttribute('data-leaflet','1'); sc.src='/platform/vendor/leaflet.js';
+    sc.onload=function(){ res(); };
+    sc.onerror=function(){ var cdn=document.createElement('script'); cdn.setAttribute('data-leaflet','1'); cdn.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; cdn.onload=function(){ res(); }; cdn.onerror=rej; document.head.appendChild(cdn); };
+    document.head.appendChild(sc);
+  }); }
+  function techGeocode(j){
+    var c=(j&&j.customer)||{};
+    var street=String(c.address||'').trim(), city=String(c.city||'').trim(), st=stateFull(c.state), zip=String(c.zip||'').replace(/\D/g,'').slice(0,5);
+    var key=GEO_PREFIX+geoHash([street,city,st,zip].join('|'));
+    if(_techCoords[key]) return Promise.resolve(_techCoords[key]);
+    try{ var raw=localStorage.getItem(key); if(raw){ var p=JSON.parse(raw); if(p&&(Date.now()-p.ts)<GEO_TTL){ _techCoords[key]={lat:p.lat,lng:p.lng,approx:!!p.approx}; return Promise.resolve(_techCoords[key]); } } }catch(e){}
+    var realStreet=street&&/\d/.test(street)&&/[a-z]/i.test(street);
+    function nom(params){
+      var wait=Math.max(0,(_lastGeo+1100)-Date.now()); _lastGeo=Date.now()+wait;
+      return new Promise(function(r){ setTimeout(r,wait); }).then(function(){
+        return fetch('https://nominatim.openstreetmap.org/search?'+params.toString()).then(function(res){ return res.json(); }).then(function(d){
+          if(Array.isArray(d)&&d.length){ var lat=parseFloat(d[0].lat),lng=parseFloat(d[0].lon); if(isFinite(lat)&&isFinite(lng)) return {lat:lat,lng:lng}; } return null;
+        }).catch(function(){ return null; });
+      });
+    }
+    var chain=Promise.resolve(null), approx={v:false};
+    if(realStreet){ var p1=new URLSearchParams({format:'json',limit:'1',countrycodes:'us',street:street}); if(city)p1.set('city',city); if(st)p1.set('state',st); if(zip)p1.set('postalcode',zip); chain=chain.then(function(h){ return h||nom(p1); }); }
+    if(zip) chain=chain.then(function(h){ if(h) return h; return nom(new URLSearchParams({format:'json',limit:'1',countrycodes:'us',postalcode:zip})).then(function(x){ if(x) approx.v=true; return x; }); });
+    if(city&&st) chain=chain.then(function(h){ if(h) return h; return nom(new URLSearchParams({format:'json',limit:'1',countrycodes:'us',city:city,state:st})).then(function(x){ if(x) approx.v=true; return x; }); });
+    return chain.then(function(hit){
+      if(!hit) return null;
+      var out={lat:hit.lat,lng:hit.lng,approx:approx.v}; _techCoords[key]=out;
+      try{ localStorage.setItem(key,JSON.stringify({lat:out.lat,lng:out.lng,approx:approx.v,ts:Date.now()})); }catch(e){}
+      return out;
+    });
+  }
+  function focusCard(id){
+    var c=document.querySelector('.card[data-card="'+id+'"]'); if(!c) return;
+    c.scrollIntoView({behavior:'smooth',block:'center'}); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
+  }
+  function mountTechMap(list){
+    var myGen=++_techGen;
+    var el=document.getElementById('techmap'); if(!el) return;
+    ensureLeaflet().then(function(){
+      var el=document.getElementById('techmap'); if(!el||!window.L||_techGen!==myGen) return;
+      if(_techMap){ try{_techMap.remove();}catch(e){} _techMap=null; }
+      var map; try{ map=L.map(el,{scrollWheelZoom:false}).setView([35.9,-87.5],6); }catch(e){ return; }
+      _techMap=map;
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);
+      var bounds=[], seen={}, placed=0, i=0;
+      function step(){
+        if(_techGen!==myGen) return;
+        if(i>=list.length){
+          if(bounds.length>=2){ try{ map.fitBounds(bounds,{padding:[30,30],maxZoom:12}); }catch(e){} }
+          else if(bounds.length===1){ try{ map.setView(bounds[0],11); }catch(e){} }
+          var n=document.querySelector('.mapnote'); if(n) n.textContent = placed? (placed+' stop'+(placed===1?'':'s')+' mapped'+(placed<list.length?' · a few addresses couldn’t be pinned':'')) : 'No addresses to map on this day yet.';
+          return;
+        }
+        var j=list[i]; var idx=i; i++;
+        techGeocode(j).then(function(g){
+          if(_techGen!==myGen) return;
+          if(g){
+            var plat=g.lat, plng=g.lng, sk=plat.toFixed(4)+','+plng.toFixed(4), dup=(seen[sk]=(seen[sk]||0)); seen[sk]++;
+            if(dup>0){ var ang=dup*(Math.PI/4), rad=0.00045*(1+Math.floor(dup/8)); plat=g.lat+rad*Math.sin(ang); plng=g.lng+rad*Math.cos(ang); }
+            var num=stopByJob[j.id]||(idx+1);
+            var icon=L.divIcon({className:'techpin-wrap',html:'<div class="techpin'+(g.approx?' approx':'')+'" title="'+esc(fullName(j.customer)||'')+'">'+num+'</div>',iconSize:[30,30],iconAnchor:[15,15]});
+            var mk=L.marker([plat,plng],{icon:icon}).addTo(map);
+            (function(id){ mk.on('click',function(){ focusCard(id); }); })(j.id);
+            bounds.push([plat,plng]); placed++;
+          }
+          step();
+        });
+      }
+      step();
+    }).catch(function(){ var n=document.querySelector('.mapnote'); if(n) n.textContent='⚠ map couldn’t load — your list below still works.'; });
+  }
+
+  // ── Customer search — any customer in the shop (RLS-scoped to the company). For a mis-routed
+  // caller: look them up, see whose customer they are, open the tile if it's yours.
+  var _searchT=null, _searchDocBound=false;
+  function wireSearch(){
+    var inp=document.getElementById('csearch'), box=document.getElementById('cresults'); if(!inp||!box) return;
+    inp.oninput=function(){ var q=inp.value.trim(); if(_searchT) clearTimeout(_searchT);
+      if(q.length<2){ box.classList.remove('open'); box.innerHTML=''; return; }
+      _searchT=setTimeout(function(){ runSearch(q, box); }, 260); };
+    if(!_searchDocBound){ _searchDocBound=true; document.addEventListener('click', function(e){
+      var b=document.getElementById('cresults'), i=document.getElementById('csearch');
+      if(b && !b.contains(e.target) && e.target!==i) b.classList.remove('open'); }); }
+  }
+  function runSearch(q, box){
+    box.classList.add('open'); box.innerHTML='<div class="cres cm" style="cursor:default">Searching…</div>';
+    var like='%'+q.replace(/[%_,]/g,' ').trim()+'%';
+    sb.from('customer').select('id,first_name,last_name,phone,city,state').or('first_name.ilike.'+like+',last_name.ilike.'+like+',phone.ilike.'+like).limit(8).then(function(r){
+      if(r.error){ box.innerHTML='<div class="cres cm" style="cursor:default">Couldn’t search: '+esc(r.error.message)+'</div>'; return; }
+      var custs=r.data||[];
+      if(!custs.length){ box.innerHTML='<div class="cres cm" style="cursor:default">No customer found for “'+esc(q)+'”.</div>'; return; }
+      var ids=custs.map(function(c){return c.id;});
+      sb.from('job').select('id,customer_id,status,scheduled_day,created_at,technician:technician_id(id,name)').in('customer_id',ids).order('created_at',{ascending:false}).limit(80).then(function(jr){
+        var latest={}; (jr.data||[]).forEach(function(j){ if(!latest[j.customer_id]) latest[j.customer_id]=j; });
+        box.innerHTML = custs.map(function(c){
+          var nm=(fullName(c)||'Customer'), loc=[c.city,c.state].filter(Boolean).join(', ');
+          var job=latest[c.id], tech=job&&job.technician, mine = tech && myTech && String(tech.id)===String(myTech.id);
+          var owner = tech ? (mine ? '<span class="mine">Your customer</span>' : esc((tech.name||'a tech'))+'’s customer') : (job ? 'Unassigned job' : 'No job on file');
+          var phone=(c.phone||'').replace(/[^0-9+]/g,'');
+          return '<button class="cres" data-cid="'+esc(c.id)+'" data-cjob="'+(job?esc(job.id):'')+'" data-cmine="'+(mine?'1':'')+'" data-cphone="'+esc(phone)+'" data-cown="'+esc(tech?(mine?'your customer':(tech.name||'another tech')+'’s customer'):'no job on file')+'">'+
+            '<div class="cn">'+esc(nm)+'</div>'+
+            '<div class="cm">'+(loc?esc(loc)+' · ':'')+owner+(job&&job.status?' · '+esc(String(job.status).replace(/_/g,' ')):'')+'</div></button>';
+        }).join('');
+        box.querySelectorAll('.cres[data-cid]').forEach(function(el){ el.onclick=function(){
+          var job=el.getAttribute('data-cjob'), mine=el.getAttribute('data-cmine'), own=el.getAttribute('data-cown'), phone=el.getAttribute('data-cphone');
+          if(job && mine){ location.href='/platform/tech-job.html?job='+encodeURIComponent(job)+'&v='+Math.floor(Date.now()/3600000); return; }
+          var msg = job ? ('That’s '+own+'. Let them know '+(phone?'or call '+phone:'')+' — the office can route it.') : 'No job on file for that customer yet — the office can set one up.';
+          alert(msg);
+        }; });
+      });
+    });
+  }
+
   function renderJobs(jobs){
     jobs = routeSequence(jobs || []);   // route-order each day + assign stop numbers
     jobsCache = jobs;
     _payoutDone = false; earnByJob = {};
-    var today = new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
+    var dl = viewDay ? esc(fmtDayLabel(viewDay)) : 'All open jobs';
     var note = myTech ? '' : '<div class="note">Your login isn\'t linked to a technician yet, so this shows all the shop\'s open jobs. Ask the office to link you as a tech.</div>';
-    var body = (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' + (myTech ? '<div id="statsCard"></div><div id="timeoffCard"></div>' : '') +
-      '<div class="daylabel">'+esc(today)+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
-      (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">No open jobs right now. 🎉</div>');
+    var empty = viewDay ? ('Nothing on '+esc(fmtDayLabel(viewDay))+'.') : 'No open jobs right now. 🎉';
+    var body = topbarHtml() + (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' + (myTech ? '<div id="statsCard"></div><div id="timeoffCard"></div>' : '') +
+      '<div class="daylabel">'+dl+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
+      (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">'+empty+'</div>');
     document.getElementById('body').innerHTML = body;
     if (myTech) loadPay();
     loadLeaderboard();
@@ -582,6 +774,7 @@
     b.querySelectorAll('button[data-release]').forEach(function(el){ el.onclick=function(){ confirmRelease(el.getAttribute('data-release')); }; });
     b.querySelectorAll('button[data-waivertext]').forEach(function(el){ el.onclick=function(){ textWaiver(el.getAttribute('data-waivertext'), el); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });
+    wireTopbar(b);
     hydratePhotos();
   }
 
@@ -832,7 +1025,10 @@
       'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held),' +
       'parts:job_part(name,number,source,ship_to,eta,order_status,disposition)'
-    ).not('status','in','(completed,canceled)').order('scheduled_day',{ascending:true,nullsFirst:false});
+    );
+    if (viewDay) q = q.eq('scheduled_day', viewDay).neq('status','canceled');   // one day: show what's scheduled + already done
+    else q = q.not('status','in','(completed,canceled)');                       // default: everything still open
+    q = q.order('scheduled_day',{ascending:true,nullsFirst:false});
     if (myTech) q = q.eq('technician_id', myTech.id);   // my jobs; else (owner/office demo) all open jobs
     q.then(function(r){
       if (r.error) { document.getElementById('body').innerHTML = '<div class="note">Couldn\'t load jobs: '+esc(r.error.message)+'</div>'; return; }

@@ -149,6 +149,25 @@ exports.handler = async function (event) {
       return json(200, { ok: true, texted: sent, tech: trow.name });
     }
 
+    if (doo === 'tech_job_link') {
+      // The OFFICE texts the ASSIGNED tech the actual job-tile link + a note ("need the part #
+      // for this one — what happened?"). Tech-direction SMS; the ask is logged to the shared
+      // thread so the board shows it went out. Auth is already company-scoped above.
+      const noteTxt = String(p.body || p.note || '').trim().slice(0, 600);
+      const jrow = (await db.get(`job?id=eq.${jobId}&company_id=eq.${companyId}&select=technician_id&limit=1`))[0] || {};
+      if (!jrow.technician_id) return json(200, { ok: false, error: 'no_tech' });
+      const trow = (await db.get(`technician?id=eq.${jrow.technician_id}&select=name,app_user_id&limit=1`))[0] || {};
+      let tphone = '';
+      if (trow.app_user_id) { const au = (await db.get(`app_user?id=eq.${trow.app_user_id}&select=phone&limit=1`))[0]; tphone = au && au.phone ? String(au.phone).trim() : ''; }
+      if (!tphone) return json(200, { ok: false, error: 'no_tech_phone', tech: trow.name });
+      const link = `${SITE}/platform/tech-job.html?job=${job.id}`;
+      const text = `${shop} office${techName ? ' (' + techName + ')' : ''}: ${noteTxt ? noteTxt + ' — ' : ''}open ${first}'s job → ${link}`;
+      let sent = false;
+      try { sent = await sendSms(tphone, text, 'technician', 'platform_tech_job_link'); } catch (_) {}
+      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'assign', sender: techName ? ('office:' + techName) : 'office', body: '📲 Texted ' + (trow.name || 'the tech') + ' the job tile' + (noteTxt ? ': "' + noteTxt + '"' : '') });
+      return json(200, { ok: true, texted: sent, tech: trow.name });
+    }
+
     if (doo === 'arrived') {
       // Customer heads-up the moment the tech starts the job on site.
       const text = commsMsg(co.settings, 'arrived', { first, shop, tech: techName || 'your technician' });
