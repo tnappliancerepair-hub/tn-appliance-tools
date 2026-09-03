@@ -49,7 +49,7 @@
   .opencard{text-decoration:none;color:inherit;display:block}
   .cust{font-weight:800;font-size:17px}
   .chev{color:var(--brand)}
-  .openbtn{display:block;text-align:center;margin-top:11px;background:var(--brand);color:#fff;border-radius:10px;padding:11px 12px;font-weight:800;font-size:14.5px;text-decoration:none}
+  .openbtn{display:block;text-align:center;margin-top:11px;background:var(--brand);color:var(--brand-ink);border-radius:10px;padding:11px 12px;font-weight:800;font-size:14.5px;text-decoration:none}
   .unit{color:var(--muted);font-size:14px;margin-top:2px}
   .badge{flex:0 0 auto;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;color:#fff;white-space:nowrap}
   .prob{margin-top:9px;font-size:14.5px}
@@ -99,6 +99,17 @@
   .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px}
   .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
   .actions button{flex:1;min-width:96px}
+  /* Semantic action colors (match the job tile): Start=orange, Complete=green, others neutral, Open=brand */
+  .actions .act-start{background:var(--in_progress);color:#231a02;border-color:transparent}
+  .actions .act-done{background:var(--completed);color:#fff;border-color:transparent}
+  /* Parts status — where's the tech's part (at customer / pick up at supplier / on order / installed) */
+  .partsbox{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .prow{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;border-radius:10px;padding:9px 12px;border:1px solid var(--line)}
+  .prow .pic{font-size:16px;flex:none;line-height:1}
+  .prow.wait{background:color-mix(in srgb,var(--awaiting_parts) 13%,var(--panel));color:var(--awaiting_parts);border-color:color-mix(in srgb,var(--awaiting_parts) 34%,transparent)}
+  .prow.todo{background:color-mix(in srgb,var(--in_progress) 13%,var(--panel));color:var(--in_progress);border-color:color-mix(in srgb,var(--in_progress) 34%,transparent)}
+  .prow.done{background:var(--chip);color:var(--muted)}
+  .prow .eta{margin-left:auto;font-size:12px;font-weight:800;opacity:.9;white-space:nowrap}
   .msg{margin-top:11px;display:none;gap:8px}
   .msg.open{display:flex}
   .msg textarea{flex:1;resize:none;min-height:42px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
@@ -380,6 +391,39 @@
     if (j.waiver_signed_at) return '<div class="rel signed">✍️ Release signed'+(j.waiver_name?' — '+esc(j.waiver_name):'')+'</div>';
     return '<div class="rel unsigned">⚠️ Release not signed yet<button class="relbtn" data-release="'+j.id+'">Confirm signed</button></div>';
   }
+  // PARTS STATUS — where's the tech's part? (Teddy: "part at customer / pick up at Marcone /
+  // parts status would be helpful to the tech"). Derived from job_part: ship_to + source + eta +
+  // order_status + disposition → a plain-language line so the tech knows what to grab before the stop.
+  function fmtEta(d){ if(!d) return ''; var s=String(d).slice(0,10); var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m) return s;
+    var dt=new Date(+m[1],+m[2]-1,+m[3]); if(isNaN(dt)) return s;
+    return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+  function partLabel(p){
+    var nm = p.name || p.number || 'part';
+    var src = (p.source||'').trim();
+    var ship = (p.ship_to||'').toLowerCase();
+    var eta = fmtEta(p.eta);
+    if (p.disposition==='used')  return { cls:'done', ic:'✅', t:'Installed: '+nm, eta:'' };
+    if (p.disposition==='return')return { cls:'done', ic:'↩️', t:'To return: '+nm, eta:'' };
+    // not ordered yet
+    if (p.order_status==='to_order' || (!p.order_status && !p.eta && !p.disposition))
+      return { cls:'todo', ic:'🛒', t:nm+' — not ordered yet', eta:'' };
+    // ordered / on the way / claim
+    if (/cust|home|site|door/.test(ship))
+      return { cls:'wait', ic:'🏠', t:'At the customer: '+nm, eta:eta };
+    if (ship && !/cust|home|site|door/.test(ship))
+      return { cls:'wait', ic:'📦', t:'Pick up'+(src?' at '+src:'')+': '+nm, eta:eta };
+    if (src)
+      return { cls:'wait', ic:'📦', t:'Pick up at '+src+': '+nm, eta:eta };
+    return { cls:'wait', ic:'🚚', t:'On order: '+nm, eta:eta };
+  }
+  function partsChip(j){
+    var parts = (j.parts||[]).filter(Boolean);
+    if (!parts.length) return '';
+    var rows = parts.map(partLabel).map(function(r){
+      return '<div class="prow '+r.cls+'"><span class="pic">'+r.ic+'</span><span>'+esc(r.t)+'</span>'+(r.eta?'<span class="eta">ETA '+esc(r.eta)+'</span>':'')+'</div>';
+    }).join('');
+    return '<div class="partsbox">'+rows+'</div>';
+  }
   function cardHtml(j){
     var s = st(j.status);
     var unit = j.unit && j.unit.label ? j.unit.label : '';
@@ -394,10 +438,10 @@
     var tdr = (j.tdr && j.tdr[0]) || null;
     // contextual actions
     var acts = '';
-    if (j.status !== 'in_progress' && j.status !== 'completed') acts += '<button class="primary" data-act="in_progress" data-id="'+j.id+'">Start</button>';
+    if (j.status !== 'in_progress' && j.status !== 'completed') acts += '<button class="act act-start" data-act="in_progress" data-id="'+j.id+'">▶ Start</button>';
     if (j.status !== 'awaiting_parts' && j.status !== 'completed') acts += '<button data-act="awaiting_parts" data-id="'+j.id+'">Awaiting parts</button>';
     if (j.status !== 'completed') acts += '<button data-move="'+j.id+'">📅 Move</button>';
-    acts += '<button class="primary" data-tdr="'+j.id+'">'+(tdr?'Edit report':'Complete + report')+'</button>';
+    acts += '<button class="act act-done" data-tdr="'+j.id+'">'+(tdr?'Edit report':'✓ Complete + report')+'</button>';
     // the TDR (completion report) — structured so it feeds the brain
     var pst = tdr ? (tdr.part_status||'') : '';
     function pso(v,l){ return '<option value="'+v+'"'+(pst===v?' selected':'')+'>'+l+'</option>'; }
@@ -433,6 +477,7 @@
       (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
       '<a class="openbtn" href="'+openUrl+'">Open job — video, model &amp; report →</a>' +
       intakeHtml(j) +
+      partsChip(j) +
       releaseHtml(j) +
       '<button class="brainbtn" data-brain="'+j.id+'">🧠 What usually fixes this</button>' +
       '<div class="brainbox" id="brain_'+j.id+'"></div>' +
@@ -752,7 +797,8 @@
     var q = sb.from('job').select(
       'id,status,problem,scheduled_day,availability,waiver_name,waiver_signed_at,customer_id,' +
       'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
-      'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held)'
+      'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held),' +
+      'parts:job_part(name,number,source,ship_to,eta,order_status,disposition)'
     ).not('status','in','(completed,canceled)').order('scheduled_day',{ascending:true,nullsFirst:false});
     if (myTech) q = q.eq('technician_id', myTech.id);   // my jobs; else (owner/office demo) all open jobs
     q.then(function(r){
