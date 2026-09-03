@@ -23,16 +23,62 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 exports.config = { timeout: 26 };
 
+// COMP path (no card): the founder / a comped shop walks the same signup form but provisions
+// straight to a live tenant with NO Stripe — lands the owner in their own dashboard. Reuses the
+// proven platform-provision (action=provision) + magiclink. Gated by PLATFORM_COMP_TOKEN (a
+// low-privilege, shareable "free-setup" token — the admin secret also works for the founder's
+// own walk). Never charges, never self-attributes a referral.
+async function provisionComp(pf, o) {
+  const SITE = 'https://tnapplianceexchange.net';
+  const provision = require('./platform-provision');
+  const pev = { queryStringParameters: {
+    secret: o.admin, action: 'provision', slug: o.slug, name: o.name, trade: o.trade,
+    plan: o.plan, owner_email: o.email, owner_name: o.owner_name || '', owner_phone: o.phone || '',
+    area: o.area || '', ref: '',   // a comp never attributes a referral (no self-crediting)
+  } };
+  let pd = {};
+  try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (e) { pd = { ok: false, error: String((e && e.message) || e) }; }
+  if (!pd.ok || !pd.company) return J(200, { ok: false, error: 'provision_failed', detail: String((pd && pd.error) || '').slice(0, 200) });
+  const companyId = pd.company.id;
+  // Stamp comp + (if ticked) the "turn on Ann" onboarding flag — merge, never clobber settings.
+  try {
+    const rows = await pf.get(`company?id=eq.${encodeURIComponent(companyId)}&select=settings`);
+    const s = (rows && rows[0] && rows[0].settings) || {};
+    const next = Object.assign({}, s, { comp: true }, o.want_ann ? { ai: Object.assign({}, s.ai, { phone_requested: true }) } : {});
+    await pf.patch('company', `id=eq.${encodeURIComponent(companyId)}`, { settings: next, status: 'active' });
+  } catch (_) {}
+  // One-tap login link → land straight in the owner's dashboard (setup home).
+  let link = '';
+  try {
+    const mev = { queryStringParameters: { secret: o.admin, action: 'magiclink', email: o.email, redirect: `${SITE}/platform/onboard.html` } };
+    const md = JSON.parse((await provision.handler(mev)).body || '{}');
+    link = md.login_link || '';
+  } catch (_) {}
+  return J(200, { ok: true, comp: true, slug: o.slug, company_id: companyId, login_url: link || null,
+    temp_password: (pd.login && pd.login.temp_password) || null,
+    message: link ? 'Setting up your shop — taking you to your dashboard…' : 'Your shop is set up. Check your email for a sign-in link.' });
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return J(405, { ok: false, error: 'POST only' });
   let b = {};
   try { b = event.body ? JSON.parse(event.body) : {}; } catch (_) {}
 
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  const compToken = String((await getSecret('PLATFORM_COMP_TOKEN')) || '');
+  const wantComp = b.comp === true || b.comp === 1 || b.comp === '1';
+  // Comp is authorized by a matching PLATFORM_COMP_TOKEN, or the admin secret (founder's own walk).
+  const compAuthed = wantComp && (
+    (!!compToken && b.comp_token === compToken) ||
+    (b.comp_token && b.comp_token === admin) ||
+    (b.secret && b.secret === admin)
+  );
+
   // Kill switch — public endpoint. Stays closed until the owner opens signups
-  // (vault PLATFORM_SIGNUP_LIVE=true). Admin secret bypasses so the flow can be tested.
+  // (vault PLATFORM_SIGNUP_LIVE=true). Admin secret + an authorized comp both bypass it.
   const live = String((await getSecret('PLATFORM_SIGNUP_LIVE')) || '').toLowerCase() === 'true';
-  const adminBypass = (b.secret && b.secret === ((await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5'));
-  if (!live && !adminBypass) {
+  const adminBypass = (b.secret && b.secret === admin);
+  if (!live && !adminBypass && !compAuthed) {
     return J(200, { ok: false, error: 'signup_not_open', message: "We're onboarding shops by invite right now — leave your email and we'll reach out." });
   }
 
@@ -58,6 +104,12 @@ exports.handler = async function (event) {
     const ex = await pf.get(`company?slug=eq.${encodeURIComponent(slug)}&select=id&limit=1`);
     if (!ex || !ex.length) break;
     slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 5);
+  }
+
+  // COMP (no card): provision straight to a live tenant, skip Stripe entirely.
+  if (wantComp) {
+    if (!compAuthed) return J(200, { ok: false, error: 'comp_not_authorized', message: "This free-setup link isn't valid — check the link and try again." });
+    return await provisionComp(pf, { name, slug, trade, plan: planKey, email, owner_name: b.owner_name || '', phone: b.phone || '', area: b.area || '', want_ann: !!b.want_ann, admin });
   }
 
   // Card-required Checkout. Tenant is provisioned by the webhook after the card clears.

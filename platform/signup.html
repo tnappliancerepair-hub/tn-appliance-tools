@@ -84,6 +84,10 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
       <div><label class="fld" for="owner">Your name</label><input id="owner" placeholder="Owner name" autocomplete="name"></div>
       <div><label class="fld" for="email">Email</label><input id="email" type="email" placeholder="you@shop.com" autocomplete="email"></div>
     </div>
+    <div class="row2">
+      <div><label class="fld" for="phone">Shop phone</label><input id="phone" type="tel" placeholder="(615) 555-0199" autocomplete="tel"></div>
+      <div><label class="fld" for="area">Service area <span style="text-transform:none;font-weight:600">(optional)</span></label><input id="area" placeholder="Nashville, TN" autocomplete="off"></div>
+    </div>
 
     <div class="sec" style="margin-top:18px">Your platform</div>
     <div id="plans"></div>
@@ -121,6 +125,8 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
   } catch (_) {}
   var P = window.PlatformPlans;
   var sel = { plan:null, addons:{}, ann:false };
+  // Comp / no-card setup: signup.html?comp=<token> provisions the shop with no Stripe.
+  var COMP = (new URLSearchParams(location.search).get('comp')||'').trim();
   function money(c){ return '$'+Math.round((c||0)/100).toLocaleString(); }
 
   function renderPlans(){
@@ -176,6 +182,11 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
 
   renderPlans();
   recompute();
+  // Comp link → no-card copy (the shop goes live now; billing added later).
+  if(COMP){
+    var gb=document.getElementById('go'); if(gb) gb.textContent='Set up my shop — free →';
+    var nt=document.querySelector('.note'); if(nt) nt.innerHTML='<b>Free setup — no card needed.</b> Your shop goes live right now. You can add billing whenever you’re ready.';
+  }
   document.getElementById('plans').addEventListener('change', function(e){ if(e.target.name==='plan'){ sel.plan=e.target.value; recompute(); } });
   document.getElementById('annopt').addEventListener('change', function(e){ if(e.target.id==='annchk'){ sel.ann=e.target.checked; recompute(); } });
   document.getElementById('addons').addEventListener('change', function(e){ if(e.target.getAttribute && e.target.value){ sel.addons[e.target.value]=e.target.checked; recompute(); } });
@@ -191,13 +202,17 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
         email: document.getElementById('email').value.trim(),
         trade: document.getElementById('trade').value,
         owner_name: document.getElementById('owner').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        area: document.getElementById('area').value.trim(),
         plan: sel.plan,
         addons: Object.keys(sel.addons).filter(function(k){return sel.addons[k];}),
         want_ann: sel.ann,
+        comp: !!COMP, comp_token: COMP,   // no-card founder/comp setup
         ref: (new URLSearchParams(location.search).get('ref')||'').slice(0,60)  // reseller referral code (?ref=TK)
       })
     }).then(function(r){return r.json();}).then(function(d){
       if(d.ok){ try{ if(window.fbq) fbq('track','Lead',{content_name:sel.plan}); }catch(_){} }
+      if(d.ok && d.login_url){ window.location.href = d.login_url; return; }   // comp: straight into setup
       if(d.ok && d.checkout_url){ window.location.href = d.checkout_url; return; }
       if(d.ok){
         msg.className='msg ok';
