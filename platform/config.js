@@ -12,8 +12,9 @@ window.ANT_SUPABASE = {
   anonKey: 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7',
 };
 
-// TEMPORARY setup convenience — while Teddy + Danielle line up the office board, the office
-// seats auto-open to the demo tenant with NO login screen (via platform/vendor/setup-bypass.js).
-// Flip to false / delete this line to "put the logins back" everywhere in one edit.
-// MUST be removed before self-serve signup goes live (before real customers exist).
-window.ANT_SETUP_BYPASS = true;
+// Demo auto-login is OFF — real customers are signing up now (customer #1 = TN Appliance Exchange).
+// setup-bypass.js is fully inert while this is false, so every office/tech seat respects the real
+// signed-in login (leaving it true CLOBBERED a real owner's session back into the demo tenant).
+// To temporarily re-open the no-login demo again for internal board work, flip back to true — but
+// NEVER while real customers are onboarding.
+window.ANT_SETUP_BYPASS = false;
