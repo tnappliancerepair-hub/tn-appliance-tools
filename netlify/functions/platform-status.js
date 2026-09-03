@@ -36,13 +36,44 @@ exports.handler = async function (event) {
   if (!isAdmin) return { statusCode: 403, body: 'forbidden' };
 
   // Go-live flags (built-but-dark switches). Present them as ready-to-flip, not broken.
-  const [phoneLive, signupLive, billingLive, usageDigestLive, emailSecret, platStripe, stripe] = await Promise.all([
+  const [phoneLive, signupLive, billingLive, usageDigestLive, emailSecret, platStripe, stripe,
+         whSecret, emailShared, emailEnabled, awsId, awsSecret] = await Promise.all([
     getSecret('PLATFORM_PHONE_LIVE'), getSecret('PLATFORM_SIGNUP_LIVE'), getSecret('PLATFORM_BILLING_LIVE'),
     getSecret('PLATFORM_USAGE_DIGEST_LIVE'), getSecret('PLATFORM_EMAIL_SECRET'),
     getSecret('PLATFORM_STRIPE_SECRET_KEY'), getSecret('STRIPE_SECRET_KEY'),
+    getSecret('PLATFORM_STRIPE_WEBHOOK_SECRET'), getSecret('EMAIL_SHARED_SECRET'),
+    getSecret('EMAIL_ENABLED'), getSecret('TN_AWS_ACCESS_KEY_ID'), getSecret('TN_AWS_SECRET_ACCESS_KEY'),
   ]);
   const stripeKey = platStripe || stripe || '';
   const stripeMode = !stripeKey ? 'not_configured' : (/^sk_live_/.test(stripeKey) ? 'live' : 'test');
+  const has = (v) => !!String(v || '').trim();
+
+  // ── THE TWO GO-LIVE LANDMINES — the things that would strand a real paying signup ──
+  // #1 webhook: the paid signup must fire checkout.session.completed on the SAME live account
+  //    checkout charges on, into a webhook that has BOTH its signing secret AND the PLATFORM
+  //    stripe key (the webhook has NO fallback to STRIPE_SECRET_KEY) — else paid-but-no-tenant.
+  const webhookReady = has(platStripe) && has(whSecret);
+  // #2 login email: a nicety, NOT a hard blocker — the magiclink recovery backstops it.
+  const emailChainLive = has(emailShared) && truthy(emailEnabled) && has(awsId) && has(awsSecret);
+  const golive = {
+    signup_open: truthy(signupLive),
+    stripe_mode: stripeMode,
+    // Flip PLATFORM_SIGNUP_LIVE=true only once this is green (else a card gets charged for nothing).
+    ready_to_flip_signup: webhookReady,
+    webhook: {
+      ready: webhookReady,
+      platform_stripe_webhook_secret: has(whSecret) ? 'set' : 'MISSING',
+      platform_stripe_secret_key: has(platStripe) ? 'set' : 'MISSING (webhook has no STRIPE_SECRET_KEY fallback → paid-but-no-tenant)',
+      note: 'Register the endpoint in Stripe → …/.netlify/functions/platform-stripe-webhook for checkout.session.completed + customer.subscription.*',
+    },
+    login_email: {
+      ready: emailChainLive,
+      email_shared_secret: has(emailShared) ? 'set' : 'MISSING',
+      email_enabled: truthy(emailEnabled) ? 'true' : 'dry-run (send-email won\'t actually send)',
+      aws_ses_creds: (has(awsId) && has(awsSecret)) ? 'set' : 'MISSING',
+      not_a_blocker: 'platform-provision?action=magiclink&slug=<slug>&secret=<admin> mints a fresh login on demand — no signup is ever stranded.',
+    },
+  };
 
   // Areas: each { key, name, state, detail }. state: live | gated | shadow | pending | roadmap.
   const areas = [
@@ -59,6 +90,8 @@ exports.handler = async function (event) {
     { key: 'annprov', name: 'Self-serve "turn on Ann"', state: truthy(phoneLive) ? 'live' : 'gated', detail: truthy(phoneLive) ? 'Buys a number + provisions.' : 'Ready — flip on to let shops buy their own line.', flag: 'PLATFORM_PHONE_LIVE' },
     { key: 'email', name: 'Warranty email intake', state: emailSecret ? 'pending' : 'pending', detail: 'Built + tested; go-live is a ~15-min Cloudflare Email Routing step (DNS), not code.', flag: 'Cloudflare DNS' },
     { key: 'overage', name: 'Ann overage billing', state: truthy(billingLive) ? 'live' : 'gated', detail: truthy(billingLive) ? 'Billing usage to Stripe.' : 'Shadow until flipped.', flag: 'PLATFORM_BILLING_LIVE' },
+    { key: 'webhook', name: 'Signup webhook (provision-on-pay)', state: webhookReady ? 'live' : 'gated', detail: webhookReady ? 'A paid signup auto-creates the tenant.' : 'Set PLATFORM_STRIPE_WEBHOOK_SECRET + PLATFORM_STRIPE_SECRET_KEY (no fallback) or a paid card makes NO shop.', flag: 'PLATFORM_STRIPE_WEBHOOK_SECRET' },
+    { key: 'login_email', name: 'Owner login email', state: emailChainLive ? 'live' : 'shadow', detail: emailChainLive ? 'New owners get a magic login link.' : 'Dry-run — the magiclink fallback covers it (not a hard blocker).', flag: 'EMAIL_ENABLED' },
   ];
 
   // Demo tenant sanity — proves the surfaces have real data behind them.
@@ -109,6 +142,7 @@ exports.handler = async function (event) {
 
   return json(200, {
     ok: true,
+    golive,
     areas,
     demo,
     demo_owner_email: DEMO_OWNER_EMAIL,

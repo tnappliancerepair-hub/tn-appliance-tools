@@ -116,19 +116,36 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   // Stamp the subscription so subscription.updated/deleted map back to this company.
   try { await stripe.subscriptions.update(sub.id, { metadata: Object.assign({}, meta, { company_id: companyId }) }); } catch (_) {}
   // Email the owner a magic login link (best-effort; dry unless EMAIL_ENABLED).
+  let link = '', emailed = false, emailMode = 'skipped';
   try {
     const mev = { queryStringParameters: { secret: admin, action: 'magiclink', email, redirect: `${SITE}/platform/owner.html` } };
     const md = JSON.parse((await provision.handler(mev)).body || '{}');
-    const link = md.login_link || '';
+    link = md.login_link || '';
     const shared = await getSecret('EMAIL_SHARED_SECRET');
     if (link && shared) {
-      await fetch(`${SITE}/.netlify/functions/send-email`, {
+      const er = await fetch(`${SITE}/.netlify/functions/send-email`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Internal-Auth': shared },
         body: JSON.stringify({ to: email, subject: 'Your Ant dashboard is ready',
           body: `Welcome to Ant, ${meta.name || slug}!\n\nYour shop is set up and your 14-day trial is running. Tap to sign in:\n${link}\n\nAny questions, just reply.` }),
         signal: AbortSignal.timeout(9000),
       });
+      const ed = await er.json().catch(() => ({}));
+      emailMode = ed.mode || (er.ok ? 'sent' : 'error');     // 'live' = really sent · 'dry-run' = EMAIL_ENABLED off
+      emailed = !!(er.ok && ed.mode === 'live');
+    } else {
+      emailMode = link ? 'no_email_shared_secret' : 'no_login_link';
     }
+  } catch (_) { emailMode = 'error'; }
+
+  // NEVER-STRAND SAFETY NET: record the provision + the login link + whether the email actually
+  // sent, so a paying owner who never got the email is instantly visible + recoverable by the
+  // operator (magiclink fallback mints a fresh link on demand). Best-effort — never breaks the paid flow.
+  try {
+    console.log('[platform-stripe-webhook] provisioned', JSON.stringify({ slug, owner_email: email, emailed, email_mode: emailMode, login_link: link || null }));
+    await pf.insert('event', {
+      company_id: companyId, type: 'platform_signup_provisioned', entity: slug,
+      payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode },
+    });
   } catch (_) {}
   return companyId;
 }
