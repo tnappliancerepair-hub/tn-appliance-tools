@@ -42,6 +42,25 @@ async function operatorFromJWT(event) {
   } catch (_) { return null; }
 }
 
+// Self-serve OWNER auth: verify a shop owner/office user's Supabase session JWT and return
+// THEIR OWN company_id. This is what makes import owner-self-serve — a real customer imports
+// their own book with just their shop login, no operator key. Security: they can only ever
+// resolve to their own company (the handler forces the import target to this id), so an owner
+// can never import onto another shop's board.
+async function ownerCompanyFromToken(pf, token) {
+  token = String(token || '').trim();
+  if (!token) return null;
+  const base = (await getSecret('PLATFORM_SUPABASE_URL')) || 'https://tntbhfwitytkcoqlejwc.supabase.co';
+  try {
+    const r = await fetch(`${base}/auth/v1/user`, { headers: { Authorization: 'Bearer ' + token, apikey: PLATFORM_ANON }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const u = await r.json().catch(() => null);
+    if (!u || !u.id) return null;
+    const rows = await pf.get(`app_user?auth_user_id=eq.${encodeURIComponent(u.id)}&role=in.(owner,office)&select=company_id&limit=1`);
+    return (rows && rows[0] && rows[0].company_id) || null;
+  } catch (_) { return null; }
+}
+
 async function resolveCompany(pf, ref) {
   ref = String(ref || '').trim();
   if (!ref) return null;
@@ -71,11 +90,22 @@ exports.handler = async function (event) {
   const p = { ...q, ...body };
 
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  const isAdmin = p.secret === guard || !!(await operatorFromJWT(event));
-  if (!isAdmin) return { statusCode: 403, body: 'forbidden' };
-
   const pf = await platform();
   if (!pf) return json(200, { ok: false, error: 'platform not configured' });
+
+  // Auth: (a) operator — admin secret or an operator email's JWT (can import onto ANY shop);
+  //       (b) self-serve OWNER — the owner's own session token, from the Authorization header
+  //           OR the JSON body (access_token). An owner can ONLY import onto their own shop.
+  const isAdmin = p.secret === guard || !!(await operatorFromJWT(event));
+  let ownerCompanyId = null;
+  if (!isAdmin) {
+    const bearer = String((event.headers && (event.headers.authorization || event.headers.Authorization)) || '').replace(/^Bearer\s+/i, '');
+    const tok = String(p.access_token || '').trim() || bearer;
+    ownerCompanyId = await ownerCompanyFromToken(pf, tok);
+  }
+  if (!isAdmin && !ownerCompanyId) return { statusCode: 403, body: 'forbidden' };
+  // Force a self-serve owner's import onto THEIR OWN shop — ignore any slug/id passed from the client.
+  if (!isAdmin && ownerCompanyId) p.company = ownerCompanyId;
 
   const source = String(p.source || 'housecallpro').toLowerCase();
   const adapter = ADAPTERS[source];

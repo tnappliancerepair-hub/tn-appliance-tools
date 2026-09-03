@@ -58,7 +58,13 @@
   .st.completed{background:color-mix(in srgb,var(--brand) 18%,transparent);color:var(--brand)} .st.in_progress{background:var(--warnbg);color:var(--warn)}
   a{color:var(--brand)} .err{color:#b91c1c;font-size:13.5px;margin-top:8px}
   .big{font-size:19px;font-weight:800;margin:2px 0}
+  ol{margin:8px 0 0;padding-left:20px} ol li{margin:2px 0}
+  .link{color:var(--brand);cursor:pointer;text-decoration:underline;font-size:13px}
 </style>
+<script src="/platform/config.js"></script>
+<script src="/platform/vendor/supabase-js.js"></script>
+<script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/vendor/boot-watchdog.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -73,12 +79,23 @@
     <span class="s" data-k="done">4 · Done</span>
   </div>
 
-  <!-- unlock -->
+  <!-- sign in (owner self-serve) / operator-key fallback -->
   <div class="card" id="gate" style="display:none">
-    <label>Operator key</label>
-    <input id="ops" type="password" placeholder="ant ops key" autocomplete="off">
-    <div class="hint">Same key as the operator tools. Stored in this browser only.</div>
-    <div class="row"><button id="unlock">Unlock</button></div>
+    <div class="big">Sign in to bring your data over</div>
+    <p class="hint">Use your shop's AssistAnt login — your customers &amp; jobs land on <b>your own</b> board.</p>
+    <label>Email</label>
+    <input id="si-email" type="email" placeholder="you@yourshop.com" autocomplete="username">
+    <label>Password</label>
+    <input id="si-pw" type="password" placeholder="your password" autocomplete="current-password">
+    <div class="row"><button id="si-btn">Sign in →</button></div>
+    <div class="err" id="si-err"></div>
+    <div class="hint" style="margin-top:16px"><span class="link" id="ops-toggle">Operator key instead</span></div>
+    <div id="ops-wrap" style="display:none">
+      <label>Operator key</label>
+      <input id="ops" type="password" placeholder="ant ops key" autocomplete="off">
+      <div class="hint">Same key as the operator tools. Stored in this browser only.</div>
+      <div class="row"><button class="ghost" id="unlock">Unlock with key</button></div>
+    </div>
   </div>
 
   <!-- 1 connect -->
@@ -88,13 +105,16 @@
       <button class="src on" data-src="housecallpro"><b>Housecall Pro</b><span>API key · verified live</span></button>
       <button class="src" data-src="jobber"><b>Jobber</b><span>OAuth token</span></button>
       <button class="src" data-src="workiz"><b>Workiz</b><span>API token</span></button>
-      <button class="src" data-src="xano"><b>TN (Xano)</b><span>your legacy system · no key</span></button>
+      <button class="src" data-src="xano"><b>TN (Xano)</b><span>legacy system · no key</span></button>
     </div>
-    <label>Which shop is it landing on? <span style="font-weight:400;color:var(--faint)">(their board slug or id)</span></label>
-    <input id="company" placeholder="e.g. joeys-appliance" autocomplete="off">
+    <div class="note" id="src-steps" style="display:none"></div>
+    <div id="company-wrap">
+      <label>Which shop is it landing on? <span style="font-weight:400;color:var(--faint)">(their board slug or id)</span></label>
+      <input id="company" placeholder="e.g. joeys-appliance" autocomplete="off">
+    </div>
     <label id="keylabel">Housecall Pro API key</label>
-    <input id="key" type="password" placeholder="paste the shop's HCP key" autocomplete="off">
-    <div class="hint" id="keyhint">Get it in HCP → Settings → API. Leave blank in a demo to use the vaulted key. We never store the key — only the last 4.</div>
+    <input id="key" type="password" placeholder="paste your HCP key" autocomplete="off">
+    <div class="hint" id="keyhint">We never store the key — only the last 4. Leave blank in a demo to use the vaulted key.</div>
     <label style="margin-top:14px"><input type="checkbox" id="demo" style="width:auto;margin-right:6px">Demo mode — import just the first few pages so I can watch it land fast</label>
     <div class="row"><button id="btn-preview">Preview my data →</button></div>
     <div class="err" id="err-connect"></div>
@@ -139,9 +159,16 @@
   var F='/.netlify/functions/platform-import';
   var el=function(id){return document.getElementById(id);};
   var state={source:'housecallpro',run:null,company:'',key:'',demo:false};
+  var mode='operator'; // 'owner' once a shop login is signed in
+  var cfg=window.ANT_SUPABASE||{};
+  var sb=(window.supabase&&cfg.url)?window.supabase.createClient(cfg.url,cfg.anonKey):null;
   function ops(){ return localStorage.getItem('ant_ops_secret')||''; }
-  function q(o){ o.secret=ops(); return o; }
-  function post(o){ return fetch(F,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(q(o))}).then(function(r){return r.json();}); }
+  // Attach BOTH creds the backend accepts: a fresh owner session token (owner self-serve) and,
+  // if present, the operator key. Backend forces an owner's import onto their own shop.
+  function post(o){
+    var withTok = sb ? sb.auth.getSession().then(function(s){ var t=s&&s.data&&s.data.session&&s.data.session.access_token; if(t){ o.access_token=t; } }) : Promise.resolve();
+    return withTok.then(function(){ var k=ops(); if(k){ o.secret=k; } return fetch(F,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(o)}).then(function(r){return r.json();}); });
+  }
   function show(k){
     ['connect','preview','commit','done'].forEach(function(s){ el('step-'+s).style.display = s===k?'block':'none'; });
     Array.prototype.forEach.call(el('crumbs').children,function(c){
@@ -152,14 +179,25 @@
   function money(n){return n;} // already formatted server-side
   function tiles(where,arr){ el(where).innerHTML=arr.map(function(t){return '<div class="tile"><div class="v">'+t.v+'</div><div class="l">'+t.l+'</div></div>';}).join(''); }
 
-  // source picker
+  // source picker — each source carries step-by-step instructions for where the shop finds its key.
   var SRC={
-    housecallpro:{name:'Housecall Pro',label:'Housecall Pro API key',ph:"paste the shop's HCP key",hint:'Get it in HCP → Settings → API. Leave blank in a demo to use the vaulted key. We never store the key — only the last 4.'},
-    jobber:{name:'Jobber',label:'Jobber access token',ph:'paste the Jobber OAuth token',hint:'From the shop authorizing Jobber (OAuth). Built to Jobber’s API — the first real Jobber shop fine-tunes field quirks. We store only the last 4.'},
-    workiz:{name:'Workiz',label:'Workiz API token',ph:'paste the Workiz API token',hint:'Workiz → Settings → API. Built to Workiz’s API — the first real Workiz shop fine-tunes field quirks. We store only the last 4.'},
+    housecallpro:{name:'Housecall Pro',label:'Housecall Pro API key',ph:'paste your HCP key',hint:'We never store the key — only the last 4. Leave blank in a demo to use the vaulted key.',
+      steps:['Sign in to Housecall Pro on a computer.','Open Settings (the gear) → API.','Copy your API key — or tap “Create API key” if there isn’t one yet.','Paste it below. (API access is on the Max plan / API add-on.)']},
+    jobber:{name:'Jobber',label:'Jobber access token',ph:'paste your Jobber access token',hint:'Jobber uses a secure token (OAuth). We store only the last 4.',
+      steps:['Jobber connects with a secure token — you never share your password.','From Jobber → Apps / Developer, authorize AssistAnt and copy the access token.','Paste it below.','New to this? Message us and we’ll connect Jobber with you.']},
+    workiz:{name:'Workiz',label:'Workiz API token',ph:'paste your Workiz API token',hint:'We never store the key — only the last 4.',
+      steps:['Sign in to Workiz on a computer.','Open Settings → API (under Integrations).','Copy your API token — generate one if needed.','Paste it below.']},
     // TN's own legacy system — keyless: reads a vaulted token server-side, read-only (the old system is untouched).
-    xano:{name:'TN (Xano)',label:'',ph:'',hint:'',keyless:true}
+    xano:{name:'TN (Xano)',label:'',ph:'',hint:'',keyless:true,
+      steps:['TN’s own legacy system — reads securely, read-only. No key needed.','Your old system stays exactly as-is.']}
   };
+  function renderSteps(){
+    var s=SRC[state.source]||{}, t=el('src-steps');
+    if(!s.steps||!s.steps.length){ t.style.display='none'; return; }
+    t.style.display='';
+    var head = s.keyless ? '<b>'+esc(s.name)+'</b>' : '<b>Where to get your '+esc(s.name)+' key:</b>';
+    t.innerHTML = head + '<ol>' + s.steps.map(function(x){return '<li>'+esc(x)+'</li>';}).join('') + '</ol>';
+  }
   Array.prototype.forEach.call(document.querySelectorAll('.src[data-src]'),function(b){
     b.addEventListener('click',function(){
       Array.prototype.forEach.call(document.querySelectorAll('.src[data-src]'),function(x){x.classList.remove('on');});
@@ -172,18 +210,44 @@
       el('keyhint').style.display=keyless?'none':'';
       if(keyless){ el('key').value=''; }
       else { el('keylabel').textContent=s.label; el('key').placeholder=s.ph; el('keyhint').textContent=s.hint; }
+      renderSteps();
     });
   });
 
-  // gate
-  function gated(){ if(ops()){ el('gate').style.display='none'; show('connect'); } else { el('gate').style.display='block'; ['connect','preview','commit','done'].forEach(function(s){el('step-'+s).style.display='none';}); } }
-  el('unlock').addEventListener('click',function(){ var v=el('ops').value.trim(); if(v){ localStorage.setItem('ant_ops_secret',v); gated(); } });
+  // gate: owner self-serve (signed in → own shop) OR operator key (any shop)
+  function enter(m){
+    mode=m; el('gate').style.display='none';
+    // owner mode imports onto their OWN shop (backend forces it) — hide the "which shop" field.
+    el('company-wrap').style.display = (m==='owner') ? 'none' : '';
+    show('connect'); renderSteps();
+  }
+  function showGate(){ el('gate').style.display='block'; ['connect','preview','commit','done'].forEach(function(s){el('step-'+s).style.display='none';}); }
+  function boot(){
+    if(ops()){ enter('operator'); return; }                 // operator key already stored
+    if(sb){ sb.auth.getSession().then(function(s){ if(s&&s.data&&s.data.session){ enter('owner'); } else { showGate(); } }).catch(showGate); }
+    else { showGate(); }
+  }
+  el('si-btn').addEventListener('click',function(){
+    var b=this; el('si-err').textContent='';
+    if(!sb){ el('si-err').textContent='Sign-in unavailable here — use an operator key.'; return; }
+    var em=el('si-email').value.trim(), pw=el('si-pw').value;
+    if(!em||!pw){ el('si-err').textContent='Enter your email and password.'; return; }
+    b.disabled=true; b.textContent='Signing in…';
+    sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){
+      b.disabled=false; b.textContent='Sign in →';
+      if(r.error){ el('si-err').textContent=r.error.message||'Could not sign in.'; return; }
+      enter('owner');
+    }).catch(function(){ b.disabled=false; b.textContent='Sign in →'; el('si-err').textContent='Network error — try again.'; });
+  });
+  el('ops-toggle').addEventListener('click',function(){ var w=el('ops-wrap'); w.style.display = w.style.display==='none'?'block':'none'; });
+  el('unlock').addEventListener('click',function(){ var v=el('ops').value.trim(); if(v){ localStorage.setItem('ant_ops_secret',v); enter('operator'); } });
 
   // preview
   el('btn-preview').addEventListener('click',function(){
     var b=this; el('err-connect').textContent='';
     state.company=el('company').value.trim(); state.key=el('key').value.trim(); state.demo=el('demo').checked;
-    if(!state.company){ el('err-connect').textContent='Which shop is it landing on?'; return; }
+    // owner mode targets the signed-in shop server-side (backend forces it) — no slug needed.
+    if(mode==='operator' && !state.company){ el('err-connect').textContent='Which shop is it landing on?'; return; }
     b.disabled=true; b.textContent='Reading '+((SRC[state.source]||{}).name||'the source')+'…';
     post({do:'preview',source:state.source,company:state.company,key:state.key,limit_pages:state.demo?2:0}).then(function(d){
       b.disabled=false; b.textContent='Preview my data →';
@@ -236,7 +300,7 @@
   });
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
-  gated();
+  boot();
 })();
 </script>
 </body>
