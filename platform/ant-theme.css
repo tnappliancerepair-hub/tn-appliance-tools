@@ -196,6 +196,8 @@ body.has-tabbar{ padding-bottom:calc(66px + env(safe-area-inset-bottom,0)) !impo
 @media (prefers-reduced-motion: reduce){ .progpill{ animation:none; } }
 /* lift the Ant dock FAB above the tab bar so they don't collide */
 body.has-tabbar .antfab{ bottom:calc(78px + env(safe-area-inset-bottom,0)) !important; }
+/* lift the day/night toggle above the tab bar too — level with the Ant button (opposite corner) */
+body.has-tabbar #antThemeToggle{ bottom:calc(78px + env(safe-area-inset-bottom,0)) !important; }
 body.has-tabbar .antpanel{ bottom:calc(146px + env(safe-area-inset-bottom,0)) !important; }
 
 /* ════ Card headers — an emoji title + a muted hint on the right (the guided, friendly feel) ════ */
