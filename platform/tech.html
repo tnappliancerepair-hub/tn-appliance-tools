@@ -500,7 +500,7 @@
     var tdrDone = tdr ? '<div class="tdrdone">📋 Report: <b>'+esc(tdr.failed_component||'')+'</b>'+(tdr.part_number?' · '+esc(tdr.part_number):'')+' · '+esc(tdr.outcome)+(tdr.held===false?' · came back':'')+'</div>' : '';
     // completed job → a tappable "You earned" chip (filled once pay data loads); tap = confetti.
     var earnSlot = (myTech && j.status==='completed') ? '<div class="earnslot" id="earn_'+j.id+'"></div>' : '';
-    var openUrl = '/platform/tech-job.html?job='+encodeURIComponent(j.id);
+    var openUrl = '/platform/tech-job.html?job='+encodeURIComponent(j.id)+'&v='+Math.floor(Date.now()/3600000);
     var stopNo = stopByJob[j.id];
     var stopBadge = stopNo ? '<span class="stopno" title="Suggested stop order for the day">🧭 '+stopNo+'</span> ' : '';
     return '<div class="card" data-card="'+j.id+'">' +
