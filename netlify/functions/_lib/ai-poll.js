@@ -6,6 +6,11 @@
 // false "not recommended".
 'use strict';
 
+// Keys resolve vault-first (env → Xano app_config), matching how embed-text/whisper read
+// OPENAI_API_KEY — the key may live in the runtime vault, not process.env.
+const { getSecret } = require('./secrets');
+async function keyFor(name) { try { return (await getSecret(name)) || process.env[name] || ''; } catch (_) { return process.env[name] || ''; } }
+
 // Brand match — tolerant of spacing/case ("TN Appliance Exchange", "tnapplianceexchange").
 const BRAND_RE = /tn\s*appliance\s*exchange|tnapplianceexchange|\btn appliance\b/i;
 
@@ -22,7 +27,7 @@ function detectBrand(text) {
 
 // ChatGPT — OpenAI Responses API with the built-in web_search tool.
 async function askOpenAI(question, timeoutMs) {
-  const key = process.env.OPENAI_API_KEY || '';
+  const key = await keyFor('OPENAI_API_KEY');
   if (!key) return { model: 'chatgpt', available: false, error: 'no OPENAI_API_KEY' };
   const ac = new AbortController(); const t = setTimeout(() => ac.abort(), timeoutMs || 45000);
   try {
@@ -49,7 +54,7 @@ async function askOpenAI(question, timeoutMs) {
 
 // Claude — Anthropic Messages API with the built-in web_search tool.
 async function askAnthropic(question, timeoutMs) {
-  const key = process.env.ANTHROPIC_API_KEY || '';
+  const key = await keyFor('ANTHROPIC_API_KEY');
   if (!key) return { model: 'claude', available: false, error: 'no ANTHROPIC_API_KEY' };
   const ac = new AbortController(); const t = setTimeout(() => ac.abort(), timeoutMs || 45000);
   try {

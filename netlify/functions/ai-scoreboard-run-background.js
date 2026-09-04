@@ -35,25 +35,21 @@ function question(label) {
 
 exports.handler = async function () {
   const startedAt = Date.now();
-  const results = [];
 
-  for (const m of MARKETS) {
+  // All markets × both models run concurrently (5 markets was too slow sequentially with
+  // live web search). Each call is independently best-effort — one hang can't stall the rest.
+  const results = await Promise.all(MARKETS.map(async (m) => {
     const q = question(m.label);
-    // Run both models for this market in parallel; each is best-effort.
-    let chatgpt = { model: 'chatgpt', available: false, error: 'skipped' };
-    let claude = { model: 'claude', available: false, error: 'skipped' };
-    try {
-      [chatgpt, claude] = await Promise.all([
-        askOpenAI(q, PER_MODEL_TIMEOUT_MS).catch((e) => ({ model: 'chatgpt', available: false, error: String((e && e.message) || e) })),
-        askAnthropic(q, PER_MODEL_TIMEOUT_MS).catch((e) => ({ model: 'claude', available: false, error: String((e && e.message) || e) })),
-      ]);
-    } catch (_) {}
-    results.push({
+    const [chatgpt, claude] = await Promise.all([
+      askOpenAI(q, PER_MODEL_TIMEOUT_MS).catch((e) => ({ model: 'chatgpt', available: false, error: String((e && e.message) || e) })),
+      askAnthropic(q, PER_MODEL_TIMEOUT_MS).catch((e) => ({ model: 'claude', available: false, error: String((e && e.message) || e) })),
+    ]);
+    return {
       key: m.key, label: m.label, region: m.region,
       chatgpt: { available: !!chatgpt.available, mentioned: !!chatgpt.mentioned, competitors: chatgpt.competitors || [], answer: chatgpt.answer || '', error: chatgpt.error || '' },
       claude: { available: !!claude.available, mentioned: !!claude.mentioned, competitors: claude.competitors || [], answer: claude.answer || '', error: claude.error || '' },
-    });
-  }
+    };
+  }));
 
   // Score: how many markets name us, per model (only counting markets the model could answer).
   const cgAnswered = results.filter((r) => r.chatgpt.available);
