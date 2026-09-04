@@ -1104,3 +1104,13 @@
 # PLATFORM_BILLING_LIVE=true (and Stripe configured). Runs Monday so the prior week is fully closed.
 [functions."platform-usage-bill-cron"]
   schedule = "0 15 * * 1"
+
+# ai-scoreboard-cron — weekly (Mondays ~8 AM CT / 13:00 UTC) refresh of the AI Scoreboard:
+# asks ChatGPT (OpenAI) + Claude (Anthropic) WITH LIVE WEB SEARCH the money question per market
+# ("best appliance repair near {Nashville/Murfreesboro/Clarksville/Baton Rouge/Hammond}") and
+# records whether they recommend us + which competitors surface, so the owner watches the line
+# climb per market/model. Split from the HTTP reader (ai-scoreboard) so the ?run=1 kick stays
+# curlable; the heavy poll runs in ai-scoreboard-run-background. Needs OPENAI_API_KEY +
+# ANTHROPIC_API_KEY (both already vaulted).
+[functions."ai-scoreboard-cron"]
+  schedule = "0 13 * * 1"
