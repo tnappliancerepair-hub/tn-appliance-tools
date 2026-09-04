@@ -11,7 +11,7 @@
 // answer returns available:false and never a false "not recommended".
 'use strict';
 
-const { getSecret, setSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const { askOpenAI, askAnthropic, keyFor } = require('./_lib/ai-poll');
 
 const STATE_KEY = 'AI_SCOREBOARD_STATE';
@@ -48,7 +48,7 @@ async function runPoll() {
   const startedAt = Date.now();
   // Carry any prior trend history through this run.
   let prev = null;
-  try { prev = JSON.parse((await getSecret(STATE_KEY)) || 'null'); } catch (_) {}
+  try { prev = JSON.parse((await getSecretFresh(STATE_KEY)) || 'null'); } catch (_) {}
   const priorHistory = (prev && prev.history) || [];
   // Heartbeat: prove the fn started + whether the keys resolved, before the slow web-search calls.
   let keysOk = { openai: false, anthropic: false };

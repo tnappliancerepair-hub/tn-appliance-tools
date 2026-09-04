@@ -7,7 +7,7 @@
 //   GET ?secret=<VAPI_ADMIN_SECRET>&run=1    -> kick a fresh poll, return generating
 'use strict';
 
-const { getSecret, setSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 
 const STATE_KEY = 'AI_SCOREBOARD_STATE';
 const GEN_LOCK_MS = 6 * 60 * 1000;   // a two-model x five-market web-search run takes a few min
@@ -20,7 +20,7 @@ exports.handler = async function (event) {
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
 
   let state = null;
-  try { state = JSON.parse((await getSecret(STATE_KEY)) || 'null'); } catch (_) {}
+  try { state = JSON.parse((await getSecretFresh(STATE_KEY)) || 'null'); } catch (_) {}
   const now = Date.now();
   const genInFlight = state && state.generating_at && (now - state.generating_at) < GEN_LOCK_MS;
 
