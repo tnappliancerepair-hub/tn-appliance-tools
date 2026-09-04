@@ -601,7 +601,7 @@
         '<button class="chip'+(allOn?' on':'')+'" data-dall>All open</button>'+
       '</div>'+
       '<div class="csearch"><input id="csearch" placeholder="🔎 Look up a customer…" autocomplete="off"><div class="cresults" id="cresults"></div></div>'+
-      '<div class="mapwrap"><button class="maptoggle" id="mapToggle">🗺️ '+(mapOpen?'Hide map ▾':'Map of my stops — bird’s-eye ▸')+'</button>'+
+      '<div class="mapwrap"><button class="maptoggle" id="mapToggle">🗺️ '+(mapOpen?'Hide map ▾':(allOn?'Map — all open jobs ▸':'Map — '+esc(fmtDayLabel(cur))+' ▸'))+'</button>'+
         '<div id="techmap" class="'+(mapOpen?'open':'')+'"></div><div class="mapnote"'+(mapOpen?'':' style="display:none"')+'></div></div>'+
       '</div>';
   }
@@ -613,7 +613,7 @@
     var mt=document.getElementById('mapToggle'); if(mt) mt.onclick=function(){
       mapOpen=!mapOpen; var mp=document.getElementById('techmap'), nn=document.querySelector('.mapnote');
       if(mp) mp.classList.toggle('open',mapOpen); if(nn) nn.style.display=mapOpen?'':'none';
-      mt.textContent='🗺️ '+(mapOpen?'Hide map ▾':'Map of my stops — bird’s-eye ▸');
+      mt.textContent='🗺️ '+(mapOpen?'Hide map ▾':(viewDay?'Map — '+esc(fmtDayLabel(viewDay))+' ▸':'Map — all open jobs ▸'));
       if(mapOpen) mountTechMap(jobsCache.slice());
     };
     if(mapOpen) mountTechMap(jobsCache.slice());
@@ -683,7 +683,8 @@
         if(i>=list.length){
           if(bounds.length>=2){ try{ map.fitBounds(bounds,{padding:[30,30],maxZoom:12}); }catch(e){} }
           else if(bounds.length===1){ try{ map.setView(bounds[0],11); }catch(e){} }
-          var n=document.querySelector('.mapnote'); if(n) n.textContent = placed? (placed+' stop'+(placed===1?'':'s')+' mapped'+(placed<list.length?' · a few addresses couldn’t be pinned':'')) : 'No addresses to map on this day yet.';
+          var scope = viewDay ? (' on '+fmtDayLabel(viewDay)) : ' (all open jobs, every day)';
+          var n=document.querySelector('.mapnote'); if(n) n.textContent = placed? (placed+' stop'+(placed===1?'':'s')+' mapped'+scope+(placed<list.length?' · a few addresses couldn’t be pinned':'')) : ('No addresses to map'+(viewDay?(' on '+fmtDayLabel(viewDay)):'')+' yet.');
           return;
         }
         var j=list[i]; var idx=i; i++;
@@ -1045,6 +1046,7 @@
         if (!me) { shell('<div class="note">Your login isn\'t attached to a shop yet. Ask the office to add you.</div>'); return; }
         sb.from('technician').select('id,name,commission_type,commission_pct,commission_flat_cents').eq('app_user_id', me.id).limit(1).then(function(t){
           myTech = (t.data && t.data[0]) || null;
+          if (myTech) viewDay = todayIso();   // a real tech opens to TODAY's stops (not the whole open backlog); "All open" is one tap away
           shell('<div class="empty">Loading your day…</div>');
           mountAntDock();
           sb.from('company').select('settings,trade').limit(1).then(function(c){ var co=(c.data&&c.data[0])||{}; companySettings = co.settings || {}; companyTrade = co.trade || ''; loadJobs(); });
