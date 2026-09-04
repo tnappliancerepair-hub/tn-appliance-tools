@@ -77,4 +77,4 @@ async function askAnthropic(question, timeoutMs) {
   } catch (e) { clearTimeout(t); return { model: 'claude', available: false, error: String((e && e.message) || e).slice(0, 140) }; }
 }
 
-module.exports = { askOpenAI, askAnthropic, detectBrand, BRAND_RE, COMPETITORS };
+module.exports = { askOpenAI, askAnthropic, detectBrand, keyFor, BRAND_RE, COMPETITORS };

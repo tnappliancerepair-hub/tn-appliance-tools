@@ -12,7 +12,7 @@
 'use strict';
 
 const { getSecret, setSecret } = require('./_lib/secrets');
-const { askOpenAI, askAnthropic } = require('./_lib/ai-poll');
+const { askOpenAI, askAnthropic, keyFor } = require('./_lib/ai-poll');
 
 const STATE_KEY = 'AI_SCOREBOARD_STATE';
 const MAX_HISTORY = 12;              // keep ~12 runs of trend
@@ -34,7 +34,26 @@ function question(label) {
 }
 
 exports.handler = async function () {
+  try {
+    return await runPoll();
+  } catch (e) {
+    // Never leave the reader stuck at generating with no explanation — persist the error.
+    const err = String((e && e.stack) || (e && e.message) || e).slice(0, 400);
+    try { await setSecret(STATE_KEY, JSON.stringify({ latest: null, history: [], generating_at: 0, error: err, error_at: Date.now() })); } catch (_) {}
+    return { statusCode: 200, body: JSON.stringify({ ok: false, error: err }) };
+  }
+};
+
+async function runPoll() {
   const startedAt = Date.now();
+  // Carry any prior trend history through this run.
+  let prev = null;
+  try { prev = JSON.parse((await getSecret(STATE_KEY)) || 'null'); } catch (_) {}
+  const priorHistory = (prev && prev.history) || [];
+  // Heartbeat: prove the fn started + whether the keys resolved, before the slow web-search calls.
+  let keysOk = { openai: false, anthropic: false };
+  try { keysOk = { openai: !!(await keyFor('OPENAI_API_KEY')), anthropic: !!(await keyFor('ANTHROPIC_API_KEY')) }; } catch (_) {}
+  try { await setSecret(STATE_KEY, JSON.stringify({ latest: (prev && prev.latest) || null, history: priorHistory, generating_at: startedAt, heartbeat_at: startedAt, keys: keysOk })); } catch (_) {}
 
   // All markets × both models run concurrently (5 markets was too slow sequentially with
   // live web search). Each call is independently best-effort — one hang can't stall the rest.
@@ -71,12 +90,10 @@ exports.handler = async function () {
   };
 
   // Persist: latest full detail + a compact trend history (drop the bulky answers from history).
-  let prev = null;
-  try { prev = JSON.parse((await getSecret(STATE_KEY)) || 'null'); } catch (_) {}
   const historyPoint = { ran_at: latest.ran_at, score_named: latest.score_named, score_of: latest.score_of, pct: latest.pct, chatgpt_named: cgNamed, claude_named: clNamed };
-  const history = ([].concat((prev && prev.history) || [], [historyPoint])).slice(-MAX_HISTORY);
+  const history = ([].concat(priorHistory, [historyPoint])).slice(-MAX_HISTORY);
 
-  try { await setSecret(STATE_KEY, JSON.stringify({ latest, history, generating_at: 0 })); } catch (_) {}
+  await setSecret(STATE_KEY, JSON.stringify({ latest, history, generating_at: 0, keys: keysOk }));
 
   return { statusCode: 200, body: JSON.stringify({ ok: true, pct: latest.pct, named: latest.score_named, of: latest.score_of }) };
-};
+}

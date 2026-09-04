@@ -32,5 +32,12 @@ exports.handler = async function (event) {
     return json(200, { ok: true, generating: true, latest: (state && state.latest) || null, history: (state && state.history) || [] });
   }
 
-  return json(200, { ok: true, generating: !!genInFlight, latest: (state && state.latest) || null, history: (state && state.history) || [] });
+  return json(200, {
+    ok: true, generating: !!genInFlight,
+    latest: (state && state.latest) || null,
+    history: (state && state.history) || [],
+    keys: (state && state.keys) || null,
+    heartbeat_at: (state && state.heartbeat_at) || 0,
+    error: (state && state.error) || '',
+  });
 };
