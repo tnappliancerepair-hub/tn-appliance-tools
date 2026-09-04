@@ -93,7 +93,19 @@ exports.handler = async function (event) {
       if (!co) return json(200, { ok: false, error: 'company not found' });
       let acct = co.stripe_connect_id;
       if (!acct) {
-        const a = await stripe.accounts.create({ type: 'express', email: co.billing_email || owner.email || undefined, business_profile: { name: co.name || undefined }, metadata: { company_id: co.id } });
+        // Risk buffer: put a payout DELAY on a brand-new connected account so a chargeback has time
+        // to land while funds are still in the shop's Stripe balance (absorbed there, before it can
+        // ever become a negative-balance/platform-backstop situation). Default 7 days; tune via vault
+        // PLATFORM_NEW_SHOP_PAYOUT_DELAY_DAYS (2–30). Relax per shop later once it's proven.
+        let delayDays = 7;
+        try { const dv = parseInt(String((await getSecret('PLATFORM_NEW_SHOP_PAYOUT_DELAY_DAYS')) || ''), 10); if (Number.isFinite(dv) && dv >= 2 && dv <= 30) delayDays = dv; } catch (_) {}
+        const a = await stripe.accounts.create({
+          type: 'express',
+          email: co.billing_email || owner.email || undefined,
+          business_profile: { name: co.name || undefined },
+          settings: { payouts: { schedule: { interval: 'daily', delay_days: delayDays } } },
+          metadata: { company_id: co.id },
+        });
         acct = a.id;
         await d.patch(`company?id=eq.${co.id}`, { stripe_connect_id: acct });
       }

@@ -104,12 +104,15 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
   if (!pd.ok || !pd.company) { console.error('[platform-stripe-webhook] provision failed', pd && pd.error); return null; }
   const companyId = pd.company.id;
-  // Shop ticked Ann at signup → flag it so onboarding leads with "turn on your AI receptionist".
-  if (String(meta.want_ann) === '1') {
+  // Stamp the accepted Merchant Agreement (durable acceptance audit) + the Ann request flag onto
+  // settings. Always record terms when the signup carried a version; add the Ann flag if ticked.
+  if (meta.terms_version || String(meta.want_ann) === '1') {
     try {
       const rows = await pf.get(`company?id=eq.${encodeURIComponent(companyId)}&select=settings`);
       const s = (rows && rows[0] && rows[0].settings) || {};
-      const next = Object.assign({}, s, { ai: Object.assign({}, s.ai, { phone_requested: true }) });
+      let next = Object.assign({}, s);
+      if (meta.terms_version) next.terms = { accepted: true, version: String(meta.terms_version), at: String(meta.terms_at || '') || new Date().toISOString(), via: 'signup' };
+      if (String(meta.want_ann) === '1') next.ai = Object.assign({}, s.ai, { phone_requested: true });
       await pf.patch('company', `id=eq.${encodeURIComponent(companyId)}`, { settings: next });
     } catch (_) {}
   }
@@ -144,7 +147,7 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
     console.log('[platform-stripe-webhook] provisioned', JSON.stringify({ slug, owner_email: email, emailed, email_mode: emailMode, login_link: link || null }));
     await pf.insert('event', {
       company_id: companyId, type: 'platform_signup_provisioned', entity: slug,
-      payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode },
+      payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode, terms_version: meta.terms_version || null, terms_at: meta.terms_at || null },
     });
   } catch (_) {}
   return companyId;

@@ -44,7 +44,8 @@ async function provisionComp(pf, o) {
   try {
     const rows = await pf.get(`company?id=eq.${encodeURIComponent(companyId)}&select=settings`);
     const s = (rows && rows[0] && rows[0].settings) || {};
-    const next = Object.assign({}, s, { comp: true }, o.want_ann ? { ai: Object.assign({}, s.ai, { phone_requested: true }) } : {});
+    const termsRec = o.terms_version ? { terms: { accepted: true, version: o.terms_version, at: o.terms_at || new Date().toISOString(), via: 'comp' } } : {};
+    const next = Object.assign({}, s, { comp: true }, termsRec, o.want_ann ? { ai: Object.assign({}, s.ai, { phone_requested: true }) } : {});
     await pf.patch('company', `id=eq.${encodeURIComponent(companyId)}`, { settings: next, status: 'active' });
   } catch (_) {}
   // One-tap login link → land straight in the owner's dashboard (setup home).
@@ -88,8 +89,17 @@ exports.handler = async function (event) {
   const planKey = String(b.plan || '').trim().toLowerCase();
   const addons = [].concat(b.addons || []).map(function (s) { return String(s).toLowerCase().trim(); }).filter(Boolean);
 
+  // Merchant Agreement acceptance — recorded on the shop for a durable audit (who accepted what
+  // version, when). Required for every real signup (comp + card); an admin test-bypass may skip.
+  const termsAccepted = b.terms_accepted === true || b.terms_accepted === 1 || b.terms_accepted === '1';
+  const termsVersion = String(b.terms_version || '').slice(0, 40);
+  const termsAt = new Date().toISOString();
+
   if (!name) return J(400, { ok: false, error: 'shop name required' });
   if (!EMAIL_RE.test(email)) return J(400, { ok: false, error: 'a valid email is required' });
+  if (!termsAccepted && !adminBypass) {
+    return J(400, { ok: false, error: 'terms_required', message: 'Please accept the Merchant Agreement to continue.' });
+  }
   if (!plans.PLANS.some(function (p) { return p.key === planKey; })) {
     return J(400, { ok: false, error: 'pick a plan', plans: plans.PLANS.map(function (p) { return p.key; }) });
   }
@@ -109,13 +119,13 @@ exports.handler = async function (event) {
   // COMP (no card): provision straight to a live tenant, skip Stripe entirely.
   if (wantComp) {
     if (!compAuthed) return J(200, { ok: false, error: 'comp_not_authorized', message: "This free-setup link isn't valid — check the link and try again." });
-    return await provisionComp(pf, { name, slug, trade, plan: planKey, email, owner_name: b.owner_name || '', phone: b.phone || '', area: b.area || '', want_ann: !!b.want_ann, admin });
+    return await provisionComp(pf, { name, slug, trade, plan: planKey, email, owner_name: b.owner_name || '', phone: b.phone || '', area: b.area || '', want_ann: !!b.want_ann, admin, terms_version: termsVersion, terms_at: termsAt });
   }
 
   // Card-required Checkout. Tenant is provisioned by the webhook after the card clears.
   let out;
   try {
-    out = await billing.signupCheckout({ name, slug, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '', want_ann: !!b.want_ann, ref: String(b.ref || '').slice(0, 60) });
+    out = await billing.signupCheckout({ name, slug, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '', want_ann: !!b.want_ann, ref: String(b.ref || '').slice(0, 60), terms_version: termsVersion, terms_accepted_at: termsAt });
   } catch (e) {
     return J(200, { ok: false, error: 'checkout_failed', detail: String((e && e.message) || e).slice(0, 160) });
   }

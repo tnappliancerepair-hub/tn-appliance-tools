@@ -113,6 +113,10 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
 
     <div class="total"><span>Your monthly total</span><span class="v" id="total">$0</span></div>
     <div class="annline" id="annline" style="display:none"><span>+ <b>$50/week</b> for Ann · 400 min + 100 texts, then $0.40/min · $0.05/text</span><span>starts when your number goes live</span></div>
+    <label class="agree" for="agree" style="display:flex;gap:9px;align-items:flex-start;margin:16px 0 4px;font-size:13px;line-height:1.45;color:#444;cursor:pointer">
+      <input type="checkbox" id="agree" style="margin-top:2px;flex:0 0 auto;width:18px;height:18px">
+      <span>I've read and agree to the <a href="/platform/merchant-agreement.html" target="_blank" rel="noopener">Merchant Agreement</a> — including that my shop is the merchant of record and is responsible for its own card disputes, refunds, and taxes.</span>
+    </label>
     <button class="go" id="go" disabled>Start my 14-day trial →</button>
     <div class="msg" id="msg"></div>
     <div class="note">You'll enter your card on the next screen. No charge for 14 days — cancel anytime before then and you won't be billed. After the trial it's your monthly total above<span id="annnote"></span>.</div>
@@ -137,6 +141,7 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
     }
   } catch (_) {}
   var P = window.PlatformPlans;
+  var TERMS_VERSION = 'v1-2026-09-04';   // matches merchant-agreement.html — bump both together
   var sel = { plan:null, addons:{}, ann:false };
   // Comp / no-card setup: signup.html?comp=<token> provisions the shop with no Stripe. The token
   // was captured + stripped from the URL up in <head> (before the Pixel) so it never leaks — read
@@ -183,7 +188,8 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
     validate();
   }
   function validate(){
-    var ok = document.getElementById('name').value.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(document.getElementById('email').value.trim()) && sel.plan;
+    var agreed = document.getElementById('agree') && document.getElementById('agree').checked;
+    var ok = document.getElementById('name').value.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(document.getElementById('email').value.trim()) && sel.plan && agreed;
     document.getElementById('go').disabled = !ok;
   }
 
@@ -217,6 +223,7 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
   document.getElementById('annopt').addEventListener('change', function(e){ if(e.target.id==='annchk'){ sel.ann=e.target.checked; recompute(); } });
   document.getElementById('addons').addEventListener('change', function(e){ if(e.target.getAttribute && e.target.value){ sel.addons[e.target.value]=e.target.checked; recompute(); } });
   ['name','email'].forEach(function(id){ document.getElementById(id).addEventListener('input', validate); });
+  document.getElementById('agree').addEventListener('change', validate);
 
   document.getElementById('go').addEventListener('click', function(){
     var btn=this, msg=document.getElementById('msg'); msg.className='msg';
@@ -234,6 +241,8 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
         addons: Object.keys(sel.addons).filter(function(k){return sel.addons[k];}),
         want_ann: sel.ann,
         comp: !!COMP, comp_token: COMP,   // no-card founder/comp setup (dedicated PLATFORM_COMP_TOKEN)
+        terms_accepted: !!(document.getElementById('agree') && document.getElementById('agree').checked),
+        terms_version: TERMS_VERSION,     // recorded on the shop for a durable acceptance audit
         ref: (new URLSearchParams(location.search).get('ref')||'').slice(0,60)  // reseller referral code (?ref=TK)
       })
     }).then(function(r){return r.json();}).then(function(d){
