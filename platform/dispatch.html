@@ -210,6 +210,10 @@
   var cfg=window.ANT_SUPABASE||{}; var sb=null, company=null, techs=[], jobs=[], timeOff=[];
   var offSet={};                                   // "techId|YYYY-MM-DD" -> true (day-off / PTO)
   var offers=[];                                   // pending schedule_offer rows (holds + customer requests)
+  var covRows=[];                                  // coverage rows {zip,tech_id,rank} — the ranked per-area chain
+  var coverageOnLoad=/[?&]coverage=1/.test(location.search||'');   // office-board "🗺️ Coverage" deep-link auto-opens the editor
+  // The appliance types a tech can be marked for. Blank service_types = does everything.
+  var SERVICE_TYPES=[['washer','Washer'],['dryer','Dryer'],['stove','Stove'],['dishwasher','Dishwasher'],['microwave','Microwave'],['fridge','Fridge'],['sealed','Sealed systems']];
   function offOn(techId,d){ return !!offSet[techId+'|'+d]; }
   function jobById(id){ return jobs.filter(function(x){ return String(x.id)===String(id); })[0]||null; }
   function jobOffers(jobId){ return offers.filter(function(o){ return String(o.job_id)===String(jobId); }); }
@@ -218,16 +222,52 @@
   function holdsOn(techId,d){ var n=0; offers.forEach(function(o){ if(o.direction==='shop'&&String(o.technician_id)===String(techId)&&o.proposed_day===d) n++; }); return n; }
   function winLbl(w){ return w==='am'?'mornings':w==='pm'?'afternoons':'anytime'; }
   // Best tech for a REQUESTED day: a covering tech with the most open room (real stops + holds), not off.
-  function bestTechForDay(job,d){ var zip=jobZip(job); var cands=techs.filter(function(t){ return coversZip(t,zip); }); if(!cands.length) cands=techs;
-    var best=null; cands.forEach(function(t){ if(offOn(t.id,d)) return; var used=bookedOn(t.id,d)+holdsOn(t.id,d); if(used>=capOf(t)) return; var s=(coversZip(t,zip)?1000:0)+(capOf(t)-used); if(!best||s>best.s) best={t:t,s:s}; }); return best?best.t:null; }
+  function bestTechForDay(job,d){ var zip=jobZip(job); var jt=jobServiceType(job);
+    var covers0=techs.filter(function(t){ return coversZip(t,zip); });
+    var qualified=covers0.filter(function(t){ return techDoesType(t,jt); });
+    var cands = qualified.length ? qualified : (covers0.length ? covers0 : techs);
+    var best=null; cands.forEach(function(t){ if(offOn(t.id,d)) return; var used=bookedOn(t.id,d)+holdsOn(t.id,d); if(used>=capOf(t)) return; var rk=areaRank(t.id,zip); var s=(coversZip(t,zip)?1000:0)+(rk?(6-rk)*150:0)+(capOf(t)-used); if(!best||s>best.s) best={t:t,s:s}; }); return best?best.t:null; }
   function nowIso(){ return new Date().toISOString(); }
   // Withdraw every OTHER pending offer on a job (one live proposal at a time), then run cb.
   function withdrawOtherOffers(jobId,keepId,cb){ sb.from('schedule_offer').update({status:'withdrawn',decided_at:nowIso()}).eq('job_id',jobId).eq('status','pending').neq('id',keepId||'00000000-0000-0000-0000-000000000000').then(function(){ if(cb)cb(); }); }
   // Service zones — a tech's service_area is a comma list of ZIPs / 3-digit prefixes. A tech with
   // no area covers everywhere. A job's ZIP matches when it equals, or starts with, a listed entry.
   function areaList(t){ return String((t&&t.service_area)||'').split(',').map(function(s){return s.trim();}).filter(Boolean); }
-  function coversZip(t, zip){ var a=areaList(t); if(!a.length) return true; zip=String(zip||'').trim(); if(!zip) return true; return a.some(function(p){ return zip===p || zip.indexOf(p)===0; }); }
   function jobZip(j){ return (j&&j.customer&&j.customer.zip)||''; }
+  // Ranked per-area coverage (coverage table). covChain(zip) = ordered tech_ids (1st→5th) for the
+  // MOST SPECIFIC area entry matching this ZIP (a full-ZIP entry beats a prefix; longest prefix wins).
+  function covChain(zip){
+    zip=String(zip||'').trim(); if(!zip) return [];
+    var byZip={}; covRows.forEach(function(r){ var z=String(r.zip||'').trim(); if(!z) return; if(zip===z||zip.indexOf(z)===0){ (byZip[z]=byZip[z]||[]).push(r); } });
+    var keys=Object.keys(byZip); if(!keys.length) return [];
+    keys.sort(function(a,b){ return b.length-a.length; });   // most specific (longest) key wins
+    return byZip[keys[0]].slice().sort(function(a,b){ return (a.rank||99)-(b.rank||99); }).map(function(r){ return r.tech_id; });
+  }
+  function hasChainFor(zip){ return covChain(zip).length>0; }
+  function areaRank(techId, zip){ var c=covChain(zip); for(var i=0;i<c.length;i++){ if(String(c[i])===String(techId)) return i+1; } return null; }   // 1..5, or null
+  // A tech covers a ZIP if they're in that ZIP's ranked chain; if NO chain is set for the ZIP, fall
+  // back to the legacy service_area (blank = covers everywhere) so un-ranked areas keep today's behavior.
+  function coversZip(t, zip){
+    zip=String(zip||'').trim(); if(!zip) return true;
+    if(hasChainFor(zip)) return areaRank(t&&t.id, zip)!=null;
+    var a=areaList(t); if(!a.length) return true;
+    return a.some(function(p){ return zip===p || zip.indexOf(p)===0; });
+  }
+  // What a tech services (blank = does everything). jobServiceType derives the appliance from the
+  // unit label / problem text; null when it can't tell (then the type filter is skipped).
+  function techTypes(t){ return String((t&&t.service_types)||'').toLowerCase().split(',').map(function(s){return s.trim();}).filter(Boolean); }
+  function techDoesType(t, type){ if(!type) return true; var l=techTypes(t); if(!l.length) return true; return l.indexOf(type)>=0; }
+  function jobServiceType(j){
+    var s=(((j&&j.unit&&j.unit.label)||'')+' '+((j&&j.problem)||'')).toLowerCase();
+    if(/seal|refriger.*seal|compressor|freon|refrigerant|coolant/.test(s)) return 'sealed';
+    if(/dishwash/.test(s)) return 'dishwasher';
+    if(/microwave/.test(s)) return 'microwave';
+    if(/wash|laundr/.test(s)) return 'washer';
+    if(/dry(er)?\b|dryer/.test(s)) return 'dryer';
+    if(/fridge|refriger|freezer|ice ?maker|cool/.test(s)) return 'fridge';
+    if(/stove|range|oven|cooktop|burner/.test(s)) return 'stove';
+    return null;
+  }
   // What the customer typed for availability at intake — the dispatcher's #1 signal. Shown ABOVE
   // the name on every unscheduled card + in the assign panel. Trimmed/capped; blank when none given.
   function availText(j){ var a=String((j&&j.availability)||'').replace(/\s+/g,' ').trim(); return a; }
@@ -255,10 +295,14 @@
   // client-side over already-loaded data — no new query.
   function suggestSlot(job){
     var zip=jobZip(job);
-    // candidates = anyone who SERVES this ZIP (an explicit area match OR a tech with no area set,
-    // who covers everywhere). If a shop's areas all exclude this ZIP, fall back to the whole crew.
-    var cands=techs.filter(function(t){ return coversZip(t, zip); });
-    if(!cands.length) cands=techs;
+    var jt=jobServiceType(job);
+    // candidates = techs who SERVE this ZIP (ranked chain, or legacy area, or covers-everywhere).
+    var covers0=techs.filter(function(t){ return coversZip(t, zip); });
+    // HARD service-type filter among them; degrade to covers-only (then whole crew) so a job never
+    // dead-ends, but a qualified tech always wins when one exists.
+    var qualified=covers0.filter(function(t){ return techDoesType(t, jt); });
+    var typeFellBack=!!(jt && covers0.length && !qualified.length);
+    var cands = qualified.length ? qualified : (covers0.length ? covers0 : techs);
     if(!cands.length) return null;
     var start=new Date(), HORIZON=10, best=null, jz=zip5(zip);
     for(var i=0;i<HORIZON;i++){
@@ -275,18 +319,22 @@
           jobs.forEach(function(j){ if(j.technician_id===t.id&&j.scheduled_day===d&&j.status!=='completed'&&j.status!=='canceled'){ var z=zip5(jobZip(j)); if(z!=null){ var diff=Math.abs(z-jz); if(diff<md) md=diff; } } });
           if(md<Infinity){ routeBonus=Math.max(0,120-md); near=md; }
         }
-        var score=(covers?2000:0)+(HORIZON-i)*8+routeBonus-(weekend?25:0);
-        if(!best||score>best.score) best={ tech:t, day:d, score:score, covers:covers, booked:booked, cap:cap, near:near, i:i };
+        var rank=areaRank(t.id,zip);
+        var score=(covers?2000:0)+(rank?(6-rank)*300:0)+(HORIZON-i)*8+routeBonus-(weekend?25:0);
+        if(!best||score>best.score) best={ tech:t, day:d, score:score, covers:covers, rank:rank, typeFellBack:typeFellBack, jt:jt, booked:booked, cap:cap, near:near, i:i };
       }
     }
     return best;
   }
   function suggestReason(b, zip){
     var bits=[];
-    if(b.covers && zip) bits.push('covers '+zip);
+    var ord=['','1st-choice','2nd-choice','3rd-choice','4th-choice','5th-choice'];
+    if(b.rank && zip) bits.push((ord[b.rank]||(b.rank+'th-choice'))+' for '+zip);
+    else if(b.covers && zip) bits.push('covers '+zip);
     if(b.near!=null && b.near<=60) bits.push('already routed nearby');
     else bits.push(b.i<=1?'soonest opening':'open day');
     var open=b.cap-b.booked; bits.push(open+' slot'+(open===1?'':'s')+' left');
+    if(b.typeFellBack && b.jt) bits.push('⚠ no tech marked for '+b.jt);
     return bits.join(' · ');
   }
   function coveringTechs(zip){ return techs.filter(function(t){ return areaList(t).length && coversZip(t,zip); }); }
@@ -527,7 +575,7 @@
         '<div class="rq-acts"><button class="ok" data-approve="'+o.id+'">✓ Approve</button><button data-counter="'+o.id+'">Counter</button><button class="no" data-deny="'+o.id+'">Deny</button></div></div>'; }).join('')+'</div>' : '';
 
     app.innerHTML=
-      '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a><a href="/platform/office-board.html">Board</a><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
+      '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a><a href="/platform/office-board.html">Board</a><button id="coverage">🗺️ Coverage</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
         reqSection+
         '<div class="weeknav">'+navHtml+'</div>'+
@@ -540,6 +588,8 @@
 
     document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick=load;
+    var covBtn=document.getElementById('coverage'); if(covBtn) covBtn.onclick=openCoverage;
+    if(coverageOnLoad){ coverageOnLoad=false; openCoverage(); }   // deep-link from office-board
     Array.prototype.forEach.call(document.querySelectorAll('.viewtoggle button[data-view]'),function(el){ el.onclick=function(){ view=el.getAttribute('data-view'); if(view==='month') monthAnchor=firstOfMonth(new Date(selDay+'T12:00:00')); render(); }; });
     if(view==='week'){
       document.getElementById('wprev').onclick=function(){ sel=addDays(sel,-7); render(); };
@@ -580,9 +630,13 @@
     var ov=document.createElement('div'); ov.className='ov';
     var zip=jobZip(job);
     // Covering techs first, each labelled by whether they serve this job's ZIP.
-    var ordered=techs.slice().sort(function(a,b){ var ca=coversZip(a,zip)&&areaList(a).length, cb=coversZip(b,zip)&&areaList(b).length; return (cb?1:0)-(ca?1:0); });
+    var jType=jobServiceType(job);
+    function assignScore(t){ return (coversZip(t,zip)?2:0)+(techDoesType(t,jType)?1:0); }   // covers+does-type first
+    var ordered=techs.slice().sort(function(a,b){ return assignScore(b)-assignScore(a); });
     var techOpts='<option value="">— unassigned —</option>'+ordered.map(function(t){
-      var lab=esc(t.name||'Tech'); if(zip && areaList(t).length){ lab += coversZip(t,zip)?' ⭐ covers':' · out of area'; }
+      var lab=esc(t.name||'Tech'); var rk=areaRank(t.id,zip);
+      if(zip && (hasChainFor(zip)||areaList(t).length)){ lab += coversZip(t,zip)?(rk?(' ⭐ #'+rk):' ⭐ covers'):' · out of area'; }
+      if(jType && !techDoesType(t,jType)) lab += ' · not '+jType;
       return '<option value="'+t.id+'"'+(t.id===job.technician_id?' selected':'')+'>'+lab+'</option>'; }).join('');
     var covNote = zip ? '<div class="msub" style="margin:-2px 0 4px">📍 '+esc(zip)+(job.customer&&job.customer.city?' · '+esc(job.customer.city):'')+'</div>' : '';
     var av=availText(job);
@@ -611,7 +665,8 @@
     document.getElementById('a-save').onclick=function(){
       var tech=document.getElementById('a-tech').value||null; var day=document.getElementById('a-day').value||null;
       if(tech && day && offOn(tech,day) && !window.confirm('That tech is marked OFF on '+day+'. Book them anyway?')) return;
-      if(tech && zip){ var tt=techs.filter(function(x){return x.id===tech;})[0]; if(tt && areaList(tt).length && !coversZip(tt,zip) && !window.confirm((tt.name||'That tech')+' doesn’t cover '+zip+'. Assign anyway?')) return; }
+      if(tech && zip){ var tt=techs.filter(function(x){return x.id===tech;})[0]; if(tt && (hasChainFor(zip)||areaList(tt).length) && !coversZip(tt,zip) && !window.confirm((tt.name||'That tech')+' doesn’t cover '+zip+'. Assign anyway?')) return; }
+      if(tech && jType){ var t3=techs.filter(function(x){return x.id===tech;})[0]; if(t3 && !techDoesType(t3,jType) && !window.confirm((t3.name||'That tech')+' isn’t marked for '+jType+'. Assign anyway?')) return; }
       var btn=this; btn.disabled=true; btn.textContent='Saving…';
       var patch={ technician_id:tech, scheduled_day:day };
       if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
@@ -642,6 +697,97 @@
     });
   }
 
+  // 🗺️ Coverage editor — the office/CSR sets, per area, the 1st→5th backup tech (the scheduler picks
+  // the top-ranked one who's open; the rest are automatic vacation fallbacks) + what each tech services.
+  function openCoverage(){
+    if(!document.getElementById('covcss')){
+      var st=document.createElement('style'); st.id='covcss';
+      st.textContent='.sheet.cov{max-width:640px}.covhelp{font-size:12px;color:var(--muted);margin:2px 0 10px;line-height:1.4}'+
+        '.covrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap}'+
+        '.covzip{font-weight:800;min-width:64px}.covsels{display:flex;gap:6px;flex-wrap:wrap;flex:1}'+
+        '.covsel{display:flex;align-items:center;gap:3px}.covrk{font-size:11px;color:var(--muted);font-weight:700}'+
+        '.cov-t{max-width:120px;padding:5px}.covacts{display:flex;gap:4px}.cov-del{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 8px;cursor:pointer}'+
+        '.covadd{display:flex;gap:6px;margin-top:10px}.covadd input{flex:1;padding:9px}'+
+        '.skrow{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line);flex-wrap:wrap}'+
+        '.sknm{font-weight:700;min-width:96px}.skboxes{display:flex;gap:8px;flex-wrap:wrap;flex:1}'+
+        '.skbx{font-size:12px;display:flex;align-items:center;gap:3px}.covmsg{margin-top:10px;font-size:13px;color:var(--pop,#8b5cf6);min-height:16px}'+
+        '.covempty{color:var(--muted);padding:8px 0}';
+      document.head.appendChild(st);
+    }
+    var ov=document.createElement('div'); ov.className='ov';
+    function techOptions(sel){ return '<option value="">—</option>'+techs.map(function(t){ return '<option value="'+t.id+'"'+(String(t.id)===String(sel)?' selected':'')+'>'+esc(t.name||'Tech')+'</option>'; }).join(''); }
+    function areaRowHtml(zip, chain){
+      var sels=''; for(var r=0;r<5;r++){ sels+='<div class="covsel"><span class="covrk">'+(r+1)+'</span><select class="cov-t" data-rank="'+(r+1)+'">'+techOptions(chain[r]||'')+'</select></div>'; }
+      return '<div class="covrow" data-zip="'+esc(zip)+'"><div class="covzip">'+esc(zip)+'</div><div class="covsels">'+sels+'</div><div class="covacts"><button class="cov-save primary">Save</button><button class="cov-del" title="Remove area">✕</button></div></div>';
+    }
+    var byZip={}; covRows.forEach(function(r){ (byZip[r.zip]=byZip[r.zip]||[]).push(r); });
+    var zips=Object.keys(byZip).sort();
+    var chains={}; zips.forEach(function(z){ chains[z]=byZip[z].slice().sort(function(a,b){return (a.rank||99)-(b.rank||99);}).map(function(r){return r.tech_id;}); });
+    var skillRows=techs.map(function(t){ var have=techTypes(t); return '<div class="skrow" data-tech="'+t.id+'"><div class="sknm">'+esc(t.name||'Tech')+'</div><div class="skboxes">'+SERVICE_TYPES.map(function(p){ return '<label class="skbx"><input type="checkbox" value="'+p[0]+'"'+(have.indexOf(p[0])>=0?' checked':'')+'>'+esc(p[1])+'</label>'; }).join('')+'</div><button class="sk-save primary">Save</button></div>'; }).join('');
+    ov.innerHTML='<div class="sheet cov"><h3>🗺️ Coverage &amp; skills</h3>'+
+      '<div class="covhelp">For each area (ZIP or 3-digit prefix) set the 1st→5th tech. The scheduler suggests the top-ranked tech who’s open — the rest are automatic backups when someone’s off. An area with no chain falls back to the tech’s service area.</div>'+
+      '<div class="covareas">'+(zips.length?zips.map(function(z){return areaRowHtml(z,chains[z]);}).join(''):'<div class="covempty">No areas yet — add one below.</div>')+'</div>'+
+      '<div class="covadd"><input id="cov-newzip" placeholder="ZIP or prefix (e.g. 37013 or 370)"><button id="cov-add" class="primary">＋ Add area</button></div>'+
+      '<div class="sec-h" style="margin-top:16px">🔧 What each tech services</div>'+
+      '<div class="covhelp">Leave all unchecked = does everything. The scheduler won’t suggest a tech for an appliance they’re not marked for. (Owner/office can change this.)</div>'+
+      '<div class="skills">'+skillRows+'</div>'+
+      '<div class="covmsg" id="cov-msg"></div>'+
+      '<div class="srow"><button id="cov-close">Close</button></div></div>';
+    document.body.appendChild(ov);
+    var close=function(){ try{document.body.removeChild(ov);}catch(e){} }; ov.onclick=function(e){ if(e.target===ov) close(); };
+    var msgEl=ov.querySelector('#cov-msg'); function setMsg(t){ if(msgEl) msgEl.textContent=t; }
+    var cid=(company&&company.id);
+    function refreshCov(){ sb.from('coverage').select('zip,tech_id,rank').limit(4000).then(function(r){ covRows=(r.data)||[]; render(); }); }
+    function refreshTechs(){ sb.rpc('company_roster').then(function(tr){ techs=((tr.data)||[]).filter(function(t){return t.active!==false;}); render(); }); }
+    function chainFromRow(rowEl){ var ids=[]; Array.prototype.forEach.call(rowEl.querySelectorAll('.cov-t'),function(s){ var v=s.value; if(v && ids.indexOf(v)<0) ids.push(v); }); return ids; }
+    function saveArea(rowEl, btn){
+      var zip=rowEl.getAttribute('data-zip'); var ids=chainFromRow(rowEl);
+      btn.disabled=true; btn.textContent='…';
+      sb.from('coverage').delete().eq('company_id',cid).eq('zip',zip).then(function(dr){
+        if(dr.error){ btn.disabled=false; btn.textContent='Save'; setMsg('Could not save '+zip+': '+dr.error.message); return; }
+        if(!ids.length){ btn.disabled=false; btn.textContent='Save'; setMsg('Cleared '+zip+' — no techs ranked.'); refreshCov(); return; }
+        var rows=ids.map(function(tid,i){ return {company_id:cid, zip:zip, tech_id:tid, rank:i+1}; });
+        sb.from('coverage').insert(rows).select('id').then(function(ir){
+          btn.disabled=false; btn.textContent='Save';
+          if(ir.error){ setMsg('Could not save '+zip+': '+ir.error.message); return; }
+          if(!(ir.data&&ir.data.length)){ setMsg('Couldn’t save '+zip+' — refresh the page and sign in again.'); return; }
+          setMsg('Saved '+zip+' — '+ids.length+' tech'+(ids.length===1?'':'s')+' ranked.'); refreshCov();
+        });
+      });
+    }
+    function delArea(rowEl, btn){
+      var zip=rowEl.getAttribute('data-zip'); if(!window.confirm('Remove coverage for '+zip+'?')) return;
+      btn.disabled=true;
+      sb.from('coverage').delete().eq('company_id',cid).eq('zip',zip).then(function(r){ if(r.error){ btn.disabled=false; setMsg('Could not remove: '+r.error.message); return; } try{rowEl.parentNode.removeChild(rowEl);}catch(e){} setMsg('Removed '+zip+'.'); refreshCov(); });
+    }
+    function saveSkills(rowEl, btn){
+      var techId=rowEl.getAttribute('data-tech');
+      var csv=Array.prototype.filter.call(rowEl.querySelectorAll('input[type=checkbox]'),function(c){return c.checked;}).map(function(c){return c.value;}).join(',');
+      btn.disabled=true; btn.textContent='…';
+      sb.from('technician').update({service_types:csv||null}).eq('id',techId).select('id').then(function(r){
+        btn.disabled=false; btn.textContent='Save';
+        if(r.error){ setMsg('Could not save: '+r.error.message); return; }
+        if(!(r.data&&r.data.length)){ setMsg('Only an owner or office login can change what a tech services.'); return; }
+        setMsg('Saved skills.'); refreshTechs();
+      });
+    }
+    function bindRows(){
+      Array.prototype.forEach.call(ov.querySelectorAll('.cov-save'),function(b){ b.onclick=function(){ saveArea(b.closest('.covrow'), b); }; });
+      Array.prototype.forEach.call(ov.querySelectorAll('.cov-del'),function(b){ b.onclick=function(){ delArea(b.closest('.covrow'), b); }; });
+      Array.prototype.forEach.call(ov.querySelectorAll('.sk-save'),function(b){ b.onclick=function(){ saveSkills(b.closest('.skrow'), b); }; });
+    }
+    bindRows();
+    ov.querySelector('#cov-close').onclick=close;
+    ov.querySelector('#cov-add').onclick=function(){
+      var inp=ov.querySelector('#cov-newzip'); var z=(inp.value||'').trim();
+      if(!/^\d{3,5}$/.test(z)){ setMsg('Enter a 3–5 digit ZIP or prefix.'); return; }
+      var areas=ov.querySelector('.covareas'); if(areas.querySelector('[data-zip="'+z+'"]')){ setMsg(z+' is already listed.'); return; }
+      var empty=areas.querySelector('.covempty'); if(empty) empty.parentNode.removeChild(empty);
+      var wrap=document.createElement('div'); wrap.innerHTML=areaRowHtml(z,[]); var row=wrap.firstChild; areas.appendChild(row);
+      inp.value=''; bindRows(); setMsg('Added '+z+' — pick techs + Save.');
+    };
+  }
+
   function load(){
     var todayIso=isoDay(new Date());
     sb.rpc('company_roster').then(function(tr){
@@ -649,10 +795,12 @@
       var jP=sb.from('job').select('id,status,problem,availability,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
       var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
       var offerP=sb.from('schedule_offer').select('id,job_id,customer_id,direction,proposed_day,win,note,technician_id,status,created_at').eq('status','pending').gte('proposed_day',todayIso).limit(1000);
-      Promise.all([jP,oP,offerP]).then(function(res){
+      var covP=sb.from('coverage').select('zip,tech_id,rank').limit(4000);
+      Promise.all([jP,oP,offerP,covP]).then(function(res){
         jobs=(res[0].data)||[];
         timeOff=(res[1]&&res[1].data)||[]; offSet={}; timeOff.forEach(function(o){ offSet[o.technician_id+'|'+o.day]=true; });
         offers=(res[2]&&res[2].data)||[];
+        covRows=(res[3]&&res[3].data)||[];
         render();
       });
     });
