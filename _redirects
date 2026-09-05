@@ -25,6 +25,10 @@
 /b/*     /platform/book.html?slug=:splat  200
 /book/*  /platform/book.html?slug=:splat  200
 
+# Ant-guided onboarding checklist — a new shop owner signs in and Ant hand-holds setup.
+/start   /platform/onboard-checklist.html  200
+/setup   /platform/onboard-checklist.html  200
+
 # Clone machine: public application + your admin review page
 /apply         /apply.html          200
 /applications  /applications.html   200
