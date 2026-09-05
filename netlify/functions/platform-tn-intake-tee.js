@@ -233,7 +233,7 @@ async function runTee(opts) {
   const { url, key } = await platformCfg();
   if (!url || !key) return { ok: false, error: 'platform supabase not configured' };
   const db = pf(url, key);
-  const photoCap = parseInt((await getSecretFresh('PLATFORM_INTAKE_TEE_PHOTO_CAP')) || '40', 10) || 40;
+  const photoCap = parseInt((await getSecretFresh('PLATFORM_INTAKE_TEE_PHOTO_CAP')) || '20', 10) || 20;
   // Only read+copy the drawn signature image once save_customer_waiver stores it in the DB
   // (jobs.waiver_signature_b64). Off by default so the waiver record still tees cleanly.
   const sigimg = String((await getSecretFresh('PLATFORM_INTAKE_TEE_SIGIMG')) || '').toLowerCase() === 'true';
@@ -242,20 +242,20 @@ async function runTee(opts) {
 
   if (o.mode === 'backfill_media') {
     const page = Math.max(1, parseInt(o.page, 10) || 1);
-    const per = Math.max(1, Math.min(parseInt(o.limit, 10) || 50, 200));
+    const per = Math.max(1, Math.min(parseInt(o.limit, 10) || 25, 200));
     const rows = await xanoSearch(T_ATTACH, { sort: { id: 'asc' }, per_page: per, page });
     out.media = await mediaPass(db, rows, dry, photoCap);
     out.page = page; out.next_page = rows.length >= per ? page + 1 : null; out.done = out.next_page === null;
   } else if (o.mode === 'backfill_waiver') {
     const page = Math.max(1, parseInt(o.page, 10) || 1);
-    const per = Math.max(1, Math.min(parseInt(o.limit, 10) || 100, 500));
+    const per = Math.max(1, Math.min(parseInt(o.limit, 10) || 30, 200));
     const rows = await xanoSearch(T_EVENT, { search: { action: 'customer_waiver_signed' }, sort: { id: 'asc' }, per_page: per, page });
     out.waiver = await waiverPass(db, rows, dry, sigimg);
     out.page = page; out.next_page = rows.length >= per ? page + 1 : null; out.done = out.next_page === null;
   } else {
     // forward: newest attachments + newest waiver events (idempotent -> re-covering the window is cheap)
-    const fwdMedia = parseInt((await getSecretFresh('PLATFORM_INTAKE_TEE_FWD_MEDIA')) || '200', 10) || 200;
-    const fwdWaiver = parseInt((await getSecretFresh('PLATFORM_INTAKE_TEE_FWD_WAIVER')) || '100', 10) || 100;
+    const fwdMedia = parseInt((await getSecretFresh('PLATFORM_INTAKE_TEE_FWD_MEDIA')) || '60', 10) || 60;
+    const fwdWaiver = parseInt((await getSecretFresh('PLATFORM_INTAKE_TEE_FWD_WAIVER')) || '25', 10) || 25;
     const aRows = await xanoSearch(T_ATTACH, { sort: { id: 'desc' }, per_page: Math.min(fwdMedia, 400) });
     out.media = await mediaPass(db, aRows, dry, photoCap);
     const wRows = await xanoSearch(T_EVENT, { search: { action: 'customer_waiver_signed' }, sort: { id: 'desc' }, per_page: Math.min(fwdWaiver, 200) });
