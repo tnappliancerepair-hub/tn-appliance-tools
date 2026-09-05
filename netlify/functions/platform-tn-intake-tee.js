@@ -171,7 +171,10 @@ async function mediaPass(db, rows, dry, photoCap) {
 
 // ── WAIVER pass ──
 // events: array of Xano event_log rows (action customer_waiver_signed).
-async function waiverPass(db, events, dry) {
+// sigimg: when true, also read jobs.waiver_signature_b64 per waiver and copy the drawn
+// signature to R2 (only enable once save_customer_waiver stores it — else it's a wasted
+// Xano read per waiver, since the column doesn't exist yet).
+async function waiverPass(db, events, dry, sigimg) {
   const res = { scanned: events.length, records: 0, signatures: 0, no_job: 0, skipped: 0, errors: 0, sample: [] };
   // parse each event's metadata
   const parsed = events.map((e) => {
@@ -202,7 +205,8 @@ async function waiverPass(db, events, dry) {
       await db.insert('thread_message', { company_id: TN_COMPANY, job_id: pjob, direction: 'in', channel: 'portal', sender: 'customer', body: sum.slice(0, 300) });
       res.records++;
       // signature IMAGE (best-effort): read jobs.waiver_signature_b64 if the XS was extended to store it.
-      try {
+      // Gated: skip the per-waiver Xano read entirely until that column exists (else pure overhead).
+      if (sigimg) try {
         const jr = await xanoSearch(T_JOBS, { search: { id: w.job_id }, per_page: 1 });
         const b64 = jr && jr[0] && (jr[0].waiver_signature_b64 || jr[0].waiver_signature);
         if (b64 && typeof b64 === 'string' && b64.length > 40) {
@@ -230,6 +234,9 @@ async function runTee(opts) {
   if (!url || !key) return { ok: false, error: 'platform supabase not configured' };
   const db = pf(url, key);
   const photoCap = parseInt((await getSecretFresh('PLATFORM_INTAKE_TEE_PHOTO_CAP')) || '40', 10) || 40;
+  // Only read+copy the drawn signature image once save_customer_waiver stores it in the DB
+  // (jobs.waiver_signature_b64). Off by default so the waiver record still tees cleanly.
+  const sigimg = String((await getSecretFresh('PLATFORM_INTAKE_TEE_SIGIMG')) || '').toLowerCase() === 'true';
 
   const out = { ok: true, dry, mode: o.mode || 'forward', ms: 0 };
 
@@ -243,7 +250,7 @@ async function runTee(opts) {
     const page = Math.max(1, parseInt(o.page, 10) || 1);
     const per = Math.max(1, Math.min(parseInt(o.limit, 10) || 100, 500));
     const rows = await xanoSearch(T_EVENT, { search: { action: 'customer_waiver_signed' }, sort: { id: 'asc' }, per_page: per, page });
-    out.waiver = await waiverPass(db, rows, dry);
+    out.waiver = await waiverPass(db, rows, dry, sigimg);
     out.page = page; out.next_page = rows.length >= per ? page + 1 : null; out.done = out.next_page === null;
   } else {
     // forward: newest attachments + newest waiver events (idempotent -> re-covering the window is cheap)
@@ -252,7 +259,7 @@ async function runTee(opts) {
     const aRows = await xanoSearch(T_ATTACH, { sort: { id: 'desc' }, per_page: Math.min(fwdMedia, 400) });
     out.media = await mediaPass(db, aRows, dry, photoCap);
     const wRows = await xanoSearch(T_EVENT, { search: { action: 'customer_waiver_signed' }, sort: { id: 'desc' }, per_page: Math.min(fwdWaiver, 200) });
-    out.waiver = await waiverPass(db, wRows, dry);
+    out.waiver = await waiverPass(db, wRows, dry, sigimg);
   }
   out.ms = Date.now() - t0;
   return out;
