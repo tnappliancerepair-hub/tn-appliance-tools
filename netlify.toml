@@ -74,6 +74,13 @@
 [functions."platform-warm"]
   schedule = "2-59/5 * * * *"
 
+# platform-warranty-tee-cron — every 15 min, tee NEW warranty dispatch emails from TN's
+# Gmail onto the platform board (parallel with the legacy Xano pollers; Gmail reads are
+# non-destructive). Idempotent via platform-email-intake's per-(company,message_id) dedup.
+# Kill switch: vault PLATFORM_WARRANTY_TEE_ENABLED=false.
+[functions."platform-warranty-tee-cron"]
+  schedule = "7-59/15 * * * *"
+
 # platform-call-score-cron — grade each active shop's Ann accuracy nightly (~7:40am CT),
 # storing a call_score row so the owner sees a fresh read + trend (the Phase 5 flywheel).
 [functions."platform-call-score-cron"]
