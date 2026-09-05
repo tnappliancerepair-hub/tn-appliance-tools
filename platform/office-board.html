@@ -1556,7 +1556,7 @@
       '<div id="jconvo" style="display:none">' +
         '<div id="jthread" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;font-size:13px">Loading…</div>' +
         '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
-        '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
+        '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><button id="jreview">⭐ Request review</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
       '</div>' +
       // ── 📩 CUSTOMER INTAKE — what the customer sent (their info, availability, video/model).
       // Sits right under the header so scheduling is done off the customer's own availability. ──
@@ -1767,6 +1767,7 @@
     // Conversation — office reads the shared thread + texts the customer (office_message).
     loadThread(job);
     document.getElementById('jmsgSend').onclick=function(){ sendCustomerText(job); };
+    var jrev=document.getElementById('jreview'); if(jrev) jrev.onclick=function(){ sendReview(job); };
     var jmsgTa=document.getElementById('jmsg');
     if(jmsgTa){ jmsgTa.addEventListener('keydown',function(e){ if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){ e.preventDefault(); sendCustomerText(job); } }); }
 
@@ -1936,6 +1937,21 @@
           else if(hint){ hint.textContent=(d&&d.error)||'Couldn\'t send — try again.'; }
         });
     }).catch(function(){ btn.disabled=false; btn.textContent='Send text'; if(hint) hint.textContent='Network error — try again.'; });
+  }
+
+  function sendReview(job){
+    var btn=document.getElementById('jreview'), hint=document.getElementById('jmsgHint'); if(hint) hint.textContent='';
+    if(!btn) return; btn.disabled=true; btn.textContent='Sending…';
+    sb.auth.getSession().then(function(r){ var tok=(r.data&&r.data.session&&r.data.session.access_token)||'';
+      return fetch('/.netlify/functions/platform-tech-notify?do=review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:job.id,access_token:tok})})
+        .then(function(x){return x.json();}).then(function(d){
+          btn.disabled=false;
+          if(d&&d.ok&&d.texted){ btn.textContent='✓ Review asked'; loadThread(job); }
+          else if(d&&d.ok&&d.off){ btn.textContent='⭐ Request review'; if(hint) hint.textContent='Review text is turned off in Messages settings.'; }
+          else if(d&&d.ok){ btn.textContent='⭐ Request review'; if(hint) hint.textContent='No phone on file to text.'; }
+          else { btn.textContent='⭐ Request review'; if(hint) hint.textContent=(d&&d.error)||'Couldn\'t send — try again.'; }
+        });
+    }).catch(function(){ btn.disabled=false; btn.textContent='⭐ Request review'; if(hint) hint.textContent='Network error — try again.'; });
   }
 
   function sendInvoice(job){

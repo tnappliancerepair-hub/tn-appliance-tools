@@ -408,6 +408,27 @@
     }).catch(function(){ btn.disabled=false; btn.textContent=orig; alert('Couldn\'t reach the server — try again.'); });
   }
 
+  // Ask the customer for a Google review (server composes the shop's review template +
+  // its review link, texts the customer, logs the thread). do=review is per-shop toggled
+  // in Messages + gated by opt-out/quiet-hours downstream.
+  function sendReview(id, btn){
+    var orig = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Sending…';
+    sb.auth.getSession().then(function(r){
+      var tok = r && r.data && r.data.session && r.data.session.access_token;
+      if(!tok){ btn.disabled=false; btn.textContent=orig; alert('Session expired — sign in again.'); return; }
+      return fetch('/.netlify/functions/platform-tech-notify?do=review',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ job: id, access_token: tok })
+      }).then(function(x){ return x.json(); }).then(function(d){
+        if(d && d.texted){ btn.textContent='✓ Review asked'; }
+        else if(d && d.ok && d.off){ btn.disabled=false; btn.textContent='⭐ Request review'; alert('Review texts are turned off for your shop (Messages settings).'); }
+        else if(d && d.ok){ btn.disabled=false; btn.textContent='No phone on file'; }
+        else { btn.disabled=false; btn.textContent=orig; alert((d && d.error) || 'Couldn\'t send — try again.'); }
+      });
+    }).catch(function(){ btn.disabled=false; btn.textContent=orig; alert('Couldn\'t reach the server — try again.'); });
+  }
+
   function intakeHtml(j){
     var bits = [];
     if (j.availability) bits.push('📅 <b>'+esc(j.availability)+'</b>');
@@ -502,6 +523,7 @@
     if (j.status !== 'awaiting_parts' && j.status !== 'completed') acts += '<button data-act="awaiting_parts" data-id="'+j.id+'">Awaiting parts</button>';
     if (j.status !== 'completed') acts += '<button data-move="'+j.id+'">📅 Move</button>';
     acts += '<button class="act act-done" data-tdr="'+j.id+'">'+(tdr?'Edit report':'✓ Complete + report')+'</button>';
+    if (j.status === 'completed') acts += '<button data-review="'+j.id+'">⭐ Request review</button>';
     // the TDR (completion report) — structured so it feeds the brain
     var pst = tdr ? (tdr.part_status||'') : '';
     function pso(v,l){ return '<option value="'+v+'"'+(pst===v?' selected':'')+'>'+l+'</option>'; }
@@ -767,6 +789,7 @@
     b.querySelectorAll('button[data-move]').forEach(function(el){ el.onclick=function(){ var id=el.getAttribute('data-move'); var job=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; if(job) moveJob(job); }; });
     b.querySelectorAll('button[data-msg]').forEach(function(el){ el.onclick=function(){ var w=document.getElementById('mw_'+el.getAttribute('data-msg')); if(w) w.classList.toggle('open'); }; });
     b.querySelectorAll('button[data-send]').forEach(function(el){ el.onclick=function(){ var id=el.getAttribute('data-send'); var job=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; var t=document.getElementById('m_'+id); if(job&&t) sendToCustomer(job, t.value, el); }; });
+    b.querySelectorAll('button[data-review]').forEach(function(el){ el.onclick=function(){ sendReview(el.getAttribute('data-review'), el); }; });
     b.querySelectorAll('button[data-tdr]').forEach(function(el){ el.onclick=function(){ var p=document.getElementById('tdr_'+el.getAttribute('data-tdr')); if(p) p.classList.toggle('open'); }; });
     b.querySelectorAll('button[data-savetdr]').forEach(function(el){ el.onclick=function(){ saveTdr(el.getAttribute('data-savetdr'), el); }; });
     b.querySelectorAll('button[data-find]').forEach(function(el){ el.onclick=function(){ findPart(el.getAttribute('data-find-id'), el.getAttribute('data-find')); }; });

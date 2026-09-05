@@ -167,7 +167,14 @@ function scrubTimes(msg) {
 // review-link reply + the 👎→private-feedback capture). Re-enabled 2026-07-21 (Teddy: go
 // hard on the map pack — a 👍 is a likely positive reviewer). Opt-out / quiet-hours / dedup
 // / frequency caps all STILL apply at the chokepoint below — this only lifts the pause.
-const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound|tech.?field|satisfaction/i;
+// 'platform_' = the MULTI-TENANT PLATFORM's per-shop lifecycle texts (platform_review /
+// _otw / _arrived / _complete / _invoice / _reminder / _schedule_offer / _waiver_link, etc.
+// from platform-tech-notify.js). Each is a REAL paying tenant's own communication, already
+// gated per-shop by that shop's Communication Center toggle (comms.js), and every one still
+// passes through opt-out / quiet-hours / dedup / caps below. The intake-only pause was a
+// TN-flood fix and must not gag a customer's shop — legacy TN sends carry non-platform tags
+// (ann_*, cash_*, etc.) so they stay intake-only; only platform_* tenant traffic is un-paused.
+const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound|tech.?field|satisfaction|platform_/i;
 function isIntakeOrAvailability(kind, tag) {
   if (String(process.env.CUSTOMER_TEXTS_ALL || '') === '1') return true;   // re-enable all
   return INTAKE_OK.test(((kind || '') + ' ' + (tag || '')));
