@@ -29,6 +29,11 @@
 /start   /platform/onboard-checklist.html  200
 /setup   /platform/onboard-checklist.html  200
 
+# Short, no-wrap public link for the AssistAnt platform tour — the one to hand prospects
+# (a full-path URL wraps across two lines in a Facebook post, which FB's autolink mangles).
+/ant        /platform/system.html  200
+/assistant  /platform/system.html  200
+
 # Operator view of every platform shop (ops-key gated).
 /shops   /platform/shops.html  200
 
