@@ -1,0 +1,139 @@
+{
+ "updated": "2026-09-05",
+ "note": "How to enter each appliance's built-in diagnostic / service / test mode. OUR OWN reference from standard service practice, not a third party's forms. Entry keypresses vary by model, so each entry gives the TYPICAL method + what it does + where the exact tech sheet lives. Confirm the exact sequence on the model's tech sheet before relying on it.",
+ "modes": [
+  {
+   "family": "whirlpool", "appliance": "washer",
+   "enter": "Top-load (VMW/direct-drive): with the washer in standby (plugged in, all lights off), within ~6 seconds rotate the cycle knob 1 click counter-clockwise, 3 clockwise, 1 counter-clockwise, 1 clockwise — the indicator lights flash when you're in. Button-console models: press any single button, then a repeating 3-button pattern.",
+   "does": "Recalls stored fault codes and runs component tests (fill, drain, spin, lid lock).",
+   "exit": "Turn the knob to Off or unplug for 30 seconds.",
+   "note": "Exact sequence varies by model — it's printed on the tech sheet behind the console or under the lid."
+  },
+  {
+   "family": "whirlpool", "appliance": "dryer",
+   "enter": "Standby, all lights off. Within a few seconds press a repeating button pattern (the tech sheet lists the exact keys) — the display shows the software version, then lets you recall codes.",
+   "does": "Recalls stored fault codes and runs the heater / motor / moisture-sensor tests.",
+   "exit": "Press Power / Cancel or unplug 30 seconds.",
+   "note": "Keypress varies by model — see the tech sheet behind the console or inside the toe panel."
+  },
+  {
+   "family": "whirlpool", "appliance": "dishwasher",
+   "enter": "Press a 3-key sequence within ~5 seconds — commonly Heated Dry - Normal - Heated Dry - Normal (or any 3 keys, three times) — the lights chase to confirm, and the unit starts a diagnostic cycle.",
+   "does": "Runs a full test cycle and blinks out any stored fault codes on the panel lights.",
+   "exit": "Open the door / Cancel-Drain, or let the diagnostic cycle finish.",
+   "note": "Some models use a specific 3 keys — the tech sheet is on the inner door panel or the tub side."
+  },
+  {
+   "family": "whirlpool", "appliance": "range",
+   "enter": "Digital-control (ERC) models recall stored fault codes on power-up, or via a button hold (often Cancel + Broil, or a Bake + digits sequence).",
+   "does": "Recalls stored oven fault codes and runs relay / element tests.",
+   "exit": "Cancel / Off, or unplug 30 seconds.",
+   "note": "Method varies by control board — see the tech sheet behind the control panel."
+  },
+  {
+   "family": "whirlpool", "appliance": "refrigerator",
+   "enter": "Many Whirlpool/Maytag refrigerators enter diagnostics by pressing a dispenser/control button combo within a few seconds; the display shows stored codes and runs a forced defrost / cooling test.",
+   "does": "Recalls fault codes, forces defrost, and tests fans / compressor / dampers.",
+   "exit": "Wait for the mode to time out or unplug 30 seconds.",
+   "note": "Button combo varies by model — see the tech sheet inside the fresh-food compartment or on the back."
+  },
+  {
+   "family": "ge", "appliance": "washer",
+   "enter": "Many GE washers: with the unit off, press and hold a specific button (or pair) while turning it on to enter Service/Test mode; it steps through components.",
+   "does": "Runs component tests and reports stored fault codes.",
+   "exit": "Power off.",
+   "note": "Exact button varies by model — see the tech sheet under the top panel."
+  },
+  {
+   "family": "ge", "appliance": "dryer",
+   "enter": "GE dryers: hold a button combination at power-up to enter the service/test mode; it cycles heater, motor and sensor tests.",
+   "does": "Runs component tests and reports stored fault codes.",
+   "exit": "Power off.",
+   "note": "Method varies by model — see the tech sheet behind the console or toe panel."
+  },
+  {
+   "family": "ge", "appliance": "range",
+   "enter": "GE ranges with the ERC control: recall stored fault (F) codes via a Bake + digits sequence, or the control shows them on fault. Newer models have a Service Mode in the menu.",
+   "does": "Recalls stored F-codes and runs element / relay / lock tests.",
+   "exit": "Clear/Off, or unplug 30 seconds.",
+   "note": "Sequence varies by ERC — see the tech sheet behind the control panel."
+  },
+  {
+   "family": "ge", "appliance": "refrigerator",
+   "enter": "GE refrigerators: enter the diagnostic / service mode via a dispenser button combo (or the mullion buttons); the display shows codes and steps through cooling tests.",
+   "does": "Recalls codes, forces defrost, and tests fans / compressor / valves.",
+   "exit": "Time out or unplug 30 seconds.",
+   "note": "Button combo varies by model — see the tech sheet inside the fresh-food section."
+  },
+  {
+   "family": "frigidaire", "appliance": "washer",
+   "enter": "Frigidaire/Electrolux front-load: within a few seconds of powering, press two buttons together three times (the tech sheet names the pair) to enter diagnostic mode.",
+   "does": "Displays stored fault codes and runs the fill / drain / spin / lock tests.",
+   "exit": "Power off / Cancel.",
+   "note": "Button pair varies by model — see the tech sheet under the top panel."
+  },
+  {
+   "family": "frigidaire", "appliance": "dryer",
+   "enter": "Frigidaire/Electrolux dryers: press a two-button combo three times within a few seconds of powering to enter diagnostics.",
+   "does": "Shows stored fault codes and runs heater / motor / sensor tests.",
+   "exit": "Power off / Cancel.",
+   "note": "Combo varies by model — see the tech sheet behind the console or toe panel."
+  },
+  {
+   "family": "frigidaire", "appliance": "range",
+   "enter": "Frigidaire/Electrolux ranges recall stored fault codes on the control, or via a button hold. Newer models list a Service Mode in the menu.",
+   "does": "Recalls stored fault codes and runs element / relay / lock tests.",
+   "exit": "Cancel / Off, or unplug 30 seconds.",
+   "note": "Method varies by control — see the tech sheet behind the control panel."
+  },
+  {
+   "family": "samsung", "appliance": "washer",
+   "enter": "Most Samsung washers: with the unit off, press and hold a specific button pair, then press Power to enter Test/Diagnostic mode; it steps each component and shows codes.",
+   "does": "Runs a self-test of valves, pump, motor, lock and reports codes.",
+   "exit": "Power off.",
+   "note": "Button pair varies by model — see the tech sheet under the top panel."
+  },
+  {
+   "family": "samsung", "appliance": "dryer",
+   "enter": "Samsung dryers: hold a button combo, then Power on to enter the test mode; it cycles the heater, motor and sensors.",
+   "does": "Runs component tests and shows stored codes.",
+   "exit": "Power off.",
+   "note": "Combo varies by model — see the tech sheet behind the console."
+  },
+  {
+   "family": "samsung", "appliance": "refrigerator",
+   "enter": "Samsung refrigerators: press and hold two panel buttons together (e.g. Freezer + Fridge, or Energy Saver + Lighting) for several seconds to enter forced/test mode; use it to force defrost or cooling.",
+   "does": "Forces defrost, runs cooling/fan tests, and shows codes.",
+   "exit": "Wait for the mode to time out or unplug.",
+   "note": "Button pair + step order vary by model — see the tech sheet inside the fridge."
+  },
+  {
+   "family": "lg", "appliance": "washer",
+   "enter": "Many LG washers: hold two buttons together while pressing Power to enter test mode; it steps each component.",
+   "does": "Runs a self-test of water valves, pump, motor and lock; shows codes.",
+   "exit": "Power off.",
+   "note": "Button pair varies by model — see the tech sheet under the top panel."
+  },
+  {
+   "family": "lg", "appliance": "dryer",
+   "enter": "LG dryers: hold a two-button combo, then Power on, to enter the test mode; it cycles the heater, drum motor and moisture sensor.",
+   "does": "Runs component tests and shows stored codes.",
+   "exit": "Power off.",
+   "note": "Combo varies by model — see the tech sheet behind the console."
+  },
+  {
+   "family": "lg", "appliance": "refrigerator",
+   "enter": "LG refrigerators: press and hold the two fridge/freezer-control buttons together for several seconds to enter the test/forced mode.",
+   "does": "Forces defrost, runs fan / compressor / valve tests, and shows codes.",
+   "exit": "Time out or unplug.",
+   "note": "Button pair varies by model — see the tech sheet inside the fresh-food section."
+  },
+  {
+   "family": "bosch", "appliance": "dishwasher",
+   "enter": "Bosch/Thermador/Siemens dishwashers: enter the service/test program by holding a specific button combo (commonly a program button + Power, or a 3-button press) — it runs a full test cycle.",
+   "does": "Runs a complete test program and reports E-codes on the display.",
+   "exit": "Cancel/Drain (hold the drain button), or let the test finish.",
+   "note": "Combo varies by model — see the tech sheet on the inner door panel."
+  }
+ ]
+}

@@ -369,6 +369,9 @@
         // Error code → the fault-code brain (meaning · likely cause · confirming test)
         '<div class="mrow" style="margin-top:11px"><input id="tec" placeholder="Error code (e.g. F3, tE1, 5E)"><button id="codeBtn" style="flex:0 0 auto;padding:0 14px">🔎 Look up</button></div>' +
         '<div class="brainbox hidden" id="codeBox"></div>' +
+        // 🔧 Service / test mode — how to enter the machine's built-in diagnostics
+        '<button class="full" id="svcBtn" style="margin-top:9px">🔧 How to enter service / test mode</button>' +
+        '<div class="brainbox hidden" id="svcBox"></div>' +
         // What usually fixes this — the cross-shop brain
         '<button class="full" id="brainBtn" style="margin-top:11px">🧠 What usually fixes this</button>' +
         '<div class="brainbox hidden" id="brainBox"></div>' +
@@ -631,6 +634,7 @@
 
     document.getElementById('brainBtn').onclick = brainLookup;
     document.getElementById('codeBtn').onclick = codeLookup;
+    document.getElementById('svcBtn').onclick = svcMode;
     renderPartBtns();
     var sc=document.getElementById('supCfg'); if(sc) sc.onclick=function(){ AntSuppliers.chooser(shopSettings, renderPartBtns); };
     // Flat-rate repair menu — the Teddy-Tool "price" helper. Taps prefill labor + the total.
@@ -1397,6 +1401,34 @@
         box.innerHTML='<div><b>🔎 '+esc(code)+' isn\'t in the code book yet</b></div><div class="bp">'+hint+'</div>';
       }
     }).catch(function(){ box.innerHTML='<div class="bp">Couldn\'t reach the code book — check your connection.</div>'; });
+  }
+
+  // 🔧 Service / test mode — how to enter the machine's built-in diagnostics. Brand +
+  // appliance scoped. Honest: entry keys vary by model, so it gives the typical method
+  // + what it does + where the tech sheet is.
+  function svcMode(){
+    var box=document.getElementById('svcBox'); box.classList.remove('hidden');
+    var brand=(document.getElementById('tb').value||'').trim()||(attrs().brand||'');
+    if(!brand){ box.innerHTML='<div class="bp">Add the brand above first.</div>'; return; }
+    var appl=applianceType();
+    box.innerHTML='<div>🔧 Looking up service mode…</div>';
+    var qs='?brand='+encodeURIComponent(brand)+(appl?'&appliance='+encodeURIComponent(appl):'');
+    fetch('/.netlify/functions/service-mode-lookup'+qs).then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.ok){ box.innerHTML='<div class="bp">Couldn\'t look that up right now.</div>'; return; }
+      if(d.found && d.modes && d.modes.length){
+        box.innerHTML=d.modes.map(function(m){
+          return '<div style="font-weight:800;margin-bottom:6px">🔧 '+esc(brand)+' '+esc(m.appliance)+' — service / test mode</div>'+
+            '<div class="brainrow"><div><b>Enter</b></div><div class="bp">'+esc(m.enter)+'</div></div>'+
+            '<div class="brainrow"><div><b>What it does</b></div><div class="bp">'+esc(m.does)+'</div></div>'+
+            (m.exit?'<div class="brainrow"><div><b>Exit</b></div><div class="bp">'+esc(m.exit)+'</div></div>':'')+
+            (m.note?'<div class="bp" style="margin-top:6px">📄 '+esc(m.note)+'</div>':'');
+        }).join('');
+      } else {
+        var avail=(d.available||[]).length?' We have it for: '+esc(d.available.join(', '))+'.':'';
+        box.innerHTML='<div><b>🔧 No service-mode entry on file for '+esc(brand)+(appl?' '+esc(appl):'')+' yet</b></div>'+
+          '<div class="bp">Look for the model\'s tech sheet — behind the control panel, under the top/toe panel, or inside the door — it prints the exact diagnostic-entry sequence.'+avail+'</div>';
+      }
+    }).catch(function(){ box.innerHTML='<div class="bp">Couldn\'t reach the service-mode book — check your connection.</div>'; });
   }
 
   // ── Native inspection checklists — OUR OWN per-appliance diagnostic checklists (built
