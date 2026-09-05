@@ -20,6 +20,11 @@
 /c/*  /platform/tech-job.html?job=:splat  302
 /v/*  /platform/job-view.html?t=:splat    302
 
+# Public per-shop online booking widget — shareable "Book us" link a shop drops on its
+# website / Google Business Profile: tnapplianceexchange.net/b/<slug> lands on that shop's board.
+/b/*     /platform/book.html?slug=:splat  200
+/book/*  /platform/book.html?slug=:splat  200
+
 # Clone machine: public application + your admin review page
 /apply         /apply.html          200
 /applications  /applications.html   200
