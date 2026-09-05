@@ -36,6 +36,7 @@ async function operatorFromJWT(event) {
   } catch (_) { return null; }
 }
 
+exports.config = { timeout: 26 };
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -258,6 +259,47 @@ exports.handler = async function (event) {
       out.push({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, jobs: await countOf(`job?company_id=eq.${c.id}&select=id`), logins: byCo[c.id] || [] });
     }
     return json(200, { ok: true, tenants: out });
+  }
+
+  // Operator dashboard: per-shop HEALTH + onboarding progress, so the platform owner can see
+  // who's live, who's mid-setup, and who's stuck — and jump in to help. Reuses the tenants
+  // shape + adds settings flags, recent activity, techs, and last-job time. Reads parallel.
+  //   ?action=dashboard&secret=<admin>
+  if (q.action === 'dashboard') {
+    const companies = await rest0('company?select=id,slug,name,trade,plan,status,settings,payments_enabled,created_at&order=created_at.asc');
+    const users = await rest0('app_user?select=company_id,role,email,active&order=created_at.asc');
+    const byCo = {};
+    (Array.isArray(users) ? users : []).forEach((u) => { (byCo[u.company_id] = byCo[u.company_id] || []).push({ email: u.email, role: u.role, active: u.active }); });
+    const cnt = async (path) => {
+      try {
+        const r = await fetch(`${url}/rest/v1/${path}`, { method: 'HEAD', headers: { ...H, Prefer: 'count=exact', Range: '0-0' }, signal: AbortSignal.timeout(9000) });
+        const n = parseInt(((r.headers.get('content-range') || '').split('/')[1] || '0'), 10);
+        return Number.isFinite(n) ? n : 0;
+      } catch (_) { return 0; }
+    };
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+    const shops = await Promise.all((Array.isArray(companies) ? companies : []).map(async (c) => {
+      const s = c.settings || {}, biz = s.business || {}, site = s.site || {}, phone = s.phone || {};
+      const [jobs, jobs7d, techs, lastJob] = await Promise.all([
+        cnt(`job?company_id=eq.${c.id}&select=id`),
+        cnt(`job?company_id=eq.${c.id}&created_at=gte.${weekAgo}&select=id`),
+        cnt(`technician?company_id=eq.${c.id}&active=eq.true&select=id`),
+        rest0(`job?company_id=eq.${c.id}&select=created_at&order=created_at.desc&limit=1`),
+      ]);
+      return {
+        slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, status: c.status || 'active',
+        created_at: c.created_at, jobs, jobs7d, techs,
+        last_job_at: (lastJob && lastJob[0] && lastJob[0].created_at) || null,
+        logins: byCo[c.id] || [],
+        flags: {
+          hours: !!(biz.hours || biz.hours_text),
+          area: !!(biz.area || site.area || biz.city || site.city),
+          ann: !!(phone && phone.number),
+          payments: !!c.payments_enabled,
+        },
+      };
+    }));
+    return json(200, { ok: true, shops });
   }
 
   // Diagnostic: the newest lead for a shop + its intake state (media, waiver, availability)

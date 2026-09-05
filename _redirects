@@ -32,6 +32,10 @@
 # Operator view of every platform shop (ops-key gated).
 /shops   /platform/shops.html  200
 
+# Operator platform command center — per-shop progress + who's stuck + jump-in-to-help.
+/platform-dashboard  /platform/dashboard.html  200
+/pd                  /platform/dashboard.html  200
+
 # Clone machine: public application + your admin review page
 /apply         /apply.html          200
 /applications  /applications.html   200

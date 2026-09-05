@@ -1,0 +1,196 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ant Platform Dashboard</title>
+<style>
+  :root{
+    --bg:#f5f6f3; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
+    --brand:#3f8f24; --chip:#eef2e8; --shadow:0 1px 2px rgba(20,30,10,.06),0 8px 24px rgba(20,30,10,.07);
+    --live:#2f8f3a; --wip:#c8892a; --stuck:#c2410c; --bad:#b91c1c;
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+    --bg:#0f1310; --panel:#171c16; --ink:#eef2e8; --muted:#9aa595; --line:#28311f; --chip:#1e2519;
+    --live:#4bbd55; --wip:#e0a94a; --stuck:#f08a4b; --bad:#f0776b; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.5);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f1310; --panel:#171c16; --ink:#eef2e8; --muted:#9aa595; --line:#28311f; --chip:#1e2519;
+    --live:#4bbd55; --wip:#e0a94a; --stuck:#f08a4b; --bad:#f0776b; --shadow:0 1px 2px rgba(0,0,0,.5),0 12px 30px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:840px;margin:0 auto;padding:20px 16px 64px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800}
+  .brand .dot{width:30px;height:30px;border-radius:9px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:17px}
+  h1{font-size:23px;margin:14px 2px 2px;letter-spacing:-.02em}
+  .lede{color:var(--muted);margin:0 2px 12px;font-size:14px}
+  .bar{display:flex;justify-content:space-between;align-items:center;margin:8px 2px}
+  .refresh{background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:7px 12px;font-weight:800;font-size:12.5px;cursor:pointer}
+  .tally{display:flex;gap:9px;flex-wrap:wrap;margin:12px 2px}
+  .tally .t{flex:1;min-width:96px;background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:11px 13px}
+  .tally .t b{display:block;font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .tally .t span{color:var(--muted);font-size:12px;font-weight:700}
+  .tally .t.stuck b{color:var(--stuck)} .tally .t.live b{color:var(--live)}
+  .grouphd{font-size:12.5px;font-weight:800;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin:22px 2px 8px}
+  .card{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:14px 15px;margin-top:10px}
+  .card.s-live{border-left-color:var(--live)} .card.s-wip{border-left-color:var(--wip)} .card.s-stuck{border-left-color:var(--stuck)}
+  .card .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .card h3{margin:0;font-size:16.5px;letter-spacing:-.01em}
+  .card .slug{color:var(--muted);font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .stat{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap;flex:none}
+  .stat.live{background:color-mix(in srgb,var(--live) 16%,transparent);color:var(--live)}
+  .stat.wip{background:color-mix(in srgb,var(--wip) 18%,transparent);color:var(--wip)}
+  .stat.stuck{background:color-mix(in srgb,var(--stuck) 18%,transparent);color:var(--stuck)}
+  .stat.test{background:var(--chip);color:var(--muted)}
+  .prog{margin:11px 0 4px}
+  .prog .b{height:8px;border-radius:999px;background:var(--line);overflow:hidden}
+  .prog .b i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),#6bc24a);border-radius:999px;transition:width .5s}
+  .miles{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+  .m{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--chip);color:var(--muted);border:1px solid transparent}
+  .m.ok{background:color-mix(in srgb,var(--live) 14%,transparent);color:var(--live)}
+  .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:11px;font-size:12.8px;color:var(--muted)}
+  .row b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .stuckwhy{margin-top:10px;background:color-mix(in srgb,var(--stuck) 8%,transparent);border:1px solid color-mix(in srgb,var(--stuck) 30%,var(--line));border-radius:10px;padding:9px 11px;font-size:12.8px;color:var(--ink)}
+  .stuckwhy b{color:var(--stuck)}
+  .logins{margin-top:10px;font-size:12.4px;color:var(--muted)}
+  .logins .lg{display:inline-block;margin-right:12px}
+  .logins .off{color:var(--bad)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .acts a,.acts button{text-decoration:none;font-size:12.8px;font-weight:800;padding:8px 12px;border-radius:9px;border:1px solid var(--line);color:var(--ink);background:var(--bg);cursor:pointer}
+  .acts .help{background:var(--brand);color:#fff;border-color:transparent}
+  .msg{font-size:12px;color:var(--muted);margin-top:7px;min-height:15px}
+  .gate{max-width:400px;margin:12vh auto 0}
+  .gate .card{border-left:4px solid var(--brand);padding:20px}
+  .gate input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:16px;margin-top:10px}
+  .gate button{width:100%;margin-top:12px;padding:13px;border:0;border-radius:11px;background:var(--brand);color:#fff;font-weight:800;font-size:15px;cursor:pointer}
+  .err{color:var(--bad);font-size:13px;min-height:16px;margin-top:8px}
+  .loading{color:var(--muted);text-align:center;margin-top:12vh}
+</style></head>
+<body><div class="wrap">
+  <div class="brand"><span class="dot">🐜</span><span>Ant · Platform Dashboard</span></div>
+
+  <div id="gate" class="gate" style="display:none">
+    <h1>Operator sign-in</h1><p class="lede">Enter the operator key.</p>
+    <div class="card"><input id="key" type="password" placeholder="Operator key" autocomplete="off">
+      <button id="go">Open dashboard</button><div id="gerr" class="err"></div></div>
+  </div>
+
+  <div id="main" style="display:none">
+    <h1>How every shop is doing</h1>
+    <p class="lede">Setup progress + health per shop. Anyone stuck floats to the top — tap <b>Jump in to help</b> to log in as them and fix it.</p>
+    <div class="bar"><span class="lede" id="stamp" style="margin:0"></span><button class="refresh" id="refresh">↻ Refresh</button></div>
+    <div id="tally" class="tally"></div>
+    <div id="list"></div>
+  </div>
+
+  <div id="loading" class="loading">Loading the platform…</div>
+</div>
+<script>
+(function(){
+  var KEY='ant_ops_secret';
+  var TESTS={demo:1,tn:1,'tn-office-test':1,'hcp-import-demo':1};
+  var MILES=[['login','👤 Login'],['shop','🏬 Shop'],['book','📥 Book'],['crew','👷 Crew'],['ann','☎️ Ann']];
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  function show(id){ ['gate','main','loading'].forEach(function(x){ var e=document.getElementById(x); if(e) e.style.display=(x===id)?'block':'none'; }); }
+  function ago(iso){ if(!iso) return 'never'; var d=(Date.now()-new Date(iso).getTime())/86400000; if(d<1) return 'today'; if(d<2) return 'yesterday'; if(d<30) return Math.floor(d)+'d ago'; return Math.floor(d/30)+'mo ago'; }
+  function daysSince(iso){ return iso? (Date.now()-new Date(iso).getTime())/86400000 : 9999; }
+
+  // derive the 5 onboarding milestones + a status + why-stuck from a shop's health
+  function assess(s){
+    var activeLogins=(s.logins||[]).filter(function(l){return l.active!==false;});
+    var m={ login: activeLogins.length>0, shop: !!(s.flags&&s.flags.shop!==undefined?s.flags.shop:(s.flags&&s.flags.hours&&s.flags.area)), book: (s.jobs||0)>25, crew: (s.techs||0)>=1, ann: !!(s.flags&&s.flags.ann) };
+    // shop-details = hours AND area
+    m.shop = !!(s.flags && s.flags.hours && s.flags.area);
+    var done=MILES.reduce(function(n,x){ return n+(m[x[0]]?1:0); },0);
+    var why=[];
+    if(!m.login) why.push('No active login — nobody can sign in');
+    if(m.login && (s.jobs||0)<=25 && daysSince(s.created_at)>2) why.push('Signed up '+ago(s.created_at)+' but still no book imported');
+    if(m.login && !m.ann) why.push('Ann isn’t answering yet');
+    if(done>=4 && (s.jobs||0)>0 && (s.jobs7d||0)===0 && daysSince(s.last_job_at)>14) why.push('No new jobs in '+ago(s.last_job_at));
+    var status = done===5 ? 'live' : (why.length? 'stuck' : 'wip');
+    return { m:m, done:done, status:status, why:why };
+  }
+
+  function card(s){
+    var a=assess(s), test=!!TESTS[s.slug];
+    var statCls = test?'test':a.status, statTxt = test?'test/demo':(a.status==='live'?'Live':a.status==='stuck'?'Needs help':'Onboarding');
+    var pct=Math.round(a.done/5*100);
+    var h='<div class="card s-'+(test?'':a.status)+'"><div class="top"><div><h3>'+esc(s.name||s.slug)+'</h3><div class="slug">'+esc(s.slug)+' · '+esc(s.trade||'')+(s.plan?' · '+esc(s.plan):'')+'</div></div><span class="stat '+statCls+'">'+statTxt+'</span></div>';
+    h+='<div class="prog"><div class="b"><i style="width:'+pct+'%"></i></div></div>';
+    h+='<div class="miles">'+MILES.map(function(x){ return '<span class="m'+(a.m[x[0]]?' ok':'')+'">'+(a.m[x[0]]?'✓ ':'')+x[1]+'</span>'; }).join('')+'</div>';
+    h+='<div class="row"><span>📋 <b>'+(s.jobs||0).toLocaleString()+'</b> jobs</span><span>🆕 <b>'+(s.jobs7d||0)+'</b> this week</span><span>👷 <b>'+(s.techs||0)+'</b> techs</span><span>⏱ last job <b>'+ago(s.last_job_at)+'</b></span></div>';
+    if(a.why.length && !test) h+='<div class="stuckwhy"><b>Needs a hand:</b> '+a.why.map(esc).join(' · ')+'</div>';
+    var lg=(s.logins||[]);
+    h+='<div class="logins">'+(lg.length? lg.map(function(l){return '<span class="lg'+(l.active===false?' off':'')+'">'+esc(l.email)+' ('+esc(l.role)+(l.active===false?', off':'')+')</span>';}).join('') : 'No logins yet.')+'</div>';
+    h+='<div class="acts">'+
+      '<button class="help" data-jump="'+esc(s.slug)+'">🔑 Jump in to help</button>'+
+      '<button data-reset="'+esc(s.slug)+'">♻ Reset owner password</button>'+
+      '<a href="/s/'+encodeURIComponent(s.slug)+'" target="_blank" rel="noopener">🌐 Site</a>'+
+      '</div><div class="msg" id="msg_'+esc(s.slug)+'"></div></div>';
+    return h;
+  }
+
+  function sortKey(s){ var a=assess(s); if(TESTS[s.slug]) return 5; return a.status==='stuck'?0:(a.status==='wip'?1:2); }
+
+  function render(shops){
+    var real=shops.filter(function(s){return !TESTS[s.slug];});
+    var live=real.filter(function(s){return assess(s).status==='live';}).length;
+    var wip=real.filter(function(s){return assess(s).status==='wip';}).length;
+    var stuck=real.filter(function(s){return assess(s).status==='stuck';}).length;
+    var jobs=shops.reduce(function(n,s){return n+(s.jobs||0);},0);
+    var jobs7=shops.reduce(function(n,s){return n+(s.jobs7d||0);},0);
+    document.getElementById('tally').innerHTML=
+      '<div class="t live"><b>'+live+'</b><span>live</span></div>'+
+      '<div class="t"><b>'+wip+'</b><span>onboarding</span></div>'+
+      '<div class="t stuck"><b>'+stuck+'</b><span>need help</span></div>'+
+      '<div class="t"><b>'+jobs.toLocaleString()+'</b><span>jobs total</span></div>'+
+      '<div class="t"><b>'+jobs7+'</b><span>jobs this week</span></div>';
+    var ordered=shops.slice().sort(function(a,b){ var d=sortKey(a)-sortKey(b); return d!==0?d:(b.jobs||0)-(a.jobs||0); });
+    var realO=ordered.filter(function(s){return !TESTS[s.slug];});
+    var testO=ordered.filter(function(s){return TESTS[s.slug];});
+    var html=realO.map(card).join('');
+    if(testO.length) html+='<div class="grouphd">Test &amp; demo</div>'+testO.map(card).join('');
+    document.getElementById('list').innerHTML=html;
+    document.getElementById('stamp').textContent='Updated '+new Date().toLocaleTimeString();
+    show('main');
+    wireCards();
+  }
+
+  function opsKey(){ return localStorage.getItem(KEY)||''; }
+  function wireCards(){
+    document.querySelectorAll('button[data-jump]').forEach(function(el){ el.onclick=function(){
+      var slug=el.getAttribute('data-jump'), msg=document.getElementById('msg_'+slug);
+      el.disabled=true; var o=el.textContent; el.textContent='Opening…'; if(msg) msg.textContent='';
+      fetch('/.netlify/functions/platform-provision?action=magiclink&secret='+encodeURIComponent(opsKey())+'&slug='+encodeURIComponent(slug)+'&redirect='+encodeURIComponent('https://tnapplianceexchange.net/platform/owner.html'))
+        .then(function(r){return r.json();}).then(function(d){ el.disabled=false; el.textContent=o;
+          if(d&&d.ok&&d.login_link){ window.open(d.login_link,'_blank','noopener'); if(msg) msg.textContent='Opened a login as '+(d.email||'the owner')+' in a new tab — you’re in their shop now.'; }
+          else if(msg) msg.textContent=(d&&d.error)||'Couldn’t open — try again.';
+        }).catch(function(){ el.disabled=false; el.textContent=o; if(msg) msg.textContent='Network error — try again.'; });
+    }; });
+    document.querySelectorAll('button[data-reset]').forEach(function(el){ el.onclick=function(){
+      var slug=el.getAttribute('data-reset'), msg=document.getElementById('msg_'+slug);
+      if(!window.confirm('Reset the OWNER password for '+slug+'? You’ll get a fresh password to hand them.')) return;
+      el.disabled=true; var o=el.textContent; el.textContent='Resetting…'; if(msg) msg.textContent='';
+      fetch('/.netlify/functions/platform-provision?action=resetpw&reveal=1&secret='+encodeURIComponent(opsKey())+'&slug='+encodeURIComponent(slug))
+        .then(function(r){return r.json();}).then(function(d){ el.disabled=false; el.textContent=o;
+          if(d&&d.ok&&d.new_password){ if(msg) msg.innerHTML='New owner password for <b>'+esc(d.owner_email||slug)+'</b>: <b>'+esc(d.new_password)+'</b> — hand it over, they change it on first login.'; }
+          else if(msg) msg.textContent=(d&&d.error)||'Couldn’t reset — try again.';
+        }).catch(function(){ el.disabled=false; el.textContent=o; if(msg) msg.textContent='Network error — try again.'; });
+    }; });
+  }
+
+  function load(){
+    show('loading');
+    fetch('/.netlify/functions/platform-provision?action=dashboard&secret='+encodeURIComponent(opsKey()))
+      .then(function(r){ if(r.status===401||r.status===403) throw new Error('key'); return r.json(); })
+      .then(function(d){ if(!d||!d.ok||!Array.isArray(d.shops)){ if(d&&d.error) throw new Error('bad'); throw new Error('bad'); } render(d.shops); })
+      .catch(function(e){ if(e.message==='key'){ localStorage.removeItem(KEY); gate('That key was rejected.'); } else { gate('Could not load — try again.'); } });
+  }
+  function gate(msg){ show('gate'); if(msg) document.getElementById('gerr').textContent=msg; var k=document.getElementById('key'); if(k) k.focus(); }
+
+  document.getElementById('go').onclick=function(){ var v=document.getElementById('key').value.trim(); if(!v){document.getElementById('gerr').textContent='Enter the key.';return;} localStorage.setItem(KEY,v); load(); };
+  document.getElementById('key').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('go').click(); });
+  document.getElementById('refresh').onclick=load;
+  if(opsKey()) load(); else gate('');
+})();
+</script>
+</body></html>
