@@ -74,16 +74,17 @@
 [functions."platform-warm"]
   schedule = "2-59/5 * * * *"
 
-# platform-warranty-tee-cron — DISABLED 2026-09-05. Now that platform-tn-mirror runs every
-# 5 min against the SAME tenant (tn-appliance-exchange-llc), the mirror already brings every
-# Xano AHS job (which Xano creates from the same dispatch emails) onto the platform board.
-# Running the email-tee too created a SECOND copy per job (tee rows have no xano_id, mirror
-# rows do → no cross-dedup → duplicates). The mirror is the single, authoritative parallel
-# path for TN during the crossover. The tee core stays deployed (curl-testable) + is the
-# future productized pipe for OTHER shops via the Cloudflare <slug>@jobs.assistant247.net
-# worker; re-enable here (or build cross-dedup) only when a shop needs the direct-email path.
-# [functions."platform-warranty-tee-cron"]
-#   schedule = "7-59/15 * * * *"
+# platform-warranty-tee-cron — RE-ENABLED 2026-09-05 (weekend dispatch-loader trial). The
+# fresh-email loader reads NEW "New Dispatch Notification" emails from TN's Gmail and lands
+# each dispatch on the platform board directly (source=warranty_email, no xano_id). Runs in
+# PARALLEL with platform-tn-mirror (the completeness net) — the mirror is now CLAIM-AWARE:
+# before its (company_id,xano_id) upsert it ADOPTS any claim-matched tee job by stamping its
+# xano_id, so the two loaders coexist with NO duplicates (the old dup bug is fixed at the
+# source). Goal: over the weekend, see if the email path alone can reliably load every new
+# job; Monday compare email-loaded vs mirror-caught (email_intake ledger + jobs by source).
+# Kill: vault PLATFORM_WARRANTY_TEE_ENABLED=false. Offset from mirror (1-59/5) + intake-tee (9-59/15).
+[functions."platform-warranty-tee-cron"]
+  schedule = "7-59/15 * * * *"
 
 # platform-review-sweep-cron — twice-daily (~10am + 4pm CT), texts each shop's recently-
 # completed customers that shop's Google-review request (per-shop toggle in the Communication

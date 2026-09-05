@@ -220,6 +220,43 @@ async function syncTnToPlatform(limit) {
       updated_at: new Date().toISOString(),
     };
   }).filter(Boolean);
+
+  // Cross-dedup with the fresh-email loader (platform-warranty-tee). A dispatch the email
+  // loader landed FIRST exists on the platform as a job with NO xano_id (createWarrantyJob
+  // deduped it by claim_number). Our upsert keys only on (company_id,xano_id), so without
+  // this it would INSERT a duplicate for that same dispatch. So BEFORE the upsert we ADOPT
+  // each orphan tee job by stamping its xano_id -> the upsert then merges in place, one job
+  // per dispatch regardless of which loader saw it first. Best-effort: any failure here just
+  // leaves the (rare) dup for a later run; it must never break the mirror.
+  try {
+    const claimToXano = new Map();
+    for (const jr of jobRows) {
+      const cn = String(jr.claim_number || '').trim();
+      if (cn && !claimToXano.has(cn)) claimToXano.set(cn, jr.xano_id);
+    }
+    const claims = [...claimToXano.keys()].filter((c) => /^[A-Za-z0-9._\-]+$/.test(c));
+    for (let i = 0; i < claims.length; i += 100) {
+      const chunk = claims.slice(i, i + 100);
+      const inList = chunk.map((c) => '"' + c + '"').join(',');
+      const r = await fetch(
+        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=is.null&claim_number=in.(${inList})&select=id,claim_number`,
+        { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(10000) },
+      );
+      const orphans = await r.json().catch(() => null);
+      if (!Array.isArray(orphans)) continue;
+      for (const o of orphans) {
+        const xid = claimToXano.get(String(o.claim_number || '').trim());
+        if (!xid) continue;
+        await fetch(`${url}/rest/v1/job?id=eq.${o.id}`, {
+          method: 'PATCH',
+          headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ xano_id: xid }),
+          signal: AbortSignal.timeout(10000),
+        }).catch(() => {});
+      }
+    }
+  } catch (_) { /* adoption is best-effort; the upsert still runs */ }
+
   const upJob = await upsert(url, key, 'job', jobRows, 'company_id,xano_id');
 
   return { ok: true, customers: upCust.length, units: upUnit.length, jobs: upJob.length, ms: Date.now() - t0 };
