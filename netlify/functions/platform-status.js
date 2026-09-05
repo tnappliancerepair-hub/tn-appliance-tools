@@ -37,12 +37,14 @@ exports.handler = async function (event) {
 
   // Go-live flags (built-but-dark switches). Present them as ready-to-flip, not broken.
   const [phoneLive, signupLive, billingLive, usageDigestLive, emailSecret, platStripe, stripe,
-         whSecret, emailShared, emailEnabled, awsId, awsSecret] = await Promise.all([
+         whSecret, emailShared, emailEnabled, awsId, awsSecret,
+         telnyxKey, telnyxTool, telnyxProfile] = await Promise.all([
     getSecret('PLATFORM_PHONE_LIVE'), getSecret('PLATFORM_SIGNUP_LIVE'), getSecret('PLATFORM_BILLING_LIVE'),
     getSecret('PLATFORM_USAGE_DIGEST_LIVE'), getSecret('PLATFORM_EMAIL_SECRET'),
     getSecret('PLATFORM_STRIPE_SECRET_KEY'), getSecret('STRIPE_SECRET_KEY'),
     getSecret('PLATFORM_STRIPE_WEBHOOK_SECRET'), getSecret('EMAIL_SHARED_SECRET'),
     getSecret('EMAIL_ENABLED'), getSecret('TN_AWS_ACCESS_KEY_ID'), getSecret('TN_AWS_SECRET_ACCESS_KEY'),
+    getSecret('TELNYX_API_KEY'), getSecret('TELNYX_TOOL_SECRET'), getSecret('TELNYX_SHARED_MESSAGING_PROFILE_ID'),
   ]);
   const stripeKey = platStripe || stripe || '';
   const stripeMode = !stripeKey ? 'not_configured' : (/^sk_live_/.test(stripeKey) ? 'live' : 'test');
@@ -72,6 +74,15 @@ exports.handler = async function (event) {
       email_enabled: truthy(emailEnabled) ? 'true' : 'dry-run (send-email won\'t actually send)',
       aws_ses_creds: (has(awsId) && has(awsSecret)) ? 'set' : 'MISSING',
       not_a_blocker: 'platform-provision?action=magiclink&slug=<slug>&secret=<admin> mints a fresh login on demand — no signup is ever stranded.',
+    },
+    // Ann (per-shop AI phone) creds — reports set/missing (never the values). Flip PLATFORM_PHONE_LIVE
+    // + set the shared messaging profile to let shops buy their own line (buys a real DID ~$1/mo).
+    phone_creds: {
+      phone_live: truthy(phoneLive),
+      telnyx_api_key: has(telnyxKey) ? 'set' : 'MISSING',
+      telnyx_tool_secret: has(telnyxTool) ? 'set' : 'MISSING',
+      telnyx_shared_messaging_profile_id: has(telnyxProfile) ? 'set' : 'MISSING',
+      ready_for_ann_golive: has(telnyxKey) && has(telnyxTool) && has(telnyxProfile),
     },
   };
 
