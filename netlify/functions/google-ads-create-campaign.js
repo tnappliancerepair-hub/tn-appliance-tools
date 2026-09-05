@@ -57,6 +57,16 @@ const KITS = {
     descriptions: ['Un técnico de verdad revisa tu electrodoméstico por video y te dice la verdad. Solo $50.', 'Te enviamos la pieza exacta a tu puerta. Atención en español. Llámanos o escríbenos hoy.'],
     final: 'https://tnapplianceexchange.net/quick-check-intake.html?lang=es',
   },
+  // B2B — sell the AssistAnt PLATFORM to other shop owners, led by the referral/free hook.
+  // Targets INTENT (owners searching for repair/field-service software + HCP/Jobber/Workiz
+  // alternatives), national. Lands on the prospect tour (system.html) with the Start-free-trial CTA.
+  saas: {
+    label: 'AssistAnt — Shop Software',
+    keywords: ['appliance repair software', 'field service software', 'housecall pro alternative', 'jobber alternative', 'workiz alternative', 'software for appliance repair business', 'ai receptionist for small business', 'field service scheduling software', '24/7 answering service for repair business'],
+    headlines: ['Run Your Shop for $99/mo', 'Refer 4 Shops = Yours Free', 'AI Answers Calls 24/7', 'Free Setup, No Per-Seat Fee', 'Housecall Pro Alternative', 'Built By a Repair Shop', 'Bring Your Data in a Day', 'Flat $99, All Techs Included'],
+    descriptions: ['One system runs your whole shop — $99/mo flat, every tech included, free setup.', 'Refer buddy shops, get $25/mo off each — 4 and yours is free. Built by a real shop.'],
+    final: 'https://tnapplianceexchange.net/platform/system.html',
+  },
 };
 
 exports.handler = async function (event) {
@@ -95,21 +105,28 @@ exports.handler = async function (event) {
     return { ok: r.ok, status: r.status, d, err: r.ok ? null : { message: (d.error && d.error.message) || null, detail: detail || (d.error && d.error.status) || d } };
   }
 
+  // National targeting for the B2B/SaaS campaign (owners anywhere) — geoTargetConstants/2840 = US.
+  const national = appl === 'saas' || q.national === '1';
+  const geo = [];
+  let sugg = [];
+  if (national) {
+    geo.push({ city: 'United States', resource: 'geoTargetConstants/2840', canonical: 'United States' });
+  } else {
   // 1) resolve geo target constants for the cities (City type, in the state)
   const geoUrl = `https://googleads.googleapis.com/${c.version}/geoTargetConstants:suggest`;
   let geoResp;
   try { const gr = await fetch(geoUrl, { method: 'POST', headers: ads.apiHeaders(token, c), body: JSON.stringify({ locale: 'en', countryCode: 'US', locationNames: { names: cities.map((x) => `${x}, ${stateName}`) } }) }); geoResp = await gr.json().catch(() => ({})); }
   catch (e) { return json(200, { ok: false, step: 'geo', error: String(e.message || e) }); }
-  const sugg = (geoResp.geoTargetConstantSuggestions || []);
-  const geo = [];
+  sugg = (geoResp.geoTargetConstantSuggestions || []);
   for (const city of cities) {
     const want = `${city.toLowerCase()},${stateName.toLowerCase()}`;
     const m = sugg.find((s) => s.geoTargetConstant && String(s.geoTargetConstant.canonicalName || '').toLowerCase().replace(/\s/g, '').includes(want.replace(/\s/g, '')) && (s.geoTargetConstant.targetType === 'City'))
       || sugg.find((s) => s.geoTargetConstant && String(s.geoTargetConstant.name || '').toLowerCase() === city.toLowerCase());
     if (m) geo.push({ city, resource: m.geoTargetConstant.resourceName, canonical: m.geoTargetConstant.canonicalName });
   }
-  const name = `${kit.label} — ${cities.join('/')} (Ant)`;
-  const planView = { campaign: name, appliance: appl, cities, geo_resolved: geo.map((g) => g.canonical), budget_per_day: budget, keywords: kit.keywords, headlines: kit.headlines, final_url: kit.final, status: enable ? 'ENABLED' : 'PAUSED' };
+  }
+  const name = national ? `${kit.label} — US (Ant)` : `${kit.label} — ${cities.join('/')} (Ant)`;
+  const planView = { campaign: name, appliance: appl, cities: national ? ['United States'] : cities, geo_resolved: geo.map((g) => g.canonical), budget_per_day: budget, keywords: kit.keywords, headlines: kit.headlines, final_url: kit.final, status: enable ? 'ENABLED' : 'PAUSED' };
   if (!geo.length) return json(200, { ok: false, error: 'could not resolve any city geo targets', suggestions: sugg.slice(0, 6).map((s) => s.geoTargetConstant && s.geoTargetConstant.canonicalName) });
   if (!apply) return json(200, { ok: true, mode: 'preview', cid, plan: planView, note: 'add &apply=1 to create (PAUSED), &enable=1 to also turn it on' });
 

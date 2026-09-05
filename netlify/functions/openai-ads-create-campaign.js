@@ -38,6 +38,14 @@ const KITS = {
     descriptions: ['Fridge not cooling? A real tech answers 24/7 and gets you booked before the food spoils.', 'Honest flat pricing, family-owned since 2012. Same-week service across Middle Tennessee.'],
     final: 'https://tnapplianceexchange.net/appliance-ai.html?appliance=refrigerator',
   },
+  // B2B — the AssistAnt PLATFORM to other shop owners (when someone asks ChatGPT
+  // "what software should an appliance repair shop use"). Led by the referral/free hook.
+  saas: {
+    label: 'AssistAnt — Shop Software',
+    headlines: ['Run Your Shop for $99/mo', 'Refer 4 Shops = Yours Free', 'AI Answers Every Call 24/7', 'Free Setup, No Per-Seat Fee', 'Housecall Pro Alternative', 'Built By a Real Repair Shop'],
+    descriptions: ['Run your whole appliance shop for $99/mo flat — every tech included, free setup. Refer 4 buddy shops and yours is free.', 'AI answers 24/7 and books the job. Bring your data off Housecall Pro, Jobber or Workiz in a day. Built by a shop that runs on it.'],
+    final: 'https://tnapplianceexchange.net/platform/system.html',
+  },
 };
 
 exports.handler = async function (event) {
