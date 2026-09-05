@@ -858,6 +858,16 @@
 [functions."platform-tn-mirror-cron"]
   schedule = "1-59/5 * * * *"
 
+# platform-tn-intake-tee-cron (2026-09-05) — copy TN's customer INTAKE assets (video,
+# photos, waiver record) from legacy Xano onto the platform tenant every 15 min, in
+# parallel with Xano (a real backup). Availability already rides the mirror above. Joins on
+# xano_id; idempotent (job_media upsert on company_id,ref). Read-only toward Xano; writes
+# only into TN's platform tenant. Offset from the mirror + warranty-tee. Curl-testable core:
+# platform-tn-intake-tee?secret=…&dryrun=1  (+ mode=backfill_media/backfill_waiver for history).
+# Kill: vault PLATFORM_INTAKE_TEE_ENABLED=false.
+[functions."platform-tn-intake-tee-cron"]
+  schedule = "9-59/15 * * * *"
+
 # tdr-sync-cron (Phase 0 Part A, 2026-08-26) — THE fix for "won't save the part
 # number" when Xano chokes. tech-job.html saves through tdr-save, which lands every
 # TDR/part save in Supabase tdr_pending (durable, instant) then relays to Xano
