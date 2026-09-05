@@ -10,30 +10,40 @@
    "jenn-air",
    "jennair",
    "roper",
-   "estate"
+   "estate",
+   "inglis",
+   "ikea",
+   "admiral",
+   "caloric"
   ],
   "ge": [
    "ge",
    "hotpoint",
    "monogram",
    "cafe",
-   "profile"
+   "profile",
+   "haier"
   ],
   "frigidaire": [
    "frigidaire",
-   "electrolux"
+   "electrolux",
+   "gibson",
+   "kelvinator",
+   "tappan",
+   "white-westinghouse",
+   "white westinghouse"
   ],
   "samsung": [
    "samsung"
   ],
   "lg": [
-   "lg",
-   "kenmore-lg"
+   "lg"
   ],
   "bosch": [
    "bosch",
    "thermador",
-   "gaggenau"
+   "gaggenau",
+   "siemens"
   ]
  },
  "codes": [

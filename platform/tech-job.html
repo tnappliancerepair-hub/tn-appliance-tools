@@ -1388,8 +1388,13 @@
           (causes?'<div class="brainrow"><div><b>Likely cause</b></div><div class="bp">'+causes+'</div></div>':'')+
           (m.test?'<div class="brainrow"><div><b>Confirm it</b></div><div class="bp">'+esc(m.test)+'</div></div>':'');
       } else {
-        box.innerHTML='<div><b>🔎 '+esc(code)+' isn\'t in the code book yet</b></div>'+
-          '<div class="bp">'+(brand?'No match for '+esc(brand):'Add the brand above')+(appl?' · '+esc(appl):'')+'. Check the model\'s tech sheet, then use 🧠 What usually fixes this for what real jobs found.</div>';
+        // Kenmore/Sears are rebadged — the model # prefix tells the real maker, which IS
+        // in the code book. Point the tech there instead of a dead end.
+        var kenmore=/kenmore|sears/i.test(brand);
+        var hint=kenmore
+          ? 'Kenmore/Sears is built by different makers — the first 3 digits of the model # tell you which: <b>110/106/665 = Whirlpool</b> · <b>795/796 = LG</b> · <b>253/417/587 = Frigidaire</b> · <b>363 = GE</b>. Look the code up under that brand.'
+          : (brand?'No match for '+esc(brand):'Add the brand above')+(appl?' · '+esc(appl):'')+'. Check the model\'s tech sheet, then use 🧠 What usually fixes this for what real jobs found.';
+        box.innerHTML='<div><b>🔎 '+esc(code)+' isn\'t in the code book yet</b></div><div class="bp">'+hint+'</div>';
       }
     }).catch(function(){ box.innerHTML='<div class="bp">Couldn\'t reach the code book — check your connection.</div>'; });
   }
