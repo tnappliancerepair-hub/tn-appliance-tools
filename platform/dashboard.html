@@ -102,10 +102,11 @@
     m.shop = !!(s.flags && s.flags.hours && s.flags.area);
     var done=MILES.reduce(function(n,x){ return n+(m[x[0]]?1:0); },0);
     var why=[];
+    // Real blockers only. Ann-off + payments-off are incomplete MILESTONES (shown as chips),
+    // not "stuck" — Ann is a deliberate, Teddy-gated step (buys a DID), so it never alarms.
     if(!m.login) why.push('No active login — nobody can sign in');
-    if(m.login && (s.jobs||0)<=25 && daysSince(s.created_at)>2) why.push('Signed up '+ago(s.created_at)+' but still no book imported');
-    if(m.login && !m.ann) why.push('Ann isn’t answering yet');
-    if(done>=4 && (s.jobs||0)>0 && (s.jobs7d||0)===0 && daysSince(s.last_job_at)>14) why.push('No new jobs in '+ago(s.last_job_at));
+    if(m.login && (s.jobs||0)<=25 && daysSince(s.created_at)>2) why.push('Signed up '+ago(s.created_at)+' but no book imported yet');
+    if(done>=4 && (s.jobs||0)>0 && (s.jobs7d||0)===0 && daysSince(s.last_job_at)>14) why.push('No new jobs in '+ago(s.last_job_at)+' — went quiet');
     var status = done===5 ? 'live' : (why.length? 'stuck' : 'wip');
     return { m:m, done:done, status:status, why:why };
   }
