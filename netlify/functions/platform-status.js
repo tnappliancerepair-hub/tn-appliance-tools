@@ -5,7 +5,11 @@
 //
 //   ?secret=<admin>   (or Authorization: Bearer <operator supabase jwt>)
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh } = require('./_lib/secrets');
+// This is a VERIFICATION endpoint — it must never report a stale-empty warm-container cache
+// (getSecret caches even the empty case). Read env-first, then the LIVE vault, so a just-vaulted
+// key shows immediately instead of "MISSING until the container recycles".
+const freshSecret = async (n) => process.env[n] || (await getSecretFresh(n));
 const { platform } = require('./_lib/platform-rest');
 
 const SITE = 'https://tnapplianceexchange.net';
@@ -39,12 +43,12 @@ exports.handler = async function (event) {
   const [phoneLive, signupLive, billingLive, usageDigestLive, emailSecret, platStripe, stripe,
          whSecret, emailShared, emailEnabled, awsId, awsSecret,
          telnyxKey, telnyxTool, telnyxProfile] = await Promise.all([
-    getSecret('PLATFORM_PHONE_LIVE'), getSecret('PLATFORM_SIGNUP_LIVE'), getSecret('PLATFORM_BILLING_LIVE'),
-    getSecret('PLATFORM_USAGE_DIGEST_LIVE'), getSecret('PLATFORM_EMAIL_SECRET'),
-    getSecret('PLATFORM_STRIPE_SECRET_KEY'), getSecret('STRIPE_SECRET_KEY'),
-    getSecret('PLATFORM_STRIPE_WEBHOOK_SECRET'), getSecret('EMAIL_SHARED_SECRET'),
-    getSecret('EMAIL_ENABLED'), getSecret('TN_AWS_ACCESS_KEY_ID'), getSecret('TN_AWS_SECRET_ACCESS_KEY'),
-    getSecret('TELNYX_API_KEY'), getSecret('TELNYX_TOOL_SECRET'), getSecret('TELNYX_SHARED_MESSAGING_PROFILE_ID'),
+    freshSecret('PLATFORM_PHONE_LIVE'), freshSecret('PLATFORM_SIGNUP_LIVE'), freshSecret('PLATFORM_BILLING_LIVE'),
+    freshSecret('PLATFORM_USAGE_DIGEST_LIVE'), freshSecret('PLATFORM_EMAIL_SECRET'),
+    freshSecret('PLATFORM_STRIPE_SECRET_KEY'), freshSecret('STRIPE_SECRET_KEY'),
+    freshSecret('PLATFORM_STRIPE_WEBHOOK_SECRET'), freshSecret('EMAIL_SHARED_SECRET'),
+    freshSecret('EMAIL_ENABLED'), freshSecret('TN_AWS_ACCESS_KEY_ID'), freshSecret('TN_AWS_SECRET_ACCESS_KEY'),
+    freshSecret('TELNYX_API_KEY'), freshSecret('TELNYX_TOOL_SECRET'), freshSecret('TELNYX_SHARED_MESSAGING_PROFILE_ID'),
   ]);
   const stripeKey = platStripe || stripe || '';
   const stripeMode = !stripeKey ? 'not_configured' : (/^sk_live_/.test(stripeKey) ? 'live' : 'test');
