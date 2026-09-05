@@ -3129,7 +3129,75 @@
     "user interface control"
    ],
    "test": "Owner manual defers to service. Field-confirmed on KitchenAid KDTM604KPS: replaced the user interface + main control board — job completed."
+  },
+  {
+   "family": "samsung",
+   "appliance": "dryer",
+   "code": "t0",
+   "meaning": "Thermistor open — temperature sensor circuit open",
+   "likely_causes": [
+    "thermistor (temp sensor)",
+    "sensor harness"
+   ],
+   "test": "Ohm the thermistor; an open reading = replace it or repair the harness."
+  },
+  {
+   "family": "samsung",
+   "appliance": "dryer",
+   "code": "FE",
+   "meaning": "Power / line-frequency error",
+   "likely_causes": [
+    "supply voltage/frequency",
+    "main control board (PBA)"
+   ],
+   "test": "Verify a correct 240V / 60Hz supply at the outlet before condemning the board."
+  },
+  {
+   "family": "samsung",
+   "appliance": "dryer",
+   "code": "9E1",
+   "meaning": "Main control board (PBA) power/control fault",
+   "likely_causes": [
+    "main control board (PBA)",
+    "power connections"
+   ],
+   "test": "Check supply + board connectors; if clean, replace the main PBA."
+  },
+  {
+   "family": "samsung",
+   "appliance": "dryer",
+   "code": "AE",
+   "meaning": "Communication error between the main and sub control boards",
+   "likely_causes": [
+    "comms harness between boards",
+    "main PBA",
+    "sub PBA"
+   ],
+   "test": "Check the communication harness between the two boards for a loose/open connection."
+  },
+  {
+   "family": "samsung",
+   "appliance": "microwave",
+   "code": "dE",
+   "meaning": "Door sensing error (interlock/monitor switches)",
+   "likely_causes": [
+    "door interlock switches",
+    "monitor switch",
+    "door alignment"
+   ],
+   "test": "Check the door interlock switches for correct make/break as the door closes."
+  },
+  {
+   "family": "whirlpool",
+   "appliance": "range",
+   "code": "F3E0",
+   "meaning": "Open oven temperature sensor (RTD)",
+   "likely_causes": [
+    "oven temp sensor (RTD)",
+    "sensor harness"
+   ],
+   "test": "Ohm the RTD (~1080Ω @ 70°F); open = replace the sensor. Confirm value on the model tech sheet."
   }
  ],
- "updated": "2026-08-20"
+ "updated": "2026-09-05"
 }

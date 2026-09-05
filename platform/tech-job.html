@@ -352,6 +352,9 @@
         '<div class="mrow"><input id="tb" placeholder="Brand" value="'+esc(t?t.brand||a.brand:a.brand||'')+'"><input id="tm" placeholder="Model #" value="'+esc(t?t.model||a.model:a.model||'')+'"></div>' +
         '<div class="btnrow"><button class="full" id="ocrBtn">📸 Scan model # off the sticker<input type="file" accept="image/*" capture="environment" id="ocrFile" class="hidden"></button></div>' +
         '<div class="note hidden" id="ocrMsg"></div>' +
+        // Error code → the fault-code brain (meaning · likely cause · confirming test)
+        '<div class="mrow" style="margin-top:11px"><input id="tec" placeholder="Error code (e.g. F3, tE1, 5E)"><button id="codeBtn" style="flex:0 0 auto;padding:0 14px">🔎 Look up</button></div>' +
+        '<div class="brainbox hidden" id="codeBox"></div>' +
         // What usually fixes this — the cross-shop brain
         '<button class="full" id="brainBtn" style="margin-top:11px">🧠 What usually fixes this</button>' +
         '<div class="brainbox hidden" id="brainBox"></div>' +
@@ -611,6 +614,7 @@
     });
 
     document.getElementById('brainBtn').onclick = brainLookup;
+    document.getElementById('codeBtn').onclick = codeLookup;
     renderPartBtns();
     var sc=document.getElementById('supCfg'); if(sc) sc.onclick=function(){ AntSuppliers.chooser(shopSettings, renderPartBtns); };
     // Flat-rate repair menu — the Teddy-Tool "price" helper. Taps prefill labor + the total.
@@ -1330,6 +1334,47 @@
         return '<div class="brainrow"><div><b>'+esc(x.failed_component||'')+'</b>'+(x.part_number?' <span class="bp">'+esc(x.part_number)+'</span>':'')+'</div><div class="bp">'+(x.fixes||0)+' fixed'+(x.comebacks?' · '+x.comebacks+' came back':'')+'</div></div>';
       }).join('')+'<div class="bp" style="margin-top:6px">'+conf+' · '+(top.observations||0)+' repair'+(top.observations===1?'':'s')+' across '+(top.shops||1)+' shop'+(top.shops===1?'':'s')+'</div>';
     });
+  }
+
+  // Map the job's appliance to the fault-code DB's appliance value so a fridge code
+  // never answers with a washer code. DB values: refrigerator/range/washer/dryer/
+  // dishwasher/microwave (+ 'any'). Blank when we can't tell → the brain searches
+  // the whole brand (no cross-appliance guard, but still brand-scoped).
+  function applianceType(){
+    var s=((job.unit&&(job.unit.kind||job.unit.label))||'')+' '+(job.problem||'');
+    s=s.toLowerCase();
+    if(/fridge|refriger|freezer|ice ?maker|icemaker/.test(s)) return 'refrigerator';
+    if(/dishwasher/.test(s)) return 'dishwasher';
+    if(/microwave/.test(s)) return 'microwave';
+    if(/washer|washing/.test(s)) return 'washer';   // after dishwasher so "dishwasher" isn't caught here
+    if(/dryer/.test(s)) return 'dryer';
+    if(/range|stove|oven|cooktop|cook top/.test(s)) return 'range';
+    return '';
+  }
+
+  // Error-code brain: meaning · likely cause · confirming test for the typed code.
+  // Brand-scoped + appliance-scoped so it never gives a cross-appliance answer.
+  function codeLookup(){
+    var box=document.getElementById('codeBox'); box.classList.remove('hidden');
+    var code=(document.getElementById('tec').value||'').trim();
+    if(!code){ box.innerHTML='<div class="bp">Type the error code the machine is showing.</div>'; return; }
+    var brand=(document.getElementById('tb').value||'').trim()||(attrs().brand||'');
+    var appl=applianceType();
+    box.innerHTML='<div>🔎 Looking up '+esc(code)+'…</div>';
+    var qs='?brand='+encodeURIComponent(brand)+'&code='+encodeURIComponent(code)+(appl?'&appliance='+encodeURIComponent(appl):'');
+    fetch('/.netlify/functions/fault-code-lookup'+qs).then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.ok){ box.innerHTML='<div class="bp">Couldn\'t look that up right now.</div>'; return; }
+      if(d.found && d.match){
+        var m=d.match;
+        var causes=(m.likely_causes||[]).map(esc).join(' · ');
+        box.innerHTML='<div style="font-weight:800;margin-bottom:6px">🔎 '+esc(m.code)+' — '+esc(m.meaning)+'</div>'+
+          (causes?'<div class="brainrow"><div><b>Likely cause</b></div><div class="bp">'+causes+'</div></div>':'')+
+          (m.test?'<div class="brainrow"><div><b>Confirm it</b></div><div class="bp">'+esc(m.test)+'</div></div>':'');
+      } else {
+        box.innerHTML='<div><b>🔎 '+esc(code)+' isn\'t in the code book yet</b></div>'+
+          '<div class="bp">'+(brand?'No match for '+esc(brand):'Add the brand above')+(appl?' · '+esc(appl):'')+'. Check the model\'s tech sheet, then use 🧠 What usually fixes this for what real jobs found.</div>';
+      }
+    }).catch(function(){ box.innerHTML='<div class="bp">Couldn\'t reach the code book — check your connection.</div>'; });
   }
 
   // 🔩 Parts catalog — buttons from the shared, INTERCHANGEABLE supplier catalog
