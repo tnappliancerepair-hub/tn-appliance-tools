@@ -89,6 +89,20 @@
   .fld input:not([type=checkbox]){margin-bottom:0 !important}
   .fld .two{margin:0}
   .fld .two input:first-child{max-width:42%}
+  /* 🔍 Inspection checklist — optional, collapsed */
+  .insp{border:1.5px solid var(--line);border-radius:12px;background:var(--chip);overflow:hidden}
+  .insp>summary{list-style:none;cursor:pointer;padding:12px 14px;font-weight:800;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:6px}
+  .insp>summary::-webkit-details-marker{display:none}
+  .insp>summary::before{content:"🔍"}
+  .insp>summary::after{content:"▸";margin-left:auto;color:var(--muted);font-weight:700;transition:transform .15s}
+  .insp[open]>summary::after{transform:rotate(90deg)}
+  .insp .ihint{font-weight:600;color:var(--muted);font-size:12.5px}
+  .insp .ihelp{padding:0 14px 8px;font-size:12.5px;color:var(--muted);font-style:italic}
+  .isec{padding:8px 14px 10px;border-top:1px solid var(--line)}
+  .isec-t{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;margin-bottom:7px}
+  .ick{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--ink);padding:5px 0;line-height:1.35}
+  .ick input{margin:2px 0 0;width:18px;height:18px;flex:0 0 auto;accent-color:var(--brand)}
+  .fld[data-optional].filled .insp{border-color:var(--brand)}
   .statusgrid{display:flex;flex-direction:column;gap:8px}
   .sbtn{width:100%;text-align:left;font-weight:700;border:1.5px solid var(--line);background:var(--bg);padding:13px 14px}
   .sbtn.sel{border-color:transparent;color:#fff}
@@ -420,6 +434,8 @@
               '<div class="fld-hint">Why it failed / anything the office should know</div>' +
               '<input id="tr" placeholder="Short root cause or note" value="'+esc(t?t.root_cause||'':'')+'">' +
             '</div></div>' +
+          // 🔍 Inspection checklist — OUR per-appliance diagnostic checklist (optional)
+          inspectionHtml(t) +
           // 🔧 Job status — the big TN picker
           '<div class="fld" data-always>' +
             '<div class="fld-ic">🔧</div><div class="fld-body">' +
@@ -647,6 +663,7 @@
     });
     // Live green-fill feedback as the tech types — the same satisfying TN behavior.
     app.querySelectorAll('#reportCard .fld input:not([type=checkbox])').forEach(function(i){ i.addEventListener('input', paintFlds); });
+    app.querySelectorAll('#reportCard input[data-ins]').forEach(function(i){ i.addEventListener('change', paintFlds); });
     paintFlds();
     document.getElementById('saveTdr').onclick = saveTdr;
 
@@ -1377,6 +1394,77 @@
     }).catch(function(){ box.innerHTML='<div class="bp">Couldn\'t reach the code book — check your connection.</div>'; });
   }
 
+  // ── Native inspection checklists — OUR OWN per-appliance diagnostic checklists (built
+  //    from standard practice, not a third party's forms). Optional; ticked items save to
+  //    job_tdr.inspection. Keyed by the fault-code DB appliance values via applianceType().
+  var INSPECTION = {
+    refrigerator: [
+      ['Power & controls', ['120V present at outlet', 'Control board / display responds', 'Door switches actuate on open/close']],
+      ['Cooling', ['Condenser coils clean', 'Condenser fan runs', 'Evaporator fan runs', 'Compressor runs (not short-cycling)', 'Evaporator frost pattern normal', 'Defrost heater / thermostat / timer OK']],
+      ['Airflow & seals', ['Damper / air diffuser moves freely', 'Door gaskets seal all around', 'Defrost drain clear (no ice/water in base)']],
+      ['Ice & water', ['Water inlet valve energizes', 'Fill tube not frozen', 'Ice maker cycles']]
+    ],
+    washer: [
+      ['Power & controls', ['120V present at outlet', 'Control board / display responds', 'Lid / door lock latches & signals']],
+      ['Water', ['Hot & cold inlet valves fill', 'No kinks / good supply pressure', 'Drain pump runs', 'Drain hose clear, not clogged']],
+      ['Mechanical', ['Drum spins freely (no bad bearing)', 'Belt / drive coupler / motor OK', 'Suspension / shocks intact', 'No leaks at tub seal / hoses']]
+    ],
+    dryer: [
+      ['Power & controls', ['240V present (both legs)', 'Control board / display responds', 'Door switch actuates']],
+      ['Heat', ['Heating element continuity', 'Thermal fuse / thermostats continuity', 'High-limit not tripped', 'Gas valve / igniter (gas models)']],
+      ['Airflow', ['Lint filter clean', 'Full exhaust vent clear to outside', 'Blower wheel spins / not clogged', 'Strong airflow at wall cap']],
+      ['Mechanical', ['Drum turns freely', 'Belt / idler / rollers OK', 'Drive motor runs']]
+    ],
+    dishwasher: [
+      ['Power & controls', ['120V present at outlet', 'Control board / display responds', 'Door latch / switch signals closed']],
+      ['Water in', ['Water inlet valve fills', 'No kinks / good supply', 'Float / float switch free']],
+      ['Wash', ['Circulation / wash motor runs', 'Spray arms spin & not clogged', 'Heating element heats (if equipped)']],
+      ['Drain', ['Filter / sump clean', 'Drain pump runs', 'Drain hose / air gap clear', 'No leaks at door seal / hoses']]
+    ],
+    range: [
+      ['Power & controls', ['Correct supply voltage present', 'Control board / display responds', 'Door lock (self-clean) actuates']],
+      ['Bake / broil', ['Bake element heats / continuity', 'Broil element heats / continuity', 'Oven temp sensor (RTD) ~1080Ω @ 70°F', 'Reaches & holds set temp']],
+      ['Surface / cooktop', ['Each element / burner heats', 'Surface / infinite switch OK', 'Igniter sparks & lights (gas)', 'Glass / grates intact']],
+      ['Gas (if applicable)', ['Gas supply on, no leaks', 'Safety valve opens', 'Flame steady, correct color']]
+    ],
+    microwave: [
+      ['Power & controls', ['120V present at outlet', 'Control board / display responds', 'All 3 door interlock switches sequence correctly']],
+      ['Cooking (⚠ high voltage)', ['Turntable motor runs', 'Cooling / vent fan runs', 'No arcing inside cavity', 'Waveguide cover intact']],
+      ['Safety', ['Line fuse / thermal cutouts OK', 'Door aligns & seals', 'Discharge HV cap before probing']]
+    ]
+  };
+  // job appliance -> the report DB's inspection key (reuses applianceType)
+  function inspectionKind(){ var k=applianceType(); return INSPECTION[k]?k:''; }
+
+  // Render the optional, collapsed inspection block (a .fld[data-optional] so it never
+  // dings the report %). Empty string when we can't tell the appliance.
+  function inspectionHtml(t){
+    var kind=inspectionKind(); if(!kind) return '';
+    var pre={}; try{ ((t&&t.inspection&&t.inspection.checked)||[]).forEach(function(k){ pre[k]=1; }); }catch(_){}
+    var sections=INSPECTION[kind].map(function(sec){
+      var title=sec[0], items=sec[1];
+      var boxes=items.map(function(it){
+        var key=title+'::'+it, on=pre[key]?' checked':'';
+        return '<label class="ick"><input type="checkbox" data-ins="'+esc(key)+'"'+on+'> '+esc(it)+'</label>';
+      }).join('');
+      return '<div class="isec"><div class="isec-t">'+esc(title)+'</div>'+boxes+'</div>';
+    }).join('');
+    return '<div class="fld" data-optional>'+
+      '<div class="fld-ic">🔍</div><div class="fld-body">'+
+        '<details class="insp"><summary>Inspection checklist <span class="ihint">— '+esc(kind)+', optional</span></summary>'+
+          '<div class="ihelp">Tick what you checked — it rides along on the report + the warranty package.</div>'+
+          sections+
+        '</details>'+
+      '</div></div>';
+  }
+  // Gather the ticked items → { kind, checked:[...], ts }. null when nothing applies.
+  function collectInspection(){
+    var kind=inspectionKind(); if(!kind) return null;
+    var checked=[];
+    app.querySelectorAll('#reportCard input[data-ins]').forEach(function(i){ if(i.checked) checked.push(i.getAttribute('data-ins')); });
+    return checked.length ? { kind:kind, checked:checked, ts:new Date().toISOString() } : null;
+  }
+
   // 🔩 Parts catalog — buttons from the shared, INTERCHANGEABLE supplier catalog
   // (per-device tech choice ▸ shop default ▸ built-in; the shop's distributor folds in).
   function renderPartBtns(){
@@ -1400,6 +1488,12 @@
   function paintFlds(){
     var flds=app.querySelectorAll('#reportCard .fld'), filled=0, total=0;
     flds.forEach(function(f){
+      // Optional inspection block: show green feedback but never count toward the report %.
+      if(f.hasAttribute('data-optional')){
+        var anyc=false; f.querySelectorAll('input[type=checkbox]').forEach(function(i){ if(i.checked) anyc=true; });
+        f.classList.toggle('filled', anyc); f.classList.toggle('empty', !anyc);
+        return;
+      }
       if(f.hasAttribute('data-always')){ f.classList.add('filled'); f.classList.remove('empty'); }
       else{
         var any=false;
@@ -1436,12 +1530,14 @@
     var cb=document.getElementById('tcb'); var held=!(cb&&cb.checked);
     var row={ company_id:me.company_id, job_id:jobId, appliance:(job.unit&&job.unit.label)||'', brand:v('tb'), model:v('tm'), symptom:job.problem||'', failed_component:comp, part_number:v('tp'), root_cause:v('tr'), outcome:outcome, held:held, tech: myTech?myTech.name:(me.name||'') };
     if(partStatus) row.part_status=partStatus;
+    var insp=collectInspection(); if(insp) row.inspection=insp;
     var lh=v('th'); if(lh && !isNaN(parseFloat(lh))) row.labor_hours=parseFloat(lh);
     if(!held) row.reopened_at=new Date().toISOString();
     var done=function(r){
       if(r.error){
         // Resilient to columns that may not be migrated yet — save the rest of the report anyway.
         if(row.part_status!==undefined && /part_status/i.test(r.error.message||'')){ delete row.part_status; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done); return; }
+        if(row.inspection!==undefined && /inspection/i.test(r.error.message||'')){ delete row.inspection; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done); return; }
         if(row.labor_hours!==undefined && /labor_hours/i.test(r.error.message||'')){
           // keep the hours from being lost — fold them into notes/root cause
           if(lh) row.root_cause=(row.root_cause?row.root_cause+' · ':'')+'Labor '+lh+'h';
