@@ -23,6 +23,7 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const sessionId = String(b.session_id || q.session_id || '').trim();
   if (!/^cs_/.test(sessionId)) return J(200, { ok: false, error: 'bad_session' });
+  const origin = billing.safeOrigin(b.origin || q.origin);   // land the owner on the domain they started on
 
   const key = await billing.stripeKey();
   if (!key) return J(200, { ok: false, error: 'stripe_not_configured' });
@@ -62,7 +63,7 @@ exports.handler = async function (event) {
   try {
     const email = String(meta.email || '').trim().toLowerCase();
     const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-    const mev = { queryStringParameters: { secret: admin, action: 'magiclink', email, redirect: `${SITE}/platform/onboard.html` } };
+    const mev = { queryStringParameters: { secret: admin, action: 'magiclink', email, redirect: `${origin}/platform/onboard.html` } };
     const md = JSON.parse((await provision.handler(mev)).body || '{}');
     login = md.login_link || '';
   } catch (_) {}

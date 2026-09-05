@@ -21,6 +21,19 @@ const { platform } = require('./_lib/platform-rest');
 
 const SITE = 'https://tnapplianceexchange.net';
 
+// The signup funnel runs on multiple brand domains (assistant247.net is the product front door;
+// tnapplianceexchange.net serves the same site). Keep the whole flow on the domain the prospect
+// started on — but only ever redirect to a KNOWN host (never an attacker-supplied one).
+const ALLOWED_ORIGINS = [
+  'https://assistant247.net', 'https://www.assistant247.net',
+  'https://tnapplianceexchange.net', 'https://www.tnapplianceexchange.net',
+];
+function safeOrigin(o) {
+  const s = String(o || '').replace(/\/+$/, '');
+  return ALLOWED_ORIGINS.includes(s) ? s : SITE;
+}
+module.exports.safeOrigin = safeOrigin;
+
 function J(code, body) {
   return { statusCode: code, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, body: JSON.stringify(body) };
 }
@@ -239,8 +252,8 @@ async function signupCheckout(opts) {
     metadata: provMeta,
     // Carry the session id back so provision-on-redirect (platform-signup-verify) can stand up
     // the tenant immediately, with no dependency on the webhook signing secret.
-    success_url: `${SITE}/platform/signup.html?billing=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${SITE}/platform/signup.html?billing=cancel`,
+    success_url: `${safeOrigin(opts.origin)}/platform/signup.html?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${safeOrigin(opts.origin)}/platform/signup.html?billing=cancel`,
   });
   return { ok: true, url: session.url, session_id: session.id, test_mode: /^sk_test_/.test(key) };
 }

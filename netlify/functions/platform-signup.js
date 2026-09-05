@@ -29,7 +29,7 @@ exports.config = { timeout: 26 };
 // low-privilege, shareable "free-setup" token — the admin secret also works for the founder's
 // own walk). Never charges, never self-attributes a referral.
 async function provisionComp(pf, o) {
-  const SITE = 'https://tnapplianceexchange.net';
+  const SITE = billing.safeOrigin(o.origin);   // keep the comp walk on the domain it started on
   const provision = require('./platform-provision');
   const pev = { queryStringParameters: {
     secret: o.admin, action: 'provision', slug: o.slug, name: o.name, trade: o.trade,
@@ -119,13 +119,13 @@ exports.handler = async function (event) {
   // COMP (no card): provision straight to a live tenant, skip Stripe entirely.
   if (wantComp) {
     if (!compAuthed) return J(200, { ok: false, error: 'comp_not_authorized', message: "This free-setup link isn't valid — check the link and try again." });
-    return await provisionComp(pf, { name, slug, trade, plan: planKey, email, owner_name: b.owner_name || '', phone: b.phone || '', area: b.area || '', want_ann: !!b.want_ann, admin, terms_version: termsVersion, terms_at: termsAt });
+    return await provisionComp(pf, { name, slug, trade, plan: planKey, email, owner_name: b.owner_name || '', phone: b.phone || '', area: b.area || '', want_ann: !!b.want_ann, admin, terms_version: termsVersion, terms_at: termsAt, origin: String(b.origin || '') });
   }
 
   // Card-required Checkout. Tenant is provisioned by the webhook after the card clears.
   let out;
   try {
-    out = await billing.signupCheckout({ name, slug, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '', want_ann: !!b.want_ann, ref: String(b.ref || '').slice(0, 60), terms_version: termsVersion, terms_accepted_at: termsAt });
+    out = await billing.signupCheckout({ name, slug, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '', want_ann: !!b.want_ann, ref: String(b.ref || '').slice(0, 60), terms_version: termsVersion, terms_accepted_at: termsAt, origin: String(b.origin || '') });
   } catch (e) {
     return J(200, { ok: false, error: 'checkout_failed', detail: String((e && e.message) || e).slice(0, 160) });
   }
