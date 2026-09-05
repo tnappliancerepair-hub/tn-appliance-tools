@@ -246,8 +246,11 @@
     var e=document.getElementById('em'), p=document.getElementById('pw');
     if(e&&p){ e.value=document.getElementById(em).textContent.trim(); p.value=document.getElementById(pw).textContent.trim(); p.focus(); say('Filled — tap Sign in'); window.scrollTo({top:si.offsetTop-16,behavior:'smooth'}); }
   };});
-  if(sb){ sb.auth.getSession().then(function(r){ var u=r&&r.data&&r.data.session&&r.data.session.user; if(u) signedIn(u.email); else signIn(); }); }
-  else signIn();
+  // Static/cached-session render (no boot fetch) → tell the boot-watchdog we're up so it doesn't
+  // false-fire the "slow connection" panel + auto-reload in a loop.
+  function bootDone(){ try{ window.bootOK && window.bootOK(); }catch(e){} }
+  if(sb){ sb.auth.getSession().then(function(r){ var u=r&&r.data&&r.data.session&&r.data.session.user; if(u) signedIn(u.email); else signIn(); bootDone(); }).catch(function(){ signIn(); bootDone(); }); }
+  else { signIn(); bootDone(); }
 })();
 </script>
 </body>

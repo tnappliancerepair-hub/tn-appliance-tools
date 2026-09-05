@@ -263,8 +263,11 @@
     go.onclick=submit;
     var pwEl=document.getElementById('pw'); if(pwEl) pwEl.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
   }
-  if(sb){ sb.auth.getSession().then(function(r){ var u=r&&r.data&&r.data.session&&r.data.session.user; if(u) signedInView(u.email); else signInView(); }); }
-  else { signInView(); }
+  // Static/cached-session render (no boot fetch) → tell the boot-watchdog we're up so it doesn't
+  // false-fire the "slow connection" panel + auto-reload in a loop.
+  function bootDone(){ try{ window.bootOK && window.bootOK(); }catch(e){} }
+  if(sb){ sb.auth.getSession().then(function(r){ var u=r&&r.data&&r.data.session&&r.data.session.user; if(u) signedInView(u.email); else signInView(); bootDone(); }).catch(function(){ signInView(); bootDone(); }); }
+  else { signInView(); bootDone(); }
 
   render();
 })();

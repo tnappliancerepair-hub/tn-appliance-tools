@@ -264,8 +264,11 @@
     go.onclick=submit;
     var pwEl=document.getElementById('pw'); if(pwEl) pwEl.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
   }
-  if(sb){ sb.auth.getSession().then(function(r){ var u=r&&r.data&&r.data.session&&r.data.session.user; if(u) signedInView(u.email); else signInView(); }); }
-  else { signInView(); }
+  // This page renders from a cached session / static cards with NO boot fetch, so tell the
+  // boot-watchdog we're up (else it false-fires the "slow connection" panel + auto-reloads in a loop).
+  function bootDone(){ try{ window.bootOK && window.bootOK(); }catch(e){} }
+  if(sb){ sb.auth.getSession().then(function(r){ var u=r&&r.data&&r.data.session&&r.data.session.user; if(u) signedInView(u.email); else signInView(); bootDone(); }).catch(function(){ signInView(); bootDone(); }); }
+  else { signInView(); bootDone(); }
 
   render();
 })();
