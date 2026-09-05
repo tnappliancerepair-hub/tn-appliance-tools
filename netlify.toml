@@ -74,12 +74,16 @@
 [functions."platform-warm"]
   schedule = "2-59/5 * * * *"
 
-# platform-warranty-tee-cron — every 15 min, tee NEW warranty dispatch emails from TN's
-# Gmail onto the platform board (parallel with the legacy Xano pollers; Gmail reads are
-# non-destructive). Idempotent via platform-email-intake's per-(company,message_id) dedup.
-# Kill switch: vault PLATFORM_WARRANTY_TEE_ENABLED=false.
-[functions."platform-warranty-tee-cron"]
-  schedule = "7-59/15 * * * *"
+# platform-warranty-tee-cron — DISABLED 2026-09-05. Now that platform-tn-mirror runs every
+# 5 min against the SAME tenant (tn-appliance-exchange-llc), the mirror already brings every
+# Xano AHS job (which Xano creates from the same dispatch emails) onto the platform board.
+# Running the email-tee too created a SECOND copy per job (tee rows have no xano_id, mirror
+# rows do → no cross-dedup → duplicates). The mirror is the single, authoritative parallel
+# path for TN during the crossover. The tee core stays deployed (curl-testable) + is the
+# future productized pipe for OTHER shops via the Cloudflare <slug>@jobs.assistant247.net
+# worker; re-enable here (or build cross-dedup) only when a shop needs the direct-email path.
+# [functions."platform-warranty-tee-cron"]
+#   schedule = "7-59/15 * * * *"
 
 # platform-review-sweep-cron — twice-daily (~10am + 4pm CT), texts each shop's recently-
 # completed customers that shop's Google-review request (per-shop toggle in the Communication
