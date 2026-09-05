@@ -47,6 +47,11 @@
   .links{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
   .links a{text-decoration:none;font-size:12.7px;font-weight:800;padding:7px 11px;border-radius:9px;border:1px solid var(--line);color:var(--ink);background:var(--bg)}
   .nologin{color:var(--muted);font-size:12.5px;margin-top:9px;border-top:1px solid var(--line);padding-top:9px}
+  .card.churned{opacity:.55}
+  .b.off{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+  .links button.act{font:inherit;font-size:12.7px;font-weight:800;padding:7px 11px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+  .links button.act.rm{border-color:color-mix(in srgb,var(--bad) 40%,var(--line));color:var(--bad)}
+  .links button.act.react{border-color:var(--brand);color:var(--brand)}
   .gate{max-width:400px;margin:12vh auto 0}
   .gate .card{padding:20px}
   .gate input{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:16px;margin-top:10px}
@@ -88,18 +93,23 @@
 
   function card(r){
     var slug=r.slug||'', name=r.name||slug, jobs=r.jobs||0, logins=r.logins||[];
-    var h='<div class="card"><div class="top"><div>'+
+    var churned=(r.status==='churned');
+    var h='<div class="card'+(churned?' churned':'')+'"><div class="top"><div>'+
       '<h3>'+esc(name)+'</h3><div class="slug">'+esc(slug)+'</div>'+
-      '<div class="badges"><span class="b trade">'+esc(r.trade||'—')+'</span>'+(r.plan?'<span class="b plan">'+esc(r.plan)+'</span>':'')+'</div>'+
+      '<div class="badges"><span class="b trade">'+esc(r.trade||'—')+'</span>'+(r.plan?'<span class="b plan">'+esc(r.plan)+'</span>':'')+(churned?'<span class="b off">removed</span>':'')+'</div>'+
       '</div><div class="nums"><div class="j">'+jobs.toLocaleString()+'</div><div class="jl">jobs</div></div></div>';
     if(logins.length){
       h+='<div class="logins">';
       logins.forEach(function(l){ h+='<div class="lg"><span class="em'+(l.active===false?' off':'')+'">'+esc(l.email||'')+(l.active===false?' (inactive)':'')+'</span><span class="rl">'+esc(l.role||'')+'</span></div>'; });
       h+='</div>';
     } else { h+='<div class="nologin">No logins yet — nobody can sign in to this shop.</div>'; }
+    var act=churned
+      ? '<button class="act react" data-act="react" data-slug="'+esc(slug)+'" data-name="'+esc(name)+'">↩ Reactivate</button>'
+      : '<button class="act rm" data-act="rm" data-slug="'+esc(slug)+'" data-name="'+esc(name)+'">🗑 Remove</button>';
     h+='<div class="links">'+
       '<a href="/s/'+encodeURIComponent(slug)+'" target="_blank" rel="noopener">🌐 Site</a>'+
       '<a href="/b/'+encodeURIComponent(slug)+'" target="_blank" rel="noopener">📅 Book link</a>'+
+      act+
       '</div></div>';
     return h;
   }
@@ -131,6 +141,28 @@
       .catch(function(e){ if(e.message==='key'){ localStorage.removeItem(KEY); gate('That key was rejected.'); } else { gate('Could not load — try again.'); } });
   }
   function gate(msg){ show('gate'); if(msg) document.getElementById('gerr').textContent=msg; var k=document.getElementById('key'); if(k) k.focus(); }
+
+  // ── Remove (soft-offboard) / Reactivate a shop, straight from the platform view ──
+  function doRemove(slug,name){
+    if(!window.confirm('Remove "'+name+'" from the platform?\n\nSoft-remove: it revokes the shop’s logins and drops it off the view. Reversible — you can Reactivate it later (data is kept).')) return;
+    var typed=window.prompt('To confirm, type the shop name exactly:\n\n'+name);
+    if(typed==null) return;
+    if(typed.trim()!==String(name).trim()){ alert('Name didn’t match — nothing removed.'); return; }
+    var sec=encodeURIComponent(localStorage.getItem(KEY)||'');
+    var u='/.netlify/functions/platform-provision?action=offboard&slug='+encodeURIComponent(slug)+'&reason='+encodeURIComponent('removed from platform view')+'&secret='+sec;
+    if(slug==='tn-appliance') u+='&force_flagship=yes';
+    fetch(u).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ load(); } else { alert('Could not remove: '+((d&&(d.error||d.message))||'unknown')); } }).catch(function(){ alert('Could not remove — try again.'); });
+  }
+  function doReactivate(slug,name){
+    if(!window.confirm('Reactivate "'+name+'"? Restores it and un-bans its logins.')) return;
+    var sec=encodeURIComponent(localStorage.getItem(KEY)||'');
+    fetch('/.netlify/functions/platform-provision?action=reactivate&slug='+encodeURIComponent(slug)+'&secret='+sec).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok){ load(); } else { alert('Could not reactivate: '+((d&&(d.error||d.message))||'unknown')); } }).catch(function(){ alert('Could not reactivate — try again.'); });
+  }
+  document.getElementById('list').addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('button[data-act]'); if(!b) return;
+    var slug=b.getAttribute('data-slug'), name=b.getAttribute('data-name');
+    if(b.getAttribute('data-act')==='rm') doRemove(slug,name); else doReactivate(slug,name);
+  });
 
   document.getElementById('go').onclick=function(){ var v=document.getElementById('key').value.trim(); if(!v){ document.getElementById('gerr').textContent='Enter the key.'; return; } localStorage.setItem(KEY,v); load(); };
   document.getElementById('key').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('go').click(); });

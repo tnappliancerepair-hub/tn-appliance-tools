@@ -14,7 +14,10 @@
 const { getSecret } = require('./_lib/secrets');
 const { fetchKanban } = require('./_lib/board-mirror');
 
-const TN_COMPANY = '7b421706-4951-4d79-b070-4d4bcbc37c47';
+// The real TN tenant — "TN Appliance Exchange LLC" (created 9/3, full book + all 8 crew/office
+// logins). Was pointed at the older 8/27 setup tenant (7b421706 / slug tn-appliance), which
+// left the crew's tenant frozen; repointed 9/5 so the crew's My Day stays live with Xano.
+const TN_COMPANY = 'be4d11a1-5219-469b-916a-ab990be7ea7f';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }

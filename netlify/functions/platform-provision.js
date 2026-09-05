@@ -145,7 +145,10 @@ exports.handler = async function (event) {
   if (q.action === 'offboard') {
     const slug = String(q.slug || '').toLowerCase().trim();
     if (!slug) return json(200, { ok: false, error: 'slug required' });
-    if (slug === 'tn-appliance') return json(200, { ok: false, error: 'refusing to offboard the flagship (tn-appliance)' });
+    // Flagship guard: refuse tn-appliance UNLESS a deliberate override is passed. offboard is
+    // SOFT + reversible (reactivate undoes it) + keeps all data, so an explicit override here is
+    // safe; the PURGE (permanent) guard below stays unconditional.
+    if (slug === 'tn-appliance' && q.force_flagship !== 'yes') return json(200, { ok: false, error: 'refusing to offboard the flagship (tn-appliance) — pass &force_flagship=yes to override (soft + reversible)' });
     const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name,status`);
     const co = cos && cos[0];
     if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
@@ -239,7 +242,7 @@ exports.handler = async function (event) {
 
   // Diagnostic: list every tenant + its owner login, to confirm isolation.
   if (q.action === 'tenants') {
-    const companies = await rest0('company?select=id,slug,name,trade,plan,created_at&order=created_at.asc');
+    const companies = await rest0('company?select=id,slug,name,trade,plan,status,created_at&order=created_at.asc');
     const users = await rest0('app_user?select=company_id,role,email,active&order=created_at.asc');
     const byCo = {};
     (Array.isArray(users) ? users : []).forEach((u) => { (byCo[u.company_id] = byCo[u.company_id] || []).push({ email: u.email, role: u.role, active: u.active }); });
@@ -256,7 +259,7 @@ exports.handler = async function (event) {
     };
     const out = [];
     for (const c of (Array.isArray(companies) ? companies : [])) {
-      out.push({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, jobs: await countOf(`job?company_id=eq.${c.id}&select=id`), logins: byCo[c.id] || [] });
+      out.push({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, status: c.status || 'active', jobs: await countOf(`job?company_id=eq.${c.id}&select=id`), logins: byCo[c.id] || [] });
     }
     return json(200, { ok: true, tenants: out });
   }
