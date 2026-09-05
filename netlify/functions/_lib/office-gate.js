@@ -17,7 +17,10 @@ const TEDDY = '6154855795';
 // The ONLY two things Teddy still wants texted — both to him only.
 const CASH_INTAKE_TAGS = new Set(['quick_check', 'quick_check_lead', 'ann_new_job', 'cash_intake', 'cash_lead', 'self_pay_lead']);
 const WARRANTY_INTAKE_TAGS = new Set(['warranty_quick_check', 'warranty_intake', 'warranty_new_job', 'warranty_lead']);
-const ALLOWED_TO_TEDDY = new Set([...CASH_INTAKE_TAGS, ...WARRANTY_INTAKE_TAGS]);
+// AssistAnt PLATFORM (SaaS) alerts Teddy asked to receive: a new shop starts a free trial,
+// and a prospect messages us from the site. Money-making signals, so they reach his cell.
+const PLATFORM_TAGS = new Set(['platform_signup', 'prospect_message']);
+const ALLOWED_TO_TEDDY = new Set([...CASH_INTAKE_TAGS, ...WARRANTY_INTAKE_TAGS, ...PLATFORM_TAGS]);
 
 // Kept defined (not allowlisted) so morning-us can one-line-restore system-health pings
 // to Teddy if he wants them back — he explicitly said "eliminate the others" tonight.
@@ -36,4 +39,4 @@ function officeBlocked(to, tag) {
   return true;                                         // everyone else, and every other tag: suppressed
 }
 
-module.exports = { officeBlocked, last10, OFFICE, CASH_INTAKE_TAGS, WARRANTY_INTAKE_TAGS, HEALTH_TAGS };
+module.exports = { officeBlocked, last10, OFFICE, CASH_INTAKE_TAGS, WARRANTY_INTAKE_TAGS, PLATFORM_TAGS, HEALTH_TAGS };

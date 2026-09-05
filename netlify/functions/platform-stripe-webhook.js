@@ -144,11 +144,32 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   // sent, so a paying owner who never got the email is instantly visible + recoverable by the
   // operator (magiclink fallback mints a fresh link on demand). Best-effort — never breaks the paid flow.
   try {
-    console.log('[platform-stripe-webhook] provisioned', JSON.stringify({ slug, owner_email: email, emailed, email_mode: emailMode, login_link: link || null }));
-    await pf.insert('event', {
-      company_id: companyId, type: 'platform_signup_provisioned', entity: slug,
-      payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode, terms_version: meta.terms_version || null, terms_at: meta.terms_at || null },
-    });
+    // Exactly-once: the redirect path (platform-signup-verify) AND the webhook both call this — dedup
+    // on the provisioned event so Teddy is alerted once per signup, not twice on a race.
+    let already = false;
+    try {
+      const ex = await pf.get(`event?company_id=eq.${encodeURIComponent(companyId)}&type=eq.platform_signup_provisioned&select=id&limit=1`);
+      already = !!(ex && ex.length);
+    } catch (_) {}
+    if (!already) {
+      console.log('[platform-stripe-webhook] provisioned', JSON.stringify({ slug, owner_email: email, emailed, email_mode: emailMode, login_link: link || null }));
+      await pf.insert('event', {
+        company_id: companyId, type: 'platform_signup_provisioned', entity: slug,
+        payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode, terms_version: meta.terms_version || null, terms_at: meta.terms_at || null },
+      });
+      // 🎉 Tell Teddy a shop just started a free trial — text + email (best-effort, never blocks).
+      try {
+        const notify = require('./_lib/platform-notify');
+        const planLabel = meta.plan || 'office';
+        const shopName = meta.name || slug;
+        await notify.notifyOperator({
+          tag: 'platform_signup',
+          sms: `🎉 New AssistAnt signup: ${shopName} (${email}) — ${planLabel} plan, 14-day trial started.${refCode ? ' ref:' + refCode : ''}`,
+          subject: `New AssistAnt signup — ${shopName}`,
+          email_body: `A new shop just started a free trial.\n\nShop: ${shopName}\nEmail: ${email}\nPlan: ${planLabel}\nSlug: ${slug}${refCode ? '\nReferral: ' + refCode : ''}\nStarted: ${new Date().toISOString()}\n\nOperator dashboard: ${SITE}/platform-dashboard\nAll shops: ${SITE}/shops`,
+        });
+      } catch (_) {}
+    }
   } catch (_) {}
   return companyId;
 }

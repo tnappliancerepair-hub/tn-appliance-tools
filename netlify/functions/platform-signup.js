@@ -55,6 +55,15 @@ async function provisionComp(pf, o) {
     const md = JSON.parse((await provision.handler(mev)).body || '{}');
     link = md.login_link || '';
   } catch (_) {}
+  // 🎉 Tell Teddy a shop just came on (comp / no-card path) — text + email, best-effort.
+  try {
+    await require('./_lib/platform-notify').notifyOperator({
+      tag: 'platform_signup',
+      sms: `🎉 New AssistAnt shop (free setup): ${o.name} (${o.email}) — ${o.plan || 'office'} plan.`,
+      subject: `New AssistAnt shop (comp) — ${o.name}`,
+      email_body: `A shop was set up via the free-setup (comp) path.\n\nShop: ${o.name}\nEmail: ${o.email}\nPlan: ${o.plan || 'office'}\nSlug: ${o.slug}\nStarted: ${new Date().toISOString()}\n\nOperator dashboard: https://tnapplianceexchange.net/platform-dashboard`,
+    });
+  } catch (_) {}
   return J(200, { ok: true, comp: true, slug: o.slug, company_id: companyId, login_url: link || null,
     temp_password: (pd.login && pd.login.temp_password) || null,
     message: link ? 'Setting up your shop — taking you to your dashboard…' : 'Your shop is set up. Check your email for a sign-in link.' });
