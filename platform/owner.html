@@ -412,6 +412,8 @@
       '</div>'+
       '<div class="sec">📥 Emailed jobs <span class="lock">warranty dispatches, automatic</span></div>'+
       '<div id="emailIntake"><div class="note">Loading…</div></div>'+
+      '<div class="sec">🤝 Refer a shop — get $25/mo off <span class="lock">4 = your system is free</span></div>'+
+      '<div id="referCard"><div class="note">Loading…</div></div>'+
       '<div class="sec">Per-tech <span class="lock">🔒 owner only</span></div>'+
       techTable+
       '<div class="sec">Ann this week</div>'+
@@ -451,6 +453,7 @@
     loadUsage();
     loadPayments();
     loadEmailIntake();
+    loadRefer();
     loadLedger();
     mountAnt();
   }
@@ -568,6 +571,45 @@
       }
       el.innerHTML=head+feed;
       var cp2=document.getElementById('iaCopy'); if(cp2) cp2.onclick=function(){ try{ navigator.clipboard.writeText(addr); cp2.textContent='Copied ✓'; setTimeout(function(){cp2.textContent='Copy';},1500);}catch(e){} };
+    });
+  }
+
+  // 🤝 The Ant Army — refer another shop, shave $25/mo off your own bill per active referral
+  // (4 = your system runs free; past 4 = $25/mo cash each). Reads platform-referral (do=ensure),
+  // which idempotently creates this shop's referral row + returns the link + live credit/cash split.
+  function loadRefer(){
+    var el=document.getElementById('referCard'); if(!el) return;
+    sessTok().then(function(tok){
+      if(!tok){ el.innerHTML='<div class="note">Sign in to get your referral link.</div>'; return; }
+      fetch('/.netlify/functions/platform-referral?do=ensure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok})})
+        .then(function(r){return r.json();}).then(function(d){
+          if(!d||!d.ok){ el.innerHTML='<div class="note">Couldn’t load your referral link'+((d&&d.error)?' ('+esc(d.error)+')':'')+'.</div>'; return; }
+          var link=d.link||'', active=d.active||0, freeAt=d.free_at||4, toFree=d.to_free||0;
+          var credit=USD(d.credit_cents||0), cash=USD(d.cash_cents||0), live=!!d.credit_live;
+          // progress line
+          var prog;
+          if(toFree>0){ prog='<b>'+active+'</b> of '+freeAt+' active shops → <b>'+credit+'/mo off</b> · '+toFree+' more = your system is <b>FREE</b>.'; }
+          else { prog='🎉 <b>'+active+'</b> active shops — your system is <b>FREE</b>'+((d.cash_cents||0)>0?' + you’re earning <b>'+cash+'/mo cash</b>':'')+'.'; }
+          var creditNote = live
+            ? '<div class="ia-h">Your credit is applied to your subscription automatically.</div>'
+            : '<div class="ia-h">Your credit is pending — it applies to your next bill once each referred shop is active.</div>';
+          var head='<div class="intakeaddr"><div class="ia-l"><div class="ia-t">Your referral link — send it to a shop owner</div>'+
+            '<div class="ia-a"><span class="mono" id="refLink">'+esc(link)+'</span> <button class="ia-copy" id="refCopy">Copy</button></div>'+
+            '<div class="ia-h">They get <b>free setup</b>. You get <b>$25/mo off</b> for every shop that signs up and stays active — <b>'+freeAt+' = your $99 system is free</b>, and every shop past '+freeAt+' pays you <b>$25/mo cash</b>.</div></div></div>';
+          var pbox='<div class="money">'+mrow('Your standing','',prog)+'</div>'+creditNote;
+          var shops=(d.shops||[]);
+          var feed;
+          if(!shops.length){ feed='<div class="note">No referrals yet. Share your link with a shop owner — the moment they sign up and go active, your credit starts.</div>'; }
+          else {
+            feed='<div class="ledger">'+shops.map(function(s){
+              var st=s.active?['#e7f6ec','#1a7f37','active — earning']:['#fef3c7','#92400e','signed up'];
+              return '<div class="lrow"><div class="li">🏬</div><div class="lb"><div class="la">'+esc(s.name||s.slug||'—')+' <span class="ist" style="background:'+st[0]+';color:'+st[1]+'">'+st[2]+'</span></div>'+
+                '<div class="lm">'+esc(s.slug||'')+'</div></div></div>';
+            }).join('')+'</div>';
+          }
+          el.innerHTML=head+pbox+feed;
+          var cp=document.getElementById('refCopy'); if(cp) cp.onclick=function(){ try{ navigator.clipboard.writeText(link); cp.textContent='Copied ✓'; setTimeout(function(){cp.textContent='Copy';},1500);}catch(e){} };
+        }).catch(function(){ el.innerHTML='<div class="note">Couldn’t load your referral link.</div>'; });
     });
   }
 
