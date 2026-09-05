@@ -242,10 +242,21 @@ exports.handler = async function (event) {
     const users = await rest0('app_user?select=company_id,role,email,active&order=created_at.asc');
     const byCo = {};
     (Array.isArray(users) ? users : []).forEach((u) => { (byCo[u.company_id] = byCo[u.company_id] || []).push({ email: u.email, role: u.role, active: u.active }); });
-    const jc = await rest0('job?select=company_id');
-    const jobCount = {};
-    (Array.isArray(jc) ? jc : []).forEach((j) => { jobCount[j.company_id] = (jobCount[j.company_id] || 0) + 1; });
-    const out = (Array.isArray(companies) ? companies : []).map((c) => ({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, jobs: jobCount[c.id] || 0, logins: byCo[c.id] || [] }));
+    // Exact per-company job count via Content-Range (a plain `job?select=company_id`
+    // fetch-all is capped at PostgREST's ~1000-row max, so a big tenant's newest jobs
+    // fall outside the window and get counted as 0 — the bug that made a fully-migrated
+    // shop read as "jobs: 0").
+    const countOf = async (path) => {
+      try {
+        const r = await fetch(`${url}/rest/v1/${path}`, { method: 'HEAD', headers: { ...H, Prefer: 'count=exact', Range: '0-0' }, signal: AbortSignal.timeout(10000) });
+        const n = parseInt(((r.headers.get('content-range') || '').split('/')[1] || '0'), 10);
+        return Number.isFinite(n) ? n : 0;
+      } catch (_) { return 0; }
+    };
+    const out = [];
+    for (const c of (Array.isArray(companies) ? companies : [])) {
+      out.push({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, jobs: await countOf(`job?company_id=eq.${c.id}&select=id`), logins: byCo[c.id] || [] });
+    }
     return json(200, { ok: true, tenants: out });
   }
 
