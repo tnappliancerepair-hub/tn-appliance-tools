@@ -27,7 +27,7 @@ const KITS = {
     message: 'Run your whole appliance shop for $99/mo flat — every tech included, free setup. Bring a buddy shop on board and take $25/mo off your bill for each one. Four, and yours is free. Built by a real repair shop that runs on it every day. 🐜',
     headline: '$99/mo — Refer 4, Yours Is Free',
     description: 'Free setup. Ann answers 24/7. Bring your data off Housecall Pro in a day.',
-    link: SITE + '/platform/system.html',
+    link: 'https://assistant247.net',
     cta: 'LEARN_MORE',
   },
   product: {
@@ -35,7 +35,7 @@ const KITS = {
     message: 'The AI system that answers every call 24/7, books the job, and runs your whole back office — $99/mo flat, every tech included, free setup. Built by a real appliance repair shop. 🐜',
     headline: 'Answer Every Call, Book Every Job',
     description: '$99/mo flat — no per-seat fees. AI receptionist + full office in one.',
-    link: SITE + '/platform/system.html',
+    link: 'https://assistant247.net',
     cta: 'LEARN_MORE',
   },
 };

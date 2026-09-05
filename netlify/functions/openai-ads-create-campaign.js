@@ -44,7 +44,7 @@ const KITS = {
     label: 'AssistAnt — Shop Software',
     headlines: ['Run Your Shop for $99/mo', 'Refer 4 Shops = Yours Free', 'AI Answers Every Call 24/7', 'Free Setup, No Per-Seat Fee', 'Housecall Pro Alternative', 'Built By a Real Repair Shop'],
     descriptions: ['Run your whole appliance shop for $99/mo flat — every tech included, free setup. Refer 4 buddy shops and yours is free.', 'AI answers 24/7 and books the job. Bring your data off Housecall Pro, Jobber or Workiz in a day. Built by a shop that runs on it.'],
-    final: 'https://tnapplianceexchange.net/platform/system.html',
+    final: 'https://assistant247.net',
   },
 };
 

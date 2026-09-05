@@ -4,7 +4,7 @@ The referral program as a **targeted ad to shop owners**. Every claim below is t
 pages ($99/mo flat all-techs-included, free setup, Ann answers 24/7, bring-your-data, built by a
 real shop, refer 4 = free / past 4 = $25/mo cash). Creative: **`/referral-og.png`** (1200×630,
 the gold "Refer a shop. Get $25/mo off." card) — or `/assistant-og.png` for a product-first look.
-Landing: **`/platform/system.html`** (the prospect tour + Start-free-trial CTA).
+Landing: **`assistant247.net`** (the prospect tour + Start-free-trial CTA).
 
 Honest note on "targeting": **Meta** targets by *audience* (small-business owners / the trades) —
 best fit for reaching owners. **Google** targets by *intent* (owners searching for repair
@@ -22,7 +22,7 @@ software). **ChatGPT** buys the answer when an owner asks an AI what to run thei
   is free. Built by a real repair shop that runs on it every day. 🐜
 - **Headline:** $99/mo — Refer 4, Yours Is Free
 - **Description:** Free setup. Ann answers 24/7. Bring your data off Housecall Pro in a day.
-- **CTA button:** Learn More → `/platform/system.html`
+- **CTA button:** Learn More → `assistant247.net`
 
 _Go-live: vault `META_AD_ACCOUNT_ID` + `META_ADS_TOKEN` (ads_management) via admin-secrets.html →
 `meta-ads-diag?secret=` goes green → `meta-ads-create-campaign?secret=&apply=1` (PAUSED) → review +
@@ -41,7 +41,7 @@ National, leads on the same hook, targets owners actively shopping for software.
   Your Data in a Day · Flat $99, All Techs Included
 - **Descriptions (≤90):** One system runs your whole shop — $99/mo flat, every tech included, free
   setup. · Refer buddy shops, get $25/mo off each — 4 and yours is free. Built by a real shop.
-- **Final URL:** `/platform/system.html`
+- **Final URL:** `assistant247.net`
 
 _Staged now as a live PREVIEW (no spend). Launch: `google-ads-create-campaign?secret=&appliance=saas&apply=1`
 (creates PAUSED) then `&enable=1` (or google-ads-enable) to turn on. ~$20–30/day to start._
@@ -56,7 +56,7 @@ OpenAI key is vaulted (`OPENAI_ADS_API_KEY` + `OPENAI_ADS_PIXEL_ID`).
 - **Descriptions:** Run your whole appliance shop for $99/mo flat — every tech included, free setup.
   Refer 4 buddy shops and yours is free. · AI answers 24/7 and books the job. Bring your data off
   Housecall Pro, Jobber or Workiz in a day. Built by a shop that runs on it.
-- **Final URL:** `/platform/system.html`
+- **Final URL:** `assistant247.net`
 
 ---
 
@@ -68,7 +68,7 @@ Tightest owner-targeting that exists (job title + industry), but paid is manual/
 > Here's the model we built (and run our own shop on): $99/mo flat, every tech included, free setup,
 > an AI that answers every call 24/7 and books the job. And a referral twist for the trade — bring
 > 4 buddy shops on and yours is free. Long live the moneymakers. 🐜
-> _(link in the first comment → /platform/system.html)_
+> _(link in the first comment → assistant247.net)_
 
 ---
 

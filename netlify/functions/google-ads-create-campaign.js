@@ -65,7 +65,7 @@ const KITS = {
     keywords: ['appliance repair software', 'field service software', 'housecall pro alternative', 'jobber alternative', 'workiz alternative', 'software for appliance repair business', 'ai receptionist for small business', 'field service scheduling software', '24/7 answering service for repair business'],
     headlines: ['Run Your Shop for $99/mo', 'Refer 4 Shops = Yours Free', 'AI Answers Calls 24/7', 'Free Setup, No Per-Seat Fee', 'Housecall Pro Alternative', 'Built By a Repair Shop', 'Bring Your Data in a Day', 'Flat $99, All Techs Included'],
     descriptions: ['One system runs your whole shop — $99/mo flat, every tech included, free setup.', 'Refer buddy shops, get $25/mo off each — 4 and yours is free. Built by a real shop.'],
-    final: 'https://tnapplianceexchange.net/platform/system.html',
+    final: 'https://assistant247.net',
   },
 };
 

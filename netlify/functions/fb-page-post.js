@@ -20,7 +20,7 @@ const CAPTION = [
   '',
   'Other shop owners kept asking how we do it… so now we’re sharing it. If you run a business that lives on answering the phone and taking care of customers — appliance repair, auto, you name it — AssistAnt can do the same for you, for less than $100/month.',
   '',
-  'See it 👉 https://tnapplianceexchange.net/platform/system.html',
+  'See it 👉 https://assistant247.net',
   '',
   'Long live the moneymakers. 🐜',
 ].join('\n');
