@@ -245,7 +245,7 @@
     // RLS scopes both queries to this company — we never pass company_id.
     var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents,customer:customer_id(first_name,last_name)').limit(3000);
     var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,collected_cents,status,paid_at,created_at').limit(3000);
-    var techP = sb.from('technician').select('id,name,active,commission_type,commission_pct,commission_flat_cents,max_stops,service_area').limit(200);
+    var techP = sb.from('technician').select('id,name,active,phone,commission_type,commission_pct,commission_flat_cents,max_stops,service_area').limit(200);
     var payP  = sb.from('tech_payout').select('technician_id,job_id,amount_cents,paid_at').limit(5000);
     var partP = sb.from('job_part').select('job_id,cost_cents,sell_cents,disposition').limit(10000);
     Promise.all([jobsP, invP, techP, payP, partP]).then(function(res){
@@ -725,7 +725,7 @@
           '<option value="labor_pct"'+(ov==='labor_pct'?' selected':'')+'>% of labor</option>'+
           '<option value="flat_per_job"'+(ov==='flat_per_job'?' selected':'')+'>Flat per job</option></select></td>'+
         '<td><input class="ovVal" inputmode="decimal" style="width:70px" value="'+val+'"></td>'+
-        '<td><input class="ovPhone" type="tel" style="width:120px" placeholder="cell for texts"></td>'+
+        '<td><input class="ovPhone" type="tel" style="width:120px" placeholder="cell for texts" value="'+esc(t.phone||'')+'"></td>'+
         '<td><input class="ovStops" inputmode="numeric" style="width:48px" placeholder="6" value="'+(t.max_stops!=null?t.max_stops:'')+'"></td>'+
         '<td><input class="ovArea" style="width:120px" placeholder="e.g. 370,371" value="'+esc(t.service_area||'')+'"></td>'+
         '<td><button class="ovSave">Save</button> <button class="ovRemove" title="Remove crew member">✕</button></td></tr>';
@@ -903,10 +903,16 @@
       var comm = type==='flat_per_job' ? {type:'flat_per_job',flat_cents:Math.round(v*100)} : {type:'labor_pct',labor_pct:v};
       save.disabled=true; save.textContent='Saving…';
       var next=Object.assign({}, settings, {commission:comm});
-      sb.from('company').update({settings:next}).eq('id',companyId).then(function(r){
-        save.disabled=false; save.textContent='Save';
-        if(r.error){ if(msg){msg.textContent='Could not save: '+r.error.message;} return; }
-        settings=next; if(msg){msg.textContent='Saved. Every tech now defaults to '+window.PayCalc.ruleLabel(window.PayCalc.companyDefault(settings))+'.';} load();
+      // Verify the write actually landed: .select() so a silent 0-row RLS block (expired session) can't
+      // masquerade as success. getSession() first forces a token refresh if it's gone stale.
+      sb.auth.getSession().then(function(ss){
+        if(!ss||!ss.data||!ss.data.session){ save.disabled=false; save.textContent='Save'; if(msg){msg.textContent='Your session expired — refresh the page and sign in again, then Save.';} return; }
+        sb.from('company').update({settings:next}).eq('id',companyId).select('id').then(function(r){
+          save.disabled=false; save.textContent='Save';
+          if(r.error){ if(msg){msg.textContent='Could not save: '+r.error.message;} return; }
+          if(!(r.data&&r.data.length)){ if(msg){msg.textContent='Couldn’t save — refresh the page and sign in again, then Save.';} return; }
+          settings=next; if(msg){msg.textContent='Saved. Every tech now defaults to '+window.PayCalc.ruleLabel(window.PayCalc.companyDefault(settings))+'.';} load();
+        });
       });
     };
     Array.prototype.forEach.call(document.querySelectorAll('.ovSave'), function(btn){
@@ -921,18 +927,23 @@
         var arEl=tr.querySelector('.ovArea'); var ar=(arEl&&arEl.value||'').trim(); upd.service_area=ar||null;
         var phEl=tr.querySelector('.ovPhone'); var ph=(phEl&&phEl.value||'').trim();
         btn.disabled=true; btn.textContent='…';
-        sb.from('technician').update(upd).eq('id',techId).then(function(r){
-          if(r.error){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Could not save override: '+r.error.message;} return; }
-          if(!ph){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Override saved.';} load(); return; }
-          // also set the tech's cell so assignment texts reach them
-          sb.auth.getSession().then(function(s){
-            var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
-            return fetch('/.netlify/functions/platform-provision?action=settech_phone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,tech_id:techId,phone:ph})}).then(function(x){return x.json();});
-          }).then(function(d){
-            btn.disabled=false; btn.textContent='Save';
-            if(msg){ msg.textContent=(d&&d.ok)?'Saved — cell set for job texts.':('Override saved, but cell: '+((d&&d.error)||'failed')); }
-            load();
-          }).catch(function(){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Override saved (cell save failed).';} load(); });
+        // Fresh-session guard: getSession() forces a token refresh if it's gone stale (long-open page),
+        // then .select('id') VERIFIES the write actually landed — a silent 0-row RLS block returns
+        // error:null with no rows, so without this it would falsely report "saved".
+        sb.auth.getSession().then(function(ss){
+          if(!ss||!ss.data||!ss.data.session){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Your session expired — refresh the page and sign in again, then Save.';} return; }
+          sb.from('technician').update(upd).eq('id',techId).select('id').then(function(r){
+            if(r.error){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Could not save override: '+r.error.message;} return; }
+            if(!(r.data&&r.data.length)){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Couldn’t save — refresh the page and sign in again, then Save.';} return; }
+            if(!ph){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Override saved.';} load(); return; }
+            // also set the tech's cell so assignment texts reach them
+            var tok=(ss.data.session.access_token)||'';
+            fetch('/.netlify/functions/platform-provision?action=settech_phone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,tech_id:techId,phone:ph})}).then(function(x){return x.json();}).then(function(d){
+              btn.disabled=false; btn.textContent='Save';
+              if(msg){ msg.textContent=(d&&d.ok)?'Saved — cell set for job texts.':('Override saved, but cell: '+((d&&d.error)||'failed')); }
+              load();
+            }).catch(function(){ btn.disabled=false; btn.textContent='Save'; if(msg){msg.textContent='Override saved (cell save failed).';} load(); });
+          });
         });
       };
     });
