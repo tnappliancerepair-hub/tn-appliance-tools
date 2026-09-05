@@ -20,7 +20,7 @@
 //     override the Gmail query.
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const { readMany } = require('./_lib/gmail-accounts');
 const intake = require('./platform-email-intake');
 
@@ -30,19 +30,23 @@ const SUBJECT_DEFAULT = 'New Dispatch Notification';
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
 async function runTee(dry) {
-  const enabled = String((await getSecret('PLATFORM_WARRANTY_TEE_ENABLED')) || 'true').toLowerCase() !== 'false';
+  // getSecretFresh so a vault tuning change (window/kill switch/slug) takes effect on the
+  // next run instead of waiting for the warm container to recycle.
+  const enabled = String((await getSecretFresh('PLATFORM_WARRANTY_TEE_ENABLED')) || 'true').toLowerCase() !== 'false';
   if (!dry && !enabled) return { ok: true, disabled: true, note: 'PLATFORM_WARRANTY_TEE_ENABLED=false' };
 
-  const slug = (await getSecret('PLATFORM_WARRANTY_TEE_SLUG')) || SLUG_DEFAULT;
+  const slug = (await getSecretFresh('PLATFORM_WARRANTY_TEE_SLUG')) || SLUG_DEFAULT;
   const toAddr = slug + '@jobs.assistant247.net';
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   const emailSecret = (await getSecret('PLATFORM_EMAIL_SECRET')) || admin;
 
-  let query = (await getSecret('PLATFORM_WARRANTY_TEE_QUERY')) || '';
+  let query = (await getSecretFresh('PLATFORM_WARRANTY_TEE_QUERY')) || '';
   if (!query) {
-    const hrs = parseInt((await getSecret('PLATFORM_WARRANTY_TEE_WINDOW_HOURS')) || '3', 10) || 3;
+    // Default window 6h — a 15-min cron catches every new dispatch well inside it, and a
+    // few missed cron cycles can't drop mail. Re-scans are cheap (intake dedupes pre-parse).
+    const hrs = parseInt((await getSecretFresh('PLATFORM_WARRANTY_TEE_WINDOW_HOURS')) || '6', 10) || 6;
     const after = Math.floor(Date.now() / 1000) - hrs * 3600;   // Gmail accepts epoch-seconds in after:
-    const subject = (await getSecret('PLATFORM_WARRANTY_TEE_SUBJECT')) || SUBJECT_DEFAULT;
+    const subject = (await getSecretFresh('PLATFORM_WARRANTY_TEE_SUBJECT')) || SUBJECT_DEFAULT;
     query = `after:${after} -in:sent subject:"${subject}"`;
   }
 
