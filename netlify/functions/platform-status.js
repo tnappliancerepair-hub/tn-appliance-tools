@@ -69,6 +69,10 @@ exports.handler = async function (event) {
     webhook: {
       ready: webhookReady,
       platform_stripe_webhook_secret: has(whSecret) ? 'set' : 'MISSING',
+      // Shape checks (prefix only, never the value) — catch the common paste-slip of putting the
+      // sk_live_ key into the webhook slot. A correct webhook secret starts with whsec_.
+      webhook_secret_shape: !has(whSecret) ? 'missing' : (/^whsec_/.test(String(whSecret)) ? 'whsec_ ✓ correct' : 'WRONG — not a whsec_ (re-copy the Signing secret)'),
+      platform_stripe_key_shape: !has(platStripe) ? 'missing' : (/^sk_live_/.test(String(platStripe)) ? 'sk_live_ ✓ correct' : (/^sk_test_/.test(String(platStripe)) ? 'sk_test_ — TEST key, use the LIVE one' : 'unexpected prefix')),
       platform_stripe_secret_key: has(platStripe) ? 'set' : 'MISSING (webhook has no STRIPE_SECRET_KEY fallback → paid-but-no-tenant)',
       note: 'Register the endpoint in Stripe → …/.netlify/functions/platform-stripe-webhook for checkout.session.completed + customer.subscription.*',
     },
