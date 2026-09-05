@@ -103,6 +103,10 @@
   .ick{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--ink);padding:5px 0;line-height:1.35}
   .ick input{margin:2px 0 0;width:18px;height:18px;flex:0 0 auto;accent-color:var(--brand)}
   .fld[data-optional].filled .insp{border-color:var(--brand)}
+  /* 🔎 Free lookups */
+  .freerow{margin-top:11px}
+  .fllab{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800;margin:0 0 7px}
+  .freebtn.yt{border-color:#ff0000 !important;color:#ff0000;font-weight:800}
   .statusgrid{display:flex;flex-direction:column;gap:8px}
   .sbtn{width:100%;text-align:left;font-weight:700;border:1.5px solid var(--line);background:var(--bg);padding:13px 14px}
   .sbtn.sel{border-color:transparent;color:#fff}
@@ -372,6 +376,16 @@
         // 🔧 Service / test mode — how to enter the machine's built-in diagnostics
         '<button class="full" id="svcBtn" style="margin-top:9px">🔧 How to enter service / test mode</button>' +
         '<div class="brainbox hidden" id="svcBox"></div>' +
+        // 🔎 Free lookups — open a search pre-filled with the brand/model/appliance/code
+        '<div class="freerow" id="freeLinks"><div class="fllab">🔎 Look it up free</div>' +
+          '<div class="btnrow">' +
+            '<button type="button" class="freebtn yt" data-free="yt">▶️ YouTube</button>' +
+            '<button type="button" data-free="web">🌐 Web</button>' +
+            '<button type="button" data-free="maker" id="freeMaker">🏭 Maker</button>' +
+            '<button type="button" data-free="sears">🔩 Sears guide</button>' +
+          '</div>' +
+          '<div class="note" style="margin:6px 0 0">Uses the brand / model / appliance / code above — YouTube is best for the exact service-mode + code walkthrough.</div>' +
+        '</div>' +
         // What usually fixes this — the cross-shop brain
         '<button class="full" id="brainBtn" style="margin-top:11px">🧠 What usually fixes this</button>' +
         '<div class="brainbox hidden" id="brainBox"></div>' +
@@ -635,6 +649,13 @@
     document.getElementById('brainBtn').onclick = brainLookup;
     document.getElementById('codeBtn').onclick = codeLookup;
     document.getElementById('svcBtn').onclick = svcMode;
+    (function(){
+      var fl=document.getElementById('freeLinks'); if(!fl) return;
+      fl.querySelectorAll('button[data-free]').forEach(function(b){ b.onclick=function(){ openFree(b.getAttribute('data-free')); }; });
+      var mb=document.getElementById('freeMaker'), tbEl=document.getElementById('tb');
+      var relabel=function(){ var mk=makerSite((tbEl&&tbEl.value)||attrs().brand||''); if(mb) mb.textContent=mk?('🏭 '+mk.name):'🏭 Maker'; };
+      relabel(); if(tbEl) tbEl.addEventListener('input', relabel);
+    })();
     renderPartBtns();
     var sc=document.getElementById('supCfg'); if(sc) sc.onclick=function(){ AntSuppliers.chooser(shopSettings, renderPartBtns); };
     // Flat-rate repair menu — the Teddy-Tool "price" helper. Taps prefill labor + the total.
@@ -1429,6 +1450,44 @@
           '<div class="bp">Look for the model\'s tech sheet — behind the control panel, under the top/toe panel, or inside the door — it prints the exact diagnostic-entry sequence.'+avail+'</div>';
       }
     }).catch(function(){ box.innerHTML='<div class="bp">Couldn\'t reach the service-mode book — check your connection.</div>'; });
+  }
+
+  // 🔎 Free lookups — open a search on a free resource, pre-filled with the job's
+  // brand / model / appliance / code. YouTube = best for the exact walkthrough.
+  function makerSite(brand){
+    var b=(brand||'').toLowerCase();
+    var map=[
+      [['whirlpool','maytag','kitchenaid','amana','jenn','roper','estate','inglis','ikea','admiral','caloric'],'Whirlpool','whirlpool.com'],
+      [['hotpoint','haier','monogram','cafe','profile','ge '],'GE','geappliances.com'],
+      [['frigidaire','electrolux','gibson','kelvinator','tappan','westinghouse'],'Frigidaire','frigidaire.com'],
+      [['samsung'],'Samsung','samsung.com'],
+      [['lg'],'LG','lg.com'],
+      [['bosch','thermador','gaggenau','siemens'],'Bosch','bosch-home.com']
+    ];
+    for(var i=0;i<map.length;i++){ if(map[i][0].some(function(a){return b.indexOf(a.trim())>=0;})) return {name:map[i][1],domain:map[i][2]}; }
+    if(b==='ge') return {name:'GE',domain:'geappliances.com'};
+    return null;
+  }
+  function openFree(kind){
+    var brand=(document.getElementById('tb').value||'').trim()||(attrs().brand||'');
+    var model=(document.getElementById('tm').value||'').trim()||(attrs().model||'');
+    var code=(document.getElementById('tec').value||'').trim();
+    var appl=applianceType();
+    var parts=[brand,model,appl].filter(Boolean);
+    if(!parts.length && !code){ alert('Add the brand or model above first.'); return; }
+    var topic=code?(code+' error code'):'error codes service mode';
+    var url;
+    if(kind==='yt'){
+      url='https://www.youtube.com/results?search_query='+encodeURIComponent(parts.concat([code?(code+' error code'):'diagnostic service mode']).filter(Boolean).join(' '));
+    } else if(kind==='sears'){
+      url='https://www.searspartsdirect.com/search?q='+encodeURIComponent(model||parts.join(' '));
+    } else if(kind==='maker'){
+      var mk=makerSite(brand);
+      url='https://www.google.com/search?q='+encodeURIComponent((mk?('site:'+mk.domain+' '):'')+parts.concat([code?(code+' error code'):'error codes']).filter(Boolean).join(' '));
+    } else {
+      url='https://www.google.com/search?q='+encodeURIComponent(parts.concat([topic]).filter(Boolean).join(' '));
+    }
+    window.open(url,'_blank','noopener');
   }
 
   // ── Native inspection checklists — OUR OWN per-appliance diagnostic checklists (built
