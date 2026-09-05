@@ -32,7 +32,7 @@ async function shopInfo(slug) {
 function bookingEnabled(co) {
   const b = (co.settings && co.settings.booking) || {};
   const st = String(co.status || 'active').toLowerCase();
-  const active = ['active', 'trial', 'trialing', ''].includes(st);
+  const active = ['active', 'trial', 'trialing', 'test', ''].includes(st);
   return active && b.enabled !== false;
 }
 function display(co) {
