@@ -974,22 +974,24 @@
       var data=cv.toDataURL('image/jpeg',0.8);
       fetch('/.netlify/functions/platform-ocr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:data})}).then(function(r){return r.json();}).then(function(d){
         if (!d || !d.ok || !d.model) { msg.textContent = (d&&d.error==='ocr_not_configured')?'Model reader isn\'t on yet — type it below.':'Couldn\'t read a model # — try a clearer photo, or type it below.'; return; }
-        msg.textContent = 'Read model: ' + d.model + (d.brand?' ('+d.brand+')':'');
-        applyModel(d);
+        msg.textContent = 'Read model: ' + d.model + (d.brand?' ('+d.brand+')':'') + ' — filled into the report, parts search & lookups';
+        applyModel(d, true);   // explicit scan wins — drive the TDR, parts search, and every lookup
       }).catch(function(){ msg.textContent='Couldn\'t reach the model reader — type it below.'; });
     };
     img.onerror=function(){ msg.textContent='That file didn\'t work — try a photo.'; };
     img.src=url;
   }
 
-  // fill the model into the header, the parts search, and the report — and persist it to
-  // the unit so the brain + the next visit already know it.
-  function applyModel(d){
+  // fill the model into the header, the parts search, the report — and persist it to the
+  // unit so the brain + the next visit + every lookup already know it. force=true (an
+  // explicit sticker scan) OVERWRITES the fields so the scanned model drives everything;
+  // force=false (auto-read on open) only fills blanks so it never clobbers a tech's typing.
+  function applyModel(d, force){
     if(!d||!d.model) return;
     var mv=document.getElementById('modelVal'); if(mv) mv.textContent=d.model;
-    var pq=document.getElementById('partq'); if(pq && !pq.value) pq.value=d.model;
-    var tm=document.getElementById('tm'); if(tm && !tm.value) tm.value=d.model;
-    var tb=document.getElementById('tb'); if(tb && !tb.value && d.brand) tb.value=d.brand;
+    var pq=document.getElementById('partq'); if(pq && (force || !pq.value)) pq.value=d.model;   // parts search
+    var tm=document.getElementById('tm'); if(tm && (force || !tm.value)) tm.value=d.model;       // report model # (the lookups read this)
+    var tb=document.getElementById('tb'); if(tb && d.brand && (force || !tb.value)) tb.value=d.brand;
     if(job.unit && job.unit.id){
       var newAttrs=Object.assign({}, attrs(), {model:d.model}); if(d.brand)newAttrs.brand=d.brand; if(d.serial)newAttrs.serial=d.serial;
       sb.from('unit').update({attributes:newAttrs}).eq('id',job.unit.id).then(function(){ job.unit.attributes=newAttrs; });
@@ -1478,7 +1480,9 @@
     var topic=code?(code+' error code'):'error codes service mode';
     var url;
     if(kind==='yt'){
-      url='https://www.youtube.com/results?search_query='+encodeURIComponent(parts.concat([code?(code+' error code'):'diagnostic service mode']).filter(Boolean).join(' '));
+      // model (+ brand/appliance) + error codes + how to enter diagnostic/service mode
+      var ytExtra = code ? (code+' error code diagnostic service mode') : 'error codes diagnostic service mode';
+      url='https://www.youtube.com/results?search_query='+encodeURIComponent(parts.concat([ytExtra]).filter(Boolean).join(' '));
     } else if(kind==='sears'){
       url='https://www.searspartsdirect.com/search?q='+encodeURIComponent(model||parts.join(' '));
     } else if(kind==='maker'){
