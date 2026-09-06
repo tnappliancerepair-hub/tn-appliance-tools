@@ -51,6 +51,8 @@ const KITS = {
     // shop owners when someone asks ChatGPT what to run their business on.
     context: ['appliance repair shop owners', 'field service business owners', 'small business owners in the trades', 'people choosing software to run a repair business'],
     image: 'https://tnapplianceexchange.net/assistant-og.png',
+    // chat_card creative — title <=40, body <=100 chars (OpenAI limits).
+    card: { title: 'Run your shop for $99/mo flat', body: 'AI answers every call 24/7 & books the job. All techs included. Built by a real repair shop.' },
   },
 };
 
@@ -99,6 +101,31 @@ exports.handler = async function (event) {
   if (!apply) return json(200, { ok: true, mode: 'preview', configured: !!c.key, plan, note: 'add &apply=1 to CREATE it PAUSED (no spend). Then review + add &live=1 to go ACTIVE (starts charging). Preview needs no key.' });
   if (!c.key) return json(200, { ok: false, configured: false, error: 'OPENAI_ADS_API_KEY not vaulted', plan });
 
+  // chat_card creative — OpenAI limits: title <=40, body <=100 chars.
+  const cardTitle = String((kit.card && kit.card.title) || kit.headlines[0] || '').slice(0, 40);
+  const cardBody = String((kit.card && kit.card.body) || kit.descriptions[0] || '').slice(0, 100);
+
+  // Create the chat_card ad on an ad group: upload the hosted image -> file_id -> ad.
+  async function createAd(agId) {
+    const up = await oa.api('POST', '/upload', c.key, { image_url: image });
+    const fid = (up.d && (up.d.file_id || up.d.id)) || null;
+    if (!fid) return { ad: { ok: false, err: 'upload failed: ' + (up.err || 'no file_id') }, fileId: null };
+    const adBody = { ad_group_id: agId, name: `${kit.label} ad`, status, creative: { type: 'chat_card', title: cardTitle, body: cardBody, target_url: kit.final, file_id: fid } };
+    const a = await oa.api('POST', '/ads', c.key, adBody);
+    return { ad: a, fileId: fid };
+  }
+
+  // Finisher: with ?ad_group_id=, create ONLY the ad on an existing ad group (no new campaign/ad group)
+  // — used to complete a campaign whose ad failed, without spawning another shell.
+  if ((q.ad_group_id || '').trim()) {
+    const r = await createAd(q.ad_group_id.trim());
+    return json(200, {
+      ok: !!r.ad.ok, mode: 'ad-only', ad_group_id: q.ad_group_id.trim(),
+      ad: { ok: r.ad.ok, id: r.ad.ok ? ((r.ad.d && (r.ad.d.id || (r.ad.d.ad && r.ad.d.ad.id))) || null) : null, file_id: r.fileId, err: r.ad.err || null },
+      created_status: status, note: r.ad.ok ? (goLive ? 'ad created ACTIVE — spending now.' : 'ad created PAUSED — activate in the dashboard (or &live=1) to spend.') : 'ad failed (see err).',
+    });
+  }
+
   // 1) campaign — the documented body shape.
   const camp = await oa.api('POST', '/campaigns', c.key, campaignBody);
   if (!camp.ok) return json(200, { ok: false, step: 'campaign', error: camp.err, plan });
@@ -115,22 +142,10 @@ exports.handler = async function (event) {
   const ag = await oa.api('POST', '/ad_groups', c.key, agBody);
   const adGroupId = ag.ok ? ((ag.d && (ag.d.id || (ag.d.ad_group && ag.d.ad_group.id))) || null) : null;
 
-  // 3) creative — a chat_card needs an uploaded image (file_id). Upload the hosted card, then
-  //    build the chat_card ad (single title + body + target_url).
+  // 3) creative — the chat_card ad on the new ad group.
   let ad = { ok: false, err: 'skipped — no ad_group' };
   let fileId = null;
-  if (adGroupId) {
-    const up = await oa.api('POST', '/upload', c.key, { image_url: image });
-    fileId = (up.d && (up.d.file_id || up.d.id)) || null;
-    if (!fileId) { ad = { ok: false, err: 'upload failed: ' + (up.err || 'no file_id') }; }
-    else {
-      const adBody = {
-        ad_group_id: adGroupId, name: `${kit.label} ad`, status,
-        creative: { type: 'chat_card', title: kit.headlines[0], body: kit.descriptions[0], target_url: kit.final, file_id: fileId },
-      };
-      ad = await oa.api('POST', '/ads', c.key, adBody);
-    }
-  }
+  if (adGroupId) { const r = await createAd(adGroupId); ad = r.ad; fileId = r.fileId; }
 
   return json(200, {
     ok: !!camp.ok, mode: 'created', campaign_id: campaignId,
