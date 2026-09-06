@@ -179,17 +179,21 @@ async function readWarranty(dir, per, page) { return crud.searchPageN(EVENT_LOG,
 
 // Build job_part rows from a raw page of one source (resolving platform jobs).
 async function buildPartsRows(url, key, rawRows) {
-  const jobIds = rawRows.map((r) => num(r.job_id)).filter((n) => n > 0);
+  const allIds = rawRows.map((r) => num(r.job_id));
+  const jobIds = allIds.filter((n) => n > 0);
   const jm = await resolveJobs(url, key, jobIds);
-  const rows = []; let no_job = 0, bad = 0;
+  const rows = []; let no_job = 0, bad = 0, zero_job = 0;
   for (const r of rawRows) {
     try {
-      const uuid = jm[num(r.job_id)];
+      const jid = num(r.job_id);
+      if (jid <= 0) { zero_job++; no_job++; continue; }
+      const uuid = jm[jid];
       if (!uuid) { no_job++; continue; }
       rows.push(mapPartsOrder(r, uuid));
     } catch (_) { bad++; }
   }
-  return { rows, no_job, bad };
+  const dbg = { zero_job, distinct_job_ids: [...new Set(jobIds)].slice(0, 20), resolved_ids: Object.keys(jm).length };
+  return { rows, no_job, bad, dbg };
 }
 async function buildWarrantyRows(url, key, rawRows) {
   const parsed = rawRows.map((e) => {
@@ -229,7 +233,7 @@ async function runPartsMigrate(o) {
     out.no_job = built.no_job; out.bad = built.bad; out.landed = dry ? 0 : landed;
     out.next_page = raw.length >= per ? page + 1 : null;
     out.done = out.next_page === null;
-    if (dry) out.sample = built.rows.slice(0, 5);
+    if (dry) { out.sample = built.rows.slice(0, 5); if (built.dbg) out.dbg = built.dbg; }
     return out;
   }
 
@@ -244,7 +248,7 @@ async function runPartsMigrate(o) {
   out.parts = { read: rawP.length, mapped: bp.rows.length, no_job: bp.no_job, bad: bp.bad };
   out.warranty = { read: rawW.length, mapped: bw.rows.length, no_job: bw.no_job, bad: bw.bad };
   out.landed = dry ? 0 : landed;
-  if (dry) out.sample = { parts: bp.rows.slice(0, 4), warranty: bw.rows.slice(0, 4) };
+  if (dry) { out.sample = { parts: bp.rows.slice(0, 4), warranty: bw.rows.slice(0, 4) }; if (bp.dbg) out.parts_dbg = bp.dbg; }
   return out;
 }
 
