@@ -192,7 +192,12 @@ async function buildPartsRows(url, key, rawRows) {
       rows.push(mapPartsOrder(r, uuid));
     } catch (_) { bad++; }
   }
-  const dbg = { zero_job, distinct_job_ids: [...new Set(jobIds)].slice(0, 20), resolved_ids: Object.keys(jm).length };
+  const r0 = rawRows[0] || {};
+  const dbg = {
+    zero_job, distinct_job_ids: [...new Set(jobIds)].slice(0, 20), resolved_ids: Object.keys(jm).length,
+    raw0_keys: Object.keys(r0),
+    raw0: { id: r0.id, job_id: r0.job_id, part_number: r0.part_number, part_name: r0.part_name, supplier: r0.supplier, order_status: r0.order_status, source: r0.source, notes: (typeof r0.notes === 'string' ? r0.notes.slice(0, 200) : r0.notes) },
+  };
   return { rows, no_job, bad, dbg };
 }
 async function buildWarrantyRows(url, key, rawRows) {
