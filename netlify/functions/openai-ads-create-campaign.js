@@ -47,6 +47,10 @@ const KITS = {
     headlines: ['Run Your Shop for $99/mo', 'Refer 4 Shops = Yours Free', 'AI Answers Every Call 24/7', 'Free Setup, No Per-Seat Fee', 'Housecall Pro Alternative', 'Built By a Real Repair Shop'],
     descriptions: ['Run your whole appliance shop for $99/mo flat — every tech included, free setup. Refer 4 buddy shops and yours is free.', 'AI answers 24/7 and books the job. Bring your data off Housecall Pro, Jobber or Workiz in a day. Built by a shop that runs on it.'],
     final: 'https://tnapplianceexchange.net/guide',   // cold-B2B lead magnet (captures the owner) — not the tour
+    // ChatGPT Ads has no owner-audience selector — context_hints is how you aim it. These steer it to
+    // shop owners when someone asks ChatGPT what to run their business on.
+    context: ['appliance repair shop owners', 'field service business owners', 'small business owners in the trades', 'people choosing software to run a repair business'],
+    image: 'https://tnapplianceexchange.net/assistant-og.png',
   },
 };
 
@@ -54,6 +58,14 @@ exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
+
+  // Cleanup: DELETE a campaign by id (removes an orphan/paused shell). ?delete=<campaign_id>
+  if ((q.delete || '').trim()) {
+    const cc = await oa.creds();
+    if (!cc.key) return json(200, { ok: false, error: 'OPENAI_ADS_API_KEY not vaulted' });
+    const del = await oa.api('DELETE', '/campaigns/' + q.delete.trim(), cc.key);
+    return json(200, { ok: !!del.ok, deleted: q.delete.trim(), status: del.status, err: del.err || null });
+  }
 
   const appl = String(q.appliance || 'general').toLowerCase();
   const kit = KITS[appl] || KITS.general;
@@ -71,13 +83,16 @@ exports.handler = async function (event) {
   // straight to ACTIVE (live spend) when &live=1 is explicitly passed. Review it, then flip live.
   const goLive = q.live === '1';
   const status = goLive ? 'active' : 'paused';
+  const maxBid = Math.max(0.05, Math.min(50, parseFloat(q.max_bid) || 2));      // per-click ceiling ($)
+  const maxBidMicros = Math.round(maxBid * 1000000);
+  const image = kit.image || 'https://tnapplianceexchange.net/assistant-og.png';
 
   const name = `${kit.label} — ${geoLabel} (Ant)`;
   const campaignBody = { name, status, budget: { lifetime_spend_limit_micros: lifetime * 1000000 } };
   const plan = {
     campaign: name, appliance: appl, national: nationalReq, create_status: status, daily_budget: budget, days, lifetime_budget: lifetime,
-    campaign_body: campaignBody, cities, final_url: kit.final,
-    headlines: kit.headlines, descriptions: kit.descriptions,
+    max_bid_per_click: maxBid, campaign_body: campaignBody, cities, final_url: kit.final, creative_image: image,
+    context_hints: kit.context || null, headlines: kit.headlines, descriptions: kit.descriptions,
   };
 
   const c = await oa.creds();
@@ -89,23 +104,38 @@ exports.handler = async function (event) {
   if (!camp.ok) return json(200, { ok: false, step: 'campaign', error: camp.err, plan });
   const campaignId = (camp.d && (camp.d.id || (camp.d.campaign && camp.d.campaign.id))) || null;
 
-  // 2) ad group — best-effort documented shape; field names tuned on first real call.
-  const agBody = { campaign_id: campaignId, name: `${kit.label} ad group`, status, targeting: { locations: cities } };
+  // 2) ad group — requires bidding_config; audience steered by context_hints (geo lives on the
+  //    campaign via location IDs, so a national play just omits campaign targeting — done above).
+  const agBody = {
+    campaign_id: campaignId, name: `${kit.label} ad group`, status,
+    bidding_config: { billing_event_type: 'click', max_bid_micros: maxBidMicros },
+  };
+  if (kit.context && kit.context.length) agBody.context_hints = kit.context;
   const ag = await oa.api('POST', '/ad_groups', c.key, agBody);
   const adGroupId = ag.ok ? ((ag.d && (ag.d.id || (ag.d.ad_group && ag.d.ad_group.id))) || null) : null;
 
-  // 3) ad — creative field names likewise finalized on first real call.
+  // 3) creative — a chat_card needs an uploaded image (file_id). Upload the hosted card, then
+  //    build the chat_card ad (single title + body + target_url).
   let ad = { ok: false, err: 'skipped — no ad_group' };
+  let fileId = null;
   if (adGroupId) {
-    const adBody = { ad_group_id: adGroupId, status, final_url: kit.final, headlines: kit.headlines, descriptions: kit.descriptions };
-    ad = await oa.api('POST', '/ads', c.key, adBody);
+    const up = await oa.api('POST', '/upload', c.key, { image_url: image });
+    fileId = (up.d && (up.d.file_id || up.d.id)) || null;
+    if (!fileId) { ad = { ok: false, err: 'upload failed: ' + (up.err || 'no file_id') }; }
+    else {
+      const adBody = {
+        ad_group_id: adGroupId, name: `${kit.label} ad`, status,
+        creative: { type: 'chat_card', title: kit.headlines[0], body: kit.descriptions[0], target_url: kit.final, file_id: fileId },
+      };
+      ad = await oa.api('POST', '/ads', c.key, adBody);
+    }
   }
 
   return json(200, {
     ok: !!camp.ok, mode: 'created', campaign_id: campaignId,
     campaign: { ok: camp.ok, id: campaignId },
     ad_group: { ok: ag.ok, id: adGroupId, err: ag.err || null },
-    ad: { ok: ad.ok, err: ad.err || null },
+    ad: { ok: ad.ok, id: ad.ok ? ((ad.d && (ad.d.id || (ad.d.ad && ad.d.ad.id))) || null) : null, file_id: fileId, err: ad.err || null },
     created_status: status, plan,
     note: (ag.ok && ad.ok)
       ? (goLive ? 'created ACTIVE — spending now.' : 'created PAUSED — review it, then re-run with &live=1 (or activate in the OpenAI Ads dashboard) to start spend.')
