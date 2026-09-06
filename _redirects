@@ -34,6 +34,11 @@
 /ant        /platform/system.html  200
 /assistant  /platform/system.html  200
 
+# Free lead-magnet: the "24/7 AI Answering + Triage Playbook" — capture a prospect + reveal the guide.
+# The short link to run cold Meta ads at (lower-commitment than the signup/tour).
+/guide     /platform/free-guide.html  200
+/playbook  /platform/free-guide.html  200
+
 # Operator view of every platform shop (ops-key gated).
 /shops   /platform/shops.html  200
 

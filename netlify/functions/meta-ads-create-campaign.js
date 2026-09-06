@@ -5,9 +5,13 @@
 // account (shows the exact plan); applies only with &apply=1 once the account +
 // ads token are vaulted, and ALWAYS creates PAUSED so nothing spends until reviewed.
 //
-//   GET ?secret=<admin>[&budget=25&kit=referral|product]
+//   GET ?secret=<admin>[&budget=25&kit=appliance|referral|product]
 //        preview: show campaign/adset/creative/ad plan + resolved targeting, write nothing
 //   ...&apply=1   create it all, PAUSED (no spend until you flip it live in Ads Manager)
+//
+//   kit=appliance = the APPLIANCE-FIRST beachhead: appliance-shop-owner targeting +
+//   appliance copy, landing on the free-guide lead magnet (/guide) — a lower-commitment
+//   cold-ad destination than the tour/signup. This is the one to run cold.
 //
 // Meta interest/behavior IDs are resolved live via the Targeting Search API on apply
 // (first-real-tuning), so the audience is correct when it actually runs.
@@ -22,6 +26,17 @@ const IMAGE = SITE + '/referral-og.png';   // referral creative (falls back to a
 // Ad copy kits — leads with the referral/free hook (the strong B2B signal: cheap +
 // peer-trusted + community). All claims are true to our own pages.
 const KITS = {
+  // APPLIANCE-FIRST beachhead — cold ad to appliance-repair shop owners, lands on the free guide
+  // (lead magnet) so a cold owner has a low-commitment next step (get the playbook) instead of "sign up".
+  appliance: {
+    label: 'AssistAnt — Appliance Shops',
+    message: 'Appliance shop owners: every missed call is a missed job. Grab our free 24/7 answering + triage playbook — the exact call script + rules a real appliance shop runs on, so an office person with zero appliance experience books real jobs. Built by TN Appliance Exchange. 🐜',
+    headline: 'Free: Answer Every Call, Book Every Job',
+    description: 'The 24/7 call script + triage rules a real appliance shop runs on. No strings.',
+    link: SITE + '/guide',
+    cta: 'DOWNLOAD',
+    audience: ['Home appliance', 'Appliance', 'Small business owners', 'Field service management', 'Home improvement', 'Entrepreneurship'],
+  },
   referral: {
     label: 'AssistAnt — Refer & Save',
     message: 'Run your whole appliance shop for $99/mo flat — every tech included, free setup. Bring a buddy shop on board and take $25/mo off your bill for each one. Four, and yours is free. Built by a real repair shop that runs on it every day. 🐜',
@@ -49,11 +64,12 @@ exports.handler = async function (event) {
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
   const kit = KITS[String(q.kit || 'referral').toLowerCase()] || KITS.referral;
+  const audienceTerms = kit.audience || AUDIENCE_TERMS;   // appliance kit narrows to appliance-shop owners
   const budget = Math.max(5, Math.min(500, parseInt(q.budget, 10) || 25));   // daily $
   const apply = q.apply === '1';
   const c = await meta.creds();
 
-  const targetingPlan = { geo_locations: { countries: ['US'] }, age_min: 25, age_max: 65, audience_terms: AUDIENCE_TERMS };
+  const targetingPlan = { geo_locations: { countries: ['US'] }, age_min: 25, age_max: 65, audience_terms: audienceTerms };
   const plan = {
     kit: q.kit || 'referral', daily_budget: budget, objective: 'OUTCOME_TRAFFIC', status: 'PAUSED',
     landing: kit.link, image: IMAGE, page_id: c.pageId || '(SOCIAL_FB_PAGE_ID)',
@@ -68,7 +84,7 @@ exports.handler = async function (event) {
   // Resolve real interest/behavior IDs by name (first-real-tuning). Any that resolve go
   // into flexible_spec; if none resolve, the ad set still runs on geo + age.
   const interests = [];
-  for (const term of AUDIENCE_TERMS) {
+  for (const term of audienceTerms) {
     const hits = await meta.searchTargeting(term, c.token, 'adinterest');
     if (hits && hits[0] && hits[0].id) interests.push({ id: hits[0].id, name: hits[0].name });
   }

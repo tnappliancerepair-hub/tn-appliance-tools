@@ -12,6 +12,40 @@ software). **ChatGPT** buys the answer when an owner asks an AI what to run thei
 
 ---
 
+## ★ APPLIANCE-FIRST (the beachhead — run THIS cold) · `meta-ads-create-campaign.js?kit=appliance`
+**The play (Teddy's call 2026-09-06):** the product stays all-trades, but marketing aims at appliance
+repair FIRST — his turf, his groups, his credibility. Win appliance → expand to HVAC → wider. And a cold
+B2B ad converts far better offering a **free guide** than "sign up," so this kit lands on the **lead
+magnet**, not the tour.
+
+- **Objective:** Traffic · **Audience:** US 25–65, appliance/home-appliance + small-business-owner +
+  field-service-management interests (kit-narrowed) · **Daily budget:** start $20–40 · created **PAUSED**.
+- **Landing:** **`tnapplianceexchange.net/guide`** (the free "24/7 Answering + Triage Playbook" → captures
+  the lead → reveals the guide inline → warm-DM target for Teddy). NOT the tour/signup for cold traffic.
+- **Creative:** the shop video (once filmed — see `docs/shop-demo-video-script.md`); until then `referral-og.png`.
+- **Primary text:** Appliance shop owners: every missed call is a missed job. Grab our free 24/7 answering
+  + triage playbook — the exact call script + rules a real appliance shop runs on, so an office person with
+  zero appliance experience books real jobs. Built by TN Appliance Exchange. 🐜
+- **Headline:** Free: Answer Every Call, Book Every Job
+- **Description:** The 24/7 call script + triage rules a real appliance shop runs on. No strings.
+- **CTA button:** Download → `tnapplianceexchange.net/guide`
+
+**Teddy's go-live runbook (the money flip is yours — Claude does NOT flip it):**
+1. Vault via `admin-secrets.html`: `META_AD_ACCOUNT_ID` + `META_ADS_TOKEN` (a token with `ads_management`;
+   `META_PAGE_ID`/`SOCIAL_FB_PAGE_ID` is likely already vaulted from the social engine).
+   *(Optional bonus: `EMAIL_ENABLED=true` so the free guide also emails the prospect — the page reveals it
+   either way, so this is not required.)*
+2. `meta-ads-diag?secret=<admin>` → goes green (`configured:true`).
+3. `meta-ads-create-campaign?secret=<admin>&kit=appliance&budget=25` (preview — verify appliance targeting
+   + `/guide` landing), then add `&apply=1` → creates everything **PAUSED**.
+4. **In Ads Manager: review + flip the campaign ACTIVE.** Nothing spends until you do.
+5. **Retargeting (cheapest warm money):** in Ads Manager build a Custom Audience off the live pixel
+   (`1441529794691715` on the repair site) — people who visited the site / engaged the posts — and run the
+   same creative at them landing on `/ant`. (A dedicated retargeting function is a later nicety.)
+6. Measure **cost-per-lead / per-DM**, not cost-per-signup — cold B2B SaaS closes on the follow-up, not the click.
+
+---
+
 ## Meta (Facebook / Instagram) — the audience play  ·  built: `meta-ads-create-campaign.js`
 **Objective:** Traffic · **Audience:** US, age 25–65, small-business-owner + the-trades interests
 · **Daily budget:** start ~$25 · **Creative:** `referral-og.png` · **Page:** TN Appliance Exchange
