@@ -13,8 +13,9 @@
 alter table public.job_part add column if not exists xano_id text;
 alter table public.job_part alter column xano_id type text using xano_id::text;
 
--- Partial unique so multiple NULL-xano_id native rows never collide, while a
--- given legacy Xano parts record lands at most once per company.
+-- Plain (NOT partial) unique: PostgREST's on_conflict=(company_id,xano_id) can only
+-- infer a full unique index. Postgres treats NULLs as distinct, so the many native
+-- app-created rows (xano_id NULL) never collide, while a given legacy Xano parts
+-- record lands at most once per company.
 create unique index if not exists job_part_company_xano_uidx
-  on public.job_part (company_id, xano_id)
-  where xano_id is not null;
+  on public.job_part (company_id, xano_id);
