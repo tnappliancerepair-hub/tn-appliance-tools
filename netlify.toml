@@ -869,6 +869,16 @@
 [functions."platform-tn-intake-tee-cron"]
   schedule = "9-59/15 * * * *"
 
+# platform-tn-parts-migrate-cron (2026-09-06) — phase-2 parts migration: copy TN's per-part
+# parts logistics (parts_orders table 47 + warranty_part_supplied events) from legacy Xano
+# into the platform job_part table every 15 min, in parallel with Xano. Joins on job.xano_id;
+# idempotent (job_part upsert on company_id,xano_id, keys 'po:<id>'/'wp:<id>'). Read-only
+# toward Xano; writes only into TN's platform tenant. Offset from mirror + intake/warranty tees.
+# Curl-testable core: platform-tn-parts-migrate?secret=…&dryrun=1 (+ backfill=parts|warranty for
+# history). Kill: vault PLATFORM_PARTS_MIGRATE_ENABLED=false.
+[functions."platform-tn-parts-migrate-cron"]
+  schedule = "13-59/15 * * * *"
+
 # tdr-sync-cron (Phase 0 Part A, 2026-08-26) — THE fix for "won't save the part
 # number" when Xano chokes. tech-job.html saves through tdr-save, which lands every
 # TDR/part save in Supabase tdr_pending (durable, instant) then relays to Xano
