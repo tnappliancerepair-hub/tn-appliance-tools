@@ -112,6 +112,15 @@ function cleanNum(v) { const n = Number(v); return Number.isFinite(n) && n > 0 ?
 function isoDate(v) { const s = String(v || '').trim(); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null; }
 function partNumber(v) { const s = String(v || '').trim(); return (!s || s.toUpperCase() === 'TBD') ? null : s.slice(0, 120); }
 function text(v, cap) { const s = String(v == null ? '' : v).trim(); return s ? s.slice(0, cap || 200) : null; }
+function normKey(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+// A warranty event's `part` sometimes carries the description mashed in ("W123 -- Desc: PTC relay").
+function splitPartDesc(part, desc) {
+  const raw = String(part == null ? '' : part).trim();
+  let num = raw, dsc = String(desc == null ? '' : desc).trim();
+  const m = raw.match(/^(.*?)\s*(?:--\s*)?desc\s*:\s*(.+)$/i);
+  if (m) { num = m[1].trim(); if (!dsc) dsc = m[2].trim(); }
+  return { number: partNumber(num), name: text(dsc, 200) };
+}
 
 // notes JSON (string or object) -> {ship_to display, eta}
 function parseNotes(notes) {
@@ -151,11 +160,12 @@ function meaningful(row) {
 async function partsOrdersPass(db, rows, dry) {
   const res = { source: 'parts_orders', scanned: rows.length, upserted: 0, skipped_no_job: 0, skipped_empty: 0, errors: 0, sample: [] };
   const jobMap = await resolveJobsByXano(db, rows.map((a) => Number(a.job_id)));
+  const dbg = { zero_job: 0, unresolved: 0, jobmap_size: jobMap.size, sample_job_ids: [] };
   const out = [];
   for (const a of rows) {
-    if (!a.job_id || Number(a.job_id) <= 0) { res.skipped_no_job++; continue; }
+    if (!a.job_id || Number(a.job_id) <= 0) { res.skipped_no_job++; dbg.zero_job++; continue; }
     const pjob = jobMap.get(String(Number(a.job_id)));
-    if (!pjob) { res.skipped_no_job++; continue; }   // job not mirrored yet -> caught next cycle
+    if (!pjob) { res.skipped_no_job++; dbg.unresolved++; if (dbg.sample_job_ids.length < 8) dbg.sample_job_ids.push(Number(a.job_id)); continue; }   // job not mirrored yet -> caught next cycle
     const { ship_to, eta } = parseNotes(a.notes);
     const os = String(a.order_status || '').toLowerCase();
     const row = {
@@ -173,6 +183,7 @@ async function partsOrdersPass(db, rows, dry) {
     out.push(row);
   }
   if (!dry && out.length) { try { res.upserted = await db.upsertParts(out); } catch (e) { res.errors++; res.upsert_error = String((e && e.message) || e).slice(0, 200); } }
+  if (dry) res.debug = dbg;
   return res;
 }
 
@@ -185,26 +196,38 @@ async function warrantyPartsPass(db, events, dry) {
     return { id: e.id, job_id: Number(m.job_id || 0), claim: String(m.claim || ''), part: m.part, desc: m.description || m.desc, distributor: m.distributor, vendor: m.vendor, status: m.status, requires_return: m.requires_return };
   });
   const jobMap = await resolveJobsByXano(db, parsed.map((x) => x.job_id));
-  const out = [];
+  // Collapse to ONE row per (job, part): ServicePower emits two events per part (order + shipped),
+  // so key on a stable per-part id — last event wins. Also prevents the "ON CONFLICT can't affect a
+  // row twice" batch error that duplicate xano_id keys in one upsert would cause.
+  const bykey = new Map();
   for (const w of parsed) {
     let pjob = w.job_id > 0 ? jobMap.get(String(w.job_id)) : null;
     if (!pjob && w.claim) { try { pjob = await resolveJobByClaim(db, w.claim); } catch (_) { pjob = null; } }
     if (!pjob) { res.skipped_no_job++; continue; }
     const disp = mapWarrantyStatus(w.status, w.requires_return);
     const source = prettySupplier(w.distributor) || (w.vendor ? text(w.vendor, 60) + ' (warranty)' : null);
+    const pd = splitPartDesc(w.part, w.desc);
+    const jobKey = w.job_id > 0 ? String(w.job_id) : ('c' + normKey(w.claim));
+    const partKey = normKey(pd.number || w.part);
+    const xano_id = partKey ? ('wp:' + jobKey + ':' + partKey) : ('wp:evt:' + w.id);
     const row = {
-      company_id: TN_COMPANY, job_id: pjob, xano_id: 'wp:' + w.id,
-      number: partNumber(w.part),
-      name: text(w.desc, 200),
+      company_id: TN_COMPANY, job_id: pjob, xano_id,
+      number: pd.number,
+      name: pd.name,
       source,
       order_status: disp.order_status || null,
       disposition: disp.disposition || null,
     };
     if (!meaningful(row)) { res.skipped_empty++; continue; }
-    if (dry) { res.upserted++; if (res.sample.length < 10) res.sample.push({ job: w.job_id || ('claim:' + w.claim), number: row.number, source: row.source, disposition: row.disposition, status: row.order_status }); continue; }
-    out.push(row);
+    bykey.set(xano_id, row);
   }
-  if (!dry && out.length) { try { res.upserted = await db.upsertParts(out); } catch (e) { res.errors++; res.upsert_error = String((e && e.message) || e).slice(0, 200); } }
+  const out = [...bykey.values()];
+  if (dry) {
+    res.upserted = out.length;
+    res.sample = out.slice(0, 10).map((r) => ({ number: r.number, name: r.name, source: r.source, disposition: r.disposition, status: r.order_status }));
+  } else if (out.length) {
+    try { res.upserted = await db.upsertParts(out); } catch (e) { res.errors++; res.upsert_error = String((e && e.message) || e).slice(0, 200); }
+  }
   return res;
 }
 
