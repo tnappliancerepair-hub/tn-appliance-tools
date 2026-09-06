@@ -83,7 +83,7 @@ exports.handler = async function (event) {
   // straight to ACTIVE (live spend) when &live=1 is explicitly passed. Review it, then flip live.
   const goLive = q.live === '1';
   const status = goLive ? 'active' : 'paused';
-  const maxBid = Math.max(0.05, Math.min(50, parseFloat(q.max_bid) || 2));      // per-click ceiling ($)
+  const maxBid = Math.max(0.05, Math.min(50, parseFloat(q.max_bid) || 2));      // CPM bid ceiling ($ per 1000 impressions)
   const maxBidMicros = Math.round(maxBid * 1000000);
   const image = kit.image || 'https://tnapplianceexchange.net/assistant-og.png';
 
@@ -91,7 +91,7 @@ exports.handler = async function (event) {
   const campaignBody = { name, status, budget: { lifetime_spend_limit_micros: lifetime * 1000000 } };
   const plan = {
     campaign: name, appliance: appl, national: nationalReq, create_status: status, daily_budget: budget, days, lifetime_budget: lifetime,
-    max_bid_per_click: maxBid, campaign_body: campaignBody, cities, final_url: kit.final, creative_image: image,
+    max_cpm_bid: maxBid, campaign_body: campaignBody, cities, final_url: kit.final, creative_image: image,
     context_hints: kit.context || null, headlines: kit.headlines, descriptions: kit.descriptions,
   };
 
@@ -108,7 +108,8 @@ exports.handler = async function (event) {
   //    campaign via location IDs, so a national play just omits campaign targeting — done above).
   const agBody = {
     campaign_id: campaignId, name: `${kit.label} ad group`, status,
-    bidding_config: { billing_event_type: 'click', max_bid_micros: maxBidMicros },
+    // ad-group billing_event_type MUST match the campaign's (defaults to impression) → CPM bid.
+    bidding_config: { billing_event_type: 'impression', max_bid_micros: maxBidMicros },
   };
   if (kit.context && kit.context.length) agBody.context_hints = kit.context;
   const ag = await oa.api('POST', '/ad_groups', c.key, agBody);
