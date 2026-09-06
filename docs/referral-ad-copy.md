@@ -82,15 +82,21 @@ _Staged now as a live PREVIEW (no spend). Launch: `google-ads-create-campaign?se
 
 ---
 
-## ChatGPT Ads — the AI-answer play  ·  prepped: `openai-ads-create-campaign.js?appliance=saas`
-Buys the "Sponsored" answer when an owner asks ChatGPT what to run their shop on. Dark until the
-OpenAI key is vaulted (`OPENAI_ADS_API_KEY` + `OPENAI_ADS_PIXEL_ID`).
+## ChatGPT Ads — the AI-answer play  ·  live account: `openai-ads-create-campaign.js?appliance=saas`
+Buys the "Sponsored" answer when an owner asks ChatGPT what to run their shop on. Account is LIVE +
+approved (`OPENAI_ADS_API_KEY` vaulted). **National, $25/day** (~$750 lifetime cap), lands on the
+**free-guide lead magnet** (`/guide`), not the tour — captures the owner for a warm follow-up.
 - **Headlines:** Run Your Shop for $99/mo · Refer 4 Shops = Yours Free · AI Answers Every Call 24/7
   · Free Setup, No Per-Seat Fee · Housecall Pro Alternative · Built By a Real Repair Shop
 - **Descriptions:** Run your whole appliance shop for $99/mo flat — every tech included, free setup.
   Refer 4 buddy shops and yours is free. · AI answers 24/7 and books the job. Bring your data off
   Housecall Pro, Jobber or Workiz in a day. Built by a shop that runs on it.
-- **Final URL:** `assistant247.net`
+- **Final URL:** `tnapplianceexchange.net/guide`
+- **⚠️ OpenAI Ads has NO paused-then-enable step in code** — so this builder now creates **PAUSED** by
+  default and only goes ACTIVE with `&live=1`. Launch: `?secret=&appliance=saas&budget=25&national=1&apply=1`
+  (creates PAUSED) → review → `…&apply=1&live=1` (or activate in the OpenAI Ads dashboard) to start spend.
+- **Honest gap:** no SaaS-signup conversion feedback yet (the conversion sweep feeds repair jobs) — this
+  campaign optimizes on traffic/clicks + `/guide` lead captures until SaaS-signup conversions are wired.
 
 ---
 

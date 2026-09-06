@@ -4,9 +4,11 @@
 // call, day or night). Previews with NO key so we can eyeball the payload; applies
 // only with &apply=1 once the key is vaulted.
 //
-//   GET ?secret=&appliance=dryer|refrigerator|general&budget=25&days=30
+//   GET ?secret=&appliance=dryer|refrigerator|general|saas&budget=25&days=30[&national=1][&cities=..][&final=..]
 //        preview: show the campaign/ad-group/ad plan, write nothing (no key needed)
-//   ...&apply=1   create it (status active) — CHARGES once live
+//   ...&apply=1          create it PAUSED (no spend) — review it first
+//   ...&apply=1&live=1   create it ACTIVE — CHARGES immediately (OpenAI has no separate enable step)
+//   appliance=saas = the B2B AssistAnt play: owner copy, national by default, lands on the /guide lead magnet.
 //
 // NOTE: OpenAI documents the campaign body ({name,status,budget}) but not the full
 // ad-group/ad/targeting schema — those field names get finalized against the live
@@ -44,7 +46,7 @@ const KITS = {
     label: 'AssistAnt — Shop Software',
     headlines: ['Run Your Shop for $99/mo', 'Refer 4 Shops = Yours Free', 'AI Answers Every Call 24/7', 'Free Setup, No Per-Seat Fee', 'Housecall Pro Alternative', 'Built By a Real Repair Shop'],
     descriptions: ['Run your whole appliance shop for $99/mo flat — every tech included, free setup. Refer 4 buddy shops and yours is free.', 'AI answers 24/7 and books the job. Bring your data off Housecall Pro, Jobber or Workiz in a day. Built by a shop that runs on it.'],
-    final: 'https://assistant247.net',
+    final: 'https://tnapplianceexchange.net/guide',   // cold-B2B lead magnet (captures the owner) — not the tour
   },
 };
 
@@ -60,18 +62,26 @@ exports.handler = async function (event) {
   const days = Math.max(1, Math.min(365, parseInt(q.days, 10) || 30));
   const lifetime = parseInt(q.lifetime, 10) > 0 ? parseInt(q.lifetime, 10) : budget * days;
   const apply = q.apply === '1';
-  const cities = String(q.cities || 'Nashville,Antioch,Murfreesboro,Smyrna,La Vergne,Baton Rouge').split(',').map((s) => s.trim()).filter(Boolean);
+  // National for a SaaS play (sold everywhere): ?national=1, or the saas kit defaults national
+  // unless explicit ?cities= is passed. Local repair kits keep the TN+BR city list.
+  const nationalReq = q.national === '1' || (appl === 'saas' && !q.cities);
+  const cities = nationalReq ? ['United States'] : String(q.cities || 'Nashville,Antioch,Murfreesboro,Smyrna,La Vergne,Baton Rouge').split(',').map((s) => s.trim()).filter(Boolean);
+  const geoLabel = nationalReq ? 'US' : cities.slice(0, 2).join('/');
+  // SAFETY: OpenAI Ads has no separate enable step — so we create PAUSED by default and only go
+  // straight to ACTIVE (live spend) when &live=1 is explicitly passed. Review it, then flip live.
+  const goLive = q.live === '1';
+  const status = goLive ? 'active' : 'paused';
 
-  const name = `${kit.label} — ${cities.slice(0, 2).join('/')} (Ant)`;
-  const campaignBody = { name, status: 'active', budget: { lifetime_spend_limit_micros: lifetime * 1000000 } };
+  const name = `${kit.label} — ${geoLabel} (Ant)`;
+  const campaignBody = { name, status, budget: { lifetime_spend_limit_micros: lifetime * 1000000 } };
   const plan = {
-    campaign: name, appliance: appl, daily_budget: budget, days, lifetime_budget: lifetime,
+    campaign: name, appliance: appl, national: nationalReq, create_status: status, daily_budget: budget, days, lifetime_budget: lifetime,
     campaign_body: campaignBody, cities, final_url: kit.final,
     headlines: kit.headlines, descriptions: kit.descriptions,
   };
 
   const c = await oa.creds();
-  if (!apply) return json(200, { ok: true, mode: 'preview', configured: !!c.key, plan, note: 'add &apply=1 to create it (charges once live). Preview needs no key.' });
+  if (!apply) return json(200, { ok: true, mode: 'preview', configured: !!c.key, plan, note: 'add &apply=1 to CREATE it PAUSED (no spend). Then review + add &live=1 to go ACTIVE (starts charging). Preview needs no key.' });
   if (!c.key) return json(200, { ok: false, configured: false, error: 'OPENAI_ADS_API_KEY not vaulted', plan });
 
   // 1) campaign — the documented body shape.
@@ -80,14 +90,14 @@ exports.handler = async function (event) {
   const campaignId = (camp.d && (camp.d.id || (camp.d.campaign && camp.d.campaign.id))) || null;
 
   // 2) ad group — best-effort documented shape; field names tuned on first real call.
-  const agBody = { campaign_id: campaignId, name: `${kit.label} ad group`, status: 'active', targeting: { locations: cities } };
+  const agBody = { campaign_id: campaignId, name: `${kit.label} ad group`, status, targeting: { locations: cities } };
   const ag = await oa.api('POST', '/ad_groups', c.key, agBody);
   const adGroupId = ag.ok ? ((ag.d && (ag.d.id || (ag.d.ad_group && ag.d.ad_group.id))) || null) : null;
 
   // 3) ad — creative field names likewise finalized on first real call.
   let ad = { ok: false, err: 'skipped — no ad_group' };
   if (adGroupId) {
-    const adBody = { ad_group_id: adGroupId, status: 'active', final_url: kit.final, headlines: kit.headlines, descriptions: kit.descriptions };
+    const adBody = { ad_group_id: adGroupId, status, final_url: kit.final, headlines: kit.headlines, descriptions: kit.descriptions };
     ad = await oa.api('POST', '/ads', c.key, adBody);
   }
 
@@ -96,7 +106,9 @@ exports.handler = async function (event) {
     campaign: { ok: camp.ok, id: campaignId },
     ad_group: { ok: ag.ok, id: adGroupId, err: ag.err || null },
     ad: { ok: ad.ok, err: ad.err || null },
-    plan,
-    note: (ag.ok && ad.ok) ? 'live' : 'campaign created; ad-group/ad shapes need tuning against the live API response (see err).',
+    created_status: status, plan,
+    note: (ag.ok && ad.ok)
+      ? (goLive ? 'created ACTIVE — spending now.' : 'created PAUSED — review it, then re-run with &live=1 (or activate in the OpenAI Ads dashboard) to start spend.')
+      : 'campaign created; ad-group/ad shapes need tuning against the live API response (see err).',
   });
 };
