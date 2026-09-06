@@ -160,9 +160,10 @@ function meaningful(row) {
 async function partsOrdersPass(db, rows, dry) {
   const res = { source: 'parts_orders', scanned: rows.length, upserted: 0, skipped_no_job: 0, skipped_empty: 0, errors: 0, sample: [] };
   const jobMap = await resolveJobsByXano(db, rows.map((a) => Number(a.job_id)));
-  const dbg = { zero_job: 0, unresolved: 0, jobmap_size: jobMap.size, sample_job_ids: [] };
+  const dbg = { zero_job: 0, unresolved: 0, jobmap_size: jobMap.size, sample_job_ids: [], sample_raw: [] };
   const out = [];
   for (const a of rows) {
+    if (dry && dbg.sample_raw.length < 3) dbg.sample_raw.push({ id: a.id, job_id: a.job_id, keys: Object.keys(a), part_number: a.part_number, supplier: a.supplier });
     if (!a.job_id || Number(a.job_id) <= 0) { res.skipped_no_job++; dbg.zero_job++; continue; }
     const pjob = jobMap.get(String(Number(a.job_id)));
     if (!pjob) { res.skipped_no_job++; dbg.unresolved++; if (dbg.sample_job_ids.length < 8) dbg.sample_job_ids.push(Number(a.job_id)); continue; }   // job not mirrored yet -> caught next cycle
