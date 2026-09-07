@@ -16,9 +16,14 @@
 'use strict';
 
 const crypto = require('crypto');
+const Stripe = require('stripe');
 const OA = require('./_lib/owner-actions');           // resolveCaller (session -> company via platform_whoami) + MGMT + service-key db
 const { getSecret } = require('./_lib/secrets');
 const plans = require('../../platform/plans.js');
+
+// Same key resolution as platform-billing.stripeKey (dedicated platform key, else TN's account).
+async function stripeKey() { return (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await getSecret('STRIPE_SECRET_KEY')) || ''; }
+async function creditLive() { return String((await getSecret('PLATFORM_REFERRAL_CREDIT_LIVE')) || '') === '1'; }
 
 const SITE = 'https://tnapplianceexchange.net';
 const CREDIT_PER_SHOP_CENTS = 2500;                   // $25/mo bill credit per active referred shop
@@ -57,12 +62,122 @@ function computeSplit(myCo, referred) {
   return { free_at: freeAt, active: active, credit_cents: credit, cash_cents: cash, to_free: Math.max(0, freeAt - active), shops: shops, plan_cents: cap };
 }
 
+// ---- Phase 2: apply the bill credit as a Stripe coupon on the referrer's subscription ----
+// Pay-on-collection: credit = paying-active referred shops × $25, capped at the referrer's plan.
+// Coupons are immutable on amount, so when the count changes we mint a fresh coupon + swap +
+// delete the old one; when it drops to $0 we detach the discount. Idempotent (retrieve the
+// existing coupon and no-op when the amount already matches). Stripe is null in dryrun/shadow.
+async function ensureCoupon(stripe, partner, amountCents) {
+  const oldId = partner.stripe_coupon_id || null;
+  if (!amountCents) return { coupon_id: null, old_coupon_id: oldId, changed: !!oldId };
+  if (oldId) {
+    try {
+      const c = await stripe.coupons.retrieve(oldId);
+      if (c && !c.deleted && c.amount_off === amountCents && String(c.currency || 'usd') === 'usd') {
+        return { coupon_id: oldId, old_coupon_id: null, changed: false };
+      }
+    } catch (_) { /* coupon gone -> fall through to create */ }
+  }
+  const c = await stripe.coupons.create({ amount_off: amountCents, currency: 'usd', duration: 'forever', name: 'Ant Army credit (' + partner.code + ')' });
+  return { coupon_id: c.id, old_coupon_id: oldId, changed: true };
+}
+
+// Recompute + (optionally) apply one bill-credit referrer's coupon. Cash resellers are skipped
+// (they get paid cash, not a bill discount). Returns a result object; writes nothing unless live.
+async function applyOne(d, stripe, partner, opts) {
+  opts = opts || {};
+  const dryrun = !!opts.dryrun, live = !!opts.live;
+  if (!partner.company_id) return { code: partner.code, skipped: 'cash_reseller' };
+  if (partner.active === false) return { code: partner.code, skipped: 'inactive' };
+  const meRows = await d.get(`company?id=eq.${partner.company_id}&select=id,name,plan,status,billing_status,stripe_subscription_id`);
+  const me = meRows && meRows[0];
+  if (!me) return { code: partner.code, skipped: 'no_company' };
+  const referred = await d.get(`company?referred_by=eq.${encodeURIComponent(partner.code)}&select=status,billing_status,plan`);
+  const split = computeSplit(me, referred || []);
+  const desired = split.credit_cents;                    // already capped at the referrer's plan
+  const out = { code: partner.code, company: me.name, active_referrals: split.active, credit_cents: desired, cash_cents: split.cash_cents, has_subscription: !!me.stripe_subscription_id };
+  if (dryrun) return Object.assign(out, { mode: 'dryrun', applied: false });
+  if (!live) return Object.assign(out, { mode: 'shadow', applied: false, note: 'PLATFORM_REFERRAL_CREDIT_LIVE not set — credit pending' });
+  if (!me.stripe_subscription_id) return Object.assign(out, { mode: 'live', applied: false, note: 'no active subscription yet — credit pending' });
+  let cur;
+  try { cur = await ensureCoupon(stripe, partner, desired); }
+  catch (e) { return Object.assign(out, { mode: 'live', applied: false, error: 'coupon: ' + String((e && e.message) || e).slice(0, 140) }); }
+  try {
+    if (desired > 0) {
+      try { await stripe.subscriptions.update(me.stripe_subscription_id, { discounts: [{ coupon: cur.coupon_id }] }); }
+      catch (e) { await stripe.subscriptions.update(me.stripe_subscription_id, { coupon: cur.coupon_id }); }   // older Stripe API
+    } else {
+      try { await stripe.subscriptions.deleteDiscount(me.stripe_subscription_id); } catch (_) {}
+    }
+  } catch (e) { return Object.assign(out, { mode: 'live', applied: false, error: 'attach: ' + String((e && e.message) || e).slice(0, 140) }); }
+  if (cur.changed) {
+    try { await d.patch(`partner?id=eq.${partner.id}`, { stripe_coupon_id: cur.coupon_id }); } catch (_) {}
+    if (cur.old_coupon_id) { try { await stripe.coupons.del(cur.old_coupon_id); } catch (_) {} }
+  }
+  return Object.assign(out, { mode: 'live', applied: true, coupon_id: cur.coupon_id });
+}
+
+// Recompute the credit for the referrer of ONE code (called from the Stripe webhook when a
+// referred shop pays / churns). Resolves the referred shop's referrer partner by its code.
+async function applyReferrerByCode(refCode, opts) {
+  opts = opts || {};
+  const { base, key } = await OA.cfg();
+  if (!base || !key) return { ok: false, error: 'not configured' };
+  const d = OA.db(base, key);
+  const partner = (await d.get(`partner?code=eq.${encodeURIComponent(refCode)}&limit=1`))[0];
+  if (!partner) return { ok: false, error: 'no partner for code' };
+  if (!partner.company_id) return { ok: true, skipped: 'cash_reseller' };
+  const live = await creditLive();
+  let stripe = null;
+  if (live && !opts.dryrun) { const sk = await stripeKey(); if (sk) stripe = new Stripe(sk); }
+  const res = await applyOne(d, stripe, partner, { dryrun: !!opts.dryrun, live });
+  return Object.assign({ ok: true }, res);
+}
+
+// Sweep every bill-credit referrer (the daily cron backstop for anything the webhook missed).
+async function applyAll(opts) {
+  opts = opts || {};
+  const { base, key } = await OA.cfg();
+  if (!base || !key) return { ok: false, error: 'not configured' };
+  const d = OA.db(base, key);
+  const partners = await d.get('partner?company_id=not.is.null&active=is.true&select=id,code,company_id,active,stripe_coupon_id&limit=500');
+  const live = await creditLive();
+  let stripe = null;
+  if (live && !opts.dryrun) { const sk = await stripeKey(); if (sk) stripe = new Stripe(sk); }
+  const results = [];
+  for (const pr of (partners || [])) {
+    try { results.push(await applyOne(d, stripe, pr, { dryrun: !!opts.dryrun, live })); }
+    catch (e) { results.push({ code: pr.code, error: String((e && e.message) || e).slice(0, 120) }); }
+  }
+  return { ok: true, live: live, dryrun: !!opts.dryrun, count: results.length, results: results };
+}
+exports.applyReferrerByCode = applyReferrerByCode;
+exports.applyAll = applyAll;
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return json(405, { ok: false, error: 'POST only' });
   const q = event.queryStringParameters || {};
   const doo = String(q.do || 'status').toLowerCase();
   let p = {}; try { p = JSON.parse(event.body || '{}'); } catch (_) { return json(400, { ok: false, error: 'bad json' }); }
+
+  // do=apply — Phase 2 credit application. Admin/cron only (NOT owner-session): recompute + push
+  // the Stripe coupon for one code (&code=) or all bill-credit referrers. ?dryrun=1 = zero writes;
+  // real writes gated behind PLATFORM_REFERRAL_CREDIT_LIVE=1 (checked inside applyAll/applyOne).
+  if (doo === 'apply') {
+    const isCron = !!(p && p.next_run);                  // scheduled invocation self-authorizes
+    if (!isCron) {
+      const admin = (await getSecret('VAPI_ADMIN_SECRET')) || '';
+      const secret = String(p.secret || q.secret || '').trim();
+      if (!admin || secret !== admin) return json(403, { ok: false, error: 'admin only' });
+    }
+    const dryrun = String(q.dryrun || '') === '1' || !!p.dryrun;
+    const code = String(q.code || p.code || '').trim();
+    try {
+      const r = code ? await applyReferrerByCode(code, { dryrun }) : await applyAll({ dryrun });
+      return json(200, r);
+    } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
+  }
 
   const caller = await OA.resolveCaller(String(p.access_token || '').trim());
   if (caller.error) return json(caller.error === 'not signed in' ? 401 : 403, { ok: false, error: caller.error });

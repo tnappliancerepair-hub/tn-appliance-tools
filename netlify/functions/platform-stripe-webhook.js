@@ -262,6 +262,16 @@ exports.handler = async function (event) {
     }
 
     const row = await applyEntitlement(companyId, patch);
+
+    // Ant Army pay-on-collection: if THIS shop was referred, recompute its referrer's $25/mo bill
+    // credit — the moment a referred shop goes active (or churns) the referrer's credit changes.
+    // Best-effort + dark until PLATFORM_REFERRAL_CREDIT_LIVE=1; never blocks or fails the webhook.
+    try {
+      const rr = await pf.get(`company?id=eq.${encodeURIComponent(companyId)}&select=referred_by`);
+      const refCode = rr && rr[0] && rr[0].referred_by;
+      if (refCode) { await require('./platform-referral').applyReferrerByCode(String(refCode)); }
+    } catch (_) {}
+
     console.log('[platform-stripe-webhook]', ev.type, companyId, JSON.stringify({ plan: patch.plan, status: patch.status, canceled }));
     return { statusCode: 200, body: JSON.stringify({ ok: true, company_id: companyId, applied: !!row, plan: patch.plan || null, status: patch.status }) };
   } catch (e) {

@@ -593,9 +593,27 @@
           var creditNote = live
             ? '<div class="ia-h">Your credit is applied to your subscription automatically.</div>'
             : '<div class="ia-h">Your credit is pending — it applies to your next bill once each referred shop is active.</div>';
-          var head='<div class="intakeaddr"><div class="ia-l"><div class="ia-t">Your referral link — send it to a shop owner</div>'+
-            '<div class="ia-a"><span class="mono" id="refLink">'+esc(link)+'</span> <button class="ia-copy" id="refCopy">Copy</button></div>'+
-            '<div class="ia-h">They get <b>free setup</b>. You get <b>$25/mo off</b> for every shop that signs up and stays active — <b>'+freeAt+' = your $99 system is free</b>, and every shop past '+freeAt+' pays you <b>$25/mo cash</b>.</div></div></div>';
+          // Short, speakable share link + QR (both point at /r/<code> which 302s to signup?ref=<code>).
+          var code=d.code||'', short=location.origin+'/r/'+encodeURIComponent(code);
+          var qrUrl='/.netlify/functions/referral-qr?code='+encodeURIComponent(code)+'&format=svg';
+          var qrCard='/.netlify/functions/referral-qr?code='+encodeURIComponent(code);
+          var shareText='Try the system I run my whole shop on — free setup for you: '+short;
+          var head='<div class="intakeaddr"><div class="ia-t">Your referral link — scan, tap, or send it</div>'+
+            '<div class="ia-a"><span class="mono" id="refLink">'+esc(short)+'</span> <button class="ia-copy" id="refCopy">Copy</button></div>'+
+            '<div style="display:flex;gap:12px;align-items:flex-start;margin-top:12px;flex-wrap:wrap">'+
+              '<div style="flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px;width:126px">'+
+                '<img src="'+qrUrl+'" alt="Scan to try AssistAnt" style="width:100%;height:auto;display:block">'+
+                '<div style="text-align:center;margin-top:5px"><a href="'+qrCard+'" target="_blank" rel="noopener" style="font-size:11px;font-weight:800;color:var(--brand,#c8901f);text-decoration:none">Print card ↗</a></div>'+
+              '</div>'+
+              '<div style="flex:1 1 180px;min-width:180px">'+
+                '<div class="ia-h" style="margin-top:0">Put it on a truck magnet, a business card, or just show your phone: <b>they scan, they get free setup, you get $25/mo off</b>.</div>'+
+                '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'+
+                  '<button class="ia-copy" id="refShare" style="border-color:var(--brand,#c8901f);color:var(--brand,#c8901f);font-weight:800">📤 Share</button>'+
+                  '<a class="ia-copy" id="refSaveQr" href="'+qrUrl+'" download="assistant-referral-qr.svg" style="text-decoration:none">⬇ Save QR</a>'+
+                '</div>'+
+              '</div>'+
+            '</div>'+
+            '<div class="ia-h" style="margin-top:12px">You get <b>$25/mo off</b> for every shop that signs up and stays active — <b>'+freeAt+' = your $99 system is free</b>, and every shop past '+freeAt+' pays you <b>$25/mo cash</b>.</div></div>';
           var pbox='<div class="money">'+mrow('Your standing','',prog)+'</div>'+creditNote;
           var shops=(d.shops||[]);
           var feed;
@@ -608,7 +626,11 @@
             }).join('')+'</div>';
           }
           el.innerHTML=head+pbox+feed;
-          var cp=document.getElementById('refCopy'); if(cp) cp.onclick=function(){ try{ navigator.clipboard.writeText(link); cp.textContent='Copied ✓'; setTimeout(function(){cp.textContent='Copy';},1500);}catch(e){} };
+          var cp=document.getElementById('refCopy'); if(cp) cp.onclick=function(){ try{ navigator.clipboard.writeText(short); cp.textContent='Copied ✓'; setTimeout(function(){cp.textContent='Copy';},1500);}catch(e){} };
+          var sh=document.getElementById('refShare'); if(sh) sh.onclick=function(){
+            if(navigator.share){ navigator.share({title:'AssistAnt 24/7',text:shareText,url:short}).catch(function(){}); }
+            else { try{ navigator.clipboard.writeText(shareText); sh.textContent='Copied ✓'; setTimeout(function(){sh.textContent='📤 Share';},1500);}catch(e){} }
+          };
         }).catch(function(){ el.innerHTML='<div class="note">Couldn’t load your referral link.</div>'; });
     });
   }

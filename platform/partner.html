@@ -68,8 +68,21 @@
 
     <div class="sec">Your referral link</div>
     <div class="card">
-      <div style="font-size:13.5px">Send this to any shop you refer. When they sign up (or when the office onboards them) they're credited to you automatically.</div>
+      <div style="font-size:13.5px">Scan it, tap Share, or send the link. When a shop signs up (or the office onboards them) they're credited to you automatically.</div>
       <div class="reflink"><code id="ref"></code><button class="p" id="copy">Copy</button></div>
+      <div style="display:flex;gap:12px;align-items:flex-start;margin-top:12px;flex-wrap:wrap">
+        <div style="flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px;width:126px">
+          <img id="refqr" alt="Scan to try AssistAnt" style="width:100%;height:auto;display:block">
+          <div style="text-align:center;margin-top:5px"><a id="refcard" href="#" target="_blank" rel="noopener" style="font-size:11px;font-weight:800;color:var(--brand);text-decoration:none">Print card ↗</a></div>
+        </div>
+        <div style="flex:1 1 180px;min-width:180px">
+          <div style="font-size:13px;color:var(--muted);line-height:1.5">Put it on a truck magnet, a business card, or just show your phone — they scan, they get free setup, you earn your commission.</div>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="p" id="share">📤 Share</button>
+            <a id="saveqr" href="#" download="assistant-referral-qr.svg" style="text-decoration:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:9px;padding:8px 12px;font-weight:700;font-size:13px;display:inline-block">⬇ Save QR</a>
+          </div>
+        </div>
+      </div>
       <div class="note" id="handnote"></div>
     </div>
 
@@ -116,7 +129,22 @@
         : (p.commission_pct||0)+'% of each shop’s subscription';
       terms += p.commission_months>0 ? (' for '+p.commission_months+' months') : ' (for as long as they stay)';
       document.getElementById('pterms').textContent = 'Your deal: '+terms+'.';
-      document.getElementById('ref').textContent = d.referral_link||'';
+      // Short, speakable share link + QR (both point at /r/<code> which 302s to signup?ref=<code>).
+      var code = (p.code||'').trim();
+      var short = code ? (location.origin+'/r/'+encodeURIComponent(code)) : (d.referral_link||'');
+      document.getElementById('ref').textContent = short;
+      if(code){
+        var qrUrl='/.netlify/functions/referral-qr?code='+encodeURIComponent(code)+'&format=svg';
+        document.getElementById('refqr').src = qrUrl;
+        document.getElementById('saveqr').href = qrUrl;
+        document.getElementById('refcard').href = '/.netlify/functions/referral-qr?code='+encodeURIComponent(code);
+      }
+      var shareText='Try the system that runs your whole shop — free setup for you: '+short;
+      var sb=document.getElementById('share');
+      if(sb) sb.onclick=function(){
+        if(navigator.share){ navigator.share({title:'AssistAnt 24/7',text:shareText,url:short}).catch(function(){}); }
+        else { try{ navigator.clipboard.writeText(shareText); sb.textContent='Copied ✓'; setTimeout(function(){sb.textContent='📤 Share';},1500);}catch(e){} }
+      };
       document.getElementById('handnote').textContent = 'Self-serve signup is still being switched on — for now, hand a shop to the office and mention your name; they’ll onboard it credited to you.';
       document.getElementById('owed').textContent = money(t.owed_estimate_cents);
       document.getElementById('rr').textContent = money(t.monthly_run_rate_cents);

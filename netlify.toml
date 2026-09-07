@@ -93,6 +93,13 @@
 [functions."platform-review-sweep-cron"]
   schedule = "0 15,21 * * *"
 
+# platform-referral-cron — daily (~11:30am CT) backstop that recomputes every Ant-Army
+# referrer's $25/mo bill credit (the Stripe webhook already recomputes on each referred-shop
+# payment/churn). DARK — writes nothing until vault PLATFORM_REFERRAL_CREDIT_LIVE=1. Core is
+# HTTP-callable for dry-runs: platform-referral?do=apply&dryrun=1&secret=<admin>.
+[functions."platform-referral-cron"]
+  schedule = "30 16 * * *"
+
 # platform-call-score-cron — grade each active shop's Ann accuracy nightly (~7:40am CT),
 # storing a call_score row so the owner sees a fresh read + trend (the Phase 5 flywheel).
 [functions."platform-call-score-cron"]

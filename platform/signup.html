@@ -8,11 +8,14 @@
 (function(){try{
   var u=new URL(location.href);
   window.__ANT_COMP=(u.searchParams.get('comp')||'').trim();
-  if(u.searchParams.has('comp')||u.searchParams.has('key')){
-    u.searchParams.delete('comp'); u.searchParams.delete('key');
+  // Capture the referral code too, then STRIP it — like the comp token, ?ref would otherwise
+  // ship to Facebook (Pixel reads location.href) and sit in browser history. Read __ANT_REF at submit.
+  window.__ANT_REF=(u.searchParams.get('ref')||'').trim().slice(0,60);
+  if(u.searchParams.has('comp')||u.searchParams.has('key')||u.searchParams.has('ref')){
+    u.searchParams.delete('comp'); u.searchParams.delete('key'); u.searchParams.delete('ref');
     history.replaceState(null,'',u.pathname+(u.search||'')+u.hash);
   }
-}catch(_){ window.__ANT_COMP=''; }})();
+}catch(_){ window.__ANT_COMP=''; window.__ANT_REF=''; }})();
 </script>
 <!-- Meta Pixel (AssistAnt 24/7 retargeting + signup optimization) -->
 <script>
@@ -41,6 +44,7 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .refban{background:color-mix(in srgb,var(--good) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--good) 40%,var(--line));color:var(--ink);border-radius:12px;padding:12px 15px;font-size:14px;line-height:1.45;margin:0 0 16px}
   .wrap{max-width:680px;margin:0 auto;padding:20px 16px 64px}
   .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.01em;padding:6px 2px 2px}
   .amk{color:var(--brand)}
@@ -77,6 +81,8 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
   <div class="brand"><span class="dot" id="vdot">🐜</span><span id="vbrand">Assist<span class="amk">Ant</span> 24/7</span></div>
   <h1>Put your whole shop on one system.</h1>
   <p class="lede">Answer every call, book every job, pay every tech — one place your office, techs, and customers all run on. Start a 14-day trial; cancel anytime.</p>
+
+  <div class="refban" id="refban" style="display:none">🤝 <b>You were referred — free setup, no catch.</b> Get set up in a few minutes and see why other shop owners switched.</div>
 
   <div class="card">
     <div class="row2">
@@ -214,6 +220,8 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
 
   renderPlans();
   recompute();
+  // Referred? Show the "free setup, no catch" reassurance banner (ref was captured + stripped up top).
+  if(String(window.__ANT_REF||'').trim()){ var rb=document.getElementById('refban'); if(rb) rb.style.display='block'; }
   // Comp link → no-card copy (the shop goes live now; billing added later).
   if(COMP){
     var gb=document.getElementById('go'); if(gb) gb.textContent='Set up my shop — free →';
@@ -243,7 +251,7 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
         comp: !!COMP, comp_token: COMP,   // no-card founder/comp setup (dedicated PLATFORM_COMP_TOKEN)
         terms_accepted: !!(document.getElementById('agree') && document.getElementById('agree').checked),
         terms_version: TERMS_VERSION,     // recorded on the shop for a durable acceptance audit
-        ref: (new URLSearchParams(location.search).get('ref')||'').slice(0,60),  // reseller referral code (?ref=TK)
+        ref: String(window.__ANT_REF||''),  // referral code (?ref=…) captured + stripped before the Pixel
         origin: location.origin          // keep post-payment redirects on the domain they signed up on (assistant247.net)
       })
     }).then(function(r){return r.json();}).then(function(d){
