@@ -176,6 +176,58 @@ async function upsert(url, key, table, rows, onConflict) {
   return out;
 }
 
+// One-time MANUAL recovery (?recover_addr=1): fill customer.address from Xano's CUSTOMER table
+// (table 6, street = service_address/address/street) for TN customers currently BLANK on the
+// platform. The Sep-3 migration sourced address from table 6, but the every-5-min mirror only
+// carries the job denorm — so customer-table streets the jobs feed lacks were never mirrored
+// (and a transient bug briefly blanked ~200). BLANK-ONLY + additive: it NEVER overwrites an
+// existing address (protects job-denorm + portal-corrected values). Paged (cursor) so a grind
+// loop stays under the function limit. NOT wired into the cron.
+async function recoverCustomerStreets(url, key, startPage, maxPages) {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return { ok: false, error: 'no_xano_token' };
+  // 1) platform TN customers currently blank on address -> Set of xano_id (paged, PostgREST 1000 cap)
+  const blank = new Set();
+  for (let from = 0; from < 40000; from += 1000) {
+    const r = await fetch(`${url}/rest/v1/customer?company_id=eq.${TN_COMPANY}&or=(address.is.null,address.eq.)&select=xano_id`, {
+      headers: { apikey: key, Authorization: 'Bearer ' + key, Range: `${from}-${from + 999}` },
+      signal: AbortSignal.timeout(12000),
+    });
+    const rows = await r.json().catch(() => []);
+    if (!Array.isArray(rows) || !rows.length) break;
+    for (const c of rows) if (c.xano_id != null) blank.add(Number(c.xano_id));
+    if (rows.length < 1000) break;
+  }
+  // 2) page Xano customer table 6; collect a street ONLY for blanks that have a real one
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const fillRows = [];
+  let scanned = 0, page = startPage, pagesDone = 0, done = false;
+  for (; pagesDone < maxPages; page++, pagesDone++) {
+    let rows = [];
+    try {
+      const r = await fetch(`${META}/table/6/content/search`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ sort: { id: 'asc' }, per_page: 500, page }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!r.ok) break;
+      rows = (await r.json()).items || [];
+    } catch (_) { break; }
+    if (!rows.length) { done = true; break; }
+    scanned += rows.length;
+    for (const o of rows) {
+      const cid = Number(o.id);
+      if (!cid || !blank.has(cid)) continue;
+      const st = cleanStreet(o.service_address || o.address || o.street);
+      if (st) fillRows.push({ company_id: TN_COMPANY, xano_id: cid, address: st });
+    }
+    if (rows.length < 500) { done = true; break; }
+  }
+  let filled = 0;
+  if (fillRows.length) { const up = await upsert(url, key, 'customer', fillRows, 'company_id,xano_id'); filled = up.length; }
+  return { ok: true, blank_customers: blank.size, scanned, filled, next_page: done ? null : page, done };
+}
+
 async function syncTnToPlatform(limit, opts) {
   const t0 = Date.now();
   const dryrun = !!(opts && opts.dryrun);
@@ -362,6 +414,12 @@ exports.handler = async function (event) {
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
   try {
+    if (q.recover_addr === '1') {
+      const { url, key } = await cfg();
+      if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
+      const out = await recoverCustomerStreets(url, key, q.page ? Number(q.page) : 1, q.pages ? Number(q.pages) : 4);
+      return json(200, out);
+    }
     const out = await syncTnToPlatform(q.limit ? Number(q.limit) : 0, { dryrun: q.dryrun === '1' });
     return json(200, out);
   } catch (e) {
