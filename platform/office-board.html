@@ -2146,23 +2146,37 @@
         renderMoneyBar(); renderRegionToggle(); renderFilters(); renderBoard();
       });
     };
-    // Scope the pull so a big tenant (3,000+ jobs) never truncates active work at PostgREST's
-    // implicit ~1000-row cap: keep ALL non-terminal jobs + completed within the last ~75 days
-    // (covers the mirror's 60-day feed + slack; updated_at is stamped every mirror run), drop
-    // canceled (matches dispatch/needs-scheduled), cap at 3000 (> realistic active+recent count).
-    // Without this, the oldest-created rows — exactly the forward-scheduled old dispatches — were
-    // silently dropped from the board. `scope()` applies the same filter to every fallback tier.
+    // Scope + PAGINATE so a big tenant (1,700+ active jobs) never truncates: Supabase hard-caps
+    // any single response at 1000 rows, so .limit() alone can't fix it — we must pull in 1000-row
+    // pages and concatenate. Scope = ALL non-terminal jobs + completed within ~75 days (covers the
+    // mirror's 60-day feed + slack; updated_at is stamped every mirror run), canceled dropped
+    // (matches dispatch/needs-scheduled). Without this the oldest-created rows — exactly the
+    // forward-scheduled old dispatches Danielle was missing — silently fell off the board.
     var completedCutoff = new Date(Date.now() - 75 * 86400000).toISOString();
-    function scope(qb) {
-      return qb.or('status.not.in.(completed,canceled),and(status.eq.completed,updated_at.gte.' + completedCutoff + ')').order('created_at', { ascending: false }).limit(3000);
+    var orFilter = 'status.not.in.(completed,canceled),and(status.eq.completed,updated_at.gte.' + completedCutoff + ')';
+    var PAGE = 1000;
+    // pageAll(sel, done): pull every scoped row for this select in 1000-row pages. Reports the
+    // FIRST-page error to `done` (so the caller can fall back to a simpler select tier); once
+    // page 1 succeeds the same select can't error, so later pages just accumulate.
+    function pageAll(sel, done) {
+      var all = [];
+      function grab(from) {
+        sb.from('job').select(sel).or(orFilter).order('created_at', { ascending: false }).range(from, from + PAGE - 1).then(function (r) {
+          if (r.error) { done(r); return; }                      // page-1 error → fall to simpler tier
+          all = all.concat(r.data || []);
+          if ((r.data || []).length < PAGE || all.length >= 8000) { done({ data: all }); return; }
+          grab(from + PAGE);
+        });
+      }
+      grab(0);
     }
     // Try enriched + scheduling flags → enriched only → the minimal legacy select. So a
     // missing new column can never blank the board.
-    scope(sb.from('job').select(baseRich + 'needs_two_techs,long_job,' + tailRich)).then(function (r) {
+    pageAll(baseRich + 'needs_two_techs,long_job,' + tailRich, function (r) {
       if (!r.error) { proceed(r); return; }
-      scope(sb.from('job').select(baseRich + tailRich)).then(function (r2) {
+      pageAll(baseRich + tailRich, function (r2) {
         if (!r2.error) { proceed(r2); return; }
-        scope(sb.from('job').select(baseMin + tailMin)).then(proceed);
+        pageAll(baseMin + tailMin, proceed);
       });
     });
   }
