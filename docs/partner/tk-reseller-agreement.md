@@ -6,8 +6,8 @@
 > **Fill these blanks before sending to counsel:**
 > - **Company** legal name + entity type + state (the entity that owns AssistAnt) + address
 > - **Partner** legal name + entity type + state (TK) + address
-> - **Commission %** or flat amount (§3.1) — must match what's configured in the platform (`partner.commission_pct` / `commission_flat_cents`)
-> - **Commission duration** (§3.2) — "for as long as the account stays active" vs "N months from signup"
+> - ✅ **Commission %** (§3.1) = **30% of net subscription revenue** — matches the platform config (`partner.commission_pct=30`, `commission_type=sub_pct`), set 2026-09-07.
+> - ✅ **Commission duration** (§3.2) = **12 months from the account's activation date** — matches the platform config (`partner.commission_months=12`), set 2026-09-07.
 > - **Territory / exclusivity** (§2.2) — non-exclusive is the draft default
 > - **Payment cadence** (§3.4 — draft says monthly, net 30)
 > - **Governing-law state** (§11)
@@ -45,15 +45,14 @@ name, marks, or the Platform's branding except as Company approves in writing.
 
 ## 3. Commission
 **3.1 Rate.** For each Referred Account that becomes a paying subscriber to the Platform, Company
-will pay Partner a commission of **[__]% of the net subscription revenue actually collected** from
-that account **[OR: a flat $[__] per active account per month]**. "Net subscription revenue" means
+will pay Partner a commission of **30% of the net subscription revenue actually collected** from
+that account. "Net subscription revenue" means
 subscription fees actually received by Company for the Platform, excluding taxes, third-party
 pass-through charges (e.g. telephony/usage), refunds, chargebacks, and discounts.
 
-**3.2 Duration.** Commission is payable **[for as long as the Referred Account remains an active
-paying subscriber]** **[OR: for [__] months from the account's activation date]**. Commission
-accrues only while the account is active and current on payment, and stops on cancellation,
-non-payment, or downgrade to a non-paying status.
+**3.2 Duration.** Commission is payable **for 12 months from the account's activation date**.
+Commission accrues only while the account is active and current on payment, and stops on
+cancellation, non-payment, or downgrade to a non-paying status.
 
 **3.3 Attribution.** An account is a "Referred Account" only if it is attributed to Partner in
 Company's systems at signup (via Partner's referral code/link or by Company's onboarding record).
