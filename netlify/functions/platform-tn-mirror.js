@@ -145,6 +145,15 @@ function neededPartsTrip(pn) {
   return /[A-Za-z0-9][A-Za-z0-9.\-]{4,}/.test(s) && /\d/.test(s);
 }
 
+// A real street has a letter — a bare "1"/number-only is the AHS "1,City" placeholder, NOT an
+// address. Never let a placeholder overwrite a good street. (get_office_kanban returns
+// service_city/state/zip but NOT the street; the raw table-7 supp row carries service_address,
+// so kanban-origin jobs borrow the street from their supp twin — see the custMap builder.)
+function cleanStreet(v) {
+  const s = String(v == null ? '' : v).trim();
+  return /[A-Za-z]/.test(s) ? s : '';
+}
+
 // PostgREST bulk upsert that returns the upserted rows (so we can read back the UUIDs).
 async function upsert(url, key, table, rows, onConflict) {
   if (!rows.length) return [];
@@ -179,6 +188,12 @@ async function syncTnToPlatform(limit, opts) {
   // (dedup by job id; the richer kanban row wins when a job is in both).
   const supp = await fetchActiveJobs();
   const supplementalCount = supp.length;
+  // The raw table-7 supp rows carry the full job incl. service_address (the street). The kanban
+  // feed does NOT, and the kanban row wins in the merge below — so a kanban-origin job borrows
+  // the street from its supp twin via this lookup (keyed by Xano job id).
+  const suppById = new Map();
+  for (const s of supp) { const id = Number(s.id); if (id) suppById.set(id, s); }
+  const streetFor = (j) => cleanStreet(j.service_address) || cleanStreet((suppById.get(Number(j.id)) || {}).service_address);
   let addedFromSupp = 0;
   if (supp.length) {
     const have = new Set(items.map((j) => Number(j.id)));
@@ -193,19 +208,31 @@ async function syncTnToPlatform(limit, opts) {
     const startTodayMs = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime();
     const future = jobs.filter((j) => Number(j.scheduled_start) >= startTodayMs).length;
     const scheduled = jobs.filter((j) => mapStatus(j) === 'scheduled').length;
-    return { ok: true, dryrun: true, kanban: kanbanCount, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, ms: Date.now() - t0 };
+    // Confirm Xano's rows actually carry a real street before any live write.
+    let withStreet = 0; const streetSample = [];
+    for (const j of jobs) {
+      const st = streetFor(j);
+      if (st) { withStreet++; if (streetSample.length < 5) streetSample.push({ id: Number(j.id), street: st, city: String(j.service_city || ''), zip: String(j.service_zip || '') }); }
+    }
+    return { ok: true, dryrun: true, kanban: kanbanCount, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, ms: Date.now() - t0 };
   }
 
   // 1) customers — dedup by Xano customer_id
   const custMap = new Map();
   for (const j of jobs) {
     const cid = Number(j.customer_id);
-    if (!custMap.has(cid)) custMap.set(cid, {
-      company_id: TN_COMPANY, xano_id: cid,
-      first_name: String(j.customer_first || ''), last_name: String(j.customer_last || ''),
-      phone: String(j.customer_phone || ''), city: String(j.service_city || ''),
-      state: String(j.service_state || ''), zip: String(j.service_zip || ''),
-    });
+    const street = streetFor(j);
+    if (!custMap.has(cid)) {
+      custMap.set(cid, {
+        company_id: TN_COMPANY, xano_id: cid,
+        first_name: String(j.customer_first || ''), last_name: String(j.customer_last || ''),
+        phone: String(j.customer_phone || ''), address: street, city: String(j.service_city || ''),
+        state: String(j.service_state || ''), zip: String(j.service_zip || ''),
+      });
+    } else if (street && !custMap.get(cid).address) {
+      // a later job for the same customer carries a street the first one lacked — fill it
+      custMap.get(cid).address = street;
+    }
   }
   const upCust = await upsert(url, key, 'customer', [...custMap.values()], 'company_id,xano_id');
   const custIdByXano = new Map(upCust.map((r) => [Number(r.xano_id), r.id]));
