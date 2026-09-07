@@ -217,24 +217,26 @@ async function syncTnToPlatform(limit, opts) {
     return { ok: true, dryrun: true, kanban: kanbanCount, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, ms: Date.now() - t0 };
   }
 
-  // 1) customers — dedup by Xano customer_id
+  // 1) customers — dedup by Xano customer_id. The base upsert deliberately OMITS `address`:
+  // merge-duplicates only updates columns present in the payload, so leaving it out PRESERVES
+  // any existing street (migration/tee/portal-sourced) instead of clobbering it with a blank
+  // when Xano's feed has no street for that job. The street is filled by a SEPARATE upsert below.
   const custMap = new Map();
+  const addrMap = new Map(); // xano customer_id -> a clean street (only when we actually have one)
   for (const j of jobs) {
     const cid = Number(j.customer_id);
-    const street = streetFor(j);
-    if (!custMap.has(cid)) {
-      custMap.set(cid, {
-        company_id: TN_COMPANY, xano_id: cid,
-        first_name: String(j.customer_first || ''), last_name: String(j.customer_last || ''),
-        phone: String(j.customer_phone || ''), address: street, city: String(j.service_city || ''),
-        state: String(j.service_state || ''), zip: String(j.service_zip || ''),
-      });
-    } else if (street && !custMap.get(cid).address) {
-      // a later job for the same customer carries a street the first one lacked — fill it
-      custMap.get(cid).address = street;
-    }
+    if (!custMap.has(cid)) custMap.set(cid, {
+      company_id: TN_COMPANY, xano_id: cid,
+      first_name: String(j.customer_first || ''), last_name: String(j.customer_last || ''),
+      phone: String(j.customer_phone || ''), city: String(j.service_city || ''),
+      state: String(j.service_state || ''), zip: String(j.service_zip || ''),
+    });
+    if (!addrMap.has(cid)) { const st = streetFor(j); if (st) addrMap.set(cid, st); }
   }
   const upCust = await upsert(url, key, 'customer', [...custMap.values()], 'company_id,xano_id');
+  // Fill the street ONLY where we have a real one — never write a blank (additive, can't lose data).
+  const addrRows = [...addrMap.entries()].map(([cid, address]) => ({ company_id: TN_COMPANY, xano_id: cid, address }));
+  if (addrRows.length) await upsert(url, key, 'customer', addrRows, 'company_id,xano_id');
   const custIdByXano = new Map(upCust.map((r) => [Number(r.xano_id), r.id]));
 
   // 2) units — one serviced appliance per job (multi-machine refinement later)
