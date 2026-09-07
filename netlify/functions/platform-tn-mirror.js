@@ -29,7 +29,11 @@ function mapStatus(j) {
   if (s.includes('progress')) return 'in_progress';
   if (s.includes('await')) return 'awaiting_parts';
   if (s.includes('cancel')) return 'canceled';
-  if (s === 'scheduled') return 'scheduled';       // needs_scheduled / not_ready fall through
+  if (s === 'scheduled') return 'scheduled';
+  // A job booked with a real day + a tech but whose Xano status still lags at
+  // needs_scheduled/not_ready IS scheduled work — show it in the Scheduled column
+  // (matches the office board's own "real day + a tech ⇒ Scheduled" rule).
+  if (Number(j.scheduled_start) > 0 && j.technician_id != null && String(j.technician_id).trim() !== '' && String(j.technician_id) !== '0') return 'scheduled';
   return 'new';
 }
 
@@ -77,6 +81,48 @@ async function fetchTdrMap() {
   }
   return map;
 }
+
+// Supplemental completeness pull: the mirror's main feed (get_office_kanban) is capped at
+// 800 rows sorted created_at DESC, so an OLD-created dispatch scheduled for next week gets
+// crowded out and never mirrors. This pulls EVERY active/upcoming job straight from the Xano
+// jobs table (metadata table 7), keyed by scheduling_status — an EQUALITY filter, the only
+// reliable metadata search (range/multi-field are unsupported), so nothing is dropped by a
+// created_at cap or a null-ordering quirk. Returns rows normalized to the kanban item shape
+// the row-builder reads (raw column is `appliance_type`; the builder reads `j.appliance`).
+// Best-effort: any failure returns [] and the mirror runs on the board feed alone.
+const ACTIVE_STATUSES = ['scheduled', 'awaiting_parts', 'in_progress', 'held', 'needs_scheduled', 'not_ready'];
+async function fetchActiveJobs() {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return [];
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const out = [];
+  const seen = new Set();
+  for (const status of ACTIVE_STATUSES) {
+    for (let page = 1; page <= 4; page++) {
+      let rows = [];
+      try {
+        const r = await fetch(`${META}/table/7/content/search`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ search: { scheduling_status: status }, sort: { id: 'desc' }, per_page: 500, page }),
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!r.ok) break;
+        rows = (await r.json()).items || [];
+      } catch (_) { break; }
+      if (!rows.length) break;
+      for (const j of rows) {
+        const id = Number(j.id || 0);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        // Normalize the one field name that differs between the raw table and the kanban feed.
+        j.appliance = (j.appliance != null && j.appliance !== '') ? j.appliance : String(j.appliance_type || '');
+        out.push(j);
+      }
+      if (rows.length < 500) break;
+    }
+  }
+  return out;
+}
 // Newest warranty-claim reconcile snapshot: claim/call # -> { status (P=paid, R/W=rejected,
 // S=approved, ...), paid_total, eft_num }. Powers Straight Shooter (vendor approved the call)
 // + the warranty "collected" number. Best-effort: {} on any failure.
@@ -121,16 +167,34 @@ async function upsert(url, key, table, rows, onConflict) {
   return out;
 }
 
-async function syncTnToPlatform(limit) {
+async function syncTnToPlatform(limit, opts) {
   const t0 = Date.now();
+  const dryrun = !!(opts && opts.dryrun);
   const { url, key } = await cfg();
   if (!url || !key) return { ok: false, error: 'platform supabase not configured' };
 
   let items = await fetchKanban();
+  const kanbanCount = items.length;
+  // Merge in every active/upcoming job the 800-row created_at-capped board feed leaves out
+  // (dedup by job id; the richer kanban row wins when a job is in both).
+  const supp = await fetchActiveJobs();
+  const supplementalCount = supp.length;
+  let addedFromSupp = 0;
+  if (supp.length) {
+    const have = new Set(items.map((j) => Number(j.id)));
+    for (const s of supp) { const id = Number(s.id); if (id && !have.has(id)) { have.add(id); items.push(s); addedFromSupp++; } }
+  }
   // Only jobs with a real id + customer are mirrorable (write-once: customer is the anchor).
   let jobs = items.filter((j) => Number(j.id) && Number(j.customer_id));
   if (limit) jobs = jobs.slice(0, limit);
   if (!jobs.length) return { ok: false, error: 'no_mirrorable_jobs', ms: Date.now() - t0 };
+
+  if (dryrun) {
+    const startTodayMs = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime();
+    const future = jobs.filter((j) => Number(j.scheduled_start) >= startTodayMs).length;
+    const scheduled = jobs.filter((j) => mapStatus(j) === 'scheduled').length;
+    return { ok: true, dryrun: true, kanban: kanbanCount, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, ms: Date.now() - t0 };
+  }
 
   // 1) customers — dedup by Xano customer_id
   const custMap = new Map();
@@ -269,7 +333,7 @@ exports.handler = async function (event) {
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
   try {
-    const out = await syncTnToPlatform(q.limit ? Number(q.limit) : 0);
+    const out = await syncTnToPlatform(q.limit ? Number(q.limit) : 0, { dryrun: q.dryrun === '1' });
     return json(200, out);
   } catch (e) {
     return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 300) });

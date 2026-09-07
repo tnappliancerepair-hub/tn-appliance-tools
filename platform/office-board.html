@@ -2146,13 +2146,23 @@
         renderMoneyBar(); renderRegionToggle(); renderFilters(); renderBoard();
       });
     };
+    // Scope the pull so a big tenant (3,000+ jobs) never truncates active work at PostgREST's
+    // implicit ~1000-row cap: keep ALL non-terminal jobs + completed within the last ~75 days
+    // (covers the mirror's 60-day feed + slack; updated_at is stamped every mirror run), drop
+    // canceled (matches dispatch/needs-scheduled), cap at 3000 (> realistic active+recent count).
+    // Without this, the oldest-created rows — exactly the forward-scheduled old dispatches — were
+    // silently dropped from the board. `scope()` applies the same filter to every fallback tier.
+    var completedCutoff = new Date(Date.now() - 75 * 86400000).toISOString();
+    function scope(qb) {
+      return qb.or('status.not.in.(completed,canceled),and(status.eq.completed,updated_at.gte.' + completedCutoff + ')').order('created_at', { ascending: false }).limit(3000);
+    }
     // Try enriched + scheduling flags → enriched only → the minimal legacy select. So a
     // missing new column can never blank the board.
-    sb.from('job').select(baseRich + 'needs_two_techs,long_job,' + tailRich).order('created_at', { ascending: false }).then(function (r) {
+    scope(sb.from('job').select(baseRich + 'needs_two_techs,long_job,' + tailRich)).then(function (r) {
       if (!r.error) { proceed(r); return; }
-      sb.from('job').select(baseRich + tailRich).order('created_at', { ascending: false }).then(function (r2) {
+      scope(sb.from('job').select(baseRich + tailRich)).then(function (r2) {
         if (!r2.error) { proceed(r2); return; }
-        sb.from('job').select(baseMin + tailMin).order('created_at', { ascending: false }).then(proceed);
+        scope(sb.from('job').select(baseMin + tailMin)).then(proceed);
       });
     });
   }
