@@ -1,5 +1,63 @@
 # Appliance Ant
 
+## 🗓️🐜🔑 2026-09-08 (Mon) — SHOP LOGIN PACKS + Add-a-tech + Approve→full-pack (scale to a thousand shops) — READ FIRST
+
+Teddy zoomed out to the real scale: a thousand Ant systems, each shop getting its own platform + all its
+logins **made from the application they fill out**, with one application link to hand out. Built the pack
+engine + wired it into the existing application pipeline. All LIVE + verified (throwaways minted →
+authenticated → purged to zero residue). Deploy: branch `claude/shop-automation-setup-r9wzpm` → ff-merge main.
+
+- **✅ SHOP LOGIN PACKS (`platform-provision.js` `action=shoppack` + `action=packs` + `platform/packs.html`, `/packs`).**
+  ONE command stands up a whole ready-to-hand-out shop: company + owner + **2 office (role=office, NO technician
+  row) + 4 techs (role=tech + technician row)** = **7 default logins**, each with a **MEMORABLE, REVEALED
+  password** (`Ant-<PascalHandle><n>`) and a **system-assigned login email** (`owner.<slug>@` / `office1.<slug>@`
+  / `tech1.<slug>@assistant247.net`) — pure identifiers, no email ever sent, nothing waits on anyone. The pack
+  (7 seats + booking link `/b/<slug>` + intake email `<slug>@jobs.assistant247.net`) is stored in the vault as
+  **`PLATFORM_PACK_<SLUG>`** so packs.html re-shows it without resetting passwords. **Idempotent by slug**
+  (explicit `&slug=` = create-or-reuse target; name-only = derive+unique). Office seats deliberately get NO
+  technician row (only `role==='tech'` seats do — verified). `&seed=1` drops one sample job.
+- **✅ packs.html (`/packs`, ops-gated)** — per-shop 7-seat table (role · email · password · open-link),
+  **Copy-this-person** + **Copy-the-whole-shop** + **🔑 Jump-in-as-owner** (magiclink) + a **New-shop-pack**
+  builder + **➕ Add a tech / ➕ Add office** buttons. Mirrors `dashboard.html` gate/palette.
+- **✅ ADD-A-TECH OVERFLOW (`action=addseat`).** Teddy's ask: 7 default, but more techs = an "add a tech"
+  button, each tap = a NEW login. `addseat` appends ONE tech (default) or office seat: next index computed from
+  existing `{role}{N}.<slug>@` app_user emails (collision-safe even if the pack drifted), memorable pw keeps
+  climbing (global seat #), technician row for techs, appended to the pack. VERIFIED: added Tech 5
+  (`Ant-ZzAddtech8`) → authenticated → pack 7→8→9. **`addtech` (owner.html self-serve "Add crew") now
+  best-effort appends the added tech to the pack too**, so owner-added crew also surface on `/packs`.
+- **✅ APPROVE → FULL PACK FROM EACH APPLICATION (the scalable path).** The application system already exists:
+  **`/apply`** (public form → `shop-application?action=submit` → stores pending + texts you) → **`/applications`**
+  (your review page) → **Approve** → `onboard-shop` (tenant + owner login + Ann number + assistant + texts the
+  owner). Added an **additive crew step to `onboard-shop`**: after the owner+tenant provision, it calls
+  `shoppack` in **OWNER-MODE** (`owner_email` + `owner_seat_pw` = the temp pw provision just issued → the owner
+  seat is recorded in the pack with the REAL email + that pw **without re-creating or resetting the login**) and
+  mints 2 office + 4 techs. So **approving an application lands ALL of that shop's logins on `/packs` ready to
+  hand out**, owner logs in with their real email, crew are system-assigned. Additive/safe: owner+Ann path
+  unchanged; crew step can never break onboarding (`q.no_crew=1` skips; `&office=`/`&techs=` override).
+  VERIFIED the exact path: provision owner → shoppack owner-mode → **owner's original password STILL
+  authenticates (NOT reset)** + full crew minted + authenticate.
+- **The engine is shared** — hoisted `ensureSeat` + `packVaultKey`/`pascalHandle`/`seatLink`/`readPack`/`writePack`
+  to handler scope in `platform-provision.js`; shoppack + addseat + onboard-shop all use it. `getSecretFresh`
+  added to the require.
+- **⚠️ KEY GOTCHA (the "That key was rejected" Teddy hit on `/packs`):** `packs.html`/`dashboard.html` send
+  their operator key as `secret=` to `platform-provision`, which validates against **`VAPI_ADMIN_SECRET`**
+  (live value = `tn-vapi-admin-9f83b1c4e7a206d5`, proven all session) OR an operator Supabase JWT
+  (`tnappliancerepair@gmail.com`) — **NOT** the separate `ant_ops_secret` used by system.html/ops.html. So the
+  `/packs` operator key = the ADMIN secret, not the usual ops key. (Inconsistency worth unifying later — e.g.
+  accept the operator session token, or the ops-secret.)
+- **⏭️ OPEN — Teddy wants to TEST a login.** Was about to build a seeded **"Ant Test Shop"** (owner + 2 office
+  + 4 techs, `&seed=1`) and hand him all 7 seat logins + the three URLs (owner→owner.html, office→office-board.html,
+  tech→tech.html) when he stopped to consolidate. **RESUME:** run
+  `platform-provision?action=shoppack&secret=<admin>&name=Ant%20Test%20Shop&office=2&techs=4&seed=1`, verify the
+  7 authenticate, hand him the sheet (offboard+purge to clean up after). OR just give him the `/packs` admin key
+  above so he uses the operator page + Add-a-tech himself.
+- **📞 ChatGPT/OpenAI Ads watch (scheduled check-in fired 2026-09-08):** campaign **"TN Appliance Exchange
+  campaign" active, $35/day, TN+LA, healthy** (spend $0 = correct, click-billed with 0 clicks, no waste). 7-day
+  totals **3,274 impressions · 0 clicks · 0 conversions** (impressions serving daily; first click/conversion not
+  yet). Sweep unchanged (2 paid jobs #21634/#21642 queued to feed OpenAI). No meaningful change → did NOT message
+  Teddy per the watch rules; trigger stays armed (delete it only when the first conversion lands). The 0-CTR over
+  a week is a mild creative/targeting note, not a watch-flag.
+
 ## 🗓️🐜🛒 2026-09-02 (Tue) — SAAS DEMO/SELL-READY + SELF-SERVE SIGNUP LIVE-ENABLERS (Teddy = customer #1, TK #2) — READ FIRST
 
 Teddy's Monday goal: the SaaS running **smoothly** so he can **demo AND sell**, with self-serve signup **fully live** — and **HE signs up his own shop as customer #1** (full setup incl. his real data + his own live Ann line), **TK #2**. Ran 4 Explore agents to map the whole platform (30 pages), the 4-act demo path, the rough edges, and the full signup→Stripe→auto-provision chain. **Everything code-side is shipped + deployed + verified; the go-live is now Teddy-gated flips + his real signup.** Approved plan lives in the plan file.
