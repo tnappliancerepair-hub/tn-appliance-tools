@@ -176,6 +176,18 @@ async function buildFacts(r, officeNote) {
     technician_id: techId,
     scheduled_day: dayCT(job.scheduled_start),
     scheduled_start_ms: (function () { const v = job.scheduled_start; if (!v) return 0; const ms = typeof v === 'string' ? Date.parse(v) : Number(v); return isNaN(ms) ? 0 : ms; })(),
+    // Has the stated appointment day already PASSED? (Teddy 2026-09-08: the AI was
+    // telling live customers "you're scheduled for Thursday, Sep 3" on Sep 8 — 131 open
+    // jobs carried a scheduled day in the past. Reading a stale date aloud as if it were
+    // upcoming is the single worst thing the phone can do to trust.) Compare CT calendar
+    // days, not raw ms, so an appointment EARLIER TODAY is still "today", not past.
+    scheduled_is_past: (function () {
+      const v = job.scheduled_start; if (!v) return false;
+      const ms = typeof v === 'string' ? Date.parse(v) : Number(v);
+      if (!ms || isNaN(ms)) return false;
+      const ct = (t) => new Date(t).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
+      return ct(ms) < ct(Date.now());
+    })(),
     part_eta: dayCT(job.part_eta || job.parts_eta_date),
     part_number: (tdr && tdr.verified_part_number) || '',
     failed_component: (tdr && tdr.failed_component) || '',
@@ -205,7 +217,12 @@ function lensCustomer(f) {
   if (/cancel/.test(f.status)) return `Let me get you taken care of — I'll have our office confirm your appointment and reach right back out.`;
   if (/await|part|order/.test(f.status)) return f.part_eta ? `We've diagnosed ${ap} and we're waiting on the part — expected ${f.part_eta}. The moment it's in we'll schedule the install and text you a day.` : `We've diagnosed ${ap} and the part is on order. As soon as it arrives we'll schedule the install and text you a day.`;
   if (/in_progress|started/.test(f.status)) return `${t} is working on ${ap} right now.`;
-  if (/scheduled/.test(f.status) || f.scheduled_day) return f.scheduled_day ? `You're scheduled with ${t} for ${f.scheduled_day}. We run day-of routing, so you'll get a live arrival window that morning.` : `You're scheduled with ${t} — you'll get a live window the morning of.`;
+  if (/scheduled/.test(f.status) || f.scheduled_day) {
+    // The day on the record already passed -> we do NOT know when they're coming. Say so
+    // honestly and hand to a human rather than reading a stale date back as upcoming.
+    if (f.scheduled_is_past) return `I want to get you an accurate day — the appointment on your record has already passed, so let me have our office confirm your new day and text you right back.`;
+    return f.scheduled_day ? `You're scheduled with ${t} for ${f.scheduled_day}. We run day-of routing, so you'll get a live arrival window that morning.` : `You're scheduled with ${t} — you'll get a live window the morning of.`;
+  }
   return `We've got ${ap} and it's in our scheduling queue — we'll set a day shortly and text you to confirm.`;
 }
 // Warranty rep lens — answer the whole status in ONE breath (Teddy 7/3): reps
@@ -228,6 +245,7 @@ function lensWarranty(f) {
   if (done) bits.push(`Yes — ${t} has been out and this repair is completed and closed${f.part_number ? ' (part ' + f.part_number + ')' : ''}.`);
   else if (inprog) bits.push(`${t} is on site with ${who} right now.`);
   else if (beenOut) bits.push(`Yes, ${t} has already been out and diagnosed it.`);
+  else if (scheduled && f.scheduled_is_past) bits.push(`Not out yet — the scheduled day on this claim (${f.scheduled_day}) has already passed and our office is confirming a new day; I'll have that texted over.`);
   else if (scheduled) bits.push(`Not out yet — ${who} is scheduled with ${t}${f.scheduled_day ? ' for ' + f.scheduled_day : ''}; we run day-of routing, so they get a live arrival window that morning.`);
   else if (canceled) bits.push(`Status is being confirmed by our office — please don't treat this as canceled; we'll update the claim shortly.`);
   else bits.push(`Not out yet — it's in our scheduling queue and we're setting a day.`);
@@ -248,7 +266,7 @@ function lensTech(f) {
   if (f.part_number) bits.push(`Part: ${f.part_number}${f.part_eta ? ' (ETA ' + f.part_eta + ')' : ''}.`);
   if (f.availability) bits.push(`Availability: "${f.availability}".`);
   if (f.access_notes) bits.push(`Access: ${f.access_notes}.`);
-  if (f.scheduled_day) bits.push(`Day: ${f.scheduled_day}.`);
+  if (f.scheduled_day) bits.push(`Day: ${f.scheduled_day}.${f.scheduled_is_past ? ' \u26a0 PAST DUE - day already passed, needs rescheduling' : ''}`);
   if (f.office_note) bits.push(`Office: ${f.office_note}.`);
   return bits.join(' ');
 }

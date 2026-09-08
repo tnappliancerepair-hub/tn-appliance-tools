@@ -856,7 +856,15 @@
 # when Xano chokes, the board loads instantly. Logic lives in _lib/board-mirror.js;
 # the HTTP-callable twin (board-mirror-sync, secret-gated) is for manual test/kick.
 [functions."board-mirror-sync-cron"]
-  schedule = "* * * * *"
+  # THROTTLED 2026-09-08 (Xano freeze, Danielle + Sofia unable to work). This cron pulls
+  # get_office_kanban — Xano's heaviest query (787KB, measured 6.9s / 13.2s / 24.3s) — and
+  # at 1/min it was 1,440 of the 1,623 daily pulls of that endpoint: ~3.6 Xano-hours/day on
+  # ONE query, before a human loads anything. Some runs exceeded the 24s timeout and burned
+  # the compute anyway. Every 3 min cuts it to 480/day (-67%) while the office board stays
+  # exactly as fast: it already reads the Supabase board_mirror (board-feed-fast), so this
+  # only changes how STALE the mirror can be (<=3 min), not how quickly the board paints.
+  # If Xano is still choked, go to "*/5" (288/day, -80%). Revert to "* * * * *" any time.
+  schedule = "*/3 * * * *"
 
 # platform-tn-mirror-cron (2026-08-27) — mirror TN's live Xano jobs INTO the ANT Platform
 # tenant tables (TN = tenant #1) every 5 min, so the platform office board stays current
