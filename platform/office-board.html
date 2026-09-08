@@ -2010,7 +2010,12 @@
         if(applied&&feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'credit',description:'Trip applied to repair',qty:1,unit_cents:-feeC});
         if(shipC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'shipping',description:'Shipping & handling',qty:1,unit_cents:shipC});
         if(tipC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'tip',description:'Tip (to your technician)',qty:1,unit_cents:tipC});
-        if(lines.length) sb.from('invoice_line').insert(lines).then(function(){ done(invoiceId); }); else done(invoiceId);
+        if(lines.length) sb.from('invoice_line').insert(lines).select('id').then(function(lr){
+          // A failed line insert used to pass silently — the invoice total would show with
+          // no breakdown behind it. Say so rather than quietly losing the money detail.
+          if (lr && (lr.error || !lr.data || !lr.data.length)) alert('Invoice saved, but its line items did NOT save' + (lr.error && lr.error.message ? ' — ' + lr.error.message : '') + '. Re-open and save again.');
+          done(invoiceId);
+        }); else done(invoiceId);
       });
     };
     if(inv){ sb.from('invoice').update(row).eq('id',inv.id).then(function(r){ if(r.error){btn.disabled=false;btn.textContent='Save invoice';document.getElementById('jerr').textContent=r.error.message;return;} writeLines(inv.id); }); }

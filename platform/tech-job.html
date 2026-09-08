@@ -848,7 +848,16 @@
         invItems.forEach(function(it){ if((+it.cents||0)>0) lines.push({ company_id:me.company_id, invoice_id:invId, kind:'part', description:it.desc, qty:1, unit_cents:Math.round(+it.cents) }); });
         if(brk.fee>0) lines.push({ company_id:me.company_id, invoice_id:invId, kind:'fee', description:'Trip / diagnostic fee', qty:1, unit_cents:brk.fee });
         if(!lines.length) lines.push({ company_id:me.company_id, invoice_id:invId, kind:'labor', description:(job.unit&&job.unit.label?job.unit.label+' repair':'Appliance repair'), qty:1, unit_cents:brk.total });
-        return sb.from('invoice_line').insert(lines).then(function(){ return invId; });
+        // Never lose the line items silently: if this insert fails the invoice would save
+        // with NO breakdown and nobody would know. Surface it instead of swallowing it.
+        return sb.from('invoice_line').insert(lines).select('id').then(function(lr){
+          if (lr && (lr.error || !lr.data || !lr.data.length)) {
+            var em = document.getElementById('invErr');
+            var t = 'Invoice saved, but the line items did NOT save' + (lr.error && lr.error.message ? ' — ' + lr.error.message : '') + '. Tell the office.';
+            if (em) em.textContent = t; else alert(t);
+          }
+          return invId;
+        });
       });
     });
   }
