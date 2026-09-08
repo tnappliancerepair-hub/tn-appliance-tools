@@ -255,7 +255,7 @@ function lensWarranty(f) {
 
   // 3) part + ETA + the return
   if (awaiting) bits.push(`The part${f.part_number ? ' (' + f.part_number + ')' : ''} is on order${f.part_eta ? ', ETA ' + f.part_eta : ''}, and we go straight back to install the moment it lands.`);
-  else if (scheduled && !done && f.scheduled_day) bits.push(`We're set to return ${f.scheduled_day}.`);
+  else if (scheduled && !done && f.scheduled_day && !f.scheduled_is_past) bits.push(`We're set to return ${f.scheduled_day}.`);
 
   return bits.join(' ') + (f.office_note ? ` Latest office note: ${f.office_note}.` : '');
 }
@@ -272,6 +272,7 @@ function lensTech(f) {
 }
 function lensOffice(f) {
   const bits = [`#${f.job_id} ${f.customer_name} — ${f.appliance} — ${f.status}${f.tech_name ? ' · ' + f.tech_name : ' · NO TECH'}${f.scheduled_day ? ' · ' + f.scheduled_day : ''}.`];
+  if (f.scheduled_is_past && !/complete|cancel/.test(String(f.status || ''))) bits.push(`\u26a0\ufe0f PAST DUE — ${f.scheduled_day} already passed, needs rescheduling.`);
   if (/await|part|order/.test(f.status)) bits.push(f.part_eta ? `Part ETA ${f.part_eta}.` : `Part on order — ETA not set.`);
   if (f.tdr_complete && !f.has_part_number) bits.push(`⚠️ Report in but NO part # — get it from ${f.tech_name || 'the tech'} before closing.`);
   if (!f.technician_id) bits.push(`⚠️ No tech assigned.`);
