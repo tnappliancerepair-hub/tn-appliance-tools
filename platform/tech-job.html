@@ -86,6 +86,14 @@
   .fld-body{flex:1;min-width:0}
   .fld-lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800}
   .fld-hint{font-size:12.5px;color:var(--muted);font-style:italic;margin:1px 0 9px}
+  /* Per-field save. Teddy: "there's no save option next to each section." Each field
+     saves on its own so a tech never types into a box wondering if it took. */
+  .fldsave{display:flex;align-items:center;gap:9px;margin-top:7px;min-height:22px}
+  .fldsave button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 12px;font-weight:800;font-size:12.5px;cursor:pointer}
+  .fldsave button.dirty{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .fldsave .fs-msg{font-size:12px;font-weight:700}
+  .fldsave .fs-msg.ok{color:#12a150}
+  .fldsave .fs-msg.err{color:#b91c1c}
   .fld input:not([type=checkbox]){margin-bottom:0 !important}
   .fld .two{margin:0}
   .fld .two input:first-child{max-width:42%}
@@ -691,6 +699,7 @@
     app.querySelectorAll('#reportCard .fld input:not([type=checkbox])').forEach(function(i){ i.addEventListener('input', paintFlds); });
     app.querySelectorAll('#reportCard input[data-ins]').forEach(function(i){ i.addEventListener('change', paintFlds); });
     paintFlds();
+    wireFieldSaves();   // each report field gets its own Save + confirmation
     document.getElementById('saveTdr').onclick = saveTdr;
 
     // Shared job details — the tech can correct the SAME customer/unit/job rows the office
@@ -1593,6 +1602,60 @@
     if(window.AntSuppliers) AntSuppliers.open(key, q, shopSettings);
   }
 
+  // ── PER-FIELD SAVE ────────────────────────────────────────────────────────
+  // One box, one column, one confirmation. Saves on blur so nothing is ever lost by
+  // walking away, and shows a Save button the moment a field is dirty so the tech has
+  // something to press. Verified: a zero-row write is an RLS block, never a save.
+  var FLD_COLS = { tb:'brand', tm:'model', tc:'failed_component', tp:'part_number', tr:'root_cause', th:'labor_hours' };
+  var fldLast = {};   // id -> last value we know is on the server
+
+  function fldSetMsg(id, text, kind){
+    var m=document.getElementById('fsmsg_'+id); if(!m) return;
+    m.className='fs-msg'+(kind?' '+kind:''); m.textContent=text;
+    if(kind==='ok') setTimeout(function(){ if(m && m.textContent===text){ m.textContent=''; m.className='fs-msg'; } },2500);
+  }
+  function fldDirty(id){
+    var el=document.getElementById(id), b=document.getElementById('fsbtn_'+id); if(!el||!b) return;
+    var dirty=(el.value||'').trim()!==String(fldLast[id]==null?'':fldLast[id]).trim();
+    b.classList.toggle('dirty',dirty); b.textContent=dirty?'Save':'Saved';
+  }
+  function fldSave(id, silent){
+    var el=document.getElementById(id); if(!el) return;
+    var col=FLD_COLS[id]; if(!col) return;
+    var raw=(el.value||'').trim();
+    if(raw===String(fldLast[id]==null?'':fldLast[id]).trim()) { fldDirty(id); return; }   // nothing changed
+    var val=raw;
+    if(col==='labor_hours'){ var n=parseFloat(raw); val = (raw && !isNaN(n)) ? n : null; }
+    else if(!raw) val=null;
+    var b=document.getElementById('fsbtn_'+id); if(b){ b.disabled=true; }
+    if(!silent) fldSetMsg(id,'Saving…','');
+    var row={ company_id:me.company_id, job_id:jobId }; row[col]=val;
+    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(function(r){
+      if(b) b.disabled=false;
+      if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){
+        fldSetMsg(id,'Did NOT save — tap Save again', 'err'); return;
+      }
+      fldLast[id]=raw; fldDirty(id); fldSetMsg(id,'Saved ✓','ok'); paintFlds();
+    });
+  }
+  // Bolt a save row onto every report field that maps to a column. Done in code so the
+  // markup for each field stays one line.
+  function wireFieldSaves(){
+    Object.keys(FLD_COLS).forEach(function(id){
+      var el=document.getElementById(id); if(!el) return;
+      if(document.getElementById('fsbtn_'+id)) return;            // already wired
+      fldLast[id]=(el.value||'').trim();
+      var body=el.parentNode; if(!body) return;
+      var row=document.createElement('div'); row.className='fldsave';
+      row.innerHTML='<button type="button" id="fsbtn_'+id+'">Saved</button><span class="fs-msg" id="fsmsg_'+id+'"></span>';
+      body.appendChild(row);
+      document.getElementById('fsbtn_'+id).onclick=function(){ fldSave(id); };
+      el.addEventListener('input', function(){ fldDirty(id); });
+      el.addEventListener('blur',  function(){ fldSave(id, true); });   // walking away still saves
+      fldDirty(id);
+    });
+  }
+
   // Green-fill feedback: a report field shows green once it has something in it (the
   // "Job status" card is always green — an outcome is always chosen). Matches TN's cards.
   function paintFlds(){
@@ -1646,14 +1709,20 @@
     var done=function(r){
       if(r.error){
         // Resilient to columns that may not be migrated yet — save the rest of the report anyway.
-        if(row.part_status!==undefined && /part_status/i.test(r.error.message||'')){ delete row.part_status; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done); return; }
-        if(row.inspection!==undefined && /inspection/i.test(r.error.message||'')){ delete row.inspection; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done); return; }
+        if(row.part_status!==undefined && /part_status/i.test(r.error.message||'')){ delete row.part_status; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(done); return; }
+        if(row.inspection!==undefined && /inspection/i.test(r.error.message||'')){ delete row.inspection; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(done); return; }
         if(row.labor_hours!==undefined && /labor_hours/i.test(r.error.message||'')){
           // keep the hours from being lost — fold them into notes/root cause
           if(lh) row.root_cause=(row.root_cause?row.root_cause+' · ':'')+'Labor '+lh+'h';
-          delete row.labor_hours; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done); return;
+          delete row.labor_hours; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(done); return;
         }
         btn.disabled=false; btn.textContent='Save report + finish'; err.textContent=r.error.message; return;
+      }
+      // Zero rows + no error = the write was blocked. Never call that saved.
+      if(!r || !Array.isArray(r.data) || !r.data.length){
+        btn.disabled=false; btn.textContent='Save report + finish';
+        err.textContent='That did NOT save. Your typing is still on screen — tap Save again, and tell the office before you leave.';
+        return;
       }
       // "Please order" or "Missing" or a needed return → the part isn't in hand, so the job waits.
       var ns=(outcome==='return_needed'||partStatus==='please_order'||partStatus==='missing')?'awaiting_parts':'completed';
@@ -1669,14 +1738,19 @@
       };
       // Set the job status; if completed_at isn't a column yet, retry without it.
       var setStatus=function(u){
-        sb.from('job').update(u).eq('id',jobId).then(function(r2){
+        sb.from('job').update(u).eq('id',jobId).select('id').then(function(r2){
           if(r2 && r2.error && /completed_at/i.test(r2.error.message||'')){ setStatus({status:ns}); return; }
+          if(!r2 || r2.error || !Array.isArray(r2.data) || !r2.data.length){
+            btn.disabled=false; btn.textContent='Save report + finish';
+            err.textContent='Report saved, but the job status did NOT update. Tell the office before you leave.';
+            return;
+          }
           finish();
         });
       };
       setStatus(ju);
     };
-    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).then(done);
+    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(done);
   }
 
   sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else signIn(); });
