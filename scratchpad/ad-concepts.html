@@ -1,0 +1,391 @@
+<title>AssistAnt Ad Concepts</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Archivo:wght@400;500;600;700&family=Anton&display=swap');
+
+:root{
+  --ink:#0b0c10;          /* midnight workshop ground */
+  --ink2:#111319;
+  --panel:#15171f;
+  --panel2:#1c1f29;
+  --line:#2a2e3a;
+  --line2:#363b49;
+  --cream:#f3ead6;        /* warm ivory ink */
+  --muted:#9aa0ad;
+  --muted2:#6b7280;
+  --gold:#e7c255;         /* molten brass */
+  --gold-deep:#b7902f;
+  --gold-soft:#f0d98a;
+  --emerald:#4bbf8a;
+  --clay:#d9694a;         /* alarm / fear */
+  --shadow:0 24px 60px -20px rgba(0,0,0,.7);
+  --serif:'Fraunces',Georgia,serif;
+  --sans:'Archivo',system-ui,sans-serif;
+  --slab:'Anton',Impact,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(231,194,85,.10), transparent 60%),
+    radial-gradient(900px 500px at 0% 100%, rgba(75,191,138,.06), transparent 55%),
+    var(--ink);
+  color:var(--cream);font-family:var(--sans);line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:clamp(20px,5vw,64px) clamp(16px,4vw,40px) 96px}
+
+/* ---------- hero ---------- */
+.kick{font:600 12px/1 var(--sans);letter-spacing:.32em;text-transform:uppercase;color:var(--gold);margin:0 0 18px}
+h1{font:900 clamp(34px,6vw,68px)/1.02 var(--serif);letter-spacing:-.02em;margin:0 0 20px;text-wrap:balance}
+h1 em{font-style:italic;color:var(--gold-soft)}
+.lede{font-size:clamp(16px,2.2vw,20px);color:var(--muted);max-width:62ch;margin:0 0 8px}
+.lede b{color:var(--cream);font-weight:600}
+
+.spine{margin:40px 0 8px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.spine .row{display:grid;grid-template-columns:1fr 1fr 1.15fr;gap:0;border-bottom:1px solid var(--line)}
+.spine .row:last-child{border-bottom:0}
+.spine .row.head{background:var(--ink2)}
+.spine .cell{padding:14px 18px;font-size:14.5px;border-right:1px solid var(--line)}
+.spine .cell:last-child{border-right:0}
+.spine .row.head .cell{font:600 11px/1.3 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--muted2)}
+.spine .fear{color:var(--clay)}
+.spine .ans{color:var(--cream)}
+.spine .ans b{color:var(--gold)}
+@media(max-width:720px){
+  .spine .row{grid-template-columns:1fr}
+  .spine .cell{border-right:0;border-bottom:1px dashed var(--line);padding:10px 14px}
+  .spine .row .cell:last-child{border-bottom:0}
+  .spine .row.head{display:none}
+  .spine .fear::before{content:'FEAR — ';color:var(--muted2);font-weight:600;font-size:11px;letter-spacing:.1em}
+  .spine .goal::before{content:'GOAL — ';color:var(--muted2);font-weight:600;font-size:11px;letter-spacing:.1em}
+  .spine .ans::before{content:'WE — ';color:var(--gold-deep);font-weight:600;font-size:11px;letter-spacing:.1em}
+}
+
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.chip{font-size:12.5px;padding:7px 13px;border:1px solid var(--line2);border-radius:999px;color:var(--muted);background:var(--panel)}
+.chip b{color:var(--gold)}
+
+/* ---------- section headers ---------- */
+.sec{margin:72px 0 26px;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.sec h2{font:900 clamp(22px,3.4vw,32px)/1 var(--serif);margin:0;letter-spacing:-.01em}
+.sec .tag{font:600 11px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold-deep);padding:6px 11px;border-radius:999px}
+.sec .note{color:var(--muted2);font-size:14px}
+
+/* ---------- concept block ---------- */
+.concept{display:grid;grid-template-columns:minmax(0,420px) 1fr;gap:clamp(20px,4vw,44px);align-items:start;
+  padding:clamp(22px,3.5vw,36px);margin:22px 0;background:linear-gradient(180deg,var(--panel),var(--ink2));
+  border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}
+@media(max-width:860px){.concept{grid-template-columns:1fr}}
+.cnum{font:900 13px/1 var(--serif);color:var(--ink);background:var(--gold);width:34px;height:34px;border-radius:50%;
+  display:grid;place-items:center;letter-spacing:-.02em}
+.chead{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.chead h3{font:900 clamp(20px,2.6vw,26px)/1.05 var(--serif);margin:0;letter-spacing:-.01em}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 18px}
+.t{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:6px;background:var(--panel2);border:1px solid var(--line2);color:var(--muted)}
+.t.saas{color:var(--gold);border-color:var(--gold-deep)}
+.t.cons{color:var(--emerald);border-color:#2f6b52}
+.fga{font-size:14.5px;color:var(--muted);margin:0 0 18px;padding-left:14px;border-left:2px solid var(--gold-deep)}
+.fga b{color:var(--cream);font-weight:600}
+.block-label{font:600 11px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;color:var(--muted2);margin:20px 0 8px}
+.hl{font:900 clamp(19px,2.4vw,24px)/1.12 var(--serif);color:var(--cream);margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--gold-soft);font-size:15px;margin:0 0 6px}
+.body{color:var(--muted);font-size:14.5px}
+.cta{display:inline-flex;align-items:center;gap:8px;margin-top:14px;font:700 14px/1 var(--sans);color:var(--ink);
+  background:linear-gradient(180deg,var(--gold-soft),var(--gold));padding:11px 18px;border-radius:10px;text-decoration:none}
+.cta .u{color:var(--gold-deep);background:rgba(11,12,16,.12);padding:3px 7px;border-radius:5px;font-weight:700;font-size:12.5px}
+.produce{margin-top:20px;padding:14px 16px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:12px;font-size:13.5px;color:var(--muted)}
+.produce b{color:var(--cream)}
+.produce .pt{font:600 11px/1 var(--sans);letter-spacing:.16em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:7px}
+code{font-family:'Spline Sans Mono',ui-monospace,Menlo,monospace;font-size:12.5px;background:rgba(231,194,85,.08);color:var(--gold-soft);padding:1px 6px;border-radius:5px}
+
+/* ---------- AD MOCKUPS ---------- */
+.mock{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line2);box-shadow:0 18px 44px -18px rgba(0,0,0,.8)}
+.mock .brandtag{position:absolute;top:10px;left:10px;z-index:6;font:700 11px/1 var(--sans);letter-spacing:.14em;color:var(--gold);
+  background:rgba(11,12,16,.66);padding:6px 9px;border-radius:6px;text-transform:uppercase;backdrop-filter:blur(3px)}
+.mock .fmt{position:absolute;top:10px;right:10px;z-index:6;font:600 10px/1 var(--sans);letter-spacing:.1em;color:var(--muted);
+  background:rgba(11,12,16,.6);padding:6px 8px;border-radius:6px;text-transform:uppercase}
+
+/* Boulders */
+.m-boulder{aspect-ratio:4/5;background:radial-gradient(120% 90% at 50% 0%, #23262f, #0a0b0f 78%);display:flex;flex-direction:column;justify-content:flex-end}
+.m-boulder .sky{position:absolute;inset:0;background:radial-gradient(80% 40% at 50% 8%, rgba(217,105,74,.18), transparent 60%)}
+.stones{position:absolute;left:0;right:0;top:8%;display:flex;flex-direction:column;align-items:center;gap:-6px;z-index:3}
+.stone{--w:78%;width:var(--w);max-width:280px;padding:16px 10px;margin-top:-10px;text-align:center;color:#e7e9ee;
+  font:700 clamp(13px,3.4vw,19px)/1 var(--sans);letter-spacing:.04em;text-transform:uppercase;
+  background:radial-gradient(120% 130% at 40% 20%, #565b68, #2c3038 70%, #202430);
+  border-radius:48% 52% 46% 54% / 62% 58% 42% 38%;box-shadow:inset 0 6px 14px rgba(255,255,255,.08),inset 0 -10px 18px rgba(0,0,0,.5),0 10px 18px rgba(0,0,0,.45);
+  transform:rotate(var(--r,-1deg))}
+.stone:nth-child(1){--w:70%;--r:-2deg}
+.stone:nth-child(2){--w:84%;--r:1.5deg}
+.stone:nth-child(3){--w:76%;--r:-1deg}
+.stone:nth-child(4){--w:88%;--r:2deg;color:var(--gold-soft)}
+.figure{position:absolute;bottom:78px;left:50%;transform:translateX(-50%);z-index:2;text-align:center}
+.figure .body-ic{font-size:34px;filter:grayscale(.4) brightness(.8)}
+.figure .lab{font:700 10px/1 var(--sans);letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-top:2px}
+.m-boulder .goldband{position:relative;z-index:5;background:linear-gradient(180deg,var(--gold),var(--gold-deep));color:var(--ink);
+  padding:14px 16px;text-align:center;font:700 clamp(13px,3.2vw,17px)/1.2 var(--sans)}
+.m-boulder .goldband .big{font:900 clamp(16px,4vw,22px)/1 var(--slab);letter-spacing:.02em;display:block}
+
+/* Meme split */
+.m-meme{aspect-ratio:1/1;position:relative;display:flex;flex-direction:column;background:#0a0b0f}
+.m-meme .half{flex:1;position:relative;display:flex;align-items:center;justify-content:center;padding:26px 18px;text-align:center}
+.m-meme .top{background:linear-gradient(180deg,#1a1c22,#0f1116)}
+.m-meme .top::after{content:'';position:absolute;inset:0;background:radial-gradient(70% 80% at 50% 40%,rgba(217,105,74,.16),transparent 65%)}
+.m-meme .bot{background:linear-gradient(180deg,#161821,#0d0f14)}
+.m-meme .bot::after{content:'';position:absolute;inset:0;background:radial-gradient(70% 90% at 50% 60%,rgba(231,194,85,.16),transparent 65%)}
+.memetxt{position:relative;z-index:2;font-family:var(--slab);font-size:clamp(18px,4.6vw,26px);line-height:1.02;letter-spacing:.01em;
+  color:#fff;text-transform:uppercase;-webkit-text-stroke:1.4px #0a0b0f;text-shadow:0 3px 0 rgba(0,0,0,.55);max-width:88%}
+.m-meme .bot .memetxt{color:var(--gold-soft)}
+.m-meme .banner{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);z-index:5;text-align:center}
+.m-meme .banner span{display:inline-block;background:#fff;color:#0a0b0f;font:700 clamp(13px,3.4vw,19px)/1.15 var(--sans);
+  padding:9px 15px;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.m-meme .banner b{color:var(--gold-deep)}
+.m-meme .stamp{position:absolute;bottom:12px;left:0;right:0;z-index:6;text-align:center;font:700 12px/1 var(--sans);letter-spacing:.12em;color:var(--gold)}
+
+/* Storyboard strip */
+.m-story{background:#0a0b0f;padding:14px}
+.frames{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.frame{position:relative;aspect-ratio:16/10;border-radius:10px;overflow:hidden;border:1px solid var(--line2);
+  background:linear-gradient(150deg,#191c24,#0c0e13);display:flex;align-items:flex-end;padding:10px}
+.frame.cine{background:linear-gradient(150deg,#20232c,#0a0b10)}
+.frame .fn{position:absolute;top:7px;left:7px;font:900 11px/1 var(--serif);color:var(--ink);background:var(--gold);width:20px;height:20px;border-radius:50%;display:grid;place-items:center}
+.frame .cap{font-size:11.5px;line-height:1.25;color:#cfd3dc}
+.frame .cap b{color:var(--gold-soft);font-weight:600}
+.frame.wide{grid-column:1/-1;aspect-ratio:auto;min-height:64px;align-items:center;justify-content:center;text-align:center;
+  background:linear-gradient(180deg,rgba(231,194,85,.14),rgba(11,12,16,.4));border-color:var(--gold-deep)}
+.frame.wide .cap{font:800 15px/1.15 var(--serif);color:var(--gold-soft)}
+
+/* Phone 4-options */
+.m-phone{aspect-ratio:4/5;background:radial-gradient(120% 80% at 50% 0%,#1a1d25,#0a0b0f 80%);display:grid;place-items:center;padding:22px}
+.phone{width:min(240px,74%);background:#0e1016;border:2px solid #2b2f3b;border-radius:26px;padding:14px 12px 16px;box-shadow:0 20px 50px -12px rgba(0,0,0,.8)}
+.phone .ph-h{font:700 12px/1.2 var(--sans);color:var(--cream);text-align:center;margin-bottom:3px}
+.phone .ph-s{font-size:10px;color:var(--muted);text-align:center;margin-bottom:12px}
+.opt{display:flex;justify-content:space-between;align-items:center;padding:9px 11px;border-radius:10px;margin-bottom:7px;
+  background:var(--panel2);border:1px solid var(--line2)}
+.opt.pick{border-color:var(--gold);background:linear-gradient(180deg,rgba(231,194,85,.14),rgba(231,194,85,.04))}
+.opt .ol{font:600 11px/1.1 var(--sans);color:var(--cream)}
+.opt .od{font-size:9px;color:var(--muted)}
+.opt .op{font:800 13px/1 var(--serif);color:var(--gold-soft)}
+.opt.pick .op{color:var(--gold)}
+.phone .ph-cta{margin-top:6px;text-align:center;font:700 11px/1 var(--sans);color:var(--ink);background:var(--gold);padding:9px;border-radius:9px}
+
+/* closing */
+.close{margin-top:80px;border-top:1px solid var(--line);padding-top:40px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}
+.card h4{font:900 18px/1.1 var(--serif);margin:0 0 12px;color:var(--gold-soft)}
+.card ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+.card li{margin:0 0 9px}
+.card li b{color:var(--cream);font-weight:600}
+.honest{margin-top:22px;font-size:13.5px;color:var(--muted2);border-left:2px solid var(--line2);padding-left:14px;max-width:74ch}
+.foot{margin-top:56px;text-align:center;color:var(--muted2);font-size:13px}
+.foot .ant{color:var(--gold);font-weight:700}
+</style>
+
+<div class="wrap">
+
+  <p class="kick">🐜 Creative Board · Sept 2026</p>
+  <h1>Ads that beat the ads<br>they're already <em>seeing</em>.</h1>
+  <p class="lede">Five flagship concepts — for the <b>AssistAnt</b> SaaS and for <b>TN Appliance</b> repair — built to out-scope FixCall, out-simplify HighLevel, and match the cinematic polish of the ads flooding your feed. Every one runs on the same truth: <b>you're a real shop owner who got tired of losing, so you built the fix.</b> They can't say that.</p>
+
+  <div class="spine">
+    <div class="row head"><div class="cell">Their fear</div><div class="cell">Their goal</div><div class="cell">Why we're the answer</div></div>
+    <div class="row"><div class="cell fear">Competitors booking the jobs I miss</div><div class="cell goal">Win every job</div><div class="cell ans">AssistAnt answers 24/7 <b>and books, parts &amp; routes it</b> — FixCall just takes a message</div></div>
+    <div class="row"><div class="cell fear">Too many tools &amp; subscriptions</div><div class="cell goal">One simple system</div><div class="cell ans"><b>$99 flat, every tech included</b> — not five tabs, not per-seat</div></div>
+    <div class="row"><div class="cell fear">Told what to charge / losing control</div><div class="cell goal">Run it my way</div><div class="cell ans">The customer picks <b>4 honest options</b> — you keep control</div></div>
+    <div class="row"><div class="cell fear">Undersold, stressed, chained to the phone</div><div class="cell goal">Be the trusted local shop</div><div class="cell ans">Built by <b>a real shop that lives your day</b></div></div>
+  </div>
+
+  <div class="meta">
+    <span class="chip"><b>5</b> flagship concepts</span>
+    <span class="chip"><b>3</b> SaaS · <b>2</b> consumer</span>
+    <span class="chip">Polished / AI-produced</span>
+    <span class="chip">Arc: <b>stressed-in-the-van → in-control owner</b></span>
+  </div>
+
+  <!-- ===================== SAAS ===================== -->
+  <div class="sec">
+    <span class="tag">SaaS — to shop owners</span>
+    <h2>AssistAnt</h2>
+    <span class="note">The software you lease to other shops · lands on /guide or /ant</span>
+  </div>
+
+  <!-- 1 BOULDERS -->
+  <div class="concept">
+    <div class="mock m-boulder">
+      <span class="brandtag">🐜 AssistAnt</span><span class="fmt">1:1 / 4:5 · feed</span>
+      <div class="sky"></div>
+      <div class="stones">
+        <div class="stone">Housecall Pro</div>
+        <div class="stone">Jobber</div>
+        <div class="stone">Workiz</div>
+        <div class="stone">Podium&nbsp;·&nbsp;+$29/tech</div>
+      </div>
+      <div class="figure"><div class="body-ic">🧑‍🔧</div><div class="lab">you</div></div>
+      <div class="goldband"><span class="big">One system. $99 flat.</span>Every tech included. Built by a real shop.</div>
+    </div>
+    <div>
+      <div class="chead"><span class="cnum">1</span><h3>The Boulders</h3></div>
+      <div class="tagrow"><span class="t saas">SaaS</span><span class="t">Static image ad</span><span class="t">Meta · FB/IG feed</span><span class="t">Beats HighLevel</span></div>
+      <p class="fga"><b>Fear:</b> five subscriptions crushing you → <b>Goal:</b> one simple system → <b>We:</b> one flat $99, every tech in.</p>
+      <p class="block-label">Headline</p>
+      <p class="hl">Buried under five subscriptions?</p>
+      <p class="sub">One system. One flat $99. Every tech included.</p>
+      <p class="block-label">Primary text</p>
+      <p class="body">Housecall Pro. Jobber. Workiz. Podium. Then $29 a month per tech. It adds up until it's crushing you. AssistAnt is one system that answers your phone 24/7, books the job, orders the part, and runs your board — for $99 flat, every tech included. Built by a real appliance shop that got tired of paying for five things that don't talk to each other.</p>
+      <a class="cta" href="#">See it → <span class="u">tnapplianceexchange.net/ant</span></a>
+      <div class="produce">
+        <span class="pt">Produce it</span>
+        <b>Static — designed here + a hero render.</b> The layout, stone labels and copy are locked. Final gets a photoreal hero: <code>image prompt: a weary tradesman in work clothes crouched under enormous stacked stone slabs labeled HOUSECALL PRO / JOBBER / WORKIZ / PODIUM, dim stormy workshop, cinematic, moody — then a second clean frame of him standing tall holding one phone glowing gold.</code> A 6-sec video version = the boulders lift off him → gold "AssistAnt $99" plate lands.
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 MESSAGE vs JOB -->
+  <div class="concept">
+    <div class="mock m-meme">
+      <span class="brandtag">🐜 AssistAnt</span><span class="fmt">1:1 · meme / video</span>
+      <div class="half top"><div class="memetxt">Competitors book the jobs you miss</div></div>
+      <div class="half bot"><div class="memetxt">AssistAnt answers 24/7 — and books the job</div></div>
+      <div class="banner"><span>Never miss a call. Never miss a <b>JOB.</b></span></div>
+      <div class="stamp">$99 FLAT · BUILT BY A REAL SHOP</div>
+    </div>
+    <div>
+      <div class="chead"><span class="cnum">2</span><h3>They Take a Message. We Book the Job.</h3></div>
+      <div class="tagrow"><span class="t saas">SaaS</span><span class="t">Before / after meme</span><span class="t">+ 15s video</span><span class="t">Beats FixCall AI</span></div>
+      <p class="fga"><b>Fear:</b> missed calls → competitors → <b>Goal:</b> catch every job → <b>We:</b> answer AND book/part/route it.</p>
+      <p class="block-label">Headline</p>
+      <p class="hl">Never miss a call. Never miss a job.</p>
+      <p class="sub">FixCall takes a message. AssistAnt runs the whole job.</p>
+      <p class="block-label">Primary text</p>
+      <p class="body">An AI that "catches your calls" is table stakes now. The question is what happens next. AssistAnt answers 24/7, then books the appointment, orders the part, routes your tech, and texts the customer — the whole job, not a voicemail. $99 flat, every tech included. Ditch the missed-call stress; keep the jobs.</p>
+      <a class="cta" href="#">Get the free playbook → <span class="u">tnapplianceexchange.net/guide</span></a>
+      <div class="produce">
+        <span class="pt">Produce it</span>
+        <b>Static meme (fast) + 15s video (better).</b> Same before/after energy as the FixCall ad: <code>top: stressed appliance tech in his van, hand on head, "competitors booking the jobs you miss." bottom: same tech relaxed on the couch, phone in hand, "AssistAnt answers 24/7 and books it."</code> Video = quick cut van → couch, on-screen text pops, gold AssistAnt end-plate. Full script in the production kit.
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 FOUNDER FILM -->
+  <div class="concept">
+    <div class="mock m-story">
+      <span class="brandtag">🐜 AssistAnt</span><span class="fmt">45–60s · cinematic</span>
+      <div class="frames" style="margin-top:30px">
+        <div class="frame cine"><span class="fn">1</span><p class="cap">6am. Van. Phone lighting up with <b>missed calls</b> he'll never call back.</p></div>
+        <div class="frame cine"><span class="fn">2</span><p class="cap">Office chaos — <b>five tabs</b>, sticky notes, a schedule that won't hold.</p></div>
+        <div class="frame cine"><span class="fn">3</span><p class="cap">Close on his face: "So I built <b>something</b>."</p></div>
+        <div class="frame cine"><span class="fn">4</span><p class="cap">The board <b>comes alive</b> — calls answered, jobs booking themselves.</p></div>
+        <div class="frame wide"><span class="fn">5</span><p class="cap">"I'm not a software company. I'm a shop owner who got tired of losing." — logo</p></div>
+      </div>
+    </div>
+    <div>
+      <div class="chead"><span class="cnum">3</span><h3>Built by a Shop Owner</h3></div>
+      <div class="tagrow"><span class="t saas">SaaS</span><span class="t">Cinematic film</span><span class="t">The influencer / heavyweight pitch</span><span class="t">Vibe.co polish</span></div>
+      <p class="fga"><b>Fear:</b> nobody selling me software has done my job → <b>Goal:</b> trust it → <b>We:</b> a real owner built it, and runs on it daily.</p>
+      <p class="block-label">The line it's built on</p>
+      <p class="hl">"I'm a shop owner. I got tired of losing. So I built the fix."</p>
+      <p class="sub">The founder film — the one you send to creators, warranty companies, and trade media.</p>
+      <p class="block-label">Why this one matters most</p>
+      <p class="body">This is the polished, cinematic spot — the quality bar of the Vibe.co ad — but its power is that it's true. It's the anchor for every influencer and industry pitch: the reason a group leader vouches for you, the reason a warranty company takes the call. Authenticity inside the polish is the moat FixCall and HighLevel can't buy.</p>
+      <a class="cta" href="#">Full film → <span class="u">tnapplianceexchange.net/ant</span></a>
+      <div class="produce">
+        <span class="pt">Produce it</span>
+        <b>Real footage + AI polish.</b> Best version = you on camera / real shop B-roll, cut with ElevenLabs VO + graded to a film look. If we go fully AI-produced: scene-by-scene Sora/Veo prompts per frame above, ElevenLabs voiceover in your voice-brand, licensed score. Either way the script is written for you — in the production kit. <b>Unlock:</b> vault <code>ELEVENLABS_API_KEY</code> for the AI voiceover.
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CONSUMER ===================== -->
+  <div class="sec">
+    <span class="tag" style="color:var(--emerald);border-color:#2f6b52">Consumer — to homeowners</span>
+    <h2>TN Appliance</h2>
+    <span class="note">Your own repair service · lands on always-open / appliance-ai</span>
+  </div>
+
+  <!-- 4 BROKEN AT 2AM -->
+  <div class="concept">
+    <div class="mock m-story">
+      <span class="brandtag" style="color:var(--emerald)">TN Appliance</span><span class="fmt">30s · cinematic</span>
+      <div class="frames" style="margin-top:30px">
+        <div class="frame cine"><span class="fn">1</span><p class="cap">2am. Kitchen glow. A dead fridge, <b>food going warm</b>, a worried homeowner.</p></div>
+        <div class="frame cine"><span class="fn">2</span><p class="cap">She calls three shops → <b>voicemail. voicemail. voicemail.</b></p></div>
+        <div class="frame cine"><span class="fn">3</span><p class="cap">She calls TN → a <b>real, warm answer</b> — at 2am.</p></div>
+        <div class="frame wide"><span class="fn">4</span><p class="cap">"Broken at 2am? We answer." — booked before she goes back to bed.</p></div>
+      </div>
+    </div>
+    <div>
+      <div class="chead"><span class="cnum">4</span><h3>Broken at 2am? We Answer.</h3></div>
+      <div class="tagrow"><span class="t cons">Consumer</span><span class="t">Cinematic</span><span class="t">Google / ChatGPT / Meta</span><span class="t">The 24/7 moat</span></div>
+      <p class="fga"><b>Fear:</b> nobody picks up when it breaks → <b>Goal:</b> get it fixed, fast → <b>We:</b> a real answer, any hour.</p>
+      <p class="block-label">Headline</p>
+      <p class="hl">Your fridge doesn't wait for business hours. Neither do we.</p>
+      <p class="sub">Call, text, or send a video — day or night. We answer, and we book you.</p>
+      <p class="block-label">Primary text</p>
+      <p class="body">When an appliance dies at 2am, every other shop sends you to voicemail. TN Appliance answers — a real, honest answer any hour — and gets you on the schedule before you go back to bed. Same-day service across Middle TN, and a $50 video diagnostic anywhere in the country.</p>
+      <a class="cta" href="#">We're open → <span class="u">tnapplianceexchange.net/always-open</span></a>
+      <div class="produce">
+        <span class="pt">Produce it</span>
+        <b>Cinematic AI video.</b> Sora/Veo prompts per frame (moody 2am kitchen, phone-screen inserts, the warm answer), ElevenLabs VO, soft tension→relief score. Finished clip drops straight into the live one-tap fan-out to FB / IG / TikTok / YouTube.
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 HONEST 4 OPTIONS -->
+  <div class="concept">
+    <div class="mock m-phone">
+      <span class="brandtag" style="color:var(--emerald)">TN Appliance</span><span class="fmt">1:1 · static + 15s</span>
+      <div class="phone">
+        <div class="ph-h">Your repair — your call.</div>
+        <div class="ph-s">Whirlpool dryer · heating element</div>
+        <div class="opt"><div><div class="ol">OEM part · we install</div><div class="od">Genuine · 90-day warranty</div></div><div class="op">$289</div></div>
+        <div class="opt pick"><div><div class="ol">OEM part · you install</div><div class="od">We ship it · guide included</div></div><div class="op">$142</div></div>
+        <div class="opt"><div><div class="ol">Value part · we install</div><div class="od">30-day warranty</div></div><div class="op">$219</div></div>
+        <div class="opt"><div><div class="ol">Value part · you install</div><div class="od">We ship it to your door</div></div><div class="op">$96</div></div>
+        <div class="ph-cta">Pick the one that's right for you</div>
+      </div>
+    </div>
+    <div>
+      <div class="chead"><span class="cnum">5</span><h3>The Honest 4 Options</h3></div>
+      <div class="tagrow"><span class="t cons">Consumer</span><span class="t">Static + 15s</span><span class="t">Google / Meta</span><span class="t">The transparency edge</span></div>
+      <p class="fga"><b>Fear:</b> getting overcharged / no say → <b>Goal:</b> a fair, clear choice → <b>We:</b> 4 honest options, you pick.</p>
+      <p class="block-label">Headline</p>
+      <p class="hl">Other shops tell you what to charge. We show you four honest options.</p>
+      <p class="sub">OEM or value part · we install or you install · you decide.</p>
+      <p class="block-label">Primary text</p>
+      <p class="body">Most shops hand you one price and hope you don't ask. We diagnose it, then show you four honest options — genuine or value part, professionally installed or shipped to your door with a guide — and let you pick what's right for your budget. No pressure. No hidden markup. Just the truth about your repair.</p>
+      <a class="cta" href="#">Start now → <span class="u">tnapplianceexchange.net</span></a>
+      <div class="produce">
+        <span class="pt">Produce it</span>
+        <b>Static (real screen) + 15s explainer.</b> The mockup mirrors the real app screen — swap in an actual screenshot for the final. Video = a tech's hand turning the phone to the customer, four options slide up, customer taps one, relief. Real footage + captions; no AI render needed.
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== CLOSE ===================== -->
+  <div class="close">
+    <div class="sec" style="margin-top:0"><h2>How these get made</h2></div>
+    <div class="grid2">
+      <div class="card">
+        <h4>The production path</h4>
+        <ul>
+          <li><b>Static ads</b> (Boulders, Message-vs-Job, 4 Options) — designed here; final adds a hero render/screenshot. Runnable on Meta the day the account's connected.</li>
+          <li><b>Cinematic spots</b> (Founder Film, Broken at 2am) — full script + scene-by-scene AI-generation prompts + voiceover, in the production kit. You (or an editor) render; the finished clip drops into the live one-tap fan-out to FB/IG/TikTok/YouTube.</li>
+          <li><b>Distribution is already live</b> — caption, clip, and post-everywhere all built. We're only adding the creative.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>What unlocks each channel <span style="font:400 12px/1 var(--sans);color:var(--muted2)">(your call — no spend happens without you)</span></h4>
+        <ul>
+          <li><b>AI voiceover</b> — vault <code>ELEVENLABS_API_KEY</code>.</li>
+          <li><b>Meta ads</b> — vault <code>META_AD_ACCOUNT_ID</code> + <code>META_ADS_TOKEN</code>, then flip ACTIVE.</li>
+          <li><b>ChatGPT ads</b> — ready now; flip a campaign live.</li>
+          <li><b>Google ads</b> — consumer already running; SaaS staged.</li>
+          <li><b>Set the creator commission %</b> for the influencer program.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="honest">Honest note: I can design the static ads and write every script + generation prompt, but the finished video has to be rendered by an AI video tool or an editor — there's no video generator inside our system yet. The upside: our whole distribution engine is already live, so a finished spot ships everywhere in one tap. And the real edge here isn't the polish — it's that a genuine shop owner is behind all of it.</p>
+    <p class="foot"><span class="ant">🐜 AssistAnt</span> — creative board · for review, not yet live · nothing spends without your go</p>
+  </div>
+
+</div>
