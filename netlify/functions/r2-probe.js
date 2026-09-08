@@ -1,6 +1,7 @@
 // r2-probe — owner-gated end-to-end check of the R2 credentials: writes a tiny test
 // object, signs a GET, reads it back, deletes it. Confirms the vaulted R2_* creds work.
-//   GET ?secret=<admin>
+//   GET ?secret=<admin>              write/read/delete round-trip
+//   GET ?secret=<admin>&key=<obj>   does this one object exist?
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const r2 = require('./_lib/r2');
@@ -18,6 +19,24 @@ exports.handler = async function (event) {
     R2_SECRET_ACCESS_KEY: !!(await getSecret('R2_SECRET_ACCESS_KEY')),
   };
   if (!(await r2.isConfigured())) return j(200, { ok: false, present, error: 'missing R2 config — check the 4 vault values' });
+
+  // Object check: does ONE specific key actually exist in the bucket? (?key=<object key>)
+  // Read-only — signs a GET and asks R2 for the headers. Used to tell "the row saved but the
+  // bytes never landed" apart from "the signer is broken".
+  if (q.key) {
+    try {
+      const url = await r2.presignGet(String(q.key), 120);
+      const rr = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(10000) });
+      return j(200, {
+        ok: rr.ok, present, key: String(q.key), status: rr.status,
+        bytes: rr.headers.get('content-length') || null,
+        type: rr.headers.get('content-type') || null,
+        note: rr.ok ? 'object exists in R2' : 'object NOT in R2 (row may exist without bytes)',
+      });
+    } catch (e) {
+      return j(200, { ok: false, present, key: String(q.key), error: String((e && e.message) || e).slice(0, 200) });
+    }
+  }
 
   const key = `_probe/${Date.now()}.txt`;
   const body = 'ant r2 ok ' + new Date().toISOString();
