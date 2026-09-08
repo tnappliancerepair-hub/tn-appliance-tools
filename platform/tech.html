@@ -270,6 +270,28 @@
     });
   }
 
+  // A job the tech just COMPLETED drops out of the default list (it only shows what's
+  // still open), which took the card — and the "Saved" note living inside it — off screen
+  // the instant the save succeeded. The tech saw the job vanish with no confirmation and
+  // reasonably read that as "it didn't save." This banner sits above the list instead of
+  // inside a card, so the confirmation survives the re-render.
+  function pageMsg(text, kind){
+    var el = document.getElementById('pagemsg');
+    if (!el){
+      el = document.createElement('div'); el.id = 'pagemsg';
+      el.style.cssText = 'position:sticky;top:0;z-index:50;margin:0 0 10px;padding:12px 14px;'+
+        'border-radius:10px;font-size:16px;font-weight:700;line-height:1.35;box-shadow:0 2px 8px rgba(0,0,0,.12)';
+      var app = document.getElementById('app');
+      if (!app) { if (kind === 'err') alert(text); return; }
+      app.insertBefore(el, app.firstChild);
+    }
+    el.style.background = kind === 'err' ? '#fee2e2' : kind === 'ok' ? '#dcfce7' : '#e5e7eb';
+    el.style.color      = kind === 'err' ? '#991b1b' : kind === 'ok' ? '#166534' : '#374151';
+    el.textContent = text;
+    el.style.display = '';
+    if (kind === 'ok') setTimeout(function(){ if (el && el.textContent === text) el.style.display = 'none'; }, 12000);
+  }
+
   function saveMsg(jobId, text, kind){
     var id = 'sv' + jobId, el = document.getElementById(id);
     if (!el){
@@ -321,7 +343,7 @@
       // must never read as saved. Verify the row actually came back.
       if (!r || !Array.isArray(r.data) || !r.data.length) { saveMsg(jobId, "That didn't save — tell the office before you leave.", 'err'); return; }
       saveMsg(jobId, '✅ Saved', 'ok');
-      if (status === 'completed') partyJobDone(jobId);
+      if (status === 'completed') { pageMsg('✅ Saved — marked done. It moves off your open list.', 'ok'); partyJobDone(jobId); }
       loadJobs();
     });
   }
@@ -384,9 +406,15 @@
       withRetry(function(){ return sb.from('job').update(jobUpd).eq('id', id).select('id'); }).then(function(u){
         if (!u || u.error || !Array.isArray(u.data) || !u.data.length){
           saveMsg(id, '✅ Report saved — but the job status did NOT update. Tell the office.', 'err');
+          pageMsg('⚠️ Report saved, but the job status did NOT update. Tell the office before you leave.', 'err');
           loadJobs(); return;
         }
-        if(newStatus==='completed') partyJobDone(id);
+        if(newStatus==='completed'){
+          pageMsg('✅ Report saved and job marked done' + (fullName(job.customer) ? ' — ' + fullName(job.customer) : '') + '. It moves off your open list.', 'ok');
+          partyJobDone(id);
+        } else {
+          pageMsg('✅ Report saved — waiting on parts. Still on your list.', 'ok');
+        }
         loadJobs();
       });
     });
