@@ -117,6 +117,27 @@ inserting duplicates. It wasn't. **There are two TN tenants:**
   no `completed_at`). Nothing writes to it now. **Always scope platform job queries by `company_id`** or you
   will double-count and misread state. ⏭️ **OPEN: purge the `7b421706` tenant** (residue, not load-bearing).
 
+### ✅ TEDDY'S OWN LIVE TEST — everything saved; the only real bug was a broken-looking thumbnail
+Teddy ran the test job himself right after the pageMsg deploy. Verified in the DB: the photo landed
+(**198 KB image/jpeg confirmed present in R2**), the release was signed, and the report saved with the
+new fields (`part_number 5555444`, `labor_hours 1`, `notes "Complete"`, `outcome "fixed"`). The status
+flip landed too — the job reads `scheduled` now only because **I reset it at 14:35 CT** so the seat
+could be re-tested; the reset overwrote his completion, it did not fail. Timeline proves it: photo
+14:07:51 → TDR created 14:09:26 → waiver 14:09:31 → TDR updated 14:22:42 → **my reset 14:35:12**.
+- **🐞 THE ONE REAL BUG — the photo tile rendered as the browser's broken-image glyph.** `platform/tech.html`
+  emitted `<img data-ph=…>` with **no `src`**; the src only arrives after `hydratePhotos()` round-trips the
+  tenant-scoped signer (`platform-media-urls`). iOS Safari draws alt-text + a broken icon for a src-less
+  `<img>`, so every render flashed "broken," and the empty `.catch(function(){})` meant any signer hiccup
+  left it broken forever. **FIX (live):** the tile now carries a 📷 placeholder, the `<img>` stays hidden
+  until it genuinely fires `onload`, and a signing failure says "photo" instead of looking broken.
+- **The signer itself is healthy** — R2 round-trip green, and the tech seat's `app_user.company_id`
+  (`be4d11a1-…`) matches the media key prefix, so the tenant check passes.
+- **`r2-probe` gained `?key=<object key>`** — answers "did the bytes actually land, or is only the row
+  there?" **FOOTGUN burned:** `presignGet` signs the **GET** method, so a `HEAD` against that URL fails the
+  signature with **403 — which reads exactly like a missing object.** Use `Range: bytes=0-0` instead.
+- ⏭️ **Same src-less-`<img>` pattern still lives in `platform/office-board.html` (3 spots), `platform/portal.html`,
+  and `platform/tech-job.html`** — same broken glyph on any signer hiccup. Not touched (no report against them).
+
 ### ✅ MIRROR NEVER-WALKS-BACKWARDS GUARD — PROVEN LIVE
 Forced a full mirror run (1,079 jobs) with the 3 restored completions in place. Mirror touched all three at
 19:29:46 and **all three kept `completed`** — before the fix that same run reverted them. Guard is `RANK`-based
