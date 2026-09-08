@@ -69,6 +69,9 @@
   .intake .imedia{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;align-items:center}
   .mtile{position:relative;display:inline-flex;width:68px;height:68px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#0b0d08;align-items:center;justify-content:center;flex:0 0 auto}
   .mtile img{width:100%;height:100%;object-fit:cover;display:block}
+  .mtile img[data-ph]:not(.ready){display:none}
+  .phwait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.55}
+  .phwait.failed{font-size:11px;line-height:1.15;text-align:center;padding:4px;opacity:.8}
   .vtile .vcover{position:absolute;inset:0}
   .vtile .play{position:absolute;color:#fff;font-size:22px;line-height:1;text-shadow:0 1px 5px rgba(0,0,0,.7);pointer-events:none}
   .brainbtn{margin-top:9px;font-size:13px;font-weight:700;color:var(--brand);background:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer}
@@ -569,7 +572,7 @@
     });
     // Photo → a thumbnail (src is hydrated after render via the tenant-scoped signer).
     media.filter(function(m){return m.kind==='photo'&&(m.provider==='storage'||m.provider==='r2');}).forEach(function(m){
-      mediaHtml += '<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" alt="photo"></a>';
+      mediaHtml += '<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" alt=""><span class="phwait">\uD83D\uDCF7</span></a>';
     });
     if (!bits.length && !mediaHtml) return '';
     return '<div class="intake">'+(bits.length?'<div class="irow">'+bits.join(' &nbsp;·&nbsp; ')+'</div>':'')+(mediaHtml?'<div class="imedia">'+mediaHtml+'</div>':'')+'</div>';
@@ -580,16 +583,23 @@
   function hydratePhotos(){
     var imgs = document.querySelectorAll('#body img[data-ph]'); if(!imgs.length) return;
     var refs = []; Array.prototype.forEach.call(imgs, function(el){ var r=el.getAttribute('data-ph'); if(r && refs.indexOf(r)<0) refs.push(r); });
+    function stall(el, msg){ var w = el.parentNode && el.parentNode.querySelector('.phwait'); if(w){ w.className='phwait failed'; w.textContent=msg; } }
     sb.auth.getSession().then(function(s){
-      var tok = s && s.data && s.data.session && s.data.session.access_token; if(!tok) return;
+      var tok = s && s.data && s.data.session && s.data.session.access_token;
+      if(!tok){ Array.prototype.forEach.call(imgs, function(el){ stall(el, 'sign in'); }); return; }
       fetch('/.netlify/functions/platform-media-urls',{ method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok}, body: JSON.stringify({ refs: refs }) })
         .then(function(x){ return x.json(); }).then(function(d){
           var urls = (d && d.urls) || {};
           Array.prototype.forEach.call(document.querySelectorAll('#body img[data-ph]'), function(el){
-            var u = urls[el.getAttribute('data-ph')]; if(!u) return;
+            var u = urls[el.getAttribute('data-ph')];
+            if(!u){ stall(el, 'photo'); return; }
+            // Only swap the placeholder out once the bytes actually render — a half-loaded
+            // photo should never show the browser's broken-image glyph to a tech on a job.
+            el.onload = function(){ el.classList.add('ready'); var w = el.parentNode && el.parentNode.querySelector('.phwait'); if(w) w.remove(); };
+            el.onerror = function(){ stall(el, 'photo'); };
             el.src = u; var a = el.closest('a[data-phhref]'); if(a) a.href = u;
           });
-        }).catch(function(){});
+        }).catch(function(){ Array.prototype.forEach.call(document.querySelectorAll('#body img[data-ph]'), function(el){ stall(el, 'photo'); }); });
     });
   }
   // The liability RELEASE (waiver). Every job should be signed or confirmed-signed before
