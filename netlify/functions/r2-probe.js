@@ -26,10 +26,12 @@ exports.handler = async function (event) {
   if (q.key) {
     try {
       const url = await r2.presignGet(String(q.key), 120);
-      const rr = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(10000) });
+      // NOTE: the URL is signed for GET — a HEAD against it fails the signature (403).
+      // Ask for a single byte instead so we learn existence + size without pulling the file.
+      const rr = await fetch(url, { headers: { Range: 'bytes=0-0' }, signal: AbortSignal.timeout(10000) });
       return j(200, {
         ok: rr.ok, present, key: String(q.key), status: rr.status,
-        bytes: rr.headers.get('content-length') || null,
+        bytes: rr.headers.get('content-range') || rr.headers.get('content-length') || null,
         type: rr.headers.get('content-type') || null,
         note: rr.ok ? 'object exists in R2' : 'object NOT in R2 (row may exist without bytes)',
       });
