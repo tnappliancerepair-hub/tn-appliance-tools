@@ -281,6 +281,7 @@
     var invWin = invs.filter(function(v){ return inWin(v, v.paid_at||v.created_at?'created_at':'created_at'); });
     var billed=0, collected=0; invWin.forEach(function(v){ billed+=v.total_cents||0; collected+=v.collected_cents||0; });
     var outstanding = billed - collected;   // collected = REAL money in (warranty remittances included)
+    var avgTicket = invWin.length ? Math.round(billed / invWin.length) : 0;   // average value of an invoice this window
 
     // TECH PAY — derived from the SAME invoices via PayCalc (one source of truth, so the
     // tech app can never disagree). Commission = per-tech override else company default.
@@ -425,6 +426,7 @@
       '<div class="sec">Money <span class="lock">🔒 owner only</span></div>'+
       '<div class="money">'+
         mrow('Invoiced (from the job tile)','',USD(billed))+
+        mrow('Avg ticket','per invoice · '+invWin.length+' this period', invWin.length ? USD(avgTicket) : '—')+
         mrow('Collected','',USD(collected))+
         mrow('Outstanding (owed to shop)','',USD(outstanding))+
         mrow('Owed to techs (collected, not paid)','',USD(owedToTechs))+
