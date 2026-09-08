@@ -117,6 +117,36 @@ inserting duplicates. It wasn't. **There are two TN tenants:**
   no `completed_at`). Nothing writes to it now. **Always scope platform job queries by `company_id`** or you
   will double-count and misread state. ⏭️ **OPEN: purge the `7b421706` tenant** (residue, not load-bearing).
 
+### 🕐 THREE-HOUR ARRIVAL WINDOWS — 8-11 · 11-2 · 2-5, two slots each (NEW, live) — SUPABASE ONLY
+Teddy 9/8: *"three separate time slots... 8 to 11, 11 to 2, 2 to 5 — two slots each... so customers
+aren't waiting all day over confusion."* **Six stops/day/tech = 3 windows × 2 slots.** Free-text
+availability is UNCHANGED — the window narrows the day, it doesn't replace "tell us when you're around."
+- **`docs/sql/049_time_windows.sql` (APPLIED):** `job.time_window` + CHECK `('8-11','11-2','2-5')`
+  (nullable — a job can be booked to a day before the window is settled), index
+  `(company_id, scheduled_day, time_window)` because *"how full is this tech's Tuesday 11-2"* is asked on
+  every schedule. `schedule_offer_win_check` widened to carry the three windows **plus legacy am/pm/any**
+  so offers already in flight keep working.
+- **⚠️ `job.time_window` (OURS) is NOT `job.service_window` (THEIRS).** service_window is the WARRANTY
+  COMPANY's promise off their dispatch ("8am-12pm", "2-6pm" — 2,929 TN jobs have none, 94 say "2-6pm"…).
+  It is left untouched and is now **shown next to the picker** so the office chooses a slot that FITS the
+  vendor window instead of overwriting it. Never conflate them.
+- **`platform/ant-windows.js` (NEW) — ONE catalog every surface reads.** Labels, slot counts,
+  `remaining(jobs,key,excludeJobId)` / `isFull` / `optionText` / `selectHtml` / `chipsHtml`. **This replaced
+  three drifted copies** of `winLbl` (dispatch) / `fmtWin` (portal) / `schWin` (office-board), each of which
+  had its own idea of the windows. **Unit-verified 11/11:** full/partial counts, canceled frees a slot,
+  moving a job doesn't block itself, legacy `am` still reads "mornings".
+- **Office** picks the window with **"8–11 AM · 1 of 2 left"** on office-board (drawer), dispatch (assign
+  modal, recomputed live as tech/day change) and needs-scheduled. **A full window stays CHOOSABLE** — the
+  office overrides capacity constantly and shouldn't fight the app; the count informs, it doesn't block.
+- **Customer** sees their window in `portal.html` ("Scheduled: Tuesday, Sep 9 · 11 AM–2 PM") and can
+  request one — `portal_get` was surgically re-created to return `time_window`. The offer SMS now names it
+  (`platform-tech-notify` `winLabel`, mirrored in `platform-schedule-request`). **Tech** sees a 🕐 chip on
+  his card. Offering a window also pencils it onto the job so board + tech show it while awaiting the reply.
+- **VERIFIED live as the tech seat:** `time_window:'11-2'` wrote (HTTP 200, row returned); `'7-9'` was
+  **rejected 23514** by the constraint; cleared back to null. All 6 pages load the catalog.
+- ⏭️ **Known limit:** dispatch's week query excludes completed jobs, so a *same-day* window can read one
+  slot emptier than it was. office-board's drawer counts everything (minus canceled) and is authoritative.
+
 ### 💬 PLATFORM MESSAGES — the shared office↔tech↔customer thread (NEW, live) — SUPABASE ONLY
 Teddy 9/8: *"Danielle said there's no place to make or see a scroll of all of our text messages...
 it should be a living document of the text coming and going... they all three can witness."*
