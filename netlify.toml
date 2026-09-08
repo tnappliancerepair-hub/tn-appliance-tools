@@ -863,8 +863,11 @@
   # the compute anyway. Every 3 min cuts it to 480/day (-67%) while the office board stays
   # exactly as fast: it already reads the Supabase board_mirror (board-feed-fast), so this
   # only changes how STALE the mirror can be (<=3 min), not how quickly the board paints.
-  # If Xano is still choked, go to "*/5" (288/day, -80%). Revert to "* * * * *" any time.
-  schedule = "*/3 * * * *"
+  # 2026-09-08 (later): Xano still choked and it has ~1-2 days left before the crew moves
+  # to the platform, so take the last lever — "*/5" = 288/day, -80% off the original. The
+  # office board is unaffected (it reads board_mirror, not Xano); the mirror is just <=5 min
+  # stale. Revert to "*/3" or "* * * * *" any time.
+  schedule = "*/5 * * * *"
 
 # platform-tn-mirror-cron (2026-08-27) — mirror TN's live Xano jobs INTO the ANT Platform
 # tenant tables (TN = tenant #1) every 5 min, so the platform office board stays current
