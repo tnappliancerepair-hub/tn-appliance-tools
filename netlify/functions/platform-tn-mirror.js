@@ -402,6 +402,47 @@ async function syncTnToPlatform(limit, opts) {
     }
   } catch (_) { /* adoption is best-effort; the upsert still runs */ }
 
+  // ── DO NOT WALK A TECH'S WORK BACKWARDS (Teddy 2026-09-08) ──────────────────────
+  // THE BUG THIS FIXES: this mirror rewrites job.status from XANO on every run (every
+  // 5 min). TN is mid-migration, so a tech working in the PLATFORM would complete a job
+  // there, and minutes later the mirror would overwrite his 'completed' back to Xano's
+  // stale 'scheduled'. To the tech that is indistinguishable from "the new system didn't
+  // save" — which is exactly what Jimmy reported. Proven on Clifford Allison's washer:
+  // his job_tdr, completed_at AND waiver all saved, but status had been reverted.
+  //
+  // THE RULE: the mirror may move a job FORWARD, never backward. Xano stays the source of
+  // truth for work that hasn't been touched on the platform; the moment a human does
+  // something on the platform, that progress wins until Xano catches up.
+  const RANK = { new: 0, scheduled: 1, in_progress: 2, awaiting_parts: 3, completed: 4, canceled: 4 };
+  try {
+    const xids = jobRows.map((r) => r.xano_id).filter(Boolean);
+    const cur = new Map();
+    for (let i = 0; i < xids.length; i += 200) {
+      const chunk = xids.slice(i, i + 200).join(',');
+      const r = await fetch(
+        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at`,
+        { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
+      );
+      const rows = await r.json().catch(() => null);
+      if (Array.isArray(rows)) rows.forEach((x) => cur.set(Number(x.xano_id), x));
+    }
+    let held = 0;
+    for (const jr of jobRows) {
+      const ex = cur.get(Number(jr.xano_id));
+      if (!ex) continue;                                   // brand-new job: take Xano's status
+      const wasDone = !!ex.completed_at;                   // a platform completion we must not undo
+      const back = (RANK[ex.status] ?? -1) > (RANK[jr.status] ?? -1);
+      if (back || (wasDone && jr.status !== 'completed' && jr.status !== 'canceled')) {
+        jr.status = ex.status;                             // keep the platform's further-along state
+        held++;
+      }
+    }
+    if (held) console.log('[tn-mirror] kept platform status on ' + held + ' job(s) the mirror would have reverted');
+  } catch (e) {
+    // Never let this guard break the mirror — worst case is today's behavior.
+    console.error('[tn-mirror] status-guard skipped: ' + String((e && e.message) || e));
+  }
+
   const upJob = await upsert(url, key, 'job', jobRows, 'company_id,xano_id');
 
   return { ok: true, customers: upCust.length, units: upUnit.length, jobs: upJob.length, ms: Date.now() - t0 };
