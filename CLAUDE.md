@@ -64,6 +64,26 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜✍️ 2026-09-08 (Mon, late) — "NOWHERE FOR CUSTOMERS SIGN" — on-site signature pad + the SECOND SMS gate nobody knew about — READ FIRST
+
+Jimmy from the field: *"Nowhere for customers sign. I try to send text for signature, but wouldn't let me."* He was right twice.
+
+### 🔴 THE SECOND GATE — every platform customer text was being eaten by Xano (fixed, Netlify-only)
+Traced Jimmy's exact tap in the Xano event log: **`sms_blocked_non_intake`, `reason:"intake_only_gate"`, `context_tag:"platform_waiver_link"`** — and `platform_complete` blocked the same way earlier that day. **There are TWO customer-text gates.** `_lib/sms-guard.js` `INTAKE_OK` was widened to allow `platform_` months ago, but **Xano's OWN intake-only gate inside `send_sms_POST.xs` never learned about it**, and `guardedSend` delivers through `xanoSend` → so *every* Supabase-tenant customer text died at the Xano chokepoint while the Netlify side reported it as passed. **The client then showed "Couldn't send — try again," because `waiver_link` returns `{ok:true, texted:false}` with NO `error` field** — the server had minted the token + logged the thread and only the carrier hand-off failed.
+- **FIX (no Mac push needed):** `sms-guard.js` gained `deliver()` — a `platform_*` tag now hands off **DIRECT to Telnyx from the customer line (588)**, *after* every guard check has already run (opt-out · quiet hours · dedup · 24h/7d/global caps all still enforced). Only the stale duplicate gate is skipped. Falls back to `xanoSend` if the direct send fails, so a text is never silently lost. Logs `platform_sms_direct` / `platform_sms_direct_failed`. **Reversible: `PLATFORM_SMS_DIRECT=0`.**
+- **⚠️ FOOTGUN, now standing:** a Netlify-side gate change does NOT reach the Xano `send_sms` gate. Any new customer-facing tag must clear BOTH, or route around Xano. Check `sms_blocked_non_intake` in the Xano event log when a text "sends" but never arrives.
+
+### ✍️ THE REAL ASK — the customer can now sign ON THE TECH'S PHONE
+The tech day list (`platform/tech.html`) offered only **📲 Text waiver** (broken, above) and **Confirm signed** (the tech attesting *for* the customer). With the customer standing right there, neither is honest — hence "nowhere for customers sign."
+- **`platform/tech.html` — NEW `✍️ Sign here`** → full-screen pad: the release text (same wording as `intake.html`), the customer's name (prefilled), and a **canvas they draw on with a finger** (devicePixelRatio-scaled so the line is crisp; `touch-action:none` + `preventDefault` so drawing doesn't scroll the page). Clear / Cancel / Save. Won't save a blank pad or a nameless signature.
+- **`platform/tech-job.html`** — its existing "Sign on this device" only captured a **typed name** and wrote from the browser **with no `.select()`** (silent-RLS class). Replaced with the same real pad + the same verified server write.
+- **`platform-tech-media.js` — NEW `do=waiver_sign`** `{job, access_token, name, data}`: session-verified → company-scoped → signature PNG to **R2** → patches `waiver_signed_at` + `waiver_name` + `waiver_signature_ref` + `waiver_ack` (`{release, signed_by, drawn, on_site, signed_with:'tech_device', witnessed_by:<tech>}`) **with the service key** so an RLS gate can't swallow the release, and **only reports success once a row comes back** (`Prefer: return=representation`). Writes an office-visible `thread_message` note. The drawn image is **best-effort** — a storage hiccup still records the signing.
+- **Deliberately NOT in `job_media`:** techs count their job photos ("you should have 7 total") — a signature in that gallery breaks the count.
+- **`confirmRelease` hardened** — it updated without `.select()`, so a blocked write returned zero rows, no error, and read as success. It proves a row came back now.
+
+### ✅ VERIFIED LIVE end-to-end as the real tech seat (`tech1.tn-appliance-exchange-llc@…`)
+`waiver_sign` on the ZZ TEST job → `{ok:true, signature:true}`; row carried `waiver_signature_ref` with the correct `<company>/<job>/waiver-<ts>.png` prefix + full `waiver_ack` (`witnessed_by:"Tech 1"`); office thread note landed; **`r2-probe?key=` confirmed the object in R2 (295 bytes, image/png, HTTP 206)**. Test job restored + note deleted → 0 residue (one unreferenced 295-byte test PNG left on the test job).
+
 ## 🗓️🐜✅ 2026-09-08 (Mon, PM) — MERGED TO MAIN + LIVE VERIFY: the Supabase tech app WAS saving (UI hid it) · mirror guard proven · two of my own diagnoses corrected — READ FIRST
 
 Merged `claude/ant-platform-system-v0ltm1` → `main` (ff, 8 commits) + 2 follow-ups. Everything below is
