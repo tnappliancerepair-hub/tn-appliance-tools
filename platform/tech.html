@@ -248,9 +248,82 @@
     document.getElementById('refresh').onclick=loadJobs;
   }
 
+  // ── SAVE RELIABILITY CORE (Teddy 2026-09-08: "know that it's saving everything we
+  // add in there") ────────────────────────────────────────────────────────────────
+  // Every tech write used to be able to fail SILENTLY: saveTdr returned early with no
+  // message when a field was blank, reset the button with no message on an error, and
+  // setStatus ignored r.error entirely. To the tech that is identical to "I tapped Save
+  // and nothing happened" — which is exactly what Jimmy reported. Now: a save either
+  // says it saved, or says why it didn't. Nothing is ever lost quietly.
+
+  // Visible per-job status line. Created on demand so no markup changes are needed.
+  // Put an unsaved report back on screen after a failed save / reload / dead zone, so
+  // "your report is held on this phone" is literally true and he can just tap Save again.
+  function restoreDrafts(jobs){
+    (jobs || []).forEach(function(j){
+      var row = getDraft(j.id); if (!row) return;
+      var put = function(pre, val){ var e = document.getElementById(pre + j.id); if (e && val != null && val !== '' && !e.value) e.value = val; };
+      put('tc', row.failed_component); put('tb', row.brand); put('tm', row.model);
+      put('tp', row.part_number); put('tr', row.root_cause); put('tps', row.part_status);
+      put('th', row.labor_hours); put('tno', row.notes);
+      saveMsg(j.id, '⚠ This report never saved — it is held on this phone. Tap Save report to send it.', 'err');
+    });
+  }
+
+  function saveMsg(jobId, text, kind){
+    var id = 'sv' + jobId, el = document.getElementById(id);
+    if (!el){
+      var host = document.getElementById('tc' + jobId);
+      host = host ? (host.closest('.card') || host.parentNode) : null;
+      if (!host) { if (kind === 'err') alert(text); return; }
+      el = document.createElement('div'); el.id = id;
+      el.style.cssText = 'margin:8px 0;padding:8px 10px;border-radius:8px;font-size:15px;font-weight:600;line-height:1.35';
+      host.appendChild(el);
+    }
+    el.style.background = kind === 'err' ? '#fee2e2' : kind === 'ok' ? '#dcfce7' : '#e5e7eb';
+    el.style.color      = kind === 'err' ? '#991b1b' : kind === 'ok' ? '#166534' : '#374151';
+    el.textContent = text;
+    if (kind === 'ok') setTimeout(function(){ if (el && el.textContent === text) el.textContent = ''; }, 6000);
+  }
+
+  // Keep the tech's typing on THIS device until the server confirms it. A failed save,
+  // a dead zone, or a closed tab can no longer throw away what he wrote.
+  function draftKey(jobId){ return 'ant_tdr_draft_' + jobId; }
+  function saveDraft(jobId, row){ try { localStorage.setItem(draftKey(jobId), JSON.stringify({ row: row, at: Date.now() })); } catch(_){} }
+  function clearDraft(jobId){ try { localStorage.removeItem(draftKey(jobId)); } catch(_){} }
+  function getDraft(jobId){ try { var d = JSON.parse(localStorage.getItem(draftKey(jobId)) || 'null'); return d && d.row ? d.row : null; } catch(_){ return null; } }
+
+  // Retry a write up to 3x with backoff. Supabase/PostgREST hiccups and flaky truck
+  // signal are transient; one failed attempt must not cost the tech his report.
+  function withRetry(fn, tries){
+    tries = tries || 3;
+    return new Promise(function(resolve){
+      var attempt = 0;
+      (function go(){
+        attempt++;
+        fn().then(function(r){
+          if (!r || !r.error || attempt >= tries) return resolve(r);
+          setTimeout(go, 700 * attempt);
+        }).catch(function(e){
+          if (attempt >= tries) return resolve({ error: { message: String((e && e.message) || e) } });
+          setTimeout(go, 700 * attempt);
+        });
+      })();
+    });
+  }
+
   function setStatus(jobId, status){
     var upd = { status: status }; if(status==='completed') upd.completed_at = new Date().toISOString();
-    sb.from('job').update(upd).eq('id', jobId).then(function(r){ if(!r.error){ if(status==='completed') partyJobDone(jobId); loadJobs(); } });
+    saveMsg(jobId, 'Saving…', 'info');
+    withRetry(function(){ return sb.from('job').update(upd).eq('id', jobId).select('id'); }).then(function(r){
+      if (r && r.error) { saveMsg(jobId, "Couldn't save that — " + (r.error.message || 'try again') , 'err'); return; }
+      // An RLS-blocked update returns ZERO ROWS and NO error, so success-with-nothing-changed
+      // must never read as saved. Verify the row actually came back.
+      if (!r || !Array.isArray(r.data) || !r.data.length) { saveMsg(jobId, "That didn't save — tell the office before you leave.", 'err'); return; }
+      saveMsg(jobId, '✅ Saved', 'ok');
+      if (status === 'completed') partyJobDone(jobId);
+      loadJobs();
+    });
   }
 
   // 🎉 Job-done celebration — the dopamine pop, same as TN. Fires on any complete. If his cut
@@ -266,9 +339,12 @@
   // Save the completion report (TDR) — the brain-food. Upsert one per job, then move the
   // job's status by the outcome (fixed -> completed, needs a part -> awaiting parts).
   function saveTdr(id, btn){
-    var job = jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; if(!job) return;
+    var job = jobsCache.filter(function(x){return String(x.id)===String(id);})[0];
+    if(!job){ saveMsg(id, "This job didn't load right — tap Refresh, then save again.", 'err'); return; }
     var v = function(pre){ var e=document.getElementById(pre+id); return e?e.value.trim():''; };
-    var comp = v('tc'); if(!comp){ var e=document.getElementById('tc'+id); if(e){e.focus();} return; }
+    var comp = v('tc');
+    if(!comp){ var e=document.getElementById('tc'+id); if(e){e.focus();}
+      saveMsg(id, 'Add what failed first — that one field is required, then tap Save again.', 'err'); return; }
     var outcome = 'fixed'; var rs = document.getElementsByName('o'+id);
     for (var i=0;i<rs.length;i++){ if(rs[i].checked) outcome = rs[i].value; }
     if (btn){ btn.disabled=true; btn.textContent='Saving…'; }
@@ -280,8 +356,23 @@
       outcome: outcome, held: !(document.getElementById('tcb'+id) && document.getElementById('tcb'+id).checked),
       tech: myTech ? myTech.name : (me.name||'') };
     if (row.held === false) row.reopened_at = new Date().toISOString();
-    sb.from('job_tdr').upsert(row, { onConflict: 'job_id' }).then(function(r){
-      if (r.error){ if(btn){btn.disabled=false;btn.textContent='Save report + finish';} return; }
+    // Hold his typing locally BEFORE the network call, so a failure can't lose it.
+    saveDraft(id, row);
+    saveMsg(id, 'Saving…', 'info');
+    withRetry(function(){ return sb.from('job_tdr').upsert(row, { onConflict: 'job_id' }).select('id'); }).then(function(r){
+      if (r && r.error){
+        if(btn){btn.disabled=false;btn.textContent='Save report + finish';}
+        saveMsg(id, "Didn't save — " + (r.error.message || 'try again') + ". Your report is held on this phone; tap Save again.", 'err');
+        return;
+      }
+      // Zero rows + no error = RLS blocked it. Never call that saved.
+      if (!r || !Array.isArray(r.data) || !r.data.length){
+        if(btn){btn.disabled=false;btn.textContent='Save report + finish';}
+        saveMsg(id, "That didn't save. Your report is held on this phone — tell the office before you leave.", 'err');
+        return;
+      }
+      clearDraft(id);
+      saveMsg(id, '✅ Report saved', 'ok');
       var newStatus = outcome === 'return_needed' ? 'awaiting_parts' : 'completed';
       var jobUpd = { status: newStatus };
       if (newStatus==='completed') jobUpd.completed_at = new Date().toISOString();
@@ -290,7 +381,14 @@
         jobUpd.waiver_signed_at = new Date().toISOString();
         jobUpd.waiver_name = (fullName(job.customer)||'Customer')+(by?' (confirmed by '+by+')':'');
       }
-      sb.from('job').update(jobUpd).eq('id', id).then(function(){ if(newStatus==='completed') partyJobDone(id); loadJobs(); });
+      withRetry(function(){ return sb.from('job').update(jobUpd).eq('id', id).select('id'); }).then(function(u){
+        if (!u || u.error || !Array.isArray(u.data) || !u.data.length){
+          saveMsg(id, '✅ Report saved — but the job status did NOT update. Tell the office.', 'err');
+          loadJobs(); return;
+        }
+        if(newStatus==='completed') partyJobDone(id);
+        loadJobs();
+      });
     });
   }
 
@@ -780,6 +878,7 @@
       '<div class="daylabel">'+dl+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
       (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">'+empty+'</div>');
     document.getElementById('body').innerHTML = body;
+    restoreDrafts(jobs);   // put back anything a failed save was holding on this phone
     if (myTech) loadPay();
     loadLeaderboard();
     if (myTech){ loadStats(); loadTimeOff(); }
