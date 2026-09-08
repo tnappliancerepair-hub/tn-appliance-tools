@@ -7,7 +7,7 @@
 > - **Company** legal name + entity type + state (the entity that owns AssistAnt) + address
 > - **Partner** legal name + entity type + state (TK) + address
 > - ✅ **Commission %** (§3.1) = **30% of net subscription revenue** — matches the platform config (`partner.commission_pct=30`, `commission_type=sub_pct`), set 2026-09-07.
-> - ✅ **Commission duration** (§3.2) = **12 months from the account's activation date** — matches the platform config (`partner.commission_months=12`), set 2026-09-07.
+> - ✅ **Commission duration** (§3.2) = **lifetime — for as long as each referred account stays an active paying subscriber** (no cutoff) — matches the platform config (`partner.commission_months=0` = lifetime), set 2026-09-08.
 > - **Territory / exclusivity** (§2.2) — non-exclusive is the draft default
 > - **Payment cadence** (§3.4 — draft says monthly, net 30)
 > - **Governing-law state** (§11)
@@ -50,9 +50,10 @@ that account. "Net subscription revenue" means
 subscription fees actually received by Company for the Platform, excluding taxes, third-party
 pass-through charges (e.g. telephony/usage), refunds, chargebacks, and discounts.
 
-**3.2 Duration.** Commission is payable **for 12 months from the account's activation date**.
-Commission accrues only while the account is active and current on payment, and stops on
-cancellation, non-payment, or downgrade to a non-paying status.
+**3.2 Duration.** Commission is payable **for the lifetime of each Referred Account — for as long
+as that account remains an active, paying subscriber** (no fixed cutoff). Commission accrues only
+while the account is active and current on payment, and stops on cancellation, non-payment, or
+downgrade to a non-paying status.
 
 **3.3 Attribution.** An account is a "Referred Account" only if it is attributed to Partner in
 Company's systems at signup (via Partner's referral code/link or by Company's onboarding record).
