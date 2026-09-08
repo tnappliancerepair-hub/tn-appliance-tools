@@ -117,6 +117,36 @@ inserting duplicates. It wasn't. **There are two TN tenants:**
   no `completed_at`). Nothing writes to it now. **Always scope platform job queries by `company_id`** or you
   will double-count and misread state. ⏭️ **OPEN: purge the `7b421706` tenant** (residue, not load-bearing).
 
+### 💬 PLATFORM MESSAGES — the shared office↔tech↔customer thread (NEW, live) — SUPABASE ONLY
+Teddy 9/8: *"Danielle said there's no place to make or see a scroll of all of our text messages...
+it should be a living document of the text coming and going... they all three can witness."*
+**Root cause of her complaint: the nav's "💬 Messages" link pointed at `platform/comms.html`, which is
+the AUTO-TEXT SETTINGS page** — she clicked Messages and never saw a single conversation. The board did
+have a thread, but only a per-JOB slice buried in a drawer.
+- **`platform/messages.html` (NEW)** — the inbox: every conversation newest-first, **"← they replied"**
+  flagged so no customer text sits unanswered; click for that person's **whole scroll across ALL their
+  jobs**; a compose box to **text anyone freely, job or no job** (search by name or phone); every bubble
+  labeled by seat (🏢 office · 🔧 tech · 🐜 Ann · Customer); polls 15s and **never wipes a half-typed draft**.
+- **`netlify/functions/platform-messages.js` (NEW)** — `do=list | thread | send | search`. Supabase session
+  auth → `app_user.company_id`, and **every query is company-scoped IN CODE** (service key bypasses RLS).
+  `send` auto-attaches to the customer's open job so the job tile's slice stays complete, and a carrier
+  refusal reports **"Saved to the thread, but the text did NOT go out"** instead of looking delivered.
+- **ONE TABLE, THREE SEATS — verified.** Everything writes `thread_message`, which the tech reads on
+  `platform/tech-job.html` and the customer reads in `platform/portal.html`. Confirmed the `portal_get`
+  RPC pulls thread_message with **no channel filter**, so office `channel='sms'` texts genuinely reach
+  the customer's view. All three read and write one conversation.
+- **Reachable everywhere:** board · dispatch · needs-scheduled · owner · office-overview(+tk) · explore,
+  and the job drawer now links **"💬 Open the full conversation with this customer ↗"**. `comms.html`
+  stays reachable, correctly relabeled **"⚙️ Auto-texts"**.
+- **VERIFIED live as a real seat** (`tech1.tn-appliance-exchange-llc@…`): list → **81 conversations**;
+  thread → full scroll + that customer's jobs; search → finds anyone; send → row written, labeled
+  `tech:Tech 1`, auto-attached to the open job. Send was proven against the **ZZ TEST practice customer
+  (615-555-0199, a reserved non-routable number)** so nothing was texted to a real person — it correctly
+  returned `texted:false`.
+- ⏭️ **Not built (deliberate):** inbound customer SMS does not yet land in `thread_message` on the
+  platform — a customer's *reply* only appears when it comes through the portal. Wiring the Telnyx
+  inbound webhook to insert `direction:'in'` is the next piece for a truly two-way scroll.
+
 ### 🔴 WHY SUPABASE "WASN'T SAVING REPORTS" — the OFFICE BOARD was wiping them (fixed)
 Teddy, later 9/8: *"we need the supabase system where it will start saving the reports."* Tested the
 whole path **as the real tech seat** (`tech1.tn-appliance-exchange-llc@…`, password grant → PostgREST):
