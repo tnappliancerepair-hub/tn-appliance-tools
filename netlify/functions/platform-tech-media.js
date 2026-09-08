@@ -8,6 +8,12 @@
 //   POST ?do=stream_mint   { job, access_token, bytes, filename }  -> { ok, uploadUrl, uid }
 //   POST ?do=stream_done   { job, access_token, uid, label? }      -> { ok }
 //   POST ?do=delete_media  { job, access_token, id }               -> { ok }
+//   POST ?do=waiver_sign   { job, access_token, name, data? }      -> { ok, signed_at }
+//
+// waiver_sign is the ON-SITE signature: the tech hands his phone over, the customer draws
+// their name with a finger, and we store the drawn image next to the signed-at stamp. It
+// writes with the service key (so an RLS gate can never silently swallow it) and confirms a
+// row came back before it reports success.
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
@@ -30,6 +36,12 @@ function rest(base, key) {
       const r = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, { method: 'POST', headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': contentType, 'x-upsert': 'true' }, body: buf, signal: AbortSignal.timeout(15000) });
       return r.ok;
     },
+    async patch(path, row) {
+      const r = await fetch(`${base}/rest/v1/${path}`, { method: 'PATCH', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return null;
+      const out = await r.json().catch(() => []);
+      return Array.isArray(out) ? out : [];
+    },
     async del(path) { const r = await fetch(`${base}/rest/v1/${path}`, { method: 'DELETE', headers: { ...H, Prefer: 'return=minimal' }, signal: AbortSignal.timeout(8000) }); return r.ok; },
     async storageDelete(bucket, objPath) { try { await fetch(`${base}/storage/v1/object/${bucket}/${objPath}`, { method: 'DELETE', headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(8000) }); } catch (_) {} },
   };
@@ -50,12 +62,12 @@ async function authUser(base, key, accessToken) {
 // job is in that company. Returns { company_id } or null. Service-key reads, session-verified.
 async function scopeToJob(db, authId, jobId) {
   if (!authId || !jobId) return null;
-  const us = await db.get(`app_user?auth_user_id=eq.${authId}&select=company_id&limit=1`);
+  const us = await db.get(`app_user?auth_user_id=eq.${authId}&select=company_id,name&limit=1`);
   const companyId = us && us[0] && us[0].company_id;
   if (!companyId) return null;
-  const js = await db.get(`job?id=eq.${jobId}&select=id&company_id=eq.${companyId}&limit=1`);
+  const js = await db.get(`job?id=eq.${jobId}&select=id,customer_id&company_id=eq.${companyId}&limit=1`);
   if (!js || !js[0]) return null;
-  return { company_id: companyId };
+  return { company_id: companyId, tech_name: (us[0].name || ''), customer_id: js[0].customer_id };
 }
 
 exports.handler = async function (event) {
@@ -90,6 +102,56 @@ exports.handler = async function (event) {
       await db.insert('job_media', { company_id: scope.company_id, job_id: jobId, kind: 'photo', provider: 'r2', ref: path, label: String(p.label || 'Tech photo').slice(0, 80) });
       let signed = ''; try { signed = await r2.presignGet(path, 600); } catch (_) {}
       return json(200, { ok: true, url: signed, path });
+    }
+
+    // ── ON-SITE SIGNATURE (the customer signs on the tech's phone) ───────────────
+    // The tech hands the phone over; the customer draws their name. We keep the drawn
+    // image (R2) AND the typed name AND the stamp, written with the service key so an
+    // RLS gate can't silently drop it — and we only report success once a row comes back.
+    // The signature is deliberately NOT added to job_media: techs count their job photos
+    // ("you should have 7 total"), and a signature in that gallery breaks the count.
+    if (doo === 'waiver_sign') {
+      const name = String(p.name || '').trim().slice(0, 120);
+      if (!name) return json(400, { ok: false, error: 'name_required' });
+
+      // Drawn signature is best-effort: if the image fails to store we still record the
+      // signing (name + timestamp). Never lose the release over a storage hiccup.
+      let ref = null;
+      const m = String(p.data || '').match(/^data:(image\/[a-z+]+);base64,(.+)$/i);
+      if (m) {
+        const buf = Buffer.from(m[2], 'base64');
+        if (buf.length <= 2 * 1024 * 1024) {
+          const path = `${scope.company_id}/${jobId}/waiver-${Date.now()}.png`;
+          try { await r2.put(path, buf, m[1]); ref = path; } catch (_) { ref = null; }
+        }
+      }
+
+      const signedAt = new Date().toISOString();
+      const row = {
+        waiver_signed_at: signedAt,
+        waiver_name: name,
+        waiver_ack: {
+          release: 'agreed', signed_by: name, drawn: !!ref,
+          on_site: true, signed_with: 'tech_device',
+          witnessed_by: scope.tech_name || null, at: signedAt,
+        },
+      };
+      if (ref) row.waiver_signature_ref = ref;
+
+      const saved = await db.patch(`job?id=eq.${jobId}&company_id=eq.${scope.company_id}`, row);
+      if (!saved || !saved.length) return json(200, { ok: false, error: 'not_saved' });
+
+      // Office-visible proof in the shared thread.
+      try {
+        await db.insert('thread_message', {
+          company_id: scope.company_id, customer_id: scope.customer_id, job_id: jobId,
+          direction: 'out', channel: 'note',
+          sender: 'tech' + (scope.tech_name ? ':' + scope.tech_name : ''),
+          body: '\u270d\ufe0f Release of liability signed on site by ' + name + (ref ? ' (signature captured)' : ''),
+        });
+      } catch (_) { /* the release is saved; the note is a nicety */ }
+
+      return json(200, { ok: true, signed_at: signedAt, name, signature: !!ref });
     }
 
     if (doo === 'stream_mint') {

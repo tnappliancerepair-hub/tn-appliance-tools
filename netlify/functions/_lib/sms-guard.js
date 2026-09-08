@@ -125,6 +125,50 @@ async function xanoSend(to, body, tag) {
   } catch (_) { return false; }
 }
 
+// 🐜 PLATFORM (Supabase) TENANT TEXTS — deliver DIRECT via Telnyx, not through Xano.
+// Found 2026-09-08 from Jimmy in the field ("I try to send text for signature, but wouldn't
+// let me"): the Netlify guard un-paused platform_* traffic months ago, but Xano's OWN
+// intake-only gate inside send_sms never learned about it, so every tenant text died there
+// as sms_blocked_non_intake (platform_waiver_link, platform_complete, …). Two gates, one
+// updated. Rather than depend on a Xano push, platform_* now hands off straight to Telnyx
+// from the customer line — AFTER every check above (opt-out, quiet hours, dedup, caps) has
+// already run, so nothing is loosened, only the stale duplicate gate is bypassed. Falls
+// back to the Xano path if the direct send fails, so a text is never silently lost.
+// Reversible: PLATFORM_SMS_DIRECT=0.
+const PLATFORM_TAG_RE = /^platform_/i;
+const PLATFORM_DIRECT_ON = String(process.env.PLATFORM_SMS_DIRECT || '1') !== '0';
+const CUSTOMER_FROM = process.env.TELNYX_FROM_CUSTOMER || '+16155889500';
+
+async function telnyxDirect(to, body, tag) {
+  let key = process.env.TELNYX_API_KEY;
+  if (!key) { try { key = await require('./secrets').getSecret('TELNYX_API_KEY'); } catch (_) {} }
+  if (!key) return false;
+  try {
+    const r = await fetch('https://api.telnyx.com/v2/messages', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: CUSTOMER_FROM, to, text: body }),
+    });
+    const d = await r.json().catch(() => ({}));
+    const id = d && d.data && d.data.id;
+    if (r.ok && id) {
+      try { await crud.logEvent('platform_sms_direct', { to, tag: tag || '', from: CUSTOMER_FROM, id, at_ms: Date.now() }); } catch (_) {}
+      return true;
+    }
+    try { await crud.logEvent('platform_sms_direct_failed', { to, tag: tag || '', status: r.status, detail: JSON.stringify(d).slice(0, 200), at_ms: Date.now() }); } catch (_) {}
+    return false;
+  } catch (_) { return false; }
+}
+
+// One delivery door: platform tenant traffic goes direct, everything else keeps the
+// long-proven Xano path (its Telnyx creds + fallback behavior are untouched).
+async function deliver(to, body, tag) {
+  if (PLATFORM_DIRECT_ON && PLATFORM_TAG_RE.test(String(tag || ''))) {
+    if (await telnyxDirect(to, body, tag)) return true;
+  }
+  return xanoSend(to, body, tag);
+}
+
 async function block(to, reason, kind, tag) { try { await crud.logEvent('sms_guard_blocked', { phone: to, reason, kind: kind || '', tag: tag || '', at_ms: Date.now() }); } catch (_) {} }
 async function wouldBlock(to, reason, kind) { try { await crud.logEvent('sms_guard_would_block', { phone: to, reason, kind: kind || '', at_ms: Date.now() }); } catch (_) {} }
 
@@ -240,7 +284,7 @@ async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
   } catch (_) { outMsg = message; }
 
   // 5. Send + record (record drives the frequency counters).
-  const ok = await xanoSend(to, outMsg, tag);
+  const ok = await deliver(to, outMsg, tag);
   if (ok) { try { await crud.logEvent('sms_guard_sent', { phone: to, kind: kind || '', tag: tag || '', body: message.slice(0, 200), at_ms: now }); } catch (_) {} }
   return { sent: ok, reason: ok ? (checks.length ? 'sent_shadow' : 'sent') : 'send_failed', shadow: checks.length ? checks : undefined };
 }

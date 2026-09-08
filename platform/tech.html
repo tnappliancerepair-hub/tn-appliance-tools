@@ -112,6 +112,21 @@
   .rel .relbtns{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .rel .relbtn{background:#c2571f;color:#fff;border:none;border-radius:9px;padding:8px 12px;font-weight:800;font-size:12.5px}
   .rel .waivetext{background:linear-gradient(135deg,#16d267,#0fa34e);color:#fff;border:none;border-radius:9px;padding:8px 13px;font-weight:800;font-size:12.5px;box-shadow:0 4px 14px rgba(18,190,90,.4)}
+  .rel .signbtn{background:linear-gradient(135deg,#6d4aff,#8b5cf6);color:#fff;border:none;border-radius:9px;padding:8px 13px;font-weight:800;font-size:12.5px;box-shadow:0 4px 14px rgba(109,74,255,.4)}
+  /* On-site signature pad — the tech hands the phone to the customer. */
+  .sigwrap{position:fixed;inset:0;z-index:9000;background:rgba(10,12,20,.72);display:flex;align-items:flex-end;justify-content:center}
+  .sigcard{background:var(--card,#fff);color:var(--ink);width:100%;max-width:560px;max-height:94vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+  .sigcard h3{margin:0 0 4px;font-size:19px}
+  .sigcard .sigsub{font-size:13px;color:var(--muted);margin-bottom:12px}
+  .sigterms{font-size:12px;line-height:1.5;color:var(--muted);background:var(--chip);border-radius:10px;padding:11px 12px;max-height:132px;overflow:auto;margin-bottom:12px}
+  .sigcard input[type=text]{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;box-sizing:border-box}
+  .sigpadbox{margin-top:11px;border:2px dashed var(--line);border-radius:12px;background:#fff;position:relative;touch-action:none}
+  .sigpadbox canvas{display:block;width:100%;height:190px;border-radius:10px;touch-action:none}
+  .sigpadbox .sighint{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-size:14px;color:#9aa2b1;pointer-events:none;font-weight:700}
+  .sigrow{display:flex;gap:9px;margin-top:12px}
+  .sigrow button{flex:1;padding:14px 10px;border-radius:12px;font-weight:800;font-size:15px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+  .sigrow button.sigsave{background:linear-gradient(135deg,#16d267,#0fa34e);color:#fff;border-color:transparent;box-shadow:0 6px 18px rgba(18,190,90,.4)}
+  .sigerr{color:#c2571f;font-size:13px;font-weight:700;margin-top:9px;min-height:18px}
   .links{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
   .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:7px 11px}
   .actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
@@ -432,8 +447,9 @@
     var who = prompt('Who signed the release?', (fullName(job.customer)||'Customer'));
     if(who==null) return; who=(who||'').trim()||'Customer';
     var by = myTech ? myTech.name : (me.name||'');
-    sb.from('job').update({ waiver_signed_at:new Date().toISOString(), waiver_name: who+(by?' (confirmed by '+by+')':'') }).eq('id', id).then(function(r){
-      if(r.error){ alert('Couldn\'t save the release: '+r.error.message); return; }
+    sb.from('job').update({ waiver_signed_at:new Date().toISOString(), waiver_name: who+(by?' (confirmed by '+by+')':'') }).eq('id', id).select('id').then(function(r){
+      // A blocked write comes back with ZERO rows and no error — prove a row came back.
+      if(r.error || !Array.isArray(r.data) || !r.data.length){ alert('That did NOT save. Tap it again, and tell the office if it keeps failing.'); return; }
       loadJobs();
     });
   }
@@ -517,6 +533,108 @@
         }
       });
     }).catch(function(){ btn.disabled=false; alert('Couldn\'t reach the server — try again.'); });
+  }
+
+  // ── SIGN ON THIS PHONE ──────────────────────────────────────────────────────
+  // Jimmy 2026-09-08: "Nowhere for customers sign." The day list only offered a texted
+  // link (which the carrier gate was dropping) and a tech attestation. When the customer
+  // is standing right there, the honest answer is to hand them the phone and let them
+  // sign. Draws to a canvas, saves the IMAGE + typed name + timestamp server-side with
+  // the service key, so an RLS gate can't silently swallow the release.
+  var SIG_TERMS = 'I authorize the shop and its technicians to inspect and service my appliance. '
+    + 'I understand appliance repair carries inherent risks; that pre-existing conditions (worn parts, '
+    + 'prior damage, water lines, flooring) may fail during normal service; and that moving a heavy '
+    + 'appliance to reach it can disturb old shut-off valves, water lines, hoses, or flooring. I release '
+    + 'the shop from liability for such pre-existing or unavoidable conditions. My tech checks the area '
+    + 'for leaks before leaving. I confirm I am authorized to request service at this address. A '
+    + 'diagnostic/trip fee may apply and will be disclosed before work begins.';
+
+  function openSignPad(id){
+    var job = jobsCache.filter(function(x){ return String(x.id)===String(id); })[0]; if(!job) return;
+    var who = fullName(job.customer) || '';
+
+    var wrap = document.createElement('div');
+    wrap.className = 'sigwrap';
+    wrap.innerHTML =
+      '<div class="sigcard">' +
+        '<h3>Release of liability</h3>' +
+        '<div class="sigsub">Hand the phone to ' + (who ? esc(who) : 'the customer') + ' — they sign with a finger.</div>' +
+        '<div class="sigterms">' + esc(SIG_TERMS) + '</div>' +
+        '<input type="text" id="sigName" placeholder="Customer\'s full name" autocomplete="name" value="' + esc(who) + '">' +
+        '<div class="sigpadbox"><canvas id="sigPad"></canvas><div class="sighint" id="sigHint">Sign above with your finger</div></div>' +
+        '<div class="sigrow"><button type="button" id="sigClear">Clear</button><button type="button" id="sigCancel">Cancel</button></div>' +
+        '<div class="sigrow"><button type="button" class="sigsave" id="sigSave">✓ Save signature</button></div>' +
+        '<div class="sigerr" id="sigErr"></div>' +
+      '</div>';
+    document.body.appendChild(wrap);
+
+    var cv = wrap.querySelector('#sigPad');
+    var hint = wrap.querySelector('#sigHint');
+    var errEl = wrap.querySelector('#sigErr');
+    var ctx = cv.getContext('2d');
+    var drawn = false, drawing = false, last = null;
+
+    // Size the bitmap to the real pixel density so the line isn't a blurry stretch.
+    function sizePad(){
+      var r = cv.getBoundingClientRect();
+      var dpr = Math.min(window.devicePixelRatio || 1, 3);
+      cv.width = Math.max(1, Math.round(r.width * dpr));
+      cv.height = Math.max(1, Math.round(r.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111827';
+    }
+    sizePad();
+    window.addEventListener('resize', sizePad);
+
+    function pt(e){
+      var r = cv.getBoundingClientRect();
+      var t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+      return { x: t.clientX - r.left, y: t.clientY - r.top };
+    }
+    function start(e){ e.preventDefault(); drawing = true; last = pt(e); if(hint) hint.style.display='none'; }
+    function move(e){
+      if(!drawing) return; e.preventDefault();
+      var q = pt(e);
+      ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+      last = q; drawn = true;
+    }
+    function end(e){ if(drawing && e && e.preventDefault) e.preventDefault(); drawing = false; }
+    cv.addEventListener('touchstart', start, {passive:false});
+    cv.addEventListener('touchmove', move, {passive:false});
+    cv.addEventListener('touchend', end, {passive:false});
+    cv.addEventListener('mousedown', start);
+    cv.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+
+    function close(){ window.removeEventListener('resize', sizePad); window.removeEventListener('mouseup', end); wrap.remove(); }
+    wrap.querySelector('#sigCancel').onclick = close;
+    wrap.onclick = function(e){ if(e.target===wrap) close(); };
+    wrap.querySelector('#sigClear').onclick = function(){
+      ctx.clearRect(0,0,cv.width,cv.height); drawn=false; if(hint) hint.style.display='';
+    };
+
+    wrap.querySelector('#sigSave').onclick = function(){
+      var nm = (wrap.querySelector('#sigName').value||'').trim();
+      if(!nm){ errEl.textContent = 'Type the customer\'s name first.'; return; }
+      if(!drawn){ errEl.textContent = 'Have them sign in the box above.'; return; }
+      var btn = this; btn.disabled = true; btn.textContent = 'Saving…'; errEl.textContent = '';
+      var img = ''; try { img = cv.toDataURL('image/png'); } catch(_) { img = ''; }
+      sb.auth.getSession().then(function(r){
+        var tok = r && r.data && r.data.session && r.data.session.access_token;
+        if(!tok){ btn.disabled=false; btn.textContent='✓ Save signature'; errEl.textContent='Session expired — sign in again.'; return; }
+        return fetch('/.netlify/functions/platform-tech-media?do=waiver_sign',{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ job:id, access_token:tok, name:nm, data:img })
+        }).then(function(x){ return x.json(); }).then(function(d){
+          if(d && d.ok){ close(); pageMsg('✍️ Release signed by ' + nm + '. The office can see it.', 'ok'); loadJobs(); return; }
+          btn.disabled=false; btn.textContent='✓ Save signature';
+          errEl.textContent = (d && d.error) ? ('Didn\'t save: ' + d.error) : 'Didn\'t save — tap Save again.';
+        });
+      }).catch(function(){
+        btn.disabled=false; btn.textContent='✓ Save signature';
+        errEl.textContent = 'Couldn\'t reach the server — check signal and tap Save again.';
+      });
+    };
   }
 
   // Text the customer a link to sign the liability release on their own phone.
@@ -608,7 +726,7 @@
   // it's finished — so the tech can capture it on site when it isn't already digital.
   function releaseHtml(j){
     if (j.waiver_signed_at) return '<div class="rel signed">✍️ Release signed'+(j.waiver_name?' — '+esc(j.waiver_name):'')+'</div>';
-    return '<div class="rel unsigned">⚠️ Release not signed yet<span class="relbtns"><button class="waivetext" data-waivertext="'+j.id+'">📲 Text waiver</button><button class="relbtn" data-release="'+j.id+'">Confirm signed</button></span></div>';
+    return '<div class="rel unsigned">⚠️ Release not signed yet<span class="relbtns"><button class="signbtn" data-signhere="'+j.id+'">✍️ Sign here</button><button class="waivetext" data-waivertext="'+j.id+'">📲 Text waiver</button><button class="relbtn" data-release="'+j.id+'">Confirm signed</button></span></div>';
   }
   // PARTS STATUS — where's the tech's part? (Teddy: "part at customer / pick up at Marcone /
   // parts status would be helpful to the tech"). Derived from job_part: ship_to + source + eta +
@@ -937,6 +1055,7 @@
     b.querySelectorAll('button[data-needpart]').forEach(function(el){ el.onclick=function(){ officeNeedPart(el.getAttribute('data-needpart')); }; });
     b.querySelectorAll('button[data-release]').forEach(function(el){ el.onclick=function(){ confirmRelease(el.getAttribute('data-release')); }; });
     b.querySelectorAll('button[data-waivertext]').forEach(function(el){ el.onclick=function(){ textWaiver(el.getAttribute('data-waivertext'), el); }; });
+    b.querySelectorAll('button[data-signhere]').forEach(function(el){ el.onclick=function(){ openSignPad(el.getAttribute('data-signhere')); }; });
     b.querySelectorAll('button[data-brain]').forEach(function(el){ el.onclick=function(){ brainLookup(el.getAttribute('data-brain')); }; });
     wireTopbar(b);
     hydratePhotos();
