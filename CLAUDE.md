@@ -1,5 +1,69 @@
 # Appliance Ant
 
+## 🚦 TWO SEPARATE SYSTEMS — KNOW WHICH ONE YOU'RE IN BEFORE YOU TOUCH ANYTHING (Teddy 2026-09-08)
+
+There are **two** Ant systems running side by side. They share a repo and some filenames but
+they are **different databases, different logins, different code, and DIFFERENT PROBLEMS.**
+A fix for one is usually meaningless — or harmful — in the other.
+
+**This is not theoretical: on 2026-09-08 a whole diagnostic hour was burned debugging the XANO
+tech app while Jimmy's actual problem was in the SUPABASE tech app.** Same complaint
+("nothing saves"), same-looking page, completely different root cause. Always name the system
+first, out loud, before you edit.
+
+| | 🟥 **XANO** — the OLD system | 🟩 **SUPABASE** — the NEW system |
+|---|---|---|
+| Teddy calls it | "Zano" / the old system | "Superbase" / the new system |
+| What it is | TN Appliance's live daily operation, today | The multi-tenant Ant platform (the SaaS + TN's migration target) |
+| Database | Xano — `xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA` | Supabase "ANT Platforms" — `tntbhfwitytkcoqlejwc.supabase.co` |
+| **Files** | **root-level** `*.html` + most `netlify/functions/*` | **`platform/` directory** + `netlify/functions/platform-*` |
+| Who uses it | Danielle, Sofia, the techs' daily work RIGHT NOW | Platform shops + TN's mirrored tenants |
+| Login | office password / tech PIN | real Supabase logins, one per seat, RLS-scoped |
+| Tech app | `tech-job.html`, `tech-daily-dashboard.html`, `ant-tdr-card.js` | `platform/tech.html` |
+| Office board | `office-board.html` (root) | `platform/office-board.html` |
+| How a TDR saves | `create_tdr` / `set-tdr-field` / `update_tdr_field_from_voice` / `tdr-save` | browser → PostgREST direct: `sb.from('job_tdr').upsert(...)` |
+
+### ⚡ The one-line rule
+**`platform/…` and `platform-*.js` = SUPABASE. Everything else = XANO.**
+Verified 2026-09-08: zero root pages touch Supabase. One exception the other way —
+`platform/costs.html` reads Xano.
+
+### ⚠️ The filename trap
+**`tech.html` and `office-board.html` EXIST IN BOTH.** `/tech.html` is Xano; `platform/tech.html`
+is Supabase. Opening the wrong one looks completely plausible and wastes the session. When
+someone says "the tech app," **ask which system**, or check which DB the file references.
+
+### They fail in completely different ways — don't cross-diagnose
+- **XANO problems are LOAD problems.** Compute saturation. `get_office_kanban` is 787KB and was
+  measured 6.9s / 13.2s / **24.3s**; it's pulled 1,623×/day. Symptoms: freezing, spinners,
+  "so slow she could barely get anything done," saves timing out (15s one-shot, no retry).
+  Fixes look like: throttling crons, caching, mirroring, retry/durability.
+- **SUPABASE problems are PERMISSION + SILENT-FAILURE problems.** RLS. Symptoms: a write that
+  returns **zero rows and NO error** and therefore reads as success; saves that silently do
+  nothing with no message. Fixes look like: RLS policies, verify-after-write, surfacing errors.
+- So: "it's slow" → Xano. "it saved nothing and said nothing" → Supabase. Confirm, don't assume.
+
+### Footguns per system
+- **Xano routes are METHOD-SPECIFIC.** `get_job_for_dashboard` is POST; a GET returns
+  `"Unable to locate request."` which reads exactly like a deleted endpoint. Check the caller
+  (`xanoPost` vs `xanoGet`) before declaring anything missing.
+- **Xano `list_recent_event_log` returns `{count, items:[…]}`**, not a bare array, and `action` is
+  REQUIRED. A bare-array jq gives a false "zero events / total outage."
+- **Supabase RLS denials are invisible.** An UPDATE that fails the USING gate returns 0 rows and
+  no error. Always `.select()` and confirm a row came back before calling it saved.
+
+### The bridges (the only code that deliberately touches both)
+`platform-tn-mirror.js` · `platform-tn-intake-tee.js` · `platform-tn-parts-migrate.js` ·
+`tdr-save.js` (Supabase-durable first, Xano relay) · `board-mirror-sync` / `job-view-fast`
+(read Xano → serve from Supabase mirror). **TN is mid-migration: Xano is still the source of
+truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only on purpose.
+
+### Before you edit, say which system
+1. Which system is the person actually in? (ask if unclear — the symptom alone won't tell you)
+2. Does the file live under `platform/`? Then it's Supabase.
+3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
+
+
 ## 🗓️🐜🔑 2026-09-08 (Mon) — SHOP LOGIN PACKS + Add-a-tech + Approve→full-pack (scale to a thousand shops) — READ FIRST
 
 Teddy zoomed out to the real scale: a thousand Ant systems, each shop getting its own platform + all its
