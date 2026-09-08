@@ -470,7 +470,8 @@
           '<a href="/platform/dispatch.html">📅 Dispatch</a>' +
           '<a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a>' +
           '<a href="/platform/dispatch.html?coverage=1">🗺️ Coverage</a>' +
-          '<a href="/platform/comms.html">💬 Messages</a>' +
+          '<a href="/platform/messages.html">💬 Messages</a>' +
+          '<a href="/platform/comms.html">⚙️ Auto-texts</a>' +
           '<a href="/platform/owner.html">💰 Owner</a>' +
           '<a href="/platform/office-overview.html">🗂 Overview</a>' +
         '</nav>' +
@@ -1587,6 +1588,9 @@
         '<div id="jthread" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;font-size:13px">Loading…</div>' +
         '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
         '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><button id="jreview">⭐ Request review</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
+        // This drawer shows only THIS job's slice. The whole scroll with the person — every
+        // job, office + tech + their replies — lives on the Messages page.
+        (job.customer_id ? '<div style="margin-top:7px"><a href="/platform/messages.html?customer='+esc(job.customer_id)+'" style="font-weight:700">💬 Open the full conversation with this customer ↗</a></div>' : '') +
       '</div>' +
       // ── 📩 CUSTOMER INTAKE — what the customer sent (their info, availability, video/model).
       // Sits right under the header so scheduling is done off the customer's own availability. ──
