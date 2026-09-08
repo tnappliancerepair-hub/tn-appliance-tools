@@ -6,13 +6,18 @@
 'use strict';
 const { getSecret } = require('./secrets');
 
-// OUR marginal cost per unit, in cents — VERIFIED against real Telnyx records 2026-08-28
-// (voice all-in $0.084/min: orchestration $0.05 + telephony $0.004 + LLM ~$0.03; SMS ~$0.013
-// all-in on T-Mobile: rate $0.0085 + carrier $0.0045). Used only to compute margin, never shown.
-const COST = { voice_min: 8.4, sms_out: 1.3, sms_in: 0.75 };
+// OUR marginal cost per unit, in cents — voice RE-VERIFIED against 30 days of Telnyx
+// AI-voice-assistant Detail Records 2026-09-08: 896 calls / 1,944 min / $97.20 = exactly
+// $0.0500/min. Telnyx bills ONE bundled ai_voice_assistant_minute — STT (deepgram/flux),
+// LLM (openai/gpt-5.4), TTS (inworld) and telephony are all INSIDE that rate (call-control,
+// sip-trunking and conference records all returned zero for the same window). The old 8.4
+// was an ADDITIVE estimate (orchestration + telephony + LLM) that double-counted the bundle
+// and overstated voice cost by 68%. SMS ~$0.013 all-in on T-Mobile (rate $0.0085 + carrier
+// $0.0045) is unchanged. Used only to compute margin, never shown to the shop.
+const COST = { voice_min: 5.0, sms_out: 1.3, sms_in: 0.75 };
 // Plan defaults when a shop has no client_plan row yet (generous fair-use + safety caps).
 // Ann plan (Teddy 2026-08-28): $50/week = 400 included minutes, $0.40/min overage. 400 (not
-// 500) keeps a healthy margin even at full usage ($50 − 400×$0.084 ≈ $14/wk). Single source —
+// 500) keeps a healthy margin even at full usage ($50 − 400×$0.05 = $30/wk, 60%). Single source —
 // the weekly digest, the owner dashboard card, and metering all read included_voice_min here.
 const DEFAULT_PLAN = {
   tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 100,
