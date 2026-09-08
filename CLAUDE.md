@@ -64,6 +64,92 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜✅ 2026-09-08 (Mon, PM) — MERGED TO MAIN + LIVE VERIFY: the Supabase tech app WAS saving (UI hid it) · mirror guard proven · two of my own diagnoses corrected — READ FIRST
+
+Merged `claude/ant-platform-system-v0ltm1` → `main` (ff, 8 commits) + 2 follow-ups. Everything below is
+DEPLOYED and VERIFIED LIVE. **Two of my earlier conclusions this session were WRONG — both corrected
+below. Read the corrections before acting on anything from the earlier entries.**
+
+### ✅ THE HEADLINE — "the new Supabase system isn't saving anything" was NOT a save failure
+Jimmy + Teddy both reported it. **It was saving the whole time.** Proved it three ways on the live test job:
+- `job.status` → `completed` (the tap landed)
+- `job_tdr` row present: `root_cause:"Short"`, `failed_component:"Heater"`, `part_status:"used"` (the report landed)
+- a live PATCH **as the tech's own seat** returned 1 row → **RLS ALLOWS the tech to write** (not a permission problem)
+
+**The real cause is one line in `platform/tech.html`:** the default list is
+`q.not('status','in','(completed,canceled)')`. The instant a Complete succeeds, `loadJobs()` re-renders and
+**drops the job** — and the "✅ Saved" note lives INSIDE that job's card, so it is destroyed in the same tick
+it is created. Tech taps Complete → job vanishes → nothing says it worked. Anyone would call that "it didn't save."
+- **FIX (live): `pageMsg()`** — a sticky banner ABOVE the list, outside any card, so the confirmation outlives
+  the re-render. Complete → "Saved — marked done. It moves off your open list." Report+complete → names the
+  customer. Parts-needed → "still on your list." Status-write-failed → "tell the office before you leave."
+- Card-level `saveMsg` stays for errors that keep the job on screen. `withRetry` + drafts + verify-after-write
+  (from the branch) are also live now.
+- **LESSON: on a list that filters by status, a success that removes the row reads as failure.** Confirm at a
+  level that survives the re-render, and say WHERE the thing went.
+
+### 🔴 CORRECTION #1 — "80 reverted jobs need repair" was WRONG. The real number was **3**.
+I had claimed the Xano mirror was overwriting techs' completions en masse (76-80 jobs). **That was wrong and
+repairing them would have flipped ~73 genuinely-unfinished jobs (awaiting parts / in progress) to "completed"** —
+corrupting the board and arming review/warranty sweeps on unfinished work. Caught it before executing.
+- **Why I was wrong:** `completed_at` set with a non-completed status looked impossible, because the tech app
+  only ever writes `completed_at` alongside `status='completed'`. But **the Xano importer (`_lib/import/xano-adapter.js`)
+  copies `job_completed_at` UNCONDITIONALLY** (`completed_at: done || null`) while mapping status separately.
+  And the **mirror overwrites `source`** (`source: String(j.intake_source || 'xano_mirror')`, line 353), which
+  ERASES the `import_xano` fingerprint — so imported rows masquerade as `ahs_email`/`servicepower_email`.
+- **Xano's own data legitimately has this shape** — verified live: job 19142 `scheduling_status=awaiting_parts`
+  WITH `job_completed_at` set (first visit done, return trip pending). Faithful mirroring, not damage.
+- **THE DISCRIMINATOR that actually works:** platform has `completed_at` **AND Xano has NO `job_completed_at`**
+  → the completion exists only on the platform → a tech did it there → something overwrote it. If BOTH have a
+  stamp, it's an import artifact — leave it alone.
+- Checked 13 rows against Xano; the rule held 13/13. Real damage = **3 jobs**, all from Sep 7-8 (exactly when
+  techs started using the platform app): 21331 Anita Cole, 21731 Ralph-tamiya Thompson, 21767 Clifford Allison.
+  **All 3 restored to `completed`.** Review sweep was double-gated (shadow mode AND the shop's review toggle
+  off), so restoring them texted nobody.
+- **NEVER count `completed_at is not null and status <> 'completed'` as damage.** Cross-check Xano first.
+
+### 🔴 CORRECTION #2 — a "duplicate row" scare that was actually TWO TENANTS
+A verification query returned two rows per `xano_id` (one `completed`, one `scheduled`) and read as the mirror
+inserting duplicates. It wasn't. **There are two TN tenants:**
+- **`be4d11a1-5219-469b-916a-ab990be7ea7f` = TN Appliance Exchange LLC — THE KEEPER.** This is `TN_COMPANY` in
+  `platform-tn-mirror.js`, `platform-tn-intake-tee.js`, `platform-tn-parts-migrate.js`. Techs work here.
+- **`7b421706…` = an OLD `tn` test tenant** holding stale copies of the same `xano_id`s (created Aug 27–Sep 1,
+  no `completed_at`). Nothing writes to it now. **Always scope platform job queries by `company_id`** or you
+  will double-count and misread state. ⏭️ **OPEN: purge the `7b421706` tenant** (residue, not load-bearing).
+
+### ✅ MIRROR NEVER-WALKS-BACKWARDS GUARD — PROVEN LIVE
+Forced a full mirror run (1,079 jobs) with the 3 restored completions in place. Mirror touched all three at
+19:29:46 and **all three kept `completed`** — before the fix that same run reverted them. Guard is `RANK`-based
+plus a `wasDone = !!ex.completed_at` belt-and-suspenders, wrapped in try/catch so a failure falls back to prior
+behavior.
+
+### ✅ job-truth PAST-DATE — second bug found on the live check
+The `scheduled_is_past` fact shipped, but the **warranty lens still ended with "We're set to return Thursday,
+Sep 3."** — right after saying that day had passed. A rep heard the exact wrong date we were trying to stop
+saying, plus a contradiction. Fixed: the return-day sentence no longer fires when the day is past, and the
+**office lens now flags PAST DUE itself**. Verified live on job 21800 (Jeanann Washington).
+**LESSON: a fact added to a lens set only helps the branches that consult it — check EVERY lens's output, not the fact.**
+
+### ✅ PERFORMANCE + OWNER DIRECTIVES — verified after merge
+- **Office board (what Danielle + Sofia actually load): 0.6–1.1s** via `board-feed-fast` (Supabase mirror).
+- Xano's own `get_office_kanban` is still heavy (7.4–36.3s, 767KB) — that is why the office board does NOT read
+  it. `board-mirror-sync-cron` throttled `* * * * *` → `*/3` (−67%). One sample exceeded Netlify's timeout, so
+  going to `*/5` is the next lever if Xano stays choked.
+- **Customer texting stays OFF, both systems** (owner directive): Xano `send_sms` → `gated:true, success:false`;
+  Supabase `platform-appt-reminder` → 30 candidates, **30 skipped_off, 0 would send**.
+- `escalate_to_human` block live on Ant Inbound: asked-for-a-person → transfer; **don't know → transfer, never guess**;
+  off-hours → callback; never promise "I'll text you."
+
+### ⏭️ OPEN
+- Have Jimmy retry the test job (`035211fc-…`, reset to `scheduled`/today, seat
+  `tech1.tn-appliance-exchange-llc@assistant247.net` / `Ant-TnExchange9`) — he should now see the green banner.
+  Clean up the test customer/unit/job when done.
+- Purge the stale `7b421706` tenant.
+- `TDR_DURABLE_SAVE=true` in Netlify env (Xano-side; env is at the 4KB Lambda cap — un-scope a var first).
+- Phone transfer is stripped outside Mon–Fri 9–6 CT — the customer who "could not get to a real person" may have
+  called off-hours. Decide whether to widen.
+- `purge` returns `ok:false` on the first call and succeeds on the second (auth-user delete, then cascade SQL).
+
 ## 🗓️🐜🔑 2026-09-08 (Mon) — SHOP LOGIN PACKS + Add-a-tech + Approve→full-pack (scale to a thousand shops) — READ FIRST
 
 Teddy zoomed out to the real scale: a thousand Ant systems, each shop getting its own platform + all its
