@@ -6,18 +6,22 @@
 'use strict';
 const { getSecret } = require('./secrets');
 
-// OUR marginal cost per unit, in cents — voice RE-VERIFIED against 30 days of Telnyx
-// AI-voice-assistant Detail Records 2026-09-08: 896 calls / 1,944 min / $97.20 = exactly
-// $0.0500/min. Telnyx bills ONE bundled ai_voice_assistant_minute — STT (deepgram/flux),
-// LLM (openai/gpt-5.4), TTS (inworld) and telephony are all INSIDE that rate (call-control,
-// sip-trunking and conference records all returned zero for the same window). The old 8.4
-// was an ADDITIVE estimate (orchestration + telephony + LLM) that double-counted the bundle
-// and overstated voice cost by 68%. SMS ~$0.013 all-in on T-Mobile (rate $0.0085 + carrier
-// $0.0045) is unchanged. Used only to compute margin, never shown to the shop.
-const COST = { voice_min: 5.0, sms_out: 1.3, sms_in: 0.75 };
+// OUR marginal cost per unit, in cents — voice measured against a MATCHED 3-day window of
+// Telnyx Detail Records 2026-09-08, pulling EVERY billing record type (not just one):
+//   ai-voice-assistant  190 min / $9.50  = $0.0500/min  (voice engine: orchestration+STT+TTS)
+//   inference           777 recs / $3.37 = $0.0177/min  (LLM tokens — BILLS SEPARATELY)
+//   call-control                  $0.00                 (telephony — not per-minute for us)
+//   sip-trunking                  $0.00
+//   => all-in $0.0677/min. 30-day ai-voice cross-check: 901 calls / 1,951 min / $97.55.
+// LLM is an ADD-ON, confirmed by Telnyx's own pricing calculator. We run openai/gpt-5.4
+// (managed frontier model) at ~$0.0177/min; Telnyx-hosted Kimi is ~$0.004/min, so moving
+// Ann's brain to Kimi would cut all-in to ~$0.054/min — a brain-quality tradeoff, not free.
+// SMS ~$0.013 all-in on T-Mobile (rate $0.0085 + carrier $0.0045) is unchanged.
+// Cost basis only — never shown to a shop.
+const COST = { voice_min: 6.8, sms_out: 1.3, sms_in: 0.75 };
 // Plan defaults when a shop has no client_plan row yet (generous fair-use + safety caps).
 // Ann plan (Teddy 2026-08-28): $50/week = 400 included minutes, $0.40/min overage. 400 (not
-// 500) keeps a healthy margin even at full usage ($50 − 400×$0.05 = $30/wk, 60%). Single source —
+// 500) keeps a healthy margin even at full usage ($50 − 400×$0.068 = $22.91/wk, 46%). Single source —
 // the weekly digest, the owner dashboard card, and metering all read included_voice_min here.
 const DEFAULT_PLAN = {
   tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 100,

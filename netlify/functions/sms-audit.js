@@ -37,14 +37,20 @@ exports.handler = async function (event) {
   const key = await getSecret('TELNYX_API_KEY');
   if (!key) return json(500, { ok: false, error: 'no_telnyx_key' });
 
-  // record_type: Telnyx has NO "voice" type. Ann's cost lives in TWO record types —
-  //   call-control       = the phone call legs (minutes)
-  //   ai-voice-assistant = Ann's AI usage (STT + LLM + TTS) — the pricey part
-  // Pass ?record_type= explicitly, or a friendly ?kind=. Default messaging.
+  // record_type: Telnyx has NO "voice" type. Ann's cost is SPLIT ACROSS SEVERAL types —
+  //   ai-voice-assistant = the voice engine (orchestration + STT + TTS), $0.05/min
+  //   inference          = the LLM tokens, BILLED SEPARATELY (~$0.0177/min on gpt-5.4)
+  //   call-control       = the phone call legs (measured $0 for us)
+  //   sip-trunking       = trunk minutes (measured $0 for us)
+  // ⚠️ FOOTGUN (burned 2026-09-08): querying ONLY ai-voice-assistant undercounts the real
+  // cost by ~26% because the LLM add-on lives in `inference`. Always pull BOTH before
+  // quoting a per-minute number. Pass ?record_type= explicitly, or a friendly ?kind=.
   const KIND_MAP = {
     messaging: 'messaging', sms: 'messaging',
     voice: 'call-control', call: 'call-control', calls: 'call-control', 'call-control': 'call-control',
     ai: 'ai-voice-assistant', assistant: 'ai-voice-assistant', ann: 'ai-voice-assistant', 'ai-voice-assistant': 'ai-voice-assistant',
+    llm: 'inference', tokens: 'inference', inference: 'inference',
+    trunk: 'sip-trunking', 'sip-trunking': 'sip-trunking',
   };
   const recordType = String(q.record_type || KIND_MAP[String(q.kind || '').toLowerCase()] || 'messaging');
   const kind = recordType === 'messaging' ? 'messaging' : 'voice'; // 'voice' flags call/AI aggregation (minutes + billed cost)

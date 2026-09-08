@@ -5,12 +5,20 @@
 //
 // Rates (published Aug 2026, all overridable via query so we can true them up to a
 // real Telnyx invoice later):
-//   orch  = $0.05/min   Telnyx Voice AI orchestration (STT + TTS + turn-taking, bundled)
-//   tel   = $0.0035/min inbound telephony (the phone minute itself)
-//   llm   = $0.03/min   gpt-5.4 tokens, blended est. WITH OpenAI prompt-caching on our
+//   orch  = $0.05/min   Telnyx voice engine — MEASURED, not estimated (ai-voice-assistant
+//                       Detail Records: 190 min / $9.50 over a matched 3-day window; 30-day
+//                       cross-check 1,951 min / $97.55). Bundles orchestration + STT + TTS.
+//   tel   = $0.0000/min telephony — MEASURED zero. call-control and sip-trunking Detail
+//                       Records both returned $0 for the same window (Telnyx lists $0.0032
+//                       "starting at" on its calculator, but it does not hit our records).
+//   llm   = $0.0177/min gpt-5.4 tokens — MEASURED from record_type=inference (777 records /
+//                       $3.37 / 190 min). This is a SEPARATE billing record type; querying
+//                       only ai-voice-assistant undercounts real cost by ~26%. Telnyx-hosted
+//                       Kimi runs ~$0.004/min if we ever trade brain quality for cost.
+//   (prior note, now superseded) gpt-5.4 blended est. WITH OpenAI prompt-caching on our
 //                       big static system prompt ($2.50/M in, $0.25/M cached, $15/M out).
 //                       ~$0.02-0.05/min depending on how chatty the call is.
-//   => all-in ~ $0.084/min.  A 3-min call ~ $0.25.
+//   => all-in $0.0677/min MEASURED.  A 3-min call ~ $0.20.
 //
 //   GET ?secret=&days=7[&calls=1][&orch=&tel=&llm=][&per_day=<calls/day for projection>]
 'use strict';
@@ -36,8 +44,8 @@ exports.handler = async function (event) {
 
   // Rate table (per minute), query-overridable so we can match the real invoice.
   const ORCH = Number(q.orch || 0.05);
-  const TEL = Number(q.tel || 0.0035);
-  const LLM = Number(q.llm || 0.03);
+  const TEL = Number(q.tel || 0);
+  const LLM = Number(q.llm || 0.0177);
   const PER_MIN = ORCH + TEL + LLM;
 
   const days = Math.max(1, Math.min(90, Number(q.days || 7)));
@@ -94,7 +102,7 @@ exports.handler = async function (event) {
     window_days: days,
     rate_per_minute: {
       orchestration: money(ORCH), telephony: money(TEL), llm_gpt54: money(LLM), all_in: money(PER_MIN),
-      note: 'orchestration+telephony are published Telnyx rates; llm is a caching-aware gpt-5.4 estimate — override ?llm= to true it up to a real invoice.',
+      note: 'all three lines are MEASURED from Telnyx Detail Records 2026-09-08 (ai-voice-assistant, inference, call-control/sip-trunking) — not published-rate estimates. Override ?orch=/?tel=/?llm= to model a rate change.',
     },
     pages_pulled: pages, truncated,
     calls_seen: rows.length,
