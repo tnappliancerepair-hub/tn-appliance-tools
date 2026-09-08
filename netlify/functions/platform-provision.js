@@ -11,7 +11,7 @@
 //   -> creates the login + company, returns { company, login:{email,temp_password}, slug }
 // The owner then signs into /platform/office-board.html with that email + temp password.
 'use strict';
-const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh, setSecret, delSecret } = require('./_lib/secrets');
 const { createLeadJob } = require('./_lib/platform-db');
 const { shopHandle } = require('./_lib/shop-handle');
 
@@ -762,6 +762,62 @@ exports.handler = async function (event) {
     const saved = await writePack(pack);
 
     return json(200, { ok: true, slug: slug0, seat: seatRow, note: r.note, saved, pack });
+  }
+
+  // ── e2echeck — ONE read-only integrity snapshot of a shop, for the end-to-end
+  // acceptance harness (tools/platform-e2e.sh). Everything the test asserts on, in a
+  // single call: company row, seat counts by role, technician linkage (office seats must
+  // have NO technician row), job/customer counts, and the stored pack. Also the residue
+  // probe — after a purge every count must be 0 and company_exists false.
+  //   ?action=e2echeck&secret=<admin>&slug=<slug>
+  if (q.action === 'e2echeck') {
+    const slug0 = String(q.slug || '').toLowerCase().trim();
+    if (!slug0) return json(200, { ok: false, error: 'slug required' });
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id,slug,name,trade,plan,status&limit=1`);
+    const co = (cos && cos[0]) || null;
+    const pack = await readPack(slug0);
+    const packInfo = pack ? {
+      seats: Array.isArray(pack.seats) ? pack.seats.length : 0,
+      roles: (Array.isArray(pack.seats) ? pack.seats : []).reduce((m, s) => { m[s.role] = (m[s.role] || 0) + 1; return m; }, {}),
+      owner_email: ((Array.isArray(pack.seats) ? pack.seats : []).find((s) => s.role === 'owner') || {}).email || null,
+      booking_link: pack.booking_link || null,
+      intake_email: pack.intake_email || null,
+    } : null;
+
+    if (!co) return json(200, { ok: true, slug: slug0, company_exists: false, seats: 0, roles: {}, technicians: 0, office_with_tech_row: 0, jobs: 0, customers: 0, app_users: 0, pack: packInfo, pack_stored: !!pack });
+
+    const users = await rest0(`app_user?company_id=eq.${co.id}&select=id,role,email,active`);
+    const techs = await rest0(`technician?company_id=eq.${co.id}&select=id,app_user_id,name,active`);
+    const jobs  = await rest0(`job?company_id=eq.${co.id}&select=id&limit=200`);
+    const custs = await rest0(`customer?company_id=eq.${co.id}&select=id&limit=200`);
+    const uArr = Array.isArray(users) ? users : [];
+    const tArr = Array.isArray(techs) ? techs : [];
+    const roles = uArr.reduce((m, u) => { m[u.role] = (m[u.role] || 0) + 1; return m; }, {});
+    // The seat-model invariant: a technician row may ONLY hang off a role='tech' app_user.
+    const roleByAppUser = {}; uArr.forEach((u) => { roleByAppUser[u.id] = u.role; });
+    const officeWithTechRow = tArr.filter((t) => t.app_user_id && roleByAppUser[t.app_user_id] && roleByAppUser[t.app_user_id] !== 'tech').length;
+    const techsLinked = tArr.filter((t) => t.app_user_id && roleByAppUser[t.app_user_id] === 'tech').length;
+
+    return json(200, {
+      ok: true, slug: slug0, company_exists: true,
+      company: { id: co.id, name: co.name, trade: co.trade, plan: co.plan, status: co.status },
+      app_users: uArr.length, roles,
+      technicians: tArr.length, technicians_linked_to_tech_seat: techsLinked, office_with_tech_row: officeWithTechRow,
+      jobs: (Array.isArray(jobs) ? jobs.length : 0), customers: (Array.isArray(custs) ? custs.length : 0),
+      emails: uArr.map((u) => u.email).filter(Boolean).sort(),
+      pack_stored: !!pack, pack: packInfo,
+    });
+  }
+
+  // Delete a stored shop pack from the vault — the teardown counterpart to shoppack, so a
+  // throwaway test shop leaves no PLATFORM_PACK_<SLUG> key behind. Admin/operator-only.
+  //   ?action=packclear&secret=<admin>&slug=<slug>&confirm=yes
+  if (q.action === 'packclear') {
+    const slug0 = String(q.slug || '').toLowerCase().trim();
+    if (!slug0) return json(200, { ok: false, error: 'slug required' });
+    if (q.confirm !== 'yes') return json(200, { ok: false, error: 'packclear requires &confirm=yes', vault_key: packVaultKey(slug0) });
+    const gone = await delSecret(packVaultKey(slug0));
+    return json(200, { ok: !!gone, slug: slug0, vault_key: packVaultKey(slug0), cleared: !!gone });
   }
 
   // Read a stored shop pack (for packs.html). Admin/operator-only. ?action=packs&slug=<slug>

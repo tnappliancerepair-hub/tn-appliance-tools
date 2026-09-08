@@ -159,6 +159,29 @@ async function setSecret(name, value) {
   return false;
 }
 
+// Delete a secret from the vault. The counterpart to setSecret — nothing could
+// REMOVE a vault key before this, so throwaway keys (e.g. a test shop's
+// PLATFORM_PACK_<SLUG>) accumulated forever. Returns true when the row is gone
+// (including "was never there"). Never throws.
+async function delSecret(name) {
+  try {
+    const tid = await configTableId();
+    const sr = await fetchT(`${XANO_META}/table/${tid}/content/search`, {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({ search: { name }, per_page: 5, page: 1 }),
+    }, SECRET_WRITE_TIMEOUT_MS);
+    const sd = sr.ok ? await sr.json() : { items: [] };
+    const existing = ((sd && sd.items) || []).find((x) => x && x.name === name);
+    delete _secretCache[name];
+    if (!existing) return true;                        // already absent
+    const dr = await fetchT(`${XANO_META}/table/${tid}/content/${existing.id}`, { method: 'DELETE', headers: headers() }, SECRET_WRITE_TIMEOUT_MS);
+    return !!(dr && dr.ok);
+  } catch (e) {
+    console.error('[secrets] delSecret(' + name + ') failed:', String((e && e.message) || e));
+    return false;
+  }
+}
+
 // Always-fresh read (no cache) — for values that change at runtime, like the
 // per-person Reach Me availability flags. Falls back to env on error.
 async function getSecretFresh(name) {
@@ -166,4 +189,4 @@ async function getSecretFresh(name) {
   catch (err) { return process.env[name] || ''; }
 }
 
-module.exports = { getSecret, getSecretFresh, getSecretPreferVault, setSecret, configTableId, CONFIG_TABLE_NAME };
+module.exports = { getSecret, getSecretFresh, getSecretPreferVault, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME };

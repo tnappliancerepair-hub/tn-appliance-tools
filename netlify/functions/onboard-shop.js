@@ -56,6 +56,11 @@ exports.handler = async function (event) {
   const slug = slugify(q.slug || name);
   if (!slug) return json(200, { ok: false, error: 'could not derive a slug — pass &slug=' });
   const steps = {};
+  // Skip the whole Ann/phone half (number + registry + assistant + bind) — for a shop that
+  // keeps its own phone system, for staging a tenant before the line is ready, and for the
+  // e2e harness (so a test run never buys a DID or churns a Telnyx assistant). Additive:
+  // default off, so every existing call behaves exactly as before.
+  const noAnn = (String(q.no_ann || '') === '1' || q.no_ann === 1 || String(q.no_ann || '').toLowerCase() === 'true');
 
   // existing registry entry (idempotency source of truth for number + assistant)
   let existing = null; try { existing = await shops.getAsync(slug); } catch (_) {}
@@ -64,7 +69,8 @@ exports.handler = async function (event) {
   // ── 1) Ann phone number ────────────────────────────────────────────────────
   let number = e164(q.number || '');
   if (!number && existing && existing.annNumber) number = e164(existing.annNumber);
-  if (!number && q.buy_area) {
+  if (noAnn) { number = ''; steps.number = { ok: true, skipped: true, why: 'no_ann' }; }
+  if (!noAnn && !number && q.buy_area) {
     const sr = await sub('telnyx-provision', { action: 'searchnew', area: String(q.buy_area).replace(/\D/g, ''), ends: q.buy_ends || '', contains: q.buy_contains || '' });
     const cands = (sr.d && (q.buy_contains ? sr.d.contains_matches : sr.d.ending_matches)) || [];
     const pick = cands[0];
@@ -89,20 +95,22 @@ exports.handler = async function (event) {
     : { ok: false, error: (prov.d && (prov.d.error || prov.d.step)) || 'provision failed', detail: prov.d };
 
   // ── 3) Ann registry ────────────────────────────────────────────────────────
-  const reg = await sub('trial-ann-admin', {
+  if (noAnn) { steps.registry = { ok: true, skipped: true, why: 'no_ann' }; }
+  const reg = noAnn ? { d: { ok: true } } : await sub('trial-ann-admin', {
     action: 'add_shop', slug, name, type, area: q.area || '', about: q.about || '', hours: q.hours || '',
     owner_first: q.owner_first || '', owner_cell: ownerCell, email: ownerEmail,
     platform_slug: slug, ann_number: number || '',
   });
-  steps.registry = reg.d && reg.d.ok ? { ok: true } : { ok: false, error: (reg.d && reg.d.error) || 'add_shop failed' };
+  if (!noAnn) steps.registry = reg.d && reg.d.ok ? { ok: true } : { ok: false, error: (reg.d && reg.d.error) || 'add_shop failed' };
 
   // ── 4) Ann assistant (reuse if already made) ───────────────────────────────
   let assistantId = (existing && existing.assistantId) || '';
-  if (!assistantId) {
+  if (noAnn) { assistantId = ''; steps.assistant = { ok: true, skipped: true, why: 'no_ann' }; }
+  else if (!assistantId) {
     const cr = await sub('trial-ann-admin', { action: 'create', shop: slug });
     assistantId = (cr.d && (cr.d.assistant_id || (cr.d.response && cr.d.response.id))) || '';
     steps.assistant = assistantId ? { ok: true, created: assistantId } : { ok: false, error: (cr.d && cr.d.error) || 'create failed', detail: cr.d };
-  } else steps.assistant = { ok: true, reused: assistantId };
+  } else if (!noAnn) steps.assistant = { ok: true, reused: assistantId };
 
   // ── 5) bind number → assistant ─────────────────────────────────────────────
   if (number && assistantId) {

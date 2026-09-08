@@ -100,6 +100,10 @@ exports.handler = async function (event) {
     });
     if (a.number) params.set('number', a.number);          // they brought a line
     else if (a.buy_area) params.set('buy_area', a.buy_area); // buy one on the fly
+    // Approve WITHOUT standing up the Ann line (shop keeps its own phone, or the e2e
+    // harness proving the tenant+logins chain without buying a DID). Pass-through only —
+    // a normal approve is unchanged.
+    if (String(p.no_ann || '') === '1') params.set('no_ann', '1');
     let ob = {};
     try {
       const r = await fetch(`${SITE}/.netlify/functions/onboard-shop?` + params.toString(), { signal: AbortSignal.timeout(45000) });
