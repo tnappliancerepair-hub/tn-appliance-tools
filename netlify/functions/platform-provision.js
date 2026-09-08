@@ -11,7 +11,7 @@
 //   -> creates the login + company, returns { company, login:{email,temp_password}, slug }
 // The owner then signs into /platform/office-board.html with that email + temp password.
 'use strict';
-const { getSecret, setSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
 const { createLeadJob } = require('./_lib/platform-db');
 const { shopHandle } = require('./_lib/shop-handle');
 
@@ -553,6 +553,155 @@ exports.handler = async function (event) {
     const patch = await rest(`app_user?id=eq.${t.app_user_id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ phone }) });
     if (!patch.ok) return json(200, { ok: false, error: 'update ' + patch.status });
     return json(200, { ok: true, tech: { id: t.id, name: t.name, phone } });
+  }
+
+  // ── SHOP LOGIN PACK ─────────────────────────────────────────────────────────
+  // One command stands up a whole ready-to-hand-out shop: company + owner + N office
+  // (role=office, NO technician row) + M tech (role=tech + technician row) logins, each
+  // with a MEMORABLE, REVEALED password (Ant-<Handle><n>). Login emails are pure
+  // identifiers (owner.<slug>@ / office1.<slug>@ / tech1.<slug>@assistant247.net) — no email
+  // is ever sent, so nothing waits on anyone. The pack (7 seats + links) is stored in the
+  // vault as PLATFORM_PACK_<slug> so packs.html can re-show it without resetting anyone's
+  // password. Idempotent by slug: re-running reuses the company + stored passwords and mints
+  // only genuinely-missing seats. Admin/operator-only.
+  //   ?action=shoppack&secret=<admin>&name=Ant%20Shop%2001[&slug=][&office=2][&techs=4][&trade=appliance][&seed=1]
+  if (q.action === 'shoppack') {
+    let ab = {}; try { ab = JSON.parse(event.body || '{}'); } catch (_) {}
+    const nm = String(q.name || ab.name || '').trim();
+    let slug0 = String(q.slug || ab.slug || '').toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '');
+    if (!nm && !slug0) return json(200, { ok: false, error: 'name or slug required' });
+    const trade = String(q.trade || ab.trade || 'appliance').trim();
+    const officeN = Math.max(0, Math.min(5, parseInt((q.office != null ? q.office : ab.office != null ? ab.office : 2), 10) || 0));
+    const techN = Math.max(0, Math.min(10, parseInt((q.techs != null ? q.techs : ab.techs != null ? ab.techs : 4), 10) || 0));
+    const seedOne = (q.seed === '1' || ab.seed === true);
+
+    // Resolve the company: an explicit &slug= is an idempotent TARGET (create-or-reuse, no
+    // uniquing); a name-only build DERIVES a slug and uniques it so two same-named placeholders
+    // don't collide.
+    let company = null;
+    if (slug0) {
+      const cg = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id,slug,name,trade,plan&limit=1`);
+      company = (cg && cg[0]) || null;
+    } else {
+      let base = nm.toLowerCase().replace(/['’]s\b/g, 's').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'shop';
+      slug0 = base;
+      for (let i = 2; i < 50; i++) {
+        const ex = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id&limit=1`);
+        if (!(ex && ex[0])) break;
+        slug0 = base + '-' + i;
+      }
+    }
+    const name = nm || (company && company.name) || slug0;
+
+    // Create the company if missing.
+    if (!company) {
+      const settings = { business: { name, phone: String(q.owner_phone || ab.owner_phone || '').replace(/[^\d+]/g, ''), area: String(q.area || ab.area || '') }, site: { subdomain: shopHandle(name) } };
+      const features = { database: true, scheduling: true, portal: true, invoicing: true };
+      const ins = await rest('company', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ slug: slug0, name, trade, plan: 'office', features, settings }) });
+      if (!ins.ok) return json(200, { ok: false, step: 'create_company', status: ins.status, error: JSON.stringify(ins.d).slice(0, 300) });
+      company = Array.isArray(ins.d) ? ins.d[0] : ins.d;
+    }
+
+    // Intended seat list. Memorable password = Ant-<PascalHandle><n> (n unique per seat).
+    const Handle = (shopHandle(name).split('-').map((t) => (t ? t[0].toUpperCase() + t.slice(1) : '')).join('')) || 'Shop';
+    const seats = [];
+    seats.push({ role: 'owner', label: 'Owner', name: 'Owner', email: `owner.${slug0}@assistant247.net`, link: 'https://tnapplianceexchange.net/platform/owner.html' });
+    for (let i = 1; i <= officeN; i++) seats.push({ role: 'office', label: `Office ${i}`, name: `Office ${i}`, email: `office${i}.${slug0}@assistant247.net`, link: 'https://tnapplianceexchange.net/platform/office-board.html' });
+    for (let i = 1; i <= techN; i++) seats.push({ role: 'tech', label: `Tech ${i}`, name: `Tech ${i}`, email: `tech${i}.${slug0}@assistant247.net`, link: 'https://tnapplianceexchange.net/platform/tech.html' });
+    seats.forEach((s, idx) => { s.password = `Ant-${Handle}${idx + 1}`; });
+
+    // Read the existing pack (idempotent re-run: reuse stored passwords, never reset a seat
+    // whose owner may have already changed it).
+    const vaultKey = 'PLATFORM_PACK_' + slug0.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    let prior = null;
+    try { const pv = await getSecretFresh(vaultKey); if (pv) prior = JSON.parse(pv); } catch (_) {}
+    const priorByEmail = {};
+    if (prior && Array.isArray(prior.seats)) prior.seats.forEach((s) => { priorByEmail[String(s.email || '').toLowerCase()] = s; });
+
+    // Create/reuse each seat: auth login (role) + technician row for tech seats.
+    async function ensureSeat(co, seat, storedPw) {
+      const email = seat.email;
+      const password = storedPw || seat.password;   // stored pw wins on re-run
+      const resetIfExists = !storedPw;              // only reset a pre-existing login on a fresh mint / gap-recovery
+      let uid = null, note = 'created';
+      const cu = await fetch(`${url}/auth/v1/admin/users`, { method: 'POST', headers: H, body: JSON.stringify({ email, password, email_confirm: true }), signal: AbortSignal.timeout(10000) });
+      const cud = await cu.json().catch(() => ({}));
+      if (cu.ok && cud && cud.id) { uid = cud.id; }
+      else {
+        const lu = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(10000) });
+        const lud = await lu.json().catch(() => ({}));
+        const arr = Array.isArray(lud.users) ? lud.users : (Array.isArray(lud) ? lud : []);
+        const ex = arr.find((u) => String(u.email || '').toLowerCase() === email.toLowerCase());
+        if (!ex) return { ok: false, error: 'create_user ' + cu.status + ' ' + JSON.stringify(cud).slice(0, 200) };
+        uid = ex.id; note = 'existing_user';
+        if (resetIfExists) { try { const rp = await fetch(`${url}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: H, body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000) }); if (rp.ok) note = 'reset'; } catch (_) {} }
+      }
+      // app_user (role), idempotent by company + uid
+      let appUserId = null;
+      const auEx = await rest(`app_user?company_id=eq.${co.id}&auth_user_id=eq.${uid}&select=id&limit=1`);
+      if (Array.isArray(auEx.d) && auEx.d[0]) appUserId = auEx.d[0].id;
+      else {
+        const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, auth_user_id: uid, role: seat.role, name: seat.name, email }) });
+        if (!ai.ok) return { ok: false, error: 'link_app_user ' + ai.status + ' ' + JSON.stringify(ai.d).slice(0, 200) };
+        appUserId = (Array.isArray(ai.d) ? ai.d[0] : ai.d).id;
+      }
+      // technician row for tech seats only (office seats deliberately have none)
+      if (seat.role === 'tech') {
+        const linked = await rest(`technician?company_id=eq.${co.id}&app_user_id=eq.${appUserId}&select=id&limit=1`);
+        if (!(Array.isArray(linked.d) && linked.d[0])) {
+          const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: seat.name, active: true, commission_type: 'pct', commission_pct: 50 }) });
+          if (!ti.ok) return { ok: false, error: 'create_technician ' + ti.status + ' ' + JSON.stringify(ti.d).slice(0, 200) };
+        }
+      }
+      return { ok: true, uid, appUserId, password, note };
+    }
+
+    const results = [];
+    for (const s of seats) {
+      const stored = priorByEmail[s.email.toLowerCase()];
+      const storedPw = stored && stored.password ? stored.password : null;
+      const r = await ensureSeat(company, s, storedPw);
+      if (!r.ok) return json(200, { ok: false, seat: s.label, error: r.error, slug: slug0 });
+      s.password = r.password;
+      results.push({ label: s.label, email: s.email, note: r.note });
+    }
+
+    // Optional single sample job so a fresh shop's board isn't blank.
+    let seeded = null;
+    if (seedOne) {
+      try {
+        var sampleWhat = trade === 'automotive' ? 'Alignment + front brakes'
+          : trade === 'aquarium' ? 'Reef tank — monthly maintenance'
+          : trade === 'furniture' ? 'Custom sectional — special order'
+          : trade === 'dealership' ? 'Interested in a cargo van — has a trade-in'
+          : 'Sample job';
+        seeded = await createLeadJob({ slug: slug0, name: 'Sample Lead (demo)', phone: '+16155551234', what: sampleWhat, detail: "Sample card so the board isn't empty — delete anytime.", city: String(q.area || ab.area || ''), source: 'shoppack_seed' });
+      } catch (e) { seeded = { ok: false, error: String((e && e.message) || e).slice(0, 120) }; }
+    }
+
+    // Persist the pack so packs.html can re-show it later without resetting passwords.
+    const pack = {
+      slug: slug0, name, trade, plan: 'office',
+      created_at: (prior && prior.created_at) || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      booking_link: 'https://tnapplianceexchange.net/b/' + slug0,
+      intake_email: slug0 + '@jobs.assistant247.net',
+      seats: seats.map((s) => ({ role: s.role, label: s.label, email: s.email, password: s.password, link: s.link })),
+    };
+    let saved = false;
+    try { saved = await setSecret(vaultKey, JSON.stringify(pack)); } catch (_) { saved = false; }
+
+    return json(200, { ok: true, slug: slug0, name, seat_count: seats.length, results, seeded, saved, vault_key: vaultKey, pack });
+  }
+
+  // Read a stored shop pack (for packs.html). Admin/operator-only. ?action=packs&slug=<slug>
+  if (q.action === 'packs') {
+    const slug0 = String(q.slug || '').toLowerCase().trim();
+    if (!slug0) return json(200, { ok: false, error: 'slug required' });
+    const vaultKey = 'PLATFORM_PACK_' + slug0.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    let pack = null;
+    try { const pv = await getSecretFresh(vaultKey); if (pv) pack = JSON.parse(pv); } catch (_) {}
+    return json(200, { ok: true, slug: slug0, pack: pack || null, note: pack ? undefined : 'no pack stored — build one with action=shoppack' });
   }
 
   const slug = String(q.slug || '').toLowerCase().trim();

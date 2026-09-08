@@ -51,6 +51,9 @@
 /platform-dashboard  /platform/dashboard.html  200
 /pd                  /platform/dashboard.html  200
 
+# Ready-to-hand-out shop login packs (ops-key gated).
+/packs   /platform/packs.html  200
+
 # Clone machine: public application + your admin review page
 /apply         /apply.html          200
 /applications  /applications.html   200
