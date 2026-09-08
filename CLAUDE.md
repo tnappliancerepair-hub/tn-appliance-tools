@@ -143,9 +143,27 @@ have a thread, but only a per-JOB slice buried in a drawer.
   `tech:Tech 1`, auto-attached to the open job. Send was proven against the **ZZ TEST practice customer
   (615-555-0199, a reserved non-routable number)** so nothing was texted to a real person — it correctly
   returned `texted:false`.
-- ⏭️ **Not built (deliberate):** inbound customer SMS does not yet land in `thread_message` on the
-  platform — a customer's *reply* only appears when it comes through the portal. Wiring the Telnyx
-  inbound webhook to insert `direction:'in'` is the next piece for a truly two-way scroll.
+- **✅ INBOUND WIRED (same session) — the scroll is now two-way.** `_lib/platform-thread.js`
+  `teeInbound()` resolves the texter via the existing **`platform_call_lookup` RPC** (normalized
+  **last-10-digit** match — platform phones are stored in mixed formats, so never match on the raw
+  string), attaches their current job, and writes one `thread_message` row (`direction:'in'`,
+  `sender:'customer'`). Called from **both live inbound lanes**: `customer-sms-inbound.js` (AI line
+  615-588-9500) and `human-line-inbound.js` (human line 615-857-8800, which also carries the **English
+  gloss** when the customer texts in another language). **Both call sites are purely additive** — the
+  tee never replies, never texts, never touches a job, is time-boxed, and cannot throw, so the live
+  Xano inbound handling is byte-for-byte unchanged. **A redelivered webhook can't double-post:** the
+  same words from the same person within 3 minutes are treated as the same text.
+- **`do=tee_probe`** (owner-gated by `VAPI_ADMIN_SECRET`, not a session) runs the bridge for one
+  phone + body so the path can be proven without waiting on a real customer.
+- **VERIFIED live:** probe with a *formatted* `(615) 555-0199` matched a customer stored as
+  `6155550199`, wrote the row, attached the job, and the conversation jumped to the top of the inbox
+  flagged **"← THEY REPLIED"**; a second identical probe returned `duplicate_skipped`. Test rows
+  deleted afterward (0 residue). NOTE: two ZZ TEST customers share 555-0199, so the RPC picks one —
+  a test-data artifact, not a matching bug (real customers have unique phones).
+- ⏭️ **Still open:** inbound **media** lands as the text `[photo/video]` in the platform thread (the
+  bytes are captured on the Xano side by `_lib/inbound-media`, not re-hosted to platform `job_media`);
+  and a shop with its **own** number will need the company resolved from the DIALED number instead of
+  the `TN_COMPANY` constant.
 
 ### 🔴 WHY SUPABASE "WASN'T SAVING REPORTS" — the OFFICE BOARD was wiping them (fixed)
 Teddy, later 9/8: *"we need the supabase system where it will start saving the reports."* Tested the
