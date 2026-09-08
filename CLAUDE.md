@@ -1,5 +1,89 @@
 # Appliance Ant
 
+## 🗓️🐜🔴 2026-09-05 → 09-08 (Fri–Mon) — TN NOW RUNS ON THE PLATFORM (live mirror + intake tee) · ANT ARMY REFERRAL · assistant247.net FRONT DOOR · AD ENGINE + LEAD MAGNET · SHOP LOGIN PACKS · IP KIT — READ FIRST
+
+**Consolidated from the "Shop automation setup" session (`session_01Pu27bawWLxjjbVaqqo9gBz`), which froze mid-run on 09-08 ~16:57.** That session's work is NOT lost — all **54 commits are on `main`** (09-05 16:27 → 09-08 16:40). This entry is reconstructed from the commit record + the shipped code, since its transcript wasn't readable. Everything below is LIVE on `main` unless flagged.
+
+### 🔴 THE HEADLINE — TN's REAL work is on the platform now (parity, not a demo)
+The crossover stopped being theoretical. The platform office board shows **TN's actual live jobs**, and the customer intake assets ride along as a real backup.
+- **`platform-tn-mirror.js`** — mirrors TN's live **Xano** jobs into the TN tenant's platform tables (customer + unit + job). **READ-ONLY toward Xano** (Xano stays system of record); only WRITES into platform Supabase, RLS-scoped. Idempotent via `xano_id` (unique on `company_id,xano_id`) so re-runs update in place, never duplicate. Cron wrapper `platform-tn-mirror-cron` runs it every few minutes.
+- **Split-tenant fixed (09-05):** the live mirror was pointing at the WRONG TN tenant — repointed to the real one + added a Remove button. (Hence the tenant list carries both a stale `tn` / `tn-appliance` and the live **`tn-appliance-exchange-llc`**.)
+- **Stood down the warranty-email tee for TN** — the mirror already covers it; the tee was duplicating.
+- **`platform-tn-intake-tee.js` (NEW)** — copies TN's customer INTAKE assets from Xano onto the platform in parallel: **VIDEO** (`cfstream:<uid>` reused as-is — TN's Cloudflare account IS the platform's, so no copy), **PHOTOS** (S3/cfimg bytes → platform R2), **WAIVER** (`customer_waiver_signed` → `job.waiver_name`/`waiver_signed_at`/`waiver_ack` + a thread_message summary = the liability record incl. hose + leak-kit choices). Joins on `xano_id`. Timeout-safe (smaller windows + photo cap); the signature IMAGE read is gated behind **`PLATFORM_INTAKE_TEE_SIGIMG`**. **⚠️ Known gap:** `save_customer_waiver` doesn't store the drawn signature in the DB today (it emails it) — needs a column + a one-line XS edit to complete.
+- **Scheduled-jobs sync un-capped:** pull ALL active jobs into the platform, and **`office-board.html` paginates the job pull** — Supabase hard-caps a response at **1000 rows**, so the board was silently truncating. (New footgun, below.)
+- **Addresses:** mirror now maps `service_address` (street) onto the platform customer, **never writes a blank** (additive street fill only), plus a one-time **`recover_addr`** mode that back-fills blanks from Xano customer table 6.
+- **Tech tile:** the **scanned model number is now authoritative** across the report, parts search, and every lookup.
+- **Weekend dispatch-loader trial** — claim-aware mirror + re-enabled the fresh-email loader.
+
+### 🔩 Phase-2 parts migration (Xano parts logistics → platform `job_part`)
+`platform-tn-parts-migrate.js` (+ `-cron`) lands TN's parts logistics onto the platform. `docs/sql/055_job_part_xano_id.sql` applied. Fixes burned in: collapse duplicate warranty events, split part-number vs description, and a `parts_orders` resolve diagnostic (dryrun dumps raw row keys + job_id when rows don't resolve). **⚠️ 055 footgun:** a **partial** unique index can't be inferred by `ON CONFLICT` — it must be a **plain** `unique (company_id, xano_id)`.
+
+### 🌐 assistant247.net is the AssistAnt brand front door
+- Short links live in `_redirects`: **`/ant`** + **`/assistant`** → the platform tour (`system.html`), **`/guide`** → the free guide, **`/r/<code>`** → `signup.html?ref=<code>`, **`/packs`** → the operator login-pack page.
+- **Signup keeps the whole funnel on the domain the shop started on** (assistant247.net) — no mid-funnel domain switch.
+- **Giant Ant social card + `og:image`** on system.html (Facebook was previewing a washer photo). **`fb-page-post.js`** publishes the AssistAnt card to the TN Appliance FB Page.
+- **Every free trial now alerts Teddy**, and prospects can message us from the site.
+
+### 🐜🎖️ THE ANT ARMY — a paying shop refers OTHER shops (`platform-referral.js`)
+A customer-referral program layered on the existing reseller rails: **$25/mo bill credit per active referred shop — 4 referrals and your $99 system runs free**; past 4 it pays cash. A referring customer IS a `partner` row (migrations 047 + 053), distinguished from a cash reseller by `partner.company_id` (their own shop). Attribution rides the **same `?ref=` path** resellers use (signup → `platform-signup` → Stripe webhook validates + stamps `company.referred_by`), so a referred shop just works.
+- Phase 1 (shipped): **earn + track + dashboard, NO Stripe change** — the credit shows "pending — applies to your next bill." `do=ensure` / `do=status`.
+- **QR code + `/r/` short link + native Share** on the dashboard so a shop owner can hand it out in person.
+- **Phase 2 (`do=apply`) is BUILT BUT DARK** behind **`PLATFORM_REFERRAL_CREDIT_LIVE`** — it writes the real Stripe coupon (auto pay-on-collection bill credit). Admin gate matches the sibling convention (`VAPI_ADMIN_SECRET` fallback).
+
+### 📣 THE AD ENGINE (all built; spend still gated)
+- **ChatGPT/OpenAI Ads — SaaS campaign built, lands on `/guide`, national, PAUSED-FIRST.** Schema corrections burned in live: ad-group + ad need `bidding_config` + `context_hints` + `chat_card` upload; `billing_event_type=impression` to match the campaign default; **chat_card copy is hard-capped (title ≤40, body ≤100)**; `?ad_group_id` finisher.
+- **`openai-ads-manage.js` (NEW)** — admin pause/resume/delete a campaign by id (cleanup tool). **Footgun:** OpenAI Ads uses **POST pause/archive — there is no DELETE verb.**
+- **`meta-ads-create-campaign.js`** — Meta connector + an appliance-first consumer kit; Google + ChatGPT SaaS kits alongside.
+- **Creative:** `scratchpad/ad-concepts.html` (concepts board, now 6 concepts incl. the free-guide lead magnet), `scratchpad/ads/*` render kit (boulders, broken-2am, …), `docs/commercial-production-kit.md`, `docs/founder-film-quickstart.md`, `docs/referral-ad-copy.md`, `docs/group-outreach-playbook.md`, `docs/shop-demo-video-script.md`.
+- **AI-ad-tool call (`docs/ai-ad-tool-recommendation.md`):** shoot the **real-face founder film** (Teddy on camera is the moat), use **HeyGen only for volume/variants** — never as the primary face.
+
+### 🎣 LEAD MAGNET → the free guide funnel
+**`lead-magnet.js` + `platform/free-guide.html` (`/guide`)** — a cold prospect trades name + email/phone for the free *"24/7 AI Answering + Triage Playbook."* It (1) captures the lead durably in `prospect_message` (source `lead_magnet`), (2) pings Teddy both ways for a warm follow-up, (3) best-effort emails the guide. **The guide is revealed INLINE on the thank-you page**, so delivery never depends on `EMAIL_ENABLED`. Honeypot bot-guard; never charges, never provisions.
+
+### 🔑 SHOP LOGIN PACKS — the whole crew's logins, hand-out-ready (the last thing that session shipped)
+- **`platform-provision?action=shoppack`** — builds a full shop in one call: owner + N office + N techs, each with a login, and **persists the pack in the vault as `PLATFORM_PACK_<slug>`** so it can be re-shown later **without resetting anyone's password**. Optional `&seed=1` drops a sample card so the board isn't empty.
+- **`?action=packs&slug=<slug>`** — read a stored pack. **`?action=addseat`** — add-a-tech overflow that appends to the stored pack.
+- **`platform/packs.html` (`/packs`)** — operator page that shows a shop's pack. A reused login stores no password and reads *"reset to reveal."*
+- **`onboard-shop.js` Approve now mints the full 7-login pack** on top of the owner, additively (an existing owner seat lands in the pack without being re-created or reset), and returns `packs_url`.
+- **⚠️ Packs only exist for shops CREATED through `shoppack`.** The live **`tn-appliance-exchange-llc`** tenant predates it — `action=packs` returns `pack: null`. For that crew the path is per-person **`?action=resetpw&email=<their@email>&reveal=1`** (see this session's Jimmy issue below). **Do NOT run `shoppack` against the live TN tenant** to "generate" a pack — it's a shop-builder, not a backfill.
+
+### 🤝 TK reseller — 30% LIFETIME (locked)
+`platform-partner` config + `docs/partner/tk-reseller-agreement.md` §3.2 + the checklist all now agree: **30%, no month cutoff — paid for as long as the referred account stays active** (`commission_months=0`). (An earlier 09-07 commit set 30%/12-months; 09-08 corrected it to lifetime — the agreement and the config must never drift again.) New **`docs/tk-pitch.md`** — the "we're appliance guys, not computer guys" hook + a soft reseller offer.
+
+### ⚖️ IP + provenance (Teddy's counsel prep — docs only, NOT legal advice)
+- **`docs/legal/assistant-ip-protection-plan.md`** + **`docs/legal/assistant-invention-disclosure.md`** — the AssistAnt IP-protection kit.
+- **`docs/legal/provenance-intent-anthony.md`** — the provenance & intent memo: the written record that Ant is named for Teddy's son Anthony, preserved for counsel. Treat this file as sensitive and personal; don't quote it into customer-facing material.
+
+### 🔍 platform-status hardened for go-live verification
+Reports **Telnyx/Ann phone creds** as set/missing, reads go-live secrets **fresh** (env-first + live vault, no stale warm-container cache — the documented `getSecretPreferVault` footgun), and reports the **Stripe key + webhook-secret SHAPE (prefix only, never the value)**. Plus `docs/telnyx-metering-and-profiles.md` — per-number metering + the shared → per-tenant 10DLC path.
+
+### 💵 owner.html
+Added an **Avg ticket** row to the Money block.
+
+### ⚠️ FOOTGUNS BURNED THIS RUN
+- **Supabase hard-caps a single response at 1000 rows** — any board/list pull over a real shop's volume MUST paginate or it silently truncates. (Bit the office board at TN scale.)
+- **`ON CONFLICT` cannot infer a PARTIAL unique index** — use a plain `unique (…)`.
+- **OpenAI Ads has no DELETE** — pause/archive are POSTs.
+- **OpenAI Ads chat_card copy is hard-capped** (title ≤40, body ≤100) — longer copy is rejected, not truncated.
+- **Never write a blank over a good address** — the mirror's address fill is additive-only by design.
+- **A stale/split tenant is silent** — the mirror pointed at the wrong TN company for a while and everything "worked," just into the wrong board. Verify `company_id` before trusting a parity check.
+
+### ⏭️ OPEN / NEXT (carried out of the frozen session)
+1. **Flip the Ant Army Phase 2** when ready: vault `PLATFORM_REFERRAL_CREDIT_LIVE=true` → `do=apply` writes real Stripe coupons. (Today the credit is display-only.)
+2. **OpenAI Ads campaigns are paused-first** — nothing spends until Teddy un-pauses. Same for the Meta kit.
+3. **Waiver signature image** — add the column + the one-line XS edit to `save_customer_waiver` so the drawn signature tees onto the platform (today it's email-only).
+4. **Shoot the founder film** (real face) per `docs/founder-film-quickstart.md`; HeyGen for variants only.
+5. **Build packs for the shops that predate `shoppack`** — or accept per-person `resetpw` as the path for TN.
+
+### 🔑 ALSO THIS SESSION (09-08 evening) — Jimmy's platform login issued
+Teddy asked for Jimmy's login on the new system. **He already had a tech seat** on the live tenant `tn-appliance-exchange-llc` (3,398 jobs) — just no password in hand. Reset + verified end-to-end:
+- **Link** `https://tnapplianceexchange.net/platform/tech.html` · **email** `jimmy.tnae@assistant247.net` · password reset via `platform-provision?action=resetpw&email=…&reveal=1` (also vaulted).
+- Verified by signing in: resolves to **Jimmy Pivacek · role=tech**, cell 615-967-1304, commission 45%, **372 jobs assigned** (87 scheduled / 43 awaiting parts / 30 in progress) with stops today through 09-22. RLS confirmed correct — as him, the `technician` table returns only his own row.
+- **⚠️ `resetpw` names its vault key off the SLUG, not the role** — a tech reset without `&slug=` lands under `PLATFORM_OWNER_PW_TN`. Cosmetic, but don't confuse it with a real owner password.
+- **The rest of the crew already have seats** on that tenant (Andre, Lee, John = tech; Danielle, Sofia, Carrie = office) — same `resetpw` path per person when Teddy wants to hand them out.
+- **The platform tech app has no change-password screen**, so an issued password is permanent until reset again.
+
+
 ## 🗓️🐜🛒 2026-09-02 (Tue) — SAAS DEMO/SELL-READY + SELF-SERVE SIGNUP LIVE-ENABLERS (Teddy = customer #1, TK #2) — READ FIRST
 
 Teddy's Monday goal: the SaaS running **smoothly** so he can **demo AND sell**, with self-serve signup **fully live** — and **HE signs up his own shop as customer #1** (full setup incl. his real data + his own live Ann line), **TK #2**. Ran 4 Explore agents to map the whole platform (30 pages), the 4-act demo path, the rough edges, and the full signup→Stripe→auto-provision chain. **Everything code-side is shipped + deployed + verified; the go-live is now Teddy-gated flips + his real signup.** Approved plan lives in the plan file.
