@@ -89,7 +89,15 @@ run_once() {
   GOT_SLUG=$(echo "$APPROVE" | jq -r '.slug // empty')
   OWNER_EMAIL=$(echo "$APPROVE" | jq -r '.owner_login.email // empty')
   OWNER_PW=$(echo "$APPROVE" | jq -r '.owner_login.temp_password // empty')
-  [ -n "$GOT_SLUG" ] && { SLUG="$GOT_SLUG"; ok "tenant slug returned ($SLUG)"; } || bad "tenant slug returned" "$(echo "$APPROVE" | head -c 300)"
+  # HARD STOP. Without a real slug every later call would target the literal string
+  # "null" — and shoppack would happily CREATE a junk tenant called "null". Never
+  # let a failed build cascade into writes against a garbage slug.
+  if [ -z "$GOT_SLUG" ] || [ "$GOT_SLUG" = "null" ]; then
+    bad "tenant slug returned" "$(echo "$APPROVE" | head -c 300)"
+    printf '  \033[31mABORTING RUN\033[0m — no slug, refusing to touch anything downstream\n'
+    return
+  fi
+  SLUG="$GOT_SLUG"; ok "tenant slug returned ($SLUG)"
   check "owner login is the applicant's real email" "$OWNER_EMAIL" "$EMAIL"
   [ -n "$OWNER_PW" ] && ok "owner temp password issued" || bad "owner temp password issued"
   check "every onboard step ready" "$(echo "$APPROVE" | jq -r '.steps|to_entries|map(select(.value.ok!=true))|length')" "0"
@@ -168,6 +176,7 @@ run_once() {
   fi
   hdr "  teardown"
   local OFF PUR
+  case "$SLUG" in ant-e2e-*) ;; *) bad "teardown safety" "refusing to tear down '$SLUG' — not an e2e slug"; return ;; esac
   OFF=$(api "platform-provision?action=offboard&secret=$SECRET&slug=$SLUG&reason=e2e+test")
   check "offboard succeeds"          "$(echo "$OFF" | jq -r '.ok')"     "true"
   check "  marked churned"           "$(echo "$OFF" | jq -r '.status')" "churned"

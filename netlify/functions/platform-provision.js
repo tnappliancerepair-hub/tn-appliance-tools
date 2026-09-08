@@ -663,7 +663,10 @@ exports.handler = async function (event) {
       const settings = { business: { name, phone: String(q.owner_phone || ab.owner_phone || '').replace(/[^\d+]/g, ''), area: String(q.area || ab.area || '') }, site: { subdomain: shopHandle(name) } };
       const features = { database: true, scheduling: true, portal: true, invoicing: true };
       const ins = await rest('company', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ slug: slug0, name, trade, plan: 'office', features, settings }) });
-      if (!ins.ok) return json(200, { ok: false, step: 'create_company', status: ins.status, error: JSON.stringify(ins.d).slice(0, 300) });
+      // Carry the slug on the failure too — shoppack does ~15 sequential Supabase calls, so a
+      // single transient hiccup can fail the build; the fix is an idempotent re-run against the
+      // SAME slug, which a caller can only do if we tell it which slug we were building.
+      if (!ins.ok) return json(200, { ok: false, step: 'create_company', slug: slug0, status: ins.status, error: JSON.stringify(ins.d).slice(0, 300) });
       company = Array.isArray(ins.d) ? ins.d[0] : ins.d;
     }
 
