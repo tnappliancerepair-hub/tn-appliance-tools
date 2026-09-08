@@ -1,0 +1,3 @@
+# Generated render artifacts — reproducible via render.sh (downloads fonts, screenshots PNGs).
+fonts/
+out/

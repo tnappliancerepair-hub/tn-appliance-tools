@@ -161,6 +161,19 @@
 <script>
 (function(){
   var f=document.getElementById('f'), go=document.getElementById('go'), err=document.getElementById('err');
+  // Referral attribution: a partner can send cold B2B traffic to /guide?ref=<code>. Capture it,
+  // carry it onto the "See the whole system" CTA so it survives to the tour → signup (where the
+  // Stripe webhook validates it against an active partner), then STRIP it from the URL (keeps a
+  // partner code out of history/referrer/any pixel — same hygiene as signup.html).
+  var REF='';
+  try{
+    var _p=new URLSearchParams(location.search);
+    REF=(_p.get('ref')||'').trim().slice(0,60);
+    if(REF){
+      try{ var links=document.querySelectorAll('a[href^="/ant"]'); for(var i=0;i<links.length;i++){ links[i].href='/ant?ref='+encodeURIComponent(REF); } }catch(_){}
+      try{ _p.delete('ref'); var qs=_p.toString(); history.replaceState(null,'',location.pathname+(qs?'?'+qs:'')+location.hash); }catch(_){}
+    }
+  }catch(_){}
   f.addEventListener('submit', function(e){
     e.preventDefault();
     err.textContent='';
@@ -174,7 +187,7 @@
     go.disabled=true; go.textContent='Sending…';
     fetch('/.netlify/functions/lead-magnet',{
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name:name,email:email,phone:phone,shop:shop,company_website:hp,source:'free-guide'})
+      body:JSON.stringify({name:name,email:email,phone:phone,shop:shop,company_website:hp,source:'free-guide',ref:REF})
     }).then(function(r){return r.json().catch(function(){return {};});}).then(function(d){
       if(d && d.ok){ reveal(name, email, d.emailed); }
       else { go.disabled=false; go.textContent='Send me the free playbook →'; err.textContent=(d&&d.message)||'Something went off — try again in a sec.'; }

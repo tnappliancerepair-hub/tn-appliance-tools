@@ -72,6 +72,7 @@ exports.handler = async function (event) {
   const email = s(b.email, 160);
   const shop = s(b.shop, 160);
   const source = s(b.source, 60) || 'lead_magnet';
+  const ref = s(b.ref, 60);   // partner referral code carried from /guide?ref= (no column — folded into message + notify)
   const first = (name.split(/\s+/)[0] || '');
 
   if (!name) return J(400, { ok: false, error: 'name_required', message: 'Add your name so we know who to send it to.' });
@@ -82,7 +83,7 @@ exports.handler = async function (event) {
     const pf = await platform();
     if (pf) await pf.insert('prospect_message', {
       name, phone, email, shop, source,
-      message: `Requested the free guide: "${GUIDE_TITLE}"`,
+      message: `Requested the free guide: "${GUIDE_TITLE}"${ref ? ` · ref:${ref}` : ''}`,
     });
   } catch (_) {}
 
@@ -92,9 +93,9 @@ exports.handler = async function (event) {
   try {
     await notify.notifyOperator({
       tag: 'prospect_message', // office-gate lets this through to Teddy's cell
-      sms: `📘 Free-guide lead: ${who}${shop && shop !== name ? ' (' + shop + ')' : ''} — ${reach}. (${source})`,
+      sms: `📘 Free-guide lead: ${who}${shop && shop !== name ? ' (' + shop + ')' : ''} — ${reach}. (${source})${ref ? ' via ' + ref : ''}`,
       subject: `AssistAnt free-guide lead — ${who}`,
-      email_body: `New free-guide request (${source}).\n\nName: ${name || '—'}\nShop: ${shop || '—'}\nPhone: ${phone || '—'}\nEmail: ${email || '—'}\n\nThey grabbed "${GUIDE_TITLE}" — good warm DM target.\n\nReceived: ${new Date().toISOString()}`,
+      email_body: `New free-guide request (${source}).\n\nName: ${name || '—'}\nShop: ${shop || '—'}\nPhone: ${phone || '—'}\nEmail: ${email || '—'}${ref ? `\nReferred by: ${ref}` : ''}\n\nThey grabbed "${GUIDE_TITLE}" — good warm DM target.\n\nReceived: ${new Date().toISOString()}`,
     });
   } catch (_) {}
 

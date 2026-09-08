@@ -5,13 +5,17 @@
 // account (shows the exact plan); applies only with &apply=1 once the account +
 // ads token are vaulted, and ALWAYS creates PAUSED so nothing spends until reviewed.
 //
-//   GET ?secret=<admin>[&budget=25&kit=appliance|referral|product]
+//   GET ?secret=<admin>[&budget=25&kit=appliance|referral|product|consumer]
 //        preview: show campaign/adset/creative/ad plan + resolved targeting, write nothing
 //   ...&apply=1   create it all, PAUSED (no spend until you flip it live in Ads Manager)
 //
-//   kit=appliance = the APPLIANCE-FIRST beachhead: appliance-shop-owner targeting +
-//   appliance copy, landing on the free-guide lead magnet (/guide) — a lower-commitment
-//   cold-ad destination than the tour/signup. This is the one to run cold.
+//   kit=appliance = the APPLIANCE-FIRST beachhead (SaaS→shop owners): appliance-shop-owner
+//   targeting + appliance copy, landing on the free-guide lead magnet (/guide) — a
+//   lower-commitment cold-ad destination than the tour/signup. This is the one to run cold.
+//
+//   kit=consumer = TN's own REPAIR to HOMEOWNERS (not the SaaS): "Broken at 2am? We Answer",
+//   LOCAL radius targeting (Nashville metro + Baton Rouge — never national), lands on
+//   always-open.html. This is the homeowner-repair Meta campaign.
 //
 // Meta interest/behavior IDs are resolved live via the Targeting Search API on apply
 // (first-real-tuning), so the audience is correct when it actually runs.
@@ -53,6 +57,25 @@ const KITS = {
     link: 'https://assistant247.net',
     cta: 'LEARN_MORE',
   },
+  // CONSUMER — TN's own appliance REPAIR to homeowners (NOT the SaaS). Local geo only
+  // (a repair ad has no business running national). Lands on the always-open page.
+  consumer: {
+    label: 'TN Appliance — 24/7 Repair',
+    message: "Fridge died at 2am? Dryer quit on a Sunday? We actually answer — 24/7, any day. Text, call, or send a quick video and a real tech gives you an honest answer + an honest price. Family-owned, licensed, 4.5★ across 1,000+ neighbors. 🐜",
+    headline: 'Broken at 2am? We Answer.',
+    description: 'Same-day appliance repair. Honest flat pricing. We answer 24/7 — even weekends.',
+    link: SITE + '/always-open.html',
+    cta: 'LEARN_MORE',
+    image: SITE + '/assistant-og.png',   // consumer creative (brand card; swap to a real PNG ad once rendered)
+    audience: ['Home appliance', 'Home improvement', 'Do it yourself (DIY)', 'Homeowner'],
+    // Local service area only — custom radius targeting needs no ID lookup on apply.
+    geo: {
+      custom_locations: [
+        { latitude: 36.1627, longitude: -86.7816, radius: 40, distance_unit: 'mile' },  // Nashville metro (TN)
+        { latitude: 30.4515, longitude: -91.1871, radius: 40, distance_unit: 'mile' },  // Baton Rouge (LA)
+      ],
+    },
+  },
 };
 
 // Audience: shop owners. Interests/behaviors resolved by name on apply.
@@ -65,14 +88,16 @@ exports.handler = async function (event) {
 
   const kit = KITS[String(q.kit || 'referral').toLowerCase()] || KITS.referral;
   const audienceTerms = kit.audience || AUDIENCE_TERMS;   // appliance kit narrows to appliance-shop owners
+  const geo = kit.geo || { countries: ['US'] };           // consumer kit runs LOCAL (custom radius); B2B kits run US-wide
+  const image = kit.image || IMAGE;                        // consumer uses the brand card; B2B uses the referral card
   const budget = Math.max(5, Math.min(500, parseInt(q.budget, 10) || 25));   // daily $
   const apply = q.apply === '1';
   const c = await meta.creds();
 
-  const targetingPlan = { geo_locations: { countries: ['US'] }, age_min: 25, age_max: 65, audience_terms: audienceTerms };
+  const targetingPlan = { geo_locations: geo, age_min: 25, age_max: 65, audience_terms: audienceTerms };
   const plan = {
     kit: q.kit || 'referral', daily_budget: budget, objective: 'OUTCOME_TRAFFIC', status: 'PAUSED',
-    landing: kit.link, image: IMAGE, page_id: c.pageId || '(SOCIAL_FB_PAGE_ID)',
+    landing: kit.link, image: image, page_id: c.pageId || '(SOCIAL_FB_PAGE_ID)',
     headline: kit.headline, description: kit.description, primary_text: kit.message, cta: kit.cta,
     targeting: targetingPlan,
   };
@@ -88,7 +113,7 @@ exports.handler = async function (event) {
     const hits = await meta.searchTargeting(term, c.token, 'adinterest');
     if (hits && hits[0] && hits[0].id) interests.push({ id: hits[0].id, name: hits[0].name });
   }
-  const targeting = { geo_locations: { countries: ['US'] }, age_min: 25, age_max: 65 };
+  const targeting = { geo_locations: geo, age_min: 25, age_max: 65 };
   if (interests.length) targeting.flexible_spec = [{ interests: interests.map((i) => ({ id: i.id, name: i.name })) }];
 
   // 1) campaign (PAUSED, traffic objective, no special ad category)
@@ -107,7 +132,7 @@ exports.handler = async function (event) {
   // 3) ad creative — a Page link post with the ant card + the referral copy + CTA button.
   let creativeId = null, creative = { ok: false };
   if (adsetId) {
-    const spec = { page_id: c.pageId, link_data: { message: kit.message, link: kit.link, name: kit.headline, description: kit.description, picture: IMAGE, call_to_action: { type: kit.cta, value: { link: kit.link } } } };
+    const spec = { page_id: c.pageId, link_data: { message: kit.message, link: kit.link, name: kit.headline, description: kit.description, picture: image, call_to_action: { type: kit.cta, value: { link: kit.link } } } };
     creative = await meta.api('POST', `/${c.act}/adcreatives`, { name: kit.label + ' creative', object_story_spec: JSON.stringify(spec) }, c.token);
     creativeId = creative.ok ? creative.data.id : null;
   }

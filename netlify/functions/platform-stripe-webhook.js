@@ -169,6 +169,25 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
           email_body: `A new shop just started a free trial.\n\nShop: ${shopName}\nEmail: ${email}\nPlan: ${planLabel}\nSlug: ${slug}${refCode ? '\nReferral: ' + refCode : ''}\nStarted: ${new Date().toISOString()}\n\nOperator dashboard: ${SITE}/platform-dashboard\nAll shops: ${SITE}/shops`,
         });
       } catch (_) {}
+      // 📈 AD FEEDBACK — teach ChatGPT/OpenAI Ads that a SaaS signup CONVERTED, so the /guide
+      // ad optimizes on real signups instead of blind clicks (ranking = bid × relevance × trust ×
+      // conversion-likelihood — this feeds the last term). Matches on the owner's hashed phone/email
+      // (which we have here). DARK/no-op until OPENAI_ADS_CONVERSION_KEY + OPENAI_ADS_PIXEL_ID are
+      // vaulted (the uploader returns not_configured), and fully try/caught so it NEVER breaks the
+      // paid provision. Fires exactly once (inside the deduped block). event_id dedups on OpenAI's side.
+      // NOTE (documented follow-ons, NOT wired here): Google offline conversion needs a gclid carried
+      // /guide→signup; Meta needs a server-side CAPI uploader (none exists yet) — the Meta Pixel already
+      // fires a client-side Lead on signup.html. This is the one channel we can feed cleanly today.
+      try {
+        const { uploadOpenAiConversion } = require('./openai-ads-upload-conversion');
+        await uploadOpenAiConversion({
+          event_type: 'lead_created',
+          phone: meta.owner_phone || '', email,
+          value: 99, when_ms: Date.now(),
+          source_url: `${SITE}/guide`,
+          event_id: 'saas-signup-' + slug,
+        });
+      } catch (_) {}
     }
   } catch (_) {}
   return companyId;
