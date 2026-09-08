@@ -64,6 +64,37 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜💸 2026-09-08 (Mon, late) — TELNYX AI-MINUTE COST: real all-in is **6.8¢/min**, and the footgun that hid it — READ FIRST
+
+Teddy: *"Telnyx said rates were gonna be changing — verify what these AI minutes cost us"* (the $50 / 400-minute Ann plan). Measured against the carrier's own billed Detail Records. **I got this wrong once mid-session and corrected it; the wrong number is the lesson.**
+
+### ⚠️ THE FOOTGUN — Ann's cost is SPLIT ACROSS RECORD TYPES; one type is not the answer
+I pulled `record_type=ai-voice-assistant`, saw a clean **$0.0500/min**, saw `call-control`/`sip-trunking`/`conference` all return ZERO, and concluded $0.05 was all-in. **It isn't.** Telnyx's own pricing calculator (Teddy's screenshots) lists the $0.05 "voice engine" as *orchestration + STT + TTS only*, with **LLM tokens and telephony as ADD-ONS**. The LLM add-on bills under **`record_type=inference`** — a type I never queried. Matched 3-day window, every type:
+
+| record_type | volume | cost | per-min |
+|---|---|---|---|
+| `ai-voice-assistant` | 190 min | $9.50 | **$0.0500** voice engine (orch+STT+TTS) |
+| **`inference`** | **777 recs** | **$3.37** | **$0.0177** LLM tokens — **BILLS SEPARATELY** |
+| `call-control` | — | $0.00 | telephony (not per-minute for us) |
+| `sip-trunking` | — | $0.00 | |
+| **ALL-IN** | | | **$0.0677/min** |
+
+30-day cross-check on the voice engine: **901 calls / 1,951 min / $97.55** = still exactly $0.0500/min. So the engine rate is rock-solid; what moved was discovering the second line item.
+
+**Rule: never quote a per-minute AI cost from one record type.** `sms-audit` now has `?kind=llm` (→`inference`) and `?kind=trunk` alongside `?kind=ai`, and its header documents the trap.
+
+### 💰 The number that matters
+- Old code said **8.4¢** (an ADDITIVE guess: orchestration + telephony + LLM) — **overstated 24%**.
+- My mid-session "fix" said **5.0¢** — **understated 26%**. Wrong in the flattering direction, which is the worst kind.
+- **Truth: 6.8¢/min.** `usage-meter.js` `COST.voice_min = 6.8`; `telnyx-call-cost.js` rate table now MEASURED (`tel` 0, `llm` 0.0177) instead of estimated.
+- **Ann plan margin: $50 − 400×$0.0677 = $22.91/week (46%).** Not the $30 (60%) I reported. Sell price is $0.125/min, so Telnyx would need a **1.85× increase** before that plan stops making money — healthy, but not the 2.5× I claimed.
+
+### 🎛️ The one real cost lever (NOT taken — Teddy's call)
+We run **openai/gpt-5.4**, a *managed frontier model*, at **~$0.0177/min**. Telnyx-hosted **Kimi on their GPUs is ~$0.004/min** — swapping Ann's brain would drop all-in to **~$0.054/min** (+$5.50/wk/shop). **Deliberately not done:** it trades brain quality on live customer calls, and Ann already has standing behavior rules ("don't answer what you don't know", transfer to a human on request) that a model swap could regress. Flagged as an option only.
+
+### ⏭️ OPEN — the actual question is unanswered
+**I could not find any Telnyx rate-change notice.** Searched all 4 connected inboxes; `from:telnyx` returns only GoDaddy webmail relays from June. **Teddy: forward the message, or tell me the new per-minute number** and I'll re-run the margin math in one pass. Until then the 6.8¢ above is *today's* billed reality, not the announced future one.
+
 ## 🗓️🐜✍️ 2026-09-08 (Mon, late) — "NOWHERE FOR CUSTOMERS SIGN" — on-site signature pad + the SECOND SMS gate nobody knew about — READ FIRST
 
 Jimmy from the field: *"Nowhere for customers sign. I try to send text for signature, but wouldn't let me."* He was right twice.
