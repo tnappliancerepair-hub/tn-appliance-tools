@@ -117,6 +117,28 @@ inserting duplicates. It wasn't. **There are two TN tenants:**
   no `completed_at`). Nothing writes to it now. **Always scope platform job queries by `company_id`** or you
   will double-count and misread state. ⏭️ **OPEN: purge the `7b421706` tenant** (residue, not load-bearing).
 
+### 🔧 TECH JOB PAGE — per-field Save, and five writes that were lying about landing (live)
+Teddy 9/8, before Jimmy re-tested: *"in the job tile for the technicians there's not a save option next
+to each thing — it's just type it in there."* A tech typing into a box with nothing to press and nothing
+that says it took **will** assume it didn't save.
+- **🔴 THE REAL DEFECT — `platform/tech-job.html` had FIVE writes with NO `.select()`.** A Supabase
+  RLS-blocked write returns **zero rows and NO error**, so `if(r.error)` was false and the page showed
+  *"Report saved. Nice work."* on a save that wrote nothing. Same for the job-status flip. **Every write on
+  the page now proves a row came back**, and says plainly when the report saved but the status did not.
+  (`platform/tech.html` already verified; this page never did.)
+- **✅ PER-FIELD SAVE.** `FLD_COLS` maps each report box to its column (`tb→brand · tm→model ·
+  tc→failed_component · tp→part_number · tr→root_cause · th→labor_hours`). Each field gets a **Save button
+  that lights up the moment it's dirty**, reads "Saved" when it isn't, shows **Saved ✓** after it lands,
+  and **saves on blur** so walking away still saves. Injected by `wireFieldSaves()` after render, so each
+  field's markup stays one line.
+- **THE THING THAT MATTERS, VERIFIED LIVE as the tech seat:** a single-field upsert
+  (`job_tdr?on_conflict=job_id`, only `{company_id, job_id, root_cause}`) returned HTTP 200 with a row and
+  **left `failed_component`, `part_number`, `labor_hours` and `outcome` untouched** — PostgREST's
+  merge-duplicates only updates the columns you send. A per-field save that clobbered its neighbours would
+  be far worse than no per-field save; it doesn't. Test value restored afterward.
+- **Saving was never actually broken** — confirmed by the row history (Jimmy 9/8 12:30, probes 14:47).
+  What was broken was *knowing* it saved.
+
 ### 🕐 THREE-HOUR ARRIVAL WINDOWS — 8-11 · 11-2 · 2-5, two slots each (NEW, live) — SUPABASE ONLY
 Teddy 9/8: *"three separate time slots... 8 to 11, 11 to 2, 2 to 5 — two slots each... so customers
 aren't waiting all day over confusion."* **Six stops/day/tech = 3 windows × 2 slots.** Free-text
