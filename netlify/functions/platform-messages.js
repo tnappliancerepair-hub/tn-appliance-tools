@@ -12,6 +12,7 @@
 //   POST ?do=thread  { access_token, customer }            -> { ok, customer, jobs, messages }
 //   POST ?do=send    { access_token, customer, body, job? }-> { ok, texted, no_phone }
 //   POST ?do=search  { access_token, q }                   -> { ok, customers:[...] }
+//   POST ?do=tee_probe { secret, phone, body }             -> { ok, tee }   (owner-gated)
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
@@ -55,6 +56,17 @@ exports.handler = async function (event) {
   const { url, key } = await cfg();
   if (!url || !key) return json(200, { ok: false, error: 'platform_not_configured' });
   const db = rest(url, key);
+
+  // ── tee_probe: owner-gated. Runs the inbound bridge for one phone + body so we can
+  //    prove a customer reply lands in the thread without waiting on a real text. ──
+  if (doo === 'tee_probe') {
+    const guard = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+    if (String(p.secret || '') !== guard) return json(403, { ok: false, error: 'forbidden' });
+    const out = await require('./_lib/platform-thread').teeInbound({
+      phone: String(p.phone || ''), body: String(p.body || ''), channel: 'sms',
+    });
+    return json(200, { ok: !!out.ok, tee: out });
+  }
 
   const u = await authUser(url, key, String(p.access_token || '').trim());
   if (!u) return json(200, { ok: false, error: 'not_signed_in' });

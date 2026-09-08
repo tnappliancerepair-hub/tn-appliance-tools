@@ -529,6 +529,19 @@ exports.handler = async function (event) {
     provider, from: parsed.from, sid: parsed.sid, to: parsed.to, body_len: parsed.body.length,
   });
 
+  // ─── PLATFORM TEE — mirror this text into the Supabase shared thread ──────
+  // Teddy 2026-09-08: the office/tech/customer thread has to be two-way, so a customer's
+  // reply belongs in it, not just what we send them. Read-only toward this handler: it
+  // resolves the customer, writes ONE thread_message row, and returns. It never replies,
+  // never texts, never touches a job, is time-boxed, and can't throw — so nothing below
+  // this line behaves any differently than it did before.
+  try {
+    const tee = await require('./_lib/platform-thread').teeInbound({
+      phone: parsed.from, body: parsed.body, channel: 'sms',
+    });
+    if (!tee.ok && tee.reason !== 'no_customer') console.warn('[customer-sms-inbound] platform tee:', tee.reason);
+  } catch (_) {}
+
   // ─── TCPA OPT-OUT / OPT-IN (must run FIRST, before any other handling) ──
   // STOP is absolute: record it, send the single legally-allowed confirmation,
   // and STOP processing (no classifier, no greeting, no booking). START re-opts.

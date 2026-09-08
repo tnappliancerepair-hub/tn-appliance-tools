@@ -69,6 +69,18 @@ exports.handler = async function (event) {
     if (custLang) { try { await require('./_lib/customer-lang').setCustomerLang(from, custLang); } catch (_) {} }
   }
 
+  // ─── PLATFORM TEE — mirror this text into the Supabase shared thread ──────
+  // Teddy 2026-09-08: office/tech/customer share one conversation, so the customer's own
+  // replies have to land in it. Carries the English gloss when they texted in another
+  // language, so the office can read it. Time-boxed, can't throw, changes nothing below.
+  try {
+    const tee = await require('./_lib/platform-thread').teeInbound({
+      phone: from, channel: 'sms',
+      body: engGloss ? (bodyText + '\n(EN: ' + engGloss + ')') : bodyText,
+    });
+    if (!tee.ok && tee.reason !== 'no_customer') console.warn('[human-line-inbound] platform tee:', tee.reason);
+  } catch (_) {}
+
   // Record to the shared per-job thread. sms-thread.js matches these by the
   // customer's phone, so this lands on every surface (office tile, tech page,
   // customer portal). lane:'human' marks which lane it belongs to. When the message
