@@ -117,6 +117,38 @@ inserting duplicates. It wasn't. **There are two TN tenants:**
   no `completed_at`). Nothing writes to it now. **Always scope platform job queries by `company_id`** or you
   will double-count and misread state. ⏭️ **OPEN: purge the `7b421706` tenant** (residue, not load-bearing).
 
+### 🔴 WHY SUPABASE "WASN'T SAVING REPORTS" — the OFFICE BOARD was wiping them (fixed)
+Teddy, later 9/8: *"we need the supabase system where it will start saving the reports."* Tested the
+whole path **as the real tech seat** (`tech1.tn-appliance-exchange-llc@…`, password grant → PostgREST):
+the exact app upsert `job_tdr?on_conflict=job_id&select=id` returns **HTTP 200 with a row** — writes are
+NOT blocked, RLS (`job_tdr_tenant`, ALL, `company_id = current_company_id()`) allows the tech, and the
+unique index `job_tdr_job_id_key` exists so `onConflict:'job_id'` is valid. **The tech app saves fine.**
+- **THE ACTUAL BUG — `platform/office-board.html` `loadTdr()` save wiped the tech's report.** The row it
+  sent was `failed_component: (input||'').trim() || null` (same for `root_cause`, `model`, `labor_hours`).
+  **An empty box wrote NULL over what the tech filed.** So the office opening a job and hitting Save
+  erased the report. The data proves it: **7 of 9 TDR rows on the TN tenant have `failed_component` null,
+  `tech` null, but an `outcome` set** — exactly the shape this produces. FIXED: an empty box now means
+  "I didn't touch it," never "erase it" (only fields the office actually typed are sent; a field that was
+  already empty may still be written empty).
+- **Two silent-failure holes closed in the same panel:** the outcome picker and the save both had **no
+  `.select()`**, so an RLS-blocked zero-row write still printed "Outcome saved ✓" / "Saved ✓". Both now
+  verify a row came back. (The tech app already did this — the office panel never did.)
+- **A blank form no longer reads as a filed report** — an outcome-only row shows ⚠️ "No technician report
+  filed yet," so the office can tell "the tech hasn't reported" from "the tech reported nothing."
+- **The platform IS ready for the crew** — verified live: Andre 6 jobs today / 180 open · Jimmy 8 / 165 ·
+  John 5 / 152 · Lee 5 / 117 · Teddy 0 / 85, each with their own seat, and `boot()` opens a real tech to
+  **today** (`if (myTech) viewDay = todayIso()`), not the whole backlog. Honest number: only **1 genuine
+  tech-filed report exists** (Jimmy, 9/8 12:30) — and he typed the whole narrative into "What failed"
+  with brand/model/root-cause/part/labor/notes left blank, so the form wants a look before cutover.
+- **`platform/tech.html` has NO quick-Complete button** — the only way to finish is "Save report + finish",
+  so the report is already required. The 6 no-report completions all carry an `xano_id`: they were
+  completed in **Xano** and mirrored in. Nothing is broken there.
+
+### ⚡ XANO — last throttle lever taken (it has ~1-2 days left)
+`board-mirror-sync-cron` **`*/3` → `*/5`** (288 pulls/day, **-80%** off the original 1,440) — the documented
+final lever on `get_office_kanban` (787KB, 6.9-24.3s). **The office board does not slow down** — it reads
+the Supabase `board_mirror` via `board-feed-fast` (0.6-1.1s); only mirror freshness changes (≤5 min).
+
 ### ✅ TEDDY'S OWN LIVE TEST — everything saved; the only real bug was a broken-looking thumbnail
 Teddy ran the test job himself right after the pageMsg deploy. Verified in the DB: the photo landed
 (**198 KB image/jpeg confirmed present in R2**), the release was signed, and the report saved with the
