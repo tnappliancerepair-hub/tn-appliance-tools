@@ -370,6 +370,41 @@ exports.handler = async function (event) {
 
   // Human handoff: there is NO live transfer / no live rep right now. If a caller
   // asks for a person, don't imply a transfer — say so cleanly and take a message.
+  // ESCALATE-TO-HUMAN (Teddy 2026-09-08) — the direct reversal of human_handoff.
+  // Humans ARE answering the phones again (the office ring dials Sofia + Danielle,
+  // then chains to Teddy), and the owner's directive is: if a caller asks for a person,
+  // move them to a person; and stop answering questions we don't know the answer to.
+  // ALSO removes the now-false promise that Ann will text them back — AI texting to
+  // customers is OFF, so a human does the follow-up, and Ann must not promise otherwise.
+  // Replace-in-place so re-running updates cleanly.  ?action=escalate_to_human
+  if (action === 'escalate_to_human') {
+    const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
+    const got = await vapi('GET', `/assistant/${id}`, key);
+    if (!got.ok) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'could not load inbound', status: got.status }) };
+    const model = got.json.model || {};
+    const msgs = Array.isArray(model.messages) ? model.messages.map((m) => Object.assign({}, m)) : [];
+    const si = msgs.findIndex((m) => m.role === 'system');
+    if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
+    const MARK = '<!-- ESCALATE-TO-HUMAN -->';
+    const BLOCK = `${MARK}
+## 👤 A LIVE PERSON IS AVAILABLE — HAND OFF INSTEAD OF GUESSING (highest priority)
+We have real people answering the phones again during business hours (Mon-Fri, 9 AM-6 PM Central): the office line rings Sofia and Danielle, then Teddy.
+1. ASKED FOR A PERSON -> TRANSFER. If a caller asks for a person, a human, a rep, a manager, the office, or anyone by name, transfer them to the office right away. Do not interrogate them first, do not try to solve it yourself, do not talk them out of it. One warm line - "Absolutely, let me get you to someone right now" - then transfer.
+2. DON'T KNOW -> TRANSFER, DON'T GUESS. If a lookup comes back empty, slow, unclear, or you are not certain the answer is right, do NOT answer anyway and do NOT improvise. During business hours say "I want to make sure you get the right answer - let me put you with someone who can confirm that," and transfer. Guessing is worse than handing off.
+3. OFF-HOURS. Outside those hours transfer NO ONE. Take the message with capture_callback and say the office will follow up when they open.
+4. NEVER PROMISE A TEXT FROM YOU. You do not text customers. Do not say "I'll text you," "we'll text you right back," or "you'll get a text from me." Say a PERSON will follow up: "our office will get back to you." Only a human sends texts now.
+${MARK}
+
+`;
+    const stripped = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\s*', 'g'), '');
+    msgs[si].content = BLOCK + stripped;
+    const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { messages: msgs }) });
+    const verify = await vapi('GET', `/assistant/${id}`, key);
+    const sysNow = (((verify.json || {}).model || {}).messages || []).find((m) => m.role === 'system');
+    const applied = String((sysNow && sysNow.content) || '').includes(MARK);
+    return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
+  }
+
   if (action === 'human_handoff') {
     const id = '7cc98b0c-54a7-4d19-bd48-6dfac606e55d';
     const got = await vapi('GET', `/assistant/${id}`, key);
