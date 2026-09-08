@@ -138,6 +138,7 @@
       h+='<div class="nopack">No login pack built for this shop yet. '+
         '<button class="cpone" data-mkpack="'+esc(shop.slug)+'">Build a 7-seat pack →</button></div>';
       h+='<div class="acts">'+
+        '<button data-addtech="'+esc(shop.slug)+'">➕ Add a tech</button>'+
         '<button class="jump" data-jump="'+esc(shop.slug)+'">🔑 Jump in as owner</button>'+
         '<a href="/s/'+encodeURIComponent(shop.slug)+'" target="_blank" rel="noopener">🌐 Site</a>'+
         '</div><div class="msg" id="msg_'+esc(shop.slug)+'"></div></div>';
@@ -160,6 +161,8 @@
     h+='</tbody></table></div>';
     h+='<div class="acts">'+
       '<button class="prim" data-cpshop="'+esc(shop.slug)+'">📋 Copy the whole shop</button>'+
+      '<button data-addtech="'+esc(shop.slug)+'">➕ Add a tech</button>'+
+      '<button data-addoffice="'+esc(shop.slug)+'">➕ Add office</button>'+
       '<button class="jump" data-jump="'+esc(shop.slug)+'">🔑 Jump in as owner</button>'+
       '<a href="/s/'+encodeURIComponent(shop.slug)+'" target="_blank" rel="noopener">🌐 Site</a>'+
       '</div><div class="msg" id="msg_'+esc(shop.slug)+'"></div></div>';
@@ -167,8 +170,10 @@
   }
 
   var PACKS={}; // slug -> pack
+  var SHOPS=[]; // last rendered shops (for in-place re-render after add-a-seat)
 
   function render(shops){
+    SHOPS=shops;
     var real=shops.filter(function(s){return !TESTS[s.slug];});
     var testO=shops.filter(function(s){return TESTS[s.slug];});
     var html=real.map(function(s){ return packCard(s, PACKS[s.slug]||null); }).join('');
@@ -197,6 +202,18 @@
         else if(msg) msg.textContent=(d&&d.error)||'Couldn’t build — try again.';
       }).catch(function(e){ el.disabled=false; el.textContent=o; if(msg) msg.textContent=(e.message==='key'?'Key rejected.':'Network error — try again.'); });
     }; });
+    var addSeat=function(el,slug,role){
+      var msg=document.getElementById('msg_'+slug);
+      el.disabled=true; var o=el.textContent; el.textContent='Adding…'; if(msg){ msg.textContent=''; msg.className='msg'; }
+      api('action=addseat&slug='+encodeURIComponent(slug)+'&role='+encodeURIComponent(role)).then(function(d){
+        el.disabled=false; el.textContent=o;
+        if(d&&d.ok&&d.pack){ PACKS[slug]=d.pack; render(SHOPS);
+          var m2=document.getElementById('msg_'+slug); if(m2 && d.seat){ m2.className='msg ok'; m2.textContent='Added '+d.seat.label+' — '+d.seat.email+' / '+d.seat.password+'. Copy it below.'; } }
+        else if(msg) msg.textContent=(d&&d.error)||'Couldn’t add — try again.';
+      }).catch(function(e){ el.disabled=false; el.textContent=o; if(msg) msg.textContent=(e.message==='key'?'Key rejected.':'Network error — try again.'); });
+    };
+    document.querySelectorAll('button[data-addtech]').forEach(function(el){ el.onclick=function(){ addSeat(el, el.getAttribute('data-addtech'), 'tech'); }; });
+    document.querySelectorAll('button[data-addoffice]').forEach(function(el){ el.onclick=function(){ addSeat(el, el.getAttribute('data-addoffice'), 'office'); }; });
     document.querySelectorAll('button[data-jump]').forEach(function(el){ el.onclick=function(){
       var slug=el.getAttribute('data-jump'), msg=document.getElementById('msg_'+slug);
       el.disabled=true; var o=el.textContent; el.textContent='Opening…'; if(msg){ msg.textContent=''; msg.className='msg'; }

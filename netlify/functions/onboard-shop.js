@@ -110,12 +110,34 @@ exports.handler = async function (event) {
     steps.bind = bd.d && bd.d.ok ? { ok: true, number } : { ok: false, error: (bd.d && bd.d.error) || 'bind failed', detail: bd.d };
   } else steps.bind = { ok: false, skipped: true, why: !number ? 'no number yet' : 'no assistant' };
 
+  // ── 6) full crew login pack ────────────────────────────────────────────────
+  // Layer the rest of the shop's logins on top of the owner: a system-assigned pack of
+  // office + tech seats (memorable passwords) written to the vault so every one of a shop's
+  // logins is ready to hand out on /packs the moment you approve their application. Additive:
+  // the owner + Ann path above is unchanged, so if this ever hiccups the shop is still live.
+  // Owner-mode uses the applicant's real email + the temp password provision just issued, so
+  // the owner seat lands in the pack without re-creating (or resetting) their login.
+  let crew_pack = null;
+  if (steps.tenant.ok && q.no_crew !== '1' && q.no_crew !== 1) {
+    const officeN = (q.office != null && q.office !== '') ? q.office : '2';
+    const techN = (q.techs != null && q.techs !== '') ? q.techs : '4';
+    const ownerPw = (steps.tenant.login && steps.tenant.login.temp_password) || '';
+    const cr = await sub('platform-provision', {
+      action: 'shoppack', slug, name, trade: type,
+      owner_email: ownerEmail, owner_seat_pw: ownerPw, office: officeN, techs: techN,
+    });
+    if (cr.d && cr.d.ok) { steps.crew = { ok: true, seats: cr.d.seat_count }; crew_pack = cr.d.pack || null; }
+    else steps.crew = { ok: false, error: (cr.d && (cr.d.error || cr.d.seat)) || 'crew pack failed', detail: cr.d };
+  } else steps.crew = { ok: false, skipped: true, why: !steps.tenant.ok ? 'tenant not ready' : 'no_crew' };
+
   const ready = !!(steps.tenant.ok && steps.registry.ok && steps.assistant.ok && (steps.bind.ok || !number));
   return json(200, {
     ok: true, ready, slug,
     ann_number: number || null,
     board_url: SITE + '/platform/office-board.html',
     owner_login: (steps.tenant.ok && steps.tenant.login) || null,
+    crew_pack,
+    packs_url: SITE + '/packs',
     assistant_id: assistantId || null,
     portal_note: 'Leads land on the board automatically; the customer gets the intake link; the cockpit is /platform/tech-job.html?job=<id>',
     steps,

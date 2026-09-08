@@ -59,6 +59,51 @@ exports.handler = async function (event) {
 
   const rest0 = async (path) => { const r = await fetch(`${url}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(10000) }); return r.ok ? r.json().catch(() => []) : []; };
 
+  // ── Shop-login-pack shared engine (used by shoppack + addseat) ──────────────
+  const packVaultKey = (slug) => 'PLATFORM_PACK_' + String(slug).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+  const pascalHandle = (name) => (shopHandle(name).split('-').map((t) => (t ? t[0].toUpperCase() + t.slice(1) : '')).join('')) || 'Shop';
+  const seatLink = (role) => role === 'owner' ? 'https://tnapplianceexchange.net/platform/owner.html'
+    : role === 'office' ? 'https://tnapplianceexchange.net/platform/office-board.html'
+    : 'https://tnapplianceexchange.net/platform/tech.html';
+  const readPack = async (slug) => { try { const pv = await getSecretFresh(packVaultKey(slug)); return pv ? JSON.parse(pv) : null; } catch (_) { return null; } };
+  const writePack = async (pack) => { try { return await setSecret(packVaultKey(pack.slug), JSON.stringify(pack)); } catch (_) { return false; } };
+  // Create-or-reuse ONE seat: auth login (role) + technician row for tech seats. storedPw (from
+  // an existing pack) wins so a re-run never resets a password the owner may have changed.
+  async function ensureSeat(co, seat, storedPw) {
+    const email = seat.email;
+    const password = storedPw || seat.password;
+    const resetIfExists = !storedPw;
+    let uid = null, note = 'created';
+    const cu = await fetch(`${url}/auth/v1/admin/users`, { method: 'POST', headers: H, body: JSON.stringify({ email, password, email_confirm: true }), signal: AbortSignal.timeout(10000) });
+    const cud = await cu.json().catch(() => ({}));
+    if (cu.ok && cud && cud.id) { uid = cud.id; }
+    else {
+      const lu = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(10000) });
+      const lud = await lu.json().catch(() => ({}));
+      const arr = Array.isArray(lud.users) ? lud.users : (Array.isArray(lud) ? lud : []);
+      const ex = arr.find((u) => String(u.email || '').toLowerCase() === email.toLowerCase());
+      if (!ex) return { ok: false, error: 'create_user ' + cu.status + ' ' + JSON.stringify(cud).slice(0, 200) };
+      uid = ex.id; note = 'existing_user';
+      if (resetIfExists) { try { const rp = await fetch(`${url}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: H, body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000) }); if (rp.ok) note = 'reset'; } catch (_) {} }
+    }
+    let appUserId = null;
+    const auEx = await rest(`app_user?company_id=eq.${co.id}&auth_user_id=eq.${uid}&select=id&limit=1`);
+    if (Array.isArray(auEx.d) && auEx.d[0]) appUserId = auEx.d[0].id;
+    else {
+      const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, auth_user_id: uid, role: seat.role, name: seat.name, email }) });
+      if (!ai.ok) return { ok: false, error: 'link_app_user ' + ai.status + ' ' + JSON.stringify(ai.d).slice(0, 200) };
+      appUserId = (Array.isArray(ai.d) ? ai.d[0] : ai.d).id;
+    }
+    if (seat.role === 'tech') {
+      const linked = await rest(`technician?company_id=eq.${co.id}&app_user_id=eq.${appUserId}&select=id&limit=1`);
+      if (!(Array.isArray(linked.d) && linked.d[0])) {
+        const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: seat.name, active: true, commission_type: 'pct', commission_pct: 50 }) });
+        if (!ti.ok) return { ok: false, error: 'create_technician ' + ti.status + ' ' + JSON.stringify(ti.d).slice(0, 200) };
+      }
+    }
+    return { ok: true, uid, appUserId, password, note };
+  }
+
   // Reset an owner's platform login password to a fresh one and DROP IT IN THE VAULT
   // server-side (the value never returns through chat/logs). The owner then reads it at
   // admin-secrets.html and signs into /platform/office-board.html, changing it on first
@@ -464,6 +509,19 @@ exports.handler = async function (event) {
       try { saved = await setSecret(vaultKey, tempPw); } catch (_) { saved = false; }
     }
     const givePw = tempPw && (viaOwner || !saved);   // return the pw when the owner needs it, or vaulting failed
+    // Best-effort: append this tech to the shop's login pack so a tech added here (owner's board
+    // or operator) also shows on packs.html. When we know the fresh password (givePw) it lands in
+    // the pack; a reused login stores no password (packs.html shows "reset to reveal").
+    try {
+      let pack = await readPack(slug);
+      if (!pack) pack = { slug, name: co.name || slug, trade: 'appliance', plan: 'office', created_at: new Date().toISOString(), booking_link: 'https://tnapplianceexchange.net/b/' + slug, intake_email: slug + '@jobs.assistant247.net', seats: [] };
+      pack.seats = Array.isArray(pack.seats) ? pack.seats : [];
+      const seatRow = { role: 'tech', label: techName, email: techEmail, password: givePw ? tempPw : null, link: seatLink('tech') };
+      const at = pack.seats.findIndex((s) => String(s.email || '').toLowerCase() === techEmail.toLowerCase());
+      if (at >= 0) { if (seatRow.password) pack.seats[at] = seatRow; } else pack.seats.push(seatRow);
+      pack.updated_at = new Date().toISOString();
+      await writePack(pack);
+    } catch (_) {}
     return json(200, {
       ok: true, slug, shop: co.name, tech: { id: techRow.id, name: techName, email: techEmail },
       login: { email: techEmail, note: userNote, temp_password: givePw ? tempPw : undefined, vault_key: vaultKey || undefined, saved: vaultKey ? saved : undefined },
@@ -560,11 +618,16 @@ exports.handler = async function (event) {
   // (role=office, NO technician row) + M tech (role=tech + technician row) logins, each
   // with a MEMORABLE, REVEALED password (Ant-<Handle><n>). Login emails are pure
   // identifiers (owner.<slug>@ / office1.<slug>@ / tech1.<slug>@assistant247.net) — no email
-  // is ever sent, so nothing waits on anyone. The pack (7 seats + links) is stored in the
-  // vault as PLATFORM_PACK_<slug> so packs.html can re-show it without resetting anyone's
-  // password. Idempotent by slug: re-running reuses the company + stored passwords and mints
-  // only genuinely-missing seats. Admin/operator-only.
+  // is ever sent, so nothing waits on anyone. The pack is stored in the vault as
+  // PLATFORM_PACK_<slug> so packs.html can re-show it without resetting anyone's password.
+  // Idempotent by slug: re-running reuses the company + stored passwords and mints only
+  // genuinely-missing seats. Admin/operator-only.
   //   ?action=shoppack&secret=<admin>&name=Ant%20Shop%2001[&slug=][&office=2][&techs=4][&trade=appliance][&seed=1]
+  // OWNER-MODE (used by an application approval): pass &owner_email= (the applicant's REAL
+  // email, which becomes the owner login) and, if the owner login was already created upstream
+  // (e.g. by action=provision), &owner_seat_pw= (the temp password already issued) — then the
+  // owner seat is recorded in the pack with the real email + that password WITHOUT re-creating
+  // (or resetting) the owner login, and only the crew seats are minted.
   if (q.action === 'shoppack') {
     let ab = {}; try { ab = JSON.parse(event.body || '{}'); } catch (_) {}
     const nm = String(q.name || ab.name || '').trim();
@@ -574,6 +637,8 @@ exports.handler = async function (event) {
     const officeN = Math.max(0, Math.min(5, parseInt((q.office != null ? q.office : ab.office != null ? ab.office : 2), 10) || 0));
     const techN = Math.max(0, Math.min(10, parseInt((q.techs != null ? q.techs : ab.techs != null ? ab.techs : 4), 10) || 0));
     const seedOne = (q.seed === '1' || ab.seed === true);
+    const ownerEmail = String(q.owner_email || ab.owner_email || '').toLowerCase().trim();
+    const ownerSeatPw = String(q.owner_seat_pw || ab.owner_seat_pw || '').trim();   // owner login already exists → don't touch it
 
     // Resolve the company: an explicit &slug= is an idempotent TARGET (create-or-reuse, no
     // uniquing); a name-only build DERIVES a slug and uniques it so two same-named placeholders
@@ -603,61 +668,23 @@ exports.handler = async function (event) {
     }
 
     // Intended seat list. Memorable password = Ant-<PascalHandle><n> (n unique per seat).
-    const Handle = (shopHandle(name).split('-').map((t) => (t ? t[0].toUpperCase() + t.slice(1) : '')).join('')) || 'Shop';
+    const Handle = pascalHandle(name);
     const seats = [];
-    seats.push({ role: 'owner', label: 'Owner', name: 'Owner', email: `owner.${slug0}@assistant247.net`, link: 'https://tnapplianceexchange.net/platform/owner.html' });
-    for (let i = 1; i <= officeN; i++) seats.push({ role: 'office', label: `Office ${i}`, name: `Office ${i}`, email: `office${i}.${slug0}@assistant247.net`, link: 'https://tnapplianceexchange.net/platform/office-board.html' });
-    for (let i = 1; i <= techN; i++) seats.push({ role: 'tech', label: `Tech ${i}`, name: `Tech ${i}`, email: `tech${i}.${slug0}@assistant247.net`, link: 'https://tnapplianceexchange.net/platform/tech.html' });
-    seats.forEach((s, idx) => { s.password = `Ant-${Handle}${idx + 1}`; });
+    // The owner seat uses the applicant's real email when given (their login). When owner-mode
+    // supplies an already-issued password, the owner login exists — flag it so we skip creating it.
+    seats.push({ role: 'owner', label: 'Owner', name: 'Owner', email: ownerEmail || `owner.${slug0}@assistant247.net`, link: seatLink('owner'), preexisting: !!(ownerEmail && ownerSeatPw), fixedPw: (ownerEmail && ownerSeatPw) ? ownerSeatPw : null });
+    for (let i = 1; i <= officeN; i++) seats.push({ role: 'office', label: `Office ${i}`, name: `Office ${i}`, email: `office${i}.${slug0}@assistant247.net`, link: seatLink('office') });
+    for (let i = 1; i <= techN; i++) seats.push({ role: 'tech', label: `Tech ${i}`, name: `Tech ${i}`, email: `tech${i}.${slug0}@assistant247.net`, link: seatLink('tech') });
+    seats.forEach((s, idx) => { s.password = s.fixedPw || `Ant-${Handle}${idx + 1}`; });
 
-    // Read the existing pack (idempotent re-run: reuse stored passwords, never reset a seat
-    // whose owner may have already changed it).
-    const vaultKey = 'PLATFORM_PACK_' + slug0.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-    let prior = null;
-    try { const pv = await getSecretFresh(vaultKey); if (pv) prior = JSON.parse(pv); } catch (_) {}
+    // Read the existing pack (idempotent re-run: reuse stored passwords, never reset a seat).
+    const prior = await readPack(slug0);
     const priorByEmail = {};
     if (prior && Array.isArray(prior.seats)) prior.seats.forEach((s) => { priorByEmail[String(s.email || '').toLowerCase()] = s; });
 
-    // Create/reuse each seat: auth login (role) + technician row for tech seats.
-    async function ensureSeat(co, seat, storedPw) {
-      const email = seat.email;
-      const password = storedPw || seat.password;   // stored pw wins on re-run
-      const resetIfExists = !storedPw;              // only reset a pre-existing login on a fresh mint / gap-recovery
-      let uid = null, note = 'created';
-      const cu = await fetch(`${url}/auth/v1/admin/users`, { method: 'POST', headers: H, body: JSON.stringify({ email, password, email_confirm: true }), signal: AbortSignal.timeout(10000) });
-      const cud = await cu.json().catch(() => ({}));
-      if (cu.ok && cud && cud.id) { uid = cud.id; }
-      else {
-        const lu = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(10000) });
-        const lud = await lu.json().catch(() => ({}));
-        const arr = Array.isArray(lud.users) ? lud.users : (Array.isArray(lud) ? lud : []);
-        const ex = arr.find((u) => String(u.email || '').toLowerCase() === email.toLowerCase());
-        if (!ex) return { ok: false, error: 'create_user ' + cu.status + ' ' + JSON.stringify(cud).slice(0, 200) };
-        uid = ex.id; note = 'existing_user';
-        if (resetIfExists) { try { const rp = await fetch(`${url}/auth/v1/admin/users/${uid}`, { method: 'PUT', headers: H, body: JSON.stringify({ password }), signal: AbortSignal.timeout(8000) }); if (rp.ok) note = 'reset'; } catch (_) {} }
-      }
-      // app_user (role), idempotent by company + uid
-      let appUserId = null;
-      const auEx = await rest(`app_user?company_id=eq.${co.id}&auth_user_id=eq.${uid}&select=id&limit=1`);
-      if (Array.isArray(auEx.d) && auEx.d[0]) appUserId = auEx.d[0].id;
-      else {
-        const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, auth_user_id: uid, role: seat.role, name: seat.name, email }) });
-        if (!ai.ok) return { ok: false, error: 'link_app_user ' + ai.status + ' ' + JSON.stringify(ai.d).slice(0, 200) };
-        appUserId = (Array.isArray(ai.d) ? ai.d[0] : ai.d).id;
-      }
-      // technician row for tech seats only (office seats deliberately have none)
-      if (seat.role === 'tech') {
-        const linked = await rest(`technician?company_id=eq.${co.id}&app_user_id=eq.${appUserId}&select=id&limit=1`);
-        if (!(Array.isArray(linked.d) && linked.d[0])) {
-          const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: seat.name, active: true, commission_type: 'pct', commission_pct: 50 }) });
-          if (!ti.ok) return { ok: false, error: 'create_technician ' + ti.status + ' ' + JSON.stringify(ti.d).slice(0, 200) };
-        }
-      }
-      return { ok: true, uid, appUserId, password, note };
-    }
-
     const results = [];
     for (const s of seats) {
+      if (s.preexisting) { results.push({ label: s.label, email: s.email, note: 'owner_exists' }); continue; }
       const stored = priorByEmail[s.email.toLowerCase()];
       const storedPw = stored && stored.password ? stored.password : null;
       const r = await ensureSeat(company, s, storedPw);
@@ -688,10 +715,53 @@ exports.handler = async function (event) {
       intake_email: slug0 + '@jobs.assistant247.net',
       seats: seats.map((s) => ({ role: s.role, label: s.label, email: s.email, password: s.password, link: s.link })),
     };
-    let saved = false;
-    try { saved = await setSecret(vaultKey, JSON.stringify(pack)); } catch (_) { saved = false; }
+    const saved = await writePack(pack);
 
-    return json(200, { ok: true, slug: slug0, name, seat_count: seats.length, results, seeded, saved, vault_key: vaultKey, pack });
+    return json(200, { ok: true, slug: slug0, name, seat_count: seats.length, results, seeded, saved, vault_key: packVaultKey(slug0), pack });
+  }
+
+  // Add ONE more seat (a tech by default, or office) to an existing shop and its pack — the
+  // "➕ Add a tech" button. Each add mints a fresh system-assigned login + memorable password
+  // and appends it to PLATFORM_PACK_<slug> so it's instantly hand-out-able on packs.html.
+  // Admin/operator-only.  ?action=addseat&secret=<admin>&slug=<shop>[&role=tech|office]
+  if (q.action === 'addseat') {
+    let ab = {}; try { ab = JSON.parse(event.body || '{}'); } catch (_) {}
+    const slug0 = String(q.slug || ab.slug || '').toLowerCase().trim();
+    const role = (String(q.role || ab.role || 'tech').toLowerCase() === 'office') ? 'office' : 'tech';
+    if (!slug0) return json(200, { ok: false, error: 'slug required' });
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id,name,slug&limit=1`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug0 });
+
+    // Next index for this role = max existing {role}{N}.<slug>@ login + 1 (collision-safe even
+    // if the pack drifted). Also count total logins so the memorable pw number keeps climbing.
+    const users = await rest0(`app_user?company_id=eq.${co.id}&select=email,role`);
+    const arr = Array.isArray(users) ? users : [];
+    const re = new RegExp('^' + role + '(\\d+)\\.' + slug0.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '@assistant247\\.net$', 'i');
+    let maxIdx = 0;
+    arr.forEach((u) => { const m = re.exec(String(u.email || '')); if (m) maxIdx = Math.max(maxIdx, parseInt(m[1], 10) || 0); });
+    const idx = maxIdx + 1;
+    const seatNum = arr.length + 1;   // global pw index so passwords stay unique + climbing
+    const Handle = pascalHandle(co.name || slug0);
+    const label = (role === 'office' ? 'Office ' : 'Tech ') + idx;
+    const seat = { role, label, name: label, email: `${role}${idx}.${slug0}@assistant247.net`, link: seatLink(role), password: `Ant-${Handle}${seatNum}` };
+
+    const r = await ensureSeat(co, seat, null);
+    if (!r.ok) return json(200, { ok: false, error: r.error, slug: slug0 });
+    seat.password = r.password;
+
+    // Append to the pack (initialize a minimal pack if none exists yet, e.g. an
+    // application-provisioned shop that had only the owner login before).
+    let pack = await readPack(slug0);
+    if (!pack) pack = { slug: slug0, name: co.name || slug0, trade: 'appliance', plan: 'office', created_at: new Date().toISOString(), booking_link: 'https://tnapplianceexchange.net/b/' + slug0, intake_email: slug0 + '@jobs.assistant247.net', seats: [] };
+    pack.seats = Array.isArray(pack.seats) ? pack.seats : [];
+    const seatRow = { role: seat.role, label: seat.label, email: seat.email, password: seat.password, link: seat.link };
+    const at = pack.seats.findIndex((s) => String(s.email || '').toLowerCase() === seat.email.toLowerCase());
+    if (at >= 0) pack.seats[at] = seatRow; else pack.seats.push(seatRow);
+    pack.updated_at = new Date().toISOString();
+    const saved = await writePack(pack);
+
+    return json(200, { ok: true, slug: slug0, seat: seatRow, note: r.note, saved, pack });
   }
 
   // Read a stored shop pack (for packs.html). Admin/operator-only. ?action=packs&slug=<slug>
