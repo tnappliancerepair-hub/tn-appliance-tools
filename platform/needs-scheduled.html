@@ -83,6 +83,7 @@
 <body>
 <div id="app"></div>
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-windows.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
@@ -306,6 +307,7 @@
     var picker='<div class="nspick" id="pick-'+esc(j.id)+'">'+
       '<label>Tech</label><select class="pk-tech">'+techOpts+'</select>'+
       '<label>Day</label><input class="pk-day" type="date" value="'+esc(defDay)+'">'+
+      '<label>Arrival window</label>'+AntWindows.selectHtml('pkwin-'+j.id, '', [], null, {blankLabel:'No window yet'})+
       '<div class="prow"><button type="button" class="pk-cancel">Cancel</button><button type="button" class="primary pk-save" data-job="'+esc(j.id)+'">Save</button></div>'+
       '<div class="err pk-err"></div></div>';
 
@@ -334,19 +336,21 @@
       var id=el.getAttribute('data-job'); var j=jobById(id); if(!j) return;
       var panel=document.getElementById('pick-'+id); if(!panel) return;
       var tech=panel.querySelector('.pk-tech').value||null; var day=panel.querySelector('.pk-day').value||null;
+      var wsel=document.getElementById('pkwin-'+id); var win=wsel?(wsel.value||null):null;
       var errEl=panel.querySelector('.pk-err'); errEl.textContent='';
       if(tech && day && offOn(tech,day) && !window.confirm('That tech is marked OFF on '+day+'. Book them anyway?')) return;
       var zip=jobZip(j);
       if(tech && zip){ var tt=techs.filter(function(x){return x.id===tech;})[0]; if(tt && areaList(tt).length && !coversZip(tt,zip) && !window.confirm((tt.name||'That tech')+' doesn’t cover '+zip+'. Assign anyway?')) return; }
-      book(j, tech, day, el, errEl);
+      book(j, tech, day, el, errEl, win);
     }; });
   }
   function togglePick(id, open){ var p=document.getElementById('pick-'+id); if(!p) return; if(open){ p.classList.add('open'); var s=p.querySelector('.pk-tech'); if(s) s.focus(); } else p.classList.remove('open'); }
 
   // Book a job → identical write + notify to dispatch.html's assign Save.
-  function book(job, tech, day, btn, errEl){
+  function book(job, tech, day, btn, errEl, win){
     if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
     var patch={ technician_id:(tech||null), scheduled_day:(day||null) };
+    if(win && AntWindows.isWindow(win)) patch.time_window=win;
     if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
     sb.from('job').update(patch).eq('id',job.id).then(function(r){
       if(r.error){ if(btn){ btn.disabled=false; btn.textContent='Save'; } if(errEl) errEl.textContent=r.error.message; else toast('Couldn’t book — '+r.error.message); return; }

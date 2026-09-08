@@ -312,6 +312,7 @@
 <div id="app"></div>
 
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-windows.js"></script>
 <script src="/platform/features.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -491,7 +492,7 @@
   // Instant client scan of loaded jobs (normalized phone match) + a live RLS-scoped DB query so
   // even old jobs surface. A result opens the full job tile. ──
   var searchResults={}, searchSeq=0, searchTimer=null;
-  var SR_SEL='id,status,problem,scheduled_day,claim_number,dispatch_id,warranty_company,office_notes,customer_id,technician_id,customer_cutoff,needs_two_techs,long_job,created_at,customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
+  var SR_SEL='id,status,problem,scheduled_day,time_window,claim_number,dispatch_id,warranty_company,office_notes,customer_id,technician_id,customer_cutoff,needs_two_techs,long_job,created_at,customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
   function srSanitize(t){ return String(t||'').replace(/[%,()*]/g,' ').replace(/\s+/g,' ').trim(); }
   function hideSearch(){ var r=document.getElementById('searchres'); if(r){ r.hidden=true; r.innerHTML=''; } }
   function wireSearch(){
@@ -1045,7 +1046,9 @@
 
         // the booked date — shown right on the card so it's visible in the column view
         var schChip = (String(j.scheduled_day||'').trim() && j.status!=='canceled')
-          ? '<div class="schedc">📅 Scheduled '+esc(schDay(j.scheduled_day))+(j.technician&&j.technician.name?' · '+esc(firstName(j.technician.name)):'')+'</div>' : '';
+          ? '<div class="schedc">📅 Scheduled '+esc(schDay(j.scheduled_day))+
+              (j.time_window?' · '+esc(schWin(j.time_window)):'')+
+              (j.technician&&j.technician.name?' · '+esc(firstName(j.technician.name)):'')+'</div>' : '';
         // customer-agreed availability / promised window
         var avail = availChip(j);
         // latest inbound customer message — green bubble, 2-line clamp
@@ -1104,32 +1107,73 @@
   // and the wear-item / floor-protection choices), pulled straight from the tenant DB.
   // ── SCHEDULE HANDSHAKE (office side): see the customer's day requests (one-tap book) and
   // offer a day back to them (they accept from their portal). Three sides, everyone helps.
-  function schWin(w){ return w==='am'?'mornings':(w==='pm'?'afternoons':'anytime'); }
+  // One window vocabulary for the whole platform — see /platform/ant-windows.js.
+  function schWin(w){ return (window.AntWindows && AntWindows.label(w)) || 'anytime'; }
   function schDay(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return d; } }
   function loadSched(job){
     var box=document.getElementById('jsched'); if(!box) return;
-    sb.from('schedule_offer').select('id,direction,proposed_day,win,note,status').eq('job_id',job.id).eq('status','pending').order('created_at',{ascending:false}).then(function(r){
+    // What else is on this tech's day? That's what makes "1 of 2 left" honest, so pull the
+    // siblings alongside the offers. No tech or no day yet -> no counts, just the windows.
+    var sibs = (job.scheduled_day && job.technician_id)
+      ? sb.from('job').select('id,time_window,status').eq('company_id',companyId)
+          .eq('technician_id',job.technician_id).eq('scheduled_day',job.scheduled_day)
+      : Promise.resolve({data:[]});
+    Promise.all([
+      sb.from('schedule_offer').select('id,direction,proposed_day,win,note,status').eq('job_id',job.id).eq('status','pending').order('created_at',{ascending:false}),
+      sibs
+    ]).then(function(rr){
+      var r=rr[0]; var dayJobs=(rr[1]&&rr[1].data)||[];
       var offers=(r.data)||[]; var html='';
-      if(job.scheduled_day) html+='<div class="hint" style="margin-bottom:8px">Booked: <b>'+esc(schDay(job.scheduled_day))+'</b></div>';
+      if(job.scheduled_day){
+        html+='<div class="hint" style="margin-bottom:8px">Booked: <b>'+esc(schDay(job.scheduled_day))+'</b>'+
+          (job.time_window?' · <b>'+esc(schWin(job.time_window))+'</b>':' · <i>no window yet</i>')+'</div>';
+        // The vendor's own promise, when they gave one — pick a slot that fits it.
+        if(job.service_window) html+='<div class="hint" style="margin:-4px 0 8px">Warranty window: <b>'+esc(job.service_window)+'</b></div>';
+        html+='<div class="offform" style="margin-bottom:10px"><label style="font-weight:700;font-size:12.5px">Arrival window</label>'+
+          AntWindows.selectHtml('jWin', job.time_window||'', dayJobs, job.id, {blankLabel:'No window yet'})+
+          '<button class="primary" id="jWinSave">Save window</button><span class="hint" id="jWinMsg" style="align-self:center"></span></div>';
+      }
       offers.filter(function(o){return o.direction==='customer';}).forEach(function(o){
-        html+='<div class="offrow"><div class="ot">🙋 Customer wants <b>'+esc(schDay(o.proposed_day))+'</b> · '+schWin(o.win)+(o.note?' — '+esc(o.note):'')+'</div><button class="book" data-book="'+esc(o.id)+'" data-day="'+esc(o.proposed_day)+'">Book it</button></div>';
+        html+='<div class="offrow"><div class="ot">🙋 Customer wants <b>'+esc(schDay(o.proposed_day))+'</b> · '+schWin(o.win)+(o.note?' — '+esc(o.note):'')+'</div><button class="book" data-book="'+esc(o.id)+'" data-day="'+esc(o.proposed_day)+'" data-win="'+esc(o.win||'')+'">Book it</button></div>';
       });
       offers.filter(function(o){return o.direction==='shop';}).forEach(function(o){
         html+='<div class="offrow pend"><div class="ot">📤 You offered <b>'+esc(schDay(o.proposed_day))+'</b> · '+schWin(o.win)+' — waiting on customer</div><button class="wd" data-withdraw="'+esc(o.id)+'">Withdraw</button></div>';
       });
-      html+='<div class="offform"><input type="date" id="soDay" min="'+new Date().toISOString().slice(0,10)+'"><select id="soWin"><option value="any">Wide open</option><option value="am">Mornings</option><option value="pm">Afternoons</option></select><button class="primary" id="soSend">Offer to customer</button></div>';
+      html+='<div class="offform"><input type="date" id="soDay" min="'+new Date().toISOString().slice(0,10)+'">'+
+        AntWindows.selectHtml('soWin','',[],null,{blankLabel:'Wide open'})+
+        '<button class="primary" id="soSend">Offer to customer</button></div>';
       box.innerHTML=html;
+      var jw=document.getElementById('jWinSave');
+      if(jw) jw.onclick=function(){ saveWindow(job, jw); };
       box.querySelectorAll('button[data-book]').forEach(function(b){ b.onclick=function(){ bookRequest(job, b.getAttribute('data-book'), b.getAttribute('data-day'), b); }; });
       box.querySelectorAll('button[data-withdraw]').forEach(function(b){ b.onclick=function(){ b.disabled=true; sb.from('schedule_offer').update({status:'withdrawn',decided_at:new Date().toISOString()}).eq('id',b.getAttribute('data-withdraw')).then(function(){ loadSched(job); }); }; });
       var ss=document.getElementById('soSend'); if(ss) ss.onclick=function(){ sendOffer(job, ss); };
     });
   }
+  // Set (or clear) the 3-hour arrival window on a booked job. Verified — a zero-row write
+  // is an RLS block, and a window nobody saved must never look saved.
+  function saveWindow(job, btn){
+    var sel=document.getElementById('jWin'); var msg=document.getElementById('jWinMsg'); if(!sel) return;
+    var w=sel.value||null;
+    btn.disabled=true; btn.textContent='Saving…'; if(msg) msg.textContent='';
+    sb.from('job').update({time_window:w}).eq('id',job.id).select('id').then(function(r){
+      btn.disabled=false; btn.textContent='Save window';
+      if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){ if(msg) msg.textContent='Did NOT save'; return; }
+      job.time_window=w; if(msg) msg.textContent='Saved ✓';
+      loadSched(job); loadBoard();
+    });
+  }
   function bookRequest(job, offerId, day, btn){
     btn.disabled=true; btn.textContent='Booking…';
+    // The customer asked for a specific window — book it, don't make the office re-pick it.
+    var upd={scheduled_day:day, status:(job.status==='new'||!job.status)?'scheduled':job.status};
+    var ofr=(document.querySelector('button[data-book="'+offerId+'"]')||{}).getAttribute
+      ? document.querySelector('button[data-book="'+offerId+'"]').getAttribute('data-win') : '';
+    if(ofr && window.AntWindows && AntWindows.isWindow(ofr)) upd.time_window=ofr;
     sb.from('schedule_offer').update({status:'accepted',decided_at:new Date().toISOString()}).eq('id',offerId)
-      .then(function(){ return sb.from('job').update({scheduled_day:day, status:(job.status==='new'||!job.status)?'scheduled':job.status}).eq('id',job.id); })
+      .then(function(){ return sb.from('job').update(upd).eq('id',job.id); })
       .then(function(){ return sb.from('thread_message').insert({company_id:companyId, customer_id:job.customer_id||null, job_id:job.id, direction:'out', channel:'portal', sender:'office', body:'✅ Booked you for '+day}); })
-      .then(function(){ job.scheduled_day=day; loadSched(job); loadBoard(); });
+      .then(function(){ job.scheduled_day=day; if(upd.time_window) job.time_window=upd.time_window; loadSched(job); loadBoard(); });
   }
   function sendOffer(job, btn){
     var day=document.getElementById('soDay').value, win=document.getElementById('soWin').value||'any';
@@ -2146,7 +2190,7 @@
     // The dense card needs the warranty/parts/report/stop columns; customer.city rides along
     // for the 📍 chip. All are from applied migrations (033/044/020/019/004).
     var baseMin  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,technician_id,warranty_company,';
-    var baseRich = baseMin + 'board_stage,claim_number,dispatch_id,service_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
+    var baseRich = baseMin + 'board_stage,claim_number,dispatch_id,service_window,time_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
     var tailRich = 'customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
     var tailMin  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
     var proceed = function (r) {

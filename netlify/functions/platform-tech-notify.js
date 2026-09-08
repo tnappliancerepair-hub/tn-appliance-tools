@@ -15,7 +15,9 @@ const { msg: commsMsg } = require('./_lib/comms');
 const SITE = 'https://tnapplianceexchange.net';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
-function winLabel(w) { return w === 'am' ? 'mornings' : (w === 'pm' ? 'afternoons' : 'anytime'); }
+const WINDOWS = { '8-11': '8–11 AM', '11-2': '11 AM–2 PM', '2-5': '2–5 PM' };
+const LEGACY_WIN = { am: 'mornings', pm: 'afternoons', any: 'anytime' };
+function winLabel(w) { return WINDOWS[String(w || '')] || LEGACY_WIN[String(w || '')] || 'anytime'; }
 function dayLabel(d) { try { return new Date(String(d) + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }); } catch (_) { return String(d); } }
 
 async function cfg() {
@@ -107,7 +109,7 @@ exports.handler = async function (event) {
       // their portal) AND text them the day + a one-tap portal link so it hits their phone —
       // not just the board. The handshake works both ways: customer requests, shop offers.
       const day = String(p.day || '').trim();
-      const win = ['am', 'pm', 'any'].includes(String(p.win || '')) ? String(p.win) : 'any';
+      const win = (WINDOWS[String(p.win || '')] || ['am', 'pm', 'any'].includes(String(p.win || ''))) ? String(p.win) : 'any';
       const note = String(p.note || '').trim().slice(0, 200);
       if (!day) return json(200, { ok: false, error: 'need day' });
       // A shop offer is a HOLD for a specific tech + day (renders ghosted in that tech's column).
@@ -115,11 +117,14 @@ exports.handler = async function (event) {
       // Supersede any prior pending offers on this job — one live proposal at a time.
       try { await db.patch(`schedule_offer?job_id=eq.${job.id}&company_id=eq.${companyId}&status=eq.pending`, { status: 'withdrawn', decided_at: new Date().toISOString() }); } catch (_) {}
       await db.insert('schedule_offer', { company_id: companyId, job_id: job.id, customer_id: job.customer_id, direction: 'shop', proposed_day: day, win, note: note || null, technician_id: holdTech, status: 'pending', created_by: techName ? ('office:' + techName) : 'office' });
+      // Pencil the window onto the job now — the office picked it, so the board and the tech
+      // should show it while we wait on the customer. The day is only set once they accept.
+      if (WINDOWS[win]) { try { await db.patch(`job?id=eq.${job.id}&company_id=eq.${companyId}`, { time_window: win }); } catch (_) {} }
       let grant = (await db.get(`portal_grant?company_id=eq.${companyId}&customer_id=eq.${job.customer_id}&job_id=eq.${job.id}&revoked=eq.false&select=token&limit=1`))[0];
       if (!grant) grant = await db.insertRet('portal_grant', { company_id: companyId, customer_id: job.customer_id, job_id: job.id });
       const tk = grant && grant.token;
       const link = tk ? `${SITE}/platform/portal.html?t=${tk}` : '';
-      const lbl = dayLabel(day) + (win === 'any' ? '' : ' (' + winLabel(win) + ')');
+      const lbl = dayLabel(day) + (win === 'any' ? '' : ', ' + winLabel(win));
       let sent = false;
       let offText = commsMsg(co.settings, 'offer', { first, shop, day: lbl, link });
       if (offText && note) offText += ' — ' + note;

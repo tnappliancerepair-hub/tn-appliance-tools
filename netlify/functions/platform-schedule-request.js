@@ -5,7 +5,7 @@
 // link can fire it, and it only ever texts that one shop's own cell). Best-effort SMS: the
 // request is still recorded even if the shop set no cell.
 //
-//   POST { t:<portal token>, day:"YYYY-MM-DD", win:"am|pm|any", note?:string }
+//   POST { t:<portal token>, day:"YYYY-MM-DD", win:"8-11|11-2|2-5|any", note?:string }
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
@@ -15,7 +15,9 @@ const PLATFORM_ANON = 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7';
 const SITE = 'https://tnapplianceexchange.net';
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }; }
-function winLabel(w) { return w === 'am' ? 'mornings' : (w === 'pm' ? 'afternoons' : 'anytime'); }
+const WINDOWS = { '8-11': '8–11 AM', '11-2': '11 AM–2 PM', '2-5': '2–5 PM' };
+const LEGACY_WIN = { am: 'mornings', pm: 'afternoons', any: 'anytime' };
+function winLabel(w) { return WINDOWS[String(w || '')] || LEGACY_WIN[String(w || '')] || 'anytime'; }
 function dayLabel(d) {
   try { return new Date(String(d) + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
   catch (_) { return String(d); }
@@ -25,7 +27,7 @@ exports.handler = async function (event) {
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
   const token = String(b.t || b.token || '').trim();
   const day = String(b.day || '').trim();
-  const win = ['am', 'pm', 'any'].includes(String(b.win || '')) ? String(b.win) : 'any';
+  const win = (WINDOWS[String(b.win || '')] || ['am', 'pm', 'any'].includes(String(b.win || ''))) ? String(b.win) : 'any';
   const note = String(b.note || '').trim().slice(0, 200);
   if (!token || !day) return json(200, { ok: false, error: 'need t (token) and day' });
 

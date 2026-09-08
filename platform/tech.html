@@ -69,6 +69,7 @@
   .intake .imedia{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;align-items:center}
   .mtile{position:relative;display:inline-flex;width:68px;height:68px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#0b0d08;align-items:center;justify-content:center;flex:0 0 auto}
   .mtile img{width:100%;height:100%;object-fit:cover;display:block}
+  .winchip{display:inline-block;font-size:12.5px;font-weight:800;color:var(--brand);background:color-mix(in srgb,var(--brand) 12%,transparent);border:1px solid color-mix(in srgb,var(--brand) 34%,transparent);border-radius:999px;padding:2px 10px;margin:4px 0 2px}
   .mtile img[data-ph]:not(.ready){display:none}
   .phwait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.55}
   .phwait.failed{font-size:11px;line-height:1.15;text-align:center;padding:4px;opacity:.8}
@@ -196,6 +197,7 @@
 <div id="app"><div class="shell"><div class="empty">🐜 Loading…</div></div></div>
 
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-windows.js"></script>
 <script src="/platform/pay-calc.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -692,6 +694,7 @@
     return '<div class="card" data-card="'+j.id+'">' +
       '<div class="row1"><a class="opencard" href="'+openUrl+'"><div class="cust">'+stopBadge+esc(fullName(cust)||'Customer')+' <span class="chev">›</span></div>'+(unit?'<div class="unit">'+esc(unit)+'</div>':'')+'</a>' +
       '<span class="spill s-'+esc(j.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
+      (j.time_window?'<div class="winchip">🕐 '+esc(AntWindows.label(j.time_window))+'</div>':'') +
       (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
       '<a class="openbtn" href="'+openUrl+'">Open job — video, model &amp; report →</a>' +
       intakeHtml(j) +
@@ -1182,7 +1185,7 @@
   }
   function loadJobs(){
     var q = sb.from('job').select(
-      'id,status,problem,scheduled_day,availability,waiver_name,waiver_signed_at,customer_id,' +
+      'id,status,problem,scheduled_day,time_window,availability,waiver_name,waiver_signed_at,customer_id,' +
       'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held),' +
       'parts:job_part(name,number,source,ship_to,eta,order_status,disposition)'

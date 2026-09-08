@@ -199,6 +199,7 @@
 <body>
 <div id="app"></div>
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-windows.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
@@ -220,7 +221,13 @@
   function shopHold(jobId){ return jobOffers(jobId).filter(function(o){ return o.direction==='shop'; })[0]||null; }   // office's pending hold
   function custReqs(){ return offers.filter(function(o){ return o.direction==='customer'; }).sort(function(a,b){ return String(a.proposed_day).localeCompare(String(b.proposed_day)); }); }
   function holdsOn(techId,d){ var n=0; offers.forEach(function(o){ if(o.direction==='shop'&&String(o.technician_id)===String(techId)&&o.proposed_day===d) n++; }); return n; }
-  function winLbl(w){ return w==='am'?'mornings':w==='pm'?'afternoons':'anytime'; }
+  // One window vocabulary for the whole platform — see /platform/ant-windows.js.
+  function winLbl(w){ return (window.AntWindows && AntWindows.label(w)) || 'anytime'; }
+  // Jobs already on one tech's day — the input behind "8–11 AM · 1 of 2 left".
+  function winDayJobs(techId, day){
+    if(!techId || !day) return [];
+    return (jobs||[]).filter(function(j){ return j.technician_id===techId && String(j.scheduled_day||'')===String(day); });
+  }
   // Best tech for a REQUESTED day: a covering tech with the most open room (real stops + holds), not off.
   function bestTechForDay(job,d){ var zip=jobZip(job); var jt=jobServiceType(job);
     var covers0=techs.filter(function(t){ return coversZip(t,zip); });
@@ -650,7 +657,8 @@
     ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+avRow+holdHtml+sugHtml+
       '<label>Tech</label><select id="a-tech">'+techOpts+'</select>'+
       '<label>Day</label><input id="a-day" type="date" value="'+esc((hold&&hold.proposed_day)||job.scheduled_day||selDay)+'">'+
-      '<label>Window (for an offer)</label><select id="a-win"><option value="any"'+(hold&&hold.win==='any'?' selected':'')+'>Anytime</option><option value="am"'+(hold&&hold.win==='am'?' selected':'')+'>Morning (8–12)</option><option value="pm"'+(hold&&hold.win==='pm'?' selected':'')+'>Afternoon (12–5)</option></select>'+
+      '<label>Arrival window <span class="hint" id="a-wincap"></span></label>'+
+      AntWindows.selectHtml('a-win', (hold&&hold.win)||job.time_window||'', winDayJobs(job.technician_id, (hold&&hold.proposed_day)||job.scheduled_day||selDay), job.id, {blankLabel:'No window yet'})+
       '<div class="srow"><button id="a-cancel">Cancel</button><button class="primary" id="a-save">Book now</button></div>'+
       '<div class="srow" style="margin-top:8px"><button id="a-offer" style="flex:1;background:linear-gradient(135deg,#e0a63e,#c79a17);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:800;cursor:pointer">📤 Offer a hold (text customer)</button></div>'+
       '<div class="linkrow"><button class="link" id="a-unsched">Unschedule</button><a href="/platform/office-board.html?job='+encodeURIComponent(job.id)+'">Open full job →</a></div>'+
@@ -659,6 +667,20 @@
     var close=function(){ try{document.body.removeChild(ov);}catch(e){} }; ov.onclick=function(e){ if(e.target===ov) close(); };
     document.getElementById('a-cancel').onclick=close;
     var errEl=document.getElementById('a-err');
+    // Slot counts are per tech + per day, so re-draw them whenever either one changes.
+    function refreshWinCap(){
+      var t=(document.getElementById('a-tech')||{}).value||null;
+      var d=(document.getElementById('a-day')||{}).value||null;
+      var sel=document.getElementById('a-win'); var cap=document.getElementById('a-wincap');
+      if(!sel) return; var cur=sel.value;
+      sel.outerHTML=AntWindows.selectHtml('a-win', cur, winDayJobs(t,d), job.id, {blankLabel:'No window yet'});
+      if(cap) cap.textContent = (t&&d) ? '' : '— pick a tech and day to see what is open';
+      var s2=document.getElementById('a-win'); if(s2) s2.value=cur;
+    }
+    var tSel=document.getElementById('a-tech'), dSel=document.getElementById('a-day');
+    if(tSel) tSel.addEventListener('change', refreshWinCap);
+    if(dSel) dSel.addEventListener('change', refreshWinCap);
+    refreshWinCap();
     var sgBtn=document.getElementById('a-suggest');
     if(sgBtn) sgBtn.onclick=function(){ document.getElementById('a-tech').value=sug.tech.id; document.getElementById('a-day').value=sug.day; sgBtn.textContent='✓ Filled'; };
     // Book NOW — firm booking (no waiting on the customer). Accepts any pending offer on the job.
@@ -669,6 +691,8 @@
       if(tech && jType){ var t3=techs.filter(function(x){return x.id===tech;})[0]; if(t3 && !techDoesType(t3,jType) && !window.confirm((t3.name||'That tech')+' isn’t marked for '+jType+'. Assign anyway?')) return; }
       var btn=this; btn.disabled=true; btn.textContent='Saving…';
       var patch={ technician_id:tech, scheduled_day:day };
+      var win=(document.getElementById('a-win')||{}).value||'';
+      patch.time_window = (win && AntWindows.isWindow(win)) ? win : null;
       if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
       sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(r.error){ btn.disabled=false; btn.textContent='Book now'; errEl.textContent=r.error.message; return; }
         withdrawOtherOffers(job.id,null,function(){ if(day) selDay=day; if(tech) notifyAssigned(job.id); close(); load(); }); });
@@ -792,7 +816,7 @@
     var todayIso=isoDay(new Date());
     sb.rpc('company_roster').then(function(tr){
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
-      var jP=sb.from('job').select('id,status,problem,availability,scheduled_day,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
+      var jP=sb.from('job').select('id,status,problem,availability,scheduled_day,time_window,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
       var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
       var offerP=sb.from('schedule_offer').select('id,job_id,customer_id,direction,proposed_day,win,note,technician_id,status,created_at').eq('status','pending').gte('proposed_day',todayIso).limit(1000);
       var covP=sb.from('coverage').select('zip,tech_id,rank').limit(4000);

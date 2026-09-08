@@ -183,6 +183,7 @@
 <div class="shell" id="app"><div class="center"><div class="big">🐜</div><p>Loading…</p></div></div>
 
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-windows.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
@@ -213,7 +214,8 @@
   function statusOf(k){ return STATUS[k] || { label: (k||'Open'), color: '#6b7280', line: 'We\'re on it — reply below anytime with questions.' }; }
 
   function fmtDay(d){ if(!d) return ''; try { return new Date(d + 'T12:00:00').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}); } catch(e){ return d; } }
-  function fmtWin(w){ return w==='am' ? 'mornings' : (w==='pm' ? 'afternoons' : 'anytime'); }
+  // One window vocabulary for the whole platform — see /platform/ant-windows.js.
+  function fmtWin(w){ return (window.AntWindows && AntWindows.label(w)) || 'anytime'; }
   // The three-way handshake, customer side: accept/decline a shop offer, or request a day.
   function respondOffer(id, accept, btn){
     btn.disabled = true;
@@ -391,7 +393,8 @@
         schedHtml = '<div class="reqwrap"><button class="reqbtn" data-req="' + esc(j.id) + '">📅 Request a day that works</button>' +
           '<div class="reqform" id="rf_' + esc(j.id) + '" hidden>' +
             '<input type="date" id="rd_' + esc(j.id) + '" min="' + today + '">' +
-            '<div class="wsel" id="rw_' + esc(j.id) + '"><span class="wc on" data-w="any">Wide open</span><span class="wc" data-w="am">Mornings</span><span class="wc" data-w="pm">Afternoons</span></div>' +
+            '<div class="wsel" id="rw_' + esc(j.id) + '"><span class="wc on" data-w="any">Wide open</span>' +
+              AntWindows.LIST.map(function(w){ return '<span class="wc" data-w="'+w.key+'">'+w.label+'</span>'; }).join('') + '</div>' +
             '<button class="reqsend" data-reqsend="' + esc(j.id) + '">Send request</button></div></div>';
       }
       return '<div class="card"><div class="job-top"><div>' +
@@ -399,7 +402,8 @@
         (j.problem ? '<div class="job-prob">' + esc(j.problem) + '</div>' : '') +
         '</div><span class="badge" style="background:' + st.color + '">' + esc(st.label) + '</span></div>' +
         '<div class="statusline">' + esc(st.line) + '</div>' +
-        (day ? '<div class="meta"><span>Scheduled: <b>' + esc(day) + '</b></span></div>' : '') +
+        (day ? '<div class="meta"><span>Scheduled: <b>' + esc(day) +
+               (j.time_window ? '</b> · <b>' + esc(AntWindows.label(j.time_window)) : '') + '</b></span></div>' : '') +
         schedHtml + techHtml + vidHtml + billHtml +
         ((j.status==='new'||j.status==='scheduled') ? '<div class="canrow"><button class="canbtn" data-cancel="'+esc(j.id)+'">Need to cancel this appointment?</button></div>' : '') +
         '</div>';
