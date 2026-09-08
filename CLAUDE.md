@@ -75,6 +75,14 @@ Added an **Avg ticket** row to the Money block.
 4. **Shoot the founder film** (real face) per `docs/founder-film-quickstart.md`; HeyGen for variants only.
 5. **Build packs for the shops that predate `shoppack`** — or accept per-person `resetpw` as the path for TN.
 
+### 🧪 ALSO THIS SESSION (09-08 evening) — **`test-shop` built: the 7-login walk-every-seat shop**
+Finished the project the frozen session had parked at ExitPlanMode. Goal: a purpose-built throwaway shop Teddy can sign into as EVERY role and see exactly what a real customer sees — **without touching real data**.
+- Built with **`?action=shoppack&name=Test%20Shop&office=2&techs=4&trade=appliance&seed=1&area=Antioch`** → slug **`test-shop`**, 7 seats (owner + 2 office + 4 tech), one seeded sample job so the board isn't blank. Pack persisted to vault **`PLATFORM_PACK_TEST_SHOP`**, so **`/packs`** re-shows it without resetting anyone.
+- **Passwords are memorable + positional by design:** `Ant-TestShop<N>` where N is seat order (1=Owner, 2-3=Office, 4-7=Tech). Emails are `owner|office1|office2|tech1..4` + `.test-shop@assistant247.net`. **No email is ever sent** — nothing waits on anyone.
+- **VERIFIED 7/7 authenticate** (signed each in against Supabase before hand-off): every seat resolves its correct role and sees the shop's board. Seats: owner → `owner.html`, office → `office-board.html`, tech → `tech.html`.
+- **Left standing on purpose** so the ➕ Add-a-tech button has a live card to demo. Cleanup when done: `?action=offboard&slug=test-shop`, then `?action=purge` (30-day retention). It's a throwaway — never treat it as a real tenant.
+- **⚠️ `shoppack` is a shop BUILDER, not a backfill.** Never point it at a live tenant to "generate a pack" — for a shop that predates packs (e.g. `tn-appliance-exchange-llc`) the path is per-person `?action=resetpw&email=…&reveal=1`.
+
 ### 🔑 ALSO THIS SESSION (09-08 evening) — Jimmy's platform login issued
 Teddy asked for Jimmy's login on the new system. **He already had a tech seat** on the live tenant `tn-appliance-exchange-llc` (3,398 jobs) — just no password in hand. Reset + verified end-to-end:
 - **Link** `https://tnapplianceexchange.net/platform/tech.html` · **email** `jimmy.tnae@assistant247.net` · password reset via `platform-provision?action=resetpw&email=…&reveal=1` (also vaulted).
