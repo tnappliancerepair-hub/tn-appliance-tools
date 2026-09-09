@@ -32,6 +32,7 @@ function rest(base, key) {
   return {
     async get(path) { const r = await fetch(`${base}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(8000) }); return r.ok ? r.json() : []; },
     async insert(table, row) { const r = await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) }); return r.ok; },
+    async patch(table, filter, patchObj) { const r = await fetch(`${base}/rest/v1/${table}?${filter}`, { method: 'PATCH', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(patchObj), signal: AbortSignal.timeout(8000) }); return r.ok; },
     async storagePut(bucket, path, buf, contentType) {
       const r = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, { method: 'POST', headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': contentType, 'x-upsert': 'true' }, body: buf, signal: AbortSignal.timeout(15000) });
       return r.ok;
@@ -196,6 +197,63 @@ exports.handler = async function (event) {
       }
       const ok = await db.del(`job_media?id=eq.${id}&company_id=eq.${scope.company_id}`);
       return json(200, { ok });
+    }
+
+    // Snap-a-photo → OCR the part # → log a warranty RETURN. The tech taps the camera on a
+    // SquareTrade/Allstate job, shoots each unused part, and this stores the photo + reads the
+    // part number off it + files a job_part disposition='return' row — no typing. If OCR can't
+    // read the #, the return is STILL logged with the photo (the photo is the record; the office
+    // reads the # off it). Merges onto an existing part row on the job when the # matches, so a
+    // pre-supplied part isn't duplicated.
+    if (doo === 'return_part') {
+      const data = String(p.data || '');
+      const m = data.match(/^data:(image\/[a-z]+);base64,(.+)$/i);
+      if (!m) return json(400, { ok: false, error: 'bad image' });
+      const contentType = m[1];
+      const buf = Buffer.from(m[2], 'base64');
+      if (buf.length > 6 * 1024 * 1024) return json(400, { ok: false, error: 'image too large' });
+      const ext = contentType.split('/')[1].replace('jpeg', 'jpg');
+      const path = `${scope.company_id}/${jobId}/return-${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
+      try { await r2.put(path, buf, contentType); } catch (e) { return json(200, { ok: false, error: 'upload_failed' }); }
+      await db.insert('job_media', { company_id: scope.company_id, job_id: jobId, kind: 'photo', provider: 'r2', ref: path, label: 'Warranty return part' });
+
+      // OCR the part # (in-process, part mode) — never blocks logging the return.
+      let pn = '', desc = '', conf = '', ocrOk = false;
+      try {
+        const ocr = require('./platform-ocr');
+        const or = await ocr.handler({ httpMethod: 'POST', body: JSON.stringify({ data, mode: 'part' }) });
+        const od = JSON.parse(or.body || '{}');
+        if (od && od.ok) { ocrOk = true; pn = String(od.part_number || '').toUpperCase().trim(); desc = String(od.part_description || '').trim(); conf = String(od.confidence || ''); }
+      } catch (_) {}
+
+      const normP = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const npn = normP(pn);
+
+      // Merge onto an existing part on this job when the # matches (don't dup a pre-supplied part).
+      let merged = false;
+      if (npn) {
+        try {
+          const existing = await db.get(`job_part?job_id=eq.${jobId}&company_id=eq.${scope.company_id}&select=id,number,photo_ref&limit=200`);
+          const hit = (existing || []).find((r) => normP(r.number) === npn);
+          if (hit) {
+            const patch = { disposition: 'return', returned_at: null };
+            if (!hit.photo_ref) patch.photo_ref = path;
+            merged = await db.patch('job_part', `id=eq.${hit.id}&company_id=eq.${scope.company_id}`, patch);
+          }
+        } catch (_) {}
+      }
+
+      if (!merged) {
+        // Source = the shop's warranty company (the distributor it goes back to), best-effort.
+        let source = '';
+        try { const jr = await db.get(`job?id=eq.${jobId}&company_id=eq.${scope.company_id}&select=warranty_company&limit=1`); source = (jr && jr[0] && jr[0].warranty_company) || ''; } catch (_) {}
+        await db.insert('job_part', {
+          company_id: scope.company_id, job_id: jobId,
+          number: pn, name: desc || 'Unused part',
+          disposition: 'return', source: source || null, photo_ref: path,
+        });
+      }
+      return json(200, { ok: true, merged, ocr_ok: ocrOk, part_number: pn, part_description: desc, confidence: conf, photo: path });
     }
 
     return json(200, { ok: false, error: 'unknown do' });
