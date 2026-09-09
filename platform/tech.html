@@ -671,6 +671,7 @@
         body: JSON.stringify({ job: id, access_token: tok })
       }).then(function(x){ return x.json(); }).then(function(d){
         if(d && d.texted){ btn.textContent='✓ Review asked'; }
+        else if(d && d.error==='no_review_link'){ btn.disabled=false; btn.textContent='⭐ Request review'; alert(d.message||'Add your review link in Settings before asking for reviews.'); }
         else if(d && d.ok && d.off){ btn.disabled=false; btn.textContent='⭐ Request review'; alert('Review texts are turned off for your shop (Messages settings).'); }
         else if(d && d.ok){ btn.disabled=false; btn.textContent='No phone on file'; }
         else { btn.disabled=false; btn.textContent=orig; alert((d && d.error) || 'Couldn\'t send — try again.'); }

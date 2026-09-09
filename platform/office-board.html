@@ -644,8 +644,15 @@
         '<option value="clean"'+(s.skin==='clean'?' selected':'')+'>✨ Clean</option>' +
       '</select>' +
       '<div class="sec">Tools</div>' +
-      '<label>Review link <span class="hint">Google, Facebook, Yelp — wherever you collect reviews. This is the link customers tap to review you.</span></label>' +
+      '<label>Review link <span class="hint">the link customers tap to leave you a review</span></label>' +
+      (String(s.review_url || '').trim()
+        ? ''
+        : '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:9px 11px;margin:0 0 7px;font-size:13px;line-height:1.45;color:#78350f">' +
+            '<b>⚠️ Review requests are paused</b> until you add this. Without it we would text customers a Google <i>search</i> page, which can\'t take a review, so we don\'t send at all.<br>' +
+            '<b>Get it in 30 seconds:</b> Google Business Profile → <b>Ask for reviews</b> → <b>Copy link</b> → paste below.' +
+          '</div>') +
       '<input id="s_review" placeholder="https://g.page/r/…/review — or your Facebook / Yelp review URL" value="' + esc(s.review_url || '') + '">' +
+      '<div class="hint" style="margin-top:4px">Paste the direct <b>write-a-review</b> link (Google, Facebook or Yelp). A Google search URL won\'t work.</div>' +
       '<label>Parts distributor <span class="hint">the name on the tech\'s parts button</span></label>' +
       '<input id="s_dname" placeholder="Marcone" value="' + esc(s.distributor_name || '') + '">' +
       '<label>Distributor search link <span class="hint">use <b>{q}</b> where the model/part goes</span></label>' +
@@ -2025,6 +2032,7 @@
         .then(function(x){return x.json();}).then(function(d){
           btn.disabled=false;
           if(d&&d.ok&&d.texted){ btn.textContent='✓ Review asked'; loadThread(job); }
+          else if(d&&d.error==='no_review_link'){ btn.textContent='⭐ Request review'; if(hint) hint.textContent=d.message||'Add your review link in Settings first.'; }
           else if(d&&d.ok&&d.off){ btn.textContent='⭐ Request review'; if(hint) hint.textContent='Review text is turned off in Messages settings.'; }
           else if(d&&d.ok){ btn.textContent='⭐ Request review'; if(hint) hint.textContent='No phone on file to text.'; }
           else { btn.textContent='⭐ Request review'; if(hint) hint.textContent=(d&&d.error)||'Couldn\'t send — try again.'; }

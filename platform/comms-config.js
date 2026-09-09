@@ -11,17 +11,19 @@
       text: "Hi {first}, {tech} from {shop} has arrived and is getting started." },
     complete: { on: true, label: 'Repair complete + receipt', help: 'Sent when the job is finished. {link} = their receipt/summary.', vars: ['first', 'shop', 'link'],
       text: "Hi {first}, your repair with {shop} is complete. Your summary + receipt: {link}" },
-    review: { on: true, label: 'Review request', help: 'Sent after completion. {review} = your Google review link (set it in Settings).', vars: ['first', 'shop', 'review'],
-      text: "Hi {first}, how did {shop} do today? If we earned it, a quick Google review means the world: {review} If anything was off, just reply here and we'll make it right." },
+    review: { on: true, label: 'Review request', help: 'Sent after completion. Needs your review link (Settings) or it will not send.', vars: ['first', 'shop', 'tech', 'review'],
+      text: "Hi {first}, thanks for your business today. If {tech} did right by you, a quick review means a lot: {review}" },
+    review_nudge: { on: true, label: 'Review nudge (one, 3 days later)', help: 'One gentle second ask, only if they never replied. Turn off to ask once.', vars: ['first', 'shop', 'tech', 'review'],
+      text: "Hi {first}, if you already left us a review, thank you. If not, it takes 30 seconds and helps a lot: {review}" },
     offer: { on: true, label: 'Schedule offer', help: 'Sent when the office offers the customer a day. {link} = tap-to-confirm.', vars: ['first', 'shop', 'day', 'link'],
       text: "{shop}: we can come out {day} for your repair. Tap to confirm, or pick a different day: {link}" },
     assigned: { on: true, label: 'Tech job alert (to your tech)', help: 'Internal — texts the tech when a job lands on their plate.', vars: ['shop', 'first', 'unit', 'problem', 'day', 'link'],
       text: "{shop}: new job - {first}{unit}, {problem}, {day}. Open your app: {link}" },
   };
   // Order the cards are shown in (customer-facing first, tech alert last).
-  var ORDER = ['reminder', 'otw', 'arrived', 'complete', 'review', 'offer', 'assigned'];
+  var ORDER = ['reminder', 'otw', 'arrived', 'complete', 'review', 'review_nudge', 'offer', 'assigned'];
   // Sample values so a shop sees a realistic preview as it types.
-  var SAMPLE = { first: 'Sarah', shop: 'your shop', tech: 'Lee', day: 'Thursday, Sep 4', unit: 'washer', problem: "won't drain", link: 'tnapp.co/r/ab12', review: 'g.page/your-shop/review' };
+  var SAMPLE = { first: 'Sarah', shop: 'your shop', tech: 'Lee', day: 'Thursday, Sep 4', unit: 'washer', problem: "won't drain", link: 'tnapp.co/r/ab12', review: 'https://g.page/r/CRt-vo--eAJ3EBM/review' };
 
   // --- carrier segment math. A text is billed per SEGMENT, not per message. Plain GSM-7 gets
   // 160 chars; ONE character outside that set (any emoji, an em dash, a curly quote, a middle

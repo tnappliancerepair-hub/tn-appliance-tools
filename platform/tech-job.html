@@ -1316,7 +1316,14 @@
   }
   function sendReview(btn){
     if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
-    notify('review').then(function(d){ if(btn){ btn.textContent=(d&&d.texted)?'✓ Sent — thank you!':(d&&d.url?'✓ Sent (no phone — link ready)':'Couldn\'t send — try again'); btn.disabled=false; } })
+    notify('review').then(function(d){
+      if(!btn) return;
+      btn.disabled=false;
+      if(d&&d.texted){ btn.textContent='✓ Sent — thank you!'; }
+      else if(d&&d.error==='no_review_link'){ btn.textContent='⭐ Add your review link first'; alert(d.message||'Add your review link in Settings before asking for reviews.'); }
+      else if(d&&d.url){ btn.textContent='✓ Sent (no phone — link ready)'; }
+      else { btn.textContent='Couldn\'t send — try again'; }
+    })
       .catch(function(){ if(btn){ btn.disabled=false; btn.innerHTML='✓ Send &quot;How\'d we do?&quot;'; } });
   }
 

@@ -11,7 +11,7 @@
 
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
-const { msg: commsMsg } = require('./_lib/comms');
+const { msg: commsMsg, reviewLink, REVIEW_LINK_HELP } = require('./_lib/comms');
 const SITE = 'https://tnapplianceexchange.net';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -214,13 +214,31 @@ exports.handler = async function (event) {
 
     if (doo === 'review') {
       const settings = co.settings || {};
-      const reviewUrl = String(settings.review_url || '').trim() || `https://www.google.com/search?q=${encodeURIComponent(shop + ' reviews')}`;
-      const text = commsMsg(settings, 'review', { first, shop, review: reviewUrl });
-      if (!text) return json(200, { ok: true, texted: false, off: true, url: reviewUrl });
+      // The link gate: a Google *search* URL (the old fallback) can't take a review — the customer
+      // lands on results and has to hunt for the write-a-review box. Refuse to send rather than
+      // burn the ask, and tell the tech/office exactly what to fix.
+      const rl = reviewLink(settings);
+      if (!rl.ok) {
+        return json(200, { ok: true, texted: false, error: 'no_review_link', why: rl.why,
+          message: 'Review asks are paused: ' + (REVIEW_LINK_HELP[rl.why] || rl.why) + '. Add it in Settings > Review link.' });
+      }
+      // Name the tech who was actually on the job — falls back to whoever tapped the button
+      // (right in the tech app, close enough from the office board).
+      const jt = (await db.get(`job?id=eq.${job.id}&select=technician_id&limit=1`))[0] || {};
+      let who = techName;
+      if (jt.technician_id) {
+        const tr = (await db.get(`technician?id=eq.${jt.technician_id}&select=name&limit=1`))[0];
+        if (tr && tr.name) who = tr.name;
+      }
+      const techFirst = String(who || '').trim().split(/\s+/)[0] || 'your tech';
+      const text = commsMsg(settings, 'review', { first, shop, tech: techFirst, review: rl.url });
+      if (!text) return json(200, { ok: true, texted: false, off: true, url: rl.url });
       let sent = false;
       if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_review'); } catch (_) {} }
-      await logThread('sms', `⭐ Review request sent: ${reviewUrl}`);
-      return json(200, { ok: true, texted: sent, url: reviewUrl });
+      // channel=review (not 'sms') so the automatic sweep dedups against a human's manual ask
+      // instead of texting the same customer a second time.
+      await logThread('review', `⭐ Review request sent: ${rl.url}`);
+      return json(200, { ok: true, texted: sent, url: rl.url });
     }
 
     return json(200, { ok: false, error: 'unknown do' });

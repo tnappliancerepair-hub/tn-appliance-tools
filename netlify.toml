@@ -86,12 +86,15 @@
 [functions."platform-warranty-tee-cron"]
   schedule = "7-59/15 * * * *"
 
-# platform-review-sweep-cron — twice-daily (~10am + 4pm CT), texts each shop's recently-
-# completed customers that shop's Google-review request (per-shop toggle in the Communication
-# Center, per-job dedup, opt-out/quiet-hours enforced). SHADOW by default — only sends when
-# vault PLATFORM_REVIEW_SWEEP_LIVE=1. Core is HTTP-callable for dry-runs: platform-review-sweep.
+# platform-review-sweep-cron — every 2h across the working day (9a/11a/1p/3p/5p/7p CT), so the
+# review ask lands within ~2h of the tech leaving while the goodwill is still fresh (it used to
+# run twice daily, so an afternoon job waited until 10am the next morning). Texts each shop's
+# recently-completed customers that shop's review request + ONE nudge 3 days later, and REFUSES
+# to send when the shop has no usable review link. Per-shop toggle in the Communication Center,
+# per-job dedup, opt-out/quiet-hours enforced. SHADOW by default — only sends when vault
+# PLATFORM_REVIEW_SWEEP_LIVE=1. Core is HTTP-callable for dry-runs: platform-review-sweep.
 [functions."platform-review-sweep-cron"]
-  schedule = "0 15,21 * * *"
+  schedule = "0 14,16,18,20,22,0 * * *"
 
 # platform-referral-cron — daily (~11:30am CT) backstop that recomputes every Ant-Army
 # referrer's $25/mo bill credit (the Stripe webhook already recomputes on each referred-shop

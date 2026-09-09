@@ -27,9 +27,14 @@ const DEFAULTS = {
     text: "Hi {first}, your repair with {shop} is complete. Your summary + receipt: {link}",
   },
   review: {
-    on: true, label: 'Review request', help: 'Sent after completion. {review} = your Google review link.',
-    vars: ['first', 'shop', 'review'],
-    text: "Hi {first}, how did {shop} do today? If we earned it, a quick Google review means the world: {review} If anything was off, just reply here and we'll make it right.",
+    on: true, label: 'Review request', help: 'Sent after completion. Needs your review link (Settings) or it will not send.',
+    vars: ['first', 'shop', 'tech', 'review'],
+    text: "Hi {first}, thanks for your business today. If {tech} did right by you, a quick review means a lot: {review}",
+  },
+  review_nudge: {
+    on: true, label: 'Review nudge (one, 3 days later)', help: 'One gentle second ask, only if they never replied. Turn off to ask once.',
+    vars: ['first', 'shop', 'tech', 'review'],
+    text: "Hi {first}, if you already left us a review, thank you. If not, it takes 30 seconds and helps a lot: {review}",
   },
   offer: {
     on: true, label: 'Schedule offer', help: 'Sent when the office offers the customer a day. {link} = tap-to-confirm.',
@@ -58,6 +63,32 @@ function commsFor(settings, key) {
   return { on: c.on !== false && d.on !== false, text: text };
 }
 
+// Resolve the shop's review link. A review ask is only worth sending if the link opens a place
+// a customer can actually LEAVE a review — a plain Google *search* URL is a dead end (they land
+// on results and have to hunt for the write-a-review box), which is why an unset link used to
+// quietly burn the one ask we get per job. ok=false means: do not send, tell the shop to set it.
+//   { url, ok, why }   why: '' | 'not_set' | 'search_page' | 'not_a_url'
+function reviewLink(settings) {
+  const raw = String((settings && settings.review_url) || '').trim();
+  if (!raw) return { url: '', ok: false, why: 'not_set' };
+  let url = raw;
+  if (!/^https?:\/\//i.test(url)) {
+    // tolerate a pasted bare link (g.page/r/…/review, maps.app.goo.gl/…, facebook.com/…)
+    if (/^[a-z0-9.-]+\.[a-z]{2,}\//i.test(url)) url = 'https://' + url;
+    else return { url: '', ok: false, why: 'not_a_url' };
+  }
+  // a Google search results page cannot take a review
+  if (/^https?:\/\/(www\.)?google\.[a-z.]+\/search\b/i.test(url)) return { url: url, ok: false, why: 'search_page' };
+  return { url: url, ok: true, why: '' };
+}
+
+// Plain-English reason a shop's review asks are paused — for the owner, not the customer.
+const REVIEW_LINK_HELP = {
+  not_set: 'no review link set',
+  not_a_url: 'the review link is not a valid web address',
+  search_page: 'the review link is a Google search page, not a review page',
+};
+
 // Convenience: resolved + rendered message, or null when the shop turned it off.
 function msg(settings, key, vars) {
   const r = commsFor(settings, key);
@@ -65,4 +96,4 @@ function msg(settings, key, vars) {
   return render(r.text, vars || {});
 }
 
-module.exports = { DEFAULTS, render, commsFor, msg };
+module.exports = { DEFAULTS, render, commsFor, msg, reviewLink, REVIEW_LINK_HELP };
