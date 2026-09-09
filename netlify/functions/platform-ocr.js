@@ -3,7 +3,8 @@
 // model # so it auto-fills the report (and the brain keys on brand+model). Mirrors TN's
 // ocr-model-extract but tenant-agnostic: it just extracts + returns; the page saves it.
 //
-//   POST { data: "data:image/jpeg;base64,..." }  ->  { ok, model, brand, serial, appliance }
+//   POST { data: "data:image/jpeg;base64,..." }               -> { ok, kind:'model', model, brand, serial, appliance }
+//   POST { data: "...", mode:'part' }  (warranty part return)  -> { ok, kind:'part', part_number, part_description, brand }
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
@@ -14,6 +15,17 @@ function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringif
 const PROMPT = 'This is a photo a technician took of an appliance data/model sticker. ' +
   'Read it and return ONLY compact JSON: {"model_number":"","serial_number":"","manufacturer":"","appliance_type":"","confidence":"high|medium|low"}. ' +
   'model_number is the MODEL (not serial). If you cannot find a clear model number, set model_number to "" and confidence "low". No prose, JSON only.';
+
+// Part-return mode: the tech snaps a photo of a warranty part / its box to log a return.
+// Read the PART number off the component label / box (lifted from TN's ocr-model-extract
+// part-sticker rules). Never guess — a wrong part # misroutes a return.
+const PART_PROMPT = 'This is a photo a technician took of an appliance PART (a component like a drive belt, ' +
+  'control board, water valve, pump, motor, capacitor, switch — or its box/label), to log it as a warranty return. ' +
+  'Read the PART NUMBER (labeled "Part" / "P/N" / "Part No." / "Part #" — an alphanumeric code like 8540101, WPW10730972, W11315838) and return ONLY compact JSON: ' +
+  '{"part_number":"","part_description":"","manufacturer":"","confidence":"high|medium|low"}. ' +
+  'Transcribe the code EXACTLY as printed, character by character — do NOT normalize, complete, or guess it. ' +
+  'Watch look-alikes (0/O, 1/I/l, 5/S, 8/B, 2/Z, 6/G) and capture trailing suffixes (…-01). ' +
+  'If ANY character is smudged/glare/cut-off/ambiguous, set confidence "low". If you cannot read a clear part number, set part_number "" and confidence "low". No prose, JSON only.';
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
@@ -40,6 +52,8 @@ exports.handler = async function (event) {
   const key = process.env.ANTHROPIC_API_KEY || (await getSecret('ANTHROPIC_API_KEY'));
   if (!key) return json(200, { ok: false, error: 'ocr_not_configured' });
 
+  const partMode = String(b.mode || b.kind || '').toLowerCase() === 'part';
+
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -48,7 +62,7 @@ exports.handler = async function (event) {
         model: MODEL, max_tokens: 300,
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } },
-          { type: 'text', text: PROMPT },
+          { type: 'text', text: partMode ? PART_PROMPT : PROMPT },
         ] }],
       }),
       signal: AbortSignal.timeout(25000),
@@ -56,9 +70,18 @@ exports.handler = async function (event) {
     const d = await r.json();
     if (!r.ok || !d.content) return json(200, { ok: false, error: 'vision: ' + JSON.stringify(d).slice(0, 160) });
     const raw = String((d.content[0] && d.content[0].text) || '').replace(/```json|```/g, '').trim();
-    let ex = {}; try { ex = JSON.parse(raw); } catch (_) { return json(200, { ok: false, error: 'could not read the sticker' }); }
+    let ex = {}; try { ex = JSON.parse(raw); } catch (_) { return json(200, { ok: false, error: partMode ? 'could not read the part' : 'could not read the sticker' }); }
+    if (partMode) {
+      return json(200, {
+        ok: true, kind: 'part',
+        part_number: String(ex.part_number || '').toUpperCase().trim(),
+        part_description: String(ex.part_description || '').trim(),
+        brand: String(ex.manufacturer || '').trim(),
+        confidence: String(ex.confidence || 'medium'),
+      });
+    }
     return json(200, {
-      ok: true,
+      ok: true, kind: 'model',
       model: String(ex.model_number || '').toUpperCase().trim(),
       serial: String(ex.serial_number || '').trim(),
       brand: String(ex.manufacturer || '').trim(),

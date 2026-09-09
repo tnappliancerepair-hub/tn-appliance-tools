@@ -440,6 +440,8 @@
       '<div class="sec">Card payments <span class="lock">🔒 owner only</span></div>'+
       '<div id="payConnect"><div class="note">Loading…</div></div>'+
       reconcileSection+
+      '<div class="sec">👥 Your team logins <span class="lock">🔒 owner only — hand these out</span></div>'+
+      '<div id="teamPack"><div class="note">Loading…</div></div>'+
       commissionEditor(techs, compDef)+
       partsPricingEditor(settings)+
       '<div class="sec">🐜 Ant’s activity — what changed <span class="lock">↩ reversible</span></div>'+
@@ -456,8 +458,61 @@
     loadPayments();
     loadEmailIntake();
     loadRefer();
+    loadTeamPack();
     loadLedger();
     mountAnt();
+  }
+
+  // Your team logins — the shop's login pack (owner + office + techs). Shows each seat's email +
+  // handout password + which app they open, with copy buttons so the owner hands them out. This is
+  // the fix for "I didn't get logins for my office people and techs": self-serve signup now mints
+  // the full crew, and this is where the owner sees + distributes them.
+  function loadTeamPack(){
+    var el=document.getElementById('teamPack'); if(!el) return;
+    var roleLabel={owner:'Owner',office:'Office',tech:'Tech'};
+    var roleEmoji={owner:'👑',office:'🏢',tech:'🔧'};
+    sb.auth.getSession().then(function(s){
+      var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+      if(!tok){ el.innerHTML='<div class="note">Sign in to see your team logins.</div>'; return Promise.reject(); }
+      return fetch('/.netlify/functions/platform-provision?action=mypack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok})}).then(function(r){return r.json();});
+    }).then(function(d){
+      if(!d||!d.ok){ el.innerHTML='<div class="note">Couldn’t load your team logins right now.</div>'; return; }
+      var pack=d.pack;
+      if(!pack||!Array.isArray(pack.seats)||!pack.seats.length){
+        el.innerHTML='<div class="note">Your team logins are being set up — refresh in a moment. You can also add crew below anytime.</div>';
+        return;
+      }
+      var order={owner:0,office:1,tech:2};
+      var seats=pack.seats.slice().sort(function(a,b){ return (order[a.role]==null?9:order[a.role])-(order[b.role]==null?9:order[b.role]); });
+      var sheetLines=[];
+      var rows=seats.map(function(st,i){
+        var role=st.role||'tech';
+        var pw=st.password||'';
+        var line=(roleLabel[role]||role)+' — '+(st.email||'')+(pw?' / '+pw:' / (password: reset to reveal)')+' → '+(st.link||'');
+        sheetLines.push(line);
+        var pwHtml = pw ? '<span class="mono">'+esc(pw)+'</span>' : '<span class="note" style="font-size:11px">reset to reveal</span>';
+        return '<div class="row" style="align-items:flex-start;flex-wrap:wrap;gap:6px">'+
+          '<span class="k" style="min-width:64px">'+(roleEmoji[role]||'•')+' '+esc(roleLabel[role]||role)+'</span>'+
+          '<span class="v" style="flex:1;min-width:220px;text-align:left">'+
+            '<div><span class="mono">'+esc(st.email||'')+'</span></div>'+
+            '<div style="margin-top:2px">'+pwHtml+' '+
+              '<a class="ia-copy" href="'+esc(st.link||'#')+'" target="_blank" rel="noopener" style="text-decoration:none">Open ↗</a> '+
+              '<button class="ia-copy tp-copy" data-line="'+esc(line)+'">Copy</button></div>'+
+          '</span></div>';
+      }).join('');
+      var sheet=(pack.name?pack.name+' — team logins\n\n':'')+sheetLines.join('\n')+
+        (pack.booking_link?'\n\nBooking link: '+pack.booking_link:'')+
+        (pack.intake_email?'\nWarranty intake email: '+pack.intake_email:'');
+      el.innerHTML='<div class="money">'+rows+'</div>'+
+        '<div class="row" style="margin-top:8px"><span class="k"></span><span class="v" style="text-align:left">'+
+          '<button class="ia-copy" id="tpCopyAll" style="border-color:var(--brand,#c8901f);color:var(--brand,#c8901f);font-weight:800">📋 Copy the whole sheet</button></span></div>'+
+        '<div class="note">Hand each person their email + password. They sign in and change it. Office seats open the office board; techs open the tech app and see only their own jobs. Add more below.</div>';
+      Array.prototype.forEach.call(el.querySelectorAll('.tp-copy'), function(btn){
+        btn.onclick=function(){ try{ navigator.clipboard.writeText(btn.getAttribute('data-line')||''); btn.textContent='Copied ✓'; setTimeout(function(){btn.textContent='Copy';},1500);}catch(e){} };
+      });
+      var all=document.getElementById('tpCopyAll');
+      if(all) all.onclick=function(){ try{ navigator.clipboard.writeText(sheet); all.textContent='Copied ✓'; setTimeout(function(){all.textContent='📋 Copy the whole sheet';},1500);}catch(e){} };
+    }).catch(function(){ if(el&&el.innerHTML.indexOf('Loading')>-1) el.innerHTML='<div class="note">Couldn’t load your team logins right now.</div>'; });
   }
 
   // ---- Ant action ledger bridge: the human UI writes through the SAME audited path Ant uses,
@@ -818,13 +873,14 @@
       inactiveHtml+
       '<div class="sec">Add a crew member</div>'+
       '<div class="money">'+
-        '<div class="row"><span class="k">Name</span><span class="v"><input id="ntName" style="width:170px" placeholder="Jane Tech"></span></div>'+
+        '<div class="row"><span class="k">Role</span><span class="v"><select id="ntRole"><option value="tech">🔧 Tech (field app)</option><option value="office">🏢 Office (office board)</option></select></span></div>'+
+        '<div class="row"><span class="k">Name</span><span class="v"><input id="ntName" style="width:170px" placeholder="Jane"></span></div>'+
         '<div class="row"><span class="k">Email (their login)</span><span class="v"><input id="ntEmail" type="email" style="width:200px" placeholder="jane@shop.com"></span></div>'+
-        '<div class="row"><span class="k">Cell (for job texts)</span><span class="v"><input id="ntPhone" type="tel" style="width:170px" placeholder="(615) 555-0123"></span></div>'+
-        '<div class="row"><span class="k">Pay</span><span class="v"><input id="ntPct" inputmode="decimal" style="width:70px" value="'+(compDef.type==='labor_pct'?defVal:50)+'"> % of labor</span></div>'+
-        '<div class="row"><span class="k"></span><span class="v"><button id="ntAdd">Add tech + create login</button></span></div>'+
+        '<div class="row" id="ntPhoneRow"><span class="k">Cell (for job texts)</span><span class="v"><input id="ntPhone" type="tel" style="width:170px" placeholder="(615) 555-0123"></span></div>'+
+        '<div class="row" id="ntPayRow"><span class="k">Pay</span><span class="v"><input id="ntPct" inputmode="decimal" style="width:70px" value="'+(compDef.type==='labor_pct'?defVal:50)+'"> % of labor</span></div>'+
+        '<div class="row"><span class="k"></span><span class="v"><button id="ntAdd">Add + create login</button></span></div>'+
       '</div>'+
-      '<div class="note" id="ntMsg">They get their own login for the tech app and see only their own jobs and pay.</div>';
+      '<div class="note" id="ntMsg">A tech gets their own login for the field app and sees only their own jobs and pay. An office login opens the office board.</div>';
   }
 
   // Remove (deactivate) or restore a crew member — keeps their history, flips active + their
@@ -946,7 +1002,17 @@
     // function derives the company from the owner's own session token). Shows the temp
     // password once so the owner can hand it to their tech.
     var ntAdd=document.getElementById('ntAdd');
+    var ntRole=document.getElementById('ntRole');
+    // Office seats have no route/pay — hide those fields when Office is picked.
+    function ntSyncRole(){
+      var isOffice=ntRole&&ntRole.value==='office';
+      var pr=document.getElementById('ntPhoneRow'), yr=document.getElementById('ntPayRow');
+      if(pr) pr.style.display=isOffice?'none':'';
+      if(yr) yr.style.display=isOffice?'none':'';
+    }
+    if(ntRole){ ntRole.onchange=ntSyncRole; ntSyncRole(); }
     if(ntAdd) ntAdd.onclick=function(){
+      var role=(ntRole&&ntRole.value==='office')?'office':'tech';
       var nm=(document.getElementById('ntName').value||'').trim();
       var em=(document.getElementById('ntEmail').value||'').trim();
       var ph=(document.getElementById('ntPhone').value||'').trim();
@@ -956,15 +1022,18 @@
       ntAdd.disabled=true; ntAdd.textContent='Adding…';
       sb.auth.getSession().then(function(s){
         var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
-        return fetch('/.netlify/functions/platform-provision?action=addtech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({access_token:tok,tech_email:em,tech_name:nm,tech_phone:ph||undefined,commission_pct:isNaN(pc)?undefined:pc})}).then(function(r){return r.json();});
+        var b={access_token:tok,role:role,tech_email:em,tech_name:nm};
+        if(role==='tech'){ b.tech_phone=ph||undefined; b.commission_pct=isNaN(pc)?undefined:pc; }
+        return fetch('/.netlify/functions/platform-provision?action=addtech',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json();});
       }).then(function(d){
-        ntAdd.disabled=false; ntAdd.textContent='Add tech + create login';
+        ntAdd.disabled=false; ntAdd.textContent='Add + create login';
         if(!d||!d.ok){ if(nmsg) nmsg.textContent='Could not add: '+((d&&d.error)||'try again'); return; }
         var pw=d.login&&d.login.temp_password;
-        if(nmsg) nmsg.innerHTML='✅ '+esc(nm)+' added. '+(pw? 'Temp password: <b>'+esc(pw)+'</b> — give it to them with their email ('+esc(em)+'); they change it on first sign-in at the tech app.' : 'They already had a login — no new password needed.');
-        document.getElementById('ntName').value=''; document.getElementById('ntEmail').value=''; document.getElementById('ntPhone').value='';
+        var where=role==='office'?'office board':'tech app';
+        if(nmsg) nmsg.innerHTML='✅ '+esc(nm)+' added as '+(role==='office'?'office':'a tech')+'. '+(pw? 'Temp password: <b>'+esc(pw)+'</b> — give it to them with their email ('+esc(em)+'); they change it on first sign-in at the '+where+'.' : 'They already had a login — no new password needed.');
+        document.getElementById('ntName').value=''; document.getElementById('ntEmail').value=''; if(document.getElementById('ntPhone')) document.getElementById('ntPhone').value='';
         load();
-      }).catch(function(){ ntAdd.disabled=false; ntAdd.textContent='Add tech + create login'; if(nmsg) nmsg.textContent='Could not add — try again.'; });
+      }).catch(function(){ ntAdd.disabled=false; ntAdd.textContent='Add + create login'; if(nmsg) nmsg.textContent='Could not add — try again.'; });
     };
     if(save) save.onclick=function(){
       var type=document.getElementById('commType').value;

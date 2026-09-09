@@ -43,7 +43,7 @@ exports.handler = async function (event) {
   const isAdmin = q.secret === guard || !!(await operatorFromJWT(event));
   // addtech + settech_active are ALSO owner-self-serve (scoped to their own company via their
   // session token); every other action stays admin/operator-only.
-  const OWNER_OK = { addtech: 1, settech_active: 1, settech_phone: 1 };
+  const OWNER_OK = { addtech: 1, settech_active: 1, settech_phone: 1, mypack: 1 };
   if (!isAdmin && !OWNER_OK[q.action]) return { statusCode: 403, body: 'forbidden' };
 
   const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
@@ -125,14 +125,31 @@ exports.handler = async function (event) {
     const users = (list && (list.users || list)) || [];
     const u = Array.isArray(users) ? users.find((x) => String(x.email || '').toLowerCase() === ownerEmail) : null;
     if (!u) return json(200, { ok: false, error: 'auth user not found for ' + ownerEmail });
+    const vaultKey = 'PLATFORM_OWNER_PW_' + (slug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    const reveal = q.reveal === '1' || q.reveal === 'true';
+    // &once=1: IDEMPOTENT reveal — if this owner's password is already vaulted, hand back the SAME
+    // one instead of resetting (a signup success screen may re-run on a page refresh, and must never
+    // invalidate the password it already showed). getSecretFresh bypasses the cold-container cache so
+    // a refresh reliably sees the prior value. The operator's plain resetpw (no &once) still forces new.
+    if (q.once === '1' || q.once === 'true') {
+      let existing = ''; try { existing = (await getSecretFresh(vaultKey)) || ''; } catch (_) {}
+      if (existing) return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved: true, unchanged: true, new_password: reveal ? existing : undefined, login_url: 'https://tnapplianceexchange.net/platform/owner.html', note: 'existing password revealed (idempotent)' });
+    }
     const newpw = tempPassword();
     const setR = await fetch(`${url}/auth/v1/admin/users/${u.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ password: newpw }), signal: AbortSignal.timeout(12000) });
     if (!setR.ok) { const e = await setR.text().catch(() => ''); return json(200, { ok: false, error: 'password set failed ' + setR.status + ' ' + e.slice(0, 120) }); }
-    const vaultKey = 'PLATFORM_OWNER_PW_' + (slug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
     let saved = false; try { saved = await setSecret(vaultKey, newpw); } catch (_) { saved = false; }
+    // Keep the shop's login pack in sync — so owner.html "Your team logins" + /packs show the NEW
+    // owner password, not the stale one. Best-effort; only when a pack + a slug exist.
+    if (slug) { try {
+      const pk = await readPack(slug);
+      if (pk && Array.isArray(pk.seats)) {
+        const os = pk.seats.find((s) => s.role === 'owner' || String(s.email || '').toLowerCase() === ownerEmail);
+        if (os) { os.password = newpw; pk.updated_at = new Date().toISOString(); await writePack(pk); }
+      }
+    } catch (_) {} }
     // &reveal=1: hand the plaintext back to the admin caller (they already hold the admin
     // secret). For seeding a demo/sandbox hub or a controlled onboarding hand-off — never log it.
-    const reveal = q.reveal === '1' || q.reveal === 'true';
     return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved, new_password: reveal ? newpw : undefined, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
   }
 
@@ -413,6 +430,16 @@ exports.handler = async function (event) {
         ],
         vocab: { problem_noun: 'inquiry', service_verb: 'sell' },
       },
+      dryer_vent: {
+        trade: 'dryer_vent', label: 'Dryer Vent Cleaning', unit_kind: 'vent', unit_label: 'Dryer Vent',
+        fields: [
+          { key: 'run_length', label: 'Vent run length / floors', required: false },
+          { key: 'termination', label: 'Vents to (roof / wall / soffit)', required: false },
+          { key: 'reroute', label: 'Reroute or repair needed?', required: false },
+          { key: 'access', label: 'Access notes', required: false },
+        ],
+        vocab: { problem_noun: 'job', service_verb: 'clean' },
+      },
     };
     const t = TRADES[String(q.trade || '').toLowerCase()];
     if (!t) return json(200, { ok: false, error: 'unknown trade; known: ' + Object.keys(TRADES).join(', ') });
@@ -435,6 +462,9 @@ exports.handler = async function (event) {
     const techEmail = String(q.tech_email || ab.tech_email || '').toLowerCase().trim();
     const techName = String(q.tech_name || ab.tech_name || '').trim();
     if (!techEmail || !techName) return json(200, { ok: false, error: 'tech_email and tech_name required' });
+    // role: 'tech' (default, gets a technician row + tech-app link) or 'office' (office-board login,
+    // NO technician row — an office seat is never an assignable field tech).
+    const seatRole = (String(q.role || ab.role || 'tech').toLowerCase() === 'office') ? 'office' : 'tech';
     // Resolve which company: admin/operator picks by &slug=; an owner is locked to their own
     // company, derived from their session token (they can never add crew to another shop).
     let co = null, viaOwner = false;
@@ -476,29 +506,32 @@ exports.handler = async function (event) {
     const auEx = await rest(`app_user?company_id=eq.${co.id}&auth_user_id=eq.${uid}&select=id,role&limit=1`);
     if (Array.isArray(auEx.d) && auEx.d[0]) appUserId = auEx.d[0].id;
     else {
-      const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, auth_user_id: uid, role: 'tech', name: techName, phone: (q.tech_phone || ab.tech_phone || ''), email: techEmail }) });
+      const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, auth_user_id: uid, role: seatRole, name: techName, phone: (q.tech_phone || ab.tech_phone || ''), email: techEmail }) });
       if (!ai.ok) return json(200, { ok: false, step: 'link_app_user', status: ai.status, error: JSON.stringify(ai.d).slice(0, 300) });
       appUserId = (Array.isArray(ai.d) ? ai.d[0] : ai.d).id;
     }
 
-    // 3) technician row — reuse one already linked to this login; else ADOPT a same-name
+    // 3) technician row — ONLY for tech seats (an office seat gets no technician row, so it never
+    //    shows up as an assignable field tech). Reuse one already linked; else ADOPT a same-name
     //    technician with no login yet; else create a fresh one.
     const pct = q.commission_pct != null && q.commission_pct !== '' ? Number(q.commission_pct) : 50;
-    let techRow = null, techNote = '';
-    const linked = await rest(`technician?company_id=eq.${co.id}&app_user_id=eq.${appUserId}&select=id,name&limit=1`);
-    if (Array.isArray(linked.d) && linked.d[0]) { techRow = linked.d[0]; techNote = 'already_linked'; }
-    if (!techRow) {
-      const orphan = await rest(`technician?company_id=eq.${co.id}&app_user_id=is.null&name=eq.${encodeURIComponent(techName)}&select=id,name&limit=1`);
-      if (Array.isArray(orphan.d) && orphan.d[0]) {
-        const patch = await rest(`technician?id=eq.${orphan.d[0].id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ app_user_id: appUserId, active: true }) });
-        if (!patch.ok) return json(200, { ok: false, step: 'adopt_technician', status: patch.status, error: JSON.stringify(patch.d).slice(0, 300) });
-        techRow = Array.isArray(patch.d) ? patch.d[0] : patch.d; techNote = 'adopted_existing';
+    let techRow = null, techNote = seatRole === 'office' ? 'office_seat' : '';
+    if (seatRole === 'tech') {
+      const linked = await rest(`technician?company_id=eq.${co.id}&app_user_id=eq.${appUserId}&select=id,name&limit=1`);
+      if (Array.isArray(linked.d) && linked.d[0]) { techRow = linked.d[0]; techNote = 'already_linked'; }
+      if (!techRow) {
+        const orphan = await rest(`technician?company_id=eq.${co.id}&app_user_id=is.null&name=eq.${encodeURIComponent(techName)}&select=id,name&limit=1`);
+        if (Array.isArray(orphan.d) && orphan.d[0]) {
+          const patch = await rest(`technician?id=eq.${orphan.d[0].id}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ app_user_id: appUserId, active: true }) });
+          if (!patch.ok) return json(200, { ok: false, step: 'adopt_technician', status: patch.status, error: JSON.stringify(patch.d).slice(0, 300) });
+          techRow = Array.isArray(patch.d) ? patch.d[0] : patch.d; techNote = 'adopted_existing';
+        }
       }
-    }
-    if (!techRow) {
-      const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: techName, active: true, commission_type: 'pct', commission_pct: pct }) });
-      if (!ti.ok) return json(200, { ok: false, step: 'create_technician', status: ti.status, error: JSON.stringify(ti.d).slice(0, 300) });
-      techRow = Array.isArray(ti.d) ? ti.d[0] : ti.d; techNote = 'created';
+      if (!techRow) {
+        const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: techName, active: true, commission_type: 'pct', commission_pct: pct }) });
+        if (!ti.ok) return json(200, { ok: false, step: 'create_technician', status: ti.status, error: JSON.stringify(ti.d).slice(0, 300) });
+        techRow = Array.isArray(ti.d) ? ti.d[0] : ti.d; techNote = 'created';
+      }
     }
 
     // Admin path: drop the temp password in the vault (never returned through chat/logs).
@@ -516,21 +549,22 @@ exports.handler = async function (event) {
       let pack = await readPack(slug);
       if (!pack) pack = { slug, name: co.name || slug, trade: 'appliance', plan: 'office', created_at: new Date().toISOString(), booking_link: 'https://tnapplianceexchange.net/b/' + slug, intake_email: slug + '@jobs.assistant247.net', seats: [] };
       pack.seats = Array.isArray(pack.seats) ? pack.seats : [];
-      const seatRow = { role: 'tech', label: techName, email: techEmail, password: givePw ? tempPw : null, link: seatLink('tech') };
+      const seatRow = { role: seatRole, label: techName, email: techEmail, password: givePw ? tempPw : null, link: seatLink(seatRole) };
       const at = pack.seats.findIndex((s) => String(s.email || '').toLowerCase() === techEmail.toLowerCase());
       if (at >= 0) { if (seatRow.password) pack.seats[at] = seatRow; } else pack.seats.push(seatRow);
       pack.updated_at = new Date().toISOString();
       await writePack(pack);
     } catch (_) {}
+    const appLabel = seatRole === 'office' ? 'office board' : 'tech app';
     return json(200, {
-      ok: true, slug, shop: co.name, tech: { id: techRow.id, name: techName, email: techEmail },
+      ok: true, slug, shop: co.name, role: seatRole, tech: { id: techRow ? techRow.id : null, name: techName, email: techEmail, role: seatRole },
       login: { email: techEmail, note: userNote, temp_password: givePw ? tempPw : undefined, vault_key: vaultKey || undefined, saved: vaultKey ? saved : undefined },
       technician: techNote, app_user_id: appUserId,
-      login_url: 'https://tnapplianceexchange.net/platform/tech.html',
+      login_url: seatLink(seatRole),
       note: (userNote === 'existing_user'
         ? 'Reused an existing login (no new password).'
-        : (viaOwner ? 'Give your tech this email + temporary password — they sign in and change it.' : 'Read the password from admin-secrets.html under vault_key.'))
-        + ' The tech signs into the tech app and sees only their own jobs and pay.',
+        : (viaOwner ? 'Give them this email + temporary password — they sign in and change it.' : 'Read the password from admin-secrets.html under vault_key.'))
+        + ' They sign into the ' + appLabel + (seatRole === 'office' ? '.' : ' and see only their own jobs and pay.'),
     });
   }
 
@@ -639,6 +673,11 @@ exports.handler = async function (event) {
     const seedOne = (q.seed === '1' || ab.seed === true);
     const ownerEmail = String(q.owner_email || ab.owner_email || '').toLowerCase().trim();
     const ownerSeatPw = String(q.owner_seat_pw || ab.owner_seat_pw || '').trim();   // owner login already exists → don't touch it
+    // owner_preexisting: the owner login was ALREADY created upstream (e.g. by action=provision on a
+    // self-serve signup). Mark the owner seat preexisting so we NEVER re-create or reset it — even when
+    // we don't know its password (then the pack records the owner with a null password; packs.html/owner
+    // show "reset to reveal"). A supplied owner_seat_pw implies preexisting.
+    const ownerPreexisting = !!ownerSeatPw || q.owner_preexisting === '1' || ab.owner_preexisting === true || String(ab.owner_preexisting || '') === '1';
 
     // Resolve the company: an explicit &slug= is an idempotent TARGET (create-or-reuse, no
     // uniquing); a name-only build DERIVES a slug and uniques it so two same-named placeholders
@@ -675,10 +714,12 @@ exports.handler = async function (event) {
     const seats = [];
     // The owner seat uses the applicant's real email when given (their login). When owner-mode
     // supplies an already-issued password, the owner login exists — flag it so we skip creating it.
-    seats.push({ role: 'owner', label: 'Owner', name: 'Owner', email: ownerEmail || `owner.${slug0}@assistant247.net`, link: seatLink('owner'), preexisting: !!(ownerEmail && ownerSeatPw), fixedPw: (ownerEmail && ownerSeatPw) ? ownerSeatPw : null });
+    seats.push({ role: 'owner', label: 'Owner', name: 'Owner', email: ownerEmail || `owner.${slug0}@assistant247.net`, link: seatLink('owner'), preexisting: !!(ownerEmail && ownerPreexisting), fixedPw: (ownerEmail && ownerSeatPw) ? ownerSeatPw : null });
     for (let i = 1; i <= officeN; i++) seats.push({ role: 'office', label: `Office ${i}`, name: `Office ${i}`, email: `office${i}.${slug0}@assistant247.net`, link: seatLink('office') });
     for (let i = 1; i <= techN; i++) seats.push({ role: 'tech', label: `Tech ${i}`, name: `Tech ${i}`, email: `tech${i}.${slug0}@assistant247.net`, link: seatLink('tech') });
-    seats.forEach((s, idx) => { s.password = s.fixedPw || `Ant-${Handle}${idx + 1}`; });
+    // A preexisting owner with no known password stays null (never shows a fake password); every minted
+    // seat gets a memorable Ant-<Handle><n>.
+    seats.forEach((s, idx) => { s.password = s.fixedPw || (s.preexisting ? null : `Ant-${Handle}${idx + 1}`); });
 
     // Read the existing pack (idempotent re-run: reuse stored passwords, never reset a seat).
     const prior = await readPack(slug0);
@@ -704,6 +745,7 @@ exports.handler = async function (event) {
           : trade === 'aquarium' ? 'Reef tank — monthly maintenance'
           : trade === 'furniture' ? 'Custom sectional — special order'
           : trade === 'dealership' ? 'Interested in a cargo van — has a trade-in'
+          : trade === 'dryer_vent' ? 'Dryer vent cleaning + reroute'
           : 'Sample job';
         seeded = await createLeadJob({ slug: slug0, name: 'Sample Lead (demo)', phone: '+16155551234', what: sampleWhat, detail: "Sample card so the board isn't empty — delete anytime.", city: String(q.area || ab.area || ''), source: 'shoppack_seed' });
       } catch (e) { seeded = { ok: false, error: String((e && e.message) || e).slice(0, 120) }; }
@@ -823,6 +865,32 @@ exports.handler = async function (event) {
     return json(200, { ok: !!gone, slug: slug0, vault_key: packVaultKey(slug0), cleared: !!gone });
   }
 
+  // OWNER-FACING team logins: return THIS shop's login pack (owner + office + tech seats) so the
+  // owner can see + hand out their crew logins from their own dashboard. Owner-session-gated (an
+  // owner only ever reads their OWN shop's pack); admin may pass &slug=. Read-only.
+  //   POST { access_token }   (owner)   |   ?action=mypack&secret=<admin>&slug=<shop>
+  if (q.action === 'mypack') {
+    let ab = {}; try { ab = JSON.parse(event.body || '{}'); } catch (_) {}
+    let co = null;
+    if (isAdmin && (q.slug || ab.slug)) {
+      const slug0 = String(q.slug || ab.slug || '').toLowerCase().trim();
+      const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id,name,slug&limit=1`);
+      co = cos && cos[0];
+    } else {
+      const tok = String(ab.access_token || q.access_token || '');
+      try {
+        const ur = await fetch(`${url}/auth/v1/user`, { headers: { Authorization: 'Bearer ' + tok, apikey: PLATFORM_ANON }, signal: AbortSignal.timeout(8000) });
+        if (ur.ok) { const uu = await ur.json().catch(() => null);
+          if (uu && uu.id) { const rows = await rest0(`app_user?auth_user_id=eq.${encodeURIComponent(uu.id)}&role=eq.owner&select=company_id&limit=1`);
+            const cid = rows && rows[0] && rows[0].company_id;
+            if (cid) { const cos = await rest0(`company?id=eq.${cid}&select=id,name,slug&limit=1`); co = cos && cos[0]; } } }
+      } catch (_) {}
+    }
+    if (!co) return json(200, { ok: false, error: 'sign in as the shop owner' });
+    const pack = await readPack(co.slug);
+    return json(200, { ok: true, slug: co.slug, name: co.name, pack: pack || null });
+  }
+
   // Read a stored shop pack (for packs.html). Admin/operator-only. ?action=packs&slug=<slug>
   if (q.action === 'packs') {
     const slug0 = String(q.slug || '').toLowerCase().trim();
@@ -902,6 +970,7 @@ exports.handler = async function (event) {
         : trade === 'aquarium' ? 'Reef tank — monthly maintenance'
         : trade === 'furniture' ? 'Custom sectional — special order'
         : trade === 'dealership' ? 'Interested in a cargo van — has a trade-in'
+        : trade === 'dryer_vent' ? 'Dryer vent cleaning + reroute'
         : 'Sample job';
       seeded = await createLeadJob({
         slug, name: 'Sample Lead (demo)', phone: '+16155551234',

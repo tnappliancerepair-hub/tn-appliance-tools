@@ -65,6 +65,14 @@
       proof: ['24/7 AI phone answering', 'Lead → test-drive → sold pipeline', 'Customer portal + comms', 'Deal tracking'],
       accent: '#4b3f8f', emoji: '🚗',
     },
+    {
+      key: 'dryer-vent', brand: 'AssistAnt 24/7', trade: 'dryer_vent', live: false,
+      domains: ['dryerventant.com', 'www.dryerventant.com'],
+      tagline: 'The AI that runs your dryer vent cleaning business.',
+      hero: 'Answer every call, book every cleaning + reroute, keep your schedule full — one system your whole crew runs on.',
+      proof: ['24/7 AI phone answering', 'Recurring + seasonal scheduling', 'Before/after photos + customer portal', 'Tech pay + invoicing'],
+      accent: '#dd6b20', emoji: '🌀',
+    },
   ];
 
   function norm(h) { return String(h || '').toLowerCase().trim().replace(/:\d+$/, ''); }

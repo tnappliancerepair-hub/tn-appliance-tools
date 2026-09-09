@@ -57,7 +57,7 @@
 <body><div class="wrap">
   <div class="brand"><span class="dot">🐜</span><span id="brandName">Ant</span></div>
 
-  <div id="gate" class="gate" style="display:none">Sign in from your dashboard link to finish setup.</div>
+  <div id="gate" class="gate" style="display:none"></div>
 
   <div id="flow" style="display:none">
     <div class="dots"><i class="on"></i><i></i><i></i><i></i></div>
@@ -239,8 +239,9 @@
   function msg(id,t,err){ var e=document.getElementById(id); if(e){ e.textContent=t; e.className='msg '+(err?'err':'ok'); } }
 
   function boot(){
+    document.getElementById('gate').style.display='none';
     sb.from('company').select('id,name,slug,settings').limit(1).then(function(r){
-      if(r.error||!r.data||!r.data[0]){ document.getElementById('gate').style.display='block'; return; }
+      if(r.error||!r.data||!r.data[0]){ showSignIn('You’re signed in, but we couldn’t load your shop yet — try signing in again in a moment.'); return; }
       companyId=r.data[0].id; shopName=r.data[0].name||'your shop'; slug=r.data[0].slug||''; settings=r.data[0].settings||{};
       document.getElementById('brandName').textContent=shopName;
       // load existing active techs so a re-run shows them
@@ -250,7 +251,56 @@
       });
     });
   }
-  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else document.getElementById('gate').style.display='block'; });
+
+  // ---- Robust auth landing (fixes the dead-end) --------------------------------------------------
+  // A magic link lands here with the session in the URL, but supabase-js reads it ASYNC — so we
+  // can't decide "no session" synchronously (that was the old bug: it showed a dead-end gate before
+  // the link was processed). Wait for onAuthStateChange OR a short grace; only if there is truly no
+  // session do we show a REAL sign-in form (email+password + "email me a fresh link"), never a trap.
+  // Single-use magic links can also be eaten by a link-preview scanner before the person taps, so
+  // the fallback form is what keeps a paid owner from ever getting stuck.
+  var booted=false;
+  function once(){ if(booted) return; booted=true; document.getElementById('gate').style.display='none'; boot(); }
+  function showSignIn(preMsg){
+    var g=document.getElementById('gate'); g.style.display='block';
+    g.innerHTML=
+      '<div style="max-width:340px;margin:0 auto;text-align:left">'+
+        '<div style="font-size:18px;font-weight:700;text-align:center;margin-bottom:4px">Sign in to finish setup</div>'+
+        '<div style="color:var(--muted);font-size:13px;text-align:center;margin-bottom:14px">'+esc(preMsg||'Use the email you signed up with.')+'</div>'+
+        '<input id="siEm" type="email" autocomplete="username" placeholder="you@shop.com" style="width:100%;box-sizing:border-box;padding:12px;margin:6px 0;border-radius:10px;border:1px solid #333;background:#111;color:#eee;font-size:16px">'+
+        '<input id="siPw" type="password" autocomplete="current-password" placeholder="Password" style="width:100%;box-sizing:border-box;padding:12px;margin:6px 0;border-radius:10px;border:1px solid #333;background:#111;color:#eee;font-size:16px">'+
+        '<button id="siGo" style="width:100%;padding:13px;margin-top:8px;border:0;border-radius:10px;background:var(--brand,#3f8f24);color:#fff;font-size:16px;font-weight:700;cursor:pointer">Sign in</button>'+
+        '<div id="siErr" style="color:#e57373;font-size:13px;margin-top:8px;min-height:16px;text-align:center"></div>'+
+        '<div style="text-align:center;margin-top:12px;font-size:13px"><a href="#" id="siLink" style="color:var(--brand,#3f8f24);text-decoration:none">Email me a fresh sign-in link</a></div>'+
+      '</div>';
+    document.getElementById('siGo').onclick=function(){
+      var em=(val('siEm')||'').trim(), pw=val('siPw')||'', er=document.getElementById('siErr');
+      if(!em||!pw){ er.textContent='Enter your email and password.'; return; }
+      var bn=document.getElementById('siGo'); bn.disabled=true; bn.textContent='Signing in…';
+      sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){
+        if(r.error){ er.textContent=(r.error.message||'Wrong email or password.'); bn.disabled=false; bn.textContent='Sign in'; }
+        else { once(); }
+      });
+    };
+    document.getElementById('siLink').onclick=function(e){
+      e.preventDefault();
+      var em=(val('siEm')||'').trim(), er=document.getElementById('siErr');
+      if(!em){ er.textContent='Enter your email above first.'; return; }
+      er.style.color='var(--muted)'; er.textContent='Sending a fresh link to '+em+'…';
+      fetch('/.netlify/functions/platform-resend-link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em})})
+        .then(function(r){return r.json();}).then(function(d){ er.textContent=(d&&d.message)||'Sent — check your inbox.'; })
+        .catch(function(){ er.style.color='#e57373'; er.textContent='Couldn’t send — try again in a minute.'; });
+    };
+  }
+  try { sb.auth.onAuthStateChange(function(_e, session){ if(session && !booted) once(); }); } catch(_){}
+  if(/error/i.test(location.hash||'') || /[?&]error=/.test(location.search||'')){
+    showSignIn('That sign-in link expired. Sign in below, or tap “Email me a fresh link.”');
+  } else {
+    sb.auth.getSession().then(function(r){
+      if(r.data&&r.data.session){ once(); }
+      else { setTimeout(function(){ if(booted) return; sb.auth.getSession().then(function(r2){ if(r2.data&&r2.data.session) once(); else showSignIn(); }); }, 1700); }
+    }).catch(function(){ showSignIn(); });
+  }
 })();
 </script>
 </body></html>

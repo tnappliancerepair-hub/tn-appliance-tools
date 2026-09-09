@@ -57,17 +57,33 @@ exports.handler = async function (event) {
   }
   if (!companyId) return J(200, { ok: false, error: 'provision_failed' });
 
-  // A fresh one-tap login straight into the setup wizard.
+  // DEAD-SIMPLE HANDOFF. The owner should never be stranded or confused: hand back their dashboard
+  // link, their login email, and their password — right on the success screen — plus a one-tap magic
+  // link. So it's "here's your link, here's your login, here's your password — you can't mess it up."
   const slug = String(meta.slug || '').trim();
+  const email = String(meta.email || '').trim().toLowerCase();
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  const dashboardUrl = `${origin}/platform/owner.html`;
+
+  // Set + reveal a known password so we can SHOW it (the owner's own brand-new account). resetpw
+  // also vaults it (PLATFORM_OWNER_PW_<slug>) and keeps the login pack's owner row in sync.
+  let ownerPassword = '';
+  try {
+    const rev = { queryStringParameters: { secret: admin, action: 'resetpw', slug, reveal: '1', once: '1' } };
+    const rd = JSON.parse((await provision.handler(rev)).body || '{}');
+    if (rd && rd.ok && rd.new_password) ownerPassword = rd.new_password;
+  } catch (_) {}
+
+  // One-tap magic link straight onto the dashboard (best-effort — the email+password is the durable way in).
   let login = '';
   try {
-    const email = String(meta.email || '').trim().toLowerCase();
-    const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-    const mev = { queryStringParameters: { secret: admin, action: 'magiclink', email, redirect: `${origin}/platform/onboard.html` } };
+    const mev = { queryStringParameters: { secret: admin, action: 'magiclink', email, redirect: dashboardUrl } };
     const md = JSON.parse((await provision.handler(mev)).body || '{}');
     login = md.login_link || '';
   } catch (_) {}
 
-  return J(200, { ok: true, company_id: companyId, slug, login_url: login || null,
-    message: login ? 'Payment received — taking you to your setup…' : 'Payment received — check your email for a sign-in link.' });
+  return J(200, { ok: true, company_id: companyId, slug, name: meta.name || slug,
+    login_url: login || null, dashboard_url: dashboardUrl,
+    owner_email: email, owner_password: ownerPassword || null,
+    message: 'Payment received — your shop is ready.' });
 };

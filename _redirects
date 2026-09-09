@@ -1,6 +1,8 @@
 # Per-tenant shop websites (auto-built): /s/<slug> -> platform-site
-# Use :splat (not :slug) — Netlify doesn't reliably interpolate a path placeholder into the
-# destination query string, so /s/demo was arriving with an empty slug (400). :splat works.
+# NOTE: Netlify does NOT populate a FUNCTION's query param from :splat (proven live 2026-09-09 —
+# every /s/<slug> was 400'ing with an empty slug, for every shop). The ?slug=:splat below is
+# harmless but unreliable; platform-site.js reads the slug from the request PATH (slugFromPath),
+# which Netlify preserves on a 200 rewrite. So the pretty URL works via the function, not the splat.
 /s/*  /.netlify/functions/platform-site?slug=:splat  200
 
 # Short branded PM pay link -> regenerates a fresh Stripe checkout on each click

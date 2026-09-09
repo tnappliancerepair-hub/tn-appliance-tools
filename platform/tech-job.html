@@ -483,6 +483,15 @@
       '<div class="card" id="partsCard"><div class="sec">📦 Parts for this job</div>' +
         '<div class="note" style="margin:-2px 0 11px">Add each part you need. Tap <b>Please order</b> to put it on the office queue, or <b>just the part #</b> to log it for the claim. Once it arrives: <b>Used</b> if you installed it, <b>Return</b> if it ships back, <b>Not here</b> if the customer doesn\'t have it.</div>' +
         '<div id="partsBox"><div class="note">Loading…</div></div>' +
+        // Snap-the-unused-parts return flow — for SquareTrade/Allstate jobs where a pile of parts
+        // ships and the tech just brings back what he didn't use. Tap the camera, shoot each part,
+        // we read the part # off the photo + log the return. No typing.
+        '<div id="retBlock" style="border:1px solid rgba(124,92,255,.35);border-radius:12px;padding:11px;margin:2px 0 12px;background:rgba(124,92,255,.07)">' +
+          '<div style="font-weight:700;margin-bottom:3px">↩️ Returning unused parts? Snap them.</div>' +
+          '<div class="note" style="margin:0 0 8px">Got parts you did NOT use (SquareTrade / Allstate)? Tap the camera and shoot each one — its box or label. We read the part # off the photo and log the return for you. No typing. Then bring them back to ship.</div>' +
+          '<button class="full primary" id="snapRetBtn">📸 Snap an unused part to return<input type="file" accept="image/*" capture="environment" id="snapRetFile" class="hidden"></button>' +
+          '<div class="note" id="snapRetMsg" style="margin-top:8px"></div>' +
+        '</div>' +
         '<div class="paddrow"><input id="pAddName" placeholder="Part name (e.g. water valve)"><input id="pAddNum" placeholder="Part #"></div>' +
         '<div class="paddrow" style="margin-top:8px"><input id="pAddCost" inputmode="decimal" placeholder="Your cost $ (optional)"></div>' +
         '<div class="note" style="margin:6px 0 0">Enter what it <b>cost you</b> — the office/owner set the margin, so the customer price fills in automatically. Never guess what to charge.</div>' +
@@ -606,6 +615,13 @@
     var ocrBtn = document.getElementById('ocrBtn'), ocrFile = document.getElementById('ocrFile');
     ocrBtn.onclick = function(e){ if (e.target !== ocrFile) ocrFile.click(); };
     ocrFile.onchange = function(){ if (ocrFile.files && ocrFile.files[0]) runOcr(ocrFile.files[0]); };
+
+    // snap-the-unused-parts return flow
+    var srBtn = document.getElementById('snapRetBtn'), srFile = document.getElementById('snapRetFile');
+    if (srBtn && srFile) {
+      srBtn.onclick = function(e){ if (e.target !== srFile) srFile.click(); };
+      srFile.onchange = function(){ var fs = srFile.files; if (fs && fs.length) { snapReturnParts(Array.prototype.slice.call(fs)); srFile.value = ''; } };
+    }
 
     // Photos & Video — four clean capture tiles (take / library × photo / video).
     var capWire=function(btnId,fileId,handler){
@@ -1272,6 +1288,38 @@
     };
     img.onerror=function(){ alert('That file didn\'t work — try a photo.'); };
     img.src=url;
+  }
+
+  // Snap unused parts → OCR the part # → log each as a warranty RETURN. Processes photos one at
+  // a time (clean status + no OCR storm). The return is logged even if the # can't be read — the
+  // photo IS the record; the office reads it off the photo. Server merges onto a matching part
+  // already on the job so a pre-supplied part isn't duplicated.
+  function snapReturnParts(files){
+    var msg=document.getElementById('snapRetMsg'); if(!msg) return;
+    var logged=0, i=0;
+    function fin(){ msg.innerHTML=logged?('<b>'+logged+' part'+(logged===1?'':'s')+' logged to return.</b> Bring them back to ship — tap again for the next one.'):'Nothing logged — try a clearer photo of the part or its box.'; loadParts(); }
+    function next(){
+      if(i>=files.length){ fin(); return; }
+      var file=files[i++];
+      msg.textContent='Reading part '+i+' of '+files.length+'…';
+      var img=new Image(), url=URL.createObjectURL(file);
+      img.onload=function(){
+        var max=1400,w=img.width,h=img.height; if(Math.max(w,h)>max){var s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+        var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url);
+        var data=cv.toDataURL('image/jpeg',0.82);
+        token().then(function(tok){
+          fetch('/.netlify/functions/platform-tech-media?do=return_part',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,data:data})})
+            .then(function(r){return r.json();}).then(function(d){
+              if(d&&d.ok){ logged++; msg.innerHTML=(d.part_number?('↩️ Logged <b>'+esc(d.part_number)+'</b>'):'↩️ Logged from the photo (office reads the # off it)')+' — '+logged+' so far'; }
+              else { msg.textContent='That one didn\'t upload — try again.'; }
+              next();
+            }).catch(function(){ msg.textContent='Couldn\'t reach the server — try again.'; next(); });
+        });
+      };
+      img.onerror=function(){ next(); };
+      img.src=url;
+    }
+    next();
   }
 
   function onMyWay(){

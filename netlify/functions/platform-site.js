@@ -20,6 +20,7 @@ const TRADE = {
   furniture: { accent: '#7c4a1e', emoji: '🛋️', noun: 'furniture service', verb: 'handle', services: ['Delivery', 'Assembly', 'Repair & Touch-up', 'Custom Orders', 'Upholstery', 'Pickup & Haul-away'] },
   aquarium: { accent: '#1b6ca8', emoji: '🐠', noun: 'aquarium service', verb: 'service', services: ['Tank Maintenance', 'Water Testing', 'Equipment Repair', 'Setup & Design', 'Livestock Health', 'Emergency Service'] },
   dealership: { accent: '#b8860b', emoji: '🚗', noun: 'dealership', verb: 'help with', services: ['Inventory', 'Financing', 'Trade-ins', 'Test Drives', 'Service Department', 'Warranty'] },
+  dryer_vent: { accent: '#dd6b20', emoji: '🌀', noun: 'dryer vent service', verb: 'clean', services: ['Dryer Vent Cleaning', 'Vent Rerouting', 'Lint & Fire-Hazard Removal', 'Booster Fan Install', 'Exterior Vent / Bird Guard', 'Airflow Inspection'] },
 };
 function tradeCfg(t) { return TRADE[String(t || 'appliance').toLowerCase()] || TRADE.appliance; }
 
@@ -161,9 +162,19 @@ function slugFromHost(event) {
   return m ? m[1] : '';
 }
 
+// Pull the shop slug straight from the request PATH (/s/<slug> or /site/<slug>). This is the
+// reliable path for the pretty route: Netlify does NOT populate a function's query param from a
+// `?slug=:splat` rewrite (proven live — every /s/<slug> was 400'ing), but it DOES preserve the
+// original request path on a 200 rewrite, so we read it here instead of trusting the splat.
+function slugFromPath(event) {
+  const p = String((event && (event.path || event.rawUrl)) || '');
+  const m = /\/(?:s|site)\/([a-z0-9][a-z0-9-]{0,62})/i.exec(p);
+  return m ? m[1] : '';
+}
+
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const slug = String(q.slug || slugFromHost(event) || '').toLowerCase().trim();
+  const slug = String(q.slug || slugFromPath(event) || slugFromHost(event) || '').toLowerCase().trim();
   if (!slug) return J(400, { ok: false, error: 'slug required' });
   const pf = await platform();
   if (!pf) return H(200, notFound(slug).body);

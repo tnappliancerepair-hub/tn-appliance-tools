@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en" data-live="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Parts Returns — Ant</title>
+<!--
+  Ant platform — PARTS RETURNS worklist (the chargeback shield, carried over from the legacy
+  Xano system). Lists every part the shop OWES BACK to a distributor — job_part rows with
+  disposition='return' AND returned_at IS NULL — across the whole shop, oldest first, with the
+  photo the tech snapped. One tap "✓ Shipped it" sets returned_at and it drops off the list.
+  Auth → Row-Level Security scopes to this shop; the page never sends a company_id.
+-->
+<style>
+  :root{
+    --bg:#f6f7f4; --panel:#ffffff; --ink:#12160f; --muted:#5b6152; --line:#e4e7dd;
+    --brand:#3f8f24; --brand-ink:#fff; --chip:#eef2e8; --pop:#7c5cff;
+    --warn:#b45309; --warnbg:#f7ecdb; --danger:#c0392b; --dangerbg:#f8e6e2;
+    --shadow:0 1px 2px rgba(20,30,10,.06),0 4px 14px rgba(20,30,10,.05);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a;
+    --pop:#a48bff; --warnbg:#2a2110; --dangerbg:#2a1512; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --chip:#20281a;
+    --pop:#a48bff; --warnbg:#2a2110; --dangerbg:#2a1512; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);padding:12px 16px}
+  header .tb-row{display:flex;align-items:center;gap:10px}
+  header .brand{font-weight:800}
+  header .shop{color:var(--muted);font-weight:600}
+  header .sp{flex:1}
+  .hop{display:flex;gap:7px;margin-top:9px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+  .hop::-webkit-scrollbar{display:none}
+  .hop a{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;text-decoration:none;background:var(--chip);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 12px;font-size:12.5px;font-weight:700;white-space:nowrap}
+  .hop a.here{background:var(--ink);color:var(--bg);border-color:transparent}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:9px;padding:8px 12px;font-weight:600}
+  button.primary{background:var(--brand);color:var(--brand-ink);border-color:transparent}
+  button:disabled{opacity:.55;cursor:default}
+  .wrap{padding:14px;max-width:820px;margin:0 auto}
+  .score{display:flex;gap:10px;overflow-x:auto;padding-bottom:12px}
+  .stat{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow)}
+  .stat .lab{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700}
+  .stat .val{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px}
+  .stat.warn .val{color:var(--danger)}
+  .jobgrp{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 13px;margin-bottom:12px}
+  .jobgrp h3{margin:0 0 2px;font-size:16px}
+  .jobmeta{color:var(--muted);font-size:12.5px;margin-bottom:9px}
+  .jobmeta b{color:var(--ink)}
+  .prow{display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line)}
+  .prow:first-of-type{border-top:none}
+  .pthumb{flex:0 0 58px;width:58px;height:58px;border-radius:9px;overflow:hidden;background:var(--chip);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:20px;cursor:pointer}
+  .pthumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .pbody{flex:1;min-width:0}
+  .pnum{font-weight:800;font-size:15px}
+  .pnum .missing{color:var(--warn);font-weight:700;font-size:13px}
+  .pname{color:var(--muted);font-size:13px;margin-top:1px}
+  .page{display:inline-block;margin-top:5px;font-size:12px;font-weight:700;color:var(--muted)}
+  .page.risk{color:var(--danger);background:var(--dangerbg);border-radius:999px;padding:2px 9px}
+  .pact{flex:0 0 auto;align-self:center}
+  .empty{text-align:center;color:var(--muted);padding:40px 16px}
+  .empty .big{font-size:34px;margin-bottom:8px}
+  .gate{max-width:340px;margin:60px auto;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+  .gate h1{font-size:20px;margin:0 0 4px}
+  .gate p{color:var(--muted);margin:0 0 14px}
+  .gate label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:8px 0 4px}
+  .gate input{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+  .gate .err{color:var(--danger);font-size:13px;min-height:18px;margin-top:8px}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:20;padding:20px}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:10px}
+</style>
+</head>
+<body>
+<div id="app"><div class="wrap"><p style="color:var(--muted)">Loading…</p></div></div>
+
+<script src="/platform/config.js"></script>
+<script src="/platform/vendor/supabase-js.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
+<script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/vendor/boot-watchdog.js"></script>
+<script src="/platform/vendor/setup-bypass.js"></script>
+<script>
+(function(){
+  var cfg = window.ANT_SUPABASE || {};
+  var sb = (cfg.url && cfg.anonKey && window.supabase) ? window.supabase.createClient(cfg.url, cfg.anonKey) : null;
+  var app = document.getElementById('app');
+  var shopName = '', userEmail = '';
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function bootDone(){ try{ window.bootOK && window.bootOK(); }catch(e){} }
+
+  if(!sb){ app.innerHTML='<div class="gate"><h1>Not configured</h1><p>Add the platform Supabase URL + anon key to config.js, then reload.</p></div>'; bootDone(); return; }
+
+  function renderSignIn(msg){
+    app.innerHTML =
+      '<div class="gate"><h1>🐜 Parts Returns</h1><p>Sign in to your shop.</p>' +
+      '<label>Email</label><input id="em" type="email" autocomplete="username" placeholder="you@shop.com">' +
+      '<label>Password</label><input id="pw" type="password" autocomplete="current-password">' +
+      '<div style="margin-top:12px"><button class="primary" id="go">Sign in</button></div>' +
+      '<div class="err">'+esc(msg||'')+'</div></div>';
+    document.getElementById('go').onclick=function(){
+      var em=(document.getElementById('em').value||'').trim(), pw=document.getElementById('pw').value||'';
+      if(!em||!pw){ return; }
+      sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){ if(r.error){ renderSignIn(r.error.message); } else { boot(); } });
+    };
+    bootDone();
+  }
+
+  function boot(){
+    sb.auth.getSession().then(function(s){
+      var sess = s && s.data && s.data.session;
+      if(!sess){ renderSignIn(); return; }
+      userEmail = (sess.user && sess.user.email) || '';
+      sb.from('company').select('name,settings').limit(1).then(function(r){
+        var co = r.data && r.data[0]; shopName = (co && co.name) || '';
+        renderShell(); loadReturns(); bootDone();
+      });
+    }).catch(function(){ renderSignIn(); bootDone(); });
+  }
+
+  function renderShell(){
+    app.innerHTML =
+      '<header><div class="tb-row"><span class="brand">🐜 Ant</span><span class="shop">'+esc(shopName||'…')+'</span><span class="sp"></span>' +
+        '<button id="refresh">Refresh</button><button id="out">Sign out</button></div>' +
+        '<nav class="hop" aria-label="Jump to">' +
+          '<a href="/platform/office-board.html">📊 Board</a>' +
+          '<a href="/platform/dispatch.html">📅 Dispatch</a>' +
+          '<a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a>' +
+          '<a href="/platform/messages.html">💬 Messages</a>' +
+          '<a class="here" href="/platform/returns.html">📦 Returns</a>' +
+          '<a href="/platform/owner.html">💰 Owner</a>' +
+          '<a href="/platform/office-overview.html">🗂 Overview</a>' +
+        '</nav></header>' +
+      '<div class="wrap"><div class="score" id="score"></div><div id="list"><p style="color:var(--muted)">Loading returns…</p></div></div>';
+    document.getElementById('refresh').onclick=loadReturns;
+    document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
+  }
+
+  function ageDays(iso){ if(!iso) return 0; return Math.max(0, Math.floor((Date.now()-new Date(iso).getTime())/86400000)); }
+  function custName(c){ if(!c) return 'Customer'; return ((c.first_name||'')+' '+(c.last_name||'')).trim() || 'Customer'; }
+
+  function loadReturns(){
+    var list=document.getElementById('list'); if(!list) return;
+    sb.from('job_part')
+      .select('id,number,name,source,photo_ref,created_at,job:job_id(id,claim_number,warranty_company,scheduled_day,customer:customer_id(first_name,last_name,phone,city,state))')
+      .eq('disposition','return').is('returned_at',null).order('created_at',{ascending:true})
+      .then(function(r){
+        if(r.error){
+          if(/returned_at|column|schema cache/i.test(r.error.message||'')){ list.innerHTML='<div class="empty"><div class="big">🛠️</div>Returns tracking turns on once migration 056 is applied.</div>'; }
+          else list.innerHTML='<div class="empty">Couldn\'t load returns — '+esc(r.error.message)+'</div>';
+          renderScore(0,0); return;
+        }
+        renderList(r.data||[]);
+      });
+  }
+
+  function renderScore(owed, oldest){
+    var s=document.getElementById('score'); if(!s) return;
+    s.innerHTML =
+      '<div class="stat"><div class="lab">Owed back</div><div class="val">'+owed+'</div></div>' +
+      '<div class="stat'+(oldest>=7?' warn':'')+'"><div class="lab">Oldest (days)</div><div class="val">'+(owed?oldest:'—')+'</div></div>';
+  }
+
+  function renderList(rows){
+    var list=document.getElementById('list');
+    if(!rows.length){ renderScore(0,0); list.innerHTML='<div class="empty"><div class="big">✅</div>Nothing owed back — every warranty part is accounted for. Nice.</div>'; return; }
+    var oldest=0; rows.forEach(function(p){ oldest=Math.max(oldest, ageDays(p.created_at)); });
+    renderScore(rows.length, oldest);
+    // group by job, preserving oldest-first order
+    var groups=[], byJob={};
+    rows.forEach(function(p){
+      var j=p.job||{}, jid=j.id||('_'+p.id);
+      if(!byJob[jid]){ byJob[jid]={ job:j, parts:[] }; groups.push(byJob[jid]); }
+      byJob[jid].parts.push(p);
+    });
+    list.innerHTML = groups.map(grpHtml).join('');
+    // wire shipped-back
+    Array.prototype.forEach.call(list.querySelectorAll('[data-ship]'), function(b){
+      b.onclick=function(){
+        var id=b.getAttribute('data-ship'); b.disabled=true; b.textContent='Saving…';
+        sb.from('job_part').update({ returned_at:new Date().toISOString(), returned_by:'office:'+userEmail }).eq('id',id).then(function(rr){
+          if(rr.error){ b.disabled=false; b.textContent='✓ Shipped it'; alert(rr.error.message); return; }
+          loadReturns();
+        });
+      };
+    });
+    // thumbnails (signed R2 urls, tap to enlarge)
+    hydratePics(list);
+  }
+
+  function grpHtml(g){
+    var j=g.job||{}, c=j.customer||{};
+    var meta=[];
+    if(j.warranty_company) meta.push('<b>'+esc(j.warranty_company)+'</b>');
+    if(j.claim_number) meta.push('Claim '+esc(j.claim_number));
+    if(c.city||c.state) meta.push(esc([c.city,c.state].filter(Boolean).join(', ')));
+    return '<div class="jobgrp"><h3>'+esc(custName(c))+'</h3>' +
+      '<div class="jobmeta">'+(meta.join(' · ')||'—')+'</div>' +
+      g.parts.map(partHtml).join('') + '</div>';
+  }
+
+  function partHtml(p){
+    var age=ageDays(p.created_at);
+    var thumb = p.photo_ref
+      ? '<div class="pthumb"><img data-ph="'+esc(p.photo_ref)+'" alt="part photo"></div>'
+      : '<div class="pthumb">📦</div>';
+    var num = p.number
+      ? '<div class="pnum">🔩 '+esc(p.number)+'</div>'
+      : '<div class="pnum"><span class="missing">No part # — read it off the photo</span></div>';
+    var src = p.source ? ' · ↩ '+esc(p.source) : '';
+    return '<div class="prow">' + thumb +
+      '<div class="pbody">' + num +
+        '<div class="pname">'+esc(p.name||'Unused part')+src+'</div>' +
+        '<span class="page'+(age>=7?' risk':'')+'">'+(age===0?'today':age+'d owed')+(age>=7?' · at risk':'')+'</span>' +
+      '</div>' +
+      '<div class="pact"><button class="primary" data-ship="'+esc(p.id)+'">✓ Shipped it</button></div>' +
+    '</div>';
+  }
+
+  // sign the R2 refs with the office session token → drop the real URL into each <img> (tap to enlarge)
+  function hydratePics(scope){
+    var imgs=(scope||document).querySelectorAll('img[data-ph]'); if(!imgs.length) return;
+    var refs=[]; Array.prototype.forEach.call(imgs,function(el){ var r=el.getAttribute('data-ph'); if(r&&refs.indexOf(r)<0) refs.push(r); });
+    sb.auth.getSession().then(function(s){
+      var tok=s&&s.data&&s.data.session&&s.data.session.access_token; if(!tok) return;
+      fetch('/.netlify/functions/platform-media-urls',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({refs:refs})})
+        .then(function(x){return x.json();}).then(function(d){
+          var urls=(d&&d.urls)||{};
+          Array.prototype.forEach.call((scope||document).querySelectorAll('img[data-ph]'),function(el){
+            var u=urls[el.getAttribute('data-ph')]; if(!u) return; el.src=u;
+            el.parentNode.onclick=function(){ var lb=document.createElement('div'); lb.className='lightbox'; lb.innerHTML='<img src="'+u+'">'; lb.onclick=function(){ document.body.removeChild(lb); }; document.body.appendChild(lb); };
+          });
+        }).catch(function(){});
+    });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

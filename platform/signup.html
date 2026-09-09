@@ -95,6 +95,7 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
           <option value="furniture">Furniture</option>
           <option value="aquarium">Aquarium / pond</option>
           <option value="dealership">Dealership</option>
+          <option value="dryer_vent">Dryer vent cleaning &amp; rerouting</option>
           <option value="other">Other</option>
         </select>
       </div>
@@ -205,17 +206,62 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
     var params = new URLSearchParams(location.search);
     var p = params.get('billing');
     if(!p) return;
-    var msg = document.getElementById('msg');
-    if(p==='cancel'){ msg.className='msg err'; msg.textContent='No worries — nothing was charged. Pick a plan whenever you’re ready.'; return; }
+    if(p==='cancel'){ var m=document.getElementById('msg'); if(m){ m.className='msg err'; m.textContent='No worries — nothing was charged. Pick a plan whenever you’re ready.'; } return; }
     if(p!=='success') return;
+    // Paid. Take over the WHOLE screen with a clear receipt so the owner never sees the empty
+    // signup form again (that read as "brought me right back to the start page, nothing"). An
+    // overlay leaves the form intact underneath, so nothing else on the page breaks.
+    function overlay(html){
+      var o=document.getElementById('__paid_overlay');
+      if(!o){ o=document.createElement('div'); o.id='__paid_overlay';
+        var bg=''; try{ bg=getComputedStyle(document.body).backgroundColor; }catch(_){}
+        o.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;background:'+(bg&&bg!=='rgba(0, 0, 0, 0)'?bg:'#0b0d10');
+        document.body.appendChild(o); }
+      o.innerHTML='<div style="max-width:460px;text-align:center;font:16px/1.55 system-ui,-apple-system,sans-serif;color:#f1f1f1">'+html+'</div>';
+    }
+    overlay('<div style="font-size:46px;line-height:1">✅</div><h2 style="margin:14px 0 6px;font-size:24px">Payment received!</h2><p style="opacity:.8;margin:0">Finishing your shop setup…</p>');
+    var reassure='<div style="font-size:46px;line-height:1">✅</div><h2 style="margin:14px 0 8px;font-size:24px">Payment received — you’re all set!</h2><p style="opacity:.9;margin:0 0 12px">We’re setting up your shop right now. Your one-tap sign-in link is on its way to <b>your email</b> (give it a minute, then check your inbox), and we’ve texted the owner too.</p><p style="opacity:.72;margin:0;font-size:14px">Didn’t get it within a few minutes? Just reply to your welcome text and we’ll get you right in.</p>';
     var sid = params.get('session_id')||'';
-    msg.className='msg ok'; msg.textContent='Payment received — finishing your setup…';
-    if(!sid){ msg.textContent="You're all set! Check your email for a link to sign into your dashboard."; return; }
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    // Dead-simple hand-off: one screen with your dashboard link, your login, and your password —
+    // big and obvious, nothing to mess up. Plus a one-tap button to go straight in.
+    function credCard(d){
+      var dash=d.dashboard_url||'https://tnapplianceexchange.net/platform/owner.html';
+      var dashPlain=dash.replace(/^https?:\/\//,'');
+      var em=d.owner_email||'';
+      var pw=d.owner_password||'';
+      var goUrl=d.login_url||dash;
+      var name=d.name?(', '+esc(d.name)):'';
+      var pwRow = pw
+        ? '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="opacity:.7">🔑 Password</span><b style="font-family:ui-monospace,Menlo,monospace;font-size:16px;letter-spacing:.5px">'+esc(pw)+'</b></div>'
+        : '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="opacity:.7">🔑 Password</span><span style="opacity:.85">check your welcome email/text</span></div>';
+      return ''+
+        '<div style="font-size:46px;line-height:1">✅</div>'+
+        '<h2 style="margin:12px 0 4px;font-size:24px">You’re all set'+name+'!</h2>'+
+        '<p style="opacity:.85;margin:0 0 16px">Your shop is ready. <b>Save your login below</b> — you’ll use it every time you sign in.</p>'+
+        '<div style="text-align:left;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:16px 16px;display:flex;flex-direction:column;gap:12px;font-size:15px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="opacity:.7">🔗 Your dashboard</span><b style="font-family:ui-monospace,Menlo,monospace;font-size:13.5px;text-align:right">'+esc(dashPlain)+'</b></div>'+
+          '<div style="height:1px;background:rgba(255,255,255,.12)"></div>'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="opacity:.7">📧 Login</span><b style="font-family:ui-monospace,Menlo,monospace;font-size:14px;text-align:right;word-break:break-all">'+esc(em)+'</b></div>'+
+          '<div style="height:1px;background:rgba(255,255,255,.12)"></div>'+
+          pwRow+
+        '</div>'+
+        '<button id="scCopy" style="margin:12px 0 0;width:100%;padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,.24);background:transparent;color:#f1f1f1;font-weight:700;font-size:15px;cursor:pointer">📋 Copy my login</button>'+
+        '<a href="'+esc(goUrl)+'" style="display:block;margin:10px 0 0;padding:15px;border-radius:12px;background:#e7c255;color:#171205;font-weight:800;font-size:18px;text-decoration:none">Open my dashboard →</a>'+
+        '<p style="opacity:.7;margin:14px 0 0;font-size:13.5px">Bookmark the dashboard link. Sign in with the email + password above any time. We also emailed + texted you a copy.</p>';
+    }
+    function wireCopy(d){
+      var b=document.getElementById('scCopy'); if(!b) return;
+      var dash=d.dashboard_url||'https://tnapplianceexchange.net/platform/owner.html';
+      var txt='My Ant dashboard: '+dash+'\nLogin (email): '+(d.owner_email||'')+(d.owner_password?('\nPassword: '+d.owner_password):'');
+      b.onclick=function(){ try{ navigator.clipboard.writeText(txt); b.textContent='Copied ✓'; setTimeout(function(){b.textContent='📋 Copy my login';},1500);}catch(e){} };
+    }
+    if(!sid){ overlay(reassure); return; }
     fetch('/.netlify/functions/platform-signup-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid, origin:location.origin})})
       .then(function(r){return r.json();}).then(function(d){
-        if(d.ok && d.login_url){ window.location.href=d.login_url; return; }
-        msg.textContent=(d&&d.message)||"You're all set! Check your email for a link to sign into your dashboard.";
-      }).catch(function(){ msg.textContent="You're all set! Check your email for a link to sign into your dashboard."; });
+        if(d && d.ok){ overlay(credCard(d)); wireCopy(d); return; }
+        overlay(reassure);
+      }).catch(function(){ overlay(reassure); });
   })();
 
   renderPlans();

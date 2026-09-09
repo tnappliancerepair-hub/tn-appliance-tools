@@ -64,6 +64,82 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜🏆 2026-09-09 (Tue) — SaaS CLONE-READINESS AUDIT: the lease engine is production-ready (live-verified) + /s/ marketing-site fix — READ FIRST
+
+Teddy's ultimate goal = the Supabase platform **completed + easily cloned for tenants to lease**. Ran a full
+**read-only live audit** (minted a real throwaway shop `clone-audit-shop`, tested it end-to-end, purged to zero
+residue). **Verdict: the clone engine is production-ready — a stranger's shop stands up in one command, all
+logins work, data is fully isolated, and every go-live gate is already green.** The changelog had understated
+this; several gates I still had flagged as blockers were already done.
+
+### ✅ GREEN (all verified against the live platform)
+- **One-command mint** (`shoppack`) → full 7-seat shop (owner + 2 office + 4 techs) + `/b/<slug>` booking link
+  + `<slug>@jobs.assistant247.net` intake email. **7/7 logins authenticate** against Supabase.
+- **RLS isolation textbook-clean:** the fresh owner sees **exactly 1 company (theirs)**, correct **1/2/4** role
+  split, **4 technician rows** (office seats correctly get none). Zero leakage to demo/TN.
+- **All 11 seat pages serve 200.** **`ANT_SETUP_BYPASS=false`** already (my old #1 blocker — done).
+- **Go-live gates ALL green** (`platform-status`): `signup_open:true`, Stripe **live** with `sk_live_ ✓` +
+  `whsec_ ✓`, email chain ready (SES + magiclink backstop), phone/Ann creds set. **Stripe Connect
+  `connect_ok:true`** on a real probe (the shallow diag returns null — must pass `&probe=1`).
+- Clean teardown: offboard → purge → gone (7 auth deleted, zero residue).
+
+### 🔧 FIXED THIS SESSION — the `/s/<slug>` marketing-site was 400 for EVERY shop (commit `53eb4b7a`, LIVE)
+The auto-built per-shop website (the thing a shop puts on its Google Business Profile) 400'd at its pretty URL
+for **every** tenant, while the `platform-site` function itself rendered correct branded HTML. **Root cause:
+Netlify does NOT populate a FUNCTION's query param from `?slug=:splat`** (the `_redirects` comment claimed it
+"works" — it never did). **Fix: `platform-site.js` now reads the slug from the request PATH (`slugFromPath`,
+`/s/<slug>`), which Netlify preserves on a 200 rewrite — no dependency on the flaky splat.** Verified live:
+`/s/demo` · `/s/the-appliance-guy` · `/s/tn-appliance-exchange-llc` all 200 with the right shop name; a bad
+slug now 404s cleanly (not 400). **Standing footgun: never trust `:splat` into a FUNCTION's query param —
+read the path inside the function instead** (static-file rewrites like `/b/*`→book.html are fine; functions are not).
+Also purged the `test-shop` leftover (a prior throwaway pack).
+
+### ⚠️ THE ONE THING A LIVE AUDIT CAN'T PROVE (the final confidence gate)
+A **real card → Stripe checkout → webhook → auto-provision** — every PART is green (signup open, Connect live,
+webhook ready, provision-on-redirect + magiclink recovery), but the true end-to-end proof is one real paid
+trial signup. Same for Ann-per-tenant (buys a DID) + a real book import (machinery built, untriggered in the
+throwaway). **NEXT: walk one real self-serve trial signup as the go-live gate.** Bottom line: **you can lease
+this today.**
+
+## 🗓️🐜📦 2026-09-09 (Tue) — XANO→PLATFORM PARITY #1: PARTS-RETURN TRACKING (the chargeback killer) — v1 + phase-2 RMA tee, LIVE — READ FIRST
+
+Teddy is prepping TN to go **full-time on the Supabase platform** (off legacy Xano/HCP) and wants the handful of
+things the old system does well carried over one at a time — a living **parity punch-list**. First pick =
+**PARTS-RETURN TRACKING** (SquareTrade/Allstate ship a pile of parts per job; an un-returned part = lost pay +
+a core charge, so it's real money protection). **PLATFORM ONLY** (the legacy Xano `squaretrade-rma-watch.js` is
+untouched). Shipped in two commits.
+
+### ✅ v1 — snap-to-return + office worklist (commit `d061fed0`)
+The `job_part` table already had `disposition` (`used|return|not_here`) + a tech disposition writer in
+`platform/tech-job.html` "🔩 PARTS TRACKER" + the warranty-parts auto-flow-in (`platform-tn-parts-migrate.js`).
+The gaps closed: migration **`056_part_return.sql`** (`returned_at`/`returned_by` close-loop + phase-2 RMA
+columns `rma_number`/`return_tracking`/`return_carrier`), a **camera-first "snap the unused parts" flow** (tech
+photographs each part → OCR reads the part# → a `job_part` `disposition='return'` row with the photo; unreadable
+photo still logs the return — the photo IS the record), and **`platform/returns.html`** — the office cross-job
+worklist (every `disposition='return' AND returned_at IS NULL` grouped by job/claim/customer, oldest-first, part#
++ photo thumbnail + a "✓ Shipped back" tap that stamps `returned_at` so it drops off).
+
+### ✅ phase-2 — SquareTrade RMA-label auto-match (commit `ce476c4d`, LIVE + cron `11-59/15`)
+**NEW `platform-rma-tee.js` + `-cron.js`** — the automation layer on top of v1. Reads TN's Gmail (read-only) for
+the prepaid return-label emails from **`rma_request@squaretrade.com`**, parses **each part** (RMA# · FedEx
+tracking# · distributor · part# · claim# via `parseReturns()`, ported byte-for-byte from the proven legacy
+watcher), matches to a platform job by **claim + normalized part#** (`normP` = uppercase, strip non-alphanumeric),
+and stamps `rma_number`/`return_tracking`/`return_carrier` onto that job's return row — **creating the return row
+if the tech hasn't logged it yet**, so an owed-back part can never slip. Idempotent (keyed on job + normalized
+part#; re-runs update, never duplicate). Reads Gmail read-only; writes ONLY into TN's platform tenant
+(`be4d11a1-…`) with the service key.
+- **Verified LIVE (dryrun, zero writes):** `scanned:8 parts:8 created:4 updated:4 unmatched_claim:0 no_part:0` —
+  4 real parts each matched to a real platform job by claim with correct RMA#/tracking/distributor extraction
+  (MARCONE 5304528029 RMA 7167476 → would-create · RELIABLE WE03X27417 RMA 0738816 → would-update · UED
+  EBF62174907 RMA 851883 → would-create · ENCOMPASS WH22X35701 RMA 1-98670 → would-update).
+- **⚠️ The cron fires LIVE writes** every 15 min, gated only by vault **`PLATFORM_RMA_TEE_ENABLED`** (default on;
+  set `=false` to pause). Curl-testable core: `platform-rma-tee?secret=<admin>&dryrun=1`.
+- **The parts-return chargeback-killer is now fully carried over:** tech snaps the unused parts → office worklist
+  → RMA labels auto-attach themselves. Cron-offset 11 avoids collisions with existing `/15` crons (7, 9, 13).
+
+### ⏭️ Parity punch-list — next picks (NOT started; Teddy's call, one at a time)
+Warranty claim auto-file · parts finder + live Marcone pricing · troubleshooting brain / rich TDR.
+
 ## 🗓️🐜⭐ 2026-09-09 (Tue) — REVIEW ASKS: the link was a DEAD END on every platform shop (fixed) + one nudge — READ FIRST
 
 Teddy: *"fix the review ask engagement leak for the supabase customers moving forward."* The Xano-side

@@ -77,6 +77,11 @@ async function findCompanyId(pf, sub, session) {
 const SITE = 'https://tnapplianceexchange.net';
 const provision = require('./platform-provision');
 
+// Provisioning + crew-pack minting does ~20 sequential Supabase calls; give it the full window so
+// a self-serve signup never times out mid-provision. (The redirect path platform-signup-verify is
+// already 26s; this matches it for the webhook path.)
+exports.config = { timeout: 26 };
+
 // Stand up a tenant from the checkout metadata (called after the card clears), stamp the new
 // company_id onto the Stripe subscription so later subscription.* events map, and email the
 // owner a one-tap login link. Returns the new company_id (or null on failure).
@@ -100,9 +105,31 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
     plan: meta.plan || 'office', owner_email: email, owner_name: meta.owner_name || '', owner_phone: meta.owner_phone || '',
     ref: refCode,
   } };
+  // Provisioning creates the owner's auth login THEN the company; it isn't atomic, so a transient
+  // hiccup (or an existing/orphaned auth user from a prior attempt) can leave the FIRST try not-ok
+  // while having already created the auth user. Retry once — the second pass sees the existing user
+  // and completes the company (this is exactly the manual recovery that un-strands a paid signup).
+  // provision is idempotent by slug, so a retry never double-creates.
   let pd = {};
-  try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
-  if (!pd.ok || !pd.company) { console.error('[platform-stripe-webhook] provision failed', pd && pd.error); return null; }
+  for (let attempt = 0; attempt < 2 && !(pd.ok && pd.company); attempt++) {
+    try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
+  }
+  // A PAID signup must NEVER strand silently. If both tries fail, alert the operator on the spot
+  // (text + email, the platform_signup tag reaches Teddy's cell) with the one-line recovery command.
+  if (!pd.ok || !pd.company) {
+    console.error('[platform-stripe-webhook] provision failed', pd && pd.error);
+    try {
+      const notify = require('./_lib/platform-notify');
+      const err = String((pd && pd.error) || 'unknown');
+      await notify.notifyOperator({
+        tag: 'platform_signup',
+        sms: `⚠️ PAID SIGNUP STRANDED: ${meta.name || slug} (${email}) paid but couldn't be set up (${err}). Recover it now — check /shops or ask Ant to provision ${slug}.`,
+        subject: `⚠️ Paid signup stranded — ${meta.name || slug}`,
+        email_body: `A shop PAID but provisioning failed, so the owner has NO dashboard and is stranded.\n\nShop: ${meta.name || slug}\nEmail: ${email}\nSlug: ${slug}\nError: ${err}\n\nRecover: ${SITE}/.netlify/functions/platform-provision?action=provision&secret=<admin>&slug=${slug}&owner_email=${encodeURIComponent(email)}&name=${encodeURIComponent(meta.name || slug)}&trade=${meta.trade || 'appliance'}&plan=${meta.plan || 'office'}\nThen mint a magiclink (action=magiclink&email=${encodeURIComponent(email)}) and send it to them.`,
+      });
+    } catch (_) {}
+    return null;
+  }
   const companyId = pd.company.id;
   // Stamp the accepted Merchant Agreement (durable acceptance audit) + the Ann request flag onto
   // settings. Always record terms when the signup carried a version; add the Ann flag if ticked.
@@ -118,6 +145,21 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   }
   // Stamp the subscription so subscription.updated/deleted map back to this company.
   try { await stripe.subscriptions.update(sub.id, { metadata: Object.assign({}, meta, { company_id: companyId }) }); } catch (_) {}
+
+  // AUTO-DELIVER THE FULL TEAM. A self-serve signup only creates the OWNER — the shop owner (Jimmy's
+  // report) then had no office/tech logins to hand out. Mint the standard crew (2 office + 4 techs)
+  // via shoppack OWNER-MODE so the whole team exists day one: the owner sees + hands them out from
+  // their dashboard ("Your team logins"), and they show on the operator /packs. owner_preexisting=1
+  // means the owner login (just created above) is recorded, never re-created or reset; its password
+  // is carried when we have it. Best-effort — the owner is already fully provisioned + un-stranded,
+  // so a failure here NEVER strands them (crew is then recoverable via a shoppack re-run / owner adds
+  // manually). Idempotent by slug.
+  try {
+    const sev = { httpMethod: 'POST', queryStringParameters: { action: 'shoppack', secret: admin },
+      body: JSON.stringify({ slug, name: meta.name || slug, trade: meta.trade || 'appliance', office: 2, techs: 4,
+        owner_email: email, owner_seat_pw: (pd.login && pd.login.temp_password) || '', owner_preexisting: 1 }) };
+    await provision.handler(sev);
+  } catch (_) {}
   // Email the owner a magic login link (best-effort; dry unless EMAIL_ENABLED).
   let link = '', emailed = false, emailMode = 'skipped';
   try {
@@ -129,7 +171,7 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
       const er = await fetch(`${SITE}/.netlify/functions/send-email`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Internal-Auth': shared },
         body: JSON.stringify({ to: email, subject: 'Your Ant dashboard is ready',
-          body: `Welcome to Ant, ${meta.name || slug}!\n\nYour shop is set up and your 14-day trial is running. Tap to sign in:\n${link}\n\nAny questions, just reply.` }),
+          body: `Welcome to Ant, ${meta.name || slug}!\n\nYour shop is set up and your 14-day trial is running. Tap to sign in:\n${link}\n\nYour team logins (owner + office + techs) are ready on your dashboard under "Your team logins" — hand each person their email + password so they can sign in too.\n\nAny questions, just reply.` }),
         signal: AbortSignal.timeout(9000),
       });
       const ed = await er.json().catch(() => ({}));
