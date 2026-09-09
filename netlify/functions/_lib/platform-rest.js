@@ -5,11 +5,14 @@
 // caller no-ops gracefully.
 'use strict';
 
-const { getSecret } = require('./secrets');
+const { criticalSecret } = require('./secrets');
 
 async function cfg() {
-  const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
-  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  // criticalSecret (env-first + fresh + retry-on-empty): platform() is the shared
+  // pay -> provision client, so a cold-container cached-empty read here is the
+  // paid-but-stranded / turn-away-a-customer risk. Read it the bulletproof way. (2026-09-09)
+  const url = (await criticalSecret('PLATFORM_SUPABASE_URL')) || '';
+  const key = (await criticalSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   return { url: String(url).replace(/\/+$/, ''), key: String(key) };
 }
 

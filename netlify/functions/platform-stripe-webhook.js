@@ -12,7 +12,7 @@
 
 const Stripe = require('stripe');
 const plans = require('../../platform/plans.js');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, criticalSecret } = require('./_lib/secrets');
 const { platform } = require('./_lib/platform-rest');
 const { applyEntitlement } = require('./_lib/platform-features');
 
@@ -238,9 +238,12 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
 exports.handler = async function (event) {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
-  const whSecret = await getSecret('PLATFORM_STRIPE_WEBHOOK_SECRET');
+  // criticalSecret: the webhook is the backstop that provisions a PAID shop when the
+  // redirect path flakes. An empty read here 500s -> Stripe re-delivers, but if the
+  // redirect ALSO flaked the shop is delayed. Read both bulletproof so the backstop holds.
+  const whSecret = await criticalSecret('PLATFORM_STRIPE_WEBHOOK_SECRET');
   // ONLY the dedicated platform key — never TN's live customer-payment STRIPE_SECRET_KEY.
-  const key = (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || '';
+  const key = (await criticalSecret('PLATFORM_STRIPE_SECRET_KEY')) || '';
   if (!whSecret || !key) {
     console.error('[platform-stripe-webhook] missing PLATFORM_STRIPE_WEBHOOK_SECRET or stripe key');
     return { statusCode: 500, body: JSON.stringify({ error: 'not configured' }) };

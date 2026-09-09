@@ -11,7 +11,7 @@
 //   -> creates the login + company, returns { company, login:{email,temp_password}, slug }
 // The owner then signs into /platform/office-board.html with that email + temp password.
 'use strict';
-const { getSecret, getSecretFresh, setSecret, delSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh, criticalSecret, setSecret, delSecret } = require('./_lib/secrets');
 const { createLeadJob } = require('./_lib/platform-db');
 const { shopHandle } = require('./_lib/shop-handle');
 
@@ -46,8 +46,11 @@ exports.handler = async function (event) {
   const OWNER_OK = { addtech: 1, settech_active: 1, settech_phone: 1, mypack: 1 };
   if (!isAdmin && !OWNER_OK[q.action]) return { statusCode: 403, body: 'forbidden' };
 
-  const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
-  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  // This runs on the shared core of BOTH the redirect (verify) AND webhook provision
+  // paths — a cold-container cached-empty read of the SERVICE key here would leave a
+  // PAID shop un-provisioned on both. Read it bulletproof (env-first + fresh + retry). (2026-09-09)
+  const url = (await criticalSecret('PLATFORM_SUPABASE_URL')) || '';
+  const key = (await criticalSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   if (!url || !key) return json(200, { ok: false, error: 'platform not configured (PLATFORM_SUPABASE_URL / PLATFORM_SUPABASE_SERVICE_KEY)' });
 
   const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };

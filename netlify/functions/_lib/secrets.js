@@ -209,4 +209,25 @@ async function getSecretFresh(name) {
   catch (err) { return process.env[name] || ''; }
 }
 
-module.exports = { getSecret, getSecretStatus, getSecretFresh, getSecretPreferVault, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME };
+// BULLETPROOF read for values a PAYING customer's signup/provision depends on
+// (the Supabase service key + url, the Stripe secret key, the Stripe webhook secret).
+// These sit on the pay -> provision path: a plain cached getSecret that reads empty on
+// a cold Netlify container would either turn away a real customer OR — far worse — leave
+// a PAID shop un-provisioned. Same hardening the signup gate uses: env-first (instant +
+// deterministic when the value IS in Netlify env), then a FRESH vault read that bypasses
+// getSecret's cached-empty short-circuit, retried a few times so a single transient
+// cold-container empty read never strands a customer. A genuinely-unset value still
+// returns '' (callers keep their not-configured guard). (2026-09-09)
+async function criticalSecret(name, retries = 4) {
+  if (process.env[name]) return process.env[name];
+  for (const a of (ALIASES[name] || [])) if (process.env[a]) return process.env[a];
+  for (let attempt = 0; attempt < retries; attempt++) {
+    let v = '';
+    try { v = await getSecretFresh(name); } catch (_) { v = ''; }
+    if (v) return v;
+    if (attempt < retries - 1) await new Promise((r) => setTimeout(r, 200));
+  }
+  return '';
+}
+
+module.exports = { getSecret, getSecretStatus, getSecretFresh, getSecretPreferVault, criticalSecret, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME };

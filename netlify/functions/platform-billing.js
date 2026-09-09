@@ -16,7 +16,7 @@
 
 const Stripe = require('stripe');
 const plans = require('../../platform/plans.js');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, criticalSecret } = require('./_lib/secrets');
 const { platform } = require('./_lib/platform-rest');
 
 const SITE = 'https://tnapplianceexchange.net';
@@ -43,7 +43,9 @@ async function stripeKey() {
   // no separate Ant business yet — bill on the same account for now). Products are named
   // "Ant Platform — …" so SaaS subscriptions are distinguishable from customer payments.
   // Swap PLATFORM_STRIPE_SECRET_KEY in later = one-key move to a separate account.
-  return (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await getSecret('STRIPE_SECRET_KEY')) || '';
+  // criticalSecret: an empty read here (cold container) makes signupCheckout return
+  // stripe_not_configured -> the customer can't even reach the card screen. Read it bulletproof.
+  return (await criticalSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await criticalSecret('STRIPE_SECRET_KEY')) || '';
 }
 const TRIAL_DAYS = 14;
 
