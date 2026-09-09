@@ -66,8 +66,8 @@ const GROUPS = [
       'alternative to housecall pro',
       'field service software switch',
     ],
-    headlines: ['Switching Shop Software?', 'Bring Your Data In a Day', 'Run Both Until You Are Sure', 'Built by an Appliance Tech'],
-    descriptions: ['Import your customers and jobs free. Keep your old system running until you are sure.'],
+    headlines: ['We Cover Your Old Bill', 'Switch Free, Pay Us Later', 'Founding Shop Spots Open', 'Built by an Appliance Tech'],
+    descriptions: ['Pay us nothing until your current contract ends. We move your data. Founding price locked.'],
   },
   {
     key: 'shop-software',

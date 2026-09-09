@@ -112,15 +112,28 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
 <div class="wrap">
 
   <header class="hero">
-    <span class="eyebrow">For shops on other software</span>
-    <h1>Thinking about switching? Keep the old one running.</h1>
-    <p class="lede">Bring your customers, jobs and techs over in an afternoon — free — and run both systems side by side until you're certain. Nobody makes you jump. And this one answers your phone.</p>
+    <span class="eyebrow" id="spotsChip">Founding shops · limited</span>
+    <h1>Still paying for your old software? We'll cover it.</h1>
+    <p class="lede">Switch now and you don't pay us a dime until your current contract runs out. We move your customers, jobs and techs across for you, your old system keeps running the whole time, and your founding price never goes up.</p>
     <div class="ctas">
-      <a class="btn" href="/platform/signup.html">Start free — 14 days →</a>
-      <a class="btn ghost" href="#import">What comes over?</a>
+      <a class="btn" href="/platform/signup.html">Claim a founding spot →</a>
+      <a class="btn ghost" href="#offer">What's the catch?</a>
     </div>
-    <div class="trust">Card required to start · no charge for 14 days · cancel anytime · your data is yours, export it whenever.</div>
+    <div class="trust" id="spotsLine">Card required to start · no charge for 14 days · cancel anytime · your data is yours, export it whenever.</div>
   </header>
+
+  <section id="offer">
+    <div class="kicker">The founding shop deal</div>
+    <h2>Four things, and one real limit.</h2>
+    <p class="sub2">This is the offer for shops that are already paying somebody else. It's built to make leaving cost you nothing.</p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><div><b>We cover your old bill until your contract ends</b><span>Send us the invoice. You pay us nothing until the month your current software runs out — up to six months. No cash changes hands, we just don't start charging you for something you're already paying for.</span></div></div>
+      <div class="step"><div class="n">2</div><div><b>We do the move</b><span>You don't run the import, we do. Customers, jobs, techs, history. You look at it when it's done and tell us what's wrong.</span></div></div>
+      <div class="step"><div class="n">3</div><div><b>Your founding price never goes up</b><span>Whatever you sign at, you keep — for as long as you stay. When the price rises for everybody else, it doesn't rise for you.</span></div></div>
+      <div class="step"><div class="n">4</div><div><b>You get the founder, not a ticket queue</b><span>Something breaks, you reach the guy who built it and still runs a shop on it. That's the part that stops working at scale, which is exactly why there's a limit.</span></div></div>
+    </div>
+    <p class="sub2" style="margin-top:26px"><b>The catch, honestly:</b> this only works while the number of founding shops is small. Whole-shop software going down means you can't run your day, and one person cannot promise that to fifty shops at once. So the cap is real, and it closes when it closes.</p>
+  </section>
 
   <section>
     <div class="kicker">Why people don't switch</div>
@@ -176,19 +189,23 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
 
   <section>
     <div class="kicker">The math</div>
-    <h2>Per tech, or per shop?</h2>
-    <p class="sub2">Most field service software charges by the seat, so growing costs you more. Ours is one flat price for the shop. Put your own numbers in — we're not going to quote you somebody else's price.</p>
+    <h2>What we'd cover for you.</h2>
+    <p class="sub2">Put in what you're actually paying and how long you're locked in. We're not going to quote you somebody else's price — use your own bill.</p>
     <div class="calc">
       <div class="frow">
         <div class="fld"><label>How many techs?</label><input id="techs" type="number" min="1" max="60" value="4" inputmode="numeric"></div>
         <div class="fld"><label>You pay, per tech / month</label><input id="rate" type="number" min="0" max="2000" value="99" inputmode="numeric"></div>
+        <div class="fld"><label>Months left on contract</label><input id="months" type="number" min="0" max="36" value="5" inputmode="numeric"></div>
       </div>
       <div class="out">
         <div class="oline"><div class="l">What you're paying now<span id="nowNote">4 techs at $99 each</span></div><div class="v" id="nowMo">$396<small>/mo</small></div></div>
-        <div class="oline"><div class="l">AssistAnt, everything included<span>every tech, the AI phone, the website</span></div><div class="v">$329<small>/mo</small></div></div>
-        <div class="save" id="saveBox"><b id="saveYr">$804</b><span id="saveNote">a year back in your pocket — and that's at our top plan</span></div>
+        <div class="oline"><div class="l">What you'd pay us until it ends<span>nothing, for the months you're already committed</span></div><div class="v">$0</div></div>
+        <div class="save" id="saveBox"><b id="coverAmt">$1,645</b><span id="coverNote">covered — you'd owe us nothing until February</span></div>
+        <div class="oline" style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px"><div class="l">After that, everything included<span>every tech, the AI phone, the website — one flat price</span></div><div class="v">$329<small>/mo</small></div></div>
+        <div class="oline"><div class="l" id="thenLabel">Then, per year vs what you pay now</div><div class="v" id="thenVal">$804 saved</div></div>
       </div>
-      <div class="ctas" style="margin-top:20px"><a class="btn" href="/platform/signup.html" style="width:100%;justify-content:center">Start free — 14 days →</a></div>
+      <div class="ctas" style="margin-top:20px"><a class="btn" href="/platform/signup.html" style="width:100%;justify-content:center">Claim a founding spot →</a></div>
+      <p class="pnote" style="color:var(--muted);font-size:12.5px;margin-top:14px;text-align:center">We'll ask to see the bill — that's the only proof needed. Coverage caps at six months.</p>
     </div>
   </section>
 
@@ -235,39 +252,63 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
 // Their numbers, not our claims about anyone else's pricing. A shop owner trusts
 // the figure they typed in a way they will never trust one we printed.
 (function(){
-  var OURS = 329; // our top plan, on purpose: if we win at the ceiling, we win.
-  var t=document.getElementById('techs'), r=document.getElementById('rate');
+  var OURS = 329;      // our top plan, on purpose: if we win at the ceiling, we win.
+  var CAP_MONTHS = 6;  // coverage cap, stated in the fine print right under this.
+  var t=document.getElementById('techs'), r=document.getElementById('rate'), mEl=document.getElementById('months');
   var nowMo=document.getElementById('nowMo'), nowNote=document.getElementById('nowNote');
-  var saveYr=document.getElementById('saveYr'), saveNote=document.getElementById('saveNote'), saveBox=document.getElementById('saveBox');
+  var coverAmt=document.getElementById('coverAmt'), coverNote=document.getElementById('coverNote'), saveBox=document.getElementById('saveBox');
+  var thenLabel=document.getElementById('thenLabel'), thenVal=document.getElementById('thenVal');
   var usd=function(n){ return '$'+Math.round(n).toLocaleString(); };
+  var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
   function calc(){
     var techs=Math.max(1,Math.min(60,parseInt(t.value,10)||1));
     var rate=Math.max(0,Math.min(2000,parseInt(r.value,10)||0));
-    var mo=techs*rate, diff=(mo-OURS)*12;
+    var left=Math.max(0,Math.min(36,parseInt(mEl.value,10)||0));
+    var mo=techs*rate;
+    var covered=Math.min(left,CAP_MONTHS);
     nowNote.textContent=techs+' tech'+(techs===1?'':'s')+' at '+usd(rate)+' each';
     nowMo.innerHTML=usd(mo)+'<small>/mo</small>';
-    // Check the wash band FIRST. A shop that "saves $12 a year" is not saving
-    // anything, and printing it as a win makes every other number look made up.
-    if(mo>0 && Math.abs(diff) < OURS*12*0.15){
-      saveYr.textContent='About the same';
-      saveNote.textContent='the money is a wash at your size — the difference is that ours answers the phone';
-      saveBox.style.display='';
-    } else if(diff>0){
-      saveYr.textContent=usd(diff);
-      saveNote.textContent='a year back in your pocket — and that’s at our top plan';
+
+    if(mo>0 && covered>0){
+      var d=new Date(); d.setMonth(d.getMonth()+covered);
+      coverAmt.textContent=usd(mo*covered);
+      coverNote.textContent='covered — you would owe us nothing until '+MONTHS[d.getMonth()]+
+        (left>CAP_MONTHS ? ' (we cover '+CAP_MONTHS+' of your '+left+' months)' : '');
       saveBox.style.display='';
     } else if(mo>0){
-      // Never fake a win. A one-tech shop on a cheap seat genuinely pays less than
-      // our flat price, and dressing that up is the fastest way to lose somebody who
-      // can do arithmetic. Say it, then say what the extra money buys.
-      saveYr.textContent=usd(Math.abs(diff))+' more';
-      saveNote.textContent='a year — honestly, at your size a per-seat plan is cheaper. Worth it only if a 24/7 answered phone wins you more than one job a month.';
+      coverAmt.textContent='Start today';
+      coverNote.textContent='nothing left to cover — no contract holding you, so there is nothing to wait for';
       saveBox.style.display='';
     } else {
       saveBox.style.display='none';
     }
+
+    // The long-run comparison, told straight in both directions. Check the wash band
+    // FIRST: a shop that "saves $12 a year" is not saving anything, and printing that
+    // as a win makes every other number on the page look invented.
+    var diff=(mo-OURS)*12;
+    if(mo<=0){ thenLabel.textContent='Then, per year vs what you pay now'; thenVal.textContent='—'; }
+    else if(Math.abs(diff) < OURS*12*0.15){ thenLabel.innerHTML='Then, per year vs now<span>a wash at your size — the difference is that ours answers the phone</span>'; thenVal.textContent='About the same'; }
+    else if(diff>0){ thenLabel.innerHTML='Then, per year vs now<span>and that is at our top plan</span>'; thenVal.textContent=usd(diff)+' saved'; }
+    // Never fake a win. A small shop on a cheap seat genuinely pays less than our
+    // flat price; dressing that up loses anyone who can do arithmetic.
+    else { thenLabel.innerHTML='Then, per year vs now<span>honestly — at your size a per-seat plan is cheaper. Worth it if an answered phone wins you one extra job a month.</span>'; thenVal.textContent=usd(Math.abs(diff))+' more'; }
   }
-  t.addEventListener('input',calc); r.addEventListener('input',calc); calc();
+  t.addEventListener('input',calc); r.addEventListener('input',calc); mEl.addEventListener('input',calc); calc();
+})();
+
+// Real remaining spots, or no number at all. A counter that invents a figure when
+// it can't reach the server is the exact fake-urgency trick this offer is not.
+(function(){
+  var chip=document.getElementById('spotsChip'), line=document.getElementById('spotsLine');
+  fetch('/.netlify/functions/platform-founding').then(function(r){ return r.json(); }).then(function(d){
+    if(!d||!d.ok) return;
+    if(!d.open){ chip.textContent='Founding spots are full'; return; }
+    if(typeof d.remaining==='number'){
+      chip.textContent=d.remaining+' of '+d.total+' founding spots left';
+      line.innerHTML=d.remaining+' of '+d.total+' founding spots left · '+line.innerHTML;
+    }
+  }).catch(function(){});
 })();
 </script>
 </body></html>
