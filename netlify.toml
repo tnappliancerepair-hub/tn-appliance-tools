@@ -900,6 +900,13 @@
 [functions."platform-tn-parts-migrate-cron"]
   schedule = "13-59/15 * * * *"
 
+# platform-rma-tee-cron (phase-2 parts-return, 2026-09-09) — auto-matches SquareTrade/Allstate
+# RMA return-labels from rma_request@squaretrade.com (RMA#/FedEx tracking/distributor/part#) to
+# the platform returns worklist by claim + part#. Reads TN's Gmail read-only; writes only into TN's
+# platform tenant. Curl-testable core: platform-rma-tee?secret=…&dryrun=1. Kill: PLATFORM_RMA_TEE_ENABLED=false.
+[functions."platform-rma-tee-cron"]
+  schedule = "11-59/15 * * * *"
+
 # tdr-sync-cron (Phase 0 Part A, 2026-08-26) — THE fix for "won't save the part
 # number" when Xano chokes. tech-job.html saves through tdr-save, which lands every
 # TDR/part save in Supabase tdr_pending (durable, instant) then relays to Xano
