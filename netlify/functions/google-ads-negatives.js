@@ -11,7 +11,8 @@
 //                                                last 30 days' search terms each one blocks
 //   GET ?secret=<admin>&confirm=yes           -> add them
 //   GET ?secret=<admin>&do=remove&confirm=yes -> take them back off
-//   &terms=a|b|c                              -> use this list instead of the built-in one
+//   &list=trade|geo|all                       -> which built-in list (default all)
+//   &terms=a|b|c                              -> use this list instead of the built-in ones
 //
 // SAFETY: only ever touches ENABLED campaigns whose name contains "(Ant)" — the same guard
 // the optimizer uses, so a hand-built campaign outside our naming can't be hit by accident.
@@ -27,6 +28,20 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 // sell us the wrong appliance. A negative BROAD single word blocks any query containing that
 // word; a multi-word entry goes in as PHRASE.
 const WRONG_TRADE = ['tv', 'tvs', 'television', 'televisions', 'vacuum', 'vacuums', 'kirby', 'dyson', 'roomba'];
+
+// Towns outside the service pods (Teddy 2026-09-09: "those are outskirts towns"). Cut on
+// DRIVE TIME, not on the conversion numbers - those towns show 0 conversions, but so does
+// everything else in this account: "Ant - Booked Job" has never fired, and 18 clicks is far
+// too small a sample to prove anything either way. A stop 45 minutes past the pod costs the
+// same whether or not the tracking works, which is a reason that survives the broken gauge.
+//
+// This blocks people SEARCHING for these towns from anywhere. It does not stop someone
+// physically in one of them searching "appliance repair near me" - that is location
+// targeting, a separate change. The live search terms literally name these towns, so this
+// is the half that matches the observed waste.
+const OUTSKIRTS = ['gallatin', 'dickson', 'springfield', 'columbia', 'shelbyville', 'spring hill', 'lebanon'];
+
+const LISTS = { trade: WRONG_TRADE, geo: OUTSKIRTS, all: WRONG_TRADE.concat(OUTSKIRTS) };
 
 exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
@@ -53,7 +68,7 @@ exports.handler = async function (event) {
 
   const terms = String(q.terms || '').trim()
     ? String(q.terms).split('|').map((t) => t.trim().toLowerCase()).filter(Boolean)
-    : WRONG_TRADE.slice();
+    : (LISTS[String(q.list || 'all').toLowerCase()] || LISTS.all).slice();
   const matchOf = (t) => (t.indexOf(' ') >= 0 ? 'PHRASE' : 'BROAD');
 
   // Our campaigns only.
