@@ -5,16 +5,21 @@
 // next year's business, and mixing them means a slow month in SaaS quietly starves
 // the jobs that pay the bills.
 //
-// WHY THESE KEYWORDS AND NOT "ai phone system":
-//   Podium, Slang.ai, Goodcall, Numa and Smith.ai are all VC-funded and bidding the
-//   head terms at $15-40 a click, chasing dentists and med spas. At any budget we'd
-//   sanely set, we'd buy two clicks a day in the most expensive room in the building.
-//   So we bid the room they aren't in - shops searching for their own trade - where
-//   the clicks are cheap and every searcher is exactly our customer.
+// WHAT WE ARE SELLING: the whole shop, not a phone bot. That decision picks our
+//   competitors for us - Housecall Pro, Jobber, Workiz, ServiceTitan - and that is
+//   the favorable fight. ServiceTitan runs $300-500 PER TECH; we're $99-329 for the
+//   shop. They're all generic across trades. And not one of them answers the phone -
+//   they assume a human picks up. Nobody sells the combination.
 //
-// THE ANGLE THEY CANNOT COPY: they sell a bolt-on that answers the phone. We sell
-//   the thing that answers the phone AND runs the shop, built by a working appliance
-//   tech. "Built by an appliance tech" is an ad none of them can run.
+// WHY WE DO NOT BID "ai phone system": Podium, Slang.ai, Goodcall and Smith.ai own
+//   those head terms at $15-40 a click chasing dentists and med spas. At any budget
+//   we'd sanely set we'd buy two clicks a day in the most expensive room in the
+//   building. The AI phone is what makes us worth noticing, not what anyone types.
+//
+// THE ANGLE THEY CANNOT COPY: built by a working appliance tech, and you can bring
+//   your book over from their software in an afternoon and run both until you're
+//   sure. The import wizard is already live against 24k real Housecall Pro jobs, so
+//   that promise is code, not copy.
 //
 //   GET ?secret=              preview: the whole plan, writes NOTHING
 //   ...&apply=1               build it, PAUSED (you flip it on when you're ready)
@@ -36,20 +41,29 @@ const land = (tag) => `${SITE}/platform/home.html?utm_source=google_ads&utm_medi
 const TRUST_H = ['Run Your Whole Shop', 'Not Just a Phone Bot', 'Free 14-Day Trial'];
 const TRUST_D = 'Built by a working appliance tech who got tired of missing calls. Free 14-day trial.';
 
+// Ordered by intent, not by what's most exciting to talk about. Somebody typing
+// "housecall pro alternative" has already decided to leave - we're catching them,
+// not convincing them, and that is the cheapest lead in B2B software. The AI phone
+// goes LAST on purpose: it's what makes us worth a second look, but it is not what
+// anyone is searching for at the moment they're ready to switch.
+//
+// TRADEMARK RULE: competitor names are fine as KEYWORDS and get an ad DISAPPROVED in
+// ad TEXT. So we bid "housecall pro alternative" and never write it in a headline.
+// The searcher already has the name in their head; we just have to be the answer.
 const GROUPS = [
   {
-    key: 'ai-answering',
-    name: 'AI Answering - Repair Shops',
+    key: 'switching',
+    name: 'Switching Software - Repair Shops',
     kw: [
-      'ai receptionist for repair shop',
-      'answering service for appliance repair',
-      'ai answering service small business',
-      'answering service for contractors',
-      'ai phone agent for service business',
-      'virtual receptionist for contractors',
+      'housecall pro alternative',
+      'jobber alternative',
+      'workiz alternative',
+      'servicetitan alternative',
+      'alternative to housecall pro',
+      'field service software switch',
     ],
-    headlines: ['AI Answers Every Call 24/7', 'Never Miss a Repair Call', 'AI Receptionist for Shops', 'Built by an Appliance Tech'],
-    descriptions: ['Your AI answers every call, books the job, and puts it on your board. Not a message taker.'],
+    headlines: ['Switching Shop Software?', 'Bring Your Data In a Day', 'Run Both Until You Are Sure', 'Built by an Appliance Tech'],
+    descriptions: ['Import your customers and jobs free. Keep your old system running until you are sure.'],
   },
   {
     key: 'shop-software',
@@ -60,22 +74,23 @@ const GROUPS = [
       'appliance repair scheduling software',
       'software for appliance repair company',
       'field service software small business',
-      'housecall pro alternative',
+      'field service software for small shops',
     ],
     headlines: ['Software to Run Your Shop', 'Board, Dispatch, Invoices', 'Made for Repair Shops', 'Built by an Appliance Tech'],
     descriptions: ['One system: phones, scheduling, dispatch, parts, invoices, tech pay. Not five tabs.'],
   },
   {
-    key: 'missed-calls',
-    name: 'Missed Calls - Service Business',
+    key: 'ai-answering',
+    name: 'AI Answering - Repair Shops',
     kw: [
-      'stop missing customer calls',
+      'ai receptionist for repair shop',
+      'answering service for appliance repair',
+      'answering service for contractors',
       'after hours answering service',
-      'answering service for service business',
-      '24 7 answering service small business',
+      'ai phone agent for service business',
     ],
-    headlines: ['Stop Losing After-Hours Jobs', 'Every Call Answered, 24/7', 'Missed Call Is a Lost Job', 'Built by an Appliance Tech'],
-    descriptions: ['The call you miss at 7pm is the job your competitor gets. Ours answers 24/7, every day.'],
+    headlines: ['Your Software Answers It', 'Never Miss a Repair Call', 'Books the Job, Not a Note', 'Built by an Appliance Tech'],
+    descriptions: ['The only shop software that answers your phone. Books the job straight onto your board.'],
   },
 ];
 
