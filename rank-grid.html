@@ -103,7 +103,7 @@ function render(data){
   if (data.sab_hidden){
     const comp = (data.competitors||[]).map(c=>`<li>#${c.n} ${c.name}</li>`).join('');
     bn.style.display='block';
-    bn.innerHTML = `<b style="color:#ffcf4d">⚠️ Not a rank of zero — a blind spot.</b> Google's Places API (what every affordable rank tracker runs on) <b>does not return service-area businesses</b> like ours in search. Your listing is live and strong (4.5★, 1,081 reviews) — the API just can't see it, so we can't grid-track <i>our</i> pin this way. Real customers on Google Maps <b>do</b> see you. What this scan CAN show is <b>who's actually winning “${data.q}” in this metro</b> — your real competitors to beat:<ol style="margin:8px 0 0 18px;columns:2;font-size:13px">${comp}</ol>`;
+    bn.innerHTML = `<b style="color:#ffcf4d">⚠️ Not a rank of zero — a blind spot.</b> Google's Places API (what every affordable rank tracker runs on) <b>does not return service-area businesses</b> like ours in search. Your listing is live and strong (4.5★, 1,100 reviews) — the API just can't see it, so we can't grid-track <i>our</i> pin this way. Real customers on Google Maps <b>do</b> see you. What this scan CAN show is <b>who's actually winning “${data.q}” in this metro</b> — your real competitors to beat:<ol style="margin:8px 0 0 18px;columns:2;font-size:13px">${comp}</ol>`;
   } else { bn.style.display='none'; }
   if (!pts.length){ $('note').textContent = data.note || 'No data yet — run a scan.'; return; }
   const latlngs = [];
