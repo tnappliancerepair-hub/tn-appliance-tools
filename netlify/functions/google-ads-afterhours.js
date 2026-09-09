@@ -184,17 +184,30 @@ exports.handler = async function (event) {
         current: old.map((x) => ({ day: x.adSchedule && x.adSchedule.dayOfWeek, hours: `${x.adSchedule && x.adSchedule.startHour}-${x.adSchedule && x.adSchedule.endHour}`, mod: x.bidModifier })),
         will_set: { weekday: WD, weekend: WE }, revert_with: '&daytime=0.6&evening=1.4&overnight=1&weekend=1.4' });
     }
-    // Every hour of the week must stay covered - an uncovered hour does not serve
-    // at all. So write the new set FIRST, then remove the old one.
-    const added = await post('/campaignCriteria:mutate', { partialFailure: true, operations: want });
-    let removed = { ok: true };
+    // Google rejects an AD_SCHEDULE that overlaps an existing one, so "add the new
+    // set first, then remove the old" can never work - every create is refused for
+    // overlapping the rows still in place. Learned the hard way: with
+    // partialFailure:true the response still came back ok while every single create
+    // had been rejected, the removes then succeeded, and the campaign was briefly
+    // left with no schedule at all.
+    // Both halves therefore go in ONE mutate, removes before creates, and
+    // partialFailure is OFF so a rejection is an error instead of a silent no-op.
     const oldRes = old.map((x) => x.resourceName).filter(Boolean);
-    if (added.ok && oldRes.length) {
-      removed = await post('/campaignCriteria:mutate', { partialFailure: true, operations: oldRes.map((rn) => ({ remove: rn })) });
-    }
-    return json(200, { ok: !!(added.ok && removed.ok), mode: 'schedule set', campaign: campId,
-      modifiers: { daytime, evening, overnight, weekend: weekendDay }, added_ok: added.ok, old_removed: removed.ok ? oldRes.length : 0,
-      errs: [added.err, removed.err].filter(Boolean), revert_with: '&step=schedule&daytime=0.6&evening=1.4&overnight=1&weekend=1.4&apply=1' });
+    const ops = oldRes.map((rn) => ({ remove: rn })).concat(want);
+    const res = await post('/campaignCriteria:mutate', { operations: ops });
+    const applied = ((res.d && res.d.results) || []).length;
+    const expected = ops.length;
+    return json(200, {
+      ok: !!(res.ok && applied === expected), mode: 'schedule set', campaign: campId,
+      modifiers: { daytime, evening, overnight, weekend: weekendDay },
+      operations_sent: expected, operations_applied: applied,
+      old_removed: oldRes.length,
+      // A count mismatch means some rows did not land - say so loudly rather than
+      // reporting a success that leaves hours uncovered.
+      warning: applied === expected ? null : 'MISMATCH - re-run and verify the live schedule covers every hour',
+      errs: [res.err].filter(Boolean),
+      revert_with: '&step=schedule&daytime=0.6&evening=1.4&overnight=1&weekend=1.4&apply=1',
+    });
   }
 
   // ── STEP: change an existing campaign's daily budget ─────────────────────────────
