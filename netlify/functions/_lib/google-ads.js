@@ -17,12 +17,32 @@ const SCOPE = 'https://www.googleapis.com/auth/adwords';
 
 function digits(s) { return String(s || '').replace(/\D/g, ''); }
 
-async function creds() {
-  const [clientId, clientSecret, refresh, devToken, mgr, ver] = await Promise.all([
+// These live in the runtime vault (Netlify env is at the 4KB Lambda cap), and the vault is
+// a Xano read that can time out when Xano is busy. getSecretPreferVault swallows that and
+// hands back '' — so on a cold container a slow read makes a fully-configured account report
+// "configured: false". Seen live 2026-09-09: four straight calls to google-ads-performance
+// came back not-configured while google-ads-search-terms (warm, cached) served fine.
+//
+// This matters beyond a confusing message: google-ads-conversion-sweep runs every 6 hours on
+// a cold container, so an empty refresh token there is a silently skipped upload.
+// One retry — the second pass runs with the table-id cache already warm.
+async function readCreds() {
+  return Promise.all([
     getSecretPreferVault('GOOGLE_ADS_CLIENT_ID'), getSecretPreferVault('GOOGLE_ADS_CLIENT_SECRET'),
     getSecretPreferVault('GOOGLE_ADS_REFRESH_TOKEN'), getSecretPreferVault('GOOGLE_ADS_DEVELOPER_TOKEN'),
     getSecretPreferVault('GOOGLE_ADS_MANAGER_ID'), getSecretPreferVault('GOOGLE_ADS_API_VERSION'),
   ]);
+}
+
+async function creds() {
+  let [clientId, clientSecret, refresh, devToken, mgr, ver] = await readCreds();
+  if (!clientId || !refresh || !devToken) {
+    await new Promise((r) => setTimeout(r, 400));
+    const again = await readCreds();
+    clientId = clientId || again[0]; clientSecret = clientSecret || again[1];
+    refresh = refresh || again[2]; devToken = devToken || again[3];
+    mgr = mgr || again[4]; ver = ver || again[5];
+  }
   // v21 sunsets 2026-08-05 (Google email 2026-07-15). v24 verified live via the
   // version probe (v25 still 404s for us). Override anytime via vault GOOGLE_ADS_API_VERSION.
   return { clientId, clientSecret, refresh, devToken, managerId: digits(mgr), version: (ver || 'v24').trim() };
