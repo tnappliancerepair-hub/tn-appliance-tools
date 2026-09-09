@@ -1,7 +1,8 @@
 // platform-phone — self-serve "Turn on my AI receptionist." On the wizard button tap, this
 // provisions a phone line + Ann for ONE tenant, on OUR Telnyx account (the shop never sees
-// Telnyx). Hybrid texting: the new number attaches to a SHARED, pre-registered 10DLC messaging
-// profile so texting works day one; graduate a shop to its own campaign later.
+// Telnyx). VOICE works day one. TEXTING waits on that shop's own 10DLC registration
+// (platform-10dlc) — an unregistered number's texts are silently dropped by carriers, and
+// riding our campaign would put the shop under TN Appliance Exchange's brand.
 //
 //   POST { action:'provision', access_token | secret, company_id?, mode:'buy'|'forward', area? }
 //        -> buys a number near the shop's area code, attaches it to the shared messaging
@@ -228,9 +229,15 @@ exports.handler = async function (event) {
     const order = await tx('POST', '/number_orders', { phone_numbers: [{ phone_number: cand }] });
     if (!order.ok) return J(200, { ok: false, step: 'order', error: JSON.stringify(order.data.errors || order.data).slice(0, 200) });
 
-    // 2) attach to the shared 10DLC messaging profile (hybrid texting) — best-effort
+    // 2) attach to a 10DLC messaging profile — ONLY once this shop's own carrier
+    // registration has cleared. Attaching first would put an unregistered number on
+    // the air: carriers silently drop those texts (they read as sent and never
+    // arrive), and if it rode OUR campaign the shop would be texting under TN
+    // Appliance Exchange's brand, where one complaint takes down our own lines too.
+    // Voice binds below regardless — calls never wait on the carrier.
     let textingOk = false;
-    if (sharedProfile) {
+    const tenDlcOk = ((company.settings && company.settings.texting && company.settings.texting.status) || '') === 'approved';
+    if (sharedProfile && tenDlcOk) {
       const look = await tx('GET', `/phone_numbers?filter[phone_number]=${encodeURIComponent(cand)}`);
       const rec = look.data && look.data.data && look.data.data[0];
       if (rec) { const m = await tx('PATCH', `/phone_numbers/${rec.id}/messaging`, { messaging_profile_id: sharedProfile }); textingOk = m.ok; }
