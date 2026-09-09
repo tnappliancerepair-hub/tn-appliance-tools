@@ -49,6 +49,17 @@ exports.handler = async function (event) {
       return json(200, { ok: true, cid, ads: urls.length ? urls : ur });
     }
 
+    // ?gaql=<query> — run any READ against the account. googleAds:search cannot
+    // mutate, and the query must start with SELECT, so this stays read-only no
+    // matter what is passed. Exists so diagnosing geo, extensions, devices and
+    // match types does not need a new deploy each time.
+    if (q.gaql) {
+      const query = String(q.gaql).trim();
+      if (!/^select\s/i.test(query)) return json(400, { ok: false, error: 'gaql must start with SELECT' });
+      const r = await gaql(ver, token, c, cid, query);
+      return json(200, { ok: true, cid, query, rows: (r.results || []).length, results: r.results || r });
+    }
+
     // ?hourly=1 — clicks/conversions by hour of day over 30 days. The one number
     // that says whether the weekday-daytime bid throttle is costing us work or
     // protecting us from expensive junk. Read-only.
