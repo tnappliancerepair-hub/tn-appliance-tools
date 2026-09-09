@@ -64,6 +64,165 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜📈 2026-09-09 (Tue) — GOOGLE ADS REBUILT (QS 3 → themed groups · Antioch wasn't even targeted) + the win-back triple-bug + 285 pages of dropped founder schema — READ FIRST
+
+Teddy: *"We really are slowing down and we need all the jobs we can get."* Audited the live ad
+account and the win-back machinery against real data instead of assumptions. **XANO/TN side only —
+nothing here touches the Supabase platform.** All ad changes are LIVE on the account and reversible;
+site changes are deployed.
+
+### 📉 THE DIAGNOSIS — 88% of the auctions we were eligible for, we never showed up in
+```
+impression share ......... 12.2%      lost to RANK ... 59.6%      lost to BUDGET ... 28.2%
+'appliance repair' ....... QS 3/10    3,152 impr = 80% of everything
+'refrigerator repair near me' QS 3    94 impr, ZERO clicks
+'dryer not heating' ...... QS 1/10
+```
+**Rank = bid × Quality Score.** You can buy rank or earn it. QS was 3 because ONE ad group held all
+14 keywords across FIVE appliance types behind ONE generic ad — someone searching "refrigerator
+repair near me" saw *"Appliance Repair Near You"* on a generic page. Google grades ad relevance and
+landing-page experience **per keyword-to-ad pairing**, and it graded that pairing down.
+
+### ✅ WHAT'S LIVE NOW (all on campaign `24154623729`, budget UNCHANGED at $45/day)
+| | before | after |
+|---|---|---|
+| ad groups | **1** | 7 themed |
+| enabled keywords | 14 | 35 |
+| cities targeted | **3** | 9 |
+| negative keywords | 16 | 91 |
+| weekday 7am-5pm bid | 0.6× | 1.2× |
+| device | flat | desktop/tablet −40%, mobile 1.0 |
+
+- **`google-ads-themed-adgroups.js` (NEW)** — one ad group per appliance (Refrigerator / Dryer /
+  Washer / Dishwasher / Oven & Range / General), headlines that name that appliance, and a landing
+  URL that opens `appliance-ai.html?appliance=<x>` **already on it with its own problem list**
+  ("Not cooling / Leaking / Ice maker out") instead of a generic picker. The After-Hours group kept
+  ONLY the 4 genuine after-hours keywords + the 2am copy — that IS the right ad for those. Old
+  duplicates paused. Preview by default; `&apply=1` builds; **`&undo=1&apply=1` reverses**.
+  ⚠️ All 12 RSA assets per group are length-validated (≤30 headline / ≤90 description) before deploy.
+- **🚨 ANTIOCH — THE SHOP'S OWN CITY — WAS NOT TARGETED.** Geo was only Nashville / Murfreesboro /
+  Smyrna. Added Antioch, La Vergne, Franklin, Brentwood, Hendersonville, Nolensville (`google-ads-add-geo`,
+  `&campaigns=24154623729`). "Mount Juliet" does NOT resolve in Google's geo constants — try a variant.
+  This is a big chunk of the 12.2% impression share: we were only *eligible* in 3 of 10 intended cities.
+- **The bid schedule was upside-down, and the account's own numbers proved it.** New `step=schedule`
+  on `google-ads-afterhours.js`. Hour-of-day, last 30d, weekdays:
+  `07-17 @0.6× → 61 clicks, 3 conv, CPC $2.05` · `17-23 @1.4× → 59 clicks, 1 conv, CPC $4.83` ·
+  `00-07 → 12 clicks, 0 conv, $41`. **We were bidding DOWN 40% on the cheapest, best-converting
+  hours and UP on hours costing 2.4× per click.** The whole after-hours "evenings are cheap and
+  uncontested" thesis is false on this account. Now 1.2 / 1.0 / 0.6 / 1.2 (day/eve/overnight/weekend).
+  Leans on **CPC (700+ clicks)**, not the 7 conversions (thin, and the booked-job signal only
+  reconnected this week). Revert: `&step=schedule&daytime=0.6&evening=1.4&overnight=1&weekend=1.4&apply=1`.
+- **`google-ads-tune.js` (NEW)** — `step=keywords` harvested the 14 search terms taking real paid
+  clicks with NO keyword covering them ($64.62; `refrigerator not cooling` alone $10.68 because we
+  only bid "fridge not cooling"). 12 added as PHRASE into the matching themed group. `step=device`
+  set desktop/tablet to −40%: **every conversion this account has ever recorded came from a phone**
+  (mobile 151 clicks/7 conv/$611 vs desktop 29/0/$79). Trimmed not excluded — 29 clicks is too thin
+  to call dead.
+- **Negatives 16 → 91.** Expanded `WRONG_TRADE` from the account's OWN search-terms report, not
+  guesses: mixer · sewing · ice machine · portable ac · bissell/carpet cleaner · dvd · lawn mower.
+  Real money was going to `kitchenaid mixer repair` and `where to repair sewing machine`.
+  **`kitchenaid` itself is deliberately NOT blocked** — a KitchenAid dishwasher is real work.
+- **Ad extensions were NOT missing** — I nearly reported them as a gap. 14 sitelinks + 1 call asset
+  exist at **ACCOUNT level** (`customer_asset`), which applies campaign-wide. Always check
+  `customer_asset` before concluding a campaign has no extensions.
+- **`google-ads-conv-diag` gained `?gaql=<SELECT…>`** — read-only passthrough (googleAds:search
+  cannot mutate; query must start with SELECT). Diagnosing geo/extensions/devices/match-types no
+  longer needs a new endpoint + deploy each time. Also `?hourly=1` and `ad_group` on `?keywords=1`.
+
+### 🔁 WIN-BACK — dark for THREE separate reasons, all fixed (still gated, on purpose)
+`reactivation_campaign` had sent **0 texts in 90 days**:
+1. **`list_reactivation_candidates` compared an epoch-MILLISECOND int against a `|to_timestamp`
+   value** → the WHERE could never match → 0 rows at EVERY dormancy setting (tested 24/12/6/3).
+   Same bug on the inner "any job in 6 months" check. Both now compare ms to ms. Default
+   `months_dormant` 24 → 6. **⏳ XS = Mac push needed:**
+   `xano workspace push -i "api/**/list_reactivation_candidates*" --force`
+2. **`REACTIVATION_CAMPAIGN` was missing from `LEAN_KEEP`** in `colony-loop/tick.js`, so
+   `emitScheduled()` dropped it every Monday before it reached the queue. Added. **⏳ needs a Mac
+   `git pull` + `launchctl kickstart`.**
+3. Weekly cap 10 → **`REACTIVATION_WEEKLY_CAP`** (default 25).
+
+**🚦 IT STILL WON'T SEND, AND THAT'S DELIBERATE.** The texts carry a non-intake tag, so Xano's
+`send_sms` gate blocks them (`sms_blocked_non_intake`) — that gate IS Teddy's standing 2026-07-14
+rule *"no proactive texts, don't text unless texted first."* Reversing it is an owner decision, not
+a code fix. Documented in the agent header so nobody routes around it by accident.
+
+### 🔴 CORRECTION TO MY OWN NUMBER — the win-back pool is **501**, not ~12,800
+I told Teddy ~12,800 past customers. Built **`reactivation-pool.js` (NEW, read-only, admin-gated)**
+to count it properly (full scan, not truncated): **3,798 customers · 1,897 with a phone · 2,799 have
+had a job in the last 6 months · REACHABLE WINBACK POOL = 501 · 499 dormant but no phone.**
+Identical at 6 and 12 months, because the Xano `jobs` table only holds ~6 months of history — the
+older relationship history lives in the **HCP archive (9,260 customers / 24,116 jobs) in Supabase**,
+which is a separate, staler store needing its own pass. **501 is the real, reachable-today number.**
+
+### ✅ TWO FREE SEO FIXES (609 + 285 pages)
+- **Review count refreshed to the live 1,100** (GBP API: 4.5★ / 1,100). Pages were stale at
+  1,079/1,081/1,082. Updated 609 **indexed** pages — visible count AND the `AggregateRating` schema
+  that drives stars in the SERP. Skipped `/ru` `/zh` `/te` `/ta` `/ml` `/kn` (noindexed + pulled from
+  the sitemap in June — no point churning pages Google is deliberately not shown).
+  ⚠️ Replacement was restricted to **three unambiguous shapes** (schema field, comma-formatted
+  `1,081`, bare number with a review word within 40 chars). **Never blind-replace a 4-digit number** —
+  `1100` also matches the phone `931-655-1100`, `max-width:1100px`, and the hex `#1a1100`.
+- **285 pages carried `"name":"James "Teddy" Pivacek"` inside JSON-LD** — unescaped inner quotes, so
+  Google silently dropped the **entire founder Person block**. That's the E-E-A-T experience signal a
+  technician-owned shop should be getting credit for. **Pre-existing** — verified against HEAD before
+  touching it, not caused by the count refresh. Site-wide re-validation: **11,269 JSON-LD blocks
+  parsed, 0 broken.**
+
+### ⚠️ FOOTGUNS BURNED TODAY (all cost real time or real state)
+- **🚨 `partialFailure: true` makes a Google Ads mutate return `ok` even when EVERY operation in it
+  failed.** This briefly **wiped the live ad schedule**: every create was rejected, the removes
+  succeeded, and the campaign ran with no schedule for ~1 minute. Caught on the verify step and
+  restored (26 rows, every hour covered). **Fix pattern now in `step=schedule`: partialFailure OFF +
+  compare `results.length` to `operations.length` and return a loud `warning` on mismatch.** Same
+  class as the documented `create_tdr` / metadata-PATCH footguns — the call says it worked, nothing landed.
+- **Google REJECTS an `AD_SCHEDULE` criterion that overlaps an existing one.** So "add the new set
+  first, then remove the old" (intended as the safe ordering) guarantees every create is refused.
+  Removes and creates must go in **ONE mutate, removes first**.
+- **`customer.created_at` and `jobs.created_at` are epoch-MILLISECOND ints, NOT timestamps.** Any XS
+  that does `|to_timestamp` and compares against them silently matches nothing. Cost the win-back
+  campaign 90 days of silence.
+- **Verify a "no extensions" claim against `customer_asset`, not just `campaign_asset`** — account-level
+  assets apply campaign-wide and don't show in the campaign query.
+- **Python `re` can't do variable-width lookbehind** — `(?<=(review|Reviews)[^0-9]{0,25})` throws.
+  Use forward-looking `(?=...)` instead. (Failed before any write, so no partial file damage.)
+- **Nested double quotes inside a `git commit -m` string break the shell** — write the message to a
+  file and use `git commit -F`.
+- The **Ads credential vault flaked ~4 more times** mid-session. `_lib/google-ads.js creds()` retries
+  once; every new caller should also retry. **⚠️ `google-ads-conversion-sweep` runs every 6h on a cold
+  container — if `Ant — Booked Job` is still 0 mid-week, the vault is eating the uploads and those five
+  Ads keys need to move off it.**
+
+### ⏭️ OPEN / NEXT (ranked by speed-to-a-job, honest about cost)
+1. **LSA is still OFF.** Built, verified, Google Guaranteed, paused by Teddy's choice. Pay-per-lead
+   ($15-35 typical) vs the **~$230/job** Search is effectively costing. Not free, but the cheapest
+   lead in the trade and it's a toggle. **If jobs are needed this week, this is the first switch.**
+2. **Call the 501 dormant customers — don't text them.** The gate blocks texts and the no-proactive-text
+   rule stands. A phone call to someone who already paid us once is a different thing. 20/day × 25 days.
+3. **Marshall Reddick** — already a live account (200+ Nashville units, 3,000 national). Ask for their
+   other properties. One call to an existing happy customer; one complex is recurring work forever.
+4. **Review copy should prompt for CITY + APPLIANCE** — 27 asks/wk are already going out and the
+   engine is healthy; it just doesn't ask for the words that win the map pack. ⚠️ Template is 145 of
+   160 septets, so this costs a 2nd SMS segment — Teddy's call.
+5. **`GOOGLE_PLACES_API_KEY` is not in the vault**, so `rank-grid` falls back to the referrer-locked
+   *browser* key and returns `PERMISSION_DENIED` on every grid point. **We are blind on the map pack**,
+   which is the channel that actually drives local calls. Needs one unrestricted server key.
+6. **More warranty networks** (Cinch, Choice, First American, Old Republic, 2-10, Assurant) + expand
+   **ServicePower coverage zips** — capacity is set 50-100/day and we get a handful, so COVERAGE is
+   the limiter, not capacity. The SP write API is already proven.
+7. **THE DECISION POINT, ~2 weeks out.** Conversion tracking only reconnected this week, so nobody can
+   yet say what a booked job costs from ads. Watch **`Ant — Booked Job`**:
+   **under ~$150/job → the QS fix worked, raise budget. Still $250+ → stop feeding Search and move the
+   $693 into LSA + review velocity.**
+
+### 🧭 THE HONEST STRATEGIC READ (told to Teddy straight)
+**The ad account is NOT where the money is.** $693/mo is producing roughly 2-3 real jobs — about
+break-even on work that bills $200-400. Everything FREE has now been done to it; the next lever is
+budget. The genuinely strong assets are **4.5★/1,100 reviews**, **#5 for "appliance repair nashville"
+(431 searches/wk)**, **#7 for "appliance repair" (963/wk)**, 1,062 pages surfacing — we RANK, we just
+don't get the click, because **the map pack sits above organic**. For a local repair shop that is the
+whole game. Fix the Places key, push review velocity, and turn LSA on before spending another dollar
+on Search.
+
 ## 🗓️🐜🏆 2026-09-09 (Tue) — SaaS CLONE-READINESS AUDIT: the lease engine is production-ready (live-verified) + /s/ marketing-site fix — READ FIRST
 
 Teddy's ultimate goal = the Supabase platform **completed + easily cloned for tenants to lease**. Ran a full

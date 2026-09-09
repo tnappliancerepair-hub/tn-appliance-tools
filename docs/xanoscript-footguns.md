@@ -567,3 +567,51 @@ Not XS — colony-loop JS. Activating the full agent fleet (546, incl. ~53 `SCOU
 
 ### Bonus (not XS): the customer-SMS gate was leaky
 `CUSTOMER_FACING_ENABLED` only governs sends that route through `send_sms`. `send_feedback_sms` and `tech_assist_chat` were calling Twilio directly, bypassing the gate (and Telnyx-primary). Rule: **every customer-facing send goes through `send_sms`** so the master gate + test allowlist + carrier preference apply in one place.
+
+---
+
+## 2026-09-09 — the ms-epoch vs timestamp comparison that silenced a campaign for 90 days
+
+### 7. `|to_timestamp` compared against an ms-epoch column matches NOTHING, silently
+
+`customer.created_at` and `jobs.created_at` are **epoch-millisecond integers** (verified live:
+`1780423030799`), not datetime columns. `list_reactivation_candidates_GET.xs` did this:
+
+```
+var $cutoff_ms { value = (now|to_ms) - ($months * 30 * 24 * 60 * 60 * 1000) }
+var $cutoff_ts { value = ($cutoff_ms / 1000)|to_timestamp }      // <-- the bug
+db.query customer { where = $db.customer.created_at < $cutoff_ts ... }
+```
+
+No parse error, no runtime error, no empty-result warning — just **0 rows, forever, at every
+cutoff**. Proved it by calling the endpoint with `months_dormant=24|12|6|3`: all returned 0. The
+weekly win-back campaign had therefore sent **0 texts in 90 days** and nobody noticed, because a
+campaign that finds no candidates looks exactly like a campaign with no candidates.
+
+**Fix:** compare ms to ms. Drop the `|to_timestamp` var entirely.
+```
+where = $db.customer.created_at < $cutoff_ms
+```
+
+**The general rule:** before writing any date comparison, look at a real row. This workspace mixes
+both shapes — `event_log.created_at` and `customer.created_at` are ms ints, while some columns are
+true datetimes (where `now|transform_timestamp:"-24 hours"` is the right form). A mismatch does not
+error; it silently returns nothing. **An endpoint that returns an empty list is not evidence there
+is nothing to return.**
+
+### 8. Not XS — `partialFailure: true` on a Google Ads mutate reports success on TOTAL failure
+
+Same "it said it worked and nothing landed" family as `create_tdr` and the Metadata content-PATCH.
+Applying a new ad schedule returned `ok`, while **every single create in the batch had been
+rejected**. The paired removes then succeeded, and the live campaign was left with no ad schedule
+at all until it was caught on the verify step.
+
+Two lessons:
+- **`partialFailure: true` means the HTTP response is `ok` even if 100% of operations failed.** If
+  you use it, you MUST compare `response.results.length` against `operations.length` and treat a
+  mismatch as an error. Better: leave it off for anything where a partial write is unsafe.
+- **Google rejects an `AD_SCHEDULE` criterion that overlaps an existing one.** So the intuitively
+  safe ordering — add the new set first so no hour is ever uncovered, then remove the old — is
+  guaranteed to fail every create. Removes and creates must go in **ONE mutate, removes first**.
+
+**Verify state after any mutate.** The report of success is not the state.
