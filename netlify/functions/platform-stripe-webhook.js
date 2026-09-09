@@ -77,6 +77,11 @@ async function findCompanyId(pf, sub, session) {
 const SITE = 'https://tnapplianceexchange.net';
 const provision = require('./platform-provision');
 
+// Provisioning + crew-pack minting does ~20 sequential Supabase calls; give it the full window so
+// a self-serve signup never times out mid-provision. (The redirect path platform-signup-verify is
+// already 26s; this matches it for the webhook path.)
+exports.config = { timeout: 26 };
+
 // Stand up a tenant from the checkout metadata (called after the card clears), stamp the new
 // company_id onto the Stripe subscription so later subscription.* events map, and email the
 // owner a one-tap login link. Returns the new company_id (or null on failure).
@@ -140,6 +145,21 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   }
   // Stamp the subscription so subscription.updated/deleted map back to this company.
   try { await stripe.subscriptions.update(sub.id, { metadata: Object.assign({}, meta, { company_id: companyId }) }); } catch (_) {}
+
+  // AUTO-DELIVER THE FULL TEAM. A self-serve signup only creates the OWNER — the shop owner (Jimmy's
+  // report) then had no office/tech logins to hand out. Mint the standard crew (2 office + 4 techs)
+  // via shoppack OWNER-MODE so the whole team exists day one: the owner sees + hands them out from
+  // their dashboard ("Your team logins"), and they show on the operator /packs. owner_preexisting=1
+  // means the owner login (just created above) is recorded, never re-created or reset; its password
+  // is carried when we have it. Best-effort — the owner is already fully provisioned + un-stranded,
+  // so a failure here NEVER strands them (crew is then recoverable via a shoppack re-run / owner adds
+  // manually). Idempotent by slug.
+  try {
+    const sev = { httpMethod: 'POST', queryStringParameters: { action: 'shoppack', secret: admin },
+      body: JSON.stringify({ slug, name: meta.name || slug, trade: meta.trade || 'appliance', office: 2, techs: 4,
+        owner_email: email, owner_seat_pw: (pd.login && pd.login.temp_password) || '', owner_preexisting: 1 }) };
+    await provision.handler(sev);
+  } catch (_) {}
   // Email the owner a magic login link (best-effort; dry unless EMAIL_ENABLED).
   let link = '', emailed = false, emailMode = 'skipped';
   try {
@@ -151,7 +171,7 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
       const er = await fetch(`${SITE}/.netlify/functions/send-email`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Internal-Auth': shared },
         body: JSON.stringify({ to: email, subject: 'Your Ant dashboard is ready',
-          body: `Welcome to Ant, ${meta.name || slug}!\n\nYour shop is set up and your 14-day trial is running. Tap to sign in:\n${link}\n\nAny questions, just reply.` }),
+          body: `Welcome to Ant, ${meta.name || slug}!\n\nYour shop is set up and your 14-day trial is running. Tap to sign in:\n${link}\n\nYour team logins (owner + office + techs) are ready on your dashboard under "Your team logins" — hand each person their email + password so they can sign in too.\n\nAny questions, just reply.` }),
         signal: AbortSignal.timeout(9000),
       });
       const ed = await er.json().catch(() => ({}));
