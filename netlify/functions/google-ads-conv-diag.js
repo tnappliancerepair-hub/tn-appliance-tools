@@ -49,6 +49,28 @@ exports.handler = async function (event) {
       return json(200, { ok: true, cid, ads: urls.length ? urls : ur });
     }
 
+    // ?hourly=1 — clicks/conversions by hour of day over 30 days. The one number
+    // that says whether the weekday-daytime bid throttle is costing us work or
+    // protecting us from expensive junk. Read-only.
+    if (q.hourly === '1') {
+      const hv = await gaql(ver, token, c, cid,
+        "SELECT segments.hour, segments.day_of_week, metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros FROM campaign WHERE segments.date DURING LAST_30_DAYS AND campaign.status = 'ENABLED'");
+      const buckets = {};
+      for (const x of (hv.results || [])) {
+        const h = Number((x.segments && x.segments.hour) || 0);
+        const dow = (x.segments && x.segments.dayOfWeek) || '';
+        const weekend = dow === 'SATURDAY' || dow === 'SUNDAY';
+        const key = (weekend ? 'weekend' : 'weekday') + ':' + String(h).padStart(2, '0');
+        const b = buckets[key] || (buckets[key] = { impressions: 0, clicks: 0, conversions: 0, cost: 0 });
+        b.impressions += Number((x.metrics && x.metrics.impressions) || 0);
+        b.clicks += Number((x.metrics && x.metrics.clicks) || 0);
+        b.conversions += Number((x.metrics && x.metrics.conversions) || 0);
+        b.cost += Number((x.metrics && x.metrics.costMicros) || 0) / 1e6;
+      }
+      const rows = Object.keys(buckets).sort().map((k) => Object.assign({ bucket: k }, buckets[k], { cost: Math.round(buckets[k].cost * 100) / 100 }));
+      return json(200, { ok: true, cid, note: 'hour is account timezone', hourly: rows.length ? rows : hv });
+    }
+
     // ?keywords=1 — every keyword with match type, Quality Score, and 30-day perf.
     // Quality Score is what drives the rank loss; low QS = ads lose auctions.
     if (q.keywords === '1') {
