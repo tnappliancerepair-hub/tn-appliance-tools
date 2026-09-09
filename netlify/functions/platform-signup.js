@@ -107,6 +107,8 @@ exports.handler = async function (event) {
 
   if (!name) return J(400, { ok: false, error: 'shop name required' });
   if (!EMAIL_RE.test(email)) return J(400, { ok: false, error: 'a valid email is required' });
+  // Terms acceptance is required for every real signup; an admin test-run (secret in the body) may skip it.
+  const adminBypass = !!(b.secret && b.secret === admin);
   if (!termsAccepted && !adminBypass) {
     return J(400, { ok: false, error: 'terms_required', message: 'Please accept the Merchant Agreement to continue.' });
   }
