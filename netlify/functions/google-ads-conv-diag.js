@@ -56,6 +56,7 @@ exports.handler = async function (event) {
         "SELECT campaign.name, ad_group.name, ad_group_criterion.keyword.text, ad_group_criterion.keyword.match_type, ad_group_criterion.quality_info.quality_score, metrics.clicks, metrics.impressions, metrics.average_cpc FROM keyword_view WHERE segments.date DURING LAST_30_DAYS AND campaign.status != 'REMOVED' ORDER BY metrics.impressions DESC");
       const rows = (kw.results || []).map((x) => ({
         campaign: x.campaign && x.campaign.name,
+        ad_group: x.adGroup && x.adGroup.name,
         keyword: x.adGroupCriterion && x.adGroupCriterion.keyword && x.adGroupCriterion.keyword.text,
         match: x.adGroupCriterion && x.adGroupCriterion.keyword && x.adGroupCriterion.keyword.matchType,
         quality_score: x.adGroupCriterion && x.adGroupCriterion.qualityInfo && x.adGroupCriterion.qualityInfo.qualityScore,
