@@ -217,6 +217,7 @@
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/ant-call.js"></script>
 <script src="/platform/vendor/boot-watchdog.js"></script>
 <script src="/platform/vendor/setup-bypass.js"></script>
 <script src="/platform/media-sign.js"></script>
@@ -769,7 +770,8 @@
     var addr = [cust.address, cust.city, cust.state].filter(Boolean).join(', ');
     var phone = (cust.phone||'').replace(/[^0-9+]/g,'');
     var links = '';
-    if (phone) links += '<a href="tel:'+esc(phone)+'">📞 Call</a>';
+    var cnm = [cust.first_name, cust.last_name].filter(Boolean).join(' ').trim();
+    if (phone) links += '<a class="antcall" data-name="'+esc(cnm)+'" data-job="'+esc(j.id||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>';
     if (addr) links += '<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>';
     var attrs = (j.unit && j.unit.attributes) || {};
     var brand = attrs.brand || '', model = attrs.model || '';

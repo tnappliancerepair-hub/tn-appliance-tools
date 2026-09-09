@@ -17,7 +17,11 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 
 // wrong-intent tokens for an appliance-REPAIR ad. A search term containing any of
 // these (whole word) = someone NOT looking to hire a repair tech → negative it.
-const JUNK = ['used', 'sell', 'selling', 'sale', 'buy', 'buying', 'cheap', 'scrap', 'dent', 'rent', 'rental', 'salary', 'job', 'jobs', 'hiring', 'hire', 'career', 'careers', 'free', 'manual', 'schematic', 'craigslist', 'marketplace', 'recall', 'lawsuit', 'wholesale', 'liquidation', 'pallet', 'auction'];
+const JUNK = ['used', 'sell', 'selling', 'sale', 'buy', 'buying', 'cheap', 'scrap', 'dent', 'rent', 'rental', 'salary', 'job', 'jobs', 'hiring', 'hire', 'career', 'careers', 'free', 'manual', 'schematic', 'craigslist', 'marketplace', 'recall', 'lawsuit', 'wholesale', 'liquidation', 'pallet', 'auction',
+  // Trades we do not work on. 30 days of search terms bought 22 clicks and $77.95 of
+  // TV and vacuum repair before anyone noticed - the ads match "repair near me" and
+  // Google happily sells us the wrong appliance. These are safe blanket blocks.
+  'tv', 'tvs', 'television', 'televisions', 'vacuum', 'vacuums', 'kirby', 'dyson', 'roomba'];
 const WASTE_SPEND = 25;   // a keyword that spent >= $25 with 0 conversions = waste candidate
 const re = (w) => new RegExp(`(^|[^a-z])${w}([^a-z]|$)`, 'i');
 
@@ -76,10 +80,22 @@ exports.handler = async function (event) {
       if (cost >= WASTE_SPEND && conv === 0) waste.push({ kw: x.adGroupCriterion.keyword.text, resource: x.adGroupCriterion.resourceName, cost: Math.round(cost * 100) / 100 });
     }
   }
-  // SAFETY: never pause on "zero conversions" unless tracking is demonstrably alive
-  // (the account has recorded at least one conversion). Otherwise silent tracking
-  // would make every keyword look like waste and we'd pause the winners.
-  const trackingAlive = totalConv > 0;
+  // SAFETY: never pause on "zero conversions" unless tracking is demonstrably alive.
+  //
+  // 2026-09-09 — this check used to be `totalConv > 0`, which was NOT safe. metrics.conversions
+  // counts every enabled conversion action, and this account has five Google-HOSTED ones firing
+  // (map directions, calls from ads, "other engagements"). So the guard read TRUE off 7 map taps
+  // while our real signal, "Ant - Booked Job", sat at 0 conversions and had never once fired.
+  // The guard would have let autopilot pause keywords on a signal that has nothing to do with
+  // jobs - i.e. pause the winners, exactly what the guard exists to prevent.
+  //
+  // Alive now means OUR uploaded job conversions are landing. Nothing else counts.
+  let ourConv = 0;
+  try {
+    const ca = await search("SELECT conversion_action.name, metrics.all_conversions FROM conversion_action WHERE conversion_action.type = 'UPLOAD_CLICKS' AND segments.date DURING LAST_30_DAYS");
+    for (const x of ((ca.ok && ca.d.results) || [])) ourConv += Number((x.metrics && x.metrics.allConversions) || 0);
+  } catch (_) { ourConv = 0; }
+  const trackingAlive = ourConv > 0;
   let paused = 0;
   if (LIVE && trackingAlive && waste.length) {
     const ops = waste.map((w) => ({ update: { resourceName: w.resource, status: 'PAUSED' }, updateMask: 'status' }));
@@ -96,7 +112,7 @@ exports.handler = async function (event) {
   const mode = LIVE ? 'AUTOPILOT' : 'shadow';
   let msg = `🥊 Google Ads (7d, ${mode}): $${(t.cost || 0).toFixed ? t.cost.toFixed(2) : t.cost} · ${t.clicks || 0} clicks · ${t.conversions || 0} booked` + (t.cost_per_conv ? ` · $${t.cost_per_conv}/booked` : ' · no conversions yet');
   if (junkTerms.length) msg += `\n🗑 junk terms: ${junkTerms.length}${LIVE ? ` (added ${negsAdded} negatives)` : ' (shadow — turn on autopilot to auto-block)'} e.g. "${junkTerms.slice(0, 3).map((j) => j.term).join('", "')}"`;
-  if (waste.length) msg += `\n⚠️ zero-converting spend: ${waste.length} kw, $${waste.reduce((a, w) => a + w.cost, 0).toFixed(2)}${LIVE ? (trackingAlive ? ` (paused ${paused})` : ' (NOT paused — no tracked conversions yet, won\'t touch winners)') : ' (shadow)'}`;
+  if (waste.length) msg += `\n⚠️ zero-converting spend: ${waste.length} kw, $${waste.reduce((a, w) => a + w.cost, 0).toFixed(2)}${LIVE ? (trackingAlive ? ` (paused ${paused})` : ' (NOT paused — no BOOKED-JOB conversions uploaded yet, won\'t touch winners)') : ' (shadow)'}`;
   if (!junkTerms.length && !waste.length) msg += `\n✓ nothing to clean up.`;
   // text once/day unless manual
   try { await sendSms('+16154855795', msg, 'owner', 'google_ads_optimizer'); } catch (_) {}

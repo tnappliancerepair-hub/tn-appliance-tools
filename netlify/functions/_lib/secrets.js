@@ -115,6 +115,26 @@ async function getSecret(name) {
   }
 }
 
+// Same read as getSecret, but tells the caller WHY it came back empty.
+//   { value, ok:true }                              -> resolved ('' means genuinely unset)
+//   { value:'', ok:false, transient:true, error }   -> the vault was unreachable/slow
+// getSecret() deliberately swallows a vault timeout and returns '' — which is right
+// for most callers (degrade to a default) but WRONG for anything that reports config
+// state to a human: a 4s Xano hiccup rendered as "you never set this up." Callers that
+// show a setup message to a person should use this and say "busy, try again" instead.
+async function getSecretStatus(name) {
+  if (process.env[name]) return { value: process.env[name], ok: true };
+  for (const a of (ALIASES[name] || [])) if (process.env[a]) return { value: process.env[a], ok: true };
+  if (_secretCache[name] !== undefined) return { value: _secretCache[name], ok: true };
+  try {
+    const v = await fetchFromXano(name);
+    _secretCache[name] = v;
+    return { value: v, ok: true };
+  } catch (err) {
+    return { value: '', ok: false, transient: true, error: String((err && err.message) || err) };
+  }
+}
+
 // VAULT-FIRST read — for keys whose Netlify env value is STALE and can't be
 // edited (the 4KB cap blocks env saves). Checks the vault first, falls back to
 // env only if the vault has nothing. (Doesn't cache the empty case, so a value
@@ -189,4 +209,4 @@ async function getSecretFresh(name) {
   catch (err) { return process.env[name] || ''; }
 }
 
-module.exports = { getSecret, getSecretFresh, getSecretPreferVault, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME };
+module.exports = { getSecret, getSecretStatus, getSecretFresh, getSecretPreferVault, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME };

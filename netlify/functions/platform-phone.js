@@ -68,7 +68,7 @@ function areaCode(company) {
 
 // Ann's persona for a platform tenant — built from the shop's own settings, trade-aware,
 // captures the lead straight onto the shop's board via platform-lead.
-function assistantBody(company, toolKey) {
+function assistantBody(company, toolKey, ringDid) {
   const name = company.name || 'the shop';
   const ai = (company.settings && company.settings.ai) || {};
   const trade = company.trade || 'appliance';
@@ -124,10 +124,17 @@ function assistantBody(company, toolKey) {
       aq('send_link'), { phone: { type: 'string', description: 'their mobile, digits' }, kind: { type: 'string', description: "'intake' (default) or 'portal'" } },
       ['phone']));
   }
-  // ── TRANSFER (Telnyx native) — only when we have the shop's Ann number + a cell to ring.
+  // ── TRANSFER (Telnyx native) — only when we have the shop's Ann number + somewhere to ring.
   // Hours gating lives in the instructions (Ann checks get_hours first).
+  //
+  // Preferred target is the PLATFORM RING HUB (one shared DID, PLATFORM_VOICE_RING_DID). We
+  // transfer with from = this shop's own number, which is exactly how the hub knows whose call
+  // it is — so one DID fans out to every shop's on-call seats instead of one hard-wired cell.
+  // With no hub vaulted this falls back to the single owner cell, i.e. today's behavior
+  // unchanged, so nothing breaks before the hub exists.
   const annNum = (company.settings && company.settings.phone && company.settings.phone.number) || '';
-  const transferTo = (ai.transfer_to) || (company.settings && company.settings.business && company.settings.business.phone) || '';
+  const ownerCell = (ai.transfer_to) || (company.settings && company.settings.business && company.settings.business.phone) || '';
+  const transferTo = ringDid || ownerCell;
   if (annNum && transferTo) {
     tools.push({ type: 'transfer', transfer: { from: annNum, timeout_secs: 45, targets: [{ name: 'Office', to: transferTo }] } });
   }
@@ -231,7 +238,7 @@ exports.handler = async function (event) {
 
     // 3) create Ann + bind the number to her TeXML app
     const toolKey = (await getSecret('TELNYX_TOOL_SECRET')) || '';
-    const asst = await tx('POST', '/ai/assistants', assistantBody(company, toolKey));
+    const asst = await tx('POST', '/ai/assistants', assistantBody(company, toolKey, await getSecret('PLATFORM_VOICE_RING_DID')));
     if (!asst.ok) return J(200, { ok: false, step: 'assistant', error: JSON.stringify(asst.data.errors || asst.data).slice(0, 200), number: cand });
     const assistantId = asst.data.id;
     const conn = asst.data.telephony_settings && asst.data.telephony_settings.default_texml_app_id;
@@ -324,7 +331,7 @@ exports.handler = async function (event) {
   if (action === 'update' || action === 'rebuild') {
     if (!phone.number || !phone.assistant_id) return J(200, { ok: false, error: 'no_assistant', note: 'provision Ann first' });
     const toolKey = (await getSecret('TELNYX_TOOL_SECRET')) || '';
-    const body = assistantBody(company, toolKey);
+    const body = assistantBody(company, toolKey, await getSecret('PLATFORM_VOICE_RING_DID'));
     const hasTransfer = (body.tools || []).some((t) => t && t.type === 'transfer');
     if (!LIVE) return J(200, { ok: true, shadow: true, would_push: { assistant_id: phone.assistant_id, tools: (body.tools || []).map((t) => t.type === 'webhook' ? (t.webhook && t.webhook.name) : t.type), transfer: hasTransfer }, note: 'PLATFORM_PHONE_LIVE!=true — nothing pushed.' });
     const res = await tx('PATCH', `/ai/assistants/${phone.assistant_id}`, body);

@@ -6,6 +6,32 @@
 <!-- Google Analytics -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0EF3THNXLE"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-0EF3THNXLE');</script>
+<script>
+/* ── Google Ads attribution (added 2026-09-09) ──────────────────────────────────
+   The front door moved to index.html on 2026-06-29 so Google's Basic Access
+   reviewer would see a real business site. It passed - but the gclid capture lived
+   ONLY in appliance-ai.html, so from that day on every ad click landed on a page
+   that threw the click id away. Result: 0 ad_click rows in 30 days, nothing for
+   google-ads-conversion-sweep to upload, and "Ant - Booked Job" stuck at 0
+   conversions forever while Smart Bidding optimized toward map taps instead.
+
+   Two pieces, both needed:
+   1. the Ads tag, so Google sets its own _gcl cookie for tag-based attribution;
+   2. the click id into localStorage, which appliance-ai.html already reads as a
+      fallback - so a visitor who lands here and then starts intake still gets tied
+      to their click, even though the gclid is gone from the URL by then. */
+</script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-11509905666"></script>
+<script>
+  window.dataLayer=window.dataLayer||[];window.gtag=window.gtag||function(){dataLayer.push(arguments)};
+  gtag('js',new Date()); gtag('config','AW-11509905666');
+  try{
+    var _u=new URLSearchParams(location.search);
+    var _g=_u.get('gclid')||'', _gb=_u.get('gbraid')||'', _wb=_u.get('wbraid')||'';
+    if(_g||_gb||_wb) localStorage.setItem('tn_ad_click',JSON.stringify({gclid:_g,gbraid:_gb,wbraid:_wb,t:Date.now()}));
+  }catch(_){}
+</script>
+
 <script src="/meta-pixel.js"></script>
 <title>Nashville &amp; Louisiana Appliance Repair — Same-Day, 4.5★ · 1,000+ Reviews | TN Appliance Exchange</title>
 <link rel="alternate" hreflang="en" href="https://tnapplianceexchange.net/">

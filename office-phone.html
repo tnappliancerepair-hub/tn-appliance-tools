@@ -270,27 +270,48 @@ async function togglePresence(){
     return;
   }
 
-  let tok;
-  try {
-    const r = await fetch(FN+'/telnyx-webrtc-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW, who:who})});
-    tok = await r.json();
-  } catch(e){ setReg('Could not reach the line server. Try again.'); return; }
+  // Ask the line server for this seat's credential. A transient answer (network
+  // blip, or 'vault_busy' = the secret store was slow) is retried ONCE, silently,
+  // before we say anything — a 4s Xano hiccup should never surface to the office.
+  // 2026-09-09: Sofia was shown "One-time setup still needed" on a line that was
+  // fully set up, because a slow vault read read as "never configured".
+  async function getLineToken(){
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt) { setReg('Line server is busy \u2014 retrying\u2026'); await new Promise(r=>setTimeout(r,1200)); }
+      try {
+        const r = await fetch(FN+'/telnyx-webrtc-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW, who:who})});
+        const d = await r.json();
+        if (d && d.ok) return d;
+        if (d && d.reason !== 'vault_busy') return d;   // a real answer, don't retry
+      } catch(e){ dbg('token fetch failed: '+(e.message||e)); }
+    }
+    return { ok:false, reason:'vault_busy' };
+  }
+
+  const tok = await getLineToken();
 
   if(!tok || !tok.ok){
-    if(tok && tok.reason==='not_configured'){
+    if(tok && tok.reason==='vault_busy'){
+      setReg('\u23f3 The line server is busy right now \u2014 flip <b>On</b> again in a few seconds.<br>'+
+             '<span style="color:var(--muted)">Nothing is wrong with your setup.</span>');
+    } else if(tok && tok.reason==='not_configured'){
       document.getElementById('setupwarn').classList.remove('hidden');
       document.getElementById('setupwarn').innerHTML =
-        '⚙️ <b>One-time setup still needed.</b> The Telnyx line for this app isn\'t connected yet. '+
-        'Teddy: finish the Telnyx steps (create the Credential Connection + on-demand credential, set '+
-        '<code>TELNYX_API_KEY</code>, <code>TELNYX_WEBRTC_CREDENTIAL_ID</code>, and '+
-        '<code>TELNYX_OFFICE_CALLER_NUMBER</code> in Netlify). Then this turns On.';
-      setReg('Not connected yet — see the note above.');
+        '\u2699\ufe0f <b>One-time setup still needed.</b> This seat has no Telnyx SIP credential yet. '+
+        'Teddy: in Telnyx create the Credential Connection + an on-demand credential for this person, then save '+
+        '<code>TELNYX_SIP_USERNAME</code> and <code>TELNYX_SIP_PASSWORD</code> '+
+        '(add <code>_DANIELLE</code> / <code>_SOFIA</code> for those seats) plus '+
+        '<code>TELNYX_OFFICE_CALLER_NUMBER</code> in <b>admin-secrets.html</b> \u2014 the vault, not Netlify. '+
+        'Then this turns On.';
+      setReg('Not connected yet \u2014 see the note above.');
     } else {
       setReg('Line server said: '+((tok&&tok.reason)||'error')+'. Try again in a moment.');
     }
     return;
   }
-
+  // A previous attempt may have shown the setup banner (e.g. a vault hiccup on a
+  // cold container). We're connected now — clear it so it can't sit there lying.
+  try { document.getElementById('setupwarn').classList.add('hidden'); } catch(_){}
   callerNumber = tok.caller_number || '';
   try { await connectClient(tok); }
   catch(e){ setReg('Connect failed: '+(e.message||e)); return; }

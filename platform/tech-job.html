@@ -254,6 +254,7 @@
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/ant-call.js"></script>
 <script src="/platform/vendor/boot-watchdog.js"></script>
 <script src="/platform/vendor/setup-bypass.js"></script>
 <script src="/platform/media-sign.js"></script>
@@ -338,7 +339,7 @@
         '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+(job.scheduled_day?'<div class="unit">📅 '+esc(fmtDay(job.scheduled_day))+'</div>':'')+'</div>' +
         '<span class="spill s-'+esc(job.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
-        '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
+        '<div class="links">'+(phone?'<a class="antcall" data-name="'+esc(fullName(cust)||'')+'" data-job="'+esc(jobId||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?'<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>':'')+'</div>' +
         '</div>' +
 
       // ── 2 · The job — On my way / Start / Complete + schedule + waiver ──
