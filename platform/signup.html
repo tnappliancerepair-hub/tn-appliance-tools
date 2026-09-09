@@ -310,8 +310,8 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
         btn.textContent='All set ✓';
         return;
       }
-      // Prefer the friendly d.message (e.g. the invite-only note) over the raw d.error
-      // code ("signup_not_open") so a gated/failed signup never shows a machine string.
+      // Signup is fully self-serve (no invite gate). Any failure here is a genuine hiccup —
+      // prefer the friendly d.message over the raw d.error code so it never shows a machine string.
       msg.className='msg err'; msg.textContent = d.message || d.error || 'Something went wrong — try again.';
       btn.disabled=false; btn.textContent='Start my 14-day trial →';
     }).catch(function(){

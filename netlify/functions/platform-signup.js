@@ -10,10 +10,9 @@
 
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const { platform } = require('./_lib/platform-rest');
-// The gate flags MUST read env-first, then a FRESH vault read: getSecret caches the empty read on a
-// cold Netlify container, which would compute live=false and falsely bounce a real signup to the
-// "onboarding by invite" message. platform-status.js reads the same flags this exact way — that's why
-// it reports signup_open:true reliably while the cached gate flaked. (2026-09-09)
+// Signup is fully self-serve — there is NO invite gate. freshSecret is used only for the
+// PLATFORM_COMP_TOKEN (the separate no-card free-setup path): env-first, then a FRESH vault read
+// so getSecret's cached-empty on a cold container can't falsely reject a valid comp link.
 const freshSecret = async (n) => process.env[n] || (await getSecretFresh(n));
 const plans = require('../../platform/plans.js');
 const billing = require('./platform-billing');
@@ -89,27 +88,10 @@ exports.handler = async function (event) {
   // disabled until a PLATFORM_COMP_TOKEN is vaulted.
   const compAuthed = wantComp && !!compToken && b.comp_token === compToken;
 
-  // BULLETPROOF gate. A shop owner tapping "Start my trial" must NEVER be turned away by an
-  // infrastructure blip — a lost customer is far worse than a stray one (a stray is a
-  // cancelable 14-day trial, no charge, easily purged). The flag lives in the Xano vault,
-  // which can blank out on load/cold-start; the OLD fail-closed logic (open only when the
-  // read == 'true') meant any such blip falsely showed "onboarding by invite." So the rule
-  // is inverted to open-by-default: signups are LIVE unless the flag is read and EXPLICITLY
-  // says off. We read env-first (instant + deterministic if PLATFORM_SIGNUP_LIVE is set in
-  // Netlify env), then the vault with retry-on-empty so an explicit close is still honored
-  // through a blip. To CLOSE signups, set PLATFORM_SIGNUP_LIVE=false (or off/0/no).
-  let flagRaw = '';
-  for (let attempt = 0; attempt < 4; attempt++) {
-    flagRaw = String((await freshSecret('PLATFORM_SIGNUP_LIVE')) || '').trim().toLowerCase();
-    if (flagRaw) break;
-    if (attempt < 3) await new Promise((r) => setTimeout(r, 200));
-  }
-  const explicitlyClosed = ['false', '0', 'off', 'no', 'closed', 'disabled'].includes(flagRaw);
-  const live = !explicitlyClosed;
-  const adminBypass = (b.secret && b.secret === admin);
-  if (!live && !adminBypass && !compAuthed) {
-    return J(200, { ok: false, error: 'signup_not_open', message: "We're onboarding shops by invite right now — leave your email and we'll reach out." });
-  }
+  // Signup is FULLY SELF-SERVE — no gate, no invite. A shop clicks, enters its info, and
+  // signs itself up (card -> Stripe checkout, or the comp/free-setup path). There is
+  // deliberately NO invite-only switch: the platform is public. (Teddy 2026-09-09:
+  // "eliminate anything that's invite only ... it's gonna be self serve.")
 
   const name = String(b.name || '').trim();
   const email = String(b.email || '').trim().toLowerCase();

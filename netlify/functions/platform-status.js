@@ -62,10 +62,11 @@ exports.handler = async function (event) {
   // #2 login email: a nicety, NOT a hard blocker — the magiclink recovery backstops it.
   const emailChainLive = has(emailShared) && truthy(emailEnabled) && has(awsId) && has(awsSecret);
   const golive = {
-    signup_open: truthy(signupLive),
+    signup_open: true,   // fully self-serve, always open — no invite gate (Teddy 2026-09-09)
     stripe_mode: stripeMode,
-    // Flip PLATFORM_SIGNUP_LIVE=true only once this is green (else a card gets charged for nothing).
-    ready_to_flip_signup: webhookReady,
+    // Signup is always open; this is the payment-plumbing health that must STAY green
+    // (else a paid card makes no tenant). It no longer gates signup — it's a health check.
+    payment_plumbing_ready: webhookReady,
     webhook: {
       ready: webhookReady,
       platform_stripe_webhook_secret: has(whSecret) ? 'set' : 'MISSING',
@@ -105,7 +106,7 @@ exports.handler = async function (event) {
     { key: 'referral', name: 'Reseller / referral tracker', state: 'live', detail: 'Attribute referred shops to a partner, commission earned vs paid.' },
     { key: 'sp', name: 'ServicePower (per-tenant)', state: 'live', detail: 'Each shop runs ServicePower as itself. Connect live; automation shadow.' },
     { key: 'billing', name: 'Subscription billing', state: stripeMode === 'live' ? 'live' : 'gated', detail: stripeMode === 'live' ? 'Live Stripe key.' : 'Test mode until a live Stripe key + real Price IDs are vaulted.', flag: 'PLATFORM_STRIPE_SECRET_KEY' },
-    { key: 'signup', name: 'Public self-serve signup', state: truthy(signupLive) ? 'live' : 'gated', detail: truthy(signupLive) ? 'Open.' : 'Ready — flip on when you want strangers signing up.', flag: 'PLATFORM_SIGNUP_LIVE' },
+    { key: 'signup', name: 'Public self-serve signup', state: 'live', detail: 'Open — fully self-serve. A shop puts in its info, pays the trial, and provisions itself. No invite gate.' },
     { key: 'annprov', name: 'Self-serve "turn on Ann"', state: truthy(phoneLive) ? 'live' : 'gated', detail: truthy(phoneLive) ? 'Buys a number + provisions.' : 'Ready — flip on to let shops buy their own line.', flag: 'PLATFORM_PHONE_LIVE' },
     { key: 'email', name: 'Warranty email intake', state: emailSecret ? 'pending' : 'pending', detail: 'Built + tested; go-live is a ~15-min Cloudflare Email Routing step (DNS), not code.', flag: 'Cloudflare DNS' },
     { key: 'overage', name: 'Ann overage billing', state: truthy(billingLive) ? 'live' : 'gated', detail: truthy(billingLive) ? 'Billing usage to Stripe.' : 'Shadow until flipped.', flag: 'PLATFORM_BILLING_LIVE' },
