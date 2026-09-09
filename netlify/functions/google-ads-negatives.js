@@ -27,7 +27,26 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 // $77.95 of TV and vacuum repair: the ads match on "repair near me" and Google is happy to
 // sell us the wrong appliance. A negative BROAD single word blocks any query containing that
 // word; a multi-word entry goes in as PHRASE.
-const WRONG_TRADE = ['tv', 'tvs', 'television', 'televisions', 'vacuum', 'vacuums', 'kirby', 'dyson', 'roomba'];
+// Things people search that we do not repair. Every entry below was found in the
+// account's own 30-day search-terms report actually taking clicks and money -
+// none of it is speculative.
+//   mixer / sewing  -> 'kitchenaid mixer repair', 'where to repair sewing machine'
+//   ice machine     -> 'who fixes ice machines' (commercial, not a home appliance)
+//   portable ac     -> 'portable ac repair near me'
+//   bissell/carpet  -> 'bissell carpet cleaner repair near me'
+//   dvd             -> 'panasonic dvd recorder repair'
+// NOTE 'kitchenaid' itself is deliberately NOT here - a KitchenAid dishwasher or
+// fridge is real work for us. Only the mixer variant is blocked.
+const WRONG_TRADE = [
+  'tv', 'tvs', 'television', 'televisions',
+  'vacuum', 'vacuums', 'kirby', 'dyson', 'roomba',
+  'bissell', 'carpet cleaner', 'shampooer',
+  'dvd', 'vcr', 'stereo',
+  'mixer', 'blender', 'sewing', 'sewing machine',
+  'ice machine', 'ice maker machine',
+  'portable ac', 'window ac', 'air conditioner',
+  'lawn mower', 'generator', 'treadmill',
+];
 
 // Towns outside the service pods (Teddy 2026-09-09: "those are outskirts towns"). Cut on
 // DRIVE TIME, not on the conversion numbers - those towns show 0 conversions, but so does
