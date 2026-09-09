@@ -1,0 +1,155 @@
+<!doctype html><html lang="en" data-live="1"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Phone — Ant</title>
+<!--
+  Ant platform — PHONE (Supabase / ANT Platforms).
+
+  Teddy 2026-09-09: "We need inbound and outbound calls on Supabase platform please."
+
+  OUTBOUND: type a number (or tap a customer) and we ring YOUR phone first, then bridge you
+  to them showing the SHOP'S number. Your personal cell is never exposed and there's nothing
+  to install — it rings the phone already in your pocket.
+
+  INBOUND: when Ann hands a caller to a human, she transfers to the shared ring hub, which
+  rings everyone on this shop's on-call list at once. First to pick up gets the call.
+
+  Why not a browser softphone: that needs a hand-made SIP credential per person and drops its
+  connection the moment a phone backgrounds the tab. The bridge works on any phone, every time.
+-->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:9px;padding:11px 14px;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  header .brand{font-weight:800}
+  .sp{flex:1}
+  nav.hop{display:flex;gap:8px;overflow-x:auto;padding:10px 14px;border-bottom:1px solid var(--line)}
+  nav.hop a{white-space:nowrap;text-decoration:none;color:var(--ink);opacity:.82;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:650}
+  .wrap{max-width:640px;margin:0 auto;padding:16px 14px 60px}
+  .card{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:var(--card,transparent)}
+  .card h2{margin:0 0 4px;font-size:15px;font-weight:800}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+  input[type=tel],input[type=text]{width:100%;padding:13px 14px;border-radius:11px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:17px;font-weight:600}
+  .btn{display:block;width:100%;margin-top:11px;padding:14px;border-radius:12px;border:0;background:#2ea36b;color:#04170e;font-weight:800;font-size:16px;cursor:pointer}
+  .btn:disabled{opacity:.45;cursor:default}
+  .num{font-variant-numeric:tabular-nums;font-weight:800}
+  .warn{border-color:rgba(240,180,80,.45);background:rgba(240,180,80,.09);color:#f0cf96}
+  .seat{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .seat:first-of-type{border-top:0}
+  .seat .nm{flex:1;font-weight:650}
+  .seat .role{font-size:12px;color:var(--muted);text-transform:capitalize}
+  .pill{font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px;border:1px solid var(--line);color:var(--muted)}
+  .pill.on{background:rgba(60,170,110,.16);border-color:rgba(120,200,160,.4);color:#8fe6b8}
+  .empty{padding:26px;text-align:center;color:var(--muted)}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.5}
+</style>
+</head><body>
+<div id="app"><div class="empty">Loading…</div></div>
+<script src="/platform/config.js"></script>
+<script src="/platform/vendor/supabase-js.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
+<script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/vendor/boot-watchdog.js"></script>
+<script src="/platform/ant-call.js"></script>
+<script>
+(function(){
+  var app=document.getElementById('app');
+  var cfg=window.ANT_SUPABASE||{}; var sb=null; var st=null;
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function pretty(p){ var d=String(p||'').replace(/\D/g,''); if(d.length===11&&d[0]==='1') d=d.slice(1);
+    return d.length===10 ? '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6) : (p||''); }
+
+  function shell(inner){
+    app.innerHTML =
+      '<header><span class="brand">📞 Phone</span><span class="sp"></span></header>'+
+      '<nav class="hop" aria-label="Jump to">'+
+        '<a href="/platform/office-board.html">🗂 Board</a>'+
+        '<a href="/platform/messages.html">💬 Messages</a>'+
+        '<a href="/platform/dispatch.html">📅 Dispatch</a>'+
+        '<a href="/platform/comms.html">⚙️ Auto-texts</a>'+
+      '</nav><div class="wrap">'+inner+'</div>';
+  }
+
+  function renderSignIn(err){
+    shell('<div class="card"><h2>Sign in</h2>'+
+      (err?'<p class="sub" style="color:#ffb4b4">'+esc(err)+'</p>':'<p class="sub">Use your shop login.</p>')+
+      '<input id="em" type="text" placeholder="Email" autocomplete="username"><div style="height:9px"></div>'+
+      '<input id="pw" type="text" placeholder="Password" autocomplete="current-password" style="-webkit-text-security:disc">'+
+      '<button class="btn" id="go">Sign in</button></div>');
+    document.getElementById('go').onclick=function(){
+      var em=document.getElementById('em').value.trim(), pw=document.getElementById('pw').value;
+      sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){ if(r.error) renderSignIn(r.error.message); else boot(); });
+    };
+  }
+
+  function render(){
+    var canDial = st && st.shop_number && st.me && st.me.has_cell;
+    var out='';
+
+    if(!st.shop_number){
+      out += '<div class="card warn"><h2>This shop has no phone number yet</h2>'+
+        '<p class="sub" style="color:inherit">Turn on the AI receptionist in Settings and the shop gets its own number. '+
+        'That same number is what your customers see when you call them from here.</p></div>';
+    } else if(!st.me.has_cell){
+      out += '<div class="card warn"><h2>Add your cell number first</h2>'+
+        '<p class="sub" style="color:inherit">We ring <b>your</b> phone and then connect you, so your personal number '+
+        'never shows up on the customer\'s screen. The office can add it to your profile on the Owner page.</p></div>';
+    } else if(!st.live){
+      out += '<div class="card warn"><h2>Calling is not switched on yet</h2>'+
+        '<p class="sub" style="color:inherit">Everything here is ready; the phone system just needs to be turned on '+
+        'for the platform. Nothing will dial until then.</p></div>';
+    }
+
+    out += '<div class="card"><h2>Call a customer</h2>'+
+      '<p class="sub">We ring your phone first, then connect you. They see '+
+      (st.shop_number ? '<b class="num">'+esc(pretty(st.shop_number))+'</b>' : 'the shop')+' — never your cell.</p>'+
+      '<input id="to" type="tel" inputmode="tel" placeholder="Customer phone number" autocomplete="off">'+
+      '<button class="btn" id="dial"'+(canDial?'':' disabled')+'>📞 Call</button>'+
+      '<p class="hint">Answer your own phone when it rings — you will hear who you are being connected to, '+
+      'then it dials them.</p></div>';
+
+    var seats = (st.seats||[]);
+    var onIds = {}; (st.on_call||[]).forEach(function(s){ onIds[String(s.id)]=1; });
+    out += '<div class="card"><h2>Who picks up when a caller wants a person</h2>'+
+      '<p class="sub">Ann answers everything first. When someone asks for a human, these phones ring at the same time '+
+      'and whoever grabs it first gets the call.</p>'+
+      (seats.length ? seats.map(function(s){
+        return '<div class="seat"><span class="nm">'+esc(s.name||'Unnamed')+'<div class="role">'+esc(s.role||'')+
+          (s.has_cell?'':' · no cell on file')+'</div></span>'+
+          '<span class="pill'+(onIds[String(s.id)]?' on':'')+'">'+(onIds[String(s.id)]?'On call':'Off')+'</span></div>';
+      }).join('') : '<div class="empty">No one on this shop has a cell number yet.</div>')+
+      '<p class="hint">Anyone with a cell number and an office role is on call by default. Techs are left off so they '+
+      'are not interrupted on a job.</p></div>';
+
+    shell(out);
+
+    var toEl=document.getElementById('to'), dialEl=document.getElementById('dial');
+    if(dialEl){
+      dialEl.onclick=function(){
+        var v=(toEl.value||'').trim();
+        if(!v){ toEl.focus(); return; }
+        dialEl.disabled=true;
+        window.AntCall.call({to:v}).then(function(){ setTimeout(function(){ dialEl.disabled=!canDial; },2500); });
+      };
+      toEl.addEventListener('keydown',function(e){ if(e.key==='Enter') dialEl.click(); });
+    }
+  }
+
+  function boot(){
+    shell('<div class="empty">Loading…</div>');
+    window.AntCall.status().then(function(d){
+      if(!d||!d.ok){
+        shell('<div class="card warn"><h2>Could not load the phone</h2><p class="sub" style="color:inherit">'+
+          esc((d&&d.message)||(d&&d.error)||'Try again in a moment.')+'</p></div>');
+        return;
+      }
+      st=d; render();
+    });
+  }
+
+  sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else renderSignIn(); });
+})();
+</script>
+</body></html>

@@ -317,6 +317,7 @@
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/ant-call.js"></script>
 <script src="/platform/vendor/boot-watchdog.js"></script>
 <script src="/platform/vendor/setup-bypass.js"></script>
 <script src="/platform/media-sign.js"></script>
@@ -472,6 +473,7 @@
           '<a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a>' +
           '<a href="/platform/dispatch.html?coverage=1">🗺️ Coverage</a>' +
           '<a href="/platform/messages.html">💬 Messages</a>' +
+          '<a href="/platform/phone.html">📞 Phone</a>' +
           '<a href="/platform/comms.html">⚙️ Auto-texts</a>' +
           '<a href="/platform/owner.html">💰 Owner</a>' +
           '<a href="/platform/office-overview.html">🗂 Overview</a>' +
@@ -1617,6 +1619,9 @@
     ov.innerHTML='<div class="sheet drawer">' +
       '<div class="custname" id="jcusthead">'+esc(fullName(cust)||'Customer')+'</div>' +
       '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
+      // Call the customer from the SHOP's line — the office person's own cell never shows up
+      // on the customer's screen. Falls back to a normal tel: dial if calling isn't on yet.
+      (phone?'<div style="margin-top:8px"><a class="antcall" data-name="'+esc(fullName(cust)||'')+'" data-job="'+esc(job.id||'')+'" href="tel:'+esc(phone)+'" style="display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:10px;border:1px solid rgba(120,200,160,.4);background:rgba(60,170,110,.16);color:#2b7a52;font-weight:700;text-decoration:none">📞 Call from the shop line</a></div>':'') +
       (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
       // ── 📝 JOB DETAILS — the editable job/customer record, moved to the very top ──
       '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
