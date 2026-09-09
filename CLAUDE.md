@@ -64,6 +64,72 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜⭐ 2026-09-09 (Tue) — REVIEW ASKS: the link was a DEAD END on every platform shop (fixed) + one nudge — READ FIRST
+
+Teddy: *"fix the review ask engagement leak for the supabase customers moving forward."* The Xano-side
+funnel showed the symptom — **318 asks in 30 days, 13 replies (4%)** — but the platform (Supabase) side
+had a worse, structural version of the same problem. **PLATFORM ONLY; the Xano `review-request-sweep`
+is untouched.**
+
+### 🔴 ROOT CAUSE — we were texting customers a Google SEARCH page, not a review box
+`platform-review-sweep` + the ⭐ button both fell back to `https://www.google.com/search?q=<shop>+reviews`
+when a shop had no `review_url`. That lands the customer on **search results** — they then have to find
+the business, open the panel, scroll, hunt for "Write a review". Converts at ~nothing **and burns the one
+ask we get per job.** **Measured live: 0 of 12 platform shops had a review link set**, so the dead-end
+fallback was the *only* path in production. Dry-run before the fix: 4 asks queued, all to a dead link.
+
+### ✅ THE LINK GATE — never spend the ask on a link that can't take a review
+- **`_lib/comms.js` `reviewLink(settings)` → `{url, ok, why}`** — `why` = `not_set` · `not_a_url` ·
+  **`search_page`** (a Google `/search` URL can never accept a review). Tolerates a pasted bare link
+  (`g.page/r/…/review`) by prefixing `https://`. Exported with `REVIEW_LINK_HELP` (plain-English reason).
+- **The sweep and the ⭐ button both REFUSE to send when `ok:false`** and say why. The sweep returns
+  **`shops_missing_link[]`** so we can tell owners exactly who is blocked and why.
+- **`platform/office-board.html` Settings** shows a loud amber **"⚠️ Review requests are paused"** block
+  when the link is empty + the 30-second path: **Google Business Profile → Ask for reviews → Copy link → paste**.
+- All 3 ⭐ callers (`tech.html`, `tech-job.html`, `office-board.html`) surface the real reason instead of
+  the old "No phone on file" / "Couldn't send — try again" misdirection.
+- ⚠️ **Consequence, by design: with no link set, the sweep now sends NOTHING.** That's correct — silence
+  beats burning the ask on a dead link — but it means **a shop gets zero review asks until it pastes a link.**
+
+### ✍️ THE COPY — it was asking for a REPLY, not a tap
+Old: *"how did {shop} do today? … {review} If anything was off, just reply here…"* — opened with a question
+(pulls toward replying), buried the link mid-sentence, and billed **2 segments**.
+New: **"Hi {first}, thanks for your business today. If {tech} did right by you, a quick review means a lot: {review}"**
+— names **the tech who was just in their house**, link **LAST**, and **1 GSM-7 segment** even worst-case
+(25-char shop name + a real 39-char `g.page` URL = 145 of 160 septets). Verified against the browser twin.
+- **Traded away the "if anything was off, just reply" valve** to hold 1 segment. The thread is two-way, so
+  a customer can always reply anyway. Putting it back is a one-line Communication Center edit — and the
+  live cost badge (shipped same day) will show it costs a 2nd segment.
+
+### 🔁 ONE NUDGE (new `review_nudge` template, default ON, shop-toggleable)
+Second ask ~3 days later, **once ever**, and **only if the customer never replied** on that job. Worded to be
+harmless to someone who already reviewed. Google exposes no per-customer review API, so it is time-based by
+necessity — hence exactly one, and the reply guard. Dedup marker `channel=review_nudge`.
+
+### ⏱️ TIMING + a double-ask bug
+- Cron **2×/day (10a+4p CT) → every 2h across the working day** (`0 14,16,18,20,22,0` = 9a/11a/1p/3p/5p/7p CT),
+  so the ask lands **within ~2h of the tech leaving** instead of up to 18h later. Window 72h → **48h** (pure
+  slack now; dedup makes overlap free).
+- **DOUBLE-ASK BUG FIXED:** the manual ⭐ button logged `channel='sms'`, which the sweep's `channel='review'`
+  dedup couldn't see — so the sweep could text a customer **again** after a human already asked. Button now
+  logs `channel='review'` (and therefore also earns the one nudge).
+
+### ✅ VERIFIED LIVE (shadow, zero residue)
+Gate: 4 would-send → **0 sent / 5 skipped_no_link**, blocked shops named. Happy path (real link on the test
+tenant): 4 asks, real tech name — *"Hi Ben, thanks for your business today. If Jimmy did right by you, a quick
+review means a lot: https://g.page/r/…/review"*, 1 segment. Nudge: a 4-day-old ask → job dedups out of pass 1
+and returns as a **nudge** in pass 2. Reply guard: inbound message after the ask → **nudge suppressed**. All
+test rows deleted, test `review_url` reverted (0 leftover rows).
+
+### ⏭️ OPEN
+- **Each shop must paste its review link** (Settings → Review link). TN's own is
+  `https://g.page/r/CRt-vo--eAJ3EBM/review`. Until then that shop sends no review asks — by design.
+- **Still SHADOW.** Real sends need vault **`PLATFORM_REVIEW_SWEEP_LIVE=1`**. Flip only after at least one
+  shop has a link set (otherwise it stays a no-op).
+- **Scaling:** the sweep is 2-3 REST reads per job per run and now runs 6×/day over a 48h window. Fine at
+  today's volume (28 completed jobs / 14 days platform-wide); revisit before ~100 shops.
+- `TN Appliance Exchange LLC` carries an empty-string `review_url` key (pre-existing, gated as `not_set`).
+
 ## 🗓️🐜✉️ 2026-09-09 (Tue) — SMS COST: a "text" is not a segment (3.17 of them), and EM DASHES cost as much as emoji — READ FIRST
 
 Teddy: *"If we're billing by the text, I wanna know what it's gonna cost us for those text."* Answering it
