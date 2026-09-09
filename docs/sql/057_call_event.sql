@@ -1,4 +1,4 @@
--- 056_call_event.sql — the platform's own call log (Supabase / multi-tenant).
+-- 057_call_event.sql — the platform's own call log (Supabase / multi-tenant).
 --
 -- Teddy 2026-09-09: "We need inbound and outbound calls on Supabase platform please."
 -- platform-voice bridges both directions; this is where the record of each call lands so a
