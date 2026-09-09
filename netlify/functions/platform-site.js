@@ -161,9 +161,19 @@ function slugFromHost(event) {
   return m ? m[1] : '';
 }
 
+// Pull the shop slug straight from the request PATH (/s/<slug> or /site/<slug>). This is the
+// reliable path for the pretty route: Netlify does NOT populate a function's query param from a
+// `?slug=:splat` rewrite (proven live — every /s/<slug> was 400'ing), but it DOES preserve the
+// original request path on a 200 rewrite, so we read it here instead of trusting the splat.
+function slugFromPath(event) {
+  const p = String((event && (event.path || event.rawUrl)) || '');
+  const m = /\/(?:s|site)\/([a-z0-9][a-z0-9-]{0,62})/i.exec(p);
+  return m ? m[1] : '';
+}
+
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
-  const slug = String(q.slug || slugFromHost(event) || '').toLowerCase().trim();
+  const slug = String(q.slug || slugFromPath(event) || slugFromHost(event) || '').toLowerCase().trim();
   if (!slug) return J(400, { ok: false, error: 'slug required' });
   const pf = await platform();
   if (!pf) return H(200, notFound(slug).body);
