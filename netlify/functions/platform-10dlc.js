@@ -211,9 +211,19 @@ exports.handler = async function (event) {
 
   if (action === 'status') {
     const st = stateOf(company);
+    // Pre-fill everything we already hold so the shop is only asked for what nobody
+    // else can supply. Today that's the EIN, their entity type, and a street address
+    // (we keep a phone and an area code, never a mailing address).
+    const biz = (company.settings && company.settings.business) || {};
+    let ownerEmail = '';
+    try {
+      const ur = await pf.get(`app_user?company_id=eq.${encodeURIComponent(companyId)}&role=eq.owner&select=email&limit=1`);
+      ownerEmail = (ur && ur[0] && ur[0].email) || '';
+    } catch (_) { ownerEmail = ''; }
     return J(200, {
       ok: true, live: LIVE(), texting_allowed: textingAllowed(company), state: st,
       entity_types: ENTITY_TYPES,
+      prefill: { legal_name: company.name || '', contact_phone: biz.phone || '', contact_email: ownerEmail },
       needs: st.status === 'not_started'
         ? ['legal_name', 'ein', 'entity_type', 'street', 'city', 'state', 'postal_code', 'contact_email', 'contact_phone']
         : [],

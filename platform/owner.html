@@ -814,24 +814,28 @@
       var why = s==='rejected'
         ? '<div style="font-size:15px;font-weight:800;color:#d33c3c">⚠️ The carrier turned this down</div><div class="note">'+esc(st.reason||'')+' You can correct the details and file again below.</div>'
         : '<div style="font-size:15px;font-weight:800">Turn on texting</div><div class="note">US carriers require every business to be registered before it can text customers from a regular number. Unregistered texts are silently dropped — they look sent and never arrive. <b>We file it for you</b>: you give us the legal details only you have, we handle the sample messages and opt-in wording that most applications fail on. Takes 1–3 business days. <b>Your calls keep working the whole time.</b></div>';
-      var ents=(d.entity_types||['PRIVATE_PROFIT','SOLE_PROPRIETOR']);
-      function f(id,label,ph,type){ return '<label style="display:block;margin-top:10px;font-size:12px;font-weight:700;color:var(--muted)">'+label+'</label>'+
-        '<input id="'+id+'" type="'+(type||'text')+'" placeholder="'+ph+'" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:15px">'; }
+      var ents=(d.entity_types||['PRIVATE_PROFIT','SOLE_PROPRIETOR']), pre=(d.prefill||{});
+      function f(id,label,ph,val,type){ return '<label style="display:block;margin-top:10px;font-size:12px;font-weight:700;color:var(--muted)">'+label+'</label>'+
+        '<input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val||'')+'" placeholder="'+ph+'" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:15px">'; }
+      // Only three things are genuinely new asks. Everything we already know is
+      // pre-filled and folded away, so the shop sees a short form, not a tax return.
       el.innerHTML='<div class="money">'+why+
-        f('txLegal','Legal business name (exactly as the IRS has it)','TN Appliance Exchange LLC')+
-        f('txEin','EIN','12-3456789')+
+        f('txEin','Your EIN','12-3456789')+
         '<label style="display:block;margin-top:10px;font-size:12px;font-weight:700;color:var(--muted)">Business type</label>'+
         '<select id="txEntity" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:15px">'+
-          ents.map(function(e){ return '<option value="'+e+'">'+(e==='PRIVATE_PROFIT'?'LLC / Corporation (private)':e==='SOLE_PROPRIETOR'?'Sole proprietor':e.replace(/_/g,' ').toLowerCase())+'</option>'; }).join('')+'</select>'+
-        f('txStreet','Street address','3137 Skinner Dr')+
+          ents.map(function(e){ return '<option value="'+e+'">'+(e==='PRIVATE_PROFIT'?'LLC / Corporation':e==='SOLE_PROPRIETOR'?'Sole proprietor':e.replace(/_/g,' ').toLowerCase())+'</option>'; }).join('')+'</select>'+
+        f('txStreet','Business street address','3137 Skinner Dr')+
         '<div style="display:flex;gap:8px">'+
           '<div style="flex:2">'+f('txCity','City','Antioch')+'</div>'+
           '<div style="flex:1">'+f('txState','State','TN')+'</div>'+
           '<div style="flex:1">'+f('txZip','ZIP','37013')+'</div>'+
         '</div>'+
-        f('txEmail','Contact email','you@yourshop.com','email')+
-        f('txPhone','Contact phone','615-555-0100','tel')+
-        f('txSite','Website (optional)','https://yourshop.com')+
+        '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted)">Name, phone and email we already have — tap to check</summary>'+
+          f('txLegal','Legal business name (as the IRS has it)','Your Shop LLC',pre.legal_name)+
+          f('txEmail','Contact email','you@yourshop.com',pre.contact_email,'email')+
+          f('txPhone','Contact phone','615-555-0100',pre.contact_phone,'tel')+
+          f('txSite','Website (optional)','https://yourshop.com')+
+        '</details>'+
         '<button id="txSubmit" style="width:100%;margin-top:14px;padding:11px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:800;font-size:14px;cursor:pointer">File my carrier registration</button>'+
         '<div class="note" style="margin-top:8px">Your EIN goes straight to the carrier — we keep only the last four so support can tell which filing is yours.</div></div>';
       var sbn=document.getElementById('txSubmit');
