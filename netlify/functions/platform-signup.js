@@ -8,8 +8,13 @@
 //     -> { ok, checkout_url }
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const { platform } = require('./_lib/platform-rest');
+// The gate flags MUST read env-first, then a FRESH vault read: getSecret caches the empty read on a
+// cold Netlify container, which would compute live=false and falsely bounce a real signup to the
+// "onboarding by invite" message. platform-status.js reads the same flags this exact way — that's why
+// it reports signup_open:true reliably while the cached gate flaked. (2026-09-09)
+const freshSecret = async (n) => process.env[n] || (await getSecretFresh(n));
 const plans = require('../../platform/plans.js');
 const billing = require('./platform-billing');
 
@@ -75,7 +80,7 @@ exports.handler = async function (event) {
   try { b = event.body ? JSON.parse(event.body) : {}; } catch (_) {}
 
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  const compToken = String((await getSecret('PLATFORM_COMP_TOKEN')) || '');
+  const compToken = String((await freshSecret('PLATFORM_COMP_TOKEN')) || '');
   const wantComp = b.comp === true || b.comp === 1 || b.comp === '1';
   // Comp is authorized ONLY by a matching dedicated PLATFORM_COMP_TOKEN — a low-privilege
   // "free-setup" token. The master admin secret is NEVER accepted as comp auth: comp arrives via
@@ -86,7 +91,7 @@ exports.handler = async function (event) {
 
   // Kill switch — public endpoint. Stays closed until the owner opens signups
   // (vault PLATFORM_SIGNUP_LIVE=true). Admin secret + an authorized comp both bypass it.
-  const live = String((await getSecret('PLATFORM_SIGNUP_LIVE')) || '').toLowerCase() === 'true';
+  const live = String((await freshSecret('PLATFORM_SIGNUP_LIVE')) || '').toLowerCase() === 'true';
   const adminBypass = (b.secret && b.secret === admin);
   if (!live && !adminBypass && !compAuthed) {
     return J(200, { ok: false, error: 'signup_not_open', message: "We're onboarding shops by invite right now — leave your email and we'll reach out." });
