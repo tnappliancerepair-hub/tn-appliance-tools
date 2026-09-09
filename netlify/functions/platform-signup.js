@@ -43,7 +43,7 @@ async function provisionComp(pf, o) {
   } };
   let pd = {};
   try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (e) { pd = { ok: false, error: String((e && e.message) || e) }; }
-  if (!pd.ok || !pd.company) return J(200, { ok: false, error: 'provision_failed', detail: String((pd && pd.error) || '').slice(0, 200) });
+  if (!pd.ok || !pd.company) return J(200, { ok: false, error: 'provision_failed', message: "We hit a snag setting up your shop — give it a moment and try again, or reply to your setup text and we'll finish it with you.", detail: String((pd && pd.error) || '').slice(0, 200) });
   const companyId = pd.company.id;
   // Stamp comp + (if ticked) the "turn on Ann" onboarding flag — merge, never clobber settings.
   try {
@@ -133,7 +133,7 @@ exports.handler = async function (event) {
   }
 
   const pf = await platform();
-  if (!pf) return J(200, { ok: false, error: 'platform_not_configured' });
+  if (!pf) return J(200, { ok: false, error: 'platform_not_configured', message: "We're having a brief hiccup on our end — give it a moment and tap the button again." });
 
   // Reserve a unique slug now (so the webhook never attaches a paid signup onto an existing
   // shop). We don't create anything yet — just pick a free slug and stash it in checkout meta.
@@ -155,10 +155,11 @@ exports.handler = async function (event) {
   try {
     out = await billing.signupCheckout({ name, slug, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '', want_ann: !!b.want_ann, ref: String(b.ref || '').slice(0, 60), terms_version: termsVersion, terms_accepted_at: termsAt, origin: String(b.origin || '') });
   } catch (e) {
-    return J(200, { ok: false, error: 'checkout_failed', detail: String((e && e.message) || e).slice(0, 160) });
+    return J(200, { ok: false, error: 'checkout_failed', message: "We couldn't open the secure card screen just now — give it a moment and try again.", detail: String((e && e.message) || e).slice(0, 160) });
   }
   if (!out.ok || !out.url) {
     return J(200, { ok: false, error: out.error || 'checkout_unavailable',
+      message: "We couldn't open the secure card screen just now — give it a moment and try again.",
       note: out.error === 'stripe_not_configured' ? 'set PLATFORM_STRIPE_SECRET_KEY or STRIPE_SECRET_KEY to enable billing' : undefined });
   }
   return J(200, { ok: true, checkout_url: out.url, session_id: out.session_id, plan: planKey, addons, slug });
