@@ -413,6 +413,16 @@ exports.handler = async function (event) {
         ],
         vocab: { problem_noun: 'inquiry', service_verb: 'sell' },
       },
+      dryer_vent: {
+        trade: 'dryer_vent', label: 'Dryer Vent Cleaning', unit_kind: 'vent', unit_label: 'Dryer Vent',
+        fields: [
+          { key: 'run_length', label: 'Vent run length / floors', required: false },
+          { key: 'termination', label: 'Vents to (roof / wall / soffit)', required: false },
+          { key: 'reroute', label: 'Reroute or repair needed?', required: false },
+          { key: 'access', label: 'Access notes', required: false },
+        ],
+        vocab: { problem_noun: 'job', service_verb: 'clean' },
+      },
     };
     const t = TRADES[String(q.trade || '').toLowerCase()];
     if (!t) return json(200, { ok: false, error: 'unknown trade; known: ' + Object.keys(TRADES).join(', ') });
@@ -704,6 +714,7 @@ exports.handler = async function (event) {
           : trade === 'aquarium' ? 'Reef tank — monthly maintenance'
           : trade === 'furniture' ? 'Custom sectional — special order'
           : trade === 'dealership' ? 'Interested in a cargo van — has a trade-in'
+          : trade === 'dryer_vent' ? 'Dryer vent cleaning + reroute'
           : 'Sample job';
         seeded = await createLeadJob({ slug: slug0, name: 'Sample Lead (demo)', phone: '+16155551234', what: sampleWhat, detail: "Sample card so the board isn't empty — delete anytime.", city: String(q.area || ab.area || ''), source: 'shoppack_seed' });
       } catch (e) { seeded = { ok: false, error: String((e && e.message) || e).slice(0, 120) }; }
@@ -902,6 +913,7 @@ exports.handler = async function (event) {
         : trade === 'aquarium' ? 'Reef tank — monthly maintenance'
         : trade === 'furniture' ? 'Custom sectional — special order'
         : trade === 'dealership' ? 'Interested in a cargo van — has a trade-in'
+        : trade === 'dryer_vent' ? 'Dryer vent cleaning + reroute'
         : 'Sample job';
       seeded = await createLeadJob({
         slug, name: 'Sample Lead (demo)', phone: '+16155551234',

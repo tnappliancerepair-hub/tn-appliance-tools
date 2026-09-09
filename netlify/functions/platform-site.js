@@ -20,6 +20,7 @@ const TRADE = {
   furniture: { accent: '#7c4a1e', emoji: '🛋️', noun: 'furniture service', verb: 'handle', services: ['Delivery', 'Assembly', 'Repair & Touch-up', 'Custom Orders', 'Upholstery', 'Pickup & Haul-away'] },
   aquarium: { accent: '#1b6ca8', emoji: '🐠', noun: 'aquarium service', verb: 'service', services: ['Tank Maintenance', 'Water Testing', 'Equipment Repair', 'Setup & Design', 'Livestock Health', 'Emergency Service'] },
   dealership: { accent: '#b8860b', emoji: '🚗', noun: 'dealership', verb: 'help with', services: ['Inventory', 'Financing', 'Trade-ins', 'Test Drives', 'Service Department', 'Warranty'] },
+  dryer_vent: { accent: '#dd6b20', emoji: '🌀', noun: 'dryer vent service', verb: 'clean', services: ['Dryer Vent Cleaning', 'Vent Rerouting', 'Lint & Fire-Hazard Removal', 'Booster Fan Install', 'Exterior Vent / Bird Guard', 'Airflow Inspection'] },
 };
 function tradeCfg(t) { return TRADE[String(t || 'appliance').toLowerCase()] || TRADE.appliance; }
 
