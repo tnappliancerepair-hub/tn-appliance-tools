@@ -35,7 +35,11 @@ const SITE = 'https://tnapplianceexchange.net';
 const CAMPAIGN_NAME = 'Ant Platform - Repair Shops';
 const US = 'geoTargetConstants/2840';
 
-const land = (tag) => `${SITE}/platform/home.html?utm_source=google_ads&utm_medium=cpc&utm_campaign=ant_platform&utm_content=${tag}`;
+// Somebody who just searched "housecall pro alternative" wants one question
+// answered - can I get my data out and what breaks - so they land on the page that
+// answers it, not on a general product page. Everyone else lands on home.
+const PAGE = { switching: 'switch.html' };
+const land = (tag) => `${SITE}/platform/${PAGE[tag] || 'home.html'}?utm_source=google_ads&utm_medium=cpc&utm_campaign=ant_platform&utm_content=${tag}`;
 
 // True for every group, and the reason to pick us over a phone bot.
 const TRUST_H = ['Run Your Whole Shop', 'Not Just a Phone Bot', 'Free 14-Day Trial'];
