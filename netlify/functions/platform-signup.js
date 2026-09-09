@@ -89,20 +89,23 @@ exports.handler = async function (event) {
   // disabled until a PLATFORM_COMP_TOKEN is vaulted.
   const compAuthed = wantComp && !!compToken && b.comp_token === compToken;
 
-  // Kill switch — public endpoint. Stays closed until the owner opens signups
-  // (vault PLATFORM_SIGNUP_LIVE=true). Admin secret + an authorized comp both bypass it.
-  // Retry-on-EMPTY: the flag lives in the Xano vault, and a transient blank read (Xano
-  // load, cold container) must NEVER masquerade as "signups closed" and bounce a real
-  // customer to the invite message. A genuine 'true'/'false' is non-empty → stops on the
-  // first read (no wasted calls when signups are legitimately closed); only a blank read
-  // retries. process.env still short-circuits instantly if the flag is ever set in env.
-  let liveRaw = '';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    liveRaw = String((await freshSecret('PLATFORM_SIGNUP_LIVE')) || '').trim();
-    if (liveRaw) break;
-    if (attempt < 2) await new Promise((r) => setTimeout(r, 200));
+  // BULLETPROOF gate. A shop owner tapping "Start my trial" must NEVER be turned away by an
+  // infrastructure blip — a lost customer is far worse than a stray one (a stray is a
+  // cancelable 14-day trial, no charge, easily purged). The flag lives in the Xano vault,
+  // which can blank out on load/cold-start; the OLD fail-closed logic (open only when the
+  // read == 'true') meant any such blip falsely showed "onboarding by invite." So the rule
+  // is inverted to open-by-default: signups are LIVE unless the flag is read and EXPLICITLY
+  // says off. We read env-first (instant + deterministic if PLATFORM_SIGNUP_LIVE is set in
+  // Netlify env), then the vault with retry-on-empty so an explicit close is still honored
+  // through a blip. To CLOSE signups, set PLATFORM_SIGNUP_LIVE=false (or off/0/no).
+  let flagRaw = '';
+  for (let attempt = 0; attempt < 4; attempt++) {
+    flagRaw = String((await freshSecret('PLATFORM_SIGNUP_LIVE')) || '').trim().toLowerCase();
+    if (flagRaw) break;
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 200));
   }
-  const live = liveRaw.toLowerCase() === 'true';
+  const explicitlyClosed = ['false', '0', 'off', 'no', 'closed', 'disabled'].includes(flagRaw);
+  const live = !explicitlyClosed;
   const adminBypass = (b.secret && b.secret === admin);
   if (!live && !adminBypass && !compAuthed) {
     return J(200, { ok: false, error: 'signup_not_open', message: "We're onboarding shops by invite right now — leave your email and we'll reach out." });
