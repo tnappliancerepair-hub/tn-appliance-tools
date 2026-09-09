@@ -16,9 +16,14 @@ const { getSecret } = require('./secrets');
 // LLM is an ADD-ON, confirmed by Telnyx's own pricing calculator. We run openai/gpt-5.4
 // (managed frontier model) at ~$0.0177/min; Telnyx-hosted Kimi is ~$0.004/min, so moving
 // Ann's brain to Kimi would cut all-in to ~$0.054/min — a brain-quality tradeoff, not free.
-// SMS ~$0.013 all-in on T-Mobile (rate $0.0085 + carrier $0.0045) is unchanged.
+// SMS: Telnyx bills per SEGMENT, not per message -- $0.0122 out (rate + carrier fee), $0.0089 in,
+// both measured off billed detail records. A message is 1 segment only if it is pure GSM-7 and
+// <=160 chars; ONE emoji / em dash / curly quote flips it to UCS-2 and the limit drops to 70, so
+// our texts averaged 3.17 segments (~3.7c each) until the 2026-09-09 GSM-7 cleanup of the default
+// templates took them to ~1.9 (~2.3c). sms_out/sms_in below are per MESSAGE (what record() counts)
+// and are FALLBACK ESTIMATES -- pass costCents from the carrier record whenever you have it.
 // Cost basis only — never shown to a shop.
-const COST = { voice_min: 6.8, sms_out: 1.3, sms_in: 0.75 };
+const COST = { voice_min: 6.8, sms_seg: 1.22, sms_out: 2.3, sms_in: 0.89 };
 // Plan defaults when a shop has no client_plan row yet (generous fair-use + safety caps). These
 // MIRROR platform/plans.js ANN / ANN_PRO — that file is what BILLS; this is what the meter, the
 // weekly digest, and the owner dashboard card show. Keep the two in step or a shop sees an

@@ -154,8 +154,8 @@ exports.handler = async function (event) {
         if (token && cb && sms) {
           const link = `${SITE}/${kind === 'portal' ? 'p' : 'i'}/${token}`;
           const body = kind === 'portal'
-            ? `${co.name}: track your repair + message us here — ${link}`
-            : `${co.name}: tap to send a quick video + a photo of the model sticker so we can get you set up — ${link}`;
+            ? `${co.name}: track your repair + message us here: ${link}`
+            : `${co.name}: tap to send a quick video + a photo of the model sticker so we can get you set up: ${link}`;
           try { await sms.sendFrom588(cb, body, 'ann_' + kind + '_link'); } catch (_) {}
           return json(200, { ok: true, say: `I just texted you the link — go ahead and tap it whenever you're ready.`, link });
         }

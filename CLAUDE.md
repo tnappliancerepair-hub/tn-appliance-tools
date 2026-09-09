@@ -64,6 +64,60 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜✉️ 2026-09-09 (Tue) — SMS COST: a "text" is not a segment (3.17 of them), and EM DASHES cost as much as emoji — READ FIRST
+
+Teddy: *"If we're billing by the text, I wanna know what it's gonna cost us for those text."* Answering it
+found a 3× understatement in my own numbers and a free ~40% cut sitting in the default templates.
+
+### ⚠️ THE CORRECTION — I quoted 1.3¢/text. That's the SEGMENT price, not the message price.
+Telnyx bills **per segment: $0.0122 out, $0.0089 in** (measured off billed detail records, `rec.cost` +
+`rec.carrier_fee`). Our messages averaged **3.17 segments**, so a text actually cost **~3.7¢** — 3× what I
+told him. That dragged every margin number down (Starter typical 47%→31.5%, at-cap 34%→18.5%) and the 5¢
+overage was **1.4× cost, not the 3.8×** I claimed. **Rule: never quote an SMS cost per "text" without
+saying how many segments — cost/segment is a constant, segments/message is the variable that moves.**
+
+### 🔴 THE ROOT CAUSE IS ENCODING, AND EMOJI WERE ONLY HALF OF IT
+A message is 1 segment only if it's **pure GSM-7 and ≤160 chars**. ONE character outside that set flips the
+whole message to **UCS-2 and the limit drops to 70**. Non-GSM includes every emoji **AND the em dash `—`,
+the middle dot `·`, curly quotes `’ “ ”`, and `…`** — the exact punctuation our copy was full of.
+**Proof: the `assigned` template had NO emoji at all** (just `—` and `·`) and still billed 2 segments.
+Killing emoji while leaving em dashes would have achieved literally nothing.
+
+### ✅ FIXED — all 7 default templates are now GSM-7 (13 segs → 8, the customer bundle 11 → 6, −45%)
+`_lib/comms.js` + its browser twin `platform/comms-config.js` (**both must stay in sync**): dropped 🚚 🔧 ✅
+🙏, replaced `—` with `,`/`.`/`:` and `·` with `,`. Wording unchanged in meaning — this is an encoding fix,
+not a copy rewrite. Also cleaned the two other customer-bound SMS bodies: `platform-call-act.js` `send_link`
+(portal + intake links) and `platform-tech-notify.js` waiver link. **Deliberately left alone:** office/owner
+alert texts (`📞 Callback`, `✅ finished intake`, `📅 day request`) — low volume and the emoji is a real
+scanning aid on a busy phone.
+- **Per plan (250 / 800 included texts, incl. inbound at the measured 29%-of-outbound reply rate):**
+  Starter **$10.31→$6.32/wk** ($536→$329/yr, 20.6%→12.6% of the $50). Pro **$33.00→$20.22/wk**
+  ($1,716→$1,051/yr, 26.4%→16.2% of the $125). Overage margin 1.4×→~2.0× cost.
+- ⚠️ **`reminder` is 159 septets of 160** at a typical shop — a long shop name tips it to 2 segments. Not
+  reworded (that's a copy change, not an encoding one); flagged as the next easy win.
+
+### 🛡️ THE DURABLE FIX — the Communication Center now prices every keystroke
+A shop could paste 🔧 back in next week and silently undo all of it. `comms-config.js` gained
+**`segments(text)`** (GSM-7 vs UCS-2, 160/153 vs 70/67, emoji counted as 2 UTF-16 units, `partsIfPlain` =
+what it'd cost cleaned up) and `platform/comms.html` shows a live badge under every preview: **"2 text parts
+· 2.4¢ to send · 🔧 make this a special-character text: 70 characters per part instead of 160. Without it
+it would be 1 part (1.2¢)."** Verified against the Python model — identical on all 7 templates + regressions.
+FOOTGUN burned: JS splits an emoji into two surrogate halves, so the flagged-character list renders as
+mojibake unless you recombine them (done).
+
+### 🔧 `usage-meter.js` COST was mislabeled (would have understated margin 3×)
+`sms_out: 1.3` was the per-SEGMENT price sitting in a per-MESSAGE slot (`record()` counts messages). Now
+`{ voice_min: 6.8, sms_seg: 1.22, sms_out: 2.3, sms_in: 0.89 }` with the per-message values documented as
+FALLBACK ESTIMATES — pass `costCents` off the carrier record when you have it.
+
+### ⏭️ OPEN
+- **`weeklyTelnyx` counts messages only** — no `parts`, no `cost`, outbound-only. So `platform/usage.html`
+  shows a modeled cost, not the real one, and can't prove this cleanup landed. Adding `rec.parts` +
+  `rec.cost + rec.carrier_fee` + inbound is the next build.
+- **The ~$3.50/wk fixed per-shop line is still an ESTIMATE** (DID ~$1/mo + 10DLC ~$12/mo). Nobody has
+  priced the 10DLC brand/campaign off a real Telnyx invoice. **Pull it before designing further around it.**
+- Shorten `reminder` (~27 septets of headroom available) so a long shop name can't double it.
+
 ## 🗓️🐜💵 2026-09-09 (Tue) — ANN PRICING: texts 100→250, NEW $125 Pro tier, billing made TIER-AWARE — READ FIRST
 
 Teddy set the plan shape. Both Ann tiers are now **12.5¢ per included minute** — stepping up buys

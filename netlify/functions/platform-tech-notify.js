@@ -205,7 +205,7 @@ exports.handler = async function (event) {
       const tk = grant && grant.token;
       if (!tk) return json(200, { ok: false, error: 'grant_failed' });
       const link = `${SITE}/i/${tk}`;
-      const msg = `${shop}: quick release of liability to sign before we work on your appliance — tap here, takes 20 seconds: ${link}`;
+      const msg = `${shop}: quick release of liability to sign before we work on your appliance. Tap here, takes 20 seconds: ${link}`;
       let sent = false;
       try { sent = await sendSms(phone, msg, 'customer', 'platform_waiver_link'); } catch (_) {}
       await logThread('sms', `✍️ Sign-waiver link sent: ${link}`);
