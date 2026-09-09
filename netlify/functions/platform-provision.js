@@ -125,14 +125,31 @@ exports.handler = async function (event) {
     const users = (list && (list.users || list)) || [];
     const u = Array.isArray(users) ? users.find((x) => String(x.email || '').toLowerCase() === ownerEmail) : null;
     if (!u) return json(200, { ok: false, error: 'auth user not found for ' + ownerEmail });
+    const vaultKey = 'PLATFORM_OWNER_PW_' + (slug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    const reveal = q.reveal === '1' || q.reveal === 'true';
+    // &once=1: IDEMPOTENT reveal — if this owner's password is already vaulted, hand back the SAME
+    // one instead of resetting (a signup success screen may re-run on a page refresh, and must never
+    // invalidate the password it already showed). getSecretFresh bypasses the cold-container cache so
+    // a refresh reliably sees the prior value. The operator's plain resetpw (no &once) still forces new.
+    if (q.once === '1' || q.once === 'true') {
+      let existing = ''; try { existing = (await getSecretFresh(vaultKey)) || ''; } catch (_) {}
+      if (existing) return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved: true, unchanged: true, new_password: reveal ? existing : undefined, login_url: 'https://tnapplianceexchange.net/platform/owner.html', note: 'existing password revealed (idempotent)' });
+    }
     const newpw = tempPassword();
     const setR = await fetch(`${url}/auth/v1/admin/users/${u.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ password: newpw }), signal: AbortSignal.timeout(12000) });
     if (!setR.ok) { const e = await setR.text().catch(() => ''); return json(200, { ok: false, error: 'password set failed ' + setR.status + ' ' + e.slice(0, 120) }); }
-    const vaultKey = 'PLATFORM_OWNER_PW_' + (slug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
     let saved = false; try { saved = await setSecret(vaultKey, newpw); } catch (_) { saved = false; }
+    // Keep the shop's login pack in sync — so owner.html "Your team logins" + /packs show the NEW
+    // owner password, not the stale one. Best-effort; only when a pack + a slug exist.
+    if (slug) { try {
+      const pk = await readPack(slug);
+      if (pk && Array.isArray(pk.seats)) {
+        const os = pk.seats.find((s) => s.role === 'owner' || String(s.email || '').toLowerCase() === ownerEmail);
+        if (os) { os.password = newpw; pk.updated_at = new Date().toISOString(); await writePack(pk); }
+      }
+    } catch (_) {} }
     // &reveal=1: hand the plaintext back to the admin caller (they already hold the admin
     // secret). For seeding a demo/sandbox hub or a controlled onboarding hand-off — never log it.
-    const reveal = q.reveal === '1' || q.reveal === 'true';
     return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved, new_password: reveal ? newpw : undefined, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
   }
 
