@@ -206,17 +206,28 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
     var params = new URLSearchParams(location.search);
     var p = params.get('billing');
     if(!p) return;
-    var msg = document.getElementById('msg');
-    if(p==='cancel'){ msg.className='msg err'; msg.textContent='No worries — nothing was charged. Pick a plan whenever you’re ready.'; return; }
+    if(p==='cancel'){ var m=document.getElementById('msg'); if(m){ m.className='msg err'; m.textContent='No worries — nothing was charged. Pick a plan whenever you’re ready.'; } return; }
     if(p!=='success') return;
+    // Paid. Take over the WHOLE screen with a clear receipt so the owner never sees the empty
+    // signup form again (that read as "brought me right back to the start page, nothing"). An
+    // overlay leaves the form intact underneath, so nothing else on the page breaks.
+    function overlay(html){
+      var o=document.getElementById('__paid_overlay');
+      if(!o){ o=document.createElement('div'); o.id='__paid_overlay';
+        var bg=''; try{ bg=getComputedStyle(document.body).backgroundColor; }catch(_){}
+        o.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;background:'+(bg&&bg!=='rgba(0, 0, 0, 0)'?bg:'#0b0d10');
+        document.body.appendChild(o); }
+      o.innerHTML='<div style="max-width:460px;text-align:center;font:16px/1.55 system-ui,-apple-system,sans-serif;color:#f1f1f1">'+html+'</div>';
+    }
+    overlay('<div style="font-size:46px;line-height:1">✅</div><h2 style="margin:14px 0 6px;font-size:24px">Payment received!</h2><p style="opacity:.8;margin:0">Finishing your shop setup…</p>');
+    var reassure='<div style="font-size:46px;line-height:1">✅</div><h2 style="margin:14px 0 8px;font-size:24px">Payment received — you’re all set!</h2><p style="opacity:.9;margin:0 0 12px">We’re setting up your shop right now. Your one-tap sign-in link is on its way to <b>your email</b> (give it a minute, then check your inbox), and we’ve texted the owner too.</p><p style="opacity:.72;margin:0;font-size:14px">Didn’t get it within a few minutes? Just reply to your welcome text and we’ll get you right in.</p>';
     var sid = params.get('session_id')||'';
-    msg.className='msg ok'; msg.textContent='Payment received — finishing your setup…';
-    if(!sid){ msg.textContent="You're all set! Check your email for a link to sign into your dashboard."; return; }
+    if(!sid){ overlay(reassure); return; }
     fetch('/.netlify/functions/platform-signup-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid, origin:location.origin})})
       .then(function(r){return r.json();}).then(function(d){
-        if(d.ok && d.login_url){ window.location.href=d.login_url; return; }
-        msg.textContent=(d&&d.message)||"You're all set! Check your email for a link to sign into your dashboard.";
-      }).catch(function(){ msg.textContent="You're all set! Check your email for a link to sign into your dashboard."; });
+        if(d.ok && d.login_url){ overlay('<div style="font-size:46px;line-height:1">✅</div><h2 style="margin:14px 0 6px;font-size:24px">You’re in!</h2><p style="opacity:.8;margin:0">Taking you to your dashboard…</p>'); window.location.href=d.login_url; return; }
+        overlay(reassure);
+      }).catch(function(){ overlay(reassure); });
   })();
 
   renderPlans();

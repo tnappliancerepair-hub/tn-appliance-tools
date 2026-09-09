@@ -100,9 +100,31 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
     plan: meta.plan || 'office', owner_email: email, owner_name: meta.owner_name || '', owner_phone: meta.owner_phone || '',
     ref: refCode,
   } };
+  // Provisioning creates the owner's auth login THEN the company; it isn't atomic, so a transient
+  // hiccup (or an existing/orphaned auth user from a prior attempt) can leave the FIRST try not-ok
+  // while having already created the auth user. Retry once — the second pass sees the existing user
+  // and completes the company (this is exactly the manual recovery that un-strands a paid signup).
+  // provision is idempotent by slug, so a retry never double-creates.
   let pd = {};
-  try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
-  if (!pd.ok || !pd.company) { console.error('[platform-stripe-webhook] provision failed', pd && pd.error); return null; }
+  for (let attempt = 0; attempt < 2 && !(pd.ok && pd.company); attempt++) {
+    try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
+  }
+  // A PAID signup must NEVER strand silently. If both tries fail, alert the operator on the spot
+  // (text + email, the platform_signup tag reaches Teddy's cell) with the one-line recovery command.
+  if (!pd.ok || !pd.company) {
+    console.error('[platform-stripe-webhook] provision failed', pd && pd.error);
+    try {
+      const notify = require('./_lib/platform-notify');
+      const err = String((pd && pd.error) || 'unknown');
+      await notify.notifyOperator({
+        tag: 'platform_signup',
+        sms: `⚠️ PAID SIGNUP STRANDED: ${meta.name || slug} (${email}) paid but couldn't be set up (${err}). Recover it now — check /shops or ask Ant to provision ${slug}.`,
+        subject: `⚠️ Paid signup stranded — ${meta.name || slug}`,
+        email_body: `A shop PAID but provisioning failed, so the owner has NO dashboard and is stranded.\n\nShop: ${meta.name || slug}\nEmail: ${email}\nSlug: ${slug}\nError: ${err}\n\nRecover: ${SITE}/.netlify/functions/platform-provision?action=provision&secret=<admin>&slug=${slug}&owner_email=${encodeURIComponent(email)}&name=${encodeURIComponent(meta.name || slug)}&trade=${meta.trade || 'appliance'}&plan=${meta.plan || 'office'}\nThen mint a magiclink (action=magiclink&email=${encodeURIComponent(email)}) and send it to them.`,
+      });
+    } catch (_) {}
+    return null;
+  }
   const companyId = pd.company.id;
   // Stamp the accepted Merchant Agreement (durable acceptance audit) + the Ann request flag onto
   // settings. Always record terms when the signup carried a version; add the Ann flag if ticked.
