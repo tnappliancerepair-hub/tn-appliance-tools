@@ -19,15 +19,28 @@ const { getSecret } = require('./secrets');
 // SMS ~$0.013 all-in on T-Mobile (rate $0.0085 + carrier $0.0045) is unchanged.
 // Cost basis only — never shown to a shop.
 const COST = { voice_min: 6.8, sms_out: 1.3, sms_in: 0.75 };
-// Plan defaults when a shop has no client_plan row yet (generous fair-use + safety caps).
-// Ann plan (Teddy 2026-08-28): $50/week = 400 included minutes, $0.40/min overage. 400 (not
-// 500) keeps a healthy margin even at full usage ($50 − 400×$0.068 = $22.91/wk, 46%). Single source —
-// the weekly digest, the owner dashboard card, and metering all read included_voice_min here.
+// Plan defaults when a shop has no client_plan row yet (generous fair-use + safety caps). These
+// MIRROR platform/plans.js ANN / ANN_PRO — that file is what BILLS; this is what the meter, the
+// weekly digest, and the owner dashboard card show. Keep the two in step or a shop sees an
+// allowance it isn't actually on.
+//   Starter $50/wk  =  400 min + 250 texts,  overage $0.40/min, $0.05/text
+//   Pro    $125/wk  = 1000 min + 800 texts,  overage $0.25/min, $0.05/text
+// Both are 12.5c per included minute — Pro buys headroom, not a better rate. Included texts went
+// 100 -> 250 on 2026-09-08: at ~5 texts/job (confirm, day-before, on-my-way, complete, review ask)
+// 100 was only ~20 jobs/wk, so nearly every shop hit text overage in week one on messages OUR
+// automation sent. 250 ~= 50 jobs/wk, so overage only reaches a genuinely busy shop.
 const DEFAULT_PLAN = {
-  tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 100,
+  tier: 'ann_weekly', base_price_cents: 5000, billing_period: 'week', included_voice_min: 400, included_sms: 250,
   voice_overage_cents: 40, sms_overage_cents: 5,
   cap_sms_per_hour: 200, cap_sms_per_day: 2000, cap_voice_min_per_day: 600, hard_stop: false,
 };
+const DEFAULT_PLAN_PRO = {
+  tier: 'ann_pro', base_price_cents: 12500, billing_period: 'week', included_voice_min: 1000, included_sms: 800,
+  voice_overage_cents: 25, sms_overage_cents: 5,
+  cap_sms_per_hour: 400, cap_sms_per_day: 4000, cap_voice_min_per_day: 1200, hard_stop: false,
+};
+// Defaults for a tier key. Unknown/absent -> Starter, so an untagged tenant is unchanged.
+function planDefaultsForTier(key) { return key === 'ann_pro' ? DEFAULT_PLAN_PRO : DEFAULT_PLAN; }
 
 async function db() {
   const base = ((await getSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
@@ -35,13 +48,24 @@ async function db() {
   return { base, H: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' } };
 }
 
+// An explicit client_plan row always wins. With no row we fall back to the defaults for the tier
+// the company is actually ON (company.settings.phone.ann_tier) — otherwise a Pro shop with no row
+// would be shown a 400-minute allowance it already paid past. Tier read costs one extra fetch and
+// only happens on the no-row path.
 async function getPlan(companyId) {
   const { base, H } = await db();
   try {
     const r = await fetch(`${base}/rest/v1/client_plan?company_id=eq.${companyId}&limit=1`, { headers: H, signal: AbortSignal.timeout(8000) });
     const row = r.ok ? ((await r.json().catch(() => []))[0]) : null;
-    return row || { company_id: companyId, ...DEFAULT_PLAN, _default: true };
-  } catch (_) { return { company_id: companyId, ...DEFAULT_PLAN, _default: true }; }
+    if (row) return row;
+  } catch (_) { /* fall through to tier default */ }
+  let tierKey = '';
+  try {
+    const r2 = await fetch(`${base}/rest/v1/company?id=eq.${companyId}&select=settings&limit=1`, { headers: H, signal: AbortSignal.timeout(8000) });
+    const c = r2.ok ? ((await r2.json().catch(() => []))[0]) : null;
+    tierKey = (c && c.settings && c.settings.phone && c.settings.phone.ann_tier) || '';
+  } catch (_) {}
+  return { company_id: companyId, ...planDefaultsForTier(tierKey), _default: true };
 }
 
 // Count qty of a kind for a company since `sinceISO`.
@@ -208,4 +232,4 @@ function weeklyStatus(w, allowanceMin) {
   return { minutes: w.minutes, texts: w.texts, allowance_min: allow, pct, over: w.minutes >= allow, near: pct >= 80, week_label: w.week_label };
 }
 
-module.exports = { COST, DEFAULT_PLAN, getPlan, guardrail, record, rollup, ownerDigest, weekBoundsCT, weeklyTelnyx, weeklyStatus };
+module.exports = { COST, DEFAULT_PLAN, DEFAULT_PLAN_PRO, planDefaultsForTier, getPlan, guardrail, record, rollup, ownerDigest, weekBoundsCT, weeklyTelnyx, weeklyStatus };

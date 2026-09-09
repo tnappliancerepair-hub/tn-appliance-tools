@@ -761,7 +761,7 @@
       sb.from('usage_event').select('kind,qty,at').gte('at',mStart).limit(10000),
       sb.from('client_plan').select('included_voice_min,included_sms,tier').limit(1)
     ]).then(function(res){
-      var evs=(res[0].data)||[], plan=(res[1].data&&res[1].data[0])||{included_voice_min:500,included_sms:200,tier:'starter'};
+      var evs=(res[0].data)||[], plan=(res[1].data&&res[1].data[0])||{included_voice_min:400,included_sms:250,tier:'ann_weekly'};
       var vmin=0, sms=0; evs.forEach(function(e){ if(e.kind==='voice_min') vmin+=Number(e.qty)||0; else if(e.kind==='sms_out') sms+=Number(e.qty)||0; });
       vmin=Math.round(vmin); sms=Math.round(sms);
       var vpct=plan.included_voice_min?Math.min(100,Math.round(vmin/plan.included_voice_min*100)):0;

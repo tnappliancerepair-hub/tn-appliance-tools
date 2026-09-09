@@ -104,15 +104,17 @@ exports.handler = async function (event) {
     const key = await stripeKey();
     if (!key) return J(200, { ok: false, error: 'stripe_not_configured', note: 'set PLATFORM_STRIPE_SECRET_KEY (or STRIPE_SECRET_KEY) first' });
     const stripe = new Stripe(key);
-    let cat; try { cat = await module.exports.ensureAnnCatalog(stripe); }
+    // ?tier=ann_pro to create the Pro tier's prices; omit for Starter. Run it once per tier.
+    const tier = plans.annTier(q.tier || body.tier || '');
+    let cat; try { cat = await module.exports.ensureAnnCatalog(stripe, tier); }
     catch (e) { return J(200, { ok: false, error: 'stripe_err', detail: String((e && e.message) || e).slice(0, 200) }); }
-    return J(200, { ok: true, test_mode: /^sk_test_/.test(key), created: cat,
-      vault_these: {
-        STRIPE_PRICE_ANN_BASE: cat.base,
-        STRIPE_PRICE_ANN_MIN_OVERAGE: cat.min,
-        STRIPE_PRICE_ANN_TEXT_OVERAGE: cat.text,
-      },
-      note: 'Vault the 3 STRIPE_PRICE_ANN_* ids. Meter event names (ann_minutes/ann_texts) are code constants — no vault needed.' });
+    const vault = {};
+    vault[tier.price_env_base] = cat.base;
+    vault[tier.price_env_min_overage] = cat.min;
+    vault[tier.price_env_text_overage] = cat.text;
+    return J(200, { ok: true, test_mode: /^sk_test_/.test(key), tier: tier.key, created: cat,
+      vault_these: vault,
+      note: 'Vault these 3 price ids for tier ' + tier.key + '. Meter event names (ann_minutes/ann_texts) are shared code constants — no vault needed. Re-run with ?tier=ann_pro for the Pro tier.' });
   }
 
   // setup_plans — one-time: create the monthly software + add-on prices in Stripe + return ids.
@@ -261,7 +263,7 @@ async function signupCheckout(opts) {
 module.exports.signupCheckout = signupCheckout;
 
 // ── ANN METERED BILLING (Stripe Billing Meters API) ─────────────────────────
-// Ann is the ONE metered product: a weekly flat base ($50, includes 400 min + 100 texts)
+// Ann is the ONE metered product: a weekly flat base (Starter $50 = 400 min + 250 texts; Pro $125 = 1000 min + 800 texts)
 // + two metered overage prices (minutes over 400 @ $0.40, texts over 100 @ $0.05). Stripe
 // now REQUIRES a backing Billing Meter for every metered price (the legacy usage-records
 // path is deprecated), so we create two meters and report usage as METER EVENTS keyed to the
@@ -296,21 +298,24 @@ async function ensurePrice(stripe, lookupKey, spec) {
 
 // Ensure the full Ann catalog exists in Stripe (2 meters + 3 prices). Idempotent. Returns the
 // ids. This is what the setup action creates + what billing falls back to when no ids are vaulted.
-async function ensureAnnCatalog(stripe) {
-  const A = plans.ANN;
+// Tier-aware: each Ann tier gets its OWN Stripe prices (different base + different minute-overage
+// rate), keyed by that tier's lookup_* so Pro can never reuse the Starter price. The two METERS
+// are shared — a meter is just the counter; the per-tier price is what turns a count into money.
+async function ensureAnnCatalog(stripe, tier) {
+  const A = plans.annTier(tier && tier.key ? tier.key : tier);
   const minMeter = await ensureMeter(stripe, ANN_MIN_EVENT, 'Ann minute overage');
   const textMeter = await ensureMeter(stripe, ANN_TEXT_EVENT, 'Ann text overage');
-  const base = await ensurePrice(stripe, 'ann_base_wk', {
+  const base = await ensurePrice(stripe, A.lookup_base, {
     unit_amount: A.base_cents, recurring: { interval: 'week' },
-    product_data: { name: 'Ant Platform — Ann (weekly base)' },
+    product_data: { name: 'Ant Platform — ' + A.label + ' (weekly base)' },
   });
-  const min = await ensurePrice(stripe, 'ann_min_overage_wk', {
+  const min = await ensurePrice(stripe, A.lookup_min, {
     unit_amount: A.overage_min_cents, recurring: { interval: 'week', usage_type: 'metered', meter: minMeter.id },
-    product_data: { name: 'Ant Platform — Ann minute overage' }, metadata: { ann_meter: 'min' },
+    product_data: { name: 'Ant Platform — ' + A.label + ' minute overage' }, metadata: { ann_meter: 'min', ann_tier: A.key },
   });
-  const text = await ensurePrice(stripe, 'ann_text_overage_wk', {
+  const text = await ensurePrice(stripe, A.lookup_text, {
     unit_amount: A.overage_text_cents, recurring: { interval: 'week', usage_type: 'metered', meter: textMeter.id },
-    product_data: { name: 'Ant Platform — Ann text overage' }, metadata: { ann_meter: 'text' },
+    product_data: { name: 'Ant Platform — ' + A.label + ' text overage' }, metadata: { ann_meter: 'text', ann_tier: A.key },
   });
   return {
     base: base.id, min: min.id, text: text.id,
@@ -319,14 +324,14 @@ async function ensureAnnCatalog(stripe) {
   };
 }
 
-// Resolve the 3 Ann price ids: prefer vaulted (STRIPE_PRICE_ANN_*), else the catalog.
-async function annPriceIds(stripe) {
-  const A = plans.ANN;
+// Resolve the 3 Ann price ids FOR ONE TIER: prefer that tier's vaulted price envs, else catalog.
+async function annPriceIds(stripe, tier) {
+  const A = plans.annTier(tier && tier.key ? tier.key : tier);
   const vBase = String((await getSecret(A.price_env_base)) || '').trim();
   const vMin = String((await getSecret(A.price_env_min_overage)) || '').trim();
   const vText = String((await getSecret(A.price_env_text_overage)) || '').trim();
   if (vBase && vMin && vText) return { base: vBase, min: vMin, text: vText };
-  const cat = await ensureAnnCatalog(stripe);
+  const cat = await ensureAnnCatalog(stripe, A);
   return { base: vBase || cat.base, min: vMin || cat.min, text: vText || cat.text };
 }
 
@@ -338,14 +343,16 @@ async function ensureAnnSubscription(pf, stripe, company) {
   if (phone.ann && phone.ann.subscription_id) return phone.ann;
   const customerId = company.stripe_customer_id;
   if (!customerId) return { error: 'no_stripe_customer' };
-  const ids = await annPriceIds(stripe);
+  const tier = plans.annTierFor(company);            // settings.phone.ann_tier, default Starter
+  const ids = await annPriceIds(stripe, tier);
   const sub = await stripe.subscriptions.create({
     customer: customerId,
     items: [{ price: ids.base }, { price: ids.min }, { price: ids.text }],
     collection_method: 'charge_automatically',
-    metadata: { company_id: company.id, ann: '1' },
+    metadata: { company_id: company.id, ann: '1', ann_tier: tier.key },
   });
-  const ann = { subscription_id: sub.id, created_at: Date.now() };
+  // Stamp the tier the sub was created on — a later tier change needs a NEW sub, not a reprice.
+  const ann = { subscription_id: sub.id, tier: tier.key, created_at: Date.now() };
   const nextSettings = Object.assign({}, company.settings, { phone: Object.assign({}, phone, { ann }) });
   await pf.patch('company', `id=eq.${encodeURIComponent(company.id)}`, { settings: nextSettings, updated_at: new Date().toISOString() });
   return ann;

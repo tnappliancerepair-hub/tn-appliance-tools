@@ -64,6 +64,68 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜💵 2026-09-09 (Tue) — ANN PRICING: texts 100→250, NEW $125 Pro tier, billing made TIER-AWARE — READ FIRST
+
+Teddy set the plan shape. Both Ann tiers are now **12.5¢ per included minute** — stepping up buys
+headroom, not a better rate. Crossover ~**588 min/wk** (past that, Pro beats Starter+overage, and
+OUR margin at the crossover is identical either way, so moving a busy shop up costs us nothing).
+
+| tier | base | included | overage |
+|---|---|---|---|
+| `ann_phone` Starter | **$50/wk** | 400 min + **250 texts** | $0.40/min · $0.05/text |
+| `ann_pro` **Pro (NEW)** | **$125/wk** | 1000 min + 800 texts | $0.25/min · $0.05/text |
+
+### 💬 Why texts went 100 → 250
+At **~5 texts per job** (confirm · day-before · on-my-way · complete · review ask), 100 texts is only
+**~20 jobs/wk** — so nearly every shop hit text overage in week ONE, on messages **our own automation
+sent**. Two problems: it turns "$50/week" into "$60/week with an extra line," and it hands the shop a
+reason to switch OFF the review-request text — breaking the review-velocity flywheel to collect $10.
+250 ≈ 50 jobs/wk, so overage only reaches a genuinely busy shop. Overage stays 5¢ (3.8× our 1.3¢ cost).
+⚠️ **The 5-texts-per-job figure is DERIVED from platform behaviour, not measured** — TN's platform
+texting is off by owner directive, so there's no tenant history to count. Recheck after real usage.
+
+### 🔴 TIER-AWARENESS WAS THE REAL WORK (adding a tier without it = over-billing)
+`platform-usage-bill.js` hardcoded `plans.ANN`, so a Pro shop would have been billed against **Starter**
+allowances — charged overage on minutes it already paid for. Every layer now resolves per company:
+- **`platform/plans.js`** — `ANN` + new `ANN_PRO`, `ANN_TIERS`, **`annTier(key)`** / **`annTierFor(company)`**.
+  A company's tier lives at **`settings.phone.ann_tier`**; absent → Starter, so every existing tenant
+  is byte-for-byte unchanged. Each tier carries its OWN `lookup_*` + `price_env_*` so Pro can never
+  reuse the $50 Stripe price.
+- **`platform-billing.js`** — `ensureAnnCatalog(stripe, tier)`, `annPriceIds(stripe, tier)`,
+  `ensureAnnSubscription` subscribes on the company's own tier and **stamps `ann.tier`** on the sub.
+  `?action=setup_ann&tier=ann_pro` creates + returns the Pro price ids to vault. The two **meters are
+  shared** (a meter is just a counter); the per-tier *price* is what turns a count into money.
+- **`platform-usage-bill.js`** — `plans.annTierFor(company)`; result rows now carry `tier` +
+  `included_min` + `included_texts` so a shadow run shows which allowance it billed against.
+- **`_lib/usage-meter.js`** — `DEFAULT_PLAN.included_sms` 100→250, new `DEFAULT_PLAN_PRO`,
+  `planDefaultsForTier()`. **`getPlan` now falls back to the tier the company is actually ON** (one
+  extra fetch, only on the no-`client_plan`-row path) — otherwise a Pro shop with no row would be
+  shown a 400-minute allowance it had already paid past.
+- Copy fixed everywhere it was stale: `platform/home.html`, `platform/signup.html`, and
+  `platform/owner.html` (whose hardcoded fallback said **500 min / 200 texts — a tier that never existed**).
+
+### ⚠️ CORRECTION TO MY OWN CLAIM (2026-09-08)
+I told Teddy "there's no metered billing — nothing turns 220 over into $11." **Wrong.**
+**`platform-usage-bill.js` already does exactly that**: weekly, reads the last completed Mon–Sun
+straight from Telnyx per number+assistant, computes overage, reports Stripe **meter events**
+(identifier-deduped so a re-run can't double-charge). It is **SHADOW by default** —
+`PLATFORM_BILLING_LIVE != 'true'` → computes and charges nothing. That's why it looked absent.
+
+### 💰 Margin at the real numbers (cost $0.068/min + $0.013/text + ~$3.50/wk fixed)
+Starter: light (200 min/180 tx) **61%** · typical (300/300) **47%** · both caps (400/300) **34%**.
+Pro: 600/500 **59%** · at cap (1000/800) **34.5%**. A 600-min shop pays **$142.50 on Starter vs $125 on
+Pro** — the tier hands back $17.50/wk of margin **on purpose**, buying retention instead of a churn call.
+
+### ⏭️ OPEN
+- **The ~$3.50/wk fixed per-shop cost (DID ~$1/mo + 10DLC brand/campaign ~$12/mo) is an ESTIMATE.**
+  Nobody has priced the 10DLC line off a real Telnyx invoice. If it's $25 not $12, Starter's
+  worst case drops another ~6 points. **Pull the invoice before designing further around it.**
+- Pro tier has **no Stripe prices yet** — run `platform-billing?action=setup_ann&tier=ann_pro&secret=<admin>`
+  and vault the 3 returned `STRIPE_PRICE_ANN_PRO_*` ids when a shop actually needs Pro.
+- Moving a shop between tiers needs a **NEW subscription**, not a reprice — `ann.tier` is stamped at
+  create time and `ensureAnnSubscription` short-circuits on an existing `subscription_id`.
+- Still nothing sets `settings.phone.ann_tier` from a UI — it's a manual settings write today.
+
 ## 🗓️🐜💸 2026-09-08 (Mon, late) — TELNYX AI-MINUTE COST: real all-in is **6.8¢/min**, and the footgun that hid it — READ FIRST
 
 Teddy: *"Telnyx said rates were gonna be changing — verify what these AI minutes cost us"* (the $50 / 400-minute Ann plan). Measured against the carrier's own billed Detail Records. **I got this wrong once mid-session and corrected it; the wrong number is the lesson.**

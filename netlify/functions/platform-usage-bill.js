@@ -1,7 +1,8 @@
 // platform-usage-bill — the weekly Stripe metered biller for Ann. Once a week it reads each
 // tenant's LAST completed Mon–Sun week straight from Telnyx (by number + assistant), computes
-// the overage above the included 400 min + 100 texts ($0.40/min, $0.05/text), and reports as Stripe usage records
-// against the tenant's Ann metered subscription items. The flat $50 base rides Stripe's own
+// the overage above THAT TENANT'S TIER allowance (Starter 400 min + 250 texts @ $0.40/$0.05;
+// Pro 1000 min + 800 texts @ $0.25/$0.05 — see platform/plans.js), and reports as Stripe usage
+// records against the tenant's Ann metered subscription items. The flat base rides Stripe's own
 // weekly cycle; this only reports the OVERAGE (usage_type:'metered' items). Billing is exact
 // per shop because each tenant = one number + one assistant (usage-meter.weeklyTelnyx).
 //
@@ -30,9 +31,12 @@ exports.config = { timeout: 60 };
 function lastWeekAnchor() { return Date.now() - 7 * 86400000; }
 
 async function billTenant(pf, stripe, live, company, anchorMs) {
-  const A = plans.ANN;
+  // Per-tenant tier (settings.phone.ann_tier). MUST be per-company, not plans.ANN — billing a Pro
+  // shop against Starter allowances would charge them overage on minutes they already paid for.
+  const A = plans.annTierFor(company);
   const phone = (company.settings && company.settings.phone) || {};
-  const out = { slug: company.slug || company.id, company_id: company.id };
+  const out = { slug: company.slug || company.id, company_id: company.id, tier: A.key,
+                included_min: A.included_min, included_texts: A.included_texts };
   if (!phone.number) { out.skip = 'no_phone'; return out; }
 
   let w;
@@ -57,7 +61,7 @@ async function billTenant(pf, stripe, live, company, anchorMs) {
 
   // Ensure the Ann subscription EXISTS for every phone tenant (idempotent — no Stripe call after
   // the first time). This is what makes the flat $50/week base bill on Stripe's own weekly cycle
-  // EVEN in weeks with no overage — so a shop that stays under 400 min / 100 texts still pays $50,
+  // EVEN in weeks with no overage — so a shop that stays inside its allowance still pays its base,
   // never gets Ann free. The biller then only ADDS the overage on top.
   const ann = await billing.ensureAnnSubscription(pf, stripe, company);
   if (ann.error) { out.result = 'ann_sub_' + ann.error; return out; }
