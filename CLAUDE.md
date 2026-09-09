@@ -64,6 +64,45 @@ truth for daily ops; Supabase is being filled in parallel.** Edit a bridge only 
 3. Does the fix belong in the other one too, or only this one? Usually **only this one.**
 
 
+## 🗓️🐜📦 2026-09-09 (Tue) — XANO→PLATFORM PARITY #1: PARTS-RETURN TRACKING (the chargeback killer) — v1 + phase-2 RMA tee, LIVE — READ FIRST
+
+Teddy is prepping TN to go **full-time on the Supabase platform** (off legacy Xano/HCP) and wants the handful of
+things the old system does well carried over one at a time — a living **parity punch-list**. First pick =
+**PARTS-RETURN TRACKING** (SquareTrade/Allstate ship a pile of parts per job; an un-returned part = lost pay +
+a core charge, so it's real money protection). **PLATFORM ONLY** (the legacy Xano `squaretrade-rma-watch.js` is
+untouched). Shipped in two commits.
+
+### ✅ v1 — snap-to-return + office worklist (commit `d061fed0`)
+The `job_part` table already had `disposition` (`used|return|not_here`) + a tech disposition writer in
+`platform/tech-job.html` "🔩 PARTS TRACKER" + the warranty-parts auto-flow-in (`platform-tn-parts-migrate.js`).
+The gaps closed: migration **`056_part_return.sql`** (`returned_at`/`returned_by` close-loop + phase-2 RMA
+columns `rma_number`/`return_tracking`/`return_carrier`), a **camera-first "snap the unused parts" flow** (tech
+photographs each part → OCR reads the part# → a `job_part` `disposition='return'` row with the photo; unreadable
+photo still logs the return — the photo IS the record), and **`platform/returns.html`** — the office cross-job
+worklist (every `disposition='return' AND returned_at IS NULL` grouped by job/claim/customer, oldest-first, part#
++ photo thumbnail + a "✓ Shipped back" tap that stamps `returned_at` so it drops off).
+
+### ✅ phase-2 — SquareTrade RMA-label auto-match (commit `ce476c4d`, LIVE + cron `11-59/15`)
+**NEW `platform-rma-tee.js` + `-cron.js`** — the automation layer on top of v1. Reads TN's Gmail (read-only) for
+the prepaid return-label emails from **`rma_request@squaretrade.com`**, parses **each part** (RMA# · FedEx
+tracking# · distributor · part# · claim# via `parseReturns()`, ported byte-for-byte from the proven legacy
+watcher), matches to a platform job by **claim + normalized part#** (`normP` = uppercase, strip non-alphanumeric),
+and stamps `rma_number`/`return_tracking`/`return_carrier` onto that job's return row — **creating the return row
+if the tech hasn't logged it yet**, so an owed-back part can never slip. Idempotent (keyed on job + normalized
+part#; re-runs update, never duplicate). Reads Gmail read-only; writes ONLY into TN's platform tenant
+(`be4d11a1-…`) with the service key.
+- **Verified LIVE (dryrun, zero writes):** `scanned:8 parts:8 created:4 updated:4 unmatched_claim:0 no_part:0` —
+  4 real parts each matched to a real platform job by claim with correct RMA#/tracking/distributor extraction
+  (MARCONE 5304528029 RMA 7167476 → would-create · RELIABLE WE03X27417 RMA 0738816 → would-update · UED
+  EBF62174907 RMA 851883 → would-create · ENCOMPASS WH22X35701 RMA 1-98670 → would-update).
+- **⚠️ The cron fires LIVE writes** every 15 min, gated only by vault **`PLATFORM_RMA_TEE_ENABLED`** (default on;
+  set `=false` to pause). Curl-testable core: `platform-rma-tee?secret=<admin>&dryrun=1`.
+- **The parts-return chargeback-killer is now fully carried over:** tech snaps the unused parts → office worklist
+  → RMA labels auto-attach themselves. Cron-offset 11 avoids collisions with existing `/15` crons (7, 9, 13).
+
+### ⏭️ Parity punch-list — next picks (NOT started; Teddy's call, one at a time)
+Warranty claim auto-file · parts finder + live Marcone pricing · troubleshooting brain / rich TDR.
+
 ## 🗓️🐜⭐ 2026-09-09 (Tue) — REVIEW ASKS: the link was a DEAD END on every platform shop (fixed) + one nudge — READ FIRST
 
 Teddy: *"fix the review ask engagement leak for the supabase customers moving forward."* The Xano-side
