@@ -7,7 +7,17 @@
 import { config } from '../config.js';
 import { normalizeE164, toCustomer } from '../sms.js';
 
-const WEEKLY_CAP = 10;
+// Tunable so the pool can be worked at a sane pace. Against a customer base this
+// size, 10/week is a rounding error - but this is also the exact machinery that
+// caused the 2026 over-texting incidents, so the default stays modest and the
+// number lives in one place. Set REACTIVATION_WEEKLY_CAP to change it.
+const WEEKLY_CAP = Math.max(1, Math.min(500, parseInt(process.env.REACTIVATION_WEEKLY_CAP, 10) || 25));
+
+// NOTE: toCustomer() routes through Xano send_sms, which enforces the
+// intake-only gate (Teddy 2026-07-14: "no proactive texts, don't text unless
+// texted first"). A 'reactivation_sent' tag is NOT on that allowlist, so these
+// will log as sms_blocked_non_intake until the gate is deliberately opened for
+// this tag. That brake is intentional - it is not a bug to route around.
 
 export async function run(signal, ctx) {
   const { xano, log } = ctx;

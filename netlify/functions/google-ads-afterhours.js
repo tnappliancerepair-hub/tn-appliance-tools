@@ -137,6 +137,55 @@ exports.handler = async function (event) {
     return { ok: r.ok, status: r.status, d, err: r.ok ? null : { message: (d.error && d.error.message) || null, detail: detail || (d.error && d.error.status) || d } };
   }
 
+  // ── STEP: reset the hour-by-hour bid schedule ───────────────────────────────────
+  // The original schedule bids 0.6x on weekdays 7am-5pm on purpose: when the goal
+  // was cheap uncontested after-hours leads, deliberately under-bidding while the
+  // competition is awake was correct. It is the wrong setting when the goal is
+  // VOLUME - it hands back the highest-search-volume window of the week on a
+  // campaign already losing 59.6% of its impressions to rank.
+  //
+  // &daytime= sets the weekday 7am-5pm modifier (default 1.0 = stop handicapping
+  // ourselves without over-correcting). Evenings and weekends keep their 1.4x edge.
+  // This replaces the schedule wholesale, so it is idempotent and reversible:
+  // &daytime=0.6 puts the original back exactly.
+  if (step === 'schedule') {
+    const campId = dig(q.campaign);
+    if (!campId) return json(400, { ok: false, error: 'step=schedule needs &campaign=<id>' });
+    const daytime = Math.max(0.1, Math.min(4, parseFloat(q.daytime) || 1.0));
+    const campRes2 = `customers/${cid}/campaigns/${campId}`;
+
+    const cur = await post('/googleAds:search', { query:
+      `SELECT campaign_criterion.resource_name, campaign_criterion.ad_schedule.day_of_week,
+              campaign_criterion.ad_schedule.start_hour, campaign_criterion.ad_schedule.end_hour,
+              campaign_criterion.bid_modifier
+       FROM campaign_criterion
+       WHERE campaign.id = ${campId} AND campaign_criterion.type = 'AD_SCHEDULE'` });
+    const old = ((cur.d && cur.d.results) || []).map((x) => x.campaignCriterion || {});
+
+    const WD = [{ s: 0, e: 7, mod: 1.0 }, { s: 7, e: 17, mod: daytime }, { s: 17, e: 23, mod: 1.4 }, { s: 23, e: 24, mod: 1.0 }];
+    const WE = [{ s: 0, e: 7, mod: 1.0 }, { s: 7, e: 23, mod: 1.4 }, { s: 23, e: 24, mod: 1.0 }];
+    const want = [];
+    WEEKDAYS.forEach((d) => WD.forEach((b) => want.push({ create: { campaign: campRes2, bidModifier: b.mod, adSchedule: { dayOfWeek: d, startHour: b.s, startMinute: 'ZERO', endHour: b.e, endMinute: 'ZERO' } } })));
+    WEEKEND.forEach((d) => WE.forEach((b) => want.push({ create: { campaign: campRes2, bidModifier: b.mod, adSchedule: { dayOfWeek: d, startHour: b.s, startMinute: 'ZERO', endHour: b.e, endMinute: 'ZERO' } } })));
+
+    if (!apply) {
+      return json(200, { ok: true, mode: 'preview schedule', campaign: campId, new_weekday_daytime_modifier: daytime,
+        current: old.map((x) => ({ day: x.adSchedule && x.adSchedule.dayOfWeek, hours: `${x.adSchedule && x.adSchedule.startHour}-${x.adSchedule && x.adSchedule.endHour}`, mod: x.bidModifier })),
+        will_set: { weekday: WD, weekend: WE }, revert_with: '&daytime=0.6' });
+    }
+    // Every hour of the week must stay covered - an uncovered hour does not serve
+    // at all. So write the new set FIRST, then remove the old one.
+    const added = await post('/campaignCriteria:mutate', { partialFailure: true, operations: want });
+    let removed = { ok: true };
+    const oldRes = old.map((x) => x.resourceName).filter(Boolean);
+    if (added.ok && oldRes.length) {
+      removed = await post('/campaignCriteria:mutate', { partialFailure: true, operations: oldRes.map((rn) => ({ remove: rn })) });
+    }
+    return json(200, { ok: !!(added.ok && removed.ok), mode: 'schedule set', campaign: campId,
+      weekday_daytime_modifier: daytime, added_ok: added.ok, old_removed: removed.ok ? oldRes.length : 0,
+      errs: [added.err, removed.err].filter(Boolean), revert_with: '&step=schedule&daytime=0.6&apply=1' });
+  }
+
   // ── STEP: change an existing campaign's daily budget ─────────────────────────────
   if (step === 'budget') {
     const campId = dig(q.campaign);

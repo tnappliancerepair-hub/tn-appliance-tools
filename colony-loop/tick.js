@@ -31,6 +31,9 @@ const LEAN_KEEP = new Set([
   'OFFICE_EOD_SUMMARY', 'DAILY_REVENUE_SUMMARY',
   // self-scheduling autopilot — the universal auto-place trigger
   'AUTO_SCHEDULE_SWEEP',
+  // win-back. Muted here since June, which is why the Monday campaign has sent
+  // nothing in 90 days: emitScheduled() dropped it before it reached the queue.
+  'REACTIVATION_CAMPAIGN',
 ]);
 // Every scheduled (clock-driven) emit routes through here. In lean mode a
 // non-kept signal is dropped before it touches the queue. Calls store.emitSignal

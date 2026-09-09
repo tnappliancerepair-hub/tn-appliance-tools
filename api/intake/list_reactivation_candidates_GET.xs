@@ -10,7 +10,7 @@ query list_reactivation_candidates verb=GET {
 
   stack {
     var $months_eff {
-      value = ($input.months_dormant ?? 24)
+      value = ($input.months_dormant ?? 6)
     }
   
     var $limit_eff {
@@ -21,14 +21,11 @@ query list_reactivation_candidates verb=GET {
       value = (now|to_ms) - ($months_eff * 30 * 24 * 60 * 60 * 1000)
     }
   
-    var $cutoff_ts {
-      value = ($cutoff_ms / 1000)|to_timestamp
-    }
-  
+
     // Pull customers with last activity older than cutoff. We approximate
     // 'most-recent job' by checking customer.created_at (proxy).
     db.query customer {
-      where = $db.customer.created_at < $cutoff_ts && ($db.customer.phone != null && $db.customer.phone != "")
+      where = $db.customer.created_at < $cutoff_ms && ($db.customer.phone != null && $db.customer.phone != "")
       sort = {customer.created_at: "desc"}
       return = {type: "list", paging: {page: 1, per_page: $limit_eff}}
     } as $cust_rows
@@ -40,12 +37,12 @@ query list_reactivation_candidates verb=GET {
     foreach ($cust_rows.items) {
       each as $c {
         // Skip customers with any job in last 6 months
-        var $six_mo_ts {
-          value = (((now|to_ms) - (6 * 30 * 24 * 60 * 60 * 1000)) / 1000)|to_timestamp
+        var $six_mo_ms {
+          value = (now|to_ms) - (6 * 30 * 24 * 60 * 60 * 1000)
         }
       
         db.query jobs {
-          where = $db.jobs.customer_id == $c.id && $db.jobs.created_at >= $six_mo_ts
+          where = $db.jobs.customer_id == $c.id && $db.jobs.created_at >= $six_mo_ms
           return = {type: "count"}
         } as $recent_count
       
