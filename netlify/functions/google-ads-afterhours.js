@@ -151,7 +151,18 @@ exports.handler = async function (event) {
   if (step === 'schedule') {
     const campId = dig(q.campaign);
     if (!campId) return json(400, { ok: false, error: 'step=schedule needs &campaign=<id>' });
-    const daytime = Math.max(0.1, Math.min(4, parseFloat(q.daytime) || 1.0));
+    const mod = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.max(0.1, Math.min(4, n)) : dflt; };
+    // Defaults are set from the account's own 30-day hour-of-day numbers, not from
+    // the original after-hours theory:
+    //   weekday 07-17 throttled to 0.6x  -> 61 clicks, 3 conv, CPC $2.05  (cheapest)
+    //   weekday 17-23 pressed to 1.4x    -> 59 clicks, 1 conv, CPC $4.83  (2.4x dearer)
+    //   weekday 00-07                    -> 12 clicks, 0 conv, $41 spent
+    // The conversion counts are thin and the booked-job signal was only just
+    // reconnected, so this leans on CPC - 700+ clicks of it - not on 7 conversions.
+    const daytime   = mod(q.daytime, 1.2);   // press where clicks are cheapest
+    const evening   = mod(q.evening, 1.0);   // stop paying a premium for the dearest hour
+    const overnight = mod(q.overnight, 0.6); // no conversions, real money
+    const weekendDay = mod(q.weekend, 1.2);
     const campRes2 = `customers/${cid}/campaigns/${campId}`;
 
     const cur = await post('/googleAds:search', { query:
@@ -162,16 +173,16 @@ exports.handler = async function (event) {
        WHERE campaign.id = ${campId} AND campaign_criterion.type = 'AD_SCHEDULE'` });
     const old = ((cur.d && cur.d.results) || []).map((x) => x.campaignCriterion || {});
 
-    const WD = [{ s: 0, e: 7, mod: 1.0 }, { s: 7, e: 17, mod: daytime }, { s: 17, e: 23, mod: 1.4 }, { s: 23, e: 24, mod: 1.0 }];
-    const WE = [{ s: 0, e: 7, mod: 1.0 }, { s: 7, e: 23, mod: 1.4 }, { s: 23, e: 24, mod: 1.0 }];
+    const WD = [{ s: 0, e: 7, mod: overnight }, { s: 7, e: 17, mod: daytime }, { s: 17, e: 23, mod: evening }, { s: 23, e: 24, mod: overnight }];
+    const WE = [{ s: 0, e: 7, mod: overnight }, { s: 7, e: 23, mod: weekendDay }, { s: 23, e: 24, mod: overnight }];
     const want = [];
     WEEKDAYS.forEach((d) => WD.forEach((b) => want.push({ create: { campaign: campRes2, bidModifier: b.mod, adSchedule: { dayOfWeek: d, startHour: b.s, startMinute: 'ZERO', endHour: b.e, endMinute: 'ZERO' } } })));
     WEEKEND.forEach((d) => WE.forEach((b) => want.push({ create: { campaign: campRes2, bidModifier: b.mod, adSchedule: { dayOfWeek: d, startHour: b.s, startMinute: 'ZERO', endHour: b.e, endMinute: 'ZERO' } } })));
 
     if (!apply) {
-      return json(200, { ok: true, mode: 'preview schedule', campaign: campId, new_weekday_daytime_modifier: daytime,
+      return json(200, { ok: true, mode: 'preview schedule', campaign: campId, modifiers: { daytime, evening, overnight, weekend: weekendDay },
         current: old.map((x) => ({ day: x.adSchedule && x.adSchedule.dayOfWeek, hours: `${x.adSchedule && x.adSchedule.startHour}-${x.adSchedule && x.adSchedule.endHour}`, mod: x.bidModifier })),
-        will_set: { weekday: WD, weekend: WE }, revert_with: '&daytime=0.6' });
+        will_set: { weekday: WD, weekend: WE }, revert_with: '&daytime=0.6&evening=1.4&overnight=1&weekend=1.4' });
     }
     // Every hour of the week must stay covered - an uncovered hour does not serve
     // at all. So write the new set FIRST, then remove the old one.
@@ -182,8 +193,8 @@ exports.handler = async function (event) {
       removed = await post('/campaignCriteria:mutate', { partialFailure: true, operations: oldRes.map((rn) => ({ remove: rn })) });
     }
     return json(200, { ok: !!(added.ok && removed.ok), mode: 'schedule set', campaign: campId,
-      weekday_daytime_modifier: daytime, added_ok: added.ok, old_removed: removed.ok ? oldRes.length : 0,
-      errs: [added.err, removed.err].filter(Boolean), revert_with: '&step=schedule&daytime=0.6&apply=1' });
+      modifiers: { daytime, evening, overnight, weekend: weekendDay }, added_ok: added.ok, old_removed: removed.ok ? oldRes.length : 0,
+      errs: [added.err, removed.err].filter(Boolean), revert_with: '&step=schedule&daytime=0.6&evening=1.4&overnight=1&weekend=1.4&apply=1' });
   }
 
   // ── STEP: change an existing campaign's daily budget ─────────────────────────────
