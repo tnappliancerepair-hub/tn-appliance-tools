@@ -91,7 +91,18 @@ exports.handler = async function (event) {
 
   // Kill switch — public endpoint. Stays closed until the owner opens signups
   // (vault PLATFORM_SIGNUP_LIVE=true). Admin secret + an authorized comp both bypass it.
-  const live = String((await freshSecret('PLATFORM_SIGNUP_LIVE')) || '').toLowerCase() === 'true';
+  // Retry-on-EMPTY: the flag lives in the Xano vault, and a transient blank read (Xano
+  // load, cold container) must NEVER masquerade as "signups closed" and bounce a real
+  // customer to the invite message. A genuine 'true'/'false' is non-empty → stops on the
+  // first read (no wasted calls when signups are legitimately closed); only a blank read
+  // retries. process.env still short-circuits instantly if the flag is ever set in env.
+  let liveRaw = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    liveRaw = String((await freshSecret('PLATFORM_SIGNUP_LIVE')) || '').trim();
+    if (liveRaw) break;
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 200));
+  }
+  const live = liveRaw.toLowerCase() === 'true';
   const adminBypass = (b.secret && b.secret === admin);
   if (!live && !adminBypass && !compAuthed) {
     return J(200, { ok: false, error: 'signup_not_open', message: "We're onboarding shops by invite right now — leave your email and we'll reach out." });
