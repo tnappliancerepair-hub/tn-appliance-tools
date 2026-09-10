@@ -971,6 +971,19 @@
 [functions."platform-tn-reconcile-cron"]
   schedule = "14-59/15 * * * *"
 
+# platform-tn-status-back-cron (2026-09-10) - the third leg of keeping Xano a complete backup:
+# when a tech finishes (or starts, or hits parts) a job ON THE PLATFORM, Xano finds out. The
+# mirror's never-walk-backwards guard DEFENDS the platform's further-along state but never told
+# Xano - parity found 11 jobs where the platform was ahead, four of them completed here while
+# Xano still had them scheduled. FORWARD ONLY on the mirror's own RANK, so it can never drag Xano
+# backwards. A completion needs a real completed_at stamp, never status alone. Writes through the
+# Metadata API so no event_log transition fires - office_set_job_status would feed
+# job-completion-watch and text customers about old work.
+# Curl-testable core: platform-tn-status-back?secret=...&dryrun=1
+# Kill: vault PLATFORM_STATUS_BACK_ENABLED=false (or PLATFORM_STATUS_BACK_LIVE=false for shadow).
+[functions."platform-tn-status-back-cron"]
+  schedule = "2-59/10 * * * *"
+
 # platform-rma-tee-cron (phase-2 parts-return, 2026-09-09) — auto-matches SquareTrade/Allstate
 # RMA return-labels from rma_request@squaretrade.com (RMA#/FedEx tracking/distributor/part#) to
 # the platform returns worklist by claim + part#. Reads TN's Gmail read-only; writes only into TN's
