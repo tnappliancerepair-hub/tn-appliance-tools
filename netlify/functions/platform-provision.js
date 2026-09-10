@@ -902,13 +902,68 @@ exports.handler = async function (event) {
   }
 
   // Read a stored shop pack (for packs.html). Admin/operator-only. ?action=packs&slug=<slug>
+  // The pack used to be read straight out of its stored snapshot, which drifts the moment a
+  // seat is added or deactivated outside shoppack. On 2026-09-10 TN's snapshot still listed
+  // only the two placeholder tech logins — both deactivated the day before — and none of the
+  // eight real seats, so the page handed out two dead accounts and hid every working one.
+  // Somebody tried one at 5:45 that morning. Live state is the truth now; the snapshot is
+  // consulted only for a password it happens to hold, and a seat is never hidden for being
+  // deactivated — it is shown as deactivated, which is the thing worth knowing.
   if (q.action === 'packs') {
     const slug0 = String(q.slug || '').toLowerCase().trim();
     if (!slug0) return json(200, { ok: false, error: 'slug required' });
-    const vaultKey = 'PLATFORM_PACK_' + slug0.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-    let pack = null;
-    try { const pv = await getSecretFresh(vaultKey); if (pv) pack = JSON.parse(pv); } catch (_) {}
-    return json(200, { ok: true, slug: slug0, pack: pack || null, note: pack ? undefined : 'no pack stored — build one with action=shoppack' });
+    const snapshot = await readPack(slug0);
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id,name&limit=1`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug0 });
+
+    const [users, techs] = await Promise.all([
+      rest0(`app_user?company_id=eq.${co.id}&select=id,email,role`),
+      rest0(`technician?company_id=eq.${co.id}&select=app_user_id,name,active,xano_tech_id`),
+    ]);
+    const tByUser = new Map((techs || []).filter((t) => t.app_user_id).map((t) => [t.app_user_id, t]));
+    let auth = [];
+    try {
+      const r = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const d = await r.json().catch(() => ({}));
+      auth = Array.isArray(d.users) ? d.users : (Array.isArray(d) ? d : []);
+    } catch (_) {}
+    const aByEmail = new Map(auth.map((u) => [String(u.email || '').toLowerCase(), u]));
+    const pwByEmail = new Map(((snapshot && snapshot.seats) || []).map((x) => [String(x.email || '').toLowerCase(), x.password]));
+
+    const ORDER = { owner: 0, office: 1, manager: 1, tech: 2 };
+    const seats = (users || []).map((u) => {
+      const em = String(u.email || '').toLowerCase();
+      const a = aByEmail.get(em) || {};
+      const t = tByUser.get(u.id);
+      const banned = !!(a.banned_until && new Date(a.banned_until) > new Date());
+      const active = !banned && (t ? t.active !== false : true);
+      return {
+        role: u.role, label: (t && t.name) || u.role, email: u.email,
+        password: pwByEmail.get(em) || null,          // only when the snapshot still holds one
+        active, deactivated: !active,
+        has_technician_row: !!t, xano_tech_id: (t && t.xano_tech_id) != null ? t.xano_tech_id : null,
+        signed_in_before: !!a.last_sign_in_at, last_sign_in_at: a.last_sign_in_at || null,
+        link: seatLink(u.role),
+      };
+    }).sort((x, y) => (ORDER[x.role] ?? 3) - (ORDER[y.role] ?? 3) || String(x.email).localeCompare(String(y.email)));
+
+    const live = new Set(seats.map((x) => String(x.email || '').toLowerCase()));
+    const only_in_snapshot = ((snapshot && snapshot.seats) || [])
+      .map((x) => String(x.email || '').toLowerCase()).filter((e) => e && !live.has(e));
+
+    return json(200, {
+      ok: true, slug: slug0, company: co.name, source: 'live',
+      counts: { seats: seats.length, active: seats.filter((x) => x.active).length,
+                deactivated: seats.filter((x) => x.deactivated).length,
+                never_signed_in: seats.filter((x) => !x.signed_in_before).length,
+                no_password_stored: seats.filter((x) => !x.password).length },
+      seats,
+      booking_link: (snapshot && snapshot.booking_link) || `https://tnapplianceexchange.net/b/${slug0}`,
+      intake_email: (snapshot && snapshot.intake_email) || `${slug0}@jobs.assistant247.net`,
+      only_in_snapshot,
+      note: 'Seats are read live. A blank password means none is stored — reset it with action=resetpw&email=<seat>&reveal=1.',
+    });
   }
 
   const slug = String(q.slug || '').toLowerCase().trim();
