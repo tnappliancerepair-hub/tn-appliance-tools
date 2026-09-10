@@ -46,6 +46,9 @@
   .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(12px);background:#111;color:#fff;padding:10px 16px;border-radius:999px;font-size:13.5px;opacity:0;transition:.22s;z-index:20}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
   .empty{text-align:center;padding:40px 10px;opacity:.7}
+  .oldbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:22px 0 10px;padding-top:16px;border-top:1px dashed var(--line)}
+  .oldbar button{padding:8px 13px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:650;font-size:13.5px;cursor:pointer}
+  .oldnote{font-size:12.5px;opacity:.6}
 </style>
 </head>
 <body>
@@ -58,7 +61,7 @@
 <script>
 (function(){
   var app=document.getElementById('app');
-  var cfg=window.ANT_SUPABASE||{}; var sb=null, rows=[];
+  var cfg=window.ANT_SUPABASE||{}; var sb=null, rows=[], showOld=false, meta={};
   try{ var r=document.documentElement; r.setAttribute('data-skin','jackpot'); r.setAttribute('data-theme','light'); }catch(e){}
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function toast(m){ var t=document.createElement('div'); t.className='toast'; t.textContent=m; document.body.appendChild(t);
@@ -116,20 +119,44 @@
       '</div></div>';
   }
 
+  function byTechHtml(list){
+    var byTech={}; list.forEach(function(j){ var k=j.tech||'No tech assigned'; (byTech[k]=byTech[k]||[]).push(j); });
+    var names=Object.keys(byTech).sort(function(a,b){ return byTech[b].length-byTech[a].length; });
+    var h='';
+    names.forEach(function(n){
+      h+='<div class="grp">'+esc(n)+' — '+byTech[n].length+'</div>';
+      byTech[n].forEach(function(j){ h+=card(j); });
+    });
+    return h;
+  }
+
   function render(){
     if(!rows.length){ shell('<div class="empty">🎉 Nothing overdue. Every scheduled job is on a day still to come.</div>'); return; }
-    var byTech={}; rows.forEach(function(j){ var k=j.tech||'No tech assigned'; (byTech[k]=byTech[k]||[]).push(j); });
-    var names=Object.keys(byTech).sort(function(a,b){ return byTech[b].length-byTech[a].length; });
+    // Three weeks is the working horizon. The older pile still exists and is still counted —
+    // it just isn't the wall you hit before you can start.
+    var wk=meta.window_days||21;
+    var recent=rows.filter(function(j){ return j.recent; });
+    var older=rows.filter(function(j){ return !j.recent; });
+
     var html='<div class="note"><b>These jobs say <i>scheduled</i> on a day that already passed.</b> '+
       'Xano agrees on every one, so this is real work in limbo, not a display bug. '+
       'A <span class="tag rep">📝 report filed</span> tag usually means the tech was there and it just never got marked done — but check before you tap. '+
       'Nothing here texts the customer.</div>';
-    names.forEach(function(n){
-      html+='<div class="grp">'+esc(n)+' — '+byTech[n].length+'</div>';
-      byTech[n].forEach(function(j){ html+=card(j); });
-    });
+
+    if(recent.length) html+=byTechHtml(recent);
+    else html+='<div class="empty">🎉 Nothing overdue in the last '+wk+' days.</div>';
+
+    if(older.length){
+      html+='<div class="oldbar"><button id="oldtog">'+(showOld?'▾ Hide':'▸ Show')+' '+older.length+
+        ' older than '+wk+' days</button><span class="oldnote">Back-catalogue — worth a pass eventually, not today.</span></div>';
+      if(showOld) html+=byTechHtml(older);
+    }
+
     shell(html);
-    var c=document.getElementById('cnt'); if(c) c.textContent=rows.length+' overdue';
+    var c=document.getElementById('cnt');
+    if(c) c.textContent=recent.length+' in the last '+wk+' days'+(older.length?' · '+older.length+' older':'');
+    var t=document.getElementById('oldtog');
+    if(t) t.onclick=function(){ showOld=!showOld; render(); };
     Array.prototype.forEach.call(document.querySelectorAll('.acts button'),function(b){
       b.onclick=function(){ resolve(b.getAttribute('data-j'), b.getAttribute('data-a'), b); };
     });
@@ -159,7 +186,7 @@
     shell('<div class="empty">Loading…</div>');
     api('list').then(function(r){
       if(!r||!r.ok){ shell('<div class="empty">'+esc((r&&(r.message||r.error))||'Could not load')+'</div>'); return; }
-      rows=r.jobs||[]; render();
+      rows=r.jobs||[]; meta=r; render();
     }).catch(function(){ shell('<div class="empty">Network error — reload.</div>'); });
   }
 

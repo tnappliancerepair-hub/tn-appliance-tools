@@ -16,7 +16,12 @@
 // _lib/review-ask (work older than 10 days is never asked about) because a stale ask is wrong
 // however the completion got there.
 //
-//   POST ?do=list     { access_token }                 -> { ok, jobs:[…], techs:[…] }
+//   POST ?do=list     { access_token, days? }          -> { ok, jobs:[…], recent, older }
+//       days defaults to 21. Teddy 2026-09-10: "three weeks is really as far back as we need to
+//       go... those would be the ones I would focus on, not the ones before that." So the page
+//       LEADS with the recent ones and parks the rest behind a tap. Everything is still returned
+//       and still counted — nothing is hidden from the office, it just stops being the wall you
+//       hit before you can start.
 //   POST ?do=resolve  { access_token, job, action }     action = completed | reopen | cancel
 'use strict';
 
@@ -87,6 +92,9 @@ exports.handler = async function (event) {
   const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   if (doo === 'list') {
+    // Three weeks is the working horizon. Older work still comes back, flagged, so the office
+    // can go find it - it just isn't what the page opens on.
+    const WINDOW = Math.max(1, Math.min(365, Number(p.days || 21)));
     const sel = 'id,xano_id,scheduled_day,technician_id,problem,parts_status,tdr_diagnosis,tdr_failed_component,tdr_repair_completed,' +
                 'customer:customer_id(first_name,last_name,phone,city),unit:unit_id(label)';
     // Every one of these fits well inside a single page (331 today), but ask in order so the
@@ -100,7 +108,7 @@ exports.handler = async function (event) {
       const hasReport = !!(String(r.tdr_diagnosis || '').trim() || String(r.tdr_failed_component || '').trim() || String(r.tdr_repair_completed || '').trim());
       const partsPending = /await|order/i.test(String(r.parts_status || ''));
       return {
-        id: r.id, xano_id: r.xano_id, day: r.scheduled_day, days_ago: days,
+        id: r.id, xano_id: r.xano_id, day: r.scheduled_day, days_ago: days, recent: days <= WINDOW,
         tech: nm[r.technician_id] || '', tech_id: r.technician_id,
         customer: [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || '(no name)',
         city: c.city || '', phone: c.phone || '',
@@ -108,7 +116,8 @@ exports.handler = async function (event) {
         has_report: hasReport, parts_pending: partsPending,
       };
     });
-    return json(200, { ok: true, today, count: out.length, jobs: out });
+    const recent = out.filter((x) => x.recent).length;
+    return json(200, { ok: true, today, window_days: WINDOW, count: out.length, recent, older: out.length - recent, jobs: out });
   }
 
   if (doo === 'resolve') {
