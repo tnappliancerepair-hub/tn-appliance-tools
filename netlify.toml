@@ -959,6 +959,18 @@
 [functions."platform-tn-job-back-cron"]
   schedule = "8-59/15 * * * *"
 
+# platform-tn-reconcile-cron (2026-09-10) - teaches the mirror that a job can LEAVE Xano's active
+# set. The mirror only ADDS and UPDATES: it fetches Xano's ACTIVE jobs and upserts them, so a job
+# canceled in Xano simply stops appearing and the platform keeps its last-known state forever -
+# 471 dead cards were sitting in the office's Needs-Scheduled column before the first manual run.
+# The tool existed since this morning but was never wired to a schedule, so it only ran when
+# someone remembered. Closes CANCELED only, deliberately: completed-vs-not is reported, never
+# written (a previous bulk status repair nearly flipped ~73 unfinished jobs to completed).
+# Offset :14, clear of the /15 crons at 3, 6, 8, 9, 11, 13.
+# Curl-testable core: platform-tn-reconcile?secret=...&dryrun=1
+[functions."platform-tn-reconcile-cron"]
+  schedule = "14-59/15 * * * *"
+
 # platform-rma-tee-cron (phase-2 parts-return, 2026-09-09) — auto-matches SquareTrade/Allstate
 # RMA return-labels from rma_request@squaretrade.com (RMA#/FedEx tracking/distributor/part#) to
 # the platform returns worklist by claim + part#. Reads TN's Gmail read-only; writes only into TN's
