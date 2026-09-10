@@ -25,6 +25,10 @@
 
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
 
+// Same guard the mirror and the forward tee use. VAPI_ADMIN_SECRET resolves from NEITHER the
+// vault nor process.env on this site, so those two siblings authenticate purely off this
+// constant - matching them here rather than inventing a third scheme that 401s.
+const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const TN_COMPANY = 'be4d11a1-5219-469b-916a-ab990be7ea7f';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
@@ -61,7 +65,7 @@ const XANO_COL = {
 
 exports.handler = async (event) => {
   const q = event.queryStringParameters || {};
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || process.env.VAPI_ADMIN_SECRET;
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   let scheduled = false;
   try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
   if (!scheduled && q.secret !== admin) return j(401, { ok: false, error: 'unauthorized' });
