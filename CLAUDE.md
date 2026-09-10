@@ -1,5 +1,51 @@
 # Appliance Ant
 
+## 🚨 2026-09-10 — THE 4KB ENV CAP FAILS A BUILD AS "exit code 2" (cost 45 min; read before adding ANY Netlify env var)
+
+**Symptom:** every deploy fails at `Failed during stage 'building site': Build script returned non-zero exit code: 2`.
+Nothing about environment variables. Secret scanning reports 0 matches. The site keeps serving the last good
+deploy, so it looks healthy while **no fix can ship**.
+
+**Cause:** AWS Lambda caps a function's environment at **4,096 bytes** (key+value, all vars scoped
+`functions`/`runtime` — `builds`/`post_processing` don't count). Going over does NOT produce the documented
+"environment variables exceed 4KB" message on this path; it produces the opaque exit-2 above. Adding
+`PLATFORM_SUPABASE_SERVICE_KEY` as a 219-byte legacy JWT took us 3,320 → 3,569 bytes and broke every build.
+
+**The isolation test that actually works** — push a KNOWN-GOOD commit to a throwaway branch and let it build:
+```
+git push origin <last-green-sha>:refs/heads/claude/buildtest-known-good
+```
+Same code that built an hour ago now fails ⇒ the environment changed, not the repo. This is the only cheap way
+to separate the two, and it beats guessing. (Ruled out this way, each with evidence: the suspect commit bundles
+clean under `npx esbuild --bundle`; the `netlify.toml` `ignore` command returns 1 = "build" as intended; a
+cache-cleared rebuild fails identically; Netlify's secret scanner found 0 matches across 5,567 files.)
+
+**Measure the budget before you add anything:**
+```
+netlify-admin?...&action=proxy&method=GET&path=/sites/<site_id>/env
+# sum len(key)+len(value)+1 for every var whose scopes include functions or runtime
+```
+**Measured ceiling: 3,320 bytes builds, 3,392 FAILS.** Netlify+AWS inject the rest of the 4,096.
+Today we sit at **3,307**. `XANO_METADATA_TOKEN` alone is **1,828 (55%)** — there is essentially NO headroom left.
+
+**Rules going forward**
+- New secrets go to the **vault**, never Netlify env. The env is only for the two bootstrap keys that the vault
+  cannot serve to itself.
+- Prefer Supabase's modern **`sb_secret_…` (41 bytes)** over a legacy `service_role` JWT (219 bytes). Same access,
+  178 fewer bytes — but even the 41-byte version did not fit until bytes were freed elsewhere. `netlify-admin?action=vault_to_env&key=…` copies one in server-side so the value never
+  transits a chat or a shell.
+- A Netlify env change reaches functions **only on the next successful deploy**. If deploys are failing, the key
+  is not live no matter what the dashboard shows — that is exactly how the Supabase vault sat dormant all day.
+- Two deploys fire per push (production + branch). Both failing is one cause, not two.
+
+**Bytes reclaimed today:** deleted `XANO_HCP_WEBHOOK_URL` (84 B). Provably a no-op — `hcp-webhook-proxy.js`
+falls back to `XANO_DEFAULT_URL`, the identical 63-char URL the env var held. HCP is decommissioned anyway.
+
+**⏭️ The real fix, still open:** `XANO_METADATA_TOKEN` is read raw from `process.env` in ~20 functions, so it
+cannot be vaulted without touching each one. Until it is, over half the env budget is a token for the system
+we are migrating off. That refactor is what permanently ends this squeeze.
+
+
 ## 🔑 TN'S REAL PLATFORM SEATS — the `tech1.`/`tech2.` logins are DECOYS (2026-09-10)
 
 Teddy lost a morning of practice week to this. He signed into
