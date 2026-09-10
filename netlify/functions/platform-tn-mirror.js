@@ -395,10 +395,21 @@ async function syncTnToPlatform(limit, opts) {
   // per dispatch regardless of which loader saw it first. Best-effort: any failure here just
   // leaves the (rare) dup for a later run; it must never break the mirror.
   try {
+    // A warranty CLAIM is not a job. SquareTrade issues a new work order per trip, so one
+    // claim routinely covers several Xano jobs — and taking the first one meant stamping an
+    // id that a sibling dispatch already owned. Every run tried the same doomed updates and
+    // the client-side catch swallowed them, so nothing surfaced but Postgres logged an error
+    // each time: ~3,000 a day, 84% of this database's error volume, hiding everything else.
+    // Adopt only from a claim that maps to exactly ONE Xano job; anything else is a guess.
+    const claimCount = new Map();
+    for (const jr of jobRows) {
+      const cn = String(jr.claim_number || '').trim();
+      if (cn) claimCount.set(cn, (claimCount.get(cn) || 0) + 1);
+    }
     const claimToXano = new Map();
     for (const jr of jobRows) {
       const cn = String(jr.claim_number || '').trim();
-      if (cn && !claimToXano.has(cn)) claimToXano.set(cn, jr.xano_id);
+      if (cn && claimCount.get(cn) === 1 && !claimToXano.has(cn)) claimToXano.set(cn, jr.xano_id);
     }
     const claims = [...claimToXano.keys()].filter((c) => /^[A-Za-z0-9._\-]+$/.test(c));
     for (let i = 0; i < claims.length; i += 100) {
@@ -410,9 +421,20 @@ async function syncTnToPlatform(limit, opts) {
       );
       const orphans = await r.json().catch(() => null);
       if (!Array.isArray(orphans)) continue;
+      // Belt and braces: never attempt an id another row already holds. The unique index
+      // would reject it anyway - the point is to not ask, so the log stays readable.
+      const wanted = [...new Set(orphans.map((o) => claimToXano.get(String(o.claim_number || '').trim())).filter(Boolean))];
+      const taken = new Set();
+      if (wanted.length) {
+        try {
+          const tr = await fetch(`${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${wanted.join(',')})&select=xano_id`,
+            { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(10000) });
+          for (const t of (await tr.json().catch(() => [])) || []) taken.add(Number(t.xano_id));
+        } catch (_) {}
+      }
       for (const o of orphans) {
         const xid = claimToXano.get(String(o.claim_number || '').trim());
-        if (!xid) continue;
+        if (!xid || taken.has(Number(xid))) continue;
         await fetch(`${url}/rest/v1/job?id=eq.${o.id}`, {
           method: 'PATCH',
           headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
