@@ -23,6 +23,26 @@ const CANDIDATE_IDS = [53, 33];
 let _tableIdCache = null;
 const _secretCache = {};
 
+// A vault read that comes back EMPTY is ambiguous: the key may genuinely be unset, or
+// Xano (which HOSTS the vault) may have been too busy to answer. Caching the empty case
+// for the life of the container turned the second one into a permanent outage: a warm
+// Lambda that lost one race answered "not configured" forever after, while requests
+// routed to healthier containers succeeded. Measured 2026-09-10 during a Xano slow spell:
+// 2 of 10 identical calls to the same endpoint failed that way, which is how the office's
+// texts failed intermittently while nothing looked broken. Real values still cache for the
+// container's life; empties expire fast, so a container that lost a race heals itself on
+// the next request instead of needing a redeploy.
+const EMPTY_TTL_MS = Number(process.env.SECRET_EMPTY_TTL_MS || 20000);
+function cacheGet(name) {
+  const e = _secretCache[name];
+  if (e === undefined) return null;                       // never read
+  if (e.v) return e.v;                                    // a real value: trust it
+  if (Date.now() - e.at < EMPTY_TTL_MS) return '';        // recently empty: don't hammer Xano
+  delete _secretCache[name];                              // stale empty: re-read
+  return null;
+}
+function cachePut(name, v) { _secretCache[name] = { v: v || '', at: Date.now() }; return v; }
+
 // Secret-name aliases. Historically the shared owner/admin gate was named
 // VAPI_ADMIN_SECRET (from the old Vapi phone era). The phone moved to Telnyx, so that
 // name is misleading — it's just "the admin password" now. This lets us call it
@@ -67,7 +87,10 @@ async function configTableId() {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ search: { name: '__probe__' }, per_page: 1, page: 1 }),
       });
-      if (r.ok) { _tableIdCache = id; return id; }
+      // Only latch an id when NO earlier candidate was merely busy. Under load the real
+      // table can time out while a DIFFERENT table answers 2xx, and latching that wrong id
+      // makes every later read return "not found" for the life of the container.
+      if (r.ok) { if (transient) break; _tableIdCache = id; return id; }
       if (r.status >= 500 || r.status === 408 || r.status === 429) transient = true;
     } catch (_) { transient = true; }   // AbortSignal timeout / network error = busy, not missing
   }
@@ -104,10 +127,11 @@ async function fetchFromXano(name) {
 async function getSecret(name) {
   if (process.env[name]) return process.env[name];
   for (const a of (ALIASES[name] || [])) if (process.env[a]) return process.env[a];
-  if (_secretCache[name] !== undefined) return _secretCache[name];
+  const cached = cacheGet(name);
+  if (cached !== null) return cached;
   try {
     const v = await fetchFromXano(name);
-    _secretCache[name] = v;
+    cachePut(name, v);
     return v;
   } catch (err) {
     console.error('[secrets] getSecret(' + name + ') failed:', err.message);
@@ -125,10 +149,11 @@ async function getSecret(name) {
 async function getSecretStatus(name) {
   if (process.env[name]) return { value: process.env[name], ok: true };
   for (const a of (ALIASES[name] || [])) if (process.env[a]) return { value: process.env[a], ok: true };
-  if (_secretCache[name] !== undefined) return { value: _secretCache[name], ok: true };
+  const cachedS = cacheGet(name);
+  if (cachedS !== null) return { value: cachedS, ok: true };
   try {
     const v = await fetchFromXano(name);
-    _secretCache[name] = v;
+    cachePut(name, v);
     return { value: v, ok: true };
   } catch (err) {
     return { value: '', ok: false, transient: true, error: String((err && err.message) || err) };
@@ -142,7 +167,7 @@ async function getSecretStatus(name) {
 async function getSecretPreferVault(name) {
   try {
     const v = await fetchFromXano(name);
-    if (v) { _secretCache[name] = v; return v; }
+    if (v) { cachePut(name, v); return v; }
   } catch (err) {
     console.error('[secrets] getSecretPreferVault(' + name + ') failed:', err.message);
   }
@@ -170,7 +195,7 @@ async function setSecret(name, value) {
       const wr = existing
         ? await fetchT(`${XANO_META}/table/${tid}/content/${existing.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify({ name, value }) }, SECRET_WRITE_TIMEOUT_MS)
         : await fetchT(`${XANO_META}/table/${tid}/content`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, value }) }, SECRET_WRITE_TIMEOUT_MS);
-      if (wr && wr.ok) { _secretCache[name] = value; return true; }
+      if (wr && wr.ok) { cachePut(name, value); return true; }
       lastErr = 'write ' + (wr ? wr.status : 'no-response');
     } catch (e) { lastErr = String((e && e.message) || e); }
     await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
@@ -205,7 +230,7 @@ async function delSecret(name) {
 // Always-fresh read (no cache) — for values that change at runtime, like the
 // per-person Reach Me availability flags. Falls back to env on error.
 async function getSecretFresh(name) {
-  try { const v = await fetchFromXano(name); _secretCache[name] = v; return v; }
+  try { const v = await fetchFromXano(name); cachePut(name, v); return v; }
   catch (err) { return process.env[name] || ''; }
 }
 
