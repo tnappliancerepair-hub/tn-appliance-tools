@@ -148,18 +148,32 @@ async function fetchActiveJobs() {
   const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
   const out = [];
   const seen = new Set();
+  // A page that times out here used to `catch (_) { break; }` - so a single slow moment on
+  // Xano silently ended that status's pagination and those jobs just did not appear on the
+  // platform, with no error anywhere. Same silent-loss family as the TDR page bug. Measured
+  // quiet (2026-09-10 19:4x) the whole walk is 8 requests in ~2s, so the cost of being careful
+  // is nothing; measured at peak the same day Xano answered one endpoint in 43.8s, so the loss
+  // is real, just invisible. Each page now gets ONE retry, and a page still lost after that
+  // RETURNS NULL and LOGS - it never masquerades as "end of the table".
+  const getPage = async (status, page, attempt = 0) => {
+    try {
+      const r = await fetch(`${META}/table/7/content/search`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ search: { scheduling_status: status }, sort: { id: 'desc' }, per_page: 500, page }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!r.ok) throw new Error('meta_' + r.status);
+      return (await r.json()).items || [];
+    } catch (e) {
+      if (attempt < 1) return getPage(status, page, attempt + 1);
+      console.error('[tn-mirror] active page lost: ' + status + ' p' + page + ' ' + String((e && e.message) || e).slice(0, 80));
+      return null;
+    }
+  };
   for (const status of ACTIVE_STATUSES) {
     for (let page = 1; page <= 4; page++) {
-      let rows = [];
-      try {
-        const r = await fetch(`${META}/table/7/content/search`, {
-          method: 'POST', headers: H,
-          body: JSON.stringify({ search: { scheduling_status: status }, sort: { id: 'desc' }, per_page: 500, page }),
-          signal: AbortSignal.timeout(12000),
-        });
-        if (!r.ok) break;
-        rows = (await r.json()).items || [];
-      } catch (_) { break; }
+      const rows = await getPage(status, page);
+      if (rows == null) break;   // lost after retry - already logged, do not pretend it ended
       if (!rows.length) break;
       for (const j of rows) {
         const id = Number(j.id || 0);
