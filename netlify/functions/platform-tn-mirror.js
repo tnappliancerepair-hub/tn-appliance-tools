@@ -478,6 +478,66 @@ async function syncTnToPlatform(limit, opts) {
     return { ok: true, dryrun: true, kanban: kanbanCount, kanban_error: kanbanError || undefined, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, model_fill: withModel, model_sample: modelSample, ms: Date.now() - t0 };
   }
 
+  // ── NEVER WRITE A BLANK OVER SOMETHING A HUMAN TYPED ────────────────────────────────
+  // PROVEN LIVE 2026-09-10 on job 19713: the office typed an availability on the platform and
+  // ONE mirror run blanked it. Same story for a customer's name/phone/city, an appliance's
+  // model/serial, a job's problem text — every one of those is editable in the board drawer and
+  // every one was rewritten from Xano unconditionally. During a migration where we are asking
+  // the office to WORK here, that is indistinguishable from "the new system doesn't save",
+  // which is the exact trust-killer that already bit us twice (tech completions 9/8, bookings
+  // earlier today).
+  // The rule is deliberately narrow, and it is the one case that is never right: an EMPTY value
+  // from Xano may not replace a non-empty value on the platform. A DIFFERENT non-empty value
+  // still wins — Xano remains the system of record, so a genuine correction there still lands.
+  // (Fixing a typo therefore still belongs in Xano until intake moves over.)
+  // We SUBSTITUTE rather than drop the key: PostgREST rejects a bulk upsert whose objects have
+  // different key sets (PGRST102), which is what broke the whole job write earlier today.
+  async function keepTyped(table, rows, keys) {
+    if (!rows.length) return;
+    try {
+      const ids = rows.map((r) => r.xano_id).filter(Boolean);
+      const cur = new Map();
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200).join(',');
+        const r = await fetch(
+          `${url}/rest/v1/${table}?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,${keys.join(',')}`,
+          { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
+        );
+        const got = await r.json().catch(() => null);
+        if (Array.isArray(got)) got.forEach((x) => cur.set(Number(x.xano_id), x));
+      }
+      let kept = 0;
+      for (const row of rows) {
+        const ex = cur.get(Number(row.xano_id));
+        if (!ex) continue;
+        for (const k of keys) {
+          const incoming = row[k], existing = ex[k];
+          if (k === 'attributes') {
+            // one jsonb column, replaced whole by merge-duplicates - guard it key by key
+            if (!existing || typeof existing !== 'object') continue;
+            for (const ak of Object.keys(incoming || {})) {
+              if (!String(incoming[ak] || '').trim() && String(existing[ak] || '').trim()) {
+                incoming[ak] = existing[ak]; kept++;
+              }
+            }
+            continue;
+          }
+          // `label` falls back to the literal 'Appliance' when Xano has no brand/type, so that
+          // placeholder counts as blank too - otherwise it quietly overwrites a real appliance name.
+          const inStr = String(incoming == null ? '' : incoming).trim();
+          const blankIn = !inStr || (k === 'label' && inStr === 'Appliance');
+          if (blankIn && String(existing == null ? '' : existing).trim()) {
+            row[k] = existing; kept++;
+          }
+        }
+      }
+      if (kept) console.log('[tn-mirror] kept ' + kept + ' typed ' + table + ' value(s) the mirror would have blanked');
+    } catch (e) {
+      // Never let the guard break the mirror - worst case is today's behavior.
+      console.error('[tn-mirror] keepTyped(' + table + ') skipped: ' + String((e && e.message) || e));
+    }
+  }
+
   // 1) customers — dedup by Xano customer_id. The base upsert deliberately OMITS `address`:
   // merge-duplicates only updates columns present in the payload, so leaving it out PRESERVES
   // any existing street (migration/tee/portal-sourced) instead of clobbering it with a blank
@@ -494,7 +554,9 @@ async function syncTnToPlatform(limit, opts) {
     });
     if (!addrMap.has(cid)) { const st = streetFor(j); if (st) addrMap.set(cid, st); }
   }
-  const upCust = await upsert(url, key, 'customer', [...custMap.values()], 'company_id,xano_id');
+  const custRows = [...custMap.values()];
+  await keepTyped('customer', custRows, ['first_name', 'last_name', 'phone', 'city', 'state', 'zip']);
+  const upCust = await upsert(url, key, 'customer', custRows, 'company_id,xano_id');
   // Fill the street ONLY where we have a real one — never write a blank (additive, can't lose data).
   const addrRows = [...addrMap.entries()].map(([cid, address]) => ({ company_id: TN_COMPANY, xano_id: cid, address }));
   if (addrRows.length) await upsert(url, key, 'customer', addrRows, 'company_id,xano_id');
@@ -512,6 +574,7 @@ async function syncTnToPlatform(limit, opts) {
     // model on the next run for any job whose row happened to arrive without one.
     attributes: { brand: String(j.brand || ''), appliance: String(j.appliance || ''), model: modelFor(j), serial: serialFor(j) },
   })).filter((u) => u.customer_id);
+  await keepTyped('unit', unitRows, ['label', 'attributes']);
   const upUnit = await upsert(url, key, 'unit', unitRows, 'company_id,xano_id');
   const unitIdByXanoJob = new Map(upUnit.map((r) => [Number(r.xano_id), r.id]));
 
@@ -708,6 +771,11 @@ async function syncTnToPlatform(limit, opts) {
   // other write in the run kept succeeding, so the platform quietly went stale and only the
   // OTHER writers' rows carried a fresh updated_at. Split by shape instead; each group is
   // internally uniform and both keep the omit-on-miss semantics. (2026-09-10)
+  // Same blank-guard for the job's typed text. `problem` and `availability` are both edited in
+  // the board drawer; the claim/warranty/parts fields are Xano-owned but a blank overwriting a
+  // real claim number is never right either.
+  await keepTyped('job', jobRows, ['problem', 'availability', 'warranty_company', 'claim_number', 'parts_status']);
+
   const withTdr = jobRows.filter((r) => 'tdr_diagnosis' in r);
   const noTdr = jobRows.filter((r) => !('tdr_diagnosis' in r));
   const upJob = [
