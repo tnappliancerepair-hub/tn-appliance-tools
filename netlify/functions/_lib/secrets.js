@@ -126,6 +126,13 @@ const SB_VAULT_URL = 'https://tntbhfwitytkcoqlejwc.supabase.co';
 function sbVaultKey() { return process.env.PLATFORM_SUPABASE_SERVICE_KEY || ''; }
 function sbVaultOn() { return !!sbVaultKey(); }
 
+// Not every value in the vault is a secret. The platform's Supabase URL is served to every
+// browser in platform/config.js, so treating it as one bought nothing and cost a Xano round
+// trip on every cold start — and criticalSecret retries four times, so a slow Xano turned
+// that single non-secret into ~17 seconds before a function could do any work. That is what
+// timed out the shop's own login page today. Answer it from here, instantly, and never ask.
+const PUBLIC_DEFAULTS = { PLATFORM_SUPABASE_URL: SB_VAULT_URL };
+
 // '' = asked and it is genuinely not there · null = could not ask (no key / busy / error),
 // which must fall through to Xano rather than be mistaken for "unset".
 async function sbVaultRead(name) {
@@ -168,6 +175,7 @@ async function fetchFromXano(name) {
 // caller for "not found" — only for a genuine config error you want surfaced.
 async function getSecret(name) {
   if (process.env[name]) return process.env[name];
+  if (PUBLIC_DEFAULTS[name]) return PUBLIC_DEFAULTS[name];
   for (const a of (ALIASES[name] || [])) if (process.env[a]) return process.env[a];
   const cached = cacheGet(name);
   if (cached !== null) return cached;
@@ -190,6 +198,7 @@ async function getSecret(name) {
 // show a setup message to a person should use this and say "busy, try again" instead.
 async function getSecretStatus(name) {
   if (process.env[name]) return { value: process.env[name], ok: true };
+  if (PUBLIC_DEFAULTS[name]) return { value: PUBLIC_DEFAULTS[name], ok: true };
   for (const a of (ALIASES[name] || [])) if (process.env[a]) return { value: process.env[a], ok: true };
   const cachedS = cacheGet(name);
   if (cachedS !== null) return { value: cachedS, ok: true };
@@ -301,6 +310,7 @@ async function getSecretFresh(name) {
 // returns '' (callers keep their not-configured guard). (2026-09-09)
 async function criticalSecret(name, retries = 4) {
   if (process.env[name]) return process.env[name];
+  if (PUBLIC_DEFAULTS[name]) return PUBLIC_DEFAULTS[name];
   for (const a of (ALIASES[name] || [])) if (process.env[a]) return process.env[a];
   for (let attempt = 0; attempt < retries; attempt++) {
     let v = '';

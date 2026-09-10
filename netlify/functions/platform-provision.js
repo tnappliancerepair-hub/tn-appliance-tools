@@ -922,11 +922,16 @@ exports.handler = async function (event) {
       rest0(`technician?company_id=eq.${co.id}&select=app_user_id,name,active,xano_tech_id`),
     ]);
     const tByUser = new Map((techs || []).filter((t) => t.app_user_id).map((t) => [t.app_user_id, t]));
-    let auth = [];
+    // Who is banned / has ever signed in comes from the auth admin list, which is the slow
+    // leg here and only ever nice-to-have. Bound it hard and carry on without it: a seat list
+    // that loads is worth far more than one that times out holding a completeness flag. When
+    // it does not answer, active/signed-in come back null rather than a confident wrong 'yes'.
+    let auth = [], authKnown = false;
     try {
-      const r = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const r = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(6000) });
       const d = await r.json().catch(() => ({}));
       auth = Array.isArray(d.users) ? d.users : (Array.isArray(d) ? d : []);
+      authKnown = auth.length > 0;
     } catch (_) {}
     const aByEmail = new Map(auth.map((u) => [String(u.email || '').toLowerCase(), u]));
     const pwByEmail = new Map(((snapshot && snapshot.seats) || []).map((x) => [String(x.email || '').toLowerCase(), x.password]));
@@ -937,13 +942,13 @@ exports.handler = async function (event) {
       const a = aByEmail.get(em) || {};
       const t = tByUser.get(u.id);
       const banned = !!(a.banned_until && new Date(a.banned_until) > new Date());
-      const active = !banned && (t ? t.active !== false : true);
+      const active = authKnown ? (!banned && (t ? t.active !== false : true)) : null;
       return {
         role: u.role, label: (t && t.name) || u.role, email: u.email,
         password: pwByEmail.get(em) || null,          // only when the snapshot still holds one
-        active, deactivated: !active,
+        active, deactivated: active === null ? null : !active,
         has_technician_row: !!t, xano_tech_id: (t && t.xano_tech_id) != null ? t.xano_tech_id : null,
-        signed_in_before: !!a.last_sign_in_at, last_sign_in_at: a.last_sign_in_at || null,
+        signed_in_before: authKnown ? !!a.last_sign_in_at : null, last_sign_in_at: a.last_sign_in_at || null,
         link: seatLink(u.role),
       };
     }).sort((x, y) => (ORDER[x.role] ?? 3) - (ORDER[y.role] ?? 3) || String(x.email).localeCompare(String(y.email)));
@@ -954,9 +959,10 @@ exports.handler = async function (event) {
 
     return json(200, {
       ok: true, slug: slug0, company: co.name, source: 'live',
-      counts: { seats: seats.length, active: seats.filter((x) => x.active).length,
-                deactivated: seats.filter((x) => x.deactivated).length,
-                never_signed_in: seats.filter((x) => !x.signed_in_before).length,
+      login_state_known: authKnown,
+      counts: { seats: seats.length, active: seats.filter((x) => x.active === true).length,
+                deactivated: seats.filter((x) => x.deactivated === true).length,
+                never_signed_in: seats.filter((x) => x.signed_in_before === false).length,
                 no_password_stored: seats.filter((x) => !x.password).length },
       seats,
       booking_link: (snapshot && snapshot.booking_link) || `https://tnapplianceexchange.net/b/${slug0}`,
