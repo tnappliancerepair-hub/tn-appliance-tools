@@ -40,8 +40,20 @@ function shape(j) {
   return row;
 }
 
+// get_office_kanban is Xano's heaviest query and it has been getting slower: measured at
+// 6.9s / 13.2s / 24.3s in early Sept and at 43.8s (779KB) on 2026-09-10 while the office was
+// live. At a 24s cap EVERY run aborted, so board_mirror went 21 minutes stale and the office
+// board served old jobs - which is what "the old system won't load" actually was.
+//
+// Aborting does NOT save Xano anything. Xano has already run the query by the time we give
+// up; dropping the connection just throws the answer away and leaves the mirror stale, so we
+// pay the compute AND get nothing. Waiting converts that same spend into a fresh mirror.
+//
+// Safe to wait: the caller that matters is the SCHEDULED cron, which has minutes, not the 26s
+// an HTTP function gets. Env-tunable so this can be pulled back without a deploy.
+const KANBAN_TIMEOUT_MS = Number(process.env.BOARD_MIRROR_KANBAN_TIMEOUT_MS || 70000);
 async function fetchKanban() {
-  const r = await fetch(`${XANO}/get_office_kanban`, { signal: AbortSignal.timeout(24000) });
+  const r = await fetch(`${XANO}/get_office_kanban`, { signal: AbortSignal.timeout(KANBAN_TIMEOUT_MS) });
   if (!r.ok) throw new Error('xano_' + r.status);
   const d = await r.json();
   return Array.isArray(d.items) ? d.items : [];
