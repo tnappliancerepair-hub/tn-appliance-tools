@@ -174,6 +174,13 @@ async function runBookingBack(q) {
       // NULL, not 0 — that is the shape Xano's own unscheduled jobs carry (probed on 21877).
       if (Number(row.scheduled_start) > 0) { patch.scheduled_start = null; why.push('unschedule'); }
       if (cur === 'scheduled') { patch.scheduling_status = 'not_ready'; why.push('status->not_ready'); }
+      // Xano carries the state TWICE. mapStatus and job-truth both fall back to current_status
+      // when scheduling_status is empty, so leaving a stale 'scheduled' there is a second source
+      // of truth waiting to contradict the first. Cleared only when it literally says scheduled -
+      // in_progress or anything else is real state we have no business rewriting.
+      if (String(row.current_status || '').toLowerCase() === 'scheduled') {
+        patch.current_status = ''; why.push('current_status cleared');
+      }
     }
 
     if (!Object.keys(patch).length) {
