@@ -51,9 +51,16 @@ function shape(j) {
 //
 // Safe to wait: the caller that matters is the SCHEDULED cron, which has minutes, not the 26s
 // an HTTP function gets. Env-tunable so this can be pulled back without a deploy.
+//
+// The wait is per-CALLER, not global. board-mirror-sync IS the office board's data source, so
+// it waits the full budget - a stale board is the visible failure. platform-tn-mirror only
+// uses this feed for EXTRAS (older/completed jobs); its own supplemental pull off the raw
+// jobs table is faster and carries more (model, serial, street, claim), so it passes a short
+// wait and lets the slow feed go rather than spending its whole run on it. (2026-09-10)
 const KANBAN_TIMEOUT_MS = Number(process.env.BOARD_MIRROR_KANBAN_TIMEOUT_MS || 70000);
-async function fetchKanban() {
-  const r = await fetch(`${XANO}/get_office_kanban`, { signal: AbortSignal.timeout(KANBAN_TIMEOUT_MS) });
+async function fetchKanban(timeoutMs) {
+  const ms = Number(timeoutMs) > 0 ? Number(timeoutMs) : KANBAN_TIMEOUT_MS;
+  const r = await fetch(`${XANO}/get_office_kanban`, { signal: AbortSignal.timeout(ms) });
   if (!r.ok) throw new Error('xano_' + r.status);
   const d = await r.json();
   return Array.isArray(d.items) ? d.items : [];

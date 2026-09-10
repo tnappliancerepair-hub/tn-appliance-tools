@@ -268,7 +268,8 @@ async function syncTnToPlatform(limit, opts) {
   // jobs it happens to have. Losing it should cost those extras, not the mirror.
   let items = [];
   let kanbanError = '';
-  try { items = await fetchKanban(); }
+  // 15s, not the 70s board-mirror-sync waits: this feed is a bonus here, not the source.
+  try { items = await fetchKanban(15000); }
   catch (e) { kanbanError = String((e && e.message) || e).slice(0, 120); }
   const kanbanCount = items.length;
   // Merge in every active/upcoming job the 800-row created_at-capped board feed leaves out
