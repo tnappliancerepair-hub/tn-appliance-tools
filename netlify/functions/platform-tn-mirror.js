@@ -267,6 +267,22 @@ async function syncTnToPlatform(limit, opts) {
   const suppById = new Map();
   for (const s of supp) { const id = Number(s.id); if (id) suppById.set(id, s); }
   const streetFor = (j) => cleanStreet(j.service_address) || cleanStreet((suppById.get(Number(j.id)) || {}).service_address);
+  // Same borrow for the model + serial. get_office_kanban drops BOTH (verified 2026-09-10:
+  // its 27 keys carry brand and appliance but no model), while the raw table-7 row has
+  // model_number + serial_number populated. Without this the mirror can answer "Kenmore
+  // dryer" but not "which one" — and job-truth's tech lens reads the model straight off it.
+  const pick = (j, ...keys) => {
+    const twin = suppById.get(Number(j.id)) || {};
+    // Take the first NON-EMPTY value from either row. Checking `!= null` instead would
+    // stop at the kanban row's empty string and never reach the twin that has the value.
+    for (const k of keys) {
+      const a = String(j[k] || '').trim(); if (a) return a;
+      const b = String(twin[k] || '').trim(); if (b) return b;
+    }
+    return '';
+  };
+  const modelFor = (j) => pick(j, 'model_number', 'appliance_model');
+  const serialFor = (j) => pick(j, 'serial_number');
   let addedFromSupp = 0;
   if (supp.length) {
     const have = new Set(items.map((j) => Number(j.id)));
@@ -318,7 +334,11 @@ async function syncTnToPlatform(limit, opts) {
     customer_id: custIdByXano.get(Number(j.customer_id)),
     kind: 'appliance',
     label: [String(j.brand || ''), String(j.appliance || '')].filter(Boolean).join(' ').trim() || 'Appliance',
-    attributes: { brand: String(j.brand || ''), appliance: String(j.appliance || '') },
+    // model + serial ride here so every surface reading the mirror can name the exact
+    // machine. attributes is a single jsonb column and merge-duplicates replaces it whole,
+    // so these keys must always be present — writing them conditionally would blank a
+    // model on the next run for any job whose row happened to arrive without one.
+    attributes: { brand: String(j.brand || ''), appliance: String(j.appliance || ''), model: modelFor(j), serial: serialFor(j) },
   })).filter((u) => u.customer_id);
   const upUnit = await upsert(url, key, 'unit', unitRows, 'company_id,xano_id');
   const unitIdByXanoJob = new Map(upUnit.map((r) => [Number(r.xano_id), r.id]));
