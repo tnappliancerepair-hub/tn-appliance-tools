@@ -127,8 +127,21 @@ exports.handler = async function (event) {
 
     const row = (await get(`job?id=eq.${jobId}&company_id=eq.${companyId}&select=id,xano_id,status&limit=1`))[0];
     if (!row) return json(404, { ok: false, error: 'not_found' });
+    // A job with NO xano_id was born on the platform and does not exist in Xano - there is
+    // nothing to push and nothing to keep in step, so it resolves here and stops. This is not an
+    // edge case for long: every job the platform takes over intake for lands this way, and
+    // refusing them (the first cut returned no_xano_id) would have made the tool useless exactly
+    // as the migration succeeds. Surfaced by the 9/8 practice job, which is platform-native.
     const xid = Number(row.xano_id || 0);
-    if (!xid) return json(400, { ok: false, error: 'no_xano_id' });
+    const platformOnly = !xid;
+
+    const patchPlatform = async (fields) => {
+      const r = await fetch(`${url}/rest/v1/job?id=eq.${jobId}&company_id=eq.${companyId}`, {
+        method: 'PATCH', headers: Object.assign({ Prefer: 'return=minimal' }, H),
+        body: JSON.stringify(fields), signal: AbortSignal.timeout(12000),
+      });
+      return r.ok;
+    };
 
     const callXano = async (path, payload) => {
       const r = await fetch(`${XANO}/${path}`, {
@@ -138,6 +151,14 @@ exports.handler = async function (event) {
       const d = await r.json().catch(() => null);
       return { ok: r.ok, data: d };
     };
+
+    if (platformOnly) {
+      const fields = action === 'completed' ? { status: 'completed', completed_at: new Date().toISOString() }
+                   : action === 'cancel'    ? { status: 'canceled' }
+                   : { scheduled_day: null, scheduled_start: null, status: 'new' };
+      if (!(await patchPlatform(fields))) return json(500, { ok: false, error: 'platform_write_failed' });
+      return json(200, { ok: true, action, job: jobId, platform_only: true });
+    }
 
     if (action === 'reopen') {
       // Hand it to the booking pusher rather than writing the schedule twice. Clearing the day
