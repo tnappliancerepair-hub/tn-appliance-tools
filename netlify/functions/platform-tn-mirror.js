@@ -65,32 +65,52 @@ async function fetchTdrMap() {
   // the SUM of them, so the window can widen without eating the run. Pages are merged in page
   // order (not completion order) to keep id-desc "first seen = newest TDR wins" exact, and
   // allSettled means one slow page costs its own rows, not the whole map. (2026-09-10)
-  const PAGES = 8;
-  const settled = await Promise.allSettled(
-    Array.from({ length: PAGES }, (_, k) => k + 1).map(async (page) => {
+  // THREE AT A TIME, NOT EIGHT. Firing all eight at once is what the concurrent rewrite did
+  // first, and a saturated Xano simply queued them: pages 2, 3 and 8 aborted at 12s while
+  // 1, 4 and 5 answered in ~1.3s, so ~1,000 reports (ids 1814 down to 813) vanished with no
+  // error anywhere - allSettled swallows a lost page by design. A small batch keeps the
+  // round-trip win without asking Xano for more parallelism than it has. Each page gets ONE
+  // retry, and the walk STOPS at the first short page (the table ends around id 2313, so
+  // pages 6-8 were always empty requests). Batches and pages within a batch stay in ascending
+  // order, so id-desc "first seen = newest report wins" is still exact. (2026-09-10)
+  const PAGES = 8, BATCH = 3;
+  const fetchPage = async (page, attempt = 0) => {
+    try {
       const r = await fetch(`${META}/table/12/content/search`, {
         method: 'POST', headers: H,
         body: JSON.stringify({ sort: { id: 'desc' }, per_page: 500, page }),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(15000),
       });
       if (!r.ok) throw new Error('meta_' + r.status);
       return (await r.json()).items || [];
-    })
-  );
-  for (const res of settled) {
-    if (res.status !== 'fulfilled') continue;
-    for (const t of res.value) {
-      const jid = Number(t.job_id || 0);
-      if (!jid || map[jid]) continue;   // id-desc, page order → first seen = newest TDR, wins
-      map[jid] = {
-        diagnosis: String(t.diagnosis || ''),
-        failed_component: String(t.failed_component || ''),
-        part: String(t.verified_part_number || ''),
-        repair_completed: String(t.repair_completed || ''),
-        parts_needed: String(t.parts_needed || ''),
-        labor_hours: (t.labor_hours != null && t.labor_hours !== '') ? Number(t.labor_hours) : null,
-      };
+    } catch (e) {
+      if (attempt < 1) return fetchPage(page, attempt + 1);
+      return null;   // null = LOST (say so), [] = genuinely past the end of the table
     }
+  };
+  for (let start = 1; start <= PAGES; start += BATCH) {
+    const nums = [];
+    for (let p = start; p < start + BATCH && p <= PAGES; p++) nums.push(p);
+    const res = await Promise.all(nums.map((p) => fetchPage(p)));
+    let reachedEnd = false;
+    for (let i = 0; i < res.length; i++) {
+      const rows = res[i];
+      if (rows == null) { console.error('[tn-mirror] TDR page ' + nums[i] + ' lost after retry'); continue; }
+      if (rows.length < 500) reachedEnd = true;
+      for (const t of rows) {
+        const jid = Number(t.job_id || 0);
+        if (!jid || map[jid]) continue;   // first seen = newest TDR, wins
+        map[jid] = {
+          diagnosis: String(t.diagnosis || ''),
+          failed_component: String(t.failed_component || ''),
+          part: String(t.verified_part_number || ''),
+          repair_completed: String(t.repair_completed || ''),
+          parts_needed: String(t.parts_needed || ''),
+          labor_hours: (t.labor_hours != null && t.labor_hours !== '') ? Number(t.labor_hours) : null,
+        };
+      }
+    }
+    if (reachedEnd) break;
   }
   return map;
 }
