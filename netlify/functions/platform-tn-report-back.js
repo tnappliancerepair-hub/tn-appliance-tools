@@ -24,6 +24,7 @@
 'use strict';
 
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
+const md = require('./_lib/xano/metadata-crud');
 
 // Same guard the mirror and the forward tee use. VAPI_ADMIN_SECRET resolves from NEITHER the
 // vault nor process.env on this site, so those two siblings authenticate purely off this
@@ -61,14 +62,20 @@ const blank = (v) => !s(v);
 const MAP = [
   { xano: 'diagnosis',        from: (t) => s(t.root_cause) },
   { xano: 'failed_component', from: (t) => s(t.failed_component) },
-  { xano: 'parts_needed',     from: (t) => s(t.part_number) },
   { xano: 'labor_hours',      from: (t) => (t.labor_hours == null || t.labor_hours === '' ? '' : String(t.labor_hours)) },
 ];
+// The part number does NOT go through the voice endpoint. Its `parts_needed` branch feeds a
+// JSON/list column and answered "Text filter requires an integer, float, string or boolean
+// value" on the first live run - the documented parts_needed list-column footgun. What actually
+// matters is `verified_part_number`, the plain TEXT column the office board, Ann and
+// vendor-chase all read, so we write that directly with a read-modify-write (Xano's content PUT
+// replaces the row) - the same thing set-tdr-field does, minus an HTTP hop through our own site.
+const PART_FROM = (t) => s(t.part_number);
+const PART_BLANK_IF = ['verified_part_number', 'oem_part_number'];
 // Which Xano column(s) must ALL be blank before that field is considered missing there.
 const XANO_COL = {
   diagnosis: ['diagnosis'],
   failed_component: ['failed_component'],
-  parts_needed: ['verified_part_number', 'oem_part_number'],  // either one means Xano has the part
   labor_hours: ['labor_time_hours', 'labor_hours'],           // labor_time_hours is the real one
 };
 
@@ -138,11 +145,13 @@ exports.handler = async (event) => {
     }
 
     const todo = MAP.filter((m) => m.from(t) && XANO_COL[m.xano].every((c) => blank(cur[c])));
-    if (!todo.length) { out.already_full++; continue; }
+    const needPart = !!PART_FROM(t) && PART_BLANK_IF.every((c) => blank(cur[c]));
+    if (!todo.length && !needPart) { out.already_full++; continue; }
 
     const techId = techXano.get(t.job.technician_id) || 0;
-    if (out.sample.length < 8) out.sample.push({ job: xid, tech: techId || null, fields: todo.map((m) => m.xano) });
-    if (dryrun) { out.filled += todo.length; out.jobs_touched++; continue; }
+    const fieldNames = todo.map((m) => m.xano).concat(needPart ? ['verified_part_number'] : []);
+    if (out.sample.length < 8) out.sample.push({ job: xid, tech: techId || null, fields: fieldNames });
+    if (dryrun) { out.filled += fieldNames.length; out.jobs_touched++; continue; }
 
     let wrote = 0;
     for (const m of todo) {
@@ -158,6 +167,23 @@ exports.handler = async (event) => {
         else out.errors.push({ job: xid, field: m.xano, err: String((wd && (wd.message || wd.error)) || wr.status).slice(0, 80) });
       } catch (e) {
         out.errors.push({ job: xid, field: m.xano, err: String((e && e.message) || e).slice(0, 60) });
+      }
+    }
+    // part number last: the voice writes above may have just CREATED the TDR row, so re-read
+    // the newest one for this job rather than trusting the id we read before those writes.
+    const partVal = PART_FROM(t);
+    if (partVal && PART_BLANK_IF.every((c) => blank(cur[c]))) {
+      try {
+        const rows = await md.search(TDR_TABLE, { job_id: xid });
+        const row = (Array.isArray(rows) ? rows : []).sort((a, b) => Number(b.id) - Number(a.id))[0];
+        if (row && blank(row.verified_part_number) && blank(row.oem_part_number)) {
+          const merged = Object.assign({}, row, { verified_part_number: partVal });
+          delete merged.id; delete merged.created_at;
+          await md.update(TDR_TABLE, Number(row.id), merged);
+          wrote++;
+        }
+      } catch (e) {
+        out.errors.push({ job: xid, field: 'verified_part_number', err: String((e && e.message) || e).slice(0, 80) });
       }
     }
     if (wrote) { out.filled += wrote; out.jobs_touched++; }
