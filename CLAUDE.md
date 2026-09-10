@@ -1,5 +1,105 @@
 # Appliance Ant
 
+## 🔁 2026-09-10 (late) — THE LAST ONE-WAY GAP CLOSED (bookings now reach Xano) + a mass-mis-text landmine + the 1,000-row cap — READ FIRST
+
+Continuation of the migration grind. Four things, in the order they were found.
+
+### 🔁 A BOOKING MADE ON THE PLATFORM NOW REACHES XANO (`platform-tn-booking-back`, LIVE, cron `4-59/5`)
+The mirror moved jobs Xano → platform and the guard stopped Xano *erasing* a platform booking, but
+nothing carried one back — so the legacy board and the Xano tech app were blind to work booked here.
+That is the single thing that was forcing the office to keep booking in Xano.
+- **Detection is an EXPLICIT STAMP, never inference.** The three booking surfaces (office-board,
+  dispatch, needs-scheduled) write straight to PostgREST from the browser, so there is no server
+  hook. Inferring *"platform has a day, Xano is blank ⇒ the platform booked it"* is **WRONG in a real
+  case: Xano UNSCHEDULING a job looks byte-for-byte identical**, and guessing would resurrect a
+  booking someone deliberately cleared. So each surface stamps **`job.platform_booked_at`** (SQL 059)
+  and the pusher **CONSUMES it** (clears to null + records `platform_booked_pushed_at`). So
+  `platform_booked_at is not null` **IS** the queue — bounded, indexed, and a reschedule re-stamps it.
+- **⚠️ It had to be a consumable queue because PostgREST compares a filter against a LITERAL, never
+  another column.** `platform_booked_pushed_at.lt.platform_booked_at` returned an error and would have
+  silently pushed nothing.
+- **NO SIDE EFFECTS.** Writes via the **Metadata API**, NOT `danielle_schedule_parallel_job` /
+  `reassign_job` — those emit APPOINTMENT_SCHEDULED / TECH_ASSIGNED and **text a customer**. A
+  mirror-sync is the last thing that should trip a proactive text.
+- **Write safety proved first:** Xano's content PUT **replaces the row**, so every write is a
+  read-modify-write of the whole **127-column** job. `?rmwtest=<id>&confirm=yes` proved it lossless
+  (127 in, 127 out, empty diff) on a disposable artifact row BEFORE anything real moved. Terminal
+  Xano jobs are never touched; `scheduling_status` is only promoted FROM a pre-scheduled state so an
+  `awaiting_parts` return trip keeps its parts state.
+- **Central time is COMPUTED, not hardcoded −5.** Verified 8/11/2 CT land right on both sides of both
+  DST flips, and 8am CT resolves to the same 13:00Z the live rows already carry.
+- **🐞 THE STOP-ORDER BUG (only visible because the restore diffed the exact byte).** Xano encodes
+  **stop position in the HOUR** (`hour = 8 + slot − 1`); the platform's three windows (8-11/11-2/2-5)
+  **cannot express "slot 2"**. Restoring job 18576 wrote **8:00 AM over Xano's 9:00 AM** — silently
+  moving that job to the front of the tech's day. Fix: when the platform carries **no** window and the
+  **day has not moved**, keep Xano's own hour. A window set on the platform still wins.
+  **LESSON: a round-trip test must compare the BYTE, not "it looks scheduled again."**
+- **The mirror stopped racing it:** a booking still QUEUED for Xano is the one case where the platform
+  outranks the system of record outright. Without that, a reschedule was lost — mirror reverts to
+  Xano's old day, pusher dutifully sends the old day back, office watches its own change undo itself.
+- **Unschedule clears `current_status` too** — Xano carries the state twice and `mapStatus`/`job-truth`
+  fall back to it, so a stale `scheduled` there is a second source of truth waiting to contradict.
+- **`?repair=<xano_id>&confirm=yes&tech=&start=&status=&current=`** — a signal-free repair hatch, because
+  every normal endpoint that sets these texts somebody. **Verified live both directions** (book → Xano
+  scheduled/11:00 AM CT/tech 2; unschedule → null/not_ready), then restored byte-for-byte, zero residue.
+
+### 🚨 CLEARING THE OVERDUE BACKLOG WOULD HAVE TEXTED HUNDREDS OF CUSTOMERS (found before it shipped)
+`office_set_job_status → completed` is a **TRANSITION**, and `job-completion-watch` picks up any
+transition inside a **36-hour window** → emits `job_completed` → `review-request-sweep` texts the
+customer *"how'd we do?"*. So **correcting the status of a June job today looks brand new to the whole
+chain.** One afternoon of board cleanup would have asked up to 331 customers to review a visit from
+three months ago — under Teddy's name.
+- **Fix belongs in `_lib/review-ask`, not in the cleanup tool** — a stale ask is wrong however the
+  completion got there. It reads **when the WORK happened** (`job_completed_at` / `scheduled_start`,
+  both confirmed present on `get_job_for_dashboard`) rather than when the row was touched, because a
+  status can be corrected months later but **the visit cannot move**. Older than **10 days** → no ask,
+  reason `work_too_old`. `opts.force` still bypasses.
+- ⚠️ Every caller of review-ask is a **scheduled** function (edge-403 on manual HTTP), so this was
+  proved from live field values (job 18576, visit 100 days ago → guard fires), not a dry-run.
+
+### 🕳️ THE 1,000-ROW CAP WAS SHORT-CHANGING THE BOARD *AND* THE OWNER'S MONEY VIEW
+**PostgREST caps a response server-side at 1,000 rows no matter what `.limit()` asks for, and it does
+NOT error — it quietly hands back less.** Proved on the real query, not inferred:
+```
+GET /rest/v1/job?status=not.in.(completed,canceled)&limit=2000
+ -> content-range: 0-999/1210
+```
+Measured damage: **dispatch + needs-scheduled were seeing 1,000 of 1,210 open jobs (210 invisible)**,
+and **owner.html was computing take-home, first-stop rate, warranty pipeline and parts margin on
+1,000 of 3,455 jobs** (and 1,000 of 1,638 `job_part` rows). The numbers looked fine and were wrong.
+- **`platform/ant-page.js` `AntPage.all(makeQuery)`** pages until the server stops handing back a full
+  page. Takes a **FACTORY**, not a query (a supabase-js builder can only be awaited once). It applies
+  the **stable sort itself** — `.range()` over an unordered result can skip or duplicate rows between
+  pages, and doing it centrally means no call site can forget. One retry per page; a page still lost
+  after that is **REPORTED** (`partial`), never treated as end-of-table.
+- Verified paged reads return **1,210/1,210** and **3,455/3,455**. Left alone deliberately: invoice
+  (10), tech_payout (0), coverage (203), tech_time_off (1).
+- **⚠️ STANDING RULE: any `.select()` that COULD exceed 1,000 rows needs `AntPage.all`, an RPC, or an
+  explicit count check. A plain `.limit()` bigger than the cap is a silent lie.** Same family as the
+  office board showing 37 of 1,725 message threads.
+
+### ⏰ `platform/stale-scheduled.html` — the office can finally clear the 331
+331 jobs say `scheduled` on a day already past (oldest 2026-06-02); **Xano agrees on every one**, so
+it is real work in limbo. Grouped by tech, oldest first, with the two signals that actually decide it
+on each card: **📝 report filed (111 of 331 — the tech was almost certainly there)** and 📦 parts
+pending. Three taps: *it was done* / *still needs doing* / *dead job*. Writes land in **Xano** (platform
+status is derived from it every 5 min, so a platform-only fix would be undone before the office
+finished scrolling). *Still needs doing* hands off to the booking pusher rather than writing the
+schedule twice; *dead job* uses `office_remove_job` (reversible, silent). **Office seats only.**
+Linked from the board as **⏰ Overdue**. ⏭️ **Still needs the human pass — that call is Danielle's.**
+
+### ⚠️ FOOTGUNS BURNED
+- **PostgREST cannot compare two columns in a filter** — the right side is always a literal.
+- **PostgREST caps responses at 1,000 rows silently**; `.limit(2000)` is not an error, just a lie.
+- **`.range()` without `ORDER BY` can skip or duplicate rows** between pages.
+- **Xano's content PUT replaces the row** — always read-modify-write, and prove it lossless first.
+- **Xano stores schedule state TWICE** (`scheduling_status` + `current_status`); fix both or the stale
+  one contradicts you later. Unscheduled is **`scheduled_start: null`**, not 0.
+- **A completion TRANSITION on an old job looks brand new to every downstream watcher.** Check what a
+  bulk status change would *fire* before building the tool that makes it easy.
+- **Headless-browser checks are unreliable through this session's proxy** (CONNECT tunnels close
+  mid-exchange). Prove front-end data paths by replaying the exact REST calls instead.
+
 ## 🚑 2026-09-10 (PM) — THE OFFICE-DOWN HOUR: four bugs wearing one costume (Xano saturation) — READ FIRST
 
 Danielle: *"Having issues on both systems. Old won't load new won't send text and having hard time to get all
