@@ -131,6 +131,54 @@ means a fix tuned for 43.8s is wrong the other 22 hours.
 - ⚠️ **A shared helper with one timeout constant is a shared failure mode.** When two callers
   have different tolerance for the same slow dependency, the tolerance belongs at the call site.
 
+### 🩸 THE MIRROR WROTE **NOTHING** FOR 45 MINUTES AND EVERY RUN STILL REPORTED HEALTHY
+Two bugs, both mine, both from the same afternoon's fixes. Neither raised an alarm anywhere.
+- **🔴 `PGRST102: All object keys must match` — the whole job upsert 400'd on every run.**
+  The fix that stopped a missed TDR erasing a mirrored report OMITS the six `tdr_*` keys on a
+  miss (merge-duplicates only touches columns you send). **PostgREST requires every object in a
+  bulk upsert to carry an IDENTICAL key set and rejects the entire batch when they differ** — so
+  one mixed array failed all 1,174 rows at once. Customers, units and addresses kept writing
+  fine, so the run *looked* fine; the only clue was `job.updated_at` moving on ~25 rows a run
+  (those were the **email tee**, not the mirror). **Fix: split the rows into a with-report group
+  and a without-report group and upsert each — both internally uniform, both keep omit-on-miss.**
+- **🔴 The TDR pull silently lost 3 of its 8 pages.** Firing all eight at once at a saturated
+  Xano just queued them: pages 1/4/5 answered in ~1.3s, pages **2, 3 and 8 aborted at 12s**, and
+  `allSettled` swallows a lost page **by design** — ~1,000 reports (ids 1814→813) vanished with
+  no error. The merged map held **550 job ids instead of ~1,100**. **Fix: three at a time, one
+  retry per page, stop at the first short page** (the table ends ~id 2313, so pages 6-8 were
+  always empty requests), and a page lost after its retry now **logs**.
+- **⚠️ THE LESSON, twice in one hour: `Promise.allSettled` over a slow dependency is a silent
+  data-loss machine.** It is the right tool only when a missing piece is genuinely optional AND
+  its absence is reported. Neither was true here. And **"the run returned ok" is not evidence the
+  write landed** — check the row count you actually wrote, not the absence of an exception.
+- **🔎 `?tdr_probe=1` (read-only) is what cracked it** — per-page HTTP status, row count, id range
+  and latency. There is no way to tell a genuinely short table from pages you are losing from the
+  outside; build the probe instead of guessing. (I guessed twice first and was wrong twice.)
+
+### 📋 COMPLETED JOBS HAD NO REPORTS AT ALL — 19 across 2,279 jobs (backfilled)
+The every-5-min mirror only walks `ACTIVE_STATUSES`, so **once a job completes it is never
+revisited** — its report, part# and labor stay frozen at whatever was there, and anything the
+erase bug blanked could never self-heal. Measured: the 1,175 active jobs carried 624 reports;
+the other **2,279 carried 19 between them**, while Xano held the real ones. That history is
+exactly what the platform must own before TN runs on it full-time (warranty submissions, and
+every "what did we do here last time" lookup, read straight off it).
+**`?backfill_tdr=1`** (add `&dryrun=1` to count first) pulls the full TDR map, asks the platform
+which of those jobs still have no report, and fills only those — **additive + blank-only**, so it
+can never overwrite a report a tech filed ON the platform. **Ran live: 155 filled; coverage
+623 → 709**, past the pre-bug 669. Job 19988 now carries Jimmy's real diagnosis (*"loose
+connection on the heating element burned a wire off"*) instead of a blank.
+**⏭️ Re-run it after any future gap** — it is idempotent and cheap.
+
+### ✅ WHERE THE MIRROR ACTUALLY STANDS (measured 19:21)
+Full run **1,174 jobs in ~9.5s** (read side 7.8s: kanban 800 + supplemental 802 → 1,174
+mirrorable). The 19:21 **cron** wrote all 1,174 — not the 25 it had been managing.
+**⚠️ STILL SERIAL, still a latent blowout: `fetchActiveJobs` is 7 statuses × up to 4 pages,
+sequential, 12s each = up to 28 chained requests** — fine at today's ~1.3s/page, ugly at the
+43.8s-spike. It also does `catch (_) { break; }`, which is the **same silent-page-loss family**
+as the TDR bug: a timeout quietly ends that status's pagination and the jobs just don't appear.
+Left alone deliberately (one change at a time, and it is measurably working right now) — but it
+is the next thing to harden, and it should get the same batch + retry + loud-on-loss treatment.
+
 ### 🔴 THE MEASUREMENT THAT FRAMES EVERYTHING — `get_office_kanban` answered in **43.8 seconds** (779 KB)
 Measured live mid-session. `get_job_for_dashboard` was fine at the same moment (0.69s), so this ONE
 endpoint is the freeze. It is also what the **mirror itself** depends on — `fetchKanban` caps at 12s,
