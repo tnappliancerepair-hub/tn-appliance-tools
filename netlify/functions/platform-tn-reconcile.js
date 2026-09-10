@@ -126,12 +126,37 @@ exports.handler = async function (event) {
   // — which a nightly reconcile wants regardless. Written even on a dry run.
   const summary = { ok: true, dryrun: dry, scanned: rows.length, xano_seen: xstat.size,
     canceled, skipped_local_complete: skippedLocal, still_active_in_xano: unseen, coverage, report: report.slice(0, 40) };
+  // ...but a 15-min cron writing one audit row per run is 96 rows/day forever.
+  // A run that DID something is worth keeping (real audit trail); a no-op run only
+  // needs to answer "is it still running", so those collapse into a single rolling
+  // row updated in place. Unbounded growth with no prune is what grew the backup
+  // table to 978 MB.
+  const didWork = canceled > 0;
   try {
-    await fetch(`${base}/rest/v1/event`, {
-      method: 'POST', headers: { ...SB, Prefer: 'return=minimal' },
-      body: JSON.stringify({ company_id: TN_COMPANY, type: 'tn_reconcile_run', entity: 'job', payload: summary }),
-      signal: AbortSignal.timeout(12000),
-    });
+    if (didWork) {
+      await fetch(`${base}/rest/v1/event`, {
+        method: 'POST', headers: { ...SB, Prefer: 'return=minimal' },
+        body: JSON.stringify({ company_id: TN_COMPANY, type: 'tn_reconcile_run', entity: 'job', payload: summary }),
+        signal: AbortSignal.timeout(12000),
+      });
+    } else {
+      const body = JSON.stringify({ company_id: TN_COMPANY, type: 'tn_reconcile_idle', entity: 'job', payload: summary });
+      const prior = await fetch(`${base}/rest/v1/event?company_id=eq.${TN_COMPANY}&type=eq.tn_reconcile_idle&select=id&order=id.desc&limit=1`,
+        { headers: SB, signal: AbortSignal.timeout(12000) }).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+      const id = prior && prior[0] && prior[0].id;
+      let ok = false;
+      if (id) {
+        const r = await fetch(`${base}/rest/v1/event?id=eq.${id}`, {
+          method: 'PATCH', headers: { ...SB, Prefer: 'return=minimal' }, body, signal: AbortSignal.timeout(12000),
+        });
+        ok = r.ok;
+      }
+      if (!ok) {
+        await fetch(`${base}/rest/v1/event`, {
+          method: 'POST', headers: { ...SB, Prefer: 'return=minimal' }, body, signal: AbortSignal.timeout(12000),
+        });
+      }
+    }
   } catch (_) {}
 
   return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(summary, null, 2) };

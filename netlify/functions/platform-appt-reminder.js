@@ -22,7 +22,9 @@ async function ctx() {
   return { base, H: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' } };
 }
 async function sget(base, H, path) { try { const r = await fetch(base + '/rest/v1/' + path, { headers: H, signal: AbortSignal.timeout(9000) }); return r.ok ? (await r.json().catch(() => [])) : []; } catch (_) { return []; } }
-async function sins(base, H, table, row) { try { await fetch(base + '/rest/v1/' + table, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(9000) }); } catch (_) {} }
+// Returns whether the row actually landed. A fire-and-forget insert cannot be
+// used as a claim, and this one IS the claim (see the send loop below).
+async function sins(base, H, table, row) { try { const r = await fetch(base + '/rest/v1/' + table, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(9000) }); return r.ok; } catch (_) { return false; } }
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
@@ -44,7 +46,7 @@ exports.handler = async function (event) {
   const jobs = await sget(base, H, jf);
 
   const coCache = {}, techCache = {}, unitCache = {};
-  const out = { ok: true, date: tomorrow, dry, found: jobs.length, sent: 0, skipped_off: 0, skipped_dup: 0, skipped_nophone: 0, results: [] };
+  const out = { ok: true, date: tomorrow, dry, found: jobs.length, sent: 0, skipped_off: 0, skipped_dup: 0, skipped_nophone: 0, send_failed: 0, results: [] };
 
   for (const j of jobs) {
     if (out.sent >= 500) break;
@@ -69,10 +71,20 @@ exports.handler = async function (event) {
     if (!phone) { out.skipped_nophone++; continue; }
     if (dry) { out.sent++; continue; }
 
+    // CLAIM BEFORE SEND. The old order was read-marker -> send -> write-marker,
+    // so two concurrent runs both passed the check and both texted the customer.
+    // Measured 2026-09-07: 42 markers across 25 jobs -- 17 customers got the
+    // day-before reminder TWICE. Every other day was a clean 1:1.
+    // Writing the marker first collapses the race to a single insert, and the
+    // partial unique index (thread_reminder_once_uidx on job_id where
+    // channel='reminder') makes the loser's insert fail outright, so it never
+    // sends. Failure direction is now a MISSED reminder (silent, recoverable)
+    // instead of a double text -- the right trade for a customer-facing send.
+    const claimed = await sins(base, H, 'thread_message', { company_id: j.company_id, customer_id: j.customer_id, job_id: j.id, direction: 'out', channel: 'reminder', sender: 'system', body: '🔔 Day-before reminder sent' });
+    if (!claimed) { out.skipped_dup++; continue; }
     let ok = false; try { ok = await sendSms(phone, text, 'customer', 'platform_reminder'); } catch (_) {}
-    await sins(base, H, 'thread_message', { company_id: j.company_id, customer_id: j.customer_id, job_id: j.id, direction: 'out', channel: 'reminder', sender: 'system', body: '🔔 Day-before reminder sent' });
-    if (ok) out.sent++;
+    if (ok) out.sent++; else out.send_failed = (out.send_failed || 0) + 1;
   }
-  console.log('[appt-reminder]', JSON.stringify({ date: tomorrow, dry, found: out.found, sent: out.sent, off: out.skipped_off, dup: out.skipped_dup }));
+  console.log('[appt-reminder]', JSON.stringify({ date: tomorrow, dry, found: out.found, sent: out.sent, off: out.skipped_off, dup: out.skipped_dup, send_failed: out.send_failed }));
   return json(200, out);
 };

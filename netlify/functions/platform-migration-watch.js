@@ -63,18 +63,33 @@ const minsAgo = (iso) => (!iso ? Infinity : Math.round((Date.now() - Date.parse(
 
 // ── watch state lives on the platform, not in Xano — a monitor for the migration off
 // Xano must not itself die when Xano does. ──
+// Watch state is STATE, not a log -- ONE row, updated in place. The first cut
+// inserted a fresh row every tick: 96 rows/day, unbounded, no prune. That is the
+// same shape as the backup table that quietly grew to 978 MB and became the #1
+// autovacuum-churn source. A monitor must not be a leak.
+let _stateId = null;
 async function readState() {
   try {
-    const rows = await q(`event?company_id=eq.${TN}&type=eq.migration_watch&select=payload&order=created_at.desc&limit=1`);
-    return (rows && rows[0] && rows[0].payload) || {};
-  } catch (_) { return {}; }
+    const rows = await q(`event?company_id=eq.${TN}&type=eq.migration_watch&select=id,payload&order=id.desc&limit=1`);
+    const r = (rows && rows[0]) || null;
+    _stateId = r ? r.id : null;
+    return (r && r.payload) || {};
+  } catch (_) { _stateId = null; return {}; }
 }
 async function writeState(payload) {
   try {
+    const body = JSON.stringify({ company_id: TN, type: 'migration_watch', entity: 'platform', payload });
+    if (_stateId) {
+      const r = await fetch(`${SB}/rest/v1/event?id=eq.${_stateId}`, {
+        method: 'PATCH', headers: { ...H(), Prefer: 'return=minimal' },
+        body, signal: AbortSignal.timeout(12000),
+      });
+      if (r.ok) return;            // updated in place
+      _stateId = null;             // row vanished -> fall through and re-create
+    }
     await fetch(`${SB}/rest/v1/event`, {
       method: 'POST', headers: { ...H(), Prefer: 'return=minimal' },
-      body: JSON.stringify({ company_id: TN, type: 'migration_watch', entity: 'platform', payload }),
-      signal: AbortSignal.timeout(12000),
+      body, signal: AbortSignal.timeout(12000),
     });
   } catch (_) {}
 }
