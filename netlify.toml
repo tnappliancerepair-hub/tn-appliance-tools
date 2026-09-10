@@ -947,6 +947,18 @@
 [functions."platform-tn-booking-back-cron"]
   schedule = "4-59/5 * * * *"
 
+# platform-tn-job-back-cron (2026-09-10) - a job BORN on the platform also lands in Xano, so the
+# old system stays a complete backup during the migration (Teddy: "get these new jobs to go to
+# Supabase as well as Xano, and just use Xano as a backup for right now"). The platform runs its
+# OWN warranty-email intake, and a dispatch Xano's poller never saw was being created here only -
+# four real Frontdoor jobs from 9/8-9/10 existed nowhere else. Claim number is the dedup key: no
+# claim, no create. Links to an existing Xano job before ever creating one. Writes through the
+# Metadata API so no JOB_CREATED fires and nobody gets a greeting text. Offset :08, clear of the
+# /15 crons at 3, 6, 9, 11, 13. Curl-testable core: platform-tn-job-back?secret=...&dryrun=1
+# Kill: vault PLATFORM_JOB_BACK_ENABLED=false (or PLATFORM_JOB_BACK_LIVE=false for shadow).
+[functions."platform-tn-job-back-cron"]
+  schedule = "8-59/15 * * * *"
+
 # platform-rma-tee-cron (phase-2 parts-return, 2026-09-09) — auto-matches SquareTrade/Allstate
 # RMA return-labels from rma_request@squaretrade.com (RMA#/FedEx tracking/distributor/part#) to
 # the platform returns worklist by claim + part#. Reads TN's Gmail read-only; writes only into TN's
