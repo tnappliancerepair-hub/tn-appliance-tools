@@ -1,5 +1,58 @@
 # Appliance Ant
 
+## ✅ 2026-09-10 (late) — "ARE WE CURRENT?" IS NOW A NUMBER — `platform-tn-parity` + the third write-back — READ FIRST
+
+Teddy: *"Ok we're current on Supabase now."* Checked it instead of taking it — and found the last
+real gap plus a tool that answers the question permanently.
+
+### 🧮 `platform-tn-parity` (NEW) — the two systems, diffed
+It **imports `fetchActiveJobs` and `isRealJob` FROM THE MIRROR**. A parity check that
+re-implements the walk or the shell-skip rule measures its own copy of the logic and would
+happily report "current" while the mirror quietly dropped a whole status. Platform side is
+**paged** — the 1,000-row cap would otherwise invent a gap out of thin air.
+Four buckets, because *missing* is not one thing: **missing_real** (act on it) · **skipped_shell**
+(Xano's warranty-email artifacts, no name/phone/appliance — skipped on purpose, counted, never
+alarmed on) · **status_drift** · **platform_only_open** (the backup being incomplete).
+`?days=N` scopes it, `?list=1` names the jobs.
+
+### ↔️ THE THIRD WRITE-BACK — `platform-tn-status-back` (LIVE, cron `2-59/10`)
+Parity's first run: **11 jobs where the platform was AHEAD of Xano, four of them completed by a
+tech here while Xano still showed scheduled/in-progress.** The mirror's never-walk-backwards guard
+**defends** the platform's further-along state but never **tells** Xano — so the backup did not know
+the work was done.
+- **FORWARD ONLY on the mirror's own `RANK`** (new→scheduled→in_progress→awaiting_parts→completed).
+  It can never drag Xano backwards, which matters while Xano is still system of record.
+- **A completion needs a real `completed_at` stamp, never status alone.** Earned its keep on the
+  first run: job 21764 reads completed here with NO stamp and was skipped rather than marked done.
+  That is the exact shape that nearly caused a bad bulk repair (~73 unfinished jobs) before.
+- **NO SIGNALS — and it matters most here.** `office_set_job_status → completed` writes an
+  event_log transition, `job-completion-watch` grabs anything inside 36h, `review-request-sweep`
+  texts the customer. Pushing a backlog of completions through that path would text people about
+  old work. A raw Metadata row-write emits nothing.
+- **First live run: 11 pushed, 0 errors. Drift 11 → 1.**
+
+### 📊 WHERE PARITY ACTUALLY STANDS (measured, not asserted)
+`xano_active 802 · platform_mirrored 3,442 · missing_from_platform 1 · platform_only_open 0 ·
+status_drift 1`. The two remaining are both **honest Xano-side data problems, not sync bugs**:
+- **Job 21958** — a RECALL with **NO customer_id at all** (no name, phone or address). The mirror
+  cannot create it because there is no customer to map. **Nobody can work it either** — needs a
+  customer attached in Xano.
+- **Job 21764** (Lee / Faatoia Tufele) — marked completed here with **no `completed_at`**, a filed
+  report, and `scheduled_day` **2026-09-14 (future)**. Reads like a parts return trip marked done
+  early. Needs a human, which is why the guard refused it.
+
+### ⚠️ POLL FOR THE **PUBLISHED** DEPLOY, NOT A MENTION OF THE COMMIT
+Cost two false "still broken" runs and one 404 chase. `deploy-watch` returns `latest` (which can be
+**building**) and `last_good` (**published**). Matching the sha anywhere in the body matches the
+building one. Gate on `last_good.commit`:
+```
+until curl -s -G .../deploy-watch --data-urlencode "secret=$S" --data-urlencode "dry=1" \
+  | python3 -c "import sys,json;print((json.load(sys.stdin).get('last_good') or {}).get('commit',''))" \
+  | grep -q "$(git log -1 --format=%h)"; do sleep 15; done
+```
+A function that 404s right after a deploy is usually **still building** — the other cause is the
+documented mis-pathed `require` that makes esbuild silently drop the whole function.
+
 ## ↔️ 2026-09-10 (late) — EVERY NEW JOB NOW LANDS IN **BOTH** SYSTEMS (Xano stays a complete backup) — READ FIRST
 
 **Teddy's direction, locked:** *"Supabase is the new system we are trying to get set up. Xano is our old
