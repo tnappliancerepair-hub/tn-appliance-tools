@@ -155,6 +155,36 @@ Two bugs, both mine, both from the same afternoon's fixes. Neither raised an ala
   and latency. There is no way to tell a genuinely short table from pages you are losing from the
   outside; build the probe instead of guessing. (I guessed twice first and was wrong twice.)
 
+### 💸 A REPORT FILED ON THE PLATFORM NEVER REACHED XANO — that's an unfileable warranty claim
+`platform-tn-report-tee` moves reports Xano → platform. **Nothing moved them back**, and TN's crew
+has started filing in `platform/tech-job.html` (writes straight to Supabase `job_tdr`). Measured
+9/10: **3 real reports existed ONLY on the platform** — Lee's FFE error code, Jimmy's, an ice-maker
+diagnosis — while Xano showed nothing. `servicepower-claims-build` reads **XANO**, so each one was
+a warranty claim nobody could file. It grows as the crew moves over.
+- **`platform-tn-report-back` (+ `-cron`, `3-59/15`)** — fill-the-blank ONLY in both directions now.
+  Writes via `update_tdr_field_from_voice`, which upserts by (job_id, technician_id) and emits **no
+  `TDR_SUBMITTED`**, so nothing auto-routes the job, texts a customer, or fires the warranty chain.
+  A failed read of Xano **skips** the job rather than assuming blank — assuming blank is how you
+  overwrite good data.
+- **⚠️ THE TRAP THAT ALMOST POLLUTED THE SYSTEM OF RECORD — a derived value tried to round-trip.**
+  The first dry-run wanted **47 fields across 38 jobs**; the honest number was **7 across 4**.
+  (a) `outcome` is **not the tech's words** — the forward tee CLASSIFIES Xano's prose into
+  `fixed`/`return_needed`/`not_fixable`. Writing that token back would launder a machine inference
+  into Xano on top of what the tech actually wrote. **Dropped — it can never carry information
+  Xano lacks.** (b) platform `labor_hours` is read from Xano's **`labor_time_hours`** — a DIFFERENT
+  column, and the one techs actually fill — so checking `labor_hours` for blankness said "empty" on
+  30+ jobs whose hours Xano already had. **Rule: before teeing a value BACK, ask whether the other
+  side derived it from you. If so it is not news, it is an echo.**
+- **The part number does NOT go through the voice endpoint** — its `parts_needed` branch feeds the
+  JSON/list column and returns *"Text filter requires an integer, float, string or boolean value"*
+  (the documented list-column footgun). It writes **`verified_part_number`** directly (read-modify-
+  write; Xano's content PUT replaces the row), re-reading the newest TDR because the field writes
+  may have just created it.
+- **Verified live:** 7 fields / 4 jobs filled, second run 0 of 200 (idempotent), and job 22011 now
+  reads back **out of Xano** with diagnosis + failed component + part# `AEB76044901`.
+- **⏭️ Still one-way:** bookings and status made on the platform still don't flow back to Xano.
+  Reports were the money-critical half; scheduling is the next one to settle.
+
 ### 🛡️ THE MIRROR WAS ERASING THE OFFICE'S OWN WORK — two more fields, PROVEN LIVE
 The 9/8 guard stopped the mirror reverting a tech's `status`/`completed_at`. It stopped there, and
 the mirror still rewrote **every other field from Xano on every 5-minute run** — including the ones
