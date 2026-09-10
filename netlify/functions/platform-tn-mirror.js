@@ -282,6 +282,47 @@ async function recoverCustomerStreets(url, key, startPage, maxPages) {
   return { ok: true, blank_customers: blank.size, scanned, filled, next_page: done ? null : page, done };
 }
 
+// Read-only: the OTHER serial walk. fetchActiveJobs is 7 statuses x up to 4 pages, sequential,
+// and it does `catch (_) { break; }` - a timeout quietly ends that status's pagination and those
+// jobs simply never appear on the platform. Same silent-loss family as the TDR pages, and there
+// is no way to see it from the outside either. ?active_probe=1
+async function activeProbe() {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return { ok: false, error: 'no_xano_token' };
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const out = [];
+  for (const status of ACTIVE_STATUSES) {
+    const pages = [];
+    for (let page = 1; page <= 4; page++) {
+      const t = Date.now();
+      try {
+        const r = await fetch(`${META}/table/7/content/search`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ search: { scheduling_status: status }, sort: { id: 'desc' }, per_page: 500, page }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const rows = r.ok ? ((await r.json()).items || []) : [];
+        pages.push({ page, http: r.status, rows: rows.length, ms: Date.now() - t });
+        if (!r.ok || rows.length < 500) break;
+      } catch (e) {
+        pages.push({ page, error: String((e && e.message) || e).slice(0, 60), ms: Date.now() - t });
+        break;   // exactly what the real loop does - and this is the row we care about
+      }
+    }
+    const last = pages[pages.length - 1] || {};
+    out.push({
+      status,
+      rows: pages.reduce((n, x) => n + (x.rows || 0), 0),
+      pages: pages.length,
+      // TRUNCATED = the walk stopped on an error or on a full page, so there is more we never read
+      truncated: !!last.error || last.rows === 500,
+      detail: pages,
+    });
+  }
+  return { ok: true, statuses: out, total_rows: out.reduce((n, x) => n + x.rows, 0),
+    truncated_statuses: out.filter((x) => x.truncated).map((x) => x.status) };
+}
+
 // Read-only: what does the TDR pull actually see, page by page? fetchTdrMap merges with
 // allSettled, so a page that fails costs its rows SILENTLY - this is how we tell a genuinely
 // short table from pages we are losing. ?tdr_probe=1
@@ -663,6 +704,7 @@ exports.handler = async function (event) {
       return json(200, out);
     }
     if (q.tdr_probe === '1') return json(200, await tdrProbe());
+    if (q.active_probe === '1') return json(200, await activeProbe());
     if (q.backfill_tdr === '1') {
       const { url, key } = await cfg();
       if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
