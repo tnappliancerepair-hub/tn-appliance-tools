@@ -79,6 +79,14 @@ function ctMs(day, hour) {
 // The three arrival windows the office actually books (ant-windows.js), plus the legacy shapes.
 const WIN_HOUR = { '8-11': 8, '11-2': 11, '2-5': 14, am: 8, pm: 13, any: 8 };
 const startHour = (win) => WIN_HOUR[String(win || '').toLowerCase()] || 8;
+// The CT calendar day of an epoch-ms instant — needed to tell "same day, keep their hour" from
+// "the day actually moved".
+function ctDay(ms) {
+  const p = {};
+  new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(new Date(ms)).forEach((x) => { if (x.type !== 'literal') p[x.type] = x.value; });
+  return p.year + '-' + p.month + '-' + p.day;
+}
 
 // Xano statuses we may PROMOTE to 'scheduled' when a day lands. Everything else keeps its own
 // status: an awaiting_parts return trip stays awaiting_parts (it is still real parts state, and
@@ -153,8 +161,17 @@ async function runBookingBack(q) {
     const why = [];
 
     if (day) {
-      const wantMs = ctMs(day, startHour(p.time_window));
-      if (Number(row.scheduled_start) !== wantMs) { patch.scheduled_start = wantMs; why.push('day->' + day + ' ' + (p.time_window || '8-11')); }
+      let wantMs = ctMs(day, startHour(p.time_window));
+      // DON'T FLATTEN THE OFFICE'S STOP ORDER. Xano encodes stop position in the HOUR
+      // (hour = 8 + slot - 1), and the platform's three arrival windows cannot express
+      // "slot 2". Caught live restoring job 18576: Xano had 9:00 AM, the platform had no
+      // window, and we wrote 8:00 AM back - silently moving that job to the front of the
+      // tech's day. So when the platform carries no window and the DAY has not moved, keep
+      // Xano's own hour. A window set on the platform is a deliberate choice and still wins.
+      if (!s(p.time_window) && Number(row.scheduled_start) > 0 && ctDay(Number(row.scheduled_start)) === day) {
+        wantMs = Number(row.scheduled_start);
+      }
+      if (Number(row.scheduled_start) !== wantMs) { patch.scheduled_start = wantMs; why.push('day->' + day + ' ' + (p.time_window || 'keep hour')); }
       const wantTech = p.technician_id ? xanoTech.get(String(p.technician_id)) : null;
       if (p.technician_id && wantTech == null) {
         // A platform-only tech with no xano_tech_id can never be represented in Xano. Say so
