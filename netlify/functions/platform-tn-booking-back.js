@@ -239,10 +239,16 @@ async function stampPushed(url, H, platformJobId) {
 }
 
 // ── read-only probe + the lossless proof ────────────────────────────────────────────────────
-async function probe(xid) {
+async function probe(xid, full) {
   const rows = await md.search(JOBS_TABLE, { id: Number(xid) });
   const row = (Array.isArray(rows) ? rows : []).find((r) => Number(r.id) === Number(xid));
   if (!row) return { ok: false, error: 'not found in Xano' };
+  // &full=1 — the whole row. Needed to map fields when building anything that WRITES a job.
+  if (full) {
+    const nonEmpty = {};
+    Object.keys(row).forEach((k) => { const v = row[k]; if (v !== null && v !== '' && v !== 0 && !(Array.isArray(v) && !v.length)) nonEmpty[k] = v; });
+    return { ok: true, id: row.id, columns: Object.keys(row).length, all_keys: Object.keys(row), populated: nonEmpty };
+  }
   return {
     ok: true, id: row.id, columns: Object.keys(row).length,
     scheduling_status: row.scheduling_status, current_status: row.current_status,
@@ -305,7 +311,7 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || process.env.VAPI_ADMIN_SECRET || GUARD_FALLBACK;
   if (!q.secret || q.secret !== admin) return j(401, { ok: false, error: 'unauthorized' });
   try {
-    if (q.probe) return j(200, await probe(q.probe));
+    if (q.probe) return j(200, await probe(q.probe, q.full === '1'));
     if (q.rmwtest) {
       if (q.confirm !== 'yes') return j(400, { ok: false, error: 'rmwtest writes the row back — add &confirm=yes' });
       return j(200, await rmwtest(q.rmwtest));
