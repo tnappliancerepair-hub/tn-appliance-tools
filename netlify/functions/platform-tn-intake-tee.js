@@ -175,7 +175,7 @@ async function mediaPass(db, rows, dry, photoCap) {
 // signature to R2 (only enable once save_customer_waiver stores it — else it's a wasted
 // Xano read per waiver, since the column doesn't exist yet).
 async function waiverPass(db, events, dry, sigimg) {
-  const res = { scanned: events.length, records: 0, signatures: 0, no_job: 0, skipped: 0, errors: 0, sample: [] };
+  const res = { scanned: events.length, records: 0, noted: 0, renoted_skipped: 0, signatures: 0, no_job: 0, skipped: 0, errors: 0, sample: [] };
   // parse each event's metadata
   const parsed = events.map((e) => {
     let m = e.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } }
@@ -184,9 +184,25 @@ async function waiverPass(db, events, dry, sigimg) {
     return { job_id: Number((m && m.job_id) || 0), name: String((m && m.signer_name) || ''), email: String((m && m.signer_email) || ''), signed_ms: Number((m && m.signed_at_ms) || 0), ack };
   }).filter((x) => x.job_id > 0);
   const jobMap = await resolveJobs(db, parsed.map((x) => x.job_id));
+  // THE LIABILITY NOTE IS NOT IDEMPOTENT -- the job patch is, the thread_message insert is not.
+  // The forward pass re-reads the newest N waiver events every run, so without this the same
+  // "Release of liability signed by X" note is re-inserted on EVERY cron tick, forever. It wrote
+  // ~2,400 duplicate rows/day (measured: one customer's note existed 492 times) and buried real
+  // customer messages in the office board + portal thread. Gate: only write the note the FIRST
+  // time we record this waiver -- i.e. when the platform job had no waiver_signed_at yet.
+  const already = new Set();
+  try {
+    const pids = [...new Set([...jobMap.values()].filter(Boolean))];
+    for (let i = 0; i < pids.length; i += 100) {
+      const chunk = pids.slice(i, i + 100);
+      const rows = await db.get(`job?id=in.(${chunk.join(',')})&select=id,waiver_signed_at`);
+      (rows || []).forEach((r) => { if (r && r.waiver_signed_at) already.add(r.id); });
+    }
+  } catch (_) { /* on a read failure fall through -- see the guard below */ }
   for (const w of parsed) {
     const pjob = jobMap.get(w.job_id);
     if (!pjob) { res.no_job++; res.skipped++; continue; }
+    const firstTime = !already.has(pjob);
     if (dry) { res.records++; if (res.sample.length < 8) res.sample.push({ job: w.job_id, name: w.name, ack: w.ack && typeof w.ack === 'object' ? Object.keys(w.ack) : 'n/a' }); continue; }
     const patch = { waiver_signed_at: w.signed_ms > 0 ? new Date(w.signed_ms).toISOString() : new Date().toISOString() };
     if (w.name) patch.waiver_name = w.name.slice(0, 120);
@@ -202,7 +218,11 @@ async function waiverPass(db, events, dry, sigimg) {
         if (w.ack.wants_leak_kit) bits.push('wants leak-kit'); else if (w.ack.leak_kit_choice === 'no') bits.push('declined leak-kit');
         if (bits.length) sum += ' — ' + bits.join(', ');
       }
-      await db.insert('thread_message', { company_id: TN_COMPANY, job_id: pjob, direction: 'in', channel: 'portal', sender: 'customer', body: sum.slice(0, 300) });
+      // Only on the first record. A re-run must never re-post the note. (If the
+      // waiver_signed_at read above failed we skip rather than risk re-spamming the thread --
+      // the job patch still lands, so nothing is lost, and the next clean run posts it.)
+      if (firstTime) { await db.insert('thread_message', { company_id: TN_COMPANY, job_id: pjob, direction: 'in', channel: 'portal', sender: 'customer', body: sum.slice(0, 300) }); res.noted = (res.noted || 0) + 1; }
+      else res.renoted_skipped = (res.renoted_skipped || 0) + 1;
       res.records++;
       // signature IMAGE (best-effort): read jobs.waiver_signature_b64 if the XS was extended to store it.
       // Gated: skip the per-waiver Xano read entirely until that column exists (else pure overhead).
