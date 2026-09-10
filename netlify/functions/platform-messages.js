@@ -15,7 +15,7 @@
 //   POST ?do=tee_probe { secret, phone, body }             -> { ok, tee }   (owner-gated)
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, getSecretStatus } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -54,7 +54,16 @@ exports.handler = async function (event) {
   const doo = String(q.do || p.do || 'list');
 
   const { url, key } = await cfg();
-  if (!url || !key) return json(200, { ok: false, error: 'platform_not_configured' });
+  if (!url || !key) {
+    // A vault read that comes back empty means one of two very different things, and the
+    // office was being shown the raw code for both. getSecretStatus knows which: a busy
+    // vault is worth retrying, a genuinely unset key is not and needs us.
+    let transient = false;
+    try { const st = await getSecretStatus('PLATFORM_SUPABASE_SERVICE_KEY'); transient = st && st.ok === false; } catch (_) {}
+    return json(200, { ok: false, error: 'platform_not_configured', retry: !!transient,
+      message: transient ? 'The system is busy right now. Try that again in a moment.'
+                         : 'Texting is not set up on this shop yet. Tell the office.' });
+  }
   const db = rest(url, key);
 
   // ── tee_probe: owner-gated. Runs the inbound bridge for one phone + body so we can

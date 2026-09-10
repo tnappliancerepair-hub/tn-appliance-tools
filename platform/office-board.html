@@ -1222,7 +1222,7 @@
           if(d&&d.ok&&d.texted){ if(msgEl) msgEl.textContent='✓ Texted '+(d.tech||'the tech')+' the job tile.'; var ni=document.getElementById('jtileNote'); if(ni) ni.value=''; }
           else if(d&&d.error==='no_tech'){ if(msgEl) msgEl.textContent='Assign a tech first, then text them the tile.'; }
           else if(d&&d.error==='no_tech_phone'){ if(msgEl) msgEl.textContent='No cell on file for '+(d.tech||'that tech')+'.'; }
-          else { if(msgEl) msgEl.textContent=(d&&d.error)||'Couldn\'t send — try again.'; }
+          else { if(msgEl) msgEl.textContent=(d&&d.message)||(d&&d.error)||'Couldn\'t send — try again.'; }
         });
     }).catch(function(){ btn.disabled=false; btn.textContent=orig; if(msgEl) msgEl.textContent='Couldn\'t reach the server — try again.'; });
   }
