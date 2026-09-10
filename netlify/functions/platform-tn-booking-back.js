@@ -31,9 +31,10 @@
 //
 //   GET ?secret=<admin>&probe=<xano_id>   read-only: dump one Xano job's schedule fields
 //   GET ?secret=<admin>&rmwtest=<xano_id>&confirm=yes   no-op read-modify-write, then diff
-//   GET ?secret=<admin>&settech=<xano_id>&tech=<int>&confirm=yes   repair hatch: set/clear the
-//       Xano tech WITHOUT firing TECH_ASSIGNED (reassign_job texts the tech and, on a scheduled
-//       job, the customer). For undoing a mis-push — not part of the sync path.
+//   GET ?secret=<admin>&repair=<xano_id>&confirm=yes&tech=&start=&status=&current=
+//       repair hatch: set any of those on a Xano job WITHOUT firing a signal. reassign_job texts
+//       the tech (and the customer on a scheduled job) and danielle_schedule_parallel_job texts
+//       the customer, so neither can be used to undo a mis-push. Not part of the sync path.
 //   GET ?secret=<admin>&dryrun=1          show what WOULD be pushed, write nothing
 //   GET ?secret=<admin>                   run (SHADOW unless PLATFORM_BOOKING_BACK_LIVE=true)
 //   GET ?secret=<admin>&max=N             cap jobs touched in one run (default 40)
@@ -273,17 +274,28 @@ async function rmwtest(xid) {
   return { ok: true, id: xid, columns_before: Object.keys(before).length, columns_after: Object.keys(after).length, lossless: diff.length === 0, diff };
 }
 
-// Repair hatch. reassign_job emits TECH_ASSIGNED, which texts the tech and (on a scheduled job)
-// the customer, so it is unusable for undoing a bad push. This does the same write silently.
-async function setTech(xid, tech) {
+// Repair hatch — set any of tech / start / status on a Xano job WITHOUT firing a signal.
+// The endpoints that normally do this are unusable for undoing a bad push:
+// reassign_job emits TECH_ASSIGNED (texts the tech, and the customer on a scheduled job) and
+// danielle_schedule_parallel_job emits APPOINTMENT_SCHEDULED (texts the customer). One generic
+// hatch rather than a new one-off every time a field needs putting back.
+async function repairJob(xid, fields) {
   const rows = await md.search(JOBS_TABLE, { id: Number(xid) });
   const row = (Array.isArray(rows) ? rows : []).find((r) => Number(r.id) === Number(xid));
   if (!row) return { ok: false, error: 'not found in Xano' };
-  const before = row.technician_id;
-  const merged = Object.assign({}, row, { technician_id: Number(tech) });
+  const patch = {}, before = {};
+  if (fields.tech != null && fields.tech !== '') { before.technician_id = row.technician_id; patch.technician_id = Number(fields.tech); }
+  if (fields.start != null && fields.start !== '') {
+    before.scheduled_start = row.scheduled_start;
+    patch.scheduled_start = String(fields.start) === '0' ? null : Number(fields.start);
+  }
+  if (fields.status) { before.scheduling_status = row.scheduling_status; patch.scheduling_status = String(fields.status); }
+  if (fields.current != null) { before.current_status = row.current_status; patch.current_status = String(fields.current); }
+  if (!Object.keys(patch).length) return { ok: false, error: 'nothing to set — pass tech / start / status / current' };
+  const merged = Object.assign({}, row, patch);
   delete merged.id; delete merged.created_at;
   await md.update(JOBS_TABLE, Number(xid), merged);
-  return { ok: true, id: Number(xid), technician_id_before: before, technician_id_after: Number(tech) };
+  return { ok: true, id: Number(xid), before, after: patch };
 }
 
 exports.runBookingBack = runBookingBack;
@@ -298,10 +310,11 @@ exports.handler = async function (event) {
       if (q.confirm !== 'yes') return j(400, { ok: false, error: 'rmwtest writes the row back — add &confirm=yes' });
       return j(200, await rmwtest(q.rmwtest));
     }
-    if (q.settech) {
-      if (q.confirm !== 'yes') return j(400, { ok: false, error: 'settech writes to Xano — add &confirm=yes' });
-      if (q.tech == null || q.tech === '') return j(400, { ok: false, error: 'need &tech=<int> (0 clears)' });
-      return j(200, await setTech(q.settech, q.tech));
+    // settech kept as the original spelling; repair is the general form.
+    const repairId = q.repair || q.settech;
+    if (repairId) {
+      if (q.confirm !== 'yes') return j(400, { ok: false, error: 'repair writes to Xano — add &confirm=yes' });
+      return j(200, await repairJob(repairId, { tech: q.tech, start: q.start, status: q.status, current: q.current }));
     }
     return j(200, await runBookingBack(q));
   } catch (e) {
