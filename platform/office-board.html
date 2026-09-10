@@ -2212,15 +2212,36 @@
       jobsCache = r.data || [];
       var jids = jobsCache.map(function(j){ return j.id; });
       var none = Promise.resolve({ data: [] });
+      // 1,725 job ids in one .in() builds a ~62KB URL - past what a request line should carry,
+      // and slow to plan even when it squeaks through. Ask in batches and stitch the answers.
+      function inChunks(table, sel, ids, tweak) {
+        var SIZE = 150, out = [], batches = [];
+        for (var i = 0; i < ids.length; i += SIZE) batches.push(ids.slice(i, i + SIZE));
+        return batches.reduce(function (chain, part) {
+          return chain.then(function () {
+            var q = sb.from(table).select(sel).in('job_id', part);
+            if (tweak) q = tweak(q);
+            return q.then(function (r) { if (r && r.data) out = out.concat(r.data); });
+          });
+        }, Promise.resolve()).then(function () { return { data: out }; });
+      }
       // batch the customer's uploaded media so the office sees video + model photo right on
       // the tile — needed to process the warranty claim by hand (until a claim API lands).
-      var mediaP = jids.length ? sb.from('job_media').select('job_id,kind,provider,ref').in('job_id', jids) : none;
+      var mediaP = jids.length ? inChunks('job_media', 'job_id,kind,provider,ref', jids) : none;
       // latest inbound customer message per job → the green message bubble on the tile
-      var msgP   = jids.length ? sb.from('thread_message').select('job_id,body,direction,created_at').eq('direction','in').in('job_id', jids).order('created_at',{ascending:false}) : none;
+      // The board only keeps the NEWEST inbound message per job (see the reducer below), but
+      // this used to ask for every inbound message on all ~1,725 board jobs - 12,597 rows,
+      // sent with a 62KB list of job ids in the URL, on every single load. Supabase caps a
+      // response at 1,000 rows, so it also silently DROPPED most of them: the "they replied"
+      // flag was simply missing for the majority of jobs. One row per job, decided in Postgres:
+      // ~800 rows instead of 12,597, and right this time. The RPC is scoped to the same
+      // active window the board loads, so that count tracks live work rather than growing
+      // with history and creeping back up on the cap. (Both systems freezing, 2026-09-10.)
+      var msgP   = sb.rpc('board_latest_inbound');
       // the parts the tech logged → the 🔧 part-# chip (fallback when the job row has none)
-      var partsP = jids.length ? sb.from('job_part').select('job_id,number,name,disposition').in('job_id', jids) : none;
+      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition', jids) : none;
       // the colorful tags on each job + the shop's editable tag library
-      var tagP = jids.length ? sb.from('job_tag').select('job_id,tag:tag_id(id,label,color)').in('job_id', jids) : none;
+      var tagP = jids.length ? inChunks('job_tag', 'job_id,tag:tag_id(id,label,color)', jids) : none;
       var libP = sb.from('tag').select('id,label,color').order('created_at');
       Promise.all([
         sb.from('invoice').select('id,job_id,status,subtotal_cents,tax_cents,total_cents,tip_cents,collected_cents,paid_at,paid_method,created_at'),
