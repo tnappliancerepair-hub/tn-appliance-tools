@@ -205,6 +205,22 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || process.env.VAPI_ADMIN_SECRET || GUARD_FALLBACK;
   if (!q.secret || q.secret !== admin) return j(401, { ok: false, error: 'unauthorized' });
   try {
+    // ?claim= — the check that actually decides a create. office_universal_search gives FALSE
+    // NEGATIVES (it reported Segreti missing while job 21982 held his claim), so duplicate
+    // hunting has to go through the claim, never the name.
+    if (q.claim) {
+      const hits = [];
+      for (const field of ['claim_number', 'dispatch_source_id']) {
+        let rows = [];
+        try { rows = await md.search(JOBS_TABLE, { [field]: s(q.claim) }); } catch (_) { rows = []; }
+        (Array.isArray(rows) ? rows : []).forEach((r) => {
+          if (!hits.some((h) => h.id === Number(r.id))) {
+            hits.push({ id: Number(r.id), status: r.scheduling_status, who: [r.customer_first, r.customer_last].filter(Boolean).join(' '), source: r.intake_source });
+          }
+        });
+      }
+      return j(200, { ok: true, claim: s(q.claim), matches: hits.length, duplicate: hits.length > 1, jobs: hits });
+    }
     if (q.cust) {
       const rows = await md.search(CUST_TABLE, { id: Number(q.cust) });
       const row = (Array.isArray(rows) ? rows : []).find((r) => Number(r.id) === Number(q.cust));
