@@ -27,7 +27,7 @@
 //     PLATFORM_PARTS_MIGRATE_FWD_WP (default 80)
 'use strict';
 
-const { getSecret, getSecretFresh } = require('./_lib/secrets');
+const { getSecret, getSecretFresh, primeXanoToken} = require('./_lib/secrets');
 
 const TN_COMPANY = 'be4d11a1-5219-469b-916a-ab990be7ea7f';   // TN Appliance Exchange LLC (keeper)
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -273,6 +273,7 @@ async function runMigrate(opts) {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = (event && event.queryStringParameters) || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });

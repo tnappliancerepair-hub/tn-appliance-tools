@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // set-job-address — write a correct service address onto a job (admin-gated). Fills the
 // gap that update_job_basics doesn't cover (it only does brand/model/appliance/problem).
 // Only non-empty fields overwrite. Also refreshes the linked customer record's address so
@@ -12,6 +13,7 @@ function authH() { const t = process.env.XANO_METADATA_TOKEN; if (!t) throw new 
 const s = (v, n) => String(v == null ? '' : v).slice(0, n == null ? 120 : n).trim();
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { return json(400, { ok: false, error: 'invalid_json' }); }

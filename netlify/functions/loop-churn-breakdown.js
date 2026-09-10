@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // loop-churn-breakdown — diagnostic. Answers "what is the loop firing thousands
 // of times?" Pulls recent event_log + colony_signals rows and counts them by
 // action / signal_type so we can see the runaway. Office-password gated.
@@ -55,6 +56,7 @@ function windowSpan(rows) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
   const password = String(b.password || b.pin || '');

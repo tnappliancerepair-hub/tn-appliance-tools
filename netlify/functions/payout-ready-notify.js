@@ -44,10 +44,12 @@ async function lastSignature() {
   } catch (_) { return ''; }
 }
 const { sendSms: sendSmsXano } = require('./_lib/sms');
+const { primeXanoToken } = require('./_lib/secrets');
 async function sendSms(text) { return sendSmsXano(OWNER, text, 'owner', 'payout_ready_notify'); }
 
 // Schedule is declared in netlify.toml ([functions."payout-ready-notify"]).
 exports.handler = async function () {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (ctHour() < 8 || ctHour() > 18) return { statusCode: 200, body: 'outside hours' };
   try {
     const end = Date.now();

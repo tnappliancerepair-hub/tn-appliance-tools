@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // ant-brain-verdict — Stage 1 of Tech vs Ant 🐜 (Teddy 7/5).
 //
 // Ant Brain throws a part guess; the tech CONFIRMS it (Ant nailed it) or
@@ -17,6 +18,7 @@ function j(c, b) { return { statusCode: c, headers: { 'content-type': 'applicati
 function authH() { const t = process.env.XANO_METADATA_TOKEN; if (!t) throw new Error('no metadata token'); return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'POST only' });
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}

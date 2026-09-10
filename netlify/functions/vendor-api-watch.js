@@ -16,6 +16,7 @@
 
 const { searchAll } = require('./_lib/gmail-accounts');
 const { sendSms } = require('./_lib/sms');
+const { primeXanoToken } = require('./_lib/secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG = 3;
 const OWNER = '+16154855795';
@@ -66,6 +67,7 @@ function classify(m) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const dry = (event.queryStringParameters || {}).dryrun === '1';
   let matches = [];
   try {

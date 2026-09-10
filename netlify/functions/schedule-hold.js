@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // schedule-hold — tentative "placeholder" slots on the office scheduling board
 // (HCP-style event). When Danielle offers a customer a day, she HOLDS the slot:
 // a ghosted block appears on that tech's day, reserving her memory + the spot,
@@ -31,6 +32,7 @@ async function writeEvent(action, metadata) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
 
   if (event.httpMethod === 'GET') {

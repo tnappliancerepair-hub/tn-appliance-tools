@@ -27,7 +27,7 @@
 //     PLATFORM_REPORT_TEE_NOTE_DAYS (note lookback, default 120)
 'use strict';
 
-const { getSecret, getSecretFresh } = require('./_lib/secrets');
+const { getSecret, getSecretFresh, primeXanoToken} = require('./_lib/secrets');
 
 const TN_COMPANY = 'be4d11a1-5219-469b-916a-ab990be7ea7f';
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
@@ -334,6 +334,7 @@ async function runTee(opts) {
 exports.runTee = runTee;
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = (event && event.queryStringParameters) || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });

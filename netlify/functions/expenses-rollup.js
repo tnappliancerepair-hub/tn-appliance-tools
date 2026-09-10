@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Sums logged expenses (gas / truck / other) for a period for the Money hub
 // P&L. Reads event_log action="expense_logged" via the Metadata API.
 //
@@ -20,6 +21,7 @@ function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const start = parseInt(q.start_ms, 10) || 0;
   const end = parseInt(q.end_ms, 10) || Date.now();

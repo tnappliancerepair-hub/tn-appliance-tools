@@ -12,7 +12,7 @@
 
 'use strict';
 
-const { getSecret, getSecretFresh } = require('./_lib/secrets');
+const { getSecret, getSecretFresh, primeXanoToken} = require('./_lib/secrets');
 
 // Legacy fallback — used ONLY if the VAPI_ADMIN_SECRET vault secret is unset.
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -68,6 +68,7 @@ function listFrom(resp) { const j = resp.json; return Array.isArray(j) ? j : (j.
 function tname(t) { return (t && t.function && t.function.name) || (t && t.name) || ''; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return { statusCode: 403, body: 'forbidden' };

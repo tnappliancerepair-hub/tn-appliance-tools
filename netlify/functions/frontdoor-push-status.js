@@ -20,7 +20,7 @@
 // by the 403 until Brian authorizes the Client ID.
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const fd = require('./_lib/frontdoor');
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
@@ -44,6 +44,7 @@ async function logEvent(action, metadata) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'Method Not Allowed' });
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { return j(400, { ok: false, error: 'invalid JSON' }); }
 

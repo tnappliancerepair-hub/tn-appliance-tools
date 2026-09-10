@@ -9,7 +9,7 @@
 //   ?secret=<admin>[&dryrun=1]
 'use strict';
 
-const { getSecret, configTableId, SB_VAULT_URL } = require('./_lib/secrets');
+const { getSecret, configTableId, SB_VAULT_URL, primeXanoToken} = require('./_lib/secrets');
 
 const XANO_META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -18,6 +18,7 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = (event && event.queryStringParameters) || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });

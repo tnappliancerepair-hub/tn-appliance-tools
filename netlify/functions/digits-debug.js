@@ -5,7 +5,7 @@
 //   GET /.netlify/functions/digits-debug?token=tn-digits-dbg-2026
 'use strict';
 
-const { configTableId } = require('./_lib/secrets');
+const { configTableId, primeXanoToken} = require('./_lib/secrets');
 const XANO_META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const TOKEN = 'tn-digits-dbg-2026';
 const KEYS = ['DIGITS_CLIENT_ID', 'DIGITS_CLIENT_SECRET', 'DIGITS_REFRESH_TOKEN'];
@@ -33,6 +33,7 @@ async function vaultValue(name) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (((event.queryStringParameters || {}).token || '') !== TOKEN) {
     return { statusCode: 401, body: JSON.stringify({ ok: false, error: 'bad token' }) };
   }

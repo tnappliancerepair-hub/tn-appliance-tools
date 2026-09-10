@@ -11,6 +11,7 @@ const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const SITE = 'https://tnapplianceexchange.net';
 const { sendSms } = require('./_lib/sms');
+const { primeXanoToken } = require('./_lib/secrets');
 const OWNER = '+16154855795';
 const DANIELLE = '+16154850713';
 
@@ -41,6 +42,7 @@ const CRED_EMAIL = [
 ].join('\n');
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(204, {});
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'method not allowed' });
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { return j(400, { ok: false, error: 'invalid_json' }); }

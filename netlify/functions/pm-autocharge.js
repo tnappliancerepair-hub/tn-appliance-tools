@@ -13,6 +13,7 @@
 //   (cron, no secret)              LIVE only if PM_AUTOCHARGE_LIVE=true, else SHADOW-logs
 'use strict';
 const { listPmAccounts } = require('./_lib/pm-accounts');
+const { primeXanoToken } = require('./_lib/secrets');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const SITE = 'https://tnapplianceexchange.net';
 exports.config = { timeout: 26 };
@@ -42,6 +43,7 @@ function invoiceCents(job) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });

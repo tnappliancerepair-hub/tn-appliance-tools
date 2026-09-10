@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Records a customer add-on request from the portal ($10-off offers — supply
 // lines, water filter, coil/vent kits, etc.). Writes an event_log row so the
 // office gets it and ships the item with the job's parts order. No Xano push.
@@ -38,6 +39,7 @@ async function lookupJobTech(jobId) {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers: CORS, body: 'Method Not Allowed' };
   try {

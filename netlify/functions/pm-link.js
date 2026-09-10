@@ -7,6 +7,7 @@
 // POST { secret, pm_key, job_id?, customer_id? }
 'use strict';
 const { getPmAccount, upsertPmAccount } = require('./_lib/pm-accounts');
+const { primeXanoToken } = require('./_lib/secrets');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 exports.config = { timeout: 20 };
 function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }; }
@@ -14,6 +15,7 @@ function authH() { const t = process.env.XANO_METADATA_TOKEN; if (!t) throw new 
 const s = (v, n) => String(v == null ? '' : v).slice(0, n == null ? 60 : n).trim();
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { return json(400, { ok: false, error: 'invalid_json' }); }

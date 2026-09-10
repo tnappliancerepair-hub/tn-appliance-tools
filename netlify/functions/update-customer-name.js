@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // update-customer-name — let the office fix a wrong customer NAME on a job's
 // customer record. Danielle (2026-07-12) had a job showing "Pryor Pryor" (the
 // parser doubled the last name) with no way to edit it — the Job File drawer let
@@ -53,6 +54,7 @@ async function customerIdForJob(jobId) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'method_not_allowed' });
 

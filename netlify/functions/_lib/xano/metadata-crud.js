@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('../secrets');
 // Xano Metadata API wrappers for the tech-sms-inbound v2 brain.
 //
 // Why this exists: the original plan was to ship 7 small Xano endpoints
@@ -49,6 +50,7 @@ function authHeaders() {
 // fetch + 1 retry on 5xx. Throws { status, body, op } on persistent
 // non-2xx so callers can branch on operation type. 4xx is fatal-no-retry.
 async function callXano(method, path, body, op) {
+  await primeXanoToken();   // token comes from the vault now, not the 4KB env
   const url = XANO_BASE + path;
   for (let attempt = 0; attempt < 2; attempt++) {
     let res, text;

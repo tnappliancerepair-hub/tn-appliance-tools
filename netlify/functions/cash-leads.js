@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // cash-leads — the worklist for self-pay (cash) Quick Check leads.
 //
 // WHY: cash-pipeline.js only tracks Quick Checks that ALREADY PAID. The leads
@@ -83,6 +84,7 @@ function isTestName(name) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return jsonResp(200, { ok: true });
   let ids;
   try { ids = await resolveIds(); } catch (e) { return jsonResp(200, { ok: false, error: String(e.message || e) }); }

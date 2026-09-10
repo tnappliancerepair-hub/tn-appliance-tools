@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // tech-schedule-talk — the conversational scheduler brain. A tech talks to Ant
 // like it's the office. Two things it captures:
 //   1) TIME OFF / appointments  -> tech_availability (shows on the office calendar)
@@ -111,6 +112,7 @@ async function updateProfile(techId, p) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { b = {}; }
   const techId = parseInt(b.tech_id, 10);

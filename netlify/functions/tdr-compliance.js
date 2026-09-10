@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // tdr-compliance — the "no report, no pay" + "stops filed" engine.
 //
 // The behavior lever (Teddy 7/4): a stop isn't done until its TDR is filed.
@@ -97,6 +98,7 @@ function ctTodayMonday() {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   const q = event.queryStringParameters || {};
   const todayCt = ctDate(Date.now());

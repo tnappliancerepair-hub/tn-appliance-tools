@@ -294,6 +294,36 @@ async function delSecret(name) {
 
 // Always-fresh read (no cache) — for values that change at runtime, like the
 // per-person Reach Me availability flags. Falls back to env on error.
+// The 4KB problem in one function.
+//
+// XANO_METADATA_TOKEN is 1,829 bytes - 59% of the entire Lambda environment budget - and
+// 99 live functions read it straight off process.env, many from SYNCHRONOUS helpers like
+// `function authH() { ... process.env.XANO_METADATA_TOKEN ... }` that cannot await. Making
+// those async would mean changing every call site, which is a lot of ways to break a
+// working system.
+//
+// So instead of changing how they read it, put it where they already look. Call this once
+// at the top of a handler and every existing read - sync or not - keeps working unchanged,
+// with the value coming from the Supabase vault instead of the environment.
+//
+// Supabase ONLY, never fetchAny: the Xano vault is the thing this token unlocks, so asking
+// Xano for it would be circular. Memoized per container, so it costs one read on a cold
+// start and nothing after. If the vault cannot answer, the token is simply absent - exactly
+// the state those functions already handle today.
+let _xanoPrime = null;
+async function primeXanoToken() {
+  if (process.env.XANO_METADATA_TOKEN) return process.env.XANO_METADATA_TOKEN;
+  if (!_xanoPrime) {
+    _xanoPrime = (async () => {
+      let v = '';
+      try { v = (await fetchFromSupabase('XANO_METADATA_TOKEN')) || ''; } catch (_) {}
+      if (v) process.env.XANO_METADATA_TOKEN = v;   // the whole point: put it where they look
+      return v;
+    })();
+  }
+  return _xanoPrime;
+}
+
 async function getSecretFresh(name) {
   try { const v = await fetchAny(name); cachePut(name, v); return v; }
   catch (err) { return process.env[name] || ''; }
@@ -321,4 +351,4 @@ async function criticalSecret(name, retries = 4) {
   return '';
 }
 
-module.exports = { getSecret, getSecretStatus, getSecretFresh, getSecretPreferVault, criticalSecret, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME, fetchFromXano, sbVaultOn, SB_VAULT_URL };
+module.exports = { getSecret, getSecretStatus, getSecretFresh, primeXanoToken, getSecretPreferVault, criticalSecret, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME, fetchFromXano, sbVaultOn, SB_VAULT_URL };

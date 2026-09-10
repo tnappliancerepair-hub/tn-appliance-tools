@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // MOCK SCHEDULER — Netlify function
 // Ports mockup/engine.js algorithm onto live Xano data.
 // MOCK_MODE: never writes to jobs.scheduling_status, never sends SMS, never touches
@@ -258,6 +259,7 @@ async function loadAllPages(tableId, perPage = 2000) {
 // MAIN HANDLER
 // ─────────────────────────────────────────────────────────────────────
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const startedAt = Date.now();
   const qp = event.queryStringParameters || {};
   const limit = Math.min(parseInt(qp.limit || '30', 10), 500);

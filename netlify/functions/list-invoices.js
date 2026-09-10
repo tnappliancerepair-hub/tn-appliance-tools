@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // list-invoices — the office Invoices list (replaces what HCP did). Aggregates
 // every logged invoice (office_invoice_logged) with the customer, the job, and
 // the PAID/UNPAID status (from real payment records), newest first. Backs
@@ -65,6 +66,7 @@ async function resolveIds() {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   const q = event.queryStringParameters || {};
   const days = Math.max(1, Math.min(365, parseInt(q.days, 10) || 90));

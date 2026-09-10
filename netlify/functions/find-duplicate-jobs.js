@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // find-duplicate-jobs — OFFICE tool. Finds jobs that are the SAME warranty job
 // duplicated, so they can be combined into one. Office-password gated.
 //
@@ -57,6 +58,7 @@ function norm(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
 function phone10(s) { const d = String(s == null ? '' : s).replace(/\D/g, ''); return d.length > 10 ? d.slice(-10) : d; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
 

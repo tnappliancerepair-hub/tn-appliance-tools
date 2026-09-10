@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // customer-index — a lean, compact dump of every customer for CLIENT-SIDE instant
 // search. The browser fetches this once, caches it, and then searches locally with
 // zero network per keystroke (no more 4,000-row cloud scan per search). Refresh is
@@ -62,6 +63,7 @@ async function buildIndex() {
 }
 
 exports.handler = async function () {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   try {
     const rows = await buildIndex();
     return {

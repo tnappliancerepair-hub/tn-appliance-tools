@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // board-part-numbers — a per-job {part #, failed part} overlay for the office board,
 // so the office SEES the part number right on the tile (no drawer click) when they
 // submit the warranty report. Reads verified_part_number + failed_component straight
@@ -36,6 +37,7 @@ function cleanPartNumber(raw) {
 }
 
 exports.handler = async function () {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const map = {};
   try {
     for (let page = 1; page <= MAX_PAGES; page++) {

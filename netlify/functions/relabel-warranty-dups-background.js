@@ -6,7 +6,7 @@
 // Fire: GET /.netlify/functions/relabel-warranty-dups-background?secret=<admin>
 // (returns 202 immediately; check results via event_log action=relabel_warranty_sweep)
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -37,6 +37,7 @@ async function search(tableId, filter, sort, perPage, page) {
 const isWar = (j) => String(j.customer_type || '').toLowerCase() === 'warranty' || String(j.warranty_company || '').trim() || String(j.claim_number || '').trim();
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return { statusCode: 401, body: 'unauthorized' };

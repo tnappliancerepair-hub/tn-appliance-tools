@@ -18,7 +18,7 @@
 'use strict';
 
 const { sendSms } = require('./_lib/sms');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG = 3;
@@ -83,6 +83,7 @@ async function saveState(keys, baselined) {
 exports.config = { timeout: 20 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = (event && event.queryStringParameters) || {};
   const dry = q.dryrun === '1';
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';

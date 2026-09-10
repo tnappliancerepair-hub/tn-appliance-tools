@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Generates a printable HTML invoice for a customer's completed job.
 // Customer prints / saves as PDF via browser. Auth: last4 phone gate
 // (same as customer-portal).
@@ -34,6 +35,7 @@ async function getLoggedInvoice(jobId) {
 function n(v) { const x = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(x) ? 0 : x; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const p = event.queryStringParameters || {};
   const jobId = Number(p.job_id || 0);
   const last4 = String(p.last4 || '').trim();

@@ -5,13 +5,14 @@
 'use strict';
 
 const { sendSms } = require('./sms');
-const { getSecret } = require('./secrets');
+const { getSecret, primeXanoToken} = require('./secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const JOBS_TABLE = 7;
 
 // Best-effort SMS receipt to the customer who just paid (Stripe also emails one).
 async function smsCustomer(jobId, kind, amount) {
+  await primeXanoToken();
   if (!jobId) return;
   let phone = '';
   try {
@@ -41,6 +42,7 @@ const TECH_PHONES = { 2: '+16159671304', 3: '+15049099413', 4: '+16158291654', 6
 // techHint = the tech who did the work (from the pay-link metadata); falls back to
 // the job's assigned tech so the right person is looped into the "paid" text.
 async function notifyOffice(jobId, kind, amount, techHint) {
+  await primeXanoToken();
   const amt = '$' + Number(amount).toFixed(2);
   let name = '', appliance = '', jobTech = 0;
   try {
@@ -64,12 +66,14 @@ function headers() {
 }
 function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 async function logRow(action, metadata) {
+  await primeXanoToken();
   const r = await fetch(`${META}/table/${EVENT_LOG_TABLE}/content`, {
     method: 'POST', headers: headers(), body: JSON.stringify({ action, metadata }),
   });
   return r.ok;
 }
 async function alreadyRecorded(sessionId) {
+  await primeXanoToken();
   try {
     const r = await fetch(`${META}/table/${EVENT_LOG_TABLE}/content/search`, {
       method: 'POST', headers: headers(),
@@ -84,6 +88,7 @@ async function alreadyRecorded(sessionId) {
 // session = a Stripe Checkout Session object (from retrieve or webhook payload).
 // Returns { recorded: bool, duplicate: bool, kind, amount, job_id }.
 async function recordPaidSession(session) {
+  await primeXanoToken();
   const md = (session && session.metadata) || {};
   const sessionId = session && session.id;
   const amount = (session && session.amount_total != null) ? session.amount_total / 100 : 0; // total charged (incl. tax + any tip)

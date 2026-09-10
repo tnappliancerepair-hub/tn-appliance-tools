@@ -7,7 +7,7 @@
 //   GET/POST ?session_id=<cs_...>   -> { ok, paid, job_id, company, amount_cents }
 'use strict';
 const Stripe = require('stripe');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const SITE = 'https://tnapplianceexchange.net', OWNER = '+16154855795';
@@ -23,6 +23,7 @@ async function alreadyDone(sessionId) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const sessionId = s((event.queryStringParameters || {}).session_id) || (() => { try { return s(JSON.parse(event.body || '{}').session_id); } catch (_) { return ''; } })();
   if (!sessionId) return json(400, { ok: false, error: 'session_id required' });
   const key = await getSecret('STRIPE_SECRET_KEY');

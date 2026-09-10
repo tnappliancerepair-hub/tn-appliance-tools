@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // cleanup-test-jobs — find (dry-run) and delete TEST jobs, i.e. jobs whose
 // `test_run_id` is non-empty (real warranty/HCP jobs always have it empty).
 // Office-password gated. DEFAULT = dry run: returns the exact list + counts so
@@ -26,6 +27,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'method_not_allowed' });
   let b = {};
   try { b = JSON.parse(event.body || '{}'); } catch (_) { return j(400, { ok: false, error: 'invalid_json' }); }

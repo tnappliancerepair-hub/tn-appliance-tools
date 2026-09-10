@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Records a tech payout (the office "Mark paid" action). Writes an event_log
 // row action="tech_payout_recorded"; tech-earnings.js subtracts these from
 // earned, so the tech's "Owed" balance drops the moment it's recorded.
@@ -18,6 +19,7 @@ function headers() {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   try {
     const b = JSON.parse(event.body || '{}');

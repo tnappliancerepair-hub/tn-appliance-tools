@@ -14,6 +14,7 @@ const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG = 3;
 const { sendSms } = require('./_lib/sms');
 const { officeTaskAlert } = require('./_lib/office-alert');
+const { primeXanoToken } = require('./_lib/secrets');
 const OWNER = '+16154855795';
 const RENUDGE_MS = 2 * 3600 * 1000; // re-nudge persistent unworked every 2h
 
@@ -24,6 +25,7 @@ function ctHour() { return parseInt(new Intl.DateTimeFormat('en-US', { timeZone:
 const RISK = /tech came out|still (broken|not|won)|not fix|not work|again|second (time|visit)|2nd|complaint|unhappy|frustrat|manager|refund|wrong|angry|upset|live (rep|person|agent)|speak (to|with) (someone|a)|transfer|representative|escalat/i;
 
 exports.handler = async function () {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const h = ctHour();
   if (!(Number.isFinite(h) && h >= 8 && h < 20)) return { statusCode: 200, body: 'outside hours' };
 

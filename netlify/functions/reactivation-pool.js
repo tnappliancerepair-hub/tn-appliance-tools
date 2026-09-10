@@ -14,7 +14,7 @@
 //   ...&months=12             change the dormancy window
 //   ...&sample=1              include 10 example rows (name + masked phone)
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function authHeaders() {
@@ -72,6 +72,7 @@ const digits = (s) => String(s || '').replace(/[^0-9]/g, '');
 const maskPhone = (s) => { const d = digits(s); return d.length >= 10 ? `***-***-${d.slice(-4)}` : ''; };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });

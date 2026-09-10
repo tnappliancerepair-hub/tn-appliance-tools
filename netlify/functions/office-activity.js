@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // office-activity — OWNER-ONLY daily readout of what happened in the office.
 // "Between you and me" (Teddy): gated by his tech PIN (technician_id 1), NOT the
 // office password (Danielle has that). Reads today's human/office actions from
@@ -57,6 +58,7 @@ async function searchAction(action) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}
 

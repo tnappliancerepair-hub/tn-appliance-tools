@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Office-direction inbound SMS — lets Danielle (and other office numbers) just
 // TEXT Ant what they need and have Ant do it + reply, as Ant. Dispatched from
 // tech-sms-inbound when the sender is a known office number (so no extra Telnyx
@@ -28,6 +29,7 @@ function metaHeaders() {
 }
 function metaOf(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 async function logRow(action, metadata) {
+  await primeXanoToken();
   const h = metaHeaders(); if (!h) return;
   try { await fetch(`${META}/table/${EVENT_LOG_TABLE}/content`, { method: 'POST', headers: h, body: JSON.stringify({ action, metadata }) }); } catch (_) {}
 }
@@ -117,6 +119,7 @@ async function decide(p) {
 
 // Called by tech-sms-inbound with the already-parsed {from,to,body}.
 async function handleParsed(parsed) {
+  await primeXanoToken();
   const fromBare = bare(parsed.from);
   const who = OFFICE[fromBare] || 'there';
   const media = parsed.media_urls || parsed.media || [];

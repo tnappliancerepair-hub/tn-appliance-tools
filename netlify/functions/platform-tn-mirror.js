@@ -11,7 +11,7 @@
 // A scheduled wrapper (platform-tn-mirror-cron) calls syncTnToPlatform() every few min.
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const { fetchKanban } = require('./_lib/board-mirror');
 
 // The real TN tenant — "TN Appliance Exchange LLC" (created 9/3, full book + all 8 crew/office
@@ -494,6 +494,7 @@ async function syncTnToPlatform(limit, opts) {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });

@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Add-on program rollup for a pay period — feeds the owner P&L + a summary.
 // Reads event_log addon_fulfilled rows in [start_ms,end_ms], de-dupes per
 // job+addon, and returns revenue (what the customer pays), tech cut, part cost,
@@ -38,6 +39,7 @@ function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const start = Number(q.start_ms) || 0;
   const end = Number(q.end_ms) || Date.now();

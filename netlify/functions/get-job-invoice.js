@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // get-job-invoice — read back the LAST invoice the office logged for one job,
 // straight from the durable server record (event_log action=office_invoice_logged
 // written by record_job_invoice). The office-board worksheet used to read only
@@ -25,6 +26,7 @@ async function metaSearch(body) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   const jobId = parseInt((event.queryStringParameters || {}).job_id, 10);
   if (!jobId) return j(400, { ok: false, error: 'job_id required' });

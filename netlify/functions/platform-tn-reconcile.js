@@ -17,7 +17,7 @@
 //   ?secret=<admin>[&dryrun=1]   -> { scanned, canceled, skipped_local_complete, report[] }
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 
 const XANO_META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const JOBS_TABLE = 7;
@@ -28,6 +28,7 @@ const MAX_PAGES = 6;          // 500/page — covers the whole active id range w
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = (event && event.queryStringParameters) || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   let scheduled = false;

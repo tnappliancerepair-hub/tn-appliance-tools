@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // job-slots — how many scheduling "slots" (stop positions) a job consumes. Most jobs
 // take 1; a long/time-consuming job (e.g. a ~3-hr repair) takes 2 or 3 so it fills more
 // of a tech's day and he doesn't get over-scheduled. Stored as a latest-wins event_log
@@ -23,6 +24,7 @@ async function events(action) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
 
   if (event.httpMethod === 'GET') {

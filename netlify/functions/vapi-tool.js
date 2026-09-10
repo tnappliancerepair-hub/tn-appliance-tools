@@ -10,6 +10,7 @@
 'use strict';
 
 const { sendSms } = require('./_lib/sms');
+const { primeXanoToken } = require('./_lib/secrets');
 let sb = null; try { sb = require('./_lib/supabase'); } catch (_) {}
 const OWNER_PHONE = '+16154855795';     // Teddy
 const DANIELLE_PHONE = '+16154850713';
@@ -435,6 +436,7 @@ async function hcpEnrich(callerPhone, shaped) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let body; try { body = JSON.parse(event.body || '{}'); } catch (_) { body = {}; }
 

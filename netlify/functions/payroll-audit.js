@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // payroll-audit — owner-gated accuracy check on the tech-pay system. Answers
 // "how accurate is our payroll becoming?" by measuring the only thing that
 // matters: do COMPLETED jobs convert into CORRECTLY-ATTRIBUTED tech pay?
@@ -31,6 +32,7 @@ async function byAction(action, pages) {
 
 exports.config = { timeout: 26 };
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });

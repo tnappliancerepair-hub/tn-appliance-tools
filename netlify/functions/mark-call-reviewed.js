@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // mark-call-reviewed — writes the 'call_reviewed' event_log marker that
 // list_calls_for_review cross-references to drop a call off the review queue.
 //
@@ -35,6 +36,7 @@ async function writeReviewed(h, vapiCallId, reviewer, note) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return jsonResp(405, { success: false, error: 'Method Not Allowed' });
   const h = headers();
   if (!h) return jsonResp(500, { success: false, error: 'metadata token not configured' });

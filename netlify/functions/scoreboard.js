@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // scoreboard — the crew challenge board (Teddy 2026-07-07: "we need this badly").
 // One endpoint, four leaderboards, all from data we already record:
 //   🏆 jobs completed      (event_log 'tech_job_complete')
@@ -74,6 +75,7 @@ async function techNames() {
 }
 
 exports.handler = async (event) => {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   try {
     const q = event.queryStringParameters || {};
     const scope = ['today', 'week', 'month'].includes(q.scope) ? q.scope : 'today';

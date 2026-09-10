@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // leave-by — the customer's "I have to leave by ___ / not available after ___"
 // time. Teddy 2026-08-11: techs + office asked to SEE what time a customer has to
 // leave so a stop never gets missed because the customer had to run. Danielle sets
@@ -20,6 +21,7 @@ function asObj(m) { if (typeof m === 'string') { try { return JSON.parse(m); } c
 exports.config = { timeout: 20 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return json(204, {});
 
   // ── WRITE ────────────────────────────────────────────────────────────────

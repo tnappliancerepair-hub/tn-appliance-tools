@@ -26,6 +26,7 @@
 'use strict';
 
 const sb = require('./supabase');
+const { primeXanoToken } = require('./secrets');
 
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const EVENT_LOG_TABLE = 3;
@@ -83,6 +84,7 @@ const MONEY_ACTIONS = [
 // One page read, with a timeout + one retry (handles transient "fetch failed").
 // `search` (optional) = a metadata content/search filter, e.g. { action: 'x' }.
 async function readPage(id, page, perPage, sortDir, search) {
+  await primeXanoToken();
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const body = { per_page: perPage, page, sort: { id: sortDir } };
@@ -104,6 +106,7 @@ async function readPage(id, page, perPage, sortDir, search) {
 
 // Page a table's content, flushing to onChunk() every CHUNK_ROWS rows.
 async function pageTable(id, onChunk, popts) {
+  await primeXanoToken();
   const sortDir = (popts && popts.sort) || 'asc';
   const maxPages = (popts && popts.maxPages) || MAX_PAGES;
   const perPage = (popts && popts.perPage) || PAGE_SIZE;
@@ -126,6 +129,7 @@ async function pageTable(id, onChunk, popts) {
 // Back up event_log's MONEY rows only — one fast filtered query per action type.
 // `actions` (optional) limits to a subset — for bite-sized runs.
 async function pageEventLogMoney(onChunk, actions) {
+  await primeXanoToken();
   let total = 0, part = 0, buf = [];
   const perPage = 200;
   const list = (actions && actions.length) ? actions : MONEY_ACTIONS;
@@ -146,6 +150,7 @@ async function pageEventLogMoney(onChunk, actions) {
 // can't enumerate tables — probe a candidate id range, sample one row, keep the id
 // + its column names so we can shape-skip the giant AI/noise tables.
 async function discoverTables() {
+  await primeXanoToken();
   const out = [];
   for (let id = 1; id <= 60; id++) {
     if (SKIP_IDS.has(id)) continue;
@@ -176,6 +181,7 @@ function shouldSkipByShape(keys) {
 
 // Wipe an existing same-day snapshot so a re-run is idempotent (no dup chunks).
 async function clearSnapshot(date) {
+  await primeXanoToken();
   const c = await sb.cfg();
   if (!c.url || !c.key) throw new Error('supabase_not_configured');
   await fetch(`${c.url}/rest/v1/${BACKUP_TABLE}?snapshot_date=eq.${encodeURIComponent(date)}`, {
@@ -189,6 +195,7 @@ async function clearSnapshot(date) {
 // unbounded. Deletes by snapshot_date (bounded, no row enumeration). Best-effort:
 // a prune failure must never fail the backup itself.
 async function pruneOldSnapshots(keepDays = RETENTION_DAYS) {
+  await primeXanoToken();
   const c = await sb.cfg();
   if (!c.url || !c.key) return { pruned: false, reason: 'not_configured' };
   const cutoff = new Date(Date.now() - keepDays * 86400000).toISOString().slice(0, 10);
@@ -202,6 +209,7 @@ async function pruneOldSnapshots(keepDays = RETENTION_DAYS) {
 
 // Run a backup. opts.only = [ids] for a scoped run (probe/verify); else core+discovered.
 async function backupTables(opts = {}) {
+  await primeXanoToken();
   if (!(await sb.isConnected())) throw new Error('supabase_not_configured (set SUPABASE_URL + SUPABASE_SERVICE_KEY)');
   const date = opts.date || new Date().toISOString().slice(0, 10);
 

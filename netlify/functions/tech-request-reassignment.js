@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Tech-requested reassignment.
 // Called from tech-ant.html's "Reassignment Needed" completion button after
 // create_tdr has already written the TDR row. This function:
@@ -21,6 +22,7 @@ const TABLES = {
 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') {
     return json(405, { ok: false, error: 'method not allowed' });
   }

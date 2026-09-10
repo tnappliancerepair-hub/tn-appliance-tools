@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // mark-invoice-paid — the office marks a job's invoice PAID / UNPAID by hand.
 //
 // Danielle's model (Teddy 2026-07-04): SHE is the source of truth for "paid".
@@ -18,6 +19,7 @@ const EVENT_LOG = 3;
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(b) }; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'POST only' });
   const tok = process.env.XANO_METADATA_TOKEN;
