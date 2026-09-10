@@ -21,11 +21,27 @@
   var dismissedFor = null;         // a version the tech chose to skip this session
   var path = location.pathname;    // watch THIS page (the shell file that changed)
 
+  // Netlify's ETag carries the content hash PLUS how that particular response was
+  // encoded: "abc123-ssl" served plain, W/"abc123-ssl-df" served compressed. Same file,
+  // different string. So any check that negotiated a different encoding - or landed on a
+  // different CDN node - read as a brand new version, and the office got "New version
+  // ready" every two minutes all day on a page that had not changed in weeks. Danielle,
+  // 2026-09-10: "old system keeps saying update."
+  // Compare the content hash and nothing else.
+  function norm(v) {
+    return String(v || '')
+      .replace(/^W\//, '')            // weak-validator prefix flips with compression
+      .replace(/"/g, '')
+      .replace(/-ssl(-[a-z0-9]+)?$/i, '')  // Netlify's per-encoding suffix
+      .trim();
+  }
+
   async function marker() {
     try {
       var r = await fetch(path + '?_uv=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
       if (!r || !r.ok) return null;
-      return r.headers.get('etag') || r.headers.get('last-modified') || null;
+      var raw = r.headers.get('etag') || r.headers.get('last-modified') || null;
+      return raw == null ? null : norm(raw);
     } catch (_) { return null; }    // offline / weak signal -> ignore
   }
 
