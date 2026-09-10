@@ -53,7 +53,12 @@ async function fetchTdrMap() {
   if (!token) return {};
   const map = {};
   const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
-  for (let page = 1; page <= 4; page++) {
+  // 4 pages = the newest 2,000 reports. Xano is at TDR id 2304 today, so an older job's
+  // real report fell outside the window and read as "no report filed" - job 19988 had a
+  // full diagnosis from Jimmy that the platform showed as blank. 8 pages covers every
+  // report with headroom and costs nothing extra in practice: the loop breaks the moment
+  // a page comes back short. (2026-09-10)
+  for (let page = 1; page <= 8; page++) {
     let rows = [];
     try {
       const r = await fetch(`${META}/table/12/content/search`, {
@@ -384,12 +389,19 @@ async function syncTnToPlatform(limit, opts) {
       customer_id, unit_id,
       technician_id: techByXano.get(Number(j.technician_id)) || null,
       status: mapStatus(j),
-      tdr_diagnosis: tdr ? tdr.diagnosis : '',
-      tdr_failed_component: tdr ? tdr.failed_component : '',
-      tdr_part_number: tdr ? tdr.part : '',
-      tdr_repair_completed: tdr ? tdr.repair_completed : '',
-      tdr_parts_needed: tdr ? tdr.parts_needed : '',
-      tdr_labor_hours: tdr ? tdr.labor_hours : null,
+      // Only write the report when we HAVE one. Writing '' on a miss erased good data:
+      // fetchTdrMap breaks out on any slow/failed Xano page, and it only ever held the
+      // newest ~2,000 reports, so an older job's real report read as "no report filed" and
+      // then got blanked on the platform. merge-duplicates only touches columns present in
+      // the payload, so omitting these preserves whatever is already mirrored. (2026-09-10)
+      ...(tdr ? {
+        tdr_diagnosis: tdr.diagnosis,
+        tdr_failed_component: tdr.failed_component,
+        tdr_part_number: tdr.part,
+        tdr_repair_completed: tdr.repair_completed,
+        tdr_parts_needed: tdr.parts_needed,
+        tdr_labor_hours: tdr.labor_hours,
+      } : {}),
       first_stop: firstStop,
       warranty_claim_status: clStatus,
       warranty_paid_cents: cl ? Math.round(Number(cl.paid_total || 0) * 100) : null,
