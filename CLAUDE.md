@@ -1,5 +1,96 @@
 # Appliance Ant
 
+## 💾🔁 2026-09-10 (late) — THE BACKUP HAD BEEN DROPPING 25 OF 29 TABLES FOR A WEEK · the platform had NO backup at all · a reminder that double-texted 17 customers — READ FIRST
+
+Continuation of "harden this Supabase". Same discipline: **measure first, fix second.** Four real
+findings, every one caught by reading DATA rather than a function's self-report.
+
+### 🔴 THE NIGHTLY OFF-SITE BACKUP WAS SILENTLY CAPTURING 4 OF 29 TABLES (since 2026-09-03)
+It ran every night and nothing looked wrong. The chunk rows told the truth:
+- Today's snapshot held **jobs, customer, event_log, parts_orders. Nothing else.** Sep 02 held 29.
+  `warranty_submissions`, `technicians` and 23 business tables had not been backed up in a week.
+- **`_manifest` was absent.** It is written only AFTER the loop, so its absence = the run never
+  finished — and a partial run was **indistinguishable from a run that never happened.**
+- `jobs` read **10,512** rows against ~3,455 real; `customer` **11,403** against ~3,798. Exactly **3×**.
+  All four tables' chunks span 08:00→08:33 in three clusters ~16 min apart. **A sequential for-loop
+  cannot do that** — Netlify was **retrying the background fn twice** after it hit the 15-min wall.
+- `parts_orders` is genuinely **~205k rows** (205,500 distinct ids, 1..205,503 — the pager is NOT
+  looping). It sat **4th in CORE_IDS with no time bound** and ate the whole window, three times a
+  night, ~600k rows written into ops.
+- **Root cause: no wall-clock budget anywhere, and the fattest table ordered ahead of 25 cheap ones.**
+  Same family as the mirror's shared `fetchKanban` timeout — one slow dependency starving everything
+  behind it.
+- **Fixes:** `BUDGET_MS` (11 of the 15-min allowance) checked before each table, so the run ends
+  cleanly instead of being killed and retried — **this alone removes the 3× storm**; `pageTable` takes
+  a per-table `deadline` (`maxPages` was never a time bound); **CORE_IDS reordered cheap-first,
+  parts_orders LAST — the order is load-bearing**; `HEAVY_WEEKLY` full-copies parts_orders **Sundays
+  only** (7-day retention guarantees exactly one complete snapshot is always present); and the
+  **manifest is ALWAYS written**, carrying `complete` / `skipped_budget` / `skipped_cadence`.
+- **Verified live: 29 tables, 24,169 rows, `complete:true`, in 23 SECONDS** — against 48 minutes
+  across 3 retries that lost 25 tables.
+- **⚠️ STANDING: a backup's exit code is not evidence. Read the MANIFEST.** And any loop with no
+  wall-clock budget inside a timed runtime WILL eventually be killed + retried, silently.
+
+### 💾 THE PLATFORM PROJECT ITSELF HAD NO OFF-PROJECT BACKUP (`_lib/platform-backup.js`, NEW)
+The nightly job only ever covered **Xano**. TN's live operation now runs on the platform — 3,708 jobs,
+4,018 customers, the whole thread of record — and **nothing anywhere was copying it.**
+- Supabase Pro's own daily backup is the right tool for *"the project is gone."* It is the **wrong**
+  tool for the failure we actually keep hitting: **a bad logical write.** Twice on 2026-09-10 alone —
+  the mirror erasing office edits, and the waiver writer producing 14,160 junk rows. Recovering either
+  by PITR means rolling the whole project back and **losing every legitimate write since.** A per-table
+  logical snapshot in a **different project** lets you restore one table, or diff to find what a bad
+  writer did. The whole platform DB is ~25 MB, so it costs nothing.
+- Lands as `platform.<table>` in the ops project's existing `xano_backup_chunks`, inheriting the 7-day
+  retention prune already keyed on `snapshot_date`.
+- **Tables are DISCOVERED from PostgREST's own root spec, not hardcoded**, so a table added later
+  cannot silently go unbacked; discovered-vs-copied both land in the manifest.
+- **Secrets are never copied:** `app_config` is the vault, `tenant_keyring` holds wrapped DEKs,
+  `tenant_integration` holds `secret_enc` — **encrypted or not, secrets do not get duplicated into a
+  second store**; `company_credential` is credential docs; `portal_grant` is live customer tokens
+  (regenerable, so copying them only widens exposure).
+- **Verified: 38 discovered / 33 copied / 5 secrets refused / 24,909 rows / 8 seconds**, and every
+  table's backed count **matches live exactly** (`app_config` correctly at 0).
+
+### 📵 THE DAY-BEFORE REMINDER DOUBLE-TEXTED 17 CUSTOMERS (09-07)
+Found by hunting **duplicate rows by natural key across every table the migration crons write into** —
+one query beats reading nine files. Everything clean except `thread_message`, and the dupes were nearly
+all `🔔 Day-before reminder sent`, **all stamped 09-07 19:31, identical to the minute.**
+- Measured: **42 markers across 25 jobs → 17 customers got the text TWICE.** Every other day 1:1.
+- Cause: dedupe was read-marker → **SEND** → write-marker. The comment said *"one reminder ever, even
+  if the cron runs twice"* — true for SEQUENTIAL runs; **two CONCURRENT runs both pass the check and
+  both text.** The race window was the entire SMS round trip. **Same class as the waiver note.**
+- **Fix, two halves: (1) CLAIM BEFORE SEND** — write the marker first, only send if the claim landed
+  (`sins` now reports whether the row actually landed — *a fire-and-forget insert cannot be used as a
+  claim*); **(2) `docs/sql/060_reminder_once.sql` (APPLIED)** — partial unique index on
+  `thread_message(job_id) where channel='reminder'`, so the loser's insert is **refused by the
+  database** and it never sends. 17 pre-existing dupes cleaned first or the index cannot build.
+  Verified after: **57 markers / 57 jobs, exactly 1:1.**
+- **⚠️ The failure direction now matters more than the failure rate:** a MISSED reminder (silent,
+  recoverable, counted as `send_failed`) instead of a DOUBLE text. That is the right trade on any
+  customer-facing send.
+
+### 🩹 TWO UNBOUNDED WRITERS INTO `event` (one of them mine, from earlier the same night)
+- **`platform-migration-watch` wrote a NEW state row every 15 min** — 96/day, forever, no prune.
+  **Watch state is STATE, not a log:** one row, updated in place. Verified: held at 2 rows across two
+  invocations. *A monitor must not be a leak* — this is the same shape as the backup table that quietly
+  grew to 978 MB and became the #1 autovacuum-churn source.
+- **`platform-tn-reconcile` logged one audit row per run.** A run that DID something is worth keeping;
+  no-op runs now collapse into a single rolling `tn_reconcile_idle` row, so *"is it still running"*
+  stays answerable without 96 rows a day.
+
+### 📏 MEASURED + CLEAN (no action — recorded so nobody re-checks)
+- **Platform DB is ~25 MB total**, biggest table 6 MB. **No bloat.** `thread_message` still holds ~6 MB
+  reclaimable from the 14,160 deleted waiver rows; autovacuum takes it back.
+- **Duplicate hunt across `job_part` / `job_media` / `job_tdr` / `job(xano_id)` / `customer(xano_id)`:
+  zero.** The waiver writer was the only runaway.
+- **Index coverage is healthy** — every index has non-zero scans, nothing dead. The three
+  `*_company_xano_uidx` uniques carry 3.6-3.8M scans each (the mirror's upsert conflict targets).
+  ⏭️ **Known, deliberately NOT done on a live board:** `job` carries **14 indexes on 3,708 rows** and
+  the mirror upserts 1,174 of them every 5 min. Two are EXACT duplicates (`idx_thread_job` /
+  `thread_job_idx`; `idx_job_company_status` / `job_company_status_idx`). Dropping them is a modest
+  write-path win — do it with `DROP INDEX CONCURRENTLY`, and only the exact pairs.
+
+
 ## 📞💬 2026-09-10 (late) — ARE TEXTS + PHONES SOLID ON SUPABASE? Honest answer: THE BRAIN MOVED, THE PIPE DIDN'T — plus a 14,160-row runaway writer — READ FIRST
 
 Teddy asked two things back to back: *"What else can we do to harden this supabase"* and *"Are text
