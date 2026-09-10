@@ -107,7 +107,17 @@ exports.handler = async function (event) {
     }
   } else { canceled = toClose.length; }
 
-  return { statusCode: 200, headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ok: true, dryrun: dry, scanned: rows.length, xano_seen: xstat.size,
-      canceled, skipped_local_complete: skippedLocal, not_in_window: unseen, report: report.slice(0, 40) }, null, 2) };
+  // A background function answers 202 with no body, so the run has to leave its own record
+  // — which a nightly reconcile wants regardless. Written even on a dry run.
+  const summary = { ok: true, dryrun: dry, scanned: rows.length, xano_seen: xstat.size,
+    canceled, skipped_local_complete: skippedLocal, not_in_window: unseen, report: report.slice(0, 40) };
+  try {
+    await fetch(`${base}/rest/v1/event`, {
+      method: 'POST', headers: { ...SB, Prefer: 'return=minimal' },
+      body: JSON.stringify({ company_id: TN_COMPANY, type: 'tn_reconcile_run', entity: 'job', payload: summary }),
+      signal: AbortSignal.timeout(12000),
+    });
+  } catch (_) {}
+
+  return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(summary, null, 2) };
 };
