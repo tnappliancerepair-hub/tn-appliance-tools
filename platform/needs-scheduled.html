@@ -372,7 +372,7 @@
   // Book a job → identical write + notify to dispatch.html's assign Save.
   function book(job, tech, day, btn, errEl, win){
     if(btn){ btn.disabled=true; btn.textContent='Saving…'; }
-    var patch={ technician_id:(tech||null), scheduled_day:(day||null) };
+    var patch={ technician_id:(tech||null), scheduled_day:(day||null), platform_booked_at:new Date().toISOString() };
     if(win && AntWindows.isWindow(win)) patch.time_window=win;
     if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
     sb.from('job').update(patch).eq('id',job.id).then(function(r){

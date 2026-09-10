@@ -1875,7 +1875,7 @@
       var ee=document.getElementById('rsErr'); if(ee) ee.textContent='';
       var prevTech=job.technician_id;
       rsGo.disabled=true; rsGo.textContent='Saving…';
-      sb.from('job').update({ technician_id:techId, scheduled_day:rsSel, status:'scheduled' }).eq('id',job.id).then(function(r){
+      sb.from('job').update({ technician_id:techId, scheduled_day:rsSel, status:'scheduled', platform_booked_at:new Date().toISOString() }).eq('id',job.id).then(function(r){
         rsGo.disabled=false;
         if(r.error){ rsGo.textContent='Reschedule'; if(ee) ee.textContent=r.error.message||'Couldn\'t reschedule — try again.'; return; }
         job.scheduled_day=rsSel; job.technician_id=techId; job.status='scheduled';
@@ -1891,7 +1891,7 @@
 
     // Assign / reassign the tech — office dispatch (RLS lets the office write its own job rows).
     var jt=document.getElementById('jtech');
-    if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; if(val) notifyAssigned(job.id); loadBoard(); }); }; }
+    if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val, platform_booked_at:new Date().toISOString()}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; if(val) notifyAssigned(job.id); loadBoard(); }); }; }
     var jtile=document.getElementById('jtileSend');
     if(jtile){ jtile.onclick=function(){ var ni=document.getElementById('jtileNote'); textTileToTech(job.id, ni?ni.value:'', jtile, document.getElementById('jtileMsg')); }; }
 

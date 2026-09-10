@@ -640,7 +640,7 @@
     var t=bestTechForDay(j,o.proposed_day);
     if(!t){ alert('No tech is open on '+fmtDayShort(o.proposed_day)+'. Use Counter to offer another day.'); return; }
     if(btn){ btn.disabled=true; btn.textContent='…'; }
-    var patch={ technician_id:t.id, scheduled_day:o.proposed_day, status:(j.status==='new'||!j.status)?'scheduled':j.status };
+    var patch={ technician_id:t.id, scheduled_day:o.proposed_day, status:(j.status==='new'||!j.status)?'scheduled':j.status, platform_booked_at:new Date().toISOString() };
     sb.from('job').update(patch).eq('id',j.id).then(function(r){ if(r.error){ alert(r.error.message); if(btn){btn.disabled=false;btn.textContent='✓ Approve';} return; }
       sb.from('schedule_offer').update({status:'accepted',decided_at:nowIso()}).eq('id',o.id).then(function(){
         withdrawOtherOffers(j.id,o.id,function(){ notifyAssigned(j.id); load(); }); }); });
@@ -703,7 +703,7 @@
       if(tech && zip){ var tt=techs.filter(function(x){return x.id===tech;})[0]; if(tt && (hasChainFor(zip)||areaList(tt).length) && !coversZip(tt,zip) && !window.confirm((tt.name||'That tech')+' doesn’t cover '+zip+'. Assign anyway?')) return; }
       if(tech && jType){ var t3=techs.filter(function(x){return x.id===tech;})[0]; if(t3 && !techDoesType(t3,jType) && !window.confirm((t3.name||'That tech')+' isn’t marked for '+jType+'. Assign anyway?')) return; }
       var btn=this; btn.disabled=true; btn.textContent='Saving…';
-      var patch={ technician_id:tech, scheduled_day:day };
+      var patch={ technician_id:tech, scheduled_day:day, platform_booked_at:new Date().toISOString() };
       var win=(document.getElementById('a-win')||{}).value||'';
       patch.time_window = (win && AntWindows.isWindow(win)) ? win : null;
       if(day && (job.status==='new'||!job.status)) patch.status='scheduled';
@@ -724,7 +724,7 @@
     };
     var relBtn=document.getElementById('a-release');
     if(relBtn) relBtn.onclick=function(){ relBtn.disabled=true; relBtn.textContent='…'; sb.from('schedule_offer').update({status:'withdrawn',decided_at:nowIso()}).eq('id',hold.id).then(function(){ close(); load(); }); };
-    document.getElementById('a-unsched').onclick=function(){ var patch={scheduled_day:null}; if(job.status==='scheduled') patch.status='new'; sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(!r.error){ close(); load(); } }); };
+    document.getElementById('a-unsched').onclick=function(){ var patch={scheduled_day:null, platform_booked_at:new Date().toISOString()}; if(job.status==='scheduled') patch.status='new'; sb.from('job').update(patch).eq('id',job.id).then(function(r){ if(!r.error){ close(); load(); } }); };
   }
   // Fire-and-forget: text the newly-assigned tech that a job is on their plate.
   function notifyAssigned(jobId){
