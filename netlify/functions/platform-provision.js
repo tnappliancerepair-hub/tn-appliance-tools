@@ -128,7 +128,23 @@ exports.handler = async function (event) {
     const users = (list && (list.users || list)) || [];
     const u = Array.isArray(users) ? users.find((x) => String(x.email || '').toLowerCase() === ownerEmail) : null;
     if (!u) return json(200, { ok: false, error: 'auth user not found for ' + ownerEmail });
-    const vaultKey = 'PLATFORM_OWNER_PW_' + (slug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    // Resolve the shop + role from the seat itself, so a reset records itself correctly even
+    // when the caller only knew an email. Without this, resetting a non-owner seat wrote its
+    // password into the OWNER's vault slot under a guessed slug — so two office resets in a
+    // row silently overwrote each other and neither was saved anywhere findable.
+    let seatRole = 'owner', seatSlug = slug;
+    try {
+      const au = await rest0(`app_user?email=eq.${encodeURIComponent(ownerEmail)}&select=role,company_id&limit=1`);
+      if (au && au[0]) {
+        seatRole = String(au[0].role || 'owner');
+        if (!seatSlug && au[0].company_id) {
+          const c = await rest0(`company?id=eq.${au[0].company_id}&select=slug&limit=1`);
+          if (c && c[0]) seatSlug = c[0].slug;
+        }
+      }
+    } catch (_) {}
+    // Only a real owner reset touches the owner slot; anyone else is recorded on the pack.
+    const vaultKey = 'PLATFORM_OWNER_PW_' + (seatSlug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
     const reveal = q.reveal === '1' || q.reveal === 'true';
     // &once=1: IDEMPOTENT reveal — if this owner's password is already vaulted, hand back the SAME
     // one instead of resetting (a signup success screen may re-run on a page refresh, and must never
@@ -141,19 +157,25 @@ exports.handler = async function (event) {
     const newpw = tempPassword();
     const setR = await fetch(`${url}/auth/v1/admin/users/${u.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ password: newpw }), signal: AbortSignal.timeout(12000) });
     if (!setR.ok) { const e = await setR.text().catch(() => ''); return json(200, { ok: false, error: 'password set failed ' + setR.status + ' ' + e.slice(0, 120) }); }
-    let saved = false; try { saved = await setSecret(vaultKey, newpw); } catch (_) { saved = false; }
+    let saved = false;
+    if (seatRole === 'owner') { try { saved = await setSecret(vaultKey, newpw); } catch (_) { saved = false; } }
     // Keep the shop's login pack in sync — so owner.html "Your team logins" + /packs show the NEW
     // owner password, not the stale one. Best-effort; only when a pack + a slug exist.
-    if (slug) { try {
-      const pk = await readPack(slug);
-      if (pk && Array.isArray(pk.seats)) {
-        const os = pk.seats.find((s) => s.role === 'owner' || String(s.email || '').toLowerCase() === ownerEmail);
-        if (os) { os.password = newpw; pk.updated_at = new Date().toISOString(); await writePack(pk); }
-      }
+    let recorded = false;
+    if (seatSlug) { try {
+      const pk = (await readPack(seatSlug)) || { slug: seatSlug, seats: [] };
+      if (!Array.isArray(pk.seats)) pk.seats = [];
+      let os = pk.seats.find((x) => String(x.email || '').toLowerCase() === ownerEmail);
+      // ADD the seat when it is not on the pack yet. The old code only updated an existing
+      // entry, so a seat created outside shoppack could never have its password saved at all.
+      if (!os) { os = { role: seatRole, label: ownerEmail.split('@')[0], email: ownerEmail, link: seatLink(seatRole) }; pk.seats.push(os); }
+      os.password = newpw; os.role = os.role || seatRole; os.link = os.link || seatLink(seatRole);
+      pk.updated_at = new Date().toISOString();
+      recorded = await writePack(pk);
     } catch (_) {} }
     // &reveal=1: hand the plaintext back to the admin caller (they already hold the admin
     // secret). For seeding a demo/sandbox hub or a controlled onboarding hand-off — never log it.
-    return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved, new_password: reveal ? newpw : undefined, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
+    return json(200, { ok: true, owner_email: ownerEmail, seat_role: seatRole, slug: seatSlug, vault_key: seatRole === 'owner' ? vaultKey : undefined, saved, recorded_on_pack: recorded, new_password: reveal ? newpw : undefined, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
   }
 
   // One-tap login link (no password in chat). Uses the Admin generate_link endpoint to
