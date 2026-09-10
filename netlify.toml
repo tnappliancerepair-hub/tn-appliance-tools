@@ -872,6 +872,16 @@
   # stale. Revert to "*/3" or "* * * * *" any time.
   schedule = "*/5 * * * *"
 
+# deploy-watch-cron (2026-09-10) — on 2026-09-10 every deploy failed for 36 minutes and
+# nothing said so: the site kept serving the last good build, so every surface looked
+# healthy while no fix could ship. This checks the newest PRODUCTION deploy every 10
+# minutes and texts the owner the moment builds go red (and again when they recover).
+# It also measures the 4KB Lambda env budget on each pass, so the ceiling warns BEFORE
+# someone adds the variable that breaks the build. Logic lives in deploy-watch.js so it
+# stays curl-testable: deploy-watch?secret=<admin>&dry=1
+[functions."deploy-watch-cron"]
+  schedule = "*/10 * * * *"
+
 # platform-tn-mirror-cron (2026-08-27) — mirror TN's live Xano jobs INTO the ANT Platform
 # tenant tables (TN = tenant #1) every 5 min, so the platform office board stays current
 # with Xano during the crossover. Read-only toward Xano (Xano stays system of record);

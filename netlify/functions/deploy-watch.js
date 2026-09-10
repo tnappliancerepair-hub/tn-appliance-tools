@@ -1,0 +1,133 @@
+// deploy-watch — the thing that was missing on 2026-09-10.
+//
+// Deploys failed for 36 minutes that day and NOTHING said so. The site kept
+// serving the last good build, so every page looked healthy while no fix could
+// ship. Silence is the failure mode worth engineering against: a build can break
+// for a dozen reasons, but "nobody found out for half an hour" is the part that
+// turns a two-minute fix into a lost afternoon.
+//
+// Runs on a schedule. Reads the newest PRODUCTION deploy. Texts the owner the
+// first time a red episode starts, once more if it is still red six hours later,
+// and again when it goes green. It also measures the Lambda environment budget
+// on every pass, because the 4KB ceiling is invisible until it bites and the
+// warning is worth having BEFORE someone adds the variable that breaks the build.
+//
+//   ?secret=<admin>          run it by hand
+//   ?dry=1                   report only, send nothing
+//   (scheduled)              self-authorizes via {next_run}
+const { getSecret, getSecretFresh, setSecret } = require('./_lib/secrets');
+const { sendSms } = require('./_lib/sms');
+
+const SITE_ID = '1ecd89fc-8a9c-4fa3-b923-5186759cfc84';
+const API = 'https://api.netlify.com/api/v1';
+const OWNER = '+16154855795';
+const STATE_KEY = 'DEPLOY_WATCH_STATE';
+
+// Measured 2026-09-10 on this site: 3,320 bytes builds, 3,392 does not. Netlify and
+// AWS inject the rest of the 4,096. Warn well before the edge so there is time to act.
+const BUDGET_CEILING = 3320;
+const BUDGET_WARN = 3050;
+const RENAG_MS = 6 * 60 * 60 * 1000;
+
+const json = (c, b) => ({ statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b, null, 2) });
+
+async function nf(token, path) {
+  const r = await fetch(`${API}${path}`, {
+    headers: { Authorization: 'Bearer ' + token },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!r.ok) throw new Error('netlify ' + r.status);
+  return r.json();
+}
+
+// Only vars scoped to functions/runtime count against a Lambda's environment.
+// builds/post_processing are free, which is why the number is not obvious from
+// the dashboard.
+function envBudget(rows) {
+  let bytes = 0; const big = [];
+  for (const v of rows || []) {
+    if (!(v.scopes || []).some((s) => s === 'functions' || s === 'runtime')) continue;
+    const key = v.key || '';
+    const len = Math.max(0, ...((v.values || []).map((x) => String(x.value || '').length)), 0);
+    const b = key.length + len + 1;
+    bytes += b; big.push({ key, bytes: b });
+  }
+  big.sort((a, b) => b.bytes - a.bytes);
+  return { bytes, headroom: BUDGET_CEILING - bytes, vars: big.length, largest: big.slice(0, 3) };
+}
+
+async function runWatch(opts) {
+  const q = opts || {};
+  const dry = q.dry === '1';
+  const token = await getSecret('NETLIFY_API_TOKEN');
+  if (!token) return json(200, { ok: false, error: 'NETLIFY_API_TOKEN not vaulted' });
+
+  let deploys = [], envRows = [];
+  try { deploys = await nf(token, `/sites/${SITE_ID}/deploys?per_page=10`); } catch (e) {
+    return json(200, { ok: false, error: 'could not read deploys: ' + String(e.message || e) });
+  }
+  try { envRows = await nf(token, `/sites/${SITE_ID}/env`); } catch (_) {}
+
+  const prod = deploys.filter((d) => d.context === 'production');
+  const latest = prod[0] || null;
+  const lastGood = prod.find((d) => d.state === 'ready') || null;
+  const budget = envBudget(envRows);
+
+  // A build that is still running is not news either way.
+  const failing = !!latest && latest.state === 'error';
+  const settled = !!latest && (latest.state === 'error' || latest.state === 'ready');
+
+  let state = {};
+  try { state = JSON.parse((await getSecretFresh(STATE_KEY)) || '{}'); } catch (_) {}
+  const wasFailing = !!state.failing;
+  const lastAlert = Number(state.alerted_at || 0);
+
+  let action = 'no_change'; let sms = null;
+  if (settled && failing) {
+    const stale = Date.now() - lastAlert > RENAG_MS;
+    if (!wasFailing || stale) {
+      action = wasFailing ? 'renag' : 'alert';
+      const goodAt = lastGood ? String(lastGood.published_at || '').slice(11, 16) + ' UTC' : 'unknown';
+      sms = `🚨 Netlify deploys are FAILING - nothing can ship. The site still serves the last good build (${goodAt}), so it LOOKS fine. `
+          + `err: ${String(latest.error_message || '').slice(0, 90)}`;
+    }
+  } else if (settled && !failing && wasFailing) {
+    action = 'recovered';
+    sms = '✅ Netlify deploys are green again - changes are shipping.';
+  }
+
+  // The budget warning rides along with whatever we were already going to say, and
+  // stands on its own if the last deploy was fine but the ceiling is close.
+  if (budget.headroom <= BUDGET_CEILING - BUDGET_WARN && budget.bytes >= BUDGET_WARN) {
+    const line = `⚠️ Netlify env at ${budget.bytes}/${BUDGET_CEILING} bytes - ${budget.headroom} left. Put new secrets in the vault, not env.`;
+    if (sms) sms += '\n' + line;
+    else if (action === 'no_change' && !wasFailing && Date.now() - Number(state.budget_alerted_at || 0) > RENAG_MS * 4) {
+      action = 'budget_warn'; sms = line; state.budget_alerted_at = Date.now();
+    }
+  }
+
+  let sent = false;
+  if (sms && !dry) {
+    try { sent = await sendSms(OWNER, sms, 'owner', 'deploy_down'); } catch (_) {}
+    const next = { failing, alerted_at: (action === 'alert' || action === 'renag') ? Date.now() : lastAlert,
+                   deploy_id: latest && latest.id, budget_alerted_at: state.budget_alerted_at || 0 };
+    try { await setSecret(STATE_KEY, JSON.stringify(next)); } catch (_) {}
+  } else if (!dry && settled && failing !== wasFailing) {
+    try { await setSecret(STATE_KEY, JSON.stringify({ ...state, failing, deploy_id: latest && latest.id })); } catch (_) {}
+  }
+
+  return json(200, {
+    ok: true, dry, action, sms_sent: sent, sms_preview: sms || null,
+    latest: latest && { state: latest.state, created_at: latest.created_at, commit: String(latest.commit_ref || '').slice(0, 7), error: latest.error_message || null },
+    last_good: lastGood && { published_at: lastGood.published_at, commit: String(lastGood.commit_ref || '').slice(0, 7) },
+    env_budget: budget,
+  });
+}
+
+exports.runWatch = runWatch;
+exports.handler = async (event) => {
+  const q = event.queryStringParameters || {};
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });
+  return runWatch(q);
+};

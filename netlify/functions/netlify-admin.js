@@ -9,7 +9,7 @@
 //   ?secret=<admin>&action=deploy&site_id=<id>                     -> trigger a build/deploy
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, setSecret } = require('./_lib/secrets');
 const API = 'https://api.netlify.com/api/v1';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 
@@ -104,6 +104,22 @@ exports.handler = async function (event) {
       return json(200, { ok: !!r.ok, key: name, bytes: name.length + String(val).length + 2, scopes,
         status: r.status, error: r.ok ? undefined : JSON.stringify(r.data).slice(0, 200),
         note: 'env changes need a deploy to reach the functions' });
+    }
+
+    // The reverse of vault_to_env, and the tool that makes the 4KB ceiling survivable:
+    // read a value the FUNCTION already has in its own environment and copy it into the
+    // vault, server-side, so the value never transits a chat or a shell. Once a key is
+    // in the vault it can be deleted from Netlify env and getSecret still resolves it -
+    // which is how bytes get reclaimed without anyone re-pasting a secret.
+    if (action === 'env_to_vault') {
+      const name = String(q.key || '').trim();
+      if (!name) return json(200, { ok: false, error: 'need ?key=' });
+      const val = process.env[name];
+      if (!val) return json(200, { ok: false, key: name, error: 'not present in this function\'s environment (already removed, or not scoped to functions/runtime)' });
+      let ok = false; try { ok = !!(await setSecret(name, String(val))); } catch (e) { return json(200, { ok: false, key: name, error: String((e && e.message) || e).slice(0, 160) }); }
+      // Report size only. The point of this endpoint is that the value stays invisible.
+      return json(200, { ok, key: name, bytes: name.length + String(val).length + 2,
+        note: ok ? 'in the vault - safe to delete from Netlify env once nothing reads it via process.env' : 'vault write failed' });
     }
 
     return json(200, { ok: false, error: 'unknown action' });
