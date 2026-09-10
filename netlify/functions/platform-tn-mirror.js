@@ -831,3 +831,8 @@ exports.handler = async function (event) {
 };
 
 module.exports.syncTnToPlatform = syncTnToPlatform;
+// Exported so the parity check answers "are we current?" against the EXACT set the mirror
+// itself walks and the EXACT rule it uses to skip empty claim-shells. A parity check that
+// re-implements either one is measuring its own copy, not the mirror.
+module.exports.fetchActiveJobs = fetchActiveJobs;
+module.exports.isRealJob = isRealJob;
