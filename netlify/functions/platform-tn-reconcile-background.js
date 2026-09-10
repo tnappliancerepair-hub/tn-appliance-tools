@@ -55,29 +55,41 @@ exports.handler = async function (event) {
   if (!rows.length) return { statusCode: 200, body: JSON.stringify({ ok: true, scanned: 0, note: 'nothing to reconcile' }) };
   const floor = Math.min(...rows.map((j) => Number(j.xano_id) || 0).filter(Boolean));
 
-  // 2) Xano's CURRENT status for that id range, newest-first, stopping once we pass the floor.
-  //    One paged read beats 600 single lookups against a Xano that is answering in seconds.
+  // 2) Which of those are TERMINAL in Xano now. Search must carry a filter: an empty
+  //    `search: {}` 400s on the metadata API (the mirror always searches by a status for
+  //    exactly this reason), and the first cut of this sweep silently saw zero rows because
+  //    of it. Paging the terminal statuses directly is also the smaller read - it is the
+  //    only set this sweep acts on.
+  const TERMINAL = ['canceled', 'cancelled', 'completed'];
   const xstat = new Map();
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    let items = [];
-    try {
-      const r = await fetch(`${XANO_META}/table/${JOBS_TABLE}/content/search`, {
-        method: 'POST', headers: XH,
-        body: JSON.stringify({ search: {}, sort: { id: 'desc' }, per_page: 500, page }),
-        signal: AbortSignal.timeout(25000),
-      });
-      if (!r.ok) break;
-      items = (await r.json()).items || [];
-    } catch (_) { break; }
-    if (!items.length) break;
-    let lowest = Infinity;
-    for (const j of items) {
-      const id = Number(j.id || 0);
-      if (!id) continue;
-      lowest = Math.min(lowest, id);
-      xstat.set(id, String(j.scheduling_status || j.current_status || '').toLowerCase());
+  const coverage = {};
+  for (const st of TERMINAL) {
+    let reached = null, pages = 0;
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      let items = [];
+      try {
+        const r = await fetch(`${XANO_META}/table/${JOBS_TABLE}/content/search`, {
+          method: 'POST', headers: XH,
+          body: JSON.stringify({ search: { scheduling_status: st }, sort: { id: 'desc' }, per_page: 500, page }),
+          signal: AbortSignal.timeout(25000),
+        });
+        if (!r.ok) break;
+        items = (await r.json()).items || [];
+      } catch (_) { break; }
+      pages++;
+      if (!items.length) break;
+      let lowest = Infinity;
+      for (const j of items) {
+        const id = Number(j.id || 0);
+        if (!id) continue;
+        lowest = Math.min(lowest, id);
+        xstat.set(id, st);
+      }
+      reached = lowest;
+      if (items.length < 500 || lowest <= floor) break;
     }
-    if (lowest <= floor) break;                       // covered the whole range
+    // Say plainly whether this status was walked all the way back to the oldest job we hold.
+    coverage[st] = { pages, reached_id: reached, complete: reached != null && reached <= floor };
   }
 
   // 3) Correct only the unambiguous transition.
@@ -86,7 +98,7 @@ exports.handler = async function (event) {
   const toClose = [];
   for (const j of rows) {
     const s = xstat.get(Number(j.xano_id));
-    if (s === undefined) { unseen++; continue; }      // outside the page window — leave alone
+    if (s === undefined) { unseen++; continue; }      // not terminal in Xano — still live work
     if (!s.includes('cancel')) {
       // Report a completed-vs-not disagreement; never write it.
       if (s.includes('complet') && j.status !== 'completed') report.push({ xano_id: j.xano_id, platform: j.status, xano: s, action: 'reported_only' });
@@ -110,7 +122,7 @@ exports.handler = async function (event) {
   // A background function answers 202 with no body, so the run has to leave its own record
   // — which a nightly reconcile wants regardless. Written even on a dry run.
   const summary = { ok: true, dryrun: dry, scanned: rows.length, xano_seen: xstat.size,
-    canceled, skipped_local_complete: skippedLocal, not_in_window: unseen, report: report.slice(0, 40) };
+    canceled, skipped_local_complete: skippedLocal, still_active_in_xano: unseen, coverage, report: report.slice(0, 40) };
   try {
     await fetch(`${base}/rest/v1/event`, {
       method: 'POST', headers: { ...SB, Prefer: 'return=minimal' },
