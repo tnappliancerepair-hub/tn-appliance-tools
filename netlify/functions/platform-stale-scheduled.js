@@ -53,6 +53,26 @@ exports.handler = async function (event) {
   const get = async (path) => {
     try { const r = await fetch(`${url}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(12000) }); return r.ok ? r.json() : []; } catch (_) { return []; }
   };
+  // PostgREST caps a response at 1,000 rows whatever `limit` asks for, silently. 331 today, but
+  // shipping a new query that quietly goes short the moment the backlog grows is the exact bug
+  // this whole day was spent finding. Page it.
+  const getAll = async (path) => {
+    const rows = [];
+    for (let from = 0; from < 20000; from += 1000) {
+      let got = [];
+      try {
+        const r = await fetch(`${url}/rest/v1/${path}`, {
+          headers: Object.assign({ Range: `${from}-${from + 999}` }, H), signal: AbortSignal.timeout(15000),
+        });
+        if (!r.ok) break;
+        got = await r.json().catch(() => []);
+      } catch (_) { break; }
+      if (!Array.isArray(got) || !got.length) break;
+      rows.push.apply(rows, got);
+      if (got.length < 1000) break;
+    }
+    return rows;
+  };
 
   const u = await authUser(url, key, String(p.access_token || '').trim());
   if (!u) return json(401, { ok: false, error: 'not_signed_in' });
@@ -71,7 +91,7 @@ exports.handler = async function (event) {
                 'customer:customer_id(first_name,last_name,phone,city),unit:unit_id(label)';
     // Every one of these fits well inside a single page (331 today), but ask in order so the
     // oldest - the ones most likely already done and forgotten - come first.
-    const jobs = await get(`job?company_id=eq.${companyId}&status=eq.scheduled&scheduled_day=lt.${today}&select=${sel}&order=scheduled_day.asc&limit=1000`);
+    const jobs = await getAll(`job?company_id=eq.${companyId}&status=eq.scheduled&scheduled_day=lt.${today}&select=${sel}&order=scheduled_day.asc,id.asc`);
     const techs = await get(`technician?company_id=eq.${companyId}&select=id,name,active`);
     const nm = {}; (techs || []).forEach((t) => { nm[t.id] = t.name; });
     const out = (Array.isArray(jobs) ? jobs : []).map((r) => {
