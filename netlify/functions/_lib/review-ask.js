@@ -25,6 +25,9 @@ const reviewI18n = require('./review-i18n');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 const DEDUP_DAYS = 60;
+// A review ask only makes sense while the visit is fresh in the customer's mind. Generous slack
+// for a legitimately late completion, decisive against a backfill.
+const MAX_WORK_AGE_MS = 10 * 24 * 3600 * 1000;
 
 function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 function e164(p) { const d = String(p || '').replace(/\D/g, ''); if (d.length === 10) return '+1' + d; if (d.length === 11 && d[0] === '1') return '+' + d; if (String(p || '').startsWith('+')) return String(p); return null; }
@@ -57,7 +60,7 @@ async function sendAskForJob(jobId, opts) {
   const via = opts.via || 'sweep';
   const source = opts.source || via;
 
-  let cust = {}, applType = '', techName = '', cityName = '', liveDone = false, custLang = 'en';
+  let cust = {}, applType = '', techName = '', cityName = '', liveDone = false, custLang = 'en', workedAtMs = 0;
   try {
     const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(10000) }).then((r) => r.json());
     cust = (d && d.customer) || {};
@@ -71,6 +74,9 @@ async function sendAskForJob(jobId, opts) {
     const jss = String((d && d.job && d.job.scheduling_status) || '').toLowerCase();
     const jcs = String((d && d.job && d.job.current_status) || '').toLowerCase();
     liveDone = (jss === 'completed' || jcs === 'completed');
+    // WHEN the work actually happened, not when the row was touched. A status can be corrected
+    // months later; the visit cannot move.
+    workedAtMs = Math.max(Number((d && d.job && d.job.job_completed_at) || 0), Number((d && d.job && d.job.scheduled_start) || 0));
     custLang = reviewI18n.langFromPref((d && d.job && d.job.customer_preference_text) || '');
   } catch (_) { return { sent: false, reason: 'lookup_failed' }; }
 
@@ -78,6 +84,14 @@ async function sendAskForJob(jobId, opts) {
   const phone = e164(cust.phone);
   if (!custId || !phone) return { sent: false, reason: 'no_customer_or_phone', cust_id: custId };
   if (!opts.force && !liveDone) return { sent: false, reason: 'not_currently_completed', cust_id: custId };
+  // NEVER ask about work we did months ago. The upstream trigger is the completion TRANSITION,
+  // so the office correcting the status of an old job - the 331 jobs sitting at `scheduled` on a
+  // day already past are exactly this - lands inside job-completion-watch's 36h window and looks
+  // brand new. Without this, one afternoon of board cleanup texts hundreds of customers "how'd we
+  // do?" about a visit from June. That is not a review request, it is a complaint generator.
+  if (!opts.force && workedAtMs > 0 && (Date.now() - workedAtMs) > MAX_WORK_AGE_MS) {
+    return { sent: false, reason: 'work_too_old', cust_id: custId, worked_days_ago: Math.round((Date.now() - workedAtMs) / 86400000) };
+  }
   if (await askedRecently(custId)) return { sent: false, reason: 'asked_within_60d', cust_id: custId };
 
   const first = cust.first_name || 'there';
