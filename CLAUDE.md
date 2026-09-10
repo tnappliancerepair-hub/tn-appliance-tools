@@ -1,5 +1,58 @@
 # Appliance Ant
 
+## ↔️ 2026-09-10 (late) — EVERY NEW JOB NOW LANDS IN **BOTH** SYSTEMS (Xano stays a complete backup) — READ FIRST
+
+**Teddy's direction, locked:** *"Supabase is the new system we are trying to get set up. Xano is our old
+system. Hopefully we can get these new jobs to go to Supabase as well as Xano, and just use Xano as a
+backup for right now so that way we've got everything still while we make this merger over."*
+
+### THE HOLE: the platform runs its OWN warranty-email intake, and Xano never heard about it
+3,438 of 3,455 jobs came FROM Xano and the mirror carries them here in ≤5 min — that direction was
+fine. The other direction was not. `platform-email-intake` (`<slug>@jobs.assistant247.net`) creates a
+job HERE when a dispatch arrives that Xano's poller never saw. **Measured: FOUR real Frontdoor
+dispatches from 9/8–9/10 — Ferrara, Madroy, Tusa, Segreti, each with a claim#, full address and
+appliance — existed ONLY on the platform.** The backup was missing live work.
+- **`platform-tn-job-back` (NEW, cron `8-59/15`, LIVE)** — creates the Xano customer + job for any
+  platform-native job, then stamps `xano_id` so the mirror owns it from then on and it can never be
+  created twice.
+- **CLAIM NUMBER IS THE DEDUP KEY. No claim → REPORTED, never created.** A duplicate warranty
+  dispatch is worse than a missing one (two techs, two claims, one machine).
+- **LINK BEFORE CREATE**, and a **failed Xano read SKIPS** the job — never assume "Xano doesn't have
+  it" on an error, that is exactly how duplicates get made.
+- **NO SIGNALS** — Metadata API, not `create_job_from_chat`/`ahs_email_intake`, which emit
+  JOB_CREATED and fire the customer greeting SMS.
+- **Result: 1 linked (Segreti → existing job 21982), 3 created (22041/22042/22043).** Re-checked every
+  claim after: exactly one Xano job each, zero duplicates. **`open_platform_only` is now 0.**
+
+### 🚨 `office_universal_search` GIVES FALSE NEGATIVES — DO NOT USE IT AS EVIDENCE OF ABSENCE
+It reported all four as missing from Xano — **including Segreti, whose claim was sitting on job 21982
+the whole time.** The claim search is what actually decided every create and is what turned Segreti
+into a link instead of a duplicate. **Duplicate hunting goes through `claim_number` /
+`dispatch_source_id`, never a name.** `platform-tn-job-back?claim=<n>` exposes it (flags `matches>1`).
+
+### 🧟 THE MIRROR CANNOT SEE A CANCEL — and the fix existed all day, unwired
+The mirror only ADDS and UPDATES: it fetches Xano's **ACTIVE** jobs and upserts them. A job canceled
+in Xano simply stops appearing, so **the platform keeps its last-known state forever** and the card
+sits in the office's queue as work to be booked (471 dead cards before the first manual run).
+`platform-tn-reconcile` fixes exactly this and was written this morning — **but was never added to
+`netlify.toml`, so it only ran when someone remembered.** Found it because Segreti still showed open
+here after linking (Xano has him canceled). Wired: **`platform-tn-reconcile-cron`, `14-59/15`**.
+Scope stays CANCELED-only on purpose — completed-vs-not is reported, never written.
+- **⚠️ STANDING: a mirror that reads an ACTIVE set is blind to every terminal transition by
+  construction.** Any such mirror needs a reconciler, and the reconciler needs a cron.
+
+### 🧾 XANO SCHEMA, PROBED NOT GUESSED (cost two runs)
+- **`customer` (table 6) is narrow:** `first_name,last_name,phone,email,address,city,state,zip,
+  dedup_signature,related_customer_id,company_id`. **NO `customer_phone`, NO `service_*`** — those
+  live on the JOB. **Searching a column the table does not have 400s the whole request.**
+- Metadata search is **single-field only**, so try phone formats one at a time.
+- `dedup_signature` is `phone|street|city|state|zip` with the **street expanded** (`Ave` → `avenue`).
+  Leave it UNSET rather than write a wrong one — blank means no auto-merge, which is the safe way.
+- **`?probe=<id>&full=1`** on `platform-tn-booking-back` dumps a whole job row; **`?cust=<id>`** on
+  `platform-tn-job-back` dumps a customer. Copy the real shape before writing anything.
+- **⚠️ Poll for a DEPLOY, not for a 200.** Two "still broken" runs were the old build still live;
+  the fix had been right the first time. Check `deploy-watch` for the actual commit hash.
+
 ## 🔁 2026-09-10 (late) — THE LAST ONE-WAY GAP CLOSED (bookings now reach Xano) + a mass-mis-text landmine + the 1,000-row cap — READ FIRST
 
 Continuation of the migration grind. Four things, in the order they were found.
