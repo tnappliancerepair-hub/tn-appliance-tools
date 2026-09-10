@@ -78,6 +78,19 @@ and **owner.html was computing take-home, first-stop rate, warranty pipeline and
   explicit count check. A plain `.limit()` bigger than the cap is a silent lie.** Same family as the
   office board showing 37 of 1,725 message threads.
 
+### 📏 THREE WEEKS IS THE WORKING HORIZON (Teddy 2026-09-10, locked)
+*"I really don't think we need to go back that far... maybe three weeks, but that's really as far
+back as we need to go. We've maybe done less than a thousand. Those would be the ones I would focus
+on, not the ones before that."*
+- Of the 331 overdue jobs, **66 are inside three weeks; 265 go back to June 2.** 331 is a wall
+  nobody starts; 66 is an afternoon. Any backlog surface should **LEAD with ~21 days** and park the
+  rest behind one tap — still counted, still reachable, just not the thing you have to get past
+  before you can start. Same pattern as the intake-artifact parking on the board.
+- **⚠️ This scopes the WORK QUEUE, not the DATA.** The mirror still carries all 3,455 jobs on
+  purpose: that history answers *"what did we do here last time"* and feeds first-stop-fix rate, the
+  warranty backfill and the owner P&L (which was only just fixed to read the full book instead of
+  the first 1,000). Narrowing what humans are asked to act on ≠ throwing away history.
+
 ### ⏰ `platform/stale-scheduled.html` — the office can finally clear the 331
 331 jobs say `scheduled` on a day already past (oldest 2026-06-02); **Xano agrees on every one**, so
 it is real work in limbo. Grouped by tech, oldest first, with the two signals that actually decide it
@@ -86,7 +99,17 @@ pending. Three taps: *it was done* / *still needs doing* / *dead job*. Writes la
 status is derived from it every 5 min, so a platform-only fix would be undone before the office
 finished scrolling). *Still needs doing* hands off to the booking pusher rather than writing the
 schedule twice; *dead job* uses `office_remove_job` (reversible, silent). **Office seats only.**
-Linked from the board as **⏰ Overdue**. ⏭️ **Still needs the human pass — that call is Danielle's.**
+Linked from the board as **⏰ Overdue**. Opens on the last 21 days (65 jobs, all on real techs);
+the 265 older sit behind a tap. ⏭️ **Still needs the human pass — that call is Danielle's.**
+- **🐞 It refused platform-native jobs at first** (`no_xano_id`). That looked harmless because every
+  job on the board today came from Xano — and it is exactly backwards: **a job with no `xano_id` was
+  BORN on the platform, and every job the platform takes intake for from here on lands that way.**
+  The tool would have quietly stopped working as the migration succeeded. Those now resolve on the
+  platform and stop (nothing to push — the job does not exist in Xano).
+- Found because the ONE open job on the deactivated **"Tech 1" decoy seat** was the 9/8 ZZ TEST
+  practice job — sitting in the office's live queue looking like real work while assigned to a seat
+  nobody can sign into, so it could never have appeared on anyone's day. Canceled (reversible).
+  **⚠️ Worth a periodic check: an open job on an INACTIVE tech is invisible work.**
 
 ### ⚠️ FOOTGUNS BURNED
 - **PostgREST cannot compare two columns in a filter** — the right side is always a literal.
