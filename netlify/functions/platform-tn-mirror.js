@@ -725,13 +725,13 @@ async function syncTnToPlatform(limit, opts) {
     for (let i = 0; i < xids.length; i += 200) {
       const chunk = xids.slice(i, i + 200).join(',');
       const r = await fetch(
-        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at,scheduled_day,scheduled_start,technician_id`,
+        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at,scheduled_day,scheduled_start,technician_id,platform_booked_at`,
         { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
       );
       const rows = await r.json().catch(() => null);
       if (Array.isArray(rows)) rows.forEach((x) => cur.set(Number(x.xano_id), x));
     }
-    let held = 0, keptSched = 0, keptTech = 0;
+    let held = 0, keptSched = 0, keptTech = 0, keptPending = 0;
     for (const jr of jobRows) {
       const ex = cur.get(Number(jr.xano_id));
       if (!ex) continue;                                   // brand-new job: take Xano's status
@@ -749,6 +749,21 @@ async function syncTnToPlatform(limit, opts) {
       // The rule stays narrow on purpose: a DIFFERENT day or tech in Xano is a real
       // reschedule by the system of record and still wins. Only the ERASURE case is held -
       // Xano has nothing and the platform has something, so the something was put there here.
+      //
+      // A booking still QUEUED to go to Xano is the one case where the platform outranks the
+      // system of record outright. platform_booked_at is only set by the three booking surfaces
+      // and is cleared the moment platform-tn-booking-back lands it in Xano, so an unconsumed
+      // stamp means "the office changed this here and Xano has not heard yet". Without this a
+      // RESCHEDULE is lost to a race: the office moves a job to Thursday, the mirror runs first
+      // and reverts it to Xano's old Tuesday, and the pusher then dutifully sends Tuesday back.
+      // The office would watch the change undo itself - the exact trust-killer, a fourth time.
+      if (ex.platform_booked_at) {
+        jr.scheduled_day = ex.scheduled_day;
+        jr.scheduled_start = ex.scheduled_start;
+        jr.technician_id = ex.technician_id;
+        keptPending++;
+        continue;
+      }
       if (!jr.scheduled_day && ex.scheduled_day) {
         jr.scheduled_day = ex.scheduled_day;
         jr.scheduled_start = ex.scheduled_start || jr.scheduled_start;
@@ -758,6 +773,7 @@ async function syncTnToPlatform(limit, opts) {
     }
     if (held) console.log('[tn-mirror] kept platform status on ' + held + ' job(s) the mirror would have reverted');
     if (keptSched || keptTech) console.log('[tn-mirror] kept platform booking: ' + keptSched + ' day(s), ' + keptTech + ' tech(s)');
+    if (keptPending) console.log('[tn-mirror] held ' + keptPending + ' booking(s) still queued for Xano');
   } catch (e) {
     // Never let this guard break the mirror — worst case is today's behavior.
     console.error('[tn-mirror] status-guard skipped: ' + String((e && e.message) || e));

@@ -934,6 +934,19 @@
 [functions."platform-tn-report-back-cron"]
   schedule = "3-59/15 * * * *"
 
+# platform-tn-booking-back-cron (2026-09-10) - the LAST one-way gap closed. A booking made on the
+# platform board now reaches Xano, so the legacy office board and the Xano tech app stop being
+# blind to work the office booked here - the one thing that was forcing the office to keep
+# booking in Xano. Detection is an explicit stamp (job.platform_booked_at, SQL 059), never
+# inference: Xano UNSCHEDULING a job looks identical to a platform booking, and guessing would
+# resurrect a booking someone deliberately cleared. Writes through the Metadata API, NOT
+# danielle_schedule_parallel_job / reassign_job, both of which emit signals that text a customer.
+# Every 5 minutes: a booking should be on the Xano board before the tech looks again.
+# Curl-testable core: platform-tn-booking-back?secret=...&dryrun=1
+# Kill: vault PLATFORM_BOOKING_BACK_ENABLED=false (or PLATFORM_BOOKING_BACK_LIVE=false for shadow).
+[functions."platform-tn-booking-back-cron"]
+  schedule = "4-59/5 * * * *"
+
 # platform-rma-tee-cron (phase-2 parts-return, 2026-09-09) — auto-matches SquareTrade/Allstate
 # RMA return-labels from rma_request@squaretrade.com (RMA#/FedEx tracking/distributor/part#) to
 # the platform returns worklist by claim + part#. Reads TN's Gmail read-only; writes only into TN's
