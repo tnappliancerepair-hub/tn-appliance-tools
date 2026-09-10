@@ -1,0 +1,170 @@
+<!doctype html><html lang="en" data-live="1"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Overdue — Ant</title>
+<!--
+  Ant platform — OVERDUE (jobs stuck at `scheduled` on a day that already went by).
+  Measured 2026-09-10: 331 of them, oldest 2026-06-02, and Xano agrees on every one, so this is
+  real work in limbo rather than mirror drift. The job says scheduled, the schedule shows today
+  forward, both are honest, and nobody could see the gap. Done-but-never-marked vs never-done is
+  a human call — this page makes the call fast, it does not make it for anyone.
+  Writes land in XANO (platform status is derived from it every 5 minutes, so a platform-only
+  fix would be undone before the office finished scrolling).
+-->
+<link rel="stylesheet" href="/platform/ant-theme.css">
+<link rel="stylesheet" href="/platform/skin-jackpot.css">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:11px 14px;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  header .brand{font-weight:800}
+  header a{color:var(--ink);text-decoration:none;opacity:.72;font-size:13px}
+  .wrap{padding:14px;max-width:900px;margin:0 auto}
+  .gate{max-width:340px;margin:14vh auto;padding:0 16px}
+  .gate input{width:100%;padding:11px;margin:5px 0 12px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font-size:16px}
+  .gate label{font-size:12px;opacity:.7}
+  button.primary{width:100%;padding:12px;border:0;border-radius:9px;background:var(--accent,#c8952a);color:#fff;font-weight:700;font-size:15px;cursor:pointer}
+  .err{color:#c0392b;font-size:13px;min-height:18px;margin-top:6px}
+  .note{background:var(--card);border:1px solid var(--line);border-left:4px solid #c8952a;border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:13.5px;line-height:1.55}
+  .grp{font-weight:800;margin:18px 0 8px;font-size:14px;opacity:.85}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:9px}
+  .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .who{font-weight:700}
+  .sub{font-size:12.5px;opacity:.72;margin-top:2px}
+  .age{font-size:12px;font-weight:800;white-space:nowrap;padding:3px 8px;border-radius:999px;background:#fdecea;color:#a33}
+  .age.warm{background:#fff5e0;color:#8a6100}
+  .tags{margin-top:7px;display:flex;gap:6px;flex-wrap:wrap}
+  .tag{font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);opacity:.9}
+  .tag.rep{background:#e8f6ec;border-color:#bfe3c9;color:#1d6b34}
+  .tag.parts{background:#eef2ff;border-color:#c9d3f5;color:#31417d}
+  .acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}
+  .acts button{flex:1 1 auto;min-width:120px;padding:9px 10px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--ink);font-weight:650;font-size:13.5px;cursor:pointer}
+  .acts button.done{background:#1d6b34;border-color:#1d6b34;color:#fff}
+  .acts button.open{background:#31417d;border-color:#31417d;color:#fff}
+  .acts button.kill{opacity:.66}
+  .acts button[disabled]{opacity:.45;cursor:default}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(12px);background:#111;color:#fff;padding:10px 16px;border-radius:999px;font-size:13.5px;opacity:0;transition:.22s;z-index:20}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .empty{text-align:center;padding:40px 10px;opacity:.7}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="/platform/config.js"></script>
+<script src="/platform/vendor/supabase-js.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
+<script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/vendor/boot-watchdog.js"></script>
+<script>
+(function(){
+  var app=document.getElementById('app');
+  var cfg=window.ANT_SUPABASE||{}; var sb=null, rows=[];
+  try{ var r=document.documentElement; r.setAttribute('data-skin','jackpot'); r.setAttribute('data-theme','light'); }catch(e){}
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function toast(m){ var t=document.createElement('div'); t.className='toast'; t.textContent=m; document.body.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('on'); });
+    setTimeout(function(){ t.classList.remove('on'); setTimeout(function(){ try{document.body.removeChild(t);}catch(e){} },250); },2200); }
+
+  function renderSignIn(msg){
+    app.innerHTML='<div class="gate"><h1>⏰ Overdue</h1><p>Sign in to your shop.</p>'+
+      '<label>Email</label><input id="em" type="email" autocomplete="username">'+
+      '<label>Password</label><input id="pw" type="password" autocomplete="current-password">'+
+      '<button class="primary" id="go">Sign in</button><div class="err" id="err">'+esc(msg||'')+'</div></div>';
+    function submit(){ var em=document.getElementById('em').value.trim(), pw=document.getElementById('pw').value;
+      if(!em||!pw){ document.getElementById('err').textContent='Enter email and password.'; return; }
+      var go=document.getElementById('go'); go.disabled=true; go.textContent='Signing in…';
+      sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){ if(r.error) renderSignIn(r.error.message); else boot(); }); }
+    document.getElementById('go').onclick=submit;
+    document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
+  }
+
+  function tok(){ return sb.auth.getSession().then(function(s){ return (s.data&&s.data.session&&s.data.session.access_token)||''; }); }
+  function api(doo, extra){
+    return tok().then(function(t){
+      return fetch('/.netlify/functions/platform-stale-scheduled?do='+doo,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(Object.assign({access_token:t}, extra||{}))
+      }).then(function(r){ return r.json(); });
+    });
+  }
+
+  function shell(inner){
+    app.innerHTML='<header><span class="brand">⏰ Overdue</span>'+
+      '<a href="/platform/office-board.html">← Board</a>'+
+      '<a href="/platform/needs-scheduled.html">Needs Scheduled</a>'+
+      '<span style="flex:1"></span><span id="cnt" style="font-size:13px;opacity:.7"></span></header>'+
+      '<div class="wrap">'+inner+'</div>';
+  }
+
+  function card(j){
+    var ageCls = j.days_ago>30 ? '' : 'warm';
+    return '<div class="card" id="c-'+esc(j.id)+'">'+
+      '<div class="top"><div>'+
+        '<div class="who">'+esc(j.customer)+(j.appliance?' <span style="opacity:.6;font-weight:500">· '+esc(j.appliance)+'</span>':'')+'</div>'+
+        '<div class="sub">'+esc(j.day)+(j.city?' · '+esc(j.city):'')+(j.tech?' · '+esc(j.tech):' · no tech')+'</div>'+
+        (j.problem?'<div class="sub">'+esc(j.problem)+'</div>':'')+
+      '</div><span class="age '+ageCls+'">'+j.days_ago+'d ago</span></div>'+
+      '<div class="tags">'+
+        (j.has_report?'<span class="tag rep">📝 report filed</span>':'')+
+        (j.parts_pending?'<span class="tag parts">📦 parts pending</span>':'')+
+        (j.phone?'<span class="tag">'+esc(j.phone)+'</span>':'')+
+      '</div>'+
+      '<div class="acts">'+
+        '<button class="done" data-a="completed" data-j="'+esc(j.id)+'">✓ It was done</button>'+
+        '<button class="open" data-a="reopen" data-j="'+esc(j.id)+'">📅 Still needs doing</button>'+
+        '<button class="kill" data-a="cancel" data-j="'+esc(j.id)+'">🗑 Dead job</button>'+
+      '</div></div>';
+  }
+
+  function render(){
+    if(!rows.length){ shell('<div class="empty">🎉 Nothing overdue. Every scheduled job is on a day still to come.</div>'); return; }
+    var byTech={}; rows.forEach(function(j){ var k=j.tech||'No tech assigned'; (byTech[k]=byTech[k]||[]).push(j); });
+    var names=Object.keys(byTech).sort(function(a,b){ return byTech[b].length-byTech[a].length; });
+    var html='<div class="note"><b>These jobs say <i>scheduled</i> on a day that already passed.</b> '+
+      'Xano agrees on every one, so this is real work in limbo, not a display bug. '+
+      'A <span class="tag rep">📝 report filed</span> tag usually means the tech was there and it just never got marked done — but check before you tap. '+
+      'Nothing here texts the customer.</div>';
+    names.forEach(function(n){
+      html+='<div class="grp">'+esc(n)+' — '+byTech[n].length+'</div>';
+      byTech[n].forEach(function(j){ html+=card(j); });
+    });
+    shell(html);
+    var c=document.getElementById('cnt'); if(c) c.textContent=rows.length+' overdue';
+    Array.prototype.forEach.call(document.querySelectorAll('.acts button'),function(b){
+      b.onclick=function(){ resolve(b.getAttribute('data-j'), b.getAttribute('data-a'), b); };
+    });
+  }
+
+  var LABEL={ completed:'marked done', reopen:'back in the scheduling queue', cancel:'removed' };
+  function resolve(id, action, btn){
+    var ask = action==='completed' ? 'Mark this job completed in both systems?'
+            : action==='reopen'    ? 'Clear the old day and send it back to Needs Scheduled?'
+            : 'Remove this job? (reversible — the office board can bring it back.)';
+    if(!window.confirm(ask)) return;
+    var box=document.getElementById('c-'+id);
+    if(box) Array.prototype.forEach.call(box.querySelectorAll('button'),function(x){ x.disabled=true; });
+    btn.textContent='…';
+    api('resolve',{job:id, action:action}).then(function(r){
+      if(!r||!r.ok){ toast('Didn’t save — '+((r&&(r.message||r.error))||'try again')); 
+        if(box) Array.prototype.forEach.call(box.querySelectorAll('button'),function(x){ x.disabled=false; });
+        render(); return; }
+      rows=rows.filter(function(j){ return String(j.id)!==String(id); });
+      toast('✓ '+LABEL[action]);
+      render();
+    }).catch(function(){ toast('Network hiccup — try again');
+      if(box) Array.prototype.forEach.call(box.querySelectorAll('button'),function(x){ x.disabled=false; }); });
+  }
+
+  function boot(){
+    shell('<div class="empty">Loading…</div>');
+    api('list').then(function(r){
+      if(!r||!r.ok){ shell('<div class="empty">'+esc((r&&(r.message||r.error))||'Could not load')+'</div>'); return; }
+      rows=r.jobs||[]; render();
+    }).catch(function(){ shell('<div class="empty">Network error — reload.</div>'); });
+  }
+
+  sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else renderSignIn(); });
+})();
+</script>
+</body></html>
