@@ -79,15 +79,10 @@ const XANO_COL = {
   labor_hours: ['labor_time_hours', 'labor_hours'],           // labor_time_hours is the real one
 };
 
-exports.handler = async (event) => {
-  const q = event.queryStringParameters || {};
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
-  let scheduled = false;
-  try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
-  if (!scheduled && q.secret !== admin) return j(401, { ok: false, error: 'unauthorized' });
-
+async function runBack(opts) {
+  const q = opts || {};
   const enabled = String((await getSecretFresh('PLATFORM_REPORT_BACK_ENABLED')) ?? 'true');
-  if (enabled === 'false') return j(200, { ok: true, skipped: 'disabled' });
+  if (enabled === 'false') return { ok: true, skipped: 'disabled' };
 
   const dryrun = q.dryrun === '1';
   const days = Math.min(90, Math.max(1, Number(q.days) || 14));
@@ -96,8 +91,8 @@ exports.handler = async (event) => {
   const url = (await getSecret('PLATFORM_SUPABASE_URL')) || process.env.PLATFORM_SUPABASE_URL;
   const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || process.env.PLATFORM_SUPABASE_SERVICE_KEY;
   const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
-  if (!url || !key) return j(500, { ok: false, error: 'no_supabase_config' });
-  if (!token) return j(500, { ok: false, error: 'no_xano_token' });
+  if (!url || !key) return { ok: false, error: 'no_supabase_config' };
+  if (!token) return { ok: false, error: 'no_xano_token' };
   const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 
   // 1) platform reports touched recently, on jobs that exist in Xano
@@ -109,7 +104,7 @@ exports.handler = async (event) => {
     `&select=${encodeURIComponent(sel)}&order=updated_at.desc&limit=1000`,
     { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(15000) },
   );
-  if (!r.ok) return j(502, { ok: false, error: 'supabase_' + r.status, body: (await r.text()).slice(0, 200) });
+  if (!r.ok) return { ok: false, error: 'supabase_' + r.status, body: (await r.text()).slice(0, 200) };
   const rows = (await r.json()) || [];
 
   // platform technician uuid -> xano tech id, so the upsert lands on the right tech's report
@@ -190,5 +185,17 @@ exports.handler = async (event) => {
   }
 
   if (out.errors.length > 12) out.errors = out.errors.slice(0, 12);
-  return j(200, out);
+  return out;
+}
+
+exports.handler = async (event) => {
+  const q = event.queryStringParameters || {};
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
+  let scheduled = false;
+  try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  if (!scheduled && q.secret !== admin) return j(401, { ok: false, error: 'unauthorized' });
+  const out = await runBack(q);
+  return j(out.ok === false ? 200 : 200, out);
 };
+
+exports.runBack = runBack;

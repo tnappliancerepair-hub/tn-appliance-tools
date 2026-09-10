@@ -923,6 +923,17 @@
 [functions."platform-tn-report-tee-cron"]
   schedule = "6-59/15 * * * *"
 
+# platform-tn-report-back-cron (2026-09-10) - the REVERSE of the tee above: a technician report
+# filed on the PLATFORM goes back into Xano, blank fields only. TN's crew has started filing in
+# platform/tech-job.html, and measured 9/10 three real reports (Lee's FFE error code, Jimmy's, an
+# ice-maker diagnosis) existed ONLY on the platform while Xano showed nothing. That is money:
+# servicepower-claims-build reads XANO, so a report that never gets back is a warranty claim
+# nobody can file. Offset to :03 to stay clear of the /15 crons already at 6, 7, 9, 11 and 13.
+# Curl-testable core: platform-tn-report-back?secret=...&dryrun=1
+# Kill: vault PLATFORM_REPORT_BACK_ENABLED=false.
+[functions."platform-tn-report-back-cron"]
+  schedule = "3-59/15 * * * *"
+
 # platform-rma-tee-cron (phase-2 parts-return, 2026-09-09) — auto-matches SquareTrade/Allstate
 # RMA return-labels from rma_request@squaretrade.com (RMA#/FedEx tracking/distributor/part#) to
 # the platform returns worklist by claim + part#. Reads TN's Gmail read-only; writes only into TN's
