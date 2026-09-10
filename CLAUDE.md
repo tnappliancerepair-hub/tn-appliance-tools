@@ -1,5 +1,66 @@
 # Appliance Ant
 
+## 🔔📵 2026-09-10 (late) — THE REMINDER IS BACK ON · the over-texting path that was still open (multi-machine stops) — READ FIRST
+
+Teddy: *"Turn back on if there's no chance of over texting. All of this is on supabase correct?"*
+Conditional authorization. So the condition got **measured**, not assumed — and it was NOT met yet.
+
+### 🔴 THE PATH THAT WAS STILL OPEN: the guard keyed on the JOB, but a text lands on a PERSON
+`send_key` was `reminder:<job_id>`. **One stop can carry several machines** — an AHS dispatch
+often covers a washer AND a dryer — and **each machine is its own job row.** Every one of those
+claims is legitimate, so the database had nothing to refuse: that customer gets one reminder
+*per machine* for one visit. **Measured on TN's own board, last 60 days: 32 multi-machine stops,
+71 jobs across them, biggest a three-machine stop** — roughly every other day, a real person
+would have been texted two or three times.
+- **Fix: group by CUSTOMER first.** One visit → one reminder, and the text names every appliance
+  (`Washer and Dryer` / `Washer, Dryer and Cooktop`). Key is now **customer + scheduled day**, so
+  a stop can only claim once no matter how many machines; a **return trip on another day is still
+  its own claim and still texts.** Unit-verified 7/7.
+- **Same class, pre-emptively closed on the lifecycle texts** — `otw` / `arrived` / `complete`
+  were keyed per job too. A tech drives to a house once, arrives once, and leaves once, so those
+  are now per customer per day. **All three are OFF for TN**, so this closed the trap *before*
+  anyone flips them instead of after.
+- **Deliberately still per JOB:** `review` (a customer served again in six months *should* be
+  asked again) and `invoice` (two machines can be two real bills).
+- **⚠️ THE LESSON: a send guard has to be keyed on WHO RECEIVES THE TEXT, not on the record that
+  triggered it.** `thread_send_once_uidx` was working perfectly and still let this through.
+
+### ✅ WHAT WAS PROVEN BEFORE FLIPPING (each of these is a query, not an assumption)
+| check | result |
+|---|---|
+| Tomorrow's load | **18 jobs · 18 distinct customers · 18 distinct phones · 0 missing** |
+| Multi-machine over-text path | **fixed** (grouped per stop; 18 jobs → 18 stops on a live dry-run) |
+| Two customer ROWS sharing one phone on the same day | **0 in 60 days** |
+| Other customer channels | otw · arrived · complete · review · offer **all still OFF** |
+| Opt-out | **absolute, always enforced** (`sms-guard` step 1, before any other check) |
+| Quiet hours | **hard block for customers, always** (not gated on `SMS_GUARD_ENFORCE`) |
+| Duplicate suppression | **always on** — same body to the same phone inside the window |
+
+**Four independent layers now stand between a cron and a double text:** the DB unique index ·
+the per-customer-per-day key · the guard's duplicate suppression · opt-out + quiet hours.
+
+### 🔔 `settings.comms.reminder.on = true` FOR TN (LIVE)
+Verified after the flip: **16 would-send · 0 skipped_off · 0 send_failed.**
+- **The 2 `skipped_dup` are correct, and worth knowing:** both carry markers written **2026-09-07**
+  (the double-text day) with the OLD per-job key — those jobs were reminded then and later moved
+  to 9/11, so the pre-filter refuses to re-text them. That is a **miss, not a double** — the safe
+  direction — and it is a one-time artifact of the old key scheme. Every job from here forward
+  uses the customer+day key, so **a genuine reschedule to a new day now DOES earn a fresh text.**
+- **Nothing sent today.** The cron is `30 19 * * *` (~2:30 PM CT) and had already run before the
+  flip. **The first live send is tomorrow ~2:30 PM CT, for jobs scheduled 9/12.**
+- **Kill it in one move:** set `comms.reminder.on = false` on the company row (or the toggle in
+  the Communication Center). No deploy needed.
+
+### 📞 "ALL OF THIS IS ON SUPABASE CORRECT?" — yes, with one honest exception
+Everything the reminder *thinks with* is Supabase: the job board, the customer + technician +
+unit rows, `thread_message`, the `send_key` guard, the window catalog, the per-shop toggle +
+template. The one leg that is not Supabase is **carrier delivery** — and for `platform_*` tags
+`_lib/sms-guard.deliver()` goes **DIRECT to Telnyx, bypassing Xano entirely** (`PLATFORM_TAG_RE`
++ `PLATFORM_SMS_DIRECT`, default on). So this reminder does not touch Xano at any point.
+**Still Xano-dependent for outbound: every NON-`platform_*` tag** (the legacy TN sends) — that
+door only opens wider by widening `PLATFORM_TAG_RE`.
+
+
 ## 📵🕘 2026-09-10 (late) — FIXING THE CLASS, NOT THE INSTANCE: one DB guard now makes a double-text impossible · windows 2→3 slots · 98% of jobs have NO window — READ FIRST
 
 Teddy: *"Since we're redoing everything on Supabase, this is an opportunity to fix mistakes we
@@ -47,7 +108,7 @@ COMPANY's `service_window`** (their promise to the homeowner — a different col
   "No window yet" and nothing ever asks again — capacity was the easy half, **adoption is the half
   that matters**. ⏭️ Teddy's call on how hard to push it.
 
-### 📵 TN's reminder + review texts are currently OFF (`settings.comms.*.on = false`) — correct, and now safely reversible
+### 📵 TN's review texts are OFF; the reminder was turned back ON later the same night (see the top entry)
 18 jobs are scheduled for tomorrow and every one skipped as `skipped_off`. That matches the standing
 owner rule (*no proactive texts*) and was the right move after 09-07. **The double-text cause is now
 fixed at the database, so turning the reminder back on is safe — but flipping a customer-texting
