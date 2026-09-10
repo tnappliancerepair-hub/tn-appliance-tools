@@ -662,13 +662,13 @@ async function syncTnToPlatform(limit, opts) {
     for (let i = 0; i < xids.length; i += 200) {
       const chunk = xids.slice(i, i + 200).join(',');
       const r = await fetch(
-        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at`,
+        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at,scheduled_day,scheduled_start,technician_id`,
         { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
       );
       const rows = await r.json().catch(() => null);
       if (Array.isArray(rows)) rows.forEach((x) => cur.set(Number(x.xano_id), x));
     }
-    let held = 0;
+    let held = 0, keptSched = 0, keptTech = 0;
     for (const jr of jobRows) {
       const ex = cur.get(Number(jr.xano_id));
       if (!ex) continue;                                   // brand-new job: take Xano's status
@@ -678,8 +678,23 @@ async function syncTnToPlatform(limit, opts) {
         jr.status = ex.status;                             // keep the platform's further-along state
         held++;
       }
+      // ── AND DON'T ERASE A BOOKING MADE ON THE PLATFORM ───────────────────────────
+      // Same bug, second field. The row above rewrites technician_id / scheduled_day /
+      // scheduled_start from Xano on EVERY run, so the office booking a job on the platform
+      // board watched it come back unscheduled within 5 minutes - "the new system doesn't
+      // save" all over again, on the single action the office does most.
+      // The rule stays narrow on purpose: a DIFFERENT day or tech in Xano is a real
+      // reschedule by the system of record and still wins. Only the ERASURE case is held -
+      // Xano has nothing and the platform has something, so the something was put there here.
+      if (!jr.scheduled_day && ex.scheduled_day) {
+        jr.scheduled_day = ex.scheduled_day;
+        jr.scheduled_start = ex.scheduled_start || jr.scheduled_start;
+        keptSched++;
+      }
+      if (!jr.technician_id && ex.technician_id) { jr.technician_id = ex.technician_id; keptTech++; }
     }
     if (held) console.log('[tn-mirror] kept platform status on ' + held + ' job(s) the mirror would have reverted');
+    if (keptSched || keptTech) console.log('[tn-mirror] kept platform booking: ' + keptSched + ' day(s), ' + keptTech + ' tech(s)');
   } catch (e) {
     // Never let this guard break the mirror — worst case is today's behavior.
     console.error('[tn-mirror] status-guard skipped: ' + String((e && e.message) || e));
