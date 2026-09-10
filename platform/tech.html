@@ -220,6 +220,7 @@
 <div id="app"><div class="shell"><div class="empty">🐜 Loading…</div></div></div>
 
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-page.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/pay-calc.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
@@ -1225,7 +1226,7 @@
     var el=document.getElementById('lbCard'); if(!el) return;
     var d=new Date(); var mStart=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1)).toISOString();
     Promise.all([
-      sb.from('job').select('technician_id,first_stop,completed_at').eq('status','completed').limit(5000),
+      AntPage.all(function(){ return sb.from('job').select('technician_id,first_stop,completed_at').eq('status','completed'); },{label:'leaderboard jobs'}),
       sb.rpc('company_roster')
     ]).then(function(res){
       var jobs=(res[0].data)||[], techs=(res[1].data)||[];

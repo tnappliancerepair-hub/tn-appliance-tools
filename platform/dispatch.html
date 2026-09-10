@@ -199,6 +199,7 @@
 <body>
 <div id="app"></div>
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-page.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -829,7 +830,7 @@
     var todayIso=isoDay(new Date());
     sb.rpc('company_roster').then(function(tr){
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
-      var jP=sb.from('job').select('id,status,problem,availability,scheduled_day,time_window,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
+      var jP=AntPage.all(function(){ return sb.from('job').select('id,status,problem,availability,scheduled_day,time_window,technician_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)'); },{label:'dispatch jobs'});
       var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
       var offerP=sb.from('schedule_offer').select('id,job_id,customer_id,direction,proposed_day,win,note,technician_id,status,created_at').eq('status','pending').gte('proposed_day',todayIso).limit(1000);
       var covP=sb.from('coverage').select('zip,tech_id,rank').limit(4000);

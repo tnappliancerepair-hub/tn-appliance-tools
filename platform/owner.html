@@ -163,6 +163,7 @@
 
 <link rel="stylesheet" href="/platform/ant-theme.css">
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-page.js"></script>
 <script src="/platform/features.js"></script>
 <script src="/platform/pay-calc.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
@@ -243,11 +244,11 @@
   function load(){
     shell('<div class="skel" style="padding:30px 4px">Crunching…</div>');
     // RLS scopes both queries to this company — we never pass company_id.
-    var jobsP = sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents,customer:customer_id(first_name,last_name)').limit(3000);
+    var jobsP = AntPage.all(function(){ return sb.from('job').select('id,status,xano_status,warranty_company,customer_id,completed_at,created_at,parts_status,first_stop,technician_id,warranty_claim_status,warranty_paid_cents,customer:customer_id(first_name,last_name)'); },{label:'owner jobs'});
     var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,collected_cents,status,paid_at,created_at').limit(3000);
     var techP = sb.from('technician').select('id,name,active,phone,commission_type,commission_pct,commission_flat_cents,max_stops,service_area,service_types').limit(200);
     var payP  = sb.from('tech_payout').select('technician_id,job_id,amount_cents,paid_at').limit(5000);
-    var partP = sb.from('job_part').select('job_id,cost_cents,sell_cents,disposition').limit(10000);
+    var partP = AntPage.all(function(){ return sb.from('job_part').select('job_id,cost_cents,sell_cents,disposition'); },{label:'owner parts'});
     Promise.all([jobsP, invP, techP, payP, partP]).then(function(res){
       var jobs = (res[0].data)||[], invs = (res[1].data)||[], techs = (res[2].data)||[], payouts = (res[3].data)||[], parts = (res[4]&&res[4].data)||[];
       render(jobs, invs, techs, payouts, parts);

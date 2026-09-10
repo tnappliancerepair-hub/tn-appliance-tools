@@ -87,6 +87,7 @@
 <body>
 <div id="app"></div>
 <script src="/platform/config.js"></script>
+<script src="/platform/ant-page.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -394,7 +395,7 @@
     var todayIso=isoDay(new Date());
     sb.rpc('company_roster').then(function(tr){
       techs=((tr&&tr.data)||[]).filter(function(t){ return t.active!==false; });
-      var jP=sb.from('job').select('id,status,problem,scheduled_day,technician_id,availability,warranty_company,claim_number,customer_id,customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label)').not('status','in','(completed,canceled)').limit(2000);
+      var jP=AntPage.all(function(){ return sb.from('job').select('id,status,problem,scheduled_day,technician_id,availability,warranty_company,claim_number,customer_id,customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label)').not('status','in','(completed,canceled)'); },{label:'needs-scheduled jobs'});
       var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
       Promise.all([jP,oP]).then(function(res){
         jobs=(res[0]&&res[0].data)||[];
