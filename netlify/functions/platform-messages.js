@@ -248,7 +248,23 @@ exports.handler = async function (event) {
           direction: m.direction,
         }));
       const msgIds = new Set(messages.map((m) => m.id));
-      const customers = (people || []).map(shape).filter((c) => !msgIds.has(c.id));
+
+      // Broadening the match means "Cornell Jones" also returns every other Jones. Useful,
+      // but the person actually typed lands wherever the alphabet puts them - so put the
+      // closest match first instead of making the office read the list. Exact full name,
+      // then everyone matching all the words, then the rest.
+      const qLow = safe.toLowerCase();
+      const qWords = qLow.split(' ').filter(Boolean);
+      const rank = (c) => {
+        const full = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase().replace(/\s+/g, ' ').trim();
+        if (full === qLow) return 0;
+        if (full.startsWith(qLow)) return 1;
+        if (qWords.length > 1 && qWords.every((w) => full.includes(w))) return 2;
+        if (full.includes(qLow)) return 3;
+        return 4;
+      };
+      const customers = (people || []).map(shape).filter((c) => !msgIds.has(c.id))
+        .sort((a, b) => rank(a) - rank(b) || String(a.last_name || '').localeCompare(String(b.last_name || '')));
 
       return json(200, { ok: true, customers, messages, total: customers.length + messages.length });
     }
