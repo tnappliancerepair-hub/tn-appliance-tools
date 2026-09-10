@@ -29,6 +29,10 @@
   .regtog button.on{background:var(--brand);color:var(--brand-ink)}
   /* group */
   .nsgrp{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;letter-spacing:.02em;color:var(--ink);margin:18px 2px 9px;padding:8px 12px;border-radius:11px;background:var(--chip);border:1px solid var(--line)}
+  .artifacts{margin-top:12px;border-top:1px dashed rgba(255,255,255,.16);padding-top:8px}
+  .artifacts>summary{cursor:pointer;list-style:none;font-size:12px;color:var(--muted,#8b93a7);padding:6px 2px;user-select:none}
+  .artifacts>summary::-webkit-details-marker{display:none}
+  .artifacts>summary:hover{color:var(--warn,#b45309)}
   .nsgrp.unmapped{background:rgba(255,120,70,.12);border-color:rgba(255,120,70,.42);color:var(--warn,#b45309)}
   .nsgrp .n{margin-left:auto;background:var(--panel);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:800}
   /* card */
@@ -213,9 +217,24 @@
   }
 
   function needsDispatch(j){ return (!j.scheduled_day || !j.technician_id) && j.status!=='completed' && j.status!=='canceled'; }
+  // Xano turns some warranty EMAILS into jobs ("Dispatch Cancelled", "NSA EFT Payment Register",
+  // "Allstate Claim Update"). Measured 2026-09-10: 406 of them carry NO appliance, NO address,
+  // NO phone and NO name - there is nothing to schedule and nobody to call, so every one of them
+  // landed in "Area not mapped" (no zip) and buried the real unscheduled work. Parked below in a
+  // collapsed row rather than dropped: still counted, still openable. Conservative on purpose -
+  // any machine, address, phone or name keeps a job in the real queue.
+  function isArtifact(j){
+    if (j.unit && j.unit.label) return false;
+    var c = j.customer || {};
+    if (String(c.phone||'').trim() || String(c.address||'').trim()) return false;
+    if (String(c.first_name||'').trim() || String(c.last_name||'').trim()) return false;
+    return true;
+  }
 
   function render(){
-    var uns=jobs.filter(needsDispatch);
+    var allUns=jobs.filter(needsDispatch);
+    var artifacts=allUns.filter(isArtifact);
+    var uns=allUns.filter(function(j){ return !isArtifact(j); });
     if(region!=='TN'&&region!=='LA') region=defaultRegion(uns);
     var tnN=0, laN=0; uns.forEach(function(j){ if(jobRegion(j)==='LA') laN++; else tnN++; });
     var unsRegion=uns.filter(function(j){ return jobRegion(j)===region; });
@@ -248,6 +267,10 @@
       if(unmapped.length){
         body+='<div class="nsgrp unmapped">⚠️ Area not mapped — pick a tech<span class="n">'+unmapped.length+'</span></div>';
         body+=unmapped.map(function(j){ return cardHtml(j,true); }).join('');
+      }
+      if(artifacts.length){
+        body+='<details class="artifacts"><summary>⚠️ '+artifacts.length+' intake artifact'+(artifacts.length===1?'':'s')+
+              ' — no appliance, address or phone</summary>'+artifacts.map(function(j){ return cardHtml(j,true); }).join('')+'</details>';
       }
     }
 

@@ -474,6 +474,19 @@
   }
 
   function needsDispatch(j){ return (!j.scheduled_day || !j.technician_id) && j.status!=='completed' && j.status!=='canceled'; }
+  // Xano turns some warranty EMAILS into jobs ("Dispatch Cancelled", "NSA EFT Payment Register",
+  // "Allstate Claim Update"). Measured 2026-09-10: 406 carry NO appliance, NO address, NO phone
+  // and NO name - nothing to dispatch, nobody to call, and no zip to pin on the map. They are
+  // dropped from the unscheduled tray (and only the tray) so the real work is visible; the board
+  // and needs-scheduled still show them, parked. Conservative: any machine, address, phone or
+  // name keeps a job in the tray.
+  function isArtifact(j){
+    if (j.unit && j.unit.label) return false;
+    var c = j.customer || {};
+    if (String(c.phone||'').trim() || String(c.address||'').trim()) return false;
+    if (String(c.first_name||'').trim() || String(c.last_name||'').trim()) return false;
+    return true;
+  }
 
   function render(){
     var days=[]; for(var i=0;i<7;i++) days.push(isoDay(addDays(sel,i)));
@@ -529,7 +542,7 @@
       calBlock='<div class="mgrid">'+dowH+cellsH+'</div>';
     }
 
-    var uns=jobs.filter(needsDispatch);
+    var uns=jobs.filter(function(j){ return needsDispatch(j) && !isArtifact(j); });
     if(region!=='TN'&&region!=='LA') region=defaultRegion(uns);   // first render only — user toggle persists after
     var tnN=0, laN=0; uns.forEach(function(j){ if(jobRegion(j)==='LA') laN++; else tnN++; });
     var unsRegion=uns.filter(function(j){ return jobRegion(j)===region; });   // tray + pins both scoped to the region
