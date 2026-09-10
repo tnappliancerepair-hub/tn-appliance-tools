@@ -123,12 +123,18 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
       const err = String((pd && pd.error) || 'unknown');
       await notify.notifyOperator({
         tag: 'platform_signup',
-        sms: `⚠️ PAID SIGNUP STRANDED: ${meta.name || slug} (${email}) paid but couldn't be set up (${err}). Recover it now — check /shops or ask Ant to provision ${slug}.`,
+        sms: `⚠️ PAID SIGNUP STRANDED: ${meta.name || slug} (${email}) paid but couldn't be set up (${err}). Stripe will re-deliver and we retry automatically — if you get this again in an hour, recover it: check /shops or ask Ant to provision ${slug}.`,
         subject: `⚠️ Paid signup stranded — ${meta.name || slug}`,
-        email_body: `A shop PAID but provisioning failed, so the owner has NO dashboard and is stranded.\n\nShop: ${meta.name || slug}\nEmail: ${email}\nSlug: ${slug}\nError: ${err}\n\nRecover: ${SITE}/.netlify/functions/platform-provision?action=provision&secret=<admin>&slug=${slug}&owner_email=${encodeURIComponent(email)}&name=${encodeURIComponent(meta.name || slug)}&trade=${meta.trade || 'appliance'}&plan=${meta.plan || 'office'}\nThen mint a magiclink (action=magiclink&email=${encodeURIComponent(email)}) and send it to them.`,
+        email_body: `A shop PAID but provisioning failed, so the owner has NO dashboard right now.\n\nStripe will re-deliver this event and we retry automatically, so this may clear itself within minutes. If you receive this alert repeatedly, it is NOT clearing — recover it by hand.\n\nShop: ${meta.name || slug}\nEmail: ${email}\nSlug: ${slug}\nError: ${err}\n\nRecover: ${SITE}/.netlify/functions/platform-provision?action=provision&secret=<admin>&slug=${slug}&owner_email=${encodeURIComponent(email)}&name=${encodeURIComponent(meta.name || slug)}&trade=${meta.trade || 'appliance'}&plan=${meta.plan || 'office'}\nThen mint a magiclink (action=magiclink&email=${encodeURIComponent(email)}) and send it to them.`,
       });
     } catch (_) {}
-    return null;
+    // Throw (not return-null) so the handler can answer Stripe with a non-2xx and Stripe
+    // RE-DELIVERS this event. Both inline retries just failed, which is almost always transient
+    // (Supabase/auth blip) — a redelivery minutes later is how the paid shop un-strands itself.
+    // provision is idempotent by slug, so a redelivery never double-creates. (2026-09-10)
+    const perr = new Error('provision_failed');
+    perr.retryable = true;
+    throw perr;
   }
   const companyId = pd.company.id;
   // Stamp the accepted Merchant Agreement (durable acceptance audit) + the Ann request flag onto
@@ -160,6 +166,16 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
         owner_email: email, owner_seat_pw: (pd.login && pd.login.temp_password) || '', owner_preexisting: 1 }) };
     await provision.handler(sev);
   } catch (_) {}
+  // Exactly-once gate. The redirect path (platform-signup-verify) AND the webhook both provision,
+  // and a non-2xx now makes Stripe RE-DELIVER — so the welcome email has to sit INSIDE this gate,
+  // not outside it, or a race/redelivery mails the owner twice. (2026-09-10)
+  let already = false;
+  try {
+    const ex = await pf.get(`event?company_id=eq.${encodeURIComponent(companyId)}&type=eq.platform_signup_provisioned&select=id&limit=1`);
+    already = !!(ex && ex.length);
+  } catch (_) {}
+  if (already) return companyId;
+
   // Email the owner a magic login link (best-effort; dry unless EMAIL_ENABLED).
   let link = '', emailed = false, emailMode = 'skipped';
   try {
@@ -186,51 +202,42 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   // sent, so a paying owner who never got the email is instantly visible + recoverable by the
   // operator (magiclink fallback mints a fresh link on demand). Best-effort — never breaks the paid flow.
   try {
-    // Exactly-once: the redirect path (platform-signup-verify) AND the webhook both call this — dedup
-    // on the provisioned event so Teddy is alerted once per signup, not twice on a race.
-    let already = false;
+    console.log('[platform-stripe-webhook] provisioned', JSON.stringify({ slug, owner_email: email, emailed, email_mode: emailMode, login_link: link || null }));
+    await pf.insert('event', {
+      company_id: companyId, type: 'platform_signup_provisioned', entity: slug,
+      payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode, terms_version: meta.terms_version || null, terms_at: meta.terms_at || null },
+    });
+    // 🎉 Tell Teddy a shop just started a free trial — text + email (best-effort, never blocks).
     try {
-      const ex = await pf.get(`event?company_id=eq.${encodeURIComponent(companyId)}&type=eq.platform_signup_provisioned&select=id&limit=1`);
-      already = !!(ex && ex.length);
-    } catch (_) {}
-    if (!already) {
-      console.log('[platform-stripe-webhook] provisioned', JSON.stringify({ slug, owner_email: email, emailed, email_mode: emailMode, login_link: link || null }));
-      await pf.insert('event', {
-        company_id: companyId, type: 'platform_signup_provisioned', entity: slug,
-        payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode, terms_version: meta.terms_version || null, terms_at: meta.terms_at || null },
+      const notify = require('./_lib/platform-notify');
+      const planLabel = meta.plan || 'office';
+      const shopName = meta.name || slug;
+      await notify.notifyOperator({
+        tag: 'platform_signup',
+        sms: `🎉 New AssistAnt signup: ${shopName} (${email}) — ${planLabel} plan, 14-day trial started.${refCode ? ' ref:' + refCode : ''}`,
+        subject: `New AssistAnt signup — ${shopName}`,
+        email_body: `A new shop just started a free trial.\n\nShop: ${shopName}\nEmail: ${email}\nPlan: ${planLabel}\nSlug: ${slug}${refCode ? '\nReferral: ' + refCode : ''}\nStarted: ${new Date().toISOString()}\n\nOperator dashboard: ${SITE}/platform-dashboard\nAll shops: ${SITE}/shops`,
       });
-      // 🎉 Tell Teddy a shop just started a free trial — text + email (best-effort, never blocks).
-      try {
-        const notify = require('./_lib/platform-notify');
-        const planLabel = meta.plan || 'office';
-        const shopName = meta.name || slug;
-        await notify.notifyOperator({
-          tag: 'platform_signup',
-          sms: `🎉 New AssistAnt signup: ${shopName} (${email}) — ${planLabel} plan, 14-day trial started.${refCode ? ' ref:' + refCode : ''}`,
-          subject: `New AssistAnt signup — ${shopName}`,
-          email_body: `A new shop just started a free trial.\n\nShop: ${shopName}\nEmail: ${email}\nPlan: ${planLabel}\nSlug: ${slug}${refCode ? '\nReferral: ' + refCode : ''}\nStarted: ${new Date().toISOString()}\n\nOperator dashboard: ${SITE}/platform-dashboard\nAll shops: ${SITE}/shops`,
-        });
-      } catch (_) {}
-      // 📈 AD FEEDBACK — teach ChatGPT/OpenAI Ads that a SaaS signup CONVERTED, so the /guide
-      // ad optimizes on real signups instead of blind clicks (ranking = bid × relevance × trust ×
-      // conversion-likelihood — this feeds the last term). Matches on the owner's hashed phone/email
-      // (which we have here). DARK/no-op until OPENAI_ADS_CONVERSION_KEY + OPENAI_ADS_PIXEL_ID are
-      // vaulted (the uploader returns not_configured), and fully try/caught so it NEVER breaks the
-      // paid provision. Fires exactly once (inside the deduped block). event_id dedups on OpenAI's side.
-      // NOTE (documented follow-ons, NOT wired here): Google offline conversion needs a gclid carried
-      // /guide→signup; Meta needs a server-side CAPI uploader (none exists yet) — the Meta Pixel already
-      // fires a client-side Lead on signup.html. This is the one channel we can feed cleanly today.
-      try {
-        const { uploadOpenAiConversion } = require('./openai-ads-upload-conversion');
-        await uploadOpenAiConversion({
-          event_type: 'lead_created',
-          phone: meta.owner_phone || '', email,
-          value: 99, when_ms: Date.now(),
-          source_url: `${SITE}/guide`,
-          event_id: 'saas-signup-' + slug,
-        });
-      } catch (_) {}
-    }
+    } catch (_) {}
+    // 📈 AD FEEDBACK — teach ChatGPT/OpenAI Ads that a SaaS signup CONVERTED, so the /guide
+    // ad optimizes on real signups instead of blind clicks (ranking = bid × relevance × trust ×
+    // conversion-likelihood — this feeds the last term). Matches on the owner's hashed phone/email
+    // (which we have here). DARK/no-op until OPENAI_ADS_CONVERSION_KEY + OPENAI_ADS_PIXEL_ID are
+    // vaulted (the uploader returns not_configured), and fully try/caught so it NEVER breaks the
+    // paid provision. Fires exactly once (inside the deduped block). event_id dedups on OpenAI's side.
+    // NOTE (documented follow-ons, NOT wired here): Google offline conversion needs a gclid carried
+    // /guide→signup; Meta needs a server-side CAPI uploader (none exists yet) — the Meta Pixel already
+    // fires a client-side Lead on signup.html. This is the one channel we can feed cleanly today.
+    try {
+      const { uploadOpenAiConversion } = require('./openai-ads-upload-conversion');
+      await uploadOpenAiConversion({
+        event_type: 'lead_created',
+        phone: meta.owner_phone || '', email,
+        value: 99, when_ms: Date.now(),
+        source_url: `${SITE}/guide`,
+        event_id: 'saas-signup-' + slug,
+      });
+    } catch (_) {}
   } catch (_) {}
   return companyId;
 }
@@ -242,8 +249,12 @@ exports.handler = async function (event) {
   // redirect path flakes. An empty read here 500s -> Stripe re-delivers, but if the
   // redirect ALSO flaked the shop is delayed. Read both bulletproof so the backstop holds.
   const whSecret = await criticalSecret('PLATFORM_STRIPE_WEBHOOK_SECRET');
-  // ONLY the dedicated platform key — never TN's live customer-payment STRIPE_SECRET_KEY.
-  const key = (await criticalSecret('PLATFORM_STRIPE_SECRET_KEY')) || '';
+  // Prefer the dedicated platform key; fall back to STRIPE_SECRET_KEY so this MATCHES what
+  // checkout signs with (platform-billing.js does the same || fallback). Without the fallback a
+  // deploy carrying only STRIPE_SECRET_KEY takes every payment and 500s every webhook — the shop
+  // then depends entirely on the redirect path, and the stranded-signup alert never fires because
+  // the webhook dies before reaching it. (2026-09-10)
+  const key = (await criticalSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await criticalSecret('STRIPE_SECRET_KEY')) || '';
   if (!whSecret || !key) {
     console.error('[platform-stripe-webhook] missing PLATFORM_STRIPE_WEBHOOK_SECRET or stripe key');
     return { statusCode: 500, body: JSON.stringify({ error: 'not configured' }) };
@@ -340,7 +351,13 @@ exports.handler = async function (event) {
     return { statusCode: 200, body: JSON.stringify({ ok: true, company_id: companyId, applied: !!row, plan: patch.plan || null, status: patch.status }) };
   } catch (e) {
     console.error('[platform-stripe-webhook] error:', e.message);
-    // 200 so Stripe doesn't hammer retries on a transient; we log for follow-up.
+    // A PAID signup whose provision failed is the one case worth burning Stripe's retry budget on:
+    // answer non-2xx so Stripe re-delivers and the shop stands itself up on the next attempt.
+    // Everything else stays 200 — a subscription.* drift is not worth hammering retries (and a
+    // deterministic bug answering non-2xx forever would get the endpoint disabled by Stripe).
+    if (e && e.retryable) {
+      return { statusCode: 503, body: JSON.stringify({ ok: false, error: e.message, retry: true }) };
+    }
     return { statusCode: 200, body: JSON.stringify({ ok: false, error: e.message }) };
   }
 };
