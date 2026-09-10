@@ -87,6 +87,12 @@ exports.handler = async function (event) {
   // Every once-only send goes through this: write the claim, text ONLY if it landed. A thumb
   // can hit "On my way" twice; this app and the nightly sweep can both fire a review ask.
   // The database settles it once, and the loser stays quiet instead of texting.
+  // The key is the CUSTOMER, not the job. A stop can carry several machines (an AHS dispatch
+  // often covers a washer AND a dryer) and each machine is its own job row -- keyed per job,
+  // a tech opening each one would text the same person twice for one visit. He drives to a
+  // house once, arrives once, and leaves once, so those claims are per customer per day.
+  // 'review' stays per job on purpose: a customer we serve again in six months should be
+  // asked again. 'invoice' stays per job too -- two machines can be two real bills.
   const claim = (channel, body, sendKey) => claimSend(url, H, { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel, sender: 'tech', body }, sendKey);
 
   try {
@@ -95,7 +101,7 @@ exports.handler = async function (event) {
       if (!text) return json(200, { ok: true, texted: false, off: true });
       // Once per CALENDAR DAY, not once ever — a parts return trip is a real second "on my
       // way" and the customer should get it. Two taps in the same day are a slip.
-      if (!(await claim('otw', '🚚 On my way', dailyKey('otw', job.id)))) {
+      if (!(await claim('otw', '🚚 On my way', dailyKey('otw', job.customer_id)))) {
         return json(200, { ok: true, texted: false, already: true, message: 'Already told them you were on the way today.' });
       }
       let sent = false;
@@ -199,7 +205,7 @@ exports.handler = async function (event) {
       // Customer heads-up the moment the tech starts the job on site.
       const text = commsMsg(co.settings, 'arrived', { first, shop, tech: techName || 'your technician' });
       if (!text) return json(200, { ok: true, texted: false, off: true });
-      if (!(await claim('arrived', '🔧 Tech arrived', dailyKey('arrived', job.id)))) {
+      if (!(await claim('arrived', '🔧 Tech arrived', dailyKey('arrived', job.customer_id)))) {
         return json(200, { ok: true, texted: false, already: true, message: 'They already got the arrival text today.' });
       }
       let sent = false;
@@ -214,7 +220,7 @@ exports.handler = async function (event) {
       const tk = grant && grant.token; const link = tk ? `${SITE}/platform/portal.html?t=${tk}` : '';
       const text = commsMsg(co.settings, 'complete', { first, shop, link });
       if (!text) return json(200, { ok: true, texted: false, off: true, url: link });
-      if (!(await claim('complete', '✅ Job complete' + (link ? ' — sent summary link' : ''), dailyKey('complete', job.id)))) {
+      if (!(await claim('complete', '✅ Job complete' + (link ? ' — sent summary link' : ''), dailyKey('complete', job.customer_id)))) {
         return json(200, { ok: true, texted: false, already: true, url: link, message: 'They already got the completion text today.' });
       }
       let sent = false;
