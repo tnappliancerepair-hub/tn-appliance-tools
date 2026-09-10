@@ -93,6 +93,15 @@ async function runWatch(opts) {
   const wasFailing = !!state.failing;
   const lastAlert = Number(state.alerted_at || 0);
 
+  // An alarm nobody has heard ring is a guess. ?test=1 sends one real text down the exact
+  // path a real failure uses - same tag, same gate, same line - so we know it lands.
+  if (q.test === '1') {
+    const t = `🔔 Test: this is what a failed-deploy alert looks like. Deploys are ${failing ? 'RED' : 'green'} right now. `
+            + `Env ${budget.bytes}/${budget.cap} bytes, ${budget.headroom} free.`;
+    let ok = false; try { ok = await sendSms(OWNER, t, 'owner', 'deploy_down'); } catch (_) {}
+    return json(200, { ok: true, test: true, sms_sent: ok, sms_preview: t, env_budget: budget });
+  }
+
   let action = 'no_change'; let sms = null;
   if (settled && failing) {
     const stale = Date.now() - lastAlert > RENAG_MS;
