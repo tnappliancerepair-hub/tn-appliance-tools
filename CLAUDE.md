@@ -49,13 +49,23 @@ plus 7 vault-backed vars with **zero** `process.env` readers: `SUPABASE_URL`, `O
 `DIGITS_CLIENT_ID/_SECRET/_REFRESH_TOKEN`, `TWILIO_ACCOUNT_SID/_AUTH_TOKEN`. Backed each up with
 `env_to_vault` first. 28 vars → 21.
 
-**⏭️ The real fix, still open — `XANO_METADATA_TOKEN` (1,829 bytes, 59% of the budget).** It is now SAFELY
-IN THE VAULT (via `env_to_vault`), so the prerequisite is done — but **122 files read it raw from
-`process.env`**, so deleting it from env would break them. Converting those readers to `getSecret` frees
-59% of the budget in one move and permanently ends this squeeze. Mechanical but a wide blast radius: do it
-in a dedicated window with a verification sweep, **never on a live office day**. Strategic note: all 122 are
-legacy **Xano** functions, so the problem also shrinks on its own as TN completes the move to Supabase.
-
+**⏭️ `XANO_METADATA_TOKEN` (1,829 bytes, 59%) — mechanism BUILT + PROVEN, rolled back on latency.**
+The vault could not hold it because 99 live functions read it raw from `process.env`, 44 from SYNC helpers
+(`function authH()`) that cannot await. Solved WITHOUT touching a single call site: **`primeXanoToken()` in
+`_lib/secrets.js`** fills `process.env.XANO_METADATA_TOKEN` from the Supabase vault once per cold container,
+so every existing read keeps working unchanged. Wired into 116 handlers + the 4 shared libs — critically
+**inside `metadata-crud.callXano`**, the one async choke point behind all 242 functions that use it.
+- ✅ **It works.** Deleted the var, deployed: `get-tech-profile` returned live Xano data with a vault-sourced
+  token, and headroom jumped **978 → 2,807 bytes**.
+- ❌ **Rolled back within minutes.** The extra cold-start round trip tipped slow Xano reads past
+  `metadata-crud`'s 10s timeout — `office-stage` and `tech-earnings` began returning `xano network error`
+  while the office was live in them. Restored via `vault_to_env` + deploy; all endpoints verified 200.
+- **This is a LATENCY problem, not a correctness one**, and the root cause is Xano being slow (measured 5.5s+
+  the same day) — the very thing TN is migrating off. **The code is already merged and is a NO-OP while the
+  var is in env** (prime returns early), so finishing it later costs one delete + one deploy.
+- **To finish:** retry when Xano is quiet, and/or raise the `AbortSignal.timeout(10000)` in
+  `metadata-crud.callXano`. Or simply wait — all 99 are legacy Xano functions that retire with the migration.
+- **Rollback is 30 seconds:** `netlify-admin?action=vault_to_env&key=XANO_METADATA_TOKEN` then deploy.
 
 ## 🔑 TN'S REAL PLATFORM SEATS — the `tech1.`/`tech2.` logins are DECOYS (2026-09-10)
 
