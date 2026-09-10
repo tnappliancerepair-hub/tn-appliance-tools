@@ -1,5 +1,67 @@
 # Appliance Ant
 
+## 📵🕘 2026-09-10 (late) — FIXING THE CLASS, NOT THE INSTANCE: one DB guard now makes a double-text impossible · windows 2→3 slots · 98% of jobs have NO window — READ FIRST
+
+Teddy: *"Since we're redoing everything on Supabase, this is an opportunity to fix mistakes we
+have made previously — like double texting and things like that, setting up actual time windows…"*
+So both were treated as **classes**, and both were **measured before touching**.
+
+### 🔒 DOUBLE-TEXTING IS NOW STRUCTURALLY IMPOSSIBLE (`docs/sql/061_send_once.sql` APPLIED + `_lib/send-once.js`)
+Tonight's reminder fix (17 customers texted twice) was ONE INSTANCE. The same read-marker →
+SEND → write-marker shape lived in the **review sweep — where TWO writers race, the cron AND
+the manual ⭐ button** — and in every arrived / complete / on-my-way tap a thumb can hit twice.
+Patching each caller leaves the next one unguarded, so the guard moved into the DATABASE once:
+- **`thread_message.send_key` + `thread_send_once_uidx (company_id, send_key) where send_key is not null`.**
+  A send **writes its claim BEFORE it sends**; the index refuses the second claim (PostgREST
+  409); the loser never texts. One column, one index, every present and future send.
+  `onceKey('review', job)` = once ever · `dailyKey('otw', job)` = once per **Central** day
+  (a parts return trip on another day is real and still texts; two taps today are a slip).
+- **Wired: review ask · review nudge · ⭐ button · on-my-way · arrived · complete · invoice ·
+  reminder.** The button and the sweep now claim the **same key**, so the documented double-ask
+  bug is closed by the database instead of by convention.
+- **FAILS CLOSED on purpose** — a claim that can't be confirmed does NOT send. A missed message
+  is silent and recoverable; a duplicate lands on a real customer's phone and can't be taken back.
+  Worst case of any wrong assumption in the helper is therefore a miss, never a double.
+- **A row with NO key is unconstrained** → free-form office/tech replies still repeat, as they must.
+- **Proved the index refuses a duplicate** (SQL, zero residue) before trusting it, and
+  **backfilled `send_key` onto the 57 legacy reminder rows** so history participates too —
+  otherwise a job that already got its one ask sits OUTSIDE the index and could get another.
+- **⚠️ STANDING: any new customer-facing send declares a key and claims first.** "Check then send"
+  is correct sequentially and worthless concurrently — the race window is the whole SMS round trip.
+
+### 🕘 ARRIVAL WINDOWS: 2 slots → 3, because the real days said so
+Shipped at two-per-window (6 stops/day). **166 tech-days over 45 days on TN's own board:**
+`1: 11.4% · 2: 13.3% · 3: 12.0% · 4: 25.9% · 5: 16.9% · 6: 10.2% · 7: 7.8% · 8: 1.8% · 10: 0.6%`
+Six caps **one day in ten** — and the board deliberately lets a full window be chosen anyway, so
+"2" was never a cap, just a **wrong number on the office's screen**. Three (9/day) covers 99.4%,
+so the count tells the truth and "full" starts meaning something. Changed in **`platform/ant-windows.js`
+only** — every surface followed, which is the whole point of the one catalog. Unit-verified 7/7.
+
+### 🚨 THE BIGGER WINDOW FINDING — the feature is barely used, and 58% of jobs already have a vendor window
+Of **347** jobs scheduled in the last 3 weeks: **7 carry OUR `time_window`. 202 carry the WARRANTY
+COMPANY's `service_window`** (their promise to the homeowner — a different column, never conflate).
+**139 have no window from anybody** — those are the customers who genuinely don't know when we're coming.
+- So "set up actual time windows" is **not** "force a window on every job." On the 201 vendor-only
+  jobs the customer already HAS a window; inventing a second one contradicts it. The real target is
+  the **139**. The picker exists on office-board / dispatch / needs-scheduled but defaults to
+  "No window yet" and nothing ever asks again — capacity was the easy half, **adoption is the half
+  that matters**. ⏭️ Teddy's call on how hard to push it.
+
+### 📵 TN's reminder + review texts are currently OFF (`settings.comms.*.on = false`) — correct, and now safely reversible
+18 jobs are scheduled for tomorrow and every one skipped as `skipped_off`. That matches the standing
+owner rule (*no proactive texts*) and was the right move after 09-07. **The double-text cause is now
+fixed at the database, so turning the reminder back on is safe — but flipping a customer-texting
+toggle is the owner's call, not the system's.**
+
+### 📋 EVERY CUSTOMER-FACING SEND, AUDITED (so nobody re-derives this)
+Once-only, now claim-guarded: **reminder · review · review_nudge · otw · arrived · complete · invoice.**
+Legitimately repeatable, deliberately NOT constrained: free-form tech/office messages, Ann's
+"I just texted you the link" on a live call (they asked again → they get it again), office/owner
+internal alerts (intake, email-intake, Frontdoor, day-request, tech job link).
+Measured after tonight's cleanup: **zero duplicate outbound sends anywhere** — but the review sweep
+is still in SHADOW, so "clean" only means the race hasn't fired yet. **The reminder was clean too, until it wasn't.**
+
+
 ## 💾🔁 2026-09-10 (late) — THE BACKUP HAD BEEN DROPPING 25 OF 29 TABLES FOR A WEEK · the platform had NO backup at all · a reminder that double-texted 17 customers — READ FIRST
 
 Continuation of "harden this Supabase". Same discipline: **measure first, fix second.** Four real
