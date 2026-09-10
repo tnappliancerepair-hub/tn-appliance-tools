@@ -42,13 +42,14 @@ exports.handler = async function (event) {
   // Go-live flags (built-but-dark switches). Present them as ready-to-flip, not broken.
   const [phoneLive, signupLive, billingLive, usageDigestLive, emailSecret, platStripe, stripe,
          whSecret, emailShared, emailEnabled, awsId, awsSecret,
-         telnyxKey, telnyxTool, telnyxProfile] = await Promise.all([
+         telnyxKey, telnyxTool, telnyxProfile, sesProd] = await Promise.all([
     freshSecret('PLATFORM_PHONE_LIVE'), freshSecret('PLATFORM_SIGNUP_LIVE'), freshSecret('PLATFORM_BILLING_LIVE'),
     freshSecret('PLATFORM_USAGE_DIGEST_LIVE'), freshSecret('PLATFORM_EMAIL_SECRET'),
     freshSecret('PLATFORM_STRIPE_SECRET_KEY'), freshSecret('STRIPE_SECRET_KEY'),
     freshSecret('PLATFORM_STRIPE_WEBHOOK_SECRET'), freshSecret('EMAIL_SHARED_SECRET'),
     freshSecret('EMAIL_ENABLED'), freshSecret('TN_AWS_ACCESS_KEY_ID'), freshSecret('TN_AWS_SECRET_ACCESS_KEY'),
     freshSecret('TELNYX_API_KEY'), freshSecret('TELNYX_TOOL_SECRET'), freshSecret('TELNYX_SHARED_MESSAGING_PROFILE_ID'),
+    freshSecret('SES_PRODUCTION_ACCESS'),
   ]);
   const stripeKey = platStripe || stripe || '';
   const stripeMode = !stripeKey ? 'not_configured' : (/^sk_live_/.test(stripeKey) ? 'live' : 'test');
@@ -56,11 +57,18 @@ exports.handler = async function (event) {
 
   // ── THE TWO GO-LIVE LANDMINES — the things that would strand a real paying signup ──
   // #1 webhook: the paid signup must fire checkout.session.completed on the SAME live account
-  //    checkout charges on, into a webhook that has BOTH its signing secret AND the PLATFORM
-  //    stripe key (the webhook has NO fallback to STRIPE_SECRET_KEY) — else paid-but-no-tenant.
-  const webhookReady = has(platStripe) && has(whSecret);
+  //    checkout charges on, into a webhook that has its signing secret AND a stripe key. The
+  //    webhook now falls back to STRIPE_SECRET_KEY the same way checkout does (2026-09-10), so
+  //    either key satisfies it — but they must be the SAME account checkout charged on.
+  const webhookReady = has(stripeKey) && has(whSecret);
   // #2 login email: a nicety, NOT a hard blocker — the magiclink recovery backstops it.
-  const emailChainLive = has(emailShared) && truthy(emailEnabled) && has(awsId) && has(awsSecret);
+  //    Config being set is NOT the same as mail arriving: SES (us-east-2) starts in SANDBOX, where
+  //    every unverified recipient is rejected — i.e. every real customer. Reporting this green on
+  //    config alone told us the login email worked while no owner was receiving one, so production
+  //    access is now part of the answer. Teddy flips SES_PRODUCTION_ACCESS once AWS grants it.
+  const sesProduction = truthy(sesProd);
+  const emailConfigured = has(emailShared) && truthy(emailEnabled) && has(awsId) && has(awsSecret);
+  const emailChainLive = emailConfigured && sesProduction;
   const golive = {
     signup_open: true,   // fully self-serve, always open — no invite gate (Teddy 2026-09-09)
     stripe_mode: stripeMode,
@@ -74,15 +82,17 @@ exports.handler = async function (event) {
       // sk_live_ key into the webhook slot. A correct webhook secret starts with whsec_.
       webhook_secret_shape: !has(whSecret) ? 'missing' : (/^whsec_/.test(String(whSecret)) ? 'whsec_ ✓ correct' : 'WRONG — not a whsec_ (re-copy the Signing secret)'),
       platform_stripe_key_shape: !has(platStripe) ? 'missing' : (/^sk_live_/.test(String(platStripe)) ? 'sk_live_ ✓ correct' : (/^sk_test_/.test(String(platStripe)) ? 'sk_test_ — TEST key, use the LIVE one' : 'unexpected prefix')),
-      platform_stripe_secret_key: has(platStripe) ? 'set' : 'MISSING (webhook has no STRIPE_SECRET_KEY fallback → paid-but-no-tenant)',
+      platform_stripe_secret_key: has(platStripe) ? 'set' : (has(stripe) ? 'not set — webhook falls back to STRIPE_SECRET_KEY (must be the SAME account checkout charges on)' : 'MISSING — no stripe key at all → paid-but-no-tenant'),
       note: 'Register the endpoint in Stripe → …/.netlify/functions/platform-stripe-webhook for checkout.session.completed + customer.subscription.*',
     },
     login_email: {
       ready: emailChainLive,
+      configured: emailConfigured,
       email_shared_secret: has(emailShared) ? 'set' : 'MISSING',
       email_enabled: truthy(emailEnabled) ? 'true' : 'dry-run (send-email won\'t actually send)',
       aws_ses_creds: (has(awsId) && has(awsSecret)) ? 'set' : 'MISSING',
-      not_a_blocker: 'platform-provision?action=magiclink&slug=<slug>&secret=<admin> mints a fresh login on demand — no signup is ever stranded.',
+      ses_access: sesProduction ? 'production — any recipient' : 'SANDBOX — only verified recipients receive mail; a real customer\'s login email is REJECTED. Request production access in the AWS SES console (us-east-2), then set SES_PRODUCTION_ACCESS=true.',
+      not_a_blocker: 'Every owner also gets a vaulted password (platform-provision?action=resetpw&slug=<slug>&reveal=1&once=1&secret=<admin>) and a magiclink on demand — no signup is stranded by email.',
     },
     // Ann (per-shop AI phone) creds — reports set/missing (never the values). Flip PLATFORM_PHONE_LIVE
     // + set the shared messaging profile to let shops buy their own line (buys a real DID ~$1/mo).
@@ -110,8 +120,12 @@ exports.handler = async function (event) {
     { key: 'annprov', name: 'Self-serve "turn on Ann"', state: truthy(phoneLive) ? 'live' : 'gated', detail: truthy(phoneLive) ? 'Buys a number + provisions.' : 'Ready — flip on to let shops buy their own line.', flag: 'PLATFORM_PHONE_LIVE' },
     { key: 'email', name: 'Warranty email intake', state: emailSecret ? 'pending' : 'pending', detail: 'Built + tested; go-live is a ~15-min Cloudflare Email Routing step (DNS), not code.', flag: 'Cloudflare DNS' },
     { key: 'overage', name: 'Ann overage billing', state: truthy(billingLive) ? 'live' : 'gated', detail: truthy(billingLive) ? 'Billing usage to Stripe.' : 'Shadow until flipped.', flag: 'PLATFORM_BILLING_LIVE' },
-    { key: 'webhook', name: 'Signup webhook (provision-on-pay)', state: webhookReady ? 'live' : 'gated', detail: webhookReady ? 'A paid signup auto-creates the tenant.' : 'Set PLATFORM_STRIPE_WEBHOOK_SECRET + PLATFORM_STRIPE_SECRET_KEY (no fallback) or a paid card makes NO shop.', flag: 'PLATFORM_STRIPE_WEBHOOK_SECRET' },
-    { key: 'login_email', name: 'Owner login email', state: emailChainLive ? 'live' : 'shadow', detail: emailChainLive ? 'New owners get a magic login link.' : 'Dry-run — the magiclink fallback covers it (not a hard blocker).', flag: 'EMAIL_ENABLED' },
+    { key: 'webhook', name: 'Signup webhook (provision-on-pay)', state: webhookReady ? 'live' : 'gated', detail: webhookReady ? 'A paid signup auto-creates the tenant.' : 'Set PLATFORM_STRIPE_WEBHOOK_SECRET + a stripe key on the same account checkout charges on, or a paid card makes NO shop.', flag: 'PLATFORM_STRIPE_WEBHOOK_SECRET' },
+    { key: 'login_email', name: 'Owner login email', state: emailChainLive ? 'live' : 'shadow',
+      detail: emailChainLive ? 'New owners get a magic login link.'
+        : (emailConfigured ? 'Configured, but SES is in SANDBOX — a real customer\'s login email is rejected. Owners still get in via their vaulted password + magiclink.'
+                           : 'Dry-run — the vaulted password + magiclink fallback covers it (not a hard blocker).'),
+      flag: emailConfigured ? 'SES_PRODUCTION_ACCESS' : 'EMAIL_ENABLED' },
   ];
 
   // Demo tenant sanity — proves the surfaces have real data behind them.

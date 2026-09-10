@@ -16,7 +16,7 @@
 // PLATFORM_PHONE_LIVE=true + set TELNYX_SHARED_MESSAGING_PROFILE_ID to go live.
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, criticalSecret } = require('./_lib/secrets');
 const { platform } = require('./_lib/platform-rest');
 const meter = require('./_lib/usage-meter');
 
@@ -45,8 +45,10 @@ async function tx(method, path, body) {
 
 // Verify a Supabase session JWT → the user's company (self-serve auth), server-side.
 async function companyFromToken(token) {
-  const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
-  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  // criticalSecret: a cold-container empty read here resolves no company, so an owner's request
+  // silently does nothing instead of erroring. (2026-09-10)
+  const url = (await criticalSecret('PLATFORM_SUPABASE_URL')) || '';
+  const key = (await criticalSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   if (!url || !key || !token) return null;
   const r = await fetch(url.replace(/\/+$/, '') + '/auth/v1/user', {
     headers: { apikey: key, Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(8000),

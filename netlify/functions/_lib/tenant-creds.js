@@ -6,7 +6,7 @@
 // getTenantVendorCreds() is what the shared vendor libs call to run automation AS a tenant.
 'use strict';
 const crypto = require('crypto');
-const { getSecret, getSecretPreferVault } = require('./secrets');
+const { getSecret, getSecretPreferVault, criticalSecret } = require('./secrets');
 
 // ---- KEK (key-encryption key): from the vault, never the DB. Prefer a dedicated key; else
 // derive one from the admin secret. Tagged so we know which KEK wrapped each DEK (rotation).
@@ -42,8 +42,9 @@ function gcmDec(key, b64) {
 }
 
 async function db() {
-  const base = ((await getSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
-  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  // criticalSecret: an empty read makes a shop's stored vendor creds look absent. (2026-09-10)
+  const base = ((await criticalSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
+  const key = (await criticalSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   return { base, H: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' } };
 }
 

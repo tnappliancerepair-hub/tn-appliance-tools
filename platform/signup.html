@@ -312,8 +312,20 @@ src="https://www.facebook.com/tr?id=950649561404797&ev=PageView&noscript=1"/></n
       if(d.ok && d.login_url){ window.location.href = d.login_url; return; }   // comp: straight into setup
       if(d.ok && d.checkout_url){ window.location.href = d.checkout_url; return; }
       if(d.ok){
+        // Only reached on the comp path when the magic link failed to mint. That path sends NO
+        // email, so "check your inbox" pointed at a message that was never coming — the password
+        // handed back here is the only way in, and it is shown nowhere else. (2026-09-10)
         msg.className='msg ok';
-        msg.textContent = "You're set up! Check "+document.getElementById('email').value.trim()+" for your login link. (Billing turns on shortly.)";
+        var em0=document.getElementById('email').value.trim();
+        if(d.temp_password){
+          var e0=function(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+          msg.innerHTML = "<b>You're set up!</b> Save this login — it isn't shown anywhere else."
+            + '<div style="margin:10px 0;font-family:ui-monospace,Menlo,monospace;font-size:15px;line-height:1.8">'
+            + '📧 <b>'+e0(em0)+'</b><br>🔑 <b>'+e0(d.temp_password)+'</b></div>'
+            + '<a href="/platform/owner.html"><b>Open my dashboard →</b></a>';
+        } else {
+          msg.textContent = "You're set up! Check "+em0+" for your login link. (Billing turns on shortly.)";
+        }
         btn.textContent='All set ✓';
         return;
       }

@@ -4,7 +4,7 @@
 // happen, so flat pricing is safe and a malfunction costs pennies. Rollups give the operator the
 // cost/margin per client. Service-key + server-side only (ANT Platforms).
 'use strict';
-const { getSecret } = require('./secrets');
+const { getSecret, criticalSecret } = require('./secrets');
 
 // OUR marginal cost per unit, in cents — voice measured against a MATCHED 3-day window of
 // Telnyx Detail Records 2026-09-08, pulling EVERY billing record type (not just one):
@@ -48,8 +48,9 @@ const DEFAULT_PLAN_PRO = {
 function planDefaultsForTier(key) { return key === 'ann_pro' ? DEFAULT_PLAN_PRO : DEFAULT_PLAN; }
 
 async function db() {
-  const base = ((await getSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
-  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  // criticalSecret: an empty read drops usage on the floor — under-billing, not an error. (2026-09-10)
+  const base = ((await criticalSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
+  const key = (await criticalSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   return { base, H: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' } };
 }
 

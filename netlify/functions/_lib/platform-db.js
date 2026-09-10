@@ -14,15 +14,16 @@
 //     -> { ok, job_id, portal_token, portal_url }  (or { ok:false, error })
 'use strict';
 
-const { getSecret } = require('./secrets');
+const { getSecret, criticalSecret } = require('./secrets');
 const SITE = 'https://tnapplianceexchange.net';
 
 async function cfg() {
   // PLATFORM-specific names on purpose — the generic SUPABASE_URL/SUPABASE_SERVICE_KEY
   // already point to the ANT OPS archive project. The multi-tenant PLATFORM lives in a
   // SEPARATE Supabase project ("ANT Platforms"), so its creds get their own names.
-  const url = (await getSecret('PLATFORM_SUPABASE_URL')) || '';
-  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  // criticalSecret: an empty read makes every lead-to-board write a silent no-op. (2026-09-10)
+  const url = (await criticalSecret('PLATFORM_SUPABASE_URL')) || '';
+  const key = (await criticalSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   return { url: String(url).replace(/\/+$/, ''), key };
 }
 

@@ -70,11 +70,14 @@ async function provisionComp(pf, o) {
   } catch (_) {}
   return J(200, { ok: true, comp: true, slug: o.slug, company_id: companyId, login_url: link || null,
     temp_password: (pd.login && pd.login.temp_password) || null,
-    message: link ? 'Setting up your shop — taking you to your dashboard…' : 'Your shop is set up. Check your email for a sign-in link.' });
+    // The comp path sends no email at all, so "check your email" was pointing at a message that
+    // was never going to arrive. If the magic link failed to mint, the password we hand back IS
+    // the way in — the success screen shows it. (2026-09-10)
+    message: link ? 'Setting up your shop — taking you to your dashboard…' : 'Your shop is set up. Here is your login — write it down.' });
 }
 
 exports.handler = async function (event) {
-  if (event.httpMethod !== 'POST') return J(405, { ok: false, error: 'POST only' });
+  if (event.httpMethod !== 'POST') return J(405, { ok: false, error: 'POST only', message: 'Something went wrong sending your details — refresh the page and try again.' });
   let b = {};
   try { b = event.body ? JSON.parse(event.body) : {}; } catch (_) {}
 
@@ -105,15 +108,15 @@ exports.handler = async function (event) {
   const termsVersion = String(b.terms_version || '').slice(0, 40);
   const termsAt = new Date().toISOString();
 
-  if (!name) return J(400, { ok: false, error: 'shop name required' });
-  if (!EMAIL_RE.test(email)) return J(400, { ok: false, error: 'a valid email is required' });
+  if (!name) return J(400, { ok: false, error: 'shop name required', message: 'Please enter your shop name.' });
+  if (!EMAIL_RE.test(email)) return J(400, { ok: false, error: 'a valid email is required', message: 'That email doesn\'t look right — check it and try again.' });
   // Terms acceptance is required for every real signup; an admin test-run (secret in the body) may skip it.
   const adminBypass = !!(b.secret && b.secret === admin);
   if (!termsAccepted && !adminBypass) {
     return J(400, { ok: false, error: 'terms_required', message: 'Please accept the Merchant Agreement to continue.' });
   }
   if (!plans.PLANS.some(function (p) { return p.key === planKey; })) {
-    return J(400, { ok: false, error: 'pick a plan', plans: plans.PLANS.map(function (p) { return p.key; }) });
+    return J(400, { ok: false, error: 'pick a plan', message: 'Pick a plan to continue.', plans: plans.PLANS.map(function (p) { return p.key; }) });
   }
 
   const pf = await platform();

@@ -208,7 +208,9 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
     const mev = { queryStringParameters: { secret: admin, action: 'magiclink', email, redirect: `${SITE}/platform/owner.html` } };
     const md = JSON.parse((await provision.handler(mev)).body || '{}');
     link = md.login_link || '';
-    const shared = await getSecret('EMAIL_SHARED_SECRET');
+    // criticalSecret for consistency with the rest of the paid chain — an empty read here just
+    // downgrades to no_email_shared_secret, which the operator notify now reports loudly.
+    const shared = await criticalSecret('EMAIL_SHARED_SECRET');
     if (link && shared) {
       const er = await fetch(`${SITE}/.netlify/functions/send-email`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Internal-Auth': shared },
