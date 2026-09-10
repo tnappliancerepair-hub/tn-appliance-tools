@@ -26,7 +26,15 @@ const ok = (b) => ({ statusCode: 200, headers: CORS, body: JSON.stringify(b) });
 // elsewhere cite 30s+ cold) could HANG the whole request for any non-phone caller
 // (portal, text surfaces, accuracy-audit). The phone path is separately capped at
 // 3500ms by vapi-tool's race; this protects everyone else. Fail SAFE → null.
-const JOB_TRUTH_FETCH_TIMEOUT_MS = Number(process.env.JOB_TRUTH_FETCH_TIMEOUT_MS || 6000);
+// 6s was too tight for what Xano actually does. Measured 2026-09-10 while the office was
+// live: get_job_for_dashboard answered in 4.1s typical and once hung past 40s, so job-truth
+// gave up on 2 of every 3 lookups and returned found:false - which reads to a caller as
+// "I don't see that one yet," said about a real job scheduled for that same day. A wrong
+// answer delivered confidently is worse than a slow one.
+// Safe to raise: the PHONE never waits this long. vapi-tool races its own 4.5s cap and
+// speaks a keep-talking fallback, so callers still never hit dead air. This budget is what
+// the office board, the customer portal and the text surfaces get, and they can wait.
+const JOB_TRUTH_FETCH_TIMEOUT_MS = Number(process.env.JOB_TRUTH_FETCH_TIMEOUT_MS || 12000);
 async function jfetch(url, opts, timeoutMs) {
   try {
     const r = await fetch(url, { ...(opts || {}), signal: AbortSignal.timeout(timeoutMs || JOB_TRUTH_FETCH_TIMEOUT_MS) });
