@@ -39,20 +39,18 @@ async function nf(token, path) {
   return r.json();
 }
 
-// Measure the environment this function is ACTUALLY running in, not what the API
-// reports. Netlify masks any variable flagged `is_secret` to 20 characters, so asking
-// the API undercounts - ANTHROPIC_API_KEY reads as 38 bytes there and is really ~127.
-// A budget built on masked numbers is the budget that lets you walk into the ceiling.
-// process.env inside the running Lambda is the same thing AWS measures against 4,096,
-// injected Netlify and AWS variables included, so it is the only honest number.
+// Two ways to get this wrong, both of which I did before landing here:
+//   1. Ask Netlify's env API for sizes. It masks anything flagged `is_secret` to 20
+//      characters, so ANTHROPIC_API_KEY reads as 38 bytes and is really ~127. That
+//      undercounts, which is the direction that lets you walk into the ceiling.
+//   2. Sum all of process.env. That OVERCOUNTS - it sweeps in the AWS and Netlify
+//      runtime variables (PATH, AWS_*, LAMBDA_*, NODE_*), which do not count against
+//      the user limit. Measured 6,002 on a perfectly green build, which proves it.
+// The number AWS actually weighs is the variables WE set. So: take the key names from
+// the API (reliable) and their real lengths from process.env (unmaskable).
 const LAMBDA_CAP = 4096;
 
 function envBudget(rows) {
-  let bytes = 0;
-  for (const [k, v] of Object.entries(process.env)) bytes += k.length + String(v == null ? '' : v).length + 2;
-
-  // Ours, largest first - the actionable half. True length from process.env where we
-  // have it, the API's (possibly masked) length only as a fallback.
   const ours = [];
   for (const r of rows || []) {
     if (!(r.scopes || []).some((s) => s === 'functions' || s === 'runtime')) continue;
@@ -63,8 +61,10 @@ function envBudget(rows) {
     ours.push({ key, bytes: key.length + len + 2, masked: live == null });
   }
   ours.sort((a, b) => b.bytes - a.bytes);
-  const oursBytes = ours.reduce((n, x) => n + x.bytes, 0);
-  return { bytes, cap: LAMBDA_CAP, headroom: LAMBDA_CAP - bytes, ours_bytes: oursBytes, vars: ours.length, largest: ours.slice(0, 4) };
+  const bytes = ours.reduce((n, x) => n + x.bytes, 0);
+  // Empirical on this site 2026-09-10: it built at roughly 3.7KB of our own variables and
+  // failed at roughly 3.97KB, so the usable ceiling sits just under the 4,096 line.
+  return { bytes, cap: LAMBDA_CAP, headroom: LAMBDA_CAP - bytes, vars: ours.length, largest: ours.slice(0, 4) };
 }
 
 async function runWatch(opts) {
