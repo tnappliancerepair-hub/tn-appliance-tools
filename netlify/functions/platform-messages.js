@@ -200,6 +200,24 @@ exports.handler = async function (event) {
       ];
       if (digits.length >= 4) ors.push(`phone.ilike.*${digits}*`);
 
+      // A person's name is split across two columns, so "Cornell Jones" matched NEITHER -
+      // not first_name, not last_name - and the office got nothing back for the name printed
+      // on the job. They fell back to phone numbers and work-order numbers, which is a
+      // worse way to find a human. (Danielle, 2026-09-10.)
+      // Match the words independently, in either order, and also let any single word hit a
+      // name on its own so "Jones" still finds every Jones.
+      const words = safe.split(' ').filter((w) => w.length >= 2).slice(0, 4);
+      if (words.length > 1) {
+        const a = encodeURIComponent(words[0]);
+        const b = encodeURIComponent(words[words.length - 1]);
+        ors.push(`and(first_name.ilike.*${a}*,last_name.ilike.*${b}*)`);
+        ors.push(`and(first_name.ilike.*${b}*,last_name.ilike.*${a}*)`);
+        for (const w of words) {
+          const e = encodeURIComponent(w);
+          ors.push(`first_name.ilike.*${e}*`, `last_name.ilike.*${e}*`, `city.ilike.*${e}*`);
+        }
+      }
+
       const SEL = 'id,first_name,last_name,phone,city,address,zip';
       const [people, hits] = await Promise.all([
         db.get(`customer?company_id=eq.${companyId}&or=(${ors.join(',')})&select=${SEL}&order=last_name.asc&limit=${lim}`),

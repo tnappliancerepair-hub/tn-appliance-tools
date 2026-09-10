@@ -61,12 +61,30 @@ function inQuietHours(d) { const h = ctHour(d); return h < QUIET_START || h >= Q
 function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 function tsOf(r) { return Number(metaOf(r).at_ms) || Date.parse(r && r.created_at) || 0; }
 
+// Every check below reads Xano's event_log, and guardedSend runs about six of them before
+// a single text goes out. Each has a 10s timeout AND a retry, so when Xano is saturated -
+// measured 4s typical and 25s+ on 2026-09-10 - the whole send simply hung and the office
+// reported "the new system won't send text." Nothing failed; nothing returned either.
+//
+// A hang is the worst shape a check can have: it neither allows nor denies. Give the reads
+// a hard budget so a slow Xano becomes an ERROR, which every one of these already handles
+// by failing open - the behaviour that was always intended, with Telnyx's carrier-level
+// STOP as the real backstop. A text the office typed by hand is worth more than a perfect
+// frequency count nobody can read.
+const GUARD_READ_MS = Number(process.env.SMS_GUARD_READ_MS || 3500);
+function budgeted(p, ms) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('guard_read_timeout')), ms || GUARD_READ_MS))]);
+}
+
 // Opted out if the newest opt-out marker is newer than the newest opt-in.
 async function isOptedOut(phone) {
   const e = toE164(phone); if (!e) return false;
   try {
-    const outs = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_opt_out' }, { id: 'desc' }, 500);
-    const ins = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_opt_in' }, { id: 'desc' }, 500);
+    // in parallel and on a clock - two sequential 500-row scans was the slowest part
+    const [outs, ins] = await budgeted(Promise.all([
+      crud.searchPage(crud.TABLES.event_log, { action: 'sms_opt_out' }, { id: 'desc' }, 500),
+      crud.searchPage(crud.TABLES.event_log, { action: 'sms_opt_in' }, { id: 'desc' }, 500),
+    ]));
     const newest = (rows) => Math.max(0, ...(rows || []).filter((r) => toE164(metaOf(r).phone) === e).map(tsOf));
     return newest(outs) > newest(ins);
   } catch (_) { return false; } // fail-open: Telnyx carrier-level STOP is the hard backstop
@@ -78,7 +96,7 @@ async function clearOptOut(phone, source) { try { await crud.logEvent('sms_opt_i
 async function sentSince(phone, sinceMs) {
   const e = toE164(phone); if (!e) return 0;
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
+    const rows = await budgeted(crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500));
     return (rows || []).filter((r) => toE164(metaOf(r).phone) === e && tsOf(r) >= sinceMs).length;
   } catch (_) { return 0; }
 }
@@ -106,13 +124,13 @@ async function recentDuplicate(phone, message, windowMs) {
   const key = bodyKey(message);
   const since = Date.now() - (windowMs || DEDUP_WINDOW_MS);
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
+    const rows = await budgeted(crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500));
     return (rows || []).some((r) => tsOf(r) >= since && toE164(metaOf(r).phone) === e && bodyKey(metaOf(r).body) === key);
   } catch (_) { return false; } // fail-open: a read error must never block a legit send
 }
 async function globalSentSince(sinceMs) {
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
+    const rows = await budgeted(crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500));
     return (rows || []).filter((r) => tsOf(r) >= sinceMs).length;
   } catch (_) { return 0; }
 }
