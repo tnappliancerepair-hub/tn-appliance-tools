@@ -260,7 +260,16 @@ async function syncTnToPlatform(limit, opts) {
   const { url, key } = await cfg();
   if (!url || !key) return { ok: false, error: 'platform supabase not configured' };
 
-  let items = await fetchKanban();
+  // NEVER let the heavy board feed take the whole mirror down with it. get_office_kanban
+  // measured 43.8s on 2026-09-10 and fetchKanban throws on abort - so one slow minute on
+  // Xano killed the entire run before the supplemental pull (raw table 7) had even started,
+  // and the platform went stale. That is backwards: the supplemental source is FASTER and
+  // carries MORE (model, serial, street, claim); the kanban feed only adds older/completed
+  // jobs it happens to have. Losing it should cost those extras, not the mirror.
+  let items = [];
+  let kanbanError = '';
+  try { items = await fetchKanban(); }
+  catch (e) { kanbanError = String((e && e.message) || e).slice(0, 120); }
   const kanbanCount = items.length;
   // Merge in every active/upcoming job the 800-row created_at-capped board feed leaves out
   // (dedup by job id; the richer kanban row wins when a job is in both).
@@ -312,7 +321,7 @@ async function syncTnToPlatform(limit, opts) {
     // has no model column at all, so this only works if the supplemental twin is found.
     const withModel = jobs.filter((j) => modelFor(j)).length;
     const modelSample = jobs.filter((j) => modelFor(j)).slice(0, 3).map((j) => ({ id: j.id, model: modelFor(j), serial: serialFor(j) }));
-    return { ok: true, dryrun: true, kanban: kanbanCount, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, model_fill: withModel, model_sample: modelSample, ms: Date.now() - t0 };
+    return { ok: true, dryrun: true, kanban: kanbanCount, kanban_error: kanbanError || undefined, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, model_fill: withModel, model_sample: modelSample, ms: Date.now() - t0 };
   }
 
   // 1) customers — dedup by Xano customer_id. The base upsert deliberately OMITS `address`:
@@ -524,7 +533,7 @@ async function syncTnToPlatform(limit, opts) {
 
   const upJob = await upsert(url, key, 'job', jobRows, 'company_id,xano_id');
 
-  return { ok: true, customers: upCust.length, units: upUnit.length, jobs: upJob.length, ms: Date.now() - t0 };
+  return { ok: true, customers: upCust.length, units: upUnit.length, jobs: upJob.length, kanban: kanbanCount, kanban_error: kanbanError || undefined, ms: Date.now() - t0 };
 }
 
 exports.config = { timeout: 26 };
