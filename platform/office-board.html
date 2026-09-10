@@ -1170,7 +1170,7 @@
   function schDay(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return d; } }
   function loadSched(job){
     var box=document.getElementById('jsched'); if(!box) return;
-    // What else is on this tech's day? That's what makes "1 of 2 left" honest, so pull the
+    // What else is on this tech's day? That's what makes "1 of 3 left" honest, so pull the
     // siblings alongside the offers. No tech or no day yet -> no counts, just the windows.
     var sibs = (job.scheduled_day && job.technician_id)
       ? sb.from('job').select('id,time_window,status').eq('company_id',companyId)

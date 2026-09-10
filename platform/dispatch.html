@@ -224,7 +224,7 @@
   function holdsOn(techId,d){ var n=0; offers.forEach(function(o){ if(o.direction==='shop'&&String(o.technician_id)===String(techId)&&o.proposed_day===d) n++; }); return n; }
   // One window vocabulary for the whole platform — see /platform/ant-windows.js.
   function winLbl(w){ return (window.AntWindows && AntWindows.label(w)) || 'anytime'; }
-  // Jobs already on one tech's day — the input behind "8–11 AM · 1 of 2 left".
+  // Jobs already on one tech's day — the input behind "8–11 AM · 1 of 3 left".
   function winDayJobs(techId, day){
     if(!techId || !day) return [];
     return (jobs||[]).filter(function(j){ return j.technician_id===techId && String(j.scheduled_day||'')===String(day); });

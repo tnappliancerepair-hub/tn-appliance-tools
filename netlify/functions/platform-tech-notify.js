@@ -12,6 +12,7 @@
 const { getSecret, getSecretStatus } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
 const { msg: commsMsg, reviewLink, REVIEW_LINK_HELP } = require('./_lib/comms');
+const { claimSend, onceKey, dailyKey } = require('./_lib/send-once');
 const SITE = 'https://tnapplianceexchange.net';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -79,14 +80,26 @@ exports.handler = async function (event) {
   const first = cus.first_name || 'there';
   const phone = String(cus.phone || '').trim();
   const logThread = (channel, txt) => db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel, sender: 'tech', body: txt });
+  // claimSend writes straight to PostgREST so it can see the 409 the unique index throws —
+  // db.insert() swallows every error, which is exactly the fire-and-forget shape that cannot
+  // be used as a claim. Declared here, after job + companyId exist.
+  const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
+  // Every once-only send goes through this: write the claim, text ONLY if it landed. A thumb
+  // can hit "On my way" twice; this app and the nightly sweep can both fire a review ask.
+  // The database settles it once, and the loser stays quiet instead of texting.
+  const claim = (channel, body, sendKey) => claimSend(url, H, { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel, sender: 'tech', body }, sendKey);
 
   try {
     if (doo === 'otw') {
       const text = commsMsg(co.settings, 'otw', { first, shop, tech: techName || 'your technician' });
       if (!text) return json(200, { ok: true, texted: false, off: true });
+      // Once per CALENDAR DAY, not once ever — a parts return trip is a real second "on my
+      // way" and the customer should get it. Two taps in the same day are a slip.
+      if (!(await claim('otw', '🚚 On my way', dailyKey('otw', job.id)))) {
+        return json(200, { ok: true, texted: false, already: true, message: 'Already told them you were on the way today.' });
+      }
       let sent = false;
       if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_otw'); } catch (_) {} }
-      await logThread('sms', '🚚 On my way');
       return json(200, { ok: true, texted: sent });
     }
 
@@ -186,9 +199,11 @@ exports.handler = async function (event) {
       // Customer heads-up the moment the tech starts the job on site.
       const text = commsMsg(co.settings, 'arrived', { first, shop, tech: techName || 'your technician' });
       if (!text) return json(200, { ok: true, texted: false, off: true });
+      if (!(await claim('arrived', '🔧 Tech arrived', dailyKey('arrived', job.id)))) {
+        return json(200, { ok: true, texted: false, already: true, message: 'They already got the arrival text today.' });
+      }
       let sent = false;
       if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_arrived'); } catch (_) {} }
-      await logThread('sms', '🔧 Tech arrived');
       return json(200, { ok: true, texted: sent });
     }
 
@@ -199,9 +214,11 @@ exports.handler = async function (event) {
       const tk = grant && grant.token; const link = tk ? `${SITE}/platform/portal.html?t=${tk}` : '';
       const text = commsMsg(co.settings, 'complete', { first, shop, link });
       if (!text) return json(200, { ok: true, texted: false, off: true, url: link });
+      if (!(await claim('complete', '✅ Job complete' + (link ? ' — sent summary link' : ''), dailyKey('complete', job.id)))) {
+        return json(200, { ok: true, texted: false, already: true, url: link, message: 'They already got the completion text today.' });
+      }
       let sent = false;
       if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_complete'); } catch (_) {} }
-      await logThread('sms', '✅ Job complete' + (link ? ' — sent summary link' : ''));
       return json(200, { ok: true, texted: sent, url: link });
     }
 
@@ -242,11 +259,14 @@ exports.handler = async function (event) {
       const techFirst = String(who || '').trim().split(/\s+/)[0] || 'your tech';
       const text = commsMsg(settings, 'review', { first, shop, tech: techFirst, review: rl.url });
       if (!text) return json(200, { ok: true, texted: false, off: true, url: rl.url });
+      // ONE ask per job, ever — and the nightly sweep claims the SAME key, so a human tapping
+      // this button and the cron running at the same moment can no longer both text. Whoever
+      // writes the claim first owns the ask; the other one silently stands down.
+      if (!(await claim('review', `⭐ Review request sent: ${rl.url}`, onceKey('review', job.id)))) {
+        return json(200, { ok: true, texted: false, already: true, url: rl.url, message: 'This customer was already asked for a review on this job.' });
+      }
       let sent = false;
       if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_review'); } catch (_) {} }
-      // channel=review (not 'sms') so the automatic sweep dedups against a human's manual ask
-      // instead of texting the same customer a second time.
-      await logThread('review', `⭐ Review request sent: ${rl.url}`);
       return json(200, { ok: true, texted: sent, url: rl.url });
     }
 

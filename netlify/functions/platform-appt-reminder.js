@@ -10,6 +10,7 @@
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const { claimSend, onceKey } = require('./_lib/send-once');
 const { commsFor, render } = require('./_lib/comms');
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 exports.config = { timeout: 26 };
@@ -22,9 +23,6 @@ async function ctx() {
   return { base, H: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' } };
 }
 async function sget(base, H, path) { try { const r = await fetch(base + '/rest/v1/' + path, { headers: H, signal: AbortSignal.timeout(9000) }); return r.ok ? (await r.json().catch(() => [])) : []; } catch (_) { return []; } }
-// Returns whether the row actually landed. A fire-and-forget insert cannot be
-// used as a claim, and this one IS the claim (see the send loop below).
-async function sins(base, H, table, row) { try { const r = await fetch(base + '/rest/v1/' + table, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(9000) }); return r.ok; } catch (_) { return false; } }
 
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
@@ -80,7 +78,10 @@ exports.handler = async function (event) {
     // channel='reminder') makes the loser's insert fail outright, so it never
     // sends. Failure direction is now a MISSED reminder (silent, recoverable)
     // instead of a double text -- the right trade for a customer-facing send.
-    const claimed = await sins(base, H, 'thread_message', { company_id: j.company_id, customer_id: j.customer_id, job_id: j.id, direction: 'out', channel: 'reminder', sender: 'system', body: '🔔 Day-before reminder sent' });
+    // (2026-09-10) Same claim, now through the shared helper + a send_key, so this reminder
+    // and every other once-only send on the platform are guarded by the ONE mechanism
+    // (thread_send_once_uidx) instead of each having its own bespoke index.
+    const claimed = await claimSend(base, H, { company_id: j.company_id, customer_id: j.customer_id, job_id: j.id, direction: 'out', channel: 'reminder', sender: 'system', body: '🔔 Day-before reminder sent' }, onceKey('reminder', j.id));
     if (!claimed) { out.skipped_dup++; continue; }
     let ok = false; try { ok = await sendSms(phone, text, 'customer', 'platform_reminder'); } catch (_) {}
     if (ok) out.sent++; else out.send_failed = (out.send_failed || 0) + 1;

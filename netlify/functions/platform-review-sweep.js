@@ -32,6 +32,7 @@
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
 const { commsFor, render, reviewLink, REVIEW_LINK_HELP } = require('./_lib/comms');
+const { claimSend, onceKey } = require('./_lib/send-once');
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 exports.config = { timeout: 26 };
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -64,7 +65,7 @@ async function runSweep(opts) {
   const coCache = {}, techCache = {};
   const out = {
     ok: true, mode: live ? 'live' : 'shadow', since: sinceIso, found: jobs.length,
-    sent: 0, nudged: 0,
+    sent: 0, nudged: 0, send_failed: 0,
     skipped_off: 0, skipped_dup: 0, skipped_nophone: 0, skipped_no_link: 0,
     shops_missing_link: [], results: [],
   };
@@ -101,9 +102,8 @@ async function runSweep(opts) {
     const rl = reviewLink(settings);
     if (!rl.ok) { out.skipped_no_link++; noteMissingLink(shop, rl.why); continue; }
 
-    // per-job dedupe — one review ask ever (this sweep marks channel=review; the on-demand
-    // ⭐ button logs channel=sms, so if a human already asked via the button, that won't collide
-    // here, but a shop typically uses one path — the marker prevents the sweep re-asking).
+    // per-job dedupe — one review ask ever. Cheap pre-filter only: the ⭐ button now claims
+    // the SAME send_key this sweep does, so the real guarantee is the database, not this read.
     const dupe = await sget(base, H, `thread_message?job_id=eq.${j.id}&channel=eq.review&select=id&limit=1`);
     if (dupe && dupe.length) { out.skipped_dup++; continue; }
 
@@ -115,9 +115,14 @@ async function runSweep(opts) {
     if (!phone) { out.skipped_nophone++; continue; }
     if (!live) { out.sent++; continue; }   // shadow — counts as "would send", texts no one
 
+    // CLAIM BEFORE SEND (2026-09-10). The dupe read above is only a cheap pre-filter; it is
+    // this row that decides. The manual ⭐ button writes the SAME key, so the button and this
+    // cron contend on one database row and exactly one of them can ever text the customer —
+    // which is the documented double-ask bug, closed structurally instead of by convention.
+    const claimed = await claimSend(base, H, { company_id: j.company_id, customer_id: j.customer_id, job_id: j.id, direction: 'out', channel: 'review', sender: 'system', body: '⭐ Review request sent: ' + rl.url }, onceKey('review', j.id));
+    if (!claimed) { out.skipped_dup++; continue; }
     let ok = false; try { ok = await sendSms(phone, text, 'customer', 'platform_review'); } catch (_) {}
-    await sins(base, H, 'thread_message', { company_id: j.company_id, customer_id: j.customer_id, job_id: j.id, direction: 'out', channel: 'review', sender: 'system', body: '⭐ Review request sent: ' + rl.url });
-    if (ok) out.sent++;
+    if (ok) out.sent++; else out.send_failed = (out.send_failed || 0) + 1;
   }
 
   // ---------- pass 2: ONE nudge, 3 days after the ask, only if they never replied ----------
@@ -156,12 +161,13 @@ async function runSweep(opts) {
     if (!phone) { out.skipped_nophone++; continue; }
     if (!live) { out.nudged++; continue; }
 
+    const nclaimed = await claimSend(base, H, { company_id: a.company_id, customer_id: a.customer_id, job_id: a.job_id, direction: 'out', channel: 'review_nudge', sender: 'system', body: '⭐ Review nudge sent: ' + rl.url }, onceKey('review_nudge', a.job_id));
+    if (!nclaimed) { out.skipped_dup++; continue; }
     let ok = false; try { ok = await sendSms(phone, text, 'customer', 'platform_review_nudge'); } catch (_) {}
-    await sins(base, H, 'thread_message', { company_id: a.company_id, customer_id: a.customer_id, job_id: a.job_id, direction: 'out', channel: 'review_nudge', sender: 'system', body: '⭐ Review nudge sent: ' + rl.url });
-    if (ok) out.nudged++;
+    if (ok) out.nudged++; else out.send_failed = (out.send_failed || 0) + 1;
   }
 
-  console.log('[review-sweep]', JSON.stringify({ mode: out.mode, found: out.found, sent: out.sent, nudged: out.nudged, off: out.skipped_off, dup: out.skipped_dup, no_link: out.skipped_no_link }));
+  console.log('[review-sweep]', JSON.stringify({ mode: out.mode, found: out.found, sent: out.sent, nudged: out.nudged, send_failed: out.send_failed, off: out.skipped_off, dup: out.skipped_dup, no_link: out.skipped_no_link }));
   return out;
 }
 
