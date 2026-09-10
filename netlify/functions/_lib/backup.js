@@ -36,6 +36,16 @@ const CHUNK_ROWS = 500;    // rows per Supabase insert
 // blow the read timeout. parts_orders carries fat order payloads.
 const HEAVY_PER_PAGE = { 47: 50 };
 const MAX_PAGES = 8000;    // runaway backstop (1.6M rows/table)
+// A Netlify background fn is killed at ~15 min. Without a budget the loop just
+// grinds until the wall, Netlify RETRIES the whole thing, and every table after
+// the slow one is silently dropped -- measured 2026-09-10: three concurrent runs
+// per night, jobs/customer read 3x over, and tables 5..29 + the manifest had not
+// run since 2026-09-03. Stop early, on purpose, and SAY SO in the manifest.
+const BUDGET_MS = Number(process.env.BACKUP_BUDGET_MS) > 0 ? Number(process.env.BACKUP_BUDGET_MS) : 11 * 60 * 1000;
+// Tables too big to re-read nightly. parts_orders is ~205k rows (measured) and
+// alone consumed the whole window. Full-copy these WEEKLY (Sunday); the 7-day
+// retention guarantees a complete snapshot is always present. Everything else
+// stays nightly. Skipped-for-cadence is recorded, never silent.
 const BACKUP_TABLE = 'xano_backup_chunks';
 // Retention window (days). Without pruning, every night's full snapshot
 // accumulated forever — the table hit ~26k chunks / 978 MB, over half the ops
@@ -52,10 +62,14 @@ const SKIP_IDS = new Set([53, 38]);
 // discovery run — all small/safe). event_log(3)=money-only, parts_orders(47)=heavy
 // (small pages). This is bounded + reliable; discovery is opt-in (?discover) for
 // a deeper one-off. Excludes the giant AI/vector tables and secrets/transient.
+// ORDER IS LOAD-BEARING: cheap tables first, the heavy one LAST. parts_orders(47)
+// used to sit 4th and starved the 25 tables behind it for a week.
+const HEAVY_WEEKLY = new Set([47]);
 const CORE_IDS = [
-  7, 6, 3, 47, 46, 15,                                  // jobs, customer, event_log, parts_orders, warranty, technicians
+  7, 6, 3, 46, 15,                                      // jobs, customer, event_log, warranty, technicians
   4, 9, 11, 12, 13, 16, 17, 22, 23, 25, 26, 27, 28, 29, // business (TDRs, earnings, clusters, etc.)
   30, 33, 34, 35, 36, 37, 41, 48, 50,
+  47,                                                   // parts_orders — heavy (~205k rows), weekly, always last
 ];
 
 function metaHeaders() {
@@ -110,8 +124,13 @@ async function pageTable(id, onChunk, popts) {
   const sortDir = (popts && popts.sort) || 'asc';
   const maxPages = (popts && popts.maxPages) || MAX_PAGES;
   const perPage = (popts && popts.perPage) || PAGE_SIZE;
-  let total = 0, part = 0, buf = [];
+  // Hard per-table deadline. maxPages alone is not a time bound -- a slow Xano
+  // makes one table run past the function wall, which is what got the whole
+  // backup killed and retried nightly. Stop cleanly and report truncated.
+  const deadline = (popts && popts.deadline) || Infinity;
+  let total = 0, part = 0, buf = [], truncated = false;
   for (let page = 1; page <= maxPages; page++) {
+    if (Date.now() > deadline) { truncated = true; break; }
     const res = await readPage(id, page, perPage, sortDir);
     if (res.items == null) {
       if (page === 1) { if (buf.length) await onChunk(buf, part++); return { ok: false, status: res.httpStatus, total, parts: part }; }
@@ -123,7 +142,7 @@ async function pageTable(id, onChunk, popts) {
     if (items.length < perPage) break;
   }
   if (buf.length) { await onChunk(buf, part++); }
-  return { ok: true, total, parts: part };
+  return { ok: true, total, parts: part, truncated };
 }
 
 // Back up event_log's MONEY rows only — one fast filtered query per action type.
@@ -227,9 +246,26 @@ async function backupTables(opts = {}) {
   // The nightly cron is a single run, so duplicate chunks aren't a concern in practice.
   if (opts.clearFirst) await clearSnapshot(date);
 
-  const summary = { date, started_at: new Date().toISOString(), tables: [] };
+  const t0 = Date.now();
+  const isSunday = new Date(date + 'T12:00:00Z').getUTCDay() === 0;
+  const scoped = !!(opts.only && opts.only.length);
+  const summary = {
+    date, started_at: new Date().toISOString(), tables: [],
+    complete: true, skipped_budget: [], skipped_cadence: [], budget_ms: BUDGET_MS,
+  };
   for (const id of ids) {
     const name = NAME_MAP[id] || ('table-' + id);
+    // Heavy tables copy weekly. A scoped/manual run (?only=) always honors the ask.
+    if (HEAVY_WEEKLY.has(id) && !scoped && !isSunday && !opts.force) {
+      summary.skipped_cadence.push({ id, name, reason: 'weekly_table_not_sunday' });
+      continue;
+    }
+    // Budget check BEFORE starting a table, so we never die mid-write and get retried.
+    if (Date.now() - t0 > BUDGET_MS) {
+      summary.skipped_budget.push({ id, name });
+      summary.complete = false;
+      continue;
+    }
     // Isolate each table: one failure (e.g. a too-big insert) must NOT abort the
     // whole backup or skip the manifest. Record it and move on.
     const isEventLog = (id === EVENT_LOG_TABLE);
@@ -240,8 +276,9 @@ async function backupTables(opts = {}) {
       // event_log = money rows only (fast, by action). Everything else = full table.
       const res = isEventLog
         ? await pageEventLogMoney(insertChunk, opts.actions)
-        : await pageTable(id, insertChunk, { sort: 'asc', maxPages: opts.maxPagesOverride || MAX_PAGES, perPage: opts.perPage || HEAVY_PER_PAGE[id] || PAGE_SIZE });
-      summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status, money_only: isEventLog || undefined });
+        : await pageTable(id, insertChunk, { sort: 'asc', maxPages: opts.maxPagesOverride || MAX_PAGES, perPage: opts.perPage || HEAVY_PER_PAGE[id] || PAGE_SIZE, deadline: t0 + BUDGET_MS });
+      summary.tables.push({ id, name, ok: res.ok, rows: res.total || 0, parts: res.parts || 0, status: res.status, money_only: isEventLog || undefined, truncated: res.truncated || undefined });
+      if (res.truncated) summary.complete = false;
     } catch (e) {
       summary.tables.push({ id, name, ok: false, rows: 0, parts: 0, error: String((e && e.message) || e).slice(0, 300) });
     }
@@ -250,6 +287,9 @@ async function backupTables(opts = {}) {
   summary.total_rows = summary.tables.reduce((s, t) => s + (t.rows || 0), 0);
 
   // manifest row for this snapshot (table_name='_manifest')
+  // ALWAYS write the manifest -- a partial run must be distinguishable from a run
+  // that never happened. `complete:false` + the skipped lists are the signal the
+  // watchdog reads; a missing manifest used to be the only symptom of starvation.
   await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: '_manifest', table_id: null, part: 0, row_count: summary.tables.length, rows: summary });
 
   // Retention: prune snapshots older than the window (keeps the backup table

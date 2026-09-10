@@ -40,6 +40,7 @@ const PARITY_MAX    = 5;    // honest baseline on 2026-09-10 was 1
 const DRIFT_MAX     = 10;   // baseline 1
 const RENAG_HOURS   = 6;
 const PARITY_MS     = 20000; // hard ceiling on the Xano walk
+const BACKUP_MAX_H  = 30;   // nightly 8am CT run; alert if the newest one is older
 
 const json = (s, b) => ({ statusCode: s, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
 const key = () => process.env.PLATFORM_SUPABASE_SERVICE_KEY || '';
@@ -114,6 +115,35 @@ async function runChecks(opts) {
   //    and hard-bounded: on a slow Xano this exceeds the 26s edge limit for a MANUAL call
   //    while the scheduled run (15-min allowance) still completes. A check that can silently
   //    never run is worse than no check, so a skip is REPORTED in stats rather than vanishing.
+  // 4b) OFF-SITE BACKUP — read the MANIFEST, never the function's exit code.
+  // On 2026-09-10 the nightly Xano->ops backup had been running (and retrying
+  // itself 3x) for a week while silently dropping 25 of 29 tables, and the ONLY
+  // symptom was a manifest row that never got written. So: check the manifest.
+  try {
+    const sbops = require('./_lib/supabase');
+    const rows = await sbops.select('xano_backup_chunks', {
+      table_name: 'eq._manifest', order: 'created_at.desc', limit: '1',
+      select: 'snapshot_date,created_at,rows',
+    });
+    const m = (rows && rows[0]) || null;
+    if (!m) {
+      stats.backup = 'no_manifest_ever';
+      fails.push('off-site backup has never written a manifest');
+    } else {
+      const ageH = Math.round((Date.now() - Date.parse(m.created_at)) / 3600000);
+      const body = m.rows || {};
+      stats.backup = { date: m.snapshot_date, age_h: ageH, tables: (body.tables || []).length, complete: body.complete !== false };
+      if (ageH > BACKUP_MAX_H) fails.push(`off-site backup is ${ageH}h old (last good ${m.snapshot_date})`);
+      else if (body.complete === false) {
+        // `complete:false` means budget/truncation only. The weekly-cadence skip
+        // (parts_orders on a non-Sunday) is BY DESIGN and never flips the flag.
+        const sk = (body.skipped_budget || []).length;
+        const tr = (body.tables || []).filter((t) => t && t.truncated).length;
+        fails.push(`off-site backup ran but did not finish — ${sk} skipped, ${tr} truncated`);
+      }
+    }
+  } catch (e) { stats.backup = 'check_failed:' + String((e && e.message) || e).slice(0, 40); }
+
   const ct = new Date(Date.now() - 5 * 3600000).getUTCMinutes();
   if (o.full || ct < 15) {
     try {
