@@ -65,6 +65,12 @@
   .schedflags button.on{background:#e0e7ff;color:#3730a3;border-color:#c7d2fe;font-weight:800}
   :root:not([data-theme="light"]) .money-badge.paid,:root[data-theme="dark"] .money-badge.paid{background:#14351f;color:#8ff0b0}
   :root:not([data-theme="light"]) .money-badge.due,:root[data-theme="dark"] .money-badge.due{background:#3a2e0c;color:#f2ce7a}
+  /* parked intake artifacts — present and openable, just not crowding real work */
+  .artifacts{margin-top:10px;border-top:1px dashed rgba(255,255,255,.14);padding-top:8px}
+  .artifacts>summary{cursor:pointer;list-style:none;font-size:11px;letter-spacing:.04em;color:var(--muted);padding:6px 2px;user-select:none}
+  .artifacts>summary::-webkit-details-marker{display:none}
+  .artifacts>summary:hover{color:var(--gold,#e8b465)}
+  .artifacts[open]>summary{color:var(--gold,#e8b465);margin-bottom:6px}
   .col h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;gap:8px}
   .col h3 .n{background:var(--chip);color:var(--muted);border-radius:999px;padding:1px 8px;font-size:11px}
   .col h3 .dot{width:8px;height:8px;border-radius:50%}
@@ -1035,13 +1041,37 @@
       return activeFilter==='all' ? j.status!=='canceled' : j.status===activeFilter;
     });
     var cols = boardStages();
+    // ── INTAKE ARTIFACTS ────────────────────────────────────────────────────────────────
+    // Xano turns some warranty EMAILS into jobs: "Dispatch Cancelled", "NSA EFT Payment
+    // Register", "Allstate ... Claim Update". Measured 2026-09-10: 406 of the 525 jobs sitting
+    // in New had NO appliance, NO address, NO phone and NO name - nobody can work them and
+    // nobody can even be called about them, and 15 of the 38 carrying a claim# pointed at a job
+    // we already had. The legacy Xano board never showed this at all (needs_more_info is not in
+    // get_office_kanban's status list), so the office was simply blind to them; the platform
+    // mirrors Xano faithfully and surfaces them - correct, but it buried ~68 real dispatches
+    // under ~457 email subjects. They are NOT hidden or deleted here: each column leads with
+    // real work and parks these behind a collapsed "intake artifacts" row, still one tap away.
+    // Criterion is deliberately conservative - anything with ANY handle (a machine, a phone, a
+    // name) stays in the column. Verified against the DB: this matches exactly those 406 and
+    // catches nothing that has an address, a scheduled day, or a tech.
+    var isArtifact = function(j){
+      if (j.unit_id || (j.unit && j.unit.label)) return false;
+      var c = j.customer || {};
+      if (String(c.phone||'').trim()) return false;
+      if (String(c.first_name||'').trim() || String(c.last_name||'').trim()) return false;
+      if (j.technician_id || j.scheduled_day) return false;
+      return true;
+    };
     // one <select> option per column — the mobile-friendly "move this card" control
     var moveOpts = '<option value="" selected disabled>Move →</option>' + cols.map(function(c){ return '<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>'; }).join('');
     var byStage = {}; cols.forEach(function(c){ byStage[c.key]=[]; });
     jobs.forEach(function(j){ var k=stageOf(j, cols); (byStage[k]=byStage[k]||[]).push(j); });
     var html = cols.map(function(col){
-      var k=col.key, list=sortList(byStage[k]||[], colSort[k]), m=col;   // render EVERY column (even empty) as a drop target, honoring its ⋯ sort
-      var cards = list.map(function(j){
+      var k=col.key, m=col;   // render EVERY column (even empty) as a drop target, honoring its ⋯ sort
+      var full = sortList(byStage[k]||[], colSort[k]);
+      var list = full.filter(function(j){ return !isArtifact(j); });
+      var junk = full.filter(isArtifact);
+      var renderCard = function(j){
         var unit = j.unit && j.unit.label ? j.unit.label : '';
         var tech = j.technician && j.technician.name ? j.technician.name : 'Unassigned';
         var iv = invByJob[j.id];
@@ -1097,9 +1127,15 @@
           '<div class="foot"><span class="tech">'+esc(tech)+'</span>'+(badge||'')+'</div>' +
           '<select class="mv" data-job="'+j.id+'" title="Move to another column">'+moveOpts+'</select>' +
           '</div>';
-      }).join('');
+      };
+      var cards = list.map(renderCard).join('');
+      // parked, not hidden: collapsed by default, opens in place, cards are fully live inside
+      var junkHtml = junk.length
+        ? '<details class="artifacts"><summary>⚠️ '+junk.length+' intake artifact'+(junk.length===1?'':'s')+
+            ' — no appliance, address or phone</summary>'+junk.map(renderCard).join('')+'</details>'
+        : '';
       var s=colSort[k]; var sLbl = (s&&s.by) ? '<span class="sortlbl">↕ '+esc(sortFieldLabel(s.by))+(s.dir==='desc'?' ↓':' ↑')+'</span>' : '';
-      return '<div class="col" data-stage="'+esc(k)+'"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span>'+sLbl+'<button type="button" class="colmenu'+((s&&s.by)?' on':'')+'" data-stage="'+esc(k)+'" title="Sort this column">⋯</button></h3>'+cards+'</div>';
+      return '<div class="col" data-stage="'+esc(k)+'"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span>'+sLbl+'<button type="button" class="colmenu'+((s&&s.by)?' on':'')+'" data-stage="'+esc(k)+'" title="Sort this column">⋯</button></h3>'+cards+junkHtml+'</div>';
     }).join('') || '<div class="empty">Nothing here yet.</div>';
     var b=document.getElementById('board'); b.innerHTML=html;
     // ⋯ per-column sort menu (MeisterTask-style "Sort section")
