@@ -1,5 +1,42 @@
 # Appliance Ant
 
+## 🔑 TN'S REAL PLATFORM SEATS — the `tech1.`/`tech2.` logins are DECOYS (2026-09-10)
+
+Teddy lost a morning of practice week to this. He signed into
+`tech2.tn-appliance-exchange-llc@assistant247.net`, saw an empty app, and reasonably concluded
+the mirror had lost his jobs. It hadn't. That seat is a **placeholder** minted by the shoppack
+builder, wired to a fake technician row ("Tech 1"/"Tech 2") with **no `xano_tech_id`** — so it
+matches no Xano tech, holds zero jobs, and always will. Both are now **deactivated**; do not
+re-mint them for TN, and do not cite them as "the tech seat" the way older entries below still do.
+
+**The real seats on `tn-appliance-exchange-llc` (company `be4d11a1-…`):**
+
+| who | login | seat |
+|---|---|---|
+| Teddy (owner + tech 1) | `tnappliance@gmail.com` | Teddy Pivacek |
+| Jimmy | `jimmy.tnae@assistant247.net` | Jimmy Pivacek (xano 2) |
+| Andre | `andre.tnae@assistant247.net` | Andre Pivacek (xano 3) |
+| Lee | `lee.tnae@assistant247.net` | Lee Harding (xano 4) |
+| John | `john.tnae@assistant247.net` | John Houk (xano 6) |
+| Danielle · Sofia · Carrie | `danielle.tnae@` · `sofia.tnae@` · `carrie.tnae@` | office (whole board) |
+
+Owner password lives in the vault as `PLATFORM_OWNER_PW_TN_APPLIANCE_EXCHANGE_LLC`; reset with
+`platform-provision?action=resetpw&slug=tn-appliance-exchange-llc&reveal=1`.
+
+**The diagnostic that settles "is a seat real?" in one query** — a seat with `xano_tech_id` NULL
+can never receive mirrored work:
+```sql
+select u.email, t.name, t.xano_tech_id, a.last_sign_in_at
+from app_user u join company c on c.id=u.company_id
+left join technician t on t.app_user_id=u.id
+left join auth.users a on a.id=u.auth_user_id
+where c.slug='tn-appliance-exchange-llc' order by a.last_sign_in_at desc nulls last;
+```
+**Five tenants answer to some form of "TN" and only one is real.** `tn`, `tn-appliance`,
+`tn-appliance-rlq` and `tn-office-test` are all empty leftovers with live logins on them —
+`jamespivacek@gmail.com` owns `tn-appliance-rlq`, which has 7 seats and 0 jobs. Signing into any
+of them looks exactly like "the platform lost everything." Retire them.
+
 ## 🚦 TWO SEPARATE SYSTEMS — KNOW WHICH ONE YOU'RE IN BEFORE YOU TOUCH ANYTHING (Teddy 2026-09-08)
 
 There are **two** Ant systems running side by side. They share a repo and some filenames but
@@ -763,7 +800,8 @@ saying, plus a contradiction. Fixed: the return-day sentence no longer fires whe
 
 ### ⏭️ OPEN
 - Have Jimmy retry the test job (`035211fc-…`, reset to `scheduled`/today, seat
-  `tech1.tn-appliance-exchange-llc@assistant247.net` / `Ant-TnExchange9`) — he should now see the green banner.
+  the real crew seat `jimmy.tnae@assistant247.net`; the `tech1.`/`tech2.` pack seats named here and
+  elsewhere in this file are DECOYS, deactivated 2026-09-10 — see the seat table at the top) — he should now see the green banner.
   Clean up the test customer/unit/job when done.
 - Purge the stale `7b421706` tenant.
 - `TDR_DURABLE_SAVE=true` in Netlify env (Xano-side; env is at the 4KB Lambda cap — un-scope a var first).
