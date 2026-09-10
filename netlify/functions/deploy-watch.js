@@ -79,7 +79,13 @@ async function runWatch(opts) {
   }
   try { envRows = await nf(token, `/sites/${SITE_ID}/env`); } catch (_) {}
 
-  const prod = deploys.filter((d) => d.context === 'production');
+  // Netlify records a SKIPPED build as state 'error'. Our netlify.toml `ignore` rule skips
+  // docs-only commits on purpose, so CLAUDE.md edits alone would otherwise page the owner
+  // every time - and an alarm that cries wolf is worse than none, because it trains you to
+  // ignore the one that matters. A build canceled for no content change shipped nothing
+  // because nothing needed shipping; that is a success.
+  const skipped = (d) => /no content change|checking build content for changes/i.test(String(d.error_message || ''));
+  const prod = deploys.filter((d) => d.context === 'production' && !skipped(d));
   const latest = prod[0] || null;
   const lastGood = prod.find((d) => d.state === 'ready') || null;
   const budget = envBudget(envRows);
