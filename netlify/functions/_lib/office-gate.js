@@ -24,7 +24,7 @@ const PLATFORM_TAGS = new Set(['platform_signup', 'prospect_message']);
 // every page still looked healthy). Exactly one tag, owner only, and it can only fire when
 // a production build is red - a handful of times a year, not a flood. This is the narrow
 // door he asked for; the rest of HEALTH_TAGS stays shut.
-const SHIP_TAGS = new Set(['deploy_down']);
+const SHIP_TAGS = new Set(['deploy_down', 'migration_down']);
 const ALLOWED_TO_TEDDY = new Set([...CASH_INTAKE_TAGS, ...WARRANTY_INTAKE_TAGS, ...PLATFORM_TAGS, ...SHIP_TAGS]);
 
 // Kept defined (not allowlisted) so morning-us can one-line-restore system-health pings

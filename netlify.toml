@@ -1265,3 +1265,16 @@
 # ANTHROPIC_API_KEY (both already vaulted).
 [functions."ai-scoreboard-cron"]
   schedule = "0 13 * * 1"
+
+# platform-migration-watch-cron (2026-09-10) - the thing that tells a HUMAN the migration
+# broke. Nine crons now carry TN between Xano and Supabase and nothing watched any of them:
+# on 2026-09-10 the mirror wrote nothing for 45 minutes while every run reported healthy, and
+# a tee quietly wrote ~2,400 duplicate rows/day for four days. Both were found by hand.
+# This watches the DATA (mirror freshness, unconsumed booking queue, thread-flood, parity),
+# never a function's own self-report, and texts the owner once with a 6h re-nag + one
+# recovery text. Its alert tag 'migration_down' is allowlisted in _lib/office-gate SHIP_TAGS
+# or it would be written and delivered nowhere. Kill: vault PLATFORM_MIGRATION_WATCH=false.
+# Curl-testable core: platform-migration-watch?secret=<admin>&dry=1 (never texts).
+# Offset to :07/:22/:37/:52 so it never lands on the same minute as the crons it is judging.
+[functions."platform-migration-watch-cron"]
+  schedule = "7-59/15 * * * *"
