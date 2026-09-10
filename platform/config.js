@@ -12,9 +12,6 @@ window.ANT_SUPABASE = {
   anonKey: 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7',
 };
 
-// Demo auto-login is OFF — real customers are signing up now (customer #1 = TN Appliance Exchange).
-// setup-bypass.js is fully inert while this is false, so every office/tech seat respects the real
-// signed-in login (leaving it true CLOBBERED a real owner's session back into the demo tenant).
-// To temporarily re-open the no-login demo again for internal board work, flip back to true — but
-// NEVER while real customers are onboarding.
-window.ANT_SETUP_BYPASS = false;
+// (The ANT_SETUP_BYPASS demo auto-login flag lived here. It and setup-bypass.js were removed on
+// 2026-09-10 — real customers sign in on these seats now, and that shim signed ANY non-demo
+// session out and into the demo tenant. Demo work uses the demo login like anyone else.)

@@ -16,18 +16,21 @@
 'use strict';
 
 const Stripe = require('stripe');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, criticalSecret } = require('./_lib/secrets');
 const SITE = 'https://tnapplianceexchange.net';
 const PLATFORM_ANON = 'sb_publishable_gtcSGgZWhqkrUxdPxFhKrA_CwUBcyq7';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 
-async function stripeKey() { return (await getSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await getSecret('STRIPE_SECRET_KEY')) || ''; }
+// criticalSecret (env-first + fresh + retry-on-empty): a cold-container empty read here doesn't
+// error, it silently no-ops a paying shop's Connect onboarding and card payouts. Same treatment as
+// billing/webhook/provision. (2026-09-10)
+async function stripeKey() { return (await criticalSecret('PLATFORM_STRIPE_SECRET_KEY')) || (await criticalSecret('STRIPE_SECRET_KEY')) || ''; }
 function keyMode(k) { return /^sk_live_|^rk_live_/.test(k) ? 'live' : (/^sk_test_|^rk_test_/.test(k) ? 'test' : 'unknown'); }
 
 async function cfg() {
-  const url = String((await getSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
-  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  const url = String((await criticalSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
+  const key = (await criticalSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
   return { url, key };
 }
 function db(base, key) {
