@@ -47,20 +47,29 @@ const blank = (v) => !s(v);
 // forward tee only fills platform blanks, so anything here was typed on the platform).
 // `parts_needed` is special on the Xano side: writing it also stamps verified_part_number,
 // which is the plain TEXT column the office board, Ann and vendor-chase all read.
+// ONLY THE TECH'S OWN INPUT TRAVELS BACK. The first dry-run wanted to write 47 fields across 38
+// jobs, and almost none of it was new - it was the forward tee's own DERIVED values trying to
+// round-trip. Two traps, both caught before a single live write:
+//   * `outcome` is NOT the tech's words. The forward tee CLASSIFIES Xano's repair_completed +
+//     final_recommendation prose into fixed / return_needed / not_fixable. Writing that token back
+//     into Xano would launder a machine inference into the system of record, on top of prose the
+//     tech actually wrote. Dropped entirely - it can never carry information Xano lacks.
+//   * `labor_hours` on the platform is read from Xano's **labor_time_hours** first. That is a
+//     DIFFERENT column from Xano's `labor_hours`, and it is the one techs actually fill - so
+//     checking `labor_hours` for blankness said "empty" on 30+ jobs whose hours Xano already had.
+//     Both columns must be blank before we send hours back.
 const MAP = [
   { xano: 'diagnosis',        from: (t) => s(t.root_cause) },
   { xano: 'failed_component', from: (t) => s(t.failed_component) },
   { xano: 'parts_needed',     from: (t) => s(t.part_number) },
-  { xano: 'repair_completed', from: (t) => s(t.outcome) },
   { xano: 'labor_hours',      from: (t) => (t.labor_hours == null || t.labor_hours === '' ? '' : String(t.labor_hours)) },
 ];
-// what each mapped Xano field is called on the Xano TDR row, for the "is it already filled?" read
+// Which Xano column(s) must ALL be blank before that field is considered missing there.
 const XANO_COL = {
-  diagnosis: 'diagnosis',
-  failed_component: 'failed_component',
-  parts_needed: 'verified_part_number',   // the text column the write actually lands on
-  repair_completed: 'repair_completed',
-  labor_hours: 'labor_hours',
+  diagnosis: ['diagnosis'],
+  failed_component: ['failed_component'],
+  parts_needed: ['verified_part_number', 'oem_part_number'],  // either one means Xano has the part
+  labor_hours: ['labor_time_hours', 'labor_hours'],           // labor_time_hours is the real one
 };
 
 exports.handler = async (event) => {
@@ -128,7 +137,7 @@ exports.handler = async (event) => {
       continue;   // never guess "it's blank" on a failed read - that is how you overwrite good data
     }
 
-    const todo = MAP.filter((m) => m.from(t) && blank(cur[XANO_COL[m.xano]]));
+    const todo = MAP.filter((m) => m.from(t) && XANO_COL[m.xano].every((c) => blank(cur[c])));
     if (!todo.length) { out.already_full++; continue; }
 
     const techId = techXano.get(t.job.technician_id) || 0;
