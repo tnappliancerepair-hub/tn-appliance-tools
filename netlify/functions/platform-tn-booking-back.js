@@ -164,7 +164,8 @@ async function runBookingBack(q) {
       // `scheduled_start > 0` test reads it as unscheduled, and drop the status back to the
       // pre-scheduled state so it lands in the office queue instead of sitting in Scheduled
       // with no day (which is exactly the 331-stale-job shape we are trying to stop creating).
-      if (Number(row.scheduled_start) > 0) { patch.scheduled_start = 0; why.push('unschedule'); }
+      // NULL, not 0 — that is the shape Xano's own unscheduled jobs carry (probed on 21877).
+      if (Number(row.scheduled_start) > 0) { patch.scheduled_start = null; why.push('unschedule'); }
       if (cur === 'scheduled') { patch.scheduling_status = 'not_ready'; why.push('status->not_ready'); }
     }
 
