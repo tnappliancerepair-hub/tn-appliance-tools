@@ -11,8 +11,13 @@
 // hook to fire on. Inferring "the platform has a day, Xano is blank => the platform booked it"
 // is WRONG in a real case: Xano UNSCHEDULING a job looks byte-for-byte identical, and pushing
 // back would resurrect a booking someone deliberately cleared. So each booking surface stamps
-// job.platform_booked_at, and this pusher stamps platform_booked_pushed_at once Xano accepts.
-// A reschedule bumps booked_at past pushed_at and the job simply re-qualifies. (SQL 059)
+// job.platform_booked_at and this pusher CONSUMES it — clearing it back to null and recording
+// platform_booked_pushed_at for audit. `platform_booked_at is not null` therefore IS the pending
+// queue: bounded, indexable, and a reschedule simply re-stamps it. (SQL 059)
+//
+// It has to be a consumable queue rather than "booked_at > pushed_at" because PostgREST compares
+// a filter against a LITERAL, never another column — that shape read as ok:false on the first
+// live run and would have silently pushed nothing.
 //
 // NO SIDE EFFECTS — the same discipline as platform-tn-report-back. It writes through the
 // Metadata API, NOT danielle_schedule_parallel_job / reassign_job, both of which emit
@@ -97,14 +102,13 @@ async function runBookingBack(q) {
   const H = { apikey: key, Authorization: 'Bearer ' + key };
 
   // 1) the pending set — exact, from the stamp. Never inferred.
-  const sel = 'id,xano_id,scheduled_day,time_window,technician_id,status,platform_booked_at,platform_booked_pushed_at';
+  const sel = 'id,xano_id,scheduled_day,time_window,technician_id,status,platform_booked_at';
   const qs =
     `company_id=eq.${TN_COMPANY}&xano_id=not.is.null&platform_booked_at=not.is.null` +
-    `&or=(platform_booked_pushed_at.is.null,platform_booked_pushed_at.lt.platform_booked_at)` +
     `&select=${sel}&order=platform_booked_at.asc&limit=${max}`;
   const pr = await fetch(`${url}/rest/v1/job?${qs}`, { headers: H, signal: AbortSignal.timeout(15000) });
   const pending = await pr.json().catch(() => null);
-  if (!Array.isArray(pending)) return { ok: false, error: 'platform read failed', detail: String(pending).slice(0, 200) };
+  if (!Array.isArray(pending)) return { ok: false, error: 'platform read failed', detail: JSON.stringify(pending).slice(0, 300) };
 
   // 2) platform tech uuid -> Xano tech int
   const tr = await fetch(`${url}/rest/v1/technician?company_id=eq.${TN_COMPANY}&select=id,xano_tech_id,name`, {
@@ -194,11 +198,14 @@ async function runBookingBack(q) {
   return out;
 }
 
+// Consume the queue entry. Clearing booked_at is what bounds the pending set; pushed_at is
+// kept purely as an audit trail. If this PATCH fails after a successful Xano write the job
+// re-qualifies next run, and the re-push is a no-op that clears it — safe either way.
 async function stampPushed(url, H, platformJobId) {
   await fetch(`${url}/rest/v1/job?id=eq.${platformJobId}`, {
     method: 'PATCH',
     headers: Object.assign({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }, H),
-    body: JSON.stringify({ platform_booked_pushed_at: new Date().toISOString() }),
+    body: JSON.stringify({ platform_booked_at: null, platform_booked_pushed_at: new Date().toISOString() }),
     signal: AbortSignal.timeout(12000),
   }).catch(() => {});
 }
