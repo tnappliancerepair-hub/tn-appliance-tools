@@ -257,10 +257,17 @@ exports.handler = async function (event) {
     const RETENTION_DAYS = 30; // Teddy 2026-08-28: keep 30 days after a client leaves, then purge.
     const slug = String(q.slug || '').toLowerCase().trim();
     if (!slug) return json(200, { ok: false, error: 'slug required' });
-    if (slug === 'tn-appliance') return json(200, { ok: false, error: 'refusing to purge the flagship' });
+    // Guard the tenant that actually matters. This used to name 'tn-appliance', which WAS the
+    // flagship in August and is now a dead duplicate - so the guard protected a tenant we want
+    // gone while leaving the real one, holding TN's entire book, completely unprotected. Keyed on
+    // company_id as well as slug, because a slug can be renamed and a uuid cannot.
+    const PROTECTED_SLUGS = ['tn-appliance-exchange-llc'];
+    const PROTECTED_IDS = ['be4d11a1-5219-469b-916a-ab990be7ea7f'];
+    if (PROTECTED_SLUGS.indexOf(slug) >= 0) return json(200, { ok: false, error: 'refusing to purge TN Appliance Exchange LLC - the live tenant' });
     const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name,status,churned_at`);
     const co = cos && cos[0];
     if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+    if (PROTECTED_IDS.indexOf(String(co.id)) >= 0) return json(200, { ok: false, error: 'refusing to purge a protected tenant (' + co.name + ')' });
     if (co.status !== 'churned') return json(200, { ok: false, error: 'not churned — offboard the client first (status=' + co.status + ')' });
     const force = q.force === 'yes';
     const daysSinceChurn = co.churned_at ? (Date.now() - Date.parse(co.churned_at)) / 86400000 : 0;
