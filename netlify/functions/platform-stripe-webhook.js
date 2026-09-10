@@ -174,6 +174,7 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
         owner_email: email, owner_seat_pw: (pd.login && pd.login.temp_password) || '', owner_preexisting: 1 }) };
     await provision.handler(sev);
   } catch (_) {}
+
   // Exactly-once gate. The redirect path (platform-signup-verify) AND the webhook both provision,
   // and a non-2xx now makes Stripe RE-DELIVER — so the welcome email has to sit INSIDE this gate,
   // not outside it, or a race/redelivery mails the owner twice. (2026-09-10)
@@ -183,6 +184,23 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
     already = !!(ex && ex.length);
   } catch (_) {}
   if (already) return companyId;
+
+  // DURABLE CREDENTIAL. The redirect path shows the owner their password on the success screen and
+  // vaults it on the way past. A customer who closes the tab before Stripe redirects never touches
+  // that path, so their only way in was a magic link — and if it expired, or SES dropped it, no
+  // password existed anywhere for anyone to hand them. resetpw&once is idempotent: it reveals an
+  // already-vaulted password instead of resetting one, so whichever path gets here first wins and
+  // the other no-ops. It sits behind the exactly-once gate (so the redirect path, which does far
+  // less work, has almost always vaulted first) and after shoppack (so the pack it syncs exists).
+  // Residual: two truly simultaneous provisions could both find the vault empty and both reset —
+  // the shown password would then be stale, recoverable via the magic link or resetpw&reveal.
+  // Best-effort either way; the owner is provisioned regardless. (2026-09-10)
+  let pwVaulted = false;
+  try {
+    const rev = { queryStringParameters: { secret: admin, action: 'resetpw', slug, once: '1' } };
+    const rd = JSON.parse((await provision.handler(rev)).body || '{}');
+    pwVaulted = !!(rd && rd.ok && rd.saved);
+  } catch (_) {}
 
   // Email the owner a magic login link (best-effort; dry unless EMAIL_ENABLED).
   let link = '', emailed = false, emailMode = 'skipped';
@@ -213,18 +231,27 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
     console.log('[platform-stripe-webhook] provisioned', JSON.stringify({ slug, owner_email: email, emailed, email_mode: emailMode, login_link: link || null }));
     await pf.insert('event', {
       company_id: companyId, type: 'platform_signup_provisioned', entity: slug,
-      payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode, terms_version: meta.terms_version || null, terms_at: meta.terms_at || null },
+      payload: { slug, owner_email: email, name: meta.name || slug, ref: refCode || null, login_link: link || null, emailed, email_mode: emailMode, password_vaulted: pwVaulted, terms_version: meta.terms_version || null, terms_at: meta.terms_at || null },
     });
     // 🎉 Tell Teddy a shop just started a free trial — text + email (best-effort, never blocks).
     try {
       const notify = require('./_lib/platform-notify');
       const planLabel = meta.plan || 'office';
       const shopName = meta.name || slug;
+      // Say whether the login email ACTUALLY went. This notify used to celebrate every signup
+      // identically, so a paying owner sitting there with no credentials looked exactly like a
+      // clean one. If it didn't send, say so and say how to get them in. (2026-09-10)
+      const mailSms = emailed
+        ? ' Login link emailed.'
+        : ` ⚠️ LOGIN EMAIL DID NOT SEND (${emailMode}) — they have NO way in yet. Get their password from /packs (or resetpw&reveal for ${slug}) and send it.`;
+      const mailBody = emailed
+        ? `Login link: emailed (${emailMode}).`
+        : `⚠️ LOGIN EMAIL DID NOT SEND (${emailMode}). This owner has paid and has a shop, but nothing has reached them — they cannot sign in until you send credentials.\nTheir password is vaulted${pwVaulted ? '' : ' (vaulting reported a problem — check it)'}: ${SITE}/.netlify/functions/platform-provision?action=resetpw&secret=<admin>&slug=${slug}&reveal=1&once=1\nOr open ${SITE}/packs and read the owner row.`;
       await notify.notifyOperator({
         tag: 'platform_signup',
-        sms: `🎉 New AssistAnt signup: ${shopName} (${email}) — ${planLabel} plan, 14-day trial started.${refCode ? ' ref:' + refCode : ''}`,
-        subject: `New AssistAnt signup — ${shopName}`,
-        email_body: `A new shop just started a free trial.\n\nShop: ${shopName}\nEmail: ${email}\nPlan: ${planLabel}\nSlug: ${slug}${refCode ? '\nReferral: ' + refCode : ''}\nStarted: ${new Date().toISOString()}\n\nOperator dashboard: ${SITE}/platform-dashboard\nAll shops: ${SITE}/shops`,
+        sms: `🎉 New AssistAnt signup: ${shopName} (${email}) — ${planLabel} plan, 14-day trial started.${refCode ? ' ref:' + refCode : ''}${mailSms}`,
+        subject: `${emailed ? 'New AssistAnt signup' : '⚠️ New AssistAnt signup — LOGIN NOT DELIVERED'} — ${shopName}`,
+        email_body: `A new shop just started a free trial.\n\nShop: ${shopName}\nEmail: ${email}\nPlan: ${planLabel}\nSlug: ${slug}${refCode ? '\nReferral: ' + refCode : ''}\nStarted: ${new Date().toISOString()}\n\n${mailBody}\n\nOperator dashboard: ${SITE}/platform-dashboard\nAll shops: ${SITE}/shops`,
       });
     } catch (_) {}
     // 📈 AD FEEDBACK — teach ChatGPT/OpenAI Ads that a SaaS signup CONVERTED, so the /guide
