@@ -155,6 +155,32 @@ Two bugs, both mine, both from the same afternoon's fixes. Neither raised an ala
   and latency. There is no way to tell a genuinely short table from pages you are losing from the
   outside; build the probe instead of guessing. (I guessed twice first and was wrong twice.)
 
+### 🛡️ THE MIRROR WAS ERASING THE OFFICE'S OWN WORK — two more fields, PROVEN LIVE
+The 9/8 guard stopped the mirror reverting a tech's `status`/`completed_at`. It stopped there, and
+the mirror still rewrote **every other field from Xano on every 5-minute run** — including the ones
+the board drawer lets the office EDIT. **Proven live on job 19713: typed an availability on the
+platform, one mirror run blanked it.** While we are asking the office to work here, that is
+indistinguishable from *"the new system doesn't save"* — the exact trust-killer, third time.
+- **Bug 1 — a booking made here vanished in ≤5 min.** `technician_id` / `scheduled_day` /
+  `scheduled_start` were written unconditionally, so the office booking a job on the platform board
+  watched it come back unscheduled — on the single action the office does most. Folded into the
+  existing never-walk-backwards guard (it already reads the current platform row).
+- **Bug 2 — a blank from Xano overwrote typed text.** `problem`, `availability`, customer
+  name/phone/city/state/zip, unit `label` + `attributes` (model/serial). New **`keepTyped()`**
+  helper guards all three tables.
+- **THE RULE (narrow on purpose): an EMPTY Xano value may never replace a non-empty platform value.
+  A DIFFERENT non-empty value still wins** — Xano stays the system of record, so a genuine
+  correction there still lands, and fixing a typo still belongs in Xano until intake moves over.
+- **⚠️ SUBSTITUTE the value, never drop the key** — differing key sets are what triggered the
+  PGRST102 that failed the entire job upsert earlier today. `attributes` is guarded key-by-key
+  (merge-duplicates replaces that jsonb column whole), and the `'Appliance'` label placeholder
+  counts as blank so it can't overwrite a real appliance name.
+- **Verified:** re-ran the exact failing test → value survives; mirror still writes 1,174 jobs in
+  ~9.9s. Test residue cleaned to zero.
+- **⏭️ STILL OPEN:** the reverse direction. Nothing carries a platform edit back INTO Xano, so
+  while both systems are live the Xano board/tech app won't see work done here. Fine while the
+  platform is the practice surface; it must be settled before the office works here full-time.
+
 ### 🗑️ THE OFFICE'S "NEW" COLUMN WAS 77% WARRANTY EMAILS THAT BECAME JOBS
 The platform surfaces Xano's `needs_more_info` jobs, which the legacy board **cannot show at all**
 (that status isn't in `get_office_kanban`'s allow-list) — so the office has been blind to 486 jobs.
