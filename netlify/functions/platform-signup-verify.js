@@ -60,7 +60,15 @@ exports.handler = async function (event) {
   // DEAD-SIMPLE HANDOFF. The owner should never be stranded or confused: hand back their dashboard
   // link, their login email, and their password — right on the success screen — plus a one-tap magic
   // link. So it's "here's your link, here's your login, here's your password — you can't mess it up."
-  const slug = String(meta.slug || '').trim();
+  // Authoritative slug from the company we actually landed on — NOT the one stamped into Stripe
+  // metadata. Provision's collision guard reassigns the slug when that name already belongs to
+  // another owner, and resetpw below vaults the password under PLATFORM_OWNER_PW_<slug>: on the
+  // metadata slug that would write this owner's password into the OTHER shop's key. (2026-09-10)
+  let slug = String(meta.slug || '').trim();
+  try {
+    const cr = await pf.get(`company?id=eq.${encodeURIComponent(companyId)}&select=slug&limit=1`);
+    if (cr && cr[0] && cr[0].slug) slug = cr[0].slug;
+  } catch (_) {}
   const email = String(meta.email || '').trim().toLowerCase();
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   const dashboardUrl = `${origin}/platform/owner.html`;

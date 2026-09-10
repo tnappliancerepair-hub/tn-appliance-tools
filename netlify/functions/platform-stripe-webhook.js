@@ -88,7 +88,7 @@ exports.config = { timeout: 26 };
 async function provisionFromMeta(pf, stripe, sub, meta) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   const email = String(meta.email || '').trim().toLowerCase();
-  const slug = String(meta.slug || '').trim();
+  let slug = String(meta.slug || '').trim();
   if (!slug || !email) return null;
   // Referral attribution — only credit a code that matches a real ACTIVE partner (a stray
   // ?ref= from the URL must not attribute to a nobody). Validated via the service key.
@@ -137,6 +137,14 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
     throw perr;
   }
   const companyId = pd.company.id;
+  // Follow the slug provision ACTUALLY used. Its collision guard hands back a fresh slug when the
+  // one signup stamped into Stripe metadata already belongs to a different owner (two shops, same
+  // name). Everything below keys off slug — the crew pack most of all — so staying on the metadata
+  // slug here would build this owner's team inside the other shop. (2026-09-10)
+  if (pd.company.slug && pd.company.slug !== slug) {
+    console.warn('[platform-stripe-webhook] slug reassigned by provision:', slug, '->', pd.company.slug);
+    slug = pd.company.slug;
+  }
   // Stamp the accepted Merchant Agreement (durable acceptance audit) + the Ann request flag onto
   // settings. Always record terms when the signup carried a version; add the Ann flag if ticked.
   if (meta.terms_version || String(meta.want_ann) === '1') {

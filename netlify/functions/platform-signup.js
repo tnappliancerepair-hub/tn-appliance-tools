@@ -119,8 +119,11 @@ exports.handler = async function (event) {
   const pf = await platform();
   if (!pf) return J(200, { ok: false, error: 'platform_not_configured', message: "We're having a brief hiccup on our end — give it a moment and tap the button again." });
 
-  // Reserve a unique slug now (so the webhook never attaches a paid signup onto an existing
-  // shop). We don't create anything yet — just pick a free slug and stash it in checkout meta.
+  // Pick a free slug now and stash it in checkout meta. This is a READ, not a reservation — we
+  // create nothing until the card clears, so two signups under the same shop name inside the same
+  // window can both leave here holding it. The real protection is downstream: provision refuses to
+  // attach an owner onto a company that already belongs to someone else and forks a fresh slug
+  // instead (see the collision guard in platform-provision.js). (2026-09-10)
   let slug = slugify(name);
   for (let i = 0; i < 6; i++) {
     const ex = await pf.get(`company?slug=eq.${encodeURIComponent(slug)}&select=id&limit=1`);

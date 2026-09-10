@@ -904,7 +904,7 @@ exports.handler = async function (event) {
     return json(200, { ok: true, slug: slug0, pack: pack || null, note: pack ? undefined : 'no pack stored — build one with action=shoppack' });
   }
 
-  const slug = String(q.slug || '').toLowerCase().trim();
+  let slug = String(q.slug || '').toLowerCase().trim();
   const name = (q.name || '').trim();
   if (!slug || !name) return json(200, { ok: false, error: 'slug and name required' });
   const trade = (q.trade || 'appliance').trim();
@@ -937,8 +937,44 @@ exports.handler = async function (event) {
 
   // 2) Company (idempotent by slug).
   let company = null;
+  let slugCollision = null;
   const cg = await rest(`company?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,trade,plan,referred_by&limit=1`);
   if (Array.isArray(cg.d) && cg.d[0]) company = cg.d[0];
+
+  // CROSS-TENANT COLLISION GUARD. Signup picks a slug by READING the company table and stamps it
+  // into Stripe metadata; nothing is created until the card clears. So two owners who sign up under
+  // the same shop name in one window both carry the same slug, both pay, and the second one would
+  // land here and be attached as a SECOND OWNER on the FIRST one's company — customer B inside
+  // customer A's shop, seeing A's jobs and customers.
+  //
+  // If this slug already belongs to a company whose owner is somebody else, that is a collision,
+  // never an idempotent re-run: take a fresh slug and stand up a separate company instead. An
+  // orphan company with no owner yet still attaches (that's the recovery path this is built on),
+  // and an operator who genuinely means to attach a second owner can pass &attach=1. (2026-09-10)
+  if (company && email && q.attach !== '1') {
+    let owners = [];
+    try {
+      const og = await rest(`app_user?company_id=eq.${encodeURIComponent(company.id)}&role=eq.owner&select=auth_user_id,email`);
+      owners = Array.isArray(og.d) ? og.d : [];
+    } catch (_) {}
+    const mine = owners.some((o) => (uid && o.auth_user_id === uid)
+      || String(o.email || '').trim().toLowerCase() === email.toLowerCase());
+    if (owners.length && !mine) {
+      const taken = slug;
+      let cand = '';
+      for (let i = 0; i < 8 && !cand; i++) {
+        const t = taken + '-' + Math.random().toString(36).slice(2, 5);
+        const ex = await rest(`company?slug=eq.${encodeURIComponent(t)}&select=id&limit=1`);
+        if (!(Array.isArray(ex.d) && ex.d[0])) cand = t;
+      }
+      // Timestamp suffix can't collide, so the guard can never fall through to a cross-wire.
+      slug = cand || (taken + '-' + Date.now().toString(36));
+      slugCollision = { requested: taken, assigned: slug, existing_company_id: company.id };
+      console.error('[platform-provision] slug collision — "' + taken + '" belongs to another owner; standing up a separate shop as "' + slug + '"');
+      company = null;
+    }
+  }
+
   if (!company) {
     const settings = { business: { name, phone: (q.owner_phone || '').replace(/[^\d+]/g, ''), area: q.area || '' }, site: { subdomain } };
     const features = { database: true, scheduling: true, portal: true, invoicing: true };
@@ -947,6 +983,13 @@ exports.handler = async function (event) {
     const ins = await rest('company', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
     if (!ins.ok) return json(200, { ok: false, step: 'create_company', status: ins.status, error: JSON.stringify(ins.d).slice(0, 300) });
     company = Array.isArray(ins.d) ? ins.d[0] : ins.d;
+    // Durable record of a collision, so "why is this shop's slug suffixed?" has an answer later.
+    if (slugCollision && company) {
+      try {
+        await rest('event', { method: 'POST', body: JSON.stringify({
+          company_id: company.id, type: 'platform_slug_collision', entity: slug, payload: slugCollision }) });
+      } catch (_) {}
+    }
   } else if (ref && !company.referred_by) {
     // Existing shop, not yet attributed — gentle backfill (never clobbers an existing referrer).
     try { await rest(`company?id=eq.${company.id}`, { method: 'PATCH', body: JSON.stringify({ referred_by: ref, referred_at: new Date().toISOString() }) }); company.referred_by = ref; } catch (_) {}
@@ -987,6 +1030,7 @@ exports.handler = async function (event) {
   return json(200, {
     ok: true,
     seeded,
+    slug_collision: slugCollision || undefined,
     company: { id: company.id, slug: company.slug, name: company.name, trade: company.trade, plan: company.plan, referred_by: company.referred_by || (ref || null) },
     login: { email, temp_password: tempPw, note: userNote },
     owner_linked: ownerLinked,
