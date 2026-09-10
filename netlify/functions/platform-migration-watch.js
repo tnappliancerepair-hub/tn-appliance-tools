@@ -39,6 +39,7 @@ const FLOOD_PER_HR  = 200;  // a looping writer, not a busy day
 const PARITY_MAX    = 5;    // honest baseline on 2026-09-10 was 1
 const DRIFT_MAX     = 10;   // baseline 1
 const RENAG_HOURS   = 6;
+const PARITY_MS     = 20000; // hard ceiling on the Xano walk
 
 const json = (s, b) => ({ statusCode: s, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
 const key = () => process.env.PLATFORM_SUPABASE_SERVICE_KEY || '';
@@ -109,19 +110,28 @@ async function runChecks(opts) {
     if (n > FLOOD_PER_HR) fails.push(`thread flood — ${n} messages written in the last hour (a writer is looping)`);
   } catch (e) { /* non-fatal: never page on the canary itself */ }
 
-  // 4. PARITY — expensive (full Xano walk), so hourly unless forced.
+  // 4. PARITY — a full Xano walk (7 statuses x pages). Expensive, so hourly unless forced,
+  //    and hard-bounded: on a slow Xano this exceeds the 26s edge limit for a MANUAL call
+  //    while the scheduled run (15-min allowance) still completes. A check that can silently
+  //    never run is worse than no check, so a skip is REPORTED in stats rather than vanishing.
   const ct = new Date(Date.now() - 5 * 3600000).getUTCMinutes();
   if (o.full || ct < 15) {
     try {
       const parity = require('./platform-tn-parity');
-      const p = await parity.runParity({});
+      const p = await Promise.race([
+        parity.runParity({}),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('parity_timeout')), PARITY_MS)),
+      ]);
       stats.missing_from_platform = p.missing_from_platform;
       stats.status_drift = p.status_drift;
       stats.platform_only_open = p.platform_only_open;
       if (p.missing_from_platform > PARITY_MAX) fails.push(`${p.missing_from_platform} real Xano jobs missing from the platform`);
       if (p.status_drift > DRIFT_MAX) fails.push(`${p.status_drift} jobs where the platform is ahead of Xano`);
-    } catch (e) { /* parity is a bonus signal; its own failure must not page */ }
-  }
+    } catch (e) {
+      // Xano being slow is not a migration failure — do not page on it. But say so out loud.
+      stats.parity_skipped = String((e && e.message) || e).slice(0, 40);
+    }
+  } else stats.parity_skipped = 'not_this_tick';
 
   return { fails, stats };
 }

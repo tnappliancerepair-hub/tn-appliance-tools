@@ -1,5 +1,72 @@
 # Appliance Ant
 
+## 📞💬 2026-09-10 (late) — ARE TEXTS + PHONES SOLID ON SUPABASE? Honest answer: THE BRAIN MOVED, THE PIPE DIDN'T — plus a 14,160-row runaway writer — READ FIRST
+
+Teddy asked two things back to back: *"What else can we do to harden this supabase"* and *"Are text
+and phones solid on Supabase"*. Measured both instead of asserting.
+
+### 🐛 THE RUNAWAY WRITER — one customer's waiver note existed **492 times** (found by measuring, fixed)
+`platform-tn-intake-tee` re-reads the **newest 25 `customer_waiver_signed` events every run** and its
+comment says *"idempotent -> re-covering the window is cheap."* **The job patch is idempotent. The
+`thread_message` insert is not.** So 25 waivers × 96 ticks/day = **~2,400 junk rows/day**, for days.
+- **Measured: 14,160 of 15,133 waiver notes were duplicates** (973 real). TN `thread_message`
+  **15,190 → 1,187 rows.** It was burying real customer messages in the office board thread, the
+  customer portal, and the tech's conversation view.
+- **This is the actual root cause of the 14,072-row table** that forced the `board_latest_inbound()`
+  RPC on 2026-09-10 AM. That RPC treated the symptom; this was the disease. Keep the RPC (history
+  still grows) — but the table is now ~92% smaller.
+- **Fix:** read the platform job's `waiver_signed_at` alongside the id resolve and write the note
+  **only the first time**. On a failed read it SKIPS the note rather than risk re-spamming (the patch
+  still lands; the next clean run posts it). Reports `noted` / `renoted_skipped`.
+  **Verified live: `scanned 25 · noted 0 · renoted_skipped 25`.**
+- **⚠️ STANDING RULE: "this pass is idempotent" is a claim about EVERY write in it.** A re-read window
+  + an unguarded insert is a row generator. Any tee/sweep that re-covers a window must gate each
+  insert on a first-time check, not on the enclosing function's reputation.
+
+### 🔭 NOTHING WATCHED THE NINE MIGRATION CRONS — `platform-migration-watch` (NEW, cron `7-59/15`)
+Nine crons carry TN between the systems and **the only alert that reached Teddy was `deploy_down`.**
+Two failures the same day prove the gap: the mirror wrote nothing for 45 min while every run reported
+healthy, and the tee above ran wild for days. **Both were found by hand.**
+It watches the **DATA, never a function's self-report** (the day's standing lesson):
+**mirror_stale** (no job row touched in 20m; mirror runs every 5) · **booking_stuck** (a platform
+booking unconsumed past 25m) · **thread_flood** (>200 thread rows/hr = a writer is looping — this
+**generalizes the waiver bug so the whole class is caught next time**) · **parity_gap** ·
+**status_drift**. Dedup + 6h re-nag + ONE recovery text.
+- **Watch state lives on the PLATFORM, not Xano** — a monitor for the migration off Xano must not die
+  when Xano does.
+- **⚠️ `migration_down` had to be added to `_lib/office-gate` `SHIP_TAGS`** or the alert is written and
+  delivered NOWHERE (the 2026-08-28 office-SMS kill). Every future alert needs the same allowlisting.
+
+### 📞💬 THE HONEST ANSWER ON TEXTS + PHONES
+**The brain reads Supabase. The pipe is still Telnyx-via-Xano. TN itself has no platform phone number.**
+
+| | where it runs today | solid? |
+|---|---|---|
+| **Phone brain** (who's calling, what's their job, what day) | **Supabase** — `job-truth` answers from the mirror; verified live `source=mirror` | ✅ yes |
+| **TN's actual phone line** (Ann) | **Xano/Vapi/Telnyx.** `company.settings.phone` for TN is **NULL** — TN has no platform-owned DID | ⚠️ not migrated |
+| **Text thread of record** (office ↔ tech ↔ customer) | **Supabase** `thread_message` — 92 inbound customer SMS + office/tech replies land here | ✅ yes |
+| **Outbound send** | `guardedSend` → `deliver()` → **`xanoSend`** for every non-`platform_*` tag | ⚠️ Xano in the path |
+| **Opt-out / STOP** | **Supabase** `sms_guard_event`, one keyed lookup, complete history (Xano = fallback) | ✅ yes |
+| **Per-shop templates + toggles** | **Supabase** `company.settings.comms` (TN has overrides set) | ✅ yes |
+| **Review asks** | platform side sends **nothing** — TN's `review_url` is `""` (by design). Xano's sweep still runs | ⚠️ Xano-only |
+
+- **`sms_guard_event` has 1 `sms_guard_sent` row, and that is CORRECT** — proactive customer texting is
+  off by owner directive, so almost nothing flows through `guardedSend`. Low volume ≠ broken plumbing.
+- **The one thing that would break if Xano vanished today: outbound customer texts.** Inbound, the
+  thread, the opt-out list and the phone brain all survive. The fix when we want it is widening the
+  `PLATFORM_TAG_RE` direct-to-Telnyx door in `_lib/sms-guard.deliver()` — the mechanism already exists
+  and is proven (`PLATFORM_SMS_DIRECT`), it just only opens for `platform_*` tags today.
+- **TN gets its own Ann the same way any tenant does** — `platform-phone` buys the DID and builds the
+  assistant, then `action=update` lands warm-transfer. Nothing is missing; nobody has pulled the
+  trigger, because the Xano line is the one customers already know.
+
+### 🔒 RLS RE-AUDIT (post-041 surface) — CLEAN
+Every one of the 38 public tables has RLS **on**; **zero** have `using(true)`. 11 carry RLS with **zero
+policies = deny-all to clients** (`app_config`, `tenant_keyring`, `sms_guard_event`, `import_map/run`,
+`partner*`, `shop_application`, `trial_shop`, `trade_profile`, `prospect_message`) — correct: those are
+server-key-only. The 059 booking columns inherit `job`'s tenant policy. No action.
+
+
 ## ✅ 2026-09-10 (late) — "ARE WE CURRENT?" IS NOW A NUMBER — `platform-tn-parity` + the third write-back — READ FIRST
 
 Teddy: *"Ok we're current on Supabase now."* Checked it instead of taking it — and found the last
