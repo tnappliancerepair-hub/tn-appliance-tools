@@ -540,7 +540,20 @@ async function syncTnToPlatform(limit, opts) {
     console.error('[tn-mirror] status-guard skipped: ' + String((e && e.message) || e));
   }
 
-  const upJob = await upsert(url, key, 'job', jobRows, 'company_id,xano_id');
+  // PostgREST requires every object in a bulk upsert to carry an IDENTICAL key set, and
+  // rejects the whole batch with PGRST102 "All object keys must match" when they differ.
+  // That collides head-on with the report keys above, which are deliberately OMITTED on a
+  // miss so merge-duplicates can't blank a good report. One mixed array = a 400 that fails
+  // all 1,174 rows at once - and it did: the job upsert stopped landing entirely while every
+  // other write in the run kept succeeding, so the platform quietly went stale and only the
+  // OTHER writers' rows carried a fresh updated_at. Split by shape instead; each group is
+  // internally uniform and both keep the omit-on-miss semantics. (2026-09-10)
+  const withTdr = jobRows.filter((r) => 'tdr_diagnosis' in r);
+  const noTdr = jobRows.filter((r) => !('tdr_diagnosis' in r));
+  const upJob = [
+    ...(withTdr.length ? await upsert(url, key, 'job', withTdr, 'company_id,xano_id') : []),
+    ...(noTdr.length ? await upsert(url, key, 'job', noTdr, 'company_id,xano_id') : []),
+  ];
 
   return { ok: true, customers: upCust.length, units: upUnit.length, jobs: upJob.length, kanban: kanbanCount, kanban_error: kanbanError || undefined, ms: Date.now() - t0 };
 }
