@@ -167,17 +167,63 @@ exports.handler = async function (event) {
     }
 
     // ── search: find anyone to start a conversation with, job or no job. ──
+    // Search WHO and WHAT WAS SAID. Two gaps the office hit on day one: the inbox could
+    // only be searched by name or phone, so a conversation could only be found if you
+    // already knew whose it was; and nothing looked at the address, so there was no way to
+    // pull up an area. The office searches by where the work is at least as often as by
+    // who it's for, so both now match.
     if (doo === 'search') {
       const term = String(p.q || '').trim();
-      if (term.length < 2) return json(200, { ok: true, customers: [] });
-      const safe = term.replace(/[(),*]/g, ' ').trim();
+      if (term.length < 2) return json(200, { ok: true, customers: [], messages: [], total: 0 });
+      // Strip the characters that would break out of a PostgREST or=() list, then encode
+      // what's left so a two-word place ("Mount Juliet") survives the URL.
+      const safe = term.replace(/[(),*%]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!safe) return json(200, { ok: true, customers: [], messages: [], total: 0 });
+      const pat = encodeURIComponent(safe);
       const digits = safe.replace(/\D/g, '');
-      const ors = [`first_name.ilike.*${safe}*`, `last_name.ilike.*${safe}*`];
+      const lim = Math.min(Math.max(parseInt(p.limit, 10) || 200, 25), 500);
+
+      const ors = [
+        `first_name.ilike.*${pat}*`, `last_name.ilike.*${pat}*`,
+        `address.ilike.*${pat}*`, `city.ilike.*${pat}*`,
+        `state.ilike.*${pat}*`, `zip.ilike.*${pat}*`,
+        `email.ilike.*${pat}*`,
+      ];
       if (digits.length >= 4) ors.push(`phone.ilike.*${digits}*`);
-      const customers = await db.get(
-        `customer?company_id=eq.${companyId}&or=(${ors.join(',')})&select=id,first_name,last_name,phone,city&limit=25`
-      );
-      return json(200, { ok: true, customers: customers.map((c) => ({ ...c, name: nameOf(c) || 'Customer' })) });
+
+      const SEL = 'id,first_name,last_name,phone,city,address,zip';
+      const [people, hits] = await Promise.all([
+        db.get(`customer?company_id=eq.${companyId}&or=(${ors.join(',')})&select=${SEL}&order=last_name.asc&limit=${lim}`),
+        db.get(`thread_message?company_id=eq.${companyId}&customer_id=not.is.null&body=ilike.*${pat}*` +
+               `&select=customer_id,body,created_at,direction&order=created_at.desc&limit=200`),
+      ]);
+
+      // One message per person — the most recent one that matched, which is the line the
+      // office is actually looking for.
+      const best = new Map();
+      for (const m of (hits || [])) if (m.customer_id && !best.has(m.customer_id)) best.set(m.customer_id, m);
+
+      // Anyone whose TEXT matched but whose details didn't still has to be reachable.
+      const known = new Map((people || []).map((c) => [c.id, c]));
+      const missing = [...best.keys()].filter((id) => !known.has(id)).slice(0, 200);
+      if (missing.length) {
+        const extra = await db.get(`customer?id=in.(${missing.join(',')})&company_id=eq.${companyId}&select=${SEL}&limit=200`);
+        for (const c of (extra || [])) known.set(c.id, c);
+      }
+
+      const shape = (c) => ({ ...c, name: nameOf(c) || 'Customer' });
+      const messages = [...best.entries()]
+        .filter(([id]) => known.has(id))                        // company scope, enforced in code
+        .map(([id, m]) => ({
+          ...shape(known.get(id)),
+          snippet: String(m.body || '').slice(0, 160),
+          at: m.created_at,
+          direction: m.direction,
+        }));
+      const msgIds = new Set(messages.map((m) => m.id));
+      const customers = (people || []).map(shape).filter((c) => !msgIds.has(c.id));
+
+      return json(200, { ok: true, customers, messages, total: customers.length + messages.length });
     }
 
     return json(200, { ok: false, error: 'unknown do' });

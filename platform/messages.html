@@ -212,11 +212,19 @@
         api('search',{q:q}).then(function(d){
           if(!d.ok) return;
           var box=document.getElementById('convlist'); if(!box) return;
-          box.innerHTML=(d.customers||[]).length
-            ? (d.customers||[]).map(function(c){
-                return '<button class="conv" data-c="'+esc(c.id)+'"><div class="top"><span class="nm">'+esc(c.name)+'</span></div>'+
-                       '<div class="pv">'+esc(c.phone||'no phone')+(c.city?' · '+esc(c.city):'')+'</div></button>'; }).join('')
-            : '<div class="empty">Nobody by that name.</div>';
+          var msgs=d.messages||[], cust=d.customers||[];
+          // Where the person lives is the point of an area search, so show it on the row.
+          function where(c){ var bits=[]; if(c.city) bits.push(c.city); if(c.zip) bits.push(c.zip); return bits.join(' '); }
+          function row(c, snip){
+            return '<button class="conv" data-c="'+esc(c.id)+'"><div class="top"><span class="nm">'+esc(c.name)+'</span></div>'+
+                   '<div class="pv">'+esc(c.phone||'no phone')+(where(c)?' · '+esc(where(c)):'')+'</div>'+
+                   (snip?'<div class="pv" style="opacity:.75;font-style:italic">“'+esc(snip)+'”</div>':'')+'</button>';
+          }
+          function head(t){ return '<div class="pv" style="padding:8px 12px 4px;font-weight:700;opacity:.7;text-transform:uppercase;letter-spacing:.06em;font-size:11px">'+esc(t)+'</div>'; }
+          var html='';
+          if(msgs.length) html+=head('In their texts — '+msgs.length)+msgs.map(function(c){ return row(c,c.snippet); }).join('');
+          if(cust.length) html+=head((msgs.length?'Other people':'People')+' — '+cust.length)+cust.map(function(c){ return row(c,''); }).join('');
+          box.innerHTML = html || '<div class="empty">Nothing matched that name, place or text.</div>';
           box.querySelectorAll('.conv[data-c]').forEach(function(el){ el.onclick=function(){ openThread(el.getAttribute('data-c')); }; });
         });
       },260);
@@ -237,7 +245,7 @@
       '</nav>'+
       '<div class="split">'+
         '<div class="listcol">'+
-          '<input class="srch" id="srch" type="search" autocomplete="off" placeholder="🔍 Search anyone to text — name or phone">'+
+          '<input class="srch" id="srch" type="search" autocomplete="off" placeholder="🔍 Name, phone, city, ZIP — or words in a text">'+
           '<div id="convlist"><div class="empty">Loading…</div></div>'+
         '</div>'+
         '<div class="threadcol">'+
