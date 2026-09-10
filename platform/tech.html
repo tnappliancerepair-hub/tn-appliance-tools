@@ -65,6 +65,11 @@
   .badge{flex:0 0 auto;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;color:#fff;white-space:nowrap}
   .prob{margin-top:9px;font-size:14.5px}
   .intake{margin-top:10px;background:var(--chip);border-radius:10px;padding:10px 12px;font-size:13.5px}
+  .onote{display:block;border-left:3px solid #d99413;padding:2px 0 2px 9px;margin-bottom:8px}
+  .onote b{display:block;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#a8720c}
+  .onote span{display:block;white-space:pre-wrap;font-weight:600;color:#8a5a06;margin-top:2px}
+  :root[data-theme="dark"] .onote b,:root:not([data-theme="light"]) .onote b{color:#e0a94a}
+  :root[data-theme="dark"] .onote span,:root:not([data-theme="light"]) .onote span{color:#f5c368}
   .intake .irow{color:var(--ink)}
   .intake .imedia{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;align-items:center}
   .mtile{position:relative;display:inline-flex;width:68px;height:68px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#0b0d08;align-items:center;justify-content:center;flex:0 0 auto}
@@ -682,6 +687,11 @@
 
   function intakeHtml(j){
     var bits = [];
+    // The office's instruction for this stop, on its own line above everything else. It is
+    // what tells a tech the part already shipped or to carry a vent hose - the difference
+    // between one trip and two, so it does not get buried in the dot-separated details row.
+    var officeHtml = (j.office_notes && String(j.office_notes).trim())
+      ? '<div class="onote"><b>📋 From the office</b><span>'+esc(j.office_notes)+'</span></div>' : '';
     if (j.availability) bits.push('📅 <b>'+esc(j.availability)+'</b>');
     var media = j.media || [];
     var mediaHtml = '';
@@ -696,8 +706,8 @@
     media.filter(function(m){return m.kind==='photo'&&(m.provider==='storage'||m.provider==='r2');}).forEach(function(m){
       mediaHtml += '<a class="mtile ptile" target="_blank" rel="noopener" data-phhref="'+esc(m.ref)+'"><img data-ph="'+esc(m.ref)+'" alt=""><span class="phwait">\uD83D\uDCF7</span></a>';
     });
-    if (!bits.length && !mediaHtml) return '';
-    return '<div class="intake">'+(bits.length?'<div class="irow">'+bits.join(' &nbsp;·&nbsp; ')+'</div>':'')+(mediaHtml?'<div class="imedia">'+mediaHtml+'</div>':'')+'</div>';
+    if (!bits.length && !mediaHtml && !officeHtml) return '';
+    return '<div class="intake">'+officeHtml+(bits.length?'<div class="irow">'+bits.join(' &nbsp;·&nbsp; ')+'</div>':'')+(mediaHtml?'<div class="imedia">'+mediaHtml+'</div>':'')+'</div>';
   }
 
   // Photos live in R2 behind a tenant-scoped signer. After each render, batch-sign every
@@ -1307,7 +1317,7 @@
   }
   function loadJobs(){
     var q = sb.from('job').select(
-      'id,status,problem,scheduled_day,time_window,availability,waiver_name,waiver_signed_at,customer_id,' +
+      'id,status,problem,scheduled_day,time_window,availability,office_notes,waiver_name,waiver_signed_at,customer_id,' +
       'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held),' +
       'parts:job_part(name,number,source,ship_to,eta,order_status,disposition)'
