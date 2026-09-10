@@ -20,30 +20,41 @@ to separate the two, and it beats guessing. (Ruled out this way, each with evide
 clean under `npx esbuild --bundle`; the `netlify.toml` `ignore` command returns 1 = "build" as intended; a
 cache-cleared rebuild fails identically; Netlify's secret scanner found 0 matches across 5,567 files.)
 
-**Measure the budget before you add anything:**
-```
-netlify-admin?...&action=proxy&method=GET&path=/sites/<site_id>/env
-# sum len(key)+len(value)+1 for every var whose scopes include functions or runtime
-```
-**Measured ceiling: 3,320 bytes builds, 3,392 FAILS.** Netlify+AWS inject the rest of the 4,096.
-Today we sit at **3,307**. `XANO_METADATA_TOKEN` alone is **1,828 (55%)** — there is essentially NO headroom left.
+**Measure it correctly — two wrong ways, both of which read plausible:**
+- ❌ Netlify's env API sizes. It **masks any `is_secret` var to 20 chars** (7 of ours are), so
+  `ANTHROPIC_API_KEY` reads 38 bytes and is really ~127. Undercounts — the direction that walks you
+  into the ceiling. My first two budget numbers this day were wrong for exactly this reason.
+- ❌ Summing all of `process.env`. **Overcounts** — sweeps in AWS/Netlify runtime vars (PATH, AWS_*,
+  LAMBDA_*) that don't count. Read **6,002 against a 4,096 cap on a build that was green**.
+- ✅ **Key names from the API, real lengths from `process.env`.** That is what AWS weighs.
 
-**Rules going forward**
-- New secrets go to the **vault**, never Netlify env. The env is only for the two bootstrap keys that the vault
-  cannot serve to itself.
-- Prefer Supabase's modern **`sb_secret_…` (41 bytes)** over a legacy `service_role` JWT (219 bytes). Same access,
-  178 fewer bytes — but even the 41-byte version did not fit until bytes were freed elsewhere. `netlify-admin?action=vault_to_env&key=…` copies one in server-side so the value never
-  transits a chat or a shell.
-- A Netlify env change reaches functions **only on the next successful deploy**. If deploys are failing, the key
-  is not live no matter what the dashboard shows — that is exactly how the Supabase vault sat dormant all day.
-- Two deploys fire per push (production + branch). Both failing is one cause, not two.
+**The number, honestly measured: 3,118 / 4,096 — 978 bytes free.** `XANO_METADATA_TOKEN` is 1,829 of it (59%).
+Empirically this site built at ~3.7KB of our own vars and failed at ~3.97KB.
 
-**Bytes reclaimed today:** deleted `XANO_HCP_WEBHOOK_URL` (84 B). Provably a no-op — `hcp-webhook-proxy.js`
-falls back to `XANO_DEFAULT_URL`, the identical 63-char URL the env var held. HCP is decommissioned anyway.
+**🔔 `deploy-watch` now exists — this can't happen silently again.** Scheduled `*/10`, reads the newest
+PRODUCTION deploy, texts the owner when builds go red, re-nags at 6h, and says so when they recover. Also
+reports the env budget every pass and warns under 600 bytes free. Core is curl-testable
+(`deploy-watch?secret=&dry=1`); `deploy-watch-cron` is the thin scheduled wrapper.
+**`?test=1` fires one REAL text down the same path** — verified delivered 2026-09-10.
+⚠️ It only reaches him because `office-gate` gained ONE tag (`deploy_down`) in `SHIP_TAGS`. Every other
+health tag is still suppressed by Teddy's 2026-08-28 rule. **Any future alert must be allowlisted or it is
+written and delivered nowhere.**
 
-**⏭️ The real fix, still open:** `XANO_METADATA_TOKEN` is read raw from `process.env` in ~20 functions, so it
-cannot be vaulted without touching each one. Until it is, over half the env budget is a token for the system
-we are migrating off. That refactor is what permanently ends this squeeze.
+**🔑 `netlify-admin?action=env_to_vault&key=NAME`** — copies a value the function already holds into the
+vault **server-side** (never through a chat or shell), so a key can leave the 4KB budget without anyone
+re-pasting a secret. The reverse of `vault_to_env`. This is the tool that makes the ceiling survivable.
+
+**Reclaimed 2026-09-10:** `XANO_HCP_WEBHOOK_URL` (provable no-op — code falls back to the identical URL),
+plus 7 vault-backed vars with **zero** `process.env` readers: `SUPABASE_URL`, `OPENAI_API_KEY`,
+`DIGITS_CLIENT_ID/_SECRET/_REFRESH_TOKEN`, `TWILIO_ACCOUNT_SID/_AUTH_TOKEN`. Backed each up with
+`env_to_vault` first. 28 vars → 21.
+
+**⏭️ The real fix, still open — `XANO_METADATA_TOKEN` (1,829 bytes, 59% of the budget).** It is now SAFELY
+IN THE VAULT (via `env_to_vault`), so the prerequisite is done — but **122 files read it raw from
+`process.env`**, so deleting it from env would break them. Converting those readers to `getSecret` frees
+59% of the budget in one move and permanently ends this squeeze. Mechanical but a wide blast radius: do it
+in a dedicated window with a verification sweep, **never on a live office day**. Strategic note: all 122 are
+legacy **Xano** functions, so the problem also shrinks on its own as TN completes the move to Supabase.
 
 
 ## 🔑 TN'S REAL PLATFORM SEATS — the `tech1.`/`tech2.` logins are DECOYS (2026-09-10)
