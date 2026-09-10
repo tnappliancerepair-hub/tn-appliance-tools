@@ -1,5 +1,44 @@
 # Appliance Ant
 
+## 🚑 2026-09-10 (PM) — THE OFFICE-DOWN HOUR: four bugs wearing one costume (Xano saturation) — READ FIRST
+
+Danielle: *"Having issues on both systems. Old won't load new won't send text and having hard time to get all
+ppl to pull up."* It read as one collapsing system. It was **four independent bugs**, only ONE of which was Xano.
+
+- **🔎 Name search returned nothing.** A name lives in TWO columns, and the whole string was matched against
+  each separately — `"Cornell Jones"` matched neither `first_name` nor `last_name`, while `"Cornell"` alone
+  worked. She fell back to phone + WO numbers to find people. Fixed in `platform-messages do=search`: multi-word
+  queries match the words independently, in either order, **and the closest match is ranked first** (broadening
+  it also surfaces every other Jones, and alphabetical order buried the person she typed).
+- **📵 "New won't send text" — the platform could not text without Xano.** `guardedSend` made **~6 sequential
+  Xano event_log reads before every message** (opt-out, duplicate, 24h/7d caps, global cap), each a 500-row scan
+  with a 10s timeout AND a retry. At Xano's 4–25s the send never returned. **Fixed properly: the guard now has
+  its own indexed Supabase table `sms_guard_event`** (phone, action, at_ms). Opt-out = ONE keyed lookup instead
+  of two 500-row scans — faster AND more correct (sees history beyond the newest 500 rows). Xano stays as
+  fallback + audit. **13 opt-outs / 5 opt-ins migrated first**; resolved state hand-checked (9 stay out, 2 opted
+  back in). **Verified live: opted-out → `texted:false`; cleared → `texted:true`; send 26s-hang → ~1.7s.**
+  ⚠️ Also fixed on the way past: the sent marker stored only `message.slice(0,200)`, so two different intake
+  links looked identical and the 2nd was dropped as a duplicate. It now stores the real full-message key.
+- **🔄 "Old system keeps saying update, won't load anything."** `office-board.html` **had not changed in weeks.**
+  Netlify's ETag carries the content hash **plus how that response was encoded** — `"abc-ssl"` plain vs
+  `W/"abc-ssl-df"` compressed. `tech-autoupdate.js` compared the whole string, so any check that negotiated a
+  different encoding read as a new deploy → **"New version ready" every 2 minutes, all day**, on every tech page
+  too. Dismiss only skipped one version. Fixed: compare the content hash alone.
+- **🐌 The one that WAS Xano.** `get_office_kanban` 12s / 761KB; `get_job_for_dashboard` 4.1s typical, once >40s.
+  `job-truth` allowed 6s, so **2 of 3 lookups returned found:false** = Ann telling a customer *"I don't see that
+  one yet"* about a job scheduled that same day. Raised to 12s (phone is separately capped at 4.5s by vapi-tool,
+  so no dead air) — **still times out**, because Xano is the problem, not the budget.
+
+**🧭 THE LESSON:** a slow dependency doesn't just slow things down — it **surfaces every latent bug at once** and
+makes them look like one failure. Diagnose each symptom separately before accepting a single story.
+**⚠️ And check response BODIES, not status codes:** `platform-messages` was returning **200 with
+`not_signed_in`** the whole time I was calling the office "healthy."
+
+**📋 Danielle's "jobs show scheduled but aren't on the schedule" = TRUE, and not a bug.** 328 of 387 platform
+jobs at status `scheduled` carry a day **already past** (Jimmy: 71 of 86, oldest 2026-06-02). The job says
+scheduled; the schedule shows today forward. Both honest. **Needs a stale-scheduled cleanup pass.**
+
+
 ## 🚨 2026-09-10 — THE 4KB ENV CAP FAILS A BUILD AS "exit code 2" (cost 45 min; read before adding ANY Netlify env var)
 
 **Symptom:** every deploy fails at `Failed during stage 'building site': Build script returned non-zero exit code: 2`.
