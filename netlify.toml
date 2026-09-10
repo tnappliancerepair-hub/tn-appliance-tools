@@ -900,6 +900,19 @@
 [functions."platform-tn-parts-migrate-cron"]
   schedule = "13-59/15 * * * *"
 
+# platform-tn-report-tee-cron (2026-09-10) - carry TN's technician REPORTS and OFFICE NOTES
+# from legacy Xano onto the platform every 15 min, so the practice board shows the same work
+# Xano shows. The mirror already copies a report into job.tdr_* columns, but the tech app and
+# the office report panel both read the job_tdr TABLE - measured 9/10, 617 jobs had report data
+# in those columns and job_tdr held 13 rows, so nearly every job read "no report filed". Office
+# notes (Danielle's instructions for the stop) had no platform path at all. Both writes are
+# fill-the-blank only, so a report or note entered on the platform is never overwritten.
+# Read-only toward Xano. Offset from mirror + intake/parts/rma tees.
+# Curl-testable core: platform-tn-report-tee?secret=...&dryrun=1 (+ &mode=backfill&page=N for
+# history). Kill: vault PLATFORM_REPORT_TEE_ENABLED=false.
+[functions."platform-tn-report-tee-cron"]
+  schedule = "6-59/15 * * * *"
+
 # platform-rma-tee-cron (phase-2 parts-return, 2026-09-09) — auto-matches SquareTrade/Allstate
 # RMA return-labels from rma_request@squaretrade.com (RMA#/FedEx tracking/distributor/part#) to
 # the platform returns worklist by claim + part#. Reads TN's Gmail read-only; writes only into TN's

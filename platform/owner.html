@@ -377,13 +377,15 @@
       shell(
         '<div class="sec">Ann this week</div>'+
         '<div id="annWeek"><div class="note">Loading…</div></div>'+
+        '<div class="sec">💬 Text messaging <span class="lock">carrier registration</span></div>'+
+        '<div id="textingCard"><div class="note">Checking…</div></div>'+
         '<div class="sec">This month</div>'+
         '<div id="usageCard"><div class="note">Loading your usage…</div></div>'+
         '<div class="sec">Your full office</div>'+
         '<div class="money"><div class="note">You’re on the <b>AI Answering</b> plan — Ann answers 24/7 and captures every lead. Upgrade to the <b>Full Office Platform</b> to unlock the job board, scheduling, invoicing, and tech pay — one system your whole shop runs on.</div>'+
         '<button id="upsell" style="width:100%;margin-top:12px;padding:11px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:800;font-size:14px;cursor:pointer">See the Full Office Platform →</button></div>'
       );
-      loadAnnWeek(); loadUsage();
+      loadAnnWeek(); loadTexting(); loadUsage();
       var up=document.getElementById('upsell'); if(up) up.onclick=function(){ location.href='/platform/signup.html?plan=office'; };
       return;
     }
@@ -419,6 +421,8 @@
       techTable+
       '<div class="sec">Ann this week</div>'+
       '<div id="annWeek"><div class="note">Loading…</div></div>'+
+      '<div class="sec">💬 Text messaging <span class="lock">carrier registration</span></div>'+
+      '<div id="textingCard"><div class="note">Checking…</div></div>'+
       '<div class="sec">📞 Ann’s accuracy <span class="lock">graded daily</span></div>'+
       '<div id="annAccuracy"><div class="note">Checking…</div></div>'+
       '<div class="sec">This month</div>'+
@@ -453,6 +457,7 @@
     bindGoals();
     loadLearned();
     loadAnnWeek();
+    loadTexting();
     loadAnnAccuracy();
     loadUsage();
     loadPayments();
@@ -775,6 +780,79 @@
       btn;
       var tb=document.getElementById('annToggle'); if(tb) tb.onclick=function(){ toggleAnn(!d.paused, tb); };
     }).catch(function(){ el.innerHTML='<div class="note">Usage shows here once your line is active.</div>'; });
+  }
+
+  // Text messaging — the carrier registration every business needs before it can legally
+  // text customers over a regular number. We file it for them: they supply the EIN and legal
+  // name (only they have those), we supply the sample messages and opt-in description that
+  // most applications get rejected over. Ann's CALLING never waits on any of this.
+  function tapi(body){
+    return sb.auth.getSession().then(function(s){
+      var tok=s&&s.data&&s.data.session&&s.data.session.access_token;
+      return fetch('/.netlify/functions/platform-10dlc',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(Object.assign({access_token:tok},body))}).then(function(r){return r.json();});
+    });
+  }
+  function loadTexting(){
+    var el=document.getElementById('textingCard'); if(!el) return;
+    tapi({action:'status'}).then(function(d){
+      if(!d||!d.ok){ el.innerHTML='<div class="note">Texting status is unavailable right now.</div>'; return; }
+      var st=d.state||{}, s=st.status||'not_started';
+      if(s==='approved'){
+        el.innerHTML='<div class="money"><div style="font-size:15px;font-weight:800;color:#1f8b4c">✅ Texting is live</div>'+
+          '<div class="note">Your carrier registration cleared'+(st.approved_at?' on '+new Date(st.approved_at).toLocaleDateString():'')+'. Appointment reminders, on-my-way notices and receipts go out from your own number.</div></div>';
+        return;
+      }
+      if(s==='submitted'||s==='pending_review'){
+        el.innerHTML='<div class="money"><div style="font-size:15px;font-weight:800;color:#c77700">⏳ Waiting on the carrier</div>'+
+          '<div class="note">Filed'+(st.submitted_at?' '+new Date(st.submitted_at).toLocaleDateString():'')+' for <b>'+esc(st.legal_name||'your business')+'</b>. Carrier review usually takes 1–3 business days. <b>Ann is answering your calls the whole time</b> — only texting waits.</div>'+
+          '<button id="txRefresh" style="width:100%;margin-top:12px;padding:11px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:800;font-size:14px;cursor:pointer">Check status</button></div>';
+        var rb=document.getElementById('txRefresh');
+        if(rb) rb.onclick=function(){ rb.disabled=true; rb.textContent='Checking…'; tapi({action:'refresh'}).then(function(){ loadTexting(); }).catch(function(){ rb.disabled=false; rb.textContent='Check status'; }); };
+        return;
+      }
+      var why = s==='rejected'
+        ? '<div style="font-size:15px;font-weight:800;color:#d33c3c">⚠️ The carrier turned this down</div><div class="note">'+esc(st.reason||'')+' You can correct the details and file again below.</div>'
+        : '<div style="font-size:15px;font-weight:800">Turn on texting</div><div class="note">US carriers require every business to be registered before it can text customers from a regular number. Unregistered texts are silently dropped — they look sent and never arrive. <b>We file it for you</b>: you give us the legal details only you have, we handle the sample messages and opt-in wording that most applications fail on. Takes 1–3 business days. <b>Your calls keep working the whole time.</b></div>';
+      var ents=(d.entity_types||['PRIVATE_PROFIT','SOLE_PROPRIETOR']), pre=(d.prefill||{});
+      function f(id,label,ph,val,type){ return '<label style="display:block;margin-top:10px;font-size:12px;font-weight:700;color:var(--muted)">'+label+'</label>'+
+        '<input id="'+id+'" type="'+(type||'text')+'" value="'+esc(val||'')+'" placeholder="'+ph+'" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:15px">'; }
+      // Only three things are genuinely new asks. Everything we already know is
+      // pre-filled and folded away, so the shop sees a short form, not a tax return.
+      el.innerHTML='<div class="money">'+why+
+        f('txEin','Your EIN','12-3456789')+
+        '<label style="display:block;margin-top:10px;font-size:12px;font-weight:700;color:var(--muted)">Business type</label>'+
+        '<select id="txEntity" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:15px">'+
+          ents.map(function(e){ return '<option value="'+e+'">'+(e==='PRIVATE_PROFIT'?'LLC / Corporation':e==='SOLE_PROPRIETOR'?'Sole proprietor':e.replace(/_/g,' ').toLowerCase())+'</option>'; }).join('')+'</select>'+
+        f('txStreet','Business street address','3137 Skinner Dr')+
+        '<div style="display:flex;gap:8px">'+
+          '<div style="flex:2">'+f('txCity','City','Antioch')+'</div>'+
+          '<div style="flex:1">'+f('txState','State','TN')+'</div>'+
+          '<div style="flex:1">'+f('txZip','ZIP','37013')+'</div>'+
+        '</div>'+
+        '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;font-weight:700;color:var(--muted)">Name, phone and email we already have — tap to check</summary>'+
+          f('txLegal','Legal business name (as the IRS has it)','Your Shop LLC',pre.legal_name)+
+          f('txEmail','Contact email','you@yourshop.com',pre.contact_email,'email')+
+          f('txPhone','Contact phone','615-555-0100',pre.contact_phone,'tel')+
+          f('txSite','Website (optional)','https://yourshop.com')+
+        '</details>'+
+        '<button id="txSubmit" style="width:100%;margin-top:14px;padding:11px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:800;font-size:14px;cursor:pointer">File my carrier registration</button>'+
+        '<div class="note" style="margin-top:8px">Your EIN goes straight to the carrier — we keep only the last four so support can tell which filing is yours.</div></div>';
+      var sbn=document.getElementById('txSubmit');
+      if(sbn) sbn.onclick=function(){
+        var v=function(id){ var n=document.getElementById(id); return n?n.value.trim():''; };
+        var payload={action:'submit',legal_name:v('txLegal'),ein:v('txEin'),entity_type:v('txEntity'),street:v('txStreet'),
+          city:v('txCity'),state:v('txState'),postal_code:v('txZip'),contact_email:v('txEmail'),contact_phone:v('txPhone'),website:v('txSite')};
+        sbn.disabled=true; sbn.textContent='Filing…';
+        tapi(payload).then(function(r){
+          if(r&&r.ok){ loadTexting(); return; }
+          sbn.disabled=false; sbn.textContent='File my carrier registration';
+          if(r&&r.error==='missing_fields') alert('Still need: '+(r.missing||[]).join(', ').replace(/_/g,' '));
+          else if(r&&r.error==='ein_must_be_9_digits') alert('An EIN is 9 digits, like 12-3456789.');
+          else alert((r&&r.error)||'Could not file that right now.');
+        }).catch(function(){ sbn.disabled=false; sbn.textContent='File my carrier registration'; });
+      };
+    }).catch(function(){ el.innerHTML='<div class="note">Texting status is unavailable right now.</div>'; });
   }
 
   // Pause / resume Ann — the owner's kill switch (e.g. after hitting the weekly minutes). Confirms

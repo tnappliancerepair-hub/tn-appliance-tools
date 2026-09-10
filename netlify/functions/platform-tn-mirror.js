@@ -90,7 +90,25 @@ async function fetchTdrMap() {
 // created_at cap or a null-ordering quirk. Returns rows normalized to the kanban item shape
 // the row-builder reads (raw column is `appliance_type`; the builder reads `j.appliance`).
 // Best-effort: any failure returns [] and the mirror runs on the board feed alone.
-const ACTIVE_STATUSES = ['scheduled', 'awaiting_parts', 'in_progress', 'held', 'needs_scheduled', 'not_ready'];
+// needs_more_info was the hole: a warranty dispatch lands there before it's accepted, the
+// board feed doesn't return that status, and the six statuses below never asked for it - so
+// brand-new SquareTrade/NSA/AHS work reached Xano and never reached the platform at all.
+// Measured 2026-09-10: 11 real jobs from one week, every one a fresh warranty dispatch,
+// which is the worst possible subset to be missing.
+const ACTIVE_STATUSES = ['scheduled', 'awaiting_parts', 'in_progress', 'held', 'needs_scheduled', 'not_ready', 'needs_more_info'];
+
+// ...but that status also holds ~430 dead claim shells with no name, no phone and no
+// appliance. Mirroring those would bury the practice board in junk, so apply the same
+// real-job test board-audit uses: a real job has a name, a usable phone, or an appliance.
+function isRealJob(j) {
+  let name = String(j.customer_first || j.customer_last || '').trim();
+  const full = (String(j.customer_first || '') + ' ' + String(j.customer_last || '')).trim();
+  if (/pending\s*review|^\(|^unknown\b|^n\/?a$|^test\b/i.test(full)) name = '';
+  const ph = String(j.customer_phone || j.phone || '').replace(/\D/g, '');
+  let appl = String(j.appliance_type || j.appliance || '').trim().toLowerCase();
+  if (appl === 'other' || appl === 'appliance' || appl === 'unknown') appl = '';
+  return !!(name || ph.length >= 10 || appl);
+}
 async function fetchActiveJobs() {
   const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
   if (!token) return [];
@@ -116,6 +134,9 @@ async function fetchActiveJobs() {
         seen.add(id);
         // Normalize the one field name that differs between the raw table and the kanban feed.
         j.appliance = (j.appliance != null && j.appliance !== '') ? j.appliance : String(j.appliance_type || '');
+        // Only screen the shell-heavy status; the other six are already real work and an
+        // over-eager filter there would silently drop jobs the board has always shown.
+        if (status === 'needs_more_info' && !isRealJob(j)) continue;
         out.push(j);
       }
       if (rows.length < 500) break;

@@ -94,15 +94,33 @@ exports.handler = async function (event) {
 
   const custRes = await pageAll(ids.customer, deadline, 500);
   let withPhone = 0, dormant = 0, dormantNoPhone = 0;
+  // The XS endpoint filters on customer.created_at < cutoff BEFORE checking
+  // job recency. If Xano's customer rows were all created recently (bulk
+  // import), that pre-filter alone returns zero and the whole campaign is
+  // dark no matter how the job check behaves. Count both so we can tell.
+  let dormantAndOldRecord = 0;
+  let oldestCreatedAt = null, newestCreatedAt = null;
   const sample = [];
+  const wantList = q.list === '1';
+  const callList = [];
   for (const c of custRes.rows) {
+    const ca = Number(c.created_at || 0);
+    if (ca > 0) {
+      if (oldestCreatedAt === null || ca < oldestCreatedAt) oldestCreatedAt = ca;
+      if (newestCreatedAt === null || ca > newestCreatedAt) newestCreatedAt = ca;
+    }
     const hasPhone = digits(c.phone).length >= 10;
     if (hasPhone) withPhone += 1;
     const isDormant = !recent.has(Number(c.id));
     if (!isDormant) continue;
     if (hasPhone) {
       dormant += 1;
-      if (sample.length < 10) sample.push({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), phone: maskPhone(c.phone), city: c.city || '', created_at: c.created_at });
+      if (ca > 0 && ca < cutoffMs) dormantAndOldRecord += 1;
+      const row = { id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), city: c.city || '', created_at: c.created_at };
+      if (sample.length < 10) sample.push(Object.assign({ phone: maskPhone(c.phone) }, row));
+      // The texts are gated off on purpose, so the only way to work this pool
+      // is to call it. Hand over a real worklist with real numbers when asked.
+      if (wantList) callList.push(Object.assign({ phone: digits(c.phone) }, row));
     } else {
       dormantNoPhone += 1;
     }
@@ -117,10 +135,24 @@ exports.handler = async function (event) {
     customers_with_a_job_in_window: recent.size,
     REACHABLE_WINBACK_POOL: dormant,
     dormant_but_no_phone: dormantNoPhone,
+    // What the live XS endpoint can actually see, given its created_at pre-filter.
+    xs_visible_pool: dormantAndOldRecord,
+    customer_record_age: {
+      oldest_created_at: oldestCreatedAt,
+      newest_created_at: newestCreatedAt,
+      oldest_iso: oldestCreatedAt ? new Date(oldestCreatedAt).toISOString() : null,
+      newest_iso: newestCreatedAt ? new Date(newestCreatedAt).toISOString() : null,
+      cutoff_iso: new Date(cutoffMs).toISOString(),
+    },
     truncated: jobsRes.truncated || custRes.truncated,
     note: jobsRes.truncated || custRes.truncated
       ? 'Hit the time budget - counts are a FLOOR, the real pool is larger.'
       : 'Full scan.',
     sample: q.sample === '1' ? sample : undefined,
+    // ?list=1 -> the full dial list, oldest relationship first so the coldest
+    // customers get reached before the ones who'd still be around next month.
+    call_list: wantList
+      ? callList.sort((a, b) => Number(a.created_at || 0) - Number(b.created_at || 0))
+      : undefined,
   });
 };
