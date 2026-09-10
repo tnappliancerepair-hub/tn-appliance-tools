@@ -113,6 +113,24 @@ Supabase one thing at a time... let's keep Xano going as well as possible while 
 transition but systematically get Supabase up to speed and hopefully running better than Xano."*
 **Locked direction: systematic one-change-at-a-time migration off Xano over the next few days.**
 
+### ⏱️ THE 43.8s WAS A SPIKE, NOT A CONSTANT — and one shared timeout broke the mirror
+Re-measured `get_office_kanban` the same evening: **3.85s / 779KB.** Same endpoint, same day,
+an hour later. So the 43.8s was peak-office-hours saturation, not a permanent state — which
+means a fix tuned for 43.8s is wrong the other 22 hours.
+- **The bug that caused: `fetchKanban` is shared by TWO callers with opposite needs.** Raising
+  its wait to 70s was right for `board-mirror-sync` (that feed IS the office board's data
+  source — a stale board is the visible failure) and **wrong for `platform-tn-mirror`**, which
+  uses the feed only for EXTRAS (older/completed jobs). Its own supplemental pull off the raw
+  jobs table is faster AND carries more (model, serial, street, claim). Handing 70s of every
+  5-minute run to the least important source is how the run ran out of room before its upserts
+  landed. **Measured in the data, not the logs:** `job.updated_at` buckets showed 18:31 → 1,150
+  jobs written, 18:39 → **25**, then 18:41/18:46/18:51 → **nothing at all.**
+- **Fix: the wait is per-CALLER.** `fetchKanban(timeoutMs)` — board-mirror-sync keeps the full
+  budget, platform-tn-mirror passes 15s and lets the slow feed go. Losing it costs the extras,
+  which is exactly what the existing try/catch guard already assumed.
+- ⚠️ **A shared helper with one timeout constant is a shared failure mode.** When two callers
+  have different tolerance for the same slow dependency, the tolerance belongs at the call site.
+
 ### 🔴 THE MEASUREMENT THAT FRAMES EVERYTHING — `get_office_kanban` answered in **43.8 seconds** (779 KB)
 Measured live mid-session. `get_job_for_dashboard` was fine at the same moment (0.69s), so this ONE
 endpoint is the freeze. It is also what the **mirror itself** depends on — `fetchKanban` caps at 12s,
