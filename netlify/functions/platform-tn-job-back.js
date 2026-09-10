@@ -173,7 +173,14 @@ async function runJobBack(q) {
       out.created++;
       out.plan[out.plan.length - 1].xano_id = newId;
     } catch (e) {
-      out.errors.push({ platform_job: p.id, who, at: 'create_xano', err: String((e && e.message) || e).slice(0, 180) });
+      // Report the OP and the response body, not just the message. Two runs were spent guessing
+      // which call was failing off a bare "-> 400"; the op tag says exactly which helper threw.
+      out.errors.push({
+        platform_job: p.id, who, at: 'create_xano',
+        op: (e && e.op) || null, status: (e && e.status) || null,
+        err: String((e && e.message) || e).slice(0, 180),
+        body: String((e && e.body) || '').slice(0, 300),
+      });
     }
   }
   if (!live && !dry) out.note = 'SHADOW — set vault PLATFORM_JOB_BACK_LIVE=true to write to Xano';
