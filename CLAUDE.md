@@ -106,6 +106,92 @@ so every existing read keeps working unchanged. Wired into 116 handlers + the 4 
   `metadata-crud.callXano`. Or simply wait — all 99 are legacy Xano functions that retire with the migration.
 - **Rollback is 30 seconds:** `netlify-admin?action=vault_to_env&key=XANO_METADATA_TOKEN` then deploy.
 
+## 🗓️🐜🧊 2026-09-10 (Wed) — "BOTH SYSTEMS ARE FREEZING": the Supabase board was pulling 14,072 rows, and four silent-truncation bugs — READ FIRST
+
+Teddy: *"Both systems are freezing. Continue the work to do whatever we need to do to be full-time on
+Supabase one thing at a time... let's keep Xano going as well as possible while we're making this
+transition but systematically get Supabase up to speed and hopefully running better than Xano."*
+**Locked direction: systematic one-change-at-a-time migration off Xano over the next few days.**
+
+### 🔴 THE MEASUREMENT THAT FRAMES EVERYTHING — `get_office_kanban` answered in **43.8 seconds** (779 KB)
+Measured live mid-session. `get_job_for_dashboard` was fine at the same moment (0.69s), so this ONE
+endpoint is the freeze. It is also what the **mirror itself** depends on — `fetchKanban` caps at 12s,
+so while Xano is like this the mirror runs on its supplemental pull alone, and a manual mirror run
+times out at its own 26s ceiling. **Xano being slow degrades Supabase too, until each dependency is cut.**
+
+### 🚨 THE OFFICE BOARD WAS SHOWING 37 JOBS' MESSAGES OUT OF ~1,725 (the Supabase-side freeze)
+`platform/office-board.html loadBoard()` asked `thread_message` for **every inbound message on every
+board job** and then kept only the newest per job in the browser. Measured as a real office seat:
+**14,072 rows exist, PostgREST capped the response at 1,000, and those 1,000 covered just 37 distinct
+jobs.** So the green "← they replied" bubble was missing on the other ~735 jobs that had a reply. The
+board looked fine and was wrong — this is behind Danielle's *"having hard time to get all ppl to pull up."*
+- **`board_latest_inbound()` RPC** (`docs/sql/058_board_latest_inbound.sql`, APPLIED): `distinct on
+  (job_id)`, **SECURITY INVOKER** so the caller's own RLS still scopes it. Verified as the owner seat:
+  **772 rows in 0.43s**, correct, one per job. Scoped to the board's own active window (non-terminal +
+  completed ≤90d, deliberately wider than the board's 75d) so the count tracks LIVE work and can never
+  creep back over the 1,000 cap as history grows. ⚠️ **Never make it SECURITY DEFINER** — that hands
+  every office user every tenant's customer messages.
+- **`inChunks()` (150 ids/batch)** replaced three `.in('job_id', jids)` calls that each shipped all
+  ~1,725 UUIDs — a **~62 KB request URL** — for `job_media` / `job_part` / `job_tag`.
+
+### ✅ `job-truth` NOW ANSWERS FROM THE MIRROR (the phone/portal/text brain, off Xano)
+It made two slow Xano calls (`get_job_for_dashboard` + a full office-note scan ~4s each) and on a miss
+returned `found:false` — which Ann speaks as *"I don't see that one yet"* about a real job scheduled
+that same day. The mirror already holds every fact, **office notes included**.
+- Order: **fresh mirror row (≤30 min) → answer from it, no Xano at all**; stale/missing → Xano exactly
+  as before; **Xano fails but a stale mirror row exists → serve the stale row** (a few-minute-old day
+  beats telling a real customer we've never heard of them).
+- Response carries **`source`** (`mirror` | `mirror_stale` | `xano`); **`?src=xano`** forces the legacy
+  path for ONE request so the two answers can be diffed on real jobs; **`JOB_TRUTH_MIRROR=0`** kills it.
+- `all_tdrs` stays EMPTY on the mirror path on purpose — the mirror flattens every report into one set
+  of `tdr_*` columns, so Teddy's pre-diagnosis can't be told from the tech's. Empty is honest.
+
+### 🔬 THE DIFF HARNESS EARNED ITS KEEP — 12 live jobs, mirror vs Xano
+Two of the three disagreements were **the mirror being MORE correct**, one was a real gap I closed:
+| field | mirror | Xano | verdict |
+|---|---|---|---|
+| `claim_number` | `58983049` | `''` | **mirror wins** — `get_job_for_dashboard` drops claim# (known footgun) |
+| `appliance` | `Kenmore dryer` | `Kenmore` | **mirror wins** — Xano returns brand only |
+| `model` | `''` | `110.68087701` | **Xano won → FIXED** (below) |
+
+### 🐞 FOUR SILENT-TRUNCATION / BLANK-OVERWRITE BUGS FIXED (all the same class)
+1. **Board messages** — 1,000-row cap covered 37 of ~1,725 jobs (above).
+2. **Model + serial never mirrored** — `get_office_kanban`'s 27 keys carry brand + appliance but **no
+   model**; the raw table-7 rows the supplemental pull already fetches have `model_number` +
+   `serial_number`. Now borrowed the same way the street is. **530 units gained a real model.**
+   ⚠️ `attributes` is one jsonb column and merge-duplicates replaces it whole — the keys must be
+   written ALWAYS, never conditionally, or the next run blanks them.
+3. **🔴 A missed TDR ERASED the mirrored one** — the row builder wrote `tdr_diagnosis:''` whenever the
+   TDR map had no entry, and that map `break`s out on any slow/failed Xano page. **A slow minute on
+   Xano silently blanked good reports on the platform.** Now the `tdr_*` keys are only written when
+   there IS a report (merge-duplicates leaves out-of-payload columns alone).
+4. **The TDR map only held the newest ~2,000 reports** (4 pages × 500; Xano is at TDR id **2304**), so
+   older jobs' real reports read as "no report filed." Job 19988 had Jimmy's full diagnosis — *"loose
+   connection on the heating element burned a wire off"* — and the platform showed blank. Now 8 pages
+   (still breaks early on a short page).
+
+### ⏰ DANIELLE'S ACTUAL COMPLAINT, SURFACED — **331 jobs still say `scheduled` on a day that PASSED**
+*"When I look up the missing jobs on Jimmy's schedule they show scheduled but its not on the schedule."*
+She's right. Andre 130 · Jimmy 71 · John 56 · Teddy 38 · Lee 32, oldest **June 2** (Jun 170 / Jul 60 /
+Aug 59 / Sep 42). **Checked `xano_status` on all of them — Xano says `scheduled` too, so this is real
+work in limbo, NOT mirror drift.** The board already computed `isOverdue` per card but had nowhere to
+see them together → added an **⏰ Overdue filter chip** (its own chip because overdue cuts ACROSS
+statuses). **⏭️ OPEN: the 331 need a human pass — done-but-never-marked vs never-done is Danielle's call.**
+
+### ⚠️ FOOTGUNS BURNED TODAY
+- **A PostgREST query that looks fine can be returning a fraction of the truth.** The 1,000-row cap is
+  silent. Any `.select()` that could exceed it needs `Prefer: count=exact` checked, an RPC, or paging.
+  Check **distinct entities covered**, not just row count — 1,000 rows covered 37 jobs.
+- **`local main` in this checkout is an UNRELATED history** (`518b16c`, an old clone) — `git merge`
+  refuses with *"unrelated histories."* Push the branch straight at the remote:
+  `git push origin <branch>:main`. Don't try to fix local main mid-session.
+- **A manual `platform-tn-mirror` run dies at its 26s `exports.config.timeout`** while the CRON (15-min
+  scheduled allowance) completes fine. A manual timeout does NOT mean the mirror is broken — verify by
+  watching the data, not the curl.
+- **`unit.updated_at` is not touched by the upsert**, so it is NOT a freshness signal — read
+  `attributes` directly to tell whether a mirror change landed.
+- `sb-admin-sql` defaults to `project=ops` — pass **`&project=platform`**.
+
 ## 🔑 TN'S REAL PLATFORM SEATS — the `tech1.`/`tech2.` logins are DECOYS (2026-09-10)
 
 Teddy lost a morning of practice week to this. He signed into
