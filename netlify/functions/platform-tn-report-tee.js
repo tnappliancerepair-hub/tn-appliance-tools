@@ -129,11 +129,30 @@ async function existingReports(url, key, jobIds) {
   return out;
 }
 
+// PostgREST rejects a bulk insert whose objects do not all carry the same keys
+// ("All object keys must match"). Fill-the-blank writes a DIFFERENT subset per row by
+// design - one job needs only notes, the next needs brand and appliance too. Padding every
+// row out to a common shape would write nulls over columns we deliberately chose not to
+// touch, which is the clobber we are avoiding. So group by key signature and send one batch
+// per shape: same semantics, one extra round trip per distinct shape.
+function byShape(rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    const sig = Object.keys(r).sort().join('|');
+    if (!groups.has(sig)) groups.set(sig, []);
+    groups.get(sig).push(r);
+  }
+  return [...groups.values()];
+}
+
 async function upsert(url, key, table, rows, onConflict) {
   if (!rows.length) return 0;
   let n = 0;
-  for (let i = 0; i < rows.length; i += 250) {
-    const chunk = rows.slice(i, i + 250);
+  const batches = [];
+  for (const group of byShape(rows)) {
+    for (let i = 0; i < group.length; i += 250) batches.push(group.slice(i, i + 250));
+  }
+  for (const chunk of batches) {
     const r = await fetch(`${url}/rest/v1/${table}?on_conflict=${onConflict}`, {
       method: 'POST',
       headers: {
