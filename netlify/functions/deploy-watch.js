@@ -25,8 +25,7 @@ const STATE_KEY = 'DEPLOY_WATCH_STATE';
 
 // Measured 2026-09-10 on this site: 3,320 bytes builds, 3,392 does not. Netlify and
 // AWS inject the rest of the 4,096. Warn well before the edge so there is time to act.
-const BUDGET_CEILING = 3320;
-const BUDGET_WARN = 3050;
+const WARN_HEADROOM = 600;   // shout while there is still room to act
 const RENAG_MS = 6 * 60 * 60 * 1000;
 
 const json = (c, b) => ({ statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b, null, 2) });
@@ -40,20 +39,32 @@ async function nf(token, path) {
   return r.json();
 }
 
-// Only vars scoped to functions/runtime count against a Lambda's environment.
-// builds/post_processing are free, which is why the number is not obvious from
-// the dashboard.
+// Measure the environment this function is ACTUALLY running in, not what the API
+// reports. Netlify masks any variable flagged `is_secret` to 20 characters, so asking
+// the API undercounts - ANTHROPIC_API_KEY reads as 38 bytes there and is really ~127.
+// A budget built on masked numbers is the budget that lets you walk into the ceiling.
+// process.env inside the running Lambda is the same thing AWS measures against 4,096,
+// injected Netlify and AWS variables included, so it is the only honest number.
+const LAMBDA_CAP = 4096;
+
 function envBudget(rows) {
-  let bytes = 0; const big = [];
-  for (const v of rows || []) {
-    if (!(v.scopes || []).some((s) => s === 'functions' || s === 'runtime')) continue;
-    const key = v.key || '';
-    const len = Math.max(0, ...((v.values || []).map((x) => String(x.value || '').length)), 0);
-    const b = key.length + len + 1;
-    bytes += b; big.push({ key, bytes: b });
+  let bytes = 0;
+  for (const [k, v] of Object.entries(process.env)) bytes += k.length + String(v == null ? '' : v).length + 2;
+
+  // Ours, largest first - the actionable half. True length from process.env where we
+  // have it, the API's (possibly masked) length only as a fallback.
+  const ours = [];
+  for (const r of rows || []) {
+    if (!(r.scopes || []).some((s) => s === 'functions' || s === 'runtime')) continue;
+    const key = r.key || '';
+    const live = process.env[key];
+    const len = live != null ? String(live).length
+      : Math.max(0, ...((r.values || []).map((x) => String(x.value || '').length)), 0);
+    ours.push({ key, bytes: key.length + len + 2, masked: live == null });
   }
-  big.sort((a, b) => b.bytes - a.bytes);
-  return { bytes, headroom: BUDGET_CEILING - bytes, vars: big.length, largest: big.slice(0, 3) };
+  ours.sort((a, b) => b.bytes - a.bytes);
+  const oursBytes = ours.reduce((n, x) => n + x.bytes, 0);
+  return { bytes, cap: LAMBDA_CAP, headroom: LAMBDA_CAP - bytes, ours_bytes: oursBytes, vars: ours.length, largest: ours.slice(0, 4) };
 }
 
 async function runWatch(opts) {
@@ -98,8 +109,8 @@ async function runWatch(opts) {
 
   // The budget warning rides along with whatever we were already going to say, and
   // stands on its own if the last deploy was fine but the ceiling is close.
-  if (budget.headroom <= BUDGET_CEILING - BUDGET_WARN && budget.bytes >= BUDGET_WARN) {
-    const line = `⚠️ Netlify env at ${budget.bytes}/${BUDGET_CEILING} bytes - ${budget.headroom} left. Put new secrets in the vault, not env.`;
+  if (budget.headroom <= WARN_HEADROOM) {
+    const line = `⚠️ Function env at ${budget.bytes}/${budget.cap} bytes - only ${budget.headroom} left before builds start failing. Put new secrets in the vault, not env.`;
     if (sms) sms += '\n' + line;
     else if (action === 'no_change' && !wasFailing && Date.now() - Number(state.budget_alerted_at || 0) > RENAG_MS * 4) {
       action = 'budget_warn'; sms = line; state.budget_alerted_at = Date.now();
