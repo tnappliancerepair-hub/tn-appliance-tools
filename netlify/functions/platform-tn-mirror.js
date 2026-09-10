@@ -262,6 +262,39 @@ async function recoverCustomerStreets(url, key, startPage, maxPages) {
   return { ok: true, blank_customers: blank.size, scanned, filled, next_page: done ? null : page, done };
 }
 
+// Read-only: what does the TDR pull actually see, page by page? fetchTdrMap merges with
+// allSettled, so a page that fails costs its rows SILENTLY - this is how we tell a genuinely
+// short table from pages we are losing. ?tdr_probe=1
+async function tdrProbe() {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return { ok: false, error: 'no_xano_token' };
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const pages = [];
+  const settled = await Promise.allSettled(
+    Array.from({ length: 8 }, (_, k) => k + 1).map(async (page) => {
+      const t = Date.now();
+      const r = await fetch(`${META}/table/12/content/search`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ sort: { id: 'desc' }, per_page: 500, page }),
+        signal: AbortSignal.timeout(12000),
+      });
+      const body = r.ok ? await r.json() : null;
+      const items = (body && body.items) || [];
+      return { page, http: r.status, rows: items.length, ms: Date.now() - t,
+        first_id: items.length ? items[0].id : null, last_id: items.length ? items[items.length - 1].id : null,
+        with_job: items.filter((x) => Number(x.job_id)).length };
+    })
+  );
+  let rows = 0; const jobs = new Set();
+  for (const x of settled) {
+    if (x.status === 'fulfilled') { pages.push(x.value); rows += x.value.rows; }
+    else pages.push({ error: String((x.reason && x.reason.message) || x.reason).slice(0, 80) });
+  }
+  const map = await fetchTdrMap();
+  Object.keys(map).forEach((k) => jobs.add(k));
+  return { ok: true, pages, total_rows: rows, unique_job_ids: jobs.size };
+}
+
 // ── ONE-SHOT: backfill technician reports onto COMPLETED jobs ───────────────────
 // The every-5-min mirror only walks ACTIVE_STATUSES, so a job that has since been
 // completed is never revisited - and 2,279 of TN's mirrored jobs carried 19 reports
@@ -609,6 +642,7 @@ exports.handler = async function (event) {
       const out = await recoverCustomerStreets(url, key, q.page ? Number(q.page) : 1, q.pages ? Number(q.pages) : 4);
       return json(200, out);
     }
+    if (q.tdr_probe === '1') return json(200, await tdrProbe());
     if (q.backfill_tdr === '1') {
       const { url, key } = await cfg();
       if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
