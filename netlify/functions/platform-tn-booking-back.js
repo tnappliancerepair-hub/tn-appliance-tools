@@ -31,6 +31,9 @@
 //
 //   GET ?secret=<admin>&probe=<xano_id>   read-only: dump one Xano job's schedule fields
 //   GET ?secret=<admin>&rmwtest=<xano_id>&confirm=yes   no-op read-modify-write, then diff
+//   GET ?secret=<admin>&settech=<xano_id>&tech=<int>&confirm=yes   repair hatch: set/clear the
+//       Xano tech WITHOUT firing TECH_ASSIGNED (reassign_job texts the tech and, on a scheduled
+//       job, the customer). For undoing a mis-push — not part of the sync path.
 //   GET ?secret=<admin>&dryrun=1          show what WOULD be pushed, write nothing
 //   GET ?secret=<admin>                   run (SHADOW unless PLATFORM_BOOKING_BACK_LIVE=true)
 //   GET ?secret=<admin>&max=N             cap jobs touched in one run (default 40)
@@ -246,6 +249,19 @@ async function rmwtest(xid) {
   return { ok: true, id: xid, columns_before: Object.keys(before).length, columns_after: Object.keys(after).length, lossless: diff.length === 0, diff };
 }
 
+// Repair hatch. reassign_job emits TECH_ASSIGNED, which texts the tech and (on a scheduled job)
+// the customer, so it is unusable for undoing a bad push. This does the same write silently.
+async function setTech(xid, tech) {
+  const rows = await md.search(JOBS_TABLE, { id: Number(xid) });
+  const row = (Array.isArray(rows) ? rows : []).find((r) => Number(r.id) === Number(xid));
+  if (!row) return { ok: false, error: 'not found in Xano' };
+  const before = row.technician_id;
+  const merged = Object.assign({}, row, { technician_id: Number(tech) });
+  delete merged.id; delete merged.created_at;
+  await md.update(JOBS_TABLE, Number(xid), merged);
+  return { ok: true, id: Number(xid), technician_id_before: before, technician_id_after: Number(tech) };
+}
+
 exports.runBookingBack = runBookingBack;
 
 exports.handler = async function (event) {
@@ -257,6 +273,11 @@ exports.handler = async function (event) {
     if (q.rmwtest) {
       if (q.confirm !== 'yes') return j(400, { ok: false, error: 'rmwtest writes the row back — add &confirm=yes' });
       return j(200, await rmwtest(q.rmwtest));
+    }
+    if (q.settech) {
+      if (q.confirm !== 'yes') return j(400, { ok: false, error: 'settech writes to Xano — add &confirm=yes' });
+      if (q.tech == null || q.tech === '') return j(400, { ok: false, error: 'need &tech=<int> (0 clears)' });
+      return j(200, await setTech(q.settech, q.tech));
     }
     return j(200, await runBookingBack(q));
   } catch (e) {
