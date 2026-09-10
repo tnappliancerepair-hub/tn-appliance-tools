@@ -303,7 +303,11 @@ async function syncTnToPlatform(limit, opts) {
       const st = streetFor(j);
       if (st) { withStreet++; if (streetSample.length < 5) streetSample.push({ id: Number(j.id), street: st, city: String(j.service_city || ''), zip: String(j.service_zip || '') }); }
     }
-    return { ok: true, dryrun: true, kanban: kanbanCount, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, ms: Date.now() - t0 };
+    // Confirm the model actually RESOLVES before trusting a live write - the kanban feed
+    // has no model column at all, so this only works if the supplemental twin is found.
+    const withModel = jobs.filter((j) => modelFor(j)).length;
+    const modelSample = jobs.filter((j) => modelFor(j)).slice(0, 3).map((j) => ({ id: j.id, model: modelFor(j), serial: serialFor(j) }));
+    return { ok: true, dryrun: true, kanban: kanbanCount, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, model_fill: withModel, model_sample: modelSample, ms: Date.now() - t0 };
   }
 
   // 1) customers — dedup by Xano customer_id. The base upsert deliberately OMITS `address`:

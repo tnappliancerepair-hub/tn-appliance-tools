@@ -792,9 +792,16 @@
   var tagEditMode = false;   // drawer: reveal the ✕ to delete a tag from the shop library
 
   function renderFilters(){
-    var counts = { all: jobsCache.length };
-    jobsCache.forEach(function(j){ counts[j.status]=(counts[j.status]||0)+1; });
+    var counts = { all: jobsCache.length, __overdue: 0 };
+    jobsCache.forEach(function(j){ counts[j.status]=(counts[j.status]||0)+1; if(isOverdue(j)) counts.__overdue++; });
     var chips = [{ key:'all', label:'All' }].concat(ALLSTATUS.filter(function(s){ return (counts[s.key]||0)>0 || s.key!=='canceled'; }));
+    // OVERDUE gets its own chip because it cuts ACROSS statuses, and it is the pile that
+    // actually needs working: 331 jobs today still say "scheduled" on a day that already
+    // passed, the oldest since June 2. That is exactly what Danielle reported - "they show
+    // scheduled but it's not on the schedule" - and until now there was no one place to
+    // see them. Xano says scheduled for these too, so this is real work in limbo, not
+    // mirror drift. (2026-09-10)
+    if(counts.__overdue) chips.push({ key:'__overdue', label:'\u23f0 Overdue' });
     document.getElementById('filters').innerHTML = chips.map(function(c){
       return '<button data-f="'+c.key+'" class="'+(activeFilter===c.key?'on':'')+'">'+esc(c.label)+' '+(counts[c.key]||0)+'</button>';
     }).join('');
@@ -1022,7 +1029,11 @@
     stopCounts = {};
     jobsCache.forEach(function(j){ if(j.stop_id){ stopCounts[j.stop_id]=(stopCounts[j.stop_id]||0)+1; } });
     if(region!=='TN' && region!=='LA') region = defaultRegion(jobsCache);   // scope the board to the selected region
-    var jobs = jobsCache.filter(function(j){ return jobRegion(j)===region && (activeFilter==='all' ? j.status!=='canceled' : j.status===activeFilter); });
+    var jobs = jobsCache.filter(function(j){
+      if(jobRegion(j)!==region) return false;
+      if(activeFilter==='__overdue') return j.status!=='canceled' && isOverdue(j);
+      return activeFilter==='all' ? j.status!=='canceled' : j.status===activeFilter;
+    });
     var cols = boardStages();
     // one <select> option per column — the mobile-friendly "move this card" control
     var moveOpts = '<option value="" selected disabled>Move →</option>' + cols.map(function(c){ return '<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>'; }).join('');
