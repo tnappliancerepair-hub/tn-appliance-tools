@@ -155,6 +155,40 @@ Two bugs, both mine, both from the same afternoon's fixes. Neither raised an ala
   and latency. There is no way to tell a genuinely short table from pages you are losing from the
   outside; build the probe instead of guessing. (I guessed twice first and was wrong twice.)
 
+### 🗑️ THE OFFICE'S "NEW" COLUMN WAS 77% WARRANTY EMAILS THAT BECAME JOBS
+The platform surfaces Xano's `needs_more_info` jobs, which the legacy board **cannot show at all**
+(that status isn't in `get_office_kanban`'s allow-list) — so the office has been blind to 486 jobs.
+Right call to surface them, except the column held **525 cards and only ~119 were workable.**
+- **What the other 406 are:** Xano's warranty-email intake turns *notification emails* into jobs —
+  `Dispatch Cancelled [#078139684132]`, `NSA EFT Payment Register - ANTIOCHTAE`,
+  `Allstate Protection Plans: Claim Update 06`, `ServicePower Call Number 007691084135`. Measured:
+  **all 406 have NO appliance, NO address, NO phone and NO name.** Nothing to schedule, nobody to
+  call. 38 carry a claim#, and **15 of those claims already match a real non-new job** — update
+  emails about work we already had. All 231 of the pure claim-update shells minted their **own new
+  customer row** (nobody else's job shares that customer) — the documented 2026-06-14 dedup bug,
+  still running.
+- **Fix is a VIEW change, not a data change** — nothing deleted, nothing hidden from Xano. Each
+  board column leads with real work and parks these behind a collapsed **"⚠️ N intake artifacts"**
+  row (still counted, one tap away). `needs-scheduled` does the same (they were ALL landing in
+  "Area not mapped" — they have no zip — burying the real queue). `dispatch` drops them from the
+  unscheduled tray only: a job with no address can't be pinned or dispatched.
+- **The criterion is deliberately conservative + DB-verified:** a machine, address, phone, name,
+  tech or day keeps a job in the column. Matches exactly those 406 across every non-terminal
+  status, and catches nothing that has an address, a scheduled day or a technician.
+- **Do NOT invest in fixing the Xano intake parser** — TN is migrating off it; these stop being
+  created when intake moves to the platform. Parking is the right cost.
+
+### 🕳️ THE ACTIVE-JOBS WALK COULD LOSE A WHOLE STATUS SILENTLY (hardened)
+`fetchActiveJobs` is 7 statuses × up to 4 pages, and a page that timed out hit `catch (_) { break; }`
+— so one slow moment on Xano ended that status's pagination and those jobs just never appeared on
+the platform, with **no error anywhere**. Same family as the TDR page-loss bug.
+- **Measured first, changed second** (`?active_probe=1`, read-only): quiet Xano answers all 8
+  requests in 87–766ms, 1,243 rows, **0 truncated**. So it is *working right now* — which is
+  exactly the state that hides it. The same day we measured `get_office_kanban` at **43.8s**.
+- **Fix:** one retry per page; a page still lost after that **returns null and logs** instead of
+  masquerading as end-of-table. ⚠️ **A probe that comes back clean while the dependency is quiet is
+  not evidence the code is safe — it only tells you today's numbers.**
+
 ### 📋 COMPLETED JOBS HAD NO REPORTS AT ALL — 19 across 2,279 jobs (backfilled)
 The every-5-min mirror only walks `ACTIVE_STATUSES`, so **once a job completes it is never
 revisited** — its report, part# and labor stay frozen at whatever was there, and anything the
