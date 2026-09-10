@@ -56,23 +56,32 @@ async function fetchTdrMap() {
   // 4 pages = the newest 2,000 reports. Xano is at TDR id 2304 today, so an older job's
   // real report fell outside the window and read as "no report filed" - job 19988 had a
   // full diagnosis from Jimmy that the platform showed as blank. 8 pages covers every
-  // report with headroom and costs nothing extra in practice: the loop breaks the moment
-  // a page comes back short. (2026-09-10)
-  for (let page = 1; page <= 8; page++) {
-    let rows = [];
-    try {
+  // report with headroom.
+  //
+  // CONCURRENT, not a serial loop. Widening 4 -> 8 pages the first time kept the sequential
+  // fetch, which turned this into an 8 x 12s chain inside a cron that has a budget - and it
+  // showed up immediately in the data: the run before the change wrote 1,150 jobs, every run
+  // after wrote 25. Eight requests in one round trip is bounded by the SLOWEST page instead of
+  // the SUM of them, so the window can widen without eating the run. Pages are merged in page
+  // order (not completion order) to keep id-desc "first seen = newest TDR wins" exact, and
+  // allSettled means one slow page costs its own rows, not the whole map. (2026-09-10)
+  const PAGES = 8;
+  const settled = await Promise.allSettled(
+    Array.from({ length: PAGES }, (_, k) => k + 1).map(async (page) => {
       const r = await fetch(`${META}/table/12/content/search`, {
         method: 'POST', headers: H,
         body: JSON.stringify({ sort: { id: 'desc' }, per_page: 500, page }),
         signal: AbortSignal.timeout(12000),
       });
-      if (!r.ok) break;
-      rows = (await r.json()).items || [];
-    } catch (_) { break; }
-    if (!rows.length) break;
-    for (const t of rows) {
+      if (!r.ok) throw new Error('meta_' + r.status);
+      return (await r.json()).items || [];
+    })
+  );
+  for (const res of settled) {
+    if (res.status !== 'fulfilled') continue;
+    for (const t of res.value) {
       const jid = Number(t.job_id || 0);
-      if (!jid || map[jid]) continue;   // id-desc → first seen = newest TDR, wins
+      if (!jid || map[jid]) continue;   // id-desc, page order → first seen = newest TDR, wins
       map[jid] = {
         diagnosis: String(t.diagnosis || ''),
         failed_component: String(t.failed_component || ''),
@@ -82,7 +91,6 @@ async function fetchTdrMap() {
         labor_hours: (t.labor_hours != null && t.labor_hours !== '') ? Number(t.labor_hours) : null,
       };
     }
-    if (rows.length < 500) break;
   }
   return map;
 }
