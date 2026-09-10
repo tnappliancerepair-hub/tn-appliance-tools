@@ -262,6 +262,43 @@ async function recoverCustomerStreets(url, key, startPage, maxPages) {
   return { ok: true, blank_customers: blank.size, scanned, filled, next_page: done ? null : page, done };
 }
 
+// ── ONE-SHOT: backfill technician reports onto COMPLETED jobs ───────────────────
+// The every-5-min mirror only walks ACTIVE_STATUSES, so a job that has since been
+// completed is never revisited - and 2,279 of TN's mirrored jobs carried 19 reports
+// between them while Xano held the real thing. That history is exactly what the
+// platform has to own before TN can run on it full-time: what we found, which part,
+// how long. Additive and BLANK-ONLY - it writes a report only where the platform has
+// none, so it can never overwrite a report a tech filed on the platform itself.
+// Manual: ?backfill_tdr=1 (add &dryrun=1 to count first). (2026-09-10)
+async function backfillTdr(url, key, dryrun) {
+  const tdrMap = await fetchTdrMap();
+  const ids = Object.keys(tdrMap).map(Number).filter(Boolean);
+  if (!ids.length) return { ok: false, error: 'no_tdrs' };
+  const need = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200).join(',');
+    const r = await fetch(
+      `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&or=(tdr_diagnosis.is.null,tdr_diagnosis.eq.)&select=xano_id`,
+      { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
+    );
+    const rows = await r.json().catch(() => null);
+    if (Array.isArray(rows)) rows.forEach((x) => need.push(Number(x.xano_id)));
+  }
+  if (dryrun) return { ok: true, dryrun: true, tdrs: ids.length, missing_report: need.length };
+  // Uniform key set on every row - a mixed shape is what PGRST102'd the main upsert.
+  const rows = need.map((xid) => {
+    const t = tdrMap[xid];
+    return {
+      company_id: TN_COMPANY, xano_id: xid,
+      tdr_diagnosis: t.diagnosis, tdr_failed_component: t.failed_component,
+      tdr_part_number: t.part, tdr_repair_completed: t.repair_completed,
+      tdr_parts_needed: t.parts_needed, tdr_labor_hours: t.labor_hours,
+    };
+  }).filter((r) => r.tdr_diagnosis || r.tdr_failed_component || r.tdr_part_number);
+  const up = await upsert(url, key, 'job', rows, 'company_id,xano_id');
+  return { ok: true, tdrs: ids.length, missing_report: need.length, filled: up.length };
+}
+
 async function syncTnToPlatform(limit, opts) {
   const t0 = Date.now();
   const dryrun = !!(opts && opts.dryrun);
@@ -571,6 +608,11 @@ exports.handler = async function (event) {
       if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
       const out = await recoverCustomerStreets(url, key, q.page ? Number(q.page) : 1, q.pages ? Number(q.pages) : 4);
       return json(200, out);
+    }
+    if (q.backfill_tdr === '1') {
+      const { url, key } = await cfg();
+      if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
+      return json(200, await backfillTdr(url, key, q.dryrun === '1'));
     }
     const out = await syncTnToPlatform(q.limit ? Number(q.limit) : 0, { dryrun: q.dryrun === '1' });
     return json(200, out);
