@@ -65,6 +65,9 @@
   .badge{flex:0 0 auto;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;color:#fff;white-space:nowrap}
   .prob{margin-top:9px;font-size:14.5px}
   .intake{margin-top:10px;background:var(--chip);border-radius:10px;padding:10px 12px;font-size:13.5px}
+  .nodaybtn{display:block;width:100%;text-align:left;margin:0 0 12px;padding:11px 13px;border:1px solid var(--line);border-left:3px solid #d99413;border-radius:10px;background:var(--chip);color:inherit;font:inherit;font-size:14px;cursor:pointer}
+  .nodaybtn b{font-size:16px}
+  .nodaybtn span{display:block;font-size:12px;opacity:.7;margin-top:2px}
   .onote{display:block;border-left:3px solid #d99413;padding:2px 0 2px 9px;margin-bottom:8px}
   .onote b{display:block;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:#a8720c}
   .onote span{display:block;white-space:pre-wrap;font-weight:600;color:#8a5a06;margin-top:2px}
@@ -1039,6 +1042,31 @@
     });
   }
 
+  // A job can be assigned to a tech and still have no day on it - the office has put it on
+  // your name but not on a date yet. The day view filters on scheduled_day, so those jobs are
+  // in the system and invisible on this screen, which reads as "the new system lost my job".
+  // On Xano they lived in the office's needs-scheduled queue and a tech never had to see them;
+  // here there is no such place, so say the number out loud and make it one tap.
+  function loadNoDay(){
+    var el = document.getElementById('noDayChip');
+    if (!el || !myTech) return;
+    sb.from('job').select('id', { count: 'exact', head: true })
+      .eq('technician_id', myTech.id)
+      .is('scheduled_day', null)
+      .not('status', 'in', '(completed,canceled)')
+      .then(function(r){
+        var n = (r && r.count) || 0;
+        var cur = document.getElementById('noDayChip');
+        if (!cur || !n || !viewDay) return;   // the all-open view already shows them
+        cur.innerHTML = '<button class="nodaybtn" id="noDayBtn">' +
+          '<b>' + n + '</b> more on your name with no day set yet' +
+          '<span>tap to see them</span></button>';
+        var btn = document.getElementById('noDayBtn');
+        if (btn) btn.onclick = function(){ viewDay = null; loadJobs(); };
+      })
+      .catch(function(){ /* a count is a nicety - never let it break the day list */ });
+  }
+
   function renderJobs(jobs){
     jobs = routeSequence(jobs || []);   // route-order each day + assign stop numbers
     jobsCache = jobs;
@@ -1047,11 +1075,12 @@
     var note = myTech ? '' : '<div class="note">Your login isn\'t linked to a technician yet, so this shows all the shop\'s open jobs. Ask the office to link you as a tech.</div>';
     var empty = viewDay ? ('Nothing on '+esc(fmtDayLabel(viewDay))+'.') : 'No open jobs right now. 🎉';
     var body = topbarHtml() + (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' + (myTech ? '<div id="statsCard"></div><div id="timeoffCard"></div>' : '') +
-      '<div class="daylabel">'+dl+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note +
+      '<div class="daylabel">'+dl+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+'</div>' + note + '<div id="noDayChip"></div>' +
       (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">'+empty+'</div>');
     document.getElementById('body').innerHTML = body;
     restoreDrafts(jobs);   // put back anything a failed save was holding on this phone
     if (myTech) loadPay();
+    if (myTech && viewDay) loadNoDay();
     loadLeaderboard();
     if (myTech){ loadStats(); loadTimeOff(); }
     // wire actions
