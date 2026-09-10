@@ -122,21 +122,28 @@ async function runJobBack(q) {
 
     try {
       // customer: match on the last 10 digits before creating one.
+      // The Xano customer table is narrow — first/last/phone/email/address/city/state/zip — and
+      // searching a column it does not have 400s the whole request. It has NO customer_phone and
+      // no service_* columns (those live on the JOB). Probed, not assumed.
+      // Metadata search is also single-field only, so try the phone formats one at a time.
       let custId = 0;
       if (phone10) {
-        for (const f of ['phone', 'customer_phone']) {
-          const hit = await md.search(CUST_TABLE, { [f]: phone10 });
-          const row = (Array.isArray(hit) ? hit : []).find((x) => dig10(x.phone || x.customer_phone) === phone10);
+        for (const form of [phone10, '+1' + phone10, '1' + phone10]) {
+          let hit = [];
+          try { hit = await md.search(CUST_TABLE, { phone: form }); } catch (_) { hit = []; }
+          const row = (Array.isArray(hit) ? hit : []).find((x) => dig10(x.phone) === phone10);
           if (row && Number(row.id)) { custId = Number(row.id); break; }
         }
       }
       if (!custId) {
+        // dedup_signature deliberately left unset: their format normalises the street
+        // ("Kentucky Ave" -> "kentucky avenue") and writing a wrong one would poison their own
+        // matching. Blank just means no auto-merge, which is the safe direction.
         const made = await md.insert(CUST_TABLE, {
-          first_name: s(c.first_name), last_name: s(c.last_name), phone: s(c.phone),
-          service_address: s(c.address), address: s(c.address),
-          service_city: s(c.city), city: s(c.city),
-          service_state: s(c.state), state: s(c.state),
-          service_zip: s(c.zip), zip: s(c.zip),
+          first_name: s(c.first_name), last_name: s(c.last_name),
+          phone: phone10 || s(c.phone),
+          address: s(c.address), city: s(c.city), state: s(c.state), zip: s(c.zip),
+          company_id: 1,
         });
         custId = Number((made && (made.id || (made.item && made.item.id))) || 0);
       }
