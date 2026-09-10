@@ -119,27 +119,32 @@ async function runChecks(opts) {
   // On 2026-09-10 the nightly Xano->ops backup had been running (and retrying
   // itself 3x) for a week while silently dropping 25 of 29 tables, and the ONLY
   // symptom was a manifest row that never got written. So: check the manifest.
+  // BOTH sources: Xano->ops (_manifest) and platform->ops (_manifest_platform).
+  // A backup nobody watches is how 25 tables went missing for a week.
   try {
     const sbops = require('./_lib/supabase');
-    const rows = await sbops.select('xano_backup_chunks', {
-      table_name: 'eq._manifest', order: 'created_at.desc', limit: '1',
-      select: 'snapshot_date,created_at,rows',
-    });
-    const m = (rows && rows[0]) || null;
-    if (!m) {
-      stats.backup = 'no_manifest_ever';
-      fails.push('off-site backup has never written a manifest');
-    } else {
+    stats.backup = {};
+    for (const [label, mname] of [['xano', '_manifest'], ['platform', '_manifest_platform']]) {
+      const rows = await sbops.select('xano_backup_chunks', {
+        table_name: 'eq.' + mname, order: 'created_at.desc', limit: '1',
+        select: 'snapshot_date,created_at,rows',
+      });
+      const m = (rows && rows[0]) || null;
+      if (!m) {
+        stats.backup[label] = 'never';
+        fails.push(`${label} off-site backup has never written a manifest`);
+        continue;
+      }
       const ageH = Math.round((Date.now() - Date.parse(m.created_at)) / 3600000);
       const body = m.rows || {};
-      stats.backup = { date: m.snapshot_date, age_h: ageH, tables: (body.tables || []).length, complete: body.complete !== false };
-      if (ageH > BACKUP_MAX_H) fails.push(`off-site backup is ${ageH}h old (last good ${m.snapshot_date})`);
+      stats.backup[label] = { date: m.snapshot_date, age_h: ageH, tables: (body.tables || []).length, rows: body.total_rows, complete: body.complete !== false };
+      if (ageH > BACKUP_MAX_H) fails.push(`${label} off-site backup is ${ageH}h old (last good ${m.snapshot_date})`);
       else if (body.complete === false) {
-        // `complete:false` means budget/truncation only. The weekly-cadence skip
-        // (parts_orders on a non-Sunday) is BY DESIGN and never flips the flag.
+        // `complete:false` means budget/truncation/error only. The weekly-cadence
+        // skip (parts_orders on a non-Sunday) is BY DESIGN and never flips it.
         const sk = (body.skipped_budget || []).length;
-        const tr = (body.tables || []).filter((t) => t && t.truncated).length;
-        fails.push(`off-site backup ran but did not finish — ${sk} skipped, ${tr} truncated`);
+        const tr = (body.tables || []).filter((t) => t && (t.truncated || t.error)).length;
+        fails.push(`${label} off-site backup did not finish — ${sk} skipped, ${tr} truncated/errored`);
       }
     }
   } catch (e) { stats.backup = 'check_failed:' + String((e && e.message) || e).slice(0, 40); }
