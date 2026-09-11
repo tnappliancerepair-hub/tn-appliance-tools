@@ -1,6 +1,73 @@
 # Appliance Ant
 
-## 🧯🔌 2026-09-11 (latest) — GETTING OFF XANO: the vault itself was a Xano dependency · a paid lead vanished when Xano dropped it · warranty claims now file off the platform — READ FIRST
+## 🙋‍♀️💬 2026-09-11 (latest) — AGENTS FOR THE CUSTOMER: 41 people were waiting on us and nothing said so · the portal showed a ONE-SIDED conversation — READ FIRST
+
+Teddy: *"We need to build agents to help us make this the best possible solution for people
+needing our services."* Started by reading what customers actually say to us instead of guessing
+what they want.
+
+### 📖 WHAT CUSTOMERS ACTUALLY TEXT (88 real messages, one week, classified)
+| bucket | share |
+|---|---|
+| **scheduling / availability** | **dominant** — and many of the "other" bucket are too (*"Yes that time works"*, *"Sorry, that will not work"*) |
+| where is the tech / arrival heads-up | *"Are you able to call/text 15-30 minutes ahead of arrival?"* |
+| parts | *"Yes, is the part available?"* |
+| **still broken** | *"I uploaded the video. Unfortunately it sounds the same. I'm not sure it was fixed."* |
+| access info, unprompted | *"Door code is 2528"* |
+
+### 🔴 THE PORTAL WAS SHOWING A ONE-SIDED CONVERSATION (`teeOutbound`, LIVE)
+`teeInbound` has carried the customer's half onto the platform for months. **Every office reply
+goes out through `human-line-send`, which records it with `crud.logEvent` → XANO.** So the
+platform thread only ever held one side.
+- **Measured, TN, 7 days: 100 inbound customer texts · 12 outbound.** Twelve customers had sent
+  **3–7 messages each with 0 or 1 replies** visible (Givens 7→0, Jarrod 6→0, James 6→0, Becky 5→0).
+- **`portal_get` reads `thread_message`** — so a customer opening their portal to check on a
+  repair **saw their own questions sitting there with nothing under them.** They were being
+  answered. It just read exactly like being ignored by a shop that was in fact replying.
+- **`_lib/platform-thread.teeOutbound`** mirrors `teeInbound` — same resolver, same dedup, same
+  time-boxed never-throws discipline, opposite direction. Wired at **`human-line-send`, the
+  chokepoint all SIX human-to-customer paths already delegate to** (office board replies, tech
+  texts, pay links, parts concierge, review asks, translated replies). Runs AFTER the send: if it
+  fails the customer still got their reply, we just didn't write it down.
+- **Side effect worth naming: office replies now survive Xano.**
+
+### 🙋 NOBODY'S MESSAGE FALLS THROUGH (`platform-unanswered.js` + `platform/needs-reply.html`, NEW)
+**41 customers whose LAST message has nothing after it — 21 past 24 hours, averaging 26.**
+Most were probably answered on the phone (several of these messages literally say *"call me"*).
+**That IS the problem: from the outside an answered-by-phone looks identical to a dropped one,
+so neither gets chased, and no surface anywhere says "these people are waiting."**
+- Finds them, **classifies what they're asking about**, and pulls enough job context (status,
+  day, parts, problem) that whoever clears the list doesn't have to go hunting first.
+- **⚠️ IT TEXTS NOBODY.** The standing rule is no proactive customer texts, and a watcher that
+  started messaging people would be the exact thing that rule exists to prevent. It surfaces;
+  a human answers.
+- **Dismissals are `event` rows, NEVER `thread_message`** — clearing the queue must never put a
+  reply in front of the customer that nobody actually sent.
+- **⚠️ THE "HANDLED" BUTTON IS LOAD-BEARING, not a nicety.** Most of these WERE handled by phone,
+  so with no way to clear them the list is mostly noise inside a week and the office stops
+  opening it. **A queue you cannot clear gets abandoned.**
+- **Intent buckets written against the real messages and tested on them: 12/13.** The one "miss"
+  is my expectation being wrong — *"11-2 works. Are you able to call 15-30 min ahead?"* has the
+  scheduling settled; the open question really is the arrival heads-up.
+- **Two misses that DID matter, both fixed:** *"sounds the same"* reverses the word order the
+  first pattern assumed (that's a **failed repair**, the highest-urgency bucket), and
+  *"that will not work"* is how customers decline a day (**the most common reply we get**).
+  Both were landing in `other`. Sort order puts **still-broken and wants-a-call above everything**,
+  regardless of age.
+- **Tenant-generic** — company comes from the caller's own session, never a constant.
+
+### ⚠️ THE OLD AGENT RUNTIME IS DEAD — build agents as Netlify scheduled functions
+**`loop_tick` = 0 over 3 days.** The Mac-Mini colony loop that ran the 379-agent blueprint is not
+running. **Anything called an "agent" today is a Netlify function** (scheduled, or session-authed
+like this one). Don't add to `colony-loop/agents/` expecting it to fire.
+
+### ⏭️ NEXT CUSTOMER-SERVING AGENTS (measured candidates, not guesses)
+1. **Scheduling is the #1 thing customers write about** and every reply is hand-read today. A
+   draft-a-reply assistant (office confirms, never auto-sends) is the biggest single lever.
+2. **Arrival heads-up** — customers ASK for it by name (*"call/text 15-30 minutes ahead"*).
+3. **Parts ETA** — still dark behind the FedEx Track 403.
+
+## 🧯🔌 2026-09-11 — GETTING OFF XANO: the vault itself was a Xano dependency · a paid lead vanished when Xano dropped it · warranty claims now file off the platform — READ FIRST
 
 Teddy: *"Keep working to get us closer to no longer needing xano to operate our system."*
 Three cuts, each found by measuring rather than assuming.
