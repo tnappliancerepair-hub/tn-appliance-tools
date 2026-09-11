@@ -134,7 +134,7 @@ async function runSync(q) {
   const out = {
     ok: true, dry, company: companyId, tenant_creds: !!bound,
     jobs_considered: jobs.length, jobs_with_api_parts: 0,
-    inserted: 0, updated: 0, repaired: 0, unchanged: 0, api_parts_seen: 0, errors: [],
+    inserted: 0, updated: 0, repaired: 0, unchanged: 0, api_parts_seen: 0, must_return_flagged: 0, errors: [],
     tracking_numbers: [], results: [],
   };
 
@@ -169,7 +169,7 @@ async function runSync(q) {
     out.jobs_with_api_parts++;
     out.api_parts_seen += apiParts.length;
 
-    const existing = await sget(base, H, `job_part?job_id=eq.${j.id}&select=id,name,number,disposition,ship_tracking,ship_carrier,source&limit=200`);
+    const existing = await sget(base, H, `job_part?job_id=eq.${j.id}&select=id,name,number,disposition,ship_tracking,ship_carrier,source,must_return&limit=200`);
     const jobRes = { job: j.id, claim: claim, api_parts: apiParts.length, actions: [] };
 
     for (const p of apiParts) {
@@ -183,10 +183,13 @@ async function runSync(q) {
           source: 'servicepower_api',
           ship_tracking: p.tracking || null,
           ship_carrier: p.carrier || null,
-          // requires_return === true means it must go back even if used.
+          // The vendor's own rule, known at order time: owed back even if used (a core).
+          // Kept separate from `disposition`, which is what the tech actually did with it.
+          must_return: (p.requires_return === true) ? true : (p.requires_return === false ? false : null),
           order_status: 'ordered',
         };
-        jobRes.actions.push({ part: p.part, action: 'insert', desc: p.description, tracking: p.tracking || '' });
+        if (p.requires_return === true) out.must_return_flagged++;
+        jobRes.actions.push({ part: p.part, action: 'insert', desc: p.description, tracking: p.tracking || '', must_return: p.requires_return === true });
         if (!dry) { if (await sins(base, H, 'job_part', ins)) out.inserted++; }
         else out.inserted++;
         continue;
@@ -199,8 +202,13 @@ async function runSync(q) {
       if (!String(row.name || '').trim() && p.description) patch.name = p.description;
       if (p.tracking && row.ship_tracking !== p.tracking) patch.ship_tracking = p.tracking;
       if (p.carrier && !row.ship_carrier) patch.ship_carrier = p.carrier;
+      // Only ever SET an obligation, never clear one: a later note that omits the flag must not
+      // quietly drop a part off the returns list.
+      if (p.requires_return === true && row.must_return !== true) patch.must_return = true;
+      else if (p.requires_return === false && row.must_return == null) patch.must_return = false;
 
       if (!Object.keys(patch).length) { out.unchanged++; continue; }
+      if (patch.must_return === true) out.must_return_flagged++;
       jobRes.actions.push({ part: p.part, action: dirty ? 'repair+update' : 'update', fields: Object.keys(patch) });
       if (!dry) {
         if (await spatch(base, H, `job_part?id=eq.${row.id}`, patch)) { out.updated++; if (dirty) out.repaired++; }

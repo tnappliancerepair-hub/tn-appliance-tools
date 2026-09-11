@@ -921,6 +921,9 @@
         else                   f.push('<span class="fchip fparts">🔧 NEEDS PARTS ('+t.n+' on order)</span>');
       } else f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
     }
+    var owedT = partsShipByJob[j.id];
+    if(owedT && owedT.owed && !terminal) f.push('<span class="fchip fowed" title="The vendor wants these parts back — unreturned parts get charged back">↩️ '+owedT.owed+' OWED BACK</span>');
+    if(j.status==='completed' && owedT && owedT.owed) f.push('<span class="fchip fowed" title="Job is done but the vendor is still owed parts — ship them or eat the chargeback">↩️ '+owedT.owed+' STILL OWED BACK</span>');
     if(j.status==='completed' && !iv) f.push('<span class="fchip fclose" title="Completed but no invoice — finish the paperwork">⚠️ NOT CLOSED OUT</span>');
     if(!hasReport(j) && (j.status==='scheduled'||j.status==='in_progress')) f.push('<span class="fchip fdiag" title="No tech report on file yet">🔍 DIAGNOSIS</span>');
     if(j.office_notes && String(j.office_notes).trim()) f.push('<span class="fchip fnote" title="Office note on this job">📋 NOTE</span>');
@@ -1637,7 +1640,14 @@
     return 'https://www.fedex.com/fedextrack/?trknbr='+encodeURIComponent(t);
   }
   function tpShip(p){
-    if(p.disposition==='return') return '<div class="tpship ret">↩️ Returning to vendor</div>';
+    // The vendor's obligation outranks the tech's tap: a core is owed back even when USED.
+    var owed = p.must_return && !p.returned_at
+      ? '<div class="tpship ret">↩️ Vendor wants this one back</div>' : '';
+    if(p.disposition==='return') return owed || '<div class="tpship ret">↩️ Returning to vendor</div>';
+    if(owed) return owed + tpShipState(p);
+    return tpShipState(p);
+  }
+  function tpShipState(p){
     if(!p.ship_tracking) return '<div class="tpship none">Not shipped yet</div>';
     var cls = p.ship_delivered ? 'tpship ok' : 'tpship go';
     var lbl = p.ship_delivered ? '✅ Delivered' : (p.ship_status ? '🚚 '+esc(p.ship_status) : '🚚 Sent');
@@ -1652,7 +1662,7 @@
     // What the vendor actually SENT, straight off their own record (platform-sp-parts-sync).
     // Office gets the operational detail — carrier, tracking, delivered — that the customer
     // portal deliberately withholds. Same row, different lens.
-    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition').eq('job_id',job.id).order('created_at').then(function(r){
+    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at').eq('job_id',job.id).order('created_at').then(function(r){
       var parts=(r&&r.data)||[];
       var rows=parts.map(function(p){
         return '<div class="tpcard" data-pid="'+esc(p.id)+'">'+
@@ -2278,7 +2288,8 @@
 
   (function(){
     var st=document.createElement('style');
-    st.textContent='.fchip.fpartsok{background:#e6f7ee;color:#0f7a42;border-color:#8fd9b0}'
+    st.textContent='.fchip.fowed{background:#fdecef;color:#a3203a;border-color:#f0a8b6}'
+      +'.fchip.fpartsok{background:#e6f7ee;color:#0f7a42;border-color:#8fd9b0}'
       +'.fchip.fpartsgo{background:#fff1e0;color:#a65a00;border-color:#f0c48a}'
       +'.tpship{font-size:12px;font-weight:600;margin-top:5px;padding:4px 8px;border-radius:8px;background:#f3f1f8;color:#6b6480;display:inline-block}'
       +'.tpship.ok{background:#e6f7ee;color:#0f7a42}.tpship.go{background:#fff1e0;color:#a65a00}'
@@ -2326,7 +2337,7 @@
       // with history and creeping back up on the cap. (Both systems freezing, 2026-09-10.)
       var msgP   = sb.rpc('board_latest_inbound');
       // the parts the tech logged → the 🔧 part-# chip (fallback when the job row has none)
-      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta', jids) : none;
+      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta,must_return,returned_at', jids) : none;
       // the colorful tags on each job + the shop's editable tag library
       var tagP = jids.length ? inChunks('job_tag', 'job_id,tag:tag_id(id,label,color)', jids) : none;
       var libP = sb.from('tag').select('id,label,color').order('created_at');
@@ -2348,8 +2359,9 @@
         (pr.data || []).forEach(function (p) {
           if (!p.job_id) return;
           var d = String(p.disposition||''); if (d==='return'||d==='not_here') return;
-          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, eta:null };
+          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, owed:0, eta:null };
           t.n++; if (p.ship_tracking) t.sent++; if (p.ship_delivered) t.here++;
+          if (p.must_return && !p.returned_at) t.owed = (t.owed||0)+1;
           if (p.eta && (!t.eta || p.eta < t.eta)) t.eta = p.eta;
         });
         (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; var d=String(p.disposition||''); if (d==='return'||d==='not_here') return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name }); });

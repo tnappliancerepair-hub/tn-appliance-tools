@@ -275,7 +275,8 @@
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
   var _shipCss=document.createElement('style');
-  _shipCss.textContent='.pship{font-size:13px;font-weight:600;margin:4px 0 6px;padding:6px 9px;border-radius:9px;background:var(--chip);color:var(--muted);border:1px solid var(--line)}'
+  _shipCss.textContent='.mustret{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;background:#fdecef;color:#a3203a;vertical-align:middle;margin-left:5px}'
+    +'.pship{font-size:13px;font-weight:600;margin:4px 0 6px;padding:6px 9px;border-radius:9px;background:var(--chip);color:var(--muted);border:1px solid var(--line)}'
     +'.pship.ok{color:var(--completed);border-color:color-mix(in srgb,var(--completed) 45%,transparent)}'
     +'.pship.go{color:var(--in_progress);border-color:color-mix(in srgb,var(--in_progress) 45%,transparent)}'
     +'.pship.head{font-size:14px;margin:0 0 10px;padding:9px 11px;color:var(--ink)}'
@@ -1202,7 +1203,7 @@
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
   function loadParts(){
     var box=document.getElementById('partsBox'); if(!box) return;
-    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref,cost_cents,sell_cents,ship_tracking,ship_carrier,ship_status,ship_delivered,eta').eq('job_id',jobId).order('created_at').then(function(r){
+    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref,cost_cents,sell_cents,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at').eq('job_id',jobId).order('created_at').then(function(r){
       if(r.error){
         var card=document.getElementById('partsCard');
         if(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')){ if(card) card.classList.add('hidden'); }
@@ -1241,7 +1242,12 @@
   function renderParts(list){
     var box=document.getElementById('partsBox'); if(!box) return;
     var toReturn=list.filter(function(p){return p.disposition==='return';}).length;
-    var warn=toReturn?'<div class="cbwarn">🔁 '+toReturn+' to ship back — send them or the shop eats a chargeback.</div>':'';
+    // The vendor's own obligation, known at order time -- separate from what the tech tapped.
+    // A core is owed back even when it gets USED, so this must not key off disposition.
+    var owed=list.filter(function(p){return p.must_return && !p.returned_at;}).length;
+    var warn='';
+    if(owed) warn+='<div class="cbwarn">↩️ '+owed+' part'+(owed>1?'s':'')+' the vendor wants back — take '+(owed>1?'them':'it')+' with you before you leave.</div>';
+    if(toReturn) warn+='<div class="cbwarn">🔁 '+toReturn+' to ship back — send them or the shop eats a chargeback.</div>';
     // Head count first — this is the line he reads before he drives.
     var sent=list.filter(function(p){return !!p.ship_tracking;});
     var landed=sent.filter(function(p){return p.ship_delivered===true;}).length;
@@ -1268,7 +1274,7 @@
         '<span class="pretail" data-pretail="'+esc(p.id)+'">'+(p.cost_cents?('Customer pays <b>'+fmtUSD(retail)+'</b>'):'Enter cost → price fills in')+'</span>' +
       '</div>';
     return '<div class="pcard">' +
-      '<div class="pname">'+esc(p.name||'Part')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+'</div>' +
+      '<div class="pname">'+esc(p.name||'Part')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+(p.must_return?' <span class="mustret">↩️ OWED BACK</span>':'')+'</div>' +
       (p.number?'<div class="pnum">🔩 '+esc(p.number)+'</div>':'') +
       shipLine(p) +
       priceRow +
