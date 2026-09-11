@@ -10,6 +10,7 @@ const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
 const { resolveAreaTech, sendAreaTechTeddyTool, bossSirenNote } = require('./_lib/area-tech-notify');
 const crud = require('./_lib/xano/metadata-crud');
+const { rescueLead } = require('./_lib/intake-rescue');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
@@ -82,6 +83,24 @@ exports.handler = async function (event) {
     jobId = (d && (d.id || d.job_id)) || null;
   } catch (_) {}
 
+  // ── NEVER LOSE A PAID LEAD ───────────────────────────────────────────────────
+  // Everything below is gated on `if (jobId)`, so when the Xano create fails this
+  // customer -- who has ALREADY been charged -- silently gets no job, no confirmation
+  // text, and no finish-upload chase. Catch it on the platform instead. This only runs
+  // when Xano already failed, so a normal day is byte-for-byte unchanged, and the live
+  // platform-tn-job-back cron pushes the rescued job back into Xano on its own.
+  let rescued = null;
+  if (!jobId) {
+    try {
+      rescued = await rescueLead({
+        name: m.name, phone: m.phone, zip: m.zip, city: m.town || m.city,
+        appliance: m.appliance || m.machine, brand: m.brand, problem: m.problem,
+        availability: m.availability, customer_type: 'self_pay',
+        source: 'quick_check_paid', amount, session_id: sessionId,
+      });
+    } catch (_) {}
+  }
+
   // confirm how many attachments actually linked (diagnostic + truth in the log),
   // and auto-read the model sticker photo with Claude Vision so the job has the
   // model # + serial before Teddy ever opens it.
@@ -153,14 +172,15 @@ exports.handler = async function (event) {
   try { await crud.logEvent('web_funnel', { step: 'paid', conv_id: m.conv_id || '', appliance: m.appliance || m.machine || '', at_ms: Date.now() }); } catch (_) {}
 
   // 💵 PAID siren → Teddy + Danielle
-  const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
+  const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`)
+    : ((rescued && rescued.ok) ? (`${SITE}/platform/office-board.html?job=${rescued.job_id}`) : `${SITE}/office-board.html`);
   const sirenHead = service === 'in_home' ? ('🏠💵 IN-HOME PAID — $' + amount) : ('💵💵 CASH QUICK-CHECK PAID — $' + amount);
   // Fresh strategy (Teddy 7/9): the Teddy Tool also goes to the zip's tech.
   const areaTech = await resolveAreaTech(m.zip || '');
   const areaNote = bossSirenNote(jobId, areaTech);
   const msg = sirenHead + ' · ' + (m.name || '(caller)') + ' · ' + (m.machine || 'appliance')
     + (m.town ? (' · ' + m.town) : '') + ' — ' + (m.problem || '').slice(0, 120)
-    + '  Job #' + (jobId || '?') + ' → GET ON IT: ' + link + areaNote;
+    + '  Job #' + (jobId || ((rescued && rescued.ok) ? 'on the platform board' : '?')) + ' → GET ON IT: ' + link + areaNote;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
   try { await sendSms('+16154855795', msg, 'owner', 'quick_check'); } catch (_) {} // cash intake → Teddy too
@@ -234,5 +254,5 @@ exports.handler = async function (event) {
     }
   }
 
-  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: true, job_id: jobId, first_name: first, media_linked: linkedAttachments, language: lang }) };
+  return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, paid: true, job_id: jobId, platform_job_id: (rescued && rescued.ok) ? rescued.job_id : null, rescued: !!(rescued && rescued.ok), first_name: first, media_linked: linkedAttachments, language: lang }) };
 };

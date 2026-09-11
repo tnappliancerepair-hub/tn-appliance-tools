@@ -15,7 +15,12 @@ const OFFICE = new Set(['6154850713', '6292594602', '2258035669', '6154855795'])
 const TEDDY = '6154855795';
 
 // The ONLY two things Teddy still wants texted — both to him only.
-const CASH_INTAKE_TAGS = new Set(['quick_check', 'quick_check_lead', 'ann_new_job', 'cash_intake', 'cash_lead', 'self_pay_lead']);
+// 'platform_intake_rescue' fires ONLY when Xano refused a paid/warranty intake and the
+// platform caught it instead -- i.e. money is in and the job is not where the office
+// looks. That is cash/warranty intake by definition, and it cannot flood: it is silent
+// unless the old system is down. The platform_ prefix also routes it DIRECT to Telnyx,
+// which matters here because Xano is the thing that just failed.
+const CASH_INTAKE_TAGS = new Set(['quick_check', 'quick_check_lead', 'ann_new_job', 'cash_intake', 'cash_lead', 'self_pay_lead', 'platform_intake_rescue']);
 const WARRANTY_INTAKE_TAGS = new Set(['warranty_quick_check', 'warranty_intake', 'warranty_new_job', 'warranty_lead']);
 // AssistAnt PLATFORM (SaaS) alerts Teddy asked to receive: a new shop starts a free trial,
 // and a prospect messages us from the site. Money-making signals, so they reach his cell.
