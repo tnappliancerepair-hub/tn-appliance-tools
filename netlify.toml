@@ -473,6 +473,9 @@
 [functions."ahs-returns-watch-cron"]
   schedule = "27 * * * *"
 
+[functions."nsa-parts-watch-cron"]
+  schedule = "37 * * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
