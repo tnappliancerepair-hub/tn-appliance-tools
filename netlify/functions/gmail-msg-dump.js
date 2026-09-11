@@ -1,6 +1,6 @@
 // gmail-msg-dump — owner-gated: dump ONE Gmail message's structure so we can see how a
 // return label is actually delivered (PDF attachment vs inline image vs a print link).
-//   GET ?secret=<admin>&id=<messageId>
+//   GET ?secret=<admin>&id=<messageId>[&attach=1][&raw=1][&chars=N]
 'use strict';
 const { getSecret } = require('./_lib/secrets');
 function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -37,6 +37,14 @@ exports.handler = async function (event) {
       const decoded = b64d(a.data.data);
       return json(200, { subject, attachment: attachName, attachment_text: decoded.slice(0, 12000) });
     } catch (e) { return json(200, { subject, attachment: attachName, error: 'attachment decode failed: ' + String((e && e.message) || e) }); }
+  }
+  // &raw=1 → the UNSTRIPPED source of the text parts. Tag-stripping collapses empty
+  // table cells, which destroys column position in a positional table (NSA's weekly
+  // parts-charge digest is a 16-column table carrying money) — so to WRITE a parser
+  // for one you have to see the real markup first.
+  if (q.raw === '1') {
+    const rawLen = Math.min(parseInt(q.chars, 10) || 14000, 60000);
+    return json(200, { subject, parts, raw: text.slice(0, rawLen) });
   }
   // pull any hrefs / print-label links out of the body
   const allLinks = [...new Set((text.match(/https?:\/\/[^\s"'<>)]+/g) || []))];
