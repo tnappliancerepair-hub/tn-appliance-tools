@@ -312,8 +312,10 @@ function partsFromNotes(raw) {
         quantity: val(c, 'Quantity'),
         // "Shipping Provider: FedEx" rides along on the tracking-details stanza.
         carrier: val(c, 'Shipping Provider') || val(c, 'Shipping Carrier'),
-        // "No" here means: if you USE it, you keep it. Anything else (Yes/Core) must go back.
-        requires_return: /^y/i.test(retRaw) ? true : (/^n/i.test(retRaw) ? false : null),
+        // "No" here means: if you USE it, you keep it. Anything else that says go-back must go
+        // back -- a CORE is a return obligation too, and it used to fall through to null (i.e.
+        // "unknown", i.e. nobody gets told), which is the wrong direction on a chargeback.
+        requires_return: /^(y|core)/i.test(retRaw) ? true : (/^n/i.test(retRaw) ? false : null),
         tracking: /not yet available/i.test(tracking) ? '' : tracking,
         noted_at: b.date,
       };

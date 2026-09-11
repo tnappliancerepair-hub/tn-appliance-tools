@@ -1,5 +1,93 @@
 # Appliance Ant
 
+## 🧾🛒 2026-09-11 (latest) — SNAP THE PART YOU PICKED UP + THE RECEIPT · a shadowed `db.patch` that killed every merge · the customer's parts list was leaking a tracking number — READ FIRST
+
+Teddy: *"I also like the take a pic of the part you didn't need and we should add to it take a pic
+of the part that you picked up at the parts house or thing at Home Depot or wherever pic of the
+receipt 🧾"* — the returns flow only covered parts going BACK. This is the other direction, and
+it is the one where **the shop is out real cash**, so the receipt is the cost of record: it prices
+the customer's line (cost × the owner's margin), it is the tech's reimbursement, and it is the
+books' entry.
+
+### 🧾 TWO SHOTS, ONE PART ROW (`platform-tech-media?do=bought_part`, LIVE)
+Tech taps **📸 Snap the part you picked up** → the row is created and hands back its `part_id`;
+then **🧾 Snap the receipt** attaches the money to that id. **Either can stand alone** — a receipt
+with no readable part still records the spend, which is the half nobody can reconstruct from memory
+a week later (if there's no `part_id`, the server matches on the OCR'd part # and only then creates).
+- **`platform-ocr` gained `mode:'receipt'`** — store, date, part total vs order total, part # if the
+  line names one. Verified live on a synthetic receipt: returns `confidence:'low'`, `cost_cents:null`.
+- **⚠️ THE MONEY IS ONLY TAKEN WHEN IT'S TRUSTED.** A low-confidence read, or a receipt covering
+  **more than this one part**, is left for a human — `needs_review:true` plus a plain-English
+  `review_reason` the tech actually sees ("that receipt covers more than this part — the office will
+  split it"). Silently mispricing a customer's line off a blurry photo is worse than asking.
+- **SQL 065** adds `receipt_ref`, `bought_at`, `bought_by`, `bought_from`. `bought_by` resolves to the
+  tech's real name server-side, because this is a reimbursement — the office needs to know who to pay.
+
+### 👁️ SAME FACT, THREE LENSES (Teddy's "write once, all sides share")
+| | sees |
+|---|---|
+| **tech** | headline counts a bought part as **HERE**; card shows what he paid |
+| **office** | drawer line `🧾 Picked up $84.12 at Home Depot · Lee paid` + one tap opens the receipt (signed per-tenant, never a raw bucket URL) |
+| **customer** | reads as here. Cost, receipt, who paid and where are **never emitted** |
+
+- **🐞 A hand-carried part made the office tile LIE.** With no tracking and no `ship_delivered` it fell
+  through to **"🔧 NEEDS PARTS (on order)"** — so the office could order a part the tech was holding.
+  That is the duplicate-parts class again. `bought_at` now counts as here on the tile, the tech
+  headline, and the portal.
+
+### 🔴 `db.patch` WAS DECLARED TWICE — every 3-arg call has been a no-op since 2026-09-09
+`rest()` in `platform-tech-media.js` had **two `patch` keys in one object literal**, so the 2-arg
+`(path,row)` version silently shadowed the 3-arg `(table,filter,obj)` one. Every 3-arg call was
+therefore sending a **JSON string as the body of an UNFILTERED `PATCH /job_part`**.
+- **It never wrote** — proven by the data, not by reading the code: **2 distinct dispositions across
+  1,797 rows**, not 1. PostgREST rejects a string body, so the unfiltered patch died at the door.
+- **But the merge it was supposed to do never happened either.** Shipped in `d061fed`, so the
+  snap-to-return merge has been dead its whole life. **`photo_ref` is 0 of 1,797** → no tech has
+  pressed that button yet, so it would have duplicated a part row the first time one did.
+- Fix is the CLASS: two methods, two names (`patch` / **`patchWhere`**), plus **`insertRet`** for the
+  callers that need the new row's id. **⚠️ A duplicate key in an object literal is silent in JS — the
+  last one wins. Grep for repeated keys before trusting a helper.**
+
+### 🔒 THE CUSTOMER'S PARTS LIST WAS LEAKING A TRACKING NUMBER (SQL 066 · 067 · 068, APPLIED)
+Measured on what a customer can actually see **today** — 19 rows — and 3 of them were wrong:
+- **2 carried a UPS tracking number inside the part NAME** (`"PTC Starter Relay -- QTY: 1 Shipped to
+  the customer via UPS — Tracking #: 1ZE380950323091839"`). **The allowlist was right — it never
+  emits `ship_tracking`** — the leak came through a field that IS on it, because the mirror stuffs the
+  whole vendor email line into `name`. **⚠️ AN ALLOWLIST ONLY PROTECTS YOU IF THE FIELDS ON IT ARE
+  CLEAN.** 067 cuts the name at the first shipping-stanza marker and rejects status words
+  ("DISCONTINUED" was rendering as a part).
+- **Same part listed twice.** Xano holds `'BT68-135'` **and** `'Thermal Overload Protector (BT68-135'`
+  as separate rows, so the number-normalizing key never matched and one job showed **4 parts for 2**.
+  **`part_key()` (068)** anchors on the part-number token at the **END**, which both shapes share,
+  with a **5-char floor** so `"Relay 2"` and `"Valve 2"` stay distinct — **undercounting a customer's
+  parts is worse than showing a duplicate.** It is a named function on purpose: the old key was pasted
+  **twice** inside `portal_get` (distinct-on AND order-by), which is exactly how two copies drift.
+  Verified against the real values before swapping it in, then regression-checked across every grant:
+  **9 physical rows → 7 shown, 1 job collapsed, 0 jobs left showing nothing.**
+- **066** makes a bought part read as here to the customer too.
+
+### 🔩 SERVICEPOWER PARTS DRAIN — healthy (and a `Core` miss fixed)
+**95 of 296 in-scope jobs synced · 143 parts across 62 jobs · 2.3 parts/job** (the runaway was ~44 —
+the sanity ceiling is holding). `owed_back` is **0**, and that is REAL, not a parser miss: the live
+notes for the synced claims contain zero "requires return" text. Unit-tested the parser through the
+actual XML path — Yes→true, No→false, and the **double space**, single space, caps and tab variants
+all parse.
+- **🐞 Fixed: `Core` fell through to `null`.** The comment said "Yes/Core must go back" but the regex
+  only tested `^y`/`^n`, so a **core charge — which IS a return obligation — flagged nobody.** Null is
+  the wrong direction on a chargeback. Now `/^(y|core)/i`.
+
+### ⚠️ FOOTGUNS BURNED
+- **A duplicate key in a JS object literal silently shadows** — the last definition wins, and every
+  call site to the shadowed signature fails quietly.
+- **`\u2014` is NOT a Postgres escape.** With `standard_conforming_strings` on, a backslash is
+  literal, so `'\u2014'` demands a literal backslash. Put the real character in the regex.
+- **`pg_get_functiondef` does not include GRANTs** — which is exactly why `CREATE OR REPLACE`
+  (not DROP + CREATE) is the only safe way to patch a SECURITY DEFINER RPC in place.
+- **Balance parens mechanically, not by eye**, when hand-editing a deeply nested SQL expression —
+  the first attempt was off by two and looked fine.
+- **`portal_get` returns `parts` nested PER JOB**, not at the top level; `->'parts'` on the root is
+  always null and reads like a broken migration.
+
 ## 📦🚚 2026-09-11 (later) — "IS THE PART THERE?" IS NOW ON THE JOB · the vendor's parts list beats our email · FedEx Track is 403'ing — READ FIRST
 
 Teddy: *"Even parts eta and what has been sent would be helpful on the job so the tech knows if
