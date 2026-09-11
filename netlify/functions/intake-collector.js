@@ -433,5 +433,5 @@ exports.handler = async function (event) {
     } else failed++;
   }
 
-  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, examined, sent, skipped_dupe, skipped_phone_cap, skipped_has_media, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
+  return ok({ status: 'ran', ct_hour: h, candidates: cands.length, platform_state_jobs: Object.keys(platState).length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, examined, sent, skipped_dupe, skipped_phone_cap, skipped_has_media, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
 };

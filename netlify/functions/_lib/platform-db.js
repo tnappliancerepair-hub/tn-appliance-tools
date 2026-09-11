@@ -154,7 +154,10 @@ async function createLeadJob(lead) {
 // that is structurally always zero.
 //
 // Batched on purpose: the caller loops candidates, so this is 3 requests for the whole run
-// instead of 3 per job. Chunked at 150 ids because a PostgREST in.() list is a URL.
+// instead of 3 per job. Chunked at 150 ids because a PostgREST in.() list is a URL, and
+// UUIDs go in UNQUOTED to match the in.() calls already proven against this database
+// (platform-appt-reminder, platform-ant) -- a quote is not URL-unreserved, and db.get
+// returns [] on a non-ok response, so a mangled filter would fail SILENTLY into "no media".
 async function intakeStateByXanoId(xanoIds) {
   const out = {};
   const ids = Array.from(new Set((xanoIds || []).map((n) => Number(n)).filter((n) => n > 0)));
@@ -171,12 +174,12 @@ async function intakeStateByXanoId(xanoIds) {
     const unitIds = Array.from(new Set(jobs.map((j) => j.unit_id).filter(Boolean)));
     const media = new Set();
     if (jobIds.length) {
-      const rows = await db.get(`job_media?job_id=in.(${jobIds.map((x) => `"${x}"`).join(',')})&select=job_id`);
+      const rows = await db.get(`job_media?job_id=in.(${jobIds.join(',')})&select=job_id`);
       for (const r of (Array.isArray(rows) ? rows : [])) if (r && r.job_id) media.add(r.job_id);
     }
     const models = {};
     if (unitIds.length) {
-      const rows = await db.get(`unit?id=in.(${unitIds.map((x) => `"${x}"`).join(',')})&select=id,attributes`);
+      const rows = await db.get(`unit?id=in.(${unitIds.join(',')})&select=id,attributes`);
       for (const r of (Array.isArray(rows) ? rows : [])) {
         const m = String(((r && r.attributes) || {}).model || '').trim();
         if (r && r.id) models[r.id] = m;
