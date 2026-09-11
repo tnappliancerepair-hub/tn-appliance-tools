@@ -92,6 +92,36 @@ function owedBack(p) {
   return (p.must_return === true || S(p.disposition) === 'return' || !!p.returned_at) ? 'Y' : 'N';
 }
 
+// ── One physical part, one claim line ─────────────────────────────────────────
+// Xano holds TWO rows for the same physical part on some jobs (measured: 18 pairs) and the
+// mirror copies both faithfully, so a claim built straight off job_part lists W11608056
+// twice -- once as "Whirlpool Washer Electronic Control Board", once as "Core". The portal,
+// the tech card and the office tile all collapse this at the read layer; the CLAIM is the
+// one place it still leaked, and it is the money document.
+//
+// Two rules that matter:
+//   · the RETURN OBLIGATION IS OR-ED. If ANY row for that part says owed back, the part is
+//     owed back. Losing a return is the chargeback; carrying an extra one is a phone call.
+//   · the more DESCRIPTIVE name wins. The RMA-email row carries "Core" / "Unused part";
+//     the order row carries the real description. Neither is wrong, one is useful.
+function mergeByPart(rows, keyOf, pick) {
+  const order = []; const by = new Map();
+  for (const r of rows) {
+    const k = keyOf(r);
+    if (!k) { order.push(r); continue; }        // no usable number -> never merged blindly
+    if (!by.has(k)) { by.set(k, r); order.push(k); } else by.set(k, pick(by.get(k), r));
+  }
+  return order.map((o) => (typeof o === 'string' ? by.get(o) : o));
+}
+const GENERIC = /^(core|unused part|part|warranty return|return)$/i;
+function betterName(a, b) {
+  const A = S(a).trim(), B = S(b).trim();
+  if (!A) return B; if (!B) return A;
+  if (GENERIC.test(A) && !GENERIC.test(B)) return B;
+  if (GENERIC.test(B) && !GENERIC.test(A)) return A;
+  return A.length >= B.length ? A : B;
+}
+
 async function loadClaimContext(opts) {
   const o = opts || {};
   const { url, key } = await cfg();
@@ -176,7 +206,7 @@ async function loadClaimContext(opts) {
   // `checked` = a human has actually decided this part's fate. The vendor saying "must
   // return" is the OBLIGATION, not the decision — so an unopened part still reads unchecked
   // and correctly shows up on the claim's still-needed list.
-  const supplied = parts
+  const suppliedRaw = parts
     .filter((p) => S(p.number) || S(p.name))
     .map((p) => ({
       part: cleanPartNo(S(p.number) || S(p.name)),
@@ -192,10 +222,26 @@ async function loadClaimContext(opts) {
       cost_cents: p.cost_cents,
       bought: !!p.bought_at,
     }));
+  const supplied = mergeByPart(suppliedRaw, (r) => r.part, (a, b) => ({
+    ...a,
+    description: betterName(a.description, b.description),
+    // OR the obligation and the human decision -- never let a second row erase either.
+    must_return: a.must_return || b.must_return,
+    status: (a.status === 'to_return' || b.status === 'to_return') ? 'to_return'
+      : ((a.status === 'returned' || b.status === 'returned') ? 'returned'
+      : ((a.status === 'used' || b.status === 'used') ? 'used' : a.status)),
+    checked: a.checked || b.checked,
+    disposition: a.disposition || b.disposition,
+    tracking: a.tracking || b.tracking,
+    provider: a.provider || b.provider,
+    distributor: a.distributor || b.distributor,
+    cost_cents: (a.cost_cents != null ? a.cost_cents : b.cost_cents),
+    bought: a.bought || b.bought,
+  }));
 
   // tdr_failures: the claim's parts block. Prefer the real part rows; the platform keeps
   // one row per part, so this IS the list — no need to reconstruct it from TDR free text.
-  const tdr_failures = parts
+  const tdrFailuresRaw = parts
     .filter((p) => S(p.number) && S(p.disposition) !== 'not_here')
     .map((p) => {
       const no = cleanPartNo(p.number);
@@ -206,6 +252,15 @@ async function loadClaimContext(opts) {
       const desc = cleanPartDesc(S(p.name) || S(p.number)) || no;
       return { oem_part_number: no, part_number: no, quantity: 1, failed_component: desc, part_name: desc, our_cost_cents: p.cost_cents };
     });
+  // Same collapse on the claim's own parts block. Quantity deliberately stays 1: two rows
+  // for one part is a mirror artifact, not two units -- billing it as qty 2 would be a
+  // false claim, which is worse than the duplicate it replaces.
+  const tdr_failures = mergeByPart(tdrFailuresRaw, (r) => r.part_number, (a, b) => ({
+    ...a,
+    failed_component: betterName(a.failed_component, b.failed_component),
+    part_name: betterName(a.part_name, b.part_name),
+    our_cost_cents: (a.our_cost_cents != null ? a.our_cost_cents : b.our_cost_cents),
+  }));
 
   return {
     ok: true,
