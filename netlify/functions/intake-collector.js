@@ -303,6 +303,16 @@ exports.handler = async function (event) {
     return ok({ status: 'aborted_phone_count_unavailable', note: 'skipped to avoid over-texting — could not verify per-phone counts' });
   }
 
+  // The customer's video and model sticker land on the PLATFORM, not in Xano's
+  // get_unified_tdr_status (whose attachments_count/has_photo count TDR attachments and
+  // read 0 on every job that has real intake media). One batched lookup for the whole run
+  // so the guard below can key on what we actually have, wherever it lives.
+  let platState = {};
+  try {
+    const { intakeStateByXanoId } = require('./_lib/platform-db');
+    platState = await intakeStateByXanoId(cands.map((c) => c.id || c.job_id)) || {};
+  } catch (_) { /* fail open — Xano-only behavior, same as before */ }
+
   let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0, skipped_has_media = 0, skipped_phone_cap = 0;
   const done = [];
   for (const j of cands) {
@@ -346,9 +356,15 @@ exports.handler = async function (event) {
     let stickerOnly = false;
     try {
       const st = await jget(`${XANO}/get_unified_tdr_status?job_id=${id}`, 7000);
-      const media = !!(st && (st.has_photo || Number(st.attachments_count || 0) > 0));
+      const p = platState[String(id)] || {};
+      // Ask EITHER store. Xano's attachments_count is TDR attachments and reads 0 on every
+      // job with real customer media, so keying on it alone means the guard never fires --
+      // we'd keep chasing people who already sent us both things. The model can land on
+      // either side too (the mirror doesn't revisit terminal jobs), and if ANY system knows
+      // it, we know it, so we must not ask again.
+      const media = !!(st && (st.has_photo || Number(st.attachments_count || 0) > 0)) || !!p.media;
       const ex = (st && st.submission_extras) || {};
-      const model = String(ex.model_number || (st && st.model_number) || '').trim();
+      const model = String(ex.model_number || (st && st.model_number) || p.model || '').trim();
       // A model is only a model if it carries a digit -- "Refrigerator" and "N/A" are not.
       const haveModel = /[0-9]/.test(model);
       if (media && haveModel) { skipped_has_media++; continue; }   // got what we asked for

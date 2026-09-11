@@ -1,43 +1,65 @@
 # Appliance Ant
 
-## 🔧👷 2026-09-11 (latest) — AGENTS FOR THE CREW: we asked for two things and stopped when one arrived (672 customers) · the model is missing on ~80% of jobs · first-visit-fix is measured on a biased sample · a dropped scope asks ServicePower for EVERYTHING — READ FIRST
+## 🔧👷 2026-09-11 (latest) — AGENTS FOR THE CREW: the "already answered" guard read a field that is always ZERO (and my 672 was a mirror gap, not dropped customers) · 19 of 45 upcoming jobs have no model anywhere · first-visit-fix is measured on a biased sample · a dropped scope asks ServicePower for EVERYTHING — READ FIRST
 
 Teddy: *"What agents would HCP and ServiceTitan and Jobber build? We need to give our people the
 best possible opportunity to help them be successful."* So: what those products build for techs,
 then what OUR data says is actually in the way. Measured before building, and two of the things I
-built were wrong until the data said so.
+built were wrong until the data said so — including one I had already written up as the headline
+finding, which I re-measured against the guard's OWN input and had to correct outright.
 
-### 🥇 THE ONE THAT MATTERS — 672 customers did what we asked and the tech still drives out blind
-The intake text asks for **two** things — a video AND a photo of the model sticker — because the
-model decides the part and the part decides one trip or two. The stop condition was **"any
-attachment exists"**:
-```js
-if (st && (st.has_photo || attachments_count > 0)) { skipped_has_media++; continue; }
-```
-A customer who sent the video — **the first thing we asked for** — satisfied the guard, and we
-never asked for the sticker again.
-- **Measured, 60 days: 1,063 customers sent media. 391 have a model. 672 engaged and we dropped it.**
-  No-media jobs sit at **5.6%** model coverage; WITH media only **36.8%**. Sending media barely
-  moves the number that decides the part — that gap IS the bug.
-- **Fix: the guard keys on what we NEEDED, not on what showed up.** And when they've already sent
-  something the wording asks **only** for the sticker and says we got the video — asking again for
-  both reads as if nobody looked.
-- **⚠️ It does NOT add a touch.** The 2-touch link-only cap and the 4-touch sequence cap run
-  BEFORE this check; the 20-hour spacing, per-phone cap, evening gate and `intake_collect` tag run
-  after, untouched. It only stops discarding an **allowed** touch while the deciding field is blank.
-  Bounded at 30 sends/run. Branches verified: nothing→full ask · video→sticker-only · video +
-  `"Refrigerator"`/`"N/A"`→still asks (a model carries a digit) · video + `WDT730HAMZ`→stops.
+### 🥇 THE ONE THAT MATTERS — the "already answered" guard was reading a field that is ALWAYS ZERO
+**⚠️ THIS CORRECTS MY OWN ENTRY FROM EARLIER TODAY. The first version of this section said a
+customer who sent the video satisfied the guard so we never asked for the sticker, and put the
+number at 672. Both were wrong. I checked the guard's actual input instead of the platform's and
+the mechanism is the opposite of what I wrote.**
+- **`get_unified_tdr_status.attachments_count` / `has_photo` count TDR (tech) attachments, NOT
+  customer intake media.** Measured: **66 of 66** recent jobs report `attachments_count:0`, and so
+  do **25 of 25** jobs the platform confirms have real customer photo+video from the last two days.
+  The customer's video and model sticker land on the **PLATFORM** (`job_media`); Xano never sees them.
+- **So the has-media skip never fired at all — before OR after my change.** It is dead code that
+  looks live. The consequence runs the *opposite* way from what I claimed: the STOP branch never
+  fired either, so **customers who sent us BOTH things kept getting "send a video and the model
+  sticker"** — the exact "reads as if nobody looked" failure, bounded only by the 2-touch cap.
+- **The 672 was not 672 dropped customers.** It was `unit.attributes.model` being blank on the
+  platform. Sampled 25 of those jobs against Xano: **19 (76%) already have the model** — e.g.
+  `GFW650SSN1WW`, `WA50R5200AV/A4`, `KDSS907SSS03`. That is a **MIRROR gap on terminal jobs** (the
+  mirror only walks ACTIVE statuses, so a completed job's unit never gets backfilled), not an intake gap.
+- **✅ FIXED: the guard now asks the store where the answer actually is, and stops when EITHER
+  system knows it.** New `platform-db.intakeStateByXanoId()` — ONE batched lookup per run (3
+  requests total, chunked at 150 ids, not 3 per job), merged with the Xano read. A platform failure
+  falls back to Xano-only, i.e. today's behavior. Seven branches unit-verified incl. junk models
+  (`"Uploaded pic"`, `"Refrigerator"` → still ask) and the fail-open path.
+- **Live effect on the 45 upcoming jobs: 11 customers who sent everything STOP being chased**
+  (they'd have been texted), **4 get the sticker-only ask**, 30 who sent nothing get the full ask.
+  The over-texting fix is the bigger half and it was invisible until the guard could actually read.
+- **⚠️ STANDING: a guard keyed on a field that is structurally always zero is dead code that looks
+  live.** Before trusting any "they already answered" check, read the field on a row you KNOW
+  answered. I shipped this one on a platform-side measurement and never checked the guard's own input.
 
-### 📏 THE MODEL GAP IS ~80%, NOT 43% — and my first number was measured on the wrong slice
-| vendor | jobs (60d) | has model | has brand |
-|---|---|---|---|
-| SquareTrade | 1,825 | **13.3%** | 17% |
-| AHS | 1,040 | **22.7%** | **55%** |
-| NSA | 236 | 7.2% | 8% |
-- The earlier "57% have a model" came from a **44-job upcoming slice** and was not representative.
-- **AHS carries BRAND but not MODEL.** For the biggest book the model genuinely is not in the
-  dispatch — it has to come from the customer. That is why the intake guard above is the lever,
-  not a vendor API.
+
+### 📏 THE MODEL GAP — measure it on UPCOMING jobs against BOTH stores, not on 60 days of one
+**⚠️ CORRECTED. I first published a 60-day per-vendor table (SquareTrade 13.3% · AHS 22.7% · NSA
+7.2%) and called the gap ~80%. That table reads `unit.attributes.model` on the PLATFORM only, and
+60 days is mostly completed jobs — exactly where the mirror gap lives (the mirror walks ACTIVE
+statuses, so a terminal job's unit never gets its model backfilled). Those percentages understate
+real coverage badly. I dismissed an earlier "57% from a 44-job upcoming slice" as unrepresentative;
+for the operational question it was the more honest number.**
+- **The number that decides whether a tech drives out blind, verified per job against BOTH Xano and
+  the platform: 19 of 45 upcoming jobs (42%) have NO model anywhere.** Not 80%.
+- **Of those 19: AHS 15 · NSA 2 · Frontdoor 1 · SquareTrade 1.** So **17 of 19 are on books
+  ServicePower has never seen** — no vendor API can supply them. The model has to come from the
+  customer, which is why the intake guard is the lever and not an API.
+- **Only 4 of the 19 have sent us media** (they engaged, the sticker never landed) → those get the
+  sticker-only ask. The other 15 sent nothing at all.
+- **⚠️ STANDING: a coverage number measured on one store over a long window is measuring your sync,
+  not your intake.** Scope it to the rows that are operationally live and check every store that
+  could hold the answer.
+- **⏭️ FOUND, NOT FIXED — a model/serial backfill for TERMINAL jobs.** ~76% of the platform's
+  blank-model media jobs have the model sitting in Xano. It costs nothing operationally (a
+  completed job's tech already drove out) but it silently poisons any coverage or first-visit-fix
+  metric read off the platform, which is exactly how I got the 80% wrong. Same shape as the
+  existing `?backfill_tdr=1` sweep: additive, blank-only, safe to re-run.
 
 ### 🐞 `platform-job-prep` WAS ASKING THE WRONG VENDOR (found by RUNNING it, not reading it)
 The dry pass reported a clean **"20 of 20, vendor had none"** — which contradicted the 19-of-19

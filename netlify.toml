@@ -529,10 +529,11 @@
 # and NEVER the availability "get on the schedule" texts that caused the 7/14 firefight
 # (INTAKE_LINK_ONLY clamp in the fn). All the firefight guards stay: opt-out, phone-cap 2,
 # quiet-hours 8a-8p CT, the 2-touch link-only cap, and the overtexting-watch auto-pause.
-# NOTE 2026-09-11: the has-media skip was NARROWED to has-media-AND-model. It used to stop on
-# any attachment, so a customer who sent the video (the first of the two things we ask for)
-# never got asked for the model sticker -- 672 of them over 60 days. It does not add a touch;
-# the caps above still run first.
+# NOTE 2026-09-11: the has-media skip now reads the PLATFORM (job_media + unit model), because
+# Xano's attachments_count counts TDR attachments and is 0 on every job with real customer media
+# -- so the skip never fired at all and we kept chasing people who had already sent us both
+# things. It stops when EITHER store has the answer, and asks only for the sticker when the
+# customer engaged but no model landed. It does not add a touch; the caps above still run first.
 [functions."intake-collector"]
   schedule = "0 14-23 * * *"
 
