@@ -53,6 +53,36 @@ function attr(unit, ...keys) {
   return '';
 }
 
+// ── Cleaning the legacy parts junk ────────────────────────────────────────────
+// The email parser stuffed the DESCRIPTION and the part number into one field:
+//   "Main Control Board  Wh22x37840"   /   "THERMOSTAT HI LIMIT\nPart #WE04X30381"
+// SquareTrade wants a clean PartNo and a real per-part description. Sending the mashed
+// string as the part number, and the tech's whole narrative as every part's description,
+// is what gets a claim kicked back. Same rule as the SQL part_key(): a literal "Part #X"
+// wins; otherwise take the trailing token that contains a digit.
+function cleanPartNo(raw) {
+  const t = S(raw).replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  const tagged = t.match(/part\s*#\s*([A-Za-z0-9.\-]{5,})/i);
+  if (tagged) return tagged[1].toUpperCase();
+  const tail = t.match(/([A-Za-z0-9][A-Za-z0-9.\-]*[0-9][A-Za-z0-9.\-]*)[^A-Za-z0-9]*$/);
+  if (tail && tail[1].replace(/[^A-Za-z0-9]/g, '').length >= 5) return tail[1].toUpperCase();
+  return t.toUpperCase();
+}
+// The words, minus the part number -- "Main Control Board  Wh22x37840" -> "Main Control Board".
+function cleanPartDesc(raw) {
+  const t = S(raw).replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  const words = t.split(/part\s*#/i)[0]
+    .split(' ')
+    .filter((w) => w && !/\d/.test(w))          // drop any token carrying a digit
+    .join(' ')
+    .replace(/[^A-Za-z0-9 ()\/-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return words;
+}
+
 // The claim's "returned" flag is the VENDOR'S OBLIGATION, not the tech's disposition.
 // A core is owed back even when it was USED — keying this off disposition alone would drop
 // the obligation the moment a tech marked the part used, which is exactly the chargeback
@@ -149,8 +179,8 @@ async function loadClaimContext(opts) {
   const supplied = parts
     .filter((p) => S(p.number) || S(p.name))
     .map((p) => ({
-      part: S(p.number) || S(p.name),
-      description: S(p.name),
+      part: cleanPartNo(S(p.number) || S(p.name)),
+      description: cleanPartDesc(S(p.name) || S(p.number)),
       qty: 1,
       status: owedBack(p) === 'Y' ? (p.returned_at ? 'returned' : 'to_return') : (S(p.disposition) === 'not_here' ? 'missing' : 'used'),
       checked: !!(S(p.disposition) || p.returned_at),
@@ -167,14 +197,15 @@ async function loadClaimContext(opts) {
   // one row per part, so this IS the list — no need to reconstruct it from TDR free text.
   const tdr_failures = parts
     .filter((p) => S(p.number) && S(p.disposition) !== 'not_here')
-    .map((p) => ({
-      oem_part_number: S(p.number),
-      part_number: S(p.number),
-      quantity: 1,
-      failed_component: S(p.name) || tdr.failed_component,
-      part_name: S(p.name),
-      our_cost_cents: p.cost_cents,
-    }));
+    .map((p) => {
+      const no = cleanPartNo(p.number);
+      // Deliberately NOT falling back to tdr.failed_component here. On a real job that
+      // field holds the tech's whole narrative, so the fallback stamped the same paragraph
+      // onto every part -- three parts, one identical description. Better to send the part
+      // number alone than three copies of a paragraph.
+      const desc = cleanPartDesc(S(p.name) || S(p.number)) || no;
+      return { oem_part_number: no, part_number: no, quantity: 1, failed_component: desc, part_name: desc, our_cost_cents: p.cost_cents };
+    });
 
   return {
     ok: true,
@@ -186,7 +217,7 @@ async function loadClaimContext(opts) {
     customer: {
       first_name: S(cust.first_name), last_name: S(cust.last_name),
       address_line1: S(cust.address), address_line2: '',
-      address: S(cust.address), city: S(cust.city), state: S(cust.state),
+      address: S(cust.address), city: S(cust.city), state: S(cust.state).toUpperCase(),
       zip: S(cust.zip), zip_code: S(cust.zip),
       phone: S(cust.phone), email: S(cust.email),
     },
