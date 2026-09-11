@@ -66,6 +66,28 @@ part reads **"Sent"** with its real tracking number, which is still strictly mor
 | Auto-acceptance | ✅ already live (20/14 days) — still does **not** create the Supabase job |
 | Same for AHS/Frontdoor | ⏳ receiver is DARK **and posts to Xano, not Supabase** |
 
+### ↩️ THE VENDOR'S RETURN OBLIGATION, CAPTURED AT ORDER TIME (`docs/sql/064_part_must_return.sql`, APPLIED)
+ServicePower states it per part in the order notes — **"If used during repair  requires return:
+Yes"** — and it is known the day the part ships. Until now a return obligation was only
+discovered AFTER the fact: when the prepaid-label email arrived and parsed, or when a tech
+tapped "Return" at the stop. SquareTrade's policy is blunt — parts not returned mean the repair
+is not paid and the part or core may be charged back. **The parser was already reading
+`requires_return` and the sync was dropping it on the floor.** Now it persists to
+`job_part.must_return`.
+- **⚠️ DELIBERATELY SEPARATE FROM `disposition`** — they answer different questions:
+  `must_return` = **the VENDOR's rule** ("owed back") · `disposition` = **what the TECH did**
+  (used / return / not_here). **A core is owed back even when it is USED**, so keying the warning
+  off `disposition` would erase the obligation the moment a tech marks it used.
+  Verified real: claim **023242084133** part **W11608056**, named *"Core"* on our own board,
+  comes back from the API as `requires return: Yes`.
+- **The sync only ever SETS an obligation, never clears one** — a later note that omits the flag
+  must not quietly drop a part off the returns list.
+- **Surfaced only where someone can act:** TECH gets **"↩️ OWED BACK"** on the part plus a
+  card-level *"take it with you before you leave"* (counted off `must_return`, never
+  `disposition`); OFFICE gets it per-part in the drawer **and a tile chip that keeps showing
+  "↩️ N STILL OWED BACK" after the job is COMPLETED** — exactly when an owed part gets forgotten
+  and charged back. The **customer portal still excludes return logistics entirely** — that is ours.
+
 ### 🔁 WRITE ONCE, THREE LENSES — parts now on the office TILE, the office drawer, and the CUSTOMER PORTAL
 Teddy: *"Office needs the parts info on their tile and customer should also see it in their
 portal as well. Wire once all sides share information."* The write already happens once
