@@ -66,6 +66,29 @@ part reads **"Sent"** with its real tracking number, which is still strictly mor
 | Auto-acceptance | ✅ already live (20/14 days) — still does **not** create the Supabase job |
 | Same for AHS/Frontdoor | ⏳ receiver is DARK **and posts to Xano, not Supabase** |
 
+### 👯 XANO HOLDS TWO ROWS FOR ONE PHYSICAL PART — collapsed at the READ layer, never deleted
+Measured **18 pairs** where the same part appears twice on a job. **Both rows carry a `xano_id`**,
+so this is **Xano-side duplication that the mirror copies faithfully** — deleting one here is
+whack-a-mole, the mirror re-creates it next run. A fold-then-delete was **refused outright by
+`job_part_company_xano_uidx`**, which was the database correctly declining to let two distinct
+Xano identities collapse into one. So the write stays faithful and the **lenses** present truth:
+- **CUSTOMER portal** — `distinct on` inside `portal_get`, preferring the row furthest along
+  (delivered > shipped > has a name > oldest).
+- **TECH card** — `dedupeParts()` before render, same preference.
+- **OFFICE tile** — the tally counts **PHYSICAL parts, not rows**, so a duplicate can't inflate
+  *"2 of 5 sent"*.
+- **OFFICE drawer — deliberately NOT deduped.** That is the EDIT surface; hiding a row there
+  would stop the office from ever cleaning one up.
+- A row with **no usable part number is never merged blindly** — it stays its own entry.
+- **⏭️ The real fix is upstream in Xano** (or a dedupe in `platform-tn-parts-migrate`). Until
+  then the read layer keeps every human honest. Verified: jobs collapse by exactly the duplicate
+  count (5→4, 4→3, 3→2).
+
+### ⚠️ `sb-admin-sql`: secret in the QUERY STRING, big SQL in the POST BODY
+A GET carrying a large statement dies at the edge with **HTTP 414 and an EMPTY body**, which
+reads exactly like a network failure. `POST ...?secret=<admin>&project=platform` with
+`{"sql":"..."}` is the path for anything migration-sized.
+
 ### ↩️ THE VENDOR'S RETURN OBLIGATION, CAPTURED AT ORDER TIME (`docs/sql/064_part_must_return.sql`, APPLIED)
 ServicePower states it per part in the order notes — **"If used during repair  requires return:
 Yes"** — and it is known the day the part ships. Until now a return obligation was only
