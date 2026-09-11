@@ -922,8 +922,16 @@
       } else f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
     }
     var owedT = partsShipByJob[j.id];
-    if(owedT && owedT.owed && !terminal) f.push('<span class="fchip fowed" title="The vendor wants these parts back — unreturned parts get charged back">↩️ '+owedT.owed+' OWED BACK</span>');
-    if(j.status==='completed' && owedT && owedT.owed) f.push('<span class="fchip fowed" title="Job is done but the vendor is still owed parts — ship them or eat the chargeback">↩️ '+owedT.owed+' STILL OWED BACK</span>');
+    // AHS puts a hard clock on its returns ("within 30 days or $X comes out of your payables");
+    // SquareTrade states none. When there IS one, the tile carries it -- N owed back is a list,
+    // "due in 3d" is a decision. Silence means no stated clock, not no obligation.
+    var owedWhen = '';
+    if(owedT && owedT.owedDue){
+      var dleft = Math.round((new Date(owedT.owedDue+'T12:00:00') - new Date())/86400000);
+      owedWhen = dleft<0 ? ' · '+(-dleft)+'d OVERDUE' : (dleft<=7 ? ' · due in '+dleft+'d' : '');
+    }
+    if(owedT && owedT.owed && !terminal) f.push('<span class="fchip fowed" title="The vendor wants these parts back — unreturned parts get charged back">↩️ '+owedT.owed+' OWED BACK'+owedWhen+'</span>');
+    if(j.status==='completed' && owedT && owedT.owed) f.push('<span class="fchip fowed" title="Job is done but the vendor is still owed parts — ship them or eat the chargeback">↩️ '+owedT.owed+' STILL OWED BACK'+owedWhen+'</span>');
     if(j.status==='completed' && !iv) f.push('<span class="fchip fclose" title="Completed but no invoice — finish the paperwork">⚠️ NOT CLOSED OUT</span>');
     if(!hasReport(j) && (j.status==='scheduled'||j.status==='in_progress')) f.push('<span class="fchip fdiag" title="No tech report on file yet">🔍 DIAGNOSIS</span>');
     if(j.office_notes && String(j.office_notes).trim()) f.push('<span class="fchip fnote" title="Office note on this job">📋 NOTE</span>');
@@ -1644,10 +1652,31 @@
     if(c.indexOf('usps')>=0) return 'https://tools.usps.com/go/TrackConfirmAction?tLabels='+encodeURIComponent(t);
     return 'https://www.fedex.com/fedextrack/?trknbr='+encodeURIComponent(t);
   }
+  // AHS states a hard clock and a hard dollar on its return notice ("within 30 days or
+  // $295.74 will be deducted from your payables"); SquareTrade states neither. So the terms
+  // are rendered only when the vendor actually gave them -- a missing deadline means "no
+  // stated clock", never "not owed", and the obligation line above stands on its own.
+  // The dollar is stated PER PO, so it is labelled as the PO's exposure, not this part's.
+  function tpReturnTerms(p){
+    if(!p.must_return || p.returned_at) return '';
+    var bits=[];
+    if(p.return_due_at){
+      var d=new Date(p.return_due_at+'T12:00:00');
+      var left=Math.round((d-new Date())/86400000);
+      var lbl=d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      bits.push(left<0 ? ('<b>'+(-left)+'d OVERDUE</b> (was '+lbl+')')
+        : (left<=7 ? ('<b>due in '+left+'d</b> · '+lbl) : ('due '+lbl)));
+    }
+    if(p.return_penalty_cents) bits.push('$'+(Math.round(p.return_penalty_cents)/100).toFixed(2)+' at risk'+(p.return_po?' on PO '+esc(p.return_po):''));
+    if(p.rma_number) bits.push('RMA '+esc(p.rma_number));
+    if(!bits.length) return '';
+    var hot = p.return_due_at && (new Date(p.return_due_at+'T12:00:00') - new Date())/86400000 <= 7;
+    return '<div class="tprow" style="font-size:12px;color:'+(hot?'var(--danger,#b91c1c)':'var(--muted)')+'">⏳ '+bits.join(' · ')+'</div>';
+  }
   function tpShip(p){
     // The vendor's obligation outranks the tech's tap: a core is owed back even when USED.
     var owed = p.must_return && !p.returned_at
-      ? '<div class="tpship ret">↩️ Vendor wants this one back</div>' : '';
+      ? '<div class="tpship ret">↩️ Vendor wants this one back</div>'+tpReturnTerms(p) : '';
     if(p.disposition==='return') return owed || '<div class="tpship ret">↩️ Returning to vendor</div>';
     if(owed) return owed + tpShipState(p);
     return tpShipState(p);
@@ -1678,7 +1707,7 @@
     // What the vendor actually SENT, straight off their own record (platform-sp-parts-sync).
     // Office gets the operational detail — carrier, tracking, delivered — that the customer
     // portal deliberately withholds. Same row, different lens.
-    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at,cost_cents,receipt_ref,bought_at,bought_by,bought_from').eq('job_id',job.id).order('created_at').then(function(r){
+    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at,return_due_at,return_penalty_cents,return_po,rma_number,cost_cents,receipt_ref,bought_at,bought_by,bought_from').eq('job_id',job.id).order('created_at').then(function(r){
       var parts=(r&&r.data)||[];
       var rows=parts.map(function(p){
         return '<div class="tpcard" data-pid="'+esc(p.id)+'">'+
@@ -2364,7 +2393,7 @@
       // with history and creeping back up on the cap. (Both systems freezing, 2026-09-10.)
       var msgP   = sb.rpc('board_latest_inbound');
       // the parts the tech logged → the 🔧 part-# chip (fallback when the job row has none)
-      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta,must_return,returned_at,bought_at', jids) : none;
+      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta,must_return,returned_at,return_due_at,bought_at', jids) : none;
       // the colorful tags on each job + the shop's editable tag library
       var tagP = jids.length ? inChunks('job_tag', 'job_id,tag:tag_id(id,label,color)', jids) : none;
       var libP = sb.from('tag').select('id,label,color').order('created_at');
@@ -2391,9 +2420,13 @@
           // which would otherwise inflate "2 of 5 sent" on the tile.
           var pk = partKeyOB(p);
           if (pk) { var sk = p.job_id + '|' + pk; if (seenPart[sk]) return; seenPart[sk] = 1; }
-          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, owed:0, eta:null };
+          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, owed:0, eta:null, owedDue:null };
           t.n++; if (p.ship_tracking || p.bought_at) t.sent++; if (p.ship_delivered || p.bought_at) t.here++;
-          if (p.must_return && !p.returned_at) t.owed = (t.owed||0)+1;
+          if (p.must_return && !p.returned_at) {
+            t.owed = (t.owed||0)+1;
+            // soonest deadline wins -- the tile's job is to say which stop is about to cost money
+            if (p.return_due_at && (!t.owedDue || p.return_due_at < t.owedDue)) t.owedDue = p.return_due_at;
+          }
           if (p.eta && (!t.eta || p.eta < t.eta)) t.eta = p.eta;
         });
         (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; var d=String(p.disposition||''); if (d==='return'||d==='not_here') return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name }); });
