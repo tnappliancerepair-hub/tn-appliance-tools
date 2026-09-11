@@ -1,5 +1,113 @@
 # Appliance Ant
 
+## 📦↩️ 2026-09-11 (latest) — NSA'S TURN: parts arrive with no tracking AND get charged back on a CLOCK · the digest is a POSITIONAL table that tag-stripping silently corrupts · 8 "customers" that were one woman — READ FIRST
+
+Teddy: *"Let's add this for future returns and future parts being sent."* Third vendor, both
+directions, same discipline: measure, read four real emails, verify the join key, shadow, ship.
+
+### 🥇 THE THIRD FLAVOUR OF THE SAME CHARGEBACK — NSA states the CLOCK, not the DOLLAR
+Platform, NSA jobs: **35 parts / 17 jobs · 0 with tracking · 0 flagged owed back.** Same hole
+the AHS audit found — the parts are on the tickets, but nothing recorded that a shipment was
+coming and nothing recorded that NSA wants any of it back. Both facts arrive by email, **from
+ONE sender** (`notifications@em.nationalservicealliance.com`), and nobody was reading either.
+
+| | SquareTrade | AHS | **NSA** |
+|---|---|---|---|
+| label | prepaid FedEx | **none — we pay freight** | prepaid (tracking given) |
+| clock | not stated | "within 10 days", fixed | **ROLLING age, 31 days** |
+| dollar | "may be charged" | **"$295.74 deducted"** | **not stated in the email** |
+| mechanism | per part | **per PO** | per part, **auto-deducted** |
+
+**NSA is exactly inverted from AHS** — it states the deadline but never the amount, where AHS
+states the amount but only per-PO. Both land as `must_return` + a deadline; `returns.html`
+already renders a null penalty as *no stated $*, which is honest rather than a fake zero.
+Verbatim: *"When the age reaches 31 days our system will automatically charge you for the part
+by deducting the cost from future payments."* → **due = notice date + (30 − age)**.
+
+- **✅ `nsa-parts-watch` (+ `-cron`, hourly `37 * * * *`) — TWO PASSES, ONE GMAIL READ.** Same
+  sender for both, and the multi-account fan-out is the flaky part of this whole pipeline, so
+  one read halves the exposure. **Live: 4 parts tracked · 1 obligation created · 0 errors.**
+  Second pass: `parts_tracked 0 / already_tracked 1`, `created 0 / flagged 1` — idempotent.
+- **PASS 1 (parts being SENT)** — *"4 HIS parts for Case# H4441313 have shipped via tracking
+  number 522944922847"*. **ONE tracking, a part COUNT, and NO part numbers**, so it cannot be
+  matched per part. It stamps `ship_tracking`/`carrier`/`status` on the job's untracked rows
+  and **refuses to guess when the counts disagree** — H4437394 says 1 part but the job has 2
+  untracked rows, so stamping both would assert a shipment that never happened. H4433092 had
+  exactly 4 rows against a 4-part notice → clean stamp.
+- **PASS 2 (parts owed BACK)** — the weekly Wednesday *"NSA Action Needed - Potential Parts
+  Charge"* digest. **`Return Reason: "Parts Installed"` is 064 in the wild** — the part WAS
+  used and the core is still owed back, and every one of those rows reads `disposition='used'`
+  on the platform. Keying the obligation off `disposition` would have erased precisely the
+  ones that cost money. **Touches `must_return` only, never `disposition`.**
+
+### ⚠️ THE DIGEST IS A POSITIONAL TABLE — tag-stripping silently corrupts it
+6 `<td>` cells, each **stacking 3 values with `<br>`** (Case/Name/Phone · Acct/Part#/Desc ·
+Qty/Each/Extend · RMA-Sent/Tracking/ShipCo · Reason/HasCore · Age). `decodeBody()` strips tags,
+which **collapses the EMPTY sub-values** — `1<br><br>` → `1` — so a blank Each/Extend/RMA cell
+**slides the tracking number into the RMA slot** and every column after it shifts. Harmless for
+a `Key: Value` email (AHS); fatal here.
+- **✅ Added `rawBody()` + `readMany(..., {html:true})` to `_lib/gmail-accounts` and `?raw=1` to
+  `gmail-msg-dump`** so a parser for a table email can be written against the real markup
+  instead of guessed at. **Parsers unit-verified 40/40** against 12 real digests + 4 real
+  shipped notices, including an explicit assertion that tracking does NOT land in `rma_sent`.
+- **⚠️ STANDING: before parsing a vendor email, look at whether it is LABELLED or POSITIONAL.
+  A positional table must be read from raw HTML — the stripped text is lossy in exactly the
+  cells that are empty, which is the failure you will not see in a summary line.**
+
+### 👩 EIGHT "CUSTOMERS" THAT WERE ONE WOMAN (and why the obligation nearly landed on a ghost)
+Claim `NSA010566012401` resolves to **8 job rows with 8 DISTINCT `customer_id`s**. First read
+looks like 8 different people sharing a claim — which would make the join key unsafe to write
+through. **It isn't: all 8 are the same human (DAVIS, 615-889-9517)**, each with a separately
+minted customer row — the documented warranty-intake dedup bug. But **7 of the 8 are nameless
+shells**, and the resolver was picking among them arbitrarily, so the money obligation could
+land on a card the office cannot identify.
+- **The digest states the last name AND the phone, so `resolveJob` now uses them:** part match
+  → phone/last-name match → **a real customer record over a shell** → live-over-terminal →
+  newest. Verified: the obligation landed on **PATRICIA DAVIS / HERMITAGE**, the one real row.
+- ⚠️ **A distinct-`customer_id` count is NOT a distinct-person count on this platform.** Check
+  the names before concluding a join key is unsafe.
+
+### 🐞 TWO DEFECTS THE SUMMARY LINE HID (found by reading the rows, again)
+1. **`scanned:20` for 10 distinct messages.** The same NSA email lands in TWO connected
+   inboxes with different Gmail ids, so the fan-out returned every notice twice and the
+   shipped pass walked each one twice (`notices 10` → really 5, `parts_tracked 8` → really 4).
+   Live patches would have been idempotent, but the counts were a lie. **Deduped on the
+   NATURAL key (case + tracking)** — a shipment is one shipment however many inboxes saw it.
+2. **The watcher reported its OWN write as a discrepancy.** First live run returned
+   `no_longer_listed:1` on the very part it had just created: rows we create get no id back
+   (`Prefer: return=minimal`), so an id-based set never contained them. Now compares on **part
+   identity via the shared `rowMatches`** — the same test that decides flag-vs-create, so the
+   two halves can no longer disagree.
+
+### ⚠️ FOOTGUNS BURNED
+- **The 26s cap.** This sender also blasts dispatches, update requests and EFT registers, so
+  `from:` alone pulled 40+ per inbox across four inboxes and the full-format fetch timed out.
+  **Scope the Gmail query to the subjects you actually parse** (`(subject:"A" OR subject:"B")`)
+  — took the pull 40+ → 10.
+- **A single zero from the Gmail fan-out proves NOTHING.** The same query returned 40 then 0
+  back-to-back while I was A/B-testing OR syntax, which made all three (working) spellings
+  look broken. **Sample 5× and take the max.** The watcher reports `scanned` + returns an
+  explicit note on an empty read so a dead read can't masquerade as "no notices."
+- **The digest is FULL STATE, not an event.** Replaying a 30-day window of them would
+  **RESURRECT obligations that were settled** and have since dropped off the list — so only the
+  **NEWEST** digest is applied. It also reports `digest_age_days` (currently **23** — NSA has
+  gone quiet since Aug 19, which usually means the list emptied). It is still applied: on this
+  money the expensive direction is showing nothing while a deduction lands, and a settled row
+  costs the office one tap.
+
+### ⏭️ OPEN
+- **`no_longer_listed` is REPORTED, never auto-cleared.** The digest genuinely is authoritative
+  state, so auto-clearing is tempting — but a wrongly-cleared row costs the part while a stale
+  one costs a tap. Flip it on only after watching it for a few weeks.
+- **The digest column is labelled "Return Tracking" and is stored as given.** ⚠️ Whoever fixes
+  the FedEx Track 403 must **confirm the direction before letting `fedex-returns-autoclose`
+  act on an NSA-sourced `return_tracking`** — if it turns out to be the INBOUND number,
+  auto-close would clear an obligation the moment the part *arrived*.
+- 3 NSA shipments hit `no_part_rows_on_job` (H4441313, H4399135, H4373250) — the notice names
+  no part numbers, so there is nothing to attach a count to. Recorded as
+  `warranty_part_unmatched` rather than inventing nameless rows that would show on the tech
+  card and the customer portal.
+
 ## ↩️💸 2026-09-11 (later) — AHS WANTS ITS PARTS BACK TOO: half the parts book read "nothing owed" · the returns worklist was reading the wrong column · $2,778 with a clock on it — READ FIRST
 
 Teddy: *"We also requested parts from AHS as well. AHS also ships parts to us."* Measured what
@@ -88,8 +196,8 @@ two pasted portal part keys did before 068). After the fix: **flag=18, create=38
   through the Gmail thread with AHS; nothing recorded it, so they read as open. One tap each
   (**✓ Shipped it**) clears them, and from here the list stays honest. The asymmetry justifies
   it: a missed obligation costs $60–$295, a stale row costs a tap.
-- **NSA ships parts too** (`HIS Parts Shipped for Case# H…` from the NSA notifications sender) —
-  35 parts on the platform, 0 with tracking, 0 flagged. Same shape, not yet built.
+- ~~**NSA ships parts too**~~ — **BUILT same day, see the NSA entry above.** `nsa-parts-watch`
+  covers both directions; NSA turned out to be the stricter clock (31-day auto-deduction).
 - The RMA is still requested by hand. The notice carries `REA #` when AHS pre-issued one (we now
   store it); when it just says "invoice" or "call tag," a human still emails for the RMA.
 
