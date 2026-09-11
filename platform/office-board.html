@@ -1632,6 +1632,11 @@
       '<option value="distributor"'+(v==='distributor'?' selected':'')+'>🏭 Pick up from distributor</option>'+
       '<option value="customer"'+(v==='customer'?' selected':'')+'>🏠 Shipping to customer\'s home</option>'+
     '</select>'; }
+  function partKeyOB(p){
+    var n = String((p && p.number) || '');
+    var m = n.match(/part\s*#\s*([A-Za-z0-9-]{5,})/i);
+    return ((m ? m[1] : n) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
   function tpTrackUrl(p){
     var t=String(p.ship_tracking||''); if(!t) return '';
     var c=String(p.ship_carrier||'').toLowerCase();
@@ -2356,9 +2361,14 @@
         partsByJob = {}; partsShipByJob = {};
         // Shipment tally per job — counts EVERY part on the repair (a part with no number still
         // ships), unlike partsByJob which only keeps rows that carry a part number for display.
+        var seenPart = {};
         (pr.data || []).forEach(function (p) {
           if (!p.job_id) return;
           var d = String(p.disposition||''); if (d==='return'||d==='not_here') return;
+          // count PHYSICAL parts, not rows -- Xano duplicates some and the mirror copies both,
+          // which would otherwise inflate "2 of 5 sent" on the tile.
+          var pk = partKeyOB(p);
+          if (pk) { var sk = p.job_id + '|' + pk; if (seenPart[sk]) return; seenPart[sk] = 1; }
           var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, owed:0, eta:null };
           t.n++; if (p.ship_tracking) t.sent++; if (p.ship_delivered) t.here++;
           if (p.must_return && !p.returned_at) t.owed = (t.owed||0)+1;

@@ -60,9 +60,26 @@ begin
                             'shipped', (p.ship_tracking is not null),
                             'delivered', coalesce(p.ship_delivered, false),
                             'eta', p.eta) order by p.created_at), '[]'::jsonb)
-                          from public.job_part p
-                          where p.job_id = j.id
-                            and coalesce(p.disposition,'') <> 'return'),
+                          -- DEDUPE. Xano holds more than one parts row for the same physical
+                          -- part on some jobs (measured 2026-09-11: 18 pairs), and the mirror
+                          -- copies both faithfully -- deleting one here just gets it re-created.
+                          -- So collapse at the read layer: one row per normalized part number,
+                          -- preferring the one that is furthest along (delivered > shipped).
+                          from (
+                            select distinct on (upper(regexp_replace(
+                                     coalesce((regexp_match(q.number,'(?i)part\s*#\s*([A-Za-z0-9-]{5,})'))[1], q.number, ''),
+                                     '[^A-Za-z0-9]','','g')), q.job_id)
+                                   q.*
+                            from public.job_part q
+                            where q.job_id = j.id and coalesce(q.disposition,'') <> 'return'
+                            order by upper(regexp_replace(
+                                     coalesce((regexp_match(q.number,'(?i)part\s*#\s*([A-Za-z0-9-]{5,})'))[1], q.number, ''),
+                                     '[^A-Za-z0-9]','','g')), q.job_id,
+                                     (q.ship_delivered is true) desc,
+                                     (q.ship_tracking is not null) desc,
+                                     (nullif(btrim(coalesce(q.name,'')),'') is not null) desc,
+                                     q.created_at asc
+                          ) p),
                'bill', (case
                           when nullif(btrim(coalesce(j.warranty_company,'')),'') is not null then jsonb_build_object('covered', true)
                           else (select case when iv.id is null then null else jsonb_build_object(

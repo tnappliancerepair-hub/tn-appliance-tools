@@ -1239,8 +1239,29 @@
     else { cls+=' go'; txt='🚚 Sent'+(car?(' · '+car):'')+when; }
     return '<div class="'+cls+'">'+txt+' <a href="'+url+'" target="_blank" rel="noopener">'+num+'</a></div>';
   }
+  // Xano carries more than one parts row for the same physical part on some jobs, and the
+  // mirror copies both faithfully -- deleting one just gets it re-created. So collapse at the
+  // READ layer: one entry per normalized part number, keeping whichever row is furthest along.
+  function partKey(p){
+    var n = String((p && p.number) || '');
+    var m = n.match(/part\s*#\s*([A-Za-z0-9-]{5,})/i);
+    return ((m ? m[1] : n) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+  function dedupeParts(list){
+    var by = {}, out = [];
+    (list || []).forEach(function(p){
+      var k = partKey(p);
+      if (!k) { out.push(p); return; }                 // no usable number -> never merge blindly
+      var cur = by[k];
+      if (!cur) { by[k] = p; out.push(p); return; }
+      var score = function(x){ return (x.ship_delivered?8:0) + (x.ship_tracking?4:0) + (x.name?2:0) + (x.disposition?1:0); };
+      if (score(p) > score(cur)) { out[out.indexOf(cur)] = p; by[k] = p; }
+    });
+    return out;
+  }
   function renderParts(list){
     var box=document.getElementById('partsBox'); if(!box) return;
+    list = dedupeParts(list);
     var toReturn=list.filter(function(p){return p.disposition==='return';}).length;
     // The vendor's own obligation, known at order time -- separate from what the tech tapped.
     // A core is owed back even when it gets USED, so this must not key off disposition.
