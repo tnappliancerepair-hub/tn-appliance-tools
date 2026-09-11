@@ -29,6 +29,27 @@ looked independent and was not.
   work. Moving the two keys that carry 106 of the call sites gets the same result without copying
   a single secret.
 
+### 📵 A XANO OUTAGE NO LONGER SILENCES A CUSTOMER TEXT (`_lib/sms-guard.js deliver()`)
+CLAUDE.md named this as **the one thing that breaks if Xano vanished: outbound customer texts.**
+Internal/crew sends already go direct to Telnyx with Xano as a fallback; customer-direction
+sends with a non-`platform_` tag did the **opposite** — straight to Xano's `send_sms`, and if
+that call failed **the text was simply lost.**
+- **The fix turns on a distinction `xanoSend` was not making.** A bare `false` meant two
+  OPPOSITE things: **Xano ANSWERED and refused** (its intake-only gate doing its job) vs
+  **Xano never answered at all**. ⚠️ **Treating those the same is how you accidentally start
+  texting customers** — falling back to a direct send on a deliberate refusal bypasses the very
+  rule that refused it. `xanoSend` now returns `{sent, answered}`: **any well-formed reply from
+  Xano is a DECISION and is respected**; only a genuine transport failure (threw / non-2xx /
+  unparseable body) is eligible for the direct hand-off.
+- **The fallback loosens nothing.** Every guard has already run and allowed the message before
+  `deliver()` is reached — opt-out, quiet hours, dedup, frequency caps, the intake-only pause,
+  the no-clock-times scrub.
+- **The audit row goes to SUPABASE, not `crud.logEvent`** — that writes to Xano, which is the
+  thing that just failed. **A record of an outage must not live inside the outage.** (Third time
+  this exact trap showed up today; it is the standing rule now.)
+- **Unit-tested all three branches. The one that matters: a gate refusal makes ZERO
+  direct-Telnyx calls.** Reversible: `SMS_XANO_DOWN_FALLBACK=0`.
+
 ### 💸 A PAID LEAD DISAPPEARED WHEN XANO DIDN'T TAKE IT (`_lib/intake-rescue.js`, NEW)
 All three web/AI intake endpoints create their job in Xano inside a `catch (_) {}`. On failure
 `jobId` stays null — and **everything downstream is gated on `if (jobId)`**. On the PAID path the
