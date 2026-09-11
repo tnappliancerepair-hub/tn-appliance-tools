@@ -36,6 +36,13 @@ the mechanism is the opposite of what I wrote.**
 - **⚠️ STANDING: a guard keyed on a field that is structurally always zero is dead code that looks
   live.** Before trusting any "they already answered" check, read the field on a row you KNOW
   answered. I shipped this one on a platform-side measurement and never checked the guard's own input.
+- **⚠️ TWO SILENT-DEGRADATION TRAPS hit while fixing it, same shape both times:** `rest().get()`
+  returns **`[]` on ANY non-ok response**, so a malformed PostgREST filter reads as "this customer
+  sent nothing" and the guard quietly reverts to old behavior while looking healthy. (a) I quoted
+  the UUIDs in `in.(...)`; every in.() call already proven against this DB (`platform-appt-reminder`,
+  `platform-ant`) passes them **UNQUOTED**, and `"` is not URL-unreserved — matched the proven form,
+  not the plausible one. (b) The run now reports **`platform_state_jobs`** so the next tick says
+  outright whether the lookup returned rows, instead of leaving it to be inferred from a skip count.
 
 
 ### 📏 THE MODEL GAP — measure it on UPCOMING jobs against BOTH stores, not on 60 days of one
