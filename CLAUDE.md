@@ -1,5 +1,72 @@
 # Appliance Ant
 
+## 🔩🔌 2026-09-11 — SERVICEPOWER API: parts list is REAL and the email has been MISSING PARTS · 3 dead ops revived · auto-accept is live but doesn't create the job — READ FIRST
+
+Teddy: *"We need to utilize the service power api for parts list and parts return links auto
+acceptance of jobs and as the AHS api gets completed we need that to be capable of the same."*
+Measured against live TN dispatches before building anything. Full detail:
+**`docs/servicepower-parts-returns-api-2026-09-11.md`**.
+
+### 🔴 THE FINDING THAT JUSTIFIES ALL OF IT — the email path is silently dropping parts
+On claim **070570184134** the email-parsed list and the API **disagree**: 4 parts in both, 2 only
+the email saw, and **2 the email MISSED ENTIRELY — WE22X34377 (MAIN BOARD) and WE22X36197 (USER
+INTERFACE BOARD)**. Two of the most expensive parts on the job are not on the tech's parts
+tracker. SquareTrade's own rule: *"If parts are not returned or returned incorrectly or damaged,
+you will not be paid for the repair and may be charged for the new part or core."* That is direct
+money exposure, and it exists because **a part only becomes "owed back" today if its email arrived
+and parsed.** Neither source is complete alone — **the API is the spine to MERGE onto, not a
+replacement.** (The email path also writes garbage: `job_part.number` =
+`"THERMOSTAT HI LIMIT WE04X30381\nPart #WE04X30381"` with `name` NULL. The API keeps `PartNo` and
+`PartDesc` clean and separate.)
+
+### 🐞 THREE CALL-DETAIL OPS WERE DEAD SINCE THE DAY THEY WERE WRITTEN (fixed)
+`getCallAttributes` / `getCallNotes` / `getProductCoverage` were authored blind ("tuned precisely
+once we see a real response" — nobody ever saw one) and **every call faulted**:
+`Invalid element in com.sp.service.spdservicer.CallAttributesInfo - CallNumber`. They are real,
+reachable ops that simply reject `CallNumber`. Per the live WSDL:
+- `getCallAttributes` → `CallAttributesInfo` = `{UserInfo, **FSSCallId**}` only
+- `getProductCoverage` → `ProductCoverageInfo` = `{UserInfo, **FSSCallId**}` only
+- `getCallNotes` → `CallInfoSearch` = `{UserInfo, FromDateTime, ToDateTime, **Callno**, Versionno}`
+⚠️ **`Callno`/`Versionno` are lowercase-"no".** We already resolve `FSSCallId` from `getCallInfo`,
+so nothing new was needed to call them. All three now return `ok:true`.
+
+### 🔎 THE PARTS ARE NOT WHERE THE WSDL SUGGESTS
+The WSDL has a rich `PartsInfo` (16 fields incl. `PartTrackingUrl`) and `ShippingInfo` (incl.
+`ShipURL`, `ShipType`) — **both are WRITE-side only** (`PartsInfo` appears solely as element
+`Parts` inside `UpdateCall`; `CallInfo` declares `ShippingInfo` but it came back empty on every
+real dispatch). **On the READ side the parts list arrives as text stanzas inside `getCallNotes`:**
+`Part Number / Part Description / Quantity / "If used during repair  requires return" / Tracking`.
+⚠️ **that label has a DOUBLE space** — match loosely on whitespace. `partsFromNotes()` parses it,
+dedupes on part number, and lets a later "part tracking details" note fill a field the original
+"part order details" note left blank — never letting an empty value erase a known one.
+`attributesFromRaw()` pulls the per-dispatch **"Appointment completion form"** link — the
+SquareTrade wizard that IS their TDR.
+
+### 📋 WHERE EACH OF TEDDY'S THREE ASKS STANDS
+| ask | state |
+|---|---|
+| **Parts list from API** | ✅ available + parser shipped, verified live (6 clean parts on a real job) |
+| **Parts RETURN links** | 🟡 API gives the return REQUIREMENT + tracking + the RMA portal URL; the **per-part prepaid LABEL + RMA# still only come by email** (`rma_request@squaretrade.com` → `platform-rma-tee`) |
+| **Auto-acceptance** | ✅ **already live** — `servicepower-auto-accept` every 10 min, **20 accepts in 14 days**, TN+LA gated. BUT it only claims the offer; it does **not** create the Supabase job, so we still wait on the dispatch email. |
+| **Same for AHS/Frontdoor** | ⏳ `frontdoor-webhook.js` is DARK (`FRONTDOOR_WEBHOOK_LIVE` ≠ 1) **and posts to Xano's `create_job_from_email`, not Supabase** — flipping it live feeds Xano, not the platform. |
+
+### 🚪 API-NATIVE INTAKE IS FULLY WITHIN REACH
+`getCallInfo` returns a **complete job** — 19 of 21 fields populated live: name, address, city/
+state/zip, phone, email, brand, product, model, problem text, problem type, schedule date,
+**schedule time period (`8-10`)**, call status, warranty type, install date. That is everything
+needed to create a Supabase job **with no email at all**. Auto-accept already fires every 10 min;
+the only missing step is creating the platform job from `getCallInfo` right after it accepts.
+
+### ⏭️ NOT BUILT (deliberately — read path first, no writes yet)
+1. **Merge API parts into `job_part`** (API as spine, email fills the label/RMA#). Highest value —
+   it closes the missing-main-board class of chargeback.
+2. **Create the Supabase job from `getCallInfo`** after auto-accept → true API intake.
+3. **Frontdoor/AHS**: repoint the receiver at Supabase + flip live after watching real payloads.
+
+**Verify (read-only, never writes):**
+`servicepower-call-detail?secret=<VAPI_ADMIN_SECRET>&call=<dispatch#>[&raw=1]`
+→ `{ api_parts[], links{}, parts[], shipping[], sources{info,attributes,notes,coverage} }`
+
 ## 🔔📵 2026-09-10 (late) — THE REMINDER IS BACK ON · the over-texting path that was still open (multi-machine stops) — READ FIRST
 
 Teddy: *"Turn back on if there's no chance of over texting. All of this is on supabase correct?"*
