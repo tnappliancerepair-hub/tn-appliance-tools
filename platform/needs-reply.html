@@ -1,0 +1,140 @@
+<!doctype html><html lang="en" data-live="1"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Waiting on us — Ant</title>
+<!--
+  Ant platform — WAITING ON US.
+
+  Measured on TN 2026-09-11: 100 inbound customer texts in 7 days against 12 logged replies,
+  and 41 people whose LAST message had nothing after it - 21 of them past 24 hours, averaging
+  26. Most were probably answered on the phone. That is the whole problem: from the outside an
+  answered-by-phone looks identical to a dropped one, so neither gets chased.
+
+  This page does not text anybody. It is a list a human clears.
+
+  The Handled button is not a nicety - it is what keeps the page alive. Most of these WERE
+  handled by phone, so with no way to clear them the list would be mostly noise inside a week
+  and the office would stop opening it. Dismissals are stored as events, never as thread
+  messages, so clearing the queue never shows the customer a reply nobody sent.
+-->
+<style>
+  :root{--bg:#0e1118;--card:#161b26;--line:#252c3b;--ink:#e8ecf5;--mut:#8b97ad;--hot:#f87171;--warm:#fbbf24;--ok:#34d399;--acc:#60a5fa}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:0 14px 60px}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:20px;margin:16px 0 2px}
+  .sub{color:var(--mut);font-size:13px;margin-bottom:14px}
+  .tiles{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13px}
+  .tile b{font-size:19px;display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--line);border-radius:11px;padding:12px;margin-bottom:10px}
+  .card.hot{border-left-color:var(--hot)} .card.warm{border-left-color:var(--warm)}
+  .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .who{font-weight:700}
+  .age{font-size:12px;color:var(--mut);white-space:nowrap}
+  .age.hot{color:var(--hot);font-weight:700}
+  .said{margin:8px 0;padding:9px 11px;background:#0b0f17;border-radius:9px;font-size:14px}
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .tag{font-size:11px;padding:2px 8px;border-radius:99px;background:#1d2532;color:var(--mut);border:1px solid var(--line)}
+  .tag.i{background:#1a2740;color:var(--acc);border-color:#24365a}
+  .acts{display:flex;gap:8px;flex-wrap:wrap}
+  a.btn,button{font:inherit;font-size:13px;padding:8px 13px;border-radius:9px;border:1px solid var(--line);background:#1d2532;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block}
+  button.done{background:#14351f;border-color:#1f5133;color:var(--ok)}
+  .empty{text-align:center;padding:46px 16px;color:var(--mut)}
+  .empty b{display:block;font-size:17px;color:var(--ok);margin-bottom:6px}
+  .gate{max-width:320px;margin:60px auto}
+  input{width:100%;font:inherit;padding:10px;border-radius:9px;border:1px solid var(--line);background:#0b0f17;color:var(--ink);margin-bottom:9px}
+  .msg{color:var(--mut);font-size:13px;padding:8px 0}
+</style></head><body>
+<div class="wrap" id="app"><div class="msg">Loading…</div></div>
+
+<script src="/platform/config.js"></script>
+<script src="/platform/vendor/supabase-js.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
+<script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/vendor/boot-watchdog.js"></script>
+<script>
+(function(){
+  var cfg = window.ANT_PLATFORM || {}, sb = null, app = document.getElementById('app');
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function tokenThen(fn){ sb.auth.getSession().then(function(s){ var t=s&&s.data&&s.data.session&&s.data.session.access_token; if(t) fn(t); else renderSignIn(); }); }
+  function api(payload){
+    return new Promise(function(res){
+      tokenThen(function(tok){
+        fetch('/.netlify/functions/platform-unanswered',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(Object.assign({access_token:tok},payload||{}))})
+          .then(function(r){return r.json();}).then(res).catch(function(){res({ok:false,error:'network'});});
+      });
+    });
+  }
+
+  function renderSignIn(err){
+    app.innerHTML='<div class="gate"><h1>Waiting on us</h1><div class="sub">Office sign-in</div>'+
+      '<input id="em" type="email" placeholder="email" autocomplete="username">'+
+      '<input id="pw" type="password" placeholder="password" autocomplete="current-password">'+
+      '<button id="go" style="width:100%">Sign in</button>'+(err?'<div class="msg">'+esc(err)+'</div>':'')+'</div>';
+    document.getElementById('go').onclick=function(){
+      sb.auth.signInWithPassword({email:document.getElementById('em').value.trim(),password:document.getElementById('pw').value})
+        .then(function(r){ if(r.error) renderSignIn(r.error.message); else load(); });
+    };
+  }
+
+  // A customer saying the repair did not work outranks everything else on the page, no
+  // matter how long anyone else has been waiting.
+  var URGENT = {'still broken':1,'wants a call':1};
+  function rank(w){ return (URGENT[w.intent]?1000:0) + w.hours_waiting; }
+
+  function card(w){
+    var hot = w.hours_waiting>=24 || URGENT[w.intent];
+    var cls = hot ? 'hot' : (w.hours_waiting>=4 ? 'warm' : '');
+    var age = w.hours_waiting<1 ? Math.round(w.hours_waiting*60)+' min'
+            : (w.hours_waiting<48 ? Math.round(w.hours_waiting)+' hr' : Math.round(w.hours_waiting/24)+' days');
+    var j = w.job;
+    return '<div class="card '+cls+'" data-id="'+esc(w.message_id)+'">'+
+      '<div class="top"><span class="who">'+esc(w.name)+(w.city?' <span class="age">· '+esc(w.city)+'</span>':'')+'</span>'+
+      '<span class="age '+(hot?'hot':'')+'">waiting '+age+'</span></div>'+
+      '<div class="said">'+esc(w.said)+'</div>'+
+      '<div class="tags"><span class="tag i">'+esc(w.intent)+'</span>'+
+        (j&&j.status?'<span class="tag">'+esc(j.status)+'</span>':'')+
+        (j&&j.day?'<span class="tag">'+esc(j.day)+'</span>':'')+
+        (j&&j.parts?'<span class="tag">parts: '+esc(j.parts)+'</span>':'')+
+        (j&&j.problem?'<span class="tag">'+esc(j.problem)+'</span>':'')+'</div>'+
+      '<div class="acts">'+
+        (w.phone?'<a class="btn" href="tel:'+esc(w.phone)+'">Call '+esc(w.phone)+'</a>':'')+
+        '<a class="btn" href="/platform/messages.html?c='+esc(w.customer_id)+'">Open conversation</a>'+
+        '<button class="done" data-done="'+esc(w.message_id)+'" data-cust="'+esc(w.customer_id)+'">Handled</button>'+
+      '</div></div>';
+  }
+
+  function wire(){
+    Array.prototype.forEach.call(document.querySelectorAll('[data-done]'), function(b){
+      b.onclick=function(){
+        b.disabled=true; b.textContent='…';
+        api({do:'dismiss',message_id:b.getAttribute('data-done'),customer_id:b.getAttribute('data-cust'),reason:'handled'})
+          .then(function(){ var c=b.closest('.card'); if(c){ c.style.opacity=.35; c.querySelector('.acts').innerHTML='<span class="msg">Cleared</span>'; } });
+      };
+    });
+  }
+
+  function load(){
+    app.innerHTML='<div class="msg">Loading…</div>';
+    api({do:'list'}).then(function(d){
+      if(!d||!d.ok){ if(d&&d.error==='not_signed_in') return renderSignIn(); app.innerHTML='<div class="msg">'+esc((d&&d.error)||'error')+'</div>'; return; }
+      var ws=(d.waiting||[]).slice().sort(function(a,b){ return rank(b)-rank(a); });
+      var head='<h1>Waiting on us</h1><div class="sub">Customers whose last message has nothing after it. Answered on the phone? Tap Handled so the list stays real.</div>';
+      if(!ws.length){ app.innerHTML=head+'<div class="empty"><b>Nobody is waiting.</b>Every customer who wrote in has been answered.</div>'; return; }
+      var byI=d.by_intent||{};
+      var tiles='<div class="tiles"><div class="tile"><b>'+ws.length+'</b>waiting</div>'+
+        '<div class="tile"><b>'+(d.over_24h||0)+'</b>over 24 hrs</div>'+
+        Object.keys(byI).sort(function(a,b){return byI[b]-byI[a];}).slice(0,4).map(function(k){
+          return '<div class="tile"><b>'+byI[k]+'</b>'+esc(k)+'</div>'; }).join('')+'</div>';
+      app.innerHTML=head+tiles+ws.map(card).join('');
+      wire();
+    });
+  }
+
+  if(!cfg.url||!window.supabase){ app.innerHTML='<div class="msg">Platform not configured.</div>'; return; }
+  sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) load(); else renderSignIn(); });
+})();
+</script></body></html>
