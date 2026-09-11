@@ -1,5 +1,97 @@
 # Appliance Ant
 
+## 🔧👷 2026-09-11 (latest) — AGENTS FOR THE CREW: we asked for two things and stopped when one arrived (672 customers) · the model is missing on ~80% of jobs · first-visit-fix is measured on a biased sample · a dropped scope asks ServicePower for EVERYTHING — READ FIRST
+
+Teddy: *"What agents would HCP and ServiceTitan and Jobber build? We need to give our people the
+best possible opportunity to help them be successful."* So: what those products build for techs,
+then what OUR data says is actually in the way. Measured before building, and two of the things I
+built were wrong until the data said so.
+
+### 🥇 THE ONE THAT MATTERS — 672 customers did what we asked and the tech still drives out blind
+The intake text asks for **two** things — a video AND a photo of the model sticker — because the
+model decides the part and the part decides one trip or two. The stop condition was **"any
+attachment exists"**:
+```js
+if (st && (st.has_photo || attachments_count > 0)) { skipped_has_media++; continue; }
+```
+A customer who sent the video — **the first thing we asked for** — satisfied the guard, and we
+never asked for the sticker again.
+- **Measured, 60 days: 1,063 customers sent media. 391 have a model. 672 engaged and we dropped it.**
+  No-media jobs sit at **5.6%** model coverage; WITH media only **36.8%**. Sending media barely
+  moves the number that decides the part — that gap IS the bug.
+- **Fix: the guard keys on what we NEEDED, not on what showed up.** And when they've already sent
+  something the wording asks **only** for the sticker and says we got the video — asking again for
+  both reads as if nobody looked.
+- **⚠️ It does NOT add a touch.** The 2-touch link-only cap and the 4-touch sequence cap run
+  BEFORE this check; the 20-hour spacing, per-phone cap, evening gate and `intake_collect` tag run
+  after, untouched. It only stops discarding an **allowed** touch while the deciding field is blank.
+  Bounded at 30 sends/run. Branches verified: nothing→full ask · video→sticker-only · video +
+  `"Refrigerator"`/`"N/A"`→still asks (a model carries a digit) · video + `WDT730HAMZ`→stops.
+
+### 📏 THE MODEL GAP IS ~80%, NOT 43% — and my first number was measured on the wrong slice
+| vendor | jobs (60d) | has model | has brand |
+|---|---|---|---|
+| SquareTrade | 1,825 | **13.3%** | 17% |
+| AHS | 1,040 | **22.7%** | **55%** |
+| NSA | 236 | 7.2% | 8% |
+- The earlier "57% have a model" came from a **44-job upcoming slice** and was not representative.
+- **AHS carries BRAND but not MODEL.** For the biggest book the model genuinely is not in the
+  dispatch — it has to come from the customer. That is why the intake guard above is the lever,
+  not a vendor API.
+
+### 🐞 `platform-job-prep` WAS ASKING THE WRONG VENDOR (found by RUNNING it, not reading it)
+The dry pass reported a clean **"20 of 20, vendor had none"** — which contradicted the 19-of-19
+model coverage measured off live SquareTrade dispatches. Two bugs, both mine, both invisible in
+the summary line:
+1. **98 of 109 candidates were AHS** (8-digit claims). ServicePower carries the SquareTrade/
+   Allstate book — an AHS number is a question about a call it has never seen, and it answers
+   "no model" every time. **A coverage limit was arriving disguised as a thin vendor API.** Now
+   scoped to the vendors that API serves, and counted **separately** (`not_in_servicepower`) so it
+   can never hide again.
+2. **"Upcoming" had no lower bound** → swept the stale-scheduled backlog; **90 of 109 were June,
+   July, August.** Nobody drives to those tomorrow.
+- **⚠️ A clean-looking summary line is not a clean result.** Both bugs produced `ok:true`.
+
+### 🔴 A DROPPED SCOPE ASKS SERVICEPOWER FOR EVERYTHING (`getCallInfo`, fixed as the CLASS)
+`platform-job-prep` called `getCallInfo({ callNumber })`. **The parameter is `callNo`.** The field
+helper drops empty values, so `<Callno>` was **omitted entirely** and the request went out scoped
+by nothing but a date window — and two of the three callers that scope by call number pass an
+**empty date window on purpose**, so there the same slip asks for every call ServicePower has.
+**Same shape as the 2026-09-11 runaway** (empty claim number → 762 other people's parts on one job).
+- Fixed at the call that can be wrong: `getCallInfo` refuses a `callNo` that is **supplied but
+  blank**, and refuses **unknown parameter names** — an intent check alone does NOT catch a typo,
+  because `{callNumber}` carries no `callNo` and reads as a deliberate window query. Window-only
+  calls (auto-accept, capacity poll) are untouched.
+- **⚠️ STANDING: a misspelled scoping parameter must be LOUD, never silently unscoped.**
+
+### 📉 FIRST-VISIT-FIX IS MEASURED ON A BIASED SAMPLE — do NOT coach off it yet
+`first_stop` reads **86-89%**, but: of 189 jobs sitting in `awaiting_parts`, **189 are unmeasured.**
+Cause confirmed (not guessed): all 189 are **Xano-mirrored**, the mirror **INSERTs** them already at
+`awaiting_parts`, and the trigger is **`before update`** with a transition test
+(`old.status is distinct from 'awaiting_parts'`) that therefore never matches. They have been
+updated since insert — the transition just never happens.
+- **The population structurally excluded is the one that did NOT get fixed on the first stop**, so
+  the rate is biased **upward**.
+- **⛔ DO NOT just backfill `first_stop=false` for awaiting_parts.** At TN parts are ordered
+  **before** the first visit ("beat the tech to the door" → `record_parts_order` flips the job), so
+  `awaiting_parts` does **not** mean "the visit failed." A blind backfill would blame techs for
+  jobs nobody has visited yet. The honest fix needs a "did a tech actually arrive" signal
+  (`job_started_at` / arrival event) to split pre-visit parts from a failed visit. **Flagged, not
+  fixed — the metric is worth getting right before anyone is coached on it.**
+
+### 🏢 WHAT HCP / SERVICETITAN / JOBBER WOULD BUILD — and which of it we actually need
+They converge on ~7 tech-facing agents: **know-before-you-go job prep · route + drive-time ·
+price book with options at the door · tech scorecard · truck stock ("do I have the part") ·
+membership conversion · estimate follow-up.**
+- **The upsell half does not transfer.** TN is ~95% warranty: price book, membership conversion and
+  estimate follow-up are ServiceTitan's revenue engine and mostly dead weight on a warranty board.
+- **What DOES transfer is the boring half, and it is exactly where our data hurts:** job prep
+  (model 13-23%), parts-before-the-visit (blocked on FedEx Track 403), and a scorecard — which we
+  cannot honestly build until the measurement bias above is fixed.
+- **The crew is not the problem.** 86-89% first-visit-fix across a 3-point spread between techs
+  means the lever is not coaching — it is **not sending them out blind**.
+
+
 ## 🙋‍♀️💬 2026-09-11 (latest) — AGENTS FOR THE CUSTOMER: 41 people were waiting on us and nothing said so · the portal showed a ONE-SIDED conversation — READ FIRST
 
 Teddy: *"We need to build agents to help us make this the best possible solution for people
