@@ -109,10 +109,14 @@ exports.handler = async function (event) {
     },
     {
       lane: 'Warranty claim submission (ServicePower)',
-      platform_ready: false,
+      // The BUILD is platform-native now (_lib/platform-claim-context): job, customer, TDR
+      // and parts all come off Supabase, and the claim's returned flag is derived from the
+      // vendor's own must_return rather than from whether a parts email happened to parse.
+      // Not calling this "receiving" -- nothing files automatically, by choice.
+      platform_ready: true,
       receiving_now: false,
-      how_to_dual_feed: 'No platform path exists. The claims connector, code maps and submission live on the Xano side only.',
-      why_it_matters: 'This is the money lane - an unfiled claim is an unpaid job. It is the one genuine BUILD left, not a repoint.',
+      how_to_dual_feed: 'servicepower-claims-build already assembles the claim off the platform (source:platform). Preview one against a real dispatch and diff it with ?src=xano before anything files.',
+      why_it_matters: 'This is the money lane - an unfiled claim is an unpaid job. The assembly no longer needs Xano; what is left is the official defect/repair code lists and the decision to let it file on its own.',
     },
     {
       lane: 'Money (invoices, payroll, tech pay)',
