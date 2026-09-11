@@ -69,6 +69,14 @@ with no card on it. Money in, work invisible.
   Verified the gate still passes it to Teddy only and still blocks everything else.
 - Sirens now point at **wherever the job actually is**. A siren aimed at an empty board is worse
   than no siren — it reads as "nothing arrived."
+- **🔎 THEN WENT LOOKING FOR THE CLASS, and it found a FOURTH paid path I'd missed.** Grepped
+  every function for a XANO fetch swallowed by `catch (_) {}` in a money or customer-facing path
+  → **`verify-vent-booking`** is `verify-quickcheck`'s twin, vent-shaped. **$80 paid**, and the
+  `if (jobId)` gate there also skips the **service address AND the `payment_status:'paid'` stamp**
+  — so the booking is lost *and* the payment goes unrecorded. Same rescue.
+  **All four intake paths are covered now: free · paid · warranty · vent.**
+- The other hits in that sweep were `send_sms` calls, **left alone deliberately**: owner/office
+  alerts (a missed alert, not lost customer data) or cron sweeps that heal themselves next cycle.
 
 ### 🧾 WARRANTY CLAIMS FILE OFF THE PLATFORM (`_lib/platform-claim-context.js`, NEW)
 Claim submission was the **only** lane `platform-cutover-check` still grades `platform_ready:false`,
