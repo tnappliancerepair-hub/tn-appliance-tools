@@ -120,7 +120,7 @@ async function runSync(q) {
   // and=(or(...),or(...)) is how PostgREST expresses "still live AND a ServicePower vendor".
   const liveOr = `or(status.neq.completed,completed_at.gte.${cutoff})`;
   const vendorOr = 'or(warranty_company.ilike.*square*,warranty_company.ilike.*allstate*,warranty_company.ilike.*servicepower*,warranty_company.ilike.*service power*)';
-  let jf = `job?company_id=eq.${companyId}&claim_number=not.is.null&status=neq.canceled`
+  let jf = `job?company_id=eq.${companyId}&claim_number=not.is.null&claim_number=neq.&status=neq.canceled`
     + `&and=(${liveOr},${vendorOr})`
     // Oldest-synced first (never-synced first). Without this cursor the sweep would re-process
     // the same newest N jobs forever and the other ~300 would never be looked at.
@@ -142,20 +142,35 @@ async function runSync(q) {
   const touchedByTracking = [];   // [{rowId, tracking}] to enrich after FedEx
 
   for (const j of jobs) {
+    // claim_number can be '' (empty string) -- that passes a not-null filter and, sent as Callno,
+    // makes ServicePower return every note in the window across every dispatch. Skip and stamp so
+    // it leaves the queue instead of blocking the head of it.
+    const claim = String(j.claim_number || '').trim();
+    if (!claim) {
+      out.skipped_no_claim = (out.skipped_no_claim || 0) + 1;
+      if (!dry) await spatch(base, H, `job?id=eq.${j.id}`, { sp_parts_synced_at: new Date().toISOString() });
+      continue;
+    }
     let apiParts = [];
     try {
-      const r = await getNotes({ callNumber: j.claim_number, fromDateTime: fdt(nowMs - 180 * DAY), toDateTime: fdt(nowMs + DAY) });
+      const r = await getNotes({ callNumber: claim, fromDateTime: fdt(nowMs - 180 * DAY), toDateTime: fdt(nowMs + DAY) });
       apiParts = sp.partsFromNotes((r && r.raw) || '');
-    } catch (e) { out.errors.push({ job: j.id, claim: j.claim_number, error: String((e && e.message) || e).slice(0, 120) }); continue; }
+    } catch (e) { out.errors.push({ job: j.id, claim: claim, error: String((e && e.message) || e).slice(0, 120) }); continue; }
     // Stamp the cursor even when there is nothing to sync -- otherwise a job with no parts is
     // retried every run and permanently blocks the head of the queue.
     if (!dry) await spatch(base, H, `job?id=eq.${j.id}`, { sp_parts_synced_at: new Date().toISOString() });
     if (!apiParts.length) continue;
+    // Sanity ceiling. A real dispatch carries a handful of parts; anything wild means the call
+    // was not scoped and we are looking at somebody else's work. Refuse rather than write it.
+    if (apiParts.length > 25) {
+      out.errors.push({ job: j.id, claim: claim, error: 'refused_' + apiParts.length + '_parts_unscoped' });
+      continue;
+    }
     out.jobs_with_api_parts++;
     out.api_parts_seen += apiParts.length;
 
     const existing = await sget(base, H, `job_part?job_id=eq.${j.id}&select=id,name,number,disposition,ship_tracking,ship_carrier,source&limit=200`);
-    const jobRes = { job: j.id, claim: j.claim_number, api_parts: apiParts.length, actions: [] };
+    const jobRes = { job: j.id, claim: claim, api_parts: apiParts.length, actions: [] };
 
     for (const p of apiParts) {
       if (p.tracking) trackingSeen.add(p.tracking);

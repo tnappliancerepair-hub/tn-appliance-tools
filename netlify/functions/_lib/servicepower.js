@@ -173,6 +173,11 @@ async function getCallAttributes({ fssCallId } = {}) {
   return soapCall(inner, '');
 }
 async function getCallNotes({ callNumber, fromDateTime, toDateTime, versionNo } = {}) {
+  // HARD GUARD. An empty Callno does NOT scope the search -- ServicePower happily returns every
+  // note in the date window across EVERY dispatch. On 2026-09-11 that dumped 762 distinct parts
+  // from other people's jobs onto two jobs whose claim_number was '' (empty string, which slips
+  // past a not-null filter). A caller with no call number must get nothing, never everything.
+  if (!String(callNumber || '').trim()) throw new Error('getCallNotes requires a callNumber (an empty one returns ALL calls)');
   const ui = await userInfoXml();
   // WSDL CallInfoSearch = { UserInfo, FromDateTime, ToDateTime, Callno, Versionno }.
   // Note the lowercase "no" on Callno/Versionno -- CallNumber is rejected outright.
