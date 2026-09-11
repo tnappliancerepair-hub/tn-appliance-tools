@@ -66,6 +66,40 @@ part reads **"Sent"** with its real tracking number, which is still strictly mor
 | Auto-acceptance | ✅ already live (20/14 days) — still does **not** create the Supabase job |
 | Same for AHS/Frontdoor | ⏳ receiver is DARK **and posts to Xano, not Supabase** |
 
+### 🔁 WRITE ONCE, THREE LENSES — parts now on the office TILE, the office drawer, and the CUSTOMER PORTAL
+Teddy: *"Office needs the parts info on their tile and customer should also see it in their
+portal as well. Wire once all sides share information."* The write already happens once
+(`platform-sp-parts-sync` → `job_part`); these are READ lenses over that same row. No second
+source of truth, nobody re-keys anything.
+- **OFFICE TILE:** "awaiting parts" is a dead end by itself. The chip now answers the question
+  the office is actually asking — *is this bookable yet*:
+  **✅ PARTS HERE (3) — BOOK IT** / **📦 PARTS 2/3 HERE** / **🚚 PARTS SENT (2/3) · 09-14**.
+  Backed by a `partsShipByJob` tally that counts EVERY part on the repair (a part with no
+  number still ships), unlike `partsByJob` which only keeps rows carrying a part number.
+- **OFFICE DRAWER:** per-part carrier, delivered state, tappable tracking link.
+- **CUSTOMER PORTAL** (`docs/sql/063_portal_parts.sql`, APPLIED): a plain-language "Your parts"
+  card — *"2 here · 1 on the way"*, expected date, per-part Here / On the way / On order.
+- **⚠️ THE CUSTOMER LENS IS SANITIZED IN `portal_get`, which is an ALLOWLIST and stays one:**
+  never the part **NUMBER** (standing rule, no side-shopping) · never `cost_cents`/`sell_cents`
+  · never `ship_tracking`/`rma_number`/`return_tracking` (a raw tracking number invites the
+  customer to chase the carrier instead of us) · parts with `disposition='return'` excluded
+  outright (unused stock going back to the vendor is not this customer's repair).
+- **🔴 THE SUBTLE LEAK I ALMOST SHIPPED:** the obvious display fallback `coalesce(name, number)`
+  would have **leaked the part number**, because the legacy email parser stuffed the number INTO
+  `number` alongside the description (`"THERMOSTAT HI LIMIT⏎Part #WE04X30381"`). Instead the
+  description is **salvaged out of that junk** — text before `Part #`, minus every token
+  containing a digit — and anything unrecognisable becomes the generic word "Part".
+  Verified through the real RPC on a customer who has parts: clean names, and **zero**
+  occurrences of cost / tracking / rma / number anywhere in the payload.
+
+### ⚠️ POSTGRES REGEX FOOTGUN — a bad regex DEPLOYS CLEAN and only throws at runtime
+Postgres ARE requires the **`(?i)` director at the START of the whole regex**. `'^(?i)(none|null)$'`
+raises **`invalid regular expression: quantifier operand invalid`** — but **`CREATE FUNCTION` does
+not validate it**, so the broken function deploys reporting success and then throws *only for the
+rows that actually reach that expression* (here: only customers who HAVE parts). Correct form is
+`'(?i)^(none|null)$'`. **Always exercise a recreated function against a row that hits every
+branch — "it applied OK" proves nothing about a regex.**
+
 ### 🚨 RUNAWAY CAUGHT SAME NIGHT — an EMPTY claim number makes ServicePower return EVERY call's notes
 `claim_number` can be **`''` (empty string)**, which sails straight past a `not.is.null` filter.
 Sent as `Callno`, an empty value **does not scope `getCallNotes` at all** — ServicePower happily
