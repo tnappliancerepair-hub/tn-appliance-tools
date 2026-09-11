@@ -1,6 +1,103 @@
 # Appliance Ant
 
-## 🧾🛒 2026-09-11 (latest) — SNAP THE PART YOU PICKED UP + THE RECEIPT · a shadowed `db.patch` that killed every merge · the customer's parts list was leaking a tracking number — READ FIRST
+## 🧯🔌 2026-09-11 (latest) — GETTING OFF XANO: the vault itself was a Xano dependency · a paid lead vanished when Xano dropped it · warranty claims now file off the platform — READ FIRST
+
+Teddy: *"Keep working to get us closer to no longer needing xano to operate our system."*
+Three cuts, each found by measuring rather than assuming.
+
+### 🔑 THE ONE THAT MATTERED MOST — every platform function needed Xano to read its own password
+Grepped it instead of trusting the mental model: **all 66 `platform-*` functions import
+`_lib/secrets.js`, and the vault lives in Xano's `app_config` table.** So a platform function
+cold-starting during a Xano outage could not read the URL of its own database. The platform
+looked independent and was not.
+- Measured the real surface — which secrets the platform actually asks for:
+  **`PLATFORM_SUPABASE_URL` (57 call sites) · `PLATFORM_SUPABASE_SERVICE_KEY` (49) ·
+  `VAPI_ADMIN_SECRET` (42)**, then a long tail of `PLATFORM_*_ENABLED` / `_LIVE` feature flags
+  whose vault-miss already degrades to "off", which is the safe direction.
+- **The service key was ALREADY in Netlify env** (the `vault_to_env` write returned 200-update,
+  not 201-create — that's how we know). **Only the URL was vault-only**, and that one key was
+  enough to make the whole platform need Xano.
+- **Moved `PLATFORM_SUPABASE_URL` into Netlify env** via `netlify-admin?action=vault_to_env`
+  (server-side — the value never passes through a chat or a shell). **63 bytes.**
+  `getSecret` is env-first, so the Xano hop is now gone for both load-bearing credentials.
+- **The 4KB wall held: 3,118 → 3,181 of 4,096, 915 free, and the build published GREEN.**
+  Well under the empirically-good ~3.7KB. (Reverse it with `env_to_vault` + delete if ever needed.)
+- ⚠️ **STANDING: a "Supabase-native" function that calls `getSecret` is only as independent as
+  the key it asks for.** Check the key is in ENV, not just in the vault, before calling anything Xano-free.
+- 🚫 **Deliberately did NOT mirror the vault into Supabase.** It would have fixed the whole class
+  in one move, but it duplicates secrets into a second store — the standing rule from the backup
+  work. Moving the two keys that carry 106 of the call sites gets the same result without copying
+  a single secret.
+
+### 💸 A PAID LEAD DISAPPEARED WHEN XANO DIDN'T TAKE IT (`_lib/intake-rescue.js`, NEW)
+All three web/AI intake endpoints create their job in Xano inside a `catch (_) {}`. On failure
+`jobId` stays null — and **everything downstream is gated on `if (jobId)`**. On the PAID path the
+customer has *already been charged*, then gets **no job, no confirmation text, no finish-upload
+chase, no model-sticker OCR**, while the office siren reads **"Job #?"** and points at a board
+with no card on it. Money in, work invisible.
+- **Runs ONLY when Xano already failed**, so a normal day is byte-for-byte unchanged.
+- **It heals itself:** `platform-tn-job-back` (live, cron `8-59/15`) already pushes platform-native
+  jobs into Xano — claim-keyed, link-before-create, **cannot duplicate** — so a rescued lead flows
+  back into the backup once Xano recovers.
+- **Two details decide whether it works at all:** the audit row goes to the **platform**, not Xano
+  (`crud.logEvent` writes to the system that just failed); and the alert carries a **`platform_`
+  tag** so `sms-guard.deliver()` sends **direct to Telnyx** instead of routing through Xano's
+  `send_sms`. Same reason both times.
+- `office-gate` gains exactly one tag (`platform_intake_rescue`) — cash/warranty intake by
+  definition, the class already allowlisted, and it **cannot flood** (silent unless Xano is down).
+  Verified the gate still passes it to Teddy only and still blocks everything else.
+- Sirens now point at **wherever the job actually is**. A siren aimed at an empty board is worse
+  than no siren — it reads as "nothing arrived."
+
+### 🧾 WARRANTY CLAIMS FILE OFF THE PLATFORM (`_lib/platform-claim-context.js`, NEW)
+Claim submission was the **only** lane `platform-cutover-check` still grades `platform_ready:false`,
+and it's the money lane. It was tied to Xano by exactly ONE read (`get_warranty_submission_context`).
+- The platform holds every field that returned **and better parts data**: `must_return` (the
+  VENDOR's own rule, off the ServicePower API at order time) alongside `disposition` (what the tech
+  did at the stop). **A CORE is owed back even when USED** — keying the claim's `returned` flag off
+  disposition alone drops the obligation the moment a tech marks it used, which is the exact
+  chargeback SquareTrade's policy describes. `owedBack()` reads the vendor's rule OR the tech's return.
+- **Tenant-generic on purpose** — names no company, resolves the tenant FROM the job row. Takes a
+  platform uuid, a legacy Xano id, or a dispatch number. Platform first, Xano fallback, `?src=xano`
+  to diff the two on the same job.
+- **🐞 Two defects caught by READING THE BUILT CLAIM, not the code** — both would have gotten a
+  claim kicked back: `number` came through as **`"Main Control Board  Wh22x37840"`** (the legacy
+  parser's description+number mash), and **all three parts shared one description — the tech's entire
+  narrative paragraph** (mine: `name` is null on those rows, so the `failed_component` fallback
+  stamped the same paragraph on every part). `cleanPartNo`/`cleanPartDesc` apply the same rule as
+  the SQL `part_key()`; verified against the real strings plus the two edge cases that broke the SQL
+  key earlier (`BT68-135` and `Thermal Overload Protector (BT68-135` now agree).
+- **The narrative fallback is gone on purpose** — a nameless part now sends its number alone.
+  Less is honest; wrong is not.
+
+### 📊 WHERE THE CUTOVER ACTUALLY STANDS (measured, not asserted)
+`platform-cutover-check` + `platform-tn-parity`, live:
+- **3,463 platform jobs · 3,450 mirrored from Xano · 13 BORN on the platform.** That 13 is the
+  whole story: the platform **holds** everything and **originates** almost nothing.
+- Parity **807 Xano active · 1 missing · 1 drift** — the mirror is faithful; the gap is a known
+  Xano-side data problem, not a sync bug.
+- **Lanes: 2 of 6 have crossed** (warranty dispatch email ✅ receiving · money ✅ receiving).
+  Phone / texts / web intake are all `platform_ready:true` but **not receiving** — they wait on a
+  DID purchase and a 10DLC filing, not on code. Claim submission was the one genuinely unbuilt
+  lane and is now built.
+- **331 functions still touch Xano · 66 touch the platform · 9 crons exist purely to keep the two
+  agreeing.** That's the real weight of the migration — not the database, the nine bridges.
+- ✅ **Audited: only ONE non-bridge `platform-*` function touches Xano** (`platform-stale-scheduled`,
+  which writes to Xano **by design** — platform status is derived from it every 5 min, so a
+  platform-only fix would be undone before the office finished scrolling). The platform surface is
+  otherwise clean.
+
+### ⚠️ FOOTGUNS BURNED
+- **`sb-admin-sql` + integer overflow:** `extract(epoch from now())*1000 - 30*86400000` fails with
+  `22003 integer out of range` — `30*86400000` overflows int4. Filter on `created_at` instead.
+- **A polling loop with no real delay is not a poll.** A 40-iteration `curl` loop finished in
+  seconds and reported "uploading" 40 times. Put a real `sleep` in it and run it in the background.
+- **`vault_to_env` returning 200 (not 201) means the key was ALREADY in env** — that response code
+  is the cheapest way to learn what's really where.
+- **A claim that "builds OK" can still be unfileable.** Reading the built payload found the mashed
+  part number and the triplicated paragraph; neither showed up as an error.
+
+## 🧾🛒 2026-09-11 — SNAP THE PART YOU PICKED UP + THE RECEIPT · a shadowed `db.patch` that killed every merge · the customer's parts list was leaking a tracking number — READ FIRST
 
 Teddy: *"I also like the take a pic of the part you didn't need and we should add to it take a pic
 of the part that you picked up at the parts house or thing at Home Depot or wherever pic of the
