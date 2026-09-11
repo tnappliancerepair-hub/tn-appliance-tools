@@ -5,7 +5,7 @@
 Teddy: *"Even parts eta and what has been sent would be helpful on the job so the tech knows if
 parts are there or not and what was sent so they can manage the parts efficiently."*
 
-### ✅ SHIPPED — `platform-sp-parts-sync` (LIVE, cron `6-59/20`)
+### ✅ SHIPPED — `platform-sp-parts-sync` (core, curlable) + `platform-sp-parts-sync-cron` (LIVE, `6-59/20`)
 Pulls the **vendor's own parts list** off the ServicePower API onto the platform job, with the
 tracking number for each part, and enriches with carrier status/ETA. The tech's parts card now
 **leads with the line he reads before he drives** — *"3 of 5 sent · 1 delivered · 2 not shipped
@@ -66,10 +66,16 @@ part reads **"Sent"** with its real tracking number, which is still strictly mor
 | Auto-acceptance | ✅ already live (20/14 days) — still does **not** create the Supabase job |
 | Same for AHS/Frontdoor | ⏳ receiver is DARK **and posts to Xano, not Supabase** |
 
-### ⚠️ FOOTGUN REPEATED (mine)
-**Backticks in a `git commit -m` string get shell-executed** — same class as the documented
-nested-quotes trap. One word was eaten out of commit `092e162`. **Write the message to a file
-and use `git commit -F`.**
+### ⚠️ TWO FOOTGUNS RE-BURNED (both mine, both already in this file)
+1. **Backticks in a `git commit -m` string get shell-executed** — same class as the documented
+   nested-quotes trap. One word was eaten out of commit `092e162`. **Write the message to a file
+   and use `git commit -F`.**
+2. **Putting the `schedule` block on the CORE function killed manual HTTP.** A Netlify fn that
+   carries a schedule **edge-403s on every external call** (empty body, `content-length: 0`,
+   `cache-status: ... fwd-status=403`) — so the `?dry=1` shadow run, the only way to eyeball
+   this before it writes to job data, stopped working. Fixed with the documented **core +
+   thin cron wrapper** split (same shape as `platform-rma-tee` / `knowledge-scorecard`).
+   **Any new scheduled function must be split this way from the start.**
 
 **Verify (read-only):** `servicepower-call-detail?secret=<admin>&call=<dispatch#>[&raw=1]`
 **Shadow the sync:** `platform-sp-parts-sync?secret=<admin>&dry=1&limit=10`
