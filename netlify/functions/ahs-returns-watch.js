@@ -43,20 +43,24 @@
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
 const { readMany } = require('./_lib/gmail-accounts');
 const crud = require('./_lib/xano/metadata-crud');
+// "is this row the same physical part" -- shared with platform-sp-parts-sync, because the
+// legacy rows carry descriptive junk in .number ("Drum Front Bearing Assembly, Upper
+// WE03X25576") and a straight compare matches nothing and inserts a DUPLICATE of a part the
+// job already has. Verified against the real rows before going live (see the commit).
+const { rowMatches } = require('./_lib/part-match');
 
 const TN_COMPANY = 'be4d11a1-5219-469b-916a-ab990be7ea7f';   // TN Appliance Exchange LLC (keeper)
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const SENDER_DEFAULT = 'AHS_Purchasing_Part_Returns@ahs.com';
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
-function normP(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
 // ── parser ───────────────────────────────────────────────────────────────────
 // A part number in the "Parts:" run has letters AND several digits (WE01X25334,
 // AKC72949319, WPW10500140); the descriptions around it -- "Drum Bearing", "heating
 // element", "comp", "board core" -- carry no digits at all. Keying on digit-count rather
 // than capitalisation is what separates them, because "Drum Bearing" is Title Case too.
-function looksLikePartNo(tok) {
+function isPartToken(tok) {
   const t = String(tok || '').trim();
   if (t.length < 5 || t.length > 24) return false;
   if (!/^[A-Za-z0-9][A-Za-z0-9.\-\/]*$/.test(t)) return false;
@@ -72,7 +76,7 @@ function parsePartsRun(run) {
   const toks = String(run || '').split(/\s+/).filter(Boolean);
   let cur = null;
   for (const tok of toks) {
-    if (looksLikePartNo(tok)) {
+    if (isPartToken(tok)) {
       if (cur) out.push(cur);
       cur = { number: tok, description: '' };
     } else if (cur) {
@@ -145,11 +149,11 @@ async function resolveJob(db, claim, partNos) {
   if (!Array.isArray(jobs) || !jobs.length) return null;
   if (jobs.length === 1) return jobs[0].id;
 
-  const wanted = new Set((partNos || []).map(normP).filter(Boolean));
-  if (wanted.size) {
-    const rows = await db.get(`job_part?job_id=in.(${jobs.map((j) => j.id).join(',')})&select=job_id,number&limit=400`);
+  const wanted = (partNos || []).filter(Boolean);
+  if (wanted.length) {
+    const rows = await db.get(`job_part?job_id=in.(${jobs.map((j) => j.id).join(',')})&select=job_id,number,name&limit=400`);
     for (const r of (Array.isArray(rows) ? rows : [])) {
-      if (r && r.number && wanted.has(normP(r.number))) return r.job_id;      // the part is already on this one
+      for (const w of wanted) if (rowMatches(r, w)) return r.job_id;          // the part is already on this one
     }
   }
   const rank = (s) => (s === 'canceled' ? 3 : (s === 'completed' ? 2 : 1));   // prefer a live job
@@ -209,8 +213,7 @@ async function runAhsReturns(opts = {}) {
 
     for (const p of n.parts) {
       res.parts++;
-      const np = normP(p.number);
-      const hit = (existing || []).find((r) => normP(r.number) === np) || null;
+      const hit = (existing || []).find((r) => rowMatches(r, p.number)) || null;
 
       if (hit && hit.returned_at) { res.already_returned++; continue; }        // office already closed it
 

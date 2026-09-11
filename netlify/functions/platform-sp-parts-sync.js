@@ -54,41 +54,10 @@ async function sins(base, H, table, row) {
 // The email parser has been writing descriptive junk into `number`:
 //   "THERMOSTAT HI LIMIT WE04X30381\nPart #WE04X30381"   (name NULL)
 // so matching has to EXTRACT a part number rather than compare the field.
-const norm = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-// A part number is a 5+ char token that is either alphanumeric (WE04X30381, DC97-16350U) or
-// purely numeric but long enough not to be a quantity/year/price (8583165300010, 316530001).
-function looksLikePartNo(t) {
-  if (t.length < 5) return false;
-  if (!/\d/.test(t)) return false;                 // must contain a digit
-  if (/^\d+$/.test(t)) return t.length >= 6;       // pure numbers: Whirlpool/Frigidaire style
-  return true;
-}
-// When a row says "Part #X", X is the authoritative part for that row -- and anything after
-// "Replaces #" is a SUPERSEDED number, not this row's identity. Honoring that keeps ship info
-// from being attached to the wrong row.
-function extractPartNos(text) {
-  const raw = String(text || '');
-  const explicit = [];
-  const re = /part\s*#\s*([A-Za-z0-9-]{5,})/gi;
-  let m; while ((m = re.exec(raw))) explicit.push(m[1].replace(/-+$/, ''));
-  if (explicit.length) return explicit.filter(looksLikePartNo);
-  const out = [];
-  for (const tok of raw.split(/[^A-Za-z0-9-]+/)) {
-    const t = tok.replace(/-+$/, '');
-    if (looksLikePartNo(t)) out.push(t);
-  }
-  return out;
-}
-// Does this existing row refer to the API's part?
-function rowMatches(row, apiPart) {
-  const target = norm(apiPart);
-  if (!target) return false;
-  if (norm(row.number) === target) return true;
-  for (const cand of extractPartNos(row.number)) if (norm(cand) === target) return true;
-  for (const cand of extractPartNos(row.name)) if (norm(cand) === target) return true;
-  return false;
-}
+// Matching lives in _lib/part-match so the AHS return watcher and this sync can never drift
+// apart on "is this the same physical part" -- the legacy rows put descriptive junk in .number
+// and both feeds have to extract rather than compare. (Hoisted 2026-09-11, byte-identical.)
+const { rowMatches } = require('./_lib/part-match');
 
 // "09/04/2026 15:48:06" -> ISO. ServicePower speaks US dates.
 function noteToIso(s) {
