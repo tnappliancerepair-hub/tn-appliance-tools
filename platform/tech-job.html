@@ -274,6 +274,13 @@
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
+  var _shipCss=document.createElement('style');
+  _shipCss.textContent='.pship{font-size:13px;font-weight:600;margin:4px 0 6px;padding:6px 9px;border-radius:9px;background:var(--chip);color:var(--muted);border:1px solid var(--line)}'
+    +'.pship.ok{color:var(--completed);border-color:color-mix(in srgb,var(--completed) 45%,transparent)}'
+    +'.pship.go{color:var(--in_progress);border-color:color-mix(in srgb,var(--in_progress) 45%,transparent)}'
+    +'.pship.head{font-size:14px;margin:0 0 10px;padding:9px 11px;color:var(--ink)}'
+    +'.pship a{color:inherit;text-decoration:underline;opacity:.85}';
+  document.head.appendChild(_shipCss);
   var STATUS = { new:{l:'New',c:'var(--new)'}, scheduled:{l:'Scheduled',c:'var(--scheduled)'}, in_progress:{l:'In progress',c:'var(--in_progress)'}, awaiting_parts:{l:'Awaiting parts',c:'var(--awaiting_parts)'}, completed:{l:'Completed',c:'var(--completed)'}, canceled:{l:'Canceled',c:'var(--canceled)'} };
   function st(k){ return STATUS[k] || {l:(k||'Open'),c:'var(--new)'}; }
 
@@ -1195,7 +1202,7 @@
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
   function loadParts(){
     var box=document.getElementById('partsBox'); if(!box) return;
-    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref,cost_cents,sell_cents').eq('job_id',jobId).order('created_at').then(function(r){
+    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref,cost_cents,sell_cents,ship_tracking,ship_carrier,ship_status,ship_delivered,eta').eq('job_id',jobId).order('created_at').then(function(r){
       if(r.error){
         var card=document.getElementById('partsCard');
         if(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')){ if(card) card.classList.add('hidden'); }
@@ -1211,11 +1218,42 @@
   function retailCents(costCents){ costCents=+costCents||0; if(costCents<=0) return 0; var c=partsCfg(); return Math.max(Math.round(costCents*(1+c.pct/100)), costCents+c.minAdd); }
   function dollarsToCents(v){ var n=parseFloat(String(v==null?'':v).replace(/[^0-9.]/g,'')); return isNaN(n)?0:Math.round(n*100); }
   function fmtUSD(c){ c=+c||0; return '$'+(c/100).toFixed(2); }
+  // ── SHIPMENTS ── the vendor's own list, synced from the ServicePower API, tells us what was
+  // actually SENT and whether it has landed. Teddy 2026-09-11: "the tech knows if parts are
+  // there or not and what was sent so they can manage the parts efficiently."
+  function trackUrl(p){
+    var t=String(p.ship_tracking||''); if(!t) return '';
+    var c=String(p.ship_carrier||'').toLowerCase();
+    if(c.indexOf('ups')>=0) return 'https://www.ups.com/track?tracknum='+encodeURIComponent(t);
+    if(c.indexOf('usps')>=0) return 'https://tools.usps.com/go/TrackConfirmAction?tLabels='+encodeURIComponent(t);
+    return 'https://www.fedex.com/fedextrack/?trknbr='+encodeURIComponent(t);   // FedEx is the default here
+  }
+  function shipLine(p){
+    if(!p.ship_tracking) return '';
+    var url=trackUrl(p), num=esc(p.ship_tracking), car=esc(p.ship_carrier||'');
+    var when=p.eta?(' · '+esc(String(p.eta).slice(0,10))):'';
+    var cls='pship', txt;
+    if(p.ship_delivered===true){ cls+=' ok'; txt='✅ Delivered'+when; }
+    else if(p.ship_status){ cls+=' go'; txt='🚚 '+esc(p.ship_status)+when; }
+    else { cls+=' go'; txt='🚚 Sent'+(car?(' · '+car):'')+when; }
+    return '<div class="'+cls+'">'+txt+' <a href="'+url+'" target="_blank" rel="noopener">'+num+'</a></div>';
+  }
   function renderParts(list){
     var box=document.getElementById('partsBox'); if(!box) return;
     var toReturn=list.filter(function(p){return p.disposition==='return';}).length;
     var warn=toReturn?'<div class="cbwarn">🔁 '+toReturn+' to ship back — send them or the shop eats a chargeback.</div>':'';
-    box.innerHTML = warn + (list.length ? list.map(partCard).join('') : '<div class="note" style="margin-bottom:2px">No parts yet — add the part(s) you need below.</div>');
+    // Head count first — this is the line he reads before he drives.
+    var sent=list.filter(function(p){return !!p.ship_tracking;});
+    var landed=sent.filter(function(p){return p.ship_delivered===true;}).length;
+    var head='';
+    if(list.length && sent.length){
+      var still=list.length-sent.length;
+      var bits=[sent.length+' of '+list.length+' sent'];
+      if(landed) bits.push(landed+' delivered');
+      if(still>0) bits.push(still+' not shipped yet');
+      head='<div class="pship head">📦 '+bits.join(' · ')+'</div>';
+    }
+    box.innerHTML = head + warn + (list.length ? list.map(partCard).join('') : '<div class="note" style="margin-bottom:2px">No parts yet — add the part(s) you need below.</div>');
   }
   function partCard(p){
     var os=p.order_status||'', dp=p.disposition||'';
@@ -1232,6 +1270,7 @@
     return '<div class="pcard">' +
       '<div class="pname">'+esc(p.name||'Part')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+'</div>' +
       (p.number?'<div class="pnum">🔩 '+esc(p.number)+'</div>':'') +
+      shipLine(p) +
       priceRow +
       '<button class="pordbtn'+((os==='to_order'||os==='ordered')?' sel':'')+'" data-pact="order" data-pid="'+esc(p.id)+'" data-pval="to_order">📦 '+(os==='ordered'?'Ordered':'Please order this part')+'</button>' +
       '<button class="pclaimbtn'+(os==='claim_only'?' sel':'')+'" data-pact="order" data-pid="'+esc(p.id)+'" data-pval="claim_only">📋 Just the part # for the claim (not ordered)</button>' +
