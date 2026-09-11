@@ -305,6 +305,8 @@ function partsFromNotes(raw) {
         part,
         description: val(c, 'Part Description'),
         quantity: val(c, 'Quantity'),
+        // "Shipping Provider: FedEx" rides along on the tracking-details stanza.
+        carrier: val(c, 'Shipping Provider') || val(c, 'Shipping Carrier'),
         // "No" here means: if you USE it, you keep it. Anything else (Yes/Core) must go back.
         requires_return: /^y/i.test(retRaw) ? true : (/^n/i.test(retRaw) ? false : null),
         tracking: /not yet available/i.test(tracking) ? '' : tracking,
@@ -313,7 +315,7 @@ function partsFromNotes(raw) {
       const prev = byPart.get(part);
       if (!prev) { byPart.set(part, rec); continue; }
       // merge: never let a later empty field erase a known one
-      for (const k of ['description', 'quantity', 'tracking']) if (!prev[k] && rec[k]) prev[k] = rec[k];
+      for (const k of ['description', 'quantity', 'tracking', 'carrier']) if (!prev[k] && rec[k]) prev[k] = rec[k];
       if (prev.requires_return == null && rec.requires_return != null) prev.requires_return = rec.requires_return;
     }
   }
