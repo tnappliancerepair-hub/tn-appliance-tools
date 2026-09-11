@@ -38,6 +38,11 @@
   .tag{font-size:11px;padding:2px 8px;border-radius:99px;background:#1d2532;color:var(--mut);border:1px solid var(--line)}
   .tag.i{background:#1a2740;color:var(--acc);border-color:#24365a}
   .acts{display:flex;gap:8px;flex-wrap:wrap}
+  .draft{margin:8px 0;padding:9px 11px;background:#11251c;border:1px solid #1f5133;border-radius:9px}
+  .draft label{display:block;font-size:11px;color:var(--ok);margin-bottom:5px;letter-spacing:.03em;text-transform:uppercase}
+  .draft textarea{width:100%;min-height:56px;font:inherit;font-size:14px;color:var(--ink);background:#0b0f17;border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+  .draft .why{font-size:11px;color:var(--mut);margin-top:5px}
+  .human{margin:8px 0;padding:8px 11px;background:#2a1a1a;border:1px solid #4a2727;border-radius:9px;font-size:12px;color:#fca5a5}
   a.btn,button{font:inherit;font-size:13px;padding:8px 13px;border-radius:9px;border:1px solid var(--line);background:#1d2532;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block}
   button.done{background:#14351f;border-color:#1f5133;color:var(--ok)}
   .empty{text-align:center;padding:46px 16px;color:var(--mut)}
@@ -94,6 +99,16 @@
       '<div class="top"><span class="who">'+esc(w.name)+(w.city?' <span class="age">· '+esc(w.city)+'</span>':'')+'</span>'+
       '<span class="age '+(hot?'hot':'')+'">waiting '+age+'</span></div>'+
       '<div class="said">'+esc(w.said)+'</div>'+
+      (w.draft
+        ? '<div class="draft"><label>Suggested reply — read it, then send it</label>'+
+            '<textarea data-draft="'+esc(w.message_id)+'">'+esc(w.draft)+'</textarea>'+
+            '<div class="why">'+esc(w.draft_why||'')+'</div></div>'
+        // Saying WHY there is no draft is the point. A blank space reads like a bug; this
+        // reads like the system knowing its limits.
+        : '<div class="human">No suggested reply — this one needs a person'+
+            (w.intent==='still broken' ? ': they are telling us the repair did not hold.'
+            : (w.intent==='wants a call' ? ': they asked to be called.'
+            : (w.intent==='scheduling' ? ': no day is booked yet, so answering needs a real look at the calendar.' : '.')))+'</div>')+
       '<div class="tags"><span class="tag i">'+esc(w.intent)+'</span>'+
         (j&&j.status?'<span class="tag">'+esc(j.status)+'</span>':'')+
         (j&&j.day?'<span class="tag">'+esc(j.day)+'</span>':'')+
@@ -101,12 +116,23 @@
         (j&&j.problem?'<span class="tag">'+esc(j.problem)+'</span>':'')+'</div>'+
       '<div class="acts">'+
         (w.phone?'<a class="btn" href="tel:'+esc(w.phone)+'">Call '+esc(w.phone)+'</a>':'')+
+        (w.draft?'<button data-copy="'+esc(w.message_id)+'">Copy reply</button>':'')+
         '<a class="btn" href="/platform/messages.html?c='+esc(w.customer_id)+'">Open conversation</a>'+
         '<button class="done" data-done="'+esc(w.message_id)+'" data-cust="'+esc(w.customer_id)+'">Handled</button>'+
       '</div></div>';
   }
 
   function wire(){
+    Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function(b){
+      b.onclick=function(){
+        var ta=document.querySelector('[data-draft="'+b.getAttribute('data-copy')+'"]');
+        if(!ta) return;
+        ta.select(); ta.setSelectionRange(0, 99999);
+        var ok=false; try{ ok=document.execCommand('copy'); }catch(_){}
+        if(!ok && navigator.clipboard) navigator.clipboard.writeText(ta.value).catch(function(){});
+        var t=b.textContent; b.textContent='Copied'; setTimeout(function(){ b.textContent=t; },1400);
+      };
+    });
     Array.prototype.forEach.call(document.querySelectorAll('[data-done]'), function(b){
       b.onclick=function(){
         b.disabled=true; b.textContent='…';

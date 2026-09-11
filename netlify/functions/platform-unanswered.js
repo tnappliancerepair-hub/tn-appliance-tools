@@ -55,6 +55,57 @@ function classify(body) {
   return 'other';
 }
 
+// ── Drafting a reply, ONLY where the answer is certain ────────────────────────
+// This writes a SUGGESTION the office reads and sends. It never sends anything itself.
+//
+// ⚠️ THE RULE THAT MATTERS: a wrong draft is worse than no draft, because a draft invites
+// being sent without being read. So this only drafts when the platform already KNOWS the
+// answer from the job record, and returns null otherwise. Two cases are refused on purpose:
+//
+//   · open scheduling negotiation ("do you have anything before noon?") -- answering needs
+//     real capacity, day-off and service-area logic. A confident guess here books a customer
+//     into a slot nobody can work.
+//   · still broken -- someone telling us the repair did not hold deserves a person, not a
+//     template. Refusing to draft IS the correct behaviour.
+//
+// Day-only, never a clock time (standing rule): a texted "3:00 PM" is a broken promise the
+// moment the route shifts.
+const DAYNAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function prettyDay(d) {
+  if (!d) return '';
+  const t = new Date(String(d) + 'T12:00:00Z');
+  if (isNaN(t)) return String(d);
+  return DAYNAMES[t.getUTCDay()] + ', ' + t.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+const WINDOW_WORDS = { '8-11': '8 to 11 in the morning', '11-2': '11 to 2', '2-5': '2 to 5' };
+
+function draftFor(w, first) {
+  const j = w.job || {};
+  const hi = first ? ('Hi ' + first + ', ') : '';
+  const day = prettyDay(j.day);
+  const win = WINDOW_WORDS[String(j.window || '')] || '';
+
+  // Already booked: confirming a day we actually hold is always safe.
+  if (w.intent === 'scheduling' && day && j.status !== 'completed' && j.status !== 'canceled') {
+    return { text: hi + "you're on for " + day + (win ? ' between ' + win : '') + '. We text a live arrival window the morning of, so you are not waiting around.', why: 'confirms the day already on the job' };
+  }
+  if (w.intent === 'where is the tech') {
+    if (day) return { text: hi + "you're set for " + day + (win ? ' between ' + win : '') + ". We'll text a live arrival window the morning of, and your tech can give you a heads-up before he heads over.", why: 'reads the scheduled day off the job' };
+    return null;
+  }
+  if (w.intent === 'parts') {
+    const ps = String(j.parts || '').toLowerCase();
+    if (/deliver|here|arriv|received/.test(ps)) return { text: hi + "good news, the part is in. We'll get you on the schedule to finish the repair.", why: 'parts state on the job says it landed' };
+    if (/order|ship|await|transit|backorder/.test(ps)) return { text: hi + "the part is ordered and on its way. The moment it lands we'll reach out to get you scheduled.", why: 'parts state on the job says it is on order' };
+    return null;
+  }
+  if (w.intent === 'access info') {
+    return { text: hi + "got it, thank you - I've put that on the job so your tech has it before he gets there.", why: 'acknowledges access info (office should also copy it onto the job)' };
+  }
+  // scheduling with no day yet, still broken, wants a call, money, other -> a person.
+  return null;
+}
+
 function rest(base, key) {
   const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
   return {
@@ -152,7 +203,7 @@ exports.handler = async function (event) {
   }
   const jids = [...new Set(open.map((o) => o.m.job_id).filter(Boolean))];
   for (let i = 0; i < jids.length; i += 100) {
-    for (const j of (await db.get(`job?id=in.(${jids.slice(i, i + 100).join(',')})&select=id,status,problem,scheduled_day,parts_status&limit=200`)) || []) jobs[j.id] = j;
+    for (const j of (await db.get(`job?id=in.(${jids.slice(i, i + 100).join(',')})&select=id,status,problem,scheduled_day,time_window,parts_status&limit=200`)) || []) jobs[j.id] = j;
   }
 
   const now = Date.now();
@@ -166,10 +217,16 @@ exports.handler = async function (event) {
       said: String(m.body || '').replace(/\s+/g, ' ').slice(0, 220),
       at: m.created_at, hours_waiting: hours,
       intent: classify(m.body),
+      first_name: c.first_name || '',
       // Enough context to answer without opening another tab -- the whole point is that
       // whoever clears this list should not have to go hunting first.
-      job: j ? { status: j.status, day: j.scheduled_day, problem: String(j.problem || '').slice(0, 90), parts: j.parts_status || null } : null,
+      job: j ? { status: j.status, day: j.scheduled_day, window: j.time_window || null, problem: String(j.problem || '').slice(0, 90), parts: j.parts_status || null } : null,
     };
+  }).map((w) => {
+    // Drafted last, so it sees the finished row. Null means "a person needs this one" --
+    // that is an answer too, and the page says so rather than hiding it.
+    const d = draftFor(w, w.first_name);
+    return Object.assign(w, { draft: d ? d.text : null, draft_why: d ? d.why : null });
   }).sort((a, b) => b.hours_waiting - a.hours_waiting);
 
   const byIntent = {};
