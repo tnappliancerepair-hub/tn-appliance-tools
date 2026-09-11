@@ -195,9 +195,18 @@ async function runNsaParts(opts = {}) {
 
   const sender = (await getSecretFresh('NSA_PARTS_WATCH_SENDER')) || SENDER_DEFAULT;
   let msgs = [];
+  // NARROW THE QUERY TO THE TWO SUBJECTS. This sender also blasts dispatches, update
+  // requests and EFT registers, so `from:` alone pulls hundreds across four inboxes and
+  // the full-format fetch blows the 26s cap. Scoping to the two subjects takes the pull
+  // from 40+ to ~10. Verified all three Gmail OR spellings return the same set.
+  const q = `from:${sender} newer_than:${days}d (subject:"Parts Shipped for Case" OR subject:"Potential Parts Charge")`;
   // .html because the charge digest is a POSITIONAL table -- see parseChargeDigest.
-  try { msgs = await readMany(`from:${sender} newer_than:${days}d`, { max: 80, html: true }); }
+  try { msgs = await readMany(q, { max: 40, html: true }); }
   catch (e) { return { ok: false, error: 'gmail read failed: ' + String((e && e.message) || e) }; }
+  // The multi-account fan-out is eventually-consistent -- the SAME query has returned 40
+  // then 0 back-to-back. Reporting `scanned` is what makes a dead read visible instead of
+  // looking exactly like "no notices"; hourly + idempotent is what makes it self-heal.
+  if (!msgs.length) return Object.assign({ ok: true, mode: dry ? 'dryrun' : 'live', scanned: 0, note: 'no messages returned — empty inbox OR a flaky fan-out read; hourly + idempotent self-heals' }, {});
 
   const res = {
     ok: true, mode: dry ? 'dryrun' : 'live', window_days: days,
