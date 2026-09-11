@@ -134,6 +134,26 @@ parts-return chargeback exposure the whole previous session went into closing.
 - ⏭️ **TEDDY:** add a forward rule to `tn-appliance-exchange-llc@jobs.assistant247.net` in the
   **SquareTrade/Allstate** inbox and the **NSA** inbox (AHS already forwards). Xano's pollers keep
   running — both sides receive the same dispatch, which IS the dual-feed.
+- **⛔ AND API-NATIVE SQUARETRADE INTAKE IS NOT THE SHORTCUT IT LOOKS LIKE.** The obvious way
+  to cover SquareTrade without a mail rule is the standing open item — *create the Supabase job
+  from `getCallInfo` right after auto-accept.* Measured the dedup key before building it, and
+  **there isn't one**:
+
+  | key | reality on TN's 1,830 SquareTrade jobs |
+  |---|---|
+  | `claim_number` | **110 of 476 claims (23%) cover MORE THAN ONE job**, worst case 4 |
+  | `dispatch_id` | **present on only 882 of 1,830 (48%)**, and only 469 distinct |
+
+  SquareTrade issues **a new work order per trip**, so a claim is an umbrella, not a job. Keying
+  an intake on `claim_number` would either collapse separate trips into one job or duplicate
+  them; `dispatch_id` is half-empty. **This is the same trap the mirror already carries a scar
+  from** — its adopt-by-claim block only adopts when a claim maps to **exactly ONE** Xano job,
+  because guessing cost ~3,000 Postgres errors a day (84% of this database's error volume).
+- **So the mail rule isn't a workaround — it's the right fix.** The email path carries the
+  per-dispatch identity the API intake has nowhere to put yet. **API-native intake is blocked on
+  a clean per-job key, NOT on the API.** Whoever builds it starts by fixing `dispatch_id`
+  coverage, not by writing the intake.
+
 - 🧭 **STANDING: a lane is "receiving" only when every SOURCE that feeds it is arriving.** One
   source of four is a lane half-built, and grading it green is how a cutover gets called done
   while most of the work still has no platform path.
