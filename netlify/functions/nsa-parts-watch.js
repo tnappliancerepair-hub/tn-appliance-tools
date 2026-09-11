@@ -158,11 +158,24 @@ function pf(base, key) {
   };
 }
 
-// One NSA case can cover several machines -- each its own job row. Prefer the sibling that
-// already carries the part; else the live one; else the newest.
-async function resolveJob(db, caseNo, partNos) {
+const last10 = (s) => String(s || '').replace(/\D/g, '').slice(-10);
+
+// One NSA case resolves to SEVERAL job rows -- verified on live data: claim NSA010566012401
+// has EIGHT, all the same human (DAVIS, 615-889-9517) with eight separately-minted customer
+// rows. That is the documented warranty-intake dedup bug, not eight different people, so the
+// join key is safe; but seven of the eight are nameless shells, and dropping the obligation
+// on one of those puts it on a card the office can't identify.
+//
+// The digest hands us the last name AND the phone, so use them. Preference order:
+//   1. the sibling that already carries this part          (unambiguous)
+//   2. a sibling whose customer matches the notice's phone / last name
+//   3. a sibling whose customer is a REAL record, not a shell (has a first name)
+//   4. live > completed > canceled, then newest
+// `who` is optional -- the shipped notice carries no name, so it falls through to 3/4.
+async function resolveJob(db, caseNo, partNos, who) {
   const c = String(caseNo || '').trim(); if (!c) return null;
-  const jobs = await db.get(`job?company_id=eq.${TN_COMPANY}&claim_number=eq.${encodeURIComponent(c)}&select=id,status,created_at&limit=20`);
+  const sel = 'id,status,created_at,customer:customer_id(first_name,last_name,phone)';
+  const jobs = await db.get(`job?company_id=eq.${TN_COMPANY}&claim_number=eq.${encodeURIComponent(c)}&select=${encodeURIComponent(sel)}&limit=30`);
   if (!Array.isArray(jobs) || !jobs.length) return null;
   if (jobs.length === 1) return jobs[0].id;
 
@@ -173,9 +186,22 @@ async function resolveJob(db, caseNo, partNos) {
       for (const w of wanted) if (rowMatches(r, w)) return r.job_id;
     }
   }
+
+  const wantPhone = last10((who && who.phone) || '');
+  const wantLast = String((who && who.last_name) || '').trim().toLowerCase();
+  const score = (j) => {
+    const cu = j.customer || {};
+    let n = 0;
+    if (wantPhone && last10(cu.phone) === wantPhone) n += 4;
+    if (wantLast && String(cu.last_name || '').trim().toLowerCase() === wantLast) n += 2;
+    if (String(cu.first_name || '').trim()) n += 1;          // a real record, not a shell
+    return n;
+  };
   const rank = (s) => (s === 'canceled' ? 3 : (s === 'completed' ? 2 : 1));
   return jobs.slice().sort((a, b) =>
-    (rank(a.status) - rank(b.status)) || (String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    (score(b) - score(a)) ||
+    (rank(a.status) - rank(b.status)) ||
+    (String(b.created_at || '').localeCompare(String(a.created_at || '')))
   )[0].id;
 }
 
@@ -211,6 +237,7 @@ async function runNsaParts(opts = {}) {
   const res = {
     ok: true, mode: dry ? 'dryrun' : 'live', window_days: days,
     scanned: msgs.length,
+    scanned_distinct: new Set(msgs.map((m) => (m.subject || '') + '|' + (m.date || ''))).size,
     shipped: { notices: 0, jobs_matched: 0, parts_tracked: 0, no_rows_on_job: 0, count_mismatch: 0, already_tracked: 0, unmatched_case: 0, errors: 0 },
     returns: { digests_seen: 0, digest_date: '', rows: 0, flagged: 0, created: 0, already_returned: 0, unmatched_case: 0, errors: 0, no_longer_listed: 0, no_longer_listed_samples: [] },
     samples: [],
@@ -219,10 +246,17 @@ async function runNsaParts(opts = {}) {
 
   // ── PASS 1 — parts being SENT ──────────────────────────────────────────────
   if (doShip) {
+    // The SAME NSA email lands in more than one connected inbox, and their Gmail ids differ,
+    // so the fan-out hands us each notice twice. Dedupe on the NATURAL key (case + tracking)
+    // rather than on a message id -- a shipment is one shipment however many inboxes saw it.
+    const seenShip = new Set();
     for (const m of msgs) {
       let n = null;
       try { n = parseShippedNotice(m.subject || '', m.body || ''); } catch (_) { n = null; }
       if (!n || !n.tracking) continue;
+      const key = n.case_no + '|' + n.tracking;
+      if (seenShip.has(key)) continue;
+      seenShip.add(key);
       res.shipped.notices++;
       const atMs = Date.parse(m.date || '') || Date.now();
 
@@ -289,13 +323,19 @@ async function runNsaParts(opts = {}) {
     if (newest) {
       const noticeMs = Date.parse(newest.date || '') || Date.now();
       res.returns.digest_date = ymd(noticeMs);
+      // The digest is weekly, so its AGE is part of the reading. An old newest-digest means
+      // either NSA went quiet because nothing is owed, or we stopped receiving them. We
+      // still apply it -- on this money the expensive direction is showing nothing while a
+      // deduction lands, and a settled row costs the office one tap -- but the staleness
+      // has to be visible rather than implied.
+      res.returns.digest_age_days = Math.round((Date.now() - noticeMs) / 86400000);
       let rows = [];
       try { rows = parseChargeDigest(newest.html || ''); } catch (_) { rows = []; }
       res.returns.rows = rows.length;
 
       const listed = new Set();
       for (const r of rows) {
-        const jobId = await resolveJob(db, r.case_no, [r.part]);
+        const jobId = await resolveJob(db, r.case_no, [r.part], { phone: r.phone, last_name: r.last_name });
         if (!jobId) {
           res.returns.unmatched_case++;
           sample({ pass: 'returns', outcome: 'no_job_for_case', case: r.case_no, part: r.part, name: r.last_name, age: r.age });
