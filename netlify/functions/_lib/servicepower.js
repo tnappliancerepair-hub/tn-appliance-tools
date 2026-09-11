@@ -110,7 +110,26 @@ async function updateCallInfo({ callNumber, mfgId, fssCallId, scheduleDate, sche
 // Poll for jobs / read a call's current status (validates creds + reveals live
 // SPCallStatusID values). Request: getCallInfoSearch{ UserInfo, FromDateTime, ToDateTime, Callno }.
 // Dates: "mm/dd/yyyy HH:mm:ss". Response CallInfo includes CallStatus + SPCallStatusID.
-async function getCallInfo({ fromDateTime, toDateTime, callNo }) {
+async function getCallInfo(a = {}) {
+  const { fromDateTime, toDateTime } = a;
+  // An empty Callno is not "no filter I care about" -- it is UNSCOPED. The <Callno> element
+  // is simply omitted and ServicePower returns EVERY call in the window (and with an empty
+  // date window, every call full stop). That is exactly how one empty claim number wrote 762
+  // other people's parts onto a single job on 2026-09-11.
+  //
+  // A window-only query (no callNo key at all) is legitimate -- auto-accept and the capacity
+  // poll both list dispatches that way. So the guard keys on INTENT: a caller that asked to
+  // scope by call and handed over a blank one must get nothing, never everything.
+  if (Object.prototype.hasOwnProperty.call(a, 'callNo') && !String(a.callNo == null ? '' : a.callNo).trim()) {
+    throw new Error('getCallInfo: callNo was supplied but empty - an empty Callno is UNSCOPED and returns every call');
+  }
+  // The same failure also arrives as a TYPO. `{ callNumber: '123' }` carries no callNo at
+  // all, so an intent check alone reads it as a deliberate window query and the scope is
+  // silently lost. A misspelled scoping parameter must be loud, never unscoped.
+  const okKeys = ['fromDateTime', 'toDateTime', 'callNo'];
+  const bad = Object.keys(a).filter((k) => !okKeys.includes(k));
+  if (bad.length) throw new Error('getCallInfo: unknown parameter(s) ' + bad.join(', ') + ' - did you mean callNo? (a dropped scope returns every call)');
+  const callNo = a.callNo;
   const ui = await userInfoXml();
   const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);   // unqualified children
   const inner = `<impl:getCallInfoSearch>${ui}`

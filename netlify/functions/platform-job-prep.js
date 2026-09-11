@@ -26,6 +26,7 @@
 //   GET ?secret=<admin>&days=N       how far ahead to look (default 21)
 'use strict';
 
+const sp = require('./_lib/servicepower');
 const spTenant = require('./_lib/servicepower-tenant');
 const { getSecret } = require('./_lib/secrets');
 
@@ -75,8 +76,14 @@ exports.handler = async function (event) {
   if (!url || !key) return json(200, { ok: false, error: 'platform not configured' });
   const H = { apikey: key, Authorization: 'Bearer ' + key };
 
+  // Run as the SHOP when it has its own ServicePower credentials; otherwise fall through to
+  // the vault (TN today) -- same shape platform-sp-parts-sync uses. Requiring per-tenant creds
+  // outright was wrong: it refused TN, the only shop currently running, on its first dry run.
   const bound = await spTenant.forCompany(companyId).catch(() => null);
-  if (!bound) return json(200, { ok: false, error: 'no ServicePower credentials for this company' });
+  const getInfo = bound ? ((a) => bound.getCallInfo(a)) : ((a) => sp.getCallInfo(a));
+  if (!bound && !(await sp.isConfigured().catch(() => false))) {
+    return json(200, { ok: false, error: 'no ServicePower credentials — neither tenant nor vault' });
+  }
 
   // Upcoming work only. Backfilling a model onto a job nobody is driving to helps no one.
   const until = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
@@ -100,8 +107,12 @@ exports.handler = async function (event) {
   for (const j of needy.slice(0, limit)) {
     let call = null;
     try {
-      // One dispatch, one read. getCallInfo takes the call number we already hold.
-      const res = await bound.getCallInfo({ callNumber: S(j.claim_number) });
+      // One dispatch, one read. The key is `callNo`, NOT `callNumber` -- the wrong key is
+      // silently dropped and the request goes out with no <Callno> at all, which asks
+      // ServicePower for every call it has. getCallInfo now refuses a blank one outright.
+      const callNo = S(j.claim_number);
+      if (!callNo) { missing.push({ job: j.id, call: '', day: j.scheduled_day, why: 'no dispatch number' }); continue; }
+      const res = await getInfo({ callNo });
       const calls = (res && (res.calls || res)) || [];
       call = Array.isArray(calls) ? calls.find((c) => realModel(c && c.model)) || calls[0] : null;
     } catch (e) { failed.push({ job: j.id, call: j.claim_number, err: String((e && e.message) || e).slice(0, 90) }); continue; }
@@ -126,7 +137,7 @@ exports.handler = async function (event) {
   }
 
   return json(200, {
-    ok: true, mode: dry ? 'dry' : 'live', company_id: companyId,
+    ok: true, mode: dry ? 'dry' : 'live', company_id: companyId, tenant_creds: !!bound,
     upcoming_with_dispatch: jobs.length,
     missing_a_model: needy.length,
     filled: filled.length,
