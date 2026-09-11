@@ -66,6 +66,29 @@ part reads **"Sent"** with its real tracking number, which is still strictly mor
 | Auto-acceptance | ✅ already live (20/14 days) — still does **not** create the Supabase job |
 | Same for AHS/Frontdoor | ⏳ receiver is DARK **and posts to Xano, not Supabase** |
 
+### 🚨 RUNAWAY CAUGHT SAME NIGHT — an EMPTY claim number makes ServicePower return EVERY call's notes
+`claim_number` can be **`''` (empty string)**, which sails straight past a `not.is.null` filter.
+Sent as `Callno`, an empty value **does not scope `getCallNotes` at all** — ServicePower happily
+returns every note in the 180-day window across **every dispatch**. `partsFromNotes` then
+extracted all of them and the sync wrote **762 distinct parts belonging to other people's jobs
+onto ONE job**. 4 jobs took **2,954 junk rows** before it was caught, and 18 more empty-claim
+jobs were queued behind them.
+- **Caught by ratio, not by an error.** Nothing threw. The tell was **1,231 parts across 28
+  jobs (~44/job)** when ~2 per job is normal. *Check the shape of what you wrote, not just that
+  the write succeeded.*
+- **Fixed as a CLASS, in three places:** (1) **`_lib/servicepower.getCallNotes` now THROWS on an
+  empty `callNumber`** — the caller that asks for nothing must get nothing, never everything, and
+  no future caller can repeat this; (2) the sync requires a real claim **in the query
+  (`claim_number=neq.`) AND again in code**, stamping the cursor on skip so an unusable job
+  leaves the queue instead of blocking it; (3) a **sanity ceiling — >25 parts on one dispatch
+  means the call was not scoped, so the run refuses to write.**
+- **Cleanup was unambiguous + verified:** every junk row had `disposition`, `photo_ref`,
+  `cost_cents`, `returned_at` all NULL (no human had touched one). Deleted → **0 remaining**,
+  and the legitimate work survived: **109 real API parts across 47 jobs, avg 2.3/job, worst 7.**
+- **⚠️ STANDING: `not.is.null` is NOT "has a value."** Empty string passes it. Any identifier
+  handed to a vendor API needs a non-empty check, and the guard belongs **at the call that can
+  be wrong**, not at each caller.
+
 ### ⚠️ TWO FOOTGUNS RE-BURNED (both mine, both already in this file)
 1. **Backticks in a `git commit -m` string get shell-executed** — same class as the documented
    nested-quotes trap. One word was eaten out of commit `092e162`. **Write the message to a file
