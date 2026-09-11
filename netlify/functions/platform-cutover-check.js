@@ -66,6 +66,46 @@ exports.handler = async function (event) {
     count(`invoice?${co}&select=id`),
   ]);
 
+  // ── IS THE EMAIL LANE REALLY RECEIVING, OR JUST ONE VENDOR OF FOUR? ──────────
+  // "receiving_now: emailIntake > 0" was true and badly misleading. Measured 2026-09-11:
+  // 77 dispatches had landed on the platform and EVERY ONE was AHS, while TN's actual
+  // 30-day mix is SquareTrade 1,825 / AHS 1,040 / NSA 236 / Frontdoor 12. One forward rule
+  // exists, for the vendor that is NOT the biggest. Grading that lane green would have told
+  // us the biggest lane had crossed when ~64% of incoming work still had no platform path.
+  //
+  // So compare what ARRIVES against what TN actually works, per vendor. The parser already
+  // handles all of them (dedicated ServicePower/SquareTrade tier + a Claude fallback for the
+  // rest), so a missing vendor here is a missing FORWARD RULE, never a missing parser.
+  const VENDOR_ALIASES = {
+    squaretrade: ['squaretrade', 'square trade', 'allstate', 'servicepower', 'service power'],
+    ahs: ['ahs', 'american home shield', 'frontdoor'],
+    nsa: ['nsa', 'national service alliance'],
+  };
+  function vendorKey(raw) {
+    const v = String(raw || '').toLowerCase().replace(/[^a-z ]/g, '').trim();
+    if (!v) return '';
+    for (const k of Object.keys(VENDOR_ALIASES)) if (VENDOR_ALIASES[k].some((a) => v.includes(a))) return k;
+    return v.split(' ')[0];
+  }
+  const [jobVendorRows, intakeVendorRows] = await Promise.all([
+    rows(`job?${co}&created_at=gte.${since}&warranty_company=not.is.null&select=warranty_company&limit=1000`),
+    rows(`email_intake?${co}&select=vendor&limit=1000`),
+  ]);
+  const worked = {}; for (const r of (jobVendorRows || [])) { const k = vendorKey(r.warranty_company); if (k) worked[k] = (worked[k] || 0) + 1; }
+  const arriving = {}; for (const r of (intakeVendorRows || [])) { const k = vendorKey(r.vendor); if (k) arriving[k] = (arriving[k] || 0) + 1; }
+  const workedTotal = Object.values(worked).reduce((a, b) => a + b, 0) || 0;
+  const vendorCoverage = Object.keys(worked).sort((a, b) => worked[b] - worked[a]).map((k) => ({
+    vendor: k,
+    jobs_worked_in_window: worked[k],
+    share_of_warranty_work: workedTotal ? Math.round((worked[k] / workedTotal) * 100) + '%' : '0%',
+    arriving_on_platform: (arriving[k] || 0) > 0,
+    dispatches_seen: arriving[k] || 0,
+  }));
+  const uncovered = vendorCoverage.filter((v) => !v.arriving_on_platform);
+  const uncoveredShare = workedTotal
+    ? Math.round((uncovered.reduce((a, v) => a + v.jobs_worked_in_window, 0) / workedTotal) * 100)
+    : 0;
+
   // Freshest mirrored job tells us the mirror is alive; freshest born-here job tells us
   // whether any platform lane is actually receiving.
   const newestAny = await rows(`job?${co}&select=created_at&order=created_at.desc&limit=1`);
@@ -79,11 +119,19 @@ exports.handler = async function (event) {
 
   const lanes = [
     {
-      lane: 'Warranty dispatch email (AHS / ServicePower / SquareTrade)',
+      lane: 'Warranty dispatch email (AHS / ServicePower / SquareTrade / NSA)',
       platform_ready: true,
-      receiving_now: (emailIntake || 0) > 0,
-      how_to_dual_feed: `Add a forward rule in the warranty inbox to ${TN_SLUG}@jobs.assistant247.net. Xano's pollers keep running; both sides receive the same dispatch.`,
-      why_it_matters: 'This is the biggest lane - most of TN\'s work arrives this way. Nothing else can be cut until this one stands alone.',
+      // Receiving means EVERY vendor TN actually works, not just whichever one happens to
+      // forward. One vendor arriving is a lane half-built, and reporting it green is how a
+      // cutover gets called done while most of the work still has no platform path.
+      receiving_now: (emailIntake || 0) > 0 && uncovered.length === 0,
+      vendor_coverage: vendorCoverage,
+      how_to_dual_feed: uncovered.length
+        ? `Forwarding is live for ${vendorCoverage.filter((v) => v.arriving_on_platform).map((v) => v.vendor).join(', ') || 'nothing'}. Still needed for: ${uncovered.map((v) => v.vendor + ' (' + v.share_of_warranty_work + ' of the work)').join(', ')} - add a forward rule in each of those inboxes to ${TN_SLUG}@jobs.assistant247.net. The parser already handles them; this is a mail rule, not a build.`
+        : `All vendors forwarding to ${TN_SLUG}@jobs.assistant247.net. Xano's pollers keep running; both sides receive the same dispatch.`,
+      why_it_matters: uncovered.length
+        ? `This is the biggest lane. ${uncoveredShare}% of TN's warranty work still arrives ONLY through Xano - turn Xano off today and that share stops coming in.`
+        : 'This is the biggest lane - most of TN\'s work arrives this way. Nothing else can be cut until this one stands alone.',
     },
     {
       lane: 'Phone (Ann answers, books onto the board)',
