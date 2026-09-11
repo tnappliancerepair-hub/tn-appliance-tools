@@ -34,6 +34,10 @@ const TN_COMPANY = 'be4d11a1-5219-469b-916a-ab990be7ea7f';
 function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 const S = (v) => (v == null ? '' : String(v).trim());
 
+// The vendors whose dispatches actually live in ServicePower. AHS/Frontdoor and NSA come in
+// by email and are NOT in this API -- asking about their claim numbers returns nothing.
+const SP_VENDORS = /square\s*trade|squaretrade|allstate|servicepower/i;
+
 // ServicePower fills empty fields with "0" and other placeholders. A placeholder written
 // onto a unit reads as a real model to the tech, which is the failure this exists to prevent.
 function realModel(v) {
@@ -85,11 +89,15 @@ exports.handler = async function (event) {
     return json(200, { ok: false, error: 'no ServicePower credentials — neither tenant nor vault' });
   }
 
-  // Upcoming work only. Backfilling a model onto a job nobody is driving to helps no one.
+  // Upcoming means AHEAD. Without a lower bound this scooped up the stale-scheduled backlog
+  // -- 90 of the first 109 candidates were scheduled in June, July and August. Nobody is
+  // driving to those tomorrow, so filling a model on them helps no tech today.
+  const today = new Date().toISOString().slice(0, 10);
   const until = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
   const jobs = await sget(url, H,
     `job?company_id=eq.${companyId}&status=in.(new,scheduled)&claim_number=not.is.null&claim_number=neq.` +
-    `&scheduled_day=lte.${until}&select=id,unit_id,claim_number,scheduled_day,warranty_company&limit=${limit}`);
+    `&scheduled_day=gte.${today}&scheduled_day=lte.${until}` +
+    `&select=id,unit_id,claim_number,scheduled_day,warranty_company&limit=${limit}`);
   if (!jobs.length) return json(200, { ok: true, mode: dry ? 'dry' : 'live', looked_at: 0, note: 'no upcoming jobs with a dispatch number' });
 
   // Which of those units are actually missing a model?
@@ -98,10 +106,18 @@ exports.handler = async function (event) {
   for (let i = 0; i < unitIds.length; i += 100) {
     for (const u of await sget(url, H, `unit?id=in.(${unitIds.slice(i, i + 100).join(',')})&select=id,label,attributes&limit=200`)) units[u.id] = u;
   }
-  const needy = jobs.filter((j) => {
-    const u = units[j.unit_id]; if (!u) return false;
-    return !realModel((u.attributes || {}).model);
-  });
+  // ServicePower only knows the SquareTrade/Allstate book. Handing it an AHS claim number
+  // is not a near-miss -- it is a question about a call it has never heard of, and it
+  // answers "no model" every time. The first dry run reported 20 of 20 "vendor had none"
+  // and 98 of those candidates were AHS. That was my bug, not a thin vendor API.
+  const askable = [], wrong_vendor = [];
+  for (const j of jobs) {
+    const u = units[j.unit_id];
+    if (!u || realModel((u.attributes || {}).model)) continue;
+    if (SP_VENDORS.test(S(j.warranty_company))) askable.push(j);
+    else wrong_vendor.push({ job: j.id, vendor: S(j.warranty_company) || '(blank)', day: j.scheduled_day });
+  }
+  const needy = askable;
 
   const filled = [], missing = [], failed = [];
   for (const j of needy.slice(0, limit)) {
@@ -139,12 +155,17 @@ exports.handler = async function (event) {
   return json(200, {
     ok: true, mode: dry ? 'dry' : 'live', company_id: companyId, tenant_creds: !!bound,
     upcoming_with_dispatch: jobs.length,
-    missing_a_model: needy.length,
+    missing_a_model: needy.length + wrong_vendor.length,
+    // Split on purpose. "This vendor is not in ServicePower" is a coverage limit to report
+    // honestly, not a failure to retry -- lumping it in with real misses hid the bug once.
+    askable_here: needy.length,
+    not_in_servicepower: wrong_vendor.length,
     filled: filled.length,
     vendor_had_none: missing.length,
     failed: failed.length,
     filled_list: filled.slice(0, 40),
     vendor_had_none_list: missing.slice(0, 10),
+    not_in_servicepower_list: wrong_vendor.slice(0, 10),
     failed_list: failed.slice(0, 5),
   });
 };
