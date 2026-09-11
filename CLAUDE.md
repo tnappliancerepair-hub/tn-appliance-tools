@@ -56,6 +56,23 @@ so neither gets chased, and no surface anywhere says "these people are waiting."
   regardless of age.
 - **Tenant-generic** — company comes from the caller's own session, never a constant.
 
+### ✍️ IT DRAFTS THE REPLY — BUT ONLY WHERE THE ANSWER IS CERTAIN (`draftFor`, LIVE)
+Scheduling is what customers write about most and every reply is hand-read, so drafting is the
+biggest time lever on that queue. **But a wrong draft is worse than no draft, because a draft
+invites being sent without being read.** So it drafts ONLY when the job record already knows the
+answer, and returns null otherwise.
+- **Drafts:** already-booked day · where-is-the-tech · parts-on-order · parts-landed · access-info.
+- **⚠️ REFUSES ON PURPOSE — and these two refusals are the design, not a gap:**
+  **open scheduling negotiation** (*"anything before noon?"* needs real capacity / day-off /
+  service-area logic — a confident guess books someone into a slot nobody can work) and
+  **still broken** (a customer saying the repair didn't hold deserves a person, not a template).
+- **Where there is no draft the page says WHY**, naming the reason. A blank space reads like a
+  bug; *"they are telling us the repair did not hold"* reads like the system knowing its limits.
+- **Day-only, never a clock time** — a texted "3:00 PM" is a broken promise the moment the route
+  shifts. **Copy, not send:** the office reads it, edits, sends from the conversation they were
+  opening anyway. **Nothing on that page can text a customer.**
+- Verified all eight branches: 5 draft, 3 correctly refuse.
+
 ### ⚠️ THE OLD AGENT RUNTIME IS DEAD — build agents as Netlify scheduled functions
 **`loop_tick` = 0 over 3 days.** The Mac-Mini colony loop that ran the 379-agent blueprint is not
 running. **Anything called an "agent" today is a Netlify function** (scheduled, or session-authed
