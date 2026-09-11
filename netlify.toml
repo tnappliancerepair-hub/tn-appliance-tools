@@ -460,6 +460,16 @@
 [functions."ahs-parts-watch"]
   schedule = "12,32,52 * * * *"
 
+# AHS returns watcher — the OTHER half of the parts-return chargeback shield. ahs-parts-watch
+# above reads the "part ordered" email (which states no return obligation, so it records
+# requires_return:false); the obligation arrives LATER in a separate "AHS Part Return
+# Notification" from AHS_Purchasing_Part_Returns@ahs.com, with a hard clock and a hard dollar
+# ("within 30 days or $295.74 will be deducted from your payables") and NO prepaid label.
+# Measured 2026-09-11: AHS is 980 of our ~2,000 platform parts and every one read "nothing
+# owed back" because nobody was reading that email. Hourly is plenty -- the clock is in days.
+[functions."ahs-returns-watch"]
+  schedule = "27 * * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
