@@ -114,15 +114,20 @@ async function runSync(q) {
 
   // Candidate jobs: a ServicePower/SquareTrade dispatch that is still live, plus recently
   // completed ones (returns stay relevant for days after the visit).
-  const cutoff = new Date(Date.now() - 14 * 86400000).toISOString();
+  const cutoff = encodeURIComponent(new Date(Date.now() - 14 * 86400000).toISOString());
+  // The vendor filter has to live in the QUERY, not in JS after the limit -- otherwise a batch
+  // of N is mostly non-ServicePower jobs that get thrown away, and the sweep crawls. Nested
+  // and=(or(...),or(...)) is how PostgREST expresses "still live AND a ServicePower vendor".
+  const liveOr = `or(status.neq.completed,completed_at.gte.${cutoff})`;
+  const vendorOr = 'or(warranty_company.ilike.*square*,warranty_company.ilike.*allstate*,warranty_company.ilike.*servicepower*,warranty_company.ilike.*service power*)';
   let jf = `job?company_id=eq.${companyId}&claim_number=not.is.null&status=neq.canceled`
-    + `&or=(status.neq.completed,completed_at.gte.${encodeURIComponent(cutoff)})`
+    + `&and=(${liveOr},${vendorOr})`
     // Oldest-synced first (never-synced first). Without this cursor the sweep would re-process
     // the same newest N jobs forever and the other ~300 would never be looked at.
     + `&select=id,claim_number,warranty_company,status,scheduled_day,sp_parts_synced_at`
     + `&order=sp_parts_synced_at.asc.nullsfirst&limit=${limit}`;
-  if (q.job) jf = `job?id=eq.${q.job}&select=id,claim_number,warranty_company,status,scheduled_day&limit=1`;
-  const jobs = (await sget(base, H, jf)).filter((j) => q.job || /square|allstate|service\s*power/i.test(String(j.warranty_company || '')));
+  if (q.job) jf = `job?id=eq.${q.job}&select=id,claim_number,warranty_company,status,scheduled_day,sp_parts_synced_at&limit=1`;
+  const jobs = await sget(base, H, jf);
 
   const DAY = 86400000, nowMs = Date.now();
   const fdt = (ms) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, '');
