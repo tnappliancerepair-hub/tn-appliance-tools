@@ -310,7 +310,9 @@ exports.handler = async function (event) {
   let platState = {};
   try {
     const { intakeStateByXanoId } = require('./_lib/platform-db');
-    platState = await intakeStateByXanoId(cands.map((c) => c.id || c.job_id)) || {};
+    // Only what the loop can actually reach (it breaks at MAX_EXAMINE), so this stays one
+    // chunk / 3 requests no matter how long the backlog gets.
+    platState = await intakeStateByXanoId(cands.slice(0, MAX_EXAMINE).map((c) => c.id || c.job_id)) || {};
   } catch (_) { /* fail open — Xano-only behavior, same as before */ }
 
   let sent = 0, skipped_dupe = 0, skipped_no_phone = 0, resolved_via_truth = 0, resolves = 0, examined = 0, failed = 0, skipped_has_media = 0, skipped_phone_cap = 0;
