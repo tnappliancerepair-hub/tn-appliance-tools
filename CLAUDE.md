@@ -1,5 +1,98 @@
 # Appliance Ant
 
+## ↩️💸 2026-09-11 (later) — AHS WANTS ITS PARTS BACK TOO: half the parts book read "nothing owed" · the returns worklist was reading the wrong column · $2,778 with a clock on it — READ FIRST
+
+Teddy: *"We also requested parts from AHS as well. AHS also ships parts to us."* Measured what
+that means for the chargeback shield and found the other half of it wide open.
+
+### 🥇 AHS IS HALF OUR PARTS AND EVERY ROW SAID "NOTHING OWED BACK"
+Platform, last 90 days:
+
+| vendor | parts | jobs | with tracking | flagged owed back |
+|---|---|---|---|---|
+| SquareTrade | 1,024 | 426 | 491 | 20 |
+| **AHS** | **980** | **489** | **0** | **0** |
+
+- **Not because AHS doesn't want them back — because the obligation arrives in a SECOND email
+  nobody was reading.** `ahs-parts-watch` reads the *part-ordered* notice, which genuinely
+  states no return requirement, so it records `requires_return:false` (correct for that email).
+  The requirement shows up later as **"AHS Part Return Notification"** from
+  **`AHS_Purchasing_Part_Returns@ahs.com`**. **⚠️ This corrects the standing note in this file
+  that AHS parts are "no tracking, no return."** They are the STRICTER vendor:
+
+  | | SquareTrade | AHS |
+  |---|---|---|
+  | label | prepaid FedEx label emailed | **none — we pay the freight** unless the error was theirs |
+  | clock | not stated | **"within 10 days"** (or 30), explicit |
+  | penalty | "may be charged" | **"or $295.74 will be deducted from your payables"** |
+  | RMA | in the email | **requested by hand** (the office emails Bobbi at AHS) |
+
+- Real notices in 30 days: **$122.39 · $149.95 · $192.13 · $219.68 · $295.74** plus a run of
+  **$60 cores**. The only thing between those and the deduction was someone spotting the email.
+- **✅ `ahs-returns-watch` (+ `-cron`, hourly `27 * * * *`) parses each notice and stamps
+  `must_return` + the deadline + the dollar onto the platform `job_part` row** — so it lights up
+  in every lens that ALREADY reads `must_return` (tech card ↩️ OWED BACK, office tile, drawer),
+  now with a clock and a price so the office can work the expensive, soon one first.
+- **THE JOIN KEY, verified not assumed: the notice's `PO #: 73350799-4667379` carries the AHS
+  claim as its FIRST segment.** All 11 sampled PO numbers matched a real AHS job by
+  `claim_number`. A claim covers several machines, so `resolveJob` prefers the sibling that
+  already carries the part rather than guessing which machine owes it.
+- **Live result, read off the DATABASE not the run: 32 parts owed back across 23 jobs / 29 POs,
+  $2,778.59 at risk, every one carrying a real deadline — 4 already OVERDUE, 8 due inside 7 days.**
+  Second full pass: **66 flagged, 0 created** (idempotent).
+- **Deliberately does NOT touch `disposition`.** 064 is explicit: `must_return` is the VENDOR's
+  rule, `disposition` is what the TECH did, and **a core is owed back even when it was USED**.
+
+### 🔴 THE RETURNS WORKLIST WAS READING THE WRONG COLUMN (50 rows → 99)
+`platform/returns.html` — the screen the office actually ships returns from — filtered on
+**`disposition='return'`**, the TECH's unused-part flag, and **never read `must_return`** at all.
+So every core and every vendor-stated obligation was invisible there, SquareTrade's 20 included.
+That is the exact conflation 064 warns about, living in the one surface where it costs money.
+- Now reads **both**, ordered by **soonest deadline** (dated beats undated; undated falls back to
+  age), says **whose rule each row is** (↩️ vendor wants it back / 🔧 tech flagged unused), and
+  totals the money at risk.
+- **⚠️ The penalty is stated PER PO, not per part** — a 3-part notice carries one $295.74. Both
+  the column comment and the score tile dedupe on `return_po`; **never `sum(return_penalty_cents)`.**
+- **`docs/sql/069_ahs_return_terms.sql` (APPLIED):** `return_due_at` / `return_penalty_cents` /
+  `return_po`. Separate from `must_return` on the same reasoning as 064 — that one is WHETHER,
+  these are WHEN and HOW MUCH, and **a missing deadline must never read as "not owed"** (SquareTrade
+  states none).
+
+### 🐞 THE SHADOW RUN WANTED TO CREATE 58 DUPLICATES — caught by reading the rows, not the summary
+First dry-run reported **`create=58, flag=0`**: every part looked brand new. It wasn't. The parts
+were already on those jobs, under a `number` column full of legacy-parser junk —
+`"Drum Front Bearing Assembly, Upper WE03X25576"`, `"AKC72949319 : LG Refrigerator Ice Maker &
+Bucket"`. Comparing the vendor's clean `WE03X25576` against that whole string matches nothing and
+inserts a second copy of a part already on the ticket — **doubling the office's parts list on
+exactly the jobs that owe money back.** `platform-sp-parts-sync` had already solved this, so the
+rule was **hoisted to `_lib/part-match.js` rather than copied** (a second copy drifts the way the
+two pasted portal part keys did before 068). After the fix: **flag=18, create=38**. Unit-verified
+9/9 on the real strings including the near-miss that matters — **`AKC72949319` must NOT match
+`AKC72949301` one row above it on the same job.**
+- **⚠️ STANDING: `create=N, flag=0` from a vendor feed is a MATCHER BUG until proven otherwise.**
+  Read the rows the writer is about to touch, not its summary line.
+
+### ⚠️ FOOTGUNS BURNED
+- **Put the cron on the core and killed my own shadow run.** A Netlify fn carrying a `schedule`
+  block **edge-403s on every external HTTP call** — documented in this file, burned anyway. Split
+  core + thin cron wrapper **from the start**, always.
+- **The Gmail multi-account fan-out is flaky/eventually-consistent** — the same query returned
+  30, then 0, then 4 within minutes, and a run can report `scanned:0` that looks exactly like
+  "no notices." The watcher reports `scanned` so a dead read is visible, and hourly + idempotent
+  means it self-heals; **don't read one zero-scan run as an empty inbox.**
+- **A notice whose claim doesn't resolve is recorded as `warranty_part_unmatched`, never dropped.**
+  Losing a money obligation because a join missed is the whole exposure.
+
+### ⏭️ OPEN
+- **One clearing pass on `returns.html`.** Some of the 32 were already shipped back by hand
+  through the Gmail thread with AHS; nothing recorded it, so they read as open. One tap each
+  (**✓ Shipped it**) clears them, and from here the list stays honest. The asymmetry justifies
+  it: a missed obligation costs $60–$295, a stale row costs a tap.
+- **NSA ships parts too** (`HIS Parts Shipped for Case# H…` from the NSA notifications sender) —
+  35 parts on the platform, 0 with tracking, 0 flagged. Same shape, not yet built.
+- The RMA is still requested by hand. The notice carries `REA #` when AHS pre-issued one (we now
+  store it); when it just says "invoice" or "call tag," a human still emails for the RMA.
+
 ## 🔧👷 2026-09-11 (latest) — AGENTS FOR THE CREW: the "already answered" guard read a field that is always ZERO (and my 672 was a mirror gap, not dropped customers) · 19 of 45 upcoming jobs have no model anywhere · first-visit-fix is measured on a biased sample · a dropped scope asks ServicePower for EVERYTHING — READ FIRST
 
 Teddy: *"What agents would HCP and ServiceTitan and Jobber build? We need to give our people the
