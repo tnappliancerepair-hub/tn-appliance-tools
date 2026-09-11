@@ -1,5 +1,79 @@
 # Appliance Ant
 
+## 📦🚚 2026-09-11 (later) — "IS THE PART THERE?" IS NOW ON THE JOB · the vendor's parts list beats our email · FedEx Track is 403'ing — READ FIRST
+
+Teddy: *"Even parts eta and what has been sent would be helpful on the job so the tech knows if
+parts are there or not and what was sent so they can manage the parts efficiently."*
+
+### ✅ SHIPPED — `platform-sp-parts-sync` (LIVE, cron `6-59/20`)
+Pulls the **vendor's own parts list** off the ServicePower API onto the platform job, with the
+tracking number for each part, and enriches with carrier status/ETA. The tech's parts card now
+**leads with the line he reads before he drives** — *"3 of 5 sent · 1 delivered · 2 not shipped
+yet"* — and each part carries its own shipment state + a tappable tracking link.
+- **ONE SOAP call per job.** `getCallNotes` takes the dispatch number (`Callno`) directly — no
+  `FSSCallId` needed — so this is cheap enough to run every 20 min.
+- **Additive by construction:** never deletes a row; never touches what a human owns
+  (`disposition`, `photo_ref`, `cost_cents`, `sell_cents`, `returned_*`, `rma_*`,
+  `return_tracking`); only fills BLANKS plus the `ship_*` columns it owns; an empty API value
+  can never erase a known one.
+- **Verified idempotent live:** first run `inserted 5 · updated 3`; immediate re-run
+  `0 · 0 · unchanged 8`.
+- **Runs per-tenant** via `servicepower-tenant.forCompany()` when a shop has its own creds, else
+  the vault (TN today) — so a second shop, or the AHS equivalent, reuses it without a rewrite.
+- **`docs/sql/062_part_shipment.sql` (APPLIED):** `job_part` gains `ship_tracking` /
+  `ship_carrier` / `ship_status` / `ship_delivered` / `ship_status_at` (`eta` already existed).
+  ⚠️ **Deliberately SEPARATE from the return columns** — conflating the two is how a return
+  label gets read as an inbound delivery.
+
+### 🔴 THE PARTS EMAIL HAS BEEN SILENTLY DROPPING PARTS (measured again, on more jobs)
+The first live run on **8 candidate jobs** found **5 parts the platform did not have at all** —
+across 3 different jobs — plus 3 that gained tracking. Earlier the same day, claim
+`070570184134` was missing a **MAIN BOARD** and a **USER INTERFACE BOARD**. Unreturned parts are
+exactly what SquareTrade charges back for. **A part only existed on a job if its email arrived
+AND parsed. Now the vendor's own list is the spine and the email supplies only what it uniquely
+has (the prepaid return label + RMA#).**
+
+### ⚠️ NO UNIQUE INDEX ON (job_id, number) — ON PURPOSE
+The email parser writes descriptive junk into `number`:
+`"THERMOSTAT HI LIMIT WE04X30381⏎Part #WE04X30381"` with `name` NULL (354 of 1,669 rows are like
+this). A normalized-text unique index would neither match the API's clean `WE04X30381` nor build
+over existing rows. **Matching happens in CODE on an EXTRACTED part number, and the sync repairs
+the dirty row as it goes** (clean number + real description into `name`). Revisit an index only
+once the rows are clean.
+- **Extractor rules (unit-verified):** a `Part #X` in the text is authoritative for that row, so
+  anything after **`Replaces #`** is correctly IGNORED (supersession numbers must not mis-attach
+  a shipment to the wrong row). Pure-numeric part numbers are accepted at **≥6 digits**
+  (Whirlpool/Frigidaire style like `8583165300010`) so quantities and years never match.
+
+### 🔴 FEDEX TRACK IS 403 — the ETA half is dark, and `fedex-returns-autoclose` can never have worked
+`fedex-track` returns **403 FORBIDDEN "We could not authorize your credentials"** on real FedEx
+numbers. The OAuth token mints fine and **pickup works (422 input error, not 403)** — so the
+credentials are valid but **the Track API is not authorized on that FedEx project.** That means
+**`fedex-returns-autoclose` (built 2026-08-06, still shadow) has never been able to close a
+return** — it depends on the same call. ⏭️ **Teddy: enable the Track API on the FedEx developer
+project** (or confirm prod-vs-sandbox — `FEDEX_ENV` defaults to `sandbox`). Until then a shipped
+part reads **"Sent"** with its real tracking number, which is still strictly more than before.
+- `fedex-track` gained owner-gated **`?raw=1`** — an empty result is otherwise indistinguishable
+  from a bad credential. That is what found this.
+
+### 📋 WHERE TEDDY'S ASKS STAND NOW
+| ask | state |
+|---|---|
+| Parts list from the API | ✅ **live on the job**, syncing every 20 min |
+| What has been SENT | ✅ **live** — per-part tracking + "N of M sent" headline |
+| Parts **ETA / is it here** | 🟡 **blocked on FedEx Track authorization** (403) — everything else is wired and waiting |
+| Parts RETURN links | 🟡 API gives the return REQUIREMENT + tracking + RMA portal; the **prepaid label + RMA# still only come by email** |
+| Auto-acceptance | ✅ already live (20/14 days) — still does **not** create the Supabase job |
+| Same for AHS/Frontdoor | ⏳ receiver is DARK **and posts to Xano, not Supabase** |
+
+### ⚠️ FOOTGUN REPEATED (mine)
+**Backticks in a `git commit -m` string get shell-executed** — same class as the documented
+nested-quotes trap. One word was eaten out of commit `092e162`. **Write the message to a file
+and use `git commit -F`.**
+
+**Verify (read-only):** `servicepower-call-detail?secret=<admin>&call=<dispatch#>[&raw=1]`
+**Shadow the sync:** `platform-sp-parts-sync?secret=<admin>&dry=1&limit=10`
+
 ## 🔩🔌 2026-09-11 — SERVICEPOWER API: parts list is REAL and the email has been MISSING PARTS · 3 dead ops revived · auto-accept is live but doesn't create the job — READ FIRST
 
 Teddy: *"We need to utilize the service power api for parts list and parts return links auto

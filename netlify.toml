@@ -991,6 +991,13 @@
 [functions."platform-rma-tee-cron"]
   schedule = "11-59/15 * * * *"
 
+# platform-sp-parts-sync — pull the VENDOR'S OWN parts list onto the job (what was sent, its
+# tracking, and whether it landed) so a tech is not guessing before he drives. Offset 6-59/20
+# keeps it off the busy /15 lanes (2,3,4,7,8,11). Additive + idempotent: it never deletes a
+# row and never touches disposition/photos/costs/returns, so a re-run is a no-op.
+[functions."platform-sp-parts-sync"]
+  schedule = "6-59/20 * * * *"
+
 # tdr-sync-cron (Phase 0 Part A, 2026-08-26) — THE fix for "won't save the part
 # number" when Xano chokes. tech-job.html saves through tdr-save, which lands every
 # TDR/part save in Supabase tdr_pending (durable, instant) then relays to Xano
