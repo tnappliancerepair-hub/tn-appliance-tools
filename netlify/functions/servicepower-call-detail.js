@@ -69,11 +69,17 @@ exports.handler = async function (event) {
   const args = { callNumber, fssCallId, mfgId };
 
   // Pull all four read ops in parallel.
+  // Each op takes DIFFERENT identifiers -- this is the footgun that made all three fault.
+  // Per the live WSDL: attributes + coverage want FSSCallId ONLY; notes wants Callno (lowercase
+  // "no") inside a CallInfoSearch window. Sending CallNumber to attributes/coverage returns
+  // "Invalid element in ...Info - CallNumber".
+  const nowMs = Date.now(), DAY = 86400000;
+  const fdt = (ms) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, '');
   const [info, attrs, notes, cov] = await Promise.all([
     sp.getCallInfo({ callNo: callNumber, fromDateTime: '', toDateTime: '' }).catch((e) => ({ error: String(e && e.message || e) })),
-    sp.getCallAttributes(args).catch((e) => ({ error: String(e && e.message || e) })),
-    sp.getCallNotes(args).catch((e) => ({ error: String(e && e.message || e) })),
-    sp.getProductCoverage(args).catch((e) => ({ error: String(e && e.message || e) })),
+    sp.getCallAttributes({ fssCallId }).catch((e) => ({ error: String(e && e.message || e) })),
+    sp.getCallNotes({ callNumber, fromDateTime: fdt(nowMs - 180 * DAY), toDateTime: fdt(nowMs + DAY) }).catch((e) => ({ error: String(e && e.message || e) })),
+    sp.getProductCoverage({ fssCallId }).catch((e) => ({ error: String(e && e.message || e) })),
   ]);
 
   // Best-effort parts extraction from each source's raw body.
@@ -84,6 +90,14 @@ exports.handler = async function (event) {
       if (!seen.has(k) && (p.part || p.description)) { seen.add(k); parts.push(p); }
     }
   }
+  // Shipping records carry the RETURN links (ShipURL) and ShipType tells us which way it goes.
+  const shipping = []; const sseen = new Set();
+  for (const src of [info, attrs, notes]) {
+    for (const sh of sp.parseShipping((src && src.raw) || '')) {
+      const k = (sh.tracking || '') + '|' + (sh.url || '');
+      if (!sseen.has(k)) { sseen.add(k); shipping.push(sh); }
+    }
+  }
 
   const wantRaw = q.raw === '1' || q.raw === true;
   const pack = (r) => ({ ok: !!(r && r.ok), error: r && r.error, ack: r && r.ack, err_code: r && r.err_code, err_desc: r && r.err_desc, raw: wantRaw ? (r && r.raw || '').slice(0, 12000) : undefined });
@@ -92,7 +106,7 @@ exports.handler = async function (event) {
   // WITHOUT the office needing to copy/paste anything back.
   try {
     await crud.logEvent('servicepower_call_detail_probe', {
-      call_number: callNumber, job_id: Number(q.job_id || 0) || null, parts_found: parts.length, parts,
+      call_number: callNumber, job_id: Number(q.job_id || 0) || null, parts_found: parts.length, parts, shipping_found: shipping.length, shipping,
       raw_attributes: ((attrs && attrs.raw) || '').slice(0, 8000),
       raw_notes: ((notes && notes.raw) || '').slice(0, 8000),
       raw_info: ((info && info.raw) || '').slice(0, 6000),
@@ -105,6 +119,8 @@ exports.handler = async function (event) {
     call_number: callNumber, fss_call_id: fssCallId, mfg_id: mfgId,
     parts_found: parts.length,
     parts,
+    shipping_found: shipping.length,
+    shipping,
     note: parts.length ? 'Parts extracted heuristically — confirm against the raw, then I wire this as the authoritative source.' : 'No parts matched the generic patterns. Pass &raw=1 and share the output so I can see the exact tags.',
     sources: { info: pack(info), attributes: pack(attrs), notes: pack(notes), coverage: pack(cov) },
   });

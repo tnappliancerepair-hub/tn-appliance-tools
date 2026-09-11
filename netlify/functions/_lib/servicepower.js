@@ -164,40 +164,91 @@ function parseCalls(raw) {
 // record for a job (vs parsing email), so the TDR return list matches ground truth.
 // All read-only + safe. Response shapes are discovered via the probe endpoint, then
 // parsed precisely once we see a real one.
-async function getCallAttributes({ callNumber, fssCallId, mfgId } = {}) {
+async function getCallAttributes({ fssCallId } = {}) {
   const ui = await userInfoXml();
-  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
-  const inner = `<impl:getCallAttributes>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getCallAttributes>`;
+  // WSDL CallAttributesInfo = { UserInfo, FSSCallId }. It does NOT accept CallNumber/MfgId --
+  // sending them returns "Invalid element in ...CallAttributesInfo - CallNumber". Verified
+  // against the live WSDL 2026-09-11.
+  const inner = `<impl:getCallAttributes>${ui}<FSSCallId>${esc(fssCallId)}</FSSCallId></impl:getCallAttributes>`;
   return soapCall(inner, '');
 }
-async function getCallNotes({ callNumber, fssCallId, mfgId } = {}) {
+async function getCallNotes({ callNumber, fromDateTime, toDateTime, versionNo } = {}) {
   const ui = await userInfoXml();
+  // WSDL CallInfoSearch = { UserInfo, FromDateTime, ToDateTime, Callno, Versionno }.
+  // Note the lowercase "no" on Callno/Versionno -- CallNumber is rejected outright.
   const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
-  const inner = `<impl:getCallNotes>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getCallNotes>`;
+  const inner = `<impl:getCallNotes>${ui}${f('FromDateTime', fromDateTime)}${f('ToDateTime', toDateTime)}${f('Callno', callNumber)}${f('Versionno', versionNo)}</impl:getCallNotes>`;
   return soapCall(inner, '');
 }
-async function getProductCoverage({ callNumber, fssCallId, mfgId } = {}) {
+async function getProductCoverage({ fssCallId } = {}) {
   const ui = await userInfoXml();
-  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
-  const inner = `<impl:getProductCoverage>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getProductCoverage>`;
+  // WSDL ProductCoverageInfo = { UserInfo, FSSCallId }.
+  const inner = `<impl:getProductCoverage>${ui}<FSSCallId>${esc(fssCallId)}</FSSCallId></impl:getProductCoverage>`;
   return soapCall(inner, '');
 }
 
 // Best-effort generic parts extractor — scans a SOAP response for repeated part-ish
 // blocks and pulls part number / description / qty / return flags out of whatever tags
 // are present. Tuned precisely once we see a real getCallAttributes/getCallNotes response.
+// Parts + return-shipping extractor, tuned to the REAL WSDL types (verified 2026-09-11):
+//   PartsInfo    = PartsVendorId/Name, PartNo, PartDesc, PartLoc, PartCoverage, PartPrice,
+//                  OrderQuantity, OrderDate, PartStatusDate, PartTrackingId, PartTrackingUrl,
+//                  ShippingCarrier, ShippingMethod, InstalledDate, InstalledQuantity
+//   ShippingInfo = TrackingNo, Description, ShipCarrier, ShipMethod, ShipURL, ShipDate,
+//                  EstDeliveryDate, ShipType   <- ShipType distinguishes outbound vs RETURN
+// These are the authoritative parts list + return links, straight from the vendor, so the
+// office stops depending on an RMA email arriving and being parsed correctly.
 function parseParts(raw) {
   const out = [];
-  const blockRe = /<(?:\w+:)?(Part|PartInfo|SPPart|CallPart|Parts|PartDetail|Component)\b[^>]*>([\s\S]*?)<\/(?:\w+:)?\1>/gi;
+  const blockRe = /<(?:\w+:)?(Parts|PartsInfo)\b[^>]*>([\s\S]*?)<\/(?:\w+:)?\1>/gi;
   let m;
   while ((m = blockRe.exec(raw || ''))) {
     const b = m[2];
-    const pn = _tag(b, 'PartNumber') || _tag(b, 'PartNo') || _tag(b, 'SPPartNumber') || _tag(b, 'Number') || '';
-    const desc = _tag(b, 'PartDescription') || _tag(b, 'Description') || _tag(b, 'PartDesc') || '';
-    const qty = _tag(b, 'Quantity') || _tag(b, 'Qty') || '';
-    const ret = _tag(b, 'ReturnRequired') || _tag(b, 'Return') || _tag(b, 'ReturnFlag') || _tag(b, 'CoreReturn') || '';
-    const status = _tag(b, 'PartStatus') || _tag(b, 'Status') || '';
-    if (pn || desc) out.push({ part: pn, description: desc, quantity: qty, return_flag: ret, status });
+    const pn = _tag(b, 'PartNo') || _tag(b, 'PartNumber');
+    const desc = _tag(b, 'PartDesc') || _tag(b, 'PartDescription');
+    if (!pn && !desc) continue;
+    out.push({
+      part: pn,
+      description: desc,
+      vendor: _tag(b, 'PartsVendorName') || _tag(b, 'PartsVendorId'),
+      price: _tag(b, 'PartPrice'),
+      quantity: _tag(b, 'OrderQuantity'),
+      order_date: _tag(b, 'OrderDate'),
+      status_date: _tag(b, 'PartStatusDate'),
+      tracking: _tag(b, 'PartTrackingId'),
+      tracking_url: _tag(b, 'PartTrackingUrl'),
+      carrier: _tag(b, 'ShippingCarrier'),
+      ship_method: _tag(b, 'ShippingMethod'),
+      installed_date: _tag(b, 'InstalledDate'),
+      installed_qty: _tag(b, 'InstalledQuantity'),
+      coverage: _tag(b, 'PartCoverage'),
+      location: _tag(b, 'PartLoc'),
+    });
+  }
+  return out;
+}
+
+// Shipping records on a call. ShipType tells outbound-to-us from return-to-vendor, and
+// ShipURL is the actual label/tracking link -- the thing the office chases today by email.
+function parseShipping(raw) {
+  const out = [];
+  const blockRe = /<(?:\w+:)?ShippingInfo\b[^>]*>([\s\S]*?)<\/(?:\w+:)?ShippingInfo>/gi;
+  let m;
+  while ((m = blockRe.exec(raw || ''))) {
+    const b = m[1];
+    const tn = _tag(b, 'TrackingNo');
+    const url = _tag(b, 'ShipURL');
+    if (!tn && !url) continue;
+    out.push({
+      tracking: tn,
+      url,
+      description: _tag(b, 'Description'),
+      carrier: _tag(b, 'ShipCarrier'),
+      method: _tag(b, 'ShipMethod'),
+      ship_date: _tag(b, 'ShipDate'),
+      est_delivery: _tag(b, 'EstDeliveryDate'),
+      type: _tag(b, 'ShipType'),
+    });
   }
   return out;
 }
@@ -250,4 +301,4 @@ async function updateTechCapacity({ key, capacity, date, timeBand }) {
 
 const TIME_BANDS = { '8-12': 'MORNING', '12-17': 'AFTERNOON', '8-17': 'ALL DAY', '17-21': 'EVENING', '6-8': 'EARLY MORNING' };
 
-module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getCallAttributes, getCallNotes, getProductCoverage, parseParts, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
+module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getCallAttributes, getCallNotes, getProductCoverage, parseParts, parseShipping, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
