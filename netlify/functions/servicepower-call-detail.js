@@ -90,6 +90,13 @@ exports.handler = async function (event) {
       if (!seen.has(k) && (p.part || p.description)) { seen.add(k); parts.push(p); }
     }
   }
+  // THE AUTHORITATIVE PARTS LIST. Verified live 2026-09-11: ServicePower returns parts on the
+  // READ side as text stanzas inside getCallNotes, not as PartsInfo XML. This is the same
+  // content the parts email carries, pulled on demand -- no Gmail dependency, no parse race.
+  const apiParts = sp.partsFromNotes((notes && notes.raw) || '');
+  // Per-dispatch links, incl. the SquareTrade "Appointment completion form" (their TDR wizard).
+  const links = sp.attributesFromRaw((attrs && attrs.raw) || '');
+
   // Shipping records carry the RETURN links (ShipURL) and ShipType tells us which way it goes.
   const shipping = []; const sseen = new Set();
   for (const src of [info, attrs, notes]) {
@@ -106,7 +113,7 @@ exports.handler = async function (event) {
   // WITHOUT the office needing to copy/paste anything back.
   try {
     await crud.logEvent('servicepower_call_detail_probe', {
-      call_number: callNumber, job_id: Number(q.job_id || 0) || null, parts_found: parts.length, parts, shipping_found: shipping.length, shipping,
+      call_number: callNumber, job_id: Number(q.job_id || 0) || null, parts_found: parts.length, parts, api_parts_found: apiParts.length, api_parts: apiParts, links, shipping_found: shipping.length, shipping,
       raw_attributes: ((attrs && attrs.raw) || '').slice(0, 8000),
       raw_notes: ((notes && notes.raw) || '').slice(0, 8000),
       raw_info: ((info && info.raw) || '').slice(0, 6000),
@@ -117,6 +124,9 @@ exports.handler = async function (event) {
   return j(200, {
     ok: true,
     call_number: callNumber, fss_call_id: fssCallId, mfg_id: mfgId,
+    api_parts_found: apiParts.length,
+    api_parts: apiParts,
+    links,
     parts_found: parts.length,
     parts,
     shipping_found: shipping.length,

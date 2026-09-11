@@ -253,6 +253,82 @@ function parseShipping(raw) {
   return out;
 }
 
+// ─── PARTS FROM THE API (the authoritative list) ──────────────────────────
+// VERIFIED LIVE 2026-09-11 on real SquareTrade dispatches. The parts list does NOT come
+// back as PartsInfo XML -- PartsInfo only exists on the WRITE side (UpdateCall). On the READ
+// side ServicePower returns it inside getCallNotes as repeated <Notes> text blocks:
+//
+//   Allstate part order details          <- the list, one stanza per part
+//     Part Number: WE22X36197
+//     Part Description: USER INTERFACE BOARD
+//     Quantity: 1
+//     If used during repair  requires return: No      <- THE RETURN FLAG
+//     Tracking Number: not yet available
+//
+//   Allstate part tracking details       <- same shape, tracking filled in later
+//   Allstate call created: model & issue details   <- issue text + return policy
+//
+// This is the same content the parts EMAIL carries, but pulled on demand per dispatch --
+// so it does not depend on an email arriving, being labeled, or parsing correctly.
+// Note the DOUBLE space in "repair  requires" -- match loosely on whitespace.
+function decodeEnt(t) {
+  return String(t || '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&nbsp;/g, ' ');
+}
+function notesBlocks(raw) {
+  const out = [];
+  const re = /<NotesDate>([\s\S]*?)<\/NotesDate>\s*<Notes>([\s\S]*?)<\/Notes>/gi;
+  let m;
+  while ((m = re.exec(raw || ''))) out.push({ date: decodeEnt(m[1]).trim(), text: decodeEnt(m[2]).trim() });
+  return out;
+}
+// Pull every part stanza out of the notes. Deduped on part number, and a later stanza that
+// carries a real tracking number upgrades the earlier one (order details land first, tracking
+// details arrive days later) -- same merge rule the email watcher needed.
+function partsFromNotes(raw) {
+  const byPart = new Map();
+  const val = (blk, label) => {
+    const re = new RegExp(label.replace(/\s+/g, '\\s+') + '\\s*:\\s*([^\n\r]*)', 'i');
+    const m = blk.match(re);
+    return m ? m[1].trim() : '';
+  };
+  for (const b of notesBlocks(raw)) {
+    // split the block into per-part stanzas on "Part Number:"
+    const chunks = b.text.split(/(?=Part Number\s*:)/i).filter((c) => /Part Number\s*:/i.test(c));
+    for (const c of chunks) {
+      const part = val(c, 'Part Number');
+      if (!part) continue;
+      const tracking = val(c, 'Tracking Number');
+      const retRaw = val(c, 'If used during repair requires return') || val(c, 'requires return');
+      const rec = {
+        part,
+        description: val(c, 'Part Description'),
+        quantity: val(c, 'Quantity'),
+        // "No" here means: if you USE it, you keep it. Anything else (Yes/Core) must go back.
+        requires_return: /^y/i.test(retRaw) ? true : (/^n/i.test(retRaw) ? false : null),
+        tracking: /not yet available/i.test(tracking) ? '' : tracking,
+        noted_at: b.date,
+      };
+      const prev = byPart.get(part);
+      if (!prev) { byPart.set(part, rec); continue; }
+      // merge: never let a later empty field erase a known one
+      for (const k of ['description', 'quantity', 'tracking']) if (!prev[k] && rec[k]) prev[k] = rec[k];
+      if (prev.requires_return == null && rec.requires_return != null) prev.requires_return = rec.requires_return;
+    }
+  }
+  return Array.from(byPart.values());
+}
+// The per-dispatch links ServicePower hands us on getCallAttributes -- notably the
+// "Appointment completion form" (the SquareTrade wizard that IS their TDR).
+function attributesFromRaw(raw) {
+  const out = {};
+  const re = /<CallAttributes[^>]*>\s*<Label>([\s\S]*?)<\/Label>\s*<Value>([\s\S]*?)<\/Value>/gi;
+  let m;
+  while ((m = re.exec(raw || ''))) out[decodeEnt(m[1]).trim()] = decodeEnt(m[2]).trim();
+  return out;
+}
+
 // ─── CAPACITY (the "get more work" lever) ─────────────────────────────────
 // getTechInfo: READ our techs + their TechKey (Key) + current weekly BasicCapacity
 // {Capacity, Day, TimeBand}. Answers "are we still capped at N/day?" and yields the
@@ -301,4 +377,4 @@ async function updateTechCapacity({ key, capacity, date, timeBand }) {
 
 const TIME_BANDS = { '8-12': 'MORNING', '12-17': 'AFTERNOON', '8-17': 'ALL DAY', '17-21': 'EVENING', '6-8': 'EARLY MORNING' };
 
-module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getCallAttributes, getCallNotes, getProductCoverage, parseParts, parseShipping, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
+module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getCallAttributes, getCallNotes, getProductCoverage, parseParts, parseShipping, partsFromNotes, notesBlocks, attributesFromRaw, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
