@@ -121,7 +121,10 @@ exports.handler = async function (event) {
   const cutoff = new Date(Date.now() - 14 * 86400000).toISOString();
   let jf = `job?company_id=eq.${companyId}&claim_number=not.is.null&status=neq.canceled`
     + `&or=(status.neq.completed,completed_at.gte.${encodeURIComponent(cutoff)})`
-    + `&select=id,claim_number,warranty_company,status,scheduled_day&order=scheduled_day.desc.nullslast&limit=${limit}`;
+    // Oldest-synced first (never-synced first). Without this cursor the sweep would re-process
+    // the same newest N jobs forever and the other ~300 would never be looked at.
+    + `&select=id,claim_number,warranty_company,status,scheduled_day,sp_parts_synced_at`
+    + `&order=sp_parts_synced_at.asc.nullsfirst&limit=${limit}`;
   if (q.job) jf = `job?id=eq.${q.job}&select=id,claim_number,warranty_company,status,scheduled_day&limit=1`;
   const jobs = (await sget(base, H, jf)).filter((j) => q.job || /square|allstate|service\s*power/i.test(String(j.warranty_company || '')));
 
@@ -143,6 +146,9 @@ exports.handler = async function (event) {
       const r = await getNotes({ callNumber: j.claim_number, fromDateTime: fdt(nowMs - 180 * DAY), toDateTime: fdt(nowMs + DAY) });
       apiParts = sp.partsFromNotes((r && r.raw) || '');
     } catch (e) { out.errors.push({ job: j.id, claim: j.claim_number, error: String((e && e.message) || e).slice(0, 120) }); continue; }
+    // Stamp the cursor even when there is nothing to sync -- otherwise a job with no parts is
+    // retried every run and permanently blocks the head of the queue.
+    if (!dry) await spatch(base, H, `job?id=eq.${j.id}`, { sp_parts_synced_at: new Date().toISOString() });
     if (!apiParts.length) continue;
     out.jobs_with_api_parts++;
     out.api_parts_seen += apiParts.length;
