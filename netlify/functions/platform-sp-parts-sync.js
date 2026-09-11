@@ -97,13 +97,9 @@ function noteToIso(s) {
   return new Date(Date.UTC(+m[3], +m[1] - 1, +m[2], +(m[4] || 12), +(m[5] || 0), +(m[6] || 0))).toISOString();
 }
 
-exports.handler = async function (event) {
-  const q = { ...(event.queryStringParameters || {}) };
-  let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
-  const guard = (await getSecret('ADMIN_SECRET')) || (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
-  if (!scheduled && q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
-
-  const dry = q.dry === '1' || q.dry === 'true';
+async function runSync(q) {
+  q = q || {};
+  const dry = q.dry === '1' || q.dry === 'true' || q.dry === true;
   const companyId = q.company || TN_COMPANY;
   const limit = Math.min(40, Math.max(1, parseInt(q.limit || '12', 10) || 12));
 
@@ -228,5 +224,18 @@ exports.handler = async function (event) {
   }
 
   console.log('[sp-parts-sync]', JSON.stringify({ dry, company: companyId, jobs: out.jobs_considered, with_parts: out.jobs_with_api_parts, ins: out.inserted, upd: out.updated, repaired: out.repaired, track: out.tracking_numbers.length }));
-  return json(200, out);
+  return out;
+}
+
+// HTTP entry point. Kept SEPARATE from the cron on purpose: a Netlify fn that carries a
+// `schedule` block edge-403s on every manual HTTP call (documented footgun), which would make
+// the ?dry=1 shadow run -- the only way to eyeball this before it writes -- impossible.
+// The schedule lives on platform-sp-parts-sync-cron instead.
+exports.handler = async function (event) {
+  const q = { ...(event.queryStringParameters || {}) };
+  const guard = (await getSecret('ADMIN_SECRET')) || (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
+  if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
+  return json(200, await runSync(q));
 };
+
+exports.runSync = runSync;
