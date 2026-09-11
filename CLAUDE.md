@@ -113,6 +113,31 @@ and it's the money lane. It was tied to Xano by exactly ONE read (`get_warranty_
 - ✅ **Verified live end-to-end:** `?call=023242084133` → `source:platform`, the Core part comes
   through **`RETURNED: Y`**, clean numbers, real per-part descriptions, state `TN`.
 
+### 🚨 THE EMAIL LANE WAS GREEN FOR **ONE VENDOR OUT OF FOUR** (correction to my own earlier read)
+I reported the warranty-email lane as "crossed." **Wrong — and the check is what made it look right.**
+`receiving_now: emailIntake > 0` was true and badly misleading:
+
+| | |
+|---|---|
+| dispatches that have EVER reached the platform intake | **77 — every single one `ahs`** |
+| TN's actual 30-day job mix | **SquareTrade 1,825 · AHS 1,040 · NSA 236 · Frontdoor 12** |
+
+**One forward rule exists, and it is not for the biggest vendor.** Turn Xano off today and
+roughly **64% of incoming work stops arriving** — including **SquareTrade**, the one carrying the
+parts-return chargeback exposure the whole previous session went into closing.
+- **`platform-cutover-check` now grades that lane PER VENDOR**, comparing what ARRIVES against
+  what TN actually works, and only calls it receiving when **every** vendor is covered. It names
+  the missing ones with their share of the work.
+- ⚠️ **Be precise about the fix: the parser already handles all of them** — a dedicated
+  ServicePower/SquareTrade tier (`_lib/parsers/servicepower`) plus a Claude fallback for the rest.
+  **A missing vendor here is a missing MAIL RULE, not a missing build.**
+- ⏭️ **TEDDY:** add a forward rule to `tn-appliance-exchange-llc@jobs.assistant247.net` in the
+  **SquareTrade/Allstate** inbox and the **NSA** inbox (AHS already forwards). Xano's pollers keep
+  running — both sides receive the same dispatch, which IS the dual-feed.
+- 🧭 **STANDING: a lane is "receiving" only when every SOURCE that feeds it is arriving.** One
+  source of four is a lane half-built, and grading it green is how a cutover gets called done
+  while most of the work still has no platform path.
+
 ### 📊 WHERE THE CUTOVER ACTUALLY STANDS (measured, not asserted)
 `platform-cutover-check` + `platform-tn-parity`, live:
 - **3,463 platform jobs · 3,450 mirrored from Xano · 13 BORN on the platform.** That 13 is the
