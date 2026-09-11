@@ -333,7 +333,10 @@ async function runNsaParts(opts = {}) {
       try { rows = parseChargeDigest(newest.html || ''); } catch (_) { rows = []; }
       res.returns.rows = rows.length;
 
-      const listed = new Set();
+      // Compare on PART IDENTITY, not row id. A row we CREATE this run gets no id back
+      // (Prefer: return=minimal), so an id-based set counts the part we just flagged as
+      // "no longer listed" -- the watcher reporting its own write as a discrepancy.
+      const listedParts = [];
       for (const r of rows) {
         const jobId = await resolveJob(db, r.case_no, [r.part], { phone: r.phone, last_name: r.last_name });
         if (!jobId) {
@@ -351,7 +354,7 @@ async function runNsaParts(opts = {}) {
         let existing = [];
         try { existing = await db.get(`job_part?job_id=eq.${jobId}&company_id=eq.${TN_COMPANY}&select=id,number,name,source,returned_at,must_return&limit=200`); } catch (_) { existing = []; }
         const hit = (existing || []).find((x) => rowMatches(x, r.part)) || null;
-        if (hit) listed.add(hit.id);
+        if (r.part) listedParts.push(r.part);
 
         if (hit && hit.returned_at) { res.returns.already_returned++; continue; }   // office already closed it
 
@@ -400,7 +403,7 @@ async function runNsaParts(opts = {}) {
         for (const o of (Array.isArray(owed) ? owed : [])) {
           const wc = String((o.job && o.job.warranty_company) || '');
           if (!/nsa|national service/i.test(wc)) continue;
-          if (listed.has(o.id)) continue;
+          if (listedParts.some((w) => rowMatches(o, w))) continue;
           res.returns.no_longer_listed++;
           if (res.returns.no_longer_listed_samples.length < 10) {
             res.returns.no_longer_listed_samples.push({ part_id: o.id, part: o.number, claim: (o.job && o.job.claim_number) || '' });
