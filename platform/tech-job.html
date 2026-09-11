@@ -511,6 +511,18 @@
           '<button class="full primary" id="snapRetBtn">📸 Snap an unused part to return<input type="file" accept="image/*" capture="environment" id="snapRetFile" class="hidden"></button>' +
           '<div class="note" id="snapRetMsg" style="margin-top:8px"></div>' +
         '</div>' +
+        // The other direction: a part the tech went and BOUGHT. Teddy 2026-09-11 -- "take a pic of
+        // the part that you picked up at the parts house or thing at Home Depot or wherever, pic of
+        // the receipt". This is the one case where the shop is out real cash, so the receipt is the
+        // cost of record: it prices the customer's line, it's the tech's reimbursement, it's the
+        // books' entry. Two shots, one part row.
+        '<div id="buyBlock" style="border:1px solid rgba(34,197,94,.35);border-radius:12px;padding:11px;margin:2px 0 12px;background:rgba(34,197,94,.07)">' +
+          '<div style="font-weight:700;margin-bottom:3px">🧾 Picked a part up? Snap it + the receipt.</div>' +
+          '<div class="note" style="margin:0 0 8px">Parts house, Home Depot, anywhere you paid out of pocket. Shoot the <b>part</b>, then the <b>receipt</b> — we read the part # and the price off them and put it on this job. The receipt is what gets you paid back, so don\'t skip it.</div>' +
+          '<button class="full primary" id="buyPartBtn">📸 Snap the part you picked up<input type="file" accept="image/*" capture="environment" id="buyPartFile" class="hidden"></button>' +
+          '<button class="full" id="buyRcptBtn" style="margin-top:8px">🧾 Snap the receipt<input type="file" accept="image/*" capture="environment" id="buyRcptFile" class="hidden"></button>' +
+          '<div class="note" id="buyMsg" style="margin-top:8px"></div>' +
+        '</div>' +
         '<div class="paddrow"><input id="pAddName" placeholder="Part name (e.g. water valve)"><input id="pAddNum" placeholder="Part #"></div>' +
         '<div class="paddrow" style="margin-top:8px"><input id="pAddCost" inputmode="decimal" placeholder="Your cost $ (optional)"></div>' +
         '<div class="note" style="margin:6px 0 0">Enter what it <b>cost you</b> — the office/owner set the margin, so the customer price fills in automatically. Never guess what to charge.</div>' +
@@ -640,6 +652,18 @@
     if (srBtn && srFile) {
       srBtn.onclick = function(e){ if (e.target !== srFile) srFile.click(); };
       srFile.onchange = function(){ var fs = srFile.files; if (fs && fs.length) { snapReturnParts(Array.prototype.slice.call(fs)); srFile.value = ''; } };
+    }
+
+    // picked-up-a-part flow (part shot, then receipt shot)
+    var bpBtn=document.getElementById('buyPartBtn'), bpFile=document.getElementById('buyPartFile');
+    if (bpBtn && bpFile) {
+      bpBtn.onclick = function(e){ if (e.target !== bpFile) bpFile.click(); };
+      bpFile.onchange = function(){ if (bpFile.files && bpFile.files[0]) snapBought(bpFile.files[0],'part'); bpFile.value=''; };
+    }
+    var brBtn=document.getElementById('buyRcptBtn'), brFile=document.getElementById('buyRcptFile');
+    if (brBtn && brFile) {
+      brBtn.onclick = function(e){ if (e.target !== brFile) brFile.click(); };
+      brFile.onchange = function(){ if (brFile.files && brFile.files[0]) snapBought(brFile.files[0],'receipt'); brFile.value=''; };
     }
 
     // Photos & Video — four clean capture tiles (take / library × photo / video).
@@ -1203,7 +1227,7 @@
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
   function loadParts(){
     var box=document.getElementById('partsBox'); if(!box) return;
-    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref,cost_cents,sell_cents,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at').eq('job_id',jobId).order('created_at').then(function(r){
+    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref,cost_cents,sell_cents,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at,bought_at,bought_by,bought_from,receipt_ref').eq('job_id',jobId).order('created_at').then(function(r){
       if(r.error){
         var card=document.getElementById('partsCard');
         if(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')){ if(card) card.classList.add('hidden'); }
@@ -1254,7 +1278,7 @@
       if (!k) { out.push(p); return; }                 // no usable number -> never merge blindly
       var cur = by[k];
       if (!cur) { by[k] = p; out.push(p); return; }
-      var score = function(x){ return (x.ship_delivered?8:0) + (x.ship_tracking?4:0) + (x.name?2:0) + (x.disposition?1:0); };
+      var score = function(x){ return (x.ship_delivered?8:0) + (x.bought_at?8:0) + (x.ship_tracking?4:0) + (x.receipt_ref?3:0) + (x.name?2:0) + (x.disposition?1:0); };
       if (score(p) > score(cur)) { out[out.indexOf(cur)] = p; by[k] = p; }
     });
     return out;
@@ -1270,8 +1294,10 @@
     if(owed) warn+='<div class="cbwarn">↩️ '+owed+' part'+(owed>1?'s':'')+' the vendor wants back — take '+(owed>1?'them':'it')+' with you before you leave.</div>';
     if(toReturn) warn+='<div class="cbwarn">🔁 '+toReturn+' to ship back — send them or the shop eats a chargeback.</div>';
     // Head count first — this is the line he reads before he drives.
-    var sent=list.filter(function(p){return !!p.ship_tracking;});
-    var landed=sent.filter(function(p){return p.ship_delivered===true;}).length;
+    // A part he went and BOUGHT is already in the truck -- count it as here, or the headline
+    // tells him a part he is holding hasn't shipped.
+    var sent=list.filter(function(p){return !!p.ship_tracking || !!p.bought_at;});
+    var landed=sent.filter(function(p){return p.ship_delivered===true || !!p.bought_at;}).length;
     var head='';
     if(list.length && sent.length){
       var still=list.length-sent.length;
@@ -1397,6 +1423,49 @@
       img.src=url;
     }
     next();
+  }
+
+  // A part the tech went and BOUGHT — the opposite direction from a warranty return.
+  // Two shots, one row: the part shot creates it and hands back an id, the receipt shot attaches
+  // the money to that id. Either can stand alone — a receipt with no readable part still records
+  // the spend, which is the half nobody can reconstruct a week later from memory.
+  var boughtPartId = null;
+  function snapBought(file, kind){
+    var msg=document.getElementById('buyMsg'); if(!msg||!file) return;
+    var money=function(c){ return '$'+(Math.round(c)/100).toFixed(2); };
+    // Say plainly WHY we didn't take the price, so the tech isn't left wondering.
+    var WHY={ couldn_t_read_a_price:"couldn't read the price — the office will fill it in",
+              receipt_covers_more_than_this_part:'that receipt covers more than this part — the office will split it',
+              unclear_photo:'photo was hard to read — the office will confirm the price' };
+    msg.textContent = kind==='receipt' ? 'Reading the receipt…' : 'Reading the part…';
+    var img=new Image(), url=URL.createObjectURL(file);
+    img.onload=function(){
+      var max=1400,w=img.width,h=img.height; if(Math.max(w,h)>max){var sc=max/Math.max(w,h);w=Math.round(w*sc);h=Math.round(h*sc);}
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(url);
+      var data=cv.toDataURL('image/jpeg',0.82);
+      token().then(function(tok){
+        var body={job:jobId,access_token:tok,data:data,kind:kind};
+        if(kind==='receipt'&&boughtPartId) body.part_id=boughtPartId;
+        fetch('/.netlify/functions/platform-tech-media?do=bought_part',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+          .then(function(r){return r.json();}).then(function(d){
+            if(!d||!d.ok){ msg.textContent='That one didn\'t upload — try again.'; return; }
+            if(d.part_id) boughtPartId=d.part_id;
+            if(kind==='receipt'){
+              var bits=[];
+              if(d.cost_cents) bits.push('<b>'+money(d.cost_cents)+'</b>');
+              if(d.store) bits.push('from '+esc(d.store));
+              msg.innerHTML = '🧾 Receipt saved'+(bits.length?' — '+bits.join(' '):'')+
+                (d.needs_review?(' <span style="color:var(--warn,#b45309)">· '+esc(WHY[d.review_reason]||'the office will check the price')+'</span>'):'');
+            } else {
+              msg.innerHTML = (d.part_number?('📦 Logged <b>'+esc(d.part_number)+'</b>'):'📦 Logged from the photo')+
+                ' — now tap <b>🧾 Snap the receipt</b> so you get paid back.';
+            }
+            loadParts();
+          }).catch(function(){ msg.textContent='Couldn\'t reach the server — try again.'; });
+      });
+    };
+    img.onerror=function(){ msg.textContent='Couldn\'t read that image — try again.'; };
+    img.src=url;
   }
 
   function onMyWay(){

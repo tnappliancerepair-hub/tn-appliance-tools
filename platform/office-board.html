@@ -1652,6 +1652,17 @@
     if(owed) return owed + tpShipState(p);
     return tpShipState(p);
   }
+  // A part the TECH bought out of pocket. This is money the shop owes him back, so the office
+  // sees the amount, the store, who paid, and the receipt itself — one tap to open it.
+  function tpBought(p){
+    if(!p||!p.bought_at) return '';
+    var bits=[];
+    if(p.cost_cents) bits.push('<b>$'+(Math.round(p.cost_cents)/100).toFixed(2)+'</b>');
+    if(p.bought_from) bits.push('at '+esc(p.bought_from));
+    if(p.bought_by) bits.push('· '+esc(p.bought_by)+' paid');
+    var rc = p.receipt_ref ? ' <a href="#" class="tprcpt" data-ref="'+esc(p.receipt_ref)+'">🧾 receipt</a>' : ' <span class="hint">(no receipt photo)</span>';
+    return '<div class="tprow" style="font-size:12px;color:var(--muted)">🧾 Picked up '+(bits.length?bits.join(' '):'')+rc+'</div>';
+  }
   function tpShipState(p){
     if(!p.ship_tracking) return '<div class="tpship none">Not shipped yet</div>';
     var cls = p.ship_delivered ? 'tpship ok' : 'tpship go';
@@ -1667,14 +1678,14 @@
     // What the vendor actually SENT, straight off their own record (platform-sp-parts-sync).
     // Office gets the operational detail — carrier, tracking, delivered — that the customer
     // portal deliberately withholds. Same row, different lens.
-    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at').eq('job_id',job.id).order('created_at').then(function(r){
+    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at,cost_cents,receipt_ref,bought_at,bought_by,bought_from').eq('job_id',job.id).order('created_at').then(function(r){
       var parts=(r&&r.data)||[];
       var rows=parts.map(function(p){
         return '<div class="tpcard" data-pid="'+esc(p.id)+'">'+
           '<div class="tprow"><input class="tp_num" value="'+esc(p.number||'')+'" placeholder="Part #"><input class="tp_name" value="'+esc(p.name||'')+'" placeholder="Name (optional)"><button type="button" class="del" data-del="'+esc(p.id)+'" title="Remove">✕</button></div>'+
           '<div class="tprow"><input class="tp_src" list="ant_part_srcs" value="'+esc(p.source||'')+'" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
           '<div class="tprow">'+shipSel(p.ship_to)+'<label class="tpeta">ETA <input class="tp_eta" type="date" value="'+esc(p.eta||'')+'"></label></div>'+
-          tpShip(p)+
+          tpShip(p)+tpBought(p)+
         '</div>';
       }).join('');
       box.innerHTML='<div class="sec">🔩 Parts <span class="hint" style="font-weight:400">— part #, where it\'s coming from, the route &amp; ETA</span></div>'+SRC_LIST+
@@ -1686,6 +1697,17 @@
         '</div>'+
         '<div class="hint" id="jtp_msg" style="margin-top:4px"></div>';
       // remove a part
+      // open a receipt photo — signed per-tenant, never a raw bucket URL
+      box.querySelectorAll('#jtp_rows .tprcpt[data-ref]').forEach(function(a){ a.onclick=function(e){
+        e.preventDefault(); var ref=a.getAttribute('data-ref'); a.textContent='🧾 opening…';
+        sb.auth.getSession().then(function(sres){
+          var tok=sres&&sres.data&&sres.data.session?sres.data.session.access_token:'';
+          return fetch('/.netlify/functions/platform-media-urls',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({refs:[ref]})});
+        }).then(function(r){return r.json();}).then(function(d){
+          var u=d&&d.urls&&d.urls[ref]; a.textContent='🧾 receipt';
+          if(u) window.open(u,'_blank','noopener'); else a.textContent='🧾 receipt (couldn\'t open)';
+        }).catch(function(){ a.textContent='🧾 receipt (couldn\'t open)'; });
+      }; });
       box.querySelectorAll('#jtp_rows .del[data-del]').forEach(function(b){ b.onclick=function(){ b.disabled=true; sb.from('job_part').delete().eq('id',b.getAttribute('data-del')).then(function(){ loadTparts(job); loadBoard(); }); }; });
       // add a part (carries source / route / ETA)
       var ab=document.getElementById('jtp_add');
@@ -2342,7 +2364,7 @@
       // with history and creeping back up on the cap. (Both systems freezing, 2026-09-10.)
       var msgP   = sb.rpc('board_latest_inbound');
       // the parts the tech logged → the 🔧 part-# chip (fallback when the job row has none)
-      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta,must_return,returned_at', jids) : none;
+      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta,must_return,returned_at,bought_at', jids) : none;
       // the colorful tags on each job + the shop's editable tag library
       var tagP = jids.length ? inChunks('job_tag', 'job_id,tag:tag_id(id,label,color)', jids) : none;
       var libP = sb.from('tag').select('id,label,color').order('created_at');
@@ -2370,7 +2392,7 @@
           var pk = partKeyOB(p);
           if (pk) { var sk = p.job_id + '|' + pk; if (seenPart[sk]) return; seenPart[sk] = 1; }
           var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, owed:0, eta:null };
-          t.n++; if (p.ship_tracking) t.sent++; if (p.ship_delivered) t.here++;
+          t.n++; if (p.ship_tracking || p.bought_at) t.sent++; if (p.ship_delivered || p.bought_at) t.here++;
           if (p.must_return && !p.returned_at) t.owed = (t.owed||0)+1;
           if (p.eta && (!t.eta || p.eta < t.eta)) t.eta = p.eta;
         });
