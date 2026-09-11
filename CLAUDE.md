@@ -69,6 +69,20 @@ and it's the money lane. It was tied to Xano by exactly ONE read (`get_warranty_
   key earlier (`BT68-135` and `Thermal Overload Protector (BT68-135` now agree).
 - **The narrative fallback is gone on purpose** — a nameless part now sends its number alone.
   Less is honest; wrong is not.
+- **🐞 THE WORSE ONE, found by building the claim for the job that carries the Core: THE SAME
+  PART WAS ON THE CLAIM TWICE.** `W11608056` as *"Whirlpool Washer Electronic Control Board"*
+  AND as *"Core"*; `W11217817` as *"Suspension Rod"* AND as *"Unused part"*. That is the
+  documented Xano double-row. **The portal, the tech card and the office tile all collapse it —
+  the CLAIM was the one place it still leaked, and it's the money document.** Two rules decide
+  the merge: the **return obligation is OR-ed** (if ANY row says owed back, the part is owed
+  back — losing a return is the chargeback, carrying an extra one is a phone call), and the
+  **more descriptive name wins** (the RMA-email row says "Core", the order row carries the real
+  description). **Quantity deliberately stays 1** — two rows for one part is a mirror artifact,
+  not two units, and billing qty 2 would be a FALSE claim, worse than the duplicate it replaces.
+  A row with no usable part number is never merged blindly. Unit-tested on the exact shape:
+  **5 rows in → 3 out**, cost salvaged off the row that had it.
+- ✅ **Verified live end-to-end:** `?call=023242084133` → `source:platform`, the Core part comes
+  through **`RETURNED: Y`**, clean numbers, real per-part descriptions, state `TN`.
 
 ### 📊 WHERE THE CUTOVER ACTUALLY STANDS (measured, not asserted)
 `platform-cutover-check` + `platform-tn-parity`, live:
