@@ -791,7 +791,7 @@
   function statusMeta(k){ for(var i=0;i<ALLSTATUS.length;i++){ if(ALLSTATUS[i].key===k) return ALLSTATUS[i]; } return { key:k, label:(k||'').replace(/_/g,' '), color:'var(--canceled)' }; }
 
   // ── board state ──────────────────────────────────────────────────────────────
-  var activeFilter = 'all', jobsCache = [], invByJob = {}, mediaByJob = {}, msgByJob = {}, partsByJob = {}, tagsByJob = {}, tagLibrary = [], stopCounts = {};
+  var activeFilter = 'all', jobsCache = [], invByJob = {}, mediaByJob = {}, msgByJob = {}, partsByJob = {}, partsShipByJob = {}, tagsByJob = {}, tagLibrary = [], stopCounts = {};
   // bright tag palette for new tags + readable text color for any tag chip
   var TAG_COLORS = ['#e5484d','#d6409f','#f76808','#ffb224','#8bd450','#46a758','#12a594','#3e63dd','#8e4ec6','#6b7280'];
   function tagText(hex){ hex=String(hex||'').replace('#',''); if(hex.length===3) hex=hex.replace(/(.)/g,'$1$1'); var r=parseInt(hex.slice(0,2),16)||0,g=parseInt(hex.slice(2,4),16)||0,b=parseInt(hex.slice(4,6),16)||0; return (0.299*r+0.587*g+0.114*b)>150 ? '#1a1206' : '#fff'; }
@@ -910,7 +910,17 @@
     if(isOverdue(j)) f.push('<span class="fchip fover">⏰ OVERDUE</span>');
     if(j.customer_cutoff && String(j.customer_cutoff).trim()) f.push('<span class="fchip fover" title="Customer has a hard cutoff — must leave by this time">⏰ Leave by '+esc(String(j.customer_cutoff).trim().slice(0,12))+'</span>');
     var needsParts = j.status==='awaiting_parts' || PARTS_WAIT_RE.test(String(j.parts_status||''));
-    if(needsParts && !terminal) f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
+    if(needsParts && !terminal){
+      // "Awaiting parts" is a dead end on its own. The vendor's own shipment record turns it
+      // into the question the office is actually asking: is this one bookable yet?
+      var t = partsShipByJob[j.id];
+      if(t && t.n){
+        if(t.here >= t.n)      f.push('<span class="fchip fpartsok" title="Every part on this job has been delivered — ready to schedule">✅ PARTS HERE ('+t.n+') — BOOK IT</span>');
+        else if(t.here)        f.push('<span class="fchip fpartsgo" title="Some parts delivered, rest still moving">📦 PARTS '+t.here+'/'+t.n+' HERE</span>');
+        else if(t.sent)        f.push('<span class="fchip fpartsgo" title="Shipped by the vendor, not delivered yet">🚚 PARTS SENT ('+t.sent+'/'+t.n+')'+(t.eta?' · '+esc(String(t.eta).slice(5)):'')+'</span>');
+        else                   f.push('<span class="fchip fparts">🔧 NEEDS PARTS ('+t.n+' on order)</span>');
+      } else f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
+    }
     if(j.status==='completed' && !iv) f.push('<span class="fchip fclose" title="Completed but no invoice — finish the paperwork">⚠️ NOT CLOSED OUT</span>');
     if(!hasReport(j) && (j.status==='scheduled'||j.status==='in_progress')) f.push('<span class="fchip fdiag" title="No tech report on file yet">🔍 DIAGNOSIS</span>');
     if(j.office_notes && String(j.office_notes).trim()) f.push('<span class="fchip fnote" title="Office note on this job">📋 NOTE</span>');
@@ -1619,18 +1629,37 @@
       '<option value="distributor"'+(v==='distributor'?' selected':'')+'>🏭 Pick up from distributor</option>'+
       '<option value="customer"'+(v==='customer'?' selected':'')+'>🏠 Shipping to customer\'s home</option>'+
     '</select>'; }
+  function tpTrackUrl(p){
+    var t=String(p.ship_tracking||''); if(!t) return '';
+    var c=String(p.ship_carrier||'').toLowerCase();
+    if(c.indexOf('ups')>=0) return 'https://www.ups.com/track?tracknum='+encodeURIComponent(t);
+    if(c.indexOf('usps')>=0) return 'https://tools.usps.com/go/TrackConfirmAction?tLabels='+encodeURIComponent(t);
+    return 'https://www.fedex.com/fedextrack/?trknbr='+encodeURIComponent(t);
+  }
+  function tpShip(p){
+    if(p.disposition==='return') return '<div class="tpship ret">↩️ Returning to vendor</div>';
+    if(!p.ship_tracking) return '<div class="tpship none">Not shipped yet</div>';
+    var cls = p.ship_delivered ? 'tpship ok' : 'tpship go';
+    var lbl = p.ship_delivered ? '✅ Delivered' : (p.ship_status ? '🚚 '+esc(p.ship_status) : '🚚 Sent');
+    if(p.ship_carrier && !p.ship_status) lbl += ' · '+esc(p.ship_carrier);
+    return '<div class="'+cls+'">'+lbl+' <a href="'+tpTrackUrl(p)+'" target="_blank" rel="noopener">'+esc(p.ship_tracking)+'</a></div>';
+  }
   function loadTparts(job){
     var box=document.getElementById('jtparts'); if(!box) return;
     box.innerHTML='<div class="sec">🔩 Parts</div><div class="hint">Loading…</div>';
     // datalist of common part sources — a dropdown of suggestions that still allows free write-in
     var SRC_LIST='<datalist id="ant_part_srcs"><option value="American Home Shield (warranty)"><option value="Warranty company"><option value="ServicePower"><option value="Marcone"><option value="Reliable Parts"><option value="Encompass"><option value="Amazon"><option value="Distributor / parts warehouse"></datalist>';
-    sb.from('job_part').select('id,number,name,source,ship_to,eta').eq('job_id',job.id).order('created_at').then(function(r){
+    // What the vendor actually SENT, straight off their own record (platform-sp-parts-sync).
+    // Office gets the operational detail — carrier, tracking, delivered — that the customer
+    // portal deliberately withholds. Same row, different lens.
+    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition').eq('job_id',job.id).order('created_at').then(function(r){
       var parts=(r&&r.data)||[];
       var rows=parts.map(function(p){
         return '<div class="tpcard" data-pid="'+esc(p.id)+'">'+
           '<div class="tprow"><input class="tp_num" value="'+esc(p.number||'')+'" placeholder="Part #"><input class="tp_name" value="'+esc(p.name||'')+'" placeholder="Name (optional)"><button type="button" class="del" data-del="'+esc(p.id)+'" title="Remove">✕</button></div>'+
           '<div class="tprow"><input class="tp_src" list="ant_part_srcs" value="'+esc(p.source||'')+'" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
           '<div class="tprow">'+shipSel(p.ship_to)+'<label class="tpeta">ETA <input class="tp_eta" type="date" value="'+esc(p.eta||'')+'"></label></div>'+
+          tpShip(p)+
         '</div>';
       }).join('');
       box.innerHTML='<div class="sec">🔩 Parts <span class="hint" style="font-weight:400">— part #, where it\'s coming from, the route &amp; ETA</span></div>'+SRC_LIST+
@@ -2247,6 +2276,16 @@
     }).join('');
   }
 
+  (function(){
+    var st=document.createElement('style');
+    st.textContent='.fchip.fpartsok{background:#e6f7ee;color:#0f7a42;border-color:#8fd9b0}'
+      +'.fchip.fpartsgo{background:#fff1e0;color:#a65a00;border-color:#f0c48a}'
+      +'.tpship{font-size:12px;font-weight:600;margin-top:5px;padding:4px 8px;border-radius:8px;background:#f3f1f8;color:#6b6480;display:inline-block}'
+      +'.tpship.ok{background:#e6f7ee;color:#0f7a42}.tpship.go{background:#fff1e0;color:#a65a00}'
+      +'.tpship.ret{background:#fdecef;color:#a3203a}.tpship.none{opacity:.75}'
+      +'.tpship a{color:inherit;text-decoration:underline}';
+    document.head.appendChild(st);
+  })();
   function loadBoard() {
     // RLS scopes every query to the logged-in user's company — we never pass company_id.
     // The dense card needs the warranty/parts/report/stop columns; customer.city rides along
@@ -2287,7 +2326,7 @@
       // with history and creeping back up on the cap. (Both systems freezing, 2026-09-10.)
       var msgP   = sb.rpc('board_latest_inbound');
       // the parts the tech logged → the 🔧 part-# chip (fallback when the job row has none)
-      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition', jids) : none;
+      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta', jids) : none;
       // the colorful tags on each job + the shop's editable tag library
       var tagP = jids.length ? inChunks('job_tag', 'job_id,tag:tag_id(id,label,color)', jids) : none;
       var libP = sb.from('tag').select('id,label,color').order('created_at');
@@ -2303,7 +2342,16 @@
         // ordered newest-first → keep the first seen per job (the latest inbound)
         msgByJob = {};
         (sr.data || []).forEach(function (m) { if (!m.job_id || msgByJob[m.job_id]) return; if (String(m.body||'').trim()) msgByJob[m.job_id] = m; });
-        partsByJob = {};
+        partsByJob = {}; partsShipByJob = {};
+        // Shipment tally per job — counts EVERY part on the repair (a part with no number still
+        // ships), unlike partsByJob which only keeps rows that carry a part number for display.
+        (pr.data || []).forEach(function (p) {
+          if (!p.job_id) return;
+          var d = String(p.disposition||''); if (d==='return'||d==='not_here') return;
+          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, eta:null };
+          t.n++; if (p.ship_tracking) t.sent++; if (p.ship_delivered) t.here++;
+          if (p.eta && (!t.eta || p.eta < t.eta)) t.eta = p.eta;
+        });
         (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; var d=String(p.disposition||''); if (d==='return'||d==='not_here') return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name }); });
         tagsByJob = {};
         (tgr.data || []).forEach(function (t) { if (!t.job_id || !t.tag) return; (tagsByJob[t.job_id] = tagsByJob[t.job_id] || []).push(t.tag); });
