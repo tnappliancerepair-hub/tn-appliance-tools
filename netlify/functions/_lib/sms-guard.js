@@ -193,12 +193,26 @@ async function globalSentSince(sinceMs) {
   } catch (_) { return 0; }
 }
 
+// Returns { sent, answered }. The second field is the one that matters and the reason this
+// is not just a boolean: a plain `false` conflates TWO opposite situations --
+//   · Xano ANSWERED and refused (its own intake-only gate dropped the message)  -> answered:true
+//   · Xano never answered at all (down, timing out, unreachable)                -> answered:false
+// Treating those the same is how you accidentally start texting customers: falling back to a
+// direct send on a deliberate gate refusal bypasses the very rule that refused it. So any
+// well-formed reply from Xano counts as a DECISION and is respected; only a genuine transport
+// failure is eligible for the direct fallback below.
 async function xanoSend(to, body, tag) {
   try {
-    const r = await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, body, message: body, context_tag: tag || 'ant_guarded' }) });
-    const d = await r.json().catch(() => ({}));
-    return !!(d && d.success);
-  } catch (_) { return false; }
+    const r = await fetch(`${XANO}/send_sms`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, body, message: body, context_tag: tag || 'ant_guarded' }),
+      signal: AbortSignal.timeout(12000),
+    });
+    const txt = await r.text().catch(() => '');
+    let d = null; try { d = JSON.parse(txt); } catch (_) { d = null; }
+    if (!r.ok || d === null || typeof d !== 'object') return { sent: false, answered: false };
+    return { sent: !!d.success, answered: true };
+  } catch (_) { return { sent: false, answered: false }; }
 }
 
 // 🐜 PLATFORM (Supabase) TENANT TEXTS — deliver DIRECT via Telnyx, not through Xano.
@@ -242,7 +256,24 @@ async function deliver(to, body, tag) {
   if (PLATFORM_DIRECT_ON && PLATFORM_TAG_RE.test(String(tag || ''))) {
     if (await telnyxDirect(to, body, tag)) return true;
   }
-  return xanoSend(to, body, tag);
+  const x = await xanoSend(to, body, tag);
+  if (x.sent) return true;
+  // Xano ANSWERED and said no -> that is its gate doing its job. Respect it; never route
+  // around a deliberate refusal.
+  if (x.answered) return false;
+
+  // Xano never answered. Until now the customer's text was simply LOST here -- the one thing
+  // CLAUDE.md calls out as breaking if Xano vanished. Every guard above (opt-out, quiet
+  // hours, dedup, frequency caps, the intake-only pause, the no-clock-times scrub) has
+  // already run and allowed this message, so handing it to the carrier directly loosens
+  // nothing; it just stops the old system's outage from silencing the new one.
+  // Reversible: SMS_XANO_DOWN_FALLBACK=0.
+  if (String(process.env.SMS_XANO_DOWN_FALLBACK || '1') === '0') return false;
+  const ok = await telnyxDirect(to, body, tag || 'ant_guarded');
+  // Audit to SUPABASE, not crud.logEvent -- that writes to Xano, which is the thing that
+  // just failed. A record of an outage must not live inside the outage.
+  try { await sbgWrite({ phone: toE164(to), action: ok ? 'sms_sent_xano_down' : 'sms_lost_both_paths', tag: tag || '', kind: 'customer', reason: 'xano_unreachable', at_ms: Date.now() }); } catch (_) {}
+  return ok;
 }
 
 async function block(to, reason, kind, tag) { try { await crud.logEvent('sms_guard_blocked', { phone: to, reason, kind: kind || '', tag: tag || '', at_ms: Date.now() }); } catch (_) {} }
