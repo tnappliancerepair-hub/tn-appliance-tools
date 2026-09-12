@@ -2,9 +2,8 @@
 // QC pipeline customer-facing TDR view links. Called by Xano's
 // send_qc_diagnosis_to_customer endpoint over an internal-auth-protected POST.
 //
-// XanoScript has no native HMAC primitive, so token signing lives here.
-// Mirrors hcp-webhook-proxy.js architecture: Netlify holds the cryptographic
-// capability that Xano can't natively express.
+// XanoScript has no native HMAC primitive, so token signing lives here:
+// Netlify holds the cryptographic capability Xano can't natively express.
 //
 // Token format: base64url(json_payload).hmac_sha256_signature
 // Payload: { job_id, tdr_id, expiry_unix, v: 1 }

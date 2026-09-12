@@ -9,8 +9,8 @@
 //   200 back to Netlify → 200 back to Stripe.
 //
 // Two-hop because XanoScript can't natively verify Stripe's signature scheme
-// (requires raw body bytes before JSON parse). Mirrors hcp-webhook-proxy.js
-// architecture.
+// (requires raw body bytes before JSON parse): Netlify holds the cryptographic
+// capability Xano can't natively express.
 //
 // Retry semantics:
 //   - signature verification fails: 400 to Stripe (Stripe won't retry — bad

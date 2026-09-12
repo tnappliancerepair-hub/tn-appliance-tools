@@ -904,30 +904,8 @@ async function maybeEmitTimeSignals() {
     }
   }
 
-  // DAILY_HCP_COVERAGE_CHECK — fires once per day at 8-9am CT.
-  // Calls /hcp-vs-xano-audit (7d window), SMSes Teddy the coverage %.
-  // ALERT when missing > 0 (gap to address before HCP-cut).
-  if (hour >= 8 && hour < 10) {
-    let hcpFired;
-    try {
-      hcpFired = await xano.getDailyHcpCoverageFiredToday(sinceMs);
-    } catch (err) {
-      xano.logLocal('daily_hcp_coverage_dedup_failed', { error: err.message });
-      hcpFired = null;
-    }
-    if (hcpFired && !hcpFired.fired) {
-      try {
-        await emitScheduled({
-          signal_type: 'DAILY_HCP_COVERAGE_CHECK',
-          signal_strength: 75,
-          payload: { since_ts_ms: sinceMs, emitted_ct: fmtCT(nowTs) },
-        });
-        try { await xano.recordEventLog('daily_hcp_coverage_emitted', { since_ts_ms: sinceMs }); } catch (_e) {}
-      } catch (err) {
-        xano.logLocal('daily_hcp_coverage_emit_failed', { error: err.message });
-      }
-    }
-  }
+  // (DAILY_HCP_COVERAGE_CHECK removed 2026-09-12 — TN is off Housecall Pro, so a daily
+  // job comparing our schedule against theirs was auditing a system nobody uses.)
 
   // CAPACITY_CHECK — fires once per day at 10am CT (10am-12pm grace).
   // Alerts Teddy when any tech has >6 jobs (overload) or <2 jobs (idle).
