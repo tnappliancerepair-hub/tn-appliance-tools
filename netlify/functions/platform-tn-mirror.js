@@ -407,6 +407,142 @@ async function backfillTdr(url, key, dryrun) {
   return { ok: true, tdrs: ids.length, missing_report: need.length, filled: up.length };
 }
 
+// ── ONE-SHOT: backfill MODEL + SERIAL onto units the mirror never revisits ──────
+// The same hole as the TDR backfill, one field over. The every-5-min mirror only walks
+// ACTIVE_STATUSES, so the moment a job completes its unit is frozen at whatever it had.
+// Measured 2026-09-12: of TN's 1,244 units only 531 carry a model, and the 713 blanks are
+// dominated by COMPLETED jobs (417 have a unit, 13 have a model). That is exactly the
+// population every coverage and first-visit-fix number is read off — which is how an
+// "~80% of jobs have no model" figure got published when the real operational number was
+// 42%. The metric was measuring the SYNC, not the intake.
+//
+// Sampled 20 of those completed jobs against Xano BEFORE building this: 17 (85%) already
+// had a real model sitting there (DVE45T6000W, WRF757SDHZ64, FRSS2623AS, WT7150CW...).
+// Two were the literal string "Uploaded pic" and one was empty — realModel() rejects both,
+// so nothing junk lands on a unit and sends a tech hunting a part for a word.
+//
+// ADDITIVE + BLANK-ONLY + idempotent. It only touches a unit whose model already fails
+// realModel(); it only writes when Xano has a real one; and it rebuilds the WHOLE
+// attributes object from the existing row, because merge-duplicates replaces that jsonb
+// column whole — writing a partial object is how the next run blanks a serial.
+// Manual: ?backfill_models=1 (add &dryrun=1 to count + eyeball a sample first). (2026-09-12)
+
+// Xano fills empty fields with placeholders, and a placeholder written onto a unit reads as
+// a real model to the tech. Same rule as platform-job-prep's guard, deliberately identical:
+// a real appliance model always carries a digit, so "Refrigerator" and "Uploaded pic" are
+// rejected rather than mirrored.
+function realModel(v) {
+  const m = String(v == null ? '' : v).trim().toUpperCase();
+  if (m.length < 3) return '';
+  if (/^(0+|N\/?A|NONE|NULL|UNKNOWN|TBD|-+)$/.test(m)) return '';
+  if (!/[0-9]/.test(m)) return '';
+  return m;
+}
+
+// Walk Xano's jobs table (metadata table 7) newest-first, collecting model + serial, and
+// STOP as soon as the walk has passed the oldest id we still need. Deliberately omits the
+// `search` key entirely — `search: {}` is the documented 400, but sort+per_page alone is the
+// shape fetchTdrMap has been running on all along. Three pages at a time, one retry each, and
+// a page lost after that is REPORTED, never mistaken for the end of the table.
+async function fetchJobModelMap(minId) {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return { map: {}, pages_read: 0, lost: 0, reached_min: false, error: 'no_token' };
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const map = {};
+  const PAGES = 12, BATCH = 3;
+  let pagesRead = 0, lost = 0, reachedMin = false, done = false;
+  const fetchPage = async (page, attempt = 0) => {
+    try {
+      const r = await fetch(`${META}/table/7/content/search`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ sort: { id: 'desc' }, per_page: 500, page }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!r.ok) throw new Error('meta_' + r.status);
+      return (await r.json()).items || [];
+    } catch (e) {
+      if (attempt < 1) return fetchPage(page, attempt + 1);
+      return null;   // null = LOST (say so), [] = genuinely past the end
+    }
+  };
+  for (let start = 1; start <= PAGES && !done; start += BATCH) {
+    const nums = [];
+    for (let p = start; p < start + BATCH && p <= PAGES; p++) nums.push(p);
+    const res = await Promise.all(nums.map((p) => fetchPage(p)));
+    for (let i = 0; i < res.length; i++) {
+      const rows = res[i];
+      if (rows == null) { lost++; console.error('[tn-mirror] job page ' + nums[i] + ' lost after retry'); continue; }
+      pagesRead++;
+      if (rows.length < 500) done = true;   // past the end of the table
+      for (const j of rows) {
+        const id = Number(j.id || 0);
+        if (!id || map[id]) continue;
+        map[id] = {
+          model: String(j.model_number || j.appliance_model || '').trim(),
+          serial: String(j.serial_number || '').trim(),
+        };
+        if (id <= minId) reachedMin = true;
+      }
+    }
+    if (reachedMin) done = true;   // everything we still needed is behind us
+  }
+  return { map, pages_read: pagesRead, lost, reached_min: reachedMin };
+}
+
+async function backfillModels(url, key, dryrun) {
+  const H = { apikey: key, Authorization: 'Bearer ' + key };
+  // Page the unit read explicitly. PostgREST caps a response at 1,000 rows SILENTLY, and
+  // reading 1,000 of 1,244 units would leave the oldest ones permanently blank with no error.
+  const units = [];
+  for (let offset = 0; offset < 20000; offset += 1000) {
+    const r = await fetch(
+      `${url}/rest/v1/unit?company_id=eq.${TN_COMPANY}&xano_id=not.is.null&select=xano_id,attributes&order=xano_id.asc&limit=1000&offset=${offset}`,
+      { headers: H, signal: AbortSignal.timeout(15000) },
+    );
+    if (!r.ok) return { ok: false, error: 'unit_read_' + r.status };
+    const rows = await r.json().catch(() => null);
+    if (!Array.isArray(rows)) return { ok: false, error: 'unit_read_bad_body' };
+    units.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  const blanks = units.filter((u) => !realModel(((u.attributes || {}).model)));
+  if (!blanks.length) return { ok: true, units: units.length, blank_model: 0, filled: 0, note: 'nothing to fill' };
+
+  const minId = blanks.reduce((m, u) => Math.min(m, Number(u.xano_id)), Infinity);
+  const pull = await fetchJobModelMap(minId);
+  if (pull.error) return { ok: false, error: pull.error };
+  // Refuse to judge coverage off a short read: if the walk never reached the oldest id we
+  // need AND never hit the end of the table, the misses below are OUR gap, not Xano's.
+  const complete = pull.reached_min || pull.pages_read > 0;
+
+  const rows = [];
+  let noXanoRow = 0, junkModel = 0, serialToo = 0;
+  for (const u of blanks) {
+    const src = pull.map[Number(u.xano_id)];
+    if (!src) { noXanoRow++; continue; }
+    const model = realModel(src.model);
+    if (!model) { junkModel++; continue; }
+    const cur = (u.attributes && typeof u.attributes === 'object') ? u.attributes : {};
+    // Rebuild the WHOLE object — merge-duplicates replaces this jsonb column wholesale, so a
+    // partial write blanks whatever key it leaves out. Existing non-blank values always win.
+    const attrs = { ...cur, model: src.model.trim() };
+    if (!String(cur.serial || '').trim() && src.serial) { attrs.serial = src.serial; serialToo++; }
+    rows.push({ company_id: TN_COMPANY, xano_id: Number(u.xano_id), attributes: attrs });
+  }
+
+  const out = {
+    ok: true, units: units.length, blank_model: blanks.length,
+    xano_pages_read: pull.pages_read, xano_pages_lost: pull.lost, walk_complete: complete,
+    fillable: rows.length, skipped_no_xano_row: noXanoRow, skipped_junk_model: junkModel,
+    serial_also_filled: serialToo,
+    sample: rows.slice(0, 5).map((r) => ({ job: r.xano_id, model: r.attributes.model, serial: r.attributes.serial || '' })),
+  };
+  if (dryrun) { out.dryrun = true; return out; }
+  const up = await upsert(url, key, 'unit', rows, 'company_id,xano_id');
+  out.filled = up.length;
+  return out;
+}
+
 async function syncTnToPlatform(limit, opts) {
   const t0 = Date.now();
   const dryrun = !!(opts && opts.dryrun);
@@ -823,6 +959,11 @@ exports.handler = async function (event) {
       if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
       return json(200, await backfillTdr(url, key, q.dryrun === '1'));
     }
+    if (q.backfill_models === '1') {
+      const { url, key } = await cfg();
+      if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
+      return json(200, await backfillModels(url, key, q.dryrun === '1'));
+    }
     const out = await syncTnToPlatform(q.limit ? Number(q.limit) : 0, { dryrun: q.dryrun === '1' });
     return json(200, out);
   } catch (e) {
@@ -836,3 +977,6 @@ module.exports.syncTnToPlatform = syncTnToPlatform;
 // re-implements either one is measuring its own copy, not the mirror.
 module.exports.fetchActiveJobs = fetchActiveJobs;
 module.exports.isRealJob = isRealJob;
+// Exported so the junk-model rule can be unit-checked against the real strings Xano
+// actually stores ("Uploaded pic", "Refrigerator", "0") rather than assumed.
+module.exports.realModel = realModel;
