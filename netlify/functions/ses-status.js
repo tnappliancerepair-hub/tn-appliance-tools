@@ -146,19 +146,56 @@ exports.handler = async (event) => {
 
   if (Object.keys(errs).length) out.errors = errs;
 
+  // The AccessDenied messages carry the caller's full ARN, which is the one
+  // thing they DO tell us for free: the account id and the IAM user. Surface
+  // it as data — it is what resolves "which AWS account do I sign in to".
+  for (const m of Object.values(errs)) {
+    const hit = /arn:aws:iam::(\d+):user\/(\S+?)\s/.exec(String(m) + ' ');
+    if (hit) { out.aws_account_id = hit[1]; out.iam_user = hit[2]; break; }
+  }
+
   // --- plain-English verdict ------------------------------------------
+  // GUARDRAIL (2026-09-12): the first cut of this computed an empty blockers
+  // array and therefore reported "production-ready" when every read had in
+  // fact failed with AccessDenied. That is the same class of bug as a guard
+  // keyed on a field that is structurally always empty: it looked green
+  // because it learned NOTHING, not because anything was verified. A verdict
+  // now requires evidence, and absence of evidence reports as UNKNOWN.
+  const readAccount = !!out.account;
+  const readIdentities = !errs.identities;
+  out.read_access = { account: readAccount, identities: readIdentities };
+
+  if (!readAccount && !readIdentities) {
+    out.blockers = ['cannot read SES state — these credentials are send-only'];
+    out.verdict = 'UNKNOWN — the IAM user has ses:SendEmail but no ses:Get*/ses:List* permission, so nothing about DKIM, the sandbox, or the identity list could be verified. This is NOT a clean bill of health.';
+    return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(out, null, 2) };
+  }
+
   const blockers = [];
-  if (out.account && out.account.sending_enabled === false) blockers.push('account sending is DISABLED');
-  if (out.account && out.account.sandbox) blockers.push('still in the SES sandbox (200/day, verified recipients only)');
-  if (identities.length && !out.primary_domain_ok) {
-    const p = out.primary_domain;
-    if (!p) blockers.push('tnapplianceexchange.net is NOT an identity on this account');
-    else blockers.push(`tnapplianceexchange.net verification=${p.verification} dkim=${p.dkim_status}`);
+  const unknowns = [];
+  if (readAccount) {
+    if (out.account.sending_enabled === false) blockers.push('account sending is DISABLED');
+    if (out.account.sandbox) blockers.push('still in the SES sandbox (200/day, verified recipients only)');
+  } else {
+    unknowns.push('send quota / sandbox state');
+  }
+  if (readIdentities) {
+    if (!identities.length) blockers.push('this account has NO SES identities at all');
+    else if (!out.primary_domain_ok) {
+      const p = out.primary_domain;
+      if (!p) blockers.push('tnapplianceexchange.net is NOT an identity on this account');
+      else blockers.push(`tnapplianceexchange.net verification=${p.verification} dkim=${p.dkim_status}`);
+    }
+  } else {
+    unknowns.push('identity + DKIM status');
   }
   out.blockers = blockers;
+  out.unknowns = unknowns;
   out.verdict = blockers.length
     ? 'NOT ready to send real login emails — ' + blockers.join(' · ')
-    : 'SES is production-ready for tnapplianceexchange.net';
+    : (unknowns.length
+        ? 'PARTIAL — nothing failed in what could be read, but these were unreadable: ' + unknowns.join(' · ')
+        : 'SES is production-ready for tnapplianceexchange.net');
 
   return { statusCode: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(out, null, 2) };
 };
