@@ -2369,6 +2369,17 @@ had a job in the last 6 months · REACHABLE WINBACK POOL = 501 · 499 dormant bu
 Identical at 6 and 12 months, because the Xano `jobs` table only holds ~6 months of history — the
 older relationship history lives in the **HCP archive (9,260 customers / 24,116 jobs) in Supabase**,
 which is a separate, staler store needing its own pass. **501 is the real, reachable-today number.**
+  **🔴🔴 CORRECTED AGAIN 2026-09-12 — it is THREE people, not 501.** 501 was a ROW count. 499 of those
+  rows are ONE customer duplicated: Rachel Thomas / 419-699-8856, **499 distinct customer ids (4494→5572),
+  created every ~12 min across 2026-06-12..15** then stopping — something re-created her instead of
+  matching her for three days. She is **13% of the entire customer table**. Deduped on phone the pool is
+  **Calin Neculcea, Rachel Thomas, Sharon Welch**. `reactivation-pool` now reports `reachable_people` +
+  `duplicate_rows` alongside the raw count; **dial `reachable_people`, never `REACHABLE_WINBACK_POOL`.**
+  ⏭️ OPEN: delete the 498 junk rows (not done — a read-only endpoint shouldn't), and find what created
+  them in case it can recur. Also: **don't try to enrich this list with a last job from Xano** — dormant
+  means no job in that table, and it only holds ~6 months, so it is always empty. The real history is the
+  **HCP archive in Supabase** (`hcp-lookup?secret=&phone=` — verified it has these people; note the jobs
+  nest under `customers[].jobs`, NOT a top-level `jobs` key, which reads as a false zero).
 
 ### ✅ TWO FREE SEO FIXES (609 + 285 pages)
 - **Review count refreshed to the live 1,100** (GBP API: 4.5★ / 1,100). Pages were stale at
@@ -2412,7 +2423,8 @@ which is a separate, staler store needing its own pass. **501 is the real, reach
 1. **LSA is still OFF.** Built, verified, Google Guaranteed, paused by Teddy's choice. Pay-per-lead
    ($15-35 typical) vs the **~$230/job** Search is effectively costing. Not free, but the cheapest
    lead in the trade and it's a toggle. **If jobs are needed this week, this is the first switch.**
-2. **Call the 501 dormant customers — don't text them.** The gate blocks texts and the no-proactive-text
+2. **Call the dormant customers — don't text them.** ⚠️ **It is 3 people, not 501** (see the 2026-09-12
+   correction above — 499 duplicate rows of one customer). This is no longer a 25-day calling plan. The gate blocks texts and the no-proactive-text
    rule stands. A phone call to someone who already paid us once is a different thing. 20/day × 25 days.
 3. **Marshall Reddick** — already a live account (200+ Nashville units, 3,000 national). Ask for their
    other properties. One call to an existing happy customer; one complex is recurring work forever.
