@@ -25,7 +25,42 @@ const { readMany } = require('./_lib/gmail-accounts');
 const intake = require('./platform-email-intake');
 
 const SLUG_DEFAULT = 'tn-appliance-exchange-llc';
-const SUBJECT_DEFAULT = 'New Dispatch Notification';
+
+// THE WHOLE WARRANTY BOOK, not just Frontdoor.
+//
+// This tee shipped matching one subject -- Frontdoor's "New Dispatch Notification" -- so
+// that is the only vendor whose dispatches were reaching the platform. Measured
+// 2026-09-12 against the cutover check: SquareTrade is 60% of TN's warranty work and NSA
+// another 13%, and BOTH were arriving only in Xano. 72% of the work had no platform copy,
+// which is the real reason the board still originates almost nothing (13 jobs born here
+// against 3,465 mirrored in).
+//
+// Each clause was verified against 30 days of real mail before it went in:
+//   SquareTrade -> from:servicepower.com + subject "Service Request Notice"  (the dispatch)
+//   NSA         -> subject "NSA Dispatch for ..."                            (34 in 30d)
+//   Frontdoor   -> subject "New Dispatch Notification #..."                  (unchanged)
+//
+// TWO THINGS LEARNED DOING THAT, both of which would have silently broken this:
+//
+// 1. NSA sends from notifications@em.nationalservicealliance.com and Gmail will NOT match
+//    that with from:em.nationalservicealliance.com -- it returns zero. The subject is
+//    distinctive enough to stand alone, so NSA is matched on subject only. Do not "tidy"
+//    this by adding a from: clause; it silently drops every NSA dispatch.
+//
+// 2. The exclusions are load-bearing. "Service Request Notice Cancellation" contains the
+//    dispatch subject as a substring, and NSA sends "Update Request" / "Update Needed"
+//    mail that is not a dispatch. Creating jobs from notification mail is exactly how the
+//    Xano side ended up with ~406 junk shells ("Dispatch Cancelled [#...]"). Anything
+//    added here needs the same read-the-real-mail check.
+//
+// Deliberately NOT included: bare "Service Request" (ambiguous) and ServicePower's
+// "SERVICER NEW NOTES" / status / payment mail (not dispatches).
+const DISPATCH_QUERY =
+  '-in:sent ((from:servicepower.com subject:"Service Request Notice")' +
+  ' OR subject:"NSA Dispatch for"' +
+  ' OR subject:"New Dispatch Notification")' +
+  ' -subject:Cancellation -subject:Cancelled -subject:Canceled' +
+  ' -subject:"Update Request" -subject:"Update Needed"';
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -46,8 +81,12 @@ async function runTee(dry) {
     // few missed cron cycles can't drop mail. Re-scans are cheap (intake dedupes pre-parse).
     const hrs = parseInt((await getSecretFresh('PLATFORM_WARRANTY_TEE_WINDOW_HOURS')) || '6', 10) || 6;
     const after = Math.floor(Date.now() / 1000) - hrs * 3600;   // Gmail accepts epoch-seconds in after:
-    const subject = (await getSecretFresh('PLATFORM_WARRANTY_TEE_SUBJECT')) || SUBJECT_DEFAULT;
-    query = `after:${after} -in:sent subject:"${subject}"`;
+    // A SUBJECT override still narrows to one vendor for a test; with none set we take the
+    // whole book. PLATFORM_WARRANTY_TEE_QUERY (above) still overrides everything.
+    const subject = (await getSecretFresh('PLATFORM_WARRANTY_TEE_SUBJECT')) || '';
+    query = subject
+      ? `after:${after} -in:sent subject:"${subject}"`
+      : `after:${after} ${DISPATCH_QUERY}`;
   }
 
   let msgs = [];
