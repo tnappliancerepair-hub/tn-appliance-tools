@@ -1,6 +1,80 @@
 # Appliance Ant
 
-## 🧺🚫 2026-09-12 (latest) — A LAUNDRY CENTER IS **ONE** MACHINE: 5 of the first 17 flags were phantom · the tell is the MODEL, never the words · the VENDOR already knew and we weren't asking · flags now WITHDRAW themselves — READ FIRST
+## 🧰❓ 2026-09-12 (latest) — A MACHINE WE ADDED OURSELVES CARRIES ITS OWN ANSWER: 74 of 77 agree, 3 don’t · one was INVISIBLE because a wrong label links cleanly · `event.id` is a UUID and I sorted by it — READ FIRST
+
+Followed the last open thread from the laundry-center work: jobs 21013 + 21641 were labelled as a
+different appliance than the machine they were created for. **Not an `add-machine.js` bug — it
+sets `appliance_type` correctly. The Xano `event_log` names the writer outright:
+`job_basics_updated { actor: "office" }`.** Somebody edited the ticket afterwards and typed the
+stop’s OTHER machine into the Appliance box.
+
+### 🥇 THE SIGNAL WAS ALREADY IN THE RECORD — we wrote it ourselves
+`add-machine.js` writes `problem_summary = <Appliance> + " — added at the stop"`. **That sentence
+is the appliance the TECH picked standing in front of the machine, and nothing else ever rewrites
+it.** Measured across **all 77 added machines on the board: 74 still agree with the ticket’s
+label.** Three do not, and on each one the MODEL is the tiebreaker:
+
+| job | tech declared at the door | ticket is labelled | model | model agrees with |
+|---|---|---|---|---|
+| 21641 | Washer | `Whirlpool dishwasher` | WTW5057LWO | **the tech** |
+| 21013 | Microwave | `GE Profile Oven / Range` | JTP16G0V2BB | **the label** |
+| 21590 | Dryer #2 | `Electrolux washer` | WTW5000DW2 | **the label** |
+
+- **⚠️ IT DOES NOT PICK THE WINNER, ON PURPOSE.** Two of the three have the label + model agreeing
+  against the tech; one has the tech + model agreeing against the label. Guessing on 21590 sends
+  a tech out expecting the wrong machine. **Naming all three sources turns a five-minute
+  investigation into a ten-second decision** — that is the whole improvement.
+- **⚠️ 21590 WAS INVISIBLE AND WOULD HAVE STAYED THAT WAY.** The splitter scans
+  `stop_id=is.null` — correct for *“is there a second machine here”*, **wrong for “is this machine
+  labelled as itself”**. A wrong label reads as a *distinct* appliance, so the linker was perfectly
+  happy, the stop linked, and no flag ever existed. Added machines now get a **second, deliberately
+  narrow pass that ignores the stop filter and can ONLY ever produce `added_machine_label`** — it
+  can never claim a second machine.
+
+### ✅ `added_machine_label` — and it REPLACES the vague flag, never sits beside it
+Two of the three were already in the queue wearing the generic *“is this on the right machine?”*.
+A vague flag and a precise one on the same job are the same question asked twice, so the watcher
+**withdraws the vague one in the same breath** (`multi_appliance_resolved`, `how:'auto_withdrawn'`,
+`why:'replaced by a precise added-machine finding'`) and writes the precise one. `platform/tech-job.html`
+renders it **with no ＋ Add button** — offering one there is exactly how a phantom machine gets created.
+- **LIVE, verified OFF THE DATABASE: 3 `added_machine_label` · 3 `label_mismatch` · 7 `second_machine`
+  · 5 auto-withdrawn combos**, 0 errors; re-run → `flagged 0 / already_flagged 5 / retired 0`.
+  `?probe=` replays the page filter: the two upgraded jobs read `suspected:added_machine_label →
+  resolved → suspected:label_mismatch` newest-first, and **the page shows the precise one**; all 5
+  withdrawn combos still show nothing.
+
+### 🧠 `modelAppliance()` is EVIDENCE ONLY — it may enrich a finding, never raise or suppress one
+A model map is a guess dressed as a fact. So: **every entry is backed by a real row on this board**
+(named in the comment beside it), **`COMBO_MODEL_FAMILIES` is checked FIRST** so a laundry centre is
+never read as one half of itself, and an **unknown prefix returns `''` rather than something
+plausible**. It is wired only into the `ask` text of a flag that already stands on its own.
+Unit-verified 24/24 incl. every combo model returning blank.
+
+### 🔴 THE FOOTGUN I SHIPPED AND THEN CAUGHT — **`event.id` IS A `uuid`**
+The upgrade path means a job can legitimately carry a **resolved row UNDER a live flag**, so
+“is a flag standing right now” had to become **newest-wins** instead of the order-insensitive
+*“is there a resolved row anywhere”* (which would have hidden every upgraded flag from the tech
+AND re-flagged it every run forever). I made it newest-wins **ordered by `id`** — and
+**`event.id` is a UUID, so that is ordering by a random number while looking perfectly sorted.**
+- **Caught it because a verification query written the same way returned counts that could not be
+  true** (17 open / 1 settled, against 5 withdrawals I had just watched land). Fixed in both
+  places to `created_at`; the two writes in an upgrade are separate awaited round-trips so they
+  cannot tie. **STANDING: never order `event` by `id`. Check the column type before trusting a
+  sort — a meaningless sort does not error, it just quietly answers wrong.**
+- **And: a summary line is not a result.** The live run said `flagged 3 / retired 2 / errors 0` and
+  was telling the truth; the *verification* was the thing that was broken. Read the DATA, and when
+  the data cannot be true, suspect the query before the code.
+
+### ⏭️ OPEN
+- **3 `added_machine_label`** — a human picks which machine, one tap each. The fix is correcting the
+  ticket, not adding anything.
+- **3 `label_mismatch` + 7 `second_machine`** — unchanged from the laundry-center pass.
+- **The office edit path has no guard.** `office-board.html` → `update_job_basics` will happily take
+  an appliance that contradicts the job’s own problem text and model, and says nothing. Warning
+  there would stop this at the keyboard instead of catching it days later. **NOT built** — it is
+  the XANO side, and the flag now catches it either way.
+
+## 🧺🚫 2026-09-12 — A LAUNDRY CENTER IS **ONE** MACHINE: 5 of the first 17 flags were phantom · the tell is the MODEL, never the words · the VENDOR already knew and we weren't asking · flags now WITHDRAW themselves — READ FIRST
 
 Teddy: *"Let's do this. All on Supabase we need this completed."* Read all 17 live intake-split
 flags against **SquareTrade's own claim record** and found the splitter was asking humans a
