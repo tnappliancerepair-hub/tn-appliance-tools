@@ -1,6 +1,90 @@
 # Appliance Ant
 
-## 📦↩️ 2026-09-11 (latest) — NSA'S TURN: parts arrive with no tracking AND get charged back on a CLOCK · the digest is a POSITIONAL table that tag-stripping silently corrupts · 8 "customers" that were one woman — READ FIRST
+## 🧩📋 2026-09-12 (latest) — MULTIPLE MACHINES, ONE REPORT EACH: the spine was BUILT and had never once been used · 0 of 3,726 jobs carried the key every surface reads · 11 machines on warranty stops had no report and nothing could see it — READ FIRST
+
+Teddy: *"We also need the option for multiple machines and multiple Tdr one for each machine."*
+**Almost all of it already existed.** The gap was never the UI — nothing produced the key.
+
+### 🥇 THE FINDING — every multi-machine surface is keyed on `stop_id`, and NOTHING set it
+| piece | state before today |
+|---|---|
+| `job.stop_id` (migration **020**) | ✅ applied live, verified |
+| `platform/tech-job.html` — 🧩 chip row + **＋ Add machine** | ✅ built |
+| `platform/office-board.html` — **🧩 N machines** flag | ✅ built (in `baseRich`) |
+| each machine = own job → own unit → **own `job_tdr`** | ✅ already true |
+| **anything that WRITES `stop_id`** | ❌ **0 of 3,726 jobs** |
+| tech's day list knows a stop from a machine | ❌ no `stop_id` even selected |
+
+**Measured: 51 real multi-machine stops (110 jobs, biggest 3) sitting unlinked.** So a
+washer+dryer+fridge visit was 3 unrelated tiles to the office and 3 unrelated tickets to the
+tech. **The ＋ Add machine button only ever helped a stop a tech thought to link by hand.**
+
+### ✅ `platform-stop-link` (+ `-cron`, hourly `53 * * * *`) — LINKS, never creates
+**⚠️ The opposite of the Xano-side `multi-machine-watch`, on purpose.** That one INVENTS a
+sibling from problem text; this only ties together jobs that already exist. **A wrong create
+puts a machine on a ticket nobody is servicing; a wrong link costs one tap.**
+- **The key was chosen off the real split, not assumed.** Of the 51: **34 share ONE claim**
+  (unambiguous → auto-link); **17 have different or absent claims — which is both how a
+  per-machine SquareTrade work order looks AND how a duplicate looks**, so those are
+  **reported for a human, never guessed** (`needs_a_human[]` names the machines + job ids).
+- **⚠️ Machine identity is the canonical appliance TYPE, not the label text.** *"Samsung
+  washer"* and *"washer"* are ONE machine described twice — comparing raw labels would have
+  linked a **duplicate as a second appliance**. Inside the same-claim set **7 of 35 groups
+  repeat a machine**, so the rule also demands every job name a real, DISTINCT appliance.
+- **Hoisted the vocabulary to `_lib/appliance-vocab`** so the splitter and the linker share
+  ONE rule — a second copy drifts the way the two pasted portal part keys did before 068 —
+  and so a platform-native function stops dragging in `metadata-crud`. **Unit-verified 12/12**
+  on the real labels, incl. **`Kenmore Dishwasher` → dishwasher, NOT washer** (the documented
+  substring trap) and `Appliance` → blank.
+- **Writes exactly ONE column, `job.stop_id`.** Never status, never the TDR, never parts.
+  Reversal is `?unlink=1&confirm=yes`, which **refuses any stop a tech anchored himself**.
+- **LIVE: 27 stops / 60 jobs linked, 0 errors.** Re-run → `linked 0 / already_linked 27`
+  (idempotent). **Verified off the DATABASE, not the run's summary:** 60 rows carry a
+  stop_id across 27 stops, **0 anchors missing their own stop_id** (office-board counts
+  `if(j.stop_id)`, so a missing anchor would silently under-count), **0 orphan singletons,
+  0 repeated labels inside a stop.**
+
+### 🔴 THE PAYOFF — "one report per machine" is now a QUESTION YOU CAN ASK
+Of the 27 linked stops: **16 have a report on every machine. 7 are PARTLY reported —
+11 machines with NO report, every one on a warranty claim.** An unreported machine on a
+warranty stop is an **unfiled claim**, and until the machines were linked *nothing anywhere
+could see it*. e.g. claim `74354859` — Samsung dryer ✅, but the **dishwasher and the washer
+have no report**; claim `69386009` — 1 of 3.
+- ⏭️ **Those 7 are a human pass** (list is in the session log / re-pull any time). The fix is
+  the tech opening the sibling chip and filing that machine's report.
+
+### 🚗 THE TECH'S DAY NOW COUNTS DRIVES, NOT MACHINES (`platform/tech.html`)
+It had **zero stop awareness — it never even selected `stop_id`** — so a 3-machine visit read
+as 3 stops, took 3 route numbers, and made the day look 3 jobs busier than it is.
+- Routes + numbers by **STOP**, then expands each stop back into its machines, so siblings sit
+  together and **share one route number**.
+- Day label says **"5 jobs · 3 stops" ONLY when those differ** — an ordinary day still reads ordinarily.
+- Each card carries **"🧩 Also here: Kenmore dryer"** — what he is walking into, before he
+  drives, each machine still keeping its own report.
+
+### ⚠️ FOOTGUNS BURNED
+- **`days=0` silently meant 180.** The query string hands a **STRING `"0"`**, so `o.days === 0`
+  never matched and `parseInt("0") || 180` → 180. Any "0 means all" knob read off a query
+  string has this bug. Unit-verified 6/6 after.
+- **Prove a paged read is COMPLETE before writing off it.** The linker refuses to link at all
+  on a short read (`platform_read_incomplete`) — a half-read group would link some machines of
+  a stop and leave the rest. Confirmed `jobs_scanned: 1200` **equals** TN's scannable count exactly.
+- **A raw job count is not a stop count, and neither is a tenant-blind one.** My first SQL said
+  51 stops, the linker said 50 — the 51st was **another tenant's demo stop**, correctly excluded
+  by the company filter. Scope every platform measurement by `company_id`.
+- **`day` is a reserved word in Postgres** — `max(x) day` is a syntax error; alias it `sday`.
+
+### ⏭️ OPEN
+- **17 stops the linker deliberately refuses** (14 different-claims, 2 no-claim, 7 blank-machine
+  — a job whose unit names no appliance we recognise). All reported, none guessed. Worth a
+  human pass; if the different-claim ones turn out to be genuinely one visit each time, that
+  rule can be widened *after* watching it, not before.
+- **Nothing yet creates the sibling at INTAKE.** A multi-item warranty dispatch still lands as
+  one job until a tech taps ＋ Add machine or a second dispatch arrives. The Xano side has
+  `appliance-split`/`multi-machine-watch` for exactly this; the platform equivalent is the next
+  build — and per the rule above it should **flag before it creates**.
+
+## 📦↩️ 2026-09-11 — NSA'S TURN: parts arrive with no tracking AND get charged back on a CLOCK · the digest is a POSITIONAL table that tag-stripping silently corrupts · 8 "customers" that were one woman — READ FIRST
 
 Teddy: *"Let's add this for future returns and future parts being sent."* Third vendor, both
 directions, same discipline: measure, read four real emails, verify the join key, shadow, ship.

@@ -473,6 +473,9 @@
 [functions."ahs-returns-watch-cron"]
   schedule = "27 * * * *"
 
+[functions."platform-stop-link-cron"]
+  schedule = "53 * * * *"
+
 [functions."nsa-parts-watch-cron"]
   schedule = "37 * * * *"
 
