@@ -1065,7 +1065,11 @@ exports.handler = async function (event) {
     }
   }
 
+  // Did THIS call create the company? If the owner link then fails we have to roll it back --
+  // otherwise a paid signup leaves a live, billable, seatless tenant nobody can log into.
+  let createdCompanyHere = false;
   if (!company) {
+    createdCompanyHere = true;
     const settings = { business: { name, phone: (q.owner_phone || '').replace(/[^\d+]/g, ''), area: q.area || '' }, site: { subdomain } };
     const features = { database: true, scheduling: true, portal: true, invoicing: true };
     const row = { slug, name, trade, plan, features, settings };
@@ -1092,7 +1096,32 @@ exports.handler = async function (event) {
     if (Array.isArray(au.d) && au.d[0]) ownerLinked = true;
     else {
       const ai = await rest('app_user', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: company.id, auth_user_id: uid, role: 'owner', name: q.owner_name || '', phone: (q.owner_phone || ''), email }) });
-      if (!ai.ok) return json(200, { ok: false, step: 'link_owner', status: ai.status, error: JSON.stringify(ai.d).slice(0, 300), company });
+      if (!ai.ok) {
+        const raw = JSON.stringify(ai.d || {});
+        // app_user.auth_user_id is UNIQUE: one Supabase login maps to exactly ONE app_user row and
+        // therefore ONE company. So an email that already owns a shop can never own a second one.
+        // This is DETERMINISTIC -- retrying it is guaranteed to fail identically forever, so say so
+        // and let the caller stop rather than grind. (Caught live 2026-09-12: a signup on an email
+        // that already owned a shop paid, died here with 23505, and stranded a seatless company.)
+        const dupOwner = /23505/.test(raw) && /auth_user_id/.test(raw);
+        if (createdCompanyHere) {
+          // Nobody can ever reach this company -- do not leave it behind.
+          try { await rest(`company?id=eq.${company.id}`, { method: 'DELETE' }); } catch (_) {}
+        }
+        return json(200, {
+          ok: false,
+          step: 'link_owner',
+          status: ai.status,
+          error: raw.slice(0, 300),
+          error_code: dupOwner ? 'owner_already_has_a_shop' : 'link_owner_failed',
+          retryable: !dupOwner,
+          rolled_back: createdCompanyHere,
+          message: dupOwner
+            ? 'That login already owns a different shop. One login can own one shop -- use a different email for this one.'
+            : undefined,
+          company: createdCompanyHere ? null : company,
+        });
+      }
       ownerLinked = true;
     }
   }

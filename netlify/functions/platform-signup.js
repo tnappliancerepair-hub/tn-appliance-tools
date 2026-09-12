@@ -122,6 +122,36 @@ exports.handler = async function (event) {
   const pf = await platform();
   if (!pf) return J(200, { ok: false, error: 'platform_not_configured', message: "We're having a brief hiccup on our end — give it a moment and tap the button again." });
 
+  // An email that already OWNS a shop cannot own a second one: app_user.auth_user_id carries a
+  // UNIQUE constraint, so one Supabase login maps to exactly one app_user row and therefore one
+  // company. Without this check we cheerfully open Stripe, take the card, and provisioning then
+  // dies at the owner insert with 23505 -- the shop is billed, a seatless company row is stranded,
+  // and the operator gets a "paid signup stranded" page for something that can never self-heal.
+  //
+  // Caught live 2026-09-12 by a real signup walk on an email that already owned a shop. Refuse
+  // BEFORE the card screen. Never take money for a shop we structurally cannot stand up.
+  //
+  // Compared in JS rather than a PostgREST filter because stored owner emails are not uniformly
+  // lowercased (older rows carry the casing they were typed in) and ilike would need wildcard
+  // escaping on a user-supplied string. Fine at shop-count scale; revisit with a citext column or
+  // a lowered index if this ever reads thousands of rows.
+  try {
+    const owners = await pf.get('app_user?role=eq.owner&select=email&limit=2000');
+    const taken = Array.isArray(owners) && owners.some(function (o2) {
+      return String((o2 && o2.email) || '').trim().toLowerCase() === email;
+    });
+    if (taken) {
+      return J(200, {
+        ok: false,
+        error: 'email_already_owns_a_shop',
+        message: 'That email already has a shop on AssistAnt. Sign in with it, or use a different email for the new shop.',
+      });
+    }
+  } catch (_) {
+    // A read failure must not block a legitimate signup. Provision still guards the same case and
+    // now rolls back cleanly, so the worst outcome is the old behaviour, not a new one.
+  }
+
   // Pick a free slug now and stash it in checkout meta. This is a READ, not a reservation — we
   // create nothing until the card clears, so two signups under the same shop name inside the same
   // window can both leave here holding it. The real protection is downstream: provision refuses to

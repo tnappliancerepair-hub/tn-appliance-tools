@@ -113,7 +113,15 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
   let pd = {};
   for (let attempt = 0; attempt < 2 && !(pd.ok && pd.company); attempt++) {
     try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (_) { pd = {}; }
+    // provision marks a failure it KNOWS is deterministic (retryable:false) -- e.g. the owner's
+    // email already owns another shop, which app_user.auth_user_id's UNIQUE constraint makes
+    // permanent. Grinding a second inline pass on that just burns a round trip. (2026-09-12)
+    if (pd && pd.retryable === false) break;
   }
+  // A deterministic failure must NOT ask Stripe to re-deliver: every redelivery fails identically,
+  // re-alerts the operator, and buys nothing for ~3 days until Stripe gives up. Accept the event,
+  // tell the operator once, and say plainly that this one needs a human. (2026-09-12)
+  const deterministic = !!(pd && pd.retryable === false);
   // A PAID signup must NEVER strand silently. If both tries fail, alert the operator on the spot
   // (text + email, the platform_signup tag reaches Teddy's cell) with the one-line recovery command.
   if (!pd.ok || !pd.company) {
@@ -123,15 +131,23 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
       const err = String((pd && pd.error) || 'unknown');
       await notify.notifyOperator({
         tag: 'platform_signup',
-        sms: `⚠️ PAID SIGNUP STRANDED: ${meta.name || slug} (${email}) paid but couldn't be set up (${err}). Stripe will re-deliver and we retry automatically — if you get this again in an hour, recover it: check /shops or ask Ant to provision ${slug}.`,
+        sms: deterministic
+          ? `⚠️ PAID SIGNUP NEEDS YOU: ${meta.name || slug} (${email}) paid but CANNOT be set up automatically — ${pd.message || err}. This will NOT retry or fix itself. Refund or re-run the signup on a different email.`
+          : `⚠️ PAID SIGNUP STRANDED: ${meta.name || slug} (${email}) paid but couldn't be set up (${err}). Stripe will re-deliver and we retry automatically — if you get this again in an hour, recover it: check /shops or ask Ant to provision ${slug}.`,
         subject: `⚠️ Paid signup stranded — ${meta.name || slug}`,
-        email_body: `A shop PAID but provisioning failed, so the owner has NO dashboard right now.\n\nStripe will re-deliver this event and we retry automatically, so this may clear itself within minutes. If you receive this alert repeatedly, it is NOT clearing — recover it by hand.\n\nShop: ${meta.name || slug}\nEmail: ${email}\nSlug: ${slug}\nError: ${err}\n\nRecover: ${SITE}/.netlify/functions/platform-provision?action=provision&secret=<admin>&slug=${slug}&owner_email=${encodeURIComponent(email)}&name=${encodeURIComponent(meta.name || slug)}&trade=${meta.trade || 'appliance'}&plan=${meta.plan || 'office'}\nThen mint a magiclink (action=magiclink&email=${encodeURIComponent(email)}) and send it to them.`,
+        email_body: (deterministic
+          ? `A shop PAID but CANNOT be provisioned, and this will not fix itself.\n\nReason: ${pd.message || err}\n\nThis is a permanent condition, not a hiccup -- Stripe is NOT being asked to re-deliver, because every retry would fail the same way. A human has to act: either refund the subscription, or have them sign up again on an email that does not already own a shop.`
+          : `A shop PAID but provisioning failed, so the owner has NO dashboard right now.\n\nStripe will re-deliver this event and we retry automatically, so this may clear itself within minutes. If you receive this alert repeatedly, it is NOT clearing — recover it by hand.\n\nShop: ${meta.name || slug}\nEmail: ${email}\nSlug: ${slug}\nError: ${err}\n\nRecover: ${SITE}/.netlify/functions/platform-provision?action=provision&secret=<admin>&slug=${slug}&owner_email=${encodeURIComponent(email)}&name=${encodeURIComponent(meta.name || slug)}&trade=${meta.trade || 'appliance'}&plan=${meta.plan || 'office'}\nThen mint a magiclink (action=magiclink&email=${encodeURIComponent(email)}) and send it to them.`),
       });
     } catch (_) {}
     // Throw (not return-null) so the handler can answer Stripe with a non-2xx and Stripe
     // RE-DELIVERS this event. Both inline retries just failed, which is almost always transient
     // (Supabase/auth blip) — a redelivery minutes later is how the paid shop un-strands itself.
     // provision is idempotent by slug, so a redelivery never double-creates. (2026-09-10)
+    if (deterministic) {
+      // 2xx = "delivered, stop resending". The operator has been told, once, in plain words.
+      return null;
+    }
     const perr = new Error('provision_failed');
     perr.retryable = true;
     throw perr;
