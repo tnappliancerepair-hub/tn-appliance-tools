@@ -1,6 +1,82 @@
 # Appliance Ant
 
-## 🪓🚩 2026-09-12 (latest) — THE PLATFORM INTAKE SPLITTER: a naive split would have been WRONG 3 TIMES IN 4 · the `problem` field is half AI CALL SUMMARY · "STRANGE" contains "RANGE" · two different problems were wearing one signal — READ FIRST
+## 🧺🚫 2026-09-12 (latest) — A LAUNDRY CENTER IS **ONE** MACHINE: 5 of the first 17 flags were phantom · the tell is the MODEL, never the words · the VENDOR already knew and we weren't asking · flags now WITHDRAW themselves — READ FIRST
+
+Teddy: *"Let's do this. All on Supabase we need this completed."* Read all 17 live intake-split
+flags against **SquareTrade's own claim record** and found the splitter was asking humans a
+question with no answer.
+
+### 🥇 THE FINDING — five "wrong machine" tickets were one cabinet, and every one PAID
+| our ticket | SquareTrade's claim says | model | paid |
+|---|---|---|---|
+| Lg **washer** ("THE DRYER HAS A KNOCKING SOUND") | **COMBO WASHER DRYER** | WKG101HWA | ✅ $105 |
+| GE **washer** ("DRYER IS MAKING A VERY LOUD NOISE") | **COMBO WASHER DRYER** | GUD27ESSMWW | ✅ $150 |
+| Samsung **dryer** ("THE WASHER STOPPED…") | DRYER | WD53DBA900HZ | ✅ $105 |
+| Electrolux **washer** ("THE DRYER HAS A LOUD KNOCKING SOUND") | (unsubmitted) | ELTE7600AW | — |
+| **washer** ("THE DRYER… THE WASHER…") | — | GUD24ESSMWW | — |
+
+**The ticket was never wrong and there was never a second machine.** One cabinet, a washer half
+and a dryer half; the ticket names one and the complaint names the other. **In the text alone
+that is indistinguishable from a ticket on the wrong appliance** — which is exactly how the
+splitter read it.
+- **⚠️ Trap 4 could not catch these.** It matches the WORD "combo" — and **nobody writes "combo"
+  in a complaint.** The tell is the **MODEL** (already mirrored) or the vendor's product string.
+- **⚠️ CORRECTION TO MY OWN ENTRY BELOW.** I wrote that the 9 `label_mismatch` rows meant
+  "intake labelling is the deeper bug." That was wrong in both directions: **5 were combos**
+  (detector false positives), **2 were our own ＋ Add machine siblings** carrying a unit label
+  naming a different appliance, and only **3 were genuine** mislabels. And the money worry was
+  unfounded — **every submitted claim PAID** ($105 · $150 · $105 · $105 · $165.66). SquareTrade
+  pays off the CLAIM record, which carries the right product; our label never blocked a dollar.
+  **The cost is dispatch accuracy — a tech rolling up expecting a washer — not revenue.**
+
+### ✅ TRAP 6 (`_lib/multi-appliance.js`) — model families, **only ever for a washer+dryer pair**
+`detect(label, problem, { model, vendorProduct })`. `COMBO_MODEL_FAMILIES` = LG WashTower
+(`wk#`), GE unitized (`gud#`), Samsung combo (`wd#`), Electrolux Tower (`elte#`), Whirlpool
+(`wet#`), Maytag (`met#`) — each backed by a real row. **`comboOneMachine` refuses to speak
+unless the two appliances in play are exactly washer+dryer**, so a model family that turns out
+to be wrong can never suppress a genuine washer+range flag — the blast radius of a bad entry is
+one laundry pair, not the detector. **Unit-verified 14/14**, including that the three REAL
+mislabels all SURVIVE (GE dryer on a washer ticket, LG range on a fridge ticket, Maytag dryer on
+a dishwasher ticket) and that a combo model cannot excuse a dishwasher+dryer disagreement.
+
+### 🔎 `platform-vendor-product-sync` (+ `-cron`, `7 */4`, ahead of the splitter) — ASK the vendor
+The authority already existed and we were not reading it: the claim carries `product` + `model`
+straight from SquareTrade. **Scope is deliberately tiny** — it asks ONLY about a job that
+currently carries an unresolved flag AND is a washer+dryer pair we have no machine evidence for
+(one or two jobs, not a backlog sweep). **LIVE: asked 3 → learned 2**, one `COMBO WASHER DRYER`
+and one genuine `DRYER` on a ticket labelled "GE washer" (reported as a disagreement, flag
+correctly left standing).
+- **⚠️ STORED AS AN `event` ROW, NEVER ON `unit.attributes`.** The mirror rebuilds that jsonb
+  column WHOLE every run from {brand, appliance, model, serial} — merge-duplicates replaces a
+  jsonb column, it does not merge into it — so anything extra written there is gone inside five
+  minutes. Same reason the flags themselves are event rows.
+- **⚠️ The claim API only answers for SUBMITTED claims** ("No records found" until then). So it
+  settles history; a fresh dispatch is covered by the MODEL rule. Where neither exists the flag
+  correctly stands.
+
+### ↩️ THE SPLITTER NOW WITHDRAWS ITS OWN FLAGS
+A flag it can no longer stand behind comes DOWN — written as `multi_appliance_resolved`
+(`how:'auto_withdrawn'` + the reason), **never as an edit to the job**, the same mechanism a
+human uses. Leaving a dead flag up asks a tech to answer a settled question and buys the next
+honest flag less attention.
+- **LIVE, verified OFF THE DATABASE: 17 open → 12** (5 label_mismatch + 7 second_machine),
+  **5 auto-withdrawn, each carrying its reason**, 0 errors. The page still fetches a live flag
+  (`?probe=` → `rows 1`) and sees the withdrawal on a retired one (`rows 2`).
+- One of the five was retired by the **cron** between runs — the loop proving itself unattended.
+
+### ⏭️ OPEN — the 12 that remain
+- **7 `second_machine`** — genuine, one tap each on `platform/tech-job.html`.
+- **3 genuine `label_mismatch`** — GE dryer / LG range / Maytag dryer, all `servicepower_email`
+  SquareTrade, all **paid**. The vendor's `Product:` field on the dispatch disagrees with the
+  vendor's own complaint text; we read the field correctly. Not fixable upstream by us.
+- **2 are OUR bug, not intake** — jobs 21013 + 21641 (`Microwave — added at the stop` labelled
+  `GE Profile Oven / Range`; `Washer — added at the stop` labelled `Whirlpool dishwasher`).
+  **The added machine carried a unit label naming a different appliance**, which is ALSO why
+  those stops never linked — the linker saw the same machine twice and refused (`same_machine_twice`).
+  Xano's `add-machine.js` sets `appliance_type` correctly, so the break is between there and the
+  mirror's `j.appliance`. **NOT diagnosed — needs one raw kanban/dispatch payload.** Next up.
+
+## 🪓🚩 2026-09-12 — THE PLATFORM INTAKE SPLITTER: a naive split would have been WRONG 3 TIMES IN 4 · the `problem` field is half AI CALL SUMMARY · "STRANGE" contains "RANGE" · two different problems were wearing one signal — READ FIRST
 
 Teddy: *"Build the platform intake splitter, flag before it creates."* A warranty dispatch often
 covers TWO appliances and lands as ONE job. **The Xano side INVENTS the sibling from problem
