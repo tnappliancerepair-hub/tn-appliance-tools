@@ -1,0 +1,180 @@
+<!doctype html><html lang="en" data-live="1"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Ready to roll — Ant</title>
+<!--
+  Ant platform — READY TO ROLL. What is missing on the jobs a tech drives to next.
+
+  Measured 2026-09-12: of the 35 TN jobs scheduled in the following 7 days, 15 had no model
+  number on the machine — 11 of them on Monday alone. A tech rolling up without a model is the
+  expensive failure: he cannot pull the right part, so the stop becomes a diagnosis and a second
+  trip. Completed jobs sit at 95% model coverage because of the backfill; SCHEDULED sits at 59%,
+  and scheduled is the half that has not happened yet.
+
+  This page does NOT text anybody. That is deliberate. The intake ask already goes out on its own
+  (intake-collector, 2 touches max) and 12 of those 15 customers HAD been asked and simply never
+  sent the sticker. More texting does not fix that; a human seeing it the day before does. So this
+  surfaces, and a person decides — call them, or warn the tech he is going in blind.
+
+  Read-only, through the caller's own session, so RLS scopes it to their shop.
+-->
+<link rel="stylesheet" href="/platform/ant-theme.css">
+<link rel="stylesheet" href="/platform/skin-jackpot.css">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:11px 14px;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  header .brand{font-weight:800}
+  header a{color:var(--ink);opacity:.72;text-decoration:none;font-size:13px}
+  header a:hover{opacity:1}
+  .wrap{padding:14px;max-width:900px;margin:0 auto}
+  .gate{max-width:340px;margin:12vh auto;padding:0 16px}
+  .gate input{width:100%;padding:11px;margin:5px 0 12px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink);font-size:16px}
+  .gate button,.primary{width:100%;padding:12px;border:0;border-radius:9px;background:var(--accent,#b8860b);color:#fff;font-weight:700;font-size:16px;cursor:pointer}
+  .err{color:#b3261e;font-size:13px;min-height:18px}
+  .score{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .tile{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+  .tile b{display:block;font-size:25px;line-height:1.15}
+  .tile span{font-size:12px;opacity:.7}
+  .tile.bad b{color:#b3261e}
+  .day{margin:18px 0 8px;font-weight:800;font-size:15px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .day .sub{font-weight:500;font-size:13px;opacity:.72}
+  .job{display:block;color:inherit;text-decoration:none;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:11px;padding:10px 12px;margin-bottom:8px}
+  .job:hover{border-color:var(--accent,#b8860b)}
+  .job.blind{border-left-color:#b3261e}
+  .job.warn{border-left-color:#b8860b}
+  .job .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .job .who{font-weight:700}
+  .job .meta{font-size:12.5px;opacity:.72}
+  .flags{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+  .flag{font-size:11.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+  .flag.red{background:#b3261e;color:#fff}
+  .flag.amber{background:#b8860b;color:#fff}
+  .empty{opacity:.7;padding:26px 0;text-align:center}
+  .note{font-size:12.5px;opacity:.68;margin:16px 0 0;line-height:1.55}
+</style>
+</head><body>
+<div id="app"></div>
+<script src="/platform/config.js"></script>
+<script src="/platform/vendor/supabase-js.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
+<script src="/platform/vendor/supa-guard.js"></script>
+<script src="/platform/vendor/boot-watchdog.js"></script>
+<script src="/platform/ant-page.js"></script>
+<script>
+(function(){
+  var app=document.getElementById('app');
+  var cfg=window.ANT_SUPABASE||{}; var sb=null, jobs=[], techs={}, DAYS=7;
+  try{ var r=document.documentElement; r.setAttribute('data-skin','jackpot'); r.setAttribute('data-theme','light'); }catch(e){}
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  function iso(d){ return d.toISOString().slice(0,10); }
+
+  // Same rule platform-job-prep uses: a real model is >=3 chars, carries a digit, and is not a
+  // placeholder. The digit is what rejects "Refrigerator" and "Uploaded pic".
+  function realModel(m){
+    m=String(m==null?'':m).trim();
+    if(m.length<3) return false;
+    if(!/[0-9]/.test(m)) return false;
+    return !/^(n\/?a|none|unknown|tbd|test|uploaded pic|pic|photo)$/i.test(m);
+  }
+  // "Appliance" is the mirror's placeholder label — it means nobody named the machine.
+  function knownMachine(l){ l=String(l==null?'':l).trim(); return !!l && !/^appliance$/i.test(l); }
+
+  function auditJob(j){
+    var u=j.unit||{}, a=u.attributes||{}, f=[];
+    if(!realModel(a.model)) f.push({k:'red',t:'no model'});
+    if(!knownMachine(u.label)) f.push({k:'red',t:'appliance unknown'});
+    if(!j.technician_id) f.push({k:'amber',t:'no tech'});
+    var ps=String(j.parts_status||'').toLowerCase();
+    if(/awaiting|order/.test(ps)){
+      var eta=j.parts_eta_date||'';
+      if(!eta) f.push({k:'amber',t:'parts, no ETA'});
+      else if(eta>j.scheduled_day) f.push({k:'amber',t:'parts land '+eta});
+    }
+    if(!(j.customer&&String(j.customer.phone||'').trim())) f.push({k:'amber',t:'no phone'});
+    return f;
+  }
+
+  function renderSignIn(msg){
+    app.innerHTML='<div class="gate"><h1>🚚 Ready to roll</h1><p>Sign in to your shop.</p>'+
+      '<label>Email</label><input id="em" type="email" autocomplete="username">'+
+      '<label>Password</label><input id="pw" type="password" autocomplete="current-password">'+
+      '<button class="primary" id="go">Sign in</button><div class="err" id="err">'+esc(msg||'')+'</div></div>';
+    function submit(){ var em=document.getElementById('em').value.trim(), pw=document.getElementById('pw').value;
+      if(!em||!pw){ document.getElementById('err').textContent='Enter email and password.'; return; }
+      var go=document.getElementById('go'); go.disabled=true; go.textContent='Signing in…';
+      sb.auth.signInWithPassword({email:em,password:pw}).then(function(r){ if(r.error) renderSignIn(r.error.message); else boot(); }); }
+    document.getElementById('go').onclick=submit;
+    document.getElementById('pw').addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
+  }
+
+  function shell(inner){
+    app.innerHTML='<header><span class="brand">🚚 Ready to roll</span>'+
+      '<a href="/platform/office-board.html">← Board</a>'+
+      '<a href="/platform/dispatch.html">Dispatch</a>'+
+      '<a href="/platform/stale-scheduled.html">Overdue</a>'+
+      '<span style="flex:1"></span><span id="cnt" style="font-size:13px;opacity:.7"></span></header>'+
+      '<div class="wrap">'+inner+'</div>';
+  }
+
+  function render(){
+    if(!jobs.length){ shell('<div class="empty">Nothing on the schedule for the next '+DAYS+' days.</div>'); return; }
+    var blind=0, byDay={};
+    jobs.forEach(function(j){
+      j._f=auditJob(j);
+      if(j._f.some(function(x){return x.t==='no model';})) blind++;
+      (byDay[j.scheduled_day]=byDay[j.scheduled_day]||[]).push(j);
+    });
+    var days=Object.keys(byDay).sort();
+    var html='<div class="score">'+
+      '<div class="tile"><b>'+jobs.length+'</b><span>stops booked, next '+DAYS+' days</span></div>'+
+      '<div class="tile'+(blind?' bad':'')+'"><b>'+blind+'</b><span>going out with no model</span></div>'+
+      '<div class="tile"><b>'+days.length+'</b><span>working days</span></div></div>';
+
+    days.forEach(function(d){
+      var list=byDay[d].slice().sort(function(a,b){ return b._f.length-a._f.length; });
+      var db=list.filter(function(j){ return j._f.some(function(x){return x.t==='no model';}); }).length;
+      var lbl=new Date(d+'T12:00:00Z').toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'});
+      html+='<div class="day">'+esc(lbl)+'<span class="sub">'+list.length+' stop'+(list.length===1?'':'s')+
+            (db?' · <strong style="color:#b3261e">'+db+' with no model</strong>':' · all prepared')+'</span></div>';
+      list.forEach(function(j){
+        var c=j.customer||{}, u=j.unit||{};
+        var who=((c.first_name||'')+' '+(c.last_name||'')).trim()||'Customer';
+        var cls=j._f.some(function(x){return x.k==='red';})?'blind':(j._f.length?'warn':'');
+        html+='<a class="job '+cls+'" href="/platform/office-board.html?job='+encodeURIComponent(j.id)+'">'+
+          '<div class="top"><span class="who">'+esc(who)+'</span>'+
+          '<span class="meta">'+esc(u.label||'no machine on file')+
+          (j.warranty_company?' · '+esc(j.warranty_company):' · self-pay')+
+          (techs[j.technician_id]?' · '+esc(techs[j.technician_id]):'')+'</span></div>'+
+          (j._f.length?'<div class="flags">'+j._f.map(function(f){ return '<span class="flag '+f.k+'">'+esc(f.t)+'</span>'; }).join('')+'</div>':'')+
+        '</a>';
+      });
+    });
+    html+='<p class="note">This page never texts anyone. The intake ask already goes out by itself, and most of these customers were asked and did not send a sticker — so this is where a person decides: call them, or tell the tech he is going in blind.</p>';
+    shell(html);
+    var cnt=document.getElementById('cnt'); if(cnt) cnt.textContent=blind?(blind+' need attention'):'all prepared';
+  }
+
+  function boot(){
+    shell('<div class="empty">Loading…</div>');
+    var today=new Date(), end=new Date(Date.now()+DAYS*86400000);
+    var sel='id,status,scheduled_day,technician_id,warranty_company,parts_status,parts_eta_date,'+
+            'customer:customer_id(first_name,last_name,phone),unit:unit_id(label,attributes)';
+    var jP=(window.AntPage&&AntPage.all)
+      ? AntPage.all(function(){ return sb.from('job').select(sel).in('status',['scheduled','new']).gte('scheduled_day',iso(today)).lte('scheduled_day',iso(end)); },{label:'ready jobs'})
+      : sb.from('job').select(sel).in('status',['scheduled','new']).gte('scheduled_day',iso(today)).lte('scheduled_day',iso(end)).limit(900);
+    Promise.all([jP, sb.from('technician').select('id,name').limit(200)]).then(function(res){
+      var jr=res[0], tr=res[1];
+      var rows=(jr&&(jr.data||jr.rows||jr))||[];
+      if(jr&&jr.error){ shell('<div class="empty">'+esc(jr.error.message||'Could not load')+'</div>'); return; }
+      ((tr&&tr.data)||[]).forEach(function(t){ techs[t.id]=t.name; });
+      jobs=(rows||[]).filter(function(j){ return j&&j.scheduled_day; });
+      render();
+    }).catch(function(){ shell('<div class="empty">Network error — reload.</div>'); });
+  }
+
+  sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+  sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else renderSignIn(); });
+})();
+</script>
+</body></html>
