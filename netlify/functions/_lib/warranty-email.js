@@ -15,6 +15,7 @@
 
 const { getSecret } = require('./secrets');
 let parseServicePowerBody; try { ({ parseServicePowerBody } = require('./parsers/servicepower')); } catch (_) { parseServicePowerBody = null; }
+let parseNsaDispatch, isNsa; try { ({ parseNsaDispatch, isNsa } = require('./parsers/nsa')); } catch (_) { parseNsaDispatch = null; isNsa = null; }
 
 const INTAKE_DOMAIN = 'jobs.assistant247.net';
 // Haiku for the fallback: fast enough to finish inside a synchronous function, cheap per email,
@@ -69,6 +70,9 @@ function detectVendor(email) {
   if (/frontdoor|american home shield|\bahs\b|msg\.frontdoor/.test(hay) || (email.xml && /<VendorDispatch|<DispatchList|<CoveredProperty/i.test(email.xml))) return 'ahs';
   if (/square ?trade|allstate/.test(hay)) return 'squaretrade';
   if (/servicepower|service power/.test(hay)) return 'servicepower';
+  // NSA: matched on the sender domain OR the distinctive subject. Kept AFTER the
+  // others because NSA dispatches on behalf of brands and can name them in the body.
+  if (/nationalservicealliance|national service alliance|\bNSA Dispatch\b/i.test(hay)) return 'nsa';
   return 'unknown';
 }
 
@@ -134,6 +138,26 @@ function fromServicePower(email) {
   return { email_type: out.email_type, is_job: isJob, jobs: isJob ? jobs : [] };
 }
 
+// ── NSA (deterministic; see parsers/nsa.js for the one-line/next-label trap) ──
+function fromNsa(email) {
+  let r; try { r = parseNsaDispatch(email); } catch (_) { return null; }
+  if (!r) return null;
+  if (!r.is_job || !r.job) return { email_type: r.email_type, is_job: false, jobs: [] };
+  const j = r.job;
+  return {
+    email_type: 'dispatch', is_job: true,
+    jobs: [{
+      first: titleCase(j.first), last: titleCase(j.last),
+      phone: digits10(j.phone), email: j.email || '',
+      address: titleCase(j.address), city: titleCase(j.city), state: j.state, zip: j.zip,
+      appliance: canonAppliance(j.appliance_raw), brand: titleCase(j.brand),
+      model: j.model || '', serial: j.serial || '',
+      claim_number: j.claim_number || '', dispatch_id: j.dispatch_id || '',
+      warranty_company: 'NSA', problem: j.problem || '', service_window: j.service_window || '',
+    }],
+  };
+}
+
 // ── Claude fallback: extract the same fields from ANY dispatch email ──
 async function parseWithClaude(email) {
   const key = (await getSecret('ANTHROPIC_API_KEY')) || process.env.ANTHROPIC_API_KEY || '';
@@ -189,6 +213,11 @@ async function extractJobs(email) {
     const sp = fromServicePower(email);
     if (sp && sp.jobs.length) return { vendor, method: 'servicepower', email_type: sp.email_type || 'dispatch', confidence: 'high', jobs: sp.jobs };
     if (sp && !sp.is_job) return { vendor, method: 'servicepower', email_type: sp.email_type || 'status', confidence: 'high', jobs: [], note: 'not a new dispatch (' + (sp.email_type || '') + ')' };
+  }
+  if (vendor === 'nsa' && parseNsaDispatch) {
+    const r = fromNsa(email);
+    if (r && r.is_job && r.jobs.length) return { vendor, method: 'nsa', email_type: 'dispatch', confidence: 'high', jobs: r.jobs };
+    if (r && !r.is_job) return { vendor, method: 'nsa', email_type: r.email_type, confidence: 'high', jobs: [], note: 'not a new dispatch (' + r.email_type + ')' };
   }
   // 2) Claude fallback — unknown vendor, or a known vendor whose parser came up empty
   const c = await parseWithClaude(email);

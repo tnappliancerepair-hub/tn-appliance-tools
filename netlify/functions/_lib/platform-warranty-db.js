@@ -24,11 +24,24 @@ async function createWarrantyJob(db, co, n) {
   const companyId = co.id;
   const appl = n.appliance || '';
   const kind = co.trade === 'automotive' ? 'vehicle' : (appl || 'appliance');
-  const dedupKey = n.claim_number || n.dispatch_id || '';
-  if (dedupKey) {
-    const col = n.claim_number ? 'claim_number' : 'dispatch_id';
-    const dup = await db.get(`job?company_id=eq.${companyId}&${col}=eq.${encodeURIComponent(dedupKey)}&select=id&limit=1`);
-    if (dup && dup[0]) return { job_id: dup[0].id, deduped: true };
+  // DEDUP — check BOTH keys, each against its OWN column.
+  //
+  // This used to check one column ("claim if present, else dispatch"), which silently
+  // twinned any dispatch whose existing copy was filed under the other number. That is
+  // not hypothetical: the NSA rows already on the board are split across every
+  // combination (claim=Case#/dispatch=Dispatch#, claim only, dispatch only, neither),
+  // because the legacy Xano capture never parsed NSA at all. A vendor that issues TWO
+  // numbers per job needs both looked up or the second arrival is a new card.
+  //
+  // Deliberately SAME-COLUMN only (claim vs claim, dispatch vs dispatch), never
+  // cross-matched: these namespaces are vendor-specific, and wrongly collapsing two real
+  // jobs loses work, while a twin only costs a card. Short-circuits on the first hit, so
+  // the common case is still one indexed lookup.
+  for (const [col, val] of [['claim_number', n.claim_number], ['dispatch_id', n.dispatch_id]]) {
+    const key = String(val || '').trim();
+    if (!key) continue;
+    const dup = await db.get(`job?company_id=eq.${companyId}&${col}=eq.${encodeURIComponent(key)}&select=id&limit=1`);
+    if (dup && dup[0]) return { job_id: dup[0].id, deduped: true, matched_on: col };
   }
   let customer = null;
   if (n.phone) { const f = await db.get(`customer?company_id=eq.${companyId}&phone=eq.${encodeURIComponent(n.phone)}&select=id&limit=1`); customer = f && f[0]; }
