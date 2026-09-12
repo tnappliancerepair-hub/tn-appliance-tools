@@ -66,7 +66,10 @@ async function runStopLink(opts) {
   const o = opts || {};
   const apply = !!o.apply;
   const unlink = !!o.unlink;
-  const days = o.days === 0 ? 0 : (parseInt(o.days, 10) || 180);
+  // days comes off the query string as a STRING, so `=== 0` never matched and `days=0`
+  // (meaning "all of it") silently fell through to the 180-day default.
+  const dRaw = o.days;
+  const days = (dRaw === undefined || dRaw === null || dRaw === '') ? 180 : (parseInt(dRaw, 10) || 0);
 
   const enabled = String((await getSecretFresh('PLATFORM_STOP_LINK_ENABLED')) || 'true').toLowerCase() !== 'false';
   if (apply && !enabled) return { ok: true, disabled: true, note: 'PLATFORM_STOP_LINK_ENABLED=false' };
