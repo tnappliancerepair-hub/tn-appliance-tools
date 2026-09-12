@@ -561,7 +561,7 @@
 # -- so the skip never fired at all and we kept chasing people who had already sent us both
 # things. It stops when EITHER store has the answer, and asks only for the sticker when the
 # customer engaged but no model landed. It does not add a touch; the caps above still run first.
-[functions."intake-collector"]
+[functions."intake-collector-cron"]
   schedule = "0 14-23 * * *"
 
 # intake-link-guarantee (Teddy 2026-07-24: "EVERY job we receive in must get the intake

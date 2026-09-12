@@ -17,6 +17,7 @@
 'use strict';
 const { toE164 } = require('./_lib/sms');
 const { isOptedOut } = require('./_lib/sms-guard');
+const { getSecret } = require('./_lib/secrets');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
 const MAX_PER_RUN = Number(process.env.INTAKE_COLLECTOR_MAX_PER_RUN) || 30;
@@ -132,9 +133,15 @@ async function resolvePhone(j) {
   return '';
 }
 
-exports.handler = async function (event) {
-  const q = (event && event.queryStringParameters) || {};
-  const dryrun = q.dryrun === '1' || q.dryrun === 'true';
+// CORE. Split out of the handler on 2026-09-12 so the dry run is actually reachable.
+// This function carried its own `schedule` block, and a scheduled Netlify function
+// edge-403s on every external HTTP call -- so `?dryrun=1`, the only way to see WHO would
+// be texted before anyone is, answered 403. For the one agent on this system that sends
+// customers messages, and after the over-texting firefight, that is the wrong thing to be
+// unable to check. Core stays curlable; intake-collector-cron carries the schedule.
+async function runIntakeCollector(o) {
+  const q = o || {};
+  const dryrun = q.dryrun === '1' || q.dryrun === true;
   const onlyJob = q.only_job ? String(q.only_job).replace(/\D/g, '') : '';
   const force = q.force === '1' || q.force === 'true';   // bypass quiet hours for a test
   const h = ctHour();
@@ -215,8 +222,15 @@ exports.handler = async function (event) {
       const created = new Date(j.created_at || 0).getTime();
       if (created && (Date.now() - created) > MAX_AGE_MS) return false;
     }
+    // Availability captured is NOT a reason to skip the INTAKE ask. They are different
+    // needs: the intake touch asks for a 10-second video AND the model sticker, and a
+    // customer who told us their days still has not sent either. This gate belongs to the
+    // availability touches (2,3) -- and INTAKE_LINK_ONLY never advances to those anyway,
+    // so in that mode it was only ever suppressing the one message we still want sent.
+    // Measured 2026-09-12: 6 of 34 missed tickets were skipped purely by this, including
+    // a SquareTrade job where the VENDOR set the slot, which populated availability.
     const hasAvail = !!((j.customer_preference_text || '').trim() || (j.customer_availability_grid || '').trim());
-    if (hasAvail) return false;
+    if (hasAvail && !INTAKE_LINK_ONLY) return false;
     // Skip stale SquareTrade claim-shells: no phone field AND no name AND no appliance =
     // unreachable, and only waste a job-truth lookup. (Anything with a name/appliance is
     // worth a job-truth resolve.)
@@ -227,6 +241,18 @@ exports.handler = async function (event) {
     if (onlyJob && String(j.id || j.job_id) !== onlyJob) return false; // target one job for a test
     return true;
   });
+
+  // NEWEST TICKET FIRST -- this is the fix for "not every ticket gets the text".
+  // The send loop stops after MAX_EXAMINE (120) candidates, and the calendar returns a
+  // STABLE order, so without a sort the same first 120 rows were examined on every run,
+  // forever. Already-texted jobs still burn an examine slot on their way to skipped_dupe,
+  // so as the pool filled with handled jobs the reachable window closed and anything past
+  // position 120 became structurally unreachable -- a wall, not a throttle that drains.
+  // Measured 2026-09-12: 34 of 127 reachable new tickets (27%) had never been texted.
+  // Xano job ids are sequential, so descending id is newest-first. This changes WHO gets
+  // reached, not HOW MANY: MAX_PER_RUN, the phone cap, quiet hours and opt-out are all
+  // untouched, so a brand-new ticket is simply always at the front of the queue.
+  cands.sort((a, b) => (Number(b.id || b.job_id) || 0) - (Number(a.id || a.job_id) || 0));
 
   function linkFor(j, id) {
     const isW = !!String(j.warranty_company || '').trim() || String(j.customer_type || '').toLowerCase() === 'warranty';
@@ -434,4 +460,21 @@ exports.handler = async function (event) {
   }
 
   return ok({ status: 'ran', ct_hour: h, candidates: cands.length, platform_state_jobs: Object.keys(platState).length, scheduled_tomorrow_forward: sched_added, unscheduled_active: unsched_added, examined, sent, skipped_dupe, skipped_phone_cap, skipped_has_media, skipped_no_phone, resolved_via_truth, failed, job_ids: done });
+}
+
+exports.runIntakeCollector = runIntakeCollector;
+
+exports.handler = async function (event) {
+  const q = (event && event.queryStringParameters) || {};
+  let scheduled = false; try { scheduled = !!JSON.parse((event && event.body) || '{}').next_run; } catch (_) {}
+  // THIS FUNCTION TEXTS CUSTOMERS. Before the core/cron split it had no auth gate at all --
+  // it was protected only by the schedule block's edge-403, which is a footgun standing in
+  // for a lock. Now that the core is reachable it needs a real one, or the split would have
+  // published an open endpoint anyone could use to fire intake texts at the whole board.
+  // Scheduled runs self-authorize; every other caller presents the admin secret.
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  if (!scheduled && q.secret !== admin) {
+    return { statusCode: 401, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ error: 'unauthorized' }) };
+  }
+  return runIntakeCollector({ dryrun: q.dryrun, only_job: q.only_job, force: q.force, scheduled });
 };
