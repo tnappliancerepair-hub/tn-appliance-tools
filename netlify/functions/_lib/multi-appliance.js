@@ -112,6 +112,61 @@ function appliancesIn(text) {
   return found;
 }
 
+// ── The machine's OWN birth certificate ──────────────────────────────────────────────
+// ＋ Add machine (add-machine.js) writes `problem_summary = <Appliance> + " — added at the
+// stop"`. That sentence is not narrative — it is the appliance the TECH picked standing in
+// front of the machine, and it is the one field on an added job nothing else ever rewrites.
+// Measured 2026-09-12 over all 77 added machines on the TN board: 74 agree with the ticket's
+// label. THREE disagree, and on each one the MODEL settles which side drifted:
+//   21641  declared Washer     labelled "Whirlpool dishwasher"    model WTW5057LWO = washer
+//   21013  declared Microwave  labelled "GE Profile Oven / Range" model JTP16G0V2BB = oven
+//   21590  declared "Dryer #2" labelled "Electrolux washer"       model WTW5000DW2 = washer
+// The first two are a mistyped label. The third genuinely conflicts (a tech found a SECOND
+// dryer; the label and the model both say washer) — which is exactly why this reports the
+// disagreement and never picks a winner.
+function addedAtStop(problem) {
+  const m = String(problem || '').match(/([^\u2014\u2013|]{1,60})\s*[\u2014\u2013-]\s*added\s+at\s+the\s+stop/i);
+  if (!m) return '';
+  const found = appliancesIn(m[1]);
+  return found.length === 1 ? found[0] : '';
+}
+
+// ── Model prefix -> appliance. EVIDENCE ONLY. ────────────────────────────────────────
+// ⚠️ This may ENRICH a finding that already stands on its own; it must NEVER raise or
+// suppress one. A model map is a guess dressed as a fact — every entry below is backed by a
+// real row on this board (named in the comment), and an unknown prefix returns '' rather
+// than a plausible-looking answer. COMBO_MODEL_FAMILIES is checked FIRST so a laundry
+// centre can never be read as one half of itself.
+const MODEL_FAMILIES = [
+  { re: /^wtw\d/i,  a: 'washer' },       // WTW5057LWO, WTW5000DW2, WTW5300SW0, WTW4957PW0
+  { re: /^gtw\d/i,  a: 'washer' },       // GTW485ASW0WB
+  { re: /^wf\d/i,   a: 'washer' },       // WF45H6300AG/A2, WF45R6100AC/US
+  { re: /^wed\d/i,  a: 'dryer' },        // WED8000DW2
+  { re: /^med?b?\d/i, a: 'dryer' },      // MEDB835DW3
+  { re: /^dv[eg]\d/i, a: 'dryer' },      // DVE45R6100C/A3, DVG45T6000V
+  { re: /^gtd\d/i,  a: 'dryer' },        // GTD45EASJ2WS, GTDX100EM1WW
+  { re: /^ptd\d/i,  a: 'dryer' },        // PTD51EBFR0DG
+  { re: /^mdb\d/i,  a: 'dishwasher' },   // MDB5601AWB
+  { re: /^gsd/i,     a: 'dishwasher' },   // GSD3300N20BB, GSDP320UB00BB
+  { re: /^f[gf]id\d/i, a: 'dishwasher' },// FGID2466QF5A
+  { re: /^jtp\d/i,  a: 'range' },        // JTP16G0V2BB (GE wall oven)
+  { re: /^wfe\d/i,  a: 'range' },        // WFE515S0ES0
+  { re: /^ne\d/i,   a: 'range' },        // NE59J7630SS
+  { re: /^f[cg][gc]f\d/i, a: 'range' },  // FCGF3032WFE
+  { re: /^lmwc\d/i, a: 'refrigerator' }, // LMWC23626S
+  { re: /^frs\d/i,  a: 'refrigerator' }, // FRS6HR45KS0, FRS6R3JW4
+  { re: /^asd\d/i,  a: 'refrigerator' }, // ASD2522WRS06
+  { re: /^mfi\d/i,  a: 'refrigerator' }, // MFI2266AES
+  { re: /^gsl\d/i,  a: 'refrigerator' }, // GSL25JFXL
+];
+function modelAppliance(model) {
+  const m = String(model || '').trim();
+  if (!m) return '';
+  for (const f of COMBO_MODEL_FAMILIES) if (f.re.test(m)) return '';   // a combo is not one half
+  for (const f of MODEL_FAMILIES) if (f.re.test(m)) return f.a;
+  return '';
+}
+
 // Two DIFFERENT problems hide in the same signal, and calling both "a second machine" would
 // assert something untrue. Reading the 17 live hits, roughly ten were a genuine extra
 // appliance and seven were a job whose LABEL disagrees with its own dispatch text — a ticket
@@ -148,4 +203,4 @@ function detect(label, problem, opts) {
   return { multi: appliances.length >= 2 && !why, kind, appliances, in_problem: inProblem, primary, extra, why, text: text.trim() };
 }
 
-module.exports = { detect, appliancesIn, intakeText, comboOneMachine, COMBO, COMBO_PRODUCT, COMBO_MODEL_FAMILIES, REFERENCE };
+module.exports = { detect, appliancesIn, intakeText, comboOneMachine, addedAtStop, modelAppliance, COMBO, COMBO_PRODUCT, COMBO_MODEL_FAMILIES, MODEL_FAMILIES, REFERENCE };

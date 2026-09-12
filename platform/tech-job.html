@@ -1214,18 +1214,26 @@
   // the dispatch text and FLAGS it; it never creates. This is where a human sees the flag and
   // decides — the ＋ Add machine path below is the only thing that creates, and he taps it.
   // Two different questions hide in that signal and they are asked differently on purpose:
-  //   second_machine  — the dispatch names another appliance   -> offer to add it
-  //   label_mismatch  — this ticket is on the wrong appliance  -> do NOT offer to add one
+  //   second_machine      — the dispatch names another appliance   -> offer to add it
+  //   label_mismatch      — this ticket is on the wrong appliance  -> do NOT offer to add one
+  //   added_machine_label — a machine YOU added at the door is labelled as something else,
+  //                         with the model as the tiebreaker    -> do NOT offer to add one
+  // ⚠️ Only second_machine ever gets the ＋ Add button. Offering it on the other two is how a
+  // phantom machine gets created — the exact thing this whole flag exists to prevent.
   var splitFlag = null;
   function loadSplitFlag(){
     var box=document.getElementById('splitFlag'); if(!box) return;
     sb.from('event').select('id,type,payload')
       .in('type',['multi_appliance_suspected','multi_appliance_resolved'])
-      .eq('payload->>job_id', String(jobId)).order('created_at',{ascending:false}).limit(6)
+      .eq('payload->>job_id', String(jobId)).order('id',{ascending:false}).limit(6)
       .then(function(r){
         if(r.error || !r.data || !r.data.length) return;
-        if(r.data.some(function(e){ return e.type==='multi_appliance_resolved'; })) return;  // already dealt with
-        var e=r.data.filter(function(x){ return x.type==='multi_appliance_suspected'; })[0];
+        // ⚠️ NEWEST WINS — not "is there a resolved row anywhere". A vague finding can be
+        // withdrawn and replaced by a precise one, which leaves a resolved row sitting UNDER a
+        // live flag; asking `.some(resolved)` would hide the better question. Ordered id desc
+        // (monotonic — created_at can tie when both rows land in the same millisecond).
+        if(r.data[0].type==='multi_appliance_resolved') return;  // already dealt with
+        var e=r.data[0];
         if(!e || !e.payload) return;
         splitFlag=e.payload;
         renderSplitFlag();
@@ -1233,16 +1241,19 @@
   }
   function renderSplitFlag(){
     var box=document.getElementById('splitFlag'); if(!box||!splitFlag) return;
-    var p=splitFlag, mism=(p.kind==='label_mismatch');
+    var p=splitFlag, added=(p.kind==='added_machine_label'), mism=(p.kind==='label_mismatch')||added;
     var extra=(p.extra||[]).join(' + ');
+    var head = added ? '⚠️ This machine is labelled as something else'
+             : mism  ? '⚠️ This ticket may be on the wrong machine'
+                     : '🧩 The dispatch mentions another machine';
     box.innerHTML =
       '<div class="splitflag'+(mism?' mism':'')+'">' +
-        '<div class="sfhead">'+(mism?'⚠️ This ticket may be on the wrong machine':'🧩 The dispatch mentions another machine')+'</div>' +
+        '<div class="sfhead">'+head+'</div>' +
         '<div class="sftext">'+esc(p.ask||'')+'</div>' +
         '<div class="sfquote">“'+esc(String(p.text||'').slice(0,220))+'”</div>' +
         '<div class="sfbtns">' +
           (mism||!extra ? '' : '<button class="primary" id="sfAdd">＋ Add the '+esc(extra)+'</button>') +
-          '<button id="sfNo">'+(mism?'Looks right — dismiss':'No, just the one machine')+'</button>' +
+          '<button id="sfNo">'+(added?'The label is right — dismiss':(mism?'Looks right — dismiss':'No, just the one machine'))+'</button>' +
         '</div>' +
       '</div>';
     var a=document.getElementById('sfAdd');
