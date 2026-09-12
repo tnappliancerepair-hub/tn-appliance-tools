@@ -11,9 +11,8 @@
 //
 // To rename: update the signal_type emitter, then regenerate.
 //
-// Generated: 2026-08-03T13:35:43.716Z
-// Total registered: 317   (hand-edited 2026-09-12: dropped DAILY_HCP_COVERAGE_CHECK — TN is off
-// Housecall Pro. Regenerate with scripts/build-registry.js on the Mac, which has the env it needs.)
+// Generated: 2026-09-12T17:30:09.740Z
+// Total registered: 317
 // Skipped (no run() or import error): 0
 
 export const AGENT_REGISTRY = {
