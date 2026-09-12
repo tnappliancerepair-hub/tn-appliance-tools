@@ -4,7 +4,9 @@
 // bypasses RLS); every write stamps company_id from the resolved company row.
 //
 // `db` is a platform-rest client (get / insert / patch). `co` is the company row
-// {id, name, trade, settings}. `n` is one normalized job (from a parser).
+// {id, name, trade, settings}. `n` is one normalized job (from a parser, or from the
+// ServicePower API via servicepower-auto-accept). `n.source` optionally overrides the
+// job's source column (default 'warranty_email').
 'use strict';
 
 const { inboundNote, INBOUND_STATUS } = require('./frontdoor-parse');
@@ -49,7 +51,9 @@ async function createWarrantyJob(db, co, n) {
   const job = await db.insert('job', {
     company_id: companyId, customer_id: customer.id, unit_id: unit.id, status: 'new',
     problem: n.problem || (appl ? appl + ' issue' : 'Warranty dispatch'),
-    source: 'warranty_email', warranty_company: n.warranty_company || null,
+    // source: the email tee's jobs stay 'warranty_email'; the ServicePower API intake
+    // passes 'servicepower_api' so the two paths stay measurable against each other.
+    source: n.source || 'warranty_email', warranty_company: n.warranty_company || null,
     claim_number: n.claim_number || null, dispatch_id: n.dispatch_id || null,
     service_window: n.service_window || null,
   });

@@ -1082,11 +1082,18 @@
 [functions."content-post-watch"]
   schedule = "0 14,19 * * *"
 
-# ServicePower auto-accept — grabs new OPEN SquareTrade dispatches every 10 min so we never
-# lose an offer to a slow accept. Accepts each OPEN call in our TN/LA areas (status-only
-# ACCEPTED, the proven flow), logs it, texts Teddy a digest. Capacity is wide open → pure
-# upside. Kill switch: vault SERVICEPOWER_AUTO_ACCEPT=false. ?dryrun=1 to inspect.
-[functions."servicepower-auto-accept"]
+# ServicePower auto-accept + API-NATIVE INTAKE — every 10 min. Two passes: (1) accept new
+# OPEN SquareTrade dispatches in TN/LA so we never lose an offer to a slow accept, and
+# (2) land every call we own on the Supabase board directly off getCallInfo, so a
+# SquareTrade job no longer depends on a dispatch EMAIL arriving AND parsing. Both paths
+# key on the ServicePower CALL NUMBER (claim_number), so API + email dedup against each
+# other and cannot duplicate. INTAKE IS SHADOW until vault SERVICEPOWER_API_INTAKE_LIVE=true.
+#
+# ⚠️ SPLIT core + cron on purpose: a scheduled fn edge-403s on manual HTTP, which would
+# make ?dryrun=1 — the only way to eyeball intake before it writes — impossible. The
+# schedule belongs on the wrapper; servicepower-auto-accept stays curlable (admin-gated).
+# Kill: SERVICEPOWER_AUTO_ACCEPT=false / SERVICEPOWER_API_INTAKE=false.
+[functions."servicepower-auto-accept-cron"]
   schedule = "4-59/10 * * * *"
 
 # Daily site-health sweep — catches dead pages + broken redirects from our side (where new
