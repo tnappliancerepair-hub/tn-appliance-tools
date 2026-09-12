@@ -1,5 +1,65 @@
 # Appliance Ant
 
+## 🔌🧾 2026-09-12 (latest) — SQUARETRADE INTAKE IS NOW API-NATIVE: the "no dedup key" blocker was measured and it is WRONG · the key was already in the column · shadow-gated, one merge from live — READ FIRST
+
+Teddy: *"So how about api for service power to receive all nsa and square trade or Allstate
+jobs is it automatic on supabase yet"* → *"Run it please."* Answer was **no**, and finding out
+why corrected a blocker this file had been repeating for weeks.
+
+### 🥇 THE CORRECTION — the API was never blocked on a key
+This file said API-native intake was blocked because `claim_number` covers more than one job
+23% of the time and `dispatch_id` is only on 48%. **Measured on the live platform board, that
+is the LEGACY Xano rows** — where `claim_number` holds the SquareTrade **CLAIM**, an umbrella
+across trips. **The email path writes something else into the same column: the ServicePower
+CALL NUMBER, which is per-trip.**
+
+| SquareTrade jobs, by source | jobs | distinct keys |
+|---|---|---|
+| **`servicepower_email`** | **375** | **375 — 1:1** |
+| `import_xano` (legacy) | 1,389 | 456 |
+
+**Two different values live in one column.** ServicePower issues a NEW call number per trip
+(`090040284133`, 12 digits), `getCallInfo` returns it on every call, and `servicepower-auto-accept`
+already had it in hand — it is the field it accepts on. That is the clean per-job key.
+
+### ✅ WHAT SHIPPED — a second pass on `servicepower-auto-accept` (SHADOW)
+Accept, then **land the job on Supabase straight off the `getCallInfo` payload** (name, phone,
+address, brand/model/serial, problem, schedule window — the API carries what the email does not).
+- **The two paths dedup against EACH OTHER.** Both write call_number → `claim_number`, so
+  whichever arrives first wins and the second is a no-op. They cannot duplicate. (First real
+  data point: `090040284133` was already on the board from the email path while ServicePower
+  still read OPEN — **the email beat the accept**.)
+- **⚠️ Sweeps every call we own in the window, NOT just the ones accepted this run.** The accept
+  pass only ever sees OPEN calls; once accepted they read ACCEPTED forever and would never be
+  revisited — so a shadow day, a failed insert or a missed cron could never self-heal.
+- **⚠️ `OURS` is an ALLOWLIST** (ACCEPTED/RESCHEDULED/CLAIMED). **COMPLETED is excluded on
+  purpose** — finished work would land as `status:'new'` in the office's New column. And the
+  live board spells it **`CANCELLED`** where the WSDL says `CANCELED`; an allowlist is immune.
+- Phone mirrors the proven `bestPhone()` order in `servicepower-contact-backfill` and normalizes
+  to the **bare 10 digits the platform stores** (`7739888733`) — a different format would mint a
+  duplicate customer on a genuinely new job. ServicePower fills empty slots with `"0"`.
+- `createWarrantyJob` gained an optional `n.source` (default `warranty_email`) so API jobs land
+  as `servicepower_api` and the two paths stay measurable against each other.
+- **Mapping unit-verified 19/19** against the real board shape (`_toJob`/`_normPhone` exported).
+
+### 🔭 SHADOW BY DEFAULT — it reports whether the email path already had it
+A shadow row returns `would: 'create' | 'dedup'` plus **`existing_source`**, which names which
+path got there first. That IS the agreement check. Writes nothing until vault
+**`SERVICEPOWER_API_INTAKE_LIVE=true`**. Kill: `SERVICEPOWER_API_INTAKE=false`.
+
+### ⚠️ SPLIT CORE + CRON — because the shadow check was otherwise impossible
+`servicepower-auto-accept` carried its own `schedule` block, so it **edge-403s on manual HTTP**
+(the documented footgun) — there was no way to eyeball intake before it wrote. Schedule moved to
+new `servicepower-auto-accept-cron`; the core stays curlable. **The core was previously UNGATED**
+(the edge-403 was the de-facto gate) — it now requires the admin secret.
+
+### ⏭️ OPEN
+- **Needs the merge to `main`** — verified live: core = 403 (still scheduled on main), cron = 404
+  (not deployed). Merging is safe: intake deploys in OBSERVE mode and writes nothing.
+- **NSA can never come through this.** ServicePower carries the SquareTrade/Allstate book only;
+  NSA arrives solely by email (`subject:"NSA Dispatch for"`). The email tee is its only path.
+- Watch a day of shadow, then flip `SERVICEPOWER_API_INTAKE_LIVE=true`.
+
 ## 📥🔁 2026-09-12 (latest) — THE WHOLE WARRANTY BOOK NOW FEEDS SUPABASE DIRECTLY: the tee was matching ONE subject, so 72% of TN's work only ever reached Xano · the dual feed is PROVEN un-duplicatable · a cold Gmail read returned 1 of 24 — READ FIRST
 
 Teddy: *"Can you make all jobs go into superbase directly. Keep them still coming into Zano as a

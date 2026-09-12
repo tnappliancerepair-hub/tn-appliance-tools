@@ -247,3 +247,6 @@ exports.handler = async function (event) {
 };
 
 exports.runAutoAccept = runAutoAccept;
+// exported so the API -> job mapping stays unit-testable without a live board pull
+exports._toJob = toJob;
+exports._normPhone = normPhone;
