@@ -1,6 +1,89 @@
 # Appliance Ant
 
-## 💳✅ 2026-09-12 (latest) — A REAL SIGNUP WALK FOUND 3 BUGS READING THE CODE MISSED · one login can only ever own ONE shop · a failed provision left a live seatless tenant · SES ACTUALLY WORKS (the "SANDBOX" line was reading our own flag) — READ FIRST
+## 📥🔁 2026-09-12 (latest) — THE WHOLE WARRANTY BOOK NOW FEEDS SUPABASE DIRECTLY: the tee was matching ONE subject, so 72% of TN's work only ever reached Xano · the dual feed is PROVEN un-duplicatable · a cold Gmail read returned 1 of 24 — READ FIRST
+
+Teddy: *"Can you make all jobs go into superbase directly. Keep them still coming into Zano as a
+backup, but let's start moving them all over into Superbase."* Done — and the interesting part is
+what the first live run proved.
+
+### 🥇 THE FINDING — the platform's own intake was wired to one vendor out of three
+`platform-warranty-tee` reads TN's Gmail and POSTs each dispatch to `platform-email-intake` as
+`<slug>@jobs.assistant247.net`, so the SAME email lands on BOTH boards (Gmail reads are
+non-destructive → **Xano is untouched, which IS the backup Teddy asked to keep**). But it shipped
+matching a single subject — Frontdoor's *"New Dispatch Notification"*. Measured off the board:
+
+| | jobs the tee has created | vendor |
+|---|---|---|
+| **before** | **14 — 100% Frontdoor/AHS** | SquareTrade **0**, NSA **0** |
+
+SquareTrade is **60%** of TN's warranty work and NSA another **13%**. So **72% of the book had no
+platform-native path at all** — which is the real reason the board originates almost nothing
+(13 jobs born here against 3,465 mirrored in). This was never a missing build; the parser already
+handles all three. It was a one-line query.
+
+### ✅ THE FIX — one vault key, live against already-deployed code
+`DISPATCH_QUERY` now covers all three vendors, and the subject override no longer forces a default
+(set a subject only to narrow to one vendor for a test). **Each clause was verified against 30 days
+of real mail before it went in**, and because the tee reads `PLATFORM_WARRANTY_TEE_QUERY` through
+`getSecretFresh`, setting that vault key took effect on the **next cron tick without waiting on a
+deploy** — the code change is the durable default, the key is what made it live now.
+- **⚠️ NSA sends from `notifications@em.nationalservicealliance.com` and Gmail will NOT match
+  `from:em.nationalservicealliance.com` — it returns ZERO.** NSA is matched on subject alone. Do not
+  "tidy" this by adding a `from:` clause; it silently drops every NSA dispatch.
+- **⚠️ The exclusions are load-bearing.** *"Service Request Notice **Cancellation**"* contains the
+  dispatch subject as a substring, and NSA sends *"Update Request"* / *"Update Needed"* mail that is
+  not a dispatch. **Creating jobs from notification mail is exactly how the Xano side ended up with
+  ~406 junk shells** (`Dispatch Cancelled [#…]`). Anything added here needs the same read-the-real-
+  mail check.
+- **⚠️ `PLATFORM_WARRANTY_TEE_QUERY` fully overrides — no window is appended.** The key MUST carry
+  its own time bound or it scans all mail ever. It uses `newer_than:1d` because Gmail's `newer_than:`
+  takes **d/m/y only, NOT hours**, and a relative bound can't freeze the way a baked epoch `after:`
+  would.
+
+### 🔒 THE DUAL FEED CANNOT DUPLICATE A JOB — proven on the first live run, not asserted
+`scanned 24 · created 0 · **deduped 24** · errors 0`. All four SquareTrade dispatches parsed
+correctly (claims `090040284133` / `074807184133` / `061500184133` / `070919284136`) and were then
+**refused** — because the Xano mirror had already carried those exact claims onto the board minutes
+earlier. Verified off the DATABASE: all four read `origin: mirrored` (they carry an `xano_id`).
+- **Two independent dedup layers, both firing:** `message_id` (pre-parse, per Gmail id) caught the
+  already-scanned Frontdoor mail; `claim_number`/`dispatch_id` caught the newly-parsed SquareTrade.
+- **⚠️ BE HONEST ABOUT WHAT THIS BUYS TODAY: while Xano's pollers + the mirror are running, they
+  win the race every time, so the tee will rarely CREATE anything.** What changed is that the
+  platform now has its OWN working receiver for all three vendors. That is the thing the cutover
+  needs — the moment Xano's pollers stop, warranty work keeps arriving. The create path is proven,
+  not theoretical: **13 of the 14 tee-created jobs are `born_here`** (no `xano_id`).
+- **A "Rescheduled Service Request Notice" is a FULL dispatch payload**, not a thin status ping —
+  read one before deciding (customer, address, phone, model, claim, schedule, problem text all
+  present). Ingesting it is correct: it dedupes on an existing job, and recovers one whose original
+  dispatch email was missed.
+
+### 🐞 A COLD GMAIL READ RETURNED **1 of 24** — sample before you believe a low count
+The first dry-run after the flip reported `scanned: 1`; the next **four** reported `scanned: 24`,
+matching `gmail-search` exactly. Same documented fan-out flakiness as the NSA session. **This is
+why the window is a DAY and not 15 minutes** — the tee is idempotent and runs `7-59/15`, so a
+partial read self-heals on the next tick instead of dropping mail permanently.
+- **⚠️ `readMany`'s `max` is PER-ACCOUNT, not a global total** (`maxResults` is passed to each
+  inbox's list call), and Gmail returns newest-first — so cap truncation can only drop the oldest,
+  which earlier ticks already ingested. At ~24 raw/day across the fan-out against 40/inbox there is
+  no truncation risk today.
+
+### ✅ CHECKED BEFORE FLIPPING (so nothing surprises anyone)
+- **No customer text fires.** `platform-email-intake` sends exactly one alert per genuinely-new job,
+  direction `owner`, tag `platform_email_job`.
+- **That alert is SUPPRESSED**, so this cannot flood Teddy at ~12 dispatches/day: `platform_email_job`
+  is in none of `office-gate`'s allowlists, so `officeBlocked` returns true. Deliberate — verify the
+  tag against the gate before adding any new alert, or it is written and delivered nowhere.
+
+### ⏭️ OPEN
+- **The five branch commits still need a merge to `main`** — that is what Netlify deploys. The
+  warranty-tee broadening is LIVE anyway via the vault key, but the rest (intake coverage fix,
+  `ready.html`, the intake auth gate, review-card preview) are not.
+- **Xano's pollers still win every race.** Dropping them is the actual cutover; the tee is what
+  makes that survivable. Watch `source='warranty_email'` climb once they stop.
+- **Revert in one move:** clear `PLATFORM_WARRANTY_TEE_QUERY` (falls back to the code default), or
+  set `PLATFORM_WARRANTY_TEE_ENABLED=false` to stop the tee entirely.
+
+## 💳✅ 2026-09-12 — A REAL SIGNUP WALK FOUND 3 BUGS READING THE CODE MISSED · one login can only ever own ONE shop · a failed provision left a live seatless tenant · SES ACTUALLY WORKS (the "SANDBOX" line was reading our own flag) — READ FIRST
 
 Ran the live signup chain with a real card. **$0 (14-day trial) and it paid for itself immediately** —
 the first attempt failed and surfaced three genuine defects that the 2026-09-09 code audit did not.
