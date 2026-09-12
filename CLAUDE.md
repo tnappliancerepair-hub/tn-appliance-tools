@@ -1,6 +1,77 @@
 # Appliance Ant
 
-## 🧰❓ 2026-09-12 (latest) — A MACHINE WE ADDED OURSELVES CARRIES ITS OWN ANSWER: 74 of 77 agree, 3 don’t · one was INVISIBLE because a wrong label links cleanly · `event.id` is a UUID and I sorted by it — READ FIRST
+## 🏷️🔍 2026-09-12 (latest) — THE PLATFORM DIDN'T KNOW WHICH MACHINE IT FIXED: 13 of 417 completed jobs had a model · the mirror only walks ACTIVE, so a job's unit FREEZES the moment it completes · 392 recovered, and the 321 left are the REAL intake gap — READ FIRST
+
+Picked up the open item from the 2026-09-11 crew session: *"a model/serial backfill for TERMINAL
+jobs — found, not fixed."* It was worse than the note said, and the fix is a sweep, not a rewrite.
+
+### 🥇 THE FINDING — the mirror walks `ACTIVE_STATUSES`, so a unit is frozen at completion
+`platform-tn-mirror` rebuilds `unit.attributes` every 5 min for every job it walks. It walks
+seven ACTIVE statuses. **A completed job is never walked again, so whatever its unit held the
+last time it was active is what it holds forever.** Measured off the database, not asserted:
+
+| | units | with a model |
+|---|---|---|
+| **completed** | 417 | **13 (3%)** |
+| scheduled | 384 | 223 |
+| awaiting_parts | 193 | 176 |
+| in_progress | 114 | 99 |
+| TN total | 1,244 | 531 (43%) |
+
+**The completed rows are the exact population every coverage + first-visit-fix number is read
+off.** That is how an "~80% of jobs have no model" figure got published when the real
+operational number was 42% — **the metric was measuring the SYNC, not the intake.**
+
+### 🔬 MEASURED AGAINST XANO BEFORE WRITING A LINE
+Sampled 20 completed jobs whose platform unit was blank and asked Xano what it had:
+**17 of 20 (85%) already carried a real model** — `DVE45T6000W`, `WRF757SDHZ64`, `FRSS2623AS`,
+`WT7150CW`, `DW80R7061UG/AA`. Two were the literal string **`"Uploaded pic"`** and one was empty.
+So the junk-model guard is not theoretical — without it, "Uploaded pic" lands on a unit and a
+tech goes hunting a part for a phrase.
+
+### ✅ `?backfill_models=1` — additive, blank-only, idempotent
+- **Only touches a unit whose model already fails `realModel()`** (the SAME rule
+  `platform-job-prep` already uses: ≥3 chars, not a placeholder, and **must contain a digit** —
+  that digit rule is what rejects `Refrigerator` and `Uploaded pic`). **Unit-verified 24/24**
+  against the real strings Xano actually stores, `realModel` exported so the rule stays testable.
+- **Rebuilds the WHOLE `attributes` object from the existing row.** ⚠️ merge-duplicates replaces
+  that jsonb column **wholesale** — a partial write is how the next run blanks a serial. Existing
+  non-blank keys always win; the serial only fills when it was empty.
+- **The Xano walk stops as soon as it passes the oldest id still needed** (9 pages, not the whole
+  table), reports **pages LOST** instead of reading a short page as the end, and omits the
+  `search` key entirely — `search: {}` is the documented 400; sort+per_page alone is the shape
+  `fetchTdrMap` has run on all along.
+- **The unit read pages explicitly.** PostgREST caps a response at **1,000 rows silently**, and
+  reading 1,000 of 1,244 units would leave the oldest permanently blank with no error anywhere.
+
+### 📈 LIVE RESULT — verified OFF THE DATABASE, not off the run's summary
+**392 filled · 314 serials also recovered · 0 units failed to map to an Xano row · 0 pages lost.**
+
+| | before | after |
+|---|---|---|
+| **completed jobs with a model** | **13 (3%)** | **396 (95%)** |
+| all TN units with a model | 531 (43%) | **928 (74%)** |
+| units carrying a serial | — | 661 |
+
+Re-run is a clean no-op (`fillable: 0`). **Not wired to a cron on purpose** — it is a one-shot
+sweep; the every-5-min mirror keeps active jobs fresh, and this is re-runnable any time a gap
+reopens.
+
+### 🎯 THE 321 THAT ARE STILL BLANK ARE THE HONEST NUMBER
+Spot-checked 14 of them against Xano: **8 were genuinely EMPTY there**, not junk. So the residual
+is the **real intake gap** — the machines nobody ever captured a sticker for — and it is now
+measurable instead of buried under a sync artifact. That is the number the model-sticker ask in
+the intake guard exists to move, and it can finally be tracked honestly.
+
+### ⏭️ OPEN — the second gap, measured not guessed
+**111 completed jobs have NO unit at all** (`unit_id is null`). Everything else missing a unit is
+canceled (1,709) or a `new` intake artifact (398) — junk either way. So the residual real gap is
+exactly those 111. Likely the mirror's `.filter((u) => u.customer_id)` dropping a unit when the
+customer didn't map, or jobs that completed before the mirror ever walked them. **Creating a unit
+is a different character of write than filling a blank field**, so it was left for its own pass
+rather than bolted onto a blank-only sweep.
+
+## 🧰❓ 2026-09-12 — A MACHINE WE ADDED OURSELVES CARRIES ITS OWN ANSWER: 74 of 77 agree, 3 don’t · one was INVISIBLE because a wrong label links cleanly · `event.id` is a UUID and I sorted by it — READ FIRST
 
 Followed the last open thread from the laundry-center work: jobs 21013 + 21641 were labelled as a
 different appliance than the machine they were created for. **Not an `add-machine.js` bug — it
@@ -583,11 +654,13 @@ for the operational question it was the more honest number.**
 - **⚠️ STANDING: a coverage number measured on one store over a long window is measuring your sync,
   not your intake.** Scope it to the rows that are operationally live and check every store that
   could hold the answer.
-- **⏭️ FOUND, NOT FIXED — a model/serial backfill for TERMINAL jobs.** ~76% of the platform's
-  blank-model media jobs have the model sitting in Xano. It costs nothing operationally (a
-  completed job's tech already drove out) but it silently poisons any coverage or first-visit-fix
-  metric read off the platform, which is exactly how I got the 80% wrong. Same shape as the
-  existing `?backfill_tdr=1` sweep: additive, blank-only, safe to re-run.
+- **✅ DONE 2026-09-12 (was: FOUND, NOT FIXED) — the model/serial backfill for TERMINAL jobs.**
+  The estimate here was right in shape and low in size: the real number was **85%** of blank
+  completed jobs already carrying the model in Xano, and the gap was far bigger than "media
+  jobs" — **completed jobs ran 13 of 417 (3%) with a model** because the mirror only walks
+  ACTIVE statuses, so a unit freezes the moment its job completes. Shipped as
+  `?backfill_models=1` (same shape as `?backfill_tdr=1`: additive, blank-only, re-runnable).
+  **392 filled + 314 serials; completed-job model coverage 3% → 95%.** See the top entry.
 
 ### 🐞 `platform-job-prep` WAS ASKING THE WRONG VENDOR (found by RUNNING it, not reading it)
 The dry pass reported a clean **"20 of 20, vendor had none"** — which contradicted the 19-of-19
