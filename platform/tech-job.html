@@ -187,6 +187,14 @@
   .pdel{background:none;border:none;color:#e5484d;font-weight:800;font-size:13px;padding:6px 2px;margin-top:6px}
   /* Machines at this stop — switcher chips + add */
   .mchips{display:flex;gap:8px;flex-wrap:wrap}
+  .splitflag{border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.10);border-radius:12px;padding:11px 12px;margin:0 0 11px}
+  .splitflag.mism{border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.10)}
+  .sfhead{font-weight:800;font-size:14px;margin-bottom:3px}
+  .sftext{font-size:13.5px;margin-bottom:7px}
+  .sfquote{font-size:12.5px;color:var(--muted);font-style:italic;margin-bottom:10px}
+  .sfbtns{display:flex;gap:8px;flex-wrap:wrap}
+  .sfbtns button{padding:9px 13px;border:1px solid var(--line);border-radius:9px;background:transparent;color:var(--ink);font-weight:700;font-size:13.5px;cursor:pointer}
+  .sfbtns button.primary{border:0}
   .mchip{border:1.5px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:9px 15px;font-weight:800;font-size:13.5px}
   .mchip.cur{background:var(--brand-grad,var(--brand));color:#fff;border-color:transparent;box-shadow:var(--glow,0 4px 12px rgba(26,158,70,.3))}
   .mchip.add{border-style:dashed;color:var(--brand)}
@@ -569,6 +577,7 @@
       // ── 9 · 🧩 This stop + heads-up for the office ──
       '<div class="card" id="machineCard"><div class="sec">🧩 This stop — machines</div>' +
         '<div class="note" style="margin:-2px 0 9px">Several appliances on one visit? Switch between them or add another — each keeps its own report.</div>' +
+        '<div id="splitFlag"></div>' +
         '<div id="machineBox" class="mchips"><button class="mchip cur">'+esc((job.unit&&job.unit.label)||'This machine')+'</button></div>' +
         '<div id="addMachineBox" class="hidden" style="margin-top:11px">' +
           '<input id="amLabel" placeholder="What machine? (e.g. Kenmore dryer)">' +
@@ -1180,6 +1189,7 @@
 
   // ── MACHINES AT THIS STOP — each machine is its own job, linked by stop_id ──
   function loadMachines(){
+    loadSplitFlag();
     var box=document.getElementById('machineBox'); if(!box) return;
     var sid = job.stop_id || jobId;
     sb.from('job').select('id,unit:unit_id(label),tdr:job_tdr(id)').or('stop_id.eq.'+sid+',id.eq.'+sid).then(function(r){
@@ -1199,6 +1209,60 @@
     }).join('');
     box.innerHTML = chips + '<button class="mchip add" id="addMachineChip">＋ Add machine</button>';
   }
+  // ── WHAT THE INTAKE SAID ──────────────────────────────────────────────────────────────
+  // A warranty dispatch often covers two appliances and lands as ONE job. The watcher reads
+  // the dispatch text and FLAGS it; it never creates. This is where a human sees the flag and
+  // decides — the ＋ Add machine path below is the only thing that creates, and he taps it.
+  // Two different questions hide in that signal and they are asked differently on purpose:
+  //   second_machine  — the dispatch names another appliance   -> offer to add it
+  //   label_mismatch  — this ticket is on the wrong appliance  -> do NOT offer to add one
+  var splitFlag = null;
+  function loadSplitFlag(){
+    var box=document.getElementById('splitFlag'); if(!box) return;
+    sb.from('event').select('id,type,payload')
+      .in('type',['multi_appliance_suspected','multi_appliance_resolved'])
+      .eq('payload->>job_id', String(jobId)).order('created_at',{ascending:false}).limit(6)
+      .then(function(r){
+        if(r.error || !r.data || !r.data.length) return;
+        if(r.data.some(function(e){ return e.type==='multi_appliance_resolved'; })) return;  // already dealt with
+        var e=r.data.filter(function(x){ return x.type==='multi_appliance_suspected'; })[0];
+        if(!e || !e.payload) return;
+        splitFlag=e.payload;
+        renderSplitFlag();
+      });
+  }
+  function renderSplitFlag(){
+    var box=document.getElementById('splitFlag'); if(!box||!splitFlag) return;
+    var p=splitFlag, mism=(p.kind==='label_mismatch');
+    var extra=(p.extra||[]).join(' + ');
+    box.innerHTML =
+      '<div class="splitflag'+(mism?' mism':'')+'">' +
+        '<div class="sfhead">'+(mism?'⚠️ This ticket may be on the wrong machine':'🧩 The dispatch mentions another machine')+'</div>' +
+        '<div class="sftext">'+esc(p.ask||'')+'</div>' +
+        '<div class="sfquote">“'+esc(String(p.text||'').slice(0,220))+'”</div>' +
+        '<div class="sfbtns">' +
+          (mism||!extra ? '' : '<button class="primary" id="sfAdd">＋ Add the '+esc(extra)+'</button>') +
+          '<button id="sfNo">'+(mism?'Looks right — dismiss':'No, just the one machine')+'</button>' +
+        '</div>' +
+      '</div>';
+    var a=document.getElementById('sfAdd');
+    if(a) a.onclick=function(){
+      var box2=document.getElementById('addMachineBox'); if(box2) box2.classList.remove('hidden');
+      var li=document.getElementById('amLabel'); if(li){ li.value=extra; li.focus(); }
+      var pr=document.getElementById('amProblem'); if(pr && !pr.value) pr.value=String(p.text||'').slice(0,160);
+    };
+    document.getElementById('sfNo').onclick=function(){ resolveSplitFlag('dismissed'); };
+  }
+  // Clearing the flag is an EVENT, never an edit to the job — a heads-up being waved off must
+  // not touch the ticket, and the watcher reads these rows to stop re-offering the same machine.
+  function resolveSplitFlag(how){
+    if(!splitFlag) return;
+    var box=document.getElementById('splitFlag'); if(box) box.innerHTML='';
+    var payload=Object.assign({}, splitFlag, { resolved:how, by:(me&&me.name)||null, at:new Date().toISOString() });
+    splitFlag=null;
+    sb.from('event').insert({ company_id:me.company_id, type:'multi_appliance_resolved', entity:'job', payload:payload });
+  }
+
   function addMachine(){
     var label=(document.getElementById('amLabel').value||'').trim();
     var prob=(document.getElementById('amProblem').value||'').trim();
@@ -1215,6 +1279,7 @@
         var ns=(job.status==='completed'||job.status==='canceled')?'scheduled':(job.status||'scheduled');
         sb.from('job').insert({company_id:me.company_id, customer_id:job.customer_id, unit_id:uid, technician_id:job.technician_id, stop_id:sid, status:ns, problem:prob, scheduled_day:job.scheduled_day, source:'tech_add_machine'}).select('id').then(function(rj){
           if(rj.error||!rj.data||!rj.data[0]){ fail(rj.error); return; }
+          resolveSplitFlag('added');   // the flag has been acted on — stop offering it
           location.href='?job='+rj.data[0].id;
         });
       });

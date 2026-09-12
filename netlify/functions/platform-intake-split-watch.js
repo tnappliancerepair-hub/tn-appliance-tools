@@ -87,7 +87,7 @@ async function runIntakeSplit(opts) {
   const res = {
     ok: true, mode: apply ? 'live' : 'dryrun', days: days || 'all',
     jobs_scanned: jobs.length, already_flagged: 0,
-    flagged: 0, one_machine: 0,
+    flagged: 0, second_machine: 0, label_mismatch: 0, one_machine: 0,
     refused: { combo: 0, reference: 0 },
     candidates: [], errors: 0,
   };
@@ -104,10 +104,15 @@ async function runIntakeSplit(opts) {
     if (seen.has(String(j.id))) { res.already_flagged++; continue; }
 
     const row = {
-      job_id: j.id, primary: d.primary, extra: d.extra, appliances: d.appliances,
+      job_id: j.id, kind: d.kind, primary: d.primary, extra: d.extra, appliances: d.appliances,
       claim: j.claim_number || null, day: j.scheduled_day || null, source: j.source || null,
       label, text: d.text.slice(0, 400),
+      // what a human should actually be asked — the two cases are not the same question
+      ask: d.kind === 'label_mismatch'
+        ? ('this ticket says ' + (d.primary || '?') + ', but the dispatch describes the ' + (d.in_problem || []).join(' + ') + ' — is it on the right machine?')
+        : ('the dispatch also names a ' + (d.extra || []).join(' + ') + ' — add it to this stop?'),
     };
+    if (d.kind === 'label_mismatch') res.label_mismatch++; else res.second_machine++;
     if (res.candidates.length < 40) res.candidates.push(row);
     if (!apply) { res.flagged++; continue; }
 

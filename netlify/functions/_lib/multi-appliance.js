@@ -72,14 +72,25 @@ function appliancesIn(text) {
   return found;
 }
 
+// Two DIFFERENT problems hide in the same signal, and calling both "a second machine" would
+// assert something untrue. Reading the 17 live hits, roughly ten were a genuine extra
+// appliance and seven were a job whose LABEL disagrees with its own dispatch text — a ticket
+// that says washer while the dispatch says the DRYER won't turn on. Both need a human; only
+// one of them means "add a machine to this stop". The tell is whether the label's appliance
+// is mentioned in the dispatch text at all.
 function detect(label, problem) {
   const text = intakeText(label, problem);
   let appliances = appliancesIn(text);
+  // what the DISPATCH says, with the label's own word excluded from the evidence
+  let inProblem = appliancesIn(intakeText('', problem));
 
   // the freezer compartment of a refrigerator is not a second machine
-  if (appliances.indexOf('refrigerator') >= 0) appliances = appliances.filter((a) => a !== 'freezer');
+  const dropFreezer = (list) => (list.indexOf('refrigerator') >= 0 ? list.filter((a) => a !== 'freezer') : list);
+  appliances = dropFreezer(appliances);
+  inProblem = dropFreezer(inProblem);
 
-  const primary = appliancesIn(String(label || ''))[0] || appliances[0] || null;
+  const labelled = appliancesIn(String(label || ''))[0] || null;
+  const primary = labelled || appliances[0] || null;
   const extra = appliances.filter((a) => a !== primary);
 
   let why = '';
@@ -87,7 +98,12 @@ function detect(label, problem) {
   else if (COMBO.test(text)) why = 'combo unit — sold as one machine';
   else if (REFERENCE.test(text)) why = 'names another job, not a second machine';
 
-  return { multi: appliances.length >= 2 && !why, appliances, primary, extra, why, text: text.trim() };
+  // label says X, the dispatch never mentions X -> the ticket is on the wrong appliance,
+  // which is NOT the same claim as "there is also a dryer here".
+  const mismatch = !!(labelled && inProblem.length && inProblem.indexOf(labelled) < 0);
+  const kind = why ? '' : (mismatch ? 'label_mismatch' : 'second_machine');
+
+  return { multi: appliances.length >= 2 && !why, kind, appliances, in_problem: inProblem, primary, extra, why, text: text.trim() };
 }
 
 module.exports = { detect, appliancesIn, intakeText, COMBO, REFERENCE };
