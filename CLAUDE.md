@@ -1,6 +1,92 @@
 # Appliance Ant
 
-## 🧩📋 2026-09-12 (latest) — MULTIPLE MACHINES, ONE REPORT EACH: the spine was BUILT and had never once been used · 0 of 3,726 jobs carried the key every surface reads · 11 machines on warranty stops had no report and nothing could see it — READ FIRST
+## 🪓🚩 2026-09-12 (latest) — THE PLATFORM INTAKE SPLITTER: a naive split would have been WRONG 3 TIMES IN 4 · the `problem` field is half AI CALL SUMMARY · "STRANGE" contains "RANGE" · two different problems were wearing one signal — READ FIRST
+
+Teddy: *"Build the platform intake splitter, flag before it creates."* A warranty dispatch often
+covers TWO appliances and lands as ONE job. **The Xano side INVENTS the sibling from problem
+text. Measured against 90 days of real platform intake, that rule would have been wrong roughly
+three times out of four — so this FLAGS and stops.**
+
+### 🥇 THE FUNNEL — every step came from READING the rows, not the count
+| | |
+|---|---|
+| **119** | naive: any two appliance words anywhere in `job.problem` |
+| **42** | after dropping everything past **`\|\|`** — the platform **appends an AI CALL SUMMARY to `problem`**, and a narrative that merely mentions a dishwasher is not a dishwasher job |
+| **~11** | after the five rules below — **about one a week** |
+| **17** | what the shipped detector actually flags over 1,662 jobs (8 second-machine + 9 wrong-machine) |
+
+**⚠️ `job.problem` IS NOT DISPATCH TEXT.** Everything after `||` is an AI phone-call summary.
+Any rule that reads `problem` whole is reading narrative as fact. **That one split killed 65%
+of the false positives.**
+
+### 🪤 THE FIVE TRAPS, each taken from a live row (`_lib/multi-appliance.js`)
+1. **⚠️ FREEZER IS PART OF THE FRIDGE.** *"FRIDGE AND FREEZER STOPPED WORKING"*, *"Fridge not
+   cooling — freezer works fine"*, *"Other lights on freezer side"*. **13 of the 42.** A freezer
+   only counts as its own machine when **no refrigerator is named**.
+2. **⚠️ "STRANGE" CONTAINS "RANGE".** *"MAKING A STRANGE NOISE"* read as a range **4 times**.
+   Substring matching is fine for a short clean label and **wrong for free text** — every
+   keyword is word-boundary matched now. (Same family: "orange".)
+3. **⚠️ "DISH WASHER" CONTAINS "WASHER"** — 4 rows double-counted one dishwasher. Matched text
+   is **MASKED OUT** before the next keyword is tried, **longest keyword first**.
+4. **Combo units are ONE machine** — *"WASHER AND DRYER COMBO"*, *"MICROWAVE OVEN COMBO"*,
+   *"It's a **dual** washer and dryer machine"* (`dual` was not in the old COMBO regex).
+5. **Negation** — a real unit label on this board reads **"Washer not a fridge I added that on
+   accident"**. Anything after *not a / not an* is what it ISN'T.
+- **Unit-verified 41/42** against the live strings, **hand-labelled by reading every one**. The
+  single miss is a job labelled *dryer* whose text describes a fridge — **a mislabelled job,
+  not two machines**, and surfacing that to a human is defensible rather than something to
+  contort the detector to hide.
+
+### 🔀 TWO DIFFERENT PROBLEMS WERE WEARING ONE SIGNAL (found by reading all 17 hits)
+| kind | n | what it means |
+|---|---|---|
+| **`second_machine`** | **8** | the dispatch names another appliance → *"add the dryer to this stop?"* |
+| **`label_mismatch`** | **9** | **the ticket is on the WRONG appliance** — *"this says washer, but the dispatch says THE DRYER WON'T TURN ON"* |
+
+**Calling both "a second machine" would assert something untrue**, and a tech told to add a
+dryer to a job that should simply BE a dryer job creates the exact phantom machine this design
+exists to avoid. **The tell: is the label's appliance mentioned in the dispatch text at all?**
+Verified 6/6 on the live strings. **The wrong-machine class is arguably the more expensive
+one — the tech rolls up expecting a washer.**
+
+### ✅ `platform-intake-split-watch` (+ `-cron`, `19 */4`) — THERE IS NO CREATE PATH IN IT
+- **The human tap that creates is the ＋ Add machine button ALREADY LIVE on
+  `platform/tech-job.html`** — proven, side-effect-free, the same path a tech uses at the door.
+  **Nothing new to trust.**
+- **The flag surfaces right above that button**, quoting **the dispatch's own words**, so the
+  tech judges the evidence rather than a verdict. A `second_machine` flag offers one tap that
+  **PREFILLS** the form; a `label_mismatch` flag **deliberately offers no add button at all**,
+  because the fix there is correcting the ticket, not adding to it.
+- **Flags are `event` rows** — no schema change, and **nothing can clobber a human's text**.
+  Clearing one writes `multi_appliance_resolved`, **never an edit to the job**: a heads-up being
+  waved off must not touch the ticket. Adding the machine resolves it too.
+- **LIVE: 17 flagged / 1,662 scanned, 0 errors.** Re-run → `flagged 0 / already_flagged 17`.
+  **Verified off the DATABASE: 17 flags, 17 distinct jobs, 0 pointing at a missing job, 0 on an
+  already-linked stop.**
+
+### 🔎 `?probe=<job_id>` — because SQL proving a row exists proves NOTHING about the page
+A **JSON-path filter is its own failure mode**, and an empty result there is indistinguishable
+from "no flag". The probe **replays the exact PostgREST filter `platform/tech-job.html` builds**
+(`payload->>job_id=eq.<id>`) — confirmed live: `rows: 1`. Same discipline as `?tdr_probe=1`.
+
+### ⚠️ FOOTGUNS
+- **`days=0` means 180 unless you handle the STRING.** Burned twice now (stop-link, then this).
+  Any "0 means all" knob read off a query string has it.
+- **`_lib/appliance-vocab`'s `segToAppliance` is FIRST-MATCH, single-appliance.** It is correct
+  for classifying one clean label and **must not be used to scan free text** — use
+  `multi-appliance.appliancesIn`, which word-boundary matches and masks.
+- **`event` has no `entity_id` column** — the job id lives in `payload.job_id`, filtered as
+  `payload->>job_id=eq.<id>`.
+
+### ⏭️ OPEN
+- **The 17 flags are a human pass** — 8 offer a one-tap add, 9 say the ticket is on the wrong
+  machine. Nothing auto-creates and nothing will until these prove out.
+- **Auto-create stays UNBUILT on purpose.** At ~1 genuine candidate a week a human clears these
+  in seconds; a phantom machine carries its own claim and shows on the customer's portal.
+  Revisit only after watching the flags for a few weeks — **and the 9 wrong-machine rows say
+  the intake labelling itself is the deeper bug.**
+
+## 🧩📋 2026-09-12 — MULTIPLE MACHINES, ONE REPORT EACH: the spine was BUILT and had never once been used · 0 of 3,726 jobs carried the key every surface reads · 11 machines on warranty stops had no report and nothing could see it — READ FIRST
 
 Teddy: *"We also need the option for multiple machines and multiple Tdr one for each machine."*
 **Almost all of it already existed.** The gap was never the UI — nothing produced the key.
