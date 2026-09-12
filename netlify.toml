@@ -473,6 +473,9 @@
 [functions."ahs-returns-watch-cron"]
   schedule = "27 * * * *"
 
+[functions."platform-intake-split-watch-cron"]
+  schedule = "19 */4 * * *"
+
 [functions."platform-stop-link-cron"]
   schedule = "53 * * * *"
 
