@@ -1129,7 +1129,7 @@
 [functions."social-campaign"]
   schedule = "0 14 * * *"
 
-[functions."review-card-poster"]
+[functions."review-card-poster-cron"]
   schedule = "30 15 * * *"
 
 # Vizard has no per-request webhook — poll every 5 min so finished auto-clips

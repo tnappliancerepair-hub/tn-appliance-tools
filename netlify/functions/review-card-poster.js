@@ -91,13 +91,18 @@ async function fbPhoto(pageId, token, imageUrl, message) {
   } catch (e) { return { ok: false, err: String((e && e.message) || e) }; }
 }
 
-exports.handler = async function (event) {
-  const q = (event && event.queryStringParameters) || {};
-  const dry = q.dry === '1';
-  let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
-  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
-  // Scheduled runs self-authorize but only fire when the LIVE flag is on; manual (secret) always allowed.
-  if (!scheduled && q.secret !== admin) return json(401, { error: 'unauthorized' });
+// CORE. Split out of the handler on 2026-09-12 so it can actually be previewed.
+// This function carried its own `schedule` block, and a scheduled Netlify function
+// edge-403s on every external HTTP call -- so the documented "?dry=1 -> preview the
+// next card, no post" path returned 403 and nobody could eyeball a card before
+// flipping SOCIAL_REVIEW_CARDS_LIVE. Which is very likely why it was never flipped:
+// 120 cards sat in the pool and the engine posted nothing. Core stays curlable, the
+// thin review-card-poster-cron wrapper carries the schedule. Same footgun already
+// burned on platform-sp-parts-sync and knowledge-scorecard.
+async function runReviewCardPost(o) {
+  const q = o || {};
+  const dry = q.dry === '1' || q.dry === true;
+  const scheduled = !!q.scheduled;
   if (scheduled) {
     const live = String((await getSecret('SOCIAL_REVIEW_CARDS_LIVE')) || '').toLowerCase() === 'true';
     if (!live) return json(200, { ok: true, skipped: 'SOCIAL_REVIEW_CARDS_LIVE not true — cron idle' });
@@ -146,4 +151,15 @@ exports.handler = async function (event) {
   pool[idx] = { ...card, posted: true, posted_ms: Date.now(), fb_post_id: fb.id, ig_id: ig.id || null };
   await savePool(pool);
   return json(200, { ok: true, posted: { author: card.author, is_la: card.is_la }, fb_post_id: fb.id, fb_url: `https://www.facebook.com/${fb.id}`, instagram: ig, remaining: remaining.length - 1 });
+}
+
+exports.runReviewCardPost = runReviewCardPost;
+
+exports.handler = async function (event) {
+  const q = (event && event.queryStringParameters) || {};
+  let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  // Scheduled runs self-authorize but only fire when the LIVE flag is on; manual (secret) always allowed.
+  if (!scheduled && q.secret !== admin) return json(401, { error: 'unauthorized' });
+  return runReviewCardPost({ dry: q.dry, tech: q.tech, author: q.author, scheduled });
 };
