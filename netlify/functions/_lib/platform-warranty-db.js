@@ -17,6 +17,68 @@ const { inboundNote, INBOUND_STATUS } = require('./frontdoor-parse');
 // never an invalid enum write.
 const PLATFORM_MOVE = { canceled: 'canceled' };
 
+// FILL-THE-BLANK enrichment on a dedup. A dispatch that dedupes still carries real data,
+// and throwing it away is how a card stays blind: the NSA rows already on this board came
+// in through Xano's generic capture, which never parsed NSA, so several have NO appliance
+// and NO model while the dispatch email states both.
+//
+// Only ever fills something that is EMPTY (or the 'Appliance' placeholder). Never
+// overwrites a value a human or a better source already put there.
+//
+// ⚠️ SCOPED TO WHAT ACTUALLY SURVIVES, on purpose. platform-tn-mirror rewrites job.problem
+// from Xano every 5 minutes and its keepTyped guard only stops an EMPTY Xano value from
+// replacing a non-empty one -- Xano's value here is non-empty (it is the email subject
+// echoed), so a problem we wrote would be gone before the office finished scrolling. So
+// problem is deliberately NOT enriched. dispatch_id and service_window are not mirrored at
+// all, and unit.label/attributes ARE keepTyped-guarded, so those four stick.
+//
+// Never throws: a dedup must still return even if enrichment fails.
+async function enrichBlanks(db, companyId, job, n) {
+  const filled = [];
+  // Some callers hand us a minimal inline rest() client. No patch = no enrichment,
+  // never a crash on the dedup path.
+  if (!db || typeof db.patch !== 'function') return filled;
+  try {
+    const blank = (v) => !String(v == null ? '' : v).trim();
+    const jobPatch = {};
+    if (blank(job.dispatch_id) && n.dispatch_id) jobPatch.dispatch_id = n.dispatch_id;
+    if (blank(job.service_window) && n.service_window) jobPatch.service_window = n.service_window;
+    if (Object.keys(jobPatch).length) {
+      await db.patch('job', `id=eq.${job.id}`, jobPatch);
+      filled.push(...Object.keys(jobPatch));
+    }
+
+    if (!job.unit_id) return filled;
+    const rows = await db.get(`unit?id=eq.${job.unit_id}&select=id,label,attributes&limit=1`);
+    const u = rows && rows[0];
+    if (!u) return filled;
+
+    // attributes is ONE jsonb column and a PATCH replaces it whole, so this is a
+    // read-modify-write of the entire object -- a partial write is how the next run
+    // blanks a serial.
+    const attrs = Object.assign({}, u.attributes || {});
+    const want = { brand: n.brand, model: n.model, serial: n.serial, appliance_type: n.appliance };
+    const unitPatch = {};
+    let attrsChanged = false;
+    for (const k of Object.keys(want)) {
+      if (blank(attrs[k]) && String(want[k] || '').trim()) { attrs[k] = String(want[k]).trim(); attrsChanged = true; filled.push('unit.' + k); }
+    }
+    if (attrsChanged) unitPatch.attributes = attrs;
+
+    // 'Appliance' is the mirror's own placeholder for "we don't know what this is", so it
+    // counts as blank here exactly like keepTyped treats it.
+    const label = String(u.label || '').trim();
+    if ((!label || /^(appliance|vehicle)$/i.test(label))) {
+      const better = [n.brand, n.appliance].filter(Boolean).join(' ').trim();
+      if (better) { unitPatch.label = better; filled.push('unit.label'); }
+    }
+    if (Object.keys(unitPatch).length) await db.patch('unit', `id=eq.${u.id}`, unitPatch);
+  } catch (e) {
+    return filled.concat(['error:' + String((e && e.message) || e).slice(0, 60)]);
+  }
+  return filled;
+}
+
 // create ONE warranty job on a shop's board (warranty fields + unit attrs). Deduped by
 // claim # (or dispatch #) within the shop, so a re-sent dispatch never double-creates.
 // Uses only db.get + db.insert (client-agnostic across platform-rest + the inline rest()).
@@ -40,8 +102,11 @@ async function createWarrantyJob(db, co, n) {
   for (const [col, val] of [['claim_number', n.claim_number], ['dispatch_id', n.dispatch_id]]) {
     const key = String(val || '').trim();
     if (!key) continue;
-    const dup = await db.get(`job?company_id=eq.${companyId}&${col}=eq.${encodeURIComponent(key)}&select=id&limit=1`);
-    if (dup && dup[0]) return { job_id: dup[0].id, deduped: true, matched_on: col };
+    const dup = await db.get(`job?company_id=eq.${companyId}&${col}=eq.${encodeURIComponent(key)}&select=id,unit_id,dispatch_id,service_window&limit=1`);
+    if (dup && dup[0]) {
+      const filled = await enrichBlanks(db, companyId, dup[0], n);
+      return { job_id: dup[0].id, deduped: true, matched_on: col, filled };
+    }
   }
   let customer = null;
   if (n.phone) { const f = await db.get(`customer?company_id=eq.${companyId}&phone=eq.${encodeURIComponent(n.phone)}&select=id&limit=1`); customer = f && f[0]; }

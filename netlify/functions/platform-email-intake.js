@@ -35,6 +35,14 @@ function rest(base, key) {
       if (!r.ok) throw new Error((d && (d.message || d.hint)) || ('insert ' + table + ' ' + r.status));
       return Array.isArray(d) ? d[0] : d;
     },
+    // patch(table, "id=eq.<uuid>", {cols}) — SAME 3-arg shape as _lib/platform-rest, so the
+    // shared lander's fill-the-blank enrichment works through this client too. A 2-arg
+    // (path, row) variant would send the object as the filter and PATCH the whole table.
+    async patch(table, filter, body) {
+      const r = await fetch(`${base}/rest/v1/${table}?${filter}`, { method: 'PATCH', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error('patch ' + table + ' ' + r.status);
+      return true;
+    },
   };
 }
 function slugFromTo(to) {
@@ -44,8 +52,9 @@ function slugFromTo(to) {
 }
 
 // createWarrantyJob(db, co, n) lives in _lib/platform-warranty-db (shared with the
-// Frontdoor webhook receiver) — imported above. It uses only db.get/db.insert, so the
-// inline rest() client below is fully compatible.
+// Frontdoor webhook receiver) — imported above. It uses db.get/db.insert, plus db.patch for
+// the fill-the-blank enrichment it runs when a dispatch dedupes onto an existing job, so
+// the inline rest() client above implements all three with platform-rest's signatures.
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
