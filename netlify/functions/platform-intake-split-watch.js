@@ -129,12 +129,34 @@ async function runIntakeSplit(opts) {
   return res;
 }
 
+// ?probe=<job_id> replays the EXACT PostgREST filter platform/tech-job.html builds for the
+// flag banner. SQL proving the row exists proves nothing about whether the page can fetch it
+// — a JSON-path filter is its own failure mode, and an empty result there looks identical to
+// "no flag" from the outside. Read-only.
+async function probeFlag(jobId) {
+  const base = String((await getSecret('PLATFORM_SUPABASE_URL')) || '').replace(/\/+$/, '');
+  const key = (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY')) || '';
+  if (!base || !key) return { ok: false, error: 'platform_not_configured' };
+  const path = `event?select=id,type,payload&type=in.(${FLAG},${RESOLVED})`
+    + `&payload->>job_id=eq.${encodeURIComponent(jobId)}&order=created_at.desc&limit=6`;
+  const r = await fetch(`${base}/rest/v1/${path}`, {
+    headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000),
+  });
+  const body = await r.text();
+  let rows = null; try { rows = JSON.parse(body); } catch (_) {}
+  return { ok: r.ok, status: r.status, url_filter: 'payload->>job_id=eq.' + jobId,
+    rows: Array.isArray(rows) ? rows.length : null,
+    kinds: Array.isArray(rows) ? rows.map((x) => x.type + ':' + ((x.payload || {}).kind || '')) : null,
+    raw: Array.isArray(rows) ? undefined : body.slice(0, 300) };
+}
+
 exports.config = { timeout: 26 };
 exports.handler = async function (event) {
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
   if (!scheduled && q.secret !== guard) return json(403, { ok: false, error: 'forbidden — ?secret=' });
+  if (q.probe) return json(200, await probeFlag(q.probe));
   const res = await runIntakeSplit({ apply: q.apply === '1', days: q.days });
   return json(200, res);
 };
