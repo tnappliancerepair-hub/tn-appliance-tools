@@ -21,6 +21,15 @@
 // A tech adding the machine, or anyone dismissing it, writes multi_appliance_resolved and the
 // flag stops being offered.
 //
+// ⚠️ A LAUNDRY CENTER IS NOT TWO MACHINES, AND THE TEXT CANNOT TELL YOU. Of the first 17
+// live flags, FIVE were one cabinet holding a washer and a dryer — the ticket names one half
+// and the complaint names the other, which reads exactly like a wrong-machine ticket.
+// SquareTrade's own claim record calls them "COMBO WASHER DRYER" and PAID every one. So the
+// evidence has to come from the MODEL (mirrored already) or the vendor's product string
+// (vendor_product_known, written by platform-vendor-product-sync) — never from the words.
+// This also RETIRES a flag it can no longer stand behind: the system withdrawing its own
+// claim, written as multi_appliance_resolved, never as an edit to the job.
+//
 //   GET ?secret=<admin>            shadow — what it WOULD flag
 //   GET ?secret=<admin>&apply=1    write the flags
 //   GET ?secret=<admin>&days=N     window (default 45; 0 = all)
@@ -34,6 +43,8 @@ const TN_COMPANY = 'be4d11a1-5219-469b-916a-ab990be7ea7f';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 const FLAG = 'multi_appliance_suspected';
 const RESOLVED = 'multi_appliance_resolved';
+// the vendor's own product string for a dispatch, mirrored in by platform-vendor-product-sync
+const VENDOR = 'vendor_product_known';
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
@@ -79,7 +90,7 @@ async function runIntakeSplit(opts) {
   // The window that means something is the appointment: recent work, PLUS everything not yet
   // scheduled — fresh intake with no day on it is exactly what we most want to flag, before a
   // tech is ever sent.
-  const sel = 'id,problem,status,source,claim_number,scheduled_day,created_at,unit:unit_id(label)';
+  const sel = 'id,problem,status,source,claim_number,scheduled_day,created_at,unit:unit_id(label,attributes)';
   let f = `job?company_id=eq.${TN_COMPANY}&stop_id=is.null&status=neq.canceled&select=${encodeURIComponent(sel)}&order=id.asc`;
   if (days) {
     const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -89,26 +100,52 @@ async function runIntakeSplit(opts) {
   if (!jobs) return { ok: false, error: 'platform_read_incomplete — refusing to flag off a short read' };
 
   // already flagged / already dealt with — never offer the same machine twice
-  const seen = new Set();
-  const evs = await page(`event?company_id=eq.${TN_COMPANY}&type=in.(${FLAG},${RESOLVED})&select=payload&order=id.asc`);
+  const seen = new Set();     // has a live flag
+  const done = new Set();     // a human (or this sweep) already settled it
+  const evs = await page(`event?company_id=eq.${TN_COMPANY}&type=in.(${FLAG},${RESOLVED},${VENDOR})&select=type,payload&order=id.asc`);
   if (evs === null) return { ok: false, error: 'flag_read_failed — refusing to re-flag blind' };
-  for (const e of evs) { const id = e && e.payload && e.payload.job_id; if (id) seen.add(String(id)); }
+  const vendorProductByJob = new Map();
+  for (const e of evs) {
+    const id = e && e.payload && e.payload.job_id; if (!id) continue;
+    if (e.type === VENDOR) { if (e.payload.product) vendorProductByJob.set(String(id), String(e.payload.product)); continue; }
+    seen.add(String(id));
+    if (e.type === RESOLVED) done.add(String(id));
+  }
 
   const res = {
     ok: true, mode: apply ? 'live' : 'dryrun', days: days || 'all',
     jobs_scanned: jobs.length, unscheduled_included: jobs.filter((j) => !j.scheduled_day).length, already_flagged: 0,
     flagged: 0, second_machine: 0, label_mismatch: 0, one_machine: 0,
     refused: { combo: 0, reference: 0 },
+    retired: 0, retired_jobs: [],
     candidates: [], errors: 0,
   };
 
   for (const j of jobs) {
     const label = (j.unit && j.unit.label) || '';
-    const d = detect(label, j.problem);
+    const attrs = (j.unit && j.unit.attributes) || {};
+    const d = detect(label, j.problem, { model: attrs.model, vendorProduct: vendorProductByJob.get(String(j.id)) });
     if (!d.multi) {
       if (/combo/.test(d.why)) res.refused.combo++;
       else if (/another job/.test(d.why)) res.refused.reference++;
       else res.one_machine++;
+      // A flag we can no longer stand behind must come DOWN. Leaving it up asks a tech to
+      // answer a question the system already knows the answer to, and the next honest flag
+      // gets less attention for it. Retire it the same way a human would — a resolved row,
+      // never an edit to the job — and say plainly that the machine evidence settled it.
+      if (seen.has(String(j.id)) && !done.has(String(j.id)) && d.why && d.why !== 'one machine') {
+        res.retired_jobs.push({ job_id: j.id, why: d.why, label });
+        if (!apply) { res.retired++; continue; }
+        try {
+          const rr = await fetch(`${base}/rest/v1/event`, {
+            method: 'POST', headers: Object.assign({ Prefer: 'return=minimal' }, SB),
+            body: JSON.stringify({ company_id: TN_COMPANY, type: RESOLVED, entity: 'job',
+              payload: { job_id: j.id, how: 'auto_withdrawn', why: d.why, label, by: 'platform-intake-split-watch' } }),
+            signal: AbortSignal.timeout(12000),
+          });
+          if (rr.ok) res.retired++; else res.errors++;
+        } catch (_) { res.errors++; }
+      }
       continue;
     }
     if (seen.has(String(j.id))) { res.already_flagged++; continue; }
@@ -116,7 +153,8 @@ async function runIntakeSplit(opts) {
     const row = {
       job_id: j.id, kind: d.kind, primary: d.primary, extra: d.extra, appliances: d.appliances,
       claim: j.claim_number || null, day: j.scheduled_day || null, source: j.source || null,
-      label, text: d.text.slice(0, 400),
+      label, model: attrs.model || null, vendor_product: vendorProductByJob.get(String(j.id)) || null,
+      text: d.text.slice(0, 400),
       // what a human should actually be asked — the two cases are not the same question
       ask: d.kind === 'label_mismatch'
         ? ('this ticket says ' + (d.primary || '?') + ', but the dispatch describes the ' + (d.in_problem || []).join(' + ') + ' — is it on the right machine?')

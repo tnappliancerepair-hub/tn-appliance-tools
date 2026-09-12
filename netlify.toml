@@ -473,6 +473,11 @@
 [functions."ahs-returns-watch-cron"]
   schedule = "27 * * * *"
 
+# Ask the vendor what machine the dispatch is for BEFORE the splitter runs, so the splitter
+# has the evidence in hand rather than flagging a laundry center as two machines.
+[functions."platform-vendor-product-sync-cron"]
+  schedule = "7 */4 * * *"
+
 [functions."platform-intake-split-watch-cron"]
   schedule = "19 */4 * * *"
 
