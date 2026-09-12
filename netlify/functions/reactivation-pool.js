@@ -16,6 +16,18 @@
 'use strict';
 const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
+// One person can hold many customer rows (see the duplicate note below), and the phone is what
+// you actually dial — so that is the identity that counts. Keeps the first row per number.
+function dedupeByPhone(rows) {
+  const seen = new Set(); const out = [];
+  for (const r of rows) {
+    const k = digits(r && r.phone);
+    if (k.length < 10 || seen.has(k)) continue;
+    seen.add(k); out.push(r);
+  }
+  return out;
+}
+
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 function authHeaders() {
   const t = process.env.XANO_METADATA_TOKEN;
@@ -88,29 +100,15 @@ exports.handler = async function (event) {
   const jobsRes = await pageAll(ids.jobs, deadline, 500);
   // customer_ids that have had ANY job inside the window = not dormant
   const recent = new Set();
-  // Remember each customer's MOST RECENT job while we're already walking every row. A win-back
-  // call lands very differently when the caller can open with "we fixed your Whirlpool dryer last
-  // spring" instead of "our records show you were a customer once" — and the customer table's own
-  // city is blank on ~all of these, while the JOB carries the real service city. Costs nothing:
-  // the rows are already in hand. (2026-09-12)
-  const lastJob = new Map();
   for (const j of jobsRes.rows) {
     const ts = Number(j.created_at || 0);
     if (ts >= cutoffMs && j.customer_id != null) recent.add(Number(j.customer_id));
-    const cid = j.customer_id == null ? null : Number(j.customer_id);
-    if (cid == null) continue;
-    const when = Number(j.job_completed_at || 0) || ts;
-    const prev = lastJob.get(cid);
-    if (!prev || when > prev.when) {
-      lastJob.set(cid, {
-        when,
-        appliance: String(j.appliance_type || j.appliance || '').trim(),
-        brand: String(j.appliance_brand || j.brand || '').trim(),
-        city: String(j.service_city || '').trim(),
-        problem: String(j.problem_summary || j.problem_description || '').trim().slice(0, 120),
-      });
-    }
   }
+  // NOTE (2026-09-12): don't try to enrich this list with a last job from THIS table. Dormant is
+  // defined as having no job in it, and it only holds ~6 months anyway — so the answer is always
+  // empty by construction. The real relationship history (what we fixed, when) lives in the HCP
+  // archive in Supabase; hcp-lookup?phone= reads it per person and is the right source if this
+  // list ever needs warming up.
 
   const custRes = await pageAll(ids.customer, deadline, 500);
   let withPhone = 0, dormant = 0, dormantNoPhone = 0;
@@ -140,23 +138,14 @@ exports.handler = async function (event) {
       if (sample.length < 10) sample.push(Object.assign({ phone: maskPhone(c.phone) }, row));
       // The texts are gated off on purpose, so the only way to work this pool
       // is to call it. Hand over a real worklist with real numbers when asked.
-      if (wantList) {
-        const lj = lastJob.get(Number(c.id)) || null;
-        callList.push(Object.assign({ phone: digits(c.phone) }, row, {
-          // What the caller actually needs to sound like they know this person.
-          last_job_at: lj && lj.when ? lj.when : null,
-          last_job_iso: lj && lj.when ? new Date(lj.when).toISOString().slice(0, 10) : null,
-          appliance: lj ? lj.appliance : '',
-          brand: lj ? lj.brand : '',
-          // The job's service city — the customer row's city is blank on nearly all of these.
-          city: (lj && lj.city) || row.city || '',
-          problem: lj ? lj.problem : '',
-        }));
-      }
+      // Built unconditionally: the people-count below needs it even when no list was asked for.
+      callList.push(Object.assign({ phone: digits(c.phone) }, row));
     } else {
       dormantNoPhone += 1;
     }
   }
+
+  const people = dedupeByPhone(callList);
 
   return json(200, {
     ok: true,
@@ -183,10 +172,13 @@ exports.handler = async function (event) {
     sample: q.sample === '1' ? sample : undefined,
     // ?list=1 -> the full dial list, oldest relationship first so the coldest
     // customers get reached before the ones who'd still be around next month.
-    // Warmest first: the most RECENT relationship, which is the likeliest to remember us.
-    // (Sorting on customer.created_at sorted by bulk-import order, not relationship age.)
-    call_list: wantList
-      ? callList.slice().sort((a, b) => (b.last_job_at || 0) - (a.last_job_at || 0))
-      : undefined,
+    // The number that matters is PEOPLE YOU CAN CALL, and the raw row count is not that: on
+    // 2026-09-12 this reported 501 when 499 of them were ONE customer record duplicated 499
+    // times (same name, same phone, 499 distinct ids created every ~12 min across 2026-06-12..15).
+    // Dialling a row count would have meant 25 days of calling three people. Dedupe on the
+    // phone — that is the thing you actually dial — and keep the raw count as the duplicate signal.
+    reachable_people: people.length,
+    duplicate_rows: Math.max(0, dormant - people.length),
+    call_list: wantList ? people : undefined,
   });
 };
