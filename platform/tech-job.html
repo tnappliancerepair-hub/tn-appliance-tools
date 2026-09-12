@@ -1225,13 +1225,14 @@
     var box=document.getElementById('splitFlag'); if(!box) return;
     sb.from('event').select('id,type,payload')
       .in('type',['multi_appliance_suspected','multi_appliance_resolved'])
-      .eq('payload->>job_id', String(jobId)).order('id',{ascending:false}).limit(6)
+      .eq('payload->>job_id', String(jobId)).order('created_at',{ascending:false}).limit(6)
       .then(function(r){
         if(r.error || !r.data || !r.data.length) return;
         // ⚠️ NEWEST WINS — not "is there a resolved row anywhere". A vague finding can be
         // withdrawn and replaced by a precise one, which leaves a resolved row sitting UNDER a
-        // live flag; asking `.some(resolved)` would hide the better question. Ordered id desc
-        // (monotonic — created_at can tie when both rows land in the same millisecond).
+        // live flag; asking `.some(resolved)` would hide the better question.
+        // ⚠️ Ordered created_at desc, NOT id — event.id is a UUID, so ordering by it is
+        // ordering by a random number while looking perfectly sorted.
         if(r.data[0].type==='multi_appliance_resolved') return;  // already dealt with
         var e=r.data[0];
         if(!e || !e.payload) return;

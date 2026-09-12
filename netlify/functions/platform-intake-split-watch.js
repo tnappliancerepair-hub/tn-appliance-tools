@@ -128,15 +128,18 @@ async function runIntakeSplit(opts) {
   // already flagged / already dealt with — never offer the same machine twice
   const seen = new Set();     // has a live flag
   const done = new Set();     // a human (or this sweep) already settled it
-  const evs = await page(`event?company_id=eq.${TN_COMPANY}&type=in.(${FLAG},${RESOLVED},${VENDOR})&select=type,payload&order=id.asc`);
+  // ⚠️ ORDER BY created_at, NOT id. `event.id` is a UUID — ordering by it is ordering by a
+  // random number, which reads as sorted and is not. liveKind below is last-write-wins, so a
+  // meaningless sort would have made "is a flag standing right now" a coin flip.
+  const evs = await page(`event?company_id=eq.${TN_COMPANY}&type=in.(${FLAG},${RESOLVED},${VENDOR})&select=type,payload,created_at&order=created_at.asc`);
   if (evs === null) return { ok: false, error: 'flag_read_failed — refusing to re-flag blind' };
   const vendorProductByJob = new Map();
   // ⚠️ `seen` / `done` are order-INSENSITIVE, which was fine while a job could only ever go
   // flag → resolved. A vague finding can now be withdrawn and replaced by a precise one in the
   // same run, so a job legitimately carries RESOLVED *and* a newer FLAG — and a set-only read
   // calls that "settled" and re-flags it every run forever. liveKind answers the question the
-  // sets cannot: is a flag standing RIGHT NOW, and which one. (evs is ordered id.asc, so the
-  // last write per job wins.)
+  // sets cannot: is a flag standing RIGHT NOW, and which one. (evs is ordered created_at.asc,
+  // so the last write per job wins.)
   const liveKind = new Map();
   for (const e of evs) {
     const id = e && e.payload && e.payload.job_id; if (!id) continue;
