@@ -70,6 +70,23 @@ land there). It *looked* like two because **four Gmail connections** are wired a
   it learned NOTHING. **Same class as a guard keyed on a field that is structurally always zero.**
   Fixed: a verdict now requires evidence; absence of evidence reports UNKNOWN.
 
+### 🧹 TENANT CLEANUP — the platform is down to TWO shops (2026-09-12)
+Teddy: *"Clear them all out except for demo shop and for the Realty and Appliance Exchange."* Purged
+**8 tenants** (test-shop, hcp-import-demo, alyse-s-dog-sitting, music-city-aquatics, mid-tenn-furniture,
+nextgen-motors, classic-automotive, the-appliance-guy). **KEPT: `demo` (Joey's — the sales demo, 33 jobs)
++ `tn-appliance-exchange-llc` (production, 3,478 jobs).**
+- **Verified off the DATABASE, not the purge summary: 2 companies, 0 orphan rows** across app_user /
+  technician / job / customer / portal_grant, and **0 rows left in `trial_shop`**.
+- **No Stripe exposure.** Greg + TK were ADMIN-provisioned, so neither ever had a subscription — checked
+  before purging. The only live sub is the real shop's (`sub_1UBaZA03MYZgTikF3xF3aJ4C`, trial ends 9/17).
+- **⚠️ A PURGE DOES NOT TOUCH TELNYX.** Greg's Ann line **+1 931-632-4734** (spells GREG) + assistant
+  `assistant-1272a268-…` are still live and still billing (~$1/mo DID + per-minute). **Releasing a DID is
+  irreversible — left for Teddy's call.** TK never had a platform-provisioned number (`settings.phone` was
+  null on his company row), so there is nothing to release on his side.
+- **Blanked `platformSlug` on Greg's registry entry** (`_lib/trial-shops.js`) — it pointed at a purged
+  tenant. `createLeadJob` is no-op-safe so his Ann never broke, but a dangling bridge is a lie in the
+  config. She is now a pure lead-catcher (answers + texts Greg), which is the tier he was on anyway.
+
 ### ⚠️ FOOTGUNS BURNED
 - **NEVER cancel a Stripe sub by EMAIL on this account.** `tnappliance@gmail.com` had **two**
   trialing subs — the junk one AND `tn-appliance-exchange-llc` (the real shop). `platform-subs-audit
