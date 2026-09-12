@@ -113,10 +113,12 @@ async function runVendorProduct(opts) {
     let claim = null;
     res.asked++;
     try {
+      // retrieveClaims already hands back NORMALISED rows (it maps normClaim internally).
+      // Running normClaim over them a second time reads camelCase keys that are no longer
+      // there and quietly produces an empty product — which looks exactly like "no claim on
+      // file". Cost a full deploy cycle; do not re-normalise.
       const out = await spClaims.retrieveClaims({ callNumber: String(j.claim_number).trim() });
-      const list = (out && (out.claims || out.claim)) || [];
-      const first = Array.isArray(list) ? list[0] : null;
-      claim = first ? (spClaims.normClaim ? spClaims.normClaim(first) : first) : null;
+      claim = (out && Array.isArray(out.claims)) ? (out.claims[0] || null) : null;
     } catch (_) { res.errors++; continue; }
 
     if (!claim || !String(claim.product || '').trim()) { res.skipped.no_claim_record++; continue; }
