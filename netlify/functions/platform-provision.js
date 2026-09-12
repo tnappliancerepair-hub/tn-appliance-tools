@@ -128,7 +128,23 @@ exports.handler = async function (event) {
     const users = (list && (list.users || list)) || [];
     const u = Array.isArray(users) ? users.find((x) => String(x.email || '').toLowerCase() === ownerEmail) : null;
     if (!u) return json(200, { ok: false, error: 'auth user not found for ' + ownerEmail });
-    const vaultKey = 'PLATFORM_OWNER_PW_' + (slug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    // Resolve the shop + role from the seat itself, so a reset records itself correctly even
+    // when the caller only knew an email. Without this, resetting a non-owner seat wrote its
+    // password into the OWNER's vault slot under a guessed slug — so two office resets in a
+    // row silently overwrote each other and neither was saved anywhere findable.
+    let seatRole = 'owner', seatSlug = slug;
+    try {
+      const au = await rest0(`app_user?email=eq.${encodeURIComponent(ownerEmail)}&select=role,company_id&limit=1`);
+      if (au && au[0]) {
+        seatRole = String(au[0].role || 'owner');
+        if (!seatSlug && au[0].company_id) {
+          const c = await rest0(`company?id=eq.${au[0].company_id}&select=slug&limit=1`);
+          if (c && c[0]) seatSlug = c[0].slug;
+        }
+      }
+    } catch (_) {}
+    // Only a real owner reset touches the owner slot; anyone else is recorded on the pack.
+    const vaultKey = 'PLATFORM_OWNER_PW_' + (seatSlug || 'tn').toUpperCase().replace(/[^A-Z0-9]/g, '_');
     const reveal = q.reveal === '1' || q.reveal === 'true';
     // &once=1: IDEMPOTENT reveal — if this owner's password is already vaulted, hand back the SAME
     // one instead of resetting (a signup success screen may re-run on a page refresh, and must never
@@ -141,19 +157,25 @@ exports.handler = async function (event) {
     const newpw = tempPassword();
     const setR = await fetch(`${url}/auth/v1/admin/users/${u.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ password: newpw }), signal: AbortSignal.timeout(12000) });
     if (!setR.ok) { const e = await setR.text().catch(() => ''); return json(200, { ok: false, error: 'password set failed ' + setR.status + ' ' + e.slice(0, 120) }); }
-    let saved = false; try { saved = await setSecret(vaultKey, newpw); } catch (_) { saved = false; }
+    let saved = false;
+    if (seatRole === 'owner') { try { saved = await setSecret(vaultKey, newpw); } catch (_) { saved = false; } }
     // Keep the shop's login pack in sync — so owner.html "Your team logins" + /packs show the NEW
     // owner password, not the stale one. Best-effort; only when a pack + a slug exist.
-    if (slug) { try {
-      const pk = await readPack(slug);
-      if (pk && Array.isArray(pk.seats)) {
-        const os = pk.seats.find((s) => s.role === 'owner' || String(s.email || '').toLowerCase() === ownerEmail);
-        if (os) { os.password = newpw; pk.updated_at = new Date().toISOString(); await writePack(pk); }
-      }
+    let recorded = false;
+    if (seatSlug) { try {
+      const pk = (await readPack(seatSlug)) || { slug: seatSlug, seats: [] };
+      if (!Array.isArray(pk.seats)) pk.seats = [];
+      let os = pk.seats.find((x) => String(x.email || '').toLowerCase() === ownerEmail);
+      // ADD the seat when it is not on the pack yet. The old code only updated an existing
+      // entry, so a seat created outside shoppack could never have its password saved at all.
+      if (!os) { os = { role: seatRole, label: ownerEmail.split('@')[0], email: ownerEmail, link: seatLink(seatRole) }; pk.seats.push(os); }
+      os.password = newpw; os.role = os.role || seatRole; os.link = os.link || seatLink(seatRole);
+      pk.updated_at = new Date().toISOString();
+      recorded = await writePack(pk);
     } catch (_) {} }
     // &reveal=1: hand the plaintext back to the admin caller (they already hold the admin
     // secret). For seeding a demo/sandbox hub or a controlled onboarding hand-off — never log it.
-    return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved, new_password: reveal ? newpw : undefined, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
+    return json(200, { ok: true, owner_email: ownerEmail, seat_role: seatRole, slug: seatSlug, vault_key: seatRole === 'owner' ? vaultKey : undefined, saved, recorded_on_pack: recorded, new_password: reveal ? newpw : undefined, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
   }
 
   // One-tap login link (no password in chat). Uses the Admin generate_link endpoint to
@@ -257,10 +279,17 @@ exports.handler = async function (event) {
     const RETENTION_DAYS = 30; // Teddy 2026-08-28: keep 30 days after a client leaves, then purge.
     const slug = String(q.slug || '').toLowerCase().trim();
     if (!slug) return json(200, { ok: false, error: 'slug required' });
-    if (slug === 'tn-appliance') return json(200, { ok: false, error: 'refusing to purge the flagship' });
+    // Guard the tenant that actually matters. This used to name 'tn-appliance', which WAS the
+    // flagship in August and is now a dead duplicate - so the guard protected a tenant we want
+    // gone while leaving the real one, holding TN's entire book, completely unprotected. Keyed on
+    // company_id as well as slug, because a slug can be renamed and a uuid cannot.
+    const PROTECTED_SLUGS = ['tn-appliance-exchange-llc'];
+    const PROTECTED_IDS = ['be4d11a1-5219-469b-916a-ab990be7ea7f'];
+    if (PROTECTED_SLUGS.indexOf(slug) >= 0) return json(200, { ok: false, error: 'refusing to purge TN Appliance Exchange LLC - the live tenant' });
     const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug)}&select=id,name,status,churned_at`);
     const co = cos && cos[0];
     if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug });
+    if (PROTECTED_IDS.indexOf(String(co.id)) >= 0) return json(200, { ok: false, error: 'refusing to purge a protected tenant (' + co.name + ')' });
     if (co.status !== 'churned') return json(200, { ok: false, error: 'not churned — offboard the client first (status=' + co.status + ')' });
     const force = q.force === 'yes';
     const daysSinceChurn = co.churned_at ? (Date.now() - Date.parse(co.churned_at)) / 86400000 : 0;
@@ -895,13 +924,74 @@ exports.handler = async function (event) {
   }
 
   // Read a stored shop pack (for packs.html). Admin/operator-only. ?action=packs&slug=<slug>
+  // The pack used to be read straight out of its stored snapshot, which drifts the moment a
+  // seat is added or deactivated outside shoppack. On 2026-09-10 TN's snapshot still listed
+  // only the two placeholder tech logins — both deactivated the day before — and none of the
+  // eight real seats, so the page handed out two dead accounts and hid every working one.
+  // Somebody tried one at 5:45 that morning. Live state is the truth now; the snapshot is
+  // consulted only for a password it happens to hold, and a seat is never hidden for being
+  // deactivated — it is shown as deactivated, which is the thing worth knowing.
   if (q.action === 'packs') {
     const slug0 = String(q.slug || '').toLowerCase().trim();
     if (!slug0) return json(200, { ok: false, error: 'slug required' });
-    const vaultKey = 'PLATFORM_PACK_' + slug0.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-    let pack = null;
-    try { const pv = await getSecretFresh(vaultKey); if (pv) pack = JSON.parse(pv); } catch (_) {}
-    return json(200, { ok: true, slug: slug0, pack: pack || null, note: pack ? undefined : 'no pack stored — build one with action=shoppack' });
+    const snapshot = await readPack(slug0);
+    const cos = await rest0(`company?slug=eq.${encodeURIComponent(slug0)}&select=id,name&limit=1`);
+    const co = cos && cos[0];
+    if (!co) return json(200, { ok: false, error: 'unknown slug: ' + slug0 });
+
+    const [users, techs] = await Promise.all([
+      rest0(`app_user?company_id=eq.${co.id}&select=id,email,role`),
+      rest0(`technician?company_id=eq.${co.id}&select=app_user_id,name,active,xano_tech_id`),
+    ]);
+    const tByUser = new Map((techs || []).filter((t) => t.app_user_id).map((t) => [t.app_user_id, t]));
+    // Who is banned / has ever signed in comes from the auth admin list, which is the slow
+    // leg here and only ever nice-to-have. Bound it hard and carry on without it: a seat list
+    // that loads is worth far more than one that times out holding a completeness flag. When
+    // it does not answer, active/signed-in come back null rather than a confident wrong 'yes'.
+    let auth = [], authKnown = false;
+    try {
+      const r = await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: H, signal: AbortSignal.timeout(6000) });
+      const d = await r.json().catch(() => ({}));
+      auth = Array.isArray(d.users) ? d.users : (Array.isArray(d) ? d : []);
+      authKnown = auth.length > 0;
+    } catch (_) {}
+    const aByEmail = new Map(auth.map((u) => [String(u.email || '').toLowerCase(), u]));
+    const pwByEmail = new Map(((snapshot && snapshot.seats) || []).map((x) => [String(x.email || '').toLowerCase(), x.password]));
+
+    const ORDER = { owner: 0, office: 1, manager: 1, tech: 2 };
+    const seats = (users || []).map((u) => {
+      const em = String(u.email || '').toLowerCase();
+      const a = aByEmail.get(em) || {};
+      const t = tByUser.get(u.id);
+      const banned = !!(a.banned_until && new Date(a.banned_until) > new Date());
+      const active = authKnown ? (!banned && (t ? t.active !== false : true)) : null;
+      return {
+        role: u.role, label: (t && t.name) || u.role, email: u.email,
+        password: pwByEmail.get(em) || null,          // only when the snapshot still holds one
+        active, deactivated: active === null ? null : !active,
+        has_technician_row: !!t, xano_tech_id: (t && t.xano_tech_id) != null ? t.xano_tech_id : null,
+        signed_in_before: authKnown ? !!a.last_sign_in_at : null, last_sign_in_at: a.last_sign_in_at || null,
+        link: seatLink(u.role),
+      };
+    }).sort((x, y) => (ORDER[x.role] ?? 3) - (ORDER[y.role] ?? 3) || String(x.email).localeCompare(String(y.email)));
+
+    const live = new Set(seats.map((x) => String(x.email || '').toLowerCase()));
+    const only_in_snapshot = ((snapshot && snapshot.seats) || [])
+      .map((x) => String(x.email || '').toLowerCase()).filter((e) => e && !live.has(e));
+
+    return json(200, {
+      ok: true, slug: slug0, company: co.name, source: 'live',
+      login_state_known: authKnown,
+      counts: { seats: seats.length, active: seats.filter((x) => x.active === true).length,
+                deactivated: seats.filter((x) => x.deactivated === true).length,
+                never_signed_in: seats.filter((x) => x.signed_in_before === false).length,
+                no_password_stored: seats.filter((x) => !x.password).length },
+      seats,
+      booking_link: (snapshot && snapshot.booking_link) || `https://tnapplianceexchange.net/b/${slug0}`,
+      intake_email: (snapshot && snapshot.intake_email) || `${slug0}@jobs.assistant247.net`,
+      only_in_snapshot,
+      note: 'Seats are read live. A blank password means none is stored — reset it with action=resetpw&email=<seat>&reveal=1.',
+    });
   }
 
   let slug = String(q.slug || '').toLowerCase().trim();

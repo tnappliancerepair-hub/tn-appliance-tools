@@ -1,5 +1,2148 @@
 # Appliance Ant
 
+## 🧰❓ 2026-09-12 (latest) — A MACHINE WE ADDED OURSELVES CARRIES ITS OWN ANSWER: 74 of 77 agree, 3 don’t · one was INVISIBLE because a wrong label links cleanly · `event.id` is a UUID and I sorted by it — READ FIRST
+
+Followed the last open thread from the laundry-center work: jobs 21013 + 21641 were labelled as a
+different appliance than the machine they were created for. **Not an `add-machine.js` bug — it
+sets `appliance_type` correctly. The Xano `event_log` names the writer outright:
+`job_basics_updated { actor: "office" }`.** Somebody edited the ticket afterwards and typed the
+stop’s OTHER machine into the Appliance box.
+
+### 🥇 THE SIGNAL WAS ALREADY IN THE RECORD — we wrote it ourselves
+`add-machine.js` writes `problem_summary = <Appliance> + " — added at the stop"`. **That sentence
+is the appliance the TECH picked standing in front of the machine, and nothing else ever rewrites
+it.** Measured across **all 77 added machines on the board: 74 still agree with the ticket’s
+label.** Three do not, and on each one the MODEL is the tiebreaker:
+
+| job | tech declared at the door | ticket is labelled | model | model agrees with |
+|---|---|---|---|---|
+| 21641 | Washer | `Whirlpool dishwasher` | WTW5057LWO | **the tech** |
+| 21013 | Microwave | `GE Profile Oven / Range` | JTP16G0V2BB | **the label** |
+| 21590 | Dryer #2 | `Electrolux washer` | WTW5000DW2 | **the label** |
+
+- **⚠️ IT DOES NOT PICK THE WINNER, ON PURPOSE.** Two of the three have the label + model agreeing
+  against the tech; one has the tech + model agreeing against the label. Guessing on 21590 sends
+  a tech out expecting the wrong machine. **Naming all three sources turns a five-minute
+  investigation into a ten-second decision** — that is the whole improvement.
+- **⚠️ 21590 WAS INVISIBLE AND WOULD HAVE STAYED THAT WAY.** The splitter scans
+  `stop_id=is.null` — correct for *“is there a second machine here”*, **wrong for “is this machine
+  labelled as itself”**. A wrong label reads as a *distinct* appliance, so the linker was perfectly
+  happy, the stop linked, and no flag ever existed. Added machines now get a **second, deliberately
+  narrow pass that ignores the stop filter and can ONLY ever produce `added_machine_label`** — it
+  can never claim a second machine.
+
+### ✅ `added_machine_label` — and it REPLACES the vague flag, never sits beside it
+Two of the three were already in the queue wearing the generic *“is this on the right machine?”*.
+A vague flag and a precise one on the same job are the same question asked twice, so the watcher
+**withdraws the vague one in the same breath** (`multi_appliance_resolved`, `how:'auto_withdrawn'`,
+`why:'replaced by a precise added-machine finding'`) and writes the precise one. `platform/tech-job.html`
+renders it **with no ＋ Add button** — offering one there is exactly how a phantom machine gets created.
+- **LIVE, verified OFF THE DATABASE: 3 `added_machine_label` · 3 `label_mismatch` · 7 `second_machine`
+  · 5 auto-withdrawn combos**, 0 errors; re-run → `flagged 0 / already_flagged 5 / retired 0`.
+  `?probe=` replays the page filter: the two upgraded jobs read `suspected:added_machine_label →
+  resolved → suspected:label_mismatch` newest-first, and **the page shows the precise one**; all 5
+  withdrawn combos still show nothing.
+
+### 🧠 `modelAppliance()` is EVIDENCE ONLY — it may enrich a finding, never raise or suppress one
+A model map is a guess dressed as a fact. So: **every entry is backed by a real row on this board**
+(named in the comment beside it), **`COMBO_MODEL_FAMILIES` is checked FIRST** so a laundry centre is
+never read as one half of itself, and an **unknown prefix returns `''` rather than something
+plausible**. It is wired only into the `ask` text of a flag that already stands on its own.
+Unit-verified 24/24 incl. every combo model returning blank.
+
+### 🔴 THE FOOTGUN I SHIPPED AND THEN CAUGHT — **`event.id` IS A `uuid`**
+The upgrade path means a job can legitimately carry a **resolved row UNDER a live flag**, so
+“is a flag standing right now” had to become **newest-wins** instead of the order-insensitive
+*“is there a resolved row anywhere”* (which would have hidden every upgraded flag from the tech
+AND re-flagged it every run forever). I made it newest-wins **ordered by `id`** — and
+**`event.id` is a UUID, so that is ordering by a random number while looking perfectly sorted.**
+- **Caught it because a verification query written the same way returned counts that could not be
+  true** (17 open / 1 settled, against 5 withdrawals I had just watched land). Fixed in both
+  places to `created_at`; the two writes in an upgrade are separate awaited round-trips so they
+  cannot tie. **STANDING: never order `event` by `id`. Check the column type before trusting a
+  sort — a meaningless sort does not error, it just quietly answers wrong.**
+- **And: a summary line is not a result.** The live run said `flagged 3 / retired 2 / errors 0` and
+  was telling the truth; the *verification* was the thing that was broken. Read the DATA, and when
+  the data cannot be true, suspect the query before the code.
+
+### ⏭️ OPEN
+- **3 `added_machine_label`** — a human picks which machine, one tap each. The fix is correcting the
+  ticket, not adding anything.
+- **3 `label_mismatch` + 7 `second_machine`** — unchanged from the laundry-center pass.
+- **The office edit path has no guard.** `office-board.html` → `update_job_basics` will happily take
+  an appliance that contradicts the job’s own problem text and model, and says nothing. Warning
+  there would stop this at the keyboard instead of catching it days later. **NOT built** — it is
+  the XANO side, and the flag now catches it either way.
+
+## 🧺🚫 2026-09-12 — A LAUNDRY CENTER IS **ONE** MACHINE: 5 of the first 17 flags were phantom · the tell is the MODEL, never the words · the VENDOR already knew and we weren't asking · flags now WITHDRAW themselves — READ FIRST
+
+Teddy: *"Let's do this. All on Supabase we need this completed."* Read all 17 live intake-split
+flags against **SquareTrade's own claim record** and found the splitter was asking humans a
+question with no answer.
+
+### 🥇 THE FINDING — five "wrong machine" tickets were one cabinet, and every one PAID
+| our ticket | SquareTrade's claim says | model | paid |
+|---|---|---|---|
+| Lg **washer** ("THE DRYER HAS A KNOCKING SOUND") | **COMBO WASHER DRYER** | WKG101HWA | ✅ $105 |
+| GE **washer** ("DRYER IS MAKING A VERY LOUD NOISE") | **COMBO WASHER DRYER** | GUD27ESSMWW | ✅ $150 |
+| Samsung **dryer** ("THE WASHER STOPPED…") | DRYER | WD53DBA900HZ | ✅ $105 |
+| Electrolux **washer** ("THE DRYER HAS A LOUD KNOCKING SOUND") | (unsubmitted) | ELTE7600AW | — |
+| **washer** ("THE DRYER… THE WASHER…") | — | GUD24ESSMWW | — |
+
+**The ticket was never wrong and there was never a second machine.** One cabinet, a washer half
+and a dryer half; the ticket names one and the complaint names the other. **In the text alone
+that is indistinguishable from a ticket on the wrong appliance** — which is exactly how the
+splitter read it.
+- **⚠️ Trap 4 could not catch these.** It matches the WORD "combo" — and **nobody writes "combo"
+  in a complaint.** The tell is the **MODEL** (already mirrored) or the vendor's product string.
+- **⚠️ CORRECTION TO MY OWN ENTRY BELOW.** I wrote that the 9 `label_mismatch` rows meant
+  "intake labelling is the deeper bug." That was wrong in both directions: **5 were combos**
+  (detector false positives), **2 were our own ＋ Add machine siblings** carrying a unit label
+  naming a different appliance, and only **3 were genuine** mislabels. And the money worry was
+  unfounded — **every submitted claim PAID** ($105 · $150 · $105 · $105 · $165.66). SquareTrade
+  pays off the CLAIM record, which carries the right product; our label never blocked a dollar.
+  **The cost is dispatch accuracy — a tech rolling up expecting a washer — not revenue.**
+
+### ✅ TRAP 6 (`_lib/multi-appliance.js`) — model families, **only ever for a washer+dryer pair**
+`detect(label, problem, { model, vendorProduct })`. `COMBO_MODEL_FAMILIES` = LG WashTower
+(`wk#`), GE unitized (`gud#`), Samsung combo (`wd#`), Electrolux Tower (`elte#`), Whirlpool
+(`wet#`), Maytag (`met#`) — each backed by a real row. **`comboOneMachine` refuses to speak
+unless the two appliances in play are exactly washer+dryer**, so a model family that turns out
+to be wrong can never suppress a genuine washer+range flag — the blast radius of a bad entry is
+one laundry pair, not the detector. **Unit-verified 14/14**, including that the three REAL
+mislabels all SURVIVE (GE dryer on a washer ticket, LG range on a fridge ticket, Maytag dryer on
+a dishwasher ticket) and that a combo model cannot excuse a dishwasher+dryer disagreement.
+
+### 🔎 `platform-vendor-product-sync` (+ `-cron`, `7 */4`, ahead of the splitter) — ASK the vendor
+The authority already existed and we were not reading it: the claim carries `product` + `model`
+straight from SquareTrade. **Scope is deliberately tiny** — it asks ONLY about a job that
+currently carries an unresolved flag AND is a washer+dryer pair we have no machine evidence for
+(one or two jobs, not a backlog sweep). **LIVE: asked 3 → learned 2**, one `COMBO WASHER DRYER`
+and one genuine `DRYER` on a ticket labelled "GE washer" (reported as a disagreement, flag
+correctly left standing).
+- **⚠️ STORED AS AN `event` ROW, NEVER ON `unit.attributes`.** The mirror rebuilds that jsonb
+  column WHOLE every run from {brand, appliance, model, serial} — merge-duplicates replaces a
+  jsonb column, it does not merge into it — so anything extra written there is gone inside five
+  minutes. Same reason the flags themselves are event rows.
+- **⚠️ The claim API only answers for SUBMITTED claims** ("No records found" until then). So it
+  settles history; a fresh dispatch is covered by the MODEL rule. Where neither exists the flag
+  correctly stands.
+
+### ↩️ THE SPLITTER NOW WITHDRAWS ITS OWN FLAGS
+A flag it can no longer stand behind comes DOWN — written as `multi_appliance_resolved`
+(`how:'auto_withdrawn'` + the reason), **never as an edit to the job**, the same mechanism a
+human uses. Leaving a dead flag up asks a tech to answer a settled question and buys the next
+honest flag less attention.
+- **LIVE, verified OFF THE DATABASE: 17 open → 12** (5 label_mismatch + 7 second_machine),
+  **5 auto-withdrawn, each carrying its reason**, 0 errors. The page still fetches a live flag
+  (`?probe=` → `rows 1`) and sees the withdrawal on a retired one (`rows 2`).
+- One of the five was retired by the **cron** between runs — the loop proving itself unattended.
+
+### ⏭️ OPEN — the 12 that remain
+- **7 `second_machine`** — genuine, one tap each on `platform/tech-job.html`.
+- **3 genuine `label_mismatch`** — GE dryer / LG range / Maytag dryer, all `servicepower_email`
+  SquareTrade, all **paid**. The vendor's `Product:` field on the dispatch disagrees with the
+  vendor's own complaint text; we read the field correctly. Not fixable upstream by us.
+- **2 are OUR bug, not intake** — jobs 21013 + 21641 (`Microwave — added at the stop` labelled
+  `GE Profile Oven / Range`; `Washer — added at the stop` labelled `Whirlpool dishwasher`).
+  **The added machine carried a unit label naming a different appliance**, which is ALSO why
+  those stops never linked — the linker saw the same machine twice and refused (`same_machine_twice`).
+  Xano's `add-machine.js` sets `appliance_type` correctly, so the break is between there and the
+  mirror's `j.appliance`. **NOT diagnosed — needs one raw kanban/dispatch payload.** Next up.
+
+## 🪓🚩 2026-09-12 — THE PLATFORM INTAKE SPLITTER: a naive split would have been WRONG 3 TIMES IN 4 · the `problem` field is half AI CALL SUMMARY · "STRANGE" contains "RANGE" · two different problems were wearing one signal — READ FIRST
+
+Teddy: *"Build the platform intake splitter, flag before it creates."* A warranty dispatch often
+covers TWO appliances and lands as ONE job. **The Xano side INVENTS the sibling from problem
+text. Measured against 90 days of real platform intake, that rule would have been wrong roughly
+three times out of four — so this FLAGS and stops.**
+
+### 🥇 THE FUNNEL — every step came from READING the rows, not the count
+| | |
+|---|---|
+| **119** | naive: any two appliance words anywhere in `job.problem` |
+| **42** | after dropping everything past **`\|\|`** — the platform **appends an AI CALL SUMMARY to `problem`**, and a narrative that merely mentions a dishwasher is not a dishwasher job |
+| **~11** | after the five rules below — **about one a week** |
+| **17** | what the shipped detector actually flags over 1,662 jobs (8 second-machine + 9 wrong-machine) |
+
+**⚠️ `job.problem` IS NOT DISPATCH TEXT.** Everything after `||` is an AI phone-call summary.
+Any rule that reads `problem` whole is reading narrative as fact. **That one split killed 65%
+of the false positives.**
+
+### 🪤 THE FIVE TRAPS, each taken from a live row (`_lib/multi-appliance.js`)
+1. **⚠️ FREEZER IS PART OF THE FRIDGE.** *"FRIDGE AND FREEZER STOPPED WORKING"*, *"Fridge not
+   cooling — freezer works fine"*, *"Other lights on freezer side"*. **13 of the 42.** A freezer
+   only counts as its own machine when **no refrigerator is named**.
+2. **⚠️ "STRANGE" CONTAINS "RANGE".** *"MAKING A STRANGE NOISE"* read as a range **4 times**.
+   Substring matching is fine for a short clean label and **wrong for free text** — every
+   keyword is word-boundary matched now. (Same family: "orange".)
+3. **⚠️ "DISH WASHER" CONTAINS "WASHER"** — 4 rows double-counted one dishwasher. Matched text
+   is **MASKED OUT** before the next keyword is tried, **longest keyword first**.
+4. **Combo units are ONE machine** — *"WASHER AND DRYER COMBO"*, *"MICROWAVE OVEN COMBO"*,
+   *"It's a **dual** washer and dryer machine"* (`dual` was not in the old COMBO regex).
+5. **Negation** — a real unit label on this board reads **"Washer not a fridge I added that on
+   accident"**. Anything after *not a / not an* is what it ISN'T.
+- **Unit-verified 41/42** against the live strings, **hand-labelled by reading every one**. The
+  single miss is a job labelled *dryer* whose text describes a fridge — **a mislabelled job,
+  not two machines**, and surfacing that to a human is defensible rather than something to
+  contort the detector to hide.
+
+### 🔀 TWO DIFFERENT PROBLEMS WERE WEARING ONE SIGNAL (found by reading all 17 hits)
+| kind | n | what it means |
+|---|---|---|
+| **`second_machine`** | **8** | the dispatch names another appliance → *"add the dryer to this stop?"* |
+| **`label_mismatch`** | **9** | **the ticket is on the WRONG appliance** — *"this says washer, but the dispatch says THE DRYER WON'T TURN ON"* |
+
+**Calling both "a second machine" would assert something untrue**, and a tech told to add a
+dryer to a job that should simply BE a dryer job creates the exact phantom machine this design
+exists to avoid. **The tell: is the label's appliance mentioned in the dispatch text at all?**
+Verified 6/6 on the live strings. **The wrong-machine class is arguably the more expensive
+one — the tech rolls up expecting a washer.**
+
+### ✅ `platform-intake-split-watch` (+ `-cron`, `19 */4`) — THERE IS NO CREATE PATH IN IT
+- **The human tap that creates is the ＋ Add machine button ALREADY LIVE on
+  `platform/tech-job.html`** — proven, side-effect-free, the same path a tech uses at the door.
+  **Nothing new to trust.**
+- **The flag surfaces right above that button**, quoting **the dispatch's own words**, so the
+  tech judges the evidence rather than a verdict. A `second_machine` flag offers one tap that
+  **PREFILLS** the form; a `label_mismatch` flag **deliberately offers no add button at all**,
+  because the fix there is correcting the ticket, not adding to it.
+- **Flags are `event` rows** — no schema change, and **nothing can clobber a human's text**.
+  Clearing one writes `multi_appliance_resolved`, **never an edit to the job**: a heads-up being
+  waved off must not touch the ticket. Adding the machine resolves it too.
+- **LIVE: 17 flagged / 1,662 scanned, 0 errors.** Re-run → `flagged 0 / already_flagged 17`.
+  **Verified off the DATABASE: 17 flags, 17 distinct jobs, 0 pointing at a missing job, 0 on an
+  already-linked stop.**
+
+### 🔎 `?probe=<job_id>` — because SQL proving a row exists proves NOTHING about the page
+A **JSON-path filter is its own failure mode**, and an empty result there is indistinguishable
+from "no flag". The probe **replays the exact PostgREST filter `platform/tech-job.html` builds**
+(`payload->>job_id=eq.<id>`) — confirmed live: `rows: 1`. Same discipline as `?tdr_probe=1`.
+
+### ⚠️ FOOTGUNS
+- **`days=0` means 180 unless you handle the STRING.** Burned twice now (stop-link, then this).
+  Any "0 means all" knob read off a query string has it.
+- **`_lib/appliance-vocab`'s `segToAppliance` is FIRST-MATCH, single-appliance.** It is correct
+  for classifying one clean label and **must not be used to scan free text** — use
+  `multi-appliance.appliancesIn`, which word-boundary matches and masks.
+- **`event` has no `entity_id` column** — the job id lives in `payload.job_id`, filtered as
+  `payload->>job_id=eq.<id>`.
+
+### ⏭️ OPEN
+- **The 17 flags are a human pass** — 8 offer a one-tap add, 9 say the ticket is on the wrong
+  machine. Nothing auto-creates and nothing will until these prove out.
+- **Auto-create stays UNBUILT on purpose.** At ~1 genuine candidate a week a human clears these
+  in seconds; a phantom machine carries its own claim and shows on the customer's portal.
+  Revisit only after watching the flags for a few weeks — **and the 9 wrong-machine rows say
+  the intake labelling itself is the deeper bug.**
+
+## 🧩📋 2026-09-12 — MULTIPLE MACHINES, ONE REPORT EACH: the spine was BUILT and had never once been used · 0 of 3,726 jobs carried the key every surface reads · 11 machines on warranty stops had no report and nothing could see it — READ FIRST
+
+Teddy: *"We also need the option for multiple machines and multiple Tdr one for each machine."*
+**Almost all of it already existed.** The gap was never the UI — nothing produced the key.
+
+### 🥇 THE FINDING — every multi-machine surface is keyed on `stop_id`, and NOTHING set it
+| piece | state before today |
+|---|---|
+| `job.stop_id` (migration **020**) | ✅ applied live, verified |
+| `platform/tech-job.html` — 🧩 chip row + **＋ Add machine** | ✅ built |
+| `platform/office-board.html` — **🧩 N machines** flag | ✅ built (in `baseRich`) |
+| each machine = own job → own unit → **own `job_tdr`** | ✅ already true |
+| **anything that WRITES `stop_id`** | ❌ **0 of 3,726 jobs** |
+| tech's day list knows a stop from a machine | ❌ no `stop_id` even selected |
+
+**Measured: 51 real multi-machine stops (110 jobs, biggest 3) sitting unlinked.** So a
+washer+dryer+fridge visit was 3 unrelated tiles to the office and 3 unrelated tickets to the
+tech. **The ＋ Add machine button only ever helped a stop a tech thought to link by hand.**
+
+### ✅ `platform-stop-link` (+ `-cron`, hourly `53 * * * *`) — LINKS, never creates
+**⚠️ The opposite of the Xano-side `multi-machine-watch`, on purpose.** That one INVENTS a
+sibling from problem text; this only ties together jobs that already exist. **A wrong create
+puts a machine on a ticket nobody is servicing; a wrong link costs one tap.**
+- **The key was chosen off the real split, not assumed.** Of the 51: **34 share ONE claim**
+  (unambiguous → auto-link); **17 have different or absent claims — which is both how a
+  per-machine SquareTrade work order looks AND how a duplicate looks**, so those are
+  **reported for a human, never guessed** (`needs_a_human[]` names the machines + job ids).
+- **⚠️ Machine identity is the canonical appliance TYPE, not the label text.** *"Samsung
+  washer"* and *"washer"* are ONE machine described twice — comparing raw labels would have
+  linked a **duplicate as a second appliance**. Inside the same-claim set **7 of 35 groups
+  repeat a machine**, so the rule also demands every job name a real, DISTINCT appliance.
+- **Hoisted the vocabulary to `_lib/appliance-vocab`** so the splitter and the linker share
+  ONE rule — a second copy drifts the way the two pasted portal part keys did before 068 —
+  and so a platform-native function stops dragging in `metadata-crud`. **Unit-verified 12/12**
+  on the real labels, incl. **`Kenmore Dishwasher` → dishwasher, NOT washer** (the documented
+  substring trap) and `Appliance` → blank.
+- **Writes exactly ONE column, `job.stop_id`.** Never status, never the TDR, never parts.
+  Reversal is `?unlink=1&confirm=yes`, which **refuses any stop a tech anchored himself**.
+- **LIVE: 27 stops / 60 jobs linked, 0 errors.** Re-run → `linked 0 / already_linked 27`
+  (idempotent). **Verified off the DATABASE, not the run's summary:** 60 rows carry a
+  stop_id across 27 stops, **0 anchors missing their own stop_id** (office-board counts
+  `if(j.stop_id)`, so a missing anchor would silently under-count), **0 orphan singletons,
+  0 repeated labels inside a stop.**
+
+### 🔴 THE PAYOFF — "one report per machine" is now a QUESTION YOU CAN ASK
+Of the 27 linked stops: **16 have a report on every machine. 7 are PARTLY reported —
+11 machines with NO report, every one on a warranty claim.** An unreported machine on a
+warranty stop is an **unfiled claim**, and until the machines were linked *nothing anywhere
+could see it*. e.g. claim `74354859` — Samsung dryer ✅, but the **dishwasher and the washer
+have no report**; claim `69386009` — 1 of 3.
+- ⏭️ **Those 7 are a human pass** (list is in the session log / re-pull any time). The fix is
+  the tech opening the sibling chip and filing that machine's report.
+
+### 🚗 THE TECH'S DAY NOW COUNTS DRIVES, NOT MACHINES (`platform/tech.html`)
+It had **zero stop awareness — it never even selected `stop_id`** — so a 3-machine visit read
+as 3 stops, took 3 route numbers, and made the day look 3 jobs busier than it is.
+- Routes + numbers by **STOP**, then expands each stop back into its machines, so siblings sit
+  together and **share one route number**.
+- Day label says **"5 jobs · 3 stops" ONLY when those differ** — an ordinary day still reads ordinarily.
+- Each card carries **"🧩 Also here: Kenmore dryer"** — what he is walking into, before he
+  drives, each machine still keeping its own report.
+
+### ⚠️ FOOTGUNS BURNED
+- **`days=0` silently meant 180.** The query string hands a **STRING `"0"`**, so `o.days === 0`
+  never matched and `parseInt("0") || 180` → 180. Any "0 means all" knob read off a query
+  string has this bug. Unit-verified 6/6 after.
+- **Prove a paged read is COMPLETE before writing off it.** The linker refuses to link at all
+  on a short read (`platform_read_incomplete`) — a half-read group would link some machines of
+  a stop and leave the rest. Confirmed `jobs_scanned: 1200` **equals** TN's scannable count exactly.
+- **A raw job count is not a stop count, and neither is a tenant-blind one.** My first SQL said
+  51 stops, the linker said 50 — the 51st was **another tenant's demo stop**, correctly excluded
+  by the company filter. Scope every platform measurement by `company_id`.
+- **`day` is a reserved word in Postgres** — `max(x) day` is a syntax error; alias it `sday`.
+
+### ⏭️ OPEN
+- **17 stops the linker deliberately refuses** (14 different-claims, 2 no-claim, 7 blank-machine
+  — a job whose unit names no appliance we recognise). All reported, none guessed. Worth a
+  human pass; if the different-claim ones turn out to be genuinely one visit each time, that
+  rule can be widened *after* watching it, not before.
+- **Nothing yet creates the sibling at INTAKE.** A multi-item warranty dispatch still lands as
+  one job until a tech taps ＋ Add machine or a second dispatch arrives. The Xano side has
+  `appliance-split`/`multi-machine-watch` for exactly this; the platform equivalent is the next
+  build — and per the rule above it should **flag before it creates**.
+
+## 📦↩️ 2026-09-11 — NSA'S TURN: parts arrive with no tracking AND get charged back on a CLOCK · the digest is a POSITIONAL table that tag-stripping silently corrupts · 8 "customers" that were one woman — READ FIRST
+
+Teddy: *"Let's add this for future returns and future parts being sent."* Third vendor, both
+directions, same discipline: measure, read four real emails, verify the join key, shadow, ship.
+
+### 🥇 THE THIRD FLAVOUR OF THE SAME CHARGEBACK — NSA states the CLOCK, not the DOLLAR
+Platform, NSA jobs: **35 parts / 17 jobs · 0 with tracking · 0 flagged owed back.** Same hole
+the AHS audit found — the parts are on the tickets, but nothing recorded that a shipment was
+coming and nothing recorded that NSA wants any of it back. Both facts arrive by email, **from
+ONE sender** (`notifications@em.nationalservicealliance.com`), and nobody was reading either.
+
+| | SquareTrade | AHS | **NSA** |
+|---|---|---|---|
+| label | prepaid FedEx | **none — we pay freight** | prepaid (tracking given) |
+| clock | not stated | "within 10 days", fixed | **ROLLING age, 31 days** |
+| dollar | "may be charged" | **"$295.74 deducted"** | **not stated in the email** |
+| mechanism | per part | **per PO** | per part, **auto-deducted** |
+
+**NSA is exactly inverted from AHS** — it states the deadline but never the amount, where AHS
+states the amount but only per-PO. Both land as `must_return` + a deadline; `returns.html`
+already renders a null penalty as *no stated $*, which is honest rather than a fake zero.
+Verbatim: *"When the age reaches 31 days our system will automatically charge you for the part
+by deducting the cost from future payments."* → **due = notice date + (30 − age)**.
+
+- **✅ `nsa-parts-watch` (+ `-cron`, hourly `37 * * * *`) — TWO PASSES, ONE GMAIL READ.** Same
+  sender for both, and the multi-account fan-out is the flaky part of this whole pipeline, so
+  one read halves the exposure. **Live: 4 parts tracked · 1 obligation created · 0 errors.**
+  Second pass: `parts_tracked 0 / already_tracked 1`, `created 0 / flagged 1` — idempotent.
+- **PASS 1 (parts being SENT)** — *"4 HIS parts for Case# H4441313 have shipped via tracking
+  number 522944922847"*. **ONE tracking, a part COUNT, and NO part numbers**, so it cannot be
+  matched per part. It stamps `ship_tracking`/`carrier`/`status` on the job's untracked rows
+  and **refuses to guess when the counts disagree** — H4437394 says 1 part but the job has 2
+  untracked rows, so stamping both would assert a shipment that never happened. H4433092 had
+  exactly 4 rows against a 4-part notice → clean stamp.
+- **PASS 2 (parts owed BACK)** — the weekly Wednesday *"NSA Action Needed - Potential Parts
+  Charge"* digest. **`Return Reason: "Parts Installed"` is 064 in the wild** — the part WAS
+  used and the core is still owed back, and every one of those rows reads `disposition='used'`
+  on the platform. Keying the obligation off `disposition` would have erased precisely the
+  ones that cost money. **Touches `must_return` only, never `disposition`.**
+
+### ⚠️ THE DIGEST IS A POSITIONAL TABLE — tag-stripping silently corrupts it
+6 `<td>` cells, each **stacking 3 values with `<br>`** (Case/Name/Phone · Acct/Part#/Desc ·
+Qty/Each/Extend · RMA-Sent/Tracking/ShipCo · Reason/HasCore · Age). `decodeBody()` strips tags,
+which **collapses the EMPTY sub-values** — `1<br><br>` → `1` — so a blank Each/Extend/RMA cell
+**slides the tracking number into the RMA slot** and every column after it shifts. Harmless for
+a `Key: Value` email (AHS); fatal here.
+- **✅ Added `rawBody()` + `readMany(..., {html:true})` to `_lib/gmail-accounts` and `?raw=1` to
+  `gmail-msg-dump`** so a parser for a table email can be written against the real markup
+  instead of guessed at. **Parsers unit-verified 40/40** against 12 real digests + 4 real
+  shipped notices, including an explicit assertion that tracking does NOT land in `rma_sent`.
+- **⚠️ STANDING: before parsing a vendor email, look at whether it is LABELLED or POSITIONAL.
+  A positional table must be read from raw HTML — the stripped text is lossy in exactly the
+  cells that are empty, which is the failure you will not see in a summary line.**
+
+### 👩 EIGHT "CUSTOMERS" THAT WERE ONE WOMAN (and why the obligation nearly landed on a ghost)
+Claim `NSA010566012401` resolves to **8 job rows with 8 DISTINCT `customer_id`s**. First read
+looks like 8 different people sharing a claim — which would make the join key unsafe to write
+through. **It isn't: all 8 are the same human (DAVIS, 615-889-9517)**, each with a separately
+minted customer row — the documented warranty-intake dedup bug. But **7 of the 8 are nameless
+shells**, and the resolver was picking among them arbitrarily, so the money obligation could
+land on a card the office cannot identify.
+- **The digest states the last name AND the phone, so `resolveJob` now uses them:** part match
+  → phone/last-name match → **a real customer record over a shell** → live-over-terminal →
+  newest. Verified: the obligation landed on **PATRICIA DAVIS / HERMITAGE**, the one real row.
+- ⚠️ **A distinct-`customer_id` count is NOT a distinct-person count on this platform.** Check
+  the names before concluding a join key is unsafe.
+
+### 🐞 TWO DEFECTS THE SUMMARY LINE HID (found by reading the rows, again)
+1. **`scanned:20` for 10 distinct messages.** The same NSA email lands in TWO connected
+   inboxes with different Gmail ids, so the fan-out returned every notice twice and the
+   shipped pass walked each one twice (`notices 10` → really 5, `parts_tracked 8` → really 4).
+   Live patches would have been idempotent, but the counts were a lie. **Deduped on the
+   NATURAL key (case + tracking)** — a shipment is one shipment however many inboxes saw it.
+2. **The watcher reported its OWN write as a discrepancy.** First live run returned
+   `no_longer_listed:1` on the very part it had just created: rows we create get no id back
+   (`Prefer: return=minimal`), so an id-based set never contained them. Now compares on **part
+   identity via the shared `rowMatches`** — the same test that decides flag-vs-create, so the
+   two halves can no longer disagree.
+
+### ⚠️ FOOTGUNS BURNED
+- **The 26s cap.** This sender also blasts dispatches, update requests and EFT registers, so
+  `from:` alone pulled 40+ per inbox across four inboxes and the full-format fetch timed out.
+  **Scope the Gmail query to the subjects you actually parse** (`(subject:"A" OR subject:"B")`)
+  — took the pull 40+ → 10.
+- **A single zero from the Gmail fan-out proves NOTHING.** The same query returned 40 then 0
+  back-to-back while I was A/B-testing OR syntax, which made all three (working) spellings
+  look broken. **Sample 5× and take the max.** The watcher reports `scanned` + returns an
+  explicit note on an empty read so a dead read can't masquerade as "no notices."
+- **The digest is FULL STATE, not an event.** Replaying a 30-day window of them would
+  **RESURRECT obligations that were settled** and have since dropped off the list — so only the
+  **NEWEST** digest is applied. It also reports `digest_age_days` (currently **23** — NSA has
+  gone quiet since Aug 19, which usually means the list emptied). It is still applied: on this
+  money the expensive direction is showing nothing while a deduction lands, and a settled row
+  costs the office one tap.
+
+### ⏭️ OPEN
+- **`no_longer_listed` is REPORTED, never auto-cleared.** The digest genuinely is authoritative
+  state, so auto-clearing is tempting — but a wrongly-cleared row costs the part while a stale
+  one costs a tap. Flip it on only after watching it for a few weeks.
+- **The digest column is labelled "Return Tracking" and is stored as given.** ⚠️ Whoever fixes
+  the FedEx Track 403 must **confirm the direction before letting `fedex-returns-autoclose`
+  act on an NSA-sourced `return_tracking`** — if it turns out to be the INBOUND number,
+  auto-close would clear an obligation the moment the part *arrived*.
+- 3 NSA shipments hit `no_part_rows_on_job` (H4441313, H4399135, H4373250) — the notice names
+  no part numbers, so there is nothing to attach a count to. Recorded as
+  `warranty_part_unmatched` rather than inventing nameless rows that would show on the tech
+  card and the customer portal.
+
+## ↩️💸 2026-09-11 (later) — AHS WANTS ITS PARTS BACK TOO: half the parts book read "nothing owed" · the returns worklist was reading the wrong column · $2,778 with a clock on it — READ FIRST
+
+Teddy: *"We also requested parts from AHS as well. AHS also ships parts to us."* Measured what
+that means for the chargeback shield and found the other half of it wide open.
+
+### 🥇 AHS IS HALF OUR PARTS AND EVERY ROW SAID "NOTHING OWED BACK"
+Platform, last 90 days:
+
+| vendor | parts | jobs | with tracking | flagged owed back |
+|---|---|---|---|---|
+| SquareTrade | 1,024 | 426 | 491 | 20 |
+| **AHS** | **980** | **489** | **0** | **0** |
+
+- **Not because AHS doesn't want them back — because the obligation arrives in a SECOND email
+  nobody was reading.** `ahs-parts-watch` reads the *part-ordered* notice, which genuinely
+  states no return requirement, so it records `requires_return:false` (correct for that email).
+  The requirement shows up later as **"AHS Part Return Notification"** from
+  **`AHS_Purchasing_Part_Returns@ahs.com`**. **⚠️ This corrects the standing note in this file
+  that AHS parts are "no tracking, no return."** They are the STRICTER vendor:
+
+  | | SquareTrade | AHS |
+  |---|---|---|
+  | label | prepaid FedEx label emailed | **none — we pay the freight** unless the error was theirs |
+  | clock | not stated | **"within 10 days"** (or 30), explicit |
+  | penalty | "may be charged" | **"or $295.74 will be deducted from your payables"** |
+  | RMA | in the email | **requested by hand** (the office emails Bobbi at AHS) |
+
+- Real notices in 30 days: **$122.39 · $149.95 · $192.13 · $219.68 · $295.74** plus a run of
+  **$60 cores**. The only thing between those and the deduction was someone spotting the email.
+- **✅ `ahs-returns-watch` (+ `-cron`, hourly `27 * * * *`) parses each notice and stamps
+  `must_return` + the deadline + the dollar onto the platform `job_part` row** — so it lights up
+  in every lens that ALREADY reads `must_return` (tech card ↩️ OWED BACK, office tile, drawer),
+  now with a clock and a price so the office can work the expensive, soon one first.
+- **THE JOIN KEY, verified not assumed: the notice's `PO #: 73350799-4667379` carries the AHS
+  claim as its FIRST segment.** All 11 sampled PO numbers matched a real AHS job by
+  `claim_number`. A claim covers several machines, so `resolveJob` prefers the sibling that
+  already carries the part rather than guessing which machine owes it.
+- **Live result, read off the DATABASE not the run: 32 parts owed back across 23 jobs / 29 POs,
+  $2,778.59 at risk, every one carrying a real deadline — 4 already OVERDUE, 8 due inside 7 days.**
+  Second full pass: **66 flagged, 0 created** (idempotent).
+- **Deliberately does NOT touch `disposition`.** 064 is explicit: `must_return` is the VENDOR's
+  rule, `disposition` is what the TECH did, and **a core is owed back even when it was USED**.
+
+### 🔴 THE RETURNS WORKLIST WAS READING THE WRONG COLUMN (50 rows → 99)
+`platform/returns.html` — the screen the office actually ships returns from — filtered on
+**`disposition='return'`**, the TECH's unused-part flag, and **never read `must_return`** at all.
+So every core and every vendor-stated obligation was invisible there, SquareTrade's 20 included.
+That is the exact conflation 064 warns about, living in the one surface where it costs money.
+- Now reads **both**, ordered by **soonest deadline** (dated beats undated; undated falls back to
+  age), says **whose rule each row is** (↩️ vendor wants it back / 🔧 tech flagged unused), and
+  totals the money at risk.
+- **⚠️ The penalty is stated PER PO, not per part** — a 3-part notice carries one $295.74. Both
+  the column comment and the score tile dedupe on `return_po`; **never `sum(return_penalty_cents)`.**
+- **`docs/sql/069_ahs_return_terms.sql` (APPLIED):** `return_due_at` / `return_penalty_cents` /
+  `return_po`. Separate from `must_return` on the same reasoning as 064 — that one is WHETHER,
+  these are WHEN and HOW MUCH, and **a missing deadline must never read as "not owed"** (SquareTrade
+  states none).
+
+### 🐞 THE SHADOW RUN WANTED TO CREATE 58 DUPLICATES — caught by reading the rows, not the summary
+First dry-run reported **`create=58, flag=0`**: every part looked brand new. It wasn't. The parts
+were already on those jobs, under a `number` column full of legacy-parser junk —
+`"Drum Front Bearing Assembly, Upper WE03X25576"`, `"AKC72949319 : LG Refrigerator Ice Maker &
+Bucket"`. Comparing the vendor's clean `WE03X25576` against that whole string matches nothing and
+inserts a second copy of a part already on the ticket — **doubling the office's parts list on
+exactly the jobs that owe money back.** `platform-sp-parts-sync` had already solved this, so the
+rule was **hoisted to `_lib/part-match.js` rather than copied** (a second copy drifts the way the
+two pasted portal part keys did before 068). After the fix: **flag=18, create=38**. Unit-verified
+9/9 on the real strings including the near-miss that matters — **`AKC72949319` must NOT match
+`AKC72949301` one row above it on the same job.**
+- **⚠️ STANDING: `create=N, flag=0` from a vendor feed is a MATCHER BUG until proven otherwise.**
+  Read the rows the writer is about to touch, not its summary line.
+
+### ⚠️ FOOTGUNS BURNED
+- **Put the cron on the core and killed my own shadow run.** A Netlify fn carrying a `schedule`
+  block **edge-403s on every external HTTP call** — documented in this file, burned anyway. Split
+  core + thin cron wrapper **from the start**, always.
+- **The Gmail multi-account fan-out is flaky/eventually-consistent** — the same query returned
+  30, then 0, then 4 within minutes, and a run can report `scanned:0` that looks exactly like
+  "no notices." The watcher reports `scanned` so a dead read is visible, and hourly + idempotent
+  means it self-heals; **don't read one zero-scan run as an empty inbox.**
+- **A notice whose claim doesn't resolve is recorded as `warranty_part_unmatched`, never dropped.**
+  Losing a money obligation because a join missed is the whole exposure.
+
+### ⏭️ OPEN
+- **One clearing pass on `returns.html`.** Some of the 32 were already shipped back by hand
+  through the Gmail thread with AHS; nothing recorded it, so they read as open. One tap each
+  (**✓ Shipped it**) clears them, and from here the list stays honest. The asymmetry justifies
+  it: a missed obligation costs $60–$295, a stale row costs a tap.
+- ~~**NSA ships parts too**~~ — **BUILT same day, see the NSA entry above.** `nsa-parts-watch`
+  covers both directions; NSA turned out to be the stricter clock (31-day auto-deduction).
+- The RMA is still requested by hand. The notice carries `REA #` when AHS pre-issued one (we now
+  store it); when it just says "invoice" or "call tag," a human still emails for the RMA.
+
+## 🔧👷 2026-09-11 (latest) — AGENTS FOR THE CREW: the "already answered" guard read a field that is always ZERO (and my 672 was a mirror gap, not dropped customers) · 19 of 45 upcoming jobs have no model anywhere · first-visit-fix is measured on a biased sample · a dropped scope asks ServicePower for EVERYTHING — READ FIRST
+
+Teddy: *"What agents would HCP and ServiceTitan and Jobber build? We need to give our people the
+best possible opportunity to help them be successful."* So: what those products build for techs,
+then what OUR data says is actually in the way. Measured before building, and two of the things I
+built were wrong until the data said so — including one I had already written up as the headline
+finding, which I re-measured against the guard's OWN input and had to correct outright.
+
+### 🥇 THE ONE THAT MATTERS — the "already answered" guard was reading a field that is ALWAYS ZERO
+**⚠️ THIS CORRECTS MY OWN ENTRY FROM EARLIER TODAY. The first version of this section said a
+customer who sent the video satisfied the guard so we never asked for the sticker, and put the
+number at 672. Both were wrong. I checked the guard's actual input instead of the platform's and
+the mechanism is the opposite of what I wrote.**
+- **`get_unified_tdr_status.attachments_count` / `has_photo` count TDR (tech) attachments, NOT
+  customer intake media.** Measured: **66 of 66** recent jobs report `attachments_count:0`, and so
+  do **25 of 25** jobs the platform confirms have real customer photo+video from the last two days.
+  The customer's video and model sticker land on the **PLATFORM** (`job_media`); Xano never sees them.
+- **So the has-media skip never fired at all — before OR after my change.** It is dead code that
+  looks live. The consequence runs the *opposite* way from what I claimed: the STOP branch never
+  fired either, so **customers who sent us BOTH things kept getting "send a video and the model
+  sticker"** — the exact "reads as if nobody looked" failure, bounded only by the 2-touch cap.
+- **The 672 was not 672 dropped customers.** It was `unit.attributes.model` being blank on the
+  platform. Sampled 25 of those jobs against Xano: **19 (76%) already have the model** — e.g.
+  `GFW650SSN1WW`, `WA50R5200AV/A4`, `KDSS907SSS03`. That is a **MIRROR gap on terminal jobs** (the
+  mirror only walks ACTIVE statuses, so a completed job's unit never gets backfilled), not an intake gap.
+- **✅ FIXED: the guard now asks the store where the answer actually is, and stops when EITHER
+  system knows it.** New `platform-db.intakeStateByXanoId()` — ONE batched lookup per run (3
+  requests total, chunked at 150 ids, not 3 per job), merged with the Xano read. A platform failure
+  falls back to Xano-only, i.e. today's behavior. Seven branches unit-verified incl. junk models
+  (`"Uploaded pic"`, `"Refrigerator"` → still ask) and the fail-open path.
+- **Live effect on the 45 upcoming jobs: 11 customers who sent everything STOP being chased**
+  (they'd have been texted), **4 get the sticker-only ask**, 30 who sent nothing get the full ask.
+  The over-texting fix is the bigger half and it was invisible until the guard could actually read.
+- **⚠️ STANDING: a guard keyed on a field that is structurally always zero is dead code that looks
+  live.** Before trusting any "they already answered" check, read the field on a row you KNOW
+  answered. I shipped this one on a platform-side measurement and never checked the guard's own input.
+- **⚠️ TWO SILENT-DEGRADATION TRAPS hit while fixing it, same shape both times:** `rest().get()`
+  returns **`[]` on ANY non-ok response**, so a malformed PostgREST filter reads as "this customer
+  sent nothing" and the guard quietly reverts to old behavior while looking healthy. (a) I quoted
+  the UUIDs in `in.(...)`; every in.() call already proven against this DB (`platform-appt-reminder`,
+  `platform-ant`) passes them **UNQUOTED**, and `"` is not URL-unreserved — matched the proven form,
+  not the plausible one. (b) The run now reports **`platform_state_jobs`** so the next tick says
+  outright whether the lookup returned rows, instead of leaving it to be inferred from a skip count.
+
+
+### 📏 THE MODEL GAP — measure it on UPCOMING jobs against BOTH stores, not on 60 days of one
+**⚠️ CORRECTED. I first published a 60-day per-vendor table (SquareTrade 13.3% · AHS 22.7% · NSA
+7.2%) and called the gap ~80%. That table reads `unit.attributes.model` on the PLATFORM only, and
+60 days is mostly completed jobs — exactly where the mirror gap lives (the mirror walks ACTIVE
+statuses, so a terminal job's unit never gets its model backfilled). Those percentages understate
+real coverage badly. I dismissed an earlier "57% from a 44-job upcoming slice" as unrepresentative;
+for the operational question it was the more honest number.**
+- **The number that decides whether a tech drives out blind, verified per job against BOTH Xano and
+  the platform: 19 of 45 upcoming jobs (42%) have NO model anywhere.** Not 80%.
+- **Of those 19: AHS 15 · NSA 2 · Frontdoor 1 · SquareTrade 1.** So **17 of 19 are on books
+  ServicePower has never seen** — no vendor API can supply them. The model has to come from the
+  customer, which is why the intake guard is the lever and not an API.
+- **Only 4 of the 19 have sent us media** (they engaged, the sticker never landed) → those get the
+  sticker-only ask. The other 15 sent nothing at all.
+- **⚠️ STANDING: a coverage number measured on one store over a long window is measuring your sync,
+  not your intake.** Scope it to the rows that are operationally live and check every store that
+  could hold the answer.
+- **⏭️ FOUND, NOT FIXED — a model/serial backfill for TERMINAL jobs.** ~76% of the platform's
+  blank-model media jobs have the model sitting in Xano. It costs nothing operationally (a
+  completed job's tech already drove out) but it silently poisons any coverage or first-visit-fix
+  metric read off the platform, which is exactly how I got the 80% wrong. Same shape as the
+  existing `?backfill_tdr=1` sweep: additive, blank-only, safe to re-run.
+
+### 🐞 `platform-job-prep` WAS ASKING THE WRONG VENDOR (found by RUNNING it, not reading it)
+The dry pass reported a clean **"20 of 20, vendor had none"** — which contradicted the 19-of-19
+model coverage measured off live SquareTrade dispatches. Two bugs, both mine, both invisible in
+the summary line:
+1. **98 of 109 candidates were AHS** (8-digit claims). ServicePower carries the SquareTrade/
+   Allstate book — an AHS number is a question about a call it has never seen, and it answers
+   "no model" every time. **A coverage limit was arriving disguised as a thin vendor API.** Now
+   scoped to the vendors that API serves, and counted **separately** (`not_in_servicepower`) so it
+   can never hide again.
+2. **"Upcoming" had no lower bound** → swept the stale-scheduled backlog; **90 of 109 were June,
+   July, August.** Nobody drives to those tomorrow.
+- **⚠️ A clean-looking summary line is not a clean result.** Both bugs produced `ok:true`.
+
+### 🔴 A DROPPED SCOPE ASKS SERVICEPOWER FOR EVERYTHING (`getCallInfo`, fixed as the CLASS)
+`platform-job-prep` called `getCallInfo({ callNumber })`. **The parameter is `callNo`.** The field
+helper drops empty values, so `<Callno>` was **omitted entirely** and the request went out scoped
+by nothing but a date window — and two of the three callers that scope by call number pass an
+**empty date window on purpose**, so there the same slip asks for every call ServicePower has.
+**Same shape as the 2026-09-11 runaway** (empty claim number → 762 other people's parts on one job).
+- Fixed at the call that can be wrong: `getCallInfo` refuses a `callNo` that is **supplied but
+  blank**, and refuses **unknown parameter names** — an intent check alone does NOT catch a typo,
+  because `{callNumber}` carries no `callNo` and reads as a deliberate window query. Window-only
+  calls (auto-accept, capacity poll) are untouched.
+- **⚠️ STANDING: a misspelled scoping parameter must be LOUD, never silently unscoped.**
+
+### 📉 FIRST-VISIT-FIX IS MEASURED ON A BIASED SAMPLE — do NOT coach off it yet
+`first_stop` reads **86-89%**, but: of 189 jobs sitting in `awaiting_parts`, **189 are unmeasured.**
+Cause confirmed (not guessed): all 189 are **Xano-mirrored**, the mirror **INSERTs** them already at
+`awaiting_parts`, and the trigger is **`before update`** with a transition test
+(`old.status is distinct from 'awaiting_parts'`) that therefore never matches. They have been
+updated since insert — the transition just never happens.
+- **The population structurally excluded is the one that did NOT get fixed on the first stop**, so
+  the rate is biased **upward**.
+- **⛔ DO NOT just backfill `first_stop=false` for awaiting_parts.** At TN parts are ordered
+  **before** the first visit ("beat the tech to the door" → `record_parts_order` flips the job), so
+  `awaiting_parts` does **not** mean "the visit failed." A blind backfill would blame techs for
+  jobs nobody has visited yet. The honest fix needs a "did a tech actually arrive" signal
+  (`job_started_at` / arrival event) to split pre-visit parts from a failed visit. **Flagged, not
+  fixed — the metric is worth getting right before anyone is coached on it.**
+
+### 🏢 WHAT HCP / SERVICETITAN / JOBBER WOULD BUILD — and which of it we actually need
+They converge on ~7 tech-facing agents: **know-before-you-go job prep · route + drive-time ·
+price book with options at the door · tech scorecard · truck stock ("do I have the part") ·
+membership conversion · estimate follow-up.**
+- **The upsell half does not transfer.** TN is ~95% warranty: price book, membership conversion and
+  estimate follow-up are ServiceTitan's revenue engine and mostly dead weight on a warranty board.
+- **What DOES transfer is the boring half, and it is exactly where our data hurts:** job prep
+  (model 13-23%), parts-before-the-visit (blocked on FedEx Track 403), and a scorecard — which we
+  cannot honestly build until the measurement bias above is fixed.
+- **The crew is not the problem.** 86-89% first-visit-fix across a 3-point spread between techs
+  means the lever is not coaching — it is **not sending them out blind**.
+
+
+## 🙋‍♀️💬 2026-09-11 (latest) — AGENTS FOR THE CUSTOMER: 41 people were waiting on us and nothing said so · the portal showed a ONE-SIDED conversation — READ FIRST
+
+Teddy: *"We need to build agents to help us make this the best possible solution for people
+needing our services."* Started by reading what customers actually say to us instead of guessing
+what they want.
+
+### 📖 WHAT CUSTOMERS ACTUALLY TEXT (88 real messages, one week, classified)
+| bucket | share |
+|---|---|
+| **scheduling / availability** | **dominant** — and many of the "other" bucket are too (*"Yes that time works"*, *"Sorry, that will not work"*) |
+| where is the tech / arrival heads-up | *"Are you able to call/text 15-30 minutes ahead of arrival?"* |
+| parts | *"Yes, is the part available?"* |
+| **still broken** | *"I uploaded the video. Unfortunately it sounds the same. I'm not sure it was fixed."* |
+| access info, unprompted | *"Door code is 2528"* |
+
+### 🔴 THE PORTAL WAS SHOWING A ONE-SIDED CONVERSATION (`teeOutbound`, LIVE)
+`teeInbound` has carried the customer's half onto the platform for months. **Every office reply
+goes out through `human-line-send`, which records it with `crud.logEvent` → XANO.** So the
+platform thread only ever held one side.
+- **Measured, TN, 7 days: 100 inbound customer texts · 12 outbound.** Twelve customers had sent
+  **3–7 messages each with 0 or 1 replies** visible (Givens 7→0, Jarrod 6→0, James 6→0, Becky 5→0).
+- **`portal_get` reads `thread_message`** — so a customer opening their portal to check on a
+  repair **saw their own questions sitting there with nothing under them.** They were being
+  answered. It just read exactly like being ignored by a shop that was in fact replying.
+- **`_lib/platform-thread.teeOutbound`** mirrors `teeInbound` — same resolver, same dedup, same
+  time-boxed never-throws discipline, opposite direction. Wired at **`human-line-send`, the
+  chokepoint all SIX human-to-customer paths already delegate to** (office board replies, tech
+  texts, pay links, parts concierge, review asks, translated replies). Runs AFTER the send: if it
+  fails the customer still got their reply, we just didn't write it down.
+- **Side effect worth naming: office replies now survive Xano.**
+
+### 🙋 NOBODY'S MESSAGE FALLS THROUGH (`platform-unanswered.js` + `platform/needs-reply.html`, NEW)
+**41 customers whose LAST message has nothing after it — 21 past 24 hours, averaging 26.**
+Most were probably answered on the phone (several of these messages literally say *"call me"*).
+**That IS the problem: from the outside an answered-by-phone looks identical to a dropped one,
+so neither gets chased, and no surface anywhere says "these people are waiting."**
+- Finds them, **classifies what they're asking about**, and pulls enough job context (status,
+  day, parts, problem) that whoever clears the list doesn't have to go hunting first.
+- **⚠️ IT TEXTS NOBODY.** The standing rule is no proactive customer texts, and a watcher that
+  started messaging people would be the exact thing that rule exists to prevent. It surfaces;
+  a human answers.
+- **Dismissals are `event` rows, NEVER `thread_message`** — clearing the queue must never put a
+  reply in front of the customer that nobody actually sent.
+- **⚠️ THE "HANDLED" BUTTON IS LOAD-BEARING, not a nicety.** Most of these WERE handled by phone,
+  so with no way to clear them the list is mostly noise inside a week and the office stops
+  opening it. **A queue you cannot clear gets abandoned.**
+- **Intent buckets written against the real messages and tested on them: 12/13.** The one "miss"
+  is my expectation being wrong — *"11-2 works. Are you able to call 15-30 min ahead?"* has the
+  scheduling settled; the open question really is the arrival heads-up.
+- **Two misses that DID matter, both fixed:** *"sounds the same"* reverses the word order the
+  first pattern assumed (that's a **failed repair**, the highest-urgency bucket), and
+  *"that will not work"* is how customers decline a day (**the most common reply we get**).
+  Both were landing in `other`. Sort order puts **still-broken and wants-a-call above everything**,
+  regardless of age.
+- **Tenant-generic** — company comes from the caller's own session, never a constant.
+
+### ✍️ IT DRAFTS THE REPLY — BUT ONLY WHERE THE ANSWER IS CERTAIN (`draftFor`, LIVE)
+Scheduling is what customers write about most and every reply is hand-read, so drafting is the
+biggest time lever on that queue. **But a wrong draft is worse than no draft, because a draft
+invites being sent without being read.** So it drafts ONLY when the job record already knows the
+answer, and returns null otherwise.
+- **Drafts:** already-booked day · where-is-the-tech · parts-on-order · parts-landed · access-info.
+- **⚠️ REFUSES ON PURPOSE — and these two refusals are the design, not a gap:**
+  **open scheduling negotiation** (*"anything before noon?"* needs real capacity / day-off /
+  service-area logic — a confident guess books someone into a slot nobody can work) and
+  **still broken** (a customer saying the repair didn't hold deserves a person, not a template).
+- **Where there is no draft the page says WHY**, naming the reason. A blank space reads like a
+  bug; *"they are telling us the repair did not hold"* reads like the system knowing its limits.
+- **Day-only, never a clock time** — a texted "3:00 PM" is a broken promise the moment the route
+  shifts. **Copy, not send:** the office reads it, edits, sends from the conversation they were
+  opening anyway. **Nothing on that page can text a customer.**
+- Verified all eight branches: 5 draft, 3 correctly refuse.
+
+### ⚠️ THE OLD AGENT RUNTIME IS DEAD — build agents as Netlify scheduled functions
+**`loop_tick` = 0 over 3 days.** The Mac-Mini colony loop that ran the 379-agent blueprint is not
+running. **Anything called an "agent" today is a Netlify function** (scheduled, or session-authed
+like this one). Don't add to `colony-loop/agents/` expecting it to fire.
+
+### ⏭️ NEXT CUSTOMER-SERVING AGENTS (measured candidates, not guesses)
+1. **Scheduling is the #1 thing customers write about** and every reply is hand-read today. A
+   draft-a-reply assistant (office confirms, never auto-sends) is the biggest single lever.
+2. **Arrival heads-up** — customers ASK for it by name (*"call/text 15-30 minutes ahead"*).
+3. **Parts ETA** — still dark behind the FedEx Track 403.
+
+## 🧯🔌 2026-09-11 — GETTING OFF XANO: the vault itself was a Xano dependency · a paid lead vanished when Xano dropped it · warranty claims now file off the platform — READ FIRST
+
+Teddy: *"Keep working to get us closer to no longer needing xano to operate our system."*
+Three cuts, each found by measuring rather than assuming.
+
+### 🔑 THE ONE THAT MATTERED MOST — every platform function needed Xano to read its own password
+Grepped it instead of trusting the mental model: **all 66 `platform-*` functions import
+`_lib/secrets.js`, and the vault lives in Xano's `app_config` table.** So a platform function
+cold-starting during a Xano outage could not read the URL of its own database. The platform
+looked independent and was not.
+- Measured the real surface — which secrets the platform actually asks for:
+  **`PLATFORM_SUPABASE_URL` (57 call sites) · `PLATFORM_SUPABASE_SERVICE_KEY` (49) ·
+  `VAPI_ADMIN_SECRET` (42)**, then a long tail of `PLATFORM_*_ENABLED` / `_LIVE` feature flags
+  whose vault-miss already degrades to "off", which is the safe direction.
+- **The service key was ALREADY in Netlify env** (the `vault_to_env` write returned 200-update,
+  not 201-create — that's how we know). **Only the URL was vault-only**, and that one key was
+  enough to make the whole platform need Xano.
+- **Moved `PLATFORM_SUPABASE_URL` into Netlify env** via `netlify-admin?action=vault_to_env`
+  (server-side — the value never passes through a chat or a shell). **63 bytes.**
+  `getSecret` is env-first, so the Xano hop is now gone for both load-bearing credentials.
+- **The 4KB wall held: 3,118 → 3,181 of 4,096, 915 free, and the build published GREEN.**
+  Well under the empirically-good ~3.7KB. (Reverse it with `env_to_vault` + delete if ever needed.)
+- ⚠️ **STANDING: a "Supabase-native" function that calls `getSecret` is only as independent as
+  the key it asks for.** Check the key is in ENV, not just in the vault, before calling anything Xano-free.
+- 🚫 **Deliberately did NOT mirror the vault into Supabase.** It would have fixed the whole class
+  in one move, but it duplicates secrets into a second store — the standing rule from the backup
+  work. Moving the two keys that carry 106 of the call sites gets the same result without copying
+  a single secret.
+
+### 📵 A XANO OUTAGE NO LONGER SILENCES A CUSTOMER TEXT (`_lib/sms-guard.js deliver()`)
+CLAUDE.md named this as **the one thing that breaks if Xano vanished: outbound customer texts.**
+Internal/crew sends already go direct to Telnyx with Xano as a fallback; customer-direction
+sends with a non-`platform_` tag did the **opposite** — straight to Xano's `send_sms`, and if
+that call failed **the text was simply lost.**
+- **The fix turns on a distinction `xanoSend` was not making.** A bare `false` meant two
+  OPPOSITE things: **Xano ANSWERED and refused** (its intake-only gate doing its job) vs
+  **Xano never answered at all**. ⚠️ **Treating those the same is how you accidentally start
+  texting customers** — falling back to a direct send on a deliberate refusal bypasses the very
+  rule that refused it. `xanoSend` now returns `{sent, answered}`: **any well-formed reply from
+  Xano is a DECISION and is respected**; only a genuine transport failure (threw / non-2xx /
+  unparseable body) is eligible for the direct hand-off.
+- **The fallback loosens nothing.** Every guard has already run and allowed the message before
+  `deliver()` is reached — opt-out, quiet hours, dedup, frequency caps, the intake-only pause,
+  the no-clock-times scrub.
+- **The audit row goes to SUPABASE, not `crud.logEvent`** — that writes to Xano, which is the
+  thing that just failed. **A record of an outage must not live inside the outage.** (Third time
+  this exact trap showed up today; it is the standing rule now.)
+- **Unit-tested all three branches. The one that matters: a gate refusal makes ZERO
+  direct-Telnyx calls.** Reversible: `SMS_XANO_DOWN_FALLBACK=0`.
+
+### 💸 A PAID LEAD DISAPPEARED WHEN XANO DIDN'T TAKE IT (`_lib/intake-rescue.js`, NEW)
+All three web/AI intake endpoints create their job in Xano inside a `catch (_) {}`. On failure
+`jobId` stays null — and **everything downstream is gated on `if (jobId)`**. On the PAID path the
+customer has *already been charged*, then gets **no job, no confirmation text, no finish-upload
+chase, no model-sticker OCR**, while the office siren reads **"Job #?"** and points at a board
+with no card on it. Money in, work invisible.
+- **Runs ONLY when Xano already failed**, so a normal day is byte-for-byte unchanged.
+- **It heals itself:** `platform-tn-job-back` (live, cron `8-59/15`) already pushes platform-native
+  jobs into Xano — claim-keyed, link-before-create, **cannot duplicate** — so a rescued lead flows
+  back into the backup once Xano recovers.
+- **Two details decide whether it works at all:** the audit row goes to the **platform**, not Xano
+  (`crud.logEvent` writes to the system that just failed); and the alert carries a **`platform_`
+  tag** so `sms-guard.deliver()` sends **direct to Telnyx** instead of routing through Xano's
+  `send_sms`. Same reason both times.
+- `office-gate` gains exactly one tag (`platform_intake_rescue`) — cash/warranty intake by
+  definition, the class already allowlisted, and it **cannot flood** (silent unless Xano is down).
+  Verified the gate still passes it to Teddy only and still blocks everything else.
+- Sirens now point at **wherever the job actually is**. A siren aimed at an empty board is worse
+  than no siren — it reads as "nothing arrived."
+- **🔎 THEN WENT LOOKING FOR THE CLASS, and it found a FOURTH paid path I'd missed.** Grepped
+  every function for a XANO fetch swallowed by `catch (_) {}` in a money or customer-facing path
+  → **`verify-vent-booking`** is `verify-quickcheck`'s twin, vent-shaped. **$80 paid**, and the
+  `if (jobId)` gate there also skips the **service address AND the `payment_status:'paid'` stamp**
+  — so the booking is lost *and* the payment goes unrecorded. Same rescue.
+  **All four intake paths are covered now: free · paid · warranty · vent.**
+- The other hits in that sweep were `send_sms` calls, **left alone deliberately**: owner/office
+  alerts (a missed alert, not lost customer data) or cron sweeps that heal themselves next cycle.
+
+### 🧾 WARRANTY CLAIMS FILE OFF THE PLATFORM (`_lib/platform-claim-context.js`, NEW)
+Claim submission was the **only** lane `platform-cutover-check` still grades `platform_ready:false`,
+and it's the money lane. It was tied to Xano by exactly ONE read (`get_warranty_submission_context`).
+- The platform holds every field that returned **and better parts data**: `must_return` (the
+  VENDOR's own rule, off the ServicePower API at order time) alongside `disposition` (what the tech
+  did at the stop). **A CORE is owed back even when USED** — keying the claim's `returned` flag off
+  disposition alone drops the obligation the moment a tech marks it used, which is the exact
+  chargeback SquareTrade's policy describes. `owedBack()` reads the vendor's rule OR the tech's return.
+- **Tenant-generic on purpose** — names no company, resolves the tenant FROM the job row. Takes a
+  platform uuid, a legacy Xano id, or a dispatch number. Platform first, Xano fallback, `?src=xano`
+  to diff the two on the same job.
+- **🐞 Two defects caught by READING THE BUILT CLAIM, not the code** — both would have gotten a
+  claim kicked back: `number` came through as **`"Main Control Board  Wh22x37840"`** (the legacy
+  parser's description+number mash), and **all three parts shared one description — the tech's entire
+  narrative paragraph** (mine: `name` is null on those rows, so the `failed_component` fallback
+  stamped the same paragraph on every part). `cleanPartNo`/`cleanPartDesc` apply the same rule as
+  the SQL `part_key()`; verified against the real strings plus the two edge cases that broke the SQL
+  key earlier (`BT68-135` and `Thermal Overload Protector (BT68-135` now agree).
+- **The narrative fallback is gone on purpose** — a nameless part now sends its number alone.
+  Less is honest; wrong is not.
+- **🐞 THE WORSE ONE, found by building the claim for the job that carries the Core: THE SAME
+  PART WAS ON THE CLAIM TWICE.** `W11608056` as *"Whirlpool Washer Electronic Control Board"*
+  AND as *"Core"*; `W11217817` as *"Suspension Rod"* AND as *"Unused part"*. That is the
+  documented Xano double-row. **The portal, the tech card and the office tile all collapse it —
+  the CLAIM was the one place it still leaked, and it's the money document.** Two rules decide
+  the merge: the **return obligation is OR-ed** (if ANY row says owed back, the part is owed
+  back — losing a return is the chargeback, carrying an extra one is a phone call), and the
+  **more descriptive name wins** (the RMA-email row says "Core", the order row carries the real
+  description). **Quantity deliberately stays 1** — two rows for one part is a mirror artifact,
+  not two units, and billing qty 2 would be a FALSE claim, worse than the duplicate it replaces.
+  A row with no usable part number is never merged blindly. Unit-tested on the exact shape:
+  **5 rows in → 3 out**, cost salvaged off the row that had it.
+- ✅ **Verified live end-to-end:** `?call=023242084133` → `source:platform`, the Core part comes
+  through **`RETURNED: Y`**, clean numbers, real per-part descriptions, state `TN`.
+
+### 🚨 THE EMAIL LANE WAS GREEN FOR **ONE VENDOR OUT OF FOUR** (correction to my own earlier read)
+I reported the warranty-email lane as "crossed." **Wrong — and the check is what made it look right.**
+`receiving_now: emailIntake > 0` was true and badly misleading:
+
+| | |
+|---|---|
+| dispatches that have EVER reached the platform intake | **77 — every single one `ahs`** |
+| TN's actual 30-day job mix | **SquareTrade 1,825 · AHS 1,040 · NSA 236 · Frontdoor 12** |
+
+**One forward rule exists, and it is not for the biggest vendor.** Turn Xano off today and
+roughly **64% of incoming work stops arriving** — including **SquareTrade**, the one carrying the
+parts-return chargeback exposure the whole previous session went into closing.
+- **`platform-cutover-check` now grades that lane PER VENDOR**, comparing what ARRIVES against
+  what TN actually works, and only calls it receiving when **every** vendor is covered. It names
+  the missing ones with their share of the work.
+- ⚠️ **Be precise about the fix: the parser already handles all of them** — a dedicated
+  ServicePower/SquareTrade tier (`_lib/parsers/servicepower`) plus a Claude fallback for the rest.
+  **A missing vendor here is a missing MAIL RULE, not a missing build.**
+- ⏭️ **TEDDY:** add a forward rule to `tn-appliance-exchange-llc@jobs.assistant247.net` in the
+  **SquareTrade/Allstate** inbox and the **NSA** inbox (AHS already forwards). Xano's pollers keep
+  running — both sides receive the same dispatch, which IS the dual-feed.
+- **⛔ AND API-NATIVE SQUARETRADE INTAKE IS NOT THE SHORTCUT IT LOOKS LIKE.** The obvious way
+  to cover SquareTrade without a mail rule is the standing open item — *create the Supabase job
+  from `getCallInfo` right after auto-accept.* Measured the dedup key before building it, and
+  **there isn't one**:
+
+  | key | reality on TN's 1,830 SquareTrade jobs |
+  |---|---|
+  | `claim_number` | **110 of 476 claims (23%) cover MORE THAN ONE job**, worst case 4 |
+  | `dispatch_id` | **present on only 882 of 1,830 (48%)**, and only 469 distinct |
+
+  SquareTrade issues **a new work order per trip**, so a claim is an umbrella, not a job. Keying
+  an intake on `claim_number` would either collapse separate trips into one job or duplicate
+  them; `dispatch_id` is half-empty. **This is the same trap the mirror already carries a scar
+  from** — its adopt-by-claim block only adopts when a claim maps to **exactly ONE** Xano job,
+  because guessing cost ~3,000 Postgres errors a day (84% of this database's error volume).
+- **So the mail rule isn't a workaround — it's the right fix.** The email path carries the
+  per-dispatch identity the API intake has nowhere to put yet. **API-native intake is blocked on
+  a clean per-job key, NOT on the API.** Whoever builds it starts by fixing `dispatch_id`
+  coverage, not by writing the intake.
+
+- 🧭 **STANDING: a lane is "receiving" only when every SOURCE that feeds it is arriving.** One
+  source of four is a lane half-built, and grading it green is how a cutover gets called done
+  while most of the work still has no platform path.
+
+### 📊 WHERE THE CUTOVER ACTUALLY STANDS (measured, not asserted)
+`platform-cutover-check` + `platform-tn-parity`, live:
+- **3,463 platform jobs · 3,450 mirrored from Xano · 13 BORN on the platform.** That 13 is the
+  whole story: the platform **holds** everything and **originates** almost nothing.
+- Parity **807 Xano active · 1 missing · 1 drift** — the mirror is faithful; the gap is a known
+  Xano-side data problem, not a sync bug.
+- **Lanes: 2 of 6 have crossed** (warranty dispatch email ✅ receiving · money ✅ receiving).
+  Phone / texts / web intake are all `platform_ready:true` but **not receiving** — they wait on a
+  DID purchase and a 10DLC filing, not on code. Claim submission was the one genuinely unbuilt
+  lane and is now built.
+- **331 functions still touch Xano · 66 touch the platform · 9 crons exist purely to keep the two
+  agreeing.** That's the real weight of the migration — not the database, the nine bridges.
+- ✅ **Audited: only ONE non-bridge `platform-*` function touches Xano** (`platform-stale-scheduled`,
+  which writes to Xano **by design** — platform status is derived from it every 5 min, so a
+  platform-only fix would be undone before the office finished scrolling). The platform surface is
+  otherwise clean.
+
+### ⚠️ FOOTGUNS BURNED
+- **`sb-admin-sql` + integer overflow:** `extract(epoch from now())*1000 - 30*86400000` fails with
+  `22003 integer out of range` — `30*86400000` overflows int4. Filter on `created_at` instead.
+- **A polling loop with no real delay is not a poll.** A 40-iteration `curl` loop finished in
+  seconds and reported "uploading" 40 times. Put a real `sleep` in it and run it in the background.
+- **`vault_to_env` returning 200 (not 201) means the key was ALREADY in env** — that response code
+  is the cheapest way to learn what's really where.
+- **A claim that "builds OK" can still be unfileable.** Reading the built payload found the mashed
+  part number and the triplicated paragraph; neither showed up as an error.
+
+## 🧾🛒 2026-09-11 — SNAP THE PART YOU PICKED UP + THE RECEIPT · a shadowed `db.patch` that killed every merge · the customer's parts list was leaking a tracking number — READ FIRST
+
+Teddy: *"I also like the take a pic of the part you didn't need and we should add to it take a pic
+of the part that you picked up at the parts house or thing at Home Depot or wherever pic of the
+receipt 🧾"* — the returns flow only covered parts going BACK. This is the other direction, and
+it is the one where **the shop is out real cash**, so the receipt is the cost of record: it prices
+the customer's line (cost × the owner's margin), it is the tech's reimbursement, and it is the
+books' entry.
+
+### 🧾 TWO SHOTS, ONE PART ROW (`platform-tech-media?do=bought_part`, LIVE)
+Tech taps **📸 Snap the part you picked up** → the row is created and hands back its `part_id`;
+then **🧾 Snap the receipt** attaches the money to that id. **Either can stand alone** — a receipt
+with no readable part still records the spend, which is the half nobody can reconstruct from memory
+a week later (if there's no `part_id`, the server matches on the OCR'd part # and only then creates).
+- **`platform-ocr` gained `mode:'receipt'`** — store, date, part total vs order total, part # if the
+  line names one. Verified live on a synthetic receipt: returns `confidence:'low'`, `cost_cents:null`.
+- **⚠️ THE MONEY IS ONLY TAKEN WHEN IT'S TRUSTED.** A low-confidence read, or a receipt covering
+  **more than this one part**, is left for a human — `needs_review:true` plus a plain-English
+  `review_reason` the tech actually sees ("that receipt covers more than this part — the office will
+  split it"). Silently mispricing a customer's line off a blurry photo is worse than asking.
+- **SQL 065** adds `receipt_ref`, `bought_at`, `bought_by`, `bought_from`. `bought_by` resolves to the
+  tech's real name server-side, because this is a reimbursement — the office needs to know who to pay.
+
+### 👁️ SAME FACT, THREE LENSES (Teddy's "write once, all sides share")
+| | sees |
+|---|---|
+| **tech** | headline counts a bought part as **HERE**; card shows what he paid |
+| **office** | drawer line `🧾 Picked up $84.12 at Home Depot · Lee paid` + one tap opens the receipt (signed per-tenant, never a raw bucket URL) |
+| **customer** | reads as here. Cost, receipt, who paid and where are **never emitted** |
+
+- **🐞 A hand-carried part made the office tile LIE.** With no tracking and no `ship_delivered` it fell
+  through to **"🔧 NEEDS PARTS (on order)"** — so the office could order a part the tech was holding.
+  That is the duplicate-parts class again. `bought_at` now counts as here on the tile, the tech
+  headline, and the portal.
+
+### 🔴 `db.patch` WAS DECLARED TWICE — every 3-arg call has been a no-op since 2026-09-09
+`rest()` in `platform-tech-media.js` had **two `patch` keys in one object literal**, so the 2-arg
+`(path,row)` version silently shadowed the 3-arg `(table,filter,obj)` one. Every 3-arg call was
+therefore sending a **JSON string as the body of an UNFILTERED `PATCH /job_part`**.
+- **It never wrote** — proven by the data, not by reading the code: **2 distinct dispositions across
+  1,797 rows**, not 1. PostgREST rejects a string body, so the unfiltered patch died at the door.
+- **But the merge it was supposed to do never happened either.** Shipped in `d061fed`, so the
+  snap-to-return merge has been dead its whole life. **`photo_ref` is 0 of 1,797** → no tech has
+  pressed that button yet, so it would have duplicated a part row the first time one did.
+- Fix is the CLASS: two methods, two names (`patch` / **`patchWhere`**), plus **`insertRet`** for the
+  callers that need the new row's id. **⚠️ A duplicate key in an object literal is silent in JS — the
+  last one wins. Grep for repeated keys before trusting a helper.**
+
+### 🔒 THE CUSTOMER'S PARTS LIST WAS LEAKING A TRACKING NUMBER (SQL 066 · 067 · 068, APPLIED)
+Measured on what a customer can actually see **today** — 19 rows — and 3 of them were wrong:
+- **2 carried a UPS tracking number inside the part NAME** (`"PTC Starter Relay -- QTY: 1 Shipped to
+  the customer via UPS — Tracking #: 1ZE380950323091839"`). **The allowlist was right — it never
+  emits `ship_tracking`** — the leak came through a field that IS on it, because the mirror stuffs the
+  whole vendor email line into `name`. **⚠️ AN ALLOWLIST ONLY PROTECTS YOU IF THE FIELDS ON IT ARE
+  CLEAN.** 067 cuts the name at the first shipping-stanza marker and rejects status words
+  ("DISCONTINUED" was rendering as a part).
+- **Same part listed twice.** Xano holds `'BT68-135'` **and** `'Thermal Overload Protector (BT68-135'`
+  as separate rows, so the number-normalizing key never matched and one job showed **4 parts for 2**.
+  **`part_key()` (068)** anchors on the part-number token at the **END**, which both shapes share,
+  with a **5-char floor** so `"Relay 2"` and `"Valve 2"` stay distinct — **undercounting a customer's
+  parts is worse than showing a duplicate.** It is a named function on purpose: the old key was pasted
+  **twice** inside `portal_get` (distinct-on AND order-by), which is exactly how two copies drift.
+  Verified against the real values before swapping it in, then regression-checked across every grant:
+  **9 physical rows → 7 shown, 1 job collapsed, 0 jobs left showing nothing.**
+- **066** makes a bought part read as here to the customer too.
+
+### 🔩 SERVICEPOWER PARTS DRAIN — healthy (and a `Core` miss fixed)
+**95 of 296 in-scope jobs synced · 143 parts across 62 jobs · 2.3 parts/job** (the runaway was ~44 —
+the sanity ceiling is holding). `owed_back` is **0**, and that is REAL, not a parser miss: the live
+notes for the synced claims contain zero "requires return" text. Unit-tested the parser through the
+actual XML path — Yes→true, No→false, and the **double space**, single space, caps and tab variants
+all parse.
+- **🐞 Fixed: `Core` fell through to `null`.** The comment said "Yes/Core must go back" but the regex
+  only tested `^y`/`^n`, so a **core charge — which IS a return obligation — flagged nobody.** Null is
+  the wrong direction on a chargeback. Now `/^(y|core)/i`.
+
+### ⚠️ FOOTGUNS BURNED
+- **A duplicate key in a JS object literal silently shadows** — the last definition wins, and every
+  call site to the shadowed signature fails quietly.
+- **`\u2014` is NOT a Postgres escape.** With `standard_conforming_strings` on, a backslash is
+  literal, so `'\u2014'` demands a literal backslash. Put the real character in the regex.
+- **`pg_get_functiondef` does not include GRANTs** — which is exactly why `CREATE OR REPLACE`
+  (not DROP + CREATE) is the only safe way to patch a SECURITY DEFINER RPC in place.
+- **Balance parens mechanically, not by eye**, when hand-editing a deeply nested SQL expression —
+  the first attempt was off by two and looked fine.
+- **`portal_get` returns `parts` nested PER JOB**, not at the top level; `->'parts'` on the root is
+  always null and reads like a broken migration.
+
+## 📦🚚 2026-09-11 (later) — "IS THE PART THERE?" IS NOW ON THE JOB · the vendor's parts list beats our email · FedEx Track is 403'ing — READ FIRST
+
+Teddy: *"Even parts eta and what has been sent would be helpful on the job so the tech knows if
+parts are there or not and what was sent so they can manage the parts efficiently."*
+
+### ✅ SHIPPED — `platform-sp-parts-sync` (core, curlable) + `platform-sp-parts-sync-cron` (LIVE, `6-59/20`)
+Pulls the **vendor's own parts list** off the ServicePower API onto the platform job, with the
+tracking number for each part, and enriches with carrier status/ETA. The tech's parts card now
+**leads with the line he reads before he drives** — *"3 of 5 sent · 1 delivered · 2 not shipped
+yet"* — and each part carries its own shipment state + a tappable tracking link.
+- **ONE SOAP call per job.** `getCallNotes` takes the dispatch number (`Callno`) directly — no
+  `FSSCallId` needed — so this is cheap enough to run every 20 min.
+- **Additive by construction:** never deletes a row; never touches what a human owns
+  (`disposition`, `photo_ref`, `cost_cents`, `sell_cents`, `returned_*`, `rma_*`,
+  `return_tracking`); only fills BLANKS plus the `ship_*` columns it owns; an empty API value
+  can never erase a known one.
+- **Verified idempotent live:** first run `inserted 5 · updated 3`; immediate re-run
+  `0 · 0 · unchanged 8`.
+- **Runs per-tenant** via `servicepower-tenant.forCompany()` when a shop has its own creds, else
+  the vault (TN today) — so a second shop, or the AHS equivalent, reuses it without a rewrite.
+- **`docs/sql/062_part_shipment.sql` (APPLIED):** `job_part` gains `ship_tracking` /
+  `ship_carrier` / `ship_status` / `ship_delivered` / `ship_status_at` (`eta` already existed).
+  ⚠️ **Deliberately SEPARATE from the return columns** — conflating the two is how a return
+  label gets read as an inbound delivery.
+
+### 🔴 THE PARTS EMAIL HAS BEEN SILENTLY DROPPING PARTS (measured again, on more jobs)
+The first live run on **8 candidate jobs** found **5 parts the platform did not have at all** —
+across 3 different jobs — plus 3 that gained tracking. Earlier the same day, claim
+`070570184134` was missing a **MAIN BOARD** and a **USER INTERFACE BOARD**. Unreturned parts are
+exactly what SquareTrade charges back for. **A part only existed on a job if its email arrived
+AND parsed. Now the vendor's own list is the spine and the email supplies only what it uniquely
+has (the prepaid return label + RMA#).**
+
+### ⚠️ NO UNIQUE INDEX ON (job_id, number) — ON PURPOSE
+The email parser writes descriptive junk into `number`:
+`"THERMOSTAT HI LIMIT WE04X30381⏎Part #WE04X30381"` with `name` NULL (354 of 1,669 rows are like
+this). A normalized-text unique index would neither match the API's clean `WE04X30381` nor build
+over existing rows. **Matching happens in CODE on an EXTRACTED part number, and the sync repairs
+the dirty row as it goes** (clean number + real description into `name`). Revisit an index only
+once the rows are clean.
+- **Extractor rules (unit-verified):** a `Part #X` in the text is authoritative for that row, so
+  anything after **`Replaces #`** is correctly IGNORED (supersession numbers must not mis-attach
+  a shipment to the wrong row). Pure-numeric part numbers are accepted at **≥6 digits**
+  (Whirlpool/Frigidaire style like `8583165300010`) so quantities and years never match.
+
+### 🔴 FEDEX TRACK IS 403 — the ETA half is dark, and `fedex-returns-autoclose` can never have worked
+`fedex-track` returns **403 FORBIDDEN "We could not authorize your credentials"** on real FedEx
+numbers. The OAuth token mints fine and **pickup works (422 input error, not 403)** — so the
+credentials are valid but **the Track API is not authorized on that FedEx project.** That means
+**`fedex-returns-autoclose` (built 2026-08-06, still shadow) has never been able to close a
+return** — it depends on the same call. ⏭️ **Teddy: enable the Track API on the FedEx developer
+project** (or confirm prod-vs-sandbox — `FEDEX_ENV` defaults to `sandbox`). Until then a shipped
+part reads **"Sent"** with its real tracking number, which is still strictly more than before.
+- `fedex-track` gained owner-gated **`?raw=1`** — an empty result is otherwise indistinguishable
+  from a bad credential. That is what found this.
+
+### 📋 WHERE TEDDY'S ASKS STAND NOW
+| ask | state |
+|---|---|
+| Parts list from the API | ✅ **live on the job**, syncing every 20 min |
+| What has been SENT | ✅ **live** — per-part tracking + "N of M sent" headline |
+| Parts **ETA / is it here** | 🟡 **blocked on FedEx Track authorization** (403) — everything else is wired and waiting |
+| Parts RETURN links | 🟡 API gives the return REQUIREMENT + tracking + RMA portal; the **prepaid label + RMA# still only come by email** |
+| Auto-acceptance | ✅ already live (20/14 days) — still does **not** create the Supabase job |
+| Same for AHS/Frontdoor | ⏳ receiver is DARK **and posts to Xano, not Supabase** |
+
+### 👯 XANO HOLDS TWO ROWS FOR ONE PHYSICAL PART — collapsed at the READ layer, never deleted
+Measured **18 pairs** where the same part appears twice on a job. **Both rows carry a `xano_id`**,
+so this is **Xano-side duplication that the mirror copies faithfully** — deleting one here is
+whack-a-mole, the mirror re-creates it next run. A fold-then-delete was **refused outright by
+`job_part_company_xano_uidx`**, which was the database correctly declining to let two distinct
+Xano identities collapse into one. So the write stays faithful and the **lenses** present truth:
+- **CUSTOMER portal** — `distinct on` inside `portal_get`, preferring the row furthest along
+  (delivered > shipped > has a name > oldest).
+- **TECH card** — `dedupeParts()` before render, same preference.
+- **OFFICE tile** — the tally counts **PHYSICAL parts, not rows**, so a duplicate can't inflate
+  *"2 of 5 sent"*.
+- **OFFICE drawer — deliberately NOT deduped.** That is the EDIT surface; hiding a row there
+  would stop the office from ever cleaning one up.
+- A row with **no usable part number is never merged blindly** — it stays its own entry.
+- **⏭️ The real fix is upstream in Xano** (or a dedupe in `platform-tn-parts-migrate`). Until
+  then the read layer keeps every human honest. Verified: jobs collapse by exactly the duplicate
+  count (5→4, 4→3, 3→2).
+
+### ⚠️ `sb-admin-sql`: secret in the QUERY STRING, big SQL in the POST BODY
+A GET carrying a large statement dies at the edge with **HTTP 414 and an EMPTY body**, which
+reads exactly like a network failure. `POST ...?secret=<admin>&project=platform` with
+`{"sql":"..."}` is the path for anything migration-sized.
+
+### ↩️ THE VENDOR'S RETURN OBLIGATION, CAPTURED AT ORDER TIME (`docs/sql/064_part_must_return.sql`, APPLIED)
+ServicePower states it per part in the order notes — **"If used during repair  requires return:
+Yes"** — and it is known the day the part ships. Until now a return obligation was only
+discovered AFTER the fact: when the prepaid-label email arrived and parsed, or when a tech
+tapped "Return" at the stop. SquareTrade's policy is blunt — parts not returned mean the repair
+is not paid and the part or core may be charged back. **The parser was already reading
+`requires_return` and the sync was dropping it on the floor.** Now it persists to
+`job_part.must_return`.
+- **⚠️ DELIBERATELY SEPARATE FROM `disposition`** — they answer different questions:
+  `must_return` = **the VENDOR's rule** ("owed back") · `disposition` = **what the TECH did**
+  (used / return / not_here). **A core is owed back even when it is USED**, so keying the warning
+  off `disposition` would erase the obligation the moment a tech marks it used.
+  Verified real: claim **023242084133** part **W11608056**, named *"Core"* on our own board,
+  comes back from the API as `requires return: Yes`.
+- **The sync only ever SETS an obligation, never clears one** — a later note that omits the flag
+  must not quietly drop a part off the returns list.
+- **Surfaced only where someone can act:** TECH gets **"↩️ OWED BACK"** on the part plus a
+  card-level *"take it with you before you leave"* (counted off `must_return`, never
+  `disposition`); OFFICE gets it per-part in the drawer **and a tile chip that keeps showing
+  "↩️ N STILL OWED BACK" after the job is COMPLETED** — exactly when an owed part gets forgotten
+  and charged back. The **customer portal still excludes return logistics entirely** — that is ours.
+
+### 🔁 WRITE ONCE, THREE LENSES — parts now on the office TILE, the office drawer, and the CUSTOMER PORTAL
+Teddy: *"Office needs the parts info on their tile and customer should also see it in their
+portal as well. Wire once all sides share information."* The write already happens once
+(`platform-sp-parts-sync` → `job_part`); these are READ lenses over that same row. No second
+source of truth, nobody re-keys anything.
+- **OFFICE TILE:** "awaiting parts" is a dead end by itself. The chip now answers the question
+  the office is actually asking — *is this bookable yet*:
+  **✅ PARTS HERE (3) — BOOK IT** / **📦 PARTS 2/3 HERE** / **🚚 PARTS SENT (2/3) · 09-14**.
+  Backed by a `partsShipByJob` tally that counts EVERY part on the repair (a part with no
+  number still ships), unlike `partsByJob` which only keeps rows carrying a part number.
+- **OFFICE DRAWER:** per-part carrier, delivered state, tappable tracking link.
+- **CUSTOMER PORTAL** (`docs/sql/063_portal_parts.sql`, APPLIED): a plain-language "Your parts"
+  card — *"2 here · 1 on the way"*, expected date, per-part Here / On the way / On order.
+- **⚠️ THE CUSTOMER LENS IS SANITIZED IN `portal_get`, which is an ALLOWLIST and stays one:**
+  never the part **NUMBER** (standing rule, no side-shopping) · never `cost_cents`/`sell_cents`
+  · never `ship_tracking`/`rma_number`/`return_tracking` (a raw tracking number invites the
+  customer to chase the carrier instead of us) · parts with `disposition='return'` excluded
+  outright (unused stock going back to the vendor is not this customer's repair).
+- **🔴 THE SUBTLE LEAK I ALMOST SHIPPED:** the obvious display fallback `coalesce(name, number)`
+  would have **leaked the part number**, because the legacy email parser stuffed the number INTO
+  `number` alongside the description (`"THERMOSTAT HI LIMIT⏎Part #WE04X30381"`). Instead the
+  description is **salvaged out of that junk** — text before `Part #`, minus every token
+  containing a digit — and anything unrecognisable becomes the generic word "Part".
+  Verified through the real RPC on a customer who has parts: clean names, and **zero**
+  occurrences of cost / tracking / rma / number anywhere in the payload.
+
+### ⚠️ POSTGRES REGEX FOOTGUN — a bad regex DEPLOYS CLEAN and only throws at runtime
+Postgres ARE requires the **`(?i)` director at the START of the whole regex**. `'^(?i)(none|null)$'`
+raises **`invalid regular expression: quantifier operand invalid`** — but **`CREATE FUNCTION` does
+not validate it**, so the broken function deploys reporting success and then throws *only for the
+rows that actually reach that expression* (here: only customers who HAVE parts). Correct form is
+`'(?i)^(none|null)$'`. **Always exercise a recreated function against a row that hits every
+branch — "it applied OK" proves nothing about a regex.**
+
+### 🚨 RUNAWAY CAUGHT SAME NIGHT — an EMPTY claim number makes ServicePower return EVERY call's notes
+`claim_number` can be **`''` (empty string)**, which sails straight past a `not.is.null` filter.
+Sent as `Callno`, an empty value **does not scope `getCallNotes` at all** — ServicePower happily
+returns every note in the 180-day window across **every dispatch**. `partsFromNotes` then
+extracted all of them and the sync wrote **762 distinct parts belonging to other people's jobs
+onto ONE job**. 4 jobs took **2,954 junk rows** before it was caught, and 18 more empty-claim
+jobs were queued behind them.
+- **Caught by ratio, not by an error.** Nothing threw. The tell was **1,231 parts across 28
+  jobs (~44/job)** when ~2 per job is normal. *Check the shape of what you wrote, not just that
+  the write succeeded.*
+- **Fixed as a CLASS, in three places:** (1) **`_lib/servicepower.getCallNotes` now THROWS on an
+  empty `callNumber`** — the caller that asks for nothing must get nothing, never everything, and
+  no future caller can repeat this; (2) the sync requires a real claim **in the query
+  (`claim_number=neq.`) AND again in code**, stamping the cursor on skip so an unusable job
+  leaves the queue instead of blocking it; (3) a **sanity ceiling — >25 parts on one dispatch
+  means the call was not scoped, so the run refuses to write.**
+- **Cleanup was unambiguous + verified:** every junk row had `disposition`, `photo_ref`,
+  `cost_cents`, `returned_at` all NULL (no human had touched one). Deleted → **0 remaining**,
+  and the legitimate work survived: **109 real API parts across 47 jobs, avg 2.3/job, worst 7.**
+- **⚠️ STANDING: `not.is.null` is NOT "has a value."** Empty string passes it. Any identifier
+  handed to a vendor API needs a non-empty check, and the guard belongs **at the call that can
+  be wrong**, not at each caller.
+
+### ⚠️ TWO FOOTGUNS RE-BURNED (both mine, both already in this file)
+1. **Backticks in a `git commit -m` string get shell-executed** — same class as the documented
+   nested-quotes trap. One word was eaten out of commit `092e162`. **Write the message to a file
+   and use `git commit -F`.**
+2. **Putting the `schedule` block on the CORE function killed manual HTTP.** A Netlify fn that
+   carries a schedule **edge-403s on every external call** (empty body, `content-length: 0`,
+   `cache-status: ... fwd-status=403`) — so the `?dry=1` shadow run, the only way to eyeball
+   this before it writes to job data, stopped working. Fixed with the documented **core +
+   thin cron wrapper** split (same shape as `platform-rma-tee` / `knowledge-scorecard`).
+   **Any new scheduled function must be split this way from the start.**
+
+**Verify (read-only):** `servicepower-call-detail?secret=<admin>&call=<dispatch#>[&raw=1]`
+**Shadow the sync:** `platform-sp-parts-sync?secret=<admin>&dry=1&limit=10`
+
+## 🔩🔌 2026-09-11 — SERVICEPOWER API: parts list is REAL and the email has been MISSING PARTS · 3 dead ops revived · auto-accept is live but doesn't create the job — READ FIRST
+
+Teddy: *"We need to utilize the service power api for parts list and parts return links auto
+acceptance of jobs and as the AHS api gets completed we need that to be capable of the same."*
+Measured against live TN dispatches before building anything. Full detail:
+**`docs/servicepower-parts-returns-api-2026-09-11.md`**.
+
+### 🔴 THE FINDING THAT JUSTIFIES ALL OF IT — the email path is silently dropping parts
+On claim **070570184134** the email-parsed list and the API **disagree**: 4 parts in both, 2 only
+the email saw, and **2 the email MISSED ENTIRELY — WE22X34377 (MAIN BOARD) and WE22X36197 (USER
+INTERFACE BOARD)**. Two of the most expensive parts on the job are not on the tech's parts
+tracker. SquareTrade's own rule: *"If parts are not returned or returned incorrectly or damaged,
+you will not be paid for the repair and may be charged for the new part or core."* That is direct
+money exposure, and it exists because **a part only becomes "owed back" today if its email arrived
+and parsed.** Neither source is complete alone — **the API is the spine to MERGE onto, not a
+replacement.** (The email path also writes garbage: `job_part.number` =
+`"THERMOSTAT HI LIMIT WE04X30381\nPart #WE04X30381"` with `name` NULL. The API keeps `PartNo` and
+`PartDesc` clean and separate.)
+
+### 🐞 THREE CALL-DETAIL OPS WERE DEAD SINCE THE DAY THEY WERE WRITTEN (fixed)
+`getCallAttributes` / `getCallNotes` / `getProductCoverage` were authored blind ("tuned precisely
+once we see a real response" — nobody ever saw one) and **every call faulted**:
+`Invalid element in com.sp.service.spdservicer.CallAttributesInfo - CallNumber`. They are real,
+reachable ops that simply reject `CallNumber`. Per the live WSDL:
+- `getCallAttributes` → `CallAttributesInfo` = `{UserInfo, **FSSCallId**}` only
+- `getProductCoverage` → `ProductCoverageInfo` = `{UserInfo, **FSSCallId**}` only
+- `getCallNotes` → `CallInfoSearch` = `{UserInfo, FromDateTime, ToDateTime, **Callno**, Versionno}`
+⚠️ **`Callno`/`Versionno` are lowercase-"no".** We already resolve `FSSCallId` from `getCallInfo`,
+so nothing new was needed to call them. All three now return `ok:true`.
+
+### 🔎 THE PARTS ARE NOT WHERE THE WSDL SUGGESTS
+The WSDL has a rich `PartsInfo` (16 fields incl. `PartTrackingUrl`) and `ShippingInfo` (incl.
+`ShipURL`, `ShipType`) — **both are WRITE-side only** (`PartsInfo` appears solely as element
+`Parts` inside `UpdateCall`; `CallInfo` declares `ShippingInfo` but it came back empty on every
+real dispatch). **On the READ side the parts list arrives as text stanzas inside `getCallNotes`:**
+`Part Number / Part Description / Quantity / "If used during repair  requires return" / Tracking`.
+⚠️ **that label has a DOUBLE space** — match loosely on whitespace. `partsFromNotes()` parses it,
+dedupes on part number, and lets a later "part tracking details" note fill a field the original
+"part order details" note left blank — never letting an empty value erase a known one.
+`attributesFromRaw()` pulls the per-dispatch **"Appointment completion form"** link — the
+SquareTrade wizard that IS their TDR.
+
+### 📋 WHERE EACH OF TEDDY'S THREE ASKS STANDS
+| ask | state |
+|---|---|
+| **Parts list from API** | ✅ available + parser shipped, verified live (6 clean parts on a real job) |
+| **Parts RETURN links** | 🟡 API gives the return REQUIREMENT + tracking + the RMA portal URL; the **per-part prepaid LABEL + RMA# still only come by email** (`rma_request@squaretrade.com` → `platform-rma-tee`) |
+| **Auto-acceptance** | ✅ **already live** — `servicepower-auto-accept` every 10 min, **20 accepts in 14 days**, TN+LA gated. BUT it only claims the offer; it does **not** create the Supabase job, so we still wait on the dispatch email. |
+| **Same for AHS/Frontdoor** | ⏳ `frontdoor-webhook.js` is DARK (`FRONTDOOR_WEBHOOK_LIVE` ≠ 1) **and posts to Xano's `create_job_from_email`, not Supabase** — flipping it live feeds Xano, not the platform. |
+
+### 🚪 API-NATIVE INTAKE IS FULLY WITHIN REACH
+`getCallInfo` returns a **complete job** — 19 of 21 fields populated live: name, address, city/
+state/zip, phone, email, brand, product, model, problem text, problem type, schedule date,
+**schedule time period (`8-10`)**, call status, warranty type, install date. That is everything
+needed to create a Supabase job **with no email at all**. Auto-accept already fires every 10 min;
+the only missing step is creating the platform job from `getCallInfo` right after it accepts.
+
+### ⏭️ NOT BUILT (deliberately — read path first, no writes yet)
+1. **Merge API parts into `job_part`** (API as spine, email fills the label/RMA#). Highest value —
+   it closes the missing-main-board class of chargeback.
+2. **Create the Supabase job from `getCallInfo`** after auto-accept → true API intake.
+3. **Frontdoor/AHS**: repoint the receiver at Supabase + flip live after watching real payloads.
+
+**Verify (read-only, never writes):**
+`servicepower-call-detail?secret=<VAPI_ADMIN_SECRET>&call=<dispatch#>[&raw=1]`
+→ `{ api_parts[], links{}, parts[], shipping[], sources{info,attributes,notes,coverage} }`
+
+## 🔔📵 2026-09-10 (late) — THE REMINDER IS BACK ON · the over-texting path that was still open (multi-machine stops) — READ FIRST
+
+Teddy: *"Turn back on if there's no chance of over texting. All of this is on supabase correct?"*
+Conditional authorization. So the condition got **measured**, not assumed — and it was NOT met yet.
+
+### 🔴 THE PATH THAT WAS STILL OPEN: the guard keyed on the JOB, but a text lands on a PERSON
+`send_key` was `reminder:<job_id>`. **One stop can carry several machines** — an AHS dispatch
+often covers a washer AND a dryer — and **each machine is its own job row.** Every one of those
+claims is legitimate, so the database had nothing to refuse: that customer gets one reminder
+*per machine* for one visit. **Measured on TN's own board, last 60 days: 32 multi-machine stops,
+71 jobs across them, biggest a three-machine stop** — roughly every other day, a real person
+would have been texted two or three times.
+- **Fix: group by CUSTOMER first.** One visit → one reminder, and the text names every appliance
+  (`Washer and Dryer` / `Washer, Dryer and Cooktop`). Key is now **customer + scheduled day**, so
+  a stop can only claim once no matter how many machines; a **return trip on another day is still
+  its own claim and still texts.** Unit-verified 7/7.
+- **Same class, pre-emptively closed on the lifecycle texts** — `otw` / `arrived` / `complete`
+  were keyed per job too. A tech drives to a house once, arrives once, and leaves once, so those
+  are now per customer per day. **All three are OFF for TN**, so this closed the trap *before*
+  anyone flips them instead of after.
+- **Deliberately still per JOB:** `review` (a customer served again in six months *should* be
+  asked again) and `invoice` (two machines can be two real bills).
+- **⚠️ THE LESSON: a send guard has to be keyed on WHO RECEIVES THE TEXT, not on the record that
+  triggered it.** `thread_send_once_uidx` was working perfectly and still let this through.
+
+### ✅ WHAT WAS PROVEN BEFORE FLIPPING (each of these is a query, not an assumption)
+| check | result |
+|---|---|
+| Tomorrow's load | **18 jobs · 18 distinct customers · 18 distinct phones · 0 missing** |
+| Multi-machine over-text path | **fixed** (grouped per stop; 18 jobs → 18 stops on a live dry-run) |
+| Two customer ROWS sharing one phone on the same day | **0 in 60 days** |
+| Other customer channels | otw · arrived · complete · review · offer **all still OFF** |
+| Opt-out | **absolute, always enforced** (`sms-guard` step 1, before any other check) |
+| Quiet hours | **hard block for customers, always** (not gated on `SMS_GUARD_ENFORCE`) |
+| Duplicate suppression | **always on** — same body to the same phone inside the window |
+
+**Four independent layers now stand between a cron and a double text:** the DB unique index ·
+the per-customer-per-day key · the guard's duplicate suppression · opt-out + quiet hours.
+
+### 🔔 `settings.comms.reminder.on = true` FOR TN (LIVE)
+Verified after the flip: **16 would-send · 0 skipped_off · 0 send_failed.**
+- **The 2 `skipped_dup` are correct, and worth knowing:** both carry markers written **2026-09-07**
+  (the double-text day) with the OLD per-job key — those jobs were reminded then and later moved
+  to 9/11, so the pre-filter refuses to re-text them. That is a **miss, not a double** — the safe
+  direction — and it is a one-time artifact of the old key scheme. Every job from here forward
+  uses the customer+day key, so **a genuine reschedule to a new day now DOES earn a fresh text.**
+- **Nothing sent today.** The cron is `30 19 * * *` (~2:30 PM CT) and had already run before the
+  flip. **The first live send is tomorrow ~2:30 PM CT, for jobs scheduled 9/12.**
+- **Kill it in one move:** set `comms.reminder.on = false` on the company row (or the toggle in
+  the Communication Center). No deploy needed.
+
+### 📞 "ALL OF THIS IS ON SUPABASE CORRECT?" — yes, with one honest exception
+Everything the reminder *thinks with* is Supabase: the job board, the customer + technician +
+unit rows, `thread_message`, the `send_key` guard, the window catalog, the per-shop toggle +
+template. The one leg that is not Supabase is **carrier delivery** — and for `platform_*` tags
+`_lib/sms-guard.deliver()` goes **DIRECT to Telnyx, bypassing Xano entirely** (`PLATFORM_TAG_RE`
++ `PLATFORM_SMS_DIRECT`, default on). So this reminder does not touch Xano at any point.
+**Still Xano-dependent for outbound: every NON-`platform_*` tag** (the legacy TN sends) — that
+door only opens wider by widening `PLATFORM_TAG_RE`.
+
+
+## 📵🕘 2026-09-10 (late) — FIXING THE CLASS, NOT THE INSTANCE: one DB guard now makes a double-text impossible · windows 2→3 slots · 98% of jobs have NO window — READ FIRST
+
+Teddy: *"Since we're redoing everything on Supabase, this is an opportunity to fix mistakes we
+have made previously — like double texting and things like that, setting up actual time windows…"*
+So both were treated as **classes**, and both were **measured before touching**.
+
+### 🔒 DOUBLE-TEXTING IS NOW STRUCTURALLY IMPOSSIBLE (`docs/sql/061_send_once.sql` APPLIED + `_lib/send-once.js`)
+Tonight's reminder fix (17 customers texted twice) was ONE INSTANCE. The same read-marker →
+SEND → write-marker shape lived in the **review sweep — where TWO writers race, the cron AND
+the manual ⭐ button** — and in every arrived / complete / on-my-way tap a thumb can hit twice.
+Patching each caller leaves the next one unguarded, so the guard moved into the DATABASE once:
+- **`thread_message.send_key` + `thread_send_once_uidx (company_id, send_key) where send_key is not null`.**
+  A send **writes its claim BEFORE it sends**; the index refuses the second claim (PostgREST
+  409); the loser never texts. One column, one index, every present and future send.
+  `onceKey('review', job)` = once ever · `dailyKey('otw', job)` = once per **Central** day
+  (a parts return trip on another day is real and still texts; two taps today are a slip).
+- **Wired: review ask · review nudge · ⭐ button · on-my-way · arrived · complete · invoice ·
+  reminder.** The button and the sweep now claim the **same key**, so the documented double-ask
+  bug is closed by the database instead of by convention.
+- **FAILS CLOSED on purpose** — a claim that can't be confirmed does NOT send. A missed message
+  is silent and recoverable; a duplicate lands on a real customer's phone and can't be taken back.
+  Worst case of any wrong assumption in the helper is therefore a miss, never a double.
+- **A row with NO key is unconstrained** → free-form office/tech replies still repeat, as they must.
+- **Proved the index refuses a duplicate** (SQL, zero residue) before trusting it, and
+  **backfilled `send_key` onto the 57 legacy reminder rows** so history participates too —
+  otherwise a job that already got its one ask sits OUTSIDE the index and could get another.
+- **⚠️ STANDING: any new customer-facing send declares a key and claims first.** "Check then send"
+  is correct sequentially and worthless concurrently — the race window is the whole SMS round trip.
+
+### 🕘 ARRIVAL WINDOWS: 2 slots → 3, because the real days said so
+Shipped at two-per-window (6 stops/day). **166 tech-days over 45 days on TN's own board:**
+`1: 11.4% · 2: 13.3% · 3: 12.0% · 4: 25.9% · 5: 16.9% · 6: 10.2% · 7: 7.8% · 8: 1.8% · 10: 0.6%`
+Six caps **one day in ten** — and the board deliberately lets a full window be chosen anyway, so
+"2" was never a cap, just a **wrong number on the office's screen**. Three (9/day) covers 99.4%,
+so the count tells the truth and "full" starts meaning something. Changed in **`platform/ant-windows.js`
+only** — every surface followed, which is the whole point of the one catalog. Unit-verified 7/7.
+
+### 🚨 THE BIGGER WINDOW FINDING — the feature is barely used, and 58% of jobs already have a vendor window
+Of **347** jobs scheduled in the last 3 weeks: **7 carry OUR `time_window`. 202 carry the WARRANTY
+COMPANY's `service_window`** (their promise to the homeowner — a different column, never conflate).
+**139 have no window from anybody** — those are the customers who genuinely don't know when we're coming.
+- So "set up actual time windows" is **not** "force a window on every job." On the 201 vendor-only
+  jobs the customer already HAS a window; inventing a second one contradicts it. The real target is
+  the **139**. The picker exists on office-board / dispatch / needs-scheduled but defaults to
+  "No window yet" and nothing ever asks again — capacity was the easy half, **adoption is the half
+  that matters**. ⏭️ Teddy's call on how hard to push it.
+
+### 📵 TN's review texts are OFF; the reminder was turned back ON later the same night (see the top entry)
+18 jobs are scheduled for tomorrow and every one skipped as `skipped_off`. That matches the standing
+owner rule (*no proactive texts*) and was the right move after 09-07. **The double-text cause is now
+fixed at the database, so turning the reminder back on is safe — but flipping a customer-texting
+toggle is the owner's call, not the system's.**
+
+### 📋 EVERY CUSTOMER-FACING SEND, AUDITED (so nobody re-derives this)
+Once-only, now claim-guarded: **reminder · review · review_nudge · otw · arrived · complete · invoice.**
+Legitimately repeatable, deliberately NOT constrained: free-form tech/office messages, Ann's
+"I just texted you the link" on a live call (they asked again → they get it again), office/owner
+internal alerts (intake, email-intake, Frontdoor, day-request, tech job link).
+Measured after tonight's cleanup: **zero duplicate outbound sends anywhere** — but the review sweep
+is still in SHADOW, so "clean" only means the race hasn't fired yet. **The reminder was clean too, until it wasn't.**
+
+
+## 💾🔁 2026-09-10 (late) — THE BACKUP HAD BEEN DROPPING 25 OF 29 TABLES FOR A WEEK · the platform had NO backup at all · a reminder that double-texted 17 customers — READ FIRST
+
+Continuation of "harden this Supabase". Same discipline: **measure first, fix second.** Four real
+findings, every one caught by reading DATA rather than a function's self-report.
+
+### 🔴 THE NIGHTLY OFF-SITE BACKUP WAS SILENTLY CAPTURING 4 OF 29 TABLES (since 2026-09-03)
+It ran every night and nothing looked wrong. The chunk rows told the truth:
+- Today's snapshot held **jobs, customer, event_log, parts_orders. Nothing else.** Sep 02 held 29.
+  `warranty_submissions`, `technicians` and 23 business tables had not been backed up in a week.
+- **`_manifest` was absent.** It is written only AFTER the loop, so its absence = the run never
+  finished — and a partial run was **indistinguishable from a run that never happened.**
+- `jobs` read **10,512** rows against ~3,455 real; `customer` **11,403** against ~3,798. Exactly **3×**.
+  All four tables' chunks span 08:00→08:33 in three clusters ~16 min apart. **A sequential for-loop
+  cannot do that** — Netlify was **retrying the background fn twice** after it hit the 15-min wall.
+- `parts_orders` is genuinely **~205k rows** (205,500 distinct ids, 1..205,503 — the pager is NOT
+  looping). It sat **4th in CORE_IDS with no time bound** and ate the whole window, three times a
+  night, ~600k rows written into ops.
+- **Root cause: no wall-clock budget anywhere, and the fattest table ordered ahead of 25 cheap ones.**
+  Same family as the mirror's shared `fetchKanban` timeout — one slow dependency starving everything
+  behind it.
+- **Fixes:** `BUDGET_MS` (11 of the 15-min allowance) checked before each table, so the run ends
+  cleanly instead of being killed and retried — **this alone removes the 3× storm**; `pageTable` takes
+  a per-table `deadline` (`maxPages` was never a time bound); **CORE_IDS reordered cheap-first,
+  parts_orders LAST — the order is load-bearing**; `HEAVY_WEEKLY` full-copies parts_orders **Sundays
+  only** (7-day retention guarantees exactly one complete snapshot is always present); and the
+  **manifest is ALWAYS written**, carrying `complete` / `skipped_budget` / `skipped_cadence`.
+- **Verified live: 29 tables, 24,169 rows, `complete:true`, in 23 SECONDS** — against 48 minutes
+  across 3 retries that lost 25 tables.
+- **⚠️ STANDING: a backup's exit code is not evidence. Read the MANIFEST.** And any loop with no
+  wall-clock budget inside a timed runtime WILL eventually be killed + retried, silently.
+
+### 💾 THE PLATFORM PROJECT ITSELF HAD NO OFF-PROJECT BACKUP (`_lib/platform-backup.js`, NEW)
+The nightly job only ever covered **Xano**. TN's live operation now runs on the platform — 3,708 jobs,
+4,018 customers, the whole thread of record — and **nothing anywhere was copying it.**
+- Supabase Pro's own daily backup is the right tool for *"the project is gone."* It is the **wrong**
+  tool for the failure we actually keep hitting: **a bad logical write.** Twice on 2026-09-10 alone —
+  the mirror erasing office edits, and the waiver writer producing 14,160 junk rows. Recovering either
+  by PITR means rolling the whole project back and **losing every legitimate write since.** A per-table
+  logical snapshot in a **different project** lets you restore one table, or diff to find what a bad
+  writer did. The whole platform DB is ~25 MB, so it costs nothing.
+- Lands as `platform.<table>` in the ops project's existing `xano_backup_chunks`, inheriting the 7-day
+  retention prune already keyed on `snapshot_date`.
+- **Tables are DISCOVERED from PostgREST's own root spec, not hardcoded**, so a table added later
+  cannot silently go unbacked; discovered-vs-copied both land in the manifest.
+- **Secrets are never copied:** `app_config` is the vault, `tenant_keyring` holds wrapped DEKs,
+  `tenant_integration` holds `secret_enc` — **encrypted or not, secrets do not get duplicated into a
+  second store**; `company_credential` is credential docs; `portal_grant` is live customer tokens
+  (regenerable, so copying them only widens exposure).
+- **Verified: 38 discovered / 33 copied / 5 secrets refused / 24,909 rows / 8 seconds**, and every
+  table's backed count **matches live exactly** (`app_config` correctly at 0).
+
+### 📵 THE DAY-BEFORE REMINDER DOUBLE-TEXTED 17 CUSTOMERS (09-07)
+Found by hunting **duplicate rows by natural key across every table the migration crons write into** —
+one query beats reading nine files. Everything clean except `thread_message`, and the dupes were nearly
+all `🔔 Day-before reminder sent`, **all stamped 09-07 19:31, identical to the minute.**
+- Measured: **42 markers across 25 jobs → 17 customers got the text TWICE.** Every other day 1:1.
+- Cause: dedupe was read-marker → **SEND** → write-marker. The comment said *"one reminder ever, even
+  if the cron runs twice"* — true for SEQUENTIAL runs; **two CONCURRENT runs both pass the check and
+  both text.** The race window was the entire SMS round trip. **Same class as the waiver note.**
+- **Fix, two halves: (1) CLAIM BEFORE SEND** — write the marker first, only send if the claim landed
+  (`sins` now reports whether the row actually landed — *a fire-and-forget insert cannot be used as a
+  claim*); **(2) `docs/sql/060_reminder_once.sql` (APPLIED)** — partial unique index on
+  `thread_message(job_id) where channel='reminder'`, so the loser's insert is **refused by the
+  database** and it never sends. 17 pre-existing dupes cleaned first or the index cannot build.
+  Verified after: **57 markers / 57 jobs, exactly 1:1.**
+- **⚠️ The failure direction now matters more than the failure rate:** a MISSED reminder (silent,
+  recoverable, counted as `send_failed`) instead of a DOUBLE text. That is the right trade on any
+  customer-facing send.
+
+### 🩹 TWO UNBOUNDED WRITERS INTO `event` (one of them mine, from earlier the same night)
+- **`platform-migration-watch` wrote a NEW state row every 15 min** — 96/day, forever, no prune.
+  **Watch state is STATE, not a log:** one row, updated in place. Verified: held at 2 rows across two
+  invocations. *A monitor must not be a leak* — this is the same shape as the backup table that quietly
+  grew to 978 MB and became the #1 autovacuum-churn source.
+- **`platform-tn-reconcile` logged one audit row per run.** A run that DID something is worth keeping;
+  no-op runs now collapse into a single rolling `tn_reconcile_idle` row, so *"is it still running"*
+  stays answerable without 96 rows a day.
+
+### 📏 MEASURED + CLEAN (no action — recorded so nobody re-checks)
+- **Platform DB is ~25 MB total**, biggest table 6 MB. **No bloat.** `thread_message` still holds ~6 MB
+  reclaimable from the 14,160 deleted waiver rows; autovacuum takes it back.
+- **Duplicate hunt across `job_part` / `job_media` / `job_tdr` / `job(xano_id)` / `customer(xano_id)`:
+  zero.** The waiver writer was the only runaway.
+- **Index coverage is healthy** — every index has non-zero scans, nothing dead. The three
+  `*_company_xano_uidx` uniques carry 3.6-3.8M scans each (the mirror's upsert conflict targets).
+  ⏭️ **Known, deliberately NOT done on a live board:** `job` carries **14 indexes on 3,708 rows** and
+  the mirror upserts 1,174 of them every 5 min. Two are EXACT duplicates (`idx_thread_job` /
+  `thread_job_idx`; `idx_job_company_status` / `job_company_status_idx`). Dropping them is a modest
+  write-path win — do it with `DROP INDEX CONCURRENTLY`, and only the exact pairs.
+
+
+## 📞💬 2026-09-10 (late) — ARE TEXTS + PHONES SOLID ON SUPABASE? Honest answer: THE BRAIN MOVED, THE PIPE DIDN'T — plus a 14,160-row runaway writer — READ FIRST
+
+Teddy asked two things back to back: *"What else can we do to harden this supabase"* and *"Are text
+and phones solid on Supabase"*. Measured both instead of asserting.
+
+### 🐛 THE RUNAWAY WRITER — one customer's waiver note existed **492 times** (found by measuring, fixed)
+`platform-tn-intake-tee` re-reads the **newest 25 `customer_waiver_signed` events every run** and its
+comment says *"idempotent -> re-covering the window is cheap."* **The job patch is idempotent. The
+`thread_message` insert is not.** So 25 waivers × 96 ticks/day = **~2,400 junk rows/day**, for days.
+- **Measured: 14,160 of 15,133 waiver notes were duplicates** (973 real). TN `thread_message`
+  **15,190 → 1,187 rows.** It was burying real customer messages in the office board thread, the
+  customer portal, and the tech's conversation view.
+- **This is the actual root cause of the 14,072-row table** that forced the `board_latest_inbound()`
+  RPC on 2026-09-10 AM. That RPC treated the symptom; this was the disease. Keep the RPC (history
+  still grows) — but the table is now ~92% smaller.
+- **Fix:** read the platform job's `waiver_signed_at` alongside the id resolve and write the note
+  **only the first time**. On a failed read it SKIPS the note rather than risk re-spamming (the patch
+  still lands; the next clean run posts it). Reports `noted` / `renoted_skipped`.
+  **Verified live: `scanned 25 · noted 0 · renoted_skipped 25`.**
+- **⚠️ STANDING RULE: "this pass is idempotent" is a claim about EVERY write in it.** A re-read window
+  + an unguarded insert is a row generator. Any tee/sweep that re-covers a window must gate each
+  insert on a first-time check, not on the enclosing function's reputation.
+
+### 🔭 NOTHING WATCHED THE NINE MIGRATION CRONS — `platform-migration-watch` (NEW, cron `7-59/15`)
+Nine crons carry TN between the systems and **the only alert that reached Teddy was `deploy_down`.**
+Two failures the same day prove the gap: the mirror wrote nothing for 45 min while every run reported
+healthy, and the tee above ran wild for days. **Both were found by hand.**
+It watches the **DATA, never a function's self-report** (the day's standing lesson):
+**mirror_stale** (no job row touched in 20m; mirror runs every 5) · **booking_stuck** (a platform
+booking unconsumed past 25m) · **thread_flood** (>200 thread rows/hr = a writer is looping — this
+**generalizes the waiver bug so the whole class is caught next time**) · **parity_gap** ·
+**status_drift**. Dedup + 6h re-nag + ONE recovery text.
+- **Watch state lives on the PLATFORM, not Xano** — a monitor for the migration off Xano must not die
+  when Xano does.
+- **⚠️ `migration_down` had to be added to `_lib/office-gate` `SHIP_TAGS`** or the alert is written and
+  delivered NOWHERE (the 2026-08-28 office-SMS kill). Every future alert needs the same allowlisting.
+
+### 📞💬 THE HONEST ANSWER ON TEXTS + PHONES
+**The brain reads Supabase. The pipe is still Telnyx-via-Xano. TN itself has no platform phone number.**
+
+| | where it runs today | solid? |
+|---|---|---|
+| **Phone brain** (who's calling, what's their job, what day) | **Supabase** — `job-truth` answers from the mirror; verified live `source=mirror` | ✅ yes |
+| **TN's actual phone line** (Ann) | **Xano/Vapi/Telnyx.** `company.settings.phone` for TN is **NULL** — TN has no platform-owned DID | ⚠️ not migrated |
+| **Text thread of record** (office ↔ tech ↔ customer) | **Supabase** `thread_message` — 92 inbound customer SMS + office/tech replies land here | ✅ yes |
+| **Outbound send** | `guardedSend` → `deliver()` → **`xanoSend`** for every non-`platform_*` tag | ⚠️ Xano in the path |
+| **Opt-out / STOP** | **Supabase** `sms_guard_event`, one keyed lookup, complete history (Xano = fallback) | ✅ yes |
+| **Per-shop templates + toggles** | **Supabase** `company.settings.comms` (TN has overrides set) | ✅ yes |
+| **Review asks** | platform side sends **nothing** — TN's `review_url` is `""` (by design). Xano's sweep still runs | ⚠️ Xano-only |
+
+- **`sms_guard_event` has 1 `sms_guard_sent` row, and that is CORRECT** — proactive customer texting is
+  off by owner directive, so almost nothing flows through `guardedSend`. Low volume ≠ broken plumbing.
+- **The one thing that would break if Xano vanished today: outbound customer texts.** Inbound, the
+  thread, the opt-out list and the phone brain all survive. The fix when we want it is widening the
+  `PLATFORM_TAG_RE` direct-to-Telnyx door in `_lib/sms-guard.deliver()` — the mechanism already exists
+  and is proven (`PLATFORM_SMS_DIRECT`), it just only opens for `platform_*` tags today.
+- **TN gets its own Ann the same way any tenant does** — `platform-phone` buys the DID and builds the
+  assistant, then `action=update` lands warm-transfer. Nothing is missing; nobody has pulled the
+  trigger, because the Xano line is the one customers already know.
+
+### 🔒 RLS RE-AUDIT (post-041 surface) — CLEAN
+Every one of the 38 public tables has RLS **on**; **zero** have `using(true)`. 11 carry RLS with **zero
+policies = deny-all to clients** (`app_config`, `tenant_keyring`, `sms_guard_event`, `import_map/run`,
+`partner*`, `shop_application`, `trial_shop`, `trade_profile`, `prospect_message`) — correct: those are
+server-key-only. The 059 booking columns inherit `job`'s tenant policy. No action.
+
+
+## ✅ 2026-09-10 (late) — "ARE WE CURRENT?" IS NOW A NUMBER — `platform-tn-parity` + the third write-back — READ FIRST
+
+Teddy: *"Ok we're current on Supabase now."* Checked it instead of taking it — and found the last
+real gap plus a tool that answers the question permanently.
+
+### 🧮 `platform-tn-parity` (NEW) — the two systems, diffed
+It **imports `fetchActiveJobs` and `isRealJob` FROM THE MIRROR**. A parity check that
+re-implements the walk or the shell-skip rule measures its own copy of the logic and would
+happily report "current" while the mirror quietly dropped a whole status. Platform side is
+**paged** — the 1,000-row cap would otherwise invent a gap out of thin air.
+Four buckets, because *missing* is not one thing: **missing_real** (act on it) · **skipped_shell**
+(Xano's warranty-email artifacts, no name/phone/appliance — skipped on purpose, counted, never
+alarmed on) · **status_drift** · **platform_only_open** (the backup being incomplete).
+`?days=N` scopes it, `?list=1` names the jobs.
+
+### ↔️ THE THIRD WRITE-BACK — `platform-tn-status-back` (LIVE, cron `2-59/10`)
+Parity's first run: **11 jobs where the platform was AHEAD of Xano, four of them completed by a
+tech here while Xano still showed scheduled/in-progress.** The mirror's never-walk-backwards guard
+**defends** the platform's further-along state but never **tells** Xano — so the backup did not know
+the work was done.
+- **FORWARD ONLY on the mirror's own `RANK`** (new→scheduled→in_progress→awaiting_parts→completed).
+  It can never drag Xano backwards, which matters while Xano is still system of record.
+- **A completion needs a real `completed_at` stamp, never status alone.** Earned its keep on the
+  first run: job 21764 reads completed here with NO stamp and was skipped rather than marked done.
+  That is the exact shape that nearly caused a bad bulk repair (~73 unfinished jobs) before.
+- **NO SIGNALS — and it matters most here.** `office_set_job_status → completed` writes an
+  event_log transition, `job-completion-watch` grabs anything inside 36h, `review-request-sweep`
+  texts the customer. Pushing a backlog of completions through that path would text people about
+  old work. A raw Metadata row-write emits nothing.
+- **First live run: 11 pushed, 0 errors. Drift 11 → 1.**
+
+### 📊 WHERE PARITY ACTUALLY STANDS (measured, not asserted)
+`xano_active 802 · platform_mirrored 3,442 · missing_from_platform 1 · platform_only_open 0 ·
+status_drift 1`. The two remaining are both **honest Xano-side data problems, not sync bugs**:
+- **Job 21958** — a RECALL with **NO customer_id at all** (no name, phone or address). The mirror
+  cannot create it because there is no customer to map. **Nobody can work it either** — needs a
+  customer attached in Xano.
+- **Job 21764** (Lee / Faatoia Tufele) — marked completed here with **no `completed_at`**, a filed
+  report, and `scheduled_day` **2026-09-14 (future)**. Reads like a parts return trip marked done
+  early. Needs a human, which is why the guard refused it.
+
+### ⚠️ POLL FOR THE **PUBLISHED** DEPLOY, NOT A MENTION OF THE COMMIT
+Cost two false "still broken" runs and one 404 chase. `deploy-watch` returns `latest` (which can be
+**building**) and `last_good` (**published**). Matching the sha anywhere in the body matches the
+building one. Gate on `last_good.commit`:
+```
+until curl -s -G .../deploy-watch --data-urlencode "secret=$S" --data-urlencode "dry=1" \
+  | python3 -c "import sys,json;print((json.load(sys.stdin).get('last_good') or {}).get('commit',''))" \
+  | grep -q "$(git log -1 --format=%h)"; do sleep 15; done
+```
+A function that 404s right after a deploy is usually **still building** — the other cause is the
+documented mis-pathed `require` that makes esbuild silently drop the whole function.
+
+## ↔️ 2026-09-10 (late) — EVERY NEW JOB NOW LANDS IN **BOTH** SYSTEMS (Xano stays a complete backup) — READ FIRST
+
+**Teddy's direction, locked:** *"Supabase is the new system we are trying to get set up. Xano is our old
+system. Hopefully we can get these new jobs to go to Supabase as well as Xano, and just use Xano as a
+backup for right now so that way we've got everything still while we make this merger over."*
+
+### THE HOLE: the platform runs its OWN warranty-email intake, and Xano never heard about it
+3,438 of 3,455 jobs came FROM Xano and the mirror carries them here in ≤5 min — that direction was
+fine. The other direction was not. `platform-email-intake` (`<slug>@jobs.assistant247.net`) creates a
+job HERE when a dispatch arrives that Xano's poller never saw. **Measured: FOUR real Frontdoor
+dispatches from 9/8–9/10 — Ferrara, Madroy, Tusa, Segreti, each with a claim#, full address and
+appliance — existed ONLY on the platform.** The backup was missing live work.
+- **`platform-tn-job-back` (NEW, cron `8-59/15`, LIVE)** — creates the Xano customer + job for any
+  platform-native job, then stamps `xano_id` so the mirror owns it from then on and it can never be
+  created twice.
+- **CLAIM NUMBER IS THE DEDUP KEY. No claim → REPORTED, never created.** A duplicate warranty
+  dispatch is worse than a missing one (two techs, two claims, one machine).
+- **LINK BEFORE CREATE**, and a **failed Xano read SKIPS** the job — never assume "Xano doesn't have
+  it" on an error, that is exactly how duplicates get made.
+- **NO SIGNALS** — Metadata API, not `create_job_from_chat`/`ahs_email_intake`, which emit
+  JOB_CREATED and fire the customer greeting SMS.
+- **Result: 1 linked (Segreti → existing job 21982), 3 created (22041/22042/22043).** Re-checked every
+  claim after: exactly one Xano job each, zero duplicates. **`open_platform_only` is now 0.**
+
+### 🚨 `office_universal_search` GIVES FALSE NEGATIVES — DO NOT USE IT AS EVIDENCE OF ABSENCE
+It reported all four as missing from Xano — **including Segreti, whose claim was sitting on job 21982
+the whole time.** The claim search is what actually decided every create and is what turned Segreti
+into a link instead of a duplicate. **Duplicate hunting goes through `claim_number` /
+`dispatch_source_id`, never a name.** `platform-tn-job-back?claim=<n>` exposes it (flags `matches>1`).
+
+### 🧟 THE MIRROR CANNOT SEE A CANCEL — and the fix existed all day, unwired
+The mirror only ADDS and UPDATES: it fetches Xano's **ACTIVE** jobs and upserts them. A job canceled
+in Xano simply stops appearing, so **the platform keeps its last-known state forever** and the card
+sits in the office's queue as work to be booked (471 dead cards before the first manual run).
+`platform-tn-reconcile` fixes exactly this and was written this morning — **but was never added to
+`netlify.toml`, so it only ran when someone remembered.** Found it because Segreti still showed open
+here after linking (Xano has him canceled). Wired: **`platform-tn-reconcile-cron`, `14-59/15`**.
+Scope stays CANCELED-only on purpose — completed-vs-not is reported, never written.
+- **⚠️ STANDING: a mirror that reads an ACTIVE set is blind to every terminal transition by
+  construction.** Any such mirror needs a reconciler, and the reconciler needs a cron.
+
+### 🧾 XANO SCHEMA, PROBED NOT GUESSED (cost two runs)
+- **`customer` (table 6) is narrow:** `first_name,last_name,phone,email,address,city,state,zip,
+  dedup_signature,related_customer_id,company_id`. **NO `customer_phone`, NO `service_*`** — those
+  live on the JOB. **Searching a column the table does not have 400s the whole request.**
+- Metadata search is **single-field only**, so try phone formats one at a time.
+- `dedup_signature` is `phone|street|city|state|zip` with the **street expanded** (`Ave` → `avenue`).
+  Leave it UNSET rather than write a wrong one — blank means no auto-merge, which is the safe way.
+- **`?probe=<id>&full=1`** on `platform-tn-booking-back` dumps a whole job row; **`?cust=<id>`** on
+  `platform-tn-job-back` dumps a customer. Copy the real shape before writing anything.
+- **⚠️ Poll for a DEPLOY, not for a 200.** Two "still broken" runs were the old build still live;
+  the fix had been right the first time. Check `deploy-watch` for the actual commit hash.
+
+## 🔁 2026-09-10 (late) — THE LAST ONE-WAY GAP CLOSED (bookings now reach Xano) + a mass-mis-text landmine + the 1,000-row cap — READ FIRST
+
+Continuation of the migration grind. Four things, in the order they were found.
+
+### 🔁 A BOOKING MADE ON THE PLATFORM NOW REACHES XANO (`platform-tn-booking-back`, LIVE, cron `4-59/5`)
+The mirror moved jobs Xano → platform and the guard stopped Xano *erasing* a platform booking, but
+nothing carried one back — so the legacy board and the Xano tech app were blind to work booked here.
+That is the single thing that was forcing the office to keep booking in Xano.
+- **Detection is an EXPLICIT STAMP, never inference.** The three booking surfaces (office-board,
+  dispatch, needs-scheduled) write straight to PostgREST from the browser, so there is no server
+  hook. Inferring *"platform has a day, Xano is blank ⇒ the platform booked it"* is **WRONG in a real
+  case: Xano UNSCHEDULING a job looks byte-for-byte identical**, and guessing would resurrect a
+  booking someone deliberately cleared. So each surface stamps **`job.platform_booked_at`** (SQL 059)
+  and the pusher **CONSUMES it** (clears to null + records `platform_booked_pushed_at`). So
+  `platform_booked_at is not null` **IS** the queue — bounded, indexed, and a reschedule re-stamps it.
+- **⚠️ It had to be a consumable queue because PostgREST compares a filter against a LITERAL, never
+  another column.** `platform_booked_pushed_at.lt.platform_booked_at` returned an error and would have
+  silently pushed nothing.
+- **NO SIDE EFFECTS.** Writes via the **Metadata API**, NOT `danielle_schedule_parallel_job` /
+  `reassign_job` — those emit APPOINTMENT_SCHEDULED / TECH_ASSIGNED and **text a customer**. A
+  mirror-sync is the last thing that should trip a proactive text.
+- **Write safety proved first:** Xano's content PUT **replaces the row**, so every write is a
+  read-modify-write of the whole **127-column** job. `?rmwtest=<id>&confirm=yes` proved it lossless
+  (127 in, 127 out, empty diff) on a disposable artifact row BEFORE anything real moved. Terminal
+  Xano jobs are never touched; `scheduling_status` is only promoted FROM a pre-scheduled state so an
+  `awaiting_parts` return trip keeps its parts state.
+- **Central time is COMPUTED, not hardcoded −5.** Verified 8/11/2 CT land right on both sides of both
+  DST flips, and 8am CT resolves to the same 13:00Z the live rows already carry.
+- **🐞 THE STOP-ORDER BUG (only visible because the restore diffed the exact byte).** Xano encodes
+  **stop position in the HOUR** (`hour = 8 + slot − 1`); the platform's three windows (8-11/11-2/2-5)
+  **cannot express "slot 2"**. Restoring job 18576 wrote **8:00 AM over Xano's 9:00 AM** — silently
+  moving that job to the front of the tech's day. Fix: when the platform carries **no** window and the
+  **day has not moved**, keep Xano's own hour. A window set on the platform still wins.
+  **LESSON: a round-trip test must compare the BYTE, not "it looks scheduled again."**
+- **The mirror stopped racing it:** a booking still QUEUED for Xano is the one case where the platform
+  outranks the system of record outright. Without that, a reschedule was lost — mirror reverts to
+  Xano's old day, pusher dutifully sends the old day back, office watches its own change undo itself.
+- **Unschedule clears `current_status` too** — Xano carries the state twice and `mapStatus`/`job-truth`
+  fall back to it, so a stale `scheduled` there is a second source of truth waiting to contradict.
+- **`?repair=<xano_id>&confirm=yes&tech=&start=&status=&current=`** — a signal-free repair hatch, because
+  every normal endpoint that sets these texts somebody. **Verified live both directions** (book → Xano
+  scheduled/11:00 AM CT/tech 2; unschedule → null/not_ready), then restored byte-for-byte, zero residue.
+
+### 🚨 CLEARING THE OVERDUE BACKLOG WOULD HAVE TEXTED HUNDREDS OF CUSTOMERS (found before it shipped)
+`office_set_job_status → completed` is a **TRANSITION**, and `job-completion-watch` picks up any
+transition inside a **36-hour window** → emits `job_completed` → `review-request-sweep` texts the
+customer *"how'd we do?"*. So **correcting the status of a June job today looks brand new to the whole
+chain.** One afternoon of board cleanup would have asked up to 331 customers to review a visit from
+three months ago — under Teddy's name.
+- **Fix belongs in `_lib/review-ask`, not in the cleanup tool** — a stale ask is wrong however the
+  completion got there. It reads **when the WORK happened** (`job_completed_at` / `scheduled_start`,
+  both confirmed present on `get_job_for_dashboard`) rather than when the row was touched, because a
+  status can be corrected months later but **the visit cannot move**. Older than **10 days** → no ask,
+  reason `work_too_old`. `opts.force` still bypasses.
+- ⚠️ Every caller of review-ask is a **scheduled** function (edge-403 on manual HTTP), so this was
+  proved from live field values (job 18576, visit 100 days ago → guard fires), not a dry-run.
+
+### 🕳️ THE 1,000-ROW CAP WAS SHORT-CHANGING THE BOARD *AND* THE OWNER'S MONEY VIEW
+**PostgREST caps a response server-side at 1,000 rows no matter what `.limit()` asks for, and it does
+NOT error — it quietly hands back less.** Proved on the real query, not inferred:
+```
+GET /rest/v1/job?status=not.in.(completed,canceled)&limit=2000
+ -> content-range: 0-999/1210
+```
+Measured damage: **dispatch + needs-scheduled were seeing 1,000 of 1,210 open jobs (210 invisible)**,
+and **owner.html was computing take-home, first-stop rate, warranty pipeline and parts margin on
+1,000 of 3,455 jobs** (and 1,000 of 1,638 `job_part` rows). The numbers looked fine and were wrong.
+- **`platform/ant-page.js` `AntPage.all(makeQuery)`** pages until the server stops handing back a full
+  page. Takes a **FACTORY**, not a query (a supabase-js builder can only be awaited once). It applies
+  the **stable sort itself** — `.range()` over an unordered result can skip or duplicate rows between
+  pages, and doing it centrally means no call site can forget. One retry per page; a page still lost
+  after that is **REPORTED** (`partial`), never treated as end-of-table.
+- Verified paged reads return **1,210/1,210** and **3,455/3,455**. Left alone deliberately: invoice
+  (10), tech_payout (0), coverage (203), tech_time_off (1).
+- **⚠️ STANDING RULE: any `.select()` that COULD exceed 1,000 rows needs `AntPage.all`, an RPC, or an
+  explicit count check. A plain `.limit()` bigger than the cap is a silent lie.** Same family as the
+  office board showing 37 of 1,725 message threads.
+
+### 📏 THREE WEEKS IS THE WORKING HORIZON (Teddy 2026-09-10, locked)
+*"I really don't think we need to go back that far... maybe three weeks, but that's really as far
+back as we need to go. We've maybe done less than a thousand. Those would be the ones I would focus
+on, not the ones before that."*
+- Of the 331 overdue jobs, **66 are inside three weeks; 265 go back to June 2.** 331 is a wall
+  nobody starts; 66 is an afternoon. Any backlog surface should **LEAD with ~21 days** and park the
+  rest behind one tap — still counted, still reachable, just not the thing you have to get past
+  before you can start. Same pattern as the intake-artifact parking on the board.
+- **⚠️ This scopes the WORK QUEUE, not the DATA.** The mirror still carries all 3,455 jobs on
+  purpose: that history answers *"what did we do here last time"* and feeds first-stop-fix rate, the
+  warranty backfill and the owner P&L (which was only just fixed to read the full book instead of
+  the first 1,000). Narrowing what humans are asked to act on ≠ throwing away history.
+
+### ⏰ `platform/stale-scheduled.html` — the office can finally clear the 331
+331 jobs say `scheduled` on a day already past (oldest 2026-06-02); **Xano agrees on every one**, so
+it is real work in limbo. Grouped by tech, oldest first, with the two signals that actually decide it
+on each card: **📝 report filed (111 of 331 — the tech was almost certainly there)** and 📦 parts
+pending. Three taps: *it was done* / *still needs doing* / *dead job*. Writes land in **Xano** (platform
+status is derived from it every 5 min, so a platform-only fix would be undone before the office
+finished scrolling). *Still needs doing* hands off to the booking pusher rather than writing the
+schedule twice; *dead job* uses `office_remove_job` (reversible, silent). **Office seats only.**
+Linked from the board as **⏰ Overdue**. Opens on the last 21 days (65 jobs, all on real techs);
+the 265 older sit behind a tap. ⏭️ **Still needs the human pass — that call is Danielle's.**
+- **🐞 It refused platform-native jobs at first** (`no_xano_id`). That looked harmless because every
+  job on the board today came from Xano — and it is exactly backwards: **a job with no `xano_id` was
+  BORN on the platform, and every job the platform takes intake for from here on lands that way.**
+  The tool would have quietly stopped working as the migration succeeded. Those now resolve on the
+  platform and stop (nothing to push — the job does not exist in Xano).
+- Found because the ONE open job on the deactivated **"Tech 1" decoy seat** was the 9/8 ZZ TEST
+  practice job — sitting in the office's live queue looking like real work while assigned to a seat
+  nobody can sign into, so it could never have appeared on anyone's day. Canceled (reversible).
+  **⚠️ Worth a periodic check: an open job on an INACTIVE tech is invisible work.**
+
+### ⚠️ FOOTGUNS BURNED
+- **PostgREST cannot compare two columns in a filter** — the right side is always a literal.
+- **PostgREST caps responses at 1,000 rows silently**; `.limit(2000)` is not an error, just a lie.
+- **`.range()` without `ORDER BY` can skip or duplicate rows** between pages.
+- **Xano's content PUT replaces the row** — always read-modify-write, and prove it lossless first.
+- **Xano stores schedule state TWICE** (`scheduling_status` + `current_status`); fix both or the stale
+  one contradicts you later. Unscheduled is **`scheduled_start: null`**, not 0.
+- **A completion TRANSITION on an old job looks brand new to every downstream watcher.** Check what a
+  bulk status change would *fire* before building the tool that makes it easy.
+- **Headless-browser checks are unreliable through this session's proxy** (CONNECT tunnels close
+  mid-exchange). Prove front-end data paths by replaying the exact REST calls instead.
+
+## 🚑 2026-09-10 (PM) — THE OFFICE-DOWN HOUR: four bugs wearing one costume (Xano saturation) — READ FIRST
+
+Danielle: *"Having issues on both systems. Old won't load new won't send text and having hard time to get all
+ppl to pull up."* It read as one collapsing system. It was **four independent bugs**, only ONE of which was Xano.
+
+- **🔎 Name search returned nothing.** A name lives in TWO columns, and the whole string was matched against
+  each separately — `"Cornell Jones"` matched neither `first_name` nor `last_name`, while `"Cornell"` alone
+  worked. She fell back to phone + WO numbers to find people. Fixed in `platform-messages do=search`: multi-word
+  queries match the words independently, in either order, **and the closest match is ranked first** (broadening
+  it also surfaces every other Jones, and alphabetical order buried the person she typed).
+- **📵 "New won't send text" — the platform could not text without Xano.** `guardedSend` made **~6 sequential
+  Xano event_log reads before every message** (opt-out, duplicate, 24h/7d caps, global cap), each a 500-row scan
+  with a 10s timeout AND a retry. At Xano's 4–25s the send never returned. **Fixed properly: the guard now has
+  its own indexed Supabase table `sms_guard_event`** (phone, action, at_ms). Opt-out = ONE keyed lookup instead
+  of two 500-row scans — faster AND more correct (sees history beyond the newest 500 rows). Xano stays as
+  fallback + audit. **13 opt-outs / 5 opt-ins migrated first**; resolved state hand-checked (9 stay out, 2 opted
+  back in). **Verified live: opted-out → `texted:false`; cleared → `texted:true`; send 26s-hang → ~1.7s.**
+  ⚠️ Also fixed on the way past: the sent marker stored only `message.slice(0,200)`, so two different intake
+  links looked identical and the 2nd was dropped as a duplicate. It now stores the real full-message key.
+- **🔄 "Old system keeps saying update, won't load anything."** `office-board.html` **had not changed in weeks.**
+  Netlify's ETag carries the content hash **plus how that response was encoded** — `"abc-ssl"` plain vs
+  `W/"abc-ssl-df"` compressed. `tech-autoupdate.js` compared the whole string, so any check that negotiated a
+  different encoding read as a new deploy → **"New version ready" every 2 minutes, all day**, on every tech page
+  too. Dismiss only skipped one version. Fixed: compare the content hash alone.
+- **🐌 The one that WAS Xano.** `get_office_kanban` 12s / 761KB; `get_job_for_dashboard` 4.1s typical, once >40s.
+  `job-truth` allowed 6s, so **2 of 3 lookups returned found:false** = Ann telling a customer *"I don't see that
+  one yet"* about a job scheduled that same day. Raised to 12s (phone is separately capped at 4.5s by vapi-tool,
+  so no dead air) — **still times out**, because Xano is the problem, not the budget.
+
+**🧭 THE LESSON:** a slow dependency doesn't just slow things down — it **surfaces every latent bug at once** and
+makes them look like one failure. Diagnose each symptom separately before accepting a single story.
+**⚠️ And check response BODIES, not status codes:** `platform-messages` was returning **200 with
+`not_signed_in`** the whole time I was calling the office "healthy."
+
+**📋 Danielle's "jobs show scheduled but aren't on the schedule" = TRUE, and not a bug.** 328 of 387 platform
+jobs at status `scheduled` carry a day **already past** (Jimmy: 71 of 86, oldest 2026-06-02). The job says
+scheduled; the schedule shows today forward. Both honest. **Needs a stale-scheduled cleanup pass.**
+
+
+## 🚨 2026-09-10 — THE 4KB ENV CAP FAILS A BUILD AS "exit code 2" (cost 45 min; read before adding ANY Netlify env var)
+
+**Symptom:** every deploy fails at `Failed during stage 'building site': Build script returned non-zero exit code: 2`.
+Nothing about environment variables. Secret scanning reports 0 matches. The site keeps serving the last good
+deploy, so it looks healthy while **no fix can ship**.
+
+**Cause:** AWS Lambda caps a function's environment at **4,096 bytes** (key+value, all vars scoped
+`functions`/`runtime` — `builds`/`post_processing` don't count). Going over does NOT produce the documented
+"environment variables exceed 4KB" message on this path; it produces the opaque exit-2 above. Adding
+`PLATFORM_SUPABASE_SERVICE_KEY` as a 219-byte legacy JWT took us 3,320 → 3,569 bytes and broke every build.
+
+**The isolation test that actually works** — push a KNOWN-GOOD commit to a throwaway branch and let it build:
+```
+git push origin <last-green-sha>:refs/heads/claude/buildtest-known-good
+```
+Same code that built an hour ago now fails ⇒ the environment changed, not the repo. This is the only cheap way
+to separate the two, and it beats guessing. (Ruled out this way, each with evidence: the suspect commit bundles
+clean under `npx esbuild --bundle`; the `netlify.toml` `ignore` command returns 1 = "build" as intended; a
+cache-cleared rebuild fails identically; Netlify's secret scanner found 0 matches across 5,567 files.)
+
+**Measure it correctly — two wrong ways, both of which read plausible:**
+- ❌ Netlify's env API sizes. It **masks any `is_secret` var to 20 chars** (7 of ours are), so
+  `ANTHROPIC_API_KEY` reads 38 bytes and is really ~127. Undercounts — the direction that walks you
+  into the ceiling. My first two budget numbers this day were wrong for exactly this reason.
+- ❌ Summing all of `process.env`. **Overcounts** — sweeps in AWS/Netlify runtime vars (PATH, AWS_*,
+  LAMBDA_*) that don't count. Read **6,002 against a 4,096 cap on a build that was green**.
+- ✅ **Key names from the API, real lengths from `process.env`.** That is what AWS weighs.
+
+**The number, honestly measured: 3,118 / 4,096 — 978 bytes free.** `XANO_METADATA_TOKEN` is 1,829 of it (59%).
+Empirically this site built at ~3.7KB of our own vars and failed at ~3.97KB.
+
+**🔔 `deploy-watch` now exists — this can't happen silently again.** Scheduled `*/10`, reads the newest
+PRODUCTION deploy, texts the owner when builds go red, re-nags at 6h, and says so when they recover. Also
+reports the env budget every pass and warns under 600 bytes free. Core is curl-testable
+(`deploy-watch?secret=&dry=1`); `deploy-watch-cron` is the thin scheduled wrapper.
+**`?test=1` fires one REAL text down the same path** — verified delivered 2026-09-10.
+⚠️ It only reaches him because `office-gate` gained ONE tag (`deploy_down`) in `SHIP_TAGS`. Every other
+health tag is still suppressed by Teddy's 2026-08-28 rule. **Any future alert must be allowlisted or it is
+written and delivered nowhere.**
+
+**🔑 `netlify-admin?action=env_to_vault&key=NAME`** — copies a value the function already holds into the
+vault **server-side** (never through a chat or shell), so a key can leave the 4KB budget without anyone
+re-pasting a secret. The reverse of `vault_to_env`. This is the tool that makes the ceiling survivable.
+
+**Reclaimed 2026-09-10:** `XANO_HCP_WEBHOOK_URL` (provable no-op — code falls back to the identical URL),
+plus 7 vault-backed vars with **zero** `process.env` readers: `SUPABASE_URL`, `OPENAI_API_KEY`,
+`DIGITS_CLIENT_ID/_SECRET/_REFRESH_TOKEN`, `TWILIO_ACCOUNT_SID/_AUTH_TOKEN`. Backed each up with
+`env_to_vault` first. 28 vars → 21.
+
+**⏭️ `XANO_METADATA_TOKEN` (1,829 bytes, 59%) — mechanism BUILT + PROVEN, rolled back on latency.**
+The vault could not hold it because 99 live functions read it raw from `process.env`, 44 from SYNC helpers
+(`function authH()`) that cannot await. Solved WITHOUT touching a single call site: **`primeXanoToken()` in
+`_lib/secrets.js`** fills `process.env.XANO_METADATA_TOKEN` from the Supabase vault once per cold container,
+so every existing read keeps working unchanged. Wired into 116 handlers + the 4 shared libs — critically
+**inside `metadata-crud.callXano`**, the one async choke point behind all 242 functions that use it.
+- ✅ **It works.** Deleted the var, deployed: `get-tech-profile` returned live Xano data with a vault-sourced
+  token, and headroom jumped **978 → 2,807 bytes**.
+- ❌ **Rolled back within minutes.** The extra cold-start round trip tipped slow Xano reads past
+  `metadata-crud`'s 10s timeout — `office-stage` and `tech-earnings` began returning `xano network error`
+  while the office was live in them. Restored via `vault_to_env` + deploy; all endpoints verified 200.
+- **This is a LATENCY problem, not a correctness one**, and the root cause is Xano being slow (measured 5.5s+
+  the same day) — the very thing TN is migrating off. **The code is already merged and is a NO-OP while the
+  var is in env** (prime returns early), so finishing it later costs one delete + one deploy.
+- **To finish:** retry when Xano is quiet, and/or raise the `AbortSignal.timeout(10000)` in
+  `metadata-crud.callXano`. Or simply wait — all 99 are legacy Xano functions that retire with the migration.
+- **Rollback is 30 seconds:** `netlify-admin?action=vault_to_env&key=XANO_METADATA_TOKEN` then deploy.
+
+## 🗓️🐜🧊 2026-09-10 (Wed) — "BOTH SYSTEMS ARE FREEZING": the Supabase board was pulling 14,072 rows, and four silent-truncation bugs — READ FIRST
+
+Teddy: *"Both systems are freezing. Continue the work to do whatever we need to do to be full-time on
+Supabase one thing at a time... let's keep Xano going as well as possible while we're making this
+transition but systematically get Supabase up to speed and hopefully running better than Xano."*
+**Locked direction: systematic one-change-at-a-time migration off Xano over the next few days.**
+
+### ⏱️ THE 43.8s WAS A SPIKE, NOT A CONSTANT — and one shared timeout broke the mirror
+Re-measured `get_office_kanban` the same evening: **3.85s / 779KB.** Same endpoint, same day,
+an hour later. So the 43.8s was peak-office-hours saturation, not a permanent state — which
+means a fix tuned for 43.8s is wrong the other 22 hours.
+- **The bug that caused: `fetchKanban` is shared by TWO callers with opposite needs.** Raising
+  its wait to 70s was right for `board-mirror-sync` (that feed IS the office board's data
+  source — a stale board is the visible failure) and **wrong for `platform-tn-mirror`**, which
+  uses the feed only for EXTRAS (older/completed jobs). Its own supplemental pull off the raw
+  jobs table is faster AND carries more (model, serial, street, claim). Handing 70s of every
+  5-minute run to the least important source is how the run ran out of room before its upserts
+  landed. **Measured in the data, not the logs:** `job.updated_at` buckets showed 18:31 → 1,150
+  jobs written, 18:39 → **25**, then 18:41/18:46/18:51 → **nothing at all.**
+- **Fix: the wait is per-CALLER.** `fetchKanban(timeoutMs)` — board-mirror-sync keeps the full
+  budget, platform-tn-mirror passes 15s and lets the slow feed go. Losing it costs the extras,
+  which is exactly what the existing try/catch guard already assumed.
+- ⚠️ **A shared helper with one timeout constant is a shared failure mode.** When two callers
+  have different tolerance for the same slow dependency, the tolerance belongs at the call site.
+
+### 🩸 THE MIRROR WROTE **NOTHING** FOR 45 MINUTES AND EVERY RUN STILL REPORTED HEALTHY
+Two bugs, both mine, both from the same afternoon's fixes. Neither raised an alarm anywhere.
+- **🔴 `PGRST102: All object keys must match` — the whole job upsert 400'd on every run.**
+  The fix that stopped a missed TDR erasing a mirrored report OMITS the six `tdr_*` keys on a
+  miss (merge-duplicates only touches columns you send). **PostgREST requires every object in a
+  bulk upsert to carry an IDENTICAL key set and rejects the entire batch when they differ** — so
+  one mixed array failed all 1,174 rows at once. Customers, units and addresses kept writing
+  fine, so the run *looked* fine; the only clue was `job.updated_at` moving on ~25 rows a run
+  (those were the **email tee**, not the mirror). **Fix: split the rows into a with-report group
+  and a without-report group and upsert each — both internally uniform, both keep omit-on-miss.**
+- **🔴 The TDR pull silently lost 3 of its 8 pages.** Firing all eight at once at a saturated
+  Xano just queued them: pages 1/4/5 answered in ~1.3s, pages **2, 3 and 8 aborted at 12s**, and
+  `allSettled` swallows a lost page **by design** — ~1,000 reports (ids 1814→813) vanished with
+  no error. The merged map held **550 job ids instead of ~1,100**. **Fix: three at a time, one
+  retry per page, stop at the first short page** (the table ends ~id 2313, so pages 6-8 were
+  always empty requests), and a page lost after its retry now **logs**.
+- **⚠️ THE LESSON, twice in one hour: `Promise.allSettled` over a slow dependency is a silent
+  data-loss machine.** It is the right tool only when a missing piece is genuinely optional AND
+  its absence is reported. Neither was true here. And **"the run returned ok" is not evidence the
+  write landed** — check the row count you actually wrote, not the absence of an exception.
+- **🔎 `?tdr_probe=1` (read-only) is what cracked it** — per-page HTTP status, row count, id range
+  and latency. There is no way to tell a genuinely short table from pages you are losing from the
+  outside; build the probe instead of guessing. (I guessed twice first and was wrong twice.)
+
+### 💸 A REPORT FILED ON THE PLATFORM NEVER REACHED XANO — that's an unfileable warranty claim
+`platform-tn-report-tee` moves reports Xano → platform. **Nothing moved them back**, and TN's crew
+has started filing in `platform/tech-job.html` (writes straight to Supabase `job_tdr`). Measured
+9/10: **3 real reports existed ONLY on the platform** — Lee's FFE error code, Jimmy's, an ice-maker
+diagnosis — while Xano showed nothing. `servicepower-claims-build` reads **XANO**, so each one was
+a warranty claim nobody could file. It grows as the crew moves over.
+- **`platform-tn-report-back` (+ `-cron`, `3-59/15`)** — fill-the-blank ONLY in both directions now.
+  Writes via `update_tdr_field_from_voice`, which upserts by (job_id, technician_id) and emits **no
+  `TDR_SUBMITTED`**, so nothing auto-routes the job, texts a customer, or fires the warranty chain.
+  A failed read of Xano **skips** the job rather than assuming blank — assuming blank is how you
+  overwrite good data.
+- **⚠️ THE TRAP THAT ALMOST POLLUTED THE SYSTEM OF RECORD — a derived value tried to round-trip.**
+  The first dry-run wanted **47 fields across 38 jobs**; the honest number was **7 across 4**.
+  (a) `outcome` is **not the tech's words** — the forward tee CLASSIFIES Xano's prose into
+  `fixed`/`return_needed`/`not_fixable`. Writing that token back would launder a machine inference
+  into Xano on top of what the tech actually wrote. **Dropped — it can never carry information
+  Xano lacks.** (b) platform `labor_hours` is read from Xano's **`labor_time_hours`** — a DIFFERENT
+  column, and the one techs actually fill — so checking `labor_hours` for blankness said "empty" on
+  30+ jobs whose hours Xano already had. **Rule: before teeing a value BACK, ask whether the other
+  side derived it from you. If so it is not news, it is an echo.**
+- **The part number does NOT go through the voice endpoint** — its `parts_needed` branch feeds the
+  JSON/list column and returns *"Text filter requires an integer, float, string or boolean value"*
+  (the documented list-column footgun). It writes **`verified_part_number`** directly (read-modify-
+  write; Xano's content PUT replaces the row), re-reading the newest TDR because the field writes
+  may have just created it.
+- **Verified live:** 7 fields / 4 jobs filled, second run 0 of 200 (idempotent), and job 22011 now
+  reads back **out of Xano** with diagnosis + failed component + part# `AEB76044901`.
+- **⏭️ Still one-way:** bookings and status made on the platform still don't flow back to Xano.
+  Reports were the money-critical half; scheduling is the next one to settle.
+
+### 🛡️ THE MIRROR WAS ERASING THE OFFICE'S OWN WORK — two more fields, PROVEN LIVE
+The 9/8 guard stopped the mirror reverting a tech's `status`/`completed_at`. It stopped there, and
+the mirror still rewrote **every other field from Xano on every 5-minute run** — including the ones
+the board drawer lets the office EDIT. **Proven live on job 19713: typed an availability on the
+platform, one mirror run blanked it.** While we are asking the office to work here, that is
+indistinguishable from *"the new system doesn't save"* — the exact trust-killer, third time.
+- **Bug 1 — a booking made here vanished in ≤5 min.** `technician_id` / `scheduled_day` /
+  `scheduled_start` were written unconditionally, so the office booking a job on the platform board
+  watched it come back unscheduled — on the single action the office does most. Folded into the
+  existing never-walk-backwards guard (it already reads the current platform row).
+- **Bug 2 — a blank from Xano overwrote typed text.** `problem`, `availability`, customer
+  name/phone/city/state/zip, unit `label` + `attributes` (model/serial). New **`keepTyped()`**
+  helper guards all three tables.
+- **THE RULE (narrow on purpose): an EMPTY Xano value may never replace a non-empty platform value.
+  A DIFFERENT non-empty value still wins** — Xano stays the system of record, so a genuine
+  correction there still lands, and fixing a typo still belongs in Xano until intake moves over.
+- **⚠️ SUBSTITUTE the value, never drop the key** — differing key sets are what triggered the
+  PGRST102 that failed the entire job upsert earlier today. `attributes` is guarded key-by-key
+  (merge-duplicates replaces that jsonb column whole), and the `'Appliance'` label placeholder
+  counts as blank so it can't overwrite a real appliance name.
+- **Verified:** re-ran the exact failing test → value survives; mirror still writes 1,174 jobs in
+  ~9.9s. Test residue cleaned to zero.
+- **⏭️ STILL OPEN:** the reverse direction. Nothing carries a platform edit back INTO Xano, so
+  while both systems are live the Xano board/tech app won't see work done here. Fine while the
+  platform is the practice surface; it must be settled before the office works here full-time.
+
+### 🗑️ THE OFFICE'S "NEW" COLUMN WAS 77% WARRANTY EMAILS THAT BECAME JOBS
+The platform surfaces Xano's `needs_more_info` jobs, which the legacy board **cannot show at all**
+(that status isn't in `get_office_kanban`'s allow-list) — so the office has been blind to 486 jobs.
+Right call to surface them, except the column held **525 cards and only ~119 were workable.**
+- **What the other 406 are:** Xano's warranty-email intake turns *notification emails* into jobs —
+  `Dispatch Cancelled [#078139684132]`, `NSA EFT Payment Register - ANTIOCHTAE`,
+  `Allstate Protection Plans: Claim Update 06`, `ServicePower Call Number 007691084135`. Measured:
+  **all 406 have NO appliance, NO address, NO phone and NO name.** Nothing to schedule, nobody to
+  call. 38 carry a claim#, and **15 of those claims already match a real non-new job** — update
+  emails about work we already had. All 231 of the pure claim-update shells minted their **own new
+  customer row** (nobody else's job shares that customer) — the documented 2026-06-14 dedup bug,
+  still running.
+- **Fix is a VIEW change, not a data change** — nothing deleted, nothing hidden from Xano. Each
+  board column leads with real work and parks these behind a collapsed **"⚠️ N intake artifacts"**
+  row (still counted, one tap away). `needs-scheduled` does the same (they were ALL landing in
+  "Area not mapped" — they have no zip — burying the real queue). `dispatch` drops them from the
+  unscheduled tray only: a job with no address can't be pinned or dispatched.
+- **The criterion is deliberately conservative + DB-verified:** a machine, address, phone, name,
+  tech or day keeps a job in the column. Matches exactly those 406 across every non-terminal
+  status, and catches nothing that has an address, a scheduled day or a technician.
+- **Do NOT invest in fixing the Xano intake parser** — TN is migrating off it; these stop being
+  created when intake moves to the platform. Parking is the right cost.
+
+### 🕳️ THE ACTIVE-JOBS WALK COULD LOSE A WHOLE STATUS SILENTLY (hardened)
+`fetchActiveJobs` is 7 statuses × up to 4 pages, and a page that timed out hit `catch (_) { break; }`
+— so one slow moment on Xano ended that status's pagination and those jobs just never appeared on
+the platform, with **no error anywhere**. Same family as the TDR page-loss bug.
+- **Measured first, changed second** (`?active_probe=1`, read-only): quiet Xano answers all 8
+  requests in 87–766ms, 1,243 rows, **0 truncated**. So it is *working right now* — which is
+  exactly the state that hides it. The same day we measured `get_office_kanban` at **43.8s**.
+- **Fix:** one retry per page; a page still lost after that **returns null and logs** instead of
+  masquerading as end-of-table. ⚠️ **A probe that comes back clean while the dependency is quiet is
+  not evidence the code is safe — it only tells you today's numbers.**
+
+### 📋 COMPLETED JOBS HAD NO REPORTS AT ALL — 19 across 2,279 jobs (backfilled)
+The every-5-min mirror only walks `ACTIVE_STATUSES`, so **once a job completes it is never
+revisited** — its report, part# and labor stay frozen at whatever was there, and anything the
+erase bug blanked could never self-heal. Measured: the 1,175 active jobs carried 624 reports;
+the other **2,279 carried 19 between them**, while Xano held the real ones. That history is
+exactly what the platform must own before TN runs on it full-time (warranty submissions, and
+every "what did we do here last time" lookup, read straight off it).
+**`?backfill_tdr=1`** (add `&dryrun=1` to count first) pulls the full TDR map, asks the platform
+which of those jobs still have no report, and fills only those — **additive + blank-only**, so it
+can never overwrite a report a tech filed ON the platform. **Ran live: 155 filled; coverage
+623 → 709**, past the pre-bug 669. Job 19988 now carries Jimmy's real diagnosis (*"loose
+connection on the heating element burned a wire off"*) instead of a blank.
+**⏭️ Re-run it after any future gap** — it is idempotent and cheap.
+
+### ✅ WHERE THE MIRROR ACTUALLY STANDS (measured 19:21)
+Full run **1,174 jobs in ~9.5s** (read side 7.8s: kanban 800 + supplemental 802 → 1,174
+mirrorable). The 19:21 **cron** wrote all 1,174 — not the 25 it had been managing.
+**⚠️ STILL SERIAL, still a latent blowout: `fetchActiveJobs` is 7 statuses × up to 4 pages,
+sequential, 12s each = up to 28 chained requests** — fine at today's ~1.3s/page, ugly at the
+43.8s-spike. It also does `catch (_) { break; }`, which is the **same silent-page-loss family**
+as the TDR bug: a timeout quietly ends that status's pagination and the jobs just don't appear.
+Left alone deliberately (one change at a time, and it is measurably working right now) — but it
+is the next thing to harden, and it should get the same batch + retry + loud-on-loss treatment.
+
+### 🔴 THE MEASUREMENT THAT FRAMES EVERYTHING — `get_office_kanban` answered in **43.8 seconds** (779 KB)
+Measured live mid-session. `get_job_for_dashboard` was fine at the same moment (0.69s), so this ONE
+endpoint is the freeze. It is also what the **mirror itself** depends on — `fetchKanban` caps at 12s,
+so while Xano is like this the mirror runs on its supplemental pull alone, and a manual mirror run
+times out at its own 26s ceiling. **Xano being slow degrades Supabase too, until each dependency is cut.**
+
+### 🚨 THE OFFICE BOARD WAS SHOWING 37 JOBS' MESSAGES OUT OF ~1,725 (the Supabase-side freeze)
+`platform/office-board.html loadBoard()` asked `thread_message` for **every inbound message on every
+board job** and then kept only the newest per job in the browser. Measured as a real office seat:
+**14,072 rows exist, PostgREST capped the response at 1,000, and those 1,000 covered just 37 distinct
+jobs.** So the green "← they replied" bubble was missing on the other ~735 jobs that had a reply. The
+board looked fine and was wrong — this is behind Danielle's *"having hard time to get all ppl to pull up."*
+- **`board_latest_inbound()` RPC** (`docs/sql/058_board_latest_inbound.sql`, APPLIED): `distinct on
+  (job_id)`, **SECURITY INVOKER** so the caller's own RLS still scopes it. Verified as the owner seat:
+  **772 rows in 0.43s**, correct, one per job. Scoped to the board's own active window (non-terminal +
+  completed ≤90d, deliberately wider than the board's 75d) so the count tracks LIVE work and can never
+  creep back over the 1,000 cap as history grows. ⚠️ **Never make it SECURITY DEFINER** — that hands
+  every office user every tenant's customer messages.
+- **`inChunks()` (150 ids/batch)** replaced three `.in('job_id', jids)` calls that each shipped all
+  ~1,725 UUIDs — a **~62 KB request URL** — for `job_media` / `job_part` / `job_tag`.
+
+### ✅ `job-truth` NOW ANSWERS FROM THE MIRROR (the phone/portal/text brain, off Xano)
+It made two slow Xano calls (`get_job_for_dashboard` + a full office-note scan ~4s each) and on a miss
+returned `found:false` — which Ann speaks as *"I don't see that one yet"* about a real job scheduled
+that same day. The mirror already holds every fact, **office notes included**.
+- Order: **fresh mirror row (≤30 min) → answer from it, no Xano at all**; stale/missing → Xano exactly
+  as before; **Xano fails but a stale mirror row exists → serve the stale row** (a few-minute-old day
+  beats telling a real customer we've never heard of them).
+- Response carries **`source`** (`mirror` | `mirror_stale` | `xano`); **`?src=xano`** forces the legacy
+  path for ONE request so the two answers can be diffed on real jobs; **`JOB_TRUTH_MIRROR=0`** kills it.
+- `all_tdrs` stays EMPTY on the mirror path on purpose — the mirror flattens every report into one set
+  of `tdr_*` columns, so Teddy's pre-diagnosis can't be told from the tech's. Empty is honest.
+
+### 🔬 THE DIFF HARNESS EARNED ITS KEEP — 12 live jobs, mirror vs Xano
+Two of the three disagreements were **the mirror being MORE correct**, one was a real gap I closed:
+| field | mirror | Xano | verdict |
+|---|---|---|---|
+| `claim_number` | `58983049` | `''` | **mirror wins** — `get_job_for_dashboard` drops claim# (known footgun) |
+| `appliance` | `Kenmore dryer` | `Kenmore` | **mirror wins** — Xano returns brand only |
+| `model` | `''` | `110.68087701` | **Xano won → FIXED** (below) |
+
+### 🐞 FOUR SILENT-TRUNCATION / BLANK-OVERWRITE BUGS FIXED (all the same class)
+1. **Board messages** — 1,000-row cap covered 37 of ~1,725 jobs (above).
+2. **Model + serial never mirrored** — `get_office_kanban`'s 27 keys carry brand + appliance but **no
+   model**; the raw table-7 rows the supplemental pull already fetches have `model_number` +
+   `serial_number`. Now borrowed the same way the street is. **530 units gained a real model.**
+   ⚠️ `attributes` is one jsonb column and merge-duplicates replaces it whole — the keys must be
+   written ALWAYS, never conditionally, or the next run blanks them.
+3. **🔴 A missed TDR ERASED the mirrored one** — the row builder wrote `tdr_diagnosis:''` whenever the
+   TDR map had no entry, and that map `break`s out on any slow/failed Xano page. **A slow minute on
+   Xano silently blanked good reports on the platform.** Now the `tdr_*` keys are only written when
+   there IS a report (merge-duplicates leaves out-of-payload columns alone).
+4. **The TDR map only held the newest ~2,000 reports** (4 pages × 500; Xano is at TDR id **2304**), so
+   older jobs' real reports read as "no report filed." Job 19988 had Jimmy's full diagnosis — *"loose
+   connection on the heating element burned a wire off"* — and the platform showed blank. Now 8 pages
+   (still breaks early on a short page).
+
+### ⏰ DANIELLE'S ACTUAL COMPLAINT, SURFACED — **331 jobs still say `scheduled` on a day that PASSED**
+*"When I look up the missing jobs on Jimmy's schedule they show scheduled but its not on the schedule."*
+She's right. Andre 130 · Jimmy 71 · John 56 · Teddy 38 · Lee 32, oldest **June 2** (Jun 170 / Jul 60 /
+Aug 59 / Sep 42). **Checked `xano_status` on all of them — Xano says `scheduled` too, so this is real
+work in limbo, NOT mirror drift.** The board already computed `isOverdue` per card but had nowhere to
+see them together → added an **⏰ Overdue filter chip** (its own chip because overdue cuts ACROSS
+statuses). **⏭️ OPEN: the 331 need a human pass — done-but-never-marked vs never-done is Danielle's call.**
+
+### ⚠️ FOOTGUNS BURNED TODAY
+- **A PostgREST query that looks fine can be returning a fraction of the truth.** The 1,000-row cap is
+  silent. Any `.select()` that could exceed it needs `Prefer: count=exact` checked, an RPC, or paging.
+  Check **distinct entities covered**, not just row count — 1,000 rows covered 37 jobs.
+- **`local main` in this checkout is an UNRELATED history** (`518b16c`, an old clone) — `git merge`
+  refuses with *"unrelated histories."* Push the branch straight at the remote:
+  `git push origin <branch>:main`. Don't try to fix local main mid-session.
+- **A manual `platform-tn-mirror` run dies at its 26s `exports.config.timeout`** while the CRON (15-min
+  scheduled allowance) completes fine. A manual timeout does NOT mean the mirror is broken — verify by
+  watching the data, not the curl.
+- **`unit.updated_at` is not touched by the upsert**, so it is NOT a freshness signal — read
+  `attributes` directly to tell whether a mirror change landed.
+- `sb-admin-sql` defaults to `project=ops` — pass **`&project=platform`**.
+
+## 🔑 TN'S REAL PLATFORM SEATS — the `tech1.`/`tech2.` logins are DECOYS (2026-09-10)
+
+Teddy lost a morning of practice week to this. He signed into
+`tech2.tn-appliance-exchange-llc@assistant247.net`, saw an empty app, and reasonably concluded
+the mirror had lost his jobs. It hadn't. That seat is a **placeholder** minted by the shoppack
+builder, wired to a fake technician row ("Tech 1"/"Tech 2") with **no `xano_tech_id`** — so it
+matches no Xano tech, holds zero jobs, and always will. Both are now **deactivated**; do not
+re-mint them for TN, and do not cite them as "the tech seat" the way older entries below still do.
+
+**The real seats on `tn-appliance-exchange-llc` (company `be4d11a1-…`):**
+
+| who | login | seat |
+|---|---|---|
+| Teddy (owner + tech 1) | `tnappliance@gmail.com` | Teddy Pivacek |
+| Jimmy | `jimmy.tnae@assistant247.net` | Jimmy Pivacek (xano 2) |
+| Andre | `andre.tnae@assistant247.net` | Andre Pivacek (xano 3) |
+| Lee | `lee.tnae@assistant247.net` | Lee Harding (xano 4) |
+| John | `john.tnae@assistant247.net` | John Houk (xano 6) |
+| Danielle · Sofia · Carrie | `danielle.tnae@` · `sofia.tnae@` · `carrie.tnae@` | office (whole board) |
+
+Owner password lives in the vault as `PLATFORM_OWNER_PW_TN_APPLIANCE_EXCHANGE_LLC`; reset with
+`platform-provision?action=resetpw&slug=tn-appliance-exchange-llc&reveal=1`.
+
+**The diagnostic that settles "is a seat real?" in one query** — a seat with `xano_tech_id` NULL
+can never receive mirrored work:
+```sql
+select u.email, t.name, t.xano_tech_id, a.last_sign_in_at
+from app_user u join company c on c.id=u.company_id
+left join technician t on t.app_user_id=u.id
+left join auth.users a on a.id=u.auth_user_id
+where c.slug='tn-appliance-exchange-llc' order by a.last_sign_in_at desc nulls last;
+```
+**Five tenants answer to some form of "TN" and only one is real.** `tn`, `tn-appliance`,
+`tn-appliance-rlq` and `tn-office-test` are all empty leftovers with live logins on them —
+`jamespivacek@gmail.com` owns `tn-appliance-rlq`, which has 7 seats and 0 jobs. Signing into any
+of them looks exactly like "the platform lost everything." Retire them.
+
 ## 🚦 TWO SEPARATE SYSTEMS — KNOW WHICH ONE YOU'RE IN BEFORE YOU TOUCH ANYTHING (Teddy 2026-09-08)
 
 There are **two** Ant systems running side by side. They share a repo and some filenames but
@@ -763,7 +2906,8 @@ saying, plus a contradiction. Fixed: the return-day sentence no longer fires whe
 
 ### ⏭️ OPEN
 - Have Jimmy retry the test job (`035211fc-…`, reset to `scheduled`/today, seat
-  `tech1.tn-appliance-exchange-llc@assistant247.net` / `Ant-TnExchange9`) — he should now see the green banner.
+  the real crew seat `jimmy.tnae@assistant247.net`; the `tech1.`/`tech2.` pack seats named here and
+  elsewhere in this file are DECOYS, deactivated 2026-09-10 — see the seat table at the top) — he should now see the green banner.
   Clean up the test customer/unit/job when done.
 - Purge the stale `7b421706` tenant.
 - `TDR_DURABLE_SAVE=true` in Netlify env (Xano-side; env is at the 4KB Lambda cap — un-scope a var first).

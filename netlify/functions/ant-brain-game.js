@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // ant-brain-game — Stage 2 of Tech vs Ant 🐜 (Teddy 7/5): scoring + points.
 //
 // Reads the ant_brain_verdict rounds (from Stage 1) and turns them into a game.
@@ -44,6 +45,7 @@ async function rowsFor(action) {
 function partKey(p) { const first = String(p || '').trim().split(/[\s(—\-]/)[0]; return first.toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   const q = event.queryStringParameters || {};
   const cutoff = String(q.scope || '') === 'all' ? 0 : ctMondayMs();

@@ -33,7 +33,11 @@ exports.handler = async function (event) {
         when: (tr.dateAndTimes && (tr.dateAndTimes.find((x) => /ACTUAL_DELIVERY|ESTIMATED_DELIVERY/.test(x.type)) || {}).dateTime) || '',
       };
     });
-    return json(200, { ok: r.ok, configured: true, count: results.length, results, delivered: results.filter((x) => x.delivered).length });
+    const out = { ok: r.ok, configured: true, count: results.length, results, delivered: results.filter((x) => x.delivered).length };
+    // ?raw=1 — see exactly what FedEx said. A tracking number that returns zero results is
+    // indistinguishable from a bad credential without this.
+    if (q.raw === '1' || b.raw === true) { out.status = r.status; out.raw = JSON.stringify(r.data || r).slice(0, 4000); }
+    return json(200, out);
   } catch (e) {
     return json(200, { ok: false, configured: true, error: String((e && e.message) || e) });
   }

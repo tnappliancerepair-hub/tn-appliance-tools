@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Payroll rollup for the office Money hub. Reads the invoice rows the office
 // logs (event_log action="office_invoice_logged", carrying technician_id +
 // tech_pay + the breakdown), buckets them into a pay period, and groups by
@@ -38,6 +39,7 @@ function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const start = parseInt(q.start_ms, 10) || 0;
   const end = parseInt(q.end_ms, 10) || Date.now();

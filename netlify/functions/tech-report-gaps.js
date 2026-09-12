@@ -18,6 +18,7 @@
 'use strict';
 
 const md = require('./_lib/xano/metadata-crud');
+const { primeXanoToken } = require('./_lib/secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const TDR_TABLE = 12;
 const PER = 500, MAX_PAGES = 4;
@@ -47,6 +48,7 @@ function cleanPart(raw) {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const qp = event.queryStringParameters || {};
   // Scheduled runs (netlify.toml cron) send {next_run} and no query string — they
   // self-authorize and auto-heal so recoverable part #s reach the office with ZERO

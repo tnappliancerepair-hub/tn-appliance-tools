@@ -12,7 +12,7 @@
 //   GET ...&source=web_chat                 only relabel web_chat-sourced dupes
 //   GET ...&max=400                         cap jobs scanned (default 600)
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
@@ -45,6 +45,7 @@ async function search(tableId, filter, sort, perPage, page) {
 function isWarranty(j) { return String(j.customer_type || '').toLowerCase() === 'warranty' || String(j.warranty_company || '').trim() || String(j.claim_number || '').trim(); }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });

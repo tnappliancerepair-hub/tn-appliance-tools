@@ -6,12 +6,20 @@
 // CODE_MAP, seeded from a real claim (MONAHAN: MECH/REP/Minor on-site) and refined once we
 // load SquareTrade's official code lists. Live submit is a separate gated step.
 //
-//   GET ?secret=<admin>&job_id=<id>        build claim for a job
-//   GET ?secret=<admin>&call=<dispatch#>   build claim by dispatch/call number
+// SOURCE: the PLATFORM (Supabase) first, Xano only as a fallback. The platform holds the
+// same record plus better parts data — must_return comes off the vendor's own API, and
+// disposition is what the tech actually did at the stop — so the claim's "returned" flag is
+// derived instead of guessed. Filing a claim no longer requires Xano to be up.
+//
+//   GET ?secret=<admin>&job_id=<uuid|xano id>  build claim for a job
+//   GET ?secret=<admin>&call=<dispatch#>       build claim by dispatch/call number
+//   GET ...&src=xano                           force the legacy path (to diff the two)
+//   GET ...&company=<uuid>                     scope the lookup to one tenant
 'use strict';
 
 const crud = require('./_lib/xano/metadata-crud');
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
+const { loadClaimContext } = require('./_lib/platform-claim-context');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
@@ -60,18 +68,35 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
 
-  // resolve job_id (direct, or by dispatch/call number)
-  let jobId = parseInt(String(q.job_id || '').replace(/\D/g, ''), 10) || 0;
-  if (!jobId && q.call) {
-    try { const j = await crud.searchOne(crud.TABLES.jobs, { claim_number: String(q.call) }); if (j) jobId = j.id; } catch (_) {}
-  }
-  if (!jobId) return json(400, { ok: false, error: 'pass job_id or call=<dispatch#> (call lookup matches jobs.claim_number)' });
+  const rawId = String(q.job_id || '').trim();
+  const forceXano = String(q.src || '') === 'xano';
 
-  // pull job + customer + TDR + failures
-  let ctx;
-  try { ctx = await fetch(`${XANO}/get_warranty_submission_context?job_id=${jobId}`, { signal: AbortSignal.timeout(12000) }).then((r) => r.json()); }
-  catch (e) { return json(200, { ok: false, error: 'context fetch failed: ' + String((e && e.message) || e) }); }
-  if (!ctx || ctx.success === false) return json(200, { ok: false, error: (ctx && ctx.error) || 'no context', job_id: jobId });
+  // ── PLATFORM FIRST ───────────────────────────────────────────────────────────
+  // Takes a platform uuid, a legacy Xano job id, or a dispatch/call number, and resolves
+  // the tenant FROM the job — nothing here is scoped to one shop.
+  let ctx = null, source = '';
+  if (!forceXano) {
+    try {
+      const pc = await loadClaimContext({ jobId: rawId, call: q.call, companyId: q.company });
+      if (pc && pc.ok) { ctx = pc; source = 'platform'; }
+    } catch (_) {}
+  }
+
+  // ── XANO FALLBACK ────────────────────────────────────────────────────────────
+  // Only reached when the platform has no such job (or ?src=xano forces a diff). Kept so a
+  // job that never mirrored still files; it retires with Xano.
+  let jobId = parseInt(rawId.replace(/\D/g, ''), 10) || 0;
+  if (!ctx) {
+    if (!jobId && q.call) {
+      try { const j = await crud.searchOne(crud.TABLES.jobs, { claim_number: String(q.call) }); if (j) jobId = j.id; } catch (_) {}
+    }
+    if (!jobId) return json(400, { ok: false, error: 'no job found on the platform, and no legacy job_id/call to fall back to' });
+    try { ctx = await fetch(`${XANO}/get_warranty_submission_context?job_id=${jobId}`, { signal: AbortSignal.timeout(12000) }).then((r) => r.json()); }
+    catch (e) { return json(200, { ok: false, error: 'context fetch failed: ' + String((e && e.message) || e) }); }
+    if (!ctx || ctx.success === false) return json(200, { ok: false, error: (ctx && ctx.error) || 'no context', job_id: jobId });
+    source = 'xano';
+  }
+  if (source === 'platform') jobId = ctx.xano_job_id || jobId;
 
   const job = ctx.job || {}, cust = ctx.customer || {}, tdr = ctx.tdr || {}, fails = ctx.tdr_failures || [];
   const svcAcct = String(await getSecretFresh('SERVICEPOWER_SVCR_ACCT') || 'TNA00001').trim();
@@ -98,10 +123,17 @@ exports.handler = async function (event) {
   // (the biggie) accurate instead of a hardcoded N — and, if the TDR carried no parts,
   // it supplies the claim's parts outright.
   let supplied = [];
-  try {
-    const wp = await fetch(`${SITE}/.netlify/functions/warranty-parts?job_id=${jobId}`, { signal: AbortSignal.timeout(9000) }).then((r) => r.json());
-    if (wp && wp.ok && Array.isArray(wp.parts)) supplied = wp.parts;
-  } catch (_) {}
+  if (source === 'platform' && Array.isArray(ctx.supplied)) {
+    // The platform already carries every supplied part as its own row, with the vendor's
+    // must_return flag AND the tech's disposition on it. That is strictly more than the
+    // email read could ever know, so don't go back out to Xano for it.
+    supplied = ctx.supplied;
+  } else {
+    try {
+      const wp = await fetch(`${SITE}/.netlify/functions/warranty-parts?job_id=${jobId}`, { signal: AbortSignal.timeout(9000) }).then((r) => r.json());
+      if (wp && wp.ok && Array.isArray(wp.parts)) supplied = wp.parts;
+    } catch (_) {}
+  }
   // Carry BOTH the return decision AND the shipping (tracking/provider/distributor) off
   // each supplied part onto the claim — Danielle's ask (2026-08-22): the claim has to show
   // "the parts AND shipping," not just the part number. warranty-parts returns tracking +
@@ -176,7 +208,9 @@ exports.handler = async function (event) {
   needed.push('OFFICIAL CODE LISTS → confirm defect/repair/category + part fault/job codes (currently seeded)');
 
   return json(200, {
-    ok: true, mode: 'preview-shadow', job_id: jobId,
+    ok: true, mode: 'preview-shadow', source, job_id: jobId,
+    platform_job_id: (source === 'platform' ? ctx.platform_job_id : null),
+    company_id: (source === 'platform' ? ctx.company_id : null),
     code_mapping: { defect, repair, category: cat, note: 'seeded — refine CODE_MAP with the portal code lists' },
     still_needed: needed,
     claim,

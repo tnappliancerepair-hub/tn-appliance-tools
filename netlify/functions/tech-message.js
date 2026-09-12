@@ -10,6 +10,7 @@
 
 const crud = require('./_lib/xano/metadata-crud');
 const { sendSms } = require('./_lib/sms');
+const { primeXanoToken } = require('./_lib/secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const SITE = 'https://tnapplianceexchange.net';
 const JOBS_TABLE = 7, TECH_TABLE = 15, EVENT_LOG = 3;
@@ -17,6 +18,7 @@ const JOBS_TABLE = 7, TECH_TABLE = 15, EVENT_LOG = 3;
 function mh() { const t = process.env.XANO_METADATA_TOKEN; return t ? { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' } : null; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   try {
     const h = mh();
     if (event.httpMethod === 'GET') {

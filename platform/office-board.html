@@ -65,6 +65,12 @@
   .schedflags button.on{background:#e0e7ff;color:#3730a3;border-color:#c7d2fe;font-weight:800}
   :root:not([data-theme="light"]) .money-badge.paid,:root[data-theme="dark"] .money-badge.paid{background:#14351f;color:#8ff0b0}
   :root:not([data-theme="light"]) .money-badge.due,:root[data-theme="dark"] .money-badge.due{background:#3a2e0c;color:#f2ce7a}
+  /* parked intake artifacts — present and openable, just not crowding real work */
+  .artifacts{margin-top:10px;border-top:1px dashed rgba(255,255,255,.14);padding-top:8px}
+  .artifacts>summary{cursor:pointer;list-style:none;font-size:11px;letter-spacing:.04em;color:var(--muted);padding:6px 2px;user-select:none}
+  .artifacts>summary::-webkit-details-marker{display:none}
+  .artifacts>summary:hover{color:var(--gold,#e8b465)}
+  .artifacts[open]>summary{color:var(--gold,#e8b465);margin-bottom:6px}
   .col h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;align-items:center;gap:8px}
   .col h3 .n{background:var(--chip);color:var(--muted);border-radius:999px;padding:1px 8px;font-size:11px}
   .col h3 .dot{width:8px;height:8px;border-radius:50%}
@@ -470,6 +476,7 @@
         '<nav class="hop" aria-label="Jump to">' +
           '<a href="/platform/dispatch.html">📅 Dispatch</a>' +
           '<a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a>' +
+          '<a href="/platform/stale-scheduled.html">⏰ Overdue</a>' +
           '<a href="/platform/dispatch.html?coverage=1">🗺️ Coverage</a>' +
           '<a href="/platform/messages.html">💬 Messages</a>' +
           '<a href="/platform/phone.html">📞 Phone</a>' +
@@ -783,7 +790,7 @@
   function statusMeta(k){ for(var i=0;i<ALLSTATUS.length;i++){ if(ALLSTATUS[i].key===k) return ALLSTATUS[i]; } return { key:k, label:(k||'').replace(/_/g,' '), color:'var(--canceled)' }; }
 
   // ── board state ──────────────────────────────────────────────────────────────
-  var activeFilter = 'all', jobsCache = [], invByJob = {}, mediaByJob = {}, msgByJob = {}, partsByJob = {}, tagsByJob = {}, tagLibrary = [], stopCounts = {};
+  var activeFilter = 'all', jobsCache = [], invByJob = {}, mediaByJob = {}, msgByJob = {}, partsByJob = {}, partsShipByJob = {}, tagsByJob = {}, tagLibrary = [], stopCounts = {};
   // bright tag palette for new tags + readable text color for any tag chip
   var TAG_COLORS = ['#e5484d','#d6409f','#f76808','#ffb224','#8bd450','#46a758','#12a594','#3e63dd','#8e4ec6','#6b7280'];
   function tagText(hex){ hex=String(hex||'').replace('#',''); if(hex.length===3) hex=hex.replace(/(.)/g,'$1$1'); var r=parseInt(hex.slice(0,2),16)||0,g=parseInt(hex.slice(2,4),16)||0,b=parseInt(hex.slice(4,6),16)||0; return (0.299*r+0.587*g+0.114*b)>150 ? '#1a1206' : '#fff'; }
@@ -791,9 +798,16 @@
   var tagEditMode = false;   // drawer: reveal the ✕ to delete a tag from the shop library
 
   function renderFilters(){
-    var counts = { all: jobsCache.length };
-    jobsCache.forEach(function(j){ counts[j.status]=(counts[j.status]||0)+1; });
+    var counts = { all: jobsCache.length, __overdue: 0 };
+    jobsCache.forEach(function(j){ counts[j.status]=(counts[j.status]||0)+1; if(isOverdue(j)) counts.__overdue++; });
     var chips = [{ key:'all', label:'All' }].concat(ALLSTATUS.filter(function(s){ return (counts[s.key]||0)>0 || s.key!=='canceled'; }));
+    // OVERDUE gets its own chip because it cuts ACROSS statuses, and it is the pile that
+    // actually needs working: 331 jobs today still say "scheduled" on a day that already
+    // passed, the oldest since June 2. That is exactly what Danielle reported - "they show
+    // scheduled but it's not on the schedule" - and until now there was no one place to
+    // see them. Xano says scheduled for these too, so this is real work in limbo, not
+    // mirror drift. (2026-09-10)
+    if(counts.__overdue) chips.push({ key:'__overdue', label:'\u23f0 Overdue' });
     document.getElementById('filters').innerHTML = chips.map(function(c){
       return '<button data-f="'+c.key+'" class="'+(activeFilter===c.key?'on':'')+'">'+esc(c.label)+' '+(counts[c.key]||0)+'</button>';
     }).join('');
@@ -895,7 +909,28 @@
     if(isOverdue(j)) f.push('<span class="fchip fover">⏰ OVERDUE</span>');
     if(j.customer_cutoff && String(j.customer_cutoff).trim()) f.push('<span class="fchip fover" title="Customer has a hard cutoff — must leave by this time">⏰ Leave by '+esc(String(j.customer_cutoff).trim().slice(0,12))+'</span>');
     var needsParts = j.status==='awaiting_parts' || PARTS_WAIT_RE.test(String(j.parts_status||''));
-    if(needsParts && !terminal) f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
+    if(needsParts && !terminal){
+      // "Awaiting parts" is a dead end on its own. The vendor's own shipment record turns it
+      // into the question the office is actually asking: is this one bookable yet?
+      var t = partsShipByJob[j.id];
+      if(t && t.n){
+        if(t.here >= t.n)      f.push('<span class="fchip fpartsok" title="Every part on this job has been delivered — ready to schedule">✅ PARTS HERE ('+t.n+') — BOOK IT</span>');
+        else if(t.here)        f.push('<span class="fchip fpartsgo" title="Some parts delivered, rest still moving">📦 PARTS '+t.here+'/'+t.n+' HERE</span>');
+        else if(t.sent)        f.push('<span class="fchip fpartsgo" title="Shipped by the vendor, not delivered yet">🚚 PARTS SENT ('+t.sent+'/'+t.n+')'+(t.eta?' · '+esc(String(t.eta).slice(5)):'')+'</span>');
+        else                   f.push('<span class="fchip fparts">🔧 NEEDS PARTS ('+t.n+' on order)</span>');
+      } else f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
+    }
+    var owedT = partsShipByJob[j.id];
+    // AHS puts a hard clock on its returns ("within 30 days or $X comes out of your payables");
+    // SquareTrade states none. When there IS one, the tile carries it -- N owed back is a list,
+    // "due in 3d" is a decision. Silence means no stated clock, not no obligation.
+    var owedWhen = '';
+    if(owedT && owedT.owedDue){
+      var dleft = Math.round((new Date(owedT.owedDue+'T12:00:00') - new Date())/86400000);
+      owedWhen = dleft<0 ? ' · '+(-dleft)+'d OVERDUE' : (dleft<=7 ? ' · due in '+dleft+'d' : '');
+    }
+    if(owedT && owedT.owed && !terminal) f.push('<span class="fchip fowed" title="The vendor wants these parts back — unreturned parts get charged back">↩️ '+owedT.owed+' OWED BACK'+owedWhen+'</span>');
+    if(j.status==='completed' && owedT && owedT.owed) f.push('<span class="fchip fowed" title="Job is done but the vendor is still owed parts — ship them or eat the chargeback">↩️ '+owedT.owed+' STILL OWED BACK'+owedWhen+'</span>');
     if(j.status==='completed' && !iv) f.push('<span class="fchip fclose" title="Completed but no invoice — finish the paperwork">⚠️ NOT CLOSED OUT</span>');
     if(!hasReport(j) && (j.status==='scheduled'||j.status==='in_progress')) f.push('<span class="fchip fdiag" title="No tech report on file yet">🔍 DIAGNOSIS</span>');
     if(j.office_notes && String(j.office_notes).trim()) f.push('<span class="fchip fnote" title="Office note on this job">📋 NOTE</span>');
@@ -1021,15 +1056,43 @@
     stopCounts = {};
     jobsCache.forEach(function(j){ if(j.stop_id){ stopCounts[j.stop_id]=(stopCounts[j.stop_id]||0)+1; } });
     if(region!=='TN' && region!=='LA') region = defaultRegion(jobsCache);   // scope the board to the selected region
-    var jobs = jobsCache.filter(function(j){ return jobRegion(j)===region && (activeFilter==='all' ? j.status!=='canceled' : j.status===activeFilter); });
+    var jobs = jobsCache.filter(function(j){
+      if(jobRegion(j)!==region) return false;
+      if(activeFilter==='__overdue') return j.status!=='canceled' && isOverdue(j);
+      return activeFilter==='all' ? j.status!=='canceled' : j.status===activeFilter;
+    });
     var cols = boardStages();
+    // ── INTAKE ARTIFACTS ────────────────────────────────────────────────────────────────
+    // Xano turns some warranty EMAILS into jobs: "Dispatch Cancelled", "NSA EFT Payment
+    // Register", "Allstate ... Claim Update". Measured 2026-09-10: 406 of the 525 jobs sitting
+    // in New had NO appliance, NO address, NO phone and NO name - nobody can work them and
+    // nobody can even be called about them, and 15 of the 38 carrying a claim# pointed at a job
+    // we already had. The legacy Xano board never showed this at all (needs_more_info is not in
+    // get_office_kanban's status list), so the office was simply blind to them; the platform
+    // mirrors Xano faithfully and surfaces them - correct, but it buried ~68 real dispatches
+    // under ~457 email subjects. They are NOT hidden or deleted here: each column leads with
+    // real work and parks these behind a collapsed "intake artifacts" row, still one tap away.
+    // Criterion is deliberately conservative - anything with ANY handle (a machine, a phone, a
+    // name) stays in the column. Verified against the DB: this matches exactly those 406 and
+    // catches nothing that has an address, a scheduled day, or a tech.
+    var isArtifact = function(j){
+      if (j.unit_id || (j.unit && j.unit.label)) return false;
+      var c = j.customer || {};
+      if (String(c.phone||'').trim()) return false;
+      if (String(c.first_name||'').trim() || String(c.last_name||'').trim()) return false;
+      if (j.technician_id || j.scheduled_day) return false;
+      return true;
+    };
     // one <select> option per column — the mobile-friendly "move this card" control
     var moveOpts = '<option value="" selected disabled>Move →</option>' + cols.map(function(c){ return '<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>'; }).join('');
     var byStage = {}; cols.forEach(function(c){ byStage[c.key]=[]; });
     jobs.forEach(function(j){ var k=stageOf(j, cols); (byStage[k]=byStage[k]||[]).push(j); });
     var html = cols.map(function(col){
-      var k=col.key, list=sortList(byStage[k]||[], colSort[k]), m=col;   // render EVERY column (even empty) as a drop target, honoring its ⋯ sort
-      var cards = list.map(function(j){
+      var k=col.key, m=col;   // render EVERY column (even empty) as a drop target, honoring its ⋯ sort
+      var full = sortList(byStage[k]||[], colSort[k]);
+      var list = full.filter(function(j){ return !isArtifact(j); });
+      var junk = full.filter(isArtifact);
+      var renderCard = function(j){
         var unit = j.unit && j.unit.label ? j.unit.label : '';
         var tech = j.technician && j.technician.name ? j.technician.name : 'Unassigned';
         var iv = invByJob[j.id];
@@ -1085,9 +1148,15 @@
           '<div class="foot"><span class="tech">'+esc(tech)+'</span>'+(badge||'')+'</div>' +
           '<select class="mv" data-job="'+j.id+'" title="Move to another column">'+moveOpts+'</select>' +
           '</div>';
-      }).join('');
+      };
+      var cards = list.map(renderCard).join('');
+      // parked, not hidden: collapsed by default, opens in place, cards are fully live inside
+      var junkHtml = junk.length
+        ? '<details class="artifacts"><summary>⚠️ '+junk.length+' intake artifact'+(junk.length===1?'':'s')+
+            ' — no appliance, address or phone</summary>'+junk.map(renderCard).join('')+'</details>'
+        : '';
       var s=colSort[k]; var sLbl = (s&&s.by) ? '<span class="sortlbl">↕ '+esc(sortFieldLabel(s.by))+(s.dir==='desc'?' ↓':' ↑')+'</span>' : '';
-      return '<div class="col" data-stage="'+esc(k)+'"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span>'+sLbl+'<button type="button" class="colmenu'+((s&&s.by)?' on':'')+'" data-stage="'+esc(k)+'" title="Sort this column">⋯</button></h3>'+cards+'</div>';
+      return '<div class="col" data-stage="'+esc(k)+'"><h3><span class="dot" style="background:'+m.color+'"></span>'+esc(m.label)+'<span class="n">'+list.length+'</span>'+sLbl+'<button type="button" class="colmenu'+((s&&s.by)?' on':'')+'" data-stage="'+esc(k)+'" title="Sort this column">⋯</button></h3>'+cards+junkHtml+'</div>';
     }).join('') || '<div class="empty">Nothing here yet.</div>';
     var b=document.getElementById('board'); b.innerHTML=html;
     // ⋯ per-column sort menu (MeisterTask-style "Sort section")
@@ -1121,7 +1190,7 @@
   function schDay(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }catch(e){ return d; } }
   function loadSched(job){
     var box=document.getElementById('jsched'); if(!box) return;
-    // What else is on this tech's day? That's what makes "1 of 2 left" honest, so pull the
+    // What else is on this tech's day? That's what makes "1 of 3 left" honest, so pull the
     // siblings alongside the offers. No tech or no day yet -> no counts, just the windows.
     var sibs = (job.scheduled_day && job.technician_id)
       ? sb.from('job').select('id,time_window,status').eq('company_id',companyId)
@@ -1221,7 +1290,7 @@
           if(d&&d.ok&&d.texted){ if(msgEl) msgEl.textContent='✓ Texted '+(d.tech||'the tech')+' the job tile.'; var ni=document.getElementById('jtileNote'); if(ni) ni.value=''; }
           else if(d&&d.error==='no_tech'){ if(msgEl) msgEl.textContent='Assign a tech first, then text them the tile.'; }
           else if(d&&d.error==='no_tech_phone'){ if(msgEl) msgEl.textContent='No cell on file for '+(d.tech||'that tech')+'.'; }
-          else { if(msgEl) msgEl.textContent=(d&&d.error)||'Couldn\'t send — try again.'; }
+          else { if(msgEl) msgEl.textContent=(d&&d.message)||(d&&d.error)||'Couldn\'t send — try again.'; }
         });
     }).catch(function(){ btn.disabled=false; btn.textContent=orig; if(msgEl) msgEl.textContent='Couldn\'t reach the server — try again.'; });
   }
@@ -1570,18 +1639,81 @@
       '<option value="distributor"'+(v==='distributor'?' selected':'')+'>🏭 Pick up from distributor</option>'+
       '<option value="customer"'+(v==='customer'?' selected':'')+'>🏠 Shipping to customer\'s home</option>'+
     '</select>'; }
+  function partKeyOB(p){
+    var n = String((p && p.number) || '');
+    var m = n.match(/part\s*#\s*([A-Za-z0-9-]{5,})/i);
+    return ((m ? m[1] : n) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+  function tpTrackUrl(p){
+    var t=String(p.ship_tracking||''); if(!t) return '';
+    var c=String(p.ship_carrier||'').toLowerCase();
+    if(c.indexOf('ups')>=0) return 'https://www.ups.com/track?tracknum='+encodeURIComponent(t);
+    if(c.indexOf('usps')>=0) return 'https://tools.usps.com/go/TrackConfirmAction?tLabels='+encodeURIComponent(t);
+    return 'https://www.fedex.com/fedextrack/?trknbr='+encodeURIComponent(t);
+  }
+  // AHS states a hard clock and a hard dollar on its return notice ("within 30 days or
+  // $295.74 will be deducted from your payables"); SquareTrade states neither. So the terms
+  // are rendered only when the vendor actually gave them -- a missing deadline means "no
+  // stated clock", never "not owed", and the obligation line above stands on its own.
+  // The dollar is stated PER PO, so it is labelled as the PO's exposure, not this part's.
+  function tpReturnTerms(p){
+    if(!p.must_return || p.returned_at) return '';
+    var bits=[];
+    if(p.return_due_at){
+      var d=new Date(p.return_due_at+'T12:00:00');
+      var left=Math.round((d-new Date())/86400000);
+      var lbl=d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      bits.push(left<0 ? ('<b>'+(-left)+'d OVERDUE</b> (was '+lbl+')')
+        : (left<=7 ? ('<b>due in '+left+'d</b> · '+lbl) : ('due '+lbl)));
+    }
+    if(p.return_penalty_cents) bits.push('$'+(Math.round(p.return_penalty_cents)/100).toFixed(2)+' at risk'+(p.return_po?' on PO '+esc(p.return_po):''));
+    if(p.rma_number) bits.push('RMA '+esc(p.rma_number));
+    if(!bits.length) return '';
+    var hot = p.return_due_at && (new Date(p.return_due_at+'T12:00:00') - new Date())/86400000 <= 7;
+    return '<div class="tprow" style="font-size:12px;color:'+(hot?'var(--danger,#b91c1c)':'var(--muted)')+'">⏳ '+bits.join(' · ')+'</div>';
+  }
+  function tpShip(p){
+    // The vendor's obligation outranks the tech's tap: a core is owed back even when USED.
+    var owed = p.must_return && !p.returned_at
+      ? '<div class="tpship ret">↩️ Vendor wants this one back</div>'+tpReturnTerms(p) : '';
+    if(p.disposition==='return') return owed || '<div class="tpship ret">↩️ Returning to vendor</div>';
+    if(owed) return owed + tpShipState(p);
+    return tpShipState(p);
+  }
+  // A part the TECH bought out of pocket. This is money the shop owes him back, so the office
+  // sees the amount, the store, who paid, and the receipt itself — one tap to open it.
+  function tpBought(p){
+    if(!p||!p.bought_at) return '';
+    var bits=[];
+    if(p.cost_cents) bits.push('<b>$'+(Math.round(p.cost_cents)/100).toFixed(2)+'</b>');
+    if(p.bought_from) bits.push('at '+esc(p.bought_from));
+    if(p.bought_by) bits.push('· '+esc(p.bought_by)+' paid');
+    var rc = p.receipt_ref ? ' <a href="#" class="tprcpt" data-ref="'+esc(p.receipt_ref)+'">🧾 receipt</a>' : ' <span class="hint">(no receipt photo)</span>';
+    return '<div class="tprow" style="font-size:12px;color:var(--muted)">🧾 Picked up '+(bits.length?bits.join(' '):'')+rc+'</div>';
+  }
+  function tpShipState(p){
+    if(!p.ship_tracking) return '<div class="tpship none">Not shipped yet</div>';
+    var cls = p.ship_delivered ? 'tpship ok' : 'tpship go';
+    var lbl = p.ship_delivered ? '✅ Delivered' : (p.ship_status ? '🚚 '+esc(p.ship_status) : '🚚 Sent');
+    if(p.ship_carrier && !p.ship_status) lbl += ' · '+esc(p.ship_carrier);
+    return '<div class="'+cls+'">'+lbl+' <a href="'+tpTrackUrl(p)+'" target="_blank" rel="noopener">'+esc(p.ship_tracking)+'</a></div>';
+  }
   function loadTparts(job){
     var box=document.getElementById('jtparts'); if(!box) return;
     box.innerHTML='<div class="sec">🔩 Parts</div><div class="hint">Loading…</div>';
     // datalist of common part sources — a dropdown of suggestions that still allows free write-in
     var SRC_LIST='<datalist id="ant_part_srcs"><option value="American Home Shield (warranty)"><option value="Warranty company"><option value="ServicePower"><option value="Marcone"><option value="Reliable Parts"><option value="Encompass"><option value="Amazon"><option value="Distributor / parts warehouse"></datalist>';
-    sb.from('job_part').select('id,number,name,source,ship_to,eta').eq('job_id',job.id).order('created_at').then(function(r){
+    // What the vendor actually SENT, straight off their own record (platform-sp-parts-sync).
+    // Office gets the operational detail — carrier, tracking, delivered — that the customer
+    // portal deliberately withholds. Same row, different lens.
+    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at,return_due_at,return_penalty_cents,return_po,rma_number,cost_cents,receipt_ref,bought_at,bought_by,bought_from').eq('job_id',job.id).order('created_at').then(function(r){
       var parts=(r&&r.data)||[];
       var rows=parts.map(function(p){
         return '<div class="tpcard" data-pid="'+esc(p.id)+'">'+
           '<div class="tprow"><input class="tp_num" value="'+esc(p.number||'')+'" placeholder="Part #"><input class="tp_name" value="'+esc(p.name||'')+'" placeholder="Name (optional)"><button type="button" class="del" data-del="'+esc(p.id)+'" title="Remove">✕</button></div>'+
           '<div class="tprow"><input class="tp_src" list="ant_part_srcs" value="'+esc(p.source||'')+'" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
           '<div class="tprow">'+shipSel(p.ship_to)+'<label class="tpeta">ETA <input class="tp_eta" type="date" value="'+esc(p.eta||'')+'"></label></div>'+
+          tpShip(p)+tpBought(p)+
         '</div>';
       }).join('');
       box.innerHTML='<div class="sec">🔩 Parts <span class="hint" style="font-weight:400">— part #, where it\'s coming from, the route &amp; ETA</span></div>'+SRC_LIST+
@@ -1593,6 +1725,17 @@
         '</div>'+
         '<div class="hint" id="jtp_msg" style="margin-top:4px"></div>';
       // remove a part
+      // open a receipt photo — signed per-tenant, never a raw bucket URL
+      box.querySelectorAll('#jtp_rows .tprcpt[data-ref]').forEach(function(a){ a.onclick=function(e){
+        e.preventDefault(); var ref=a.getAttribute('data-ref'); a.textContent='🧾 opening…';
+        sb.auth.getSession().then(function(sres){
+          var tok=sres&&sres.data&&sres.data.session?sres.data.session.access_token:'';
+          return fetch('/.netlify/functions/platform-media-urls',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},body:JSON.stringify({refs:[ref]})});
+        }).then(function(r){return r.json();}).then(function(d){
+          var u=d&&d.urls&&d.urls[ref]; a.textContent='🧾 receipt';
+          if(u) window.open(u,'_blank','noopener'); else a.textContent='🧾 receipt (couldn\'t open)';
+        }).catch(function(){ a.textContent='🧾 receipt (couldn\'t open)'; });
+      }; });
       box.querySelectorAll('#jtp_rows .del[data-del]').forEach(function(b){ b.onclick=function(){ b.disabled=true; sb.from('job_part').delete().eq('id',b.getAttribute('data-del')).then(function(){ loadTparts(job); loadBoard(); }); }; });
       // add a part (carries source / route / ETA)
       var ab=document.getElementById('jtp_add');
@@ -1827,7 +1970,7 @@
       var ee=document.getElementById('rsErr'); if(ee) ee.textContent='';
       var prevTech=job.technician_id;
       rsGo.disabled=true; rsGo.textContent='Saving…';
-      sb.from('job').update({ technician_id:techId, scheduled_day:rsSel, status:'scheduled' }).eq('id',job.id).then(function(r){
+      sb.from('job').update({ technician_id:techId, scheduled_day:rsSel, status:'scheduled', platform_booked_at:new Date().toISOString() }).eq('id',job.id).then(function(r){
         rsGo.disabled=false;
         if(r.error){ rsGo.textContent='Reschedule'; if(ee) ee.textContent=r.error.message||'Couldn\'t reschedule — try again.'; return; }
         job.scheduled_day=rsSel; job.technician_id=techId; job.status='scheduled';
@@ -1843,7 +1986,7 @@
 
     // Assign / reassign the tech — office dispatch (RLS lets the office write its own job rows).
     var jt=document.getElementById('jtech');
-    if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; if(val) notifyAssigned(job.id); loadBoard(); }); }; }
+    if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val, platform_booked_at:new Date().toISOString()}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; if(val) notifyAssigned(job.id); loadBoard(); }); }; }
     var jtile=document.getElementById('jtileSend');
     if(jtile){ jtile.onclick=function(){ var ni=document.getElementById('jtileNote'); textTileToTech(job.id, ni?ni.value:'', jtile, document.getElementById('jtileMsg')); }; }
 
@@ -2198,6 +2341,17 @@
     }).join('');
   }
 
+  (function(){
+    var st=document.createElement('style');
+    st.textContent='.fchip.fowed{background:#fdecef;color:#a3203a;border-color:#f0a8b6}'
+      +'.fchip.fpartsok{background:#e6f7ee;color:#0f7a42;border-color:#8fd9b0}'
+      +'.fchip.fpartsgo{background:#fff1e0;color:#a65a00;border-color:#f0c48a}'
+      +'.tpship{font-size:12px;font-weight:600;margin-top:5px;padding:4px 8px;border-radius:8px;background:#f3f1f8;color:#6b6480;display:inline-block}'
+      +'.tpship.ok{background:#e6f7ee;color:#0f7a42}.tpship.go{background:#fff1e0;color:#a65a00}'
+      +'.tpship.ret{background:#fdecef;color:#a3203a}.tpship.none{opacity:.75}'
+      +'.tpship a{color:inherit;text-decoration:underline}';
+    document.head.appendChild(st);
+  })();
   function loadBoard() {
     // RLS scopes every query to the logged-in user's company — we never pass company_id.
     // The dense card needs the warranty/parts/report/stop columns; customer.city rides along
@@ -2211,15 +2365,36 @@
       jobsCache = r.data || [];
       var jids = jobsCache.map(function(j){ return j.id; });
       var none = Promise.resolve({ data: [] });
+      // 1,725 job ids in one .in() builds a ~62KB URL - past what a request line should carry,
+      // and slow to plan even when it squeaks through. Ask in batches and stitch the answers.
+      function inChunks(table, sel, ids, tweak) {
+        var SIZE = 150, out = [], batches = [];
+        for (var i = 0; i < ids.length; i += SIZE) batches.push(ids.slice(i, i + SIZE));
+        return batches.reduce(function (chain, part) {
+          return chain.then(function () {
+            var q = sb.from(table).select(sel).in('job_id', part);
+            if (tweak) q = tweak(q);
+            return q.then(function (r) { if (r && r.data) out = out.concat(r.data); });
+          });
+        }, Promise.resolve()).then(function () { return { data: out }; });
+      }
       // batch the customer's uploaded media so the office sees video + model photo right on
       // the tile — needed to process the warranty claim by hand (until a claim API lands).
-      var mediaP = jids.length ? sb.from('job_media').select('job_id,kind,provider,ref').in('job_id', jids) : none;
+      var mediaP = jids.length ? inChunks('job_media', 'job_id,kind,provider,ref', jids) : none;
       // latest inbound customer message per job → the green message bubble on the tile
-      var msgP   = jids.length ? sb.from('thread_message').select('job_id,body,direction,created_at').eq('direction','in').in('job_id', jids).order('created_at',{ascending:false}) : none;
+      // The board only keeps the NEWEST inbound message per job (see the reducer below), but
+      // this used to ask for every inbound message on all ~1,725 board jobs - 12,597 rows,
+      // sent with a 62KB list of job ids in the URL, on every single load. Supabase caps a
+      // response at 1,000 rows, so it also silently DROPPED most of them: the "they replied"
+      // flag was simply missing for the majority of jobs. One row per job, decided in Postgres:
+      // ~800 rows instead of 12,597, and right this time. The RPC is scoped to the same
+      // active window the board loads, so that count tracks live work rather than growing
+      // with history and creeping back up on the cap. (Both systems freezing, 2026-09-10.)
+      var msgP   = sb.rpc('board_latest_inbound');
       // the parts the tech logged → the 🔧 part-# chip (fallback when the job row has none)
-      var partsP = jids.length ? sb.from('job_part').select('job_id,number,name,disposition').in('job_id', jids) : none;
+      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta,must_return,returned_at,return_due_at,bought_at', jids) : none;
       // the colorful tags on each job + the shop's editable tag library
-      var tagP = jids.length ? sb.from('job_tag').select('job_id,tag:tag_id(id,label,color)').in('job_id', jids) : none;
+      var tagP = jids.length ? inChunks('job_tag', 'job_id,tag:tag_id(id,label,color)', jids) : none;
       var libP = sb.from('tag').select('id,label,color').order('created_at');
       Promise.all([
         sb.from('invoice').select('id,job_id,status,subtotal_cents,tax_cents,total_cents,tip_cents,collected_cents,paid_at,paid_method,created_at'),
@@ -2233,7 +2408,26 @@
         // ordered newest-first → keep the first seen per job (the latest inbound)
         msgByJob = {};
         (sr.data || []).forEach(function (m) { if (!m.job_id || msgByJob[m.job_id]) return; if (String(m.body||'').trim()) msgByJob[m.job_id] = m; });
-        partsByJob = {};
+        partsByJob = {}; partsShipByJob = {};
+        // Shipment tally per job — counts EVERY part on the repair (a part with no number still
+        // ships), unlike partsByJob which only keeps rows that carry a part number for display.
+        var seenPart = {};
+        (pr.data || []).forEach(function (p) {
+          if (!p.job_id) return;
+          var d = String(p.disposition||''); if (d==='return'||d==='not_here') return;
+          // count PHYSICAL parts, not rows -- Xano duplicates some and the mirror copies both,
+          // which would otherwise inflate "2 of 5 sent" on the tile.
+          var pk = partKeyOB(p);
+          if (pk) { var sk = p.job_id + '|' + pk; if (seenPart[sk]) return; seenPart[sk] = 1; }
+          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, owed:0, eta:null, owedDue:null };
+          t.n++; if (p.ship_tracking || p.bought_at) t.sent++; if (p.ship_delivered || p.bought_at) t.here++;
+          if (p.must_return && !p.returned_at) {
+            t.owed = (t.owed||0)+1;
+            // soonest deadline wins -- the tile's job is to say which stop is about to cost money
+            if (p.return_due_at && (!t.owedDue || p.return_due_at < t.owedDue)) t.owedDue = p.return_due_at;
+          }
+          if (p.eta && (!t.eta || p.eta < t.eta)) t.eta = p.eta;
+        });
         (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; var d=String(p.disposition||''); if (d==='return'||d==='not_here') return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name }); });
         tagsByJob = {};
         (tgr.data || []).forEach(function (t) { if (!t.job_id || !t.tag) return; (tagsByJob[t.job_id] = tagsByJob[t.job_id] || []).push(t.tag); });

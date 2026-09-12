@@ -17,6 +17,7 @@
 //   GET ?secret=...               -> DRY RUN: the full split + samples
 //   GET ?secret=...&confirm=yes    -> execute
 const crud = require('./_lib/xano/metadata-crud');
+const { primeXanoToken } = require('./_lib/secrets');
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const JOBS_TABLE = 7;
@@ -61,6 +62,7 @@ function classify(r) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   if (q.secret !== SECRET) return j(401, { ok: false, error: 'unauthorized' });
   const confirm = q.confirm === 'yes';

@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // One-shot diagnostic: for a given Xano tech_id (and their HCP hcp_id),
 // pull today's HCP jobs assigned to that pro AND today's Xano jobs
 // assigned to that tech, and surface the diff. Use to debug "why does
@@ -20,6 +21,7 @@ function todayCT() {
 }
 
 exports.handler = async (event) => {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const params = event.queryStringParameters || {};
   const techId = Number(params.tech_id || 0);
   const hcpId = String(params.hcp_id || '');

@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // squaretrade-slot-backfill — recover the arrival WINDOW onto SquareTrade jobs that
 // landed BEFORE the intake fix (Danielle 2026-07-15: "we accept the jobs but don't put
 // them in the correct slot" — a major issue this week). The window the customer agreed
@@ -50,6 +51,7 @@ async function listPage(tableId, perPage, page) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });

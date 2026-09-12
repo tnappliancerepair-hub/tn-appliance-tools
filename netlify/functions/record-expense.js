@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Records a business expense (gas / truck fee / other) at any cadence —
 // per-job, per-tech, or monthly overhead. Writes an event_log row via the
 // Metadata API (no Xano push). expenses-rollup.js reads these back and the
@@ -22,6 +23,7 @@ function headers() {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   try {
     const b = JSON.parse(event.body || '{}');

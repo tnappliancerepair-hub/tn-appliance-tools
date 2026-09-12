@@ -20,7 +20,7 @@
 //   GET ?secret=<admin>&confirm=1    act now
 //   scheduled                        shadow-logs unless SQUARETRADE_REDISPATCH_LINK=true
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 function authH() { const t = process.env.XANO_METADATA_TOKEN; if (!t) throw new Error('no metadata token'); return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }; }
@@ -71,6 +71,7 @@ async function furthestAlong(jb) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   const envLive = (await getSecret('SQUARETRADE_REDISPATCH_LINK')) === 'true';

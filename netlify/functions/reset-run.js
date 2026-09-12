@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // RESET RUN
 // Bulk-deletes all data tagged with a given test_run_id across the tables
 // touched by the test cycle. Use between iterations to reset state.
@@ -35,6 +36,7 @@ const TABLES = {
 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') {
     return json(405, { ok: false, error: 'method not allowed' });
   }

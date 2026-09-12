@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Collected card payments in a period (real cash in via Stripe), from
 // customer_payment_received rows. Powers the Money hub "Collected" card and the
 // office board's 💵 paid indicator. De-dupes per Stripe session.
@@ -21,6 +22,7 @@ function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const start = Number(q.start_ms) || 0;
   const end = Number(q.end_ms) || Date.now();

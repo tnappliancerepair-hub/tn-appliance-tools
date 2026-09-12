@@ -23,6 +23,26 @@ const CANDIDATE_IDS = [53, 33];
 let _tableIdCache = null;
 const _secretCache = {};
 
+// A vault read that comes back EMPTY is ambiguous: the key may genuinely be unset, or
+// Xano (which HOSTS the vault) may have been too busy to answer. Caching the empty case
+// for the life of the container turned the second one into a permanent outage: a warm
+// Lambda that lost one race answered "not configured" forever after, while requests
+// routed to healthier containers succeeded. Measured 2026-09-10 during a Xano slow spell:
+// 2 of 10 identical calls to the same endpoint failed that way, which is how the office's
+// texts failed intermittently while nothing looked broken. Real values still cache for the
+// container's life; empties expire fast, so a container that lost a race heals itself on
+// the next request instead of needing a redeploy.
+const EMPTY_TTL_MS = Number(process.env.SECRET_EMPTY_TTL_MS || 20000);
+function cacheGet(name) {
+  const e = _secretCache[name];
+  if (e === undefined) return null;                       // never read
+  if (e.v) return e.v;                                    // a real value: trust it
+  if (Date.now() - e.at < EMPTY_TTL_MS) return '';        // recently empty: don't hammer Xano
+  delete _secretCache[name];                              // stale empty: re-read
+  return null;
+}
+function cachePut(name, v) { _secretCache[name] = { v: v || '', at: Date.now() }; return v; }
+
 // Secret-name aliases. Historically the shared owner/admin gate was named
 // VAPI_ADMIN_SECRET (from the old Vapi phone era). The phone moved to Telnyx, so that
 // name is misleading — it's just "the admin password" now. This lets us call it
@@ -67,7 +87,10 @@ async function configTableId() {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ search: { name: '__probe__' }, per_page: 1, page: 1 }),
       });
-      if (r.ok) { _tableIdCache = id; return id; }
+      // Only latch an id when NO earlier candidate was merely busy. Under load the real
+      // table can time out while a DIFFERENT table answers 2xx, and latching that wrong id
+      // makes every later read return "not found" for the life of the container.
+      if (r.ok) { if (transient) break; _tableIdCache = id; return id; }
       if (r.status >= 500 || r.status === 408 || r.status === 429) transient = true;
     } catch (_) { transient = true; }   // AbortSignal timeout / network error = busy, not missing
   }
@@ -88,6 +111,55 @@ async function searchOne(name) {
   return row ? String(row.value || '') : '';
 }
 
+// ── Supabase-hosted vault (primary) ───────────────────────────────────────────
+// The vault used to live ONLY in Xano, which made a slow Xano an outage for all 55
+// platform functions — and the reason it was in Xano at all is circular: XANO_METADATA_TOKEN
+// is 1,829 bytes, 55% of Lambda's 4KB env budget, so there was no room in env for anything
+// else and a vault had to exist. Reading from Supabase instead takes Xano off the critical
+// path of every platform request and eventually hands those bytes back.
+//
+// BOOTSTRAP, deliberately: the URL is NOT a secret (platform/config.js serves it to every
+// browser) so it is a constant here and costs no env budget; only the service key needs an
+// env home. With that key unset the Supabase leg is skipped entirely and every read falls
+// back to Xano exactly as before — so this is safe to deploy before the key is in place.
+const SB_VAULT_URL = 'https://tntbhfwitytkcoqlejwc.supabase.co';
+function sbVaultKey() { return process.env.PLATFORM_SUPABASE_SERVICE_KEY || ''; }
+function sbVaultOn() { return !!sbVaultKey(); }
+
+// Not every value in the vault is a secret. The platform's Supabase URL is served to every
+// browser in platform/config.js, so treating it as one bought nothing and cost a Xano round
+// trip on every cold start — and criticalSecret retries four times, so a slow Xano turned
+// that single non-secret into ~17 seconds before a function could do any work. That is what
+// timed out the shop's own login page today. Answer it from here, instantly, and never ask.
+const PUBLIC_DEFAULTS = { PLATFORM_SUPABASE_URL: SB_VAULT_URL };
+
+// '' = asked and it is genuinely not there · null = could not ask (no key / busy / error),
+// which must fall through to Xano rather than be mistaken for "unset".
+async function sbVaultRead(name) {
+  const k = sbVaultKey();
+  if (!k) return null;
+  try {
+    const r = await fetchT(`${SB_VAULT_URL}/rest/v1/app_config?name=eq.${encodeURIComponent(name)}&select=value&limit=1`,
+      { headers: { apikey: k, Authorization: 'Bearer ' + k } });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return (d && d[0]) ? String(d[0].value || '') : '';
+  } catch (_) { return null; }
+}
+async function fetchFromSupabase(name) {
+  const v = await sbVaultRead(name);
+  if (v) return v;
+  for (const a of (ALIASES[name] || [])) { const av = await sbVaultRead(a); if (av) return av; }
+  return v;                                     // '' (absent) or null (could not ask)
+}
+
+// Supabase first, Xano as the fallback. Every intermediate state of the migration is safe:
+// a key not yet copied across simply resolves from Xano.
+async function fetchAny(name) {
+  try { const v = await fetchFromSupabase(name); if (v) return v; } catch (_) {}
+  return fetchFromXano(name);
+}
+
 async function fetchFromXano(name) {
   const val = await searchOne(name);
   if (val) return val;
@@ -103,11 +175,13 @@ async function fetchFromXano(name) {
 // caller for "not found" — only for a genuine config error you want surfaced.
 async function getSecret(name) {
   if (process.env[name]) return process.env[name];
+  if (PUBLIC_DEFAULTS[name]) return PUBLIC_DEFAULTS[name];
   for (const a of (ALIASES[name] || [])) if (process.env[a]) return process.env[a];
-  if (_secretCache[name] !== undefined) return _secretCache[name];
+  const cached = cacheGet(name);
+  if (cached !== null) return cached;
   try {
-    const v = await fetchFromXano(name);
-    _secretCache[name] = v;
+    const v = await fetchAny(name);
+    cachePut(name, v);
     return v;
   } catch (err) {
     console.error('[secrets] getSecret(' + name + ') failed:', err.message);
@@ -124,11 +198,13 @@ async function getSecret(name) {
 // show a setup message to a person should use this and say "busy, try again" instead.
 async function getSecretStatus(name) {
   if (process.env[name]) return { value: process.env[name], ok: true };
+  if (PUBLIC_DEFAULTS[name]) return { value: PUBLIC_DEFAULTS[name], ok: true };
   for (const a of (ALIASES[name] || [])) if (process.env[a]) return { value: process.env[a], ok: true };
-  if (_secretCache[name] !== undefined) return { value: _secretCache[name], ok: true };
+  const cachedS = cacheGet(name);
+  if (cachedS !== null) return { value: cachedS, ok: true };
   try {
-    const v = await fetchFromXano(name);
-    _secretCache[name] = v;
+    const v = await fetchAny(name);
+    cachePut(name, v);
     return { value: v, ok: true };
   } catch (err) {
     return { value: '', ok: false, transient: true, error: String((err && err.message) || err) };
@@ -141,8 +217,8 @@ async function getSecretStatus(name) {
 // added to the vault later is picked up on the next warm call.)
 async function getSecretPreferVault(name) {
   try {
-    const v = await fetchFromXano(name);
-    if (v) { _secretCache[name] = v; return v; }
+    const v = await fetchAny(name);
+    if (v) { cachePut(name, v); return v; }
   } catch (err) {
     console.error('[secrets] getSecretPreferVault(' + name + ') failed:', err.message);
   }
@@ -170,7 +246,21 @@ async function setSecret(name, value) {
       const wr = existing
         ? await fetchT(`${XANO_META}/table/${tid}/content/${existing.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify({ name, value }) }, SECRET_WRITE_TIMEOUT_MS)
         : await fetchT(`${XANO_META}/table/${tid}/content`, { method: 'POST', headers: headers(), body: JSON.stringify({ name, value }) }, SECRET_WRITE_TIMEOUT_MS);
-      if (wr && wr.ok) { _secretCache[name] = value; return true; }
+      if (wr && wr.ok) {
+        // Dual-write while both stores are live, so a value set through either path is
+        // never stale in the other. Best-effort: Supabase failing must not fail the write.
+        if (sbVaultOn()) {
+          try {
+            const k = sbVaultKey();
+            await fetchT(`${SB_VAULT_URL}/rest/v1/app_config?on_conflict=name`, {
+              method: 'POST',
+              headers: { apikey: k, Authorization: 'Bearer ' + k, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+              body: JSON.stringify({ name, value, updated_at: new Date().toISOString() }),
+            }, SECRET_WRITE_TIMEOUT_MS);
+          } catch (_) {}
+        }
+        cachePut(name, value); return true;
+      }
       lastErr = 'write ' + (wr ? wr.status : 'no-response');
     } catch (e) { lastErr = String((e && e.message) || e); }
     await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
@@ -204,8 +294,38 @@ async function delSecret(name) {
 
 // Always-fresh read (no cache) — for values that change at runtime, like the
 // per-person Reach Me availability flags. Falls back to env on error.
+// The 4KB problem in one function.
+//
+// XANO_METADATA_TOKEN is 1,829 bytes - 59% of the entire Lambda environment budget - and
+// 99 live functions read it straight off process.env, many from SYNCHRONOUS helpers like
+// `function authH() { ... process.env.XANO_METADATA_TOKEN ... }` that cannot await. Making
+// those async would mean changing every call site, which is a lot of ways to break a
+// working system.
+//
+// So instead of changing how they read it, put it where they already look. Call this once
+// at the top of a handler and every existing read - sync or not - keeps working unchanged,
+// with the value coming from the Supabase vault instead of the environment.
+//
+// Supabase ONLY, never fetchAny: the Xano vault is the thing this token unlocks, so asking
+// Xano for it would be circular. Memoized per container, so it costs one read on a cold
+// start and nothing after. If the vault cannot answer, the token is simply absent - exactly
+// the state those functions already handle today.
+let _xanoPrime = null;
+async function primeXanoToken() {
+  if (process.env.XANO_METADATA_TOKEN) return process.env.XANO_METADATA_TOKEN;
+  if (!_xanoPrime) {
+    _xanoPrime = (async () => {
+      let v = '';
+      try { v = (await fetchFromSupabase('XANO_METADATA_TOKEN')) || ''; } catch (_) {}
+      if (v) process.env.XANO_METADATA_TOKEN = v;   // the whole point: put it where they look
+      return v;
+    })();
+  }
+  return _xanoPrime;
+}
+
 async function getSecretFresh(name) {
-  try { const v = await fetchFromXano(name); _secretCache[name] = v; return v; }
+  try { const v = await fetchAny(name); cachePut(name, v); return v; }
   catch (err) { return process.env[name] || ''; }
 }
 
@@ -220,6 +340,7 @@ async function getSecretFresh(name) {
 // returns '' (callers keep their not-configured guard). (2026-09-09)
 async function criticalSecret(name, retries = 4) {
   if (process.env[name]) return process.env[name];
+  if (PUBLIC_DEFAULTS[name]) return PUBLIC_DEFAULTS[name];
   for (const a of (ALIASES[name] || [])) if (process.env[a]) return process.env[a];
   for (let attempt = 0; attempt < retries; attempt++) {
     let v = '';
@@ -230,4 +351,4 @@ async function criticalSecret(name, retries = 4) {
   return '';
 }
 
-module.exports = { getSecret, getSecretStatus, getSecretFresh, getSecretPreferVault, criticalSecret, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME };
+module.exports = { getSecret, getSecretStatus, getSecretFresh, primeXanoToken, getSecretPreferVault, criticalSecret, setSecret, delSecret, configTableId, CONFIG_TABLE_NAME, fetchFromXano, sbVaultOn, SB_VAULT_URL };

@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // save-office-note — office-authored note on a job (part ETAs, warranty-co
 // updates), separate from tech notes. Teddy 7/1: Danielle needs a place to log
 // e.g. "Frontdoor part 5-7 days" so the DB reflects it and Ant can tell a caller
@@ -22,6 +23,7 @@ function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'applicati
 exports.config = { timeout: 20 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'Method Not Allowed' });
   const h = headers();
   if (!h) return j(500, { ok: false, error: 'metadata token not configured' });

@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // admin-tech — TEMP guarded helper to read/edit a technician row from the cloud
 // (the XS update_technician doesn't do phone, and XS pushes need the Mac).
 // Guarded by a shared secret. Uses XANO_METADATA_TOKEN (in Netlify env).
@@ -19,6 +20,7 @@ function headers() {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   if (q.secret !== GUARD) return { statusCode: 403, body: 'forbidden' };
   const id = Number(q.id || 0);

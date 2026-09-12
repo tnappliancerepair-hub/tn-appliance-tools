@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Add-on earnings per tech for the leaderboard — so the guys can see who's
 // stacking extra money on add-on work. Buckets fulfilled add-ons by tech for a
 // calendar month (CT), matching the leaderboard's month_offset (0=this month).
@@ -47,6 +48,7 @@ function monthWindow(offset) {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const offset = parseInt((event.queryStringParameters || {}).month_offset, 10) || 0;
   const { start, end } = monthWindow(offset);
   try {

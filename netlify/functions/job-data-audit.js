@@ -15,6 +15,7 @@
 'use strict';
 
 const crud = require('./_lib/xano/metadata-crud');
+const { primeXanoToken } = require('./_lib/secrets');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const CUSTOMER = crud.TABLES.customer; // 6
 
@@ -84,6 +85,7 @@ function addrIssues(street, city, state, zip) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = (event && event.queryStringParameters) || {};
 
   // ?probe=<customer_id> — A/B a single customer read: POST content/search (what this audit

@@ -12,7 +12,7 @@
 // Falls back to placeholder mailto:tnappliancerepair@gmail.com link
 // when STRIPE_SECRET_KEY is unset (so the agent flow still works in dev).
 const Stripe = require('stripe');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const JOBS_TABLE = 7;
@@ -77,6 +77,7 @@ const DEFAULT_SUCCESS = 'https://tnapplianceexchange.net/pay-thanks.html?session
 const DEFAULT_CANCEL = 'https://tnapplianceexchange.net/customer-portal.html';
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }

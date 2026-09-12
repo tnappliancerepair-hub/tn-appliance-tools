@@ -9,6 +9,7 @@
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const { sendSms } = require('./_lib/sms');
+const { primeXanoToken } = require('./_lib/secrets');
 const QUICK_CHECK_URL = 'https://tnapplianceexchange.net/quick-check-intake.html';
 // Test phones get the $1 link (?qc=<token>); every real customer pays $50. Add
 // numbers via QC_TEST_PHONES env (comma-separated) or the default set below.
@@ -35,6 +36,7 @@ function jsonResp(c, b) { return { statusCode: c, headers: { 'Content-Type': 'ap
 exports.config = { timeout: 20 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
   // Vapi sends tool args at the top level or under arguments/args; accept all.

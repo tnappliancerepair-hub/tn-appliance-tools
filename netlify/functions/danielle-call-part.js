@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // danielle-call-part — Danielle enters the Part Showdown 🎯 (Teddy 7/5).
 //
 // Office-vs-field competition on the crux friction: the part number. Danielle
@@ -13,6 +14,7 @@ const EVENT_LOG = 3;
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(b) }; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'POST only' });
   const tok = process.env.XANO_METADATA_TOKEN;

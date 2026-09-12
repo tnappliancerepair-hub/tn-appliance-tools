@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Add-on sales tax collected in a period (tax-added add-ons charged via Stripe).
 // Sums the `tax` on customer_payment_received rows (kind=addon), split by region,
 // so the Money -> Tax view can show what's owed to each state.
@@ -21,6 +22,7 @@ function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const start = Number(q.start_ms) || 0;
   const end = Number(q.end_ms) || Date.now();

@@ -9,7 +9,7 @@
 //   ?secret=<admin>&action=deploy&site_id=<id>                     -> trigger a build/deploy
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, setSecret } = require('./_lib/secrets');
 const API = 'https://api.netlify.com/api/v1';
 const GUARD_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
 
@@ -80,6 +80,46 @@ exports.handler = async function (event) {
         results[k] = { ok: r.ok, status: r.status, error: r.ok ? undefined : JSON.stringify(r.data).slice(0, 200) };
       }
       return json(200, { ok: Object.values(results).every((x) => x.ok), account: acct, results, note: 'trigger a deploy for env changes to take effect' });
+    }
+
+    // Copy ONE vault key into Netlify env, server-side, so the value never transits a
+    // chat or a shell. Used to bootstrap the Supabase-hosted vault: secrets.js can only
+    // reach Supabase if the service key is in env, and it cannot read that key from the
+    // vault it is trying to replace. Scoped to functions+runtime — the smallest scope that
+    // works — because the 4KB Lambda env cap is the whole reason the vault exists.
+    if (action === 'vault_to_env') {
+      const name = String(q.key || '').trim();
+      if (!q.site_id || !name) return json(200, { ok: false, error: 'need ?site_id= and ?key=' });
+      const val = await getSecret(name);
+      if (!val) return json(200, { ok: false, error: name + ' not resolvable from the vault' });
+      const site = await api('GET', `/sites/${q.site_id}`);
+      const acct = site.data && (site.data.account_slug || site.data.account_id);
+      if (!acct) return json(200, { ok: false, error: 'could not resolve account for site' });
+      const scopes = ['functions', 'runtime'];
+      let r = await api('POST', `/accounts/${acct}/env?site_id=${q.site_id}`, [{ key: name, scopes, values: [{ value: String(val), context: 'all' }] }]);
+      if (!r.ok && (r.status === 400 || r.status === 409 || r.status === 422)) {
+        r = await api('PUT', `/accounts/${acct}/env/${name}?site_id=${q.site_id}`, { key: name, scopes, values: [{ value: String(val), context: 'all' }] });
+      }
+      // Report the SIZE, never the value — the 4KB budget is the thing worth watching.
+      return json(200, { ok: !!r.ok, key: name, bytes: name.length + String(val).length + 2, scopes,
+        status: r.status, error: r.ok ? undefined : JSON.stringify(r.data).slice(0, 200),
+        note: 'env changes need a deploy to reach the functions' });
+    }
+
+    // The reverse of vault_to_env, and the tool that makes the 4KB ceiling survivable:
+    // read a value the FUNCTION already has in its own environment and copy it into the
+    // vault, server-side, so the value never transits a chat or a shell. Once a key is
+    // in the vault it can be deleted from Netlify env and getSecret still resolves it -
+    // which is how bytes get reclaimed without anyone re-pasting a secret.
+    if (action === 'env_to_vault') {
+      const name = String(q.key || '').trim();
+      if (!name) return json(200, { ok: false, error: 'need ?key=' });
+      const val = process.env[name];
+      if (!val) return json(200, { ok: false, key: name, error: 'not present in this function\'s environment (already removed, or not scoped to functions/runtime)' });
+      let ok = false; try { ok = !!(await setSecret(name, String(val))); } catch (e) { return json(200, { ok: false, key: name, error: String((e && e.message) || e).slice(0, 160) }); }
+      // Report size only. The point of this endpoint is that the value stays invisible.
+      return json(200, { ok, key: name, bytes: name.length + String(val).length + 2,
+        note: ok ? 'in the vault - safe to delete from Netlify env once nothing reads it via process.env' : 'vault write failed' });
     }
 
     return json(200, { ok: false, error: 'unknown action' });

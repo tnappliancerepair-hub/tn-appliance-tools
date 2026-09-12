@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Lists add-on / deal-of-the-week requests the customer claimed that the office
 // hasn't fulfilled yet (ordered the part / gave the tech time). Reads
 // event_log: addon_requested minus addon_fulfilled (keyed job_id+addon_key).
@@ -35,6 +36,7 @@ function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { t
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   try {
     const jobFilter = (event && event.queryStringParameters && event.queryStringParameters.job_id)
       ? String(event.queryStringParameters.job_id) : '';

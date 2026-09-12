@@ -10,32 +10,15 @@
 'use strict';
 const crud = require('./xano/metadata-crud');
 
-// Canonical appliances + their keywords. Order matters: first match wins per segment,
-// and multi-word keywords ("washing machine") come before their single-word forms.
-// NOTE order matters — "dishwasher" contains the substring "washer", so dishwasher MUST be
-// checked before washer, or a dishwasher gets mis-mapped to washer.
-const APPLIANCES = [
-  { canon: 'refrigerator', kw: ['refrigerator', 'fridge'] },
-  { canon: 'freezer', kw: ['freezer'] },
-  { canon: 'dishwasher', kw: ['dish washer', 'dishwasher'] },
-  { canon: 'washer', kw: ['washing machine', 'washer'] },
-  { canon: 'dryer', kw: ['dryer'] },
-  { canon: 'range', kw: ['range', 'stove', 'cooktop', 'wall oven', 'oven'] },
-  { canon: 'microwave', kw: ['microwave'] },
-  { canon: 'disposal', kw: ['garbage disposal', 'disposal'] },
-];
+// The appliance vocabulary lives in _lib/appliance-vocab so a platform-native function can
+// reuse the SAME rule without pulling in metadata-crud. Do not re-declare it here.
+const { APPLIANCES, segToAppliance } = require('./appliance-vocab');
 
 // Real separators between two DISTINCT items. NOT "or" (uncertainty: "cooktop or range")
 // and NOT "-" (used in "Washer-Dryer Combo" and "refrigerator - wine & wet bar").
 const SEP = /\s*(?:\/|,|\+|&amp;|&|\band\b|\bplus\b)\s*/i;
 // Single-unit signals — never split these.
 const COMBO = /\bcombo\b|all[\s-]?in[\s-]?one|\b1\s*pc\b|one\s*piece|stackable/i;
-
-function segToAppliance(seg) {
-  const s = String(seg || '').toLowerCase();
-  for (const a of APPLIANCES) for (const k of a.kw) if (s.includes(k)) return a.canon;
-  return null;
-}
 
 // The core rule: split only when the label has a real separator, isn't a combo unit, and
 // yields 2+ DISTINCT known appliances. A sentence that merely mentions two ("washer not a
@@ -141,4 +124,4 @@ async function splitJob(jobId, opts) {
   return { ok: true, job_id: id, split: true, appliances: det.appliances, primary, created };
 }
 
-module.exports = { detectAppliances, splitJob, APPLIANCES, TERMINAL };
+module.exports = { detectAppliances, splitJob, segToAppliance, APPLIANCES, TERMINAL };

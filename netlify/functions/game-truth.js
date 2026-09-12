@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // game-truth — the honest scorekeeper for the part showdown (Teddy 7/5, "kick
 // our own ass"). The tech's confirmed part is only a CLAIM until reality settles
 // it. This engine grades every round against what actually happened:
@@ -52,6 +53,7 @@ async function rows(action) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   const q = event.queryStringParameters || {};
   const cutoff = String(q.scope || '') === 'all' ? 0 : ctMondayMs();

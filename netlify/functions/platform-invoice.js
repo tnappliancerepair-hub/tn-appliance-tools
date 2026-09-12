@@ -9,6 +9,7 @@
 
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
+const { claimSend, dailyKey } = require('./_lib/send-once');
 const SITE = 'https://tnapplianceexchange.net';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
@@ -72,9 +73,15 @@ exports.handler = async function (event) {
   const phone = String(cus.phone || '').trim();
   const appliance = (job.unit && job.unit.label) ? ` for your ${job.unit.label}` : '';
   const msg = `Hi ${first}, here's your invoice from ${shop}${appliance}: ${inviteUrl}`;
+  // CLAIM BEFORE SEND — once per day, per job. Re-sending an invoice tomorrow because the
+  // customer lost it is legitimate; two "here's your invoice" texts from one double-tap is
+  // not, and to the customer it reads as a second bill.
+  const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
+  const claimed = await claimSend(url, H, { company_id: companyId, customer_id: job.customer_id, job_id: jobId, direction: 'out', channel: 'invoice', sender: 'office', body: `🧾 Invoice sent: ${inviteUrl}` }, dailyKey('invoice', jobId));
+  if (!claimed) return json(200, { ok: true, url: inviteUrl, texted: false, already: true, message: 'That invoice already went out today.' });
+
   let texted = false;
   if (phone) { try { texted = await sendSms(phone, msg, 'customer', 'platform_invoice'); } catch (_) {} }
-  await db.note({ company_id: companyId, customer_id: job.customer_id, job_id: jobId, direction: 'out', channel: 'invoice', sender: 'office', body: `🧾 Invoice sent: ${inviteUrl}` });
 
   return json(200, { ok: true, url: inviteUrl, texted });
 };

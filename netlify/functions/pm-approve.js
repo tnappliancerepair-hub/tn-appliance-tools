@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // pm-approve — the PM taps the approve link from pm-charge (over-threshold hold). The TOKEN
 // authorizes it (no admin secret needed — it's a one-time tokenized link, like a payment
 // link). GET shows the pending charge; POST approves it and runs the charge server-side
@@ -27,6 +28,7 @@ async function lookup(token) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   try {
     if (event.httpMethod === 'GET') {
       const token = s((event.queryStringParameters || {}).token);

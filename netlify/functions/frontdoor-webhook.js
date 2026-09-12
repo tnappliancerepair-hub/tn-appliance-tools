@@ -19,7 +19,7 @@
 // URL for us yet, so nothing can hit this until we hand it over + agree the token.
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const { areaForVendor } = require('./_lib/frontdoor');
 const sms = require('./_lib/sms');
 const { payToken } = require('./pay-owed');
@@ -241,6 +241,7 @@ async function applyInbound(s, live) {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'Method Not Allowed' });
 
   const live = (await getSecret('FRONTDOOR_WEBHOOK_LIVE')) === '1';

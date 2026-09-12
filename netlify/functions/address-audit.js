@@ -8,6 +8,7 @@
 //   GET ?secret=<admin>   ->  { ok, active, clean, flagged, by_reason, jobs:[{id,name,reasons,...}] }
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
+const { primeXanoToken } = require('./_lib/secrets');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const JOBS = crud.TABLES.jobs;         // 7
 const CUSTOMER = crud.TABLES.customer; // 6
@@ -29,6 +30,7 @@ async function listPage(tableId, perPage, page) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized' });

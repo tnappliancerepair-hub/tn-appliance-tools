@@ -59,6 +59,8 @@
   .pnum{font-weight:800;font-size:15px}
   .pnum .missing{color:var(--warn);font-weight:700;font-size:13px}
   .pname{color:var(--muted);font-size:13px;margin-top:1px}
+  .pwho{font-size:12px;color:var(--muted);margin-top:2px}
+  .pterms{font-size:12px;color:#a3203a;margin-top:2px}
   .page{display:inline-block;margin-top:5px;font-size:12px;font-weight:700;color:var(--muted)}
   .page.risk{color:var(--danger);background:var(--dangerbg);border-radius:999px;padding:2px 9px}
   .pact{flex:0 0 auto;align-self:center}
@@ -143,31 +145,55 @@
 
   function loadReturns(){
     var list=document.getElementById('list'); if(!list) return;
+    // TWO sources of "owed back", and this page used to read only the first:
+    //   disposition='return'  = the TECH flagged it unused at the stop
+    //   must_return=true      = the VENDOR's own rule off their notice/API
+    // They are deliberately different columns (064) because a CORE is owed back even when it
+    // was USED -- so filtering on disposition alone hid every core and every vendor-stated
+    // obligation from the one screen the office actually ships returns from.
     sb.from('job_part')
-      .select('id,number,name,source,photo_ref,created_at,job:job_id(id,claim_number,warranty_company,scheduled_day,customer:customer_id(first_name,last_name,phone,city,state))')
-      .eq('disposition','return').is('returned_at',null).order('created_at',{ascending:true})
+      .select('id,number,name,source,photo_ref,created_at,disposition,must_return,return_due_at,return_penalty_cents,return_po,rma_number,job:job_id(id,claim_number,warranty_company,scheduled_day,customer:customer_id(first_name,last_name,phone,city,state))')
+      .or('disposition.eq.return,must_return.is.true').is('returned_at',null).order('created_at',{ascending:true})
       .then(function(r){
         if(r.error){
           if(/returned_at|column|schema cache/i.test(r.error.message||'')){ list.innerHTML='<div class="empty"><div class="big">🛠️</div>Returns tracking turns on once migration 056 is applied.</div>'; }
           else list.innerHTML='<div class="empty">Couldn\'t load returns — '+esc(r.error.message)+'</div>';
           renderScore(0,0); return;
         }
-        renderList(r.data||[]);
+        // Order by what costs money soonest. AHS states a deadline; SquareTrade doesn't --
+        // a dated row always outranks an undated one, and undated rows fall back to age.
+        var rows=(r.data||[]).slice().sort(function(a,b){
+          if(a.return_due_at && b.return_due_at) return a.return_due_at < b.return_due_at ? -1 : (a.return_due_at > b.return_due_at ? 1 : 0);
+          if(a.return_due_at) return -1;
+          if(b.return_due_at) return 1;
+          return String(a.created_at||'').localeCompare(String(b.created_at||''));
+        });
+        renderList(rows);
       });
   }
 
-  function renderScore(owed, oldest){
+  function renderScore(owed, oldest, rows){
     var s=document.getElementById('score'); if(!s) return;
+    // Money at risk is stated PER PO, not per part -- a 3-part AHS notice carries one $295.74,
+    // so summing the column would claim three times the real exposure. Dedupe on return_po.
+    var seen={}, cents=0, soonest=null;
+    (rows||[]).forEach(function(p){
+      if(p.return_penalty_cents){ var k=p.return_po||('p'+p.id); if(!seen[k]){ seen[k]=1; cents+=p.return_penalty_cents; } }
+      if(p.return_due_at && (!soonest || p.return_due_at<soonest)) soonest=p.return_due_at;
+    });
+    var dleft = soonest ? Math.round((new Date(soonest+'T12:00:00')-new Date())/86400000) : null;
+    var due = dleft===null ? '—' : (dleft<0 ? (-dleft)+'d late' : dleft+'d');
     s.innerHTML =
       '<div class="stat"><div class="lab">Owed back</div><div class="val">'+owed+'</div></div>' +
-      '<div class="stat'+(oldest>=7?' warn':'')+'"><div class="lab">Oldest (days)</div><div class="val">'+(owed?oldest:'—')+'</div></div>';
+      '<div class="stat'+(dleft!==null&&dleft<=7?' warn':'')+'"><div class="lab">Soonest deadline</div><div class="val">'+(owed?due:'—')+'</div></div>' +
+      '<div class="stat'+(cents?' warn':'')+'"><div class="lab">At risk</div><div class="val">'+(cents?('$'+(Math.round(cents)/100).toFixed(0)):'—')+'</div></div>';
   }
 
   function renderList(rows){
     var list=document.getElementById('list');
-    if(!rows.length){ renderScore(0,0); list.innerHTML='<div class="empty"><div class="big">✅</div>Nothing owed back — every warranty part is accounted for. Nice.</div>'; return; }
+    if(!rows.length){ renderScore(0,0,[]); list.innerHTML='<div class="empty"><div class="big">✅</div>Nothing owed back — every warranty part is accounted for. Nice.</div>'; return; }
     var oldest=0; rows.forEach(function(p){ oldest=Math.max(oldest, ageDays(p.created_at)); });
-    renderScore(rows.length, oldest);
+    renderScore(rows.length, oldest, rows);
     // group by job, preserving oldest-first order
     var groups=[], byJob={};
     rows.forEach(function(p){
@@ -201,6 +227,20 @@
       g.parts.map(partHtml).join('') + '</div>';
   }
 
+  // The vendor's terms when they gave any (AHS does, SquareTrade doesn't) -- deadline, the
+  // dollar that comes out of payables, the RMA to write on the packing slip.
+  function returnTerms(p){
+    var bits=[];
+    if(p.return_due_at){
+      var d=new Date(p.return_due_at+'T12:00:00');
+      var left=Math.round((d-new Date())/86400000);
+      var lbl=d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+      bits.push(left<0 ? ('<b>'+(-left)+'d OVERDUE</b> — was '+lbl) : (left<=7 ? ('<b>due in '+left+'d</b> · '+lbl) : ('due '+lbl)));
+    }
+    if(p.return_penalty_cents) bits.push('$'+(Math.round(p.return_penalty_cents)/100).toFixed(2)+' off payables if it stays here');
+    if(p.rma_number) bits.push('RMA '+esc(p.rma_number));
+    return bits.length ? '<div class="pterms">⏳ '+bits.join(' · ')+'</div>' : '';
+  }
   function partHtml(p){
     var age=ageDays(p.created_at);
     var thumb = p.photo_ref
@@ -213,6 +253,10 @@
     return '<div class="prow">' + thumb +
       '<div class="pbody">' + num +
         '<div class="pname">'+esc(p.name||'Unused part')+src+'</div>' +
+        // say WHOSE rule this is -- the tech found it unused, or the vendor wants it back
+        // regardless (which is how a used core ends up on this list).
+        '<div class="pwho">'+(p.must_return ? '↩️ vendor wants it back' : '🔧 tech flagged unused')+'</div>' +
+        returnTerms(p) +
         '<span class="page'+(age>=7?' risk':'')+'">'+(age===0?'today':age+'d owed')+(age>=7?' · at risk':'')+'</span>' +
       '</div>' +
       '<div class="pact"><button class="primary" data-ship="'+esc(p.id)+'">✓ Shipped it</button></div>' +

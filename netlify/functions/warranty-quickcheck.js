@@ -17,6 +17,7 @@
 const { sendSms } = require('./_lib/sms');
 const { resolveAreaTech, sendAreaTechTeddyTool, bossSirenNote } = require('./_lib/area-tech-notify');
 const crud = require('./_lib/xano/metadata-crud');
+const { rescueLead } = require('./_lib/intake-rescue');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
@@ -75,6 +76,24 @@ exports.handler = async function (event) {
     jobId = (d && (d.id || d.job_id)) || null;
   } catch (_) {}
 
+  // ── NEVER LOSE THE LEAD ──────────────────────────────────────────────────────
+  // Everything downstream is gated on `if (jobId)`, so a failed Xano create means this
+  // customer silently gets no job, no confirmation text, and no finish-upload chase.
+  // Catch it on the platform instead. Runs ONLY when Xano already failed, and the live
+  // platform-tn-job-back cron pushes the rescued job back into Xano on its own.
+  let rescued = null;
+  if (!jobId) {
+    try {
+      rescued = await rescueLead({
+        name: m.name, phone: phone, zip: m.zip, city: m.town || m.city,
+        appliance: m.appliance || m.machine, brand: m.brand, problem: m.problem,
+        availability: m.availability, customer_type: 'warranty',
+        warranty_company: m.warranty_company || '', claim_number: m.claim_number || '',
+        source: 'warranty_quick_check', session_id: String(m.conv_id || ''),
+      });
+    } catch (_) {}
+  }
+
   // make sure warranty company/claim stick even if create_job_from_chat ignores them
   if (jobId && (m.warranty_company || m.claim_number)) {
     try {
@@ -121,7 +140,10 @@ exports.handler = async function (event) {
   await crud.logEvent('warranty_quick_check_created', { conv_id: convId ? String(convId) : '', job_id: jobId, name: m.name, phone: phone, warranty_company: m.warranty_company || '', claim_number: m.claim_number || '', machine: [m.brand, m.appliance].filter(Boolean).join(' '), town: m.town, problem: m.problem, availability: availability, language: lang, linked_attachments: linkedAttachments, at_ms: Date.now() });
 
   // 🛡️ siren → Teddy + Danielle (pre-diagnosis ready — get the tech rolling ready)
-  const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
+  // Point at wherever the job ACTUALLY is. A siren that sends the office to a board with
+  // no card on it is worse than no siren -- it reads as "nothing arrived."
+  const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`)
+    : ((rescued && rescued.ok) ? (`${SITE}/platform/office-board.html?job=${rescued.job_id}`) : `${SITE}/office-board.html`);
   const machine = [m.brand, m.appliance].filter(Boolean).join(' ') || 'appliance';
   const mediaNote = linkedAttachments > 0 ? '' : '  ⏳ no video/pic yet — customer was sent the shoot-it link';
   // Fresh strategy (Teddy 7/9): route the Teddy Tool to the ZIP's tech too. Resolve
@@ -131,7 +153,7 @@ exports.handler = async function (event) {
   const msg = '🛡️ WARRANTY pre-diagnosis — ' + (m.name || '(customer)') + ' · ' + machine
     + (m.town ? (' · ' + m.town) : '') + ' — ' + String(m.problem || '').slice(0, 110)
     + (m.warranty_company ? (' · ' + m.warranty_company) : '')
-    + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote + areaNote;
+    + '  Job #' + (jobId || ((rescued && rescued.ok) ? 'on the platform board' : '?')) + ' → ' + link + mediaNote + areaNote;
   try { await sendSms(OWNER, msg, 'owner', 'warranty_quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'warranty_quick_check'); } catch (_) {}
   // → the zip's tech gets the Teddy Tool link directly (heads-up, not an assignment)

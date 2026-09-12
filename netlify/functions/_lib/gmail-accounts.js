@@ -104,6 +104,23 @@ function decodeBody(payload) {
   return txt.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// Raw source of the text parts, tags INTACT. decodeBody() strips markup, which
+// collapses empty table cells — fine for label:value emails (AHS), fatal for a
+// POSITIONAL table (NSA's weekly parts-charge digest), where an empty Each/RMA
+// cell silently shifts every column after it. Parsers for table emails read this.
+function rawBody(payload) {
+  const b64 = (d) => { try { return Buffer.from(String(d || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch (_) { return ''; } };
+  const walk = (p) => {
+    if (!p) return '';
+    let s = '';
+    if ((p.mimeType === 'text/html' || p.mimeType === 'text/plain') && p.body && p.body.data) s += b64(p.body.data) + '\n';
+    for (const c of (p.parts || [])) s += walk(c);
+    if (!s && p.body && p.body.data) s += b64(p.body.data);
+    return s;
+  };
+  return walk(payload);
+}
+
 // Find the first message matching `query` across all inboxes and return its
 // decoded body + headers. For reading one specific email in full.
 async function readFirst(query, opts) {
@@ -128,6 +145,7 @@ async function readFirst(query, opts) {
 
 // Read the full decoded body of EVERY message matching `query` across all inboxes
 // (up to max). For watchers that parse many emails (e.g. ServicePower parts notes).
+//   opts.html — ALSO attach the unstripped source as .html (for table emails).
 async function readMany(query, opts) {
   const o = opts || {};
   const max = o.max || 30;
@@ -143,7 +161,9 @@ async function readMany(query, opts) {
           const fm = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
           const hs = (fm.data && fm.data.payload && fm.data.payload.headers) || [];
           const get = (n) => (hs.find((h) => h.name === n) || {}).value || '';
-          out.push({ account: acct.label, id: m.id, thread: fm.data && fm.data.threadId, date: get('Date'), from: get('From'), subject: get('Subject'), body: decodeBody(fm.data && fm.data.payload) });
+          const row = { account: acct.label, id: m.id, thread: fm.data && fm.data.threadId, date: get('Date'), from: get('From'), subject: get('Subject'), body: decodeBody(fm.data && fm.data.payload) };
+          if (o.html) row.html = rawBody(fm.data && fm.data.payload);
+          out.push(row);
         } catch (_) {}
       }
     } catch (_) { /* skip inbox */ }
@@ -183,4 +203,4 @@ async function readLinks(query) {
   return null;
 }
 
-module.exports = { listAccounts, clientFor, searchAll, readFirst, readMany, readLinks };
+module.exports = { listAccounts, clientFor, searchAll, readFirst, readMany, readLinks, rawBody, decodeBody };

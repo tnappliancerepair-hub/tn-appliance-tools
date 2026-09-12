@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // search-customers — forgiving customer search via the Xano Metadata API.
 //
 // WHY: the XanoScript search_customers endpoint is brittle (exact-match only,
@@ -211,6 +212,7 @@ async function run(query) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const qp = event.queryStringParameters || {};
   try {
     if (qp.probe === '1') {

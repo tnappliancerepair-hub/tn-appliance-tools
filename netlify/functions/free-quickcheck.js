@@ -12,6 +12,7 @@
 const { sendSms } = require('./_lib/sms');
 const { resolveAreaTech, sendAreaTechTeddyTool, bossSirenNote } = require('./_lib/area-tech-notify');
 const crud = require('./_lib/xano/metadata-crud');
+const { rescueLead } = require('./_lib/intake-rescue');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
@@ -64,6 +65,23 @@ exports.handler = async function (event) {
     jobId = (d && (d.id || d.job_id)) || null;
   } catch (_) {}
 
+  // ── NEVER LOSE THE LEAD ──────────────────────────────────────────────────────
+  // Everything downstream is gated on `if (jobId)`, so a failed Xano create means this
+  // customer silently gets no job, no confirmation text, and no finish-upload chase.
+  // Catch it on the platform instead. Runs ONLY when Xano already failed, and the live
+  // platform-tn-job-back cron pushes the rescued job back into Xano on its own.
+  let rescued = null;
+  if (!jobId) {
+    try {
+      rescued = await rescueLead({
+        name: m.name, phone: phone, zip: m.zip, city: m.town || m.city,
+        appliance: m.appliance || m.machine, brand: m.brand, problem: m.problem,
+        availability: m.availability, customer_type: 'self_pay',
+        source: 'free_quick_check', session_id: String(m.conv_id || ''),
+      });
+    } catch (_) {}
+  }
+
   // link + OCR any media that landed (best-effort)
   if (jobId) {
     try {
@@ -93,7 +111,10 @@ exports.handler = async function (event) {
   await crud.logEvent('free_quick_check_created', { conv_id: convId ? String(convId) : '', job_id: jobId, name: m.name, phone: phone, email: m.email || '', machine: [m.brand, m.appliance].filter(Boolean).join(' '), town: m.town, problem: m.problem, sms_consent: m.sms_consent, language: lang, linked_attachments: linkedAttachments, at_ms: Date.now() });
 
   // 💵 siren → Teddy + Danielle (FREE, so they jump on it)
-  const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`) : `${SITE}/office-board.html`;
+  // Point at wherever the job ACTUALLY is. A siren that sends the office to a board with
+  // no card on it is worse than no siren -- it reads as "nothing arrived."
+  const link = jobId ? (`${SITE}/teddy-tdr-tool.html?job_id=${jobId}`)
+    : ((rescued && rescued.ok) ? (`${SITE}/platform/office-board.html?job=${rescued.job_id}`) : `${SITE}/office-board.html`);
   const machine = [m.brand, m.appliance].filter(Boolean).join(' ') || 'appliance';
   // Flag when there's no media yet so Teddy/Danielle don't tap into an empty tool
   // (Teddy 2026-06-26). The shoot-it link was texted to the customer; the media-
@@ -104,7 +125,7 @@ exports.handler = async function (event) {
   const areaNote = bossSirenNote(jobId, areaTech);
   const msg = '💵 FREE QUICK-CHECK — ' + (m.name || '(caller)') + ' · ' + machine
     + (m.town ? (' · ' + m.town) : '') + ' — ' + String(m.problem || '').slice(0, 120)
-    + '  Job #' + (jobId || '?') + ' → ' + link + mediaNote + areaNote;
+    + '  Job #' + (jobId || ((rescued && rescued.ok) ? 'on the platform board' : '?')) + ' → ' + link + mediaNote + areaNote;
   try { await sendSms(OWNER, msg, 'owner', 'quick_check'); } catch (_) {}
   try { await sendSms(DANIELLE, msg, 'warranty_handler', 'quick_check'); } catch (_) {}
   try { await sendSms('+16154855795', msg, 'owner', 'quick_check'); } catch (_) {} // cash intake → Teddy too

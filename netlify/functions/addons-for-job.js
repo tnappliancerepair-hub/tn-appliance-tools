@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Returns every add-on attached to ONE job that should be BILLED — i.e. the
 // customer requested it (and a tech may have already done it / office fulfilled
 // it), but it was NOT voided (tapped by mistake + removed). Used by the office
@@ -56,6 +57,7 @@ function meta(row) { let m = row && row.metadata; if (typeof m === 'string') { t
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const jobFilter = (event && event.queryStringParameters && event.queryStringParameters.job_id)
     ? String(event.queryStringParameters.job_id) : '';
   if (!jobFilter) return { statusCode: 400, body: JSON.stringify({ success: false, error: 'job_id required' }) };

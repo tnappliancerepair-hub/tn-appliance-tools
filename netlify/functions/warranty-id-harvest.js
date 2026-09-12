@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // warranty-id-harvest — build the per-job "all warranty numbers" collection.
 //
 // A warranty job carries several identifiers (SquareTrade claim #, ServicePower
@@ -30,6 +31,7 @@ function extractIds(s) {
 async function getJSON(u) { const r = await fetch(u, { signal: AbortSignal.timeout(15000) }); return r.json(); }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const dry = (event.queryStringParameters || {}).dryrun === '1';
 
   // 1) Our jobs: index every number we already store -> job_id; keep job_id set.

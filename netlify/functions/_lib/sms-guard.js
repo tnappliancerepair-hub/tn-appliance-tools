@@ -61,24 +61,96 @@ function inQuietHours(d) { const h = ctHour(d); return h < QUIET_START || h >= Q
 function metaOf(r) { let m = r && r.metadata; if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { m = {}; } } return m || {}; }
 function tsOf(r) { return Number(metaOf(r).at_ms) || Date.parse(r && r.created_at) || 0; }
 
+// Every check below reads Xano's event_log, and guardedSend runs about six of them before
+// a single text goes out. Each has a 10s timeout AND a retry, so when Xano is saturated -
+// measured 4s typical and 25s+ on 2026-09-10 - the whole send simply hung and the office
+// reported "the new system won't send text." Nothing failed; nothing returned either.
+//
+// A hang is the worst shape a check can have: it neither allows nor denies. Give the reads
+// a hard budget so a slow Xano becomes an ERROR, which every one of these already handles
+// by failing open - the behaviour that was always intended, with Telnyx's carrier-level
+// STOP as the real backstop. A text the office typed by hand is worth more than a perfect
+// frequency count nobody can read.
+const GUARD_READ_MS = Number(process.env.SMS_GUARD_READ_MS || 3500);
+function budgeted(p, ms) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('guard_read_timeout')), ms || GUARD_READ_MS))]);
+}
+
+
+// ── THE GUARD'S OWN LEDGER, ON SUPABASE ──────────────────────────────────────
+// Every check below used to scan 500 rows of Xano's event_log and filter in JS, six
+// times per message. On 2026-09-10 Xano was answering in 4-25s and the office simply
+// could not send a text: guardedSend never returned. Worse, the fail-open that kept it
+// from hanging forever also meant OPT-OUT was not being enforced while Xano was slow -
+// the one check that must never be a guess.
+//
+// Same markers, own table, indexed on (phone, action, at_ms). An opt-out check is now a
+// single keyed lookup instead of two 500-row scans, so it is faster AND exact - it can
+// see an opt-out from any point in history, not just whatever fell inside the newest 500
+// rows. Existing opt-outs were migrated across before this was switched on.
+const SBG_URL = 'https://tntbhfwitytkcoqlejwc.supabase.co';
+const SBG_TABLE = 'sms_guard_event';
+function sbgKey() { return process.env.PLATFORM_SUPABASE_SERVICE_KEY || ''; }
+function sbgOn() { return !!sbgKey(); }
+function sbgH() { const k = sbgKey(); return { apikey: k, Authorization: 'Bearer ' + k, 'Content-Type': 'application/json' }; }
+
+async function sbgRows(qs) {
+  if (!sbgOn()) return null;
+  const r = await fetch(`${SBG_URL}/rest/v1/${SBG_TABLE}?${qs}`, { headers: sbgH(), signal: AbortSignal.timeout(GUARD_READ_MS) });
+  if (!r.ok) return null;
+  return r.json();
+}
+// Exact count without hauling the rows back.
+async function sbgCount(qs) {
+  if (!sbgOn()) return null;
+  const r = await fetch(`${SBG_URL}/rest/v1/${SBG_TABLE}?${qs}&select=id`,
+    { headers: { ...sbgH(), Prefer: 'count=exact', Range: '0-0' }, signal: AbortSignal.timeout(GUARD_READ_MS) });
+  if (!r.ok) return null;
+  const cr = r.headers.get('content-range') || '';
+  const n = Number(String(cr).split('/')[1]);
+  return Number.isFinite(n) ? n : null;
+}
+async function sbgWrite(row) {
+  if (!sbgOn()) return false;
+  try {
+    const r = await fetch(`${SBG_URL}/rest/v1/${SBG_TABLE}`, {
+      method: 'POST', headers: { ...sbgH(), Prefer: 'return=minimal' },
+      body: JSON.stringify(row), signal: AbortSignal.timeout(GUARD_READ_MS),
+    });
+    return r.ok;
+  } catch (_) { return false; }
+}
+
 // Opted out if the newest opt-out marker is newer than the newest opt-in.
 async function isOptedOut(phone) {
   const e = toE164(phone); if (!e) return false;
   try {
-    const outs = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_opt_out' }, { id: 'desc' }, 500);
-    const ins = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_opt_in' }, { id: 'desc' }, 500);
-    const newest = (rows) => Math.max(0, ...(rows || []).filter((r) => toE164(metaOf(r).phone) === e).map(tsOf));
+    // Newest marker for this phone decides it - opt_out after opt_in means opted out.
+    const rows = await sbgRows(`phone=eq.${encodeURIComponent(e)}&action=in.(sms_opt_out,sms_opt_in)&select=action,at_ms&order=at_ms.desc&limit=1`);
+    if (rows) return !!(rows[0] && rows[0].action === 'sms_opt_out');
+    // Supabase unreachable -> fall back to the old Xano scan rather than guessing.
+    const [outs, ins] = await budgeted(Promise.all([
+      crud.searchPage(crud.TABLES.event_log, { action: 'sms_opt_out' }, { id: 'desc' }, 500),
+      crud.searchPage(crud.TABLES.event_log, { action: 'sms_opt_in' }, { id: 'desc' }, 500),
+    ]));
+    const newest = (rs) => Math.max(0, ...(rs || []).filter((r) => toE164(metaOf(r).phone) === e).map(tsOf));
     return newest(outs) > newest(ins);
   } catch (_) { return false; } // fail-open: Telnyx carrier-level STOP is the hard backstop
 }
 
-async function recordOptOut(phone, source) { try { await crud.logEvent('sms_opt_out', { phone: toE164(phone), source: source || 'inbound', at_ms: Date.now() }); } catch (_) {} }
-async function clearOptOut(phone, source) { try { await crud.logEvent('sms_opt_in', { phone: toE164(phone), source: source || 'inbound', at_ms: Date.now() }); } catch (_) {} }
+async function recordOptOut(phone, source) { const e = toE164(phone), t = Date.now();
+  await sbgWrite({ phone: e, action: 'sms_opt_out', kind: source || 'inbound', at_ms: t });
+  try { await budgeted(crud.logEvent('sms_opt_out', { phone: e, source: source || 'inbound', at_ms: t })); } catch (_) {} }
+async function clearOptOut(phone, source) { const e = toE164(phone), t = Date.now();
+  await sbgWrite({ phone: e, action: 'sms_opt_in', kind: source || 'inbound', at_ms: t });
+  try { await budgeted(crud.logEvent('sms_opt_in', { phone: e, source: source || 'inbound', at_ms: t })); } catch (_) {} }
 
 async function sentSince(phone, sinceMs) {
   const e = toE164(phone); if (!e) return 0;
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
+    const n = await sbgCount(`phone=eq.${encodeURIComponent(e)}&action=eq.sms_guard_sent&at_ms=gte.${Math.floor(sinceMs)}`);
+    if (n != null) return n;
+    const rows = await budgeted(crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500));
     return (rows || []).filter((r) => toE164(metaOf(r).phone) === e && tsOf(r) >= sinceMs).length;
   } catch (_) { return 0; }
 }
@@ -106,23 +178,41 @@ async function recentDuplicate(phone, message, windowMs) {
   const key = bodyKey(message);
   const since = Date.now() - (windowMs || DEDUP_WINDOW_MS);
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
+    const hit = await sbgRows(`phone=eq.${encodeURIComponent(e)}&action=eq.sms_guard_sent&body_key=eq.${encodeURIComponent(key)}&at_ms=gte.${Math.floor(since)}&select=id&limit=1`);
+    if (hit != null) return hit.length > 0;
+    const rows = await budgeted(crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500));
     return (rows || []).some((r) => tsOf(r) >= since && toE164(metaOf(r).phone) === e && bodyKey(metaOf(r).body) === key);
   } catch (_) { return false; } // fail-open: a read error must never block a legit send
 }
 async function globalSentSince(sinceMs) {
   try {
-    const rows = await crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500);
+    const n = await sbgCount(`action=eq.sms_guard_sent&at_ms=gte.${Math.floor(sinceMs)}`);
+    if (n != null) return n;
+    const rows = await budgeted(crud.searchPage(crud.TABLES.event_log, { action: 'sms_guard_sent' }, { id: 'desc' }, 500));
     return (rows || []).filter((r) => tsOf(r) >= sinceMs).length;
   } catch (_) { return 0; }
 }
 
+// Returns { sent, answered }. The second field is the one that matters and the reason this
+// is not just a boolean: a plain `false` conflates TWO opposite situations --
+//   · Xano ANSWERED and refused (its own intake-only gate dropped the message)  -> answered:true
+//   · Xano never answered at all (down, timing out, unreachable)                -> answered:false
+// Treating those the same is how you accidentally start texting customers: falling back to a
+// direct send on a deliberate gate refusal bypasses the very rule that refused it. So any
+// well-formed reply from Xano counts as a DECISION and is respected; only a genuine transport
+// failure is eligible for the direct fallback below.
 async function xanoSend(to, body, tag) {
   try {
-    const r = await fetch(`${XANO}/send_sms`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, body, message: body, context_tag: tag || 'ant_guarded' }) });
-    const d = await r.json().catch(() => ({}));
-    return !!(d && d.success);
-  } catch (_) { return false; }
+    const r = await fetch(`${XANO}/send_sms`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, body, message: body, context_tag: tag || 'ant_guarded' }),
+      signal: AbortSignal.timeout(12000),
+    });
+    const txt = await r.text().catch(() => '');
+    let d = null; try { d = JSON.parse(txt); } catch (_) { d = null; }
+    if (!r.ok || d === null || typeof d !== 'object') return { sent: false, answered: false };
+    return { sent: !!d.success, answered: true };
+  } catch (_) { return { sent: false, answered: false }; }
 }
 
 // 🐜 PLATFORM (Supabase) TENANT TEXTS — deliver DIRECT via Telnyx, not through Xano.
@@ -166,7 +256,24 @@ async function deliver(to, body, tag) {
   if (PLATFORM_DIRECT_ON && PLATFORM_TAG_RE.test(String(tag || ''))) {
     if (await telnyxDirect(to, body, tag)) return true;
   }
-  return xanoSend(to, body, tag);
+  const x = await xanoSend(to, body, tag);
+  if (x.sent) return true;
+  // Xano ANSWERED and said no -> that is its gate doing its job. Respect it; never route
+  // around a deliberate refusal.
+  if (x.answered) return false;
+
+  // Xano never answered. Until now the customer's text was simply LOST here -- the one thing
+  // CLAUDE.md calls out as breaking if Xano vanished. Every guard above (opt-out, quiet
+  // hours, dedup, frequency caps, the intake-only pause, the no-clock-times scrub) has
+  // already run and allowed this message, so handing it to the carrier directly loosens
+  // nothing; it just stops the old system's outage from silencing the new one.
+  // Reversible: SMS_XANO_DOWN_FALLBACK=0.
+  if (String(process.env.SMS_XANO_DOWN_FALLBACK || '1') === '0') return false;
+  const ok = await telnyxDirect(to, body, tag || 'ant_guarded');
+  // Audit to SUPABASE, not crud.logEvent -- that writes to Xano, which is the thing that
+  // just failed. A record of an outage must not live inside the outage.
+  try { await sbgWrite({ phone: toE164(to), action: ok ? 'sms_sent_xano_down' : 'sms_lost_both_paths', tag: tag || '', kind: 'customer', reason: 'xano_unreachable', at_ms: Date.now() }); } catch (_) {}
+  return ok;
 }
 
 async function block(to, reason, kind, tag) { try { await crud.logEvent('sms_guard_blocked', { phone: to, reason, kind: kind || '', tag: tag || '', at_ms: Date.now() }); } catch (_) {} }
@@ -285,7 +392,12 @@ async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
 
   // 5. Send + record (record drives the frequency counters).
   const ok = await deliver(to, outMsg, tag);
-  if (ok) { try { await crud.logEvent('sms_guard_sent', { phone: to, kind: kind || '', tag: tag || '', body: message.slice(0, 200), at_ms: now }); } catch (_) {} }
+  if (ok) {
+    // Store the real dedup key, computed from the FULL message - the old marker kept only
+    // the first 200 characters, which is what made two different intake links collide.
+    await sbgWrite({ phone: to, action: 'sms_guard_sent', body_key: bodyKey(message), tag: tag || '', kind: kind || '', at_ms: now });
+    try { await budgeted(crud.logEvent('sms_guard_sent', { phone: to, kind: kind || '', tag: tag || '', body: message.slice(0, 200), at_ms: now })); } catch (_) {}
+  }
   return { sent: ok, reason: ok ? (checks.length ? 'sent_shadow' : 'sent') : 'send_failed', shadow: checks.length ? checks : undefined };
 }
 

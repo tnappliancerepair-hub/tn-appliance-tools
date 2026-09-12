@@ -147,4 +147,50 @@ async function createLeadJob(lead) {
   }
 }
 
-module.exports = { createLeadJob };
+// What the PLATFORM knows about a batch of Xano jobs: did the customer send media, and do
+// we have a model. Both live here and NOT in Xano's get_unified_tdr_status — that endpoint's
+// attachments_count/has_photo count TDR attachments and read 0 on every job with real
+// customer intake media (verified 2026-09-11 across 66 recent jobs + 25 known-media jobs).
+// Anything keying the "they already answered" decision off Xano alone is reading a field
+// that is structurally always zero.
+//
+// Batched on purpose: the caller loops candidates, so this is 3 requests for the whole run
+// instead of 3 per job. Chunked at 150 ids because a PostgREST in.() list is a URL, and
+// UUIDs go in UNQUOTED to match the in.() calls already proven against this database
+// (platform-appt-reminder, platform-ant) -- a quote is not URL-unreserved, and db.get
+// returns [] on a non-ok response, so a mangled filter would fail SILENTLY into "no media".
+async function intakeStateByXanoId(xanoIds) {
+  const out = {};
+  const ids = Array.from(new Set((xanoIds || []).map((n) => Number(n)).filter((n) => n > 0)));
+  if (!ids.length) return out;
+  const { url, key } = await cfg();
+  if (!url || !key) return out;                 // unconfigured -> caller keeps Xano-only behavior
+  const db = rest(url, key);
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
+  for (const c of chunks) {
+    const jobs = await db.get(`job?xano_id=in.(${c.join(',')})&select=id,xano_id,unit_id`);
+    if (!Array.isArray(jobs) || !jobs.length) continue;
+    const jobIds = jobs.map((j) => j.id).filter(Boolean);
+    const unitIds = Array.from(new Set(jobs.map((j) => j.unit_id).filter(Boolean)));
+    const media = new Set();
+    if (jobIds.length) {
+      const rows = await db.get(`job_media?job_id=in.(${jobIds.join(',')})&select=job_id`);
+      for (const r of (Array.isArray(rows) ? rows : [])) if (r && r.job_id) media.add(r.job_id);
+    }
+    const models = {};
+    if (unitIds.length) {
+      const rows = await db.get(`unit?id=in.(${unitIds.join(',')})&select=id,attributes`);
+      for (const r of (Array.isArray(rows) ? rows : [])) {
+        const m = String(((r && r.attributes) || {}).model || '').trim();
+        if (r && r.id) models[r.id] = m;
+      }
+    }
+    for (const j of jobs) {
+      out[String(j.xano_id)] = { media: media.has(j.id), model: models[j.unit_id] || '' };
+    }
+  }
+  return out;
+}
+
+module.exports = { createLeadJob, intakeStateByXanoId };

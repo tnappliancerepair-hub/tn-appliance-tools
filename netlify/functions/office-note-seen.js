@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // office-note-seen — the tech's read receipt for the office's job notes. When a
 // tech opens a job and its office notes render, his app calls this; it records
 // an event_log 'office_note_seen' row so the office can see "✓ seen by <tech>".
@@ -14,6 +15,7 @@ function h() { const t = process.env.XANO_METADATA_TOKEN; return t ? { Authoriza
 function j(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify(b) }; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'method_not_allowed' });
   let b = {}; try { b = JSON.parse(event.body || '{}'); } catch (_) {}

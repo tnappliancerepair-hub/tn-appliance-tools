@@ -11,7 +11,7 @@
 //   GET ?secret=<admin>                 DRY RUN — show what it WOULD fill, write nothing
 //   GET ?secret=<admin>&confirm=1       LIVE — write the matches (capped &max=, default 200)
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const sb = require('./_lib/supabase');
 
 // Talk to the Xano Metadata API directly (same proven shape as cash-leads):
@@ -78,6 +78,7 @@ async function updateRow(tableId, rowId, partial) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return j(401, { ok: false, error: 'unauthorized' });

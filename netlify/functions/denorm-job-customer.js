@@ -14,7 +14,7 @@
 //   &per=120 &page=1
 'use strict';
 const crud = require('./_lib/xano/metadata-crud');
-const { getSecret, getSecretPreferVault } = require('./_lib/secrets');
+const { getSecret, getSecretPreferVault, primeXanoToken} = require('./_lib/secrets');
 
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const JOBS = 7;
@@ -132,6 +132,7 @@ async function run(mode, per, startPage) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   // Scheduled (cron) invocations carry {next_run} — those run a SWEEP (fill only blanks)
   // with no secret, to keep brand-new jobs denormed. Manual calls still secret-gated.

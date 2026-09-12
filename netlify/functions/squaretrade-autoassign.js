@@ -11,7 +11,7 @@
 //   GET ?days=5     lookback window
 //   GET ?max=30     cap jobs per run
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
@@ -41,6 +41,7 @@ async function jobsTableId() {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   // Runs on a schedule (cron) + manually. Safe to run openly: idempotent (only
   // acts on tech-less SquareTrade jobs, assigns them to their area tech — re-runs

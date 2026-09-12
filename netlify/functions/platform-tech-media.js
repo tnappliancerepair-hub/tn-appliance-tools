@@ -32,7 +32,19 @@ function rest(base, key) {
   return {
     async get(path) { const r = await fetch(`${base}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(8000) }); return r.ok ? r.json() : []; },
     async insert(table, row) { const r = await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) }); return r.ok; },
-    async patch(table, filter, patchObj) { const r = await fetch(`${base}/rest/v1/${table}?${filter}`, { method: 'PATCH', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(patchObj), signal: AbortSignal.timeout(8000) }); return r.ok; },
+    // NOTE the name. This used to be a second `patch`, which JS silently resolved to the
+    // (path, row) version below -- so every 3-arg call sent a JSON *string* as the body of an
+    // UNFILTERED PATCH. PostgREST rejected the string so nothing was ever written, but the
+    // merge it was supposed to do never happened either. Two methods, two names, no shadowing.
+    async patchWhere(table, filter, patchObj) { const r = await fetch(`${base}/rest/v1/${table}?${filter}`, { method: 'PATCH', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(patchObj), signal: AbortSignal.timeout(8000) }); return r.ok; },
+    // Insert and hand back the row -- `insert` returns only ok, so a caller that needs the new
+    // id (two-shot flows: shoot the part, then attach its receipt) has to use this one.
+    async insertRet(table, row) {
+      const r = await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return null;
+      const out = await r.json().catch(() => []);
+      return Array.isArray(out) ? (out[0] || null) : (out || null);
+    },
     async storagePut(bucket, path, buf, contentType) {
       const r = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, { method: 'POST', headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': contentType, 'x-upsert': 'true' }, body: buf, signal: AbortSignal.timeout(15000) });
       return r.ok;
@@ -205,6 +217,117 @@ exports.handler = async function (event) {
     // read the #, the return is STILL logged with the photo (the photo is the record; the office
     // reads the # off it). Merges onto an existing part row on the job when the # matches, so a
     // pre-supplied part isn't duplicated.
+    // ── A part the tech went and BOUGHT (parts house / Home Depot / anywhere) ────────────
+    // Teddy 2026-09-11: snap the part AND the receipt. This is the one case where the shop is
+    // out real cash, so the receipt is the cost of record: it prices the customer's line (cost
+    // x the owner's margin), it is the tech's reimbursement, and it is the books' entry.
+    //   POST { job, access_token, data, kind:'part'|'receipt', part_id? }
+    // Two shots, one row: the part shot creates the row and returns its id, the receipt shot
+    // attaches to that id. Either can stand alone -- a receipt with no readable part still
+    // records the money, which is the half that cannot be reconstructed later.
+    if (doo === 'bought_part') {
+      const data = String(p.data || '');
+      const m = data.match(/^data:(image\/[a-z]+);base64,(.+)$/i);
+      if (!m) return json(400, { ok: false, error: 'bad image' });
+      const contentType = m[1];
+      const buf = Buffer.from(m[2], 'base64');
+      if (buf.length > 6 * 1024 * 1024) return json(400, { ok: false, error: 'image too large' });
+      const isReceipt = String(p.kind || '').toLowerCase() === 'receipt';
+      const ext = contentType.split('/')[1].replace('jpeg', 'jpg');
+      const path = `${scope.company_id}/${jobId}/${isReceipt ? 'receipt' : 'bought'}-${Date.now()}-${Math.floor(Math.random() * 1e6)}.${ext}`;
+      try { await r2.put(path, buf, contentType); } catch (e) { return json(200, { ok: false, error: 'upload_failed' }); }
+      await db.insert('job_media', { company_id: scope.company_id, job_id: jobId, kind: 'photo', provider: 'r2', ref: path, label: isReceipt ? 'Parts receipt' : 'Part picked up' });
+
+      // Who picked it up — for reimbursement, and so the office knows who to ask.
+      let who = '';
+      try {
+        const tr = await db.get(`technician?id=eq.${scope.technician_id}&company_id=eq.${scope.company_id}&select=name&limit=1`);
+        who = (tr && tr[0] && tr[0].name) || '';
+      } catch (_) {}
+
+      let ocr = {};
+      try {
+        const o = require('./platform-ocr');
+        const or = await o.handler({ httpMethod: 'POST', body: JSON.stringify({ data, mode: isReceipt ? 'receipt' : 'part' }) });
+        const od = JSON.parse(or.body || '{}');
+        if (od && od.ok) ocr = od;
+      } catch (_) {}
+
+      const normP = (s2) => String(s2 || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const nowIso = new Date().toISOString();
+
+      // ---- receipt shot: attach the money to a row ----
+      if (isReceipt) {
+        const patch = {
+          receipt_ref: path,
+          bought_at: nowIso,
+          bought_by: who || null,
+        };
+        if (ocr.store) { patch.bought_from = ocr.store; patch.source = ocr.store; }
+        // Only take a cost we actually believe. A low-confidence read, or a receipt covering
+        // more than this one part, is left for a human rather than silently mispriced.
+        const trust = ocr.cost_cents && ocr.confidence !== 'low' && !ocr.multi_item;
+        if (trust) patch.cost_cents = ocr.cost_cents;
+
+        let targetId = String(p.part_id || '').trim();
+        if (!targetId && ocr.part_number) {
+          try {
+            const ex2 = await db.get(`job_part?job_id=eq.${jobId}&company_id=eq.${scope.company_id}&select=id,number&limit=200`);
+            const hit = (ex2 || []).find((r) => normP(r.number) === normP(ocr.part_number));
+            if (hit) targetId = hit.id;
+          } catch (_) {}
+        }
+        if (targetId) {
+          await db.patchWhere('job_part', `id=eq.${targetId}&company_id=eq.${scope.company_id}`, patch);
+        } else {
+          targetId = null;
+          const row = await db.insertRet('job_part', Object.assign({
+            company_id: scope.company_id, job_id: jobId,
+            number: ocr.part_number || null,
+            name: ocr.part_description || 'Part picked up',
+            order_status: 'ordered', ship_to: 'shop',
+          }, patch));
+          targetId = (row && row.id) || null;
+        }
+        return json(200, {
+          ok: true, kind: 'receipt', part_id: targetId, ref: path,
+          store: ocr.store || '', cost_cents: trust ? ocr.cost_cents : null,
+          // say WHY we didn't take the number, so the tech isn't left guessing
+          needs_review: !trust,
+          review_reason: !ocr.cost_cents ? 'couldn_t_read_a_price'
+            : (ocr.multi_item ? 'receipt_covers_more_than_this_part' : (ocr.confidence === 'low' ? 'unclear_photo' : '')),
+          order_total_cents: ocr.order_total_cents || null,
+        });
+      }
+
+      // ---- part shot: create (or merge onto) the row ----
+      const pn = String(ocr.part_number || '').toUpperCase().trim();
+      let partId = null;
+      if (pn) {
+        try {
+          const ex2 = await db.get(`job_part?job_id=eq.${jobId}&company_id=eq.${scope.company_id}&select=id,number,photo_ref&limit=200`);
+          const hit = (ex2 || []).find((r) => normP(r.number) === normP(pn));
+          if (hit) {
+            const patch = { bought_at: nowIso, bought_by: who || null };
+            if (!hit.photo_ref) patch.photo_ref = path;
+            await db.patchWhere('job_part', `id=eq.${hit.id}&company_id=eq.${scope.company_id}`, patch);
+            partId = hit.id;
+          }
+        } catch (_) {}
+      }
+      if (!partId) {
+        const row = await db.insertRet('job_part', {
+          company_id: scope.company_id, job_id: jobId,
+          number: pn || null,
+          name: ocr.part_description || 'Part picked up',
+          photo_ref: path, order_status: 'ordered', ship_to: 'shop',
+          bought_at: nowIso, bought_by: who || null,
+        });
+        partId = (row && row.id) || null;
+      }
+      return json(200, { ok: true, kind: 'part', part_id: partId, ref: path, part_number: pn, confidence: ocr.confidence || '' });
+    }
+
     if (doo === 'return_part') {
       const data = String(p.data || '');
       const m = data.match(/^data:(image\/[a-z]+);base64,(.+)$/i);
@@ -238,7 +361,7 @@ exports.handler = async function (event) {
           if (hit) {
             const patch = { disposition: 'return', returned_at: null };
             if (!hit.photo_ref) patch.photo_ref = path;
-            merged = await db.patch('job_part', `id=eq.${hit.id}&company_id=eq.${scope.company_id}`, patch);
+            merged = await db.patchWhere('job_part', `id=eq.${hit.id}&company_id=eq.${scope.company_id}`, patch);
           }
         } catch (_) {}
       }

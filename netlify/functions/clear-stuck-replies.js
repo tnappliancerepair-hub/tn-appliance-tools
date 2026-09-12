@@ -7,12 +7,13 @@
 //   GET ?secret=<admin>[&days=14]            DRY RUN — list what it would relabel
 //   GET ?secret=<admin>&confirm=1            relabel translated_reply_sent -> customer_sms_reply
 'use strict';
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const T = 3; // event_log
 function j(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return j(401, { ok: false, error: 'unauthorized' });

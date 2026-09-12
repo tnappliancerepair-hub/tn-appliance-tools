@@ -7,7 +7,7 @@
 //   GET /pay?job=<id>   (via _redirects)  ->  302 to a fresh Stripe checkout
 'use strict';
 const Stripe = require('stripe');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const { getPmAccount } = require('./_lib/pm-accounts');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
 const SITE = 'https://tnapplianceexchange.net';
@@ -25,6 +25,7 @@ async function latestInvoice(jobId, pmKey) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const jobId = s(q.job);
   const pmKey = s(q.pm);

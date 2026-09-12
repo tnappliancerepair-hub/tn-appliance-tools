@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // delete-attachment — remove a photo/video from a job (tech can't un-attach a
 // wrong picture otherwise). Lee put pictures on the wrong customer and had no
 // way to remove them (Teddy/Lee 2026-06-23). Deletes the job_attachments row
@@ -21,6 +22,7 @@ function j(code, body) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'method_not_allowed' });
 

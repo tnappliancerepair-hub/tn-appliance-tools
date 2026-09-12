@@ -6,7 +6,7 @@
 'use strict';
 
 const XANO_META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
-const { configTableId } = require('./_lib/secrets');
+const { configTableId, primeXanoToken} = require('./_lib/secrets');
 
 const SECRET = 'tn-parts-daemon-2026';
 const KEY = 'PARTS_DAEMON_URL';
@@ -19,6 +19,7 @@ function headers() {
 function j(code, body) { return { statusCode: code, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { return j(400, { ok: false, error: 'invalid_json' }); }
   if (b.secret !== SECRET) return j(401, { ok: false, error: 'unauthorized' });

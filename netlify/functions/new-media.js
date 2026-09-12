@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // new-media — board-wide feed of jobs that have customer/tech-uploaded media.
 //
 // WHY: photos + videos DO attach to their job and DO render in the Teddy Tool
@@ -63,6 +64,7 @@ async function searchPage(tableId, search, sort, perPage) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return jsonResp(200, { ok: true });
   let ids;
   try { ids = await resolveIds(); } catch (e) { return jsonResp(200, { ok: false, error: String(e.message || e) }); }

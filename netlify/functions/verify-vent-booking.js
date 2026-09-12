@@ -10,6 +10,7 @@ const Stripe = require('stripe');
 const { getSecret } = require('./_lib/secrets');
 const { sendSms } = require('./_lib/sms');
 const crud = require('./_lib/xano/metadata-crud');
+const { rescueLead } = require('./_lib/intake-rescue');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const SITE = 'https://tnapplianceexchange.net';
@@ -77,6 +78,23 @@ exports.handler = async function (event) {
     jobId = (d && (d.id || d.job_id)) || null;
   } catch (_) {}
 
+  // ── NEVER LOSE A PAID VENT BOOKING ───────────────────────────────────────────
+  // Same shape as the quick-check paths: the customer has already paid $80, and every
+  // write below is gated on `if (jobId)` -- including the payment_status:'paid' stamp and
+  // the service address. A failed Xano create loses all of it silently. Catch it on the
+  // platform; runs ONLY when Xano already failed.
+  let rescued = null;
+  if (!jobId) {
+    try {
+      rescued = await rescueLead({
+        name: m.name, phone: m.phone, zip: m.zip, city: m.city,
+        appliance: 'Dryer Vent Cleaning', problem: summary,
+        availability: m.availability, customer_type: 'self_pay',
+        source: 'vent_booking_paid', amount, session_id: sessionId,
+      });
+    } catch (_) {}
+  }
+
   if (jobId) {
     const pref = [m.availability ? ('AVAIL: ' + m.availability) : '', concernL ? ('Concern: ' + concernL) : '', [setupL, exitL].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
     try { await crud.update(crud.TABLES.jobs, jobId, { service_address: m.address || '', service_city: m.city || '', service_state: m.state || stateFromZip(m.zip), customer_preference_text: pref }); } catch (_) {}
@@ -87,10 +105,13 @@ exports.handler = async function (event) {
   try { await crud.logEvent('customer_payment_received', { job_id: jobId, amount, kind: 'vent', session_id: sessionId, source: 'vent_intake', at_ms: Date.now() }); } catch (_) {}
 
   // 💵 siren → Teddy + Danielle
-  const link = jobId ? `${SITE}/office-board.html?job=${jobId}` : `${SITE}/office-board.html`;
+  // Point at wherever the job actually is -- a siren aimed at an empty board reads as
+  // "nothing arrived," which is the opposite of true when someone just paid.
+  const link = jobId ? `${SITE}/office-board.html?job=${jobId}`
+    : ((rescued && rescued.ok) ? `${SITE}/platform/office-board.html?job=${rescued.job_id}` : `${SITE}/office-board.html`);
   const siren = '🔥💵 DRYER VENT BOOKED — $' + amount + ' · ' + (m.name || '(customer)') + (m.city ? (' · ' + m.city) : '') +
     ' — ' + (concernL || 'vent cleaning') + (setupL ? (' · ' + setupL + (exitL ? ', ' + exitL : '')) : '') +
-    '\nAvail: ' + (m.availability || '(reply pending)') + '\nJob #' + (jobId || '?') + ' → schedule it: ' + link;
+    '\nAvail: ' + (m.availability || '(reply pending)') + '\nJob #' + (jobId || ((rescued && rescued.ok) ? 'on the platform board' : '?')) + ' → schedule it: ' + link;
   try { await sendSms(OWNER, siren, 'owner', 'vent_intake_paid'); } catch (_) {}
   try { await sendSms(DANIELLE, siren, 'warranty_handler', 'vent_intake_paid'); } catch (_) {}
 

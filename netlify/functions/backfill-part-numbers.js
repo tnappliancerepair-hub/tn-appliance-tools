@@ -7,7 +7,7 @@
 //   GET ?secret=<admin>[&confirm=1][&limit=N]
 'use strict';
 const md = require('./_lib/xano/metadata-crud');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const TDR_TABLE = 12;
 exports.config = { timeout: 60 };
@@ -31,6 +31,7 @@ function fromParts(v) { // parts_needed is a list (array) column, sometimes a st
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });

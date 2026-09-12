@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // part-showdown — per-job state for the 🎯 part challenge on the tech tile.
 // Returns Danielle's office call (if any) + whether the round is already resolved
 // (the tech confirmed/overrode the part). Ant's guess itself comes from
@@ -36,6 +37,7 @@ async function latestForJob(action, jobId) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   const jobId = parseInt((event.queryStringParameters || {}).job_id, 10);
   if (!jobId) return j(400, { ok: false, error: 'job_id required' });

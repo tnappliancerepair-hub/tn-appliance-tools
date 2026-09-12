@@ -12,6 +12,7 @@
 const { getSecret } = require('./_lib/secrets');
 const crud = require('./_lib/xano/metadata-crud');
 const guard = require('./_lib/sms-guard');
+const thread = require('./_lib/platform-thread');
 
 const TELNYX = 'https://api.telnyx.com/v2';
 // The human/office line customers get texted from. Switched 757-5500 → 857-8800 on
@@ -66,6 +67,14 @@ exports.handler = async function (event) {
         job_id: Number(b.job_id || 0) || 0, at_ms: Date.now(),
       });
     } catch (_) {}
+
+    // ...and onto the PLATFORM thread, which is the one the customer's portal reads.
+    // That event_log row above goes to Xano, so until now the platform only ever held the
+    // customer's half. Measured 2026-09-11: 100 inbound texts to 12 outbound over 7 days,
+    // with twelve customers showing 3-7 messages and 0-1 replies under them. They were
+    // being answered; their portal just could not show it, which reads as being ignored.
+    // Best-effort and after the send, so a slow platform can never delay a reply.
+    try { await thread.teeOutbound({ phone: to, body: message, sender: String(b.sender || 'office'), channel: 'sms' }); } catch (_) {}
   }
 
   return json(200, { ok: sent, sent, provider_message_id: providerId, from: HUMAN_LINE, reason: err || undefined });

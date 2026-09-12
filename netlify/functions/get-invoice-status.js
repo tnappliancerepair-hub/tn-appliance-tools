@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Invoice status for the customer portal: is this a self-pay job, how much is
 // due, and has it been paid? Drives the "Amount due — Pay now" card.
 //
@@ -34,6 +35,7 @@ function jsonResp(code, body) { return { statusCode: code, headers: { 'Content-T
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const jobId = parseInt((event.queryStringParameters || {}).job_id, 10) || 0;
   if (!jobId) return jsonResp(400, { ok: false, error: 'job_id required' });
   try {

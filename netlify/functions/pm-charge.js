@@ -10,7 +10,7 @@
 'use strict';
 const Stripe = require('stripe');
 const crypto = require('crypto');
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const { getPmAccount } = require('./_lib/pm-accounts');
 const { sendSms } = require('./_lib/sms');
 const META = (process.env.XANO_METADATA_BASE || 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1').replace(/\/+$/, '');
@@ -30,6 +30,7 @@ async function defaultPm(stripe, customerId) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   const admin = process.env.VAPI_ADMIN_SECRET || 'tn-vapi-admin-9f83b1c4e7a206d5';
   let b; try { b = JSON.parse(event.body || '{}'); } catch (_) { return json(400, { ok: false, error: 'invalid_json' }); }

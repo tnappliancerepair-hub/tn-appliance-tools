@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // move-attachment — re-link a photo/video/signature from one job to another via
 // the Metadata API. Built 2026-07-10: Andre logged Jude's completed start-button
 // repair (photos + walk-around video + customer signature) onto Kiendra's stop by
@@ -21,6 +22,7 @@ function j(code, body) {
 }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod === 'OPTIONS') return j(200, { ok: true });
   if (event.httpMethod !== 'POST') return j(405, { ok: false, error: 'method_not_allowed' });
 

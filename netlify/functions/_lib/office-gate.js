@@ -15,12 +15,22 @@ const OFFICE = new Set(['6154850713', '6292594602', '2258035669', '6154855795'])
 const TEDDY = '6154855795';
 
 // The ONLY two things Teddy still wants texted — both to him only.
-const CASH_INTAKE_TAGS = new Set(['quick_check', 'quick_check_lead', 'ann_new_job', 'cash_intake', 'cash_lead', 'self_pay_lead']);
+// 'platform_intake_rescue' fires ONLY when Xano refused a paid/warranty intake and the
+// platform caught it instead -- i.e. money is in and the job is not where the office
+// looks. That is cash/warranty intake by definition, and it cannot flood: it is silent
+// unless the old system is down. The platform_ prefix also routes it DIRECT to Telnyx,
+// which matters here because Xano is the thing that just failed.
+const CASH_INTAKE_TAGS = new Set(['quick_check', 'quick_check_lead', 'ann_new_job', 'cash_intake', 'cash_lead', 'self_pay_lead', 'platform_intake_rescue']);
 const WARRANTY_INTAKE_TAGS = new Set(['warranty_quick_check', 'warranty_intake', 'warranty_new_job', 'warranty_lead']);
 // AssistAnt PLATFORM (SaaS) alerts Teddy asked to receive: a new shop starts a free trial,
 // and a prospect messages us from the site. Money-making signals, so they reach his cell.
 const PLATFORM_TAGS = new Set(['platform_signup', 'prospect_message']);
-const ALLOWED_TO_TEDDY = new Set([...CASH_INTAKE_TAGS, ...WARRANTY_INTAKE_TAGS, ...PLATFORM_TAGS]);
+// SHIP-BLOCKED alert (Teddy 2026-09-10, after deploys failed silently for 36 minutes while
+// every page still looked healthy). Exactly one tag, owner only, and it can only fire when
+// a production build is red - a handful of times a year, not a flood. This is the narrow
+// door he asked for; the rest of HEALTH_TAGS stays shut.
+const SHIP_TAGS = new Set(['deploy_down', 'migration_down']);
+const ALLOWED_TO_TEDDY = new Set([...CASH_INTAKE_TAGS, ...WARRANTY_INTAKE_TAGS, ...PLATFORM_TAGS, ...SHIP_TAGS]);
 
 // Kept defined (not allowlisted) so morning-us can one-line-restore system-health pings
 // to Teddy if he wants them back — he explicitly said "eliminate the others" tonight.
@@ -39,4 +49,4 @@ function officeBlocked(to, tag) {
   return true;                                         // everyone else, and every other tag: suppressed
 }
 
-module.exports = { officeBlocked, last10, OFFICE, CASH_INTAKE_TAGS, WARRANTY_INTAKE_TAGS, PLATFORM_TAGS, HEALTH_TAGS };
+module.exports = { officeBlocked, last10, OFFICE, CASH_INTAKE_TAGS, WARRANTY_INTAKE_TAGS, PLATFORM_TAGS, SHIP_TAGS, HEALTH_TAGS };

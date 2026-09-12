@@ -11,7 +11,7 @@
 // A scheduled wrapper (platform-tn-mirror-cron) calls syncTnToPlatform() every few min.
 'use strict';
 
-const { getSecret } = require('./_lib/secrets');
+const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const { fetchKanban } = require('./_lib/board-mirror');
 
 // The real TN tenant — "TN Appliance Exchange LLC" (created 9/3, full book + all 8 crew/office
@@ -53,31 +53,64 @@ async function fetchTdrMap() {
   if (!token) return {};
   const map = {};
   const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
-  for (let page = 1; page <= 4; page++) {
-    let rows = [];
+  // 4 pages = the newest 2,000 reports. Xano is at TDR id 2304 today, so an older job's
+  // real report fell outside the window and read as "no report filed" - job 19988 had a
+  // full diagnosis from Jimmy that the platform showed as blank. 8 pages covers every
+  // report with headroom.
+  //
+  // CONCURRENT, not a serial loop. Widening 4 -> 8 pages the first time kept the sequential
+  // fetch, which turned this into an 8 x 12s chain inside a cron that has a budget - and it
+  // showed up immediately in the data: the run before the change wrote 1,150 jobs, every run
+  // after wrote 25. Eight requests in one round trip is bounded by the SLOWEST page instead of
+  // the SUM of them, so the window can widen without eating the run. Pages are merged in page
+  // order (not completion order) to keep id-desc "first seen = newest TDR wins" exact, and
+  // allSettled means one slow page costs its own rows, not the whole map. (2026-09-10)
+  // THREE AT A TIME, NOT EIGHT. Firing all eight at once is what the concurrent rewrite did
+  // first, and a saturated Xano simply queued them: pages 2, 3 and 8 aborted at 12s while
+  // 1, 4 and 5 answered in ~1.3s, so ~1,000 reports (ids 1814 down to 813) vanished with no
+  // error anywhere - allSettled swallows a lost page by design. A small batch keeps the
+  // round-trip win without asking Xano for more parallelism than it has. Each page gets ONE
+  // retry, and the walk STOPS at the first short page (the table ends around id 2313, so
+  // pages 6-8 were always empty requests). Batches and pages within a batch stay in ascending
+  // order, so id-desc "first seen = newest report wins" is still exact. (2026-09-10)
+  const PAGES = 8, BATCH = 3;
+  const fetchPage = async (page, attempt = 0) => {
     try {
       const r = await fetch(`${META}/table/12/content/search`, {
         method: 'POST', headers: H,
         body: JSON.stringify({ sort: { id: 'desc' }, per_page: 500, page }),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(15000),
       });
-      if (!r.ok) break;
-      rows = (await r.json()).items || [];
-    } catch (_) { break; }
-    if (!rows.length) break;
-    for (const t of rows) {
-      const jid = Number(t.job_id || 0);
-      if (!jid || map[jid]) continue;   // id-desc → first seen = newest TDR, wins
-      map[jid] = {
-        diagnosis: String(t.diagnosis || ''),
-        failed_component: String(t.failed_component || ''),
-        part: String(t.verified_part_number || ''),
-        repair_completed: String(t.repair_completed || ''),
-        parts_needed: String(t.parts_needed || ''),
-        labor_hours: (t.labor_hours != null && t.labor_hours !== '') ? Number(t.labor_hours) : null,
-      };
+      if (!r.ok) throw new Error('meta_' + r.status);
+      return (await r.json()).items || [];
+    } catch (e) {
+      if (attempt < 1) return fetchPage(page, attempt + 1);
+      return null;   // null = LOST (say so), [] = genuinely past the end of the table
     }
-    if (rows.length < 500) break;
+  };
+  for (let start = 1; start <= PAGES; start += BATCH) {
+    const nums = [];
+    for (let p = start; p < start + BATCH && p <= PAGES; p++) nums.push(p);
+    const res = await Promise.all(nums.map((p) => fetchPage(p)));
+    let reachedEnd = false;
+    for (let i = 0; i < res.length; i++) {
+      const rows = res[i];
+      if (rows == null) { console.error('[tn-mirror] TDR page ' + nums[i] + ' lost after retry'); continue; }
+      if (rows.length < 500) reachedEnd = true;
+      for (const t of rows) {
+        const jid = Number(t.job_id || 0);
+        if (!jid || map[jid]) continue;   // first seen = newest TDR, wins
+        map[jid] = {
+          diagnosis: String(t.diagnosis || ''),
+          failed_component: String(t.failed_component || ''),
+          part: String(t.verified_part_number || ''),
+          repair_completed: String(t.repair_completed || ''),
+          parts_needed: String(t.parts_needed || ''),
+          labor_hours: (t.labor_hours != null && t.labor_hours !== '') ? Number(t.labor_hours) : null,
+        };
+      }
+    }
+    if (reachedEnd) break;
   }
   return map;
 }
@@ -115,18 +148,32 @@ async function fetchActiveJobs() {
   const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
   const out = [];
   const seen = new Set();
+  // A page that times out here used to `catch (_) { break; }` - so a single slow moment on
+  // Xano silently ended that status's pagination and those jobs just did not appear on the
+  // platform, with no error anywhere. Same silent-loss family as the TDR page bug. Measured
+  // quiet (2026-09-10 19:4x) the whole walk is 8 requests in ~2s, so the cost of being careful
+  // is nothing; measured at peak the same day Xano answered one endpoint in 43.8s, so the loss
+  // is real, just invisible. Each page now gets ONE retry, and a page still lost after that
+  // RETURNS NULL and LOGS - it never masquerades as "end of the table".
+  const getPage = async (status, page, attempt = 0) => {
+    try {
+      const r = await fetch(`${META}/table/7/content/search`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ search: { scheduling_status: status }, sort: { id: 'desc' }, per_page: 500, page }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!r.ok) throw new Error('meta_' + r.status);
+      return (await r.json()).items || [];
+    } catch (e) {
+      if (attempt < 1) return getPage(status, page, attempt + 1);
+      console.error('[tn-mirror] active page lost: ' + status + ' p' + page + ' ' + String((e && e.message) || e).slice(0, 80));
+      return null;
+    }
+  };
   for (const status of ACTIVE_STATUSES) {
     for (let page = 1; page <= 4; page++) {
-      let rows = [];
-      try {
-        const r = await fetch(`${META}/table/7/content/search`, {
-          method: 'POST', headers: H,
-          body: JSON.stringify({ search: { scheduling_status: status }, sort: { id: 'desc' }, per_page: 500, page }),
-          signal: AbortSignal.timeout(12000),
-        });
-        if (!r.ok) break;
-        rows = (await r.json()).items || [];
-      } catch (_) { break; }
+      const rows = await getPage(status, page);
+      if (rows == null) break;   // lost after retry - already logged, do not pretend it ended
       if (!rows.length) break;
       for (const j of rows) {
         const id = Number(j.id || 0);
@@ -249,13 +296,270 @@ async function recoverCustomerStreets(url, key, startPage, maxPages) {
   return { ok: true, blank_customers: blank.size, scanned, filled, next_page: done ? null : page, done };
 }
 
+// Read-only: the OTHER serial walk. fetchActiveJobs is 7 statuses x up to 4 pages, sequential,
+// and it does `catch (_) { break; }` - a timeout quietly ends that status's pagination and those
+// jobs simply never appear on the platform. Same silent-loss family as the TDR pages, and there
+// is no way to see it from the outside either. ?active_probe=1
+async function activeProbe() {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return { ok: false, error: 'no_xano_token' };
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const out = [];
+  for (const status of ACTIVE_STATUSES) {
+    const pages = [];
+    for (let page = 1; page <= 4; page++) {
+      const t = Date.now();
+      try {
+        const r = await fetch(`${META}/table/7/content/search`, {
+          method: 'POST', headers: H,
+          body: JSON.stringify({ search: { scheduling_status: status }, sort: { id: 'desc' }, per_page: 500, page }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const rows = r.ok ? ((await r.json()).items || []) : [];
+        pages.push({ page, http: r.status, rows: rows.length, ms: Date.now() - t });
+        if (!r.ok || rows.length < 500) break;
+      } catch (e) {
+        pages.push({ page, error: String((e && e.message) || e).slice(0, 60), ms: Date.now() - t });
+        break;   // exactly what the real loop does - and this is the row we care about
+      }
+    }
+    const last = pages[pages.length - 1] || {};
+    out.push({
+      status,
+      rows: pages.reduce((n, x) => n + (x.rows || 0), 0),
+      pages: pages.length,
+      // TRUNCATED = the walk stopped on an error or on a full page, so there is more we never read
+      truncated: !!last.error || last.rows === 500,
+      detail: pages,
+    });
+  }
+  return { ok: true, statuses: out, total_rows: out.reduce((n, x) => n + x.rows, 0),
+    truncated_statuses: out.filter((x) => x.truncated).map((x) => x.status) };
+}
+
+// Read-only: what does the TDR pull actually see, page by page? fetchTdrMap merges with
+// allSettled, so a page that fails costs its rows SILENTLY - this is how we tell a genuinely
+// short table from pages we are losing. ?tdr_probe=1
+async function tdrProbe() {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return { ok: false, error: 'no_xano_token' };
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const pages = [];
+  const settled = await Promise.allSettled(
+    Array.from({ length: 8 }, (_, k) => k + 1).map(async (page) => {
+      const t = Date.now();
+      const r = await fetch(`${META}/table/12/content/search`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ sort: { id: 'desc' }, per_page: 500, page }),
+        signal: AbortSignal.timeout(12000),
+      });
+      const body = r.ok ? await r.json() : null;
+      const items = (body && body.items) || [];
+      return { page, http: r.status, rows: items.length, ms: Date.now() - t,
+        first_id: items.length ? items[0].id : null, last_id: items.length ? items[items.length - 1].id : null,
+        with_job: items.filter((x) => Number(x.job_id)).length };
+    })
+  );
+  let rows = 0; const jobs = new Set();
+  for (const x of settled) {
+    if (x.status === 'fulfilled') { pages.push(x.value); rows += x.value.rows; }
+    else pages.push({ error: String((x.reason && x.reason.message) || x.reason).slice(0, 80) });
+  }
+  const map = await fetchTdrMap();
+  Object.keys(map).forEach((k) => jobs.add(k));
+  return { ok: true, pages, total_rows: rows, unique_job_ids: jobs.size };
+}
+
+// ── ONE-SHOT: backfill technician reports onto COMPLETED jobs ───────────────────
+// The every-5-min mirror only walks ACTIVE_STATUSES, so a job that has since been
+// completed is never revisited - and 2,279 of TN's mirrored jobs carried 19 reports
+// between them while Xano held the real thing. That history is exactly what the
+// platform has to own before TN can run on it full-time: what we found, which part,
+// how long. Additive and BLANK-ONLY - it writes a report only where the platform has
+// none, so it can never overwrite a report a tech filed on the platform itself.
+// Manual: ?backfill_tdr=1 (add &dryrun=1 to count first). (2026-09-10)
+async function backfillTdr(url, key, dryrun) {
+  const tdrMap = await fetchTdrMap();
+  const ids = Object.keys(tdrMap).map(Number).filter(Boolean);
+  if (!ids.length) return { ok: false, error: 'no_tdrs' };
+  const need = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200).join(',');
+    const r = await fetch(
+      `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&or=(tdr_diagnosis.is.null,tdr_diagnosis.eq.)&select=xano_id`,
+      { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
+    );
+    const rows = await r.json().catch(() => null);
+    if (Array.isArray(rows)) rows.forEach((x) => need.push(Number(x.xano_id)));
+  }
+  if (dryrun) return { ok: true, dryrun: true, tdrs: ids.length, missing_report: need.length };
+  // Uniform key set on every row - a mixed shape is what PGRST102'd the main upsert.
+  const rows = need.map((xid) => {
+    const t = tdrMap[xid];
+    return {
+      company_id: TN_COMPANY, xano_id: xid,
+      tdr_diagnosis: t.diagnosis, tdr_failed_component: t.failed_component,
+      tdr_part_number: t.part, tdr_repair_completed: t.repair_completed,
+      tdr_parts_needed: t.parts_needed, tdr_labor_hours: t.labor_hours,
+    };
+  }).filter((r) => r.tdr_diagnosis || r.tdr_failed_component || r.tdr_part_number);
+  const up = await upsert(url, key, 'job', rows, 'company_id,xano_id');
+  return { ok: true, tdrs: ids.length, missing_report: need.length, filled: up.length };
+}
+
+// ── ONE-SHOT: backfill MODEL + SERIAL onto units the mirror never revisits ──────
+// The same hole as the TDR backfill, one field over. The every-5-min mirror only walks
+// ACTIVE_STATUSES, so the moment a job completes its unit is frozen at whatever it had.
+// Measured 2026-09-12: of TN's 1,244 units only 531 carry a model, and the 713 blanks are
+// dominated by COMPLETED jobs (417 have a unit, 13 have a model). That is exactly the
+// population every coverage and first-visit-fix number is read off — which is how an
+// "~80% of jobs have no model" figure got published when the real operational number was
+// 42%. The metric was measuring the SYNC, not the intake.
+//
+// Sampled 20 of those completed jobs against Xano BEFORE building this: 17 (85%) already
+// had a real model sitting there (DVE45T6000W, WRF757SDHZ64, FRSS2623AS, WT7150CW...).
+// Two were the literal string "Uploaded pic" and one was empty — realModel() rejects both,
+// so nothing junk lands on a unit and sends a tech hunting a part for a word.
+//
+// ADDITIVE + BLANK-ONLY + idempotent. It only touches a unit whose model already fails
+// realModel(); it only writes when Xano has a real one; and it rebuilds the WHOLE
+// attributes object from the existing row, because merge-duplicates replaces that jsonb
+// column whole — writing a partial object is how the next run blanks a serial.
+// Manual: ?backfill_models=1 (add &dryrun=1 to count + eyeball a sample first). (2026-09-12)
+
+// Xano fills empty fields with placeholders, and a placeholder written onto a unit reads as
+// a real model to the tech. Same rule as platform-job-prep's guard, deliberately identical:
+// a real appliance model always carries a digit, so "Refrigerator" and "Uploaded pic" are
+// rejected rather than mirrored.
+function realModel(v) {
+  const m = String(v == null ? '' : v).trim().toUpperCase();
+  if (m.length < 3) return '';
+  if (/^(0+|N\/?A|NONE|NULL|UNKNOWN|TBD|-+)$/.test(m)) return '';
+  if (!/[0-9]/.test(m)) return '';
+  return m;
+}
+
+// Walk Xano's jobs table (metadata table 7) newest-first, collecting model + serial, and
+// STOP as soon as the walk has passed the oldest id we still need. Deliberately omits the
+// `search` key entirely — `search: {}` is the documented 400, but sort+per_page alone is the
+// shape fetchTdrMap has been running on all along. Three pages at a time, one retry each, and
+// a page lost after that is REPORTED, never mistaken for the end of the table.
+async function fetchJobModelMap(minId) {
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return { map: {}, pages_read: 0, lost: 0, reached_min: false, error: 'no_token' };
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const map = {};
+  const PAGES = 12, BATCH = 3;
+  let pagesRead = 0, lost = 0, reachedMin = false, done = false;
+  const fetchPage = async (page, attempt = 0) => {
+    try {
+      const r = await fetch(`${META}/table/7/content/search`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ sort: { id: 'desc' }, per_page: 500, page }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!r.ok) throw new Error('meta_' + r.status);
+      return (await r.json()).items || [];
+    } catch (e) {
+      if (attempt < 1) return fetchPage(page, attempt + 1);
+      return null;   // null = LOST (say so), [] = genuinely past the end
+    }
+  };
+  for (let start = 1; start <= PAGES && !done; start += BATCH) {
+    const nums = [];
+    for (let p = start; p < start + BATCH && p <= PAGES; p++) nums.push(p);
+    const res = await Promise.all(nums.map((p) => fetchPage(p)));
+    for (let i = 0; i < res.length; i++) {
+      const rows = res[i];
+      if (rows == null) { lost++; console.error('[tn-mirror] job page ' + nums[i] + ' lost after retry'); continue; }
+      pagesRead++;
+      if (rows.length < 500) done = true;   // past the end of the table
+      for (const j of rows) {
+        const id = Number(j.id || 0);
+        if (!id || map[id]) continue;
+        map[id] = {
+          model: String(j.model_number || j.appliance_model || '').trim(),
+          serial: String(j.serial_number || '').trim(),
+        };
+        if (id <= minId) reachedMin = true;
+      }
+    }
+    if (reachedMin) done = true;   // everything we still needed is behind us
+  }
+  return { map, pages_read: pagesRead, lost, reached_min: reachedMin };
+}
+
+async function backfillModels(url, key, dryrun) {
+  const H = { apikey: key, Authorization: 'Bearer ' + key };
+  // Page the unit read explicitly. PostgREST caps a response at 1,000 rows SILENTLY, and
+  // reading 1,000 of 1,244 units would leave the oldest ones permanently blank with no error.
+  const units = [];
+  for (let offset = 0; offset < 20000; offset += 1000) {
+    const r = await fetch(
+      `${url}/rest/v1/unit?company_id=eq.${TN_COMPANY}&xano_id=not.is.null&select=xano_id,attributes&order=xano_id.asc&limit=1000&offset=${offset}`,
+      { headers: H, signal: AbortSignal.timeout(15000) },
+    );
+    if (!r.ok) return { ok: false, error: 'unit_read_' + r.status };
+    const rows = await r.json().catch(() => null);
+    if (!Array.isArray(rows)) return { ok: false, error: 'unit_read_bad_body' };
+    units.push(...rows);
+    if (rows.length < 1000) break;
+  }
+  const blanks = units.filter((u) => !realModel(((u.attributes || {}).model)));
+  if (!blanks.length) return { ok: true, units: units.length, blank_model: 0, filled: 0, note: 'nothing to fill' };
+
+  const minId = blanks.reduce((m, u) => Math.min(m, Number(u.xano_id)), Infinity);
+  const pull = await fetchJobModelMap(minId);
+  if (pull.error) return { ok: false, error: pull.error };
+  // Refuse to judge coverage off a short read: if the walk never reached the oldest id we
+  // need AND never hit the end of the table, the misses below are OUR gap, not Xano's.
+  const complete = pull.reached_min || pull.pages_read > 0;
+
+  const rows = [];
+  let noXanoRow = 0, junkModel = 0, serialToo = 0;
+  for (const u of blanks) {
+    const src = pull.map[Number(u.xano_id)];
+    if (!src) { noXanoRow++; continue; }
+    const model = realModel(src.model);
+    if (!model) { junkModel++; continue; }
+    const cur = (u.attributes && typeof u.attributes === 'object') ? u.attributes : {};
+    // Rebuild the WHOLE object — merge-duplicates replaces this jsonb column wholesale, so a
+    // partial write blanks whatever key it leaves out. Existing non-blank values always win.
+    const attrs = { ...cur, model: src.model.trim() };
+    if (!String(cur.serial || '').trim() && src.serial) { attrs.serial = src.serial; serialToo++; }
+    rows.push({ company_id: TN_COMPANY, xano_id: Number(u.xano_id), attributes: attrs });
+  }
+
+  const out = {
+    ok: true, units: units.length, blank_model: blanks.length,
+    xano_pages_read: pull.pages_read, xano_pages_lost: pull.lost, walk_complete: complete,
+    fillable: rows.length, skipped_no_xano_row: noXanoRow, skipped_junk_model: junkModel,
+    serial_also_filled: serialToo,
+    sample: rows.slice(0, 5).map((r) => ({ job: r.xano_id, model: r.attributes.model, serial: r.attributes.serial || '' })),
+  };
+  if (dryrun) { out.dryrun = true; return out; }
+  const up = await upsert(url, key, 'unit', rows, 'company_id,xano_id');
+  out.filled = up.length;
+  return out;
+}
+
 async function syncTnToPlatform(limit, opts) {
   const t0 = Date.now();
   const dryrun = !!(opts && opts.dryrun);
   const { url, key } = await cfg();
   if (!url || !key) return { ok: false, error: 'platform supabase not configured' };
 
-  let items = await fetchKanban();
+  // NEVER let the heavy board feed take the whole mirror down with it. get_office_kanban
+  // measured 43.8s on 2026-09-10 and fetchKanban throws on abort - so one slow minute on
+  // Xano killed the entire run before the supplemental pull (raw table 7) had even started,
+  // and the platform went stale. That is backwards: the supplemental source is FASTER and
+  // carries MORE (model, serial, street, claim); the kanban feed only adds older/completed
+  // jobs it happens to have. Losing it should cost those extras, not the mirror.
+  let items = [];
+  let kanbanError = '';
+  // 15s, not the 70s board-mirror-sync waits: this feed is a bonus here, not the source.
+  try { items = await fetchKanban(15000); }
+  catch (e) { kanbanError = String((e && e.message) || e).slice(0, 120); }
   const kanbanCount = items.length;
   // Merge in every active/upcoming job the 800-row created_at-capped board feed leaves out
   // (dedup by job id; the richer kanban row wins when a job is in both).
@@ -267,6 +571,22 @@ async function syncTnToPlatform(limit, opts) {
   const suppById = new Map();
   for (const s of supp) { const id = Number(s.id); if (id) suppById.set(id, s); }
   const streetFor = (j) => cleanStreet(j.service_address) || cleanStreet((suppById.get(Number(j.id)) || {}).service_address);
+  // Same borrow for the model + serial. get_office_kanban drops BOTH (verified 2026-09-10:
+  // its 27 keys carry brand and appliance but no model), while the raw table-7 row has
+  // model_number + serial_number populated. Without this the mirror can answer "Kenmore
+  // dryer" but not "which one" — and job-truth's tech lens reads the model straight off it.
+  const pick = (j, ...keys) => {
+    const twin = suppById.get(Number(j.id)) || {};
+    // Take the first NON-EMPTY value from either row. Checking `!= null` instead would
+    // stop at the kanban row's empty string and never reach the twin that has the value.
+    for (const k of keys) {
+      const a = String(j[k] || '').trim(); if (a) return a;
+      const b = String(twin[k] || '').trim(); if (b) return b;
+    }
+    return '';
+  };
+  const modelFor = (j) => pick(j, 'model_number', 'appliance_model');
+  const serialFor = (j) => pick(j, 'serial_number');
   let addedFromSupp = 0;
   if (supp.length) {
     const have = new Set(items.map((j) => Number(j.id)));
@@ -287,7 +607,71 @@ async function syncTnToPlatform(limit, opts) {
       const st = streetFor(j);
       if (st) { withStreet++; if (streetSample.length < 5) streetSample.push({ id: Number(j.id), street: st, city: String(j.service_city || ''), zip: String(j.service_zip || '') }); }
     }
-    return { ok: true, dryrun: true, kanban: kanbanCount, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, ms: Date.now() - t0 };
+    // Confirm the model actually RESOLVES before trusting a live write - the kanban feed
+    // has no model column at all, so this only works if the supplemental twin is found.
+    const withModel = jobs.filter((j) => modelFor(j)).length;
+    const modelSample = jobs.filter((j) => modelFor(j)).slice(0, 3).map((j) => ({ id: j.id, model: modelFor(j), serial: serialFor(j) }));
+    return { ok: true, dryrun: true, kanban: kanbanCount, kanban_error: kanbanError || undefined, supplemental: supplementalCount, added_from_supplemental: addedFromSupp, merged: items.length, mirrorable: jobs.length, scheduled, future_scheduled: future, street_fill: withStreet, street_of_total: jobs.length, street_sample: streetSample, model_fill: withModel, model_sample: modelSample, ms: Date.now() - t0 };
+  }
+
+  // ── NEVER WRITE A BLANK OVER SOMETHING A HUMAN TYPED ────────────────────────────────
+  // PROVEN LIVE 2026-09-10 on job 19713: the office typed an availability on the platform and
+  // ONE mirror run blanked it. Same story for a customer's name/phone/city, an appliance's
+  // model/serial, a job's problem text — every one of those is editable in the board drawer and
+  // every one was rewritten from Xano unconditionally. During a migration where we are asking
+  // the office to WORK here, that is indistinguishable from "the new system doesn't save",
+  // which is the exact trust-killer that already bit us twice (tech completions 9/8, bookings
+  // earlier today).
+  // The rule is deliberately narrow, and it is the one case that is never right: an EMPTY value
+  // from Xano may not replace a non-empty value on the platform. A DIFFERENT non-empty value
+  // still wins — Xano remains the system of record, so a genuine correction there still lands.
+  // (Fixing a typo therefore still belongs in Xano until intake moves over.)
+  // We SUBSTITUTE rather than drop the key: PostgREST rejects a bulk upsert whose objects have
+  // different key sets (PGRST102), which is what broke the whole job write earlier today.
+  async function keepTyped(table, rows, keys) {
+    if (!rows.length) return;
+    try {
+      const ids = rows.map((r) => r.xano_id).filter(Boolean);
+      const cur = new Map();
+      for (let i = 0; i < ids.length; i += 200) {
+        const chunk = ids.slice(i, i + 200).join(',');
+        const r = await fetch(
+          `${url}/rest/v1/${table}?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,${keys.join(',')}`,
+          { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
+        );
+        const got = await r.json().catch(() => null);
+        if (Array.isArray(got)) got.forEach((x) => cur.set(Number(x.xano_id), x));
+      }
+      let kept = 0;
+      for (const row of rows) {
+        const ex = cur.get(Number(row.xano_id));
+        if (!ex) continue;
+        for (const k of keys) {
+          const incoming = row[k], existing = ex[k];
+          if (k === 'attributes') {
+            // one jsonb column, replaced whole by merge-duplicates - guard it key by key
+            if (!existing || typeof existing !== 'object') continue;
+            for (const ak of Object.keys(incoming || {})) {
+              if (!String(incoming[ak] || '').trim() && String(existing[ak] || '').trim()) {
+                incoming[ak] = existing[ak]; kept++;
+              }
+            }
+            continue;
+          }
+          // `label` falls back to the literal 'Appliance' when Xano has no brand/type, so that
+          // placeholder counts as blank too - otherwise it quietly overwrites a real appliance name.
+          const inStr = String(incoming == null ? '' : incoming).trim();
+          const blankIn = !inStr || (k === 'label' && inStr === 'Appliance');
+          if (blankIn && String(existing == null ? '' : existing).trim()) {
+            row[k] = existing; kept++;
+          }
+        }
+      }
+      if (kept) console.log('[tn-mirror] kept ' + kept + ' typed ' + table + ' value(s) the mirror would have blanked');
+    } catch (e) {
+      // Never let the guard break the mirror - worst case is today's behavior.
+      console.error('[tn-mirror] keepTyped(' + table + ') skipped: ' + String((e && e.message) || e));
+    }
   }
 
   // 1) customers — dedup by Xano customer_id. The base upsert deliberately OMITS `address`:
@@ -306,7 +690,9 @@ async function syncTnToPlatform(limit, opts) {
     });
     if (!addrMap.has(cid)) { const st = streetFor(j); if (st) addrMap.set(cid, st); }
   }
-  const upCust = await upsert(url, key, 'customer', [...custMap.values()], 'company_id,xano_id');
+  const custRows = [...custMap.values()];
+  await keepTyped('customer', custRows, ['first_name', 'last_name', 'phone', 'city', 'state', 'zip']);
+  const upCust = await upsert(url, key, 'customer', custRows, 'company_id,xano_id');
   // Fill the street ONLY where we have a real one — never write a blank (additive, can't lose data).
   const addrRows = [...addrMap.entries()].map(([cid, address]) => ({ company_id: TN_COMPANY, xano_id: cid, address }));
   if (addrRows.length) await upsert(url, key, 'customer', addrRows, 'company_id,xano_id');
@@ -318,8 +704,13 @@ async function syncTnToPlatform(limit, opts) {
     customer_id: custIdByXano.get(Number(j.customer_id)),
     kind: 'appliance',
     label: [String(j.brand || ''), String(j.appliance || '')].filter(Boolean).join(' ').trim() || 'Appliance',
-    attributes: { brand: String(j.brand || ''), appliance: String(j.appliance || '') },
+    // model + serial ride here so every surface reading the mirror can name the exact
+    // machine. attributes is a single jsonb column and merge-duplicates replaces it whole,
+    // so these keys must always be present — writing them conditionally would blank a
+    // model on the next run for any job whose row happened to arrive without one.
+    attributes: { brand: String(j.brand || ''), appliance: String(j.appliance || ''), model: modelFor(j), serial: serialFor(j) },
   })).filter((u) => u.customer_id);
+  await keepTyped('unit', unitRows, ['label', 'attributes']);
   const upUnit = await upsert(url, key, 'unit', unitRows, 'company_id,xano_id');
   const unitIdByXanoJob = new Map(upUnit.map((r) => [Number(r.xano_id), r.id]));
 
@@ -360,12 +751,19 @@ async function syncTnToPlatform(limit, opts) {
       customer_id, unit_id,
       technician_id: techByXano.get(Number(j.technician_id)) || null,
       status: mapStatus(j),
-      tdr_diagnosis: tdr ? tdr.diagnosis : '',
-      tdr_failed_component: tdr ? tdr.failed_component : '',
-      tdr_part_number: tdr ? tdr.part : '',
-      tdr_repair_completed: tdr ? tdr.repair_completed : '',
-      tdr_parts_needed: tdr ? tdr.parts_needed : '',
-      tdr_labor_hours: tdr ? tdr.labor_hours : null,
+      // Only write the report when we HAVE one. Writing '' on a miss erased good data:
+      // fetchTdrMap breaks out on any slow/failed Xano page, and it only ever held the
+      // newest ~2,000 reports, so an older job's real report read as "no report filed" and
+      // then got blanked on the platform. merge-duplicates only touches columns present in
+      // the payload, so omitting these preserves whatever is already mirrored. (2026-09-10)
+      ...(tdr ? {
+        tdr_diagnosis: tdr.diagnosis,
+        tdr_failed_component: tdr.failed_component,
+        tdr_part_number: tdr.part,
+        tdr_repair_completed: tdr.repair_completed,
+        tdr_parts_needed: tdr.parts_needed,
+        tdr_labor_hours: tdr.labor_hours,
+      } : {}),
       first_stop: firstStop,
       warranty_claim_status: clStatus,
       warranty_paid_cents: cl ? Math.round(Number(cl.paid_total || 0) * 100) : null,
@@ -395,10 +793,21 @@ async function syncTnToPlatform(limit, opts) {
   // per dispatch regardless of which loader saw it first. Best-effort: any failure here just
   // leaves the (rare) dup for a later run; it must never break the mirror.
   try {
+    // A warranty CLAIM is not a job. SquareTrade issues a new work order per trip, so one
+    // claim routinely covers several Xano jobs — and taking the first one meant stamping an
+    // id that a sibling dispatch already owned. Every run tried the same doomed updates and
+    // the client-side catch swallowed them, so nothing surfaced but Postgres logged an error
+    // each time: ~3,000 a day, 84% of this database's error volume, hiding everything else.
+    // Adopt only from a claim that maps to exactly ONE Xano job; anything else is a guess.
+    const claimCount = new Map();
+    for (const jr of jobRows) {
+      const cn = String(jr.claim_number || '').trim();
+      if (cn) claimCount.set(cn, (claimCount.get(cn) || 0) + 1);
+    }
     const claimToXano = new Map();
     for (const jr of jobRows) {
       const cn = String(jr.claim_number || '').trim();
-      if (cn && !claimToXano.has(cn)) claimToXano.set(cn, jr.xano_id);
+      if (cn && claimCount.get(cn) === 1 && !claimToXano.has(cn)) claimToXano.set(cn, jr.xano_id);
     }
     const claims = [...claimToXano.keys()].filter((c) => /^[A-Za-z0-9._\-]+$/.test(c));
     for (let i = 0; i < claims.length; i += 100) {
@@ -410,9 +819,20 @@ async function syncTnToPlatform(limit, opts) {
       );
       const orphans = await r.json().catch(() => null);
       if (!Array.isArray(orphans)) continue;
+      // Belt and braces: never attempt an id another row already holds. The unique index
+      // would reject it anyway - the point is to not ask, so the log stays readable.
+      const wanted = [...new Set(orphans.map((o) => claimToXano.get(String(o.claim_number || '').trim())).filter(Boolean))];
+      const taken = new Set();
+      if (wanted.length) {
+        try {
+          const tr = await fetch(`${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${wanted.join(',')})&select=xano_id`,
+            { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(10000) });
+          for (const t of (await tr.json().catch(() => [])) || []) taken.add(Number(t.xano_id));
+        } catch (_) {}
+      }
       for (const o of orphans) {
         const xid = claimToXano.get(String(o.claim_number || '').trim());
-        if (!xid) continue;
+        if (!xid || taken.has(Number(xid))) continue;
         await fetch(`${url}/rest/v1/job?id=eq.${o.id}`, {
           method: 'PATCH',
           headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
@@ -441,13 +861,13 @@ async function syncTnToPlatform(limit, opts) {
     for (let i = 0; i < xids.length; i += 200) {
       const chunk = xids.slice(i, i + 200).join(',');
       const r = await fetch(
-        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at`,
+        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at,scheduled_day,scheduled_start,technician_id,platform_booked_at`,
         { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
       );
       const rows = await r.json().catch(() => null);
       if (Array.isArray(rows)) rows.forEach((x) => cur.set(Number(x.xano_id), x));
     }
-    let held = 0;
+    let held = 0, keptSched = 0, keptTech = 0, keptPending = 0;
     for (const jr of jobRows) {
       const ex = cur.get(Number(jr.xano_id));
       if (!ex) continue;                                   // brand-new job: take Xano's status
@@ -457,21 +877,71 @@ async function syncTnToPlatform(limit, opts) {
         jr.status = ex.status;                             // keep the platform's further-along state
         held++;
       }
+      // ── AND DON'T ERASE A BOOKING MADE ON THE PLATFORM ───────────────────────────
+      // Same bug, second field. The row above rewrites technician_id / scheduled_day /
+      // scheduled_start from Xano on EVERY run, so the office booking a job on the platform
+      // board watched it come back unscheduled within 5 minutes - "the new system doesn't
+      // save" all over again, on the single action the office does most.
+      // The rule stays narrow on purpose: a DIFFERENT day or tech in Xano is a real
+      // reschedule by the system of record and still wins. Only the ERASURE case is held -
+      // Xano has nothing and the platform has something, so the something was put there here.
+      //
+      // A booking still QUEUED to go to Xano is the one case where the platform outranks the
+      // system of record outright. platform_booked_at is only set by the three booking surfaces
+      // and is cleared the moment platform-tn-booking-back lands it in Xano, so an unconsumed
+      // stamp means "the office changed this here and Xano has not heard yet". Without this a
+      // RESCHEDULE is lost to a race: the office moves a job to Thursday, the mirror runs first
+      // and reverts it to Xano's old Tuesday, and the pusher then dutifully sends Tuesday back.
+      // The office would watch the change undo itself - the exact trust-killer, a fourth time.
+      if (ex.platform_booked_at) {
+        jr.scheduled_day = ex.scheduled_day;
+        jr.scheduled_start = ex.scheduled_start;
+        jr.technician_id = ex.technician_id;
+        keptPending++;
+        continue;
+      }
+      if (!jr.scheduled_day && ex.scheduled_day) {
+        jr.scheduled_day = ex.scheduled_day;
+        jr.scheduled_start = ex.scheduled_start || jr.scheduled_start;
+        keptSched++;
+      }
+      if (!jr.technician_id && ex.technician_id) { jr.technician_id = ex.technician_id; keptTech++; }
     }
     if (held) console.log('[tn-mirror] kept platform status on ' + held + ' job(s) the mirror would have reverted');
+    if (keptSched || keptTech) console.log('[tn-mirror] kept platform booking: ' + keptSched + ' day(s), ' + keptTech + ' tech(s)');
+    if (keptPending) console.log('[tn-mirror] held ' + keptPending + ' booking(s) still queued for Xano');
   } catch (e) {
     // Never let this guard break the mirror — worst case is today's behavior.
     console.error('[tn-mirror] status-guard skipped: ' + String((e && e.message) || e));
   }
 
-  const upJob = await upsert(url, key, 'job', jobRows, 'company_id,xano_id');
+  // PostgREST requires every object in a bulk upsert to carry an IDENTICAL key set, and
+  // rejects the whole batch with PGRST102 "All object keys must match" when they differ.
+  // That collides head-on with the report keys above, which are deliberately OMITTED on a
+  // miss so merge-duplicates can't blank a good report. One mixed array = a 400 that fails
+  // all 1,174 rows at once - and it did: the job upsert stopped landing entirely while every
+  // other write in the run kept succeeding, so the platform quietly went stale and only the
+  // OTHER writers' rows carried a fresh updated_at. Split by shape instead; each group is
+  // internally uniform and both keep the omit-on-miss semantics. (2026-09-10)
+  // Same blank-guard for the job's typed text. `problem` and `availability` are both edited in
+  // the board drawer; the claim/warranty/parts fields are Xano-owned but a blank overwriting a
+  // real claim number is never right either.
+  await keepTyped('job', jobRows, ['problem', 'availability', 'warranty_company', 'claim_number', 'parts_status']);
 
-  return { ok: true, customers: upCust.length, units: upUnit.length, jobs: upJob.length, ms: Date.now() - t0 };
+  const withTdr = jobRows.filter((r) => 'tdr_diagnosis' in r);
+  const noTdr = jobRows.filter((r) => !('tdr_diagnosis' in r));
+  const upJob = [
+    ...(withTdr.length ? await upsert(url, key, 'job', withTdr, 'company_id,xano_id') : []),
+    ...(noTdr.length ? await upsert(url, key, 'job', noTdr, 'company_id,xano_id') : []),
+  ];
+
+  return { ok: true, customers: upCust.length, units: upUnit.length, jobs: upJob.length, kanban: kanbanCount, kanban_error: kanbanError || undefined, ms: Date.now() - t0 };
 }
 
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const q = event.queryStringParameters || {};
   const guard = (await getSecret('VAPI_ADMIN_SECRET')) || GUARD_FALLBACK;
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
@@ -482,6 +952,18 @@ exports.handler = async function (event) {
       const out = await recoverCustomerStreets(url, key, q.page ? Number(q.page) : 1, q.pages ? Number(q.pages) : 4);
       return json(200, out);
     }
+    if (q.tdr_probe === '1') return json(200, await tdrProbe());
+    if (q.active_probe === '1') return json(200, await activeProbe());
+    if (q.backfill_tdr === '1') {
+      const { url, key } = await cfg();
+      if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
+      return json(200, await backfillTdr(url, key, q.dryrun === '1'));
+    }
+    if (q.backfill_models === '1') {
+      const { url, key } = await cfg();
+      if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
+      return json(200, await backfillModels(url, key, q.dryrun === '1'));
+    }
     const out = await syncTnToPlatform(q.limit ? Number(q.limit) : 0, { dryrun: q.dryrun === '1' });
     return json(200, out);
   } catch (e) {
@@ -490,3 +972,11 @@ exports.handler = async function (event) {
 };
 
 module.exports.syncTnToPlatform = syncTnToPlatform;
+// Exported so the parity check answers "are we current?" against the EXACT set the mirror
+// itself walks and the EXACT rule it uses to skip empty claim-shells. A parity check that
+// re-implements either one is measuring its own copy, not the mirror.
+module.exports.fetchActiveJobs = fetchActiveJobs;
+module.exports.isRealJob = isRealJob;
+// Exported so the junk-model rule can be unit-checked against the real strings Xano
+// actually stores ("Uploaded pic", "Refrigerator", "0") rather than assumed.
+module.exports.realModel = realModel;

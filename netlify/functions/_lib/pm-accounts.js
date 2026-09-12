@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./secrets');
 // pm-accounts — storage for property-management billing accounts. A PM account holds the
 // Stripe customer id (Stripe securely stores the card — we never touch the PAN), the
 // billing track (card-on-file vs net terms), the per-job auto-charge threshold, and
@@ -12,6 +13,7 @@ const s = (v) => String(v == null ? '' : v).trim();
 function pmSlug(v) { return s(v).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60); }
 
 async function _recent(perPage) {
+  await primeXanoToken();
   const r = await fetch(`${META}/table/${EVENT_LOG}/content/search`, { method: 'POST', headers: authH(), body: JSON.stringify({ search: { action: 'pm_account' }, sort: { id: 'desc' }, per_page: perPage || 400 }) });
   if (!r.ok) throw new Error('pm_account read -> ' + r.status);
   return ((await r.json()).items) || [];
@@ -19,6 +21,7 @@ async function _recent(perPage) {
 
 // Latest profile for a PM (newest pm_account row whose metadata.pm_key matches).
 async function getPmAccount(pmKey) {
+  await primeXanoToken();
   if (!pmKey) return null;
   const rows = await _recent(400);
   for (const row of rows) { const m = row.metadata || {}; if (m.pm_key === pmKey) return Object.assign({ pm_key: pmKey }, m); }
@@ -27,6 +30,7 @@ async function getPmAccount(pmKey) {
 
 // Merge patch over the current profile and write a fresh latest-wins row.
 async function upsertPmAccount(pmKey, patch) {
+  await primeXanoToken();
   const cur = (await getPmAccount(pmKey)) || { pm_key: pmKey, created_ms: Date.now() };
   const next = Object.assign({}, cur, patch, { pm_key: pmKey, updated_ms: Date.now() });
   const r = await fetch(`${META}/table/${EVENT_LOG}/content`, { method: 'POST', headers: authH(), body: JSON.stringify({ action: 'pm_account', metadata: next }) });
@@ -36,6 +40,7 @@ async function upsertPmAccount(pmKey, patch) {
 
 // All PM accounts, newest state per pm_key.
 async function listPmAccounts() {
+  await primeXanoToken();
   const rows = await _recent(400);
   const seen = {}; const out = [];
   for (const row of rows) { const m = row.metadata || {}; const k = m.pm_key; if (!k || seen[k]) continue; seen[k] = 1; out.push(Object.assign({ pm_key: k }, m)); }

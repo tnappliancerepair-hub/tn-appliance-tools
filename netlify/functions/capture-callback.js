@@ -11,6 +11,7 @@ const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const { sendFrom588 } = require('./_lib/sms');
 const guard = require('./_lib/sms-guard');
+const { primeXanoToken } = require('./_lib/secrets');
 // Callbacks are DELEGATED to Danielle + Sofia (Teddy 2026-08-14: "urgent call backs
 // need to go to Danielle and Sofia not me — those are delegated"). The owner is no
 // longer texted here. Both go out from the 588 line so Sofia (a fresh number) is
@@ -55,6 +56,7 @@ function jsonResp(c, b) { return { statusCode: c, headers: { 'Content-Type': 'ap
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
   // Vapi sends tool args either at the top level or under message.toolCalls; accept both.
   let b;

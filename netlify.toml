@@ -460,6 +460,33 @@
 [functions."ahs-parts-watch"]
   schedule = "12,32,52 * * * *"
 
+# AHS returns watcher — the OTHER half of the parts-return chargeback shield. ahs-parts-watch
+# above reads the "part ordered" email (which states no return obligation, so it records
+# requires_return:false); the obligation arrives LATER in a separate "AHS Part Return
+# Notification" from AHS_Purchasing_Part_Returns@ahs.com, with a hard clock and a hard dollar
+# ("within 30 days or $295.74 will be deducted from your payables") and NO prepaid label.
+# Measured 2026-09-11: AHS is 980 of our ~2,000 platform parts and every one read "nothing
+# owed back" because nobody was reading that email. Hourly is plenty -- the clock is in days.
+# Split core + cron ON PURPOSE: a function carrying a `schedule` block edge-403s on every
+# external HTTP call, which would kill the ?dryrun=1 shadow run -- the only way to eyeball a
+# return notice before it writes to job data. The cron wrapper fires the core in-process.
+[functions."ahs-returns-watch-cron"]
+  schedule = "27 * * * *"
+
+# Ask the vendor what machine the dispatch is for BEFORE the splitter runs, so the splitter
+# has the evidence in hand rather than flagging a laundry center as two machines.
+[functions."platform-vendor-product-sync-cron"]
+  schedule = "7 */4 * * *"
+
+[functions."platform-intake-split-watch-cron"]
+  schedule = "19 */4 * * *"
+
+[functions."platform-stop-link-cron"]
+  schedule = "53 * * * *"
+
+[functions."nsa-parts-watch-cron"]
+  schedule = "37 * * * *"
+
 # Job safety watchdog — the "we can't miss jobs" fail-safe. Every 30 min it
 # reconciles every actionable job, auto-heals jobs stranded in "broadcasting"
 # back into the schedule queue, and SMSes Teddy + Danielle if intake stalls,
@@ -527,8 +554,13 @@
 # automatically"). Now sends ONLY the intake link (warranty-intake for warranty jobs,
 # appliance-ai for cash), max 2 pure-intake touches/phone (link + one evening reminder),
 # and NEVER the availability "get on the schedule" texts that caused the 7/14 firefight
-# (INTAKE_LINK_ONLY clamp in the fn). All the firefight guards stay: has-media/availability
-# skip, opt-out, phone-cap 2, quiet-hours 8a-8p CT, and the overtexting-watch auto-pause.
+# (INTAKE_LINK_ONLY clamp in the fn). All the firefight guards stay: opt-out, phone-cap 2,
+# quiet-hours 8a-8p CT, the 2-touch link-only cap, and the overtexting-watch auto-pause.
+# NOTE 2026-09-11: the has-media skip now reads the PLATFORM (job_media + unit model), because
+# Xano's attachments_count counts TDR attachments and is 0 on every job with real customer media
+# -- so the skip never fired at all and we kept chasing people who had already sent us both
+# things. It stops when EITHER store has the answer, and asks only for the sticker when the
+# customer engaged but no model landed. It does not add a touch; the caps above still run first.
 [functions."intake-collector"]
   schedule = "0 14-23 * * *"
 
@@ -872,6 +904,16 @@
   # stale. Revert to "*/3" or "* * * * *" any time.
   schedule = "*/5 * * * *"
 
+# deploy-watch-cron (2026-09-10) — on 2026-09-10 every deploy failed for 36 minutes and
+# nothing said so: the site kept serving the last good build, so every surface looked
+# healthy while no fix could ship. This checks the newest PRODUCTION deploy every 10
+# minutes and texts the owner the moment builds go red (and again when they recover).
+# It also measures the 4KB Lambda env budget on each pass, so the ceiling warns BEFORE
+# someone adds the variable that breaks the build. Logic lives in deploy-watch.js so it
+# stays curl-testable: deploy-watch?secret=<admin>&dry=1
+[functions."deploy-watch-cron"]
+  schedule = "*/10 * * * *"
+
 # platform-tn-mirror-cron (2026-08-27) — mirror TN's live Xano jobs INTO the ANT Platform
 # tenant tables (TN = tenant #1) every 5 min, so the platform office board stays current
 # with Xano during the crossover. Read-only toward Xano (Xano stays system of record);
@@ -913,12 +955,80 @@
 [functions."platform-tn-report-tee-cron"]
   schedule = "6-59/15 * * * *"
 
+# platform-tn-report-back-cron (2026-09-10) - the REVERSE of the tee above: a technician report
+# filed on the PLATFORM goes back into Xano, blank fields only. TN's crew has started filing in
+# platform/tech-job.html, and measured 9/10 three real reports (Lee's FFE error code, Jimmy's, an
+# ice-maker diagnosis) existed ONLY on the platform while Xano showed nothing. That is money:
+# servicepower-claims-build reads XANO, so a report that never gets back is a warranty claim
+# nobody can file. Offset to :03 to stay clear of the /15 crons already at 6, 7, 9, 11 and 13.
+# Curl-testable core: platform-tn-report-back?secret=...&dryrun=1
+# Kill: vault PLATFORM_REPORT_BACK_ENABLED=false.
+[functions."platform-tn-report-back-cron"]
+  schedule = "3-59/15 * * * *"
+
+# platform-tn-booking-back-cron (2026-09-10) - the LAST one-way gap closed. A booking made on the
+# platform board now reaches Xano, so the legacy office board and the Xano tech app stop being
+# blind to work the office booked here - the one thing that was forcing the office to keep
+# booking in Xano. Detection is an explicit stamp (job.platform_booked_at, SQL 059), never
+# inference: Xano UNSCHEDULING a job looks identical to a platform booking, and guessing would
+# resurrect a booking someone deliberately cleared. Writes through the Metadata API, NOT
+# danielle_schedule_parallel_job / reassign_job, both of which emit signals that text a customer.
+# Every 5 minutes: a booking should be on the Xano board before the tech looks again.
+# Curl-testable core: platform-tn-booking-back?secret=...&dryrun=1
+# Kill: vault PLATFORM_BOOKING_BACK_ENABLED=false (or PLATFORM_BOOKING_BACK_LIVE=false for shadow).
+[functions."platform-tn-booking-back-cron"]
+  schedule = "4-59/5 * * * *"
+
+# platform-tn-job-back-cron (2026-09-10) - a job BORN on the platform also lands in Xano, so the
+# old system stays a complete backup during the migration (Teddy: "get these new jobs to go to
+# Supabase as well as Xano, and just use Xano as a backup for right now"). The platform runs its
+# OWN warranty-email intake, and a dispatch Xano's poller never saw was being created here only -
+# four real Frontdoor jobs from 9/8-9/10 existed nowhere else. Claim number is the dedup key: no
+# claim, no create. Links to an existing Xano job before ever creating one. Writes through the
+# Metadata API so no JOB_CREATED fires and nobody gets a greeting text. Offset :08, clear of the
+# /15 crons at 3, 6, 9, 11, 13. Curl-testable core: platform-tn-job-back?secret=...&dryrun=1
+# Kill: vault PLATFORM_JOB_BACK_ENABLED=false (or PLATFORM_JOB_BACK_LIVE=false for shadow).
+[functions."platform-tn-job-back-cron"]
+  schedule = "8-59/15 * * * *"
+
+# platform-tn-reconcile-cron (2026-09-10) - teaches the mirror that a job can LEAVE Xano's active
+# set. The mirror only ADDS and UPDATES: it fetches Xano's ACTIVE jobs and upserts them, so a job
+# canceled in Xano simply stops appearing and the platform keeps its last-known state forever -
+# 471 dead cards were sitting in the office's Needs-Scheduled column before the first manual run.
+# The tool existed since this morning but was never wired to a schedule, so it only ran when
+# someone remembered. Closes CANCELED only, deliberately: completed-vs-not is reported, never
+# written (a previous bulk status repair nearly flipped ~73 unfinished jobs to completed).
+# Offset :14, clear of the /15 crons at 3, 6, 8, 9, 11, 13.
+# Curl-testable core: platform-tn-reconcile?secret=...&dryrun=1
+[functions."platform-tn-reconcile-cron"]
+  schedule = "14-59/15 * * * *"
+
+# platform-tn-status-back-cron (2026-09-10) - the third leg of keeping Xano a complete backup:
+# when a tech finishes (or starts, or hits parts) a job ON THE PLATFORM, Xano finds out. The
+# mirror's never-walk-backwards guard DEFENDS the platform's further-along state but never told
+# Xano - parity found 11 jobs where the platform was ahead, four of them completed here while
+# Xano still had them scheduled. FORWARD ONLY on the mirror's own RANK, so it can never drag Xano
+# backwards. A completion needs a real completed_at stamp, never status alone. Writes through the
+# Metadata API so no event_log transition fires - office_set_job_status would feed
+# job-completion-watch and text customers about old work.
+# Curl-testable core: platform-tn-status-back?secret=...&dryrun=1
+# Kill: vault PLATFORM_STATUS_BACK_ENABLED=false (or PLATFORM_STATUS_BACK_LIVE=false for shadow).
+[functions."platform-tn-status-back-cron"]
+  schedule = "2-59/10 * * * *"
+
 # platform-rma-tee-cron (phase-2 parts-return, 2026-09-09) — auto-matches SquareTrade/Allstate
 # RMA return-labels from rma_request@squaretrade.com (RMA#/FedEx tracking/distributor/part#) to
 # the platform returns worklist by claim + part#. Reads TN's Gmail read-only; writes only into TN's
 # platform tenant. Curl-testable core: platform-rma-tee?secret=…&dryrun=1. Kill: PLATFORM_RMA_TEE_ENABLED=false.
 [functions."platform-rma-tee-cron"]
   schedule = "11-59/15 * * * *"
+
+# platform-sp-parts-sync — pull the VENDOR'S OWN parts list onto the job (what was sent, its
+# tracking, and whether it landed) so a tech is not guessing before he drives. Offset 6-59/20
+# keeps it off the busy /15 lanes (2,3,4,7,8,11). Additive + idempotent: it never deletes a
+# row and never touches disposition/photos/costs/returns, so a re-run is a no-op.
+[functions."platform-sp-parts-sync-cron"]
+  schedule = "6-59/20 * * * *"
 
 # tdr-sync-cron (Phase 0 Part A, 2026-08-26) — THE fix for "won't save the part
 # number" when Xano chokes. tech-job.html saves through tdr-save, which lands every
@@ -1194,3 +1304,16 @@
 # ANTHROPIC_API_KEY (both already vaulted).
 [functions."ai-scoreboard-cron"]
   schedule = "0 13 * * 1"
+
+# platform-migration-watch-cron (2026-09-10) - the thing that tells a HUMAN the migration
+# broke. Nine crons now carry TN between Xano and Supabase and nothing watched any of them:
+# on 2026-09-10 the mirror wrote nothing for 45 minutes while every run reported healthy, and
+# a tee quietly wrote ~2,400 duplicate rows/day for four days. Both were found by hand.
+# This watches the DATA (mirror freshness, unconsumed booking queue, thread-flood, parity),
+# never a function's own self-report, and texts the owner once with a 6h re-nag + one
+# recovery text. Its alert tag 'migration_down' is allowlisted in _lib/office-gate SHIP_TAGS
+# or it would be written and delivered nowhere. Kill: vault PLATFORM_MIGRATION_WATCH=false.
+# Curl-testable core: platform-migration-watch?secret=<admin>&dry=1 (never texts).
+# Offset to :07/:22/:37/:52 so it never lands on the same minute as the crons it is judging.
+[functions."platform-migration-watch-cron"]
+  schedule = "7-59/15 * * * *"

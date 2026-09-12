@@ -5,6 +5,7 @@
 //
 //   POST { data: "data:image/jpeg;base64,..." }               -> { ok, kind:'model', model, brand, serial, appliance }
 //   POST { data: "...", mode:'part' }  (warranty part return)  -> { ok, kind:'part', part_number, part_description, brand }
+//   POST { data: "...", mode:'receipt' } (a part the tech BOUGHT)   -> { ok, kind:'receipt', store, cost_cents, multi_item, part_number, ... }
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
@@ -19,6 +20,23 @@ const PROMPT = 'This is a photo a technician took of an appliance data/model sti
 // Part-return mode: the tech snaps a photo of a warranty part / its box to log a return.
 // Read the PART number off the component label / box (lifted from TN's ocr-model-extract
 // part-sticker rules). Never guess — a wrong part # misroutes a return.
+
+// Receipt mode: the tech bought a part at a parts house / big-box store and snapped the
+// receipt. We want the STORE and the part's own line total -- not the order total, because a
+// tech often buys more than one thing on one trip and only some of it belongs to this job.
+// Money is being read here, so a doubtful read must come back low-confidence rather than
+// confidently wrong: a bad cost silently becomes a bad customer price and a bad reimbursement.
+const RECEIPT_PROMPT = 'This is a photo of a store receipt a repair technician took after buying an appliance part. ' +
+  'Return ONLY compact JSON: ' +
+  '{"store":"","purchased_on":"","part_total":"","order_total":"","part_number":"","part_description":"","confidence":"high|medium|low"}. ' +
+  'store = the business name printed on the receipt (e.g. "The Home Depot", "Marcone", "Reliable Parts"). ' +
+  'part_total = the price of the APPLIANCE PART line only, as a plain number like 48.97, with no currency symbol. ' +
+  'order_total = the receipt GRAND TOTAL as a plain number. If only one item was purchased these are the same. ' +
+  'purchased_on = the date on the receipt as YYYY-MM-DD if legible, else "". ' +
+  'part_number / part_description = the part identifier and item name if the receipt shows them, else "". ' +
+  'If the receipt is blurry, cut off, or you are unsure of any amount, set that field to "" and confidence "low". ' +
+  'NEVER guess an amount. No prose, JSON only.';
+
 const PART_PROMPT = 'This is a photo a technician took of an appliance PART (a component like a drive belt, ' +
   'control board, water valve, pump, motor, capacitor, switch — or its box/label), to log it as a warranty return. ' +
   'Read the PART NUMBER (labeled "Part" / "P/N" / "Part No." / "Part #" — an alphanumeric code like 8540101, WPW10730972, W11315838) and return ONLY compact JSON: ' +
@@ -52,7 +70,9 @@ exports.handler = async function (event) {
   const key = process.env.ANTHROPIC_API_KEY || (await getSecret('ANTHROPIC_API_KEY'));
   if (!key) return json(200, { ok: false, error: 'ocr_not_configured' });
 
-  const partMode = String(b.mode || b.kind || '').toLowerCase() === 'part';
+  const mode = String(b.mode || b.kind || '').toLowerCase();
+  const partMode = mode === 'part';
+  const receiptMode = mode === 'receipt';
 
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -62,7 +82,7 @@ exports.handler = async function (event) {
         model: MODEL, max_tokens: 300,
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } },
-          { type: 'text', text: partMode ? PART_PROMPT : PROMPT },
+          { type: 'text', text: receiptMode ? RECEIPT_PROMPT : (partMode ? PART_PROMPT : PROMPT) },
         ] }],
       }),
       signal: AbortSignal.timeout(25000),
@@ -70,7 +90,31 @@ exports.handler = async function (event) {
     const d = await r.json();
     if (!r.ok || !d.content) return json(200, { ok: false, error: 'vision: ' + JSON.stringify(d).slice(0, 160) });
     const raw = String((d.content[0] && d.content[0].text) || '').replace(/```json|```/g, '').trim();
-    let ex = {}; try { ex = JSON.parse(raw); } catch (_) { return json(200, { ok: false, error: partMode ? 'could not read the part' : 'could not read the sticker' }); }
+    let ex = {}; try { ex = JSON.parse(raw); } catch (_) { return json(200, { ok: false, error: receiptMode ? 'could not read the receipt' : (partMode ? 'could not read the part' : 'could not read the sticker') }); }
+    if (receiptMode) {
+      // Money: parse to CENTS here so no caller re-implements it, and never accept a negative
+      // or absurd amount from a misread. Prefer the part's own line over the order total --
+      // a tech often buys several things on one trip and only some belongs to this job.
+      const money = (v) => {
+        const n = Number(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
+        if (!isFinite(n) || n <= 0 || n > 100000) return null;
+        return Math.round(n * 100);
+      };
+      const partC = money(ex.part_total), orderC = money(ex.order_total);
+      return json(200, {
+        ok: true, kind: 'receipt',
+        store: String(ex.store || '').trim(),
+        purchased_on: String(ex.purchased_on || '').trim(),
+        cost_cents: partC != null ? partC : orderC,
+        part_total_cents: partC, order_total_cents: orderC,
+        // true when the receipt covers more than this one part, so the caller can ask a human
+        // instead of quietly billing the whole trip to one job.
+        multi_item: (partC != null && orderC != null && orderC > partC),
+        part_number: String(ex.part_number || '').toUpperCase().trim(),
+        part_description: String(ex.part_description || '').trim(),
+        confidence: String(ex.confidence || 'medium'),
+      });
+    }
     if (partMode) {
       return json(200, {
         ok: true, kind: 'part',

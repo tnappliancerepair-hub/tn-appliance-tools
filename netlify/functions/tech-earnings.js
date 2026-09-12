@@ -1,3 +1,4 @@
+const { primeXanoToken } = require('./_lib/secrets');
 // Tech earnings + running balance. Reads the invoice rows the office logs
 // (event_log action="office_invoice_logged", which now carries technician_id +
 // tech_pay) and the payouts (action="tech_payout_recorded"), and returns:
@@ -78,6 +79,7 @@ function isCompleted(j) {
 exports.config = { timeout: 26 };
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const techId = parseInt((event.queryStringParameters || {}).tech_id, 10);
   if (!techId) return { statusCode: 400, body: JSON.stringify({ success: false, error: 'tech_id required' }) };
 

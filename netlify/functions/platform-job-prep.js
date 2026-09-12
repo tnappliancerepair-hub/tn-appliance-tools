@@ -1,0 +1,171 @@
+// platform-job-prep — make sure the tech knows the machine BEFORE the truck rolls.
+//
+// WHY. Measured 2026-09-11 across TN's 44 upcoming scheduled jobs:
+//
+//   problem described ... 100%
+//   MODEL NUMBER ........  57%   <- 43% of the time he does not know the machine
+//   photo / video .......  32%
+//   parts on the job ....  34%
+//
+// The model number is not one field among many. It is THE input: it decides the part, and
+// the part decides whether this is one trip or two. The crew's first-visit-fix sits at
+// 86-89% -- they are good -- so the way to help them is not coaching, it is not sending
+// them out blind.
+//
+// And the model is already sitting in the vendor's API, paid for. Checked live: 19 of 19
+// SquareTrade dispatches came back carrying one (WDT730HAMZ, LRFXC2606S, WRF757SDHZ...).
+// It just was never written onto the unit the tech reads.
+//
+// FILL BLANKS ONLY. It never overwrites a model somebody already knows -- same rule the
+// mirror follows, and for the same reason: a confident wrong model sends a tech out with
+// the wrong part, which is worse than sending him out with none.
+//
+//   GET ?secret=<admin>&dry=1        what it WOULD fill (default: dry)
+//   GET ?secret=<admin>&live=1       fill them
+//   GET ?secret=<admin>&company=<id> another tenant (defaults to the caller's own vendor creds)
+//   GET ?secret=<admin>&days=N       how far ahead to look (default 21)
+'use strict';
+
+const sp = require('./_lib/servicepower');
+const spTenant = require('./_lib/servicepower-tenant');
+const { getSecret } = require('./_lib/secrets');
+
+const TN_COMPANY = 'be4d11a1-5219-469b-916a-ab990be7ea7f';
+function json(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
+const S = (v) => (v == null ? '' : String(v).trim());
+
+// The vendors whose dispatches actually live in ServicePower. AHS/Frontdoor and NSA come in
+// by email and are NOT in this API -- asking about their claim numbers returns nothing.
+const SP_VENDORS = /square\s*trade|squaretrade|allstate|servicepower/i;
+
+// ServicePower fills empty fields with "0" and other placeholders. A placeholder written
+// onto a unit reads as a real model to the tech, which is the failure this exists to prevent.
+function realModel(v) {
+  const m = S(v).toUpperCase();
+  if (m.length < 3) return '';
+  if (/^(0+|N\/?A|NONE|NULL|UNKNOWN|TBD|-+)$/.test(m)) return '';
+  // A real appliance model always carries a digit. Without this, ServicePower's product
+  // description ("Refrigerator") lands on the unit AS the model and sends a tech hunting a
+  // part for a word. Caught in testing; it is the whole reason this guard exists.
+  if (!/[0-9]/.test(m)) return '';
+  return m;
+}
+
+async function sget(base, H, path) {
+  const r = await fetch(`${base}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(10000) });
+  return r.ok ? (await r.json().catch(() => [])) : [];
+}
+async function spatch(base, H, path, body) {
+  const r = await fetch(`${base}/rest/v1/${path}`, {
+    method: 'PATCH', headers: { ...H, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+  });
+  return r.ok;
+}
+
+exports.handler = async function (event) {
+  const q = event.queryStringParameters || {};
+  const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+  let scheduled = false; try { scheduled = !!JSON.parse(event.body || '{}').next_run; } catch (_) {}
+  if (!scheduled && q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
+
+  // Dry unless explicitly told otherwise. This writes to job data a tech reads.
+  const dry = !(q.live === '1' || q.live === 'true');
+  const companyId = S(q.company) || TN_COMPANY;
+  const days = Math.max(1, Math.min(90, Number(q.days) || 21));
+  const limit = Math.max(1, Math.min(200, Number(q.limit) || 60));
+
+  const url = S(await getSecret('PLATFORM_SUPABASE_URL')).replace(/\/+$/, '');
+  const key = S(await getSecret('PLATFORM_SUPABASE_SERVICE_KEY'));
+  if (!url || !key) return json(200, { ok: false, error: 'platform not configured' });
+  const H = { apikey: key, Authorization: 'Bearer ' + key };
+
+  // Run as the SHOP when it has its own ServicePower credentials; otherwise fall through to
+  // the vault (TN today) -- same shape platform-sp-parts-sync uses. Requiring per-tenant creds
+  // outright was wrong: it refused TN, the only shop currently running, on its first dry run.
+  const bound = await spTenant.forCompany(companyId).catch(() => null);
+  const getInfo = bound ? ((a) => bound.getCallInfo(a)) : ((a) => sp.getCallInfo(a));
+  if (!bound && !(await sp.isConfigured().catch(() => false))) {
+    return json(200, { ok: false, error: 'no ServicePower credentials — neither tenant nor vault' });
+  }
+
+  // Upcoming means AHEAD. Without a lower bound this scooped up the stale-scheduled backlog
+  // -- 90 of the first 109 candidates were scheduled in June, July and August. Nobody is
+  // driving to those tomorrow, so filling a model on them helps no tech today.
+  const today = new Date().toISOString().slice(0, 10);
+  const until = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+  const jobs = await sget(url, H,
+    `job?company_id=eq.${companyId}&status=in.(new,scheduled)&claim_number=not.is.null&claim_number=neq.` +
+    `&scheduled_day=gte.${today}&scheduled_day=lte.${until}` +
+    `&select=id,unit_id,claim_number,scheduled_day,warranty_company&limit=${limit}`);
+  if (!jobs.length) return json(200, { ok: true, mode: dry ? 'dry' : 'live', looked_at: 0, note: 'no upcoming jobs with a dispatch number' });
+
+  // Which of those units are actually missing a model?
+  const unitIds = [...new Set(jobs.map((j) => j.unit_id).filter(Boolean))];
+  const units = {};
+  for (let i = 0; i < unitIds.length; i += 100) {
+    for (const u of await sget(url, H, `unit?id=in.(${unitIds.slice(i, i + 100).join(',')})&select=id,label,attributes&limit=200`)) units[u.id] = u;
+  }
+  // ServicePower only knows the SquareTrade/Allstate book. Handing it an AHS claim number
+  // is not a near-miss -- it is a question about a call it has never heard of, and it
+  // answers "no model" every time. The first dry run reported 20 of 20 "vendor had none"
+  // and 98 of those candidates were AHS. That was my bug, not a thin vendor API.
+  const askable = [], wrong_vendor = [];
+  for (const j of jobs) {
+    const u = units[j.unit_id];
+    if (!u || realModel((u.attributes || {}).model)) continue;
+    if (SP_VENDORS.test(S(j.warranty_company))) askable.push(j);
+    else wrong_vendor.push({ job: j.id, vendor: S(j.warranty_company) || '(blank)', day: j.scheduled_day });
+  }
+  const needy = askable;
+
+  const filled = [], missing = [], failed = [];
+  for (const j of needy.slice(0, limit)) {
+    let call = null;
+    try {
+      // One dispatch, one read. The key is `callNo`, NOT `callNumber` -- the wrong key is
+      // silently dropped and the request goes out with no <Callno> at all, which asks
+      // ServicePower for every call it has. getCallInfo now refuses a blank one outright.
+      const callNo = S(j.claim_number);
+      if (!callNo) { missing.push({ job: j.id, call: '', day: j.scheduled_day, why: 'no dispatch number' }); continue; }
+      const res = await getInfo({ callNo });
+      const calls = (res && (res.calls || res)) || [];
+      call = Array.isArray(calls) ? calls.find((c) => realModel(c && c.model)) || calls[0] : null;
+    } catch (e) { failed.push({ job: j.id, call: j.claim_number, err: String((e && e.message) || e).slice(0, 90) }); continue; }
+
+    const model = realModel(call && call.model);
+    if (!model) { missing.push({ job: j.id, call: j.claim_number, day: j.scheduled_day }); continue; }
+    const serial = S(call && call.serial).toUpperCase();
+    const brand = S(call && call.brand);
+
+    const u = units[j.unit_id] || {};
+    const attrs = Object.assign({}, u.attributes || {});
+    attrs.model = model;
+    // Only ever ADD. A serial or brand somebody already recorded stays put.
+    if (serial && serial !== '0' && !S(attrs.serial)) attrs.serial = serial;
+    if (brand && !S(attrs.brand)) attrs.brand = brand;
+
+    if (!dry) {
+      const ok = await spatch(url, H, `unit?id=eq.${j.unit_id}`, { attributes: attrs });
+      if (!ok) { failed.push({ job: j.id, call: j.claim_number, err: 'unit patch refused' }); continue; }
+    }
+    filled.push({ job: j.id, call: j.claim_number, day: j.scheduled_day, model, serial: attrs.serial || '', brand: attrs.brand || '' });
+  }
+
+  return json(200, {
+    ok: true, mode: dry ? 'dry' : 'live', company_id: companyId, tenant_creds: !!bound,
+    upcoming_with_dispatch: jobs.length,
+    missing_a_model: needy.length + wrong_vendor.length,
+    // Split on purpose. "This vendor is not in ServicePower" is a coverage limit to report
+    // honestly, not a failure to retry -- lumping it in with real misses hid the bug once.
+    askable_here: needy.length,
+    not_in_servicepower: wrong_vendor.length,
+    filled: filled.length,
+    vendor_had_none: missing.length,
+    failed: failed.length,
+    filled_list: filled.slice(0, 40),
+    vendor_had_none_list: missing.slice(0, 10),
+    not_in_servicepower_list: wrong_vendor.slice(0, 10),
+    failed_list: failed.slice(0, 5),
+  });
+};

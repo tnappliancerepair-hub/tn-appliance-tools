@@ -7,6 +7,7 @@
 const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
 const EVENT_LOG_TABLE = 3;
 const { sendSms } = require('./_lib/sms');
+const { primeXanoToken } = require('./_lib/secrets');
 const DANIELLE = '+16154850713';
 
 const MESSAGE =
@@ -30,6 +31,7 @@ function ctHour() {
 function jsonResp(c, b) { return { statusCode: c, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }; }
 
 exports.handler = async function (event) {
+  await primeXanoToken();   // 4KB budget: token lives in the vault, not env
   const force = ((event.queryStringParameters || {}).force === '1');
   const hour = ctHour();
   if (!force && (hour < 5 || hour > 11)) return jsonResp(200, { ok: true, skipped: 'outside_morning', hour });

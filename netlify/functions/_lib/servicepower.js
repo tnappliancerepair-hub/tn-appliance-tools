@@ -110,7 +110,26 @@ async function updateCallInfo({ callNumber, mfgId, fssCallId, scheduleDate, sche
 // Poll for jobs / read a call's current status (validates creds + reveals live
 // SPCallStatusID values). Request: getCallInfoSearch{ UserInfo, FromDateTime, ToDateTime, Callno }.
 // Dates: "mm/dd/yyyy HH:mm:ss". Response CallInfo includes CallStatus + SPCallStatusID.
-async function getCallInfo({ fromDateTime, toDateTime, callNo }) {
+async function getCallInfo(a = {}) {
+  const { fromDateTime, toDateTime } = a;
+  // An empty Callno is not "no filter I care about" -- it is UNSCOPED. The <Callno> element
+  // is simply omitted and ServicePower returns EVERY call in the window (and with an empty
+  // date window, every call full stop). That is exactly how one empty claim number wrote 762
+  // other people's parts onto a single job on 2026-09-11.
+  //
+  // A window-only query (no callNo key at all) is legitimate -- auto-accept and the capacity
+  // poll both list dispatches that way. So the guard keys on INTENT: a caller that asked to
+  // scope by call and handed over a blank one must get nothing, never everything.
+  if (Object.prototype.hasOwnProperty.call(a, 'callNo') && !String(a.callNo == null ? '' : a.callNo).trim()) {
+    throw new Error('getCallInfo: callNo was supplied but empty - an empty Callno is UNSCOPED and returns every call');
+  }
+  // The same failure also arrives as a TYPO. `{ callNumber: '123' }` carries no callNo at
+  // all, so an intent check alone reads it as a deliberate window query and the scope is
+  // silently lost. A misspelled scoping parameter must be loud, never unscoped.
+  const okKeys = ['fromDateTime', 'toDateTime', 'callNo'];
+  const bad = Object.keys(a).filter((k) => !okKeys.includes(k));
+  if (bad.length) throw new Error('getCallInfo: unknown parameter(s) ' + bad.join(', ') + ' - did you mean callNo? (a dropped scope returns every call)');
+  const callNo = a.callNo;
   const ui = await userInfoXml();
   const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);   // unqualified children
   const inner = `<impl:getCallInfoSearch>${ui}`
@@ -164,41 +183,177 @@ function parseCalls(raw) {
 // record for a job (vs parsing email), so the TDR return list matches ground truth.
 // All read-only + safe. Response shapes are discovered via the probe endpoint, then
 // parsed precisely once we see a real one.
-async function getCallAttributes({ callNumber, fssCallId, mfgId } = {}) {
+async function getCallAttributes({ fssCallId } = {}) {
   const ui = await userInfoXml();
-  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
-  const inner = `<impl:getCallAttributes>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getCallAttributes>`;
+  // WSDL CallAttributesInfo = { UserInfo, FSSCallId }. It does NOT accept CallNumber/MfgId --
+  // sending them returns "Invalid element in ...CallAttributesInfo - CallNumber". Verified
+  // against the live WSDL 2026-09-11.
+  const inner = `<impl:getCallAttributes>${ui}<FSSCallId>${esc(fssCallId)}</FSSCallId></impl:getCallAttributes>`;
   return soapCall(inner, '');
 }
-async function getCallNotes({ callNumber, fssCallId, mfgId } = {}) {
+async function getCallNotes({ callNumber, fromDateTime, toDateTime, versionNo } = {}) {
+  // HARD GUARD. An empty Callno does NOT scope the search -- ServicePower happily returns every
+  // note in the date window across EVERY dispatch. On 2026-09-11 that dumped 762 distinct parts
+  // from other people's jobs onto two jobs whose claim_number was '' (empty string, which slips
+  // past a not-null filter). A caller with no call number must get nothing, never everything.
+  if (!String(callNumber || '').trim()) throw new Error('getCallNotes requires a callNumber (an empty one returns ALL calls)');
   const ui = await userInfoXml();
+  // WSDL CallInfoSearch = { UserInfo, FromDateTime, ToDateTime, Callno, Versionno }.
+  // Note the lowercase "no" on Callno/Versionno -- CallNumber is rejected outright.
   const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
-  const inner = `<impl:getCallNotes>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getCallNotes>`;
+  const inner = `<impl:getCallNotes>${ui}${f('FromDateTime', fromDateTime)}${f('ToDateTime', toDateTime)}${f('Callno', callNumber)}${f('Versionno', versionNo)}</impl:getCallNotes>`;
   return soapCall(inner, '');
 }
-async function getProductCoverage({ callNumber, fssCallId, mfgId } = {}) {
+async function getProductCoverage({ fssCallId } = {}) {
   const ui = await userInfoXml();
-  const f = (tag, v) => (v == null || v === '' ? '' : `<${tag}>${esc(v)}</${tag}>`);
-  const inner = `<impl:getProductCoverage>${ui}${f('CallNumber', callNumber)}${f('FSSCallId', fssCallId)}${f('MfgId', mfgId)}</impl:getProductCoverage>`;
+  // WSDL ProductCoverageInfo = { UserInfo, FSSCallId }.
+  const inner = `<impl:getProductCoverage>${ui}<FSSCallId>${esc(fssCallId)}</FSSCallId></impl:getProductCoverage>`;
   return soapCall(inner, '');
 }
 
 // Best-effort generic parts extractor — scans a SOAP response for repeated part-ish
 // blocks and pulls part number / description / qty / return flags out of whatever tags
 // are present. Tuned precisely once we see a real getCallAttributes/getCallNotes response.
+// Parts + return-shipping extractor, tuned to the REAL WSDL types (verified 2026-09-11):
+//   PartsInfo    = PartsVendorId/Name, PartNo, PartDesc, PartLoc, PartCoverage, PartPrice,
+//                  OrderQuantity, OrderDate, PartStatusDate, PartTrackingId, PartTrackingUrl,
+//                  ShippingCarrier, ShippingMethod, InstalledDate, InstalledQuantity
+//   ShippingInfo = TrackingNo, Description, ShipCarrier, ShipMethod, ShipURL, ShipDate,
+//                  EstDeliveryDate, ShipType   <- ShipType distinguishes outbound vs RETURN
+// These are the authoritative parts list + return links, straight from the vendor, so the
+// office stops depending on an RMA email arriving and being parsed correctly.
 function parseParts(raw) {
   const out = [];
-  const blockRe = /<(?:\w+:)?(Part|PartInfo|SPPart|CallPart|Parts|PartDetail|Component)\b[^>]*>([\s\S]*?)<\/(?:\w+:)?\1>/gi;
+  const blockRe = /<(?:\w+:)?(Parts|PartsInfo)\b[^>]*>([\s\S]*?)<\/(?:\w+:)?\1>/gi;
   let m;
   while ((m = blockRe.exec(raw || ''))) {
     const b = m[2];
-    const pn = _tag(b, 'PartNumber') || _tag(b, 'PartNo') || _tag(b, 'SPPartNumber') || _tag(b, 'Number') || '';
-    const desc = _tag(b, 'PartDescription') || _tag(b, 'Description') || _tag(b, 'PartDesc') || '';
-    const qty = _tag(b, 'Quantity') || _tag(b, 'Qty') || '';
-    const ret = _tag(b, 'ReturnRequired') || _tag(b, 'Return') || _tag(b, 'ReturnFlag') || _tag(b, 'CoreReturn') || '';
-    const status = _tag(b, 'PartStatus') || _tag(b, 'Status') || '';
-    if (pn || desc) out.push({ part: pn, description: desc, quantity: qty, return_flag: ret, status });
+    const pn = _tag(b, 'PartNo') || _tag(b, 'PartNumber');
+    const desc = _tag(b, 'PartDesc') || _tag(b, 'PartDescription');
+    if (!pn && !desc) continue;
+    out.push({
+      part: pn,
+      description: desc,
+      vendor: _tag(b, 'PartsVendorName') || _tag(b, 'PartsVendorId'),
+      price: _tag(b, 'PartPrice'),
+      quantity: _tag(b, 'OrderQuantity'),
+      order_date: _tag(b, 'OrderDate'),
+      status_date: _tag(b, 'PartStatusDate'),
+      tracking: _tag(b, 'PartTrackingId'),
+      tracking_url: _tag(b, 'PartTrackingUrl'),
+      carrier: _tag(b, 'ShippingCarrier'),
+      ship_method: _tag(b, 'ShippingMethod'),
+      installed_date: _tag(b, 'InstalledDate'),
+      installed_qty: _tag(b, 'InstalledQuantity'),
+      coverage: _tag(b, 'PartCoverage'),
+      location: _tag(b, 'PartLoc'),
+    });
   }
+  return out;
+}
+
+// Shipping records on a call. ShipType tells outbound-to-us from return-to-vendor, and
+// ShipURL is the actual label/tracking link -- the thing the office chases today by email.
+function parseShipping(raw) {
+  const out = [];
+  const blockRe = /<(?:\w+:)?ShippingInfo\b[^>]*>([\s\S]*?)<\/(?:\w+:)?ShippingInfo>/gi;
+  let m;
+  while ((m = blockRe.exec(raw || ''))) {
+    const b = m[1];
+    const tn = _tag(b, 'TrackingNo');
+    const url = _tag(b, 'ShipURL');
+    if (!tn && !url) continue;
+    out.push({
+      tracking: tn,
+      url,
+      description: _tag(b, 'Description'),
+      carrier: _tag(b, 'ShipCarrier'),
+      method: _tag(b, 'ShipMethod'),
+      ship_date: _tag(b, 'ShipDate'),
+      est_delivery: _tag(b, 'EstDeliveryDate'),
+      type: _tag(b, 'ShipType'),
+    });
+  }
+  return out;
+}
+
+// ─── PARTS FROM THE API (the authoritative list) ──────────────────────────
+// VERIFIED LIVE 2026-09-11 on real SquareTrade dispatches. The parts list does NOT come
+// back as PartsInfo XML -- PartsInfo only exists on the WRITE side (UpdateCall). On the READ
+// side ServicePower returns it inside getCallNotes as repeated <Notes> text blocks:
+//
+//   Allstate part order details          <- the list, one stanza per part
+//     Part Number: WE22X36197
+//     Part Description: USER INTERFACE BOARD
+//     Quantity: 1
+//     If used during repair  requires return: No      <- THE RETURN FLAG
+//     Tracking Number: not yet available
+//
+//   Allstate part tracking details       <- same shape, tracking filled in later
+//   Allstate call created: model & issue details   <- issue text + return policy
+//
+// This is the same content the parts EMAIL carries, but pulled on demand per dispatch --
+// so it does not depend on an email arriving, being labeled, or parsing correctly.
+// Note the DOUBLE space in "repair  requires" -- match loosely on whitespace.
+function decodeEnt(t) {
+  return String(t || '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&nbsp;/g, ' ');
+}
+function notesBlocks(raw) {
+  const out = [];
+  const re = /<NotesDate>([\s\S]*?)<\/NotesDate>\s*<Notes>([\s\S]*?)<\/Notes>/gi;
+  let m;
+  while ((m = re.exec(raw || ''))) out.push({ date: decodeEnt(m[1]).trim(), text: decodeEnt(m[2]).trim() });
+  return out;
+}
+// Pull every part stanza out of the notes. Deduped on part number, and a later stanza that
+// carries a real tracking number upgrades the earlier one (order details land first, tracking
+// details arrive days later) -- same merge rule the email watcher needed.
+function partsFromNotes(raw) {
+  const byPart = new Map();
+  const val = (blk, label) => {
+    const re = new RegExp(label.replace(/\s+/g, '\\s+') + '\\s*:\\s*([^\n\r]*)', 'i');
+    const m = blk.match(re);
+    return m ? m[1].trim() : '';
+  };
+  for (const b of notesBlocks(raw)) {
+    // split the block into per-part stanzas on "Part Number:"
+    const chunks = b.text.split(/(?=Part Number\s*:)/i).filter((c) => /Part Number\s*:/i.test(c));
+    for (const c of chunks) {
+      const part = val(c, 'Part Number');
+      if (!part) continue;
+      const tracking = val(c, 'Tracking Number');
+      const retRaw = val(c, 'If used during repair requires return') || val(c, 'requires return');
+      const rec = {
+        part,
+        description: val(c, 'Part Description'),
+        quantity: val(c, 'Quantity'),
+        // "Shipping Provider: FedEx" rides along on the tracking-details stanza.
+        carrier: val(c, 'Shipping Provider') || val(c, 'Shipping Carrier'),
+        // "No" here means: if you USE it, you keep it. Anything else that says go-back must go
+        // back -- a CORE is a return obligation too, and it used to fall through to null (i.e.
+        // "unknown", i.e. nobody gets told), which is the wrong direction on a chargeback.
+        requires_return: /^(y|core)/i.test(retRaw) ? true : (/^n/i.test(retRaw) ? false : null),
+        tracking: /not yet available/i.test(tracking) ? '' : tracking,
+        noted_at: b.date,
+      };
+      const prev = byPart.get(part);
+      if (!prev) { byPart.set(part, rec); continue; }
+      // merge: never let a later empty field erase a known one
+      for (const k of ['description', 'quantity', 'tracking', 'carrier']) if (!prev[k] && rec[k]) prev[k] = rec[k];
+      if (prev.requires_return == null && rec.requires_return != null) prev.requires_return = rec.requires_return;
+    }
+  }
+  return Array.from(byPart.values());
+}
+// The per-dispatch links ServicePower hands us on getCallAttributes -- notably the
+// "Appointment completion form" (the SquareTrade wizard that IS their TDR).
+function attributesFromRaw(raw) {
+  const out = {};
+  const re = /<CallAttributes[^>]*>\s*<Label>([\s\S]*?)<\/Label>\s*<Value>([\s\S]*?)<\/Value>/gi;
+  let m;
+  while ((m = re.exec(raw || ''))) out[decodeEnt(m[1]).trim()] = decodeEnt(m[2]).trim();
   return out;
 }
 
@@ -250,4 +405,4 @@ async function updateTechCapacity({ key, capacity, date, timeBand }) {
 
 const TIME_BANDS = { '8-12': 'MORNING', '12-17': 'AFTERNOON', '8-17': 'ALL DAY', '17-21': 'EVENING', '6-8': 'EARLY MORNING' };
 
-module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getCallAttributes, getCallNotes, getProductCoverage, parseParts, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
+module.exports = { isConfigured, serviceUrl, soapCall, getTestService, getCallInfo, updateCallInfo, parseCalls, getCallAttributes, getCallNotes, getProductCoverage, parseParts, parseShipping, partsFromNotes, notesBlocks, attributesFromRaw, getTechInfo, parseTechs, updateTechInfo, updateTechCapacity, TIME_BANDS, CALL_STATUS, NS };
