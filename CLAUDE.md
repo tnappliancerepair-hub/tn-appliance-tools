@@ -53,12 +53,49 @@ path got there first. That IS the agreement check. Writes nothing until vault
 new `servicepower-auto-accept-cron`; the core stays curlable. **The core was previously UNGATED**
 (the edge-403 was the de-facto gate) — it now requires the admin secret.
 
+### 🚨 IT IS LIVE, AND ITS FIRST RUN FOUND A DROPPED CUSTOMER
+Merged + deployed + `SERVICEPOWER_API_INTAKE_LIVE=true`. The shadow delivered its whole verdict
+on run one, so there was nothing left to watch for: **21 days, 76 calls, 75 already on the board,
+0 errors — and every one of the 75 matched a `servicepower_email` job on the same key.**
+
+**The 76th is the reason this exists.** Call `044623184136` — **KATHRYN CARAWAY, New Orleans,
+GE washer GTW485ASWWB, ACCEPTED, scheduled 09/11 8-10 AM** — was on ServicePower's board and
+**on neither of ours**. Xano job 21890 is an unreadable husk: `friendly_status` "Email captured —
+needs review", `technician_id: 0`, no name, no phone, no address, no date, `notes_internal` is
+the **raw unparsed HTML document**. It sat that way for 8 days while the appointment came and went.
+- **The parser never had a chance: that email is a FOURTH dispatch shape** — sender
+  `warrantysupport@squaretrade.com`, subject **"Allstate Protection Plans: ServicePower Repair
+  044623184136"**. It contains none of the three subjects the tee matches, and it fell through
+  Xano's ServicePower parser to `email_generic_warranty`. **The API sidesteps parsing entirely —
+  that is the whole point.** Don't "fix" this by chasing a fifth subject string.
+- **Her job is now on the board** (`source: servicepower_api`, full name/phone/model/city) and
+  she needs a human — that appointment is already past.
+- ⚠️ The live run's curl **timed out and the write still landed** (documented Netlify behavior).
+  Verify a run by reading the DATA, never by the response you got back.
+
+### 🔍 THE "1:1 KEY" IS A PROPERTY OF THE INTAKE PATHS, NOT OF THE BOARD
+Checked after going live, because a board-wide count looked alarming: **111 of 454 twelve-digit
+call numbers appear more than once.** Broken down by source it is not what it looks like:
+
+| source | SP call-number keys | duplicated WITHIN source |
+|---|---|---|
+| `servicepower_email` | 372 | **0** |
+| `import_xano` (legacy backfill) | 148 | **23** |
+| `servicepower_api` (new) | 1 | **0** |
+
+**Neither intake path duplicates itself.** The pairs are one email-path row beside one
+Xano-import row for the same dispatch (consecutive `xano_id`s — 20937/20938 — i.e. Xano made
+two jobs and the import copied both). **132 extra rows, but only 12 are still in an active
+status**, so the working board is barely affected. Dedup is unharmed either way: it takes the
+first match and stops, so it can only ever shrink the pile, never add to it.
+
 ### ⏭️ OPEN
-- **Needs the merge to `main`** — verified live: core = 403 (still scheduled on main), cron = 404
-  (not deployed). Merging is safe: intake deploys in OBSERVE mode and writes nothing.
+- **KATHRYN CARAWAY needs a human** — accepted SquareTrade job, appointment was 09/11 8-10 AM,
+  nobody knew. Everything needed to call her is on her card now.
 - **NSA can never come through this.** ServicePower carries the SquareTrade/Allstate book only;
   NSA arrives solely by email (`subject:"NSA Dispatch for"`). The email tee is its only path.
-- Watch a day of shadow, then flip `SERVICEPOWER_API_INTAKE_LIVE=true`.
+- 12 legacy duplicate cards (Xano-import twins) are worth one cleanup pass.
+- Watch `source='servicepower_api'` — every row is a job the email path missed.
 
 ## 📥🔁 2026-09-12 (latest) — THE WHOLE WARRANTY BOOK NOW FEEDS SUPABASE DIRECTLY: the tee was matching ONE subject, so 72% of TN's work only ever reached Xano · the dual feed is PROVEN un-duplicatable · a cold Gmail read returned 1 of 24 — READ FIRST
 
