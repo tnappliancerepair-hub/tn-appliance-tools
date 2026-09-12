@@ -1,6 +1,93 @@
 # Appliance Ant
 
-## 🏷️🔍 2026-09-12 (latest) — THE PLATFORM DIDN'T KNOW WHICH MACHINE IT FIXED: 13 of 417 completed jobs had a model · the mirror only walks ACTIVE, so a job's unit FREEZES the moment it completes · 392 recovered, and the 321 left are the REAL intake gap — READ FIRST
+## 💳✅ 2026-09-12 (latest) — A REAL SIGNUP WALK FOUND 3 BUGS READING THE CODE MISSED · one login can only ever own ONE shop · a failed provision left a live seatless tenant · SES ACTUALLY WORKS (the "SANDBOX" line was reading our own flag) — READ FIRST
+
+Ran the live signup chain with a real card. **$0 (14-day trial) and it paid for itself immediately** —
+the first attempt failed and surfaced three genuine defects that the 2026-09-09 code audit did not.
+
+### 🥇 ONE LOGIN = ONE SHOP, and nothing checked before taking the card
+Signed up on an email that **already owned a shop**. Checkout succeeded, provisioning died:
+`23505 duplicate key value violates unique constraint "app_user_auth_user_id_key"`.
+**`app_user.auth_user_id` is UNIQUE** — one Supabase login maps to exactly one `app_user` row and
+therefore ONE company. A second shop on the same login is structurally impossible, and signup
+happily charged for it. Real business case (an owner opening a 2nd location), not just a test
+artifact. **FIXED: `platform-signup` refuses BEFORE the card screen.** Verified live —
+`{"ok":false,"error":"email_already_owns_a_shop"}`, no checkout URL, no charge.
+- ⚠️ Compared in **JS**, not a PostgREST filter: stored owner emails are NOT uniformly lowercased
+  (`Gllong178@gmail.com`), and `ilike` would need wildcard escaping on user input. Fine at
+  shop-count scale; wants a citext column or lowered index past a few thousand.
+
+### 🧟 A FAILED PROVISION LEFT A LIVE, BILLABLE, SEATLESS TENANT
+Provision creates the company, THEN the owner. The owner insert failed and it returned — leaving
+`zz-shop`: status `active`, plan `office`, **0 seats, nobody could ever log in.** **FIXED:** it now
+tracks whether THIS call created the company and rolls it back on owner-link failure
+(`rolled_back` in the response). The live orphan was purged.
+- ⚠️ **A seatless company is the tell.** Query it periodically:
+  `select c.slug,count(u.id) from company c left join app_user u on u.company_id=c.id group by 1 having count(u.id)=0`.
+  **3 of the current hits are INTENTIONAL** (mid-tenn-furniture / music-city-aquatics /
+  nextgen-motors — the friends' shops, provisioned without owner emails). `test-shop` is stale junk.
+
+### 🔁 A DETERMINISTIC FAILURE WAS BEING RETRIED AS IF TRANSIENT
+The 2026-09-09 fix made a failed provision return non-2xx so Stripe re-delivers. Correct for a
+blip; **wrong for a unique-constraint violation, which fails identically forever.** Measured: **3
+"Paid signup stranded" emails** before the fix landed, and it would have run ~3 days. **FIXED:**
+provision now reports `retryable:false` for a failure it KNOWS is permanent; the webhook stops
+retrying, answers 2xx, and the alert says plainly that this one will not self-heal and needs a human.
+- **The stranded-signup alert itself worked perfectly** (SMS + email, both channels, with the
+  recovery command). That half needed no change — it is what made the bug diagnosable in seconds.
+
+### ✅ THE CLEAN RUN — full 7-seat shop in 5 seconds
+Second attempt on a fresh email: company + **owner + 2 office + 4 techs, every one with a login**,
+`password_vaulted: true`, `terms_version` recorded, **exactly ONE `platform_signup_provisioned`
+event** (the exactly-once gate held while webhook + redirect raced). Purged after: 7 auth users
+deleted, 0 residue, tenant count back to its pre-test number.
+
+### 🔴 CORRECTION — SES IS NOT AS BROKEN AS platform-status SAYS
+`platform-status` reports **SANDBOX**, but that line reads our own `SES_PRODUCTION_ACCESS` vault
+flag — **it repeats what we told it, not what AWS believes.** The live run proves sending works:
+the owner's **"Your Ant dashboard is ready" email actually arrived** despite DKIM being revoked.
+- **What IS true:** DKIM is genuinely revoked (`SUCCESS 5/13 → DISABLED 5/19 → REVOKED 5/24`,
+  us-east-2, all three notices in the inbox). Sandbox means **only already-verified recipients**
+  get mail — so *we* receive it and a brand-new customer would not.
+- **DNS is HEALTHY otherwise** (checked over DoH): `mail.tnapplianceexchange.net` SPF
+  `include:amazonses.com ~all` ✅ and MX `feedback-smtp.us-east-2.amazonses.com` ✅, `_dmarc` p=none ✅.
+  Root SPF `include:secureserver.net -all` is **fine** — with a custom MAIL FROM subdomain SPF is
+  checked against `mail.…`, not root. **Only the 3 DKIM CNAMEs are missing.**
+- **⚠️ DNS IS AT GODADDY** (`pdns09/pdns10.domaincontrol.com`), NOT Netlify. The CNAMEs go there.
+
+### 🔐 THE "TWO AWS ACCOUNTS" WAS NEVER TWO ACCOUNTS
+Hours were lost to this. **There is ONE account: `586117210123`, root email
+`tnappliancerepair@gmail.com`** (16 monthly billing statements + the root password-reset flow both
+land there). It *looked* like two because **four Gmail connections** are wired and `inbox-4` mirrors
+`tnappliancerepair@` exactly — the same AWS mail shows up in several places.
+- **`ses-status.js` (NEW, read-only, owner-gated)** answers this over the API so nobody fights the
+  console again. It CANNOT write, enable sending, or request production access.
+- **⚠️ The IAM user `tn-appliance-xano` is SEND-ONLY** — `ses:SendEmail` but no `ses:Get*`/`ses:List*`.
+  So DKIM/sandbox state is NOT readable with the current keys. Grant SES read to that user and
+  `ses-status` will hand back the exact 3 CNAMEs formatted for GoDaddy.
+- **⚠️ FOOTGUN I SHIPPED AND CAUGHT:** the first cut returned **"SES is production-ready"** with an
+  empty blockers array — while all three reads had failed with AccessDenied. It read green because
+  it learned NOTHING. **Same class as a guard keyed on a field that is structurally always zero.**
+  Fixed: a verdict now requires evidence; absence of evidence reports UNKNOWN.
+
+### ⚠️ FOOTGUNS BURNED
+- **NEVER cancel a Stripe sub by EMAIL on this account.** `tnappliance@gmail.com` had **two**
+  trialing subs — the junk one AND `tn-appliance-exchange-llc` (the real shop). `platform-subs-audit
+  action=cancel&email=` would have killed production. **Always `&sub=<sub_id>`.**
+- `platform-provision action=purge` needs the full ladder: **offboard → churned → purge**, and
+  inside the 30-day retention window also **`&force=yes&confirm=yes`**. Each guard is deliberate.
+- **A signup that pays but cannot provision leaves a Stripe subscription behind even after the
+  tenant is purged.** Cancel the sub explicitly — the purge does not touch Stripe.
+
+### ⏭️ OPEN
+- **Real shop trial ends 2026-09-17** (`sub_1UBaZA03MYZgTikF3xF3aJ4C`) → first $99.
+- **SES production access** is still the only thing blocking login email to a NEW customer. Order
+  matters: **re-add the 3 DKIM CNAMEs at GoDaddy first**, let SES re-verify, THEN request
+  production. AWS will not grant production on a revoked identity.
+- **Nothing here blocks signups.** Every owner gets a vaulted password + a magiclink; the operator
+  alert names the recovery command. The login email is polish.
+
+## 🏷️🔍 2026-09-12 — THE PLATFORM DIDN'T KNOW WHICH MACHINE IT FIXED: 13 of 417 completed jobs had a model · the mirror only walks ACTIVE, so a job's unit FREEZES the moment it completes · 392 recovered, and the 321 left are the REAL intake gap — READ FIRST
 
 Picked up the open item from the 2026-09-11 crew session: *"a model/serial backfill for TERMINAL
 jobs — found, not fixed."* It was worse than the note said, and the fix is a sweep, not a rewrite.
