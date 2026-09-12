@@ -72,9 +72,19 @@ async function runIntakeSplit(opts) {
     return out;
   }
 
+  // ⚠️ DO NOT window this on created_at. On this table created_at is the MIRROR's write time,
+  // not when the job came in — measured 2026-09-12, every unlinked non-canceled TN job showed
+  // a created_at inside 9 days, so days=21 and days=90 scanned the identical 1,662 rows. A
+  // knob that silently does nothing is worse than no knob.
+  // The window that means something is the appointment: recent work, PLUS everything not yet
+  // scheduled — fresh intake with no day on it is exactly what we most want to flag, before a
+  // tech is ever sent.
   const sel = 'id,problem,status,source,claim_number,scheduled_day,created_at,unit:unit_id(label)';
   let f = `job?company_id=eq.${TN_COMPANY}&stop_id=is.null&status=neq.canceled&select=${encodeURIComponent(sel)}&order=id.asc`;
-  if (days) f += `&created_at=gte.${new Date(Date.now() - days * 86400000).toISOString()}`;
+  if (days) {
+    const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    f += `&or=(scheduled_day.is.null,scheduled_day.gte.${since})`;
+  }
   const jobs = await page(f);
   if (!jobs) return { ok: false, error: 'platform_read_incomplete — refusing to flag off a short read' };
 
@@ -86,7 +96,7 @@ async function runIntakeSplit(opts) {
 
   const res = {
     ok: true, mode: apply ? 'live' : 'dryrun', days: days || 'all',
-    jobs_scanned: jobs.length, already_flagged: 0,
+    jobs_scanned: jobs.length, unscheduled_included: jobs.filter((j) => !j.scheduled_day).length, already_flagged: 0,
     flagged: 0, second_machine: 0, label_mismatch: 0, one_machine: 0,
     refused: { combo: 0, reference: 0 },
     candidates: [], errors: 0,
