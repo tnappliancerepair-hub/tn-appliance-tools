@@ -140,11 +140,14 @@ async function runChecks(opts) {
     const sbops = require('./_lib/supabase');
     stats.backup = {};
     for (const [label, mname] of [['xano', '_manifest'], ['platform', '_manifest_platform']]) {
+      // Pull a few and take the newest NON-scoped one: a manual ?probe writes a
+      // manifest too, and reading it as the nightly run turns a 1-table probe
+      // into a green light.
       const rows = await sbops.select('xano_backup_chunks', {
-        table_name: 'eq.' + mname, order: 'created_at.desc', limit: '1',
+        table_name: 'eq.' + mname, order: 'created_at.desc', limit: '12',
         select: 'snapshot_date,created_at,rows',
       });
-      const m = (rows && rows[0]) || null;
+      const m = (rows || []).find((r) => !((r.rows || {}).scoped)) || null;
       if (!m) {
         stats.backup[label] = 'never';
         fails.push(`${label} off-site backup has never written a manifest`);

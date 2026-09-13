@@ -320,6 +320,11 @@ async function backupTables(opts = {}) {
   const summary = {
     date, started_at: new Date().toISOString(), tables: [],
     complete: true, skipped_budget: [], skipped_cadence: [], budget_ms: BUDGET_MS,
+    // A scoped run (?probe / ?only=) is NOT the nightly backup. It still writes a
+    // manifest so the probe is auditable, but it must be labelled or it becomes
+    // the "latest manifest" and silently blinds the backup watchdog -- a probe of
+    // one table would read as a clean full backup. Observed 2026-09-13.
+    scoped: scoped || undefined,
   };
   for (const id of ids) {
     const name = NAME_MAP[id] || ('table-' + id);
