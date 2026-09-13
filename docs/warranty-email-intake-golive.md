@@ -31,6 +31,20 @@ Verified live on the demo tenant: AHS XML, ServicePower/SquareTrade, and an unkn
 format (Claude fallback) each created a correct job; idempotency + claim-dedup + non-dispatch-skip
 all hold.
 
+### State as measured 2026-09-13 — everything below the Cloudflare hop is live
+
+| piece | state |
+|---|---|
+| `platform-email-intake` endpoint | **live and proven** — 122 real rows landed (all TN, via the warranty tee POSTing into it) |
+| `PLATFORM_EMAIL_SECRET` vault key | **set** (wrong-secret probe returns `unauthorized`) |
+| slug resolution from the to-address | **works** — handles `demo@…` and `Jobs <demo@…>` |
+| worker code + wrangler.toml | **written, complete** (`cloudflare/email-intake-worker`) |
+| **MX on `jobs.assistant247.net`** | **EMPTY — nothing is routed.** This is the only gap. |
+
+So **no shop has ever received a real dispatch email**: the address does not exist in DNS. Every
+`email_intake` row to date arrived by an internal POST, not by mail. The steps below are the whole
+remaining distance.
+
 ---
 
 ## Go-live — Teddy's Cloudflare steps (~15 min, one time)
@@ -58,8 +72,11 @@ all hold.
    **catch-all address** to run the `assistant-email-intake` worker. (Verify `FALLBACK_INBOX` under
    **Destination addresses** first — Cloudflare emails it a confirm link.)
 
-5. **Set the shared secret in the platform vault** (admin-secrets → key `PLATFORM_EMAIL_SECRET`) to the
-   SAME value you gave the worker in step 3. That's the only thing gating the intake endpoint.
+5. **The shared secret is ALREADY SET** in the platform vault as `PLATFORM_EMAIL_SECRET` — verified
+   live 2026-09-13 (the intake endpoint answers `unauthorized` to a wrong secret rather than
+   `not configured`). So do **not** invent a new value in step 3: reveal the existing one
+   (admin-secrets.html) and give the worker exactly that. Setting the worker to a different value
+   is the one way to make every inbound dispatch silently bounce to `FALLBACK_INBOX`.
 
 That's it. From then on, any `‹slug›@jobs.assistant247.net` that receives a dispatch lands a job.
 
