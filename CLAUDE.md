@@ -1,6 +1,70 @@
 # Appliance Ant
 
-## 📣💸 2026-09-13 (latest) — THE ADS ACCOUNT CAN TELL YOU A PHONE RANG AND NOTHING ELSE · $845/mo unfalsifiable for 30 days · the ads line was never written down · geo was serving the whole planet — READ FIRST
+## 🧑‍🔧🏠 2026-09-13 (latest) — LOCAL FIRST: the crew now sits ABOVE the AI on all three landing pages · the homepage buried its own faces 3,580px down · "/" does NOT serve appliance-ai.html — READ FIRST
+
+Teddy: *"it almost seems a little bit too AI-ish and not enough local... put the local text at the
+very top... so they could see it's real people that work there before all of the AI stuff gets on
+there. I like the AI stuff, but I think that people will avoid it."*
+
+### 🥇 THE FINDING — the local proof existed everywhere and was visible nowhere
+| page | where the local proof lived BEFORE | first tech face |
+|---|---|---|
+| `appliance-ai.html` (the ad landing page) | meta tags + JSON-LD + a muted grey SEO footer **below the whole funnel** | **never shown** |
+| `index.html` (the homepage) | a trust LINE at top, but the crew section is h2 #4 | **3,580px** (4+ screens) |
+| `always-open.html` (live ad traffic) | nowhere at all | **none** |
+
+`index.html` also put *"Rated 4.5★ by real neighbors"* at **5,711px** — nearly 7 screens. That is
+literally the *"in the middle"* Teddy named. Fixed: **157px · 60px · 142px** respectively.
+
+### 🔴 CORRECTION TO THE RECORD — **`/` does NOT serve `appliance-ai.html`**
+This file has said the intake page is the front door. **That rewrite is COMMENTED OUT
+(`_redirects` line 80).** The homepage is `index.html`, a separate page — so a fix to
+`appliance-ai.html` does not touch what someone sees when they Google the business name.
+**Check `_redirects` before assuming which page a URL serves.**
+
+### 🎯 WHICH PAGES THE ADS ACTUALLY LAND ON (pulled live off the Ads account, not assumed)
+The ONE enabled campaign (*After-Hours — Nashville Metro*) runs 10 ads: **9 → `appliance-ai.html`,
+1 → `always-open.html`.** So the band had to go on both. `/` takes **zero** enabled ad traffic (only
+the REMOVED "search $50" pointed there) — it matters for brand/organic/GBP, not for ads.
+- ⚠️ **The landing pages' phone is 629-272-1234, NOT the ads line 615-845-8500** — so a visitor who
+  arrives from an ad and calls off the page is **invisible to `google-ads-truth`**. Worth fixing
+  before judging cost-per-job.
+
+### 🐞 THE BUG THIS EXPOSED — the page auto-scrolled 239px past its own hero on load
+`choices()` calls `scrollIntoView({block:'center'})`, which on **first paint** centers the appliance
+grid and shoves everything above it off-screen. **The committed page was already hiding its own orb
++ headline this way** (measured `scrollY:239`, `stage_top:-157`). That scroll is right once a
+customer is working the funnel and wrong before they have touched anything.
+- **Fix: `revealInto(el)` + `_userActed`** — a one-time `pointerdown/keydown/touchstart` listener.
+  Every step still scrolls into view the moment the customer engages; nothing scrolls before that.
+- ⚠️ **STANDING: a landing page that auto-scrolls on load is deciding what the visitor never sees.**
+  Measure `window.scrollY` on first paint before trusting any above-the-fold claim.
+
+### 📐 WHAT SHIPPED
+- One crew band: ★4.5 + 1,100+ reviews + family-owned-since-2012, the **five techs by face, name and
+  service area** (linked to `/about.html`), licensed & insured. `index.html` gets the **faces only**
+  (its trust text was already up top) and keeps its full bio section below — a strip, not a move.
+- **`always-open.html` needed its own token mapping** (navy `--panel/--ink/--dim`), not the orange set.
+- **New `team/sm/*.jpg` thumbnails: 624KB → 18KB (97% smaller).** Five full-size portraits above the
+  fold on mobile ad traffic is a bounce risk; 46px thumbs are not.
+- **Orb 120px → 84px** to pay back the space the band costs. Sizing only — **no copy touched.**
+- Verified **5/5 photos, zero label collision, zero clipping, no new horizontal overflow** across
+  320 / 390 / 430 / 1280 on all three pages. Live: all three serve 5 faces.
+
+### ⚠️ TRADEOFF NAMED, NOT HIDDEN
+On `appliance-ai.html` the first tap target moves **328px → 725px**. The 328 was never real estate we
+earned — it was the auto-scroll. **The AI stage between the band and the buttons is still 429px** of
+orb + kicker + 24/7 badge + headline + sub + a grey paragraph. **That bulk, not the 202px band, is
+what holds the buttons down.** Cutting it means cutting Teddy's copy — his call, deliberately not made.
+
+### ⏭️ OPEN
+- **Point the ad landing pages' phone at 615-845-8500** so paid calls are attributable.
+- The grey "Broken machine? We're the easy button…" paragraph (~99px) is the cheapest remaining cut
+  if Teddy wants the tap targets higher.
+- **Pre-existing, untouched:** 320px viewports scroll horizontally ~15px from the askbar send button
+  — identical on the committed version, unrelated to this work.
+
+## 📣💸 2026-09-13 — THE ADS ACCOUNT CAN TELL YOU A PHONE RANG AND NOTHING ELSE · $845/mo unfalsifiable for 30 days · the ads line was never written down · geo was serving the whole planet — READ FIRST
 
 Teddy: *"I want to pivot to advertising… maximize your ability to help us convert more and clean
 up whatever we need to clean up in our Google Ads."* Measured the account first. The cleanup he
