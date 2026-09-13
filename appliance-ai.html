@@ -220,11 +220,12 @@
   .hidden{display:none!important;}
 </style>
 <script src="/meta-pixel.js"></script>
+<script src="/ads-phone.js" defer></script>
 </head>
 <body>
   <div class="top">
     <div class="brand">TN APPLIANCE<span class="x">.</span></div>
-    <a class="ph" href="tel:+16292721234">📞 629-272-1234</a>
+    <a class="ph" data-ads-phone href="tel:+16292721234">📞 629-272-1234</a>
   </div>
 
   <!-- Real people first. The AI is the tool; the crew is the reason anyone books. -->
@@ -788,8 +789,8 @@ function submitFree(){
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ recordAdClick(d.job_id);recordLeadSource(d.job_id); fireAdsBooked(d.job_id, FREE_MODE?0:50); clearFlow(); done(); }
-      else { btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 629-272-1234.')); }
-    }catch(e){ btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ Connection hiccup — tap again, or call 629-272-1234.'); }
+      else { btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call '+(window.TN_PHONE||'629-272-1234')+'.')); }
+    }catch(e){ btn.disabled=false; btn.textContent='Get my honest answer →'; antMsg('⚠ Connection hiccup — tap again, or call '+(window.TN_PHONE||'629-272-1234')+'.'); }
   };
 }
 function payStep(){
@@ -861,8 +862,8 @@ function payStep(){
       })});
       const d=await r.json();
       if(d&&d.ok&&d.url){ recordAdClick(0); window.location.href=d.url; }   // capture the click (job lands after pay) -> Stripe Checkout
-      else { btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((d&&d.error)||'Couldn’t start checkout — try again, or call 629-272-1234.')); }
-    }catch(e){ btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((e&&e.message)?('Couldn’t reach checkout ('+e.message+') — '):'Connection hiccup — ')+'try again, or call 629-272-1234.'); }
+      else { btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((d&&d.error)||'Couldn’t start checkout — try again, or call '+(window.TN_PHONE||'629-272-1234')+'.')); }
+    }catch(e){ btn.disabled=false; btn.textContent=payLabel; antMsg('⚠ '+((e&&e.message)?('Couldn’t reach checkout ('+e.message+') — '):'Connection hiccup — ')+'try again, or call '+(window.TN_PHONE||'629-272-1234')+'.'); }
   };
 }
 // The "That was easy ✅" moment — the brand feeling made tangible at the finish line.
@@ -928,8 +929,8 @@ function submitInHome(){
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ recordAdClick(d.job_id);recordLeadSource(d.job_id); fireAdsBooked(d.job_id, 100); clearFlow(); doneInHome(); }
-      else { btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 629-272-1234.')); }
-    }catch(e){ btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ Connection hiccup — tap again, or call 629-272-1234.'); }
+      else { btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call '+(window.TN_PHONE||'629-272-1234')+'.')); }
+    }catch(e){ btn.disabled=false; btn.textContent='Get me on the schedule →'; antMsg('⚠ Connection hiccup — tap again, or call '+(window.TN_PHONE||'629-272-1234')+'.'); }
   };
 }
 function doneInHome(){
@@ -981,8 +982,8 @@ function warrantyFinish(){
       })});
       const d=await r.json().catch(()=>({}));
       if(d&&d.ok){ recordAdClick(d.job_id);recordLeadSource(d.job_id); clearFlow(); done(); }
-      else { btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call 629-272-1234.')); }
-    }catch(e){ btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ Connection hiccup — tap again, or call 629-272-1234.'); }
+      else { btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ '+((d&&d.error)||'Hiccup on our end — tap again, or call '+(window.TN_PHONE||'629-272-1234')+'.')); }
+    }catch(e){ btn.disabled=false; btn.textContent='Get me scheduled →'; antMsg('⚠ Connection hiccup — tap again, or call '+(window.TN_PHONE||'629-272-1234')+'.'); }
   };
 }
 
