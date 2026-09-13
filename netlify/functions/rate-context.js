@@ -35,7 +35,7 @@ exports.handler = async function (event) {
     if (row) { already = true; priorStars = Number(meta(row).stars || 0); }
   } catch (_) {}
 
-  let first = 'there', tech = '', appliance = '';
+  let first = 'there', tech = '', appliance = '', city = '';
   try {
     const d = await fetch(`${XANO}/get_job_for_dashboard`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), signal: AbortSignal.timeout(9000) }).then((r) => r.json());
     const c = (d && d.customer) || {};
@@ -44,7 +44,11 @@ exports.handler = async function (event) {
     tech = String((tk && (tk.first_name || tk.name)) || '').trim().split(/\s+/)[0] || '';
     const ap = (d && d.appliance) || {};
     appliance = String((ap && ap.type) || (d && d.job && d.job.appliance_type) || '').trim().toLowerCase();
+    // City is the map-pack word. A review that says "Nashville" is worth far more to local
+    // rank than one that doesn't, and the rating page is where 99% of reviewers actually pass
+    // through - the SMS-reply fallback that used to carry this nudge fires ~3x a month.
+    city = String(c.city || (d && d.job && d.job.service_city) || '').trim();
   } catch (_) {}
 
-  return j(200, { ok: true, first, tech, appliance, google_url: REVIEW_URL, nextdoor_url: await nextdoorUrl(), already, stars: priorStars });
+  return j(200, { ok: true, first, tech, appliance, city, google_url: REVIEW_URL, nextdoor_url: await nextdoorUrl(), already, stars: priorStars });
 };

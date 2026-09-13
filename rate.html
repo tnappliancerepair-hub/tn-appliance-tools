@@ -130,6 +130,19 @@
     if(stars>=4){ shareScreen(); } else { thanks('low',false); }
   }
 
+  // The map-pack nudge. A review that names the tech and the city ranks us for that city;
+  // a generic "great service" does almost nothing. This exact wording already existed but
+  // lived only in the SMS-reply fallback, which ~1% of customers take - so the 99% who tap
+  // through this page were reaching Google with no prompt at all. Purely a suggestion; we
+  // never tell anyone what to say or what to rate.
+  function mentionHint(){
+    var bits=[]; if(ctx.tech) bits.push(esc(ctx.tech)); if(ctx.city) bits.push(esc(ctx.city));
+    if(!bits.length) return '';
+    return '<div class="muted" style="margin:0 0 16px;font-size:13px">'+
+      'If it helps, mentioning '+bits.join(' and ')+' in your review is how your neighbors find us.'+
+      '</div>';
+  }
+
   // Happy path: one big obvious Google button (the priority for the map pack), with a small
   // Nextdoor option underneath for folks who prefer it. Kept to ONE clear action = simplest.
   function shareScreen(){
@@ -137,7 +150,8 @@
     card.innerHTML='<div class="state">'+
       '<div class="big">🎉</div>'+
       '<div class="msg">Thank you'+(ctx.first?(', '+esc(ctx.first)):'')+'!</div>'+
-      '<div class="muted" style="margin:2px 0 18px">One quick review helps our small family shop more than you know.</div>'+
+      '<div class="muted" style="margin:2px 0 14px">One quick review helps our small family shop more than you know.</div>'+
+      mentionHint()+
       '<a class="btn" style="text-decoration:none" href="'+esc(g)+'">★ Post a Google review</a>'+
       (nd?'<div style="margin-top:16px"><a href="'+esc(nd)+'" style="color:var(--ink2);font-size:14px">or recommend us on Nextdoor →</a></div>':'')+
       '<div class="muted" style="margin-top:14px;font-size:12.5px">Tap the button, then just tap the stars &amp; Post. Takes 20 seconds.</div>'+
@@ -149,7 +163,8 @@
       var nd=ctx.nextdoor_url;
       card.innerHTML='<div class="state">'+
         '<div class="big">🌟</div><div class="msg">Thanks for the love!</div>'+
-        '<div class="muted" style="margin:2px 0 16px">'+(already?'You already rated this visit — thank you!':'')+'</div>'+
+        '<div class="muted" style="margin:2px 0 14px">'+(already?'You already rated this visit — thank you!':'')+'</div>'+
+        mentionHint()+
         '<a class="btn" style="text-decoration:none" href="'+esc(ctx.google_url)+'">★ Leave a Google review</a>'+
         (nd?'<div style="margin-top:16px"><a href="'+esc(nd)+'" style="color:var(--ink2);font-size:14px">or recommend us on Nextdoor →</a></div>':'')+
       '</div>';
