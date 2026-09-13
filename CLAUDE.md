@@ -1,6 +1,80 @@
 # Appliance Ant
 
-## 🧑‍🔧🏠 2026-09-13 (latest) — LOCAL FIRST: the crew now sits ABOVE the AI on all three landing pages · the homepage buried its own faces 3,580px down · "/" does NOT serve appliance-ai.html — READ FIRST
+## 📘👥 2026-09-13 (latest) — EVERY FACEBOOK SHARE NOW SAYS WHAT WE DO · `<title>` was right and `og:title` had drifted somewhere else · always-open had NO card image at all · a "1,100+" that overstated the real 1,100 — READ FIRST
+
+Teddy: *"when we post a link on Facebook I'd like it to mention fast appliance repair on that
+link so they know what we do."* Then: *"Let's maximize appliance repair trust. Let's maximize
+that to the full potential."*
+
+### 🥇 THE FINDING — the SEO title and the social title had quietly diverged
+Every `<title>` on the site is current and says appliance repair. **Facebook never reads
+`<title>`** — it builds the card from `og:title` on the destination page, and those had drifted:
+
+| page posted | what a stranger saw on Facebook |
+|---|---|
+| **`/` (the bare domain — the link that actually gets posted)** | *"1,000+ 5★ Reviews · A Real Answer Today, $50"* |
+| `always-open.html` | *"Broken at 2am? We answer. Open 24/7 · 365."* |
+| `about.html` | *"LONG LIVE ANT!"* |
+
+Every one of those is TRUE. **Not one says what the business does.** Now:
+`Fast Appliance Repair — Middle TN & Louisiana · 4.5★` / `… Nashville & Middle TN · Same-Day` /
+`Fast Appliance Repair, Open 24/7 · 365 — We Answer at 2am` / `LONG LIVE ANT! — The Story Behind
+Our Appliance Repair Shop`. **about.html keeps its headline on purpose** — the shop carries
+Anthony's name and that line is the whole point of the page; it just says what kind of shop now.
+- ⚠️ **STANDING: a current `<title>` proves nothing about the social card.** They are maintained by
+  different reflexes and drift apart silently. Check `og:title` separately, every time.
+
+### 🖼️ `always-open.html` HAD NO `og:image` AT ALL — and it takes live ad traffic
+No image, no `og:site_name`, no twitter set — so it rendered as a **bare grey text box** in the
+feed, the exact shape that reads as spam next to every other post. Gave it the full card
+(image + alt + site_name + twitter), matching the other landing pages.
+
+### 📏 TRUST BELONGS IN THE FIRST ~110 CHARACTERS, NOT WHEREVER IT LANDS
+A mobile feed card only guarantees roughly **110 characters** of description. My first pass put
+the appliance list up front and the proof at char 97-170 — so a phone scroller got *"we fix
+washers"* and nothing that earns letting a stranger into the house. Reordered to
+**what-we-fix → proof → the ask**; proof now lands at **char 74** (81 on always-open), inside the
+window: *"4.5★ from 1,100 Google reviews, family-owned since 2012, licensed & insured."*
+
+### 🔄 A NEW CARD DOES NOT FIX A LINK THAT IS ALREADY POSTED — `fb-rescrape` (NEW)
+**Facebook caches a card the first time anyone shares a URL and serves that copy for weeks.**
+Every existing post of the bare domain would have gone right on saying *"1,000+ 5★ Reviews…"*
+no matter what the page now says. `fb-rescrape` is the Sharing Debugger's "Scrape Again" over
+the API — owner-gated, page token read from the vault server-side, **nothing is posted, the only
+thing it mutates is FB's cache**. It reports back the title/description/image FB now holds;
+**that read-back is the proof, not the 200.** Ran it live: **4 of 4, FB echoed the new titles.**
+`fb-rescrape?secret=<admin>` (the four posted pages) · `&urls=/a.html,/b.html` (any list).
+- ⚠️ The scrape endpoint takes its params on the **query string**; `graphPost` sends a JSON
+  body, so this does its own fetch. Re-run it after ANY future og: change or the old card stands.
+
+### 🛑 THE TRUST FIX THAT MATTERED MOST WAS SUBTRACTION — we were overstating by one review
+**GBP says exactly 1,100 today** (pulled live off the API, not read off the page). Both ad
+landing pages said **"1,100+"**. Small, but the wrong kind of small: those two pages take every
+paid click we buy, and a claim that rounds UP is the one thing a skeptical homeowner can check
+in ten seconds and catch us on. **The whole stack — 4.5★, family-owned since 2012, licensed &
+insured, five techs by name and face — is only worth anything if every line survives a check.**
+Fixed to `1,100`, plus three pages still carrying an older pull (fits 1,081 · churches 1,082 ·
+community-partners 1,082) and the homepage's own title/og-alt/trust-line, which still said
+"1,000+" while its reviews section and its `AggregateRating` schema already said 1,100.
+
+### ⏭️ LEFT ALONE ON PURPOSE (Teddy's call, not mine to sweep)
+- **1,172 places say "1,000+ Google reviews."** They understate us by a hundred, but they are
+  **true and self-maintaining** — "1,000+" is still right next year, where a pinned 1,100 rots
+  the day review 1,101 lands. Trading a decaying accurate number for a durable conservative one
+  is a brand-voice call across ~600 pages. **Note the homepage already fetches the live count
+  into `#revCount`** — the durable fix is that pattern, not a mass re-pin.
+- **`/ru /zh /te /ta /ml /kn`** still read 1,081 — noindexed and pulled from the sitemap in June.
+- **"Google Guaranteed" on 439 pages CHECKS OUT** — I went to verify it against live Local
+  Services before touching it, expecting a stale claim from the old "LSA is paused" note.
+  It is **ENABLED and spending**: $103.29 / 6 leads / 3 charged / 30d. No action. Recorded so
+  nobody re-audits it.
+
+### ⏭️ OPEN
+- **The ad landing pages still show 629-272-1234, not the ads line 615-845-8500** — so a visitor
+  who arrives from an ad and calls off the page is invisible to `google-ads-truth`. Unchanged.
+- Re-run `fb-rescrape` after any future og: edit, or Facebook keeps serving the old card.
+
+## 🧑‍🔧🏠 2026-09-13 — LOCAL FIRST: the crew now sits ABOVE the AI on all three landing pages · the homepage buried its own faces 3,580px down · "/" does NOT serve appliance-ai.html — READ FIRST
 
 Teddy: *"it almost seems a little bit too AI-ish and not enough local... put the local text at the
 very top... so they could see it's real people that work there before all of the AI stuff gets on
