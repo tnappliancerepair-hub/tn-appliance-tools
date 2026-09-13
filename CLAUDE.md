@@ -95,11 +95,37 @@ Pulled them off the API (`SELECT recommendation.type, recommendation.campaign FR
 - **Ad strength is AVERAGE on all 7 ad groups at 12/15 headlines + 4/4 descriptions** — so the
   penalty is theme DIVERSITY, not count. More distinct, keyword-bearing headlines is the fix.
 
-### 🅻 LSA READS EMPTY FROM THE API
-Teddy turned LSA on; `lsa-test` returns **200 with `accounts: []`**, and no `LOCAL_SERVICES`
-campaign exists in the Ads account. The connector queries `manager_customer_id:160-509-9162` —
-so either the LSA account is **not linked to the ANT-Manager MCC**, or it has not charged a lead
-yet. ⏭️ **Teddy: link the LSA account to manager 160-509-9162** so the API can read it.
+### 🅻🔴 LSA WAS NEVER BROKEN — WE WERE LOOKING AT THE WRONG ACCOUNT (corrects my own entry above)
+I first wrote *"either not linked to the ANT-Manager MCC, or no charged lead yet — Teddy: link
+it."* **Both the diagnosis and the ask were wrong. Nothing needed linking.**
+- **`lsa-test` only ever asked the Local Services `accountReports.search` endpoint filtered by
+  `GOOGLE_ADS_MANAGER_ID`.** ⚠️ **That endpoint answers `200` with an EMPTY list BOTH when an
+  account has no billed leads AND when the account is not under the manager you asked about.**
+  Opposite problems, identical response — so "empty" got read as "no leads yet" for months.
+- **The LSA account is its OWN customer: `8532272803`** — separate from the Search account
+  (9267688121) and under **none** of the three managers this token can reach (probed all three:
+  200 / 0 accounts each). Google moved LSA lead detail into the **Google Ads API**, so ask there
+  against that customer and it is all sitting in plain sight.
+- **LSA IS LIVE AND WORKING:** `LOCAL_SERVICES` campaign **ENABLED · SERVING · primary status
+  `LEARNING` (BIDDING_STRATEGY_LEARNING)** · budget **$40.71/day** · **$103.29 spent** ·
+  **6 ACTIVE PHONE_CALL leads (3 on 09-10, 3 on 09-11), 3 charged → ~$17.22/lead.**
+  (The other 23 leads on the account are a **Dec 2023** run, all `WIPED_OUT`.)
+- **⚠️ Sept 12-13 show zero spend/impressions — that is Google's normal 24-48h LSA reporting
+  lag, NOT a stop.** The campaign reads SERVING. Don't panic-fix a lag.
+- **$17/lead vs the Search campaign's $105/call.** LSA is ~6× cheaper per lead. That is the
+  argument for where the next ad dollar goes.
+- ✅ **`_lib/lsa.js` REWRITTEN** — `report(days)` finds the LSA customer by asking who actually
+  runs a `LOCAL_SERVICES` campaign (vault `GOOGLE_ADS_LSA_CID` pins it to skip the walk, never
+  required), and returns campaign status/budget/spend + leads by status/type/day + cost per lead.
+  `lsa-test?secret=<admin>` is now the real report; `&legacy=1` hits the old endpoint.
+  ⚠️ **`segments.date` is REJECTED on `local_services_lead`** — pull the leads whole and window
+  them in code.
+- **⛔ HONEST LIMIT: LSA does not expose `contact_details`** (returns empty), so an LSA lead
+  **cannot** be auto-matched to a job the way the ads-line calls now can. Count and cost are real;
+  the join is not available.
+- ⚠️ **STANDING: an empty result from an endpoint that filters by an account you supplied is not
+  evidence of no data — it is evidence you may be asking the wrong account.** Probe every account
+  the token can reach before concluding anything is missing.
 
 ### 📊 THE CONTEXT THAT FRAMES ALL OF IT
 7 days of real intake: **104 jobs — LA 47 (0 cash), TN 43 (6 cash), 9 cash total (8.6%).**
