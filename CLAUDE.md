@@ -1,6 +1,85 @@
 # Appliance Ant
 
-## 🪣➡️ 2026-09-13 (latest) — THE BROAD-GROUP REBALANCE WAS ALREADY DONE 4 DAYS AGO; WHAT WAS LEFT WAS STRUCTURE — 430 appliance queries were landing in a generic group with a generic page · a paused keyword is NOT the same as a closed funnel — READ FIRST
+## 💾🧯 2026-09-13 (latest) — THE OFF-SITE BACKUP HAD NEVER ONCE COMPLETED, AND RETENTION HAD NEVER ONCE RUN · 41 days kept against a 7-day policy · 2.29 GB → 285 MB · a manual probe was silently turning the watchdog green — READ FIRST
+
+Teddy: *"Ok let's check our supabase ant system functionality."* Platform came back clean on
+every surface. The one thing that was broken was the thing that is supposed to save us when
+everything else isn't: **the disaster-recovery backup.**
+
+### ✅ WHAT'S ACTUALLY HEALTHY (measured, not read off a status line)
+| check | result |
+|---|---|
+| platform surfaces | **20/20 serve 200** (`rate.html` is a ROOT page, not `/platform/` — a 404 there is a bad test, not a bad system) |
+| mirror | **1,175 jobs touched in 15 min**, `mirror_age_min` 0-1 — running hot |
+| parity (Xano ↔ platform) | 810 active · **1 missing · 1 drift** — both the SAME known Xano-side data problems (job 21958 has no customer at all; job 21764 completed with no `completed_at`). Not sync drift. |
+| RLS | **38 public tables, 0 with RLS off, 0 `using(true)` policies** |
+| booking queue | 0 stuck |
+| open jobs, past scheduled day | 639 — `scheduled` 341 · `awaiting_parts` 183 · **`in_progress` 112, of which 76 carry a filed report** (the unfiled-claim money, unchanged) |
+
+### 🔴 THE FINDING — the weekly full copy was STRUCTURALLY unable to finish
+`platform-migration-watch` was saying *"xano off-site backup did not finish — 1 truncated."*
+Three separate defects underneath, and **the order of the fixes was load-bearing.**
+
+1. **`parts_orders` read 50 rows per page.** ~205,500 rows ÷ 50 = **~4,110 sequential Xano reads**
+   at ~150ms = **>10 min for that ONE table**, against an 11-min budget it *shares with 28 others*
+   and is deliberately scheduled last. Measured on a Sunday: **137,450 of 205,500 rows, truncated.**
+   So `complete:false` on **every weekly attempt there has ever been.** → **50 → 250** (994 rows/sec
+   measured live = **~3.4 min**, and Xano's `per_page` ceiling is ~500, so 250 is safely under it).
+2. **The prune result was structurally unrecordable.** `summary.pruned = await prune()` ran **AFTER**
+   the manifest row was already inserted — it mutated an object that had been serialized. Every
+   manifest read `pruned: null`, so *a prune that had never once worked looked exactly like a prune
+   nobody had asked about.* → prune now runs **before** the manifest write.
+3. **Retention had never deleted anything.** One `snapshot_date=lt.<cutoff>` DELETE spanning ~45k
+   chunks / >2 GB **times out at 20s and silently leaves the whole table intact**: 41 days kept
+   against a 7-day policy, **49,816 chunks, 2.29 GB — over half the ops DB**, the same shape that
+   helped melt the Nano tier. → deletes **one date at a time** inside a budget, resumable.
+
+### ⚠️ THE TRAP THAT DECIDED THE DESIGN — a date-only prune would have destroyed our only good backup
+The **only complete `parts_orders` copy on the system was 2026-09-10** — verified **205,500 distinct
+ids** (its 592k raw rows are 3× retry duplication) — and **it carries NO manifest at all** (the
+2026-09-10 starvation window). So *any* manifest-driven protection would not have seen it and would
+have deleted it, leaving nothing but truncated copies. **Heavy tables are therefore kept by DATE
+COUNT (newest 2) — never by age, never by manifest.** Everything else keeps the age window.
+- ⚠️ **STANDING: fixing retention BEFORE fixing completeness deletes the last good copy.** Order the
+  fixes so the thing that produces a good backup lands before the thing that deletes old ones.
+
+### 🐛 TWO BUGS I SHIPPED AND CAUGHT BY PROVING IT AGAINST REAL DATA
+- **The prune read 1,000 of 49,816 chunks.** I asked for `limit=20000`; **PostgREST caps at 1,000
+  rows and does not error.** The dry run cheerfully reported *"4 dates, nothing to prune"* — and
+  `distinctDates()` had the same flaw, which would have made the live prune both massively
+  under-delete AND pick the "newest 2 heavy dates" out of a truncated sample. Both now page
+  explicitly. **Same silent cap that has bitten the office board and the owner P&L before.**
+- **A manual `?probe` silently turned the watchdog GREEN.** After probing one table, the watchdog
+  flipped to healthy — not because anything was fixed, but because the probe wrote its own
+  `_manifest` and the watchdog reads *the latest* one. **A 1-table probe was indistinguishable from
+  a clean 29-table nightly run.** Scoped runs now tag `scoped:true` and the watchdog takes the
+  newest **non-scoped** manifest. (The pre-fix probe row was tagged by hand, not deleted — the
+  audit trail stays.)
+
+### 📉 RESULT, READ OFF THE DATABASE
+| | before | after |
+|---|---|---|
+| snapshot dates retained | 41 (oldest 2026-08-03) | **8** (oldest 2026-09-06) |
+| chunks | 49,816 | **2,234** (−95.5%) |
+| `xano_backup_chunks` | 2,290 MB | **285 MB** |
+| whole ops DB | 2,974 MB | **969 MB** |
+| complete `parts_orders` copy | 1 (unprotected) | **1, protected + verified 205,500 ids after VACUUM** |
+Prune re-runs clean at `0/0` (idempotent). `bloat_watch` is empty.
+
+### 🔌 SPLIT CORE + CRON (the reason none of this was visible)
+`nightly-backup` carried its own `schedule` block, so **its `?status` / `?probe` controls had been
+edge-403ing since the day they were written** — the documented footgun, burned again. Schedule moved
+to a new **`nightly-backup-cron`**; the core is curlable and gained **`?prune=1`** (+`&dry=1`).
+
+### ⏭️ OPEN
+- **The watchdog is RED right now, and that is correct** — it is reporting the real 09-13 nightly run
+  (29 tables, `complete:false`, parts_orders truncated). It clears **Monday** (parts_orders skips by
+  cadence) and the weekly full copy should genuinely complete **Sunday 2026-09-20** at 250/page.
+  **Check that Sunday manifest — that is the proof, not this entry.**
+- The 09-13 snapshot carries ~1,000 extra parts_orders rows from the verification probe. Harmless
+  (a restore dedupes by id) and pruned inside 7 days.
+
+## 🪣➡️ 2026-09-13 — THE BROAD-GROUP REBALANCE WAS ALREADY DONE 4 DAYS AGO; WHAT WAS LEFT WAS STRUCTURE — 430 appliance queries were landing in a generic group with a generic page · a paused keyword is NOT the same as a closed funnel — READ FIRST
 
 Teddy: *"rebalance the search budget out of that broad group"* … *"Fix this to win jobs please"* — after
 I told him 87% of Search spend sits in the broad After-Hours group. **I measured before touching
