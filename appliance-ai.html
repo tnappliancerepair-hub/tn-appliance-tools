@@ -111,11 +111,11 @@
   .top .ph{font-size:12px;color:var(--gray);text-decoration:none;border:1px solid var(--bord2);padding:7px 12px;border-radius:8px;}
   /* the breathing orb */
   .stage{width:100%;max-width:640px;display:flex;flex-direction:column;align-items:center;text-align:center;}
-  .orb-wrap{position:relative;width:120px;height:120px;margin:18px 0 22px;display:flex;align-items:center;justify-content:center;}
+  .orb-wrap{position:relative;width:84px;height:84px;margin:10px 0 14px;display:flex;align-items:center;justify-content:center;}
   .orb{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 50% 45%, #ff7c28 0%, #ff6200 45%, #7a2f00 100%);
     box-shadow:0 0 40px 6px rgba(255,98,0,.55), inset 0 0 30px rgba(0,0,0,.35);animation:breathe 3.4s ease-in-out infinite;}
   .orb::after{content:"";position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(255,98,0,.25);animation:ring 3.4s ease-in-out infinite;}
-  .orb-ant{position:relative;z-index:2;font-size:46px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5));animation:bob 3.4s ease-in-out infinite;}
+  .orb-ant{position:relative;z-index:2;font-size:34px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5));animation:bob 3.4s ease-in-out infinite;}
   @keyframes breathe{0%,100%{transform:scale(1);box-shadow:0 0 36px 4px rgba(255,98,0,.45),inset 0 0 30px rgba(0,0,0,.35);}50%{transform:scale(1.07);box-shadow:0 0 60px 12px rgba(255,98,0,.7),inset 0 0 30px rgba(0,0,0,.3);}}
   @keyframes ring{0%,100%{transform:scale(1);opacity:.4;}50%{transform:scale(1.12);opacity:.1;}}
   @keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
@@ -124,7 +124,33 @@
   h1{font-family:var(--serif);font-size:34px;font-weight:400;line-height:1.12;margin-bottom:10px;letter-spacing:.01em;}
   h1 .accent{color:var(--orange);font-style:italic;text-shadow:0 0 22px rgba(255,98,0,.45);}
   .sub{font-size:13px;color:var(--gray);max-width:420px;margin:0 auto 4px;line-height:1.5;}
-  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);opacity:.85;margin-bottom:14px;}
+  /* LOCAL FIRST (Teddy 2026-09-13): "start with the local technicians at the very top
+     rather than in the middle - people will avoid the AI stuff." Real faces + the review
+     count were only ever in the meta tags and a muted grey SEO footer below the whole
+     funnel, i.e. invisible to an actual visitor. Ad traffic converted 225 clicks into 0
+     intakes; this is what a homeowner sees before anything says "AI".
+     Kept deliberately SHORT - every pixel here pushes "tap what's broken" toward the fold. */
+  .localfirst{width:100%;max-width:560px;margin:0 auto 12px;padding:10px 12px 10px;
+    background:var(--surface);border:1px solid var(--bord2);border-radius:14px;}
+  .lf-top{display:flex;flex-wrap:wrap;align-items:center;gap:4px 9px;font-size:12.5px;color:var(--gray);line-height:1.45;}
+  .lf-top .st{color:#f5b301;letter-spacing:1px;font-size:12.5px}
+  .lf-top b{color:var(--white)}
+  .lf-crew{display:flex;gap:5px;margin-top:9px;}
+  .lf-crew a{flex:1;min-width:0;overflow:hidden;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:5px;}
+  .lf-crew img{width:100%;max-width:46px;aspect-ratio:100/128;object-fit:cover;border-radius:8px;
+    border:1px solid var(--bord2);display:block;background:var(--surf2);}
+  .lf-nm{font-size:11px;color:var(--white);font-weight:500;line-height:1.15;text-align:center}
+  .lf-zone{font-size:9px;color:var(--gray);line-height:1.15;text-align:center;letter-spacing:0;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .lf-foot{margin-top:8px;font-size:11.5px;color:var(--gray);line-height:1.35}
+  @media(max-width:360px){ .lf-crew{gap:3px} .lf-crew img{max-width:40px} .lf-nm{font-size:10px}
+    /* On the smallest phones the column cannot hold "Clarksville" on one line. Wrap it
+       rather than ellipsis it - a clipped tech zone reads as a bug. */
+    /* "Clarksville" is one unbreakable word ~2px wider than the column here, so
+       neither wrapping nor ellipsis helps. Let it bleed 1px each side into the
+       3px gap - the labels are short enough now that they cannot collide. */
+    .lf-crew a{overflow:visible}
+    .lf-zone{font-size:8px;letter-spacing:-.03em;white-space:nowrap;overflow:visible;text-overflow:clip;max-width:none} }
+  .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--orange);opacity:.85;margin-bottom:10px;}
   /* conversation */
   .convo{width:100%;max-width:560px;margin-top:26px;display:flex;flex-direction:column;gap:12px;}
   .msg{align-self:flex-start;max-width:88%;background:var(--surf2);border:1px solid var(--border);border-radius:14px;border-top-left-radius:4px;padding:12px 15px;font-size:14px;line-height:1.45;color:var(--white);}
@@ -199,6 +225,24 @@
   <div class="top">
     <div class="brand">TN APPLIANCE<span class="x">.</span></div>
     <a class="ph" href="tel:+16292721234">📞 629-272-1234</a>
+  </div>
+
+  <!-- Real people first. The AI is the tool; the crew is the reason anyone books. -->
+  <div class="localfirst">
+    <div class="lf-top">
+      <span class="st">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+      <span><b>4.5</b> &middot; 1,100+ Google reviews</span>
+      <span>&middot;</span>
+      <span>Family&#8209;owned in Middle TN <b>since 2012</b></span>
+    </div>
+    <div class="lf-crew">
+      <a href="/about.html" aria-label="Teddy, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/teddy-owner.jpg" alt="Teddy, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Teddy</span><span class="lf-zone">Owner</span></a>
+      <a href="/about.html" aria-label="Jimmy, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/jimmy-nashville.jpg" alt="Jimmy, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Jimmy</span><span class="lf-zone">Nashville</span></a>
+      <a href="/about.html" aria-label="Lee, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/lee-clarksville.jpg" alt="Lee, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Lee</span><span class="lf-zone">Clarksville</span></a>
+      <a href="/about.html" aria-label="Andre, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/andre-south-shore.jpg" alt="Andre, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Andre</span><span class="lf-zone">S. Shore LA</span></a>
+      <a href="/about.html" aria-label="John, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/john-north-shore.jpg" alt="John, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">John</span><span class="lf-zone">N. Shore LA</span></a>
+    </div>
+    <div class="lf-foot">Licensed &amp; insured &mdash; <b style="color:var(--white)">the same local techs who answer are the ones who show up.</b></div>
   </div>
 
   <div class="stage">
@@ -359,9 +403,16 @@ const PROBLEMS = {
 function setHead(h, s){ HEAD.innerHTML = h; SUB.textContent = s || ''; }
 function clearFlow(){ FLOW.innerHTML=''; }
 function think(ms, cb){ ORB.classList.add('thinking'); const t=document.createElement('div'); t.className='convo'; t.innerHTML='<div class="msg"><span class="typing"><i></i><i></i><i></i></span></div>'; FLOW.appendChild(t); setTimeout(()=>{ ORB.classList.remove('thinking'); t.remove(); cb(); }, ms); }
-function antMsg(html){ const c=document.createElement('div'); c.className='convo'; c.innerHTML='<div class="msg">'+html+'</div>'; FLOW.appendChild(c); c.scrollIntoView({behavior:'smooth',block:'center'}); }
+function antMsg(html){ const c=document.createElement('div'); c.className='convo'; c.innerHTML='<div class="msg">'+html+'</div>'; FLOW.appendChild(c); revealInto(c); }
 function youMsg(t){ const c=document.createElement('div'); c.className='convo'; c.innerHTML='<div class="msg you">'+esc(t)+'</div>'; FLOW.appendChild(c); }
-function choices(items, cb, cls){ const d=document.createElement('div'); d.className='choices '+(cls||''); items.forEach(it=>{ const b=document.createElement('div'); b.className='choice'+(it.wide?' wide':''); b.innerHTML=(it.emo?('<span class="emo">'+it.emo+'</span>'):'')+'<span>'+esc(it.label)+'</span>'; b.onclick=()=>cb(it); d.appendChild(b); }); FLOW.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'center'}); return d; }
+function choices(items, cb, cls){ const d=document.createElement('div'); d.className='choices '+(cls||''); items.forEach(it=>{ const b=document.createElement('div'); b.className='choice'+(it.wide?' wide':''); b.innerHTML=(it.emo?('<span class="emo">'+it.emo+'</span>'):'')+'<span>'+esc(it.label)+'</span>'; b.onclick=()=>cb(it); d.appendChild(b); }); FLOW.appendChild(d); revealInto(d); return d; }
+// The flow auto-scrolls each new step into view - right once a customer is
+// working the funnel, wrong on first paint. Left alone it centers the appliance
+// grid on load and scrolls the crew band + everything above it off-screen, so a
+// visitor never sees who actually works here. Hold the scroll until they act.
+let _userActed=false;
+['pointerdown','keydown','touchstart'].forEach(ev=>window.addEventListener(ev,()=>{_userActed=true;},{once:true,passive:true}));
+function revealInto(el){ if(!_userActed) return; try{ el.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){} }
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
 // ── MULTILINGUAL (from /es/ /vi/ /ar/ /hi/ /fr/ via ?lang=) ──────────────────
@@ -639,7 +690,7 @@ function consentGate(){
     +'<p>By tapping <b>Yes</b>, you agree to receive text messages from <b>TN Appliance Exchange</b> about your repair (your diagnosis, options, and scheduling). Message &amp; data rates may apply. Message frequency varies. Reply <b>STOP</b> to opt out, <b>HELP</b> for help.</p>'
     +'<div class="row"><button class="c-yes" id="cy">Yes, text me</button><button class="c-no" id="cn">No texts</button></div>'
     +'<div class="fine">Consent is not a condition of purchase. See our <a href="/privacy.html">Privacy Policy</a> and <a href="/terms.html">Terms</a>.</div>';
-  FLOW.appendChild(c); c.scrollIntoView({behavior:'smooth',block:'center'});
+  FLOW.appendChild(c); revealInto(c);
   document.getElementById('cy').onclick=()=>{ state.smsConsent=true; clearFlow(); collectContact(); };
   document.getElementById('cn').onclick=()=>{ state.smsConsent=false; clearFlow(); antMsg('No problem — we\'ll call you instead. What\'s the best number + your ZIP?'); collectContact(); };
 }
