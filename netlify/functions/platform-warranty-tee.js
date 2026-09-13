@@ -18,6 +18,9 @@
 //                  replay never has to touch the key the 15-min cron reads.
 //     &subject=... narrow to ONE vendor's subject for a bounded replay.
 //     &max=N       per-inbox cap (default 40, ceiling 200). readMany's max is PER-ACCOUNT.
+//     &q=...       raw Gmail query, outranks everything. Gmail returns NEWEST-first and
+//                  &max truncates the oldest, so a long backfill must be walked in SLICES
+//                  with both bounds (after:.. before:..) - a bigger &max alone times out.
 //   A replay is safe: intake dedupes per (company, message_id) pre-parse, and a job-level
 //   dedup now FILLS BLANKS on the existing card rather than discarding the dispatch.
 //   Kill switch: vault PLATFORM_WARRANTY_TEE_ENABLED=false
@@ -86,7 +89,9 @@ async function runTee(dry, opts) {
   // An explicit &days= / &subject= is a deliberate manual backfill, so it outranks the vault
   // query. Without either param this is byte-identical to before (the cron passes neither).
   let query = '';
-  if (o.days || o.subject) {
+  if (o.q) {
+    query = String(o.q);
+  } else if (o.days || o.subject) {
     const d = Math.max(1, Math.min(365, parseInt(o.days || '1', 10) || 1));
     const after = Math.floor(Date.now() / 1000) - d * 86400;
     query = o.subject
@@ -138,7 +143,7 @@ exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'admin secret required (?secret=)' });
-  const res = await runTee(q.dryrun === '1', { days: q.days, subject: q.subject, max: q.max });
+  const res = await runTee(q.dryrun === '1', { days: q.days, subject: q.subject, max: q.max, q: q.q });
   return json(200, res);
 };
 
