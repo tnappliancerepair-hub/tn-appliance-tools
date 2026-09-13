@@ -122,29 +122,39 @@ exports.handler = async function (event) {
   const pf = await platform();
   if (!pf) return J(200, { ok: false, error: 'platform_not_configured', message: "We're having a brief hiccup on our end — give it a moment and tap the button again." });
 
-  // An email that already OWNS a shop cannot own a second one: app_user.auth_user_id carries a
-  // UNIQUE constraint, so one Supabase login maps to exactly one app_user row and therefore one
-  // company. Without this check we cheerfully open Stripe, take the card, and provisioning then
-  // dies at the owner insert with 23505 -- the shop is billed, a seatless company row is stranded,
-  // and the operator gets a "paid signup stranded" page for something that can never self-heal.
+  // An email that already has ANY seat on the platform cannot own a shop: app_user.auth_user_id
+  // carries a UNIQUE constraint, so one Supabase login maps to exactly one app_user row and
+  // therefore one company. Without this check we cheerfully open Stripe, take the card, and
+  // provisioning then dies at the owner insert with 23505 -- the shop is billed, a seatless
+  // company row is stranded, and the operator gets a "paid signup stranded" page for something
+  // that can never self-heal.
   //
   // Caught live 2026-09-12 by a real signup walk on an email that already owned a shop. Refuse
   // BEFORE the card screen. Never take money for a shop we structurally cannot stand up.
+  //
+  // 2026-09-13: this read was `role=eq.owner`, which left the hole wide open for the most likely
+  // person to sign up -- one of our OWN techs or office staff wanting their own shop. Their seat
+  // is role tech/office, so the guard waved them through to checkout and provisioning died anyway.
+  // The constraint is on EVERY app_user row, so the check has to be too.
   //
   // Compared in JS rather than a PostgREST filter because stored owner emails are not uniformly
   // lowercased (older rows carry the casing they were typed in) and ilike would need wildcard
   // escaping on a user-supplied string. Fine at shop-count scale; revisit with a citext column or
   // a lowered index if this ever reads thousands of rows.
   try {
-    const owners = await pf.get('app_user?role=eq.owner&select=email&limit=2000');
-    const taken = Array.isArray(owners) && owners.some(function (o2) {
+    const seats = await pf.get('app_user?select=email,role&limit=5000');
+    const hit = Array.isArray(seats) && seats.find(function (o2) {
       return String((o2 && o2.email) || '').trim().toLowerCase() === email;
     });
-    if (taken) {
+    if (hit) {
+      const isOwner = String((hit && hit.role) || '').toLowerCase() === 'owner';
       return J(200, {
         ok: false,
-        error: 'email_already_owns_a_shop',
-        message: 'That email already has a shop on AssistAnt. Sign in with it, or use a different email for the new shop.',
+        error: isOwner ? 'email_already_owns_a_shop' : 'email_already_has_a_seat',
+        existing_role: String((hit && hit.role) || '') || null,
+        message: isOwner
+          ? 'That email already has a shop on AssistAnt. Sign in with it, or use a different email for the new shop.'
+          : 'That email is already signed in to a shop on AssistAnt as a ' + (String(hit.role || 'team member')) + '. Use a different email for your own shop - one login can only belong to one shop.',
       });
     }
   } catch (_) {
