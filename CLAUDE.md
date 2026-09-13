@@ -1,6 +1,80 @@
 # Appliance Ant
 
-## 🏭🧬 2026-09-13 (latest) — THE CLONE ENGINE WORKS BUT NOTHING HAD EVER BEEN CLONED FOR A PAYING STRANGER · 3 of 5 tenants were tests · two live shops shared a NAME and nothing said so · 26 crons and not one watched tenants — READ FIRST
+## 💳🔌 2026-09-13 (latest) — "IS MY STRIPE HOOKED UP?" — YES on the money that moves, and the purge left $297/mo of ghost subscriptions ticking · the webhook IS registered (a standing unknown, now closed) — READ FIRST
+
+Teddy: *"can you make sure that my Stripe is hooked up to the Tennessee Appliance Superbase system."*
+Measured both Stripe relationships rather than assuming which one he meant.
+
+### ✅ THE MONEY THAT ACTUALLY MOVES IS FINE — two rails, don't confuse them
+- **Customer card payments TODAY run on the LEGACY rail** — `create-stripe-payment-link` / `pay.html`
+  / `verify-payment` all use `STRIPE_SECRET_KEY` **directly on the main account, NO Connect**
+  (`grep stripeAccount` → only `platform-payments` uses it). That rail is live and unaffected.
+- **The platform portal's card button is a SEPARATE rail** (Connect Express, money straight to the
+  shop). `portal.html` gates it on `co.payments_enabled`, which is false for TN — so the button is
+  simply hidden. **Nothing is broken and no money is being lost; one rail is just dark.**
+- ⚠️ **STANDING: "is Stripe hooked up" has two answers on this platform.** Name the rail before
+  answering — the tenant-subscription rail (we charge the shop) and the Connect rail (the shop's
+  customers pay the shop) fail independently.
+
+### 🔴 THE ONE REAL FINDING — my own purge left three subscriptions billing toward a real charge
+CLAUDE.md already warned *"a purge does not touch Stripe — cancel the sub explicitly."* I purged 3
+test tenants last night and **did not.** Measured: **3 trialing subs, trial_end 2026-09-27, $99 each
+= $297/mo** about to hit Teddy's family's cards for shops that no longer exist.
+- **Canceled the two that were mine to finish** (`queen-anne-s`, `queen-anne-s-56a`) by **sub id**,
+  never by email (the documented rule — an email cancel once nearly killed production's sub).
+- **LEFT `mr-t-s-appliance-repair` ALONE on purpose** — different email, I never purged it, and it is
+  the *paid-signup-stranded* shape (subscription exists, shop never provisioned). Canceling a real
+  prospect's plan is not mine to decide. **⏭️ TEDDY: test or real? Cancel it, or stand the shop up.**
+
+### 🐕 THE WATCHDOG NOW CATCHES THE CLASS (it wouldn't have caught this)
+`platform-tenant-watch` checked seats/owners/dup-names/half-built/techless — **everything except
+whether the money plumbing is attached.** Added three fails, delegated to `platform-subs-audit` so
+there is ONE Stripe reader: a subscription with **no shop at all**, a subscription **tied to no
+company** (its lifecycle events silently no-op), and the **webhook going unregistered**.
+Proven live — it goes red on exactly the one that's still open, and on nothing else.
+- 🐞 **The try/catch around it hid a real bug the moment I wrote it:** `getSecret` isn't imported in
+  that file, so the whole check would have thrown into the catch and read **healthy forever**. Same
+  dead-guard class as the field that's structurally always zero. Uses `getSecretPreferVault` now.
+
+### ✅ TWO STANDING UNKNOWNS CLOSED (recorded so nobody re-checks)
+- **The Stripe lifecycle webhook IS registered + enabled** at `…/platform-stripe-webhook` with the
+  right 4 events. CLAUDE.md had flagged this since 2026-09-02 as one of "the two landmines that
+  strand a paying signup." It is not a landmine. It is fine.
+- **TN's subscription IS wired** (`sub_1UBaZA03MYZgTikF3xF3aJ4C`, trial ends **9/17**, first $99) —
+  it resolves through `metadata.company_id`, which `provisionFromMeta` stamps. **I expected the
+  opposite and was wrong**: the company row's `stripe_customer_id`/`stripe_subscription_id` columns
+  were blank, and I started writing this up as "TN's billing is invisible." The webhook's FIRST
+  lookup is the metadata, so it always mapped. **Measure the lookup ORDER before calling a null
+  column a break.**
+- Still backfilled both columns, because they are not cosmetic: **`platform-usage-bill` reads
+  `stripe_customer_id`** and returns `no_stripe_customer` — so metered Ann billing for TN would have
+  billed **nothing** the day `PLATFORM_BILLING_LIVE` flips. Verified off the database.
+
+### 💳 CONNECT: TN's account exists and is ~2 minutes from done
+`acct_1UBkol10TPqczezp`, `details_submitted:false`, `disabled_reason:requirements.past_due`. Stripe
+wants exactly **a bank account for payouts** + **accepting Stripe's terms**. Teddy started the
+Express onboarding and never finished the hosted form.
+- **`connect_status` used to return only `{connected, enabled, needs_onboarding}`** — so `owner.html`
+  showed a **dead-end "Finish setup" button with no reason**, which is how an account sits
+  half-onboarded for ten days. It now returns `payouts_enabled` / `details_submitted` /
+  `disabled_reason` / a plain-English **`needs`** list (`REQ_WORDS` maps Stripe's machine keys —
+  `external_account` → *"a bank account for payouts"*; anything unmapped is humanized, never raw).
+  The owner page lists them above the button.
+- 🐞 First cut printed **"accepting Stripe's terms" twice** — `tos_acceptance.date` and `.ip` are two
+  keys that render as one sentence. **Dedupe AFTER prettifying, not before.**
+- ⏭️ **TEDDY, ~2 min:** `platform/owner.html` → **Finish card-payment setup** → add a bank account +
+  accept the terms → `payments_enabled` flips itself and the portal's card button appears.
+
+### 🧰 NEW: `platform-subs-audit?action=audit` — "is every subscription actually wired to a shop?"
+Per live sub: `linked` / `linked_via` / `company_id` / `repairable_company_id` / `orphan`, plus
+whether the webhook endpoint exists at all. `&action=link&sub=<id>&confirm=yes` writes the link onto
+the matched company row **and** stamps `company_id` into the subscription metadata. Previews without
+`confirm`. Refuses orphans (an orphan needs a decision, not a write).
+- ⚠️ **`platform-rest.patch` is `patch(table, filter, cols)` — THREE args.** I wrote the two-arg form
+  while building this; it would have **PATCHed the whole `company` table.** Caught pre-deploy. That
+  footgun is documented and still bites — check the signature every single time.
+
+## 🏭🧬 2026-09-13 — THE CLONE ENGINE WORKS BUT NOTHING HAD EVER BEEN CLONED FOR A PAYING STRANGER · 3 of 5 tenants were tests · two live shops shared a NAME and nothing said so · 26 crons and not one watched tenants — READ FIRST
 
 Teddy: *"What gaps do we have left in the platform cloning system"* → *"Let's do them all."* Measured
 the clone path live instead of reading the changelog. **The machinery is built; what was missing is
