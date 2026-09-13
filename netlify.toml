@@ -1330,3 +1330,13 @@
 # Offset to :07/:22/:37/:52 so it never lands on the same minute as the crons it is judging.
 [functions."platform-migration-watch-cron"]
   schedule = "7-59/15 * * * *"
+
+# platform-tenant-watch-cron (2026-09-13) - nothing watched the CLONING system. 26 platform
+# crons run and every one of them watches TN's migration or its day; none watched tenants.
+# Audited by hand and found two live shops both named "Queen Anne's" with 14 logins between
+# them. The expensive shape is quieter: a signup takes a card, half-builds, and leaves a live
+# billable tenant with ZERO logins (shipped 2026-09-12; the fix note said "query it
+# periodically", which is not a check). Watches seatless / ownerless / duplicate-name /
+# half-built / techless shops. Core stays curlable: ?secret=<admin>&dry=1
+[functions."platform-tenant-watch-cron"]
+  schedule = "17 14 * * *"
