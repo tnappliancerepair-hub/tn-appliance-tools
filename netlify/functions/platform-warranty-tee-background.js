@@ -18,7 +18,7 @@ exports.handler = async function (event) {
 
   // 13 of the 15 minutes. The remainder is headroom to finish the in-flight message and
   // return a real summary instead of being cut off mid-write.
-  const opts = { days: q.days, subject: q.subject, max: q.max, q: q.q, budgetMs: q.budget_ms || '780000' };
+  const opts = { days: q.days, subject: q.subject, max: q.max, q: q.q, budgetMs: q.budget_ms || '780000', reparse: q.reparse === '1' };
   let res = { ok: false };
   try { res = await runTee(q.dryrun === '1', opts); } catch (e) { res = { ok: false, error: String((e && e.message) || e) }; }
   try { console.log('[warranty-tee-background]', JSON.stringify({ scanned: res.scanned, created: res.created, deduped: res.deduped, enriched: res.enriched, fields_filled: res.fields_filled, stopped_on_budget: res.stopped_on_budget, remaining: res.remaining })); } catch (_) {}

@@ -78,8 +78,19 @@ exports.handler = async function (event) {
   const co = cos && cos[0];
   if (!co) return json(200, { ok: false, error: 'unknown_shop:' + slug });
 
-  // idempotency — same Message-ID for this shop is processed once
-  if (email.message_id) {
+  // idempotency — same Message-ID for this shop is processed once.
+  //
+  // ?reparse=1 skips this. Without it an improved parser can NEVER be applied to mail the
+  // old one already touched: the id is burned, the short-circuit fires before extractJobs,
+  // and the better parse is unreachable forever. That is the whole difference between a
+  // parser we can fix and a husk somebody retypes.
+  //
+  // Safe to skip because this guard is an optimisation, not the protection. createWarrantyJob
+  // still dedupes on claim_number and dispatch_id, so a re-parse of the same mail resolves to
+  // the same job; the ledger insert is already conflict-tolerant; and the new-job alert is
+  // gated on status === 'created', which a re-parse of existing work never reaches.
+  const reparse = String((q && q.reparse) || '') === '1';
+  if (email.message_id && !reparse) {
     const seen = await db.get(`email_intake?company_id=eq.${co.id}&message_id=eq.${encodeURIComponent(email.message_id)}&select=id,job_id,status&limit=1`);
     if (seen && seen[0]) return json(200, { ok: true, duplicate_email: true, status: seen[0].status, job_id: seen[0].job_id });
   }

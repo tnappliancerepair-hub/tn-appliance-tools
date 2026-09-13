@@ -18,6 +18,8 @@
 //                  replay never has to touch the key the 15-min cron reads.
 //     &subject=... narrow to ONE vendor's subject for a bounded replay.
 //     &max=N       per-inbox cap (default 40, ceiling 200). readMany's max is PER-ACCOUNT.
+//     &reparse=1   re-process mail already seen, so a PARSER FIX can be applied to it.
+//                  Job-level dedup still prevents twins; only blanks get filled.
 //     &budget_ms=N wall-clock budget for the intake loop (default 20000).
 //   For a real backfill call platform-warranty-tee-background instead: a 4-inbox
 //   full-format Gmail read can consume a sync function's whole allowance by itself.
@@ -140,7 +142,7 @@ async function runTee(dry, opts) {
     if (dry) { out.results.push({ ...brief, would_send: true }); continue; }
     const payload = { to: toAddr, from: m.from, subject: m.subject, text: m.body, message_id: 'gmail-' + m.id };
     try {
-      const r = await intake.handler({ httpMethod: 'POST', queryStringParameters: { secret: emailSecret }, body: JSON.stringify(payload) });
+      const r = await intake.handler({ httpMethod: 'POST', queryStringParameters: { secret: emailSecret, reparse: o.reparse ? '1' : undefined }, body: JSON.stringify(payload) });
       const d = JSON.parse((r && r.body) || '{}');
       const st = d.duplicate_email ? 'deduped' : (d.status || (d.ok ? 'ok' : 'error'));
       if (st === 'created') out.created++; else if (st === 'deduped' || d.duplicate_email) out.deduped++; else out.skipped++;
@@ -160,7 +162,7 @@ exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'admin secret required (?secret=)' });
-  const res = await runTee(q.dryrun === '1', { days: q.days, subject: q.subject, max: q.max, q: q.q, budgetMs: q.budget_ms });
+  const res = await runTee(q.dryrun === '1', { days: q.days, subject: q.subject, max: q.max, q: q.q, budgetMs: q.budget_ms, reparse: q.reparse === '1' });
   return json(200, res);
 };
 
