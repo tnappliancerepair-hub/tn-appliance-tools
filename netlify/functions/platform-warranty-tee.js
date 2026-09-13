@@ -18,6 +18,9 @@
 //                  replay never has to touch the key the 15-min cron reads.
 //     &subject=... narrow to ONE vendor's subject for a bounded replay.
 //     &max=N       per-inbox cap (default 40, ceiling 200). readMany's max is PER-ACCOUNT.
+//     &budget_ms=N wall-clock budget for the intake loop (default 20000).
+//   For a real backfill call platform-warranty-tee-background instead: a 4-inbox
+//   full-format Gmail read can consume a sync function's whole allowance by itself.
 //     &q=...       raw Gmail query, outranks everything. Gmail returns NEWEST-first and
 //                  &max truncates the oldest, so a long backfill must be walked in SLICES
 //                  with both bounds (after:.. before:..) - a bigger &max alone times out.
@@ -76,6 +79,13 @@ function json(c, b) { return { statusCode: c, headers: { 'content-type': 'applic
 
 async function runTee(dry, opts) {
   const o = opts || {};
+  // A wall-clock budget, because the Gmail full-format read can eat most of a sync
+  // function's allowance on its own and leave the intake loop to be KILLED mid-batch.
+  // A killed run exits as a network fault with no record of how far it got. Stopping
+  // cleanly and reporting `remaining` is the difference between a resumable backfill
+  // and a silent partial write. Background callers pass a much larger budget.
+  const t0 = Date.now();
+  const budgetMs = Math.max(3000, parseInt(o.budgetMs || '20000', 10) || 20000);
   // getSecretFresh so a vault tuning change (window/kill switch/slug) takes effect on the
   // next run instead of waiting for the warm container to recycle.
   const enabled = String((await getSecretFresh('PLATFORM_WARRANTY_TEE_ENABLED')) || 'true').toLowerCase() !== 'false';
@@ -118,7 +128,14 @@ async function runTee(dry, opts) {
   try { msgs = await readMany(query, { max }); } catch (e) { return { ok: false, error: 'gmail read failed: ' + String((e && e.message) || e) }; }
 
   const out = { ok: true, dry: !!dry, slug, query, max, scanned: msgs.length, created: 0, deduped: 0, skipped: 0, enriched: 0, fields_filled: 0, results: [] };
+  let idx = 0;
   for (const m of msgs) {
+    idx++;
+    if (Date.now() - t0 > budgetMs) {
+      out.stopped_on_budget = true;
+      out.remaining = msgs.length - (idx - 1);
+      break;
+    }
     const brief = { id: m.id, from: String(m.from || '').slice(0, 44), subject: String(m.subject || '').slice(0, 60) };
     if (dry) { out.results.push({ ...brief, would_send: true }); continue; }
     const payload = { to: toAddr, from: m.from, subject: m.subject, text: m.body, message_id: 'gmail-' + m.id };
@@ -143,7 +160,7 @@ exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'admin secret required (?secret=)' });
-  const res = await runTee(q.dryrun === '1', { days: q.days, subject: q.subject, max: q.max, q: q.q });
+  const res = await runTee(q.dryrun === '1', { days: q.days, subject: q.subject, max: q.max, q: q.q, budgetMs: q.budget_ms });
   return json(200, res);
 };
 
