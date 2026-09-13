@@ -238,11 +238,24 @@ async function clearSnapshot(date) {
 // helped melt the Nano tier). Bounded, and resumable across nights.
 const HEAVY_KEEP = Number(process.env.BACKUP_HEAVY_KEEP) > 0 ? Number(process.env.BACKUP_HEAVY_KEEP) : 2;
 
-async function distinctDates(filters) {
-  const rows = await sb.select(BACKUP_TABLE, Object.assign({
-    select: 'snapshot_date', order: 'snapshot_date.desc', limit: '20000',
-  }, filters));
-  return [...new Set((rows || []).map((r) => r.snapshot_date))];
+// PostgREST caps a response at 1,000 rows and does NOT error -- asking for
+// limit=20000 silently returns 1,000, which on a 49,816-chunk table meant seeing
+// 4 of 41 dates and believing there was nothing to prune. Page explicitly and
+// stop only on a genuinely short page.
+async function distinctDates(filters, opts = {}) {
+  const PAGE = 1000;
+  const maxPages = opts.maxPages || 200;      // 200k chunks of headroom
+  const seen = new Set();
+  for (let page = 0; page < maxPages; page++) {
+    const rows = await sb.select(BACKUP_TABLE, Object.assign({
+      select: 'snapshot_date', order: 'snapshot_date.desc',
+      limit: String(PAGE), offset: String(page * PAGE),
+    }, filters));
+    const n = (rows || []).length;
+    for (const r of rows || []) seen.add(r.snapshot_date);
+    if (n < PAGE) break;
+  }
+  return [...seen].sort().reverse();
 }
 
 async function pruneOldSnapshots(keepDays = RETENTION_DAYS, opts = {}) {

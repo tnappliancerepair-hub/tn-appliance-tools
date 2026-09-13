@@ -59,13 +59,21 @@ exports.handler = async function (event) {
     try {
       const t0 = Date.now();
       if (q.dry) {
-        const rows = await sb.select('xano_backup_chunks', { select: 'snapshot_date,table_name', order: 'snapshot_date.desc', limit: '50000' });
+        // PostgREST caps at 1,000 rows silently -- page, or this reports 4 of 41 dates.
         const byDate = {};
-        for (const r of rows || []) {
-          byDate[r.snapshot_date] = byDate[r.snapshot_date] || { chunks: 0, heavy: 0 };
-          byDate[r.snapshot_date].chunks++;
-          if (r.table_name === 'parts_orders') byDate[r.snapshot_date].heavy++;
+        let total = 0;
+        for (let page = 0; page < 200; page++) {
+          const rows = await sb.select('xano_backup_chunks', { select: 'snapshot_date,table_name', order: 'snapshot_date.desc', limit: '1000', offset: String(page * 1000) });
+          const n = (rows || []).length;
+          total += n;
+          for (const r of rows || []) {
+            byDate[r.snapshot_date] = byDate[r.snapshot_date] || { chunks: 0, heavy: 0 };
+            byDate[r.snapshot_date].chunks++;
+            if (r.table_name === 'parts_orders') byDate[r.snapshot_date].heavy++;
+          }
+          if (n < 1000) break;
         }
+        const rows = { length: total };
         const heavyDates = Object.keys(byDate).filter((d) => byDate[d].heavy > 0).sort().reverse();
         return { statusCode: 200, body: JSON.stringify({ ok: true, dry: true, ms: Date.now() - t0,
           total_dates: Object.keys(byDate).length, total_chunks: (rows || []).length,
