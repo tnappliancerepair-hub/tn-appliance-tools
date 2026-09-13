@@ -1,5 +1,95 @@
 # Appliance Ant
 
+## 🅽🔁 2026-09-13 (latest) — A PARSER FIX CAN NOW BE RE-RUN ON OLD MAIL (Xano can't) · but the NSA backfill yielded ~NOTHING and the measurement says why · "206 blind cards" was WRONG — 157 of 236 are junk shells — READ FIRST
+
+Teddy: *"We need Supabase to be better than xano."* Went after the open NSA backfill as the
+concrete way to get there. **The backfill was the wrong lever — model coverage went 29 → 29.**
+What came out of it is worth more than the cards would have been.
+
+### 🥇 THE STRUCTURAL WIN — `?reparse=1`, and why it matters more than the backfill
+`platform-email-intake` short-circuits on Gmail **message_id BEFORE it parses**. Correct for the
+cron (a re-scanned window costs one indexed lookup) and **fatal for a parser improvement**: the id
+is burned, the short-circuit fires ahead of `extractJobs`, and the better parse is unreachable on
+that email **forever**. Proven live: a full 30-day NSA replay scanned all 34 messages, deduped 34,
+**enriched 0**. With `&reparse=1` the same slices enriched on every pass.
+- **That IS the "better than Xano" line.** Xano captures NSA as a raw-email husk a human retypes —
+  improve nothing, re-run nothing. The platform can now **apply a parser fix retroactively to mail
+  it has already processed.** Nothing on the Xano side has that property.
+- Safe because the guard was an **optimisation, not the protection**: `createWarrantyJob` still
+  dedupes on claim_number AND dispatch_id, the `email_intake` ledger insert is already
+  conflict-tolerant (unique `(company_id, message_id)` → swallowed), and the new-job alert is gated
+  on `status === 'created'`, which re-processing existing work never reaches. Fill-the-blank only.
+
+### 🔴 THE CORRECTION — I reported "206 blind NSA cards." That counted JUNK.
+`warranty_company ilike '%nsa%'` returns **236 rows. 157 of them have no name, no phone, AND no
+address** — Xano's notification-mail artifacts, mirrored faithfully. The real book:
+
+| | |
+|---|---|
+| rows tagged NSA | 236 |
+| **junk shells** (no name/phone/address) | **157** |
+| **real jobs** | **79** |
+| real + active | 42 |
+| **real active with NO model** ← the number that matters | **23** |
+| of those 23, carrying a Case# a dispatch could match | **6** |
+
+**⚠️ STANDING: a raw count filtered by `warranty_company` is not a job count on this board.**
+Same class as the documented "a raw job count is not a stop count." Check for a name/phone/address
+before quoting a vendor's book size — 2 of every 3 NSA rows are not work.
+
+### 🔑 WHY THE BACKFILL CAN'T REACH THEM — Xano never recorded a key
+Claim-key shapes across the 236:
+- **126 have an EMPTY `claim_number`** (118 `import_xano` + 8 `email_generic_warranty`). **An empty
+  key can never be matched by any dispatch** — the enrichment is structurally unable to find them.
+  Of those 126: **8 have a phone, 21 have a last name.** The rest are the shells.
+- 41 carry a real Case# (`H#######`) → matchable. 17 are `NSA`-prefixed (a different identifier).
+- The remainder are a grab-bag (`PRN01169994140`, `SHMV54E9464A-4`, `C000490703`) — Xano put
+  whatever it found in the column.
+
+So the ceiling on a claim-match backfill was **6 cards**, and the run delivered about that. The
+measurement predicted the outcome; running it confirmed it.
+
+### ✅ TWO THINGS THE RUN DID PROVE (worth the cost on their own)
+1. **Nothing was dropped.** `created: 0` across all ten 3-day slices of the 30-day window — every
+   NSA dispatch in the last month already has a job. No Caraway-class loss on NSA.
+2. **The junk shells are already parked correctly.** `office-board`'s `isArtifact` keeps anything
+   with a handle in-column; measured **0** jobs slip through on a placeholder unit
+   (`label in ('Appliance','Vehicle','')` + nameless + phoneless + no tech + no day). No work needed
+   — recorded so nobody re-checks.
+
+### 🛠️ MADE THE TEE ABLE TO DO THIS WORK AT ALL
+- **Wall-clock budget (`budgetMs`, default 20s).** The first live run died at **curl exit 56** having
+  filled ONE field — not a matching problem: the **four-inbox FULL-FORMAT Gmail read ate nearly the
+  whole 26s allowance by itself**, so the intake loop got 2-3 messages in and was killed. A killed
+  run surfaces as a network fault and says nothing about how far it got. It now stops cleanly and
+  reports `remaining`. **Same lesson as the nightly backup: a loop with no time bound inside a timed
+  runtime does not fail, it gets killed and retried silently.**
+- **`&days` / `&subject` / `&max` / `&q` / `&budget_ms` / `&reparse` on the tee — manual only.** The
+  cron passes none, so its behaviour is byte-identical. An explicit `&days`/`&q` **deliberately
+  outranks vault `PLATFORM_WARRANTY_TEE_QUERY`** so a one-off replay never mutates the key the live
+  15-min cron reads (forgetting to restore it would leave production scanning the wrong window).
+- **`platform-warranty-tee` core had NO timeout block** → ran on the 10s sync default. Now 26.
+- **`platform-warranty-tee-background`** (15-min allowance) — **returned 202 and did not persist**,
+  the documented background-fn unreliability. **The pattern that works is the MeisterTask one:**
+  externally-driven small slices. A 3-day window keeps the Gmail read cheap so the budget goes to
+  the intake calls. Driver is a bash loop with quota retry.
+- **`filled` + `matched_on` now ride out of `createWarrantyJob` through the intake response.** A
+  backfill's entire yield is enrichment-on-dedup; without them the run reports `created: 0` and is
+  indistinguishable from success. **This is the change that let the yield be proven ~0 instead of
+  claimed as a win.**
+
+### ⏭️ OPEN — the only lever left for the 23, and it needs a decision
+**Identity matching (phone + last name), NOT claim matching.** Precedent exists and is proven:
+`nsa-parts-watch.resolveJob` already does part → phone/last-name → prefer-a-real-customer-over-a-
+shell → live-over-terminal → newest. **NOT built, deliberately:** it must be **enrichment-only and
+refuse unless the match is UNIQUE.** It must never feed the dedup-vs-create decision — the same
+customer legitimately has several NSA dispatches over time, and *"wrongly collapsing two real jobs
+loses work, a twin only costs a card."* Build it as a separate sweep that fills blanks and reports
+ambiguity, never as a branch inside `createWarrantyJob`.
+- Also still open: case `H4433092` (Karla Fuss) serial — email says `41331211`, board says
+  `K1331211` (hand-typed on the Xano side). Fill-the-blank correctly did not overwrite. Email wins.
+
+
 ## 🧾🅽 2026-09-13 (latest) — NSA NOW PARSES INSTEAD OF GUESSING: 13% of the book had NO parser ANYWHERE · the whole block is ONE LINE · the key choice was 5 dedups vs 5 twins · a dedup now FILLS THE BLANKS — READ FIRST
 
 Teddy: *"Let's get nsa secured and automatic to make jobs on Supa base now too please"* —
