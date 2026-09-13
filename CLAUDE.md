@@ -1,6 +1,125 @@
 # Appliance Ant
 
-## 📘👥 2026-09-13 (latest) — EVERY FACEBOOK SHARE NOW SAYS WHAT WE DO · `<title>` was right and `og:title` had drifted somewhere else · always-open had NO card image at all · a "1,100+" that overstated the real 1,100 — READ FIRST
+## 📈🔎 2026-09-13 (latest) — THE ADS ARE UNMEASURABLE AND THE ORGANIC CLICKS AREN'T THERE: the ad's phone was right and the landing page's was wrong · 87% of spend sits in ONE broad group · 278 review asks produced 4 replies, so the map-pack nudge fired 3 times in a month — READ FIRST
+
+Teddy: *"Let's focus on our SEO and converting these clicks into actual jobs. Can we optimize our
+advertising any better than where we have it? What else can we do to get more work out of it?"*
+Measured every channel live before recommending anything. Three of the four findings were fixable
+in code and are shipped; the rest are money decisions left to Teddy.
+
+### 🥇 THE FINDING — the ad carries the right number, the page it lands on carries the wrong one
+The Google Ads **call extension is 615-845-8500** (the dedicated ads line) — correct, and that is
+where all **8** of the last 30 days' counted conversions came from. But **every enabled ad's final
+URL lands on a page publishing 629-272-1234**, confirmed in the files (`tel:+16292721234`).
+
+| | |
+|---|---|
+| paid clicks in 30 days | **225** |
+| where they land | `appliance-ai.html` (9 ads) / `always-open.html` (1 ad) |
+| number those pages publish | **629-272-1234 — not the ads line** |
+| so calls placed off the page are | **invisible to `google-ads-truth`** |
+
+That is why `cost_per_job` reads **null** on $845.33 of spend. The measurement gap was never a
+missing report — it was 225 people a month landing on a number nobody can tie back to the spend.
+- **✅ `ads-phone.js` (NEW)** — swaps the **visible** number + `tel:` link to the ads line **only
+  when the visit came from a Google Ad**, so every call to it is a paid lead by construction.
+- ⚠️ **It never touches the JSON-LD phone.** That is the canonical NAP, and swapping it per-visitor
+  would break the name-address-phone consistency local rank leans on.
+- ⚠️ **A stored ad-click only counts inside the same visit (90 min).** Someone who clicked last week
+  and returns organically gets the normal number — *crediting them to paid is how a channel gets
+  scaled on numbers that were never real.* It DOES carry across the internal
+  `always-open → appliance-ai` hop, where the gclid is gone but the visit is the same.
+- Unit-verified **11/11** incl. the stale-click refusal. Both pages' JS + JSON-LD re-parsed clean.
+
+### 💸 LSA IS 6× CHEAPER PER LEAD AND USING 8% OF ITS BUDGET
+Pulled both sides the same hour:
+
+| | Search | LSA |
+|---|---|---|
+| 30-day spend | **$845.33** | $103.29 |
+| what you get | 8 **ringing phones** | **6 leads** (3 charged) |
+| unit cost | **$105.67 per ring** | **$17.22 per lead** |
+| daily budget | $45 | $40.71 |
+| budget actually used | ~62% | **~8%** |
+
+LSA only spends when a lead arrives, so you cannot force it — but it is the cheapest lead in the
+trade and it is nowhere near its ceiling. **Search is the expensive channel and it is the one
+running at capacity.**
+
+### 🪣 87% OF SEARCH SPEND IS IN ONE BROAD AD GROUP — the themed groups are starved
+| ad group | 30d spend | clicks | conv |
+|---|---|---|---|
+| **After-Hours ad group** | **$731.85** | 193 | 7 |
+| Appliance Repair — General | $64.25 | 20 | 1 |
+| Refrigerator / Washer / Dryer / Dishwasher / Oven **combined** | **$49.23** | 12 | **0** |
+
+The per-appliance structure exists and each group points at its own prefilled landing URL — it just
+never gets served. The broad After-Hours group wins every auction first and spends the budget, and
+it is also the group buying the junk (`tv repair near me`, `vacuum repair near me`,
+`electrolux vacuum cleaner repair shop near me`, `mills appliance dickson tn` — a competitor's name).
+**Ad strength is AVERAGE on all 7 groups.** Rebalancing this is a spend decision, left for Teddy.
+
+### 🚨 278 REVIEW ASKS PRODUCED 4 REPLIES — so the map-pack nudge fired 3 times in a month
+The scorecard's own #1 lever is *"push reviews naming the city."* **Zero of the 50 most recent
+Google reviews name one.** Root-caused it, and the fix was not new copy — the copy already existed:
+- `hintOf()` in `_lib/review-i18n.js` composes *"a mention of Lee and Nashville helps neighbors
+  find us."* It is wired **only into `satisfaction.handleInbound`** — the **SMS-reply fallback**.
+- Since the one-tap rating page landed (2026-08-14), almost nobody replies by text. Measured:
+  **278 `review_ask_sent` in 30 days → 4 `review_thumb` (3 up, 1 down).** So the city nudge fired
+  **~3 times**, while everyone else tapped through `rate.html` and reached Google **with no prompt
+  at all** ("One quick review helps our small family shop" + a button, nothing about tech or city).
+- **✅ FIXED:** `rate.html` now shows the same suggestion on **both** Google hand-off screens, and
+  `rate-context` returns the **city** (it already returned tech + appliance; the page used neither).
+  Suggestion only — never says what to rate or what to write, renders nothing when tech and city are
+  both unknown. **Costs no SMS segments** (it is a line of text on a page we already serve).
+  Unit-verified 6/6 incl. tech-only, city-only, neither, and HTML escaping.
+- ⚠️ **STANDING: when a funnel's primary path changes, the nudges wired into the OLD path go quiet
+  without erroring.** The tap-page was a real improvement and it silently orphaned the map-pack
+  lever for a month. Check what else only lives in `handleInbound`.
+
+### 🔦 ORGANIC: WE RANK, NOBODY CLICKS — and the clicks we get are the wrong intent
+1,062 pages surfacing (+22), 242 on page 1, **39,913 impressions/wk**. And in 28 days of GSC:
+
+| query | position | impressions | clicks |
+|---|---|---|---|
+| appliance repair | **7.4** | 859 | **0** |
+| appliance repair nashville | **7.4** | 303 | **0** |
+| appliance repair near me | 16 | 86 | 1 |
+| dryer repair near me | 17.4 | 52 | 2 |
+
+**Repair-intent organic clicks in 28 days: about 3.** The clicks we DO earn are **brand** (`tn
+appliance exchange llc` 13, `tn appliance exchange` 9) and the **used-appliance ghost** (`used
+appliance store near me` 3, `scratch and dent appliances` 2, `used washer and dryer` 2). Ranking #7
+organically is worth almost nothing here because **the map pack sits above organic** — which is
+exactly why the review work above is the organic lever, not more pages.
+- ⚠️ **`rank-grid` is still blind** — all 4 grid points return `PERMISSION_DENIED`. It falls back to
+  the referrer-locked *browser* key. **We cannot see our own map-pack position**, the one number
+  that explains the whole organic picture. Needs ONE unrestricted server key in the vault as
+  `GOOGLE_PLACES_API_KEY`. **This is the cheapest unblock on the list.**
+
+### 🧹 TWO SMALLER FIXES SHIPPED
+- **Wrong-trade negatives widened** (`google-ads-optimizer`). The list caught TV + vacuum but not
+  DVD — a `panasonic dvd recorder repair` click was still sold to us this week. Added the obvious
+  neighbours so the daily optimizer blocks the NEXT trade instead of waiting to be spotted.
+  ⚠️ **`ice` is deliberately absent — an ice maker IS a refrigerator repair.** So is `kitchenaid`
+  (a KitchenAid dishwasher is real work), which is why only `mixer` is blocked. **Verified against
+  400 real search terms: 4 newly flagged, all genuinely wrong-trade, zero legitimate terms caught.**
+- **`always-open.html` had a `LocalBusiness` schema with no `telephone` at all** — a free NAP signal
+  missing on a page taking live ad traffic. Added the canonical number.
+
+### ⏭️ OPEN — the calls that are Teddy's, not mine
+1. **Rebalance Search.** 87% of budget is in the broad group buying wrong-trade and out-of-area; the
+   themed appliance groups spent $49 and got 0 conversions because they never serve.
+2. **Where the next ad dollar goes.** LSA is $17/lead and running at 8% of budget; Search is $105
+   per *ringing phone* and at capacity. The honest comparison gets real once cost-per-JOB exists.
+3. **Bidding stays MANUAL_CPC** until `google-ads-truth` reports real jobs — it now can, because the
+   landing-page calls are attributable from today. **Do not tap `TARGET_CPA_OPT_IN`** before then.
+4. **Vault `GOOGLE_PLACES_API_KEY`** so we can finally see the map pack.
+5. **Out-of-area paid clicks are NOT all waste** — `always-open.html`'s own `areaServed` lists
+   Clarksville, Baton Rouge and Hammond, and Lee is based in Clarksville. Check coverage before
+   negativing a city.
+
+## 📘👥 2026-09-13 — EVERY FACEBOOK SHARE NOW SAYS WHAT WE DO · `<title>` was right and `og:title` had drifted somewhere else · always-open had NO card image at all · a "1,100+" that overstated the real 1,100 — READ FIRST
 
 Teddy: *"when we post a link on Facebook I'd like it to mention fast appliance repair on that
 link so they know what we do."* Then: *"Let's maximize appliance repair trust. Let's maximize
