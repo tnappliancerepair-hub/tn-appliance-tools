@@ -12,6 +12,9 @@ exports.handler = async function (event) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'unauthorized — ?secret=' });
   const days = Math.max(1, Math.min(31, parseInt(q.days, 10) || 30));
+  // ?diag=1 answers the question a bare empty result cannot: is there no DATA, or is the
+  // account not linked to a manager we can see?
+  if (q.diag === '1') { try { return json(200, await lsa.diagnose(days)); } catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); } }
   try { return json(200, await lsa.accountReports(days)); }
   catch (e) { return json(200, { ok: false, error: String((e && e.message) || e) }); }
 };
