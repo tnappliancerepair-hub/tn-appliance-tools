@@ -1,5 +1,18 @@
-// platform-stale-scheduled — the office's pass over jobs stuck at `scheduled` on a day that
-// already went by.
+// platform-stale-scheduled — the office's pass over jobs stuck OPEN on a day that already
+// went by.
+//
+// 2026-09-13: it only ever asked for `status=eq.scheduled`, and that was half the problem.
+// Measured on the live board: 639 open jobs carry a past scheduled_day, and only 341 of them
+// say `scheduled`. The other 298 were invisible to the one tool built to find them.
+// The expensive half is `in_progress` — 112 jobs, every one with a tech on it, oldest
+// 2026-06-16, and 52 of the 79 past three weeks already carry a FILED TECHNICIAN REPORT.
+// A warranty job with a report that never flipped to completed is an unfiled claim: the work
+// happened, nobody got billed, nobody got paid. Those now show up here.
+//
+// `awaiting_parts` (183) is deliberately LEFT OUT unless asked for. At TN parts are ordered
+// before the first visit, so a past day on an awaiting_parts job is the normal parts flow, not
+// a stall — dumping 183 legitimate rows in would bury the 112 that matter, and a queue you
+// cannot clear gets abandoned. Pass include_parts to see them anyway.
 //
 // Measured 2026-09-10: 331 of them, oldest 2026-06-02. Xano agrees on every one, so this is
 // real work in limbo, not mirror drift. The job says scheduled; the schedule shows today
@@ -95,20 +108,35 @@ exports.handler = async function (event) {
     // Three weeks is the working horizon. Older work still comes back, flagged, so the office
     // can go find it - it just isn't what the page opens on.
     const WINDOW = Math.max(1, Math.min(365, Number(p.days || 21)));
-    const sel = 'id,xano_id,scheduled_day,technician_id,problem,parts_status,tdr_diagnosis,tdr_failed_component,tdr_repair_completed,' +
+    const sel = 'id,xano_id,status,scheduled_day,technician_id,problem,parts_status,tdr_diagnosis,tdr_failed_component,tdr_repair_completed,' +
                 'customer:customer_id(first_name,last_name,phone,city),unit:unit_id(label)';
-    // Every one of these fits well inside a single page (331 today), but ask in order so the
-    // oldest - the ones most likely already done and forgotten - come first.
-    const jobs = await getAll(`job?company_id=eq.${companyId}&status=eq.scheduled&scheduled_day=lt.${today}&select=${sel}&order=scheduled_day.asc,id.asc`);
+    // Every open status whose day has passed, not just `scheduled`. awaiting_parts stays out
+    // by default (see the header) - include_parts brings it in.
+    const withParts = String(p.include_parts || '') === '1' || p.include_parts === true;
+    const statuses = ['scheduled', 'in_progress', 'new'].concat(withParts ? ['awaiting_parts'] : []);
+    // Ask oldest-first: the ones most likely already done and forgotten come first.
+    const jobs = await getAll(`job?company_id=eq.${companyId}&status=in.(${statuses.join(',')})&scheduled_day=lt.${today}&select=${sel}&order=scheduled_day.asc,id.asc`);
     const techs = await get(`technician?company_id=eq.${companyId}&select=id,name,active`);
     const nm = {}; (techs || []).forEach((t) => { nm[t.id] = t.name; });
-    const out = (Array.isArray(jobs) ? jobs : []).map((r) => {
+    const out = (Array.isArray(jobs) ? jobs : [])
+      // A `new` job with no tech and no day of its own is an intake shell, not a missed stop -
+      // the board already parks those. Only a `new` that was actually booked to somebody
+      // belongs on this list.
+      .filter((r) => r.status !== 'new' || r.technician_id)
+      .map((r) => {
       const c = r.customer || {};
       const days = Math.round((Date.parse(today) - Date.parse(r.scheduled_day)) / 86400000);
       const hasReport = !!(String(r.tdr_diagnosis || '').trim() || String(r.tdr_failed_component || '').trim() || String(r.tdr_repair_completed || '').trim());
       const partsPending = /await|order/i.test(String(r.parts_status || ''));
+      // Say WHY each row is here, so the office is never guessing what it is looking at.
+      const why = r.status === 'in_progress'
+        ? (hasReport ? 'started, report filed, never closed out' : 'started and never closed out')
+        : r.status === 'awaiting_parts' ? 'waiting on parts past its day'
+        : r.status === 'new' ? 'booked to a tech but the status fell back to new'
+        : 'scheduled for a day that passed';
       return {
-        id: r.id, xano_id: r.xano_id, day: r.scheduled_day, days_ago: days, recent: days <= WINDOW,
+        id: r.id, xano_id: r.xano_id, status: r.status, why,
+        day: r.scheduled_day, days_ago: days, recent: days <= WINDOW,
         tech: nm[r.technician_id] || '', tech_id: r.technician_id,
         customer: [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || '(no name)',
         city: c.city || '', phone: c.phone || '',
@@ -117,7 +145,9 @@ exports.handler = async function (event) {
       };
     });
     const recent = out.filter((x) => x.recent).length;
-    return json(200, { ok: true, today, window_days: WINDOW, count: out.length, recent, older: out.length - recent, jobs: out });
+    const byStatus = {};
+    out.forEach((x) => { byStatus[x.status] = (byStatus[x.status] || 0) + 1; });
+    return json(200, { ok: true, today, window_days: WINDOW, count: out.length, recent, older: out.length - recent, by_status: byStatus, include_parts: withParts, jobs: out });
   }
 
   if (doo === 'resolve') {
