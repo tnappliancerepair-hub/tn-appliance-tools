@@ -69,7 +69,31 @@ makes the measurement gap the whole story.
   before booking. Warranty customers tolerate that; cold paid traffic at 11pm does not — and the
   8 who wanted us **called instead**. Giving paid traffic a shorter path is a product decision on
   the flow Teddy protects, so it is **flagged, not changed.**
-- **Louisiana still has zero ad presence** (47 jobs/wk, all warranty, 0 cash).
+- **🔴 CORRECTION — Louisiana IS built, just PAUSED.** I first reported "never built"; wrong.
+  **`After-Hours Appliance Repair — Louisiana Dryer & Fridge (Ant)` id 24165216430, $30/day,
+  PAUSED**, 4 ad groups (**Walker · Denham Springs · Hammond · Baton Rouge**), 10 phrase keywords
+  each, 64 negatives. Set to PRESENCE too so it is correct whenever it is enabled. ⚠️ **Those 4
+  are all JOHN's side (North Shore + Baton Rouge) — there is NO New Orleans / Metairie / Kenner /
+  Gretna group, i.e. ANDRE's South Shore has no ad coverage at all.** Enabling is a spend
+  decision, left for Teddy.
+
+### 🚦 GOOGLE'S "APPLY" RECOMMENDATIONS — 69 of them, and two would actively hurt
+Pulled them off the API (`SELECT recommendation.type, recommendation.campaign FROM recommendation`).
+- **⛔ NEVER TAP `TARGET_CPA_OPT_IN`.** Target CPA optimises toward the counted conversion, which
+  is `Calls from ads` = a phone ringing. It would tell Google *"get me more ringing phones at $X"*
+  and hunt the cheapest ones. **Revisit only when `google-ads-truth` reports real jobs.**
+- **⛔ NEVER TAP `DISPLAY_EXPANSION_OPT_IN`** — spends the Search budget on banner inventory.
+  Near-zero intent for a trade; the classic local-budget drain. **`SEARCH_PARTNERS_OPT_IN`** is the
+  same family (partner sites, much weaker intent) — no for a local service business.
+- **✅ Safe + free:** `SITELINK_ASSET`, `CALLOUT_ASSET`, `DYNAMIC_IMAGE_EXTENSION_OPT_IN`,
+  `RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH`.
+- **⚠️ 60 of the 69 are `KEYWORD` suggestions — REVIEW, never blanket-apply.** That is exactly how
+  `tv repair near me` comes back after the optimizer just finished killing it. **The keyword TEXT
+  is not readable through the API** (`recommendation.keyword_recommendation.keyword.text` 400s on
+  v24), so this one needs human eyes in the UI: reject anything that is not an appliance we fix in
+  a city we serve.
+- **Ad strength is AVERAGE on all 7 ad groups at 12/15 headlines + 4/4 descriptions** — so the
+  penalty is theme DIVERSITY, not count. More distinct, keyword-bearing headlines is the fix.
 
 ### 🅻 LSA READS EMPTY FROM THE API
 Teddy turned LSA on; `lsa-test` returns **200 with `accounts: []`**, and no `LOCAL_SERVICES`
