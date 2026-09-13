@@ -51,6 +51,25 @@
   .faq p{margin:0;color:var(--dim);font-size:15px}
   .honest{background:rgba(49,214,122,.07);border:1px solid rgba(49,214,122,.3);border-radius:12px;padding:16px 18px;color:var(--dim);font-size:15px}
   footer{padding:34px 0 60px;text-align:center;color:var(--dim);font-size:14px}
+
+  /* LOCAL FIRST (Teddy 2026-09-13): "put the local text at the very top... so they
+     could see it's real people that work there before all of the AI stuff." This
+     page took live ad traffic with no local proof on it at all. */
+  .localfirst{width:100%;max-width:560px;margin:0 auto 14px;padding:10px 12px;
+    background:var(--panel);border:1px solid rgba(255,255,255,.10);border-radius:14px;text-align:left}
+  .lf-top{display:flex;flex-wrap:wrap;align-items:center;gap:4px 9px;font-size:12.5px;color:var(--dim);line-height:1.45}
+  .lf-top .st{color:#f5b301;letter-spacing:1px}
+  .lf-top b{color:var(--ink)}
+  .lf-crew{display:flex;gap:5px;margin-top:9px}
+  .lf-crew a{flex:1;min-width:0;overflow:hidden;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:5px}
+  .lf-crew img{width:100%;max-width:46px;aspect-ratio:100/128;object-fit:cover;border-radius:8px;
+    border:1px solid rgba(255,255,255,.12);display:block;background:rgba(255,255,255,.04)}
+  .lf-nm{font-size:11px;color:var(--ink);font-weight:600;line-height:1.15;text-align:center}
+  .lf-zone{font-size:9px;color:var(--dim);line-height:1.15;text-align:center;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .lf-foot{margin-top:8px;font-size:11.5px;color:var(--dim);line-height:1.35}
+  @media(max-width:360px){ .lf-crew{gap:3px} .lf-crew img{max-width:40px} .lf-nm{font-size:10px}
+    .lf-crew a{overflow:visible}
+    .lf-zone{font-size:8px;letter-spacing:-.03em;overflow:visible;text-overflow:clip;max-width:none} }
 </style>
 <script>
 /* ── Google Ads attribution (added 2026-09-09) ──────────────────────────────────
@@ -80,6 +99,23 @@
 </head>
 <body>
 <div class="wrap">
+
+  <div class="localfirst">
+    <div class="lf-top">
+      <span class="st">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+      <span><b>4.5</b> &middot; 1,100+ Google reviews</span>
+      <span>&middot;</span>
+      <span>Family&#8209;owned in Middle TN <b>since 2012</b></span>
+    </div>
+    <div class="lf-crew">
+      <a href="/about.html" aria-label="Teddy, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/teddy-owner.jpg" alt="Teddy, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Teddy</span><span class="lf-zone">Owner</span></a>
+      <a href="/about.html" aria-label="Jimmy, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/jimmy-nashville.jpg" alt="Jimmy, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Jimmy</span><span class="lf-zone">Nashville</span></a>
+      <a href="/about.html" aria-label="Lee, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/lee-clarksville.jpg" alt="Lee, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Lee</span><span class="lf-zone">Clarksville</span></a>
+      <a href="/about.html" aria-label="Andre, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/andre-south-shore.jpg" alt="Andre, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Andre</span><span class="lf-zone">S. Shore LA</span></a>
+      <a href="/about.html" aria-label="John, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/john-north-shore.jpg" alt="John, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">John</span><span class="lf-zone">N. Shore LA</span></a>
+    </div>
+    <div class="lf-foot">Licensed &amp; insured &mdash; <b style="color:var(--ink)">the same local techs who answer are the ones who show up.</b></div>
+  </div>
 
   <div class="hero">
     <span class="pill"><span class="dot"></span> Open 24 / 7 · 365</span>

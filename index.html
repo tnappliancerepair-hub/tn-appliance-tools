@@ -226,6 +226,21 @@ footer .ft{font-size:10px;color:var(--gray2);letter-spacing:.09em;text-transform
 
 @media(max-width:780px){.tdr-grid{grid-template-columns:repeat(2,1fr)}.rev-grid{grid-template-columns:1fr}}
 @media(max-width:600px){nav{padding:13px 16px}.nav-tag{display:none}.hero{padding:40px 18px 32px}.content{padding:0 18px 32px}.chatcard{padding:18px 15px}.cc-input input{font-size:16px}.cta-inner{padding:36px 20px}}
+
+  /* LOCAL FIRST (Teddy 2026-09-13): "start with the local technicians at the very top
+     rather than in the middle." The trust TEXT was already at the top of the hero, but
+     the faces sat 3,580px down - four screens on a phone. Put them under the trust line
+     so a visitor sees real people before the AI ant. Full crew section stays below. */
+  .lf-crew{display:flex;gap:5px;margin:10px auto 2px;max-width:430px}
+  .lf-crew a{flex:1;min-width:0;overflow:hidden;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:5px}
+  .lf-crew img{width:100%;max-width:46px;aspect-ratio:100/128;object-fit:cover;border-radius:8px;
+    border:1px solid var(--bord2);display:block;background:var(--surf2)}
+  .lf-nm{font-size:11px;color:var(--white);font-weight:600;line-height:1.15;text-align:center}
+  .lf-zone{font-size:9px;color:var(--gray);line-height:1.15;text-align:center;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .lf-foot{max-width:430px;margin:0 auto;font-size:11.5px;color:var(--gray);line-height:1.35}
+  @media(max-width:360px){ .lf-crew{gap:3px} .lf-crew img{max-width:40px} .lf-nm{font-size:10px}
+    .lf-crew a{overflow:visible}
+    .lf-zone{font-size:8px;letter-spacing:-.03em;overflow:visible;text-overflow:clip;max-width:none} }
 </style>
 </head>
 <body>
@@ -240,6 +255,14 @@ footer .ft{font-size:10px;color:var(--gray2);letter-spacing:.09em;text-transform
 <!-- HERO: one big unmistakable ask, in normal flow -->
 <div class="hero">
   <div class="trust-line"><span class="star">★</span> <b>4.5</b> · 1,000+ Google reviews · <b>6,000+</b> Facebook fans · <b>Family-owned</b> since 2012 · <b>Same-day</b></div>
+  <div class="lf-crew">
+    <a href="/about.html" aria-label="Teddy, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/teddy-owner.jpg" alt="Teddy, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Teddy</span><span class="lf-zone">Owner</span></a>
+    <a href="/about.html" aria-label="Jimmy, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/jimmy-nashville.jpg" alt="Jimmy, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Jimmy</span><span class="lf-zone">Nashville</span></a>
+    <a href="/about.html" aria-label="Lee, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/lee-clarksville.jpg" alt="Lee, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Lee</span><span class="lf-zone">Clarksville</span></a>
+    <a href="/about.html" aria-label="Andre, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/andre-south-shore.jpg" alt="Andre, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">Andre</span><span class="lf-zone">S. Shore LA</span></a>
+    <a href="/about.html" aria-label="John, appliance repair technician at TN Appliance Exchange"><img src="/team/sm/john-north-shore.jpg" alt="John, appliance repair technician" width="46" height="59" decoding="async"><span class="lf-nm">John</span><span class="lf-zone">N. Shore LA</span></a>
+  </div>
+  <div class="lf-foot">Licensed &amp; insured &mdash; <b style="color:var(--white)">the same local techs who answer are the ones who show up.</b></div>
   <span class="hero-ant">🐜</span>
   <h1>What's wrong with your appliance?</h1>
   <p class="hero-sub">Tell Ant — a real local technician gets you an <strong>honest answer, same-day.</strong> <strong>Free to book — you only pay when we come out.</strong> We're the <strong>easy button</strong> for a broken machine: no call center, no forms, no guessing.</p>
