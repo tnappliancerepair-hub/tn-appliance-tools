@@ -152,7 +152,7 @@ exports.handler = async function (event) {
     // a refresh reliably sees the prior value. The operator's plain resetpw (no &once) still forces new.
     if (q.once === '1' || q.once === 'true') {
       let existing = ''; try { existing = (await getSecretFresh(vaultKey)) || ''; } catch (_) {}
-      if (existing) return json(200, { ok: true, owner_email: ownerEmail, vault_key: vaultKey, saved: true, unchanged: true, new_password: reveal ? existing : undefined, login_url: 'https://tnapplianceexchange.net/platform/owner.html', note: 'existing password revealed (idempotent)' });
+      if (existing) return json(200, { ok: true, owner_email: ownerEmail, seat_role: seatRole, vault_key: vaultKey, saved: true, unchanged: true, new_password: reveal ? existing : undefined, login_url: seatLink(seatRole), note: 'existing password revealed (idempotent)' });
     }
     const newpw = tempPassword();
     const setR = await fetch(`${url}/auth/v1/admin/users/${u.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ password: newpw }), signal: AbortSignal.timeout(12000) });
@@ -175,7 +175,12 @@ exports.handler = async function (event) {
     } catch (_) {} }
     // &reveal=1: hand the plaintext back to the admin caller (they already hold the admin
     // secret). For seeding a demo/sandbox hub or a controlled onboarding hand-off — never log it.
-    return json(200, { ok: true, owner_email: ownerEmail, seat_role: seatRole, slug: seatSlug, vault_key: seatRole === 'owner' ? vaultKey : undefined, saved, recorded_on_pack: recorded, new_password: reveal ? newpw : undefined, login_url: 'https://tnapplianceexchange.net/platform/office-board.html', note: 'read the password from admin-secrets.html under vault_key, then change it on first login' });
+    // login_url + the note follow the SEAT'S ROLE. Both were hardcoded - owner.html on one
+    // branch, office-board.html on the other - so resetting a TECH handed back the office
+    // board, which is the wrong tool for a field guy and not where his day lives. And the note
+    // pointed at a vault_key that only exists for an owner, sending anyone resetting an office
+    // or tech seat to look somewhere the password was never written.
+    return json(200, { ok: true, owner_email: ownerEmail, seat_role: seatRole, slug: seatSlug, vault_key: seatRole === 'owner' ? vaultKey : undefined, saved, recorded_on_pack: recorded, new_password: reveal ? newpw : undefined, login_url: seatLink(seatRole), note: seatRole === 'owner' ? 'read the password from admin-secrets.html under vault_key, then change it on first login' : 'a non-owner password is recorded on the shop pack (see /packs), not the owner vault slot' });
   }
 
   // One-tap login link (no password in chat). Uses the Admin generate_link endpoint to
