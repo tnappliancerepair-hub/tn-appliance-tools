@@ -1,6 +1,66 @@
 # Appliance Ant
 
-## 🅽🔁 2026-09-13 (latest) — A PARSER FIX CAN NOW BE RE-RUN ON OLD MAIL (Xano can't) · but the NSA backfill yielded ~NOTHING and the measurement says why · "206 blind cards" was WRONG — 157 of 236 are junk shells — READ FIRST
+## ⏰🧾 2026-09-13 (latest) — THE OVERDUE TOOL WAS ASKING FOR ONE STATUS AND MISSING 298 JOBS · 112 sit `in_progress` with a tech on them, 52 with a REPORT FILED = unfiled claims · the NSA identity sweep found NOTHING and that is the answer — READ FIRST
+
+Morning pass. Re-ran the approved NSA identity sweep to completion, it yielded zero — and chasing
+**why** it yielded zero is what found the real money.
+
+### 🥇 THE FINDING — `platform-stale-scheduled` filtered `status=eq.scheduled`
+That one clause is why nobody could see the pile. Measured live:
+
+| open jobs with a **past** scheduled_day | jobs | with a tech |
+|---|---|---|
+| `scheduled` — the only status the tool asked for | 341 | 338 |
+| **`in_progress`** ← the expensive one | **112** | **112** |
+| `awaiting_parts` | 183 | 181 |
+| `new` (booked, status fell back) | 3 | 3 |
+| **total** | **639** | — |
+
+**The tool built to find overdue work was seeing 341 of 639 — 53%.** Of the 112 `in_progress`,
+**79 are past three weeks and 52 of those already carry a FILED TECHNICIAN REPORT**, 74 of 79 on
+warranty. Oldest 2026-06-16. A warranty job with a report that never flipped to `completed` is an
+**unfiled claim**: the work happened, nobody billed, nobody got paid. Real rows, real techs —
+job 19988 Christina Reeves (AHS, Jimmy, 75d, dryer-lint diagnosis written), 20023 Root (AHS,
+Jimmy, 74d), 19997 Amacker (AHS, John, 73d), 20153 Malone (SquareTrade, John, 66d)…
+- **`awaiting_parts` (183) is deliberately LEFT OUT** (`include_parts` to see it). At TN parts are
+  ordered BEFORE the first visit, so a past day there is the normal flow, not a stall. 183
+  legitimate rows would bury the 112 that matter — **a queue you cannot clear gets abandoned.**
+- A `new` job with **no tech** is dropped: that is an intake shell the board already parks.
+- Every row now says **why** it is on the list, so the office is never guessing.
+- ⚠️ **STANDING: an "is anything overdue?" query keyed on ONE status is a coverage claim, not a
+  measurement.** Ask what the other open statuses are doing before trusting the count.
+
+### 🅽 THE NSA SWEEP RAN CLEAN AND FOUND NOTHING — and that IS the answer
+Live, all ten 3-day slices: **15 dispatches, 100% matched by claim, 0 enriched, 0 fields, 0
+refused.** Nothing left to fill. **The blind-card count fell 23 → 11 overnight on its own** (a
+53-unit batch at 9am CT, 32 gaining a model) — the mirror's own model-borrowing did it. So the
+identity lever the sweep exists for is worth ~0 today. **Keep the sweep; it is one-shot and
+correct. Do not put it on a cron.**
+- ⚠️ **AND THE "11 BLIND CARDS" ARE MOSTLY NOT WORK.** 9 of 11 are `email_generic_warranty` husks
+  with no day and no tech; their keys (`PRN011042664701`, `C000490703`, `1902361744`) are not NSA
+  Case# shapes, so **no dispatch email can ever match them.** Only 2 carry a date, both months stale.
+
+### 🔴 3 OF THEM ARE JOBS NSA ALREADY CLOSED — and the platform still shows them open
+Probed Gmail for each blind Case#. The mail is there, and it says:
+**H4394006 Ledbetter — "Repair Closed by NSA" 08-17** · **H4355053 Ellis — "Repair Closed" 08-03**
+· **H4308482 — "Repair Cancelled" 06-22**. Two of those are `in_progress` **with a tech assigned**
+(Ellis booked 07-30, Ledbetter 08-14) — six and four weeks on a tech's board for work NSA closed.
+- **The gap: the platform reads NSA DISPATCH mail and ignores NSA CLOSURE/CANCELLATION mail.**
+  `platform-tn-reconcile` only catches cancels **Xano** knows about, and Xano's generic intake
+  never linked these. Over a year: 38 distinct closed/cancelled cases, **6 still open here, 2 that
+  actually cost something.**
+- **NOT BUILT — deliberately.** ~2 real jobs/year from this class does not justify a watcher yet.
+  The widened overdue list surfaces both of them today, which is the cheap fix. Revisit only if
+  the same shape shows up on SquareTrade/AHS (60% and 27% of the book vs NSA's 13%).
+
+### ⏭️ OPEN
+- **The 112 `in_progress` jobs are a human pass** — each is ✓ done / 📅 still needs doing / 🗑 dead.
+  The review-ask guard (work older than 10 days is never asked about) means clearing them texts
+  nobody, and the completion push to Xano is the same one-tap path the `scheduled` pile uses.
+- Throwaway tenant **`jimmys-appliance-repair`** still exists from yesterday's misread — harmless
+  (no Stripe customer, no subscription, isolated) but it is clutter. One call purges it.
+
+## 🅽🔁 2026-09-13 — A PARSER FIX CAN NOW BE RE-RUN ON OLD MAIL (Xano can't) · but the NSA backfill yielded ~NOTHING and the measurement says why · "206 blind cards" was WRONG — 157 of 236 are junk shells — READ FIRST
 
 Teddy: *"We need Supabase to be better than xano."* Went after the open NSA backfill as the
 concrete way to get there. **The backfill was the wrong lever — model coverage went 29 → 29.**
