@@ -1,5 +1,111 @@
 # Appliance Ant
 
+## 🧾🅽 2026-09-13 (latest) — NSA NOW PARSES INSTEAD OF GUESSING: 13% of the book had NO parser ANYWHERE · the whole block is ONE LINE · the key choice was 5 dedups vs 5 twins · a dedup now FILLS THE BLANKS — READ FIRST
+
+Teddy: *"Let's get nsa secured and automatic to make jobs on Supa base now too please"* —
+straight after the SquareTrade API intake went live. Measured first, same as that one, and
+the measurement moved the build.
+
+### 🥇 THE FINDING — NSA had no parser on EITHER side
+`_lib/warranty-email.js` has three tiers: AHS/Frontdoor XML, ServicePower/SquareTrade, then
+a **Claude fallback**. NSA hit the fallback. And the legacy Xano side is worse — it has no
+NSA parser at all: `warranty-multi-poller` **captures the raw email as a "draft" for a human
+to retype.** That is the *"Email captured — needs review"* husk path — the same one that lost
+KATHRYN CARAWAY.
+
+| NSA jobs on the platform board, by source | jobs |
+|---|---|
+| `import_xano` (mirrored) | 183 |
+| `email_generic_warranty` (Xano's generic fallback, mirrored) | 46 |
+| manual / hcp_poll / xano_mirror | 7 |
+| **`warranty_email` (platform-native)** | **0** |
+
+**Every NSA job on the board came from Xano.** An LLM is the right backstop for a vendor we
+have never seen; it is the wrong thing standing between us and 13% of the book every day —
+**because it also PRODUCES THE DEDUP KEY**, and a key that is sometimes the Case# and
+sometimes the Dispatch# silently creates twins.
+
+### ✅ `_lib/parsers/nsa.js` — deterministic, no model in the path
+Every NSA dispatch is a flat `Label: Value` block carrying every field the board wants
+(Dispatch#, Case#, Brand, Model, Product Type, Serial, Complaint, name, address, phones,
+email, Date Scheduled).
+- **⚠️ THE ONE TRAP: the mail is HTML, and once the tags are stripped the whole block is ONE
+  LINE.** `Address1: 255 Sam Ridley Parkway West Address2: Lot 17 City: Smyrna` — a
+  `Label:\s*(.*)$` regex swallows the rest of the email. **Every value terminates at the NEXT
+  KNOWN LABEL**, which is why the label list must stay complete: a label we forget is not a
+  missing field, it is a field that runs on and eats its neighbours.
+- **⚠️ This is the OPPOSITE of the NSA weekly parts DIGEST**, which is a POSITIONAL `<td>`
+  table where stripping tags collapses empty cells and shifts every column (must be read
+  from raw HTML). A LABELLED block is safe to read stripped; a positional one is not. Know
+  which shape you have before you parse it.
+- **Verified 10/10 against the six real dispatches in 30 days + the refusal cases:** Address2
+  appended, the `noemail@email.com` filler dropped, `Date Scheduled: … -- CALL and CONFIRM`
+  cleaned, the complaint NSA sends **twice** collapsed to one, and NSA's `M`/`D` time
+  preference carried **VERBATIM rather than decoded** — guessing at one puts a window on the
+  customer's card that nobody promised. Update Request / Cancelled / EFT / customer-less mail
+  all refuse (creating jobs from notification mail is how Xano got ~406 junk shells).
+- `detectVendor` matches NSA on the **sender domain OR the subject**, and stays AFTER
+  SquareTrade so `warrantysupport@squaretrade.com` still reads as SquareTrade. 8/8.
+
+### 🔑 THE KEY CHOICE WAS THE WHOLE BALLGAME — 5 dedups vs 5 twins
+NSA issues TWO numbers per job: `Case# H4442339` and `Dispatch# HAP20260937871167`. Measured
+the board before choosing: **all five dispatches already there are filed under the Case#**,
+`dispatch_id` null. So **claim = Case#, dispatch_id = Dispatch#** → every one dedupes against
+the mirrored copy. **Keyed the other way, all five would have twinned.**
+
+### 🛠️ DEDUP NOW CHECKS BOTH KEYS (helps every vendor, not just NSA)
+`createWarrantyJob` checked ONE column — *"claim if present, else dispatch"* — so it twinned
+any dispatch whose existing copy was filed under the other number. Not hypothetical: the NSA
+rows on this board are split across **every** combination of the two. Now both are looked up,
+**same-column only, never cross-matched** — wrongly collapsing two real jobs loses work, a
+twin only costs a card. Short-circuits, so the common case is still one indexed lookup.
+
+### 🩹 A DEDUP NOW FILLS THE BLANKS — because the cards were blind
+A dispatch that dedupes still carries real data. Two of the five NSA cards had **NO appliance
+and NO model** (unit label literally `Appliance`) while the dispatch email states both — a
+tech opens that card not knowing what machine he is walking up to. Fill-the-blank only; never
+overwrites a value a human or a better source already put there; `Appliance` counts as blank
+exactly the way the mirror's own `keepTyped` treats it.
+- **⚠️ SCOPED TO WHAT ACTUALLY SURVIVES.** `platform-tn-mirror` rewrites `job.problem` from
+  Xano every 5 min and `keepTyped` only stops an EMPTY Xano value from replacing a non-empty
+  one — Xano's value here is non-empty (**it is the email subject echoed back**), so a problem
+  we wrote would be gone before the office finished scrolling. **`problem` is deliberately NOT
+  enriched.** `dispatch_id` + `service_window` are not mirrored at all, and `unit.label` /
+  `attributes` ARE guarded, so those four stick. **Writing a field the mirror will undo is
+  theater, not a fix.**
+- `attributes` is ONE jsonb column and a PATCH replaces it whole → read-modify-write the
+  entire object. Unit-verified 15/15 (fills blanks, keeps every populated value, RMW preserves
+  unrelated keys, refuses to touch problem, degrades with no patch, matches on dispatch_id).
+
+### 🔴 TWO SILENT FOOTGUNS CAUGHT BEFORE SHIPPING
+1. **`platform-rest.patch` is `patch(table, filter, obj)` — THREE args.** The two-arg
+   `(path, row)` form sends the object as the FILTER and PATCHes the whole table. Same class
+   as the shadowed `db.patch` that made every 3-arg call a no-op for a month.
+2. **`platform-email-intake`'s inline `rest()` client had NO `patch` at all** — and that is
+   the exact path NSA arrives on, so the enrichment would have silently done nothing on the
+   one caller it was written for. Gave it a `patch` with platform-rest's signature; the lander
+   now feature-checks for `patch` so a minimal client degrades to plain dedup.
+
+### ✅ LIVE, VERIFIED OFF THE DATABASE
+`vendor: nsa · method: nsa · confidence: high` on the deployed code — **no Claude call**.
+5 of 5 real dispatches **deduped, 0 twins**; a replay short-circuits pre-parse on message_id.
+Donna Greer + Kori Jackson went from `Appliance` / no model → **Hisense refrigerator ·
+HRB171N6BSE / HRS290P5FSE · real serials · HAP dispatch numbers**, and **all five survived a
+full mirror cycle** (their rows were touched at 00:02:41 and held). Runs automatically on the
+existing tee cron (`7-59/15`), whose live query already carries `subject:"NSA Dispatch for"`.
+
+### ⏭️ OPEN — and be honest about what this buys today
+- **While Xano's pollers run they win the race, so the tee will rarely CREATE an NSA job.**
+  What changed: the platform can now READ NSA itself (cutover-ready), the enrichment fixes the
+  blind cards today, and a dispatch Xano drops entirely — **the Caraway class** — finally lands.
+- **Only 5 of the NSA book are enriched** (the ones pulled this session). The rest is a
+  backfill pass: replay the 30-day window through `platform-email-intake`. ⚠️ Gmail's
+  multi-inbox fan-out **rate-limits hard** — pace it and retry on `Quota exceeded`.
+- **Serial mismatch worth a human look:** case `H4433092` (Karla Fuss) — the dispatch email
+  says `41331211`, the board says `K1331211` (hand-typed on the Xano side). Fill-the-blank
+  correctly did NOT overwrite it. The email is the authority.
+
+
 ## 🔌🧾 2026-09-12 (latest) — SQUARETRADE INTAKE IS NOW API-NATIVE: the "no dedup key" blocker was measured and it is WRONG · the key was already in the column · shadow-gated, one merge from live — READ FIRST
 
 Teddy: *"So how about api for service power to receive all nsa and square trade or Allstate
