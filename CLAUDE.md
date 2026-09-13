@@ -1,6 +1,60 @@
 # Appliance Ant
 
-## 📈🔎 2026-09-13 (latest) — THE ADS ARE UNMEASURABLE AND THE ORGANIC CLICKS AREN'T THERE: the ad's phone was right and the landing page's was wrong · 87% of spend sits in ONE broad group · 278 review asks produced 4 replies, so the map-pack nudge fired 3 times in a month — READ FIRST
+## 💰⚖️ 2026-09-13 (latest) — BUDGET SET 50-50 ON PAPER, BUT ONLY THE SEARCH HALF IS REAL MONEY: LSA cannot be pushed, it can only be capped — READ FIRST
+
+Teddy: *"let's take a look at what our budget is daily and then let's do a 50-50 towards LSA
+ads and search ads."* Done — Search is set and verified. The honest half of the answer is
+that the LSA side of a 50-50 is symbolic, and why.
+
+### 📊 THE DAILY BUDGET, BOTH CHANNELS, ONE CALL (`google-ads-budget`, NEW)
+Answering "what is our daily budget?" used to mean opening two dashboards — Search and LSA
+bill in **different customer accounts**. Now it is one read.
+
+| | Search (cid 9267688121) | LSA (cid 8532272803) |
+|---|---|---|
+| daily budget **before** | **$45.00** | $40.71 ($284.97/wk) |
+| daily budget **after** | **$42.86** ✅ verified | $40.71 (unchanged) |
+| what it ACTUALLY spends | ~$28/day (62%) | **$3.44/day (8.5%)** |
+| unit cost | $105.67 per ringing phone | **$17.22 per lead** |
+
+Combined $85.71/day → even split **$42.86 each**. **Only ONE enabled Search campaign exists**
+(After-Hours Nashville Metro); the other six are PAUSED, so the Search budget is that one
+number, not a sum.
+
+### ⚠️ THE HONEST PART — RAISING THE LSA BUDGET WOULD CHANGE NOTHING
+**LSA is not budget-constrained, it is demand-constrained.** It spends $3.44 against a
+$40.71 ceiling — **8.5% utilization**. It only bills when a lead actually arrives, so the
+ceiling is not what is holding it at $103/month. Moving that number to $42.86 would move
+zero dollars.
+- **So the only real money movement in this 50-50 is the Search cut: $45 → $42.86.** That
+  is correct directionally ($106/ring vs $17/lead), it is just smaller than "50-50" sounds.
+- **A true 50-50 of SPEND would mean cutting Search to ~$3.44/day** — effectively turning
+  Search off. Not what was asked for, and not recommended blind.
+- ⚠️ **STANDING: on LSA, budget is a CAP, not a throttle. You can cap it down; you cannot
+  push money through it.** The levers that actually grow LSA volume are lead supply —
+  service-area + job-type coverage, review velocity (LSA ranks on reviews), and response
+  speed — never the budget field.
+
+### 🔒 `google-ads-budget` — three guards, because a budget bills by the hour
+`?secret=` reads both channels · `&daily=<usd>&apply=1` writes the Search side.
+1. **Sane-range refusal ($1–$500)** so a fat-fingered `4286` can never become $4,286/day.
+2. **partialFailure OFF + sent-vs-applied compare** — the guard the wiped-ad-schedule
+   incident earned. A partial-failure mutate returns `ok` while dropping every operation.
+3. **Read-back** — the new amount is proven off the account, not off the 200.
+Plus it **refuses outright to write a shared budget** (would move money under campaigns
+nobody selected). ⚠️ **LSA is reported READ-ONLY on purpose — Google exposes no write API
+for Local Services budget/hours/on-off for ANY advertiser.** That is a dashboard-only
+change, not a gap in our connector; don't go hunting for the endpoint.
+
+### ⏭️ TEDDY'S CALL (the LSA half, ~30 seconds, dashboard)
+**ads.google.com/localservices → Settings → Budget → $300/week** (=$42.86/day) if you want
+the number to match. **Expect it to change nothing measurable** — it is headroom, not fuel.
+It only pays off on a week when leads spike past the old cap, which has not happened yet.
+- **The change that WOULD move Search money is still open:** 87% of Search spend sits in the
+  broad After-Hours group buying wrong-trade and out-of-area clicks, while the five
+  appliance-specific groups spent $49 and converted 0 because they never serve.
+
+## 📈🔎 2026-09-13 — THE ADS ARE UNMEASURABLE AND THE ORGANIC CLICKS AREN'T THERE: the ad's phone was right and the landing page's was wrong · 87% of spend sits in ONE broad group · 278 review asks produced 4 replies, so the map-pack nudge fired 3 times in a month — READ FIRST
 
 Teddy: *"Let's focus on our SEO and converting these clicks into actual jobs. Can we optimize our
 advertising any better than where we have it? What else can we do to get more work out of it?"*
