@@ -26,6 +26,7 @@ function shape(s) {
   const m = s.metadata || {};
   return {
     id: s.id,
+    customer: (cust && cust.id) || (typeof s.customer === 'string' ? s.customer : null),
     status: s.status,                       // trialing | active | past_due | canceled | incomplete …
     created: iso(s.created),
     trial_end: iso(s.trial_end),

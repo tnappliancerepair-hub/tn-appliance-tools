@@ -168,7 +168,7 @@ exports.handler = async function (event) {
         payouts_enabled: !!(a && a.payouts_enabled),
         details_submitted: !!(a && a.details_submitted),
         disabled_reason: req.disabled_reason || null,
-        needs: Array.from(new Set(due)).slice(0, 12).map(prettyReq),
+        needs: Array.from(new Set(due.map(prettyReq))).slice(0, 12),   // dedupe AFTER prettifying: tos_acceptance.date + .ip both read "accepting Stripe's terms"
       });
     }
 
