@@ -161,8 +161,13 @@ exports.handler = async function (event) {
       if (!subId) return J(200, { ok: false, error: 'need &sub=<sub_id>' });
       const a = assessed.find(function (x) { return x.id === subId; });
       if (!a) return J(200, { ok: false, error: 'no live subscription with that id', hint: 'run action=audit' });
-      if (a.linked) return J(200, { ok: true, already_linked: true, company_id: a.company_id, via: a.linked_via });
-      const target = a.repairable_company_id;
+      // Linked by metadata alone still leaves the company COLUMNS blank, and platform-usage-bill
+      // reads stripe_customer_id — so metered Ann billing sees "no_stripe_customer" and bills
+      // nothing. Backfill the columns for that case instead of calling it done.
+      const target = a.linked ? a.company_id : a.repairable_company_id;
+      if (a.linked && a.linked_via !== 'metadata.company_id') {
+        return J(200, { ok: true, already_linked: true, company_id: a.company_id, via: a.linked_via });
+      }
       if (!target) return J(200, { ok: false, error: 'no company matches this subscription slug', slug: a.slug, note: 'orphan subscription — cancel it or provision the shop' });
       if (String(q.confirm || '') !== 'yes') {
         return J(200, { ok: true, would_link: { sub: subId, customer: a.customer, company_id: target, slug: a.slug }, note: 'add &confirm=yes to write' });
