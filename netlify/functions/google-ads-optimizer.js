@@ -21,7 +21,14 @@ const JUNK = ['used', 'sell', 'selling', 'sale', 'buy', 'buying', 'cheap', 'scra
   // Trades we do not work on. 30 days of search terms bought 22 clicks and $77.95 of
   // TV and vacuum repair before anyone noticed - the ads match "repair near me" and
   // Google happily sells us the wrong appliance. These are safe blanket blocks.
-  'tv', 'tvs', 'television', 'televisions', 'vacuum', 'vacuums', 'kirby', 'dyson', 'roomba'];
+  'tv', 'tvs', 'television', 'televisions', 'vacuum', 'vacuums', 'kirby', 'dyson', 'roomba',
+  // Same class, caught later the same way: a 'panasonic dvd recorder repair' click still
+  // got sold to us this week. These are the obvious neighbours of what already leaked, so
+  // the optimizer blocks the NEXT one instead of waiting for a human to spot it.
+  // Note 'ice' is deliberately absent - an ice maker IS a refrigerator repair. So is
+  // 'kitchenaid' (a KitchenAid dishwasher is real work), which is why only 'mixer' is here.
+  'dvd', 'vcr', 'bluray', 'stereo', 'printer', 'sewing', 'mixer', 'blender', 'toaster',
+  'bissell', 'shampooer', 'carpet', 'treadmill', 'lawn', 'mower', 'generator'];
 const WASTE_SPEND = 25;   // a keyword that spent >= $25 with 0 conversions = waste candidate
 const re = (w) => new RegExp(`(^|[^a-z])${w}([^a-z]|$)`, 'i');
 
