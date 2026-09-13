@@ -1,6 +1,87 @@
 # Appliance Ant
 
-## ⏰🧾 2026-09-13 (latest) — THE OVERDUE TOOL WAS ASKING FOR ONE STATUS AND MISSING 298 JOBS · 112 sit `in_progress` with a tech on them, 52 with a REPORT FILED = unfiled claims · the NSA identity sweep found NOTHING and that is the answer — READ FIRST
+## 📣💸 2026-09-13 (latest) — THE ADS ACCOUNT CAN TELL YOU A PHONE RANG AND NOTHING ELSE · $845/mo unfalsifiable for 30 days · the ads line was never written down · geo was serving the whole planet — READ FIRST
+
+Teddy: *"I want to pivot to advertising… maximize your ability to help us convert more and clean
+up whatever we need to clean up in our Google Ads."* Measured the account first. The cleanup he
+expected (wasted keywords) was already done by the daily optimizer; the real rot was underneath.
+
+### 🥇 THE FINDING — every outcome measurement in the account reads ZERO
+30 days, one live campaign (**After-Hours Appliance Repair — Nashville Metro**, $45/day):
+**$845.33 · 225 clicks · $3.76 CPC.** Google reports "8 conversions, $105 each." **All 8 are
+`Calls from ads` — a phone that rang.** Every action built to measure a real outcome:
+
+| conversion action | type | 30d |
+|---|---|---|
+| `Ant — Booked Job` | UPLOAD_CLICKS | **0** |
+| `Ant — Cash Paid` | UPLOAD_CLICKS | **0** |
+| `Ant — Booked (web)` / `Cash Paid (web)` | WEBPAGE | **0** |
+| `Ant — Phone Call (60s+)` | AD_CALL | **0** |
+| `Calls from ads` (Google default) | AD_CALL | 8 ← the only thing bidding sees |
+
+Because **0 `ad_click` rows in 30 days → 0 conversions uploaded.** The sweep exists, the cron is
+armed, the actions exist — nothing ever fed them. **$845/month has been unfalsifiable in both
+directions.** ⚠️ **STANDING: a conversion count is not an outcome. Read which ACTION fired —
+"8 conversions" that are all `Calls from ads` means 8 phones rang, not 8 jobs.**
+
+### ✅ THE FIX — the dedicated ads line makes the truth knowable, and it wasn't being recorded
+**615-845-8500 is OURS** (the dedicated Google-Ads line, `google-line-texml` → rings Teddy 25s →
+hands to Ann). *(I nearly raised this as a wrong number — it appears in no roster. Grep before
+alarming.)* **Every call to it is a paid lead by construction**, and not one was logged.
+- **`google-line-texml` now writes `google_ads_call`** — caller + timestamp on arrival (BEFORE
+  ringing, so a hangup during ringback still counts as the click we paid for) and again with the
+  outcome + duration on leg 2. That pair (`caller_id` + `call_start_date_time`) is exactly what
+  Google's call-conversion upload takes. Both writes raced against 900ms and swallow their own
+  errors — **the log can never delay or drop a live call.**
+- **`google-ads-truth` (NEW, read-only)** — joins those calls to the jobs that came out of them:
+  paid calls → unique callers → matched jobs → **cost per job**. Requires the job to be created
+  AFTER the call and inside 7 days; **an unknown creation time is NOT a match** — crediting the ad
+  on a guess is how a channel gets scaled on numbers that were never real.
+  `google-ads-truth?secret=<admin>&days=30`.
+
+### 🌎 GEO WAS SERVING THE WHOLE PLANET — fixed + verified
+Campaign ran **`PRESENCE_OR_INTEREST`** (Google's default): it serves anyone who merely MENTIONS a
+targeted place, anywhere on earth. The search terms prove it — paid clicks on *"appliance repair
+clarksville tn"*, *"white house tn"*, *"refrigerator repair columbia tn"* — none of which are among
+the nine targeted cities. **For a trade that drives to the appliance, the customer is standing next
+to it: `PRESENCE` is the honest match.** Applied + verified by read-back (`verified_now: PRESENCE`,
+campaign still `SERVING`). **`google-ads-geo-presence`** — preview by default, `&apply=1` writes,
+**`&revert=1` restores**; partialFailure OFF + result-count compared to operation-count (the guard
+the wiped-ad-schedule incident earned).
+
+### 🧹 THE CLEANUP HE EXPECTED WAS ALREADY DONE — don't re-fix it
+30d: **$88 of $392 attributed spend (22%) went to TV repair, vacuums, carpet cleaners, mixers.**
+But last 7 days: **$0 wrong-trade across 23 paid terms.** The daily `google-ads-optimizer` has been
+adding negatives reactively (103 on the live campaign, root words `tv`/`television`/`vacuum`/
+`sewing`/`mixer` all blocked). `kitchenaid` deliberately NOT blocked — a KitchenAid dishwasher is
+real work. **The terms are now clean, high-intent, and still convert nothing** — which is what
+makes the measurement gap the whole story.
+- ⚠️ **I was WRONG mid-audit and corrected it:** I flagged 18 `primary_for_goal` actions
+  (YouTube subs, Local actions) as polluting bidding. Segmented by action, **only `Calls from ads`
+  is counted for bidding** — the Local actions report `all_conversions` only. No action taken.
+
+### ⛔ WHAT I DELIBERATELY DID NOT TOUCH
+- **Bidding stays MANUAL_CPC.** That is CORRECT while tracking is dead — automated bidding
+  optimises toward whatever it can see, which today is phones ringing. **Switch to Maximize
+  Conversions only once `google-ads-truth` reports real jobs.**
+- **The 225→0 web-intake leak.** Ad traffic lands on `appliance-ai.html` (correct page, clean UTMs,
+  $0-to-book, gclid capture present) and is then asked for a **video + a model-sticker photo**
+  before booking. Warranty customers tolerate that; cold paid traffic at 11pm does not — and the
+  8 who wanted us **called instead**. Giving paid traffic a shorter path is a product decision on
+  the flow Teddy protects, so it is **flagged, not changed.**
+- **Louisiana still has zero ad presence** (47 jobs/wk, all warranty, 0 cash).
+
+### 🅻 LSA READS EMPTY FROM THE API
+Teddy turned LSA on; `lsa-test` returns **200 with `accounts: []`**, and no `LOCAL_SERVICES`
+campaign exists in the Ads account. The connector queries `manager_customer_id:160-509-9162` —
+so either the LSA account is **not linked to the ANT-Manager MCC**, or it has not charged a lead
+yet. ⏭️ **Teddy: link the LSA account to manager 160-509-9162** so the API can read it.
+
+### 📊 THE CONTEXT THAT FRAMES ALL OF IT
+7 days of real intake: **104 jobs — LA 47 (0 cash), TN 43 (6 cash), 9 cash total (8.6%).**
+Warranty comes from vendor dispatch; **ads can only move the 8.6% cash slice.**
+
+## ⏰🧾 2026-09-13 — THE OVERDUE TOOL WAS ASKING FOR ONE STATUS AND MISSING 298 JOBS · 112 sit `in_progress` with a tech on them, 52 with a REPORT FILED = unfiled claims · the NSA identity sweep found NOTHING and that is the answer — READ FIRST
 
 Morning pass. Re-ran the approved NSA identity sweep to completion, it yielded zero — and chasing
 **why** it yielded zero is what found the real money.
