@@ -145,6 +145,26 @@ async function runChecks() {
   if (detail.techless.length)  fails.push(`${detail.techless.length} shop(s) with no active tech after a day: ${detail.techless.join(', ')}`);
   // no_jobs is deliberately NOT a fail — a trial that hasn't imported yet isn't broken.
 
+  // Billing wiring. Delegated to platform-subs-audit so there's one Stripe reader, not two.
+  // Catches the shape that nearly charged us $297/mo: a tenant gets purged and its Stripe
+  // subscription keeps trialing toward a real charge with no shop behind it. Also catches a
+  // subscription that maps to no company (every lifecycle event silently no-ops) and the
+  // webhook endpoint going missing. Best-effort — a Stripe hiccup must not fail the whole
+  // watchdog, so a throw here leaves the tenant checks intact. (2026-09-13)
+  try {
+    const admin = (await getSecretPreferVault('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
+    const r = await require('./platform-subs-audit').handler({ queryStringParameters: { secret: admin, action: 'audit' } });
+    const a = JSON.parse(r.body || '{}');
+    if (a && a.ok) {
+      stats.subs_live = a.live_subscriptions; stats.subs_unlinked = a.unlinked; stats.subs_orphan = a.orphans;
+      const orphans = (a.subscriptions || []).filter((x) => x.orphan).map((x) => x.slug || x.id);
+      const unlinked = (a.subscriptions || []).filter((x) => !x.linked && !x.orphan).map((x) => x.slug || x.id);
+      if (orphans.length) fails.push(`${orphans.length} paying subscription(s) with NO shop on the platform — heading for a real charge: ${orphans.join(', ')}`);
+      if (unlinked.length) fails.push(`${unlinked.length} subscription(s) not tied to a shop — billing events silently no-op: ${unlinked.join(', ')}`);
+      if (a.webhook_registered === false) fails.push('the Stripe lifecycle webhook is NOT registered — charges, failures and cancellations never reach the platform');
+    } else { stats.subs_check = 'unavailable'; }
+  } catch (_) { stats.subs_check = 'error'; }
+
   Object.keys(detail).forEach((k) => { stats[k] = detail[k].length; });
   return { fails, stats, detail };
 }
