@@ -1,6 +1,86 @@
 # Appliance Ant
 
-## 💰⚖️ 2026-09-13 (latest) — BUDGET SET 50-50 ON PAPER, BUT ONLY THE SEARCH HALF IS REAL MONEY: LSA cannot be pushed, it can only be capped — READ FIRST
+## 🪣➡️ 2026-09-13 (latest) — THE BROAD-GROUP REBALANCE WAS ALREADY DONE 4 DAYS AGO; WHAT WAS LEFT WAS STRUCTURE — 430 appliance queries were landing in a generic group with a generic page · a paused keyword is NOT the same as a closed funnel — READ FIRST
+
+Teddy: *"rebalance the search budget out of that broad group"* … *"Fix this to win jobs please"* — after
+I told him 87% of Search spend sits in the broad After-Hours group. **I measured before touching
+anything, and the headline number I had given him was stale.**
+
+### 🔴 CORRECTION TO MY OWN REPORT — the 87% is a LAGGING 30-DAY AVERAGE
+The themed ad groups went live **2026-09-09**. Daily spend by ad group is unambiguous:
+
+| day | After-Hours | General | themed groups | total | conv |
+|---|---|---|---|---|---|
+| 09-08 | **$20.69** | $0 | $0 | $20.69 | 0 |
+| 09-09 | $14.16 | $0.18 | $11.39 | $25.73 | 0 |
+| 09-11 | $15.42 | $25.58 | $0 | $41.00 | 0 |
+| **09-12** | **$0.00** | $23.67 | **$32.61** | $56.28 | 0 |
+
+**Yesterday the broad group spent zero and every dollar landed in the appliance groups.** The
+appliance-noun leak collapsed **$105.82 (30d) → $4.00 (last 3 days)**. Quoting a 30-day average of a
+9-day-old fix as a live problem is how you "fix" something twice and break it the second time.
+- ⚠️ **STANDING: before acting on a trailing-window number, segment it BY DAY.** A 30-day average
+  hides any change made inside the window, and it hides it in the direction that makes you act.
+
+### 🧱 WHAT WAS ACTUALLY STILL BROKEN — structure, not budget
+**Google Ads has NO per-ad-group budget.** A campaign budget goes to whichever ad group wins the
+auction first, and the broad group wins on accumulated Quality Score history (4,356 impressions of
+it) even for queries a themed group was purpose-built to catch. Measured over 30 days: **430 queries
+carrying an appliance noun ($105.82 / 26 clicks) landed in a broad group** — `maytag dryer repair`,
+`refrigerator not cooling`, `washing machine repair nashville` (that one **converted**) — instead of
+the themed group that has the matching ad copy AND the prefilled landing page
+(`appliance-ai.html?appliance=<x>` with its own problem list). **We paid for the click and then
+handed them a generic page.**
+- **Every ad group bids the identical $4.00**, so this was never bid-starvation. The themed groups
+  were not losing the auction — they were barely ENTERING it (Oven & Range: **7 impressions in a
+  week**), because their keyword lists were 2-6 phrase keywords each.
+
+### ✅ `google-ads-funnel` (NEW) — four independently-gated steps, all APPLIED + verified off the account
+Preview by default; `&apply=1` **requires an explicit `&step=`** (one blast radius at a time);
+`&revert=1` undoes. Every step runs **partialFailure OFF + sent-vs-applied compare + a read-back**.
+| step | what | applied |
+|---|---|---|
+| **guard** | `pressure washer` + `power washer` campaign negatives — wrong trade, and **not blocked** (checked live: 103 negatives, zero matched) | 2 ✅ |
+| **keywords** | the high-intent keywords the themed groups were missing, harvested from search terms this account has actually been billed for | 27 ✅ |
+| **prune** | pause `appliance repair company` — **$39.01 / 11 clicks / 0 conversions in 7 days**, the most expensive live keyword and the worst performer (a comparison-shopping query, not an emergency one) | 1 ✅ |
+| **funnel** | ad-group PHRASE negatives on the broad group so appliance nouns can **only** land in their themed group | 13 ✅ |
+
+**Result, read back live:** campaign still `ENABLED / SERVING` at $42.86/day; keyword coverage per
+themed group went **Dishwasher 2→7 · Dryer 3→8 · Oven 6→12 · Refrigerator 7→13 · Washer 6→11**;
+General now carries 13 ad-group negatives.
+
+### ⚠️ TWO DELIBERATE EXCLUSIONS — each one would have cost us work
+- **After-Hours is NOT funnelled** (opt in with `&include_afterhours=1`). Its four live keywords are
+  all time-qualified — `appliance repair open now` · `emergency appliance repair` · `24 hour
+  appliance repair` · `appliance repair tonight`. **Answering at 2am is the shop's actual
+  differentiator**, and no themed group carries that time intent, so a negative there would
+  **lose** "emergency refrigerator repair" rather than move it.
+- **`microwave` is NOT in the funnel.** There is no microwave ad group, so negativing it out of the
+  broad groups blocks the query outright. ⚠️ **STANDING: a noun only belongs in the funnel once a
+  themed group exists to catch it.** Same reasoning already protects `ice` (an ice maker IS a
+  refrigerator repair) and `kitchenaid` (a KitchenAid dishwasher is real work).
+
+### 🔍 THE HONEST PART — "win jobs" is still not measurable inside Google
+The account's only counted conversion is **`Calls from ads` = a phone rang**, not a job booked. The
+last 7 days: **$268.85 spent, 1 counted conversion.** And until `ads-phone.js` shipped this morning,
+a customer who landed from an ad and called the number ON THE PAGE (629-272-1234, not the ads line)
+was **invisible** — so the real conversion count was always understated. **Cost-per-JOB only becomes
+knowable through `google-ads-truth`**, which joins the ads line 615-845-8500 → paid calls → jobs.
+Judge this change on that, not on the conversion column.
+- ⚠️ **Bidding stays MANUAL_CPC. Do NOT tap `TARGET_CPA_OPT_IN`** — it would optimise toward ringing
+  phones, which is exactly the number we already know is wrong.
+
+### ⏭️ OPEN
+1. **Re-read in ~7 days**: does spend now sit in the themed groups, and does `google-ads-truth`
+   report real jobs? The revert is one call per step if it goes the wrong way.
+2. **Geo leakage is still real but is NOT all waste** — `appliance repair white house tn`,
+   `refrigerator repair columbia tn`, `appliance repair shelbyville`, `appliance repair springfield
+   tn`. Clarksville IS served (Lee). **Check crew coverage before negativing a city.**
+3. **The 152 "why is my whirlpool washer…" diagnostic queries** got 200 impressions and **0 clicks**
+   in General over 3 days — free impressions, but they drag CTR and therefore Quality Score.
+   Deliberately NOT negatived: some of those homeowners do book, and they cost nothing today.
+
+## 💰⚖️ 2026-09-13 — BUDGET SET 50-50 ON PAPER, BUT ONLY THE SEARCH HALF IS REAL MONEY: LSA cannot be pushed, it can only be capped — READ FIRST
 
 Teddy: *"let's take a look at what our budget is daily and then let's do a 50-50 towards LSA
 ads and search ads."* Done — Search is set and verified. The honest half of the answer is
