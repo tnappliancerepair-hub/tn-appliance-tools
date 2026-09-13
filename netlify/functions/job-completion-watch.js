@@ -103,6 +103,13 @@ exports.handler = async function (event) {
     sample: toEmit.slice(0, 12).map(([jid, i]) => ({ job_id: jid, from: i.from, actor: i.actor })),
   };
   if (dry) out.note = 'DRY — would emit job_completed for the fresh jobs above; nothing written.';
-  try { await crud.logEvent('job_completion_watch_run', { mode: out.mode, fresh: fresh.length, emitted: out.emitted, review_asks_sent: out.review_asks_sent, in_window: completedJobs.size, at_ms: Date.now() }); } catch (_) {}
+  // WHY a review ask was skipped has to survive the run. Until 2026-09-13 the reasons were
+  // computed into reviewSample and then thrown away with the HTTP response - and a scheduled
+  // run has no reader, so nobody could ever see them. Measured over 09-08..09-11: 74
+  // completions produced 4 asks, and the 70 skips were invisible. The counts alone say the
+  // funnel is leaking; only the reasons say where. Persist them.
+  const skipWhy = {};
+  for (const s of reviewSample) { if (s && s.skipped) skipWhy[s.skipped] = (skipWhy[s.skipped] || 0) + 1; }
+  try { await crud.logEvent('job_completion_watch_run', { mode: out.mode, fresh: fresh.length, emitted: out.emitted, review_asks_sent: out.review_asks_sent, review_asks_skipped: out.review_asks_skipped, review_skip_why: skipWhy, in_window: completedJobs.size, at_ms: Date.now() }); } catch (_) {}
   return json(200, out);
 };

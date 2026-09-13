@@ -80,5 +80,14 @@ exports.handler = async function (event) {
   }
 
   const bySrc = jobIds.reduce((a, jid) => { const s = srcOf[jid] || 'complete'; a[s] = (a[s] || 0) + 1; return a; }, {});
-  return j(200, { ok: true, mode: dry ? 'dryrun' : 'live', lookback_hours: hours, completions_found: jobIds.length, sources: bySrc, asked: sent.length, skipped: skipped.length, sent, skipped: skipped.slice(0, 10) });
+
+  // This sweep is SCHEDULED, so its response has no reader — every skip reason it computed
+  // died with the HTTP body. Persist the tally so "why didn't this customer get asked?" is a
+  // query instead of a guess. (2026-09-13: 74 completions -> 4 asks over four days, and the
+  // 70 skips were invisible on both the instant path and this one.)
+  const skipWhy = {};
+  for (const x of skipped) { const w = x && x.why ? String(x.why) : 'unknown'; skipWhy[w] = (skipWhy[w] || 0) + 1; }
+  if (!dry) { try { await crud.logEvent('review_sweep_run', { completions_found: jobIds.length, asked: sent.length, skipped: skipped.length, skip_why: skipWhy, sources: bySrc, lookback_hours: hours, at_ms: Date.now() }); } catch (_) {} }
+
+  return j(200, { ok: true, mode: dry ? 'dryrun' : 'live', lookback_hours: hours, completions_found: jobIds.length, sources: bySrc, asked: sent.length, skipped: skipped.length, skip_why: skipWhy, sent, skipped: skipped.slice(0, 10) });
 };
