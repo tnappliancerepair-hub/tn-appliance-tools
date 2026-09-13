@@ -1,6 +1,41 @@
 # Appliance Ant
 
-## 💳🔌 2026-09-13 (latest) — "IS MY STRIPE HOOKED UP?" — YES on the money that moves, and the purge left $297/mo of ghost subscriptions ticking · the webhook IS registered (a standing unknown, now closed) — READ FIRST
+## 🔑🐜 2026-09-13 (latest) — 100% SUPABASE CUTOVER: all six crew logins minted + PROVEN · passwords live on the pack, not in a text thread — READ FIRST
+
+Teddy: *"we're running a hundred percent on supabase starting tomorrow. All stops will be run through there. Give me logins and passwords for John, Lee, Jimmy, Andre … also Danielle and Sofia."*
+
+### ✅ ALL SIX RESET + REVEALED + SIGN-IN VERIFIED (not just returned — actually authenticated)
+`platform-provision?action=resetpw&slug=tn-appliance-exchange-llc&email=<seat>&reveal=1` per seat, then each
+credential was **POSTed live to `/auth/v1/token?grant_type=password`** — 6/6 came back with an access token.
+A password that is handed out but never tested is how a crew loses a morning.
+- **Techs → `platform/tech.html`** · john / lee / jimmy / andre `@assistant247.net`
+- **Office → `platform/office-board.html`** · danielle / sofia `@assistant247.net`
+- `resetpw` resolves the seat's ROLE ITSELF, so each reset returned the correct landing URL and recorded onto
+  the shop pack (non-owner passwords never touch the owner vault slot — the documented two-office-resets-
+  overwrite-each-other bug). **All 6 `recorded_on_pack: true`.**
+
+### ⚠️ THE RESET INVALIDATES WHAT THEY WERE ALREADY USING — say so when handing them out
+Jimmy (9/13), Lee + Sofia (9/11) and Danielle (9/10) had all signed in within 3 days, so they held WORKING
+passwords that simply weren't written down anywhere Teddy could hand over. Resetting is what he asked for and
+is right — but anyone mid-session may get bounced once. The new password is the one on the pack.
+
+### 📍 THE PASSWORDS LIVE ON THE PACK, NOT IN A TEXT THREAD
+`platform-provision?action=packs&secret=<admin>&slug=tn-appliance-exchange-llc` (⚠️ **`&slug=` is REQUIRED** —
+without it: `{"ok":false,"error":"slug required"}`). Holds all 8 real seats incl. Teddy's own owner password +
+Carrie's third office seat. That is the durable place to re-read a password — nobody has to save a text.
+
+### ✅ NOBODY LANDS ON A BLANK SCREEN — checked before handing the logins over
+Open work per active tech on the platform: **Jimmy 163 · Andre 177 · Lee 124 · John 160 · Teddy 75**, and
+**tomorrow (9/14) is a real day: John 7 · Jimmy 6 · Lee 6 · Andre 5 = 24 stops.** Every one of the four techs
+carries a real `xano_tech_id` (2/3/4/6) and `active=true`, which is the single query that separates a live
+seat from a decoy.
+
+### ⛔ THE `tech1.` / `tech2.` PACK SEATS ARE STILL DECOYS — they sit on the pack with NO password
+They render right next to the real seats on `/packs` and are the exact thing that cost Teddy a morning on
+9/10. `xano_tech_id` null, `active=false`, blank password. **Never hand one out.** The one-query tell stands:
+a seat with a null `xano_tech_id` can never receive mirrored work.
+
+## 💳🔌 2026-09-13 — "IS MY STRIPE HOOKED UP?" — YES on the money that moves, and the purge left $297/mo of ghost subscriptions ticking · the webhook IS registered (a standing unknown, now closed) — READ FIRST
 
 Teddy: *"can you make sure that my Stripe is hooked up to the Tennessee Appliance Superbase system."*
 Measured both Stripe relationships rather than assuming which one he meant.
