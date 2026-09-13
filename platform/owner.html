@@ -738,7 +738,13 @@
       }
       var label = d.needs_onboarding && d.connected ? '💳 Finish card-payment setup' : '💳 Set up card payments';
       var sub = d.connected ? 'You started setup but Stripe still needs a few details before you can take cards.' : 'Let customers pay their invoice by card. Connect your Stripe account (or make one in a few minutes) — funds go straight to you, we never hold your money.';
-      el.innerHTML='<div class="money"><div class="note">'+sub+'</div>'+
+      // Name what Stripe is waiting on, so this isn't a button with no reason behind it.
+      var needs='';
+      if(d.connected && d.needs && d.needs.length){
+        needs='<div class="note" style="margin-top:8px"><b>Stripe still needs:</b><ul style="margin:6px 0 0 18px;padding:0">'+
+          d.needs.map(function(n){return '<li>'+esc(n)+'</li>';}).join('')+'</ul></div>';
+      }
+      el.innerHTML='<div class="money"><div class="note">'+sub+'</div>'+needs+
         '<button id="connectBtn" style="'+btnBase+'background:#635bff">'+label+'</button></div>';
       var b=document.getElementById('connectBtn'); if(b) b.onclick=startConnect;
     }).catch(function(){ el.innerHTML='<div class="money"><div class="note">Card-payment setup shows here in a moment.</div></div>'; });

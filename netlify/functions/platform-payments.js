@@ -62,6 +62,34 @@ async function grantCtx(d, token) {
   return { g, job };
 }
 
+// Stripe's requirement keys are machine-shaped ("individual.verification.document"). A shop owner
+// needs plain English, so map the common ones and humanize the rest rather than showing raw keys.
+const REQ_WORDS = {
+  'external_account': 'a bank account for payouts',
+  'tos_acceptance.date': "accepting Stripe's terms",
+  'tos_acceptance.ip': "accepting Stripe's terms",
+  'business_profile.url': 'your business website',
+  'business_profile.mcc': 'your business category',
+  'business_profile.product_description': 'a short description of what you sell',
+  'company.tax_id': 'your business tax ID (EIN)',
+  'company.name': 'your legal business name',
+  'company.address.line1': 'your business address',
+  'company.phone': 'a business phone number',
+  'individual.id_number': 'your SSN (last 4 or full)',
+  'individual.ssn_last_4': 'the last 4 of your SSN',
+  'individual.verification.document': 'a photo of your ID',
+  'individual.verification.additional_document': 'a second document (proof of address)',
+  'individual.dob.day': 'your date of birth',
+  'individual.address.line1': 'your home address',
+  'representative.verification.document': 'a photo ID for the account owner',
+};
+function prettyReq(k) {
+  const key = String(k || '');
+  if (REQ_WORDS[key]) return REQ_WORDS[key];
+  const base = key.replace(/^(company|individual|representative|business_profile|tos_acceptance)\./, '');
+  return base.replace(/[._]/g, ' ').replace(/\bdob\b/, 'date of birth').trim() || key;
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   const q = event.queryStringParameters || {};
@@ -131,7 +159,17 @@ exports.handler = async function (event) {
       const a = await stripe.accounts.retrieve(co.stripe_connect_id);
       const enabled = !!(a && a.charges_enabled);
       if (enabled !== !!co.payments_enabled) await d.patch(`company?id=eq.${co.id}`, { payments_enabled: enabled });
-      return json(200, { ok: true, connected: true, enabled, needs_onboarding: !enabled });
+      // Say WHAT Stripe is still waiting on. Without this the owner page is a dead-end "Finish setup"
+      // button with no reason, which is how an account sits half-onboarded for weeks. (2026-09-13)
+      const req = (a && a.requirements) || {};
+      const due = [].concat(req.past_due || [], req.currently_due || []);
+      return json(200, {
+        ok: true, connected: true, enabled, needs_onboarding: !enabled,
+        payouts_enabled: !!(a && a.payouts_enabled),
+        details_submitted: !!(a && a.details_submitted),
+        disabled_reason: req.disabled_reason || null,
+        needs: Array.from(new Set(due)).slice(0, 12).map(prettyReq),
+      });
     }
 
     // ── customer: pay the invoice by card (Checkout on the shop's connected account) ────
