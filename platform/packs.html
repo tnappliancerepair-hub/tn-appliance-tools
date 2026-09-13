@@ -40,6 +40,8 @@
   .card .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
   .card h3{margin:0;font-size:17px;letter-spacing:-.01em}
   .card .slug{color:var(--muted);font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .dupb{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:700;vertical-align:middle;background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+  .card .owner-em{color:var(--muted);font-size:12px;margin-top:2px}
   .meta{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 4px;font-size:12.5px;color:var(--muted)}
   .meta code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink);background:var(--chip);padding:1px 6px;border-radius:6px}
   .tbl{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px;overflow-x:auto;display:block}
@@ -132,8 +134,12 @@
 
   function packCard(shop, pack){
     var test=!!TESTS[shop.slug];
-    var h='<div class="card"><div class="top"><div><h3>'+esc(shop.name||shop.slug)+'</h3>'+
-      '<div class="slug">'+esc(shop.slug)+' · '+esc(shop.trade||'')+' · '+(shop.jobs||0)+' jobs</div></div></div>';
+    // Two shops can share a name (different owners, isolated tenants). Without the badge and the
+    // owner email these render as identical cards and the operator cannot tell them apart.
+    var dup = shop.dup_name ? '<span class="dupb" title="Another shop uses this same name — check the owner email before handing out logins">⚠ DUPLICATE NAME</span>' : '';
+    var ownerEm = shop.owner_email ? '<div class="owner-em">owner: '+esc(shop.owner_email)+'</div>' : '';
+    var h='<div class="card"><div class="top"><div><h3>'+esc(shop.name||shop.slug)+dup+'</h3>'+
+      '<div class="slug">'+esc(shop.slug)+' · '+esc(shop.trade||'')+' · '+(shop.jobs||0)+' jobs</div>'+ownerEm+'</div></div>';
     if(!pack){
       h+='<div class="nopack">No login pack built for this shop yet. '+
         '<button class="cpone" data-mkpack="'+esc(shop.slug)+'">Build a 7-seat pack →</button></div>';

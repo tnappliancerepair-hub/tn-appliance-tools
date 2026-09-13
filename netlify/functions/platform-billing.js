@@ -243,6 +243,7 @@ async function signupCheckout(opts) {
     email: String(opts.email || '').slice(0, 200),
     want_ann: opts.want_ann ? '1' : '',
     ref: String(opts.ref || '').slice(0, 60),   // referral partner code (reseller attribution)
+    forked_from: String(opts.forked_from || '').slice(0, 60),  // shop name was taken; slug was suffixed (audit)
     terms_version: String(opts.terms_version || '').slice(0, 40),      // Merchant Agreement acceptance (audit)
     terms_at: String(opts.terms_accepted_at || '').slice(0, 40),
   };

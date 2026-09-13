@@ -356,9 +356,21 @@ exports.handler = async function (event) {
         return Number.isFinite(n) ? n : 0;
       } catch (_) { return 0; }
     };
+    // Two shops can legitimately share a NAME (different owners, separate tenants -- the slug
+    // guard keeps them isolated on purpose). But on /packs they render as identical cards, so
+    // flag them here or the operator has no way to tell which is which. (2026-09-13)
+    const nameCount = {};
+    (Array.isArray(companies) ? companies : []).forEach((c) => {
+      const k = String(c.name || '').trim().toLowerCase();
+      if (k) nameCount[k] = (nameCount[k] || 0) + 1;
+    });
     const out = [];
     for (const c of (Array.isArray(companies) ? companies : [])) {
-      out.push({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, status: c.status || 'active', jobs: await countOf(`job?company_id=eq.${c.id}&select=id`), logins: byCo[c.id] || [] });
+      const seats = byCo[c.id] || [];
+      const owner = seats.find((u) => u.role === 'owner');
+      out.push({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, status: c.status || 'active', jobs: await countOf(`job?company_id=eq.${c.id}&select=id`), logins: seats,
+        owner_email: (owner && owner.email) || '',
+        dup_name: (nameCount[String(c.name || '').trim().toLowerCase()] || 0) > 1 });
     }
     return json(200, { ok: true, tenants: out });
   }
@@ -1011,6 +1023,9 @@ exports.handler = async function (event) {
   const email = (q.owner_email || '').trim();
   const plan = (q.plan || 'office').trim();
   const ref = String(q.ref || '').trim();   // referral partner code (e.g. TK) — attributes this shop to a reseller
+  // Signup already forked this slug because the shop NAME was taken. Signup could not log it
+  // (no company existed yet), so it hands the original slug down here to be recorded. (2026-09-13)
+  const forkedFrom = String(q.forked_from || '').trim();
 
   // 1) Owner auth login — create it; if the email already exists, find + reuse the uid.
   let uid = null, tempPw = null, userNote = 'no_email';
@@ -1082,12 +1097,28 @@ exports.handler = async function (event) {
     const ins = await rest('company', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(row) });
     if (!ins.ok) return json(200, { ok: false, step: 'create_company', status: ins.status, error: JSON.stringify(ins.d).slice(0, 300) });
     company = Array.isArray(ins.d) ? ins.d[0] : ins.d;
-    // Durable record of a collision, so "why is this shop's slug suffixed?" has an answer later.
-    if (slugCollision && company) {
+    // Durable record of a suffixed slug, so "why is this shop's slug suffixed?" has an answer
+    // later. TWO paths land here and both must be recorded:
+    //   platform_slug_collision  this call found the slug owned by someone else and forked it
+    //   platform_slug_forked     SIGNUP forked it before we ever saw it (duplicate shop name).
+    // The second is the common one on self-serve: signup picks a free slug pre-checkout, so by
+    // the time provision runs there is no collision left to detect and the guard above never
+    // fires. Logged here because this is the first moment a company_id exists to attach it to.
+    // VERIFIED, not fire-and-forget -- the previous version swallowed every failure, so a
+    // missing audit row was indistinguishable from "no fork happened". (2026-09-13)
+    const forkNote = slugCollision
+      ? { type: 'platform_slug_collision', payload: slugCollision }
+      : (forkedFrom && forkedFrom !== slug)
+        ? { type: 'platform_slug_forked', payload: { requested: forkedFrom, assigned: slug, reason: 'shop name already taken at signup' } }
+        : null;
+    if (forkNote && company) {
       try {
-        await rest('event', { method: 'POST', body: JSON.stringify({
-          company_id: company.id, type: 'platform_slug_collision', entity: slug, payload: slugCollision }) });
-      } catch (_) {}
+        const ev = await rest('event', { method: 'POST', body: JSON.stringify({
+          company_id: company.id, type: forkNote.type, entity: slug, payload: forkNote.payload }) });
+        if (!ev.ok) console.error('[platform-provision] audit write FAILED for ' + forkNote.type + ' on ' + slug + ' — status ' + ev.status + ' ' + JSON.stringify(ev.d).slice(0, 200));
+      } catch (e) {
+        console.error('[platform-provision] audit write THREW for ' + forkNote.type + ' on ' + slug + ' — ' + String((e && e.message) || e));
+      }
     }
   } else if (ref && !company.referred_by) {
     // Existing shop, not yet attributed — gentle backfill (never clobbers an existing referrer).

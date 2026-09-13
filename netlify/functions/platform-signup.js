@@ -39,6 +39,7 @@ async function provisionComp(pf, o) {
     secret: o.admin, action: 'provision', slug: o.slug, name: o.name, trade: o.trade,
     plan: o.plan, owner_email: o.email, owner_name: o.owner_name || '', owner_phone: o.phone || '',
     area: o.area || '', ref: '',   // a comp never attributes a referral (no self-crediting)
+    forked_from: o.forked_from || '',
   } };
   let pd = {};
   try { pd = JSON.parse((await provision.handler(pev)).body || '{}'); } catch (e) { pd = { ok: false, error: String((e && e.message) || e) }; }
@@ -168,22 +169,29 @@ exports.handler = async function (event) {
   // attach an owner onto a company that already belongs to someone else and forks a fresh slug
   // instead (see the collision guard in platform-provision.js). (2026-09-10)
   let slug = slugify(name);
+  // forkedFrom records that this shop's NAME was already taken, so the suffixed slug has an
+  // answer later. Signup can't write an event here -- no company exists yet -- so it rides the
+  // checkout metadata (and the comp call) down to provision, which logs it against the real
+  // company_id. Without this a duplicate shop name forks in total silence: two identical cards
+  // on /packs and no record anywhere that it happened. (2026-09-13)
+  let forkedFrom = '';
   for (let i = 0; i < 6; i++) {
     const ex = await pf.get(`company?slug=eq.${encodeURIComponent(slug)}&select=id&limit=1`);
     if (!ex || !ex.length) break;
+    forkedFrom = slugify(name);
     slug = slugify(name) + '-' + Math.random().toString(36).slice(2, 5);
   }
 
   // COMP (no card): provision straight to a live tenant, skip Stripe entirely.
   if (wantComp) {
     if (!compAuthed) return J(200, { ok: false, error: 'comp_not_authorized', message: "This free-setup link isn't valid — check the link and try again." });
-    return await provisionComp(pf, { name, slug, trade, plan: planKey, email, owner_name: b.owner_name || '', phone: b.phone || '', area: b.area || '', want_ann: !!b.want_ann, admin, terms_version: termsVersion, terms_at: termsAt, origin: String(b.origin || '') });
+    return await provisionComp(pf, { name, slug, forked_from: forkedFrom, trade, plan: planKey, email, owner_name: b.owner_name || '', phone: b.phone || '', area: b.area || '', want_ann: !!b.want_ann, admin, terms_version: termsVersion, terms_at: termsAt, origin: String(b.origin || '') });
   }
 
   // Card-required Checkout. Tenant is provisioned by the webhook after the card clears.
   let out;
   try {
-    out = await billing.signupCheckout({ name, slug, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '', want_ann: !!b.want_ann, ref: String(b.ref || '').slice(0, 60), terms_version: termsVersion, terms_accepted_at: termsAt, origin: String(b.origin || '') });
+    out = await billing.signupCheckout({ name, slug, forked_from: forkedFrom, trade, plan: planKey, addons, email, owner_name: b.owner_name || '', phone: b.phone || '', want_ann: !!b.want_ann, ref: String(b.ref || '').slice(0, 60), terms_version: termsVersion, terms_accepted_at: termsAt, origin: String(b.origin || '') });
   } catch (e) {
     return J(200, { ok: false, error: 'checkout_failed', message: "We couldn't open the secure card screen just now — give it a moment and try again.", detail: String((e && e.message) || e).slice(0, 160) });
   }

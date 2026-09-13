@@ -104,6 +104,7 @@ async function provisionFromMeta(pf, stripe, sub, meta) {
     secret: admin, slug, name: meta.name || slug, trade: meta.trade || 'appliance',
     plan: meta.plan || 'office', owner_email: email, owner_name: meta.owner_name || '', owner_phone: meta.owner_phone || '',
     ref: refCode,
+    forked_from: String(meta.forked_from || ''),   // duplicate shop name -> suffixed slug (audit)
   } };
   // Provisioning creates the owner's auth login THEN the company; it isn't atomic, so a transient
   // hiccup (or an existing/orphaned auth user from a prior attempt) can leave the FIRST try not-ok
