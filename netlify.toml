@@ -28,6 +28,11 @@
 [functions."platform-warranty-tee"]
   timeout = 26
 
+# platform-nsa-enrich — same reason: a multi-inbox Gmail read plus per-dispatch lookups
+# does not fit the 10s sync default.
+[functions."platform-nsa-enrich"]
+  timeout = 26
+
 # Security headers — applied to every page served from this site.
 # Keeps office surfaces hardened: CSP limits where scripts/connections
 # can come from, X-Frame-Options blocks click-jacking, Referrer-Policy
