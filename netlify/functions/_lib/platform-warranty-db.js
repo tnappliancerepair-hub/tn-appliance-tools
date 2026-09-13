@@ -33,18 +33,22 @@ const PLATFORM_MOVE = { canceled: 'canceled' };
 // all, and unit.label/attributes ARE keepTyped-guarded, so those four stick.
 //
 // Never throws: a dedup must still return even if enrichment fails.
-async function enrichBlanks(db, companyId, job, n) {
+// opts.dry reports what WOULD fill without writing. Deliberately a flag on this function
+// rather than a second implementation in the caller: a separate dry-run would drift from
+// the real fill rules, and then the preview stops predicting the write.
+async function enrichBlanks(db, companyId, job, n, opts) {
+  const dry = !!(opts && opts.dry);
   const filled = [];
   // Some callers hand us a minimal inline rest() client. No patch = no enrichment,
-  // never a crash on the dedup path.
-  if (!db || typeof db.patch !== 'function') return filled;
+  // never a crash on the dedup path. A dry run needs no patch method at all.
+  if (!db || (!dry && typeof db.patch !== 'function')) return filled;
   try {
     const blank = (v) => !String(v == null ? '' : v).trim();
     const jobPatch = {};
     if (blank(job.dispatch_id) && n.dispatch_id) jobPatch.dispatch_id = n.dispatch_id;
     if (blank(job.service_window) && n.service_window) jobPatch.service_window = n.service_window;
     if (Object.keys(jobPatch).length) {
-      await db.patch('job', `id=eq.${job.id}`, jobPatch);
+      if (!dry) await db.patch('job', `id=eq.${job.id}`, jobPatch);
       filled.push(...Object.keys(jobPatch));
     }
 
@@ -72,7 +76,7 @@ async function enrichBlanks(db, companyId, job, n) {
       const better = [n.brand, n.appliance].filter(Boolean).join(' ').trim();
       if (better) { unitPatch.label = better; filled.push('unit.label'); }
     }
-    if (Object.keys(unitPatch).length) await db.patch('unit', `id=eq.${u.id}`, unitPatch);
+    if (Object.keys(unitPatch).length && !dry) await db.patch('unit', `id=eq.${u.id}`, unitPatch);
   } catch (e) {
     return filled.concat(['error:' + String((e && e.message) || e).slice(0, 60)]);
   }
@@ -184,4 +188,4 @@ async function applyDispatchUpdate(db, co, s, live) {
   return { operation: s.operation, dispatch_id: s.dispatch_id, job_id: jobId, matched: true, mode: 'applied', moved_to: target || null };
 }
 
-module.exports = { createWarrantyJob, resolveJob, applyDispatchUpdate };
+module.exports = { createWarrantyJob, resolveJob, applyDispatchUpdate, enrichBlanks };
