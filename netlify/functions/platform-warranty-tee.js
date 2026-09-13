@@ -13,6 +13,13 @@
 // already-seen mail). We key message_id off the stable Gmail message id.
 //
 //   GET ?secret=<admin>[&dryrun=1]   (dryrun lists what WOULD land, sends nothing)
+//   Backfill params (manual only - the cron passes none, so its behavior is unchanged):
+//     &days=N      widen the window to N days. WINS over the vault query so a one-off
+//                  replay never has to touch the key the 15-min cron reads.
+//     &subject=... narrow to ONE vendor's subject for a bounded replay.
+//     &max=N       per-inbox cap (default 40, ceiling 200). readMany's max is PER-ACCOUNT.
+//   A replay is safe: intake dedupes per (company, message_id) pre-parse, and a job-level
+//   dedup now FILLS BLANKS on the existing card rather than discarding the dispatch.
 //   Kill switch: vault PLATFORM_WARRANTY_TEE_ENABLED=false
 //   Tunables (vault): PLATFORM_WARRANTY_TEE_SLUG (default tn-appliance-exchange-llc),
 //     PLATFORM_WARRANTY_TEE_WINDOW_HOURS (default 3), PLATFORM_WARRANTY_TEE_SUBJECT
@@ -64,7 +71,8 @@ const DISPATCH_QUERY =
 
 function json(c, b) { return { statusCode: c, headers: { 'content-type': 'application/json' }, body: JSON.stringify(b, null, 2) }; }
 
-async function runTee(dry) {
+async function runTee(dry, opts) {
+  const o = opts || {};
   // getSecretFresh so a vault tuning change (window/kill switch/slug) takes effect on the
   // next run instead of waiting for the warm container to recycle.
   const enabled = String((await getSecretFresh('PLATFORM_WARRANTY_TEE_ENABLED')) || 'true').toLowerCase() !== 'false';
@@ -75,7 +83,18 @@ async function runTee(dry) {
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   const emailSecret = (await getSecret('PLATFORM_EMAIL_SECRET')) || admin;
 
-  let query = (await getSecretFresh('PLATFORM_WARRANTY_TEE_QUERY')) || '';
+  // An explicit &days= / &subject= is a deliberate manual backfill, so it outranks the vault
+  // query. Without either param this is byte-identical to before (the cron passes neither).
+  let query = '';
+  if (o.days || o.subject) {
+    const d = Math.max(1, Math.min(365, parseInt(o.days || '1', 10) || 1));
+    const after = Math.floor(Date.now() / 1000) - d * 86400;
+    query = o.subject
+      ? `after:${after} -in:sent subject:"${String(o.subject).replace(/"/g, '')}"`
+      : `after:${after} ${DISPATCH_QUERY}`;
+  } else {
+    query = (await getSecretFresh('PLATFORM_WARRANTY_TEE_QUERY')) || '';
+  }
   if (!query) {
     // Default window 6h — a 15-min cron catches every new dispatch well inside it, and a
     // few missed cron cycles can't drop mail. Re-scans are cheap (intake dedupes pre-parse).
@@ -90,9 +109,10 @@ async function runTee(dry) {
   }
 
   let msgs = [];
-  try { msgs = await readMany(query, { max: 40 }); } catch (e) { return { ok: false, error: 'gmail read failed: ' + String((e && e.message) || e) }; }
+  const max = Math.max(1, Math.min(200, parseInt(o.max || '40', 10) || 40));
+  try { msgs = await readMany(query, { max }); } catch (e) { return { ok: false, error: 'gmail read failed: ' + String((e && e.message) || e) }; }
 
-  const out = { ok: true, dry: !!dry, slug, query, scanned: msgs.length, created: 0, deduped: 0, skipped: 0, results: [] };
+  const out = { ok: true, dry: !!dry, slug, query, max, scanned: msgs.length, created: 0, deduped: 0, skipped: 0, enriched: 0, fields_filled: 0, results: [] };
   for (const m of msgs) {
     const brief = { id: m.id, from: String(m.from || '').slice(0, 44), subject: String(m.subject || '').slice(0, 60) };
     if (dry) { out.results.push({ ...brief, would_send: true }); continue; }
@@ -102,7 +122,13 @@ async function runTee(dry) {
       const d = JSON.parse((r && r.body) || '{}');
       const st = d.duplicate_email ? 'deduped' : (d.status || (d.ok ? 'ok' : 'error'));
       if (st === 'created') out.created++; else if (st === 'deduped' || d.duplicate_email) out.deduped++; else out.skipped++;
-      out.results.push({ ...brief, status: st, jobs: (d.jobs || []).map((j) => ({ claim: j.claim, customer: j.customer, appliance: j.appliance })) });
+      // A dedup that filled blanks is the WHOLE point of a backfill - count it, or the run
+      // reads as "0 created" and looks like it did nothing.
+      for (const j of d.jobs || []) {
+        const n = (j.filled || []).length;
+        if (n) { out.enriched++; out.fields_filled += n; }
+      }
+      out.results.push({ ...brief, status: st, jobs: (d.jobs || []).map((j) => ({ claim: j.claim, customer: j.customer, appliance: j.appliance, matched_on: j.matched_on || undefined, filled: (j.filled || []).length ? j.filled : undefined })) });
     } catch (e) { out.skipped++; out.results.push({ ...brief, error: String((e && e.message) || e).slice(0, 120) }); }
   }
   return out;
@@ -112,7 +138,7 @@ exports.handler = async function (event) {
   const q = (event && event.queryStringParameters) || {};
   const admin = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';
   if (q.secret !== admin) return json(401, { ok: false, error: 'admin secret required (?secret=)' });
-  const res = await runTee(q.dryrun === '1');
+  const res = await runTee(q.dryrun === '1', { days: q.days, subject: q.subject, max: q.max });
   return json(200, res);
 };
 

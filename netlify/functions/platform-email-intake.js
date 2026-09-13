@@ -91,7 +91,12 @@ exports.handler = async function (event) {
   let status = 'skipped', detail = ex.note || '';
   try {
     if (ex.jobs && ex.jobs.length) {
-      for (const n of ex.jobs) { const r = await createWarrantyJob(db, co, n); made.push({ job_id: r.job_id, deduped: !!r.deduped, claim: n.claim_number, customer: [n.first, n.last].filter(Boolean).join(' '), appliance: n.appliance }); }
+      for (const n of ex.jobs) {
+        const r = await createWarrantyJob(db, co, n);
+        // Carry filled/matched_on through so a caller can SEE whether a dedup still
+        // enriched a blind card. Without it a backfill's summary line is unfalsifiable.
+        made.push({ job_id: r.job_id, deduped: !!r.deduped, matched_on: r.matched_on || null, filled: r.filled || [], claim: n.claim_number, customer: [n.first, n.last].filter(Boolean).join(' '), appliance: n.appliance });
+      }
       const anyNew = made.some((m) => !m.deduped);
       status = anyNew ? 'created' : 'deduped';
       detail = anyNew ? (made.length + ' job(s)') : 'already on the board (claim match)';
