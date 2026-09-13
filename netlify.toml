@@ -629,7 +629,7 @@
 # the ledger) into Supabase, a separate platform, every night. Cloud-run so it
 # does NOT depend on the Mac. The scheduled trigger fires the -background worker.
 # 3:00am CT = 08:00 UTC, just before the event_log GC below.
-[functions."nightly-backup"]
+[functions."nightly-backup-cron"]
   schedule = "0 8 * * *"
 
 # v2 shadow scheduler — the clean Supabase-rebuild proof. A cloud-hosted v2

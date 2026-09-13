@@ -34,7 +34,14 @@ const PAGE_SIZE = 200;     // default rows per Xano read page
 const CHUNK_ROWS = 500;    // rows per Supabase insert
 // Tables with heavy rows (big JSON) need smaller pages so a page response doesn't
 // blow the read timeout. parts_orders carries fat order payloads.
-const HEAVY_PER_PAGE = { 47: 50 };
+// 50/page was TOO SMALL and was the reason the weekly full copy could never
+// finish: ~205k rows / 50 = ~4,110 sequential Xano reads at ~150ms = >10 min for
+// this table ALONE, against an 11-min budget it shares with 28 other tables.
+// Measured 2026-09-13 (a Sunday): it copied 137,450 of ~205,500 rows and
+// truncated, so `complete` had been false on every single weekly attempt.
+// 250 keeps the page response small while cutting the round trips ~5x (~2 min).
+// Xano's content/search 400s above ~500 per_page -- stay well under it.
+const HEAVY_PER_PAGE = { 47: 250 };
 const MAX_PAGES = 8000;    // runaway backstop (1.6M rows/table)
 // A Netlify background fn is killed at ~15 min. Without a budget the loop just
 // grinds until the wall, Netlify RETRIES the whole thing, and every table after
@@ -213,17 +220,65 @@ async function clearSnapshot(date) {
 // Prune snapshots older than the retention window so the backup table can't grow
 // unbounded. Deletes by snapshot_date (bounded, no row enumeration). Best-effort:
 // a prune failure must never fail the backup itself.
-async function pruneOldSnapshots(keepDays = RETENTION_DAYS) {
+// Retention. Two different rules, because the tables have two different risks.
+//
+//  * Heavy weekly tables (parts_orders): keep the newest HEAVY_KEEP snapshot
+//    DATES that contain them, regardless of the day window. A date-only prune is
+//    unsafe here -- the table only copies on Sunday and can truncate, so the
+//    7-day window can (and did) leave zero complete copies. Measured 2026-09-13:
+//    the only complete copy on the whole system was 2026-09-10 (205,500 distinct
+//    ids) and it carries NO manifest, so any manifest-driven protection would
+//    have deleted it. Count dates, not manifests.
+//  * Everything else: plain age window. Small, cheap, copied nightly.
+//
+// Deletes are issued ONE DATE AT A TIME. A single `snapshot_date=lt.<cutoff>`
+// DELETE spanning ~45k chunks / >2GB times out at 20s and silently leaves the
+// whole table behind -- which is why 41 days were still present against a 7-day
+// policy (49,816 chunks, 2.29 GB, over half the ops DB: the same shape that
+// helped melt the Nano tier). Bounded, and resumable across nights.
+const HEAVY_KEEP = Number(process.env.BACKUP_HEAVY_KEEP) > 0 ? Number(process.env.BACKUP_HEAVY_KEEP) : 2;
+
+async function distinctDates(filters) {
+  const rows = await sb.select(BACKUP_TABLE, Object.assign({
+    select: 'snapshot_date', order: 'snapshot_date.desc', limit: '20000',
+  }, filters));
+  return [...new Set((rows || []).map((r) => r.snapshot_date))];
+}
+
+async function pruneOldSnapshots(keepDays = RETENTION_DAYS, opts = {}) {
   await primeXanoToken();
   const c = await sb.cfg();
   if (!c.url || !c.key) return { pruned: false, reason: 'not_configured' };
   const cutoff = new Date(Date.now() - keepDays * 86400000).toISOString().slice(0, 10);
-  const r = await fetch(`${c.url}/rest/v1/${BACKUP_TABLE}?snapshot_date=lt.${cutoff}`, {
-    method: 'DELETE',
-    headers: { apikey: c.key, Authorization: 'Bearer ' + c.key, Prefer: 'return=minimal' },
-    signal: AbortSignal.timeout(20000),
-  });
-  return { pruned: r.ok, cutoff, keepDays };
+  const budget = Date.now() + (opts.budgetMs || 60000);
+  const out = { pruned: true, cutoff, keepDays, heavy_keep: HEAVY_KEEP, heavy_dropped: 0, dates_dropped: 0, kept: [] };
+
+  // Pass 1 - heavy tables, by date count. Protect the newest HEAVY_KEEP.
+  for (const id of HEAVY_WEEKLY) {
+    const name = NAME_MAP[id] || ('table-' + id);
+    let dates;
+    try { dates = await distinctDates({ table_name: `eq.${name}` }); }
+    catch (e) { out.heavy_error = String(e.message || e).slice(0, 160); continue; }
+    out.kept.push({ table: name, keeping: dates.slice(0, HEAVY_KEEP) });
+    for (const d of dates.slice(HEAVY_KEEP)) {
+      if (Date.now() > budget) { out.resume = true; break; }
+      try { await sb.del(BACKUP_TABLE, { snapshot_date: `eq.${d}`, table_name: `eq.${name}` }); out.heavy_dropped++; }
+      catch (_) { out.stopped_on_error = true; break; }
+    }
+  }
+
+  // Pass 2 - everything else, by age. Heavy tables are excluded here; pass 1 owns them.
+  const heavyNames = [...HEAVY_WEEKLY].map((id) => NAME_MAP[id] || ('table-' + id));
+  const notHeavy = `not.in.(${heavyNames.join(',')})`;
+  let old;
+  try { old = await distinctDates({ snapshot_date: `lt.${cutoff}`, table_name: notHeavy }); }
+  catch (e) { out.age_error = String(e.message || e).slice(0, 160); return out; }
+  for (const d of old) {
+    if (Date.now() > budget) { out.resume = true; break; }
+    try { await sb.del(BACKUP_TABLE, { snapshot_date: `eq.${d}`, table_name: notHeavy }); out.dates_dropped++; }
+    catch (_) { out.stopped_on_error = true; break; }
+  }
+  return out;
 }
 
 // Run a backup. opts.only = [ids] for a scoped run (probe/verify); else core+discovered.
@@ -286,16 +341,18 @@ async function backupTables(opts = {}) {
   summary.finished_at = new Date().toISOString();
   summary.total_rows = summary.tables.reduce((s, t) => s + (t.rows || 0), 0);
 
+  // Retention runs BEFORE the manifest write. It used to run after, so
+  // `summary.pruned` was assigned to an object that had ALREADY been serialized
+  // into the DB -- the prune result was structurally unrecordable and every
+  // manifest read `pruned: null`, which is why a prune that had never once
+  // worked looked exactly like a prune nobody had asked about.
+  try { summary.pruned = await pruneOldSnapshots(); } catch (e) { summary.prune_error = String((e && e.message) || e).slice(0, 200); }
+
   // manifest row for this snapshot (table_name='_manifest')
   // ALWAYS write the manifest -- a partial run must be distinguishable from a run
   // that never happened. `complete:false` + the skipped lists are the signal the
   // watchdog reads; a missing manifest used to be the only symptom of starvation.
   await sb.insert(BACKUP_TABLE, { snapshot_date: date, table_name: '_manifest', table_id: null, part: 0, row_count: summary.tables.length, rows: summary });
-
-  // Retention: prune snapshots older than the window (keeps the backup table
-  // bounded — it had grown to ~1GB with no pruning). Best-effort — never fail the
-  // backup on a prune error.
-  try { summary.pruned = await pruneOldSnapshots(); } catch (e) { summary.prune_error = String((e && e.message) || e).slice(0, 200); }
 
   if (opts.writeAudit) {
     try {

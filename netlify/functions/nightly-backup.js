@@ -4,10 +4,16 @@
 //   - ?probe=1&secret=<admin>    -> SMALL synchronous backup (technicians only),
 //                                    returns the result so we can verify the whole
 //                                    Xano->Supabase chain live without waiting.
+//   - ?prune=1&secret=<admin>    -> run retention only, synchronously, and report
+//                                    what it dropped/kept. &dry=1 to look first.
+//
+// The `schedule` block lives on nightly-backup-cron, NOT here: a Netlify fn that
+// carries its own schedule edge-403s on every external HTTP call, which silently
+// made all of the manual controls above unreachable.
 'use strict';
 
 const { getSecret } = require('./_lib/secrets');
-const { backupTables } = require('./_lib/backup');
+const { backupTables, pruneOldSnapshots } = require('./_lib/backup');
 const sb = require('./_lib/supabase');
 
 const LEGACY_ADMIN = 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -42,6 +48,32 @@ exports.handler = async function (event) {
       const t0 = Date.now();
       const summary = await backupTables({ only, writeAudit: !!q.audit, keepExisting: true, eventLogPages, clearFirst, actions, perPage, maxPagesOverride });
       return { statusCode: 200, body: JSON.stringify({ ok: true, probe: true, ms: Date.now() - t0, summary }) };
+    } catch (e) {
+      return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
+    }
+  }
+
+  // Retention only. Synchronous so the result is visible, and bounded by its own
+  // budget. ?dry=1 reports what WOULD go without deleting anything.
+  if (q.prune && q.secret === admin) {
+    try {
+      const t0 = Date.now();
+      if (q.dry) {
+        const rows = await sb.select('xano_backup_chunks', { select: 'snapshot_date,table_name', order: 'snapshot_date.desc', limit: '50000' });
+        const byDate = {};
+        for (const r of rows || []) {
+          byDate[r.snapshot_date] = byDate[r.snapshot_date] || { chunks: 0, heavy: 0 };
+          byDate[r.snapshot_date].chunks++;
+          if (r.table_name === 'parts_orders') byDate[r.snapshot_date].heavy++;
+        }
+        const heavyDates = Object.keys(byDate).filter((d) => byDate[d].heavy > 0).sort().reverse();
+        return { statusCode: 200, body: JSON.stringify({ ok: true, dry: true, ms: Date.now() - t0,
+          total_dates: Object.keys(byDate).length, total_chunks: (rows || []).length,
+          heavy_dates: heavyDates.length, heavy_keeping: heavyDates.slice(0, 2), heavy_dropping: heavyDates.slice(2).length }, null, 2) };
+      }
+      const budgetMs = q.budget_ms ? parseInt(q.budget_ms, 10) : 60000;
+      const res = await pruneOldSnapshots(undefined, { budgetMs });
+      return { statusCode: 200, body: JSON.stringify({ ok: true, ms: Date.now() - t0, prune: res }, null, 2) };
     } catch (e) {
       return { statusCode: 500, body: JSON.stringify({ ok: false, error: String((e && e.message) || e) }) };
     }
