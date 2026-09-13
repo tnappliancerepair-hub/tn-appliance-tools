@@ -367,7 +367,11 @@ exports.handler = async function (event) {
     const out = [];
     for (const c of (Array.isArray(companies) ? companies : [])) {
       const seats = byCo[c.id] || [];
-      const owner = seats.find((u) => u.role === 'owner');
+      // Prefer an owner that actually HAS an address: demo's first owner row carries a null
+      // app_user.email, and picking it blindly renders the card as "owner: (none)" -- which
+      // defeats the whole point of showing the owner to tell two same-named shops apart.
+      const owners = seats.filter((u) => u.role === 'owner');
+      const owner = owners.find((u) => u.email) || owners[0];
       out.push({ slug: c.slug, name: c.name, trade: c.trade, plan: c.plan, status: c.status || 'active', jobs: await countOf(`job?company_id=eq.${c.id}&select=id`), logins: seats,
         owner_email: (owner && owner.email) || '',
         dup_name: (nameCount[String(c.name || '').trim().toLowerCase()] || 0) > 1 });

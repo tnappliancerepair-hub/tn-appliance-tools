@@ -1,6 +1,96 @@
 # Appliance Ant
 
-## 💾🧯 2026-09-13 (latest) — THE OFF-SITE BACKUP HAD NEVER ONCE COMPLETED, AND RETENTION HAD NEVER ONCE RUN · 41 days kept against a 7-day policy · 2.29 GB → 285 MB · a manual probe was silently turning the watchdog green — READ FIRST
+## 🏭🧬 2026-09-13 (latest) — THE CLONE ENGINE WORKS BUT NOTHING HAD EVER BEEN CLONED FOR A PAYING STRANGER · 3 of 5 tenants were tests · two live shops shared a NAME and nothing said so · 26 crons and not one watched tenants — READ FIRST
+
+Teddy: *"What gaps do we have left in the platform cloning system"* → *"Let's do them all."* Measured
+the clone path live instead of reading the changelog. **The machinery is built; what was missing is
+that almost every integration's last mile has never carried a real customer.**
+
+### 🥇 THE FRAMING — only TN has ever had real data in it
+5 tenants existed: TN, the `demo` sales shop, and **3 tests** (`queen-anne-s`, `queen-anne-s-56a`,
+`jimmys-appliance-repair`). The Queen Anne's pair had **0 jobs between them** and 14 live logins.
+`import_runs: 4 — all TN, zero non-TN.` `companies_with_referrer: 0` (referral attribution has never
+fired once). `tenant_integration: 0` (no shop has ever connected ServicePower creds).
+
+### 🔴 CORRECTION TO MY OWN DIAGNOSIS — I blamed a swallowed audit write; the fork is a LAYER UP
+I found `platform_slug_collision` had **zero rows** while `queen-anne-s-56a` existed, and called it a
+`try/catch(_){}` swallowing the write. **Wrong.** `platform-signup` picks a free slug **before
+checkout** (a READ, not a reservation) and forks it there; by the time `platform-provision` runs there
+is no collision left to detect and its guard **correctly never fires**. Signup cannot log it — no
+company exists yet to attach an event to. So the suffix was applied by design and recorded by nobody.
+- **The isolation guard itself is RIGHT and untouched:** a stranger asking for a taken shop name gets
+  their own tenant, never a seat inside someone else's shop. The alternative is a data breach.
+- ✅ Signup now remembers the original slug and hands it down through **checkout metadata** (and the
+  comp call) to provision, which writes `platform_slug_forked` against the real company_id. Both audit
+  writes are **VERIFIED, not fire-and-forget** — the old swallow made a failed write look exactly like
+  "no fork happened", which is what sent me down the wrong path.
+- ⚠️ **STANDING: when an audit row is missing, check whether the code that writes it could even have
+  run before you accuse it of failing.** Date the code against the event (`git log -S`).
+
+### 👀 `/packs` COULDN'T TELL TWO SHOPS APART
+Two identical "Queen Anne's" cards, slug line the only difference. `tenants` now returns
+**`owner_email` + `dup_name`**; the card shows a **⚠ DUPLICATE NAME** badge + the owner address.
+- 🐞 First cut rendered `owner: (none)` for `demo` — its **first owner row carries a null
+  `app_user.email`** (documented quirk). Now prefers an owner that actually HAS an address.
+
+### 🐕 `platform-tenant-watch` (NEW, + `-cron` daily 9:17am CT) — 26 crons, none watched tenants
+Every existing cron watches TN's migration or its day. **Nothing watched the thing the SaaS rests
+on.** The expensive shape is quiet: a signup takes a card, half-builds, and leaves a **live billable
+tenant with ZERO logins**. That bug shipped 2026-09-12 and its own fix note said *"a seatless company
+is the tell — query it periodically."* **Periodically-by-hand is not a check.**
+- Watches the DATA: **seatless · ownerless · duplicate name · half-built pack · techless after a day**.
+  `no_jobs` is **REPORTED but never paged** — a trial that hasn't imported isn't broken, and a watchdog
+  that cries about hygiene gets muted.
+- **Calibrated against the live set BEFORE shipping** so a clean platform never pages (every tenant
+  already had an owner + an active crew). 3 reads for the whole platform, computed in memory.
+- Watch state is **ONE row updated in place** — the leak shape that grew the backup table to 978 MB.
+- ⚠️ `tenant_health` added to `_lib/office-gate` **SHIP_TAGS** or the alert is written and delivered
+  NOWHERE (the 2026-08-28 rule that has bitten every new alert since).
+- **PROVEN red→green across a real change:** before the purge it reported
+  `healthy:false · duplicate shop name across 2 tenants`; after, `healthy:true`, all six green. A check
+  that only ever returns green is worth nothing — this one caught the real thing first.
+
+### 🧹 THE 3 TEST TENANTS ARE GONE — verified off the DATABASE, not the purge summary
+Looked inside before deleting: both Queen Anne's were **completely empty** (0 customers/invoices/
+messages/parts/grants) and `jimmys`' only job was the **shoppack seed sample card** ("Sample Lead
+(demo)", reserved 555 number). **Zero Stripe exposure on all three** (no connect id, no customer, no
+subscription) — checked first, because *a purge does not touch Stripe*.
+Ladder: offboard → churned → purge `&force=yes&confirm=yes`. **16 logins deleted.**
+**After: 2 companies (TN + demo), 0 orphan rows across app_user/technician/job/customer/
+thread_message/portal_grant, 0 duplicate names.**
+
+### ✅ MEASURED GREEN (no action — recorded so nobody re-checks)
+- **Stripe Connect IS enabled** on the live platform account (`connect_ok: true`, deep probe). Shops
+  were never blocked platform-side — each just has to finish its own Express onboarding.
+- `platform-phone` **does** have an `update` action (an older note called that a gap; it's closed).
+- TK + 3 other partners all have commission set.
+- `seatless_companies: 0` — the 2026-09-12 rollback fix is holding.
+
+### 🔴 THE ONE REAL BLOCKER LEFT IS DNS — per-shop email intake has never routed a single message
+**`dig MX jobs.assistant247.net` returns EMPTY.** All 122 `email_intake` rows are TN's, and they
+arrive from `platform-warranty-tee` POSTing internally — **no shop has ever received a real dispatch
+email.** Everything below the Cloudflare hop is live and proven: the endpoint works, slug resolution
+handles both address forms, and **`PLATFORM_EMAIL_SECRET` is already set** (a wrong secret returns
+`unauthorized`, not `not configured`).
+- ⚠️ **The runbook's step 5 was stale in the DANGEROUS direction** — it said *set* the shared secret.
+  It is already set, so following it literally invites giving the worker a NEW value that no longer
+  matches, and **the failure is silent: every dispatch bounces to `FALLBACK_INBOX` and the board stays
+  empty.** Rewritten to reveal-and-reuse. `docs/warranty-email-intake-golive.md`.
+- ⏭️ **TEDDY, ~15 min, the single biggest unlock for any future shop:** enable Cloudflare Email
+  Routing on the zone → `wrangler deploy` the worker with the two secrets → bind the catch-all.
+
+### ⏭️ OPEN — all "never carried a real customer", not missing code
+1. **A real stranger paying with a real card.** Signup open, Stripe live, webhook ready, Connect on —
+   but every tenant to date was admin-provisioned or Teddy-made.
+2. **Import wizard on a second shop.** HCP verified; **Jobber + Workiz built to spec, never
+   field-tested.** This is the #1 sales line.
+3. **Referral attribution** — 4 partners with commission set, 0 shops ever attributed.
+4. **Per-tenant vendor creds** — 0 connected; TN still runs off the shared vault.
+5. **SES production** (login email is sandbox → a new customer's welcome is rejected; not a blocker,
+   owners still get a vaulted password + magiclink) and **no tenant has a phone** (`ann_number` null
+   on every shop, TN included).
+
+## 💾🧯 2026-09-13 — THE OFF-SITE BACKUP HAD NEVER ONCE COMPLETED, AND RETENTION HAD NEVER ONCE RUN · 41 days kept against a 7-day policy · 2.29 GB → 285 MB · a manual probe was silently turning the watchdog green — READ FIRST
 
 Teddy: *"Ok let's check our supabase ant system functionality."* Platform came back clean on
 every surface. The one thing that was broken was the thing that is supposed to save us when
