@@ -90,9 +90,12 @@ async function resolveTarget(db, companyId, n) {
   for (const [col, val] of [['claim_number', n.claim_number], ['dispatch_id', n.dispatch_id]]) {
     const key = String(val || '').trim();
     if (!key) continue;
-    const rows = await db.get(`job?company_id=eq.${companyId}&${col}=eq.${encodeURIComponent(key)}&${sel}&limit=2`);
-    if (rows && rows.length === 1) return { job: rows[0], matched_by: col };
-    if (rows && rows.length > 1) return { refused: 'ambiguous_key:' + col + ':' + rows.length };
+    const rows = await db.get(`job?company_id=eq.${companyId}&${col}=eq.${encodeURIComponent(key)}&${sel}&limit=25`);
+    // Several rows on ONE claim is not ambiguity - it is Xano's duplicate-row problem, and
+    // every one of them is the same dispatch on the same machine. Fill them all, or the
+    // duplicate cards stay blind and a tech can open the wrong one. Ambiguity only matters
+    // on the identity path, where the candidates are genuinely DIFFERENT dispatches.
+    if (rows && rows.length) return { jobs: rows, matched_by: col };
   }
 
   // identity: last name + phone. Both required - a last name alone is far too loose.
@@ -113,7 +116,7 @@ async function resolveTarget(db, companyId, n) {
   // Exactly one, or nothing. No preference ranking here on purpose - a ranking silently
   // picks a card, and the cost of picking wrong is a wrong model on a real ticket.
   if (blind.length > 1) return { refused: 'ambiguous_identity:' + blind.length };
-  return { job: blind[0], matched_by: 'identity' };
+  return { jobs: [blind[0]], matched_by: 'identity' };
 }
 
 exports.handler = async function (event) {
@@ -175,11 +178,17 @@ exports.handler = async function (event) {
       continue;
     }
 
+    const targets = r.jobs || [];
     let filled = [];
-    try { filled = await enrichBlanks(db, co.id, r.job, n, { dry: !live }); } catch (e) { filled = ['error:' + String((e && e.message) || e).slice(0, 60)]; }
-    if (filled.length) { out.enriched++; out.fields_filled += filled.length; }
+    let touched = 0;
+    for (const t of targets) {
+      let f = [];
+      try { f = await enrichBlanks(db, co.id, t, n, { dry: !live }); } catch (e) { f = ['error:' + String((e && e.message) || e).slice(0, 60)]; }
+      if (f.length) { touched++; filled = filled.concat(f); }
+    }
+    if (touched) { out.enriched += touched; out.fields_filled += filled.length; }
     out.by_match[r.matched_by] = (out.by_match[r.matched_by] || 0) + 1;
-    out.results.push({ ...row, job_id: r.job.id, matched_by: r.matched_by, would_fill: !live ? filled : undefined, filled: live ? filled : undefined });
+    out.results.push({ ...row, jobs: targets.length, matched_by: r.matched_by, would_fill: !live ? filled : undefined, filled: live ? filled : undefined });
   }
 
   return json(200, out);
