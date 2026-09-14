@@ -57,7 +57,27 @@ list at all.**
 | **Yelp** ×2 | 403s bots; index still shows both La Vergne listings | ⚠️ **unverifiable from here** — needs a browser; and the `-2` duplicate needs a *merge*, not an edit |
 | **Superpages** | still ghost; did NOT inherit the YP fix | 🔴 separate claim |
 | **Alignable** | still La Vergne / used-appliance | 🔴 open |
-| GBP · repairhit · Manta | correct | ✅ |
+| GBP · repairhit · Manta · **theappliancedirectory** | correct | ✅ |
+
+**➕ NEW DIRECTORIES TEDDY ADDED HIMSELF 2026-09-14: Angi · Nextdoor · Bing Places · Thumbtack.** He is
+right that **HomeAdvisor IS Angi** (merged under Angi Inc — one listing covers both, there is no second
+HomeAdvisor profile to claim). **⏳ Teddy 2026-09-14: "those changes will be completed by next week,
+there's a waiting period"** — so the four open rows above are IN FLIGHT, not stalled. Do NOT re-submit
+any of them in the meantime (a re-submit is how a duplicate gets born). Re-verify the week of 2026-09-21.
+- ⚠️ **A new listing only helps if its NAP matches EXACTLY** — `TN Appliance Exchange LLC · 3137 Skinner
+  Dr, Antioch TN 37013 · 615-280-2949` — and carries **no** appliance-STORE / used / refurbished category.
+  A new listing with the wrong address makes NAP consistency *worse*, not better. Spot-check each once
+  it indexes (~1-2 weeks).
+- 🔎 **Sweep of the long tail found two more, both low-authority:** `theappliancedirectory.com` is
+  **CLEAN** (perfect NAP, repair-only categories, repair-only description — no action), and `magicpin.com`
+  carries a generic *"visit the store"* aggregator blurb with **no street address at all** and a stale 57
+  ratings. Magicpin is scraped filler, not worth a claim — recorded so nobody re-audits it.
+- 📱 **The Nextdoor work he just did lands on the CLAIMED page — the DUPLICATE is still the problem.**
+  `…/pages/tn-appliance-exchange-antioch-tn/` still holds the 2 recommendations **and still publishes
+  Teddy's PERSONAL CELL +1 615-485-5795 to the public.** Adding/updating the claimed
+  `…-llc-nashville-tn` page does NOT merge the duplicate — that is a separate Nextdoor support request,
+  same as the Yelp `-2`. **This is the highest-value single item on the whole citation list** (it is the
+  only one leaking the owner's private number).
 
 ⚠️ **STANDING: do not mark a citation "fixed" off a report or off a search-engine result.** A search index
 lags a real edit by days, and a submitted-but-unverified change looks identical to one nobody made. Read
