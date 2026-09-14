@@ -23,7 +23,7 @@ const STALE_MS = 14 * 86400000; // ignore a state older than 14 days
 // from their own account — no bot, no incentive. The claimed TN Appliance Exchange
 // Nextdoor Business Page is the destination; a valid nextdoor.com URL in the vault
 // (NEXTDOOR_RECOMMEND_URL) overrides the default.
-const NEXTDOOR_URL = 'https://nextdoor.com/page/tn-appliance-exchange-antioch-tn';
+const NEXTDOOR_URL = 'https://nextdoor.com/pages/tn-appliance-exchange-antioch-tn/';
 async function nextdoorSuffix() {
   let url = '';
   try { url = String((await getSecret('NEXTDOOR_RECOMMEND_URL')) || '').trim(); } catch (_) { url = ''; }
