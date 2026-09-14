@@ -207,6 +207,59 @@ the live listing (or have Teddy open it in a browser where a bot gets 403'd), an
   ADDRESS than the site + GBP is exactly what suppresses map-pack rank. Fixing the address matters as
   much as killing the "Used Appliances" label.
 
+## 💵📧 2026-09-14 (Sun, late) — DANIELLE: "CASH PAYMENTS ARE NOT SENDING ME A EMAIL" — she was right, the watcher was reading an action the cash path never writes · AND techs aren't recording cash at all — READ FIRST
+
+Three reports from Danielle in one thread. Two were already fixed this morning; the third is real
+and found a dead-signal bug plus a worse operational gap underneath it.
+
+### ✅ THE TWO ALREADY-FIXED ONES (verified live, no action)
+- **"mark text read / pull up just the unread"** — BUILT + LIVE. **"when I mark it read its not saving"**
+  was the missing-`insert` bug (`platform-messages.js`'s inline `rest()` had no `insert`). **The fix is
+  holding**: `event where type='thread_read'` = **113 rows across 96 distinct customers**, running
+  2:56pm → 5:52pm CT (newest 3 min before her screenshot). ~1 tap per person = she is working the
+  inbox, not fighting it. Her "not saving" text predates the fix.
+
+### 🥇 THE REAL BUG — `payment-email-watch` watched ONE action; cash writes a DIFFERENT one
+`payment-email-watch.js` (scheduled `28-59/30`, **email is LIVE** — 20 `payment_email_sent` rows in 30d,
+`mode:'live'`) queried only **`customer_payment_received`**. But the tech's cash button
+(`tech-job.html recordPaid` → `record_payment_received`) and the office's cash entry
+(`office-board.html`) both write **`payment_recorded_offline`**. **Two different action names → cash
+could never email, no matter how many times it was collected.** The file's own header even claimed
+*"every payment … (cash/check) writes the one canonical event `customer_payment_received`"* — that
+sentence was FALSE and is what kept anyone from looking.
+- **Same dead-signal class as `tech_job_complete` (0 events) and the never-allowlisted
+  `cash_ready_notify` tags:** a watcher keyed on an action nothing emits reports zero forever and
+  looks perfectly healthy. ⚠️ **STANDING: when a watcher reports nothing, grep the PRODUCER for the
+  exact action string before trusting the watcher's own comment about what it consumes.**
+- **✅ FIXED:** reads **BOTH** actions and merges (event ids are the event_log PK, so the merge cannot
+  collide or double-send). Offline rows are a **different metadata shape**
+  (`{job_id, amount, method, reference, notes, recorded_by}` — no `kind`, no `pay_method`, no `at_ms`),
+  so reading them with the Stripe keys gave a blank method and a useless "payment" label; mapped
+  properly now. Cash leads the line as **"💵 CASH COLLECTED — $55.00 · cash · job #X · collected by
+  Jimmy"** and the subject carries a **`(N CASH)`** tag. Unit-verified 9/9.
+- **🐞 CAUGHT WHILE FIXING: `money()` guesses cents-vs-dollars by magnitude** (`n >= 1000 ? n/100 : n`)
+  because legacy Stripe rows are inconsistent. But `record_payment_received` takes a `parseFloat` off
+  the tech's phone, so an offline amount is **always whole dollars** — **a $1,200 cash collection would
+  have rendered as $12.00.** Offline rows now carry an explicit `dollars` flag and format exactly; the
+  legacy heuristic is untouched so nothing Stripe-side regresses.
+- **📧 DANIELLE IS NOW CC'd** (`PAYMENT_EMAIL_CC`, default `danielle.tnappliance@gmail.com`). **Email
+  is the correct channel and not a workaround** — `_lib/office-gate` suppresses **every** tag to her
+  cell under Teddy's 2026-08-28 no-texting-the-office rule, so a text to her is written and delivered
+  NOWHERE. (`payment_received` isn't allowlisted either, so even the Stripe half never reached her.)
+  CC not TO, so the dedup ledger + reply-to stay on the owner.
+
+### 🔴 THE WORSE FINDING UNDERNEATH — nobody is recording cash AT ALL
+**`payment_recorded_offline` = 0 rows in 7 days.** Jimmy's $55 is **not in the system anywhere** — swept
+`addon_fulfilled` / `addon_requested` / `office_invoice_logged` / `tech_tip_paid`, no match. He collected
+it and told her; that verbal hand-off is the ONLY record. **So no notification could ever have fired —
+there was no money entered to notify about.**
+- **It is not broken plumbing:** `record_payment_received` is deployed + healthy (POST with no body →
+  `400 Missing param: job_id`, not 404), and the button is live on `tech-job.html` ("💵 Cash/check" in
+  the Get-paid card). The gap is **adoption** — same shape as techs not pressing Complete.
+- ⏭️ **TEDDY'S CALL (a coaching item, not a code one):** tell the crew that cash gets tapped into the
+  Get-paid card at the door. Every tap now emails Teddy **and** Danielle within 30 min with the amount,
+  the job, and who collected it. Until they tap, collected cash stays invisible to the books.
+
 ## 📵💵 2026-09-14 (Sun, late) — A LEAD NOBODY REPLIED TO NOW PAGES A HUMAN · the Xano cash alert has been texting NOBODY for 3 weeks · two watchers are effectively UNGATED — READ FIRST
 
 Teddy: *"Really need to start getting cash jobs from our seo and advertising. It's been a bust
