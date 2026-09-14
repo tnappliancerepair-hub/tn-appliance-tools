@@ -290,6 +290,20 @@ surface work while the surface the crew is actually on stayed dark.
   whole fix exists to kill. `recentPaidInvoices` deliberately does NOT use it: it surfaces the real
   error, the email says so out loud, and a broken read writes `payment_email_platform_read_failed`.
 
+### 🧭 WHY THIS ONE SLIPPED — the cutover built four back-bridges and MONEY wasn't one of them
+Measured, not guessed. The 09-13 cutover moved the **techs** to the platform while the **office
+still works Xano** — verified live over 7 days: `office_invoice_logged` **111** · `office_stage_set`
+**190** · `job_completed` **91** · `customer_payment_received` **5** · `payment_recorded_offline`
+**0**. So Xano-side office watchers (e.g. `office-daily-recap`) are FINE; the blind spot is
+specifically **tech-side platform surfaces**. And for exactly that, the migration already built
+back-bridges — `platform-tn-booking-back`, `platform-tn-job-back`, `platform-tn-report-back`,
+`platform-tn-status-back` — **but there is no payment back-bridge.** Bookings, jobs, reports and
+status all flow back to Xano; money didn't. That is the whole shape of this bug.
+- ⚠️ **STANDING: when a surface moves to the platform, ask what Xano-side watcher used to see it.**
+  A back-bridge exists for four things and the one that got missed is the one that carries cash.
+  Fixed here on the READ side (the watcher reads Supabase directly), which is stricter than a
+  browser-side double-write that can fail silently.
+
 ### 🔌 SPLIT CORE + CRON — because the money path could never be eyeballed
 `payment-email-watch` carried its own `schedule` block, so it **edge-403'd on every manual call** —
 meaning `?dry=1`, the one way to see which payments are about to be emailed, was unreachable for the
