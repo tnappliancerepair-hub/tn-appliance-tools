@@ -1672,6 +1672,32 @@
     var hot = p.return_due_at && (new Date(p.return_due_at+'T12:00:00') - new Date())/86400000 <= 7;
     return '<div class="tprow" style="font-size:12px;color:'+(hot?'var(--danger,#b91c1c)':'var(--muted)')+'">⏳ '+bits.join(' · ')+'</div>';
   }
+  // ── USED / UNUSED, from the office (Danielle 2026-09-14: "need spot to show used un used").
+  // The tech can set this from his card; the office could only ever LOOK at it. The database
+  // allows exactly three values -- used | return | not_here -- so the select speaks HER words
+  // and writes the DB's. "Unused" IS "return" at this shop: an unused part goes back to the
+  // vendor, which is what the returns worklist runs off.
+  // ⚠️ It writes `disposition` ONLY. `must_return` is the VENDOR's rule and outranks the tech's
+  // tap -- a core is owed back even when it was USED -- so marking a part used must never
+  // clear an obligation somebody is going to get charged for.
+  var DISP_LABEL = { '': 'Not marked yet', used: '🔧 Used on the job', 'return': '↩️ Unused, going back', not_here: '⚠️ Never arrived' };
+  function dispSel(p){
+    var cur = String((p && p.disposition) || '');
+    var opts = ['', 'used', 'return', 'not_here'].map(function(v){
+      return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + DISP_LABEL[v] + '</option>';
+    }).join('');
+    return '<div class="tprow"><select class="tp_disp" style="flex:1">' + opts + '</select></div>' +
+           '<div class="tprow tp_dispnote" style="font-size:12px;color:var(--muted);margin-top:-4px">' + dispNote(cur) + '</div>';
+  }
+  // Say the money consequence out loud. Flipping a part to unused takes it OFF the invoice --
+  // she should read that here, not discover it when the total changes.
+  function dispNote(v){
+    if (v === 'used') return 'Bills on the invoice.';
+    if (v === 'return') return 'Comes OFF the invoice and shows on the returns list.';
+    if (v === 'not_here') return 'Not billed. Tell the vendor it never showed up.';
+    return 'Mark it so the invoice and the returns list are right.';
+  }
+
   function tpShip(p){
     // The vendor's obligation outranks the tech's tap: a core is owed back even when USED.
     var owed = p.must_return && !p.returned_at
@@ -1713,6 +1739,7 @@
           '<div class="tprow"><input class="tp_num" value="'+esc(p.number||'')+'" placeholder="Part #"><input class="tp_name" value="'+esc(p.name||'')+'" placeholder="Name (optional)"><button type="button" class="del" data-del="'+esc(p.id)+'" title="Remove">✕</button></div>'+
           '<div class="tprow"><input class="tp_src" list="ant_part_srcs" value="'+esc(p.source||'')+'" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
           '<div class="tprow">'+shipSel(p.ship_to)+'<label class="tpeta">ETA <input class="tp_eta" type="date" value="'+esc(p.eta||'')+'"></label></div>'+
+          dispSel(p)+
           tpShip(p)+tpBought(p)+
         '</div>';
       }).join('');
@@ -1747,9 +1774,22 @@
       box.querySelectorAll('#jtp_rows .tpcard[data-pid]').forEach(function(rowEl){ var pid=rowEl.getAttribute('data-pid');
         var save=function(){
           var g=function(sel){ var e=rowEl.querySelector(sel); return e?(e.value||'').trim():''; };
-          sb.from('job_part').update({ number:g('.tp_num')||null, name:g('.tp_name')||null, source:g('.tp_src')||null, ship_to:g('.tp_ship')||null, eta:g('.tp_eta')||null }).eq('id',pid).then(function(){ var m=document.getElementById('jtp_msg'); if(m){m.textContent='Saved ✓'; setTimeout(function(){if(m)m.textContent='';},1200);} loadBoard(); });
+          sb.from('job_part').update({ number:g('.tp_num')||null, name:g('.tp_name')||null, source:g('.tp_src')||null, ship_to:g('.tp_ship')||null, eta:g('.tp_eta')||null, disposition:g('.tp_disp')||null }).eq('id',pid).then(function(res){
+            var m=document.getElementById('jtp_msg');
+            // A constraint rejection here must NOT read as saved -- the only legal values are
+            // used | return | not_here, and a silent failure would leave the invoice wrong.
+            if(res&&res.error){ if(m) m.textContent='Didn\'t save that part — try again.'; return; }
+            if(m){m.textContent='Saved ✓'; setTimeout(function(){if(m)m.textContent='';},1200);}
+            loadBoard();
+            // Used/unused moves real money, so refresh the invoice worksheet now instead of
+            // letting her find out the total changed the next time she opens it.
+            try{ if(window.__antReloadInvoiceParts) window.__antReloadInvoiceParts(); }catch(_){}
+          });
         };
         rowEl.querySelectorAll('input,select').forEach(function(inp){ inp.onchange=save; });
+        // Keep the plain-English consequence in step with the pick, before she even saves.
+        var dsel=rowEl.querySelector('.tp_disp'), dnote=rowEl.querySelector('.tp_dispnote');
+        if(dsel&&dnote) dsel.addEventListener('change', function(){ dnote.textContent=dispNote(dsel.value||''); });
       });
     }).catch(function(){ if(box) box.innerHTML='<div class="sec">🔩 Parts</div><div class="hint">Couldn\'t load parts.</div>'; });
   }
@@ -2107,13 +2147,16 @@
     // 🔧 Parts the tech logged in the field → enter COST, the owner's margin fills the customer
     // price. The retail sum feeds Parts $ and each part becomes its own receipt line. Nobody asks
     // "what do we charge" and nobody re-keys it — the margin does the pricing.
-    (function loadInvoiceParts(){
+    (window.__antReloadInvoiceParts = function loadInvoiceParts(){
       var box=document.getElementById('jparts'); if(!box) return;
       // customer cost = our cost + markup %, floored so the margin is never under $10 (mAdd).
       var retail=function(costC){ costC=+costC||0; if(costC<=0) return 0; return Math.max(Math.round(costC*(1+mPct/100)), costC+mAdd); };
       var pmUpd=function(pid){ var c=box.querySelector('.pc[data-part="'+pid+'"]'), p=box.querySelector('.pp[data-part="'+pid+'"]'), m=box.querySelector('.pm[data-part="'+pid+'"]'); if(!c||!p||!m) return; var mar=cents(p.value)-cents(c.value); m.textContent=(cents(p.value)||cents(c.value))?('margin '+money(mar)):''; m.style.color=mar<0?'#e5484d':'#1f7a37'; };
       sb.from('job_part').select('id,name,number,cost_cents,sell_cents,disposition').eq('job_id',job.id).order('created_at').then(function(r){
-        var parts=(r.data||[]).filter(function(p){ var d=(p.disposition||''); return d!=='return'&&d!=='unused'&&d!=='missing'; }); // don't bill returned/unused/missing
+        // Bill only what the shop actually supplied. The CHECK constraint allows exactly
+        // used | return | not_here, so the old 'unused'/'missing' clauses here could never
+        // match a row -- dead guards that read as protection. These two are the real ones.
+        var parts=(r.data||[]).filter(function(p){ var d=(p.disposition||''); return d!=='return'&&d!=='not_here'; });
         if(!parts.length){ box.innerHTML=''; return; }
         box.innerHTML='<div class="sec" style="margin-top:2px">🔧 Parts the tech used <span class="hint" style="font-weight:400">— enter your cost; customer pays cost + '+mPct+'%'+(mAdd>0?' (min '+money(mAdd)+' margin)':'')+'</span></div>'+
           parts.map(function(p){ var nm=(p.name||'Part');

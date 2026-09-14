@@ -105,6 +105,26 @@ Three asks in one thread. Worth separating, because only one was a real gap:
 - 🐞 Caught pre-ship: wrote `us[0].name` for the `by` field, but in this file `us` is already the ROW — every read would have silently recorded as "office". Also swapped the row from `<button>` to `<div role=button>` — **a `<button>` cannot legally contain the tick `<button>`** — and kept Enter/Space working.
 - Unit-verified 6/6 incl. re-unread-on-new-message, same-second tie, and the lost-mark fail-safe.
 
+### 🔩 USED / UNUSED FROM THE OFFICE — and the DB allows 3 values, not the 5 the board was filtering on
+Danielle: *"Need spot to show used un used."* The TECH could set `job_part.disposition` from his
+card; the **office could only ever LOOK at it** — the drawer rendered it and had no setter. Built.
+- **🔴 FOUND WHILE BUILDING: `job_part_disposition_check` allows EXACTLY `used | return | not_here`.**
+  The invoice filter read `d!=='return' && d!=='unused' && d!=='missing'` — **`unused` and `missing`
+  can never exist**, the database rejects them. Two dead guards that read as protection. Replaced with
+  the real pair (`return`, `not_here`). Same class as the guard keyed on a structurally-zero field.
+- **The select speaks HER words and writes the DB's:** Not marked yet / 🔧 Used on the job /
+  ↩️ Unused, going back / ⚠️ Never arrived. **"Unused" IS `return` at this shop** — an unused part goes
+  back to the vendor, which is exactly what `returns.html` runs off, so marking it here lands it on
+  the returns worklist.
+- **It says the money consequence out loud** under the picker ("Comes OFF the invoice and shows on the
+  returns list") and **re-runs the invoice worksheet on change** — she reads the effect instead of
+  discovering the total moved next time she opens it.
+- **⚠️ Writes `disposition` ONLY, never `must_return`.** The vendor's rule outranks the tech's tap —
+  **a core is owed back even when it was USED** — so marking a part used must never clear an
+  obligation somebody gets charged for. (064's rule, still load-bearing.)
+- A constraint rejection now surfaces ("Didn't save that part") instead of the old bare `.then()`
+  that would have shown "Saved ✓" on a write the database refused.
+
 ### 📜 `platform/dispatch.html` — the booking sheet couldn't be scrolled
 Danielle: *"This also don't scroll up and down to see the info."* The `.sheet` had **no `max-height` and
 no `overflow`** — on a phone the tech/day/window controls and the Book button fell off the bottom of the
