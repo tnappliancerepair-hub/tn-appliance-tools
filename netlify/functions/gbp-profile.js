@@ -43,6 +43,37 @@ exports.handler = async function (event) {
       return json(200, { ok: r.ok, status: r.status, updated: r.ok ? 'profile.description' : null, chars: desc.length, data: r.ok ? undefined : r.data });
     }
 
+    // POST { primaryPhone, confirm:'yes' } -> patch the profile's primary phone.
+    // This is the PUBLIC NAP number every directory cross-checks, so a typo here is
+    // expensive: it breaks Google<->Bing<->Yelp consistency and can strand callers.
+    // Hence three guards: explicit confirm, strict 10-digit US validation, and we
+    // echo the before/after so the change is provable rather than assumed.
+    if (event.httpMethod === 'POST' && typeof body.primaryPhone === 'string') {
+      const digits = body.primaryPhone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+      if (digits.length !== 10) {
+        return json(400, { ok: false, error: 'refused: need a 10-digit US number, got ' + digits.length + ' digits' });
+      }
+      if (body.confirm !== 'yes') {
+        return json(400, {
+          ok: false,
+          error: 'refused: changing the public NAP phone requires confirm:"yes"',
+          would_set: '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6)
+        });
+      }
+      const pretty = '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
+      const cur = await gbp.api('GET', 'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?readMask=phoneNumbers');
+      const prev = ((cur.data && cur.data.phoneNumbers) || {}).primaryPhone || null;
+      const r = await gbp.api('PATCH',
+        'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?updateMask=phoneNumbers.primaryPhone',
+        { phoneNumbers: { primaryPhone: pretty } });
+      let now = null;
+      if (r.ok) {
+        const after = await gbp.api('GET', 'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?readMask=phoneNumbers');
+        now = ((after.data && after.data.phoneNumbers) || {}).primaryPhone || null;
+      }
+      return json(200, { ok: r.ok, status: r.status, updated: r.ok ? 'phoneNumbers.primaryPhone' : null, was: prev, now: now, data: r.ok ? undefined : r.data });
+    }
+
     // POST { serviceItems:[...] } -> patch the full services list (updateMask=serviceItems
     // REPLACES the whole array, so callers MUST send existing+additions). SAFETY GUARD:
     // refuse a write that would shrink the list below what's live now, so a malformed
