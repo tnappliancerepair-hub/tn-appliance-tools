@@ -1864,12 +1864,46 @@
       '<div class="sec ckhead">✅ Office checklist<span class="ckprog" id="jchecklistProg"></span></div>' +
       '<div class="hint" style="margin:-2px 0 8px">Tick each step as you handle it.</div>' +
       '<div id="jchecklist"></div>' +
-      '<div class="srow" style="margin-top:16px;justify-content:center"><button id="jclose">Close</button></div>' +
+      // ── REMOVE / RESTORE — the office's only way to clear a duplicate or a junk
+      // intake shell off the board (Danielle 2026-09-14: "no way to delete duplicates").
+      // SOFT + REVERSIBLE: writes status='canceled', never a hard delete. The mirror ranks
+      // canceled at 4 (same as completed), so its never-walk-backwards guard KEEPS the
+      // removal even while Xano still shows the job active, and platform-tn-status-back
+      // carries it to Xano on its next pass. Neither job trigger fires on 'canceled'.
+      '<div class="srow" style="margin-top:16px;justify-content:center;gap:12px">' +
+        (job.status==='canceled'
+          ? '<button id="jrestore">↩ Put it back on the board</button>'
+          : '<button id="jremove" style="color:#b91c1c;border-color:#fecaca">✕ Remove from board</button>') +
+        '<button id="jclose">Close</button></div>' +
       '</div>';
     document.body.appendChild(ov);
     var close=function(){ try{document.body.removeChild(ov);}catch(e){} };
     ov.onclick=function(e){ if(e.target===ov) close(); };
     document.getElementById('jclose').onclick=close;
+    // Remove = soft cancel. Named in the confirm so she can't nuke the wrong card.
+    var jrm=document.getElementById('jremove');
+    if(jrm) jrm.onclick=function(){
+      var who=((job.customer||{}).first_name||'')+' '+((job.customer||{}).last_name||'');
+      if(!confirm('Remove this job from the board?\n\n'+who.trim()+(job.problem?' - '+String(job.problem).slice(0,60):'')+'\n\nIt is hidden, not deleted - the Canceled filter still finds it and you can put it back.')) return;
+      jrm.disabled=true; jrm.textContent='Removing...';
+      var prior = job.status;
+      sb.from('job').update({ status:'canceled' }).eq('id', job.id).then(function(r){
+        if(r.error){ jrm.disabled=false; jrm.textContent='✕ Remove from board'; alert("Couldn't remove it: "+r.error.message); return; }
+        try{ sb.from('event').insert({ company_id:companyId, type:'job_removed_from_board', entity:'job', payload:{ job_id:job.id, prior_status:prior } }); }catch(_){}
+        close(); loadBoard();
+        undoToast(job.id, prior, who.trim());
+      });
+    };
+    // Restore drops it back to 'new'; if Xano still has it active the mirror re-syncs the real status.
+    var jrs=document.getElementById('jrestore');
+    if(jrs) jrs.onclick=function(){
+      jrs.disabled=true; jrs.textContent='Restoring...';
+      sb.from('job').update({ status:'new' }).eq('id', job.id).then(function(r){
+        if(r.error){ jrs.disabled=false; jrs.textContent='↩ Put it back on the board'; alert("Couldn't restore it: "+r.error.message); return; }
+        try{ sb.from('event').insert({ company_id:companyId, type:'job_restored_to_board', entity:'job', payload:{ job_id:job.id } }); }catch(_){}
+        close(); loadBoard();
+      });
+    };
     // 📁 Move to folder — pick any column from the drawer to move the job there (writes board_stage)
     var mf=document.getElementById('jmovefolder');
     if(mf) mf.onchange=function(){ var v=mf.value; if(!v || v===stageOf(job)) return; mf.disabled=true; var mm=document.getElementById('jmovemsg'); if(mm) mm.textContent='Moving…';
@@ -2359,6 +2393,32 @@
   var SEL_BASE_RICH = SEL_BASE_MIN + 'board_stage,claim_number,dispatch_id,service_window,time_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
   var SEL_TAIL_RICH = 'customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
   var SEL_TAIL_MIN  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
+
+  // Undo for a board removal. A canceled job drops out of the board query completely,
+  // so this 10s toast is the one place a misclick can be walked back without going to
+  // the database. Restores the job's PRIOR status, not a guess.
+  function undoToast(jobId, priorStatus, who){
+    var old=document.getElementById('ant-undo'); if(old){ try{ old.parentNode.removeChild(old); }catch(_){} }
+    var t=document.createElement('div'); t.id='ant-undo';
+    t.style.cssText='position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;'
+      +'background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);'
+      +'padding:12px 16px;display:flex;align-items:center;gap:14px;font-size:14px;max-width:92vw';
+    t.innerHTML='<span>Removed'+(who?' <b>'+esc(who)+'</b>':'')+' from the board.</span>'
+      +'<button id="ant-undo-btn" style="font-weight:800;color:var(--brand)">Undo</button>';
+    document.body.appendChild(t);
+    var kill=function(){ try{ t.parentNode.removeChild(t); }catch(_){} };
+    var timer=setTimeout(kill, 10000);
+    document.getElementById('ant-undo-btn').onclick=function(){
+      clearTimeout(timer);
+      var b=document.getElementById('ant-undo-btn'); b.disabled=true; b.textContent='Putting it back...';
+      sb.from('job').update({ status: priorStatus }).eq('id', jobId).then(function(r){
+        kill();
+        if(r.error){ alert("Couldn't put it back: "+r.error.message); return; }
+        try{ sb.from('event').insert({ company_id:companyId, type:'job_restored_to_board', entity:'job', payload:{ job_id:jobId, status:priorStatus } }); }catch(_){}
+        loadBoard();
+      });
+    };
+  }
 
   // ?job=<id> deep link. dispatch.html's "Open full job -&gt;" and the notification
   // links point here; without this the param is ignored and you just land on the
