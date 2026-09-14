@@ -32,7 +32,22 @@ in 14h) and concluded his report was a stale tab. **On-my-way is a different pat
   anything else raises a tap-to-dismiss bar naming the real reason + *"Give them a call so they're not
   left wondering."* Branch logic unit-verified **7/7** against the real response shapes by extracting
   the SHIPPED function out of the HTML and stubbing `notify` — not a copy of it.
-- ⚠️ **THE SWITCH IS STILL OFF — that is Teddy's call, not the system's** (standing rule: flipping a
+- **✅ TEDDY TURNED THEM ON 2026-09-14 ~2:25pm** (he asked twice, then "Turn them on please review too
+  please"). Live now: **`reminder` · `otw` · `arrived` · `complete` · `review` · `assigned` ON**;
+  only `offer` stays OFF. **`review` also needed `settings.review_url`, which was EMPTY** — the ask
+  refuses to send without a real link, so turning the toggle on alone was a no-op. Set to
+  **`https://g.page/r/CRt-vo--eAJ3EBM/review`**, verified first by following the redirect to place id
+  **`ChIJaf5YgBQNZIgRG36-j754Anc`** — the authoritative TN Appliance id (the same one
+  `get-google-reviews` was hardcoded to after the wrong-business bug). **Verify a review link resolves
+  before you point customers at it** — that is the Nextdoor-duplicate mistake in another costume.
+- ⚠️ **TN's STORED TEMPLATES ARE FROZEN PRE-09-09 COPIES AND COST 2.75x.** The code DEFAULTS were
+  cleaned to GSM-7 on 2026-09-09, but TN's `settings.comms` holds overrides carrying em-dashes AND
+  emoji (🚚 🔧 ✅ 🙏) — almost certainly snapshotted when someone hit Save in the Communication Center
+  (last company write: 09-13 5:45pm). One non-GSM character flips the whole message to **UCS-2, 70
+  chars/segment**. Measured: **11 segments/job stored (~13.4¢) vs 4 on the clean defaults (~4.9¢)**.
+  The fix is to DELETE those 4 override keys so they fall back to the maintained defaults — **NOT
+  done, flagged to Teddy**: it is his customer-facing copy, and he'd notice the emoji vanish.
+- ⚠️ **(historical) The switch was OFF and that was Teddy's call, not the system's** (standing rule: flipping a
   customer-texting toggle is the owner's). Flip it in **`platform/comms.html` → "🚚 On my way" → Save
   all**. **It is safe now:** the 2026-09-10 work re-keyed otw/arrived/complete from per-JOB to
   **per customer per DAY** precisely so these could be turned back on without the double-text trap,

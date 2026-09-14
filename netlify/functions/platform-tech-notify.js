@@ -285,8 +285,9 @@ exports.handler = async function (event) {
         return json(200, { ok: true, texted: false, already: true, url: rl.url, message: 'This customer was already asked for a review on this job.' });
       }
       let sent = false;
-      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_review'); } catch (_) {} }
-      return json(200, { ok: true, texted: sent, url: rl.url });
+      let reason = '';
+      if (phone) { try { const r = await sendSmsDetailed(phone, text, 'customer', 'platform_review'); sent = r.sent; reason = r.reason || ''; } catch (_) { reason = 'send_error'; } }
+      return json(200, { ok: true, texted: sent, reason, no_phone: !phone, url: rl.url });
     }
 
     return json(200, { ok: false, error: 'unknown do' });
