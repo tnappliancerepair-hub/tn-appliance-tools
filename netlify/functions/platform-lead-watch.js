@@ -205,7 +205,9 @@ async function run(opts) {
 exports.run = run;
 exports.handler = async function (event) {
   const q2 = (event && event.queryStringParameters) || {};
-  const admin = await getSecretPreferVault('VAPI_ADMIN_SECRET');
+  // Vault first, env as the fallback -- the sibling watchers do the same, because a cold
+  // container can cache an empty vault read and lock you out of your own dry-run.
+  const admin = (await getSecretPreferVault('VAPI_ADMIN_SECRET')) || process.env.VAPI_ADMIN_SECRET || '';
   if (!admin || q2.secret !== admin) return json(403, { ok: false, error: 'forbidden' });
   try { return json(200, await run({ dry: q2.dry === '1' })); }
   catch (e) { return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
