@@ -83,7 +83,9 @@
   /* modal */
   .ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20;overflow:auto}
   .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:18px 18px 26px;box-shadow:var(--shadow);max-height:92vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-  .sheet h3{margin:0 0 3px;font-size:16px} .sheet .msub{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .sheet h3{margin:0 0 3px;font-size:16px} .sheet .msub{color:var(--muted);font-size:13px;margin-bottom:4px}
+  .sheet .maddr{display:block;color:var(--ink);font-size:13.5px;line-height:1.35;margin:0 0 12px;text-decoration:none;font-weight:600}
+  .sheet .maddr:active{opacity:.6}
   label{display:block;font-weight:700;font-size:12.5px;margin:10px 0 4px}
   select,input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
   .srow{display:flex;gap:8px;margin-top:14px} .srow button{flex:1;border-radius:10px;padding:12px;font-weight:800;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
@@ -667,7 +669,11 @@
     var hold=shopHold(job.id);
     var ht=hold&&hold.technician_id?techById(hold.technician_id):null;
     var holdHtml = hold ? '<div class="holdbanner">⏳ Held — offered '+esc(fmtDayLong(hold.proposed_day))+' ('+esc(winLbl(hold.win))+')'+(ht?' · '+esc((ht.name||'').split(' ')[0]):'')+', waiting on the customer.<button id="a-release">Release hold</button></div>' : '';
-    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+covNote+avRow+holdHtml+sugHtml+
+    var jc=job.customer||{};
+    var jaddr=[jc.address,jc.city,jc.state].filter(Boolean).join(', ');
+    // The office is deciding WHERE to send a truck - the street belongs on the sheet, not one tap away.
+    var addrHtml = jaddr ? '<a class="maddr" target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(jaddr)+'">📍 '+esc(jaddr)+'</a>' : '';
+    ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+addrHtml+covNote+avRow+holdHtml+sugHtml+
       '<label>Tech</label><select id="a-tech">'+techOpts+'</select>'+
       '<label>Day</label><input id="a-day" type="date" value="'+esc((hold&&hold.proposed_day)||job.scheduled_day||selDay)+'">'+
       '<label>Arrival window <span class="hint" id="a-wincap"></span></label>'+
