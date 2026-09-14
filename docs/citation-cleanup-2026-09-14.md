@@ -179,3 +179,32 @@ off-site billboard for the wrong intent.
 - Do not create new listings before claiming the old ones — that makes duplicates, which is the one
   thing worse than a wrong category.
 - Do not mark Yelp/BBB closed unless a current listing already exists there.
+
+---
+
+# Progress — 2026-09-14
+
+| item | state |
+|---|---|
+| **Yelp** | ✅ **FIXED by Teddy.** The old `tn-appliance-exchange-la-vergne` listing no longer surfaces in search where it was previously the top hit. Search caches lag edits, so re-check in ~3 days to confirm it stuck. |
+| **BBB** | ⏳ **Needs a phone call — it is not self-serve.** Teddy signed up but landed on a CONSUMER account (reviews you've left / complaints you've filed), which cannot edit a business profile. **BBB of Middle Tennessee, (615) 250-4244**, file **0573-37137914**. Ask for: category Used Appliances → Appliance Repair · address → 3137 Skinner Dr Antioch · phone → 629-272-1234 · **and the profile URL re-slugged** (it still contains `/used-appliances/`). Decline the Accreditation upsell — corrections do not require it. Also ask whether the file carries any complaints. |
+| **YellowPages** | ⏳ still filed under `used-appliances` |
+| **Phone sweep** | ⏳ RepairHit · CityLifestyle · Manta · MagicPin · TheApplianceDirectory |
+| **Aggregators** | ⏳ Data Axle · Localeze/Neustar · Foursquare — the upstream fix; without it the bad record repopulates |
+| **2nd Google listing** | ⏳ unchecked — search GBP for a duplicate at 5403 Murfreesboro Rd |
+
+## ✅ Phone question settled
+**BOTH numbers are live Telnyx lines we own** (verified against the Telnyx inventory):
+`+16152802949` and `+16292721234`. The directories are NOT sending customers to a dead number,
+so this is a ranking-consistency problem, not lost calls.
+
+**Canonical = (629) 272-1234** — it is what GBP publishes and what all 714 site pages say. Editing
+directories is zero-risk; editing GBP can trigger a re-verification wobble, so the anchor stays put
+and everything else moves to match it. **Keep 615-280-2949 live permanently** — it is printed on
+years of old material and still rings.
+
+## What AI says about us NOW (re-checked after the Yelp fix)
+The description has flipped from "refurbished appliance dealer" to clean repair language sourced
+from our OWN pages — Teddy's story, the $50 Quick Check, the Antioch/Cane Ridge/Priest Lake
+coverage. That is our content winning instead of the nine-year-old dealer record. The one thing it
+still gets wrong is the phone: it quotes 615-280-2949.
