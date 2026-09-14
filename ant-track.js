@@ -69,14 +69,48 @@
     try { return JSON.parse(localStorage.getItem(LS) || 'null'); } catch (_) { return null; }
   };
 
+  // MICROSOFT UET (Bing / Microsoft Advertising conversion tracking).
+  // Set UET_TAG_ID once the tag exists: Microsoft Advertising -> Tools -> UET tag.
+  // Empty string = completely inert, so this ships safely before the account is live.
+  //
+  // It lives in THIS file, not its own, on purpose: fire() below is the single funnel
+  // for every conversion-intent click on the site, so GA4 and Microsoft receive the
+  // identical event off the identical trigger. A separate tag with its own listeners
+  // is exactly how two analytics numbers drift apart and nobody can tell which is lying.
+  var UET_TAG_ID = '';
+
+  (function loadUet() {
+    if (!UET_TAG_ID) return;
+    try {
+      window.uetq = window.uetq || [];
+      var n = document.createElement('script');
+      n.src = '//bat.bing.com/bat.js'; n.async = 1;
+      n.onload = function () {
+        try {
+          var o = { ti: UET_TAG_ID, enableAutoSpaTracking: true };
+          o.q = window.uetq;
+          window.uetq = new window.UET(o);
+          window.uetq.push('pageLoad');
+        } catch (_) {}
+      };
+      (document.head || document.documentElement).appendChild(n);
+    } catch (_) {}
+  })();
+
   // 2) CONVERSION-INTENT CLICKS -> GA4
   function attrTags() {
     var a = window.antAttribution() || {};
     return { first_page: a.landing || '', lead_channel: a.channel || 'direct', campaign: a.utm_campaign || '' };
   }
   function fire(name, extra) {
+    var payload = Object.assign({ page_path: location.pathname }, attrTags(), extra || {});
     try {
-      if (window.gtag) window.gtag('event', name, Object.assign({ page_path: location.pathname }, attrTags(), extra || {}));
+      if (window.gtag) window.gtag('event', name, payload);
+    } catch (_) {}
+    // Same event, same trigger, second pixel. Wrapped separately so a failure in one
+    // network can never swallow the other's conversion.
+    try {
+      if (UET_TAG_ID && window.uetq) window.uetq.push('event', name, payload);
     } catch (_) {}
   }
   document.addEventListener('click', function (e) {
