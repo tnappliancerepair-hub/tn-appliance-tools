@@ -49,6 +49,20 @@ but will give you trade in value on your old machines."* That sentence is the gh
   2016-04-04, **A+**, not accredited, 1 complaint closed in 3 yrs, 0 reviews, BBB of Middle Tennessee.
   Phone + website ARE correct. **⏭️ Don't wait on the callback — `bbb.org/get-listed` → search → claim
   → fix category (BBB allows up to 3; Appliance Repair primary, drop Used Appliances) + address.**
+  - **⏳ STATUS 2026-09-14 (Teddy: "Bbb updated") — SUBMITTED, NOT LIVE YET.** Re-read the profile the
+    same evening, cache-busted: still **name "TN Appliance Exchange" (no LLC) · 5403 Murfreesboro Rd,
+    La Vergne 37086 · category "Used Appliances"**, no "update pending" banner shown. That is the
+    NORMAL shape — **BBB hand-verifies an address/category change before it goes public** (a few
+    business days), and a profile in review looks identical to one that was never touched.
+    ⚠️ **The one thing worth ruling out: whether the submission CLAIMED this profile or opened a
+    SECOND listing.** `get-listed` is BBB's add-your-business door; if it minted a new record instead
+    of editing `0573-37137914` we trade one stale citation for two competing ones — strictly worse.
+    Checked the same night: **no second BBB listing is indexed** (searched the LLC name + the Skinner
+    address), so nothing bad has surfaced. **⏭️ Re-check the profile URL in ~3-5 business days**; if
+    it is still La Vergne/Used Appliances by then, the request stalled — call BBB of Middle Tennessee
+    with the confirmation from the submission email rather than re-submitting (a re-submit is how a
+    duplicate gets born). ⚠️ A successful category change may MOVE the profile to a new URL (the
+    category is in the slug), so a 404 on the old link is a WIN, not a failure — search the name.
 - **⚠️ TWO DUPLICATE YELP LISTINGS**, both at the La Vergne address, both filed *Appliances & Repair*:
   `/biz/tn-appliance-exchange-la-vergne` (30 reviews, 15 photos) and
   `/biz/tn-appliance-exchange-la-vergne-2` (10 photos). **A duplicate listing actively suppresses local
