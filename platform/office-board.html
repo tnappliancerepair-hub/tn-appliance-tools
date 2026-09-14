@@ -2352,14 +2352,44 @@
       +'.tpship a{color:inherit;text-decoration:underline}';
     document.head.appendChild(st);
   })();
+  // Board select tiers, hoisted so the deep-link single-row fetch reuses the SAME
+  // shape the board renders from -- a second copy would drift and openJob() would
+  // get a row missing fields it reads.
+  var SEL_BASE_MIN  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,technician_id,warranty_company,';
+  var SEL_BASE_RICH = SEL_BASE_MIN + 'board_stage,claim_number,dispatch_id,service_window,time_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
+  var SEL_TAIL_RICH = 'customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
+  var SEL_TAIL_MIN  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
+
+  // ?job=<id> deep link. dispatch.html's "Open full job -&gt;" and the notification
+  // links point here; without this the param is ignored and you just land on the
+  // board (Danielle 2026-09-14: "this does not take me to the job it just opens
+  // the job board"). Fires ONCE and strips the param -- leaving it in the URL
+  // re-pops the same drawer on every 30s poll and every reload.
+  var __deepLinked = false;
+  function openDeepLinked() {
+    if (__deepLinked) return;
+    var pj; try { pj = new URLSearchParams(location.search).get('job'); } catch (_) { pj = null; }
+    if (!pj) return;
+    __deepLinked = true;
+    try { var u = new URL(location.href); u.searchParams.delete('job'); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (_) {}
+    var hit = jobsCache.filter(function (j) { return String(j.id) === String(pj); })[0];
+    if (hit) { openJob(hit); return; }
+    // Not on the board (terminal, or filtered out) -- fetch that one row so the
+    // link still lands on the job instead of silently doing nothing.
+    sb.from('job').select(SEL_BASE_RICH + SEL_TAIL_RICH).eq('id', pj).limit(1).then(function (r) {
+      if (!r.error && r.data && r.data[0]) { openJob(r.data[0]); return; }
+      sb.from('job').select(SEL_BASE_MIN + SEL_TAIL_MIN).eq('id', pj).limit(1).then(function (r2) {
+        if (!r2.error && r2.data && r2.data[0]) openJob(r2.data[0]);
+        else alert('Could not open that job - it may have been removed.');
+      });
+    });
+  }
+
   function loadBoard() {
     // RLS scopes every query to the logged-in user's company — we never pass company_id.
     // The dense card needs the warranty/parts/report/stop columns; customer.city rides along
     // for the 📍 chip. All are from applied migrations (033/044/020/019/004).
-    var baseMin  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,technician_id,warranty_company,';
-    var baseRich = baseMin + 'board_stage,claim_number,dispatch_id,service_window,time_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
-    var tailRich = 'customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
-    var tailMin  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
+    var baseMin = SEL_BASE_MIN, baseRich = SEL_BASE_RICH, tailRich = SEL_TAIL_RICH, tailMin = SEL_TAIL_MIN;
     var proceed = function (r) {
       if (r.error) { document.getElementById('board').innerHTML = '<div class="empty">Couldn\'t load the board: ' + esc(r.error.message) + '</div>'; return; }
       jobsCache = r.data || [];
@@ -2433,6 +2463,7 @@
         (tgr.data || []).forEach(function (t) { if (!t.job_id || !t.tag) return; (tagsByJob[t.job_id] = tagsByJob[t.job_id] || []).push(t.tag); });
         tagLibrary = lbr.data || [];
         renderMoneyBar(); renderRegionToggle(); renderFilters(); renderBoard();
+        openDeepLinked();
       });
     };
     // Scope + PAGINATE so a big tenant (1,700+ active jobs) never truncates: Supabase hard-caps

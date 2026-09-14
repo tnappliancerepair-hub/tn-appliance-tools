@@ -81,8 +81,8 @@
   .stop .info{flex:1;min-width:0}
   .lane-empty{padding:12px 13px;color:var(--muted);font-size:13px}
   /* modal */
-  .ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20}
-  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:18px 18px 26px;box-shadow:var(--shadow)}
+  .ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20;overflow:auto}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:16px 16px 0 0;width:100%;max-width:520px;padding:18px 18px 26px;box-shadow:var(--shadow);max-height:92vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
   .sheet h3{margin:0 0 3px;font-size:16px} .sheet .msub{color:var(--muted);font-size:13px;margin-bottom:12px}
   label{display:block;font-weight:700;font-size:12.5px;margin:10px 0 4px}
   select,input{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
