@@ -23,7 +23,13 @@ const STALE_MS = 14 * 86400000; // ignore a state older than 14 days
 // from their own account — no bot, no incentive. The claimed TN Appliance Exchange
 // Nextdoor Business Page is the destination; a valid nextdoor.com URL in the vault
 // (NEXTDOOR_RECOMMEND_URL) overrides the default.
-const NEXTDOOR_URL = 'https://nextdoor.com/pages/tn-appliance-exchange-antioch-tn/';
+// ⚠️ TWO Nextdoor pages exist for this shop. This is the CLAIMED one Teddy manages and
+// advertises on (629 number). The other, `…-antioch-tn`, is a duplicate carrying his
+// PERSONAL cell — and it is where every recommendation ask went until 2026-09-14, which
+// is why the page he actually controls sat at zero. Canonical plural + trailing slash:
+// the singular form 301s, and a redirect hop can drop the customer into a mobile browser
+// instead of the Nextdoor app they're already signed into.
+const NEXTDOOR_URL = 'https://nextdoor.com/pages/tn-appliance-exchange-llc-nashville-tn/';
 async function nextdoorSuffix() {
   let url = '';
   try { url = String((await getSecret('NEXTDOOR_RECOMMEND_URL')) || '').trim(); } catch (_) { url = ''; }

@@ -10,7 +10,13 @@ const crud = require('./_lib/xano/metadata-crud');
 
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJaf5YgBQNZIgRG36-j754Anc';
-const NEXTDOOR_DEFAULT = 'https://nextdoor.com/pages/tn-appliance-exchange-antioch-tn/';
+// ⚠️ TWO Nextdoor pages exist for this shop. This is the CLAIMED one Teddy manages and
+// advertises on (629 number). The other, `…-antioch-tn`, is a duplicate carrying his
+// PERSONAL cell — and it is where every recommendation ask went until 2026-09-14, which
+// is why the page he actually controls sat at zero. Canonical plural + trailing slash:
+// the singular form 301s, and a redirect hop can drop the customer into a mobile browser
+// instead of the Nextdoor app they're already signed into.
+const NEXTDOOR_DEFAULT = 'https://nextdoor.com/pages/tn-appliance-exchange-llc-nashville-tn/';
 async function nextdoorUrl() {
   let u = ''; try { u = String((await getSecret('NEXTDOOR_RECOMMEND_URL')) || '').trim(); } catch (_) { u = ''; }
   return /^https?:\/\/(www\.)?nextdoor\.com\//i.test(u) ? u : NEXTDOOR_DEFAULT;

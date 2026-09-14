@@ -125,6 +125,40 @@ card; the **office could only ever LOOK at it** — the drawer rendered it and h
 - A constraint rejection now surfaces ("Didn't save that part") instead of the old bare `.then()`
   that would have shown "Saved ✓" on a write the database refused.
 
+### 🏘️ TWO NEXTDOOR PAGES — every recommendation ask went to the DUPLICATE (the one with Teddy's cell on it)
+Found while checking the Destination URL on a Nextdoor ad Teddy was building. The shop has **two**
+Nextdoor business pages, and the review-ask has been pointing at the wrong one:
+| page | what's on it |
+|---|---|
+| `…/pages/tn-appliance-exchange-**llc-nashville-tn**/` | **the CLAIMED page he manages + advertises on.** (629) 272-1234. **0 posts, 0 recommendations.** |
+| `…/pages/tn-appliance-exchange-**antioch-tn**/` | duplicate. 2 recommendations, 3137 Skinner Dr, **and +1 615-485-5795 — his PERSONAL CELL, on a public listing.** |
+- **Proved it LIVE before changing anything** (`rate-context` on 3 real jobs) — all three returned the
+  `antioch-tn` URL. So every 👍 customer we text has been sent to the duplicate. That is why the page
+  he controls sits at zero while the one he doesn't holds the recommendations.
+- ✅ Repointed the default in **both** `_lib/satisfaction.js` and `rate-context.js` to the claimed page.
+  Canonical **plural + trailing slash** (verified `redirects=0`): the singular form 301s, and a redirect
+  hop can dump the customer into a mobile browser instead of the Nextdoor app they're signed into.
+- ⚠️ **`NEXTDOOR_RECOMMEND_URL` in the vault OVERRIDES this default.** A live read can't tell "unset"
+  from "set to the old value" — so **re-probe `rate-context` after the deploy**; if it still returns
+  `antioch-tn`, the vault key is set and has to be cleared or updated. That check IS the verification.
+- ⏭️ **TEDDY:** ask Nextdoor to merge/remove the `antioch-tn` duplicate — it is publishing your personal
+  cell to neighbors. And the claimed page has **0 posts + 0 recommendations**; the "Ask for
+  recommendation" button is right on it.
+
+### 💸 NEXTDOOR ADS — creative built, NOT published (deliberate)
+$10/day is **$300 charged UPFRONT, auto-renewing, and cancelling does not stop the current cycle** —
+there is no two-week test. Advised against publishing: at $1-5/day it barely serves, so it is not a
+cheap test, it's a token presence that teaches nothing (the same unfalsifiable-spend problem, smaller).
+- **Checked whether Nextdoor ever produced anything: we CAN'T TELL.** Only **27 `lead_attribution`
+  rows in 365 days, and 25 carry no source at all.** Zero mention Nextdoor. ⚠️ **That attribution
+  pipeline (`ant-track.js` → `track-lead.js`) is effectively not firing** — worth its own look; it
+  makes every channel unreadable, not just this one.
+- The ad's Call-now button points at **629-272-1234** (shared public line) → unattributable. **Do NOT
+  point it at 615-845-8500** — that's the Google-Ads line and it would corrupt `google-ads-truth`.
+  A dedicated Nextdoor DID is the clean fix if it ever runs.
+- Creative (appliance-first headline + plain-ASCII copy + a real photo of Teddy) is saved in Nextdoor
+  and can be published any time. ⚠️ **Nextdoor rejects `★ · —` and emoji** — plain ASCII only.
+
 ### 📜 `platform/dispatch.html` — the booking sheet couldn't be scrolled
 Danielle: *"This also don't scroll up and down to see the info."* The `.sheet` had **no `max-height` and
 no `overflow`** — on a phone the tech/day/window controls and the Book button fell off the bottom of the
