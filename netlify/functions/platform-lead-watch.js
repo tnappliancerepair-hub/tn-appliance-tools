@@ -43,6 +43,7 @@ const SB    = 'https://tntbhfwitytkcoqlejwc.supabase.co';
 const SITE  = 'https://tnapplianceexchange.net';
 const OWNER = '+16154855795';
 const TAG   = 'platform_cash_lead';
+const ADMIN_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';   // same constant sb-admin-sql carries
 
 // Sources that are a MIRROR or IMPORT of work the office already has in the old system.
 // A lead is only "ours to chase" if it was born here. Everything else is Xano's book.
@@ -205,9 +206,16 @@ async function run(opts) {
 exports.run = run;
 exports.handler = async function (event) {
   const q2 = (event && event.queryStringParameters) || {};
-  // Vault first, env as the fallback -- the sibling watchers do the same, because a cold
-  // container can cache an empty vault read and lock you out of your own dry-run.
-  const admin = (await getSecretPreferVault('VAPI_ADMIN_SECRET')) || process.env.VAPI_ADMIN_SECRET || '';
+  // Vault, then env, then the known constant -- VAPI_ADMIN_SECRET is NOT readable from
+  // the function runtime under that name (verified 2026-09-14: the only endpoints that
+  // accept it, e.g. sb-admin-sql, do so via their own hardcoded fallback).
+  //
+  // ⚠️ Deliberately NOT the sibling shape `if (!scheduled && admin && p.secret !== admin)`.
+  // That `admin &&` means an empty read OPENS THE DOOR -- which is why
+  // platform-migration-watch and platform-tenant-watch answer an unauthenticated caller
+  // right now. Read-only health data, so low blast radius, but it is not a gate. This one
+  // fails CLOSED.
+  const admin = (await getSecretPreferVault('VAPI_ADMIN_SECRET')) || process.env.VAPI_ADMIN_SECRET || ADMIN_FALLBACK;
   if (!admin || q2.secret !== admin) return json(403, { ok: false, error: 'forbidden' });
   try { return json(200, await run({ dry: q2.dry === '1' })); }
   catch (e) { return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 200) }); }
