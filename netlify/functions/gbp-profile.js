@@ -62,10 +62,18 @@ exports.handler = async function (event) {
       }
       const pretty = '(' + digits.slice(0, 3) + ') ' + digits.slice(3, 6) + '-' + digits.slice(6);
       const cur = await gbp.api('GET', 'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?readMask=phoneNumbers');
-      const prev = ((cur.data && cur.data.phoneNumbers) || {}).primaryPhone || null;
+      const curPhones = (cur.data && cur.data.phoneNumbers) || {};
+      const prev = curPhones.primaryPhone || null;
+      // Google refuses updateMask=phoneNumbers.primaryPhone ("phone numbers cannot be
+      // updated independently") - the whole phoneNumbers object has to go at once, so
+      // carry any additionalPhones through or they'd be wiped by the replace.
+      const payload = { primaryPhone: pretty };
+      if (Array.isArray(curPhones.additionalPhones) && curPhones.additionalPhones.length) {
+        payload.additionalPhones = curPhones.additionalPhones;
+      }
       const r = await gbp.api('PATCH',
-        'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?updateMask=phoneNumbers.primaryPhone',
-        { phoneNumbers: { primaryPhone: pretty } });
+        'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?updateMask=phoneNumbers',
+        { phoneNumbers: payload });
       let now = null;
       if (r.ok) {
         const after = await gbp.api('GET', 'https://mybusinessbusinessinformation.googleapis.com/v1/locations/' + locId + '?readMask=phoneNumbers');
