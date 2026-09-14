@@ -149,11 +149,21 @@ async function run(opts) {
     }
   }
 
-  // Outbound counts, batched. A lead with ANY outbound has been engaged -- quiet.
+  // Has anyone on our side said anything? Batched -- one read, not one per job.
+  //
+  // NOT just direction='out'. A Local Services Ads conversation lands as a pasted
+  // TRANSCRIPT row carrying BOTH halves, and it is stored direction='in' -- so Jerad
+  // Wayburn read as "never contacted" on 2026-09-14 when a human had in fact answered
+  // him twice in Google's chat. Anything whose sender is US counts as engaged, whichever
+  // direction the row was filed under. Sender values are prefixed in practice
+  // ('office:Danielle', 'tech:Jimmy Pivacek'), so match on the prefix, not equality.
+  const THEIRS = /^(customer|warranty)/i;
   let spoken = new Set();
   try {
-    const msgs = await q(`thread_message?company_id=eq.${TN}&direction=eq.out&job_id=in.(${ids.join(',')})&select=job_id&limit=1000`);
-    spoken = new Set((msgs || []).map((m) => m.job_id));
+    const msgs = await q(`thread_message?company_id=eq.${TN}&job_id=in.(${ids.join(',')})&select=job_id,direction,sender&limit=2000`);
+    spoken = new Set((msgs || [])
+      .filter((m) => m.direction === 'out' || !THEIRS.test(String(m.sender || 'customer')))
+      .map((m) => m.job_id));
   } catch (_) {
     // A failed read must not manufacture "nobody replied" and blast alerts. Fail CLOSED.
     return { ok: false, error: 'outbound read failed - held alerts' };
