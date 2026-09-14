@@ -45,6 +45,14 @@
   .conv .ago{font-size:11.5px;opacity:.65;flex:0 0 auto}
   .conv .pv{font-size:13px;opacity:.78;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .conv .flag{display:inline-block;font-size:11px;font-weight:800;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:999px;padding:1px 7px;margin-top:5px}
+  .conv.unread{border-left:4px solid #f59e0b;background:var(--card,var(--bg))}
+  .conv.unread .nm::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-right:6px;vertical-align:middle}
+  .conv .rowend{display:flex;align-items:center;gap:8px;margin-top:5px}
+  .conv .tick{margin-left:auto;font-size:11px;font-weight:800;border:1px solid var(--line);border-radius:999px;padding:2px 9px;background:var(--bg);color:inherit;cursor:pointer;opacity:.75}
+  .conv .tick:hover{opacity:1;border-color:var(--brand);color:var(--brand)}
+  .mchips{display:flex;gap:7px;margin:0 0 9px}
+  .mchip{border:1px solid var(--line);border-radius:999px;padding:5px 13px;font-size:13px;font-weight:800;background:var(--bg);color:inherit;cursor:pointer}
+  .mchip.on{border-color:var(--brand);color:var(--brand);box-shadow:0 0 0 2px var(--ring,rgba(120,90,255,.2))}
 
   .threadcol{display:flex;flex-direction:column;min-width:0}
   .thead{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -126,19 +134,57 @@
 
   // ── the conversation list ──
   function convRow(c){
-    return '<button class="conv'+(c.customer_id===curId?' on':'')+'" data-c="'+esc(c.customer_id)+'">'+
+    return '<div class="conv'+(c.customer_id===curId?' on':'')+(c.unread?' unread':'')+'" data-c="'+esc(c.customer_id)+'" role="button" tabindex="0">'+
       '<div class="top"><span class="nm">'+esc(c.name)+'</span><span class="ago">'+esc(ago(c.last_at))+'</span></div>'+
       '<div class="pv">'+esc(c.last_body||'')+'</div>'+
-      (c.needs_reply?'<span class="flag">← they replied</span>':'')+
-    '</button>';
+      '<div class="rowend">'+
+        (c.needs_reply?'<span class="flag">← they replied</span>':'')+
+        // Most of these get handled on the PHONE. Without a way to clear one, the list is
+        // noise inside a week and she stops opening it -- the same lesson the needs-reply
+        // queue learned. The tick is the load-bearing part, not a nicety.
+        (c.unread?'<button type="button" class="tick" data-read="'+esc(c.customer_id)+'">✓ Mark read</button>':'')+
+      '</div>'+
+    '</div>';
   }
+  var mFilter='all';
   function paintList(){
     var box=document.getElementById('convlist'); if(!box) return;
-    box.innerHTML = convs.length ? convs.map(convRow).join('')
-      : '<div class="empty">No conversations yet.<br>Search a name above to text someone.</div>';
+    var nUnread=convs.filter(function(c){ return c.unread; }).length;
+    var shown=(mFilter==='unread') ? convs.filter(function(c){ return c.unread; }) : convs;
+    var chips='<div class="mchips">'+
+      '<button type="button" class="mchip'+(mFilter==='all'?' on':'')+'" data-f="all">All</button>'+
+      '<button type="button" class="mchip'+(mFilter==='unread'?' on':'')+'" data-f="unread">Unread'+(nUnread?' ('+nUnread+')':'')+'</button>'+
+    '</div>';
+    var body = shown.length ? shown.map(convRow).join('')
+      : (mFilter==='unread'
+          ? '<div class="empty">Nothing unread. You\'re caught up.</div>'
+          : '<div class="empty">No conversations yet.<br>Search a name above to text someone.</div>');
+    box.innerHTML = chips + body;
+    box.querySelectorAll('.mchip[data-f]').forEach(function(el){
+      el.onclick=function(){ mFilter=el.getAttribute('data-f'); paintList(); };
+    });
     box.querySelectorAll('.conv[data-c]').forEach(function(el){
       el.onclick=function(){ openThread(el.getAttribute('data-c')); };
+      // The row is a div, not a <button>, because a button cannot legally contain the
+      // tick button inside it. Keep it reachable from a keyboard.
+      el.onkeydown=function(ev){ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); openThread(el.getAttribute('data-c')); } };
     });
+    // Stop the tick from also opening the thread underneath it.
+    box.querySelectorAll('.tick[data-read]').forEach(function(el){
+      el.onclick=function(ev){ ev.stopPropagation(); markRead(el.getAttribute('data-read'), el); };
+    });
+  }
+
+  // Marking read is optimistic: the row clears instantly, then the server records it.
+  // If the write fails we put it back rather than let her believe it's handled.
+  function markRead(cid, btn){
+    var c=convs.filter(function(x){ return String(x.customer_id)===String(cid); })[0];
+    if(!c) return;
+    if(btn){ btn.disabled=true; btn.textContent='…'; }
+    c.unread=false; paintList();
+    api('mark_read',{customer:cid}).then(function(d){
+      if(!d||!d.ok){ c.unread=true; paintList(); }
+    }).catch(function(){ c.unread=true; paintList(); });
   }
   function loadList(){
     api('list',{}).then(function(d){
@@ -151,7 +197,9 @@
   function openThread(cid){
     curId=cid;
     document.querySelector('.split').classList.add('viewing');
-    paintList();
+    // Opening it IS reading it -- she should never have to tap twice for one conversation.
+    var cv=convs.filter(function(x){ return String(x.customer_id)===String(cid); })[0];
+    if(cv && cv.unread) markRead(cid, null); else paintList();
     var head=document.getElementById('thead'), sc=document.getElementById('scroll');
     if(sc) sc.innerHTML='<div class="empty">Loading…</div>';
     api('thread',{customer:cid}).then(function(d){

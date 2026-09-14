@@ -88,6 +88,23 @@ exports.handler = async function (event) {
 
   try {
     // ── list: the inbox. Newest conversation first, one row per customer. ──
+    // ── mark_read ──────────────────────────────────────────────────────────────
+    // Danielle 2026-09-14: "need a way to mark text read and pull up just the unread."
+    // Recorded as an EVENT, never a thread_message -- the same rule the needs-reply queue
+    // follows: clearing a queue must never put words in front of the customer that nobody
+    // actually said to them. The mark is a POINT IN TIME, not a flag, so a NEW message
+    // arriving after she reads it makes the conversation unread again on its own. That is
+    // the whole reason this is safe to hand her: she can never silence a live customer.
+    if (doo === 'mark_read') {
+      const cid = String(p.customer || '').trim();
+      if (!cid) return json(200, { ok: false, error: 'customer required' });
+      const ok = await db.insert('event', {
+        company_id: companyId, type: 'thread_read', entity: 'customer',
+        payload: { customer_id: cid, at: new Date().toISOString(), by: (us && us.name) || 'office' },
+      });
+      return json(200, { ok, customer_id: cid });
+    }
+
     if (doo === 'list') {
       const lim = Math.min(Math.max(parseInt(p.limit, 10) || 400, 50), 1000);
       const rows = await db.get(
@@ -107,6 +124,16 @@ exports.handler = async function (event) {
         people = await db.get(`customer?id=in.(${ids.join(',')})&company_id=eq.${companyId}&select=id,first_name,last_name,phone,city&limit=1000`);
       }
       const pmap = new Map(people.map((c) => [c.id, c]));
+      // Newest read-mark per customer. Ordered desc + first-wins, so one read per person
+      // decides it. If a mark ever scrolls past the cap the conversation simply reads
+      // UNREAD again -- the safe direction: showing her a handled message twice costs a
+      // tap, hiding a live one costs a customer.
+      const readAt = new Map();
+      for (const e of (await db.get(`event?company_id=eq.${companyId}&type=eq.thread_read&select=payload,created_at&order=created_at.desc&limit=2000`)) || []) {
+        const cid = e && e.payload && e.payload.customer_id;
+        const at = e && e.payload && e.payload.at;
+        if (cid && at && !readAt.has(String(cid))) readAt.set(String(cid), String(at));
+      }
       const conversations = [...byCust.values()]
         .filter((c) => pmap.has(c.customer_id))                 // company scope, enforced in code
         .map((c) => {
@@ -123,10 +150,14 @@ exports.handler = async function (event) {
             last_sender: c.last.sender || '',
             // "they spoke last" is the office's real to-do signal
             needs_reply: c.last.direction === 'in',
+            // UNREAD = they spoke last AND she hasn't marked it read since. Newest-mark-wins.
+            unread: c.last.direction === 'in' &&
+                    !(readAt.has(c.customer_id) && readAt.get(c.customer_id) >= String(c.last.created_at)),
           };
         })
         .sort((a, b) => String(b.last_at).localeCompare(String(a.last_at)));
-      return json(200, { ok: true, count: conversations.length, conversations });
+      return json(200, { ok: true, count: conversations.length,
+        unread: conversations.filter((c) => c.unread).length, conversations });
     }
 
     // ── thread: the whole scroll for one person, across every job they've ever had. ──

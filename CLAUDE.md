@@ -90,6 +90,21 @@ full-size. Touch fired, `drawn` flipped true, strokes were drawn — **all clipp
   inside a render function that runs before the container is visible returns zeros — and with a
   `Math.max(1,…)` floor it fails silently instead of loudly.
 
+### 📬 DANIELLE: "mark text read and pull up just the unread" — and 2 of her 3 asks were already built
+Three asks in one thread. Worth separating, because only one was a real gap:
+| her ask | state |
+|---|---|
+| *"no way to delete duplicates"* | **ALREADY SHIPPED this morning** — ✕ Remove from board + Undo. She hadn't found it: it sits at the **bottom of the job drawer.** A discoverability problem, not a missing feature. |
+| *"need spot to show used / un used"* | **REAL GAP, office side.** The TECH can set `job_part.disposition` on his card; the office drawer RENDERS it (`return` / `not_here` / `unused`) but has **no setter**. Open. |
+| *"mark text read and pull up just the unread"* | **BUILT** (below). |
+- **`platform/messages.html` only ever had `needs_reply` = "the customer spoke last"** — a DERIVED signal with no way to clear it. Handle it on the phone and the row still says *"← they replied"* forever.
+- **The mark is a POINT IN TIME, not a flag** (`event` row, `type:'thread_read'`, payload `{customer_id, at, by}`), so **a new inbound after she reads makes it unread again by itself.** She can never silence a live customer — that property is what makes this safe to hand her.
+- **Written as an `event`, NEVER a `thread_message`** — the rule the needs-reply queue already set: *clearing a queue must not put words in front of the customer that nobody said.*
+- **The ✓ tick is load-bearing, not a nicety** — same lesson as `needs-reply.html`: most of these get handled on the PHONE, and **a queue you cannot clear gets abandoned.** Opening a thread also marks it read (never two taps for one conversation).
+- **Fails toward WORK, not silence:** the read-mark read is capped at 2,000 newest-first. If a mark ever scrolls past the cap the conversation simply reads unread again — showing her a handled message twice costs a tap; hiding a live one costs a customer.
+- 🐞 Caught pre-ship: wrote `us[0].name` for the `by` field, but in this file `us` is already the ROW — every read would have silently recorded as "office". Also swapped the row from `<button>` to `<div role=button>` — **a `<button>` cannot legally contain the tick `<button>`** — and kept Enter/Space working.
+- Unit-verified 6/6 incl. re-unread-on-new-message, same-second tie, and the lost-mark fail-safe.
+
 ### 📜 `platform/dispatch.html` — the booking sheet couldn't be scrolled
 Danielle: *"This also don't scroll up and down to see the info."* The `.sheet` had **no `max-height` and
 no `overflow`** — on a phone the tech/day/window controls and the Book button fell off the bottom of the
