@@ -1,6 +1,109 @@
 # Appliance Ant
 
-## 🔑🐜 2026-09-13 (latest) — 100% SUPABASE CUTOVER: all six crew logins minted + PROVEN · passwords live on the pack, not in a text thread — READ FIRST
+## 🛠️👷 2026-09-14 (Sun) — CUTOVER DAY+1 FIELD FIXES: 4 bugs Danielle + Sofia hit on their first real day, all shipped + LIVE · Lee's login was never a system fault — READ FIRST
+
+First full day running 100% on Supabase. Danielle and Sofia worked it live and reported four things;
+Lee couldn't get in. Everything below is **merged to `main` and verified live** (`deploy-watch`
+`last_good` = `3997680`, then grepped the served HTML to prove each fix is actually on the page —
+a green deploy is not evidence the change landed on the right file).
+
+### 🔗 THE ONE THAT BROKE TEN DOORS — `platform/office-board.html` had NO `?job=` handling at all
+Danielle: *"This does not take me to the job it just opens the job board."* Sofia, same morning, from
+Messages: *"it'll take me to the homepage but it won't open the customers file up."* Same bug, two seats.
+- **The board never read the query string.** Not a broken link — a **missing 8-line handler**. Every
+  `?job=<id>` deep link in the platform landed on the board and dumped the user at the top of the kanban.
+- **The blast radius is the part worth remembering: ONE missing handler killed TEN entry points.**
+  4 in-app (`dispatch` "Open full job →", `messages` "Open the job ↗", `needs-scheduled`, `ready`) and
+  **6 server-side functions that TEXT that link to the office** — `intake-rescue`, `warranty-quickcheck`,
+  `platform-schedule-request`, `verify-quickcheck`, `free-quickcheck`, `verify-vent-booking`. So a siren
+  text saying "tap here for the job" opened a wall of cards.
+- **It went unnoticed because the identical pattern WORKS on the Xano root board** (`office-board.html`),
+  which is where everyone's muscle memory came from. ⚠️ **A behaviour that works on the legacy twin is
+  not evidence it works on the platform twin — the two files share a name and nothing else.**
+- **Fix (`openDeepLinked`):** opens from the already-loaded cache when the job is on the board; otherwise
+  fetches it directly, so **a link to a job OUTSIDE the current filter/region still opens** (that was the
+  subtler half — a card Danielle can't see is exactly the one she was texted about). Strips `?job=` from
+  the URL via `replaceState` so a refresh doesn't re-open it, and guards with `__deepLinked` so the 30s
+  poll can't re-fire it while she's typing.
+- **⚠️ DID NOT duplicate the select.** The board has two select tiers (rich + a minimal retry fallback).
+  I hoisted the real ones to module scope as `SEL_BASE_RICH`/`SEL_TAIL_RICH`/`SEL_BASE_MIN`/`SEL_TAIL_MIN`
+  and reused them. **A second copy would drift and one day hand `openJob()` a row missing fields** — the
+  same class as the two pasted portal part keys before 068.
+
+### 📜 `platform/dispatch.html` — the booking sheet couldn't be scrolled
+Danielle: *"This also don't scroll up and down to see the info."* The `.sheet` had **no `max-height` and
+no `overflow`** — on a phone the tech/day/window controls and the Book button fell off the bottom of the
+screen with no way to reach them. `max-height:92vh; overflow-y:auto; overscroll-behavior:contain` (+
+`overflow:auto` on the backdrop). `overscroll-behavior:contain` is load-bearing: without it, scrolling
+past the end of the sheet scrolls the board behind it and she loses her place.
+
+### 🗑️ "No way to delete duplicates" — remove-from-board, with an UNDO
+Danielle's third report. Built as **hide, never delete** — sets `status:'canceled'` (the board's own
+Canceled filter still finds it) plus an `event` audit row.
+- **Verified the write was safe BEFORE building it:** the mirror's `RANK` guard treats `canceled` as
+  terminal so **the next mirror run can't resurrect it**; `platform-tn-status-back` propagates it to Xano
+  forward-only; neither `job` trigger fires on `canceled`; and the board writes straight to PostgREST, so
+  **nothing texts the customer.** A "delete" that silently un-deletes itself in 5 minutes is worse than no
+  button — that check is why this shipped same-day.
+- **🐞 I built a Restore button first and it was UNREACHABLE.** The board's `orFilter` excludes canceled
+  outright, so a restored-from-drawer button can never be opened. Before widening the window I measured:
+  **1,754 canceled jobs, ALL with `updated_at` inside 14 days** (mirror churn) — widening would have
+  dumped 1,754 junk cards on her. Replaced with a **10-second Undo toast** that restores the *actual*
+  prior status (not a hardcoded `new`). ⚠️ **Check what a filter widen would actually surface before
+  widening it.**
+- ⚠️ The platform `event` table's column is **`type`, not `kind`** (`{company_id, type, entity, payload}`)
+  — verified against `information_schema` after a `column "kind" does not exist`.
+
+### 📍 "We also need the address on the daily view" — tech day + dispatch sheet
+A tech opening his day saw customer + appliance + a Navigate button, **but never the street**. Render-only
+fix, no new reads — `tech.html` already built `addr` and used it *solely* to construct the maps link.
+- **`platform/tech.html`** — tappable `📍 123 Main St, City, ST` on each stop card, built from the **same
+  string that feeds Navigate** so the two can never disagree.
+- **`platform/dispatch.html`** — the street on the booking sheet. The office is deciding *where* to send a
+  truck; that belongs on the sheet, not one tap away.
+- **⚠️ DELIBERATELY NOT in the dispatch week-grid cell.** Each tech column is `minmax(150px,…)` and
+  `.wblk .r2` is already `display:none` under 640px — a street there would either overflow or be invisible
+  on the phone the office actually uses. Dispatch has **no day view** (Week + Month only); the daily view
+  is the tech's.
+
+### 🔑 LEE'S LOGIN — not a system fault, and the auth logs proved it
+*"Lee is having a hard time logging in."* Root-caused off `auth_logs` rather than guessing:
+- **12 failed attempts 8:12–8:24 AM CT**, none succeeding. **Tested all 8 real pack credentials live
+  against `/auth/v1/token` — 8/8 PASS, Lee's included.** So the seat was fine.
+- **Ruled out the `tech1.`/`tech2.` decoy trap by SIGNATURE, not by assumption:** a banned decoy returns
+  **`user_banned`**; every one of Lee's failures was **`invalid_credentials`**. ⚠️ **Supabase returns
+  `invalid_credentials` for an unknown email AND a wrong password — identical, on purpose (anti-enumeration).
+  So that error alone can never tell you which one it is; the IP + the decoy's distinct `user_banned` are
+  what separate them.**
+- Minted a magic link at **16:55:05Z**; `/verify` 303 at **16:56:35Z** — **Lee was in 90 seconds later**,
+  and the failures from his IP stopped dead at that moment. (His AT&T mobile IP geolocates to St. Louis,
+  not Clarksville — ⚠️ **carrier-mobile IPs resolve to a regional hub, so don't read a geo mismatch as a
+  different person.**)
+- ⏭️ **OPEN: a magic link is a one-time door.** Lee still doesn't know his password — next logout he's
+  stuck again. Re-read it to him off `/packs` (`platform-provision?action=packs&secret=<admin>&slug=tn-appliance-exchange-llc`,
+  **`&slug=` is REQUIRED**) and confirm `lee.tnae@assistant247.net` with him character by character.
+
+### ✅ MEASURED CLEAN — recorded so nobody re-audits it
+- **The crew IS on the platform.** Real sign-ins today from La Vergne, Nashville ×2 and Lee's line. (⚠️ six
+  `last_sign_in_at` values one second apart at 16:49:0x are **my own credential sweep**, not the crew —
+  don't read them as adoption.)
+- **The 3 nightly Postgres ERRORs in `platform-backup` are BY DESIGN, not a bug.** `pageTable` orders by
+  `id`; a table without one 400s, and the code deliberately falls back to a single unordered page —
+  *"being partial is fine, being silently absent is not."* `trade_profile`'s 6 rows do land, and the
+  partial state is alarmed (`complete:false` → `platform-migration-watch`). **Left alone on purpose.**
+
+### ⚠️ FOOTGUNS BURNED
+- **`sb-admin-sql`'s `?mgmt=` passthrough builds `${MGMT}${path}` verbatim and forwards NO extra query
+  params** — a sibling `&sql=` is silently dropped and you get the default log page. Embed the whole query
+  string *inside* the `mgmt` value, URL-encoded.
+- **`gmail-search`'s `&max=` is PER-ACCOUNT**, and `searchAll` fans out across 4 inboxes — the default 20
+  is 80 metadata fetches and reliably blows the edge timeout. Pass a small `max` and a narrow query.
+- **`gmail-msg-dump` reads inbox-1 only** (GMAIL_* creds) and `attach=1` decodes as UTF-8, so **it cannot
+  read a PDF**. For a policy number in an attachment, go to the portal.
+- **`node --check <(...)` process substitution fails here.** Extract each `<script>` block to a real file
+  first, then `node --check` each one.
+
+## 🔑🐜 2026-09-13 — 100% SUPABASE CUTOVER: all six crew logins minted + PROVEN · passwords live on the pack, not in a text thread — READ FIRST
 
 Teddy: *"we're running a hundred percent on supabase starting tomorrow. All stops will be run through there. Give me logins and passwords for John, Lee, Jimmy, Andre … also Danielle and Sofia."*
 
