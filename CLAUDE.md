@@ -1,5 +1,67 @@
 # Appliance Ant
 
+## 📝🏚️ 2026-09-14 (Sun, late) — JIMMY'S NOTE HAD NOWHERE TO GO (not a save bug, a missing path) · AND THE "USED APPLIANCE STORE" GHOST IS FOUND: it's the OLD LA VERGNE STORE, still live on BBB + TWO Yelp listings — READ FIRST
+
+Teddy relayed three things: Yellow Pages adjustments land Thursday, he left a voicemail with BBB
+and asked what's next, and **"Jimmy said that the notes are not saving."**
+
+### 🥇 JIMMY WAS RIGHT, AND IT WAS WORSE THAN A SAVE BUG — there was no path at all
+The day list's box is labelled **"Notes for the office"** and writes **`job_tdr.notes`** — a column
+**the office board renders NOWHERE** (grep it: the board's 📋 NOTE chip and the drawer textarea both
+read **`job.office_notes`**). And it only writes on **"Save report + finish"**, which first *demands*
+"what failed" and then **CLOSES the job**. So a mid-job note — *"parts are out for delivery"*,
+*"nobody home, moving on"* — was either refused at the required-field gate or filed where nobody
+looks. On **`platform/tech-job.html`**, the page techs actually work from, there was **no notes box
+at all**; "Root cause & notes" lands in `root_cause`.
+- **It reads as "not saving" from BOTH ends** — he types, and either it won't take it or the office
+  never sees it. Neither end is lying.
+- **The tee is NOT the culprit** — checked first. `platform-tn-report-tee` is strictly
+  `if (want[k] && blank(cur[k]))`, fill-the-blank only; it cannot overwrite a tech's note.
+- **✅ FIXED both surfaces.** `tech-job.html`'s one-way "📋 From the office" card is now **two-way
+  ("📋 Notes with the office") with its own Send button** — no finishing the job. `tech.html` gets the
+  same Send button under the note box, and that box is **relabelled to what it actually is** (the
+  claim record) instead of promising a delivery it never made.
+- **⚠️ APPENDS after a FRESH RE-READ of `office_notes`, never replaces.** Danielle types in that same
+  column — a tech must never be able to blank her note, and one she saved thirty seconds ago has to
+  survive. Carries attribution + timestamp (`— Jimmy · Sep 14 2:15pm`).
+- **His typing stays on screen until the server confirms.** Verified live on the served HTML (not the
+  green deploy): both pages carry the button + handler, office-board carries the new guard.
+
+### 🔴 SAME PASS, SAME CLASS — three writes that said "Saved ✓" on a REFUSED write
+An RLS-blocked update returns **zero rows and NO error**, so `if (r.error)` is false and it reads as
+success. Found and closed three more:
+- **`tech-job.html` "Edit job details"** (the *"Anything off — address, model, name? Fix it here"* card)
+  had **NO `.select()` on ANY of its three updates** (customer + unit + job) → a refused address
+  correction printed **"Saved ✓ — office + customer updated."** Now all three `.select('id')` and a
+  zero-row result reports the truth.
+- **`office-board.html`'s own Office-notes Save** had the identical hole. Fixed.
+- ⚠️ **STANDING (fourth time this class has shipped): a Supabase write is only saved when a ROW COMES
+  BACK.** `.select()` + check `r.data.length` — "no error" proves nothing.
+
+### 🏚️ THE "USED APPLIANCE STORE" GHOST — FOUND, with URLs (open since June)
+This file has blamed it on "the brand name Exchange + old citations (Yelp/BBB)" since 2026-06 without
+ever locating the rows. They're real, they're live, and they all carry the **OLD LA VERGNE RETAIL
+STORE**: *"TN Appliance Exchange Inc is a refurbished appliance store that not only sells appliances
+but will give you trade in value on your old machines."* That sentence is the ghost.
+- **BBB** — `bbb.org/us/tn/la-vergne/profile/**used-appliances**/tn-appliance-exchange-0573-37137914`.
+  Category **"Used Appliances"** (it's in the URL slug), address **5403 Murfreesboro Rd, La Vergne
+  37086** (stale — real is 3137 Skinner Dr, Antioch 37013), name missing "LLC", profile opened
+  2016-04-04, **A+**, not accredited, 1 complaint closed in 3 yrs, 0 reviews, BBB of Middle Tennessee.
+  Phone + website ARE correct. **⏭️ Don't wait on the callback — `bbb.org/get-listed` → search → claim
+  → fix category (BBB allows up to 3; Appliance Repair primary, drop Used Appliances) + address.**
+- **⚠️ TWO DUPLICATE YELP LISTINGS**, both at the La Vergne address, both filed *Appliances & Repair*:
+  `/biz/tn-appliance-exchange-la-vergne` (30 reviews, 15 photos) and
+  `/biz/tn-appliance-exchange-la-vergne-2` (10 photos). **A duplicate listing actively suppresses local
+  rank** — same class as the Nextdoor duplicate. Merge/claim both. (Yelp 403s bots; verified via search
+  results only — eyeball them in a browser.)
+- Also carrying La Vergne / used-appliance: **Superpages**, **Yellow Pages** (Teddy's Thursday item),
+  **Alignable**. `repairhit.com` is already correct (Appliance Repair, Antioch, Skinner Dr).
+- **✅ GBP itself is CLEAN** (re-confirmed 2026-08-25: primary "Appliance repair service", no used-store
+  category). The ghost is entirely off-GBP.
+- **⚠️ THE REAL DAMAGE IS NAP, NOT JUST THE CATEGORY.** A high-authority citation publishing a DIFFERENT
+  ADDRESS than the site + GBP is exactly what suppresses map-pack rank. Fixing the address matters as
+  much as killing the "Used Appliances" label.
+
 ## 📵💵 2026-09-14 (Sun, late) — A LEAD NOBODY REPLIED TO NOW PAGES A HUMAN · the Xano cash alert has been texting NOBODY for 3 weeks · two watchers are effectively UNGATED — READ FIRST
 
 Teddy: *"Really need to start getting cash jobs from our seo and advertising. It's been a bust
