@@ -65,6 +65,31 @@ right thing three times and reported failure twice:
   **"Telnyx accepted it" is the strongest claim this system can ever make about any customer text.** Fine
   for now — but never tell a customer or a tech a text was *delivered*; we only know it was *accepted*.
 
+### ✍️ "IT'S NOT LETTING THEM SIGN" — the pad was a 1x1 pixel, measured while it was `display:none`
+Jimmy, same afternoon, on the on-site signature pad (`platform/tech-job.html` → **Sign on this device**).
+The customer swipes and nothing appears. Not a touch-handling bug — a **sizing** bug:
+```
+if (wvBox.classList.contains('hidden')) { renderWaiverBox(wvBox); wvBox.classList.remove('hidden'); … }
+```
+`renderWaiverBox` **measures the canvas to size its bitmap**, and it ran while the box was still
+`.hidden{display:none}`. A display:none element reports a **zero** `getBoundingClientRect()`, so
+`cv.width = Math.max(1, 0*dpr)` baked in a **1×1-pixel bitmap** that CSS then stretched to look
+full-size. Touch fired, `drawn` flipped true, strokes were drawn — **all clipped outside the 1×1**.
+- **⚠️ `Math.max(1, …)` is what turned a zero into a SILENT wrong answer.** It was there to avoid a
+  0-size canvas and instead guaranteed an invisible one. **A floor that hides a bad measurement is
+  worse than the crash it prevents.**
+- **Why the OTHER pad works:** `platform/tech.html`'s `openSignPad` builds a `.sigwrap` that is
+  `position:fixed; display:flex` and appends it to the body — visible the instant it's measured. Same
+  code, opposite outcome, purely because of when the rect was taken.
+- **FIXED three ways so it can't come back:** (1) the toggle un-hides **before** rendering; (2)
+  `sizePad()` **refuses to commit a measurement of zero** (returns false, retries on rAF) and only
+  re-commits when dimensions actually changed — *changing `canvas.width` CLEARS it*, so a naive resize
+  would wipe a half-finished signature; (3) `ensureSized()` runs on the **first finger-down**, so no
+  matter how the box gets opened the pad is correct before a single stroke is recorded.
+- ⚠️ **STANDING: never size a canvas from an element that is not on screen yet.** Any `getBoundingClientRect()`
+  inside a render function that runs before the container is visible returns zeros — and with a
+  `Math.max(1,…)` floor it fails silently instead of loudly.
+
 ### 📜 `platform/dispatch.html` — the booking sheet couldn't be scrolled
 Danielle: *"This also don't scroll up and down to see the info."* The `.sheet` had **no `max-height` and
 no `overflow`** — on a phone the tech/day/window controls and the Book button fell off the bottom of the

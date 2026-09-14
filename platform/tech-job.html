@@ -781,7 +781,9 @@
     // Waiver — sign on this device (hand the phone over) or text the customer the sign link.
     var wvToggle=document.getElementById('wvToggle'), wvBox=document.getElementById('wvBox');
     if(wvToggle){ var wvLabel=wvToggle.textContent; wvToggle.onclick=function(){
-      if(wvBox.classList.contains('hidden')){ renderWaiverBox(wvBox); wvBox.classList.remove('hidden'); wvToggle.textContent='✕ Close'; }
+      // Un-hide BEFORE rendering: renderWaiverBox measures the canvas to size its bitmap,
+      // and a display:none element reports a zero rect -> a 1x1 pad nothing can draw on.
+      if(wvBox.classList.contains('hidden')){ wvBox.classList.remove('hidden'); renderWaiverBox(wvBox); wvToggle.textContent='✕ Close'; }
       else { wvBox.classList.add('hidden'); wvToggle.textContent=wvLabel; }
     }; }
 
@@ -816,15 +818,27 @@
 
     var cv=document.getElementById('wvPad'), hint=document.getElementById('wvHint');
     var ctx=cv.getContext('2d'), drawn=false, drawing=false, last=null;
+    // Sizing the bitmap off a zero-width rect bakes in a 1x1 canvas that silently swallows
+    // every stroke (Jimmy, 2026-09-14: "it's not letting them sign"). So: only commit a size
+    // we actually measured, and never re-commit the same one (changing canvas.width CLEARS it,
+    // which would wipe a half-finished signature).
+    var sized=0;
     function sizePad(){
-      var r=cv.getBoundingClientRect(), dpr=Math.min(window.devicePixelRatio||1,3);
-      cv.width=Math.max(1,Math.round(r.width*dpr)); cv.height=Math.max(1,Math.round(r.height*dpr));
+      var r=cv.getBoundingClientRect();
+      if(!(r.width>0&&r.height>0)) return false;
+      var dpr=Math.min(window.devicePixelRatio||1,3);
+      var w=Math.round(r.width*dpr), h=Math.round(r.height*dpr);
+      if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; }
       ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.lineWidth=2.6; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111827';
+      sized=1; return true;
     }
-    sizePad();
+    // Belt and suspenders: whatever order this box gets opened in, the first finger-down
+    // sizes the pad before a single stroke is recorded. It can never be stuck blank.
+    function ensureSized(){ if(!sized) sizePad(); }
+    if(!sizePad()) requestAnimationFrame(sizePad);
     function pt(e){ var r=cv.getBoundingClientRect(); var t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
-    function start(e){ e.preventDefault(); drawing=true; last=pt(e); if(hint) hint.style.display='none'; }
+    function start(e){ e.preventDefault(); ensureSized(); drawing=true; last=pt(e); if(hint) hint.style.display='none'; }
     function move(e){ if(!drawing) return; e.preventDefault(); var q=pt(e); ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(q.x,q.y); ctx.stroke(); last=q; drawn=true; }
     function end(e){ if(drawing&&e&&e.preventDefault) e.preventDefault(); drawing=false; }
     cv.addEventListener('touchstart',start,{passive:false});
