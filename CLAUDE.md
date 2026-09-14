@@ -157,6 +157,18 @@ Three asks in one thread. Worth separating, because only one was a real gap:
 - **Fails toward WORK, not silence:** the read-mark read is capped at 2,000 newest-first. If a mark ever scrolls past the cap the conversation simply reads unread again — showing her a handled message twice costs a tap; hiding a live one costs a customer.
 - 🐞 Caught pre-ship: wrote `us[0].name` for the `by` field, but in this file `us` is already the ROW — every read would have silently recorded as "office". Also swapped the row from `<button>` to `<div role=button>` — **a `<button>` cannot legally contain the tick `<button>`** — and kept Enter/Space working.
 - Unit-verified 6/6 incl. re-unread-on-new-message, same-second tie, and the lost-mark fail-safe.
+- **🔴 AND IT SHIPPED DEAD — Danielle, same day: *"The message stuff is there but when I mark it read
+  its not saving."* She was right: `select count(*) from event where type='thread_read'` → **0.**
+  **`platform-messages.js` has its OWN inline `rest()` client that defines only `get` + `insertRet` —
+  there is no `insert`.** So `db.insert('event', …)` threw `is not a function` into the handler's
+  catch, the endpoint returned not-ok, and the client's `if(!d||!d.ok){ c.unread=true; }` rolled the
+  tick back. The UI was honest; the write never existed.
+- ⚠️ **THIS IS THE SECOND TIME THIS EXACT CLASS SHIPPED DEAD.** `platform-email-intake`'s inline
+  client had no `patch`, so the NSA enrichment silently did nothing on the one caller it was written
+  for. **A minimal inline `rest()` is a trap: the missing method does not fail loudly, it reads as
+  "the feature quietly does nothing."** Added `insert`, then **swept every `netlify/functions/*.js`
+  that builds its own `rest()` and diffed defined-vs-called methods — no others are missing one.**
+  Do that diff whenever you add a call to a file-local client.
 
 ### 🔩 USED / UNUSED FROM THE OFFICE — and the DB allows 3 values, not the 5 the board was filtering on
 Danielle: *"Need spot to show used un used."* The TECH could set `job_part.disposition` from his

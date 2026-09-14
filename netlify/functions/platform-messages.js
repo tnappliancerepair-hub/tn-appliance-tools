@@ -29,6 +29,16 @@ function rest(base, key) {
   const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
   return {
     async get(path) { try { const r = await fetch(`${base}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(9000) }); return r.ok ? r.json() : []; } catch (_) { return []; } },
+    // A minimal inline client is a trap: a caller reaches for a method the real platform-rest
+    // has, it is simply ABSENT here, and the call throws into the handler's catch -- which reads
+    // as "the feature quietly does nothing." That is exactly how mark-read shipped dead (Danielle,
+    // 2026-09-14) and how the NSA enrichment shipped dead before it. Same class, second time.
+    async insert(table, row) {
+      try {
+        const r = await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify(row), signal: AbortSignal.timeout(9000) });
+        return r.ok;
+      } catch (_) { return false; }
+    },
     async insertRet(table, row) {
       try {
         const r = await fetch(`${base}/rest/v1/${table}`, { method: 'POST', headers: { ...H, Prefer: 'return=representation' }, body: JSON.stringify(row), signal: AbortSignal.timeout(9000) });
