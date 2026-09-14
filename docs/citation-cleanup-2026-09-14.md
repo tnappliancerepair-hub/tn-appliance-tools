@@ -100,3 +100,82 @@ most directories once the listing is claimed and refreshed.
 - Our website (clean, verified twice).
 - Our GBP category (primary = Appliance repair service; no store category — verified live).
 - Our per-metro phone numbers (correct as built).
+
+---
+
+# ✅ CONFIRMED 2026-09-14: the La Vergne dealer record IS Teddy's old shop
+
+Teddy: *"It's my old shop."* So this is a predecessor identity, not a stranger with a similar name.
+That settles the approach — and the approach is **CONVERT, not close.**
+
+## Why convert instead of mark-closed
+There is only **ONE** Yelp listing for this brand and it is the old one (searched; no separate
+Antioch repair listing exists). Marking it permanently closed leaves us with **zero Yelp presence**
+plus a "Permanently closed" ghost that still surfaces. Converting keeps the **30 reviews** and the
+page authority while flipping the category that is doing the damage. Same logic on BBB.
+
+⚠️ The only case for closing is if a SECOND, current listing already exists on that platform —
+then you close the old one to avoid two competing records. Check before acting, per platform.
+
+## The canonical record to push everywhere
+| field | value |
+|---|---|
+| name | TN Appliance Exchange LLC |
+| address | 3137 Skinner Dr, Antioch, TN 37013 |
+| phone | **(629) 272-1234** (matches GBP + all 714 site pages) |
+| category | Appliance **Repair** — never "Used Appliances" / "Appliance Store" |
+| hours | 24/7 |
+| website | https://tnapplianceexchange.net |
+| description | Technician-led appliance repair, family-owned since 2012. **We repair appliances; we do not sell used ones.** |
+
+⚠️ **Before standardizing the phone, confirm (615) 280-2949 still rings.** It is a live Telnyx line
+and it is what 6 directories publish. If it is dead, those listings are sending real customers to a
+dead number — that is worse than the inconsistency and should be fixed first.
+
+## Platform-by-platform
+
+### 1. Yelp — biggest impact, do first
+- `biz.yelp.com` → Claim your business → search "TN Appliance Exchange" (La Vergne).
+- ⚠️ Verification calls the number ON the listing (the old one). If that line is dead, use Yelp's
+  alternate verification (email/document) or open a support ticket.
+- Once claimed, change: **address → Antioch**, **categories → Appliance Repair** (remove any
+  used/retail category), **hours → 24/7**, **phone → 629-272-1234**, **description → repair**.
+- Yelp sometimes locks category changes in the UI — if so, Yelp support can change it on request.
+  Say plainly: "the business changed from used-appliance sales to appliance repair."
+
+### 2. BBB — the category is literally in the URL
+`bbb.org/us/tn/la-vergne/profile/used-appliances/tn-appliance-exchange-0573-37137914`
+- Claim the profile, change category **Used Appliances → Appliance Repair**, update address + phone.
+- The URL slug may not update itself — ask BBB support to re-slug it. That slug is a ranking signal
+  for the wrong term.
+
+### 3. YellowPages
+Listed under `yellowpages.com/antioch-tn/used-appliances` as "a refurbished appliance store that
+sells appliances and offers trade-in value." Claim → recategorize → update phone.
+
+### 4. The long tail (phone + category only)
+RepairHit · CityLifestyle (also calls us "appliance **exchange** services") · Manta · MagicPin ·
+TheApplianceDirectory.
+
+### 5. ⚠️ Check for a SECOND Google listing
+The old La Vergne shop may still have its own Google Business Profile. In the GBP dashboard, search
+for duplicates at the 5403 Murfreesboro Rd address. If one exists, **mark it permanently closed or
+merge it** — a second Google record is far more damaging than any directory, because it is what
+feeds the map pack and the AI answers.
+
+### 6. 🎯 THE UPSTREAM FIX — data aggregators
+Most small directories do not type their data, they **pull it from aggregators**. Fix only the
+directories and the bad record repopulates within weeks. Submit the corrected record to:
+- **Data Axle** (formerly Infogroup)
+- **Localeze / Neustar**
+- **Foursquare** (places data)
+This is the step that makes the cleanup stick. Do it alongside, not after.
+
+### 7. Old domain
+If `tnappliancerepair.com` still resolves, 301 it to `tnapplianceexchange.net`. A live old site is an
+off-site billboard for the wrong intent.
+
+## What NOT to do
+- Do not create new listings before claiming the old ones — that makes duplicates, which is the one
+  thing worse than a wrong category.
+- Do not mark Yelp/BBB closed unless a current listing already exists there.
