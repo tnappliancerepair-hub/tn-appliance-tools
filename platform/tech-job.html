@@ -1174,6 +1174,43 @@
   function tm(msg){ var e=document.getElementById('tmMsg'); if(e){ e.classList.remove('hidden'); e.textContent=msg; } }
   function notify(action){ return token().then(function(tok){ return fetch('/.netlify/functions/platform-tech-notify?do='+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok})}).then(function(r){return r.json();}); }); }
 
+  // A customer notice that DOESN'T go out is the dangerous one. The tech taps "On my way",
+  // the tile flips, and he drives off certain she knows -- while she sits there wondering
+  // and eventually calls the shop. Success stays SILENT on purpose (nobody wants a popup at
+  // every stop); anything else says so plainly, because the tech is the only one standing
+  // there who can pick up the phone instead.
+  function warnBar(text){
+    var b=document.getElementById('notifyWarn');
+    if(!b){
+      b=document.createElement('div'); b.id='notifyWarn';
+      b.style.cssText='position:fixed;left:12px;right:12px;bottom:12px;z-index:9999;background:#7c2d12;'+
+        'color:#fff;border:1px solid #ea580c;border-radius:12px;padding:12px 14px;font-size:15px;'+
+        'line-height:1.35;box-shadow:0 10px 28px rgba(0,0,0,.45);cursor:pointer';
+      b.onclick=function(){ b.remove(); };
+      document.body.appendChild(b);
+    }
+    b.textContent=text+'  (tap to dismiss)';
+  }
+
+  function notifyCustomer(action,label){
+    return notify(action).then(function(d){
+      d=d||{};
+      if(d.texted) return d;                 // it went — stay out of his way
+      if(d.already) return d;                // they already got it today; that's correct, not a fault
+      var why = d.off                          ? 'these texts are switched OFF for the shop'
+              : d.no_phone                     ? 'no phone number on file'
+              : d.reason==='opted_out'         ? 'they replied STOP, so we can\'t text them'
+              : d.reason==='quiet_hours'       ? 'it\'s outside texting hours'
+              : d.reason==='customer_texts_paused' ? 'customer texting is paused'
+              : d.reason==='duplicate_suppressed'  ? 'the same text already went out'
+              : 'the text didn\'t go through';
+      warnBar('\u26a0\ufe0f ' + label + ' text NOT sent \u2014 ' + why + '. Give them a call so they\'re not left wondering.');
+      return d;
+    }).catch(function(){
+      warnBar('\u26a0\ufe0f ' + label + ' text may not have sent. Give them a call so they\'re not left wondering.');
+    });
+  }
+
   // Short "11:29am" for the status timestamps line.
   function tf(iso){ if(!iso) return ''; try{ return new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}).replace(/\s/g,'').toLowerCase(); }catch(e){ return ''; } }
   function statusTimes(){
@@ -1576,7 +1613,7 @@
     var cust=job.customer||{}; var addr=[cust.address,cust.city,cust.state].filter(Boolean).join(', ');
     if(addr) window.open('https://maps.google.com/?q='+encodeURIComponent(addr),'_blank','noopener'); // open nav right away
     var btn=document.getElementById('otwBtn'); if(btn){ btn.disabled=true; }
-    notify('otw'); // text the customer (fire-and-forget)
+    notifyCustomer('otw','On-my-way'); // tell the customer — and tell the TECH if it didn't go
     // Stamp the time so the tile flips to "on" + shows "On way 11:29am". Best-effort:
     // if the column isn't migrated yet, still reload so the flow keeps working.
     sb.from('job').update({ en_route_at:new Date().toISOString() }).eq('id',jobId).then(function(){ loadJob(); });
@@ -1590,7 +1627,7 @@
       sb.from('job').update({ status:'scheduled' }).eq('id',jobId).then(loadJob);
       return;
     }
-    var upd={ status:'in_progress' }; if(!job.started_at){ upd.started_at=new Date().toISOString(); notify('arrived'); } // customer heads-up on first start
+    var upd={ status:'in_progress' }; if(!job.started_at){ upd.started_at=new Date().toISOString(); notifyCustomer('arrived','Arrived'); } // customer heads-up on first start
     sb.from('job').update(upd).eq('id',jobId).then(function(r){
       if(r.error && /started_at/i.test(r.error.message||'')){ sb.from('job').update({ status:'in_progress' }).eq('id',jobId).then(loadJob); return; }
       loadJob();
@@ -2075,7 +2112,7 @@
       var ns=(outcome==='return_needed'||partStatus==='please_order'||partStatus==='missing')?'awaiting_parts':'completed';
       var ju={status:ns}; if(ns==='completed') ju.completed_at=new Date().toISOString();
       var finish=function(){
-        if(ns==='completed'){ notify('complete'); } // text the customer their repair is done + receipt link
+        if(ns==='completed'){ notifyCustomer('complete','Job-complete'); } // text the customer their repair is done + receipt link
         // 🎉 Job done — confetti + fanfare. The reward that makes techs want to close jobs.
         if(ns==='completed' && window.antCelebrate){ try{ window.antCelebrate({ tag:'Job complete', big:'JOB DONE! 🎉', sub:(job.customer&&fullName(job.customer))||'', cue:'win', sound:'both' }); }catch(_){ } }
         var head = ns==='completed' ? '<div class="big">✅</div><h2>Report saved</h2><p>Nice work.</p>' : '<div class="big">🔁</div><h2>Report saved</h2><p>Logged for a return — the office will line up the part.</p>';

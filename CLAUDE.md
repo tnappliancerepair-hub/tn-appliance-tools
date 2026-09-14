@@ -7,6 +7,44 @@ Lee couldn't get in. Everything below is **merged to `main` and verified live** 
 `last_good` = `3997680`, then grepped the served HTML to prove each fix is actually on the page —
 a green deploy is not evidence the change landed on the right file).
 
+### 🚚📵 "IT'S NOT SENDING ON THE WAY NOTICES" — Jimmy was right, and it was a SWITCH, not a bug
+Jimmy, 2:11pm: *"It's not sending on the way notices to customers, i just had a customer call asking if
+I was still coming today. And I've already hit on the way. She said she got no notifications."* He was
+right, and I had just told Teddy the opposite — I'd checked the WAIVER path (clean: 15 sends, 0 refusals
+in 14h) and concluded his report was a stale tab. **On-my-way is a different path entirely.**
+- **ROOT CAUSE: `company.settings.comms.otw.on = false` for TN.** Read live off the row. The lifecycle
+  texts were switched OFF **2026-09-10** during the double-text firefight and only `reminder` was ever
+  turned back on. Live state: `reminder` ON · `assigned` ON · **`otw` · `arrived` · `complete` ·
+  `review` · `offer` all OFF.** So `commsMsg()` returns null → the send is skipped → `{off:true}`.
+- **🔴 AND THE TECH IS NEVER TOLD.** `platform/tech-job.html` called **`notify('otw'); // fire-and-forget`**
+  — no `.then`, no error path. The button greys, the tile flips to "On way 11:29am", and the tech drives
+  off certain she knows. **A tech cannot tell "texted" from "silently skipped."** Same for `arrived` +
+  `complete`. This is the waiver bug's twin: that one reported a refusal as a failure; this one reported
+  it as *nothing*, which is worse — nobody even knows to ask.
+- **The customer cost was live on the board the same hour:** Debra Parker (Jimmy's stop) texted
+  *"Morning what time do you think you will be here"* 9:59am → *"Hello is someone coming today"* /
+  **"No one here yet"** 1:16pm. Five inbound, zero outbound all day. She was never told he was coming.
+- **FIXED the class, both halves.** (1) `platform-tech-notify` — `otw`/`arrived`/`complete` now use
+  **`sendSmsDetailed`** (the one implementation from this morning) and return `reason` + `no_phone`;
+  they were still on the bare-boolean `sendSms`, so a refusal and a failure were the same value.
+  (2) New **`notifyCustomer(action,label)`** + `warnBar()` on tech-job.html: **success stays SILENT**
+  (nobody wants a popup at every stop), **already-sent-today stays silent** (correct, not a fault), and
+  anything else raises a tap-to-dismiss bar naming the real reason + *"Give them a call so they're not
+  left wondering."* Branch logic unit-verified **7/7** against the real response shapes by extracting
+  the SHIPPED function out of the HTML and stubbing `notify` — not a copy of it.
+- ⚠️ **THE SWITCH IS STILL OFF — that is Teddy's call, not the system's** (standing rule: flipping a
+  customer-texting toggle is the owner's). Flip it in **`platform/comms.html` → "🚚 On my way" → Save
+  all**. **It is safe now:** the 2026-09-10 work re-keyed otw/arrived/complete from per-JOB to
+  **per customer per DAY** precisely so these could be turned back on without the double-text trap,
+  and four layers stand behind it (DB unique index · per-customer-per-day key · dup suppression ·
+  opt-out + quiet hours). Until it's flipped, the tech now at least SEES that nothing went out.
+- ⚠️ **STANDING: a fire-and-forget call to a customer-facing send is a silent promise.** Any tap that
+  a human reads as "the customer was told" must surface the result. Grep for `notify(` / `.catch(){}`
+  on a send path before assuming a feature works — the switch being off looks identical to success.
+- ⚠️ **AND: check the SETTING before you debug the CODE.** I audited the send trail, the guard events
+  and the carrier and found everything healthy — because the send never reached them. One
+  `settings->'comms'` read would have answered it in the first minute.
+
 ### 🔗 THE ONE THAT BROKE TEN DOORS — `platform/office-board.html` had NO `?job=` handling at all
 Danielle: *"This does not take me to the job it just opens the job board."* Sofia, same morning, from
 Messages: *"it'll take me to the homepage but it won't open the customers file up."* Same bug, two seats.

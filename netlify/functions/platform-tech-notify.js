@@ -105,8 +105,9 @@ exports.handler = async function (event) {
         return json(200, { ok: true, texted: false, already: true, message: 'Already told them you were on the way today.' });
       }
       let sent = false;
-      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_otw'); } catch (_) {} }
-      return json(200, { ok: true, texted: sent });
+      let reason = '';
+      if (phone) { try { const r = await sendSmsDetailed(phone, text, 'customer', 'platform_otw'); sent = r.sent; reason = r.reason || ''; } catch (_) { reason = 'send_error'; } }
+      return json(200, { ok: true, texted: sent, reason, no_phone: !phone });
     }
 
     if (doo === 'message') {
@@ -209,8 +210,9 @@ exports.handler = async function (event) {
         return json(200, { ok: true, texted: false, already: true, message: 'They already got the arrival text today.' });
       }
       let sent = false;
-      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_arrived'); } catch (_) {} }
-      return json(200, { ok: true, texted: sent });
+      let reason = '';
+      if (phone) { try { const r = await sendSmsDetailed(phone, text, 'customer', 'platform_arrived'); sent = r.sent; reason = r.reason || ''; } catch (_) { reason = 'send_error'; } }
+      return json(200, { ok: true, texted: sent, reason, no_phone: !phone });
     }
 
     if (doo === 'complete') {
@@ -224,8 +226,9 @@ exports.handler = async function (event) {
         return json(200, { ok: true, texted: false, already: true, url: link, message: 'They already got the completion text today.' });
       }
       let sent = false;
-      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_complete'); } catch (_) {} }
-      return json(200, { ok: true, texted: sent, url: link });
+      let reason = '';
+      if (phone) { try { const r = await sendSmsDetailed(phone, text, 'customer', 'platform_complete'); sent = r.sent; reason = r.reason || ''; } catch (_) { reason = 'send_error'; } }
+      return json(200, { ok: true, texted: sent, reason, no_phone: !phone, url: link });
     }
 
     if (doo === 'waiver_link') {
