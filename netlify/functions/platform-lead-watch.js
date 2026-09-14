@@ -45,9 +45,17 @@ const OWNER = '+16154855795';
 const TAG   = 'platform_cash_lead';
 const ADMIN_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';   // same constant sb-admin-sql carries
 
-// Sources that are a MIRROR or IMPORT of work the office already has in the old system.
-// A lead is only "ours to chase" if it was born here. Everything else is Xano's book.
-const MIRRORED = new Set(['import_xano', 'xano_mirror', 'hcp_poll', 'hcp_migration_import', 'platform_backfill']);
+// ALLOWLIST, not a denylist. The first cut denied the known mirror/import sources and let
+// everything else through -- which meant every WARRANTY DISPATCH qualified (ahs_email,
+// servicepower_email, email_generic_warranty: over a thousand in 30 days). Its first live
+// run texted Teddy about three of them. A denylist is wrong here by construction: the next
+// vendor source added anywhere in the codebase would silently start paging him too.
+//
+// The real question is "does a human need to CALL THIS PERSON BACK." That is a LEAD --
+// somebody who came to us off the website, an ad, or the phone. A warranty dispatch is not
+// a lead; it is assigned work that flows to scheduling and nobody calls back.
+const LEAD_SOURCES = new Set(['web_chat', 'lsa_lead', 'platform_lead', 'ann_phone', 'manual', 'quick_check', 'appliance_ai']);
+const isLeadSource = (s) => { const v = String(s || ''); return LEAD_SOURCES.has(v) || v.startsWith('ann_'); };
 
 const FIRST_TOUCH_MAX_H = 48;   // older than this is history, never a first touch
 const RENAG_H           = 4;    // still silent this long after the first alert -> nag once/day
@@ -113,11 +121,13 @@ async function run(opts) {
   const wideIso = new Date(Date.now() - (FIRST_TOUCH_MAX_H + 24 * 14) * 3600000).toISOString();
   const jobs = await q(
     `job?company_id=eq.${TN}&status=eq.new&created_at=gt.${encodeURIComponent(wideIso)}` +
-    `&select=id,source,problem,created_at,customer_id,customer:customer_id(first_name,last_name,phone,city)` +
+    `&select=id,source,problem,created_at,customer_id,warranty_company,customer:customer_id(first_name,last_name,phone,city)` +
     `&order=created_at.desc&limit=200`
   );
 
-  const live = (jobs || []).filter((j) => !MIRRORED.has(String(j.source || '')));
+  // Belt and suspenders: the source must be a real lead door AND the job must carry no
+  // warranty company. Either alone would have let the 2026-09-14 warranty flood through.
+  const live = (jobs || []).filter((j) => isLeadSource(j.source) && !String(j.warranty_company || '').trim());
   if (!live.length) return { ok: true, mode: dry ? 'dry' : 'live', candidates: 0, alerted: 0 };
 
   // Who has already been alerted / nagged. One read, not one per job.
