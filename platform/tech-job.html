@@ -209,6 +209,7 @@
   .revnote{font-size:12.5px;color:var(--muted);text-align:center;margin-top:11px;line-height:1.4}
   .note{background:var(--chip);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--muted)}
   .officecard{border-left:4px solid #d99413}
+  #onote{width:100%;min-height:76px;resize:vertical;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box}
   .officebody{white-space:pre-wrap;font-size:15px;line-height:1.5;font-weight:600;color:#8a5a06}
   :root[data-theme="dark"] .officebody,:root:not([data-theme="light"]) .officebody{color:#f5c368}
   .thr{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto;padding:2px}
@@ -385,10 +386,25 @@
       // ── 2b · 📋 From the office — Danielle's instructions for this stop. Loud on purpose:
       // this is where "Hisense already sent the part" and "bring a vent hose, they want to buy
       // one" live, and a tech who misses it makes a second trip.
-      (job.office_notes && String(job.office_notes).trim() ?
-        '<div class="card officecard"><div class="sec">📋 From the office</div>' +
-          '<div class="officebody">'+esc(job.office_notes)+'</div>' +
-        '</div>' : '') +
+      // The box below is the ONLY place a tech's note reaches the office. His "Notes for the
+      // office" on the day list writes job_tdr.notes -- a column the office board does not
+      // render anywhere -- and it only saves when he taps "Save report + finish", which also
+      // requires "what failed" and CLOSES the job. So a mid-job note ("parts are out for
+      // delivery", "nobody home, moving on") had nowhere to go. That is Jimmy's 2026-09-14
+      // "the notes are not saving". This writes job.office_notes, the field the board's
+      // 📋 NOTE chip and the drawer both read, and it APPENDS -- never replaces -- so a
+      // tech can never blank what Danielle wrote in the same box.
+      '<div class="card officecard"><div class="sec">📋 Notes with the office</div>' +
+        (job.office_notes && String(job.office_notes).trim()
+          ? '<div class="officebody">'+esc(job.office_notes)+'</div>'
+          : '<div class="note" style="margin:0">Nothing from the office on this one yet.</div>') +
+        '<div style="margin-top:11px">' +
+          '<div class="fld-lab">Tell the office</div>' +
+          '<textarea id="onote" placeholder="Parts are out for delivery, nobody home, need the office to call \u2014 anything they should see."></textarea>' +
+          '<button type="button" class="primary full" id="onoteSave" style="margin-top:8px">📤 Send to the office</button>' +
+          '<div class="note" id="onoteMsg" style="margin-top:7px">Goes straight onto the office\u2019s job tile. You don\u2019t have to finish the job to send it.</div>' +
+        '</div>' +
+      '</div>' +
 
       // ── 3 · What the customer told us (problem · availability · access · their media) ──
       ((job.problem||job.availability||job.access_notes) ?
@@ -769,6 +785,7 @@
     paintFlds();
     wireFieldSaves();   // each report field gets its own Save + confirmation
     document.getElementById('saveTdr').onclick = saveTdr;
+    var onoteBtn=document.getElementById('onoteSave'); if(onoteBtn) onoteBtn.onclick=sendOfficeNote;
 
     // Shared job details — the tech can correct the SAME customer/unit/job rows the office
     // tile and the customer record read. Input once, shared everywhere.
@@ -1109,13 +1126,17 @@
       var btn=document.getElementById('jd_save'), msg=document.getElementById('jd_msg'); btn.disabled=true; btn.textContent='Saving…'; msg.textContent='';
       var attrsNew=Object.assign({},a,{brand:gv('jd_brand')||null,model:gv('jd_model')||null});
       var ops=[];
-      if(job.customer_id) ops.push(sb.from('customer').update({first_name:gv('jd_first')||null,last_name:gv('jd_last')||null,phone:gv('jd_phone')||null,address:gv('jd_addr')||null,city:gv('jd_city')||null,state:gv('jd_state')||null}).eq('id',job.customer_id));
-      if(job.unit&&job.unit.id) ops.push(sb.from('unit').update({label:gv('jd_appl')||null,attributes:attrsNew}).eq('id',job.unit.id));
-      ops.push(sb.from('job').update({problem:gv('jd_prob')||null,availability:gv('jd_avail')||null}).eq('id',jobId));
+      if(job.customer_id) ops.push(sb.from('customer').update({first_name:gv('jd_first')||null,last_name:gv('jd_last')||null,phone:gv('jd_phone')||null,address:gv('jd_addr')||null,city:gv('jd_city')||null,state:gv('jd_state')||null}).eq('id',job.customer_id).select('id'));
+      if(job.unit&&job.unit.id) ops.push(sb.from('unit').update({label:gv('jd_appl')||null,attributes:attrsNew}).eq('id',job.unit.id).select('id'));
+      ops.push(sb.from('job').update({problem:gv('jd_prob')||null,availability:gv('jd_avail')||null}).eq('id',jobId).select('id'));
       Promise.all(ops).then(function(rr){
         var err=rr.filter(function(x){return x&&x.error;})[0];
         btn.disabled=false; btn.textContent='Save details';
-        if(err){ msg.textContent=err.error.message; return; }
+        if(err){ msg.style.color=''; msg.textContent=err.error.message; return; }
+        // Zero rows + no error = RLS refused it. Without this check a blocked write prints
+        // "Saved" and the tech walks away believing the address he corrected went through.
+        var blocked=rr.filter(function(x){ return !x || !Array.isArray(x.data) || !x.data.length; }).length;
+        if(blocked){ msg.style.color=''; msg.textContent='That did NOT save \u2014 your typing is still here. Tap Save again, and tell the office.'; return; }
         msg.style.color='var(--completed)'; msg.textContent='Saved ✓ — office + customer updated'; loadJob();
       });
     };
@@ -2062,6 +2083,44 @@
     });
     // feed the floating "📋 Report N%" pill (ant-nav.js)
     if(total){ window.antProg={ icon:'📋', label:'Report', pct:Math.round(filled/total*100), href:'#reportCard' }; if(window.antProgUpdate) window.antProgUpdate(); }
+  }
+
+  // 📤 TECH -> OFFICE NOTE. Appends to job.office_notes, the one field the office
+  // board actually renders (the 📋 NOTE chip + the drawer textarea both read it).
+  //   • APPEND, never replace — Danielle types in this same column, and a tech must never
+  //     be able to blank her note. We re-read it immediately before writing so a note she
+  //     saved thirty seconds ago survives.
+  //   • .select() + a row-came-back check — an RLS-blocked update returns ZERO ROWS and NO
+  //     error, so "no error" must never be reported as saved (the documented trap).
+  //   • His typing stays on screen until the server confirms it landed.
+  function sendOfficeNote(){
+    var ta=document.getElementById('onote'), btn=document.getElementById('onoteSave'), msg=document.getElementById('onoteMsg');
+    if(!ta||!btn) return;
+    var text=(ta.value||'').trim();
+    if(!text){ ta.focus(); msg.textContent='Type the note first, then tap Send.'; msg.style.color='var(--danger, #b91c1c)'; return; }
+    var who=(myTech&&myTech.name)||me.name||'Tech';
+    var when=new Date().toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    var line='— '+who+' · '+when+'\n'+text;
+    btn.disabled=true; btn.textContent='Sending…'; msg.style.color=''; msg.textContent='Sending…';
+    // Re-read first so we append to whatever the office has NOW, not to our stale copy.
+    sb.from('job').select('office_notes').eq('id',jobId).limit(1).then(function(cur){
+      var live=(cur&&cur.data&&cur.data[0]&&cur.data[0].office_notes)||'';
+      var next=(String(live).trim()? String(live).replace(/\s+$/,'')+'\n\n':'')+line;
+      sb.from('job').update({office_notes:next}).eq('id',jobId).select('id').then(function(r){
+        btn.disabled=false; btn.textContent='📤 Send to the office';
+        if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){
+          msg.style.color='var(--danger, #b91c1c)';
+          msg.textContent='That did NOT send — your note is still here. Tap Send again, and tell the office if it keeps failing.';
+          return;
+        }
+        job.office_notes=next; ta.value='';
+        var body=app.querySelector('.officecard .officebody');
+        if(body) body.textContent=next;
+        else { var placeholder=app.querySelector('.officecard .note'); if(placeholder){ placeholder.className='officebody'; placeholder.textContent=next; } }
+        msg.style.color='var(--completed, #166534)';
+        msg.textContent='✅ Sent — it\u2019s on the office\u2019s job tile now.';
+      });
+    });
   }
 
   function saveTdr() {

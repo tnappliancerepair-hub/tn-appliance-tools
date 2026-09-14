@@ -491,6 +491,36 @@
   // 🔧 Office — I need this part. Flags the job for the office in one tap (mid-job or on the
   // report): sets status → awaiting parts and marks the part "please order" so it lands on
   // the office board + dispatch tray. Partial upsert — never clobbers other TDR fields.
+  // 📤 TECH -> OFFICE NOTE, without finishing the job. Writes job.office_notes --
+  // the field the office board's 📋 NOTE chip and the drawer both read. The textarea above
+  // it feeds job_tdr.notes (the claim record) and only lands on "Save report + finish",
+  // which also demands "what failed", so a mid-job note had no way out. APPENDS after a
+  // fresh re-read so it can never blank what the office wrote, and verifies a row came
+  // back -- an RLS-blocked update returns zero rows and NO error.
+  function sendOfficeNote(id, btn){
+    var ta=document.getElementById('tno'+id);
+    var text=ta?(ta.value||'').trim():'';
+    if(!text){ if(ta) ta.focus(); saveMsg(id,'Type the note first, then tap Send.','err'); return; }
+    var who=myTech?myTech.name:(me.name||'Tech');
+    var when=new Date().toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    var line='\u2014 '+who+' \u00b7 '+when+'\n'+text;
+    if(btn){ btn.disabled=true; btn.textContent='Sending\u2026'; }
+    saveMsg(id,'Sending to the office\u2026','info');
+    var reset=function(){ if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 Send this note to the office now'; } };
+    sb.from('job').select('office_notes').eq('id',id).limit(1).then(function(cur){
+      var live=(cur&&cur.data&&cur.data[0]&&cur.data[0].office_notes)||'';
+      var next=(String(live).trim()? String(live).replace(/\s+$/,'')+'\n\n':'')+line;
+      withRetry(function(){ return sb.from('job').update({office_notes:next}).eq('id',id).select('id'); }).then(function(r){
+        reset();
+        if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){
+          saveMsg(id,"That did NOT send \u2014 your note is still on this phone. Tap Send again.",'err'); return;
+        }
+        var j=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; if(j) j.office_notes=next;
+        saveMsg(id,'\u2705 Sent to the office \u2014 it\u2019s on their job tile now.','ok');
+      });
+    });
+  }
+
   function officeNeedPart(id){
     var v = function(pre){ var e=document.getElementById(pre+id); return e?e.value.trim():''; };
     var guess = v('tp') || v('tc') || '';
@@ -845,7 +875,12 @@
       '<select id="tps'+j.id+'"><option value="">Part status…</option>'+pso('used','Installed it')+pso('truck','Off my truck stock')+pso('please_order','Office needs to order it')+pso('return','Old / unused — send back')+pso('missing','Not here / discrepancy')+'</select>' +
       '<input id="tr'+j.id+'" placeholder="Root cause (short)" value="'+esc(tdr?tdr.root_cause||'':'')+'">' +
       '<input id="th'+j.id+'" type="number" inputmode="decimal" step="0.25" min="0" placeholder="Labor hours" value="'+esc(tdr&&tdr.labor_hours!=null?tdr.labor_hours:'')+'">' +
-      '<textarea id="tno'+j.id+'" placeholder="Notes for the office">'+esc(tdr?tdr.notes||'':'')+'</textarea>' +
+      // Relabelled 2026-09-14: this box writes job_tdr.notes -- the CLAIM record -- and only
+      // on "Save report + finish". The office board renders job.office_notes, not this, so
+      // "Notes for the office" was promising a delivery it never made (Jimmy: "the notes are
+      // not saving"). The button below sends it to the office NOW, without finishing the job.
+      '<textarea id="tno'+j.id+'" placeholder="Notes for the report \u2014 goes on the claim">'+esc(tdr?tdr.notes||'':'')+'</textarea>' +
+      '<button type="button" class="needpart" data-officenote="'+j.id+'">📤 Send this note to the office now</button>' +
       '<div class="outc">' +
         '<label><input type="radio" name="o'+j.id+'" value="fixed"'+(!tdr||tdr.outcome==='fixed'?' checked':'')+'> Fixed today</label>' +
         '<label><input type="radio" name="o'+j.id+'" value="return_needed"'+(tdr&&tdr.outcome==='return_needed'?' checked':'')+'> Needs a return / part</label>' +
@@ -1164,6 +1199,7 @@
     b.querySelectorAll('button[data-find]').forEach(function(el){ el.onclick=function(){ findPart(el.getAttribute('data-find-id'), el.getAttribute('data-find')); }; });
     b.querySelectorAll('button[data-supcfg]').forEach(function(el){ el.onclick=function(){ AntSuppliers.chooser(companySettings, function(){ refreshSuppliers(el.getAttribute('data-supcfg')); }); }; });
     b.querySelectorAll('button[data-needpart]').forEach(function(el){ el.onclick=function(){ officeNeedPart(el.getAttribute('data-needpart')); }; });
+    b.querySelectorAll('button[data-officenote]').forEach(function(el){ el.onclick=function(){ sendOfficeNote(el.getAttribute('data-officenote'), el); }; });
     b.querySelectorAll('button[data-release]').forEach(function(el){ el.onclick=function(){ confirmRelease(el.getAttribute('data-release')); }; });
     b.querySelectorAll('button[data-waivertext]').forEach(function(el){ el.onclick=function(){ textWaiver(el.getAttribute('data-waivertext'), el); }; });
     b.querySelectorAll('button[data-signhere]').forEach(function(el){ el.onclick=function(){ openSignPad(el.getAttribute('data-signhere')); }; });
