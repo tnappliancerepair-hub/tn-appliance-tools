@@ -43,6 +43,27 @@ This file has blamed it on "the brand name Exchange + old citations (Yelp/BBB)" 
 ever locating the rows. They're real, they're live, and they all carry the **OLD LA VERGNE RETAIL
 STORE**: *"TN Appliance Exchange Inc is a refurbished appliance store that not only sells appliances
 but will give you trade in value on your old machines."* That sentence is the ghost.
+
+**📋 SCOREBOARD as of 2026-09-14 (Teddy: "Yelp has been fixed yellow pages and bbb as well") — each row
+read LIVE, not taken on report. He did real work — the Yellow Pages category edit genuinely landed — but
+**none of the three is fully done yet**, and the sweep turned up two more listings that were never on the
+list at all.**
+
+| citation | what a live read shows | verdict |
+|---|---|---|
+| **BBB** `0573-37137914` | name/address/category all still stale, no pending banner | ⏳ submitted, in BBB review — **normal**, re-check in 3-5 business days |
+| **Yellow Pages — La Vergne** | used-appliance category + refurbished blurb **GONE** ✅ · address still La Vergne ❌ | 🟡 **half done** — the wrong half is still open |
+| **Yellow Pages — Dickson** *(new find)* | "…**Inc**", Dickson TN, "Used Major Appliances", the verbatim ghost sentence, our phone + site | 🔴 **untouched — close it, don't edit it** |
+| **Yelp** ×2 | 403s bots; index still shows both La Vergne listings | ⚠️ **unverifiable from here** — needs a browser; and the `-2` duplicate needs a *merge*, not an edit |
+| **Superpages** | still ghost; did NOT inherit the YP fix | 🔴 separate claim |
+| **Alignable** | still La Vergne / used-appliance | 🔴 open |
+| GBP · repairhit · Manta | correct | ✅ |
+
+⚠️ **STANDING: do not mark a citation "fixed" off a report or off a search-engine result.** A search index
+lags a real edit by days, and a submitted-but-unverified change looks identical to one nobody made. Read
+the live listing (or have Teddy open it in a browser where a bot gets 403'd), and say **"submitted"** vs
+**"live"** out loud — they are different states and only one of them moves rank.
+
 - **BBB** — `bbb.org/us/tn/la-vergne/profile/**used-appliances**/tn-appliance-exchange-0573-37137914`.
   Category **"Used Appliances"** (it's in the URL slug), address **5403 Murfreesboro Rd, La Vergne
   37086** (stale — real is 3137 Skinner Dr, Antioch 37013), name missing "LLC", profile opened
@@ -68,8 +89,36 @@ but will give you trade in value on your old machines."* That sentence is the gh
   `/biz/tn-appliance-exchange-la-vergne-2` (10 photos). **A duplicate listing actively suppresses local
   rank** — same class as the Nextdoor duplicate. Merge/claim both. (Yelp 403s bots; verified via search
   results only — eyeball them in a browser.)
-- Also carrying La Vergne / used-appliance: **Superpages**, **Yellow Pages** (Teddy's Thursday item),
-  **Alignable**. `repairhit.com` is already correct (Appliance Repair, Antioch, Skinner Dr).
+  - **⏳ STATUS 2026-09-14 (Teddy: "Yelp has been fixed") — UNVERIFIABLE FROM HERE, NOT CONFIRMED.**
+    Direct fetch of `/biz/tn-appliance-exchange-la-vergne` returns **HTTP 403** (Yelp blocks bots — this
+    is permanent, not a today problem), and the search index still lists **both** La Vergne listings with
+    the old address. ⚠️ **A search index lags a real edit by days, so "still shows old" is NOT evidence
+    the fix failed** — but it is also not evidence it landed. **⏭️ The only honest check is Teddy opening
+    both `/biz/` URLs in a normal browser** and confirming (a) the address reads 3137 Skinner Dr, Antioch,
+    (b) the category is Appliances & Repair with no used/refurbished wording, and (c) **the `-2` duplicate
+    is merged or closed** — the duplicate is the part that actually suppresses rank, and a listing edit
+    does NOT merge a duplicate. Merging is a separate Yelp support request.
+- **📒 YELLOW PAGES — read live 2026-09-14 (Teddy: "yellow pages... fixed"). HALF LANDED, and the sweep
+  found a THIRD listing nobody had catalogued.**
+  - **`/la-vergne-tn/mip/tn-appliance-exchange-481042114` — ✅ CATEGORY FIXED / ❌ ADDRESS STILL WRONG.**
+    Categories now read **"Major Appliances; Major Appliance Refinishing & Repair"** — the *Used Major
+    Appliances* category is **GONE**, and the "refurbished appliance store / trade-in value" description
+    is **GONE** too. Real, verified progress. **But the address still reads `5403 Murfreesboro Rd, La
+    Vergne TN 37086`** and the name still omits "LLC". Phone + website are correct.
+    ⚠️ **Per the NAP rule at the bottom of this block, the half that's still broken is the half that costs
+    the most** — killing the label without fixing the address leaves the map-pack suppressor in place.
+  - **🔴 `/dickson-tn/mip/tn-appliance-exchange-inc-516690444` — UNTOUCHED, and it is the WORST of the
+    three.** Name **"TN Appliance Exchange Inc"** (Inc, not even LLC) · address **1432 Highway 70 E,
+    Dickson TN 37055** (a *third* city, one we don't run a shop in) · categories include **"Used Major
+    Appliances"** · and its description is the **verbatim ghost sentence this file has been hunting since
+    June**: *"a refurbished appliance store… buys, sells, and trades… trade in value on your old
+    machines."* It carries **OUR phone (615) 280-2949 and OUR website**, so it is fully attributed to us.
+    **⏭️ This one should be CLOSED/removed, not edited** — there is no Dickson location to correct it to.
+  - ⚠️ **Superpages is the same Thryv network as Yellow Pages and still shows the ghost** (Clarksville /
+    Nashville / Dickson "used appliance stores" category pages). It did NOT inherit the La Vergne category
+    fix, so **treat Superpages as its own separate claim**, not as something YP fixes for you.
+  - **Alignable** still carries La Vergne / used-appliance. `repairhit.com` is already correct (Appliance
+    Repair, Antioch, Skinner Dr), and **Manta already publishes the correct Antioch/Skinner Dr address**.
 - **✅ GBP itself is CLEAN** (re-confirmed 2026-08-25: primary "Appliance repair service", no used-store
   category). The ghost is entirely off-GBP.
 - **⚠️ THE REAL DAMAGE IS NAP, NOT JUST THE CATEGORY.** A high-authority citation publishing a DIFFERENT
