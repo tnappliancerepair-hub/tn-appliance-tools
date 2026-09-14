@@ -20,7 +20,12 @@ const TEDDY = '6154855795';
 // looks. That is cash/warranty intake by definition, and it cannot flood: it is silent
 // unless the old system is down. The platform_ prefix also routes it DIRECT to Telnyx,
 // which matters here because Xano is the thing that just failed.
-const CASH_INTAKE_TAGS = new Set(['quick_check', 'quick_check_lead', 'ann_new_job', 'cash_intake', 'cash_lead', 'self_pay_lead', 'platform_intake_rescue']);
+// 'platform_cash_lead' is the platform-side lead watcher (platform-lead-watch): a lead
+// born on the board that NOBODY has replied to. Cash/warranty intake by definition, owner
+// only, capped at 5 alerts a run, and gated to 8a-8p CT -- it cannot flood. It needed its
+// own tag because the Xano-side cash-ready-notify has been running every 20 minutes since
+// 2026-08-28 texting NOBODY: its tags were never added here. That is the trap this avoids.
+const CASH_INTAKE_TAGS = new Set(['quick_check', 'quick_check_lead', 'ann_new_job', 'cash_intake', 'cash_lead', 'self_pay_lead', 'platform_intake_rescue', 'platform_cash_lead']);
 const WARRANTY_INTAKE_TAGS = new Set(['warranty_quick_check', 'warranty_intake', 'warranty_new_job', 'warranty_lead']);
 // AssistAnt PLATFORM (SaaS) alerts Teddy asked to receive: a new shop starts a free trial,
 // and a prospect messages us from the site. Money-making signals, so they reach his cell.

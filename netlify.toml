@@ -494,6 +494,16 @@
 [functions."platform-stop-link-cron"]
   schedule = "53 * * * *"
 
+# Lead watch — a lead landed on the platform board and NOBODY has replied. Measured
+# 2026-09-14: 9 of the 10 cash web leads that did not convert last month had ZERO
+# outbound messages; four sat eleven days; all five that got canceled were never
+# contacted once. Nothing on the platform side told a human a lead had arrived.
+# Alerts TEDDY ONLY (office-gate hard-blocks the dispatchers), tag platform_cash_lead,
+# first touch + one re-nag/day while it stays silent, capped 5/run, 8a-8p CT.
+# Never texts the customer. Kill: vault PLATFORM_LEAD_WATCH=false.
+[functions."platform-lead-watch-cron"]
+  schedule = "2-59/5 * * * *"
+
 [functions."nsa-parts-watch-cron"]
   schedule = "37 * * * *"
 
