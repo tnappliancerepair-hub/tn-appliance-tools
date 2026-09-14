@@ -79,6 +79,62 @@ any of them in the meantime (a re-submit is how a duplicate gets born). Re-verif
   same as the Yelp `-2`. **This is the highest-value single item on the whole citation list** (it is the
   only one leaking the owner's private number).
 
+### 🛰️ UPSTREAM DATA AGGREGATORS — read LIVE 2026-09-14 (Teddy: "data axle, four square and new star localized, let's finish these off")
+These are the three feeds that syndicate to hundreds of downstream directories, so a fix here cascades
+instead of being fought one listing at a time. **Verdict: 2 are worth doing today, 1 is a paid judgment
+call — and Data Axle turned out to be almost right already, which is the good news.**
+
+| aggregator | live state today | what it costs | verdict |
+|---|---|---|---|
+| **Data Axle** | **EXISTS + UNCLAIMED.** `3137 Skinner Dr, Antioch TN 37013-3965` ✅ · `(615) 280-2949` ✅ · name reads **"TN Appliance Exchange Inc"** ❌ | **FREE** | 🥇 **do it first** — claim it + fix Inc→LLC |
+| **Foursquare** | no public listing found (their search needs a login, so unconfirmed — the claim flow searches first and handles claim-or-create either way) | **FREE** (an optional $20 one-time "instant management" upsell exists — skip it, the free path just takes 1-3 days) | 🥈 **do it** — feeds Apple Maps, Uber, Samsung, Snapchat |
+| **Neustar / Localeze** (now **TransUnion Digital Business Profile**) | 403s bots, can't read from here | **~$297/yr, NOT free** | 🟡 **Teddy's call** — real money, see below |
+
+- **✅ THE GOOD NEWS: Data Axle is NOT the source of the La Vergne ghost.** I half-expected to find the
+  stale `5403 Murfreesboro Rd, La Vergne` address sitting in an upstream aggregator quietly re-poisoning
+  every directory we keep fixing. **It isn't there** — Data Axle already carries the correct Antioch
+  address and the correct phone. So the La Vergne ghost is a *downstream* problem (the old Thryv/Yellow
+  Pages record + Yelp), not an upstream one. That means the fixes already in flight should actually stick.
+- **⚠️ The one thing Data Axle has wrong is the entity suffix: "Inc" instead of "LLC"** — the exact same
+  error as the untouched Yellow Pages Dickson listing. An upstream aggregator publishing the wrong legal
+  name is how "Inc" keeps reappearing on directories nobody remembers submitting to. Claiming it both
+  fixes the name AND locks the record so nothing can silently rewrite it later.
+- **The live URL is the confusing part — `expressupdate.com` is NOT dead, it just moved.**
+  `expressupdate.com/search` **301s to `local-listings.data-axle.com/search`** (verified live, HTTP 200).
+  Separately `dataaxleusa.com` now 301s to `salesgenie.com` (the Jan 2026 rebrand), which still points
+  its own "update my listing" link back at expressupdate. Either door lands in the same place. Search by
+  **phone number** — searching the business *name* returned nothing, searching `6152802949` found it.
+- **💵 ON LOCALEZE, THE HONEST READ: it is the only one of the three that costs money, and it is the
+  weakest buy of the three.** $297/yr buys syndication to voice assistants + ~80 platforms — but GBP
+  already feeds the big ones, Data Axle + Foursquare cover most of the rest for free, and TN's actual
+  paid-lead channel (LSA at ~$17/lead) is a far better place for that $297. **Recommend: do the two free
+  ones, watch the map pack for 3-4 weeks, and only buy Localeze if rank is still stuck after the La Vergne
+  ghost is fully dead.** Not a no — a "not yet, and not while a free fix is still landing."
+
+**📋 CANONICAL NAP — paste this verbatim into every aggregator (any drift makes consistency WORSE, not better):**
+```
+TN Appliance Exchange LLC
+3137 Skinner Dr, Antioch, TN 37013
+615-280-2949
+https://tnapplianceexchange.net
+Category: Appliance repair service   (NEVER appliance store / used / refurbished)
+NAICS 811412 (primary) + 561790 (dryer vent cleaning)
+Established 2012
+```
+- **⚠️ "LLC" is load-bearing** — it is the single field Data Axle has wrong, and the suffix is what makes
+  a directory treat two records as the same business instead of two competing ones.
+
+**⏭️ THE TWO FREE ONES, turnkey:**
+1. **Data Axle** → `local-listings.data-axle.com/search` → search **`6152802949`** → the record comes up
+   as *TN Appliance Exchange Inc* → tap **Claim Now** → fix the name to **LLC** → confirm category is
+   repair, not store. Free, no card.
+2. **Foursquare** → `foursquare.com/venue/claim` → search the business → claim it if it appears, create it
+   if it doesn't → phone-call verification (they call 615-280-2949) → **1-3 business days**. Free.
+   **Decline the $20 "instant" upsell** — it only skips the wait.
+
+- 🔎 **One more long-tail read while in there: `citylifestyle.com` is CLEAN** (3137 Skinner, Antioch TN,
+  615-280-2949 — verified live). No action. Recorded so nobody re-audits it.
+
 ⚠️ **STANDING: do not mark a citation "fixed" off a report or off a search-engine result.** A search index
 lags a real edit by days, and a submitted-but-unverified change looks identical to one nobody made. Read
 the live listing (or have Teddy open it in a browser where a bot gets 403'd), and say **"submitted"** vs
@@ -90,6 +146,12 @@ the live listing (or have Teddy open it in a browser where a bot gets 403'd), an
   2016-04-04, **A+**, not accredited, 1 complaint closed in 3 yrs, 0 reviews, BBB of Middle Tennessee.
   Phone + website ARE correct. **⏭️ Don't wait on the callback — `bbb.org/get-listed` → search → claim
   → fix category (BBB allows up to 3; Appliance Repair primary, drop Used Appliances) + address.**
+  - **⏳ RE-CHECKED LATER 2026-09-14 (Teddy said "Bbb updated" a second time): STILL UNVERIFIABLE — BBB
+    now 403s bots.** It was readable this morning and is not now; that is BBB's bot protection kicking
+    in, NOT evidence about the listing either way. **So BBB stays "submitted," never "live," until a
+    human opens it in a browser.** Same shape as Yelp. ⚠️ And a search-engine result does NOT count
+    (standing rule below). **⏭️ Teddy: open the profile URL on your phone and read the name/address/
+    category out loud — that is the only check that settles it.**
   - **⏳ STATUS 2026-09-14 (Teddy: "Bbb updated") — SUBMITTED, NOT LIVE YET.** Re-read the profile the
     same evening, cache-busted: still **name "TN Appliance Exchange" (no LLC) · 5403 Murfreesboro Rd,
     La Vergne 37086 · category "Used Appliances"**, no "update pending" banner shown. That is the
