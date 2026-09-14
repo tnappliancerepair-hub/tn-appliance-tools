@@ -159,6 +159,36 @@ cheap test, it's a token presence that teaches nothing (the same unfalsifiable-s
 - Creative (appliance-first headline + plain-ASCII copy + a real photo of Teddy) is saved in Nextdoor
   and can be published any time. ⚠️ **Nextdoor rejects `★ · —` and emoji** — plain ASCII only.
 
+### 🔄 THE RELOAD TAX — 11 staff pages now offer "Update now" (it cost field time TWICE today)
+Jimmy reported the signature pad broken. It wasn't — the fix was live and **proven** (headless
+mobile driver: shipped code 1110x540 bitmap / 12,179 ink pixels, pre-fix control 1x1 / 0 pixels).
+He was running **yesterday's JavaScript in a backgrounded tab.** Same thing happened on the
+waiver text earlier the same day. The fix is deployed, the tech is stranded, and nobody involved
+knows to close and reopen the page — so the fix reads as "still broken" and burns a field hour.
+- **`tech-autoupdate.js` existed and NOT ONE platform page included it** (checked: 0 of 43). It
+  was written for the Xano root pages and never carried across at cutover — the documented
+  filename trap (`tech.html` exists in BOTH systems) hiding in plain sight.
+- **Wired into the 11 pages a human SITS at**: tech, tech-job, office-board, messages, dispatch,
+  needs-scheduled, ready, needs-reply, stale-scheduled, returns, owner.
+- **⚠️ DELIBERATELY NOT on the 12 customer-facing pages** (portal/intake/book/invoice/job-view/
+  verify/...). A green "🔄 New version ready" bar in front of a CUSTOMER reads as a broken
+  system, not a courtesy. Also skipped the one-shot operator pages (import/onboard/switch/ops/
+  packs/...) — you open them, use them, close them; there is no stale tab to strand.
+- **It never reloads on its own.** The tech taps Update when ready, so a half-typed report is
+  never lost. Offline/weak signal = silent no-op, never a nag.
+- **⚠️ `/*.html` in netlify.toml DOES cover `/platform/*.html`** — verified live, real ETags in
+  the `W/"<hash>-ssl-df"` shape. No service worker needed: the watcher HEADs its own page
+  cache-busted and reads the ETag, and `doUpdate`'s SW-teardown degrades cleanly to a plain
+  reload when there is no SW to tear down.
+- **PROVEN, not reasoned — 4/4 headless:** an encoding flip (`W/"x-ssl-df"` vs `"x-ssl"`) stays
+  SILENT and a CDN-node suffix change stays SILENT (that pair is Danielle's 2026-09-10 "keeps
+  saying update" all-day nag), a real content-hash change SHOWS the bar, and tapping Update
+  **preserves `?job=`, the auth token AND the `#hash`** while cache-busting. That last one is
+  the one that could have hurt: a reload that dropped the job id or token would strand a tech
+  mid-job, which is worse than the staleness it fixes.
+- ⚠️ **STANDING: when a tech says a just-shipped fix "still doesn't work," prove the fix FIRST
+  and suspect the cache SECOND — but the durable answer is never "tell them to reopen it."**
+
 ### 📜 `platform/dispatch.html` — the booking sheet couldn't be scrolled
 Danielle: *"This also don't scroll up and down to see the info."* The `.sheet` had **no `max-height` and
 no `overflow`** — on a phone the tech/day/window controls and the Book button fell off the bottom of the
