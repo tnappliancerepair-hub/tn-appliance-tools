@@ -82,6 +82,38 @@ fix, no new reads — `tech.html` already built `addr` and used it *solely* to c
 - ⏭️ **OPEN: a magic link is a one-time door.** Lee still doesn't know his password — next logout he's
   stuck again. Re-read it to him off `/packs` (`platform-provision?action=packs&secret=<admin>&slug=tn-appliance-exchange-llc`,
   **`&slug=` is REQUIRED**) and confirm `lee.tnae@assistant247.net` with him character by character.
+  **✅ Pulled + LIVE-TESTED 2026-09-14** — his pack password authenticates against `/auth/v1/token`
+  (200, token issued), so it is safe to read to him as-is. Nothing to reset. **The remaining step is
+  purely Teddy reading it to Lee** — and read the EMAIL out too, because `invalid_credentials` means
+  a wrong address and a wrong password identically, so a typo'd email is indistinguishable from a
+  typo'd password in the log.
+
+### 🔴 CORRECTION TO MY OWN ENTRY BELOW — the "unfiled-claim money" is **15 jobs, not 76**
+The 2026-09-13 entry says *"112 `in_progress`, of which 76 carry a filed report … the work happened,
+nobody billed, nobody got paid."* **That conflated two different things and overstated the money by 5x.**
+Re-measured today by splitting that pile on the tech's OWN `job_tdr.outcome`:
+
+| what the TECH said | n | what it actually means |
+|---|---|---|
+| **`return_needed`** | **67** | ⚠️ **NOT an unfiled claim — the work is NOT done.** Tech diagnosed, needs a second trip. Real open work (oldest 2026-06-30) that nobody ever scheduled the return for. A different, arguably worse problem: the customer is still waiting. |
+| **`fixed`** | 13 | ✅ the actual money — tech says fixed, job never closed |
+| **`not_fixable`** | 2 | ✅ done + dead, never closed out |
+
+- **So the finished-but-never-closed list is 15 rows across 14 customers** (Constance Madroy is one stop,
+  two appliances — correct, not a dup). **Every one is warranty** (AHS 7 · SquareTrade 4 · Frontdoor 2 ·
+  NSA 1 · +1 AHS not_fixable), so each is a claim that was never filed. Oldest **75 days** (Root, 7/01).
+- **⚠️ RULED OUT THE MIRROR'S BLIND SPOT FIRST, and that is the only reason this number is trustworthy.**
+  The mirror walks Xano's ACTIVE set, so a job completed in Xano **drops out of the walk and freezes here
+  as `in_progress` forever** — which would make a stale ghost look identical to unbilled work. Tested it:
+  **all 15 were touched by the mirror inside 30 minutes AND Xano's own `xano_status` reads `in_progress`
+  on all 15.** Both systems agree the job is open while the tech's report says done. Not ghosts.
+- **⚠️ STANDING: "has a filed report" is NOT "the work finished."** Read `job_tdr.outcome` before calling
+  a report-bearing job billable — and on this board a report can also just be Teddy's PRE-diagnosis
+  (108 of the overdue `scheduled` jobs carry one). Counting reports instead of outcomes is what produced
+  the 76.
+- **⏭️ TWO separate human passes, not one:** the **15** are a close-out + file-the-claim pass (small,
+  recent, high-$/row). The **67 `return_needed`** are a scheduling pass — and they are sitting in
+  `in_progress` when `awaiting_parts` is the status that would have surfaced them in the parts flow.
 
 ### ✅ MEASURED CLEAN — recorded so nobody re-audits it
 - **The crew IS on the platform.** Real sign-ins today from La Vergne, Nashville ×2 and Lee's line. (⚠️ six
