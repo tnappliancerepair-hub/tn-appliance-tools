@@ -77,7 +77,7 @@
   // for every conversion-intent click on the site, so GA4 and Microsoft receive the
   // identical event off the identical trigger. A separate tag with its own listeners
   // is exactly how two analytics numbers drift apart and nobody can tell which is lying.
-  var UET_TAG_ID = '';
+  var UET_TAG_ID = '187274252';
 
   (function loadUet() {
     if (!UET_TAG_ID) return;
