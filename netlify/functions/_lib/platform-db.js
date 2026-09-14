@@ -193,4 +193,81 @@ async function intakeStateByXanoId(xanoIds) {
   return out;
 }
 
-module.exports = { createLeadJob, intakeStateByXanoId };
+// ── PAYMENTS ON THE PLATFORM BOARD ──────────────────────────────────────────
+// Danielle, 2026-09-14: "Cash payments are not sending me a email on it. Jimmy collected
+// 55 cash and wouldn't know if he didn't tell me." He HAD recorded it. The crew cut over
+// to the platform on 2026-09-13, and every platform payment surface -- the tech's
+// "Mark collected" (platform/tech-job.html markCollected) and all three office-board
+// write sites -- lands ONLY in Supabase `invoice` (status/paid_method/paid_at). The
+// payment email reads Xano's event_log. Two different databases, so no platform payment
+// could ever reach the office. This is the read that closes that gap.
+//
+// ⚠️ THIS DELIBERATELY DOES NOT USE rest().get(). That helper returns [] on ANY non-ok
+// response, so one wrong embed name would report "no payments" forever and look perfectly
+// healthy -- the exact dead-signal failure this whole fix exists to kill. On money, a read
+// that FAILED must never be indistinguishable from a day with no money. It throws instead.
+//
+//   recentPaidInvoices({ companyId, sinceMs, limit }) -> [{ id, amount_cents, method, ... }]
+async function recentPaidInvoices(opts) {
+  const o = opts || {};
+  const companyId = String(o.companyId || '').trim();
+  if (!companyId) throw new Error('recentPaidInvoices: companyId is required');
+  const sinceIso = new Date(Number(o.sinceMs) || (Date.now() - 3 * 86400000)).toISOString();
+  const limit = Math.max(1, Math.min(200, Number(o.limit) || 100));
+
+  const { url, key } = await cfg();
+  // Unconfigured is NOT the same as empty -- say which, so the caller can tell the office
+  // "I couldn't look" instead of silently implying "nothing was collected".
+  if (!url || !key) return { ok: false, error: 'platform_not_configured', rows: [] };
+
+  // Scoped to ONE company on purpose: the demo tenant carries its own paid invoices, and
+  // an unscoped read would report Joey's Appliance Repair demo money as TN's real money.
+  const sel = 'id,job_id,total_cents,collected_cents,paid_method,paid_at,status,'
+    + 'job:job_id(id,customer:customer_id(first_name,last_name),technician:technician_id(name),unit:unit_id(label))';
+  const path = 'invoice'
+    + '?company_id=eq.' + encodeURIComponent(companyId)
+    + '&status=eq.paid'
+    + '&paid_at=not.is.null'
+    + '&paid_at=gte.' + encodeURIComponent(sinceIso)
+    + '&select=' + encodeURIComponent(sel)
+    + '&order=paid_at.desc&limit=' + limit;
+
+  let r;
+  try {
+    r = await fetch(url + '/rest/v1/' + path, {
+      headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (e) { return { ok: false, error: 'platform_unreachable: ' + String(e.message || e), rows: [] }; }
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    return { ok: false, error: 'platform_read_' + r.status + (t ? ': ' + t.slice(0, 200) : ''), rows: [] };
+  }
+  const raw = await r.json().catch(() => null);
+  if (!Array.isArray(raw)) return { ok: false, error: 'platform_bad_payload', rows: [] };
+
+  const rows = raw.map((v) => {
+    const j = v.job || {};
+    const c = j.customer || {};
+    const name = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
+    // The tech's "Mark collected" sets status/paid_method/paid_at but NOT collected_cents,
+    // so a cash collect reads collected_cents = 0. The office's warranty-EFT split DOES set
+    // it, and there it is the real remitted amount (usually less than billed). So: trust
+    // collected_cents when it carries a value, else fall back to the invoice total.
+    const collected = Number(v.collected_cents) || 0;
+    const total = Number(v.total_cents) || 0;
+    return {
+      id: v.id,
+      job_id: v.job_id || (j.id || null),
+      amount_cents: collected > 0 ? collected : total,
+      method: String(v.paid_method || '').trim(),
+      customer: name,
+      unit: String((j.unit && j.unit.label) || '').trim(),
+      tech: String((j.technician && j.technician.name) || '').trim(),
+      paid_at_ms: v.paid_at ? Date.parse(v.paid_at) : 0,
+    };
+  });
+  return { ok: true, rows };
+}
+
+module.exports = { createLeadJob, intakeStateByXanoId, recentPaidInvoices };

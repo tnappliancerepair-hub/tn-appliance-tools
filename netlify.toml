@@ -691,7 +691,7 @@
 # and emails a receipt when a NEW payment lands (dedup'd by event id). Every 30 min.
 # DORMANT until email is turned on (EMAIL_ENABLED=true + SES verify the recipient) —
 # dry-runs safely; ?dry=1 lists recent payments to answer "did that payment land?".
-[functions."payment-email-watch"]
+[functions."payment-email-watch-cron"]
   schedule = "28-59/30 * * * *"
 
 # Teddy Tool submission watch — Teddy: "Teddy Tools submitted should also be sent to

@@ -248,17 +248,59 @@ sentence was FALSE and is what kept anyone from looking.
   NOWHERE. (`payment_received` isn't allowlisted either, so even the Stripe half never reached her.)
   CC not TO, so the dedup ledger + reply-to stay on the owner.
 
-### 🔴 THE WORSE FINDING UNDERNEATH — nobody is recording cash AT ALL
-**`payment_recorded_offline` = 0 rows in 7 days.** Jimmy's $55 is **not in the system anywhere** — swept
-`addon_fulfilled` / `addon_requested` / `office_invoice_logged` / `tech_tip_paid`, no match. He collected
-it and told her; that verbal hand-off is the ONLY record. **So no notification could ever have fired —
-there was no money entered to notify about.**
-- **It is not broken plumbing:** `record_payment_received` is deployed + healthy (POST with no body →
-  `400 Missing param: job_id`, not 404), and the button is live on `tech-job.html` ("💵 Cash/check" in
-  the Get-paid card). The gap is **adoption** — same shape as techs not pressing Complete.
-- ⏭️ **TEDDY'S CALL (a coaching item, not a code one):** tell the crew that cash gets tapped into the
-  Get-paid card at the door. Every tap now emails Teddy **and** Danielle within 30 min with the amount,
-  the job, and who collected it. Until they tap, collected cash stays invisible to the books.
+### 🔴 CORRECTION TO MY OWN ENTRY (same day) — JIMMY DID RECORD IT. I was wrong.
+I wrote here that `payment_recorded_offline` = 0 rows in 7 days, that Jimmy's $55 was "not in the
+system anywhere," and that **the gap is adoption, not code**. **All three were WRONG**, and the
+coaching item I handed Teddy was a code bug wearing a people-problem costume.
+- **The $55 is in the database.** Supabase `invoice` `16559298-…` — `total_cents 5500 · paid_method
+  'cash' · paid_at 2026-09-14 21:07:29Z` = **4:07 PM CT, 47 minutes BEFORE Danielle's text.**
+  Donna Greer, Hisense refrigerator, Jimmy Pivacek's job. He tapped it in correctly.
+- **Why I missed it: I swept the wrong database.** I checked `addon_fulfilled` / `addon_requested` /
+  `office_invoice_logged` / `tech_tip_paid` — all **Xano** actions. The crew cut over to the
+  **platform** 2026-09-13; the Xano cash button I "proved healthy" is the legacy surface almost
+  nobody uses now. ⚠️ **STANDING: before calling something an adoption problem, check the database
+  the crew actually uses today.** A 0-count in the system they left is not evidence of anything.
+
+### 🔴 THE REAL BUG — the platform records payments in a DIFFERENT DATABASE than the watcher reads
+**Every** payment surface on the platform writes ONLY to Supabase `invoice`
+(`status/paid_method/paid_at`) and emits **no Xano event at all**:
+`platform/tech-job.html markCollected()` (the tech's "Mark collected" → 💵 Cash/💳 Card/🧾 Check/
+Zelle/Venmo) and **all three** `platform/office-board.html` write sites (warranty-EFT remittance,
+quick mark-paid, full invoice save). `payment-email-watch` reads Xano `event_log`. **Two different
+databases — so no platform payment could EVER reach the office, by any method, cash or card.**
+Fixing the action name this morning was necessary and still not sufficient; it made the legacy
+surface work while the surface the crew is actually on stayed dark.
+- **✅ FIXED: the watcher now reads ALL THREE sources** — Xano `customer_payment_received` (Stripe)
+  + Xano `payment_recorded_offline` (legacy cash) + **Supabase `invoice` where `status='paid'`**
+  (new `platform-db.recentPaidInvoices`). Cash leads the email as **"💵 CASH COLLECTED — $55.00 ·
+  cash · collected by Jimmy Pivacek · Donna Greer · Hisense refrigerator"** with a one-tap link to
+  the right board. Unit-verified 17/17.
+- **⚠️ SCOPED TO TN'S COMPANY (`be4d11a1-…`).** The **demo tenant carries its own paid invoices** —
+  an unscoped read would have emailed Joey's Appliance Repair demo money as TN's real money.
+- **🐞 THE UUID DEDUP TRAP, caught pre-ship.** The dedup ledger keyed on `Number(id)`. Platform ids
+  are **UUIDs**, `Number(uuid)` is `NaN`, and **a `Set` treats every `NaN` as the SAME value** — so
+  every platform payment would have collapsed into one slot and exactly ONE would have ever emailed.
+  Now string-keyed throughout (`String(101)` still matches the historical int ledger).
+- **🐞 AND THE MONEY UNITS.** `money()` guessed cents-vs-dollars by magnitude. Platform invoices are
+  **always cents**, so a **$5.00 payment (500¢) would have rendered as $500.00**. Replaced the
+  boolean with an explicit unit (`cents`/`dollars`/`guess`); the legacy guess now applies ONLY to
+  old Stripe rows, which are the only place it was ever justified.
+- **⚠️ A FAILED READ CAN NO LONGER LOOK LIKE "NO MONEY."** `platform-db`'s shared `rest().get()`
+  returns `[]` on ANY non-ok response — on a money watcher that is the same dead-signal failure this
+  whole fix exists to kill. `recentPaidInvoices` deliberately does NOT use it: it surfaces the real
+  error, the email says so out loud, and a broken read writes `payment_email_platform_read_failed`.
+
+### 🔌 SPLIT CORE + CRON — because the money path could never be eyeballed
+`payment-email-watch` carried its own `schedule` block, so it **edge-403'd on every manual call** —
+meaning `?dry=1`, the one way to see which payments are about to be emailed, was unreachable for the
+life of the feature. Schedule moved to a new **`payment-email-watch-cron`**; the core is curlable.
+⚠️ **The core was UNGATED** (the edge-403 was the de-facto gate) — it reads payment data and sends
+email, so it now **requires the admin secret** (scheduled runs self-authorize via `{next_run}`).
+**Shadow it any time: `payment-email-watch?secret=<admin>&dry=1`.**
+
+- ⏭️ **STILL TEDDY'S CALL (a real coaching item, now that the code is honest):** the crew should tap
+  every cash collect into the Get-paid card at the door. Jimmy did. Every tap now emails Teddy **and**
+  Danielle within 30 min with the amount, the method, who collected it, and for which customer.
 
 ## 📵💵 2026-09-14 (Sun, late) — A LEAD NOBODY REPLIED TO NOW PAGES A HUMAN · the Xano cash alert has been texting NOBODY for 3 weeks · two watchers are effectively UNGATED — READ FIRST
 
