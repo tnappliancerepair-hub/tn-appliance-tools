@@ -172,7 +172,40 @@ exports.handler = async function (event) {
   if (platErr) out.platform_read_error = platErr;
 
   if (dry) { out.payments = pays.slice(0, 20); return json(200, out); }
-  if (!fresh.length) { out.note = 'no new payments — no email'; return json(200, out); }
+
+  // ⚠️ THE SILENT-BLINDNESS HOLE — the whole lesson of this bug, applied to the fix itself.
+  // If the platform read fails AND there are no Xano payments, every earlier version of this
+  // code returned a cheerful "no new payments" and said nothing. That is indistinguishable
+  // from a quiet day, which is exactly how a money watcher goes dark for a week. So: when we
+  // could not SEE the board and have nothing else to report, say so out loud. Deduped to once
+  // per 6h so a sustained outage warns rather than spams.
+  if (platErr && !fresh.length) {
+    let warnedRecently = false;
+    try {
+      const prior = await crud.searchPage(crud.TABLES.event_log, { action: 'payment_email_blind_alert' }, { id: 'desc' }, 5);
+      const newest = Math.max(0, ...((prior || []).map((r) => Number(meta(r).at_ms || r.created_at || 0))));
+      warnedRecently = newest > 0 && (Date.now() - newest) < 6 * 3600000;
+    } catch (_) {}
+    if (!warnedRecently) {
+      const subject = '⚠️ Payment alerts are BLIND — cannot read the job board (TN Appliance)';
+      const body = 'The payment watcher could not read the platform board this run:\n\n  ' + platErr
+        + '\n\nThat means a cash or card payment collected on the board may have been taken WITHOUT'
+        + ' anyone being emailed about it. Payments recorded on the legacy system are unaffected.\n\n'
+        + 'Check the board directly until this clears: ' + SITE + '/platform/office-board.html\n\n'
+        + ctTime(Date.now()) + ' CT';
+      try {
+        const r = await fetch(`${SITE}/.netlify/functions/send-email`, {
+          method: 'POST', headers: { 'content-type': 'application/json', 'X-Internal-Auth': process.env.EMAIL_SHARED_SECRET || '' },
+          body: JSON.stringify({ to: TO, cc: CC, subject, body }), signal: AbortSignal.timeout(15000),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d && d.ok && d.mode === 'live') { try { await crud.logEvent('payment_email_blind_alert', { error: platErr, at_ms: Date.now() }); } catch (_) {} }
+        out.blind_alert = d;
+      } catch (e) { out.blind_alert = { ok: false, error: String(e.message || e) }; }
+    } else { out.blind_alert = 'suppressed — already warned within 6h'; }
+  }
+
+  if (!fresh.length) { out.note = platErr ? 'platform read FAILED — nothing else to report' : 'no new payments — no email'; return json(200, out); }
 
   // Cash leads with 💵 CASH and names who collected it and for whom — that is the whole ask:
   // the office should never learn about collected money because the tech happened to mention it.
