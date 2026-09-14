@@ -30,6 +30,41 @@ Messages: *"it'll take me to the homepage but it won't open the customers file u
   and reused them. **A second copy would drift and one day hand `openJob()` a row missing fields** — the
   same class as the two pasted portal part keys before 068.
 
+### 📲 "COULDN'T SEND THE RELEASE WAIVER" — IT SENT. The guard refused a DUPLICATE and the app called that a failure
+Jimmy, 12:57pm: *"Couldn't send release waiver to be signed, but the other one worked fine for her to sign in person."*
+Kori Jackson (NSA H4441313, Hisense fridge). Pulled the carrier + guard trail and the system did the
+right thing three times and reported failure twice:
+| CT | what happened |
+|---|---|
+| **12:31:54** | tap 1 — **`platform_sms_direct` OK, Telnyx accepted it**, msg `4031a0a0-…`. She was texted. |
+| 12:50:43 | tap 2 (19 min later) — `sms_dup_suppressed`. UI said *"Couldn't send — try again."* |
+| 12:50:49 | tap 3, 6s later — same. |
+| 12:51:23 | 34s after tap 3 Jimmy gave up and used **✍️ Sign here** — signed, job fine. |
+- **ROOT CAUSE: `sendSms` returns a bare boolean, so a REFUSAL and a FAILURE are the same value.**
+  `waiver_link` did `sent = await sendSms(...)` → `{ok:true, texted:false}` with **no reason**, and the
+  client's final `else` says *"Couldn't send — try again."* **A tech told "couldn't send" about a link
+  the customer already has re-taps, then abandons it.** That is the whole bug.
+- **FIXED as the CLASS, not the instance.** `_lib/sms.js` now has **`sendSmsDetailed` → `{sent, reason}`
+  as the ONE implementation**, and **`sendSms` is a thin wrapper returning `.sent`** — byte-identical for
+  all ~40 existing callers, and the two can never drift (the pasted-part-key lesson). Every return path
+  carries a reason (`duplicate_suppressed` / `opted_out` / `quiet_hours` / `customer_texts_paused` / …).
+- **The surfaces now tell the truth + hand the tech an out.** A dup reads **"✓ Already texted — have them
+  check their messages"** (a success, not an error); any non-send offers **copy the signing link** and
+  points at the signature pad. Fixed on **BOTH** waiver buttons (`platform/tech.html` + `platform/tech-job.html`).
+- **🐞 SAME CLASS, FOUND WHILE IN THERE: an already-asked review said "No phone on file."** The review
+  handler's `else if (d.ok)` swallowed `{ok:true, already:true}` — flatly wrong, the customer has a phone.
+  Fixed on both pages.
+- **🔴 THE THREAD WAS LYING.** `logThread('✍️ Sign-waiver link sent')` fired **unconditionally**, so Kori's
+  job carries **3 "link sent" notes for 1 real send**. The office reads that thread to decide whether to
+  chase — a note saying we texted someone when we didn't is worse than no note. Now only written when it
+  actually sent. (The 2 stale notes on job `d17c1fda` are LEFT IN PLACE — deleting rows out of a customer
+  thread is not mine to do unasked.)
+- ⚠️ **STANDING: a send guard's refusal is not a send failure.** Any surface that reports a text result to
+  a human must read the REASON, or it will train that human to distrust a working tool.
+- ⚠️ **WE CAPTURE NO DELIVERY RECEIPTS.** Grepped: there is no DLR/`message.finalized` handler anywhere, so
+  **"Telnyx accepted it" is the strongest claim this system can ever make about any customer text.** Fine
+  for now — but never tell a customer or a tech a text was *delivered*; we only know it was *accepted*.
+
 ### 📜 `platform/dispatch.html` — the booking sheet couldn't be scrolled
 Danielle: *"This also don't scroll up and down to see the info."* The `.sheet` had **no `max-height` and
 no `overflow`** — on a phone the tech/day/window controls and the Book button fell off the bottom of the

@@ -10,7 +10,7 @@
 'use strict';
 
 const { getSecret, getSecretStatus } = require('./_lib/secrets');
-const { sendSms } = require('./_lib/sms');
+const { sendSms, sendSmsDetailed } = require('./_lib/sms');
 const { msg: commsMsg, reviewLink, REVIEW_LINK_HELP } = require('./_lib/comms');
 const { claimSend, onceKey, dailyKey } = require('./_lib/send-once');
 const SITE = 'https://tnapplianceexchange.net';
@@ -238,10 +238,20 @@ exports.handler = async function (event) {
       if (!tk) return json(200, { ok: false, error: 'grant_failed' });
       const link = `${SITE}/i/${tk}`;
       const msg = `${shop}: quick release of liability to sign before we work on your appliance. Tap here, takes 20 seconds: ${link}`;
-      let sent = false;
-      try { sent = await sendSms(phone, msg, 'customer', 'platform_waiver_link'); } catch (_) {}
-      await logThread('sms', `✍️ Sign-waiver link sent: ${link}`);
-      return json(200, { ok: true, texted: sent, url: link });
+      let sent = false, why = 'send_failed';
+      try { const r = await sendSmsDetailed(phone, msg, 'customer', 'platform_waiver_link'); sent = r.sent; why = r.reason; } catch (_) {}
+      // ⚠️ Only write the thread note when it ACTUALLY went out. This fired
+      // unconditionally, so a tech tapping three times put three "Sign-waiver link sent"
+      // lines into the customer's portal + office thread for ONE real send (Jimmy on Kori
+      // Jackson, 2026-09-14). A record that says we texted someone when we didn't is worse
+      // than no record — the office reads that thread to decide whether to chase.
+      if (sent) await logThread('sms', `✍️ Sign-waiver link sent: ${link}`);
+      // duplicate_suppressed is the guard REFUSING to re-text a link the customer already
+      // has — a success, not a failure. Hand the reason up so the tech is told the truth,
+      // and always return the link so he has a way to finish without it (read it out,
+      // copy it, or fall back to the on-site signature pad).
+      return json(200, { ok: true, texted: sent, url: link, reason: sent ? 'sent' : why,
+        already: why === 'duplicate_suppressed' });
     }
 
     if (doo === 'review') {

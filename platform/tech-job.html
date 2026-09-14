@@ -858,7 +858,21 @@
       var btn=document.getElementById('wvText'); btn.disabled=true; btn.textContent='Sending link…';
       notify('waiver_link').then(function(d){
         btn.disabled=false;
-        btn.textContent=(d&&d.texted)?'📲 Sign link sent ✓':(d&&d.error==='no_phone'?'No phone on file':'Couldn\'t send — try again');
+        d=d||{};
+        // "already texted" is the guard declining to re-send a link they HAVE. Calling that
+        // a failure makes a tech re-tap and then give up on a link already on the phone.
+        if(d.texted){ btn.textContent='📲 Sign link sent ✓'; return; }
+        if(d.already||d.reason==='duplicate_suppressed'){
+          btn.textContent='✓ Already texted';
+          alert('They were already texted this link — have them check their messages.'+(d.url?('\n\n'+d.url):'')+'\n\nOr use the signature pad above to sign right here.');
+          return;
+        }
+        if(d.error==='no_phone'){ btn.textContent='No phone on file'; alert('No phone on file — use the signature pad above to sign right here.'); return; }
+        btn.textContent='📲 Text the customer the sign link';
+        var why=d.reason==='opted_out'?'They replied STOP, so we can\'t text them.'
+              :d.reason==='quiet_hours'?'Too late at night to text them.'
+              :(d.error||'The text didn\'t go out.');
+        alert(why+(d.url?('\n\nLink:\n'+d.url):'')+'\n\nYou can sign it right here with the signature pad above.');
       }).catch(function(){ btn.disabled=false; btn.textContent='📲 Text the customer the sign link'; });
     };
   }

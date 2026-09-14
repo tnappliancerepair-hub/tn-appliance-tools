@@ -76,22 +76,29 @@ async function _crewSendDirect(to, body, tag) {
 // quiet hours shouldn't hold it — same category as an en-route/ETA text. Opt-out still enforced.
 const QUIET_OK_RE = /en.?route|on.?the.?way|arriv|\beta\b|running.?late|heads.?up|satisfaction_(?:review|ask|feedback)|trial_ann_intake/i;
 
-async function sendSms(recipient, body, role, tag) {
+// sendSmsDetailed is the ONE implementation; sendSms is a thin boolean wrapper over it
+// so the two can never drift. The reason matters because a bare `false` conflates two
+// opposite things: "the carrier refused" (a real failure a human should chase) and
+// "the guard deliberately declined" (already texted / opted out / quiet hours — the
+// system working correctly). A tech told "couldn't send" about a duplicate re-taps,
+// then gives up on a link the customer already has. Callers that surface a result to a
+// person should read the reason; everyone else keeps the boolean and is unchanged.
+async function sendSmsDetailed(recipient, body, role, tag) {
   const to = toE164(recipient);
-  if (!to || to.length < 12 || !body) return false;
+  if (!to || to.length < 12 || !body) return { sent: false, reason: 'bad_input' };
   const r = String(role || '').toLowerCase();
 
   // 🔇 OFFICE KILL (Teddy 2026-08-28): no texts to the office except cash intake to
   // Teddy/Danielle (+ system-health to Teddy). Board/queues still carry everything.
   if (officeGate.officeBlocked(to, tag)) {
     try { await require('./xano/metadata-crud').logEvent('office_sms_suppressed', { to, tag: tag || '', role: r, at_ms: Date.now() }); } catch (_) {}
-    return false;
+    return { sent: false, reason: 'office_suppressed' };
   }
 
   if (INTERNAL_ROLES.has(r)) {
     // Internal alert — send directly, but STILL honor a hard opt-out just in case
     // an internal number ever landed on the list (it won't, but it's free safety).
-    try { if (await guard.isOptedOut(to)) return false; } catch (_) {}
+    try { if (await guard.isOptedOut(to)) return { sent: false, reason: 'opted_out' }; } catch (_) {}
 
     // 🚚 ALL internal operational alerts (owner + office + dispatchers + crew) now
     // ship from the proven-deliverable 588 Telnyx line via a DIRECT Telnyx send.
@@ -104,7 +111,7 @@ async function sendSms(recipient, body, role, tag) {
     // is never silently dropped. Reversible: CREW_SMS_VIA_CUSTOMER_LINE=0.
     if (CREW_REROUTE_ON) {
       const cr = await _crewSendDirect(to, body, tag || ('ant_' + (role || 'internal')));
-      if (cr.ok) return true;
+      if (cr.ok) return { sent: true, reason: 'sent' };
       // else fall through to the legacy Xano path below
     }
 
@@ -114,14 +121,20 @@ async function sendSms(recipient, body, role, tag) {
         body: JSON.stringify({ to, body, message: body, context_tag: tag || ('ant_' + (role || 'sms')) }),
       });
       const d = await resp.json().catch(() => ({}));
-      return !!(d && d.success);
-    } catch (_) { return false; }
+      const ok = !!(d && d.success);
+      return { sent: ok, reason: ok ? 'sent' : 'xano_refused' };
+    } catch (_) { return { sent: false, reason: 'xano_unreachable' }; }
   }
 
   // Customer-direction — full guard (opt-out enforced now; rest shadow until flag).
   const allowQuiet = QUIET_OK_RE.test(String(tag || '') + ' ' + String(role || ''));
   const res = await guard.guardedSend({ phone: to, message: body, tag: tag || ('ant_' + (role || 'sms')), kind: role || 'customer', allowQuiet });
-  return res.sent;
+  return { sent: !!res.sent, reason: res.sent ? 'sent' : (res.reason || 'send_failed') };
+}
+
+// The long-proven boolean contract every existing caller uses. Unchanged behavior.
+async function sendSms(recipient, body, role, tag) {
+  return (await sendSmsDetailed(recipient, body, role, tag)).sent;
 }
 
 // Send an internal alert FROM the 588 customer line (the proven-deliverable one).
@@ -148,4 +161,4 @@ async function sendFrom588(recipient, body, tag) {
   } catch (_) { return false; }
 }
 
-module.exports = { sendSms, toE164, sendFrom588 };
+module.exports = { sendSms, sendSmsDetailed, toE164, sendFrom588 };

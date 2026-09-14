@@ -662,11 +662,45 @@
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ job: id, access_token: tok })
       }).then(function(x){ return x.json(); }).then(function(d){
-        if(d && d.texted){ btn.textContent='✓ Sent — link texted'; }
-        else if(d && d.error==='no_phone'){ btn.disabled=false; btn.textContent='No phone on file'; }
-        else { btn.disabled=false; btn.textContent=orig; alert((d && d.error) || 'Couldn\'t send — try again.'); }
+        d = d || {};
+        if(d.texted){ btn.textContent='✓ Sent — link texted'; return; }
+        if(d.error==='no_phone'){ btn.disabled=false; btn.textContent='No phone on file'; waiverFallback(null, 'No phone on file for them.'); return; }
+        btn.disabled=false;
+        // The guard refusing to re-text a link they already have is the system working,
+        // not a failure. Saying "couldn't send" about it is what made a tech tap three
+        // times and then give up on a link that was already on the customer's phone.
+        if(d.already || d.reason==='duplicate_suppressed'){
+          btn.textContent='✓ Already texted';
+          waiverFallback(d.url, 'They were already texted this link — have them check their messages.');
+          return;
+        }
+        btn.textContent=orig;
+        var why = d.reason==='opted_out' ? 'They replied STOP, so we can\'t text them.'
+                : d.reason==='quiet_hours' ? 'Too late at night to text them.'
+                : d.reason==='customer_texts_paused' ? 'Customer texts are paused for this shop.'
+                : (d.error || 'The text didn\'t go out.');
+        waiverFallback(d.url, why);
       });
     }).catch(function(){ btn.disabled=false; btn.textContent=orig; alert('Couldn\'t reach the server — try again.'); });
+  }
+
+  // A tech standing in the customer's kitchen needs a way to finish, not just an error.
+  // The link is always minted server-side even when the text doesn't go out, so hand it
+  // to him: copy it (AirDrop / paste into his own text), or point him at the ✍️ Sign here
+  // pad, which needs no text at all. Jimmy hit exactly this on 2026-09-14 and fell back to
+  // the pad on his own — this just stops him having to figure that out under pressure.
+  function waiverFallback(url, why){
+    var tail = '\n\nYou can still use "✍️ Sign here" to have them sign on your phone.';
+    if(!url){ alert(why + tail); return; }
+    if(!window.confirm(why + '\n\nCopy the signing link so you can send or show it?' + tail)) return;
+    var done = function(){ alert('Link copied:\n' + url); };
+    try {
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(done, function(){ window.prompt('Copy this link:', url); });
+        return;
+      }
+    } catch(_){}
+    window.prompt('Copy this link:', url);
   }
 
   // Ask the customer for a Google review (server composes the shop's review template +
@@ -685,6 +719,7 @@
         if(d && d.texted){ btn.textContent='✓ Review asked'; }
         else if(d && d.error==='no_review_link'){ btn.disabled=false; btn.textContent='⭐ Request review'; alert(d.message||'Add your review link in Settings before asking for reviews.'); }
         else if(d && d.ok && d.off){ btn.disabled=false; btn.textContent='⭐ Request review'; alert('Review texts are turned off for your shop (Messages settings).'); }
+        else if(d && d.already){ btn.disabled=false; btn.textContent='✓ Already asked'; }
         else if(d && d.ok){ btn.disabled=false; btn.textContent='No phone on file'; }
         else { btn.disabled=false; btn.textContent=orig; alert((d && d.error) || 'Couldn\'t send — try again.'); }
       });
