@@ -1,5 +1,76 @@
 # Appliance Ant
 
+## 📵💵 2026-09-14 (Sun, late) — A LEAD NOBODY REPLIED TO NOW PAGES A HUMAN · the Xano cash alert has been texting NOBODY for 3 weeks · two watchers are effectively UNGATED — READ FIRST
+
+Teddy: *"Really need to start getting cash jobs from our seo and advertising. It's been a bust
+so far. Just spending money not enough returns."* The ad spend was only half the story.
+
+### 🥇 THE FINDING — the leads arrive fine, nobody answers them
+Measured on the live board: **of 35 cash web leads in 30 days, NINE of the ten that never
+converted had ZERO outbound messages.** Four sat eleven days. **All five that got canceled were
+never contacted once.** And at the moment this shipped there was a **paid Local Services Ads
+lead** (Jerad Wayburn, Nashville, ice maker — ~$13 of ad money) who had asked for a price and
+never got one.
+- **The gap was not the board and not the intake.** Grep every `platform-*.js` for a cash-lead
+  alert tag and you get **nothing** — the platform side has never told a human a lead arrived.
+- **⚠️ AND THE XANO-SIDE ALERT IS DEAD.** `cash-ready-notify` runs **every 20 minutes** and texts
+  **NOBODY**: its tags (`cash_ready_notify` / `cash_ready_escalate`) were **never allowlisted in
+  `_lib/office-gate`**, so every send has been suppressed since the 2026-08-28 office-SMS kill.
+  It is the exact trap this file has warned about since 8/28 — *"any future alert must be
+  allowlisted or it is written and delivered NOWHERE"* — and it has been live-and-silent for
+  three weeks. **⏭️ TEDDY'S CALL: allowlist `cash_ready_notify` to turn it back on.** Volume is
+  small and honest — **6 leads with availability in the last 14 days**, so ~6 texts a fortnight,
+  not a flood. (It also **cannot be dry-run**: it carries its own `schedule` block → edge-403.)
+
+### ✅ `platform-lead-watch` (+ `-cron`, `2-59/5`) — the platform side finally speaks
+Watches the **DATA**, never a function's self-report. A lead is untouched only when **BOTH**:
+`job.status` is still `new` **AND** nobody on our side has said a word. Either one false = quiet.
+- **TEDDY ONLY.** `office-gate` hard-blocks Danielle/Sofia/Carrie — listing them would be written
+  and delivered nowhere. New tag **`platform_cash_lead`**, allowlisted in `CASH_INTAKE_TAGS`, and
+  **verified against the gate before shipping** (the thing cash-ready-notify never did).
+- **Never texts the customer.** Surfaces the lead; a human makes the call.
+- First touch + **one re-nag/day** while it stays silent, capped **5/run**, gated **8a–8p CT**.
+- **FORWARD-ONLY BY CONSTRUCTION:** first touch only considers leads **younger than 48h**. 30+ of
+  TN's platform leads carry the MIGRATION's `created_at` (all stamped the same hour), so an
+  unbounded first run would have fired thirty texts at once. The age floor needs no bookkeeping.
+- **Fails CLOSED on a failed read** — a dropped query must never manufacture "nobody replied."
+- Kill: vault `PLATFORM_LEAD_WATCH=false`. Dry-run: `platform-lead-watch?secret=<admin>&dry=1`.
+
+### 🔴 MY MISTAKE — I shipped the cron in the same commit as the core
+It fired once at **15:32 CT and sent five real texts** before I ever dry-ran it. Two were right
+(the LSA lead + a cash web lead); **three were warranty dispatches that should never alert.**
+- **Root cause: the source filter was a DENYLIST** (everything except the known mirror/import
+  sources), so every warranty dispatch qualified — `ahs_email` + `servicepower_email` +
+  `email_generic_warranty` are **over a thousand jobs in 30 days** — and the *next* vendor source
+  added anywhere would have silently started paging him too.
+- **Fix = ALLOWLIST** of real lead doors (`web_chat`, `lsa_lead`, `platform_lead`, `ann_*`,
+  `manual`, `quick_check`, `appliance_ai`) **AND** `warranty_company` empty. Candidates **75 → 6**.
+- ⚠️ **STANDING: the right question is "does a human need to CALL THIS PERSON BACK."** A warranty
+  dispatch is not a lead — it is assigned work that flows to scheduling. **And split core+cron
+  means nothing if you deploy the cron before you dry-run the core.**
+
+### 🔎 TWO MORE THINGS THE DEBUG TURNED UP
+- **🔓 `platform-migration-watch` + `platform-tenant-watch` are effectively UNGATED.** Both gate
+  with `if (!scheduled && admin && p.secret !== admin)` — that **`admin &&` OPENS THE DOOR when
+  the read is empty**, and it *is* empty: **`VAPI_ADMIN_SECRET` is not readable from the Netlify
+  function runtime under that name.** The only endpoints that accept it (`sb-admin-sql`,
+  `platform-tenant-watch` L155) work via their **own hardcoded fallback**. Read-only health data,
+  so small blast radius — but it is not a gate. `platform-lead-watch` fails CLOSED instead.
+  **⏭️ Worth a one-line fix on both** (drop the `admin &&`, add the constant fallback).
+- **📄 An LSA conversation lands as a pasted TRANSCRIPT carrying BOTH halves, filed
+  `direction='in'`.** So an outbound-only count read Jerad as "never contacted" when a human had
+  answered him twice in Google's chat. Engagement now = `direction='out'` **OR the sender is us**,
+  matched on the **prefix** (`office:Danielle`, `tech:Jimmy Pivacek`) — comparing the raw string
+  is the documented way to miss.
+
+### ⏭️ OPEN
+- **Jerad Wayburn** — paid LSA lead, **no phone on file**, asked for a price and never got one.
+  Reachable only through the LSA chat. **Poonam Dixit** (615-767-3438) — cash web lead, never
+  contacted. Both were correctly paged; both still need a human.
+- Allowlist `cash_ready_notify` (Teddy's call) so the Xano-side twin stops writing into a void.
+- Un-gate fix on the two watchers above.
+
+
 ## 🛠️👷 2026-09-14 (Sun) — CUTOVER DAY+1 FIELD FIXES: 4 bugs Danielle + Sofia hit on their first real day, all shipped + LIVE · Lee's login was never a system fault — READ FIRST
 
 First full day running 100% on Supabase. Danielle and Sofia worked it live and reported four things;
