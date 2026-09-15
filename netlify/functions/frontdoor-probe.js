@@ -146,7 +146,9 @@ exports.handler = async function (event) {
       portal_account_email: claims.dev_email || null,
       organisation_name: claims.org_name || null,
       api_key_client_id: claims.applicationId || claims.aud || null,
-      api_key_username: '(FRONTDOOR_API_USERNAME — see frontdoor-keys)',
+      // The apikey Username IS the token's subject — an identifier meant to be shared with
+      // Frontdoor (same class as the Client ID). The password is never touched here.
+      api_key_username: claims.sub || null,
       environment: env === 'production' ? 'Production' : 'Sandbox',
       org_id: claims.org_id || null,
       developer_id: claims.dev_id || null,
