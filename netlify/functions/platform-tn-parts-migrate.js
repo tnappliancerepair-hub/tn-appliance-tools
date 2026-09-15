@@ -89,8 +89,18 @@ function pf(base, key) {
         for (const row of rows) {
           const ex = cur.get(String(row.xano_id));
           if (!ex) continue;
+          // 'On our shelf' is STICKY, not just blank-protected. It is a statement about what is
+          // physically in our storage room, made by a human who looked -- Xano has no field for
+          // it and no way to contradict it, so anything it sends here can only ERASE the answer
+          // and drop the part off the shelf list. (Narrow on purpose: this is not the broader
+          // "does the platform outrank Xano" question, which is still Teddy's call.)
+          if (String(ex.disposition || '') === 'shelf' && 'disposition' in row
+              && String(row.disposition || '') !== 'shelf') {
+            row.disposition = 'shelf'; kept++;
+          }
           for (const k of keys) {
             if (!(k in row)) continue;   // never ADD a key -> key sets stay uniform
+            if (k === 'disposition' && String(ex.disposition || '') === 'shelf') continue;
             const blankIn = row[k] == null || String(row[k]).trim() === '';
             const hasEx = ex[k] != null && String(ex[k]).trim() !== '';
             if (blankIn && hasEx) { row[k] = ex[k]; kept++; }

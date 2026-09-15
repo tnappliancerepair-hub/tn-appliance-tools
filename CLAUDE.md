@@ -1,5 +1,95 @@
 # Appliance Ant
 
+## 🏬📦 2026-09-15 (Mon) — DANIELLE, SAME THREAD, ONE LINE UP: "do we need to return it. Its in storage." — the part we already own had NO PLACE TO EXIST — READ FIRST
+
+Scrolling above her "notes are not saving" text (the entry below) there is a second, separate
+question that nothing in the system could answer:
+> *"Ok so do we need to return it. Its in storage. So us[e] the valve for today's job"*
+A customer held off on a compressor repair. The part is bought and sitting in storage. **Both
+halves of that are unanswerable**, and for the same reason.
+
+### 🥇 THE GAP — `disposition` had three values and none of them meant "we have it"
+The CHECK constraint allowed exactly **`used | return | not_here`**. So a part bought for a job
+that then died sat at **`disposition = NULL`** — indistinguishable from a part nobody has gotten
+to yet. It is **not on the returns worklist** (that reads `disposition='return'` OR `must_return`),
+**not billed**, **not stock**, and **not findable**. It is nowhere.
+- **Measured live before building anything: 21 parts across 14 CANCELED jobs, and every single
+  one is a vendor part on a real claim** (AHS · SquareTrade · FrontDoor — Ronald Arso, David
+  Lawrence ×3, Melissa Farella, Donna Nix…). Not one carries a disposition. Checked they were
+  real work and not dupe/intake shells — real customers, real claim numbers, several with a tech
+  assigned. **A vendor-supplied part on a canceled claim is the chargeback shape**, and nothing
+  anywhere was reporting it.
+- **`awaiting_parts` is DELIBERATELY EXCLUDED** (271 parts / 108 jobs). Those are legitimately
+  waiting to arrive. Burying 21 real questions under 271 non-questions is how a queue stops
+  getting opened — the same lesson the returns worklist and the overdue list already carry.
+
+### ✅ `docs/sql/073_part_shelf.sql` (APPLIED + verified live) — a fourth answer: 🏬 ON OUR SHELF
+`disposition` now allows **`used | return | not_here | shelf`**. Widening a CHECK can't invalidate
+an existing row, and the drop-if-exists makes it re-runnable. **Proven on a real row:** `shelf`
+writes and reads back, a junk value (`in_storage`) is still **REFUSED**, reverted, **0 residue**.
+- It is a **disposition, not a new table**, on purpose: it answers the same question the other
+  three do — *what became of this part* — and keeps every existing reader on one column.
+
+### 🗂️ `platform/returns.html` — two new sections, on the page she already works returns from
+- **🤔 Nobody has said** — parts on **canceled** jobs with no disposition. Three one-tap answers:
+  **↩️ Owed back** (drops straight into the existing owed-back list + its ✓ Shipped it flow) ·
+  **🏬 On our shelf** · **🔧 We used it**. A warranty row also says *"FrontDoor supplied this and
+  the claim was canceled — usually owed back"* — **guidance, never an auto-write**: the office
+  knows whether it physically arrived and we don't.
+- **🏬 On our shelf** — what we actually hold, **with a search box**, because the question that
+  creates this list is always *"do we already have one of these?"* That is her second half.
+  Each row names **whose job paid for it**, since pulling it for a different job moves real cost.
+- A refused write **says so** (`.select()` + row check) instead of printing a false "saved" — the
+  standing rule, fourth surface it's been applied to.
+- ⚠️ **Deliberately NOT built: a "use it on another job" transfer.** Moving a part row moves its
+  cost, and how cost should follow is a money decision, not mine. She finds it here and the
+  office reconciles — flagged rather than guessed at.
+
+### 🔒 THE MIRROR CAN NEVER ERASE IT — and this is narrow on purpose
+`keepTypedParts` only protects a **blank** incoming value, so Xano sending `status='used'` would
+have silently taken a part off the shelf. **A shelf mark is a statement about what is physically
+in our storage room, made by a human who looked — Xano has no field for it and cannot contradict
+it, only erase it.** So `shelf` is now **sticky**: any other value for that one part is ignored.
+- ⚠️ **This is NOT the broader "does the platform outrank Xano" decision** (still Teddy's call,
+  open in the entry below). Unit-proven both ways: `shelf` survives `used` AND survives blank,
+  **and on any other value Xano still wins**, so the rule stays exactly as narrow as claimed.
+
+### 🐞 FOUND IN THE SAME PASS — a DEAD GUARD was counting never-arrived parts as real cost
+`owner.html`'s P&L and `platform-ant.js`'s parts spend both excluded **`'unused'` and `'missing'`**
+— values `job_part_disposition_check` **has never allowed**. Those clauses could not fire. So a
+part flagged **`not_here` (it never showed up) was being counted as real parts cost** against the
+job's margin and the owner's take-home. Both now exclude the three real ones (`return`,
+`not_here`, `shelf`). Same class as the two dead guards found on the office board on 9/14 — and
+the test now **fails on purpose** if either file ever names a value the database can't hold.
+- **The office board had THREE copies of the same value list** (invoice worksheet · tile tally ·
+  tile part list), so widening `disposition` meant remembering all three. Collapsed onto one
+  **`partOnThisJob()`** — asserted to have exactly one definition.
+- **`portal_get` re-created with `CREATE OR REPLACE`** (keeps its grants) so a part we KEPT stops
+  reading to the customer as one that's coming to them. ⚠️ Per the standing regex footgun, a
+  SECURITY DEFINER function deploys clean and only throws for the rows that reach it — so it was
+  **exercised on a real customer who HAS parts: 5 shown → marked one shelf → 4 → reverted → 5**,
+  and the allowlist still holds (no part #, no cost, no tracking). **0 residue.**
+- **🐞 And one I introduced and caught before it shipped:** the tech card's new `onShelf` bucket
+  wasn't exclusive of `sent`, so a part that DID ship and was later shelved got subtracted twice
+  out of "not shipped yet." `pick` already guarded this; `onShelf` now does too.
+
+### 🧪 PROVEN
+- **`tests/part-shelf.test.js` 33/33** — `partOnThisJob` and `shelfMatch` are **regex-lifted out
+  of the shipped pages**, and the mirror guard is the **real exported function** with a stubbed
+  fetch. Anchors on all four surfaces knowing the word, on the refused-write check, and a
+  standing **dead-guard sentinel** that fails if any money reader names `'unused'`/`'missing'`.
+- Full suite **12/12 green**.
+
+### ⏭️ OPEN
+- **Front-end is on the branch, not live** — Netlify deploys from `main`. The **migration + the
+  `portal_get` replace ARE live** (database-side), so until the merge a shelf mark simply can't
+  be set from the UI yet.
+- **The 21 stranded parts are a human pass** — one tap each and the list empties. Every one is a
+  warranty part on a canceled claim, so most are probably owed back; the office knows which ever
+  physically arrived, which is exactly why nothing auto-writes.
+- **I could not identify the specific compressor from her text** — the message above it is cut
+  off. The tool answers the question; naming that job is hers.
+
 ## 🏬📝 2026-09-15 (Mon) — DANIELLE + JIMMY, SAME MORNING: "notes are not saving" (two writers, last one wins) · "had parts at marcon's and had no clue" (the tech card NEVER showed the route) — READ FIRST
 
 Two texts, 9:37 AM, opposite ends of the same two bugs.

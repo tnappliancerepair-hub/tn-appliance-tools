@@ -65,6 +65,17 @@
   .page.risk{color:var(--danger);background:var(--dangerbg);border-radius:999px;padding:2px 9px}
   .pact{flex:0 0 auto;align-self:center}
   .empty{text-align:center;color:var(--muted);padding:40px 16px}
+  /* second + third worklist: parts on dead jobs, and the shelf they land on */
+  .sect{margin:26px 0 10px;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .sect h2{margin:0;font-size:16px;letter-spacing:.2px}
+  .sect .n{font-size:12.5px;font-weight:700;color:var(--muted);background:var(--chip);border-radius:999px;padding:2px 9px}
+  .sect .why{flex:1 1 100%;color:var(--muted);font-size:12.5px;margin-top:2px}
+  .ask{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
+  .ask button{font-size:12.5px;padding:7px 11px;border-radius:9px}
+  .srch{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+        background:var(--panel);color:var(--ink);font-size:15px;margin-bottom:10px}
+  .pfrom{font-size:12px;color:var(--muted);margin-top:2px}
+  .pfrom b{color:var(--ink)}
   .empty .big{font-size:34px;margin-bottom:8px}
   .gate{max-width:340px;margin:60px auto;padding:22px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
   .gate h1{font-size:20px;margin:0 0 4px}
@@ -117,7 +128,7 @@
       userEmail = (sess.user && sess.user.email) || '';
       sb.from('company').select('name,settings').limit(1).then(function(r){
         var co = r.data && r.data[0]; shopName = (co && co.name) || '';
-        renderShell(); loadReturns(); bootDone();
+        renderShell(); loadAll(); bootDone();
       });
     }).catch(function(){ renderSignIn(); bootDone(); });
   }
@@ -135,8 +146,9 @@
           '<a href="/platform/owner.html">💰 Owner</a>' +
           '<a href="/platform/office-overview.html">🗂 Overview</a>' +
         '</nav></header>' +
-      '<div class="wrap"><div class="score" id="score"></div><div id="list"><p style="color:var(--muted)">Loading returns…</p></div></div>';
-    document.getElementById('refresh').onclick=loadReturns;
+      '<div class="wrap"><div class="score" id="score"></div><div id="list"><p style="color:var(--muted)">Loading returns…</p></div>' +
+        '<div id="stranded"></div><div id="shelf"></div></div>';
+    document.getElementById('refresh').onclick=loadAll;
     document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
   }
 
@@ -247,12 +259,10 @@
   }
   function partHtml(p){
     var age=ageDays(p.created_at);
-    var thumb = p.photo_ref
-      ? '<div class="pthumb"><img data-ph="'+esc(p.photo_ref)+'" alt="part photo"></div>'
-      : '<div class="pthumb">📦</div>';
-    var num = p.number
-      ? '<div class="pnum">🔩 '+esc(p.number)+'</div>'
-      : '<div class="pnum"><span class="missing">No part # — read it off the photo</span></div>';
+    // one definition of the thumb + the part number, shared by all three lists below --
+    // a second pasted copy is how two of these quietly stop agreeing.
+    var thumb = thumbHtml(p);
+    var num = numHtml(p);
     var src = p.source ? ' · ↩ '+esc(p.source) : '';
     return '<div class="prow">' + thumb +
       '<div class="pbody">' + num +
@@ -282,6 +292,151 @@
           });
         }).catch(function(){});
     });
+  }
+
+  // ---------------------------------------------------------------------------------------
+  // SECOND + THIRD WORKLIST — the part we already paid for, on a job that died.
+  //
+  // Danielle, 2026-09-15: "Ok so do we need to return it. Its in storage. So use the valve
+  // for today's job." Both halves of that were unanswerable. A part bought for a job that
+  // then got canceled sits with disposition NULL -- not owed back (so the list above never
+  // shows it), not used, not anywhere. Measured on TN: 24 parts across 17 canceled jobs,
+  // every one a real warranty claim, not one carrying a disposition.
+  //
+  // So: ask the question ("nobody has said"), and give the answer somewhere to live ("shelf").
+  // ---------------------------------------------------------------------------------------
+
+  function loadAll(){ loadReturns(); loadStranded(); loadShelf(); }
+
+  // One writer for all four answers. Optimistic-free: re-reads on success so the row moves to
+  // whichever list now owns it, and says so plainly when the write is refused.
+  function setDisp(btn, id, value, label){
+    btn.disabled=true; var was=btn.textContent; btn.textContent='Saving…';
+    sb.from('job_part').update({ disposition:value }).eq('id',id).select('id').then(function(r){
+      if(r.error || !r.data || !r.data.length){
+        btn.disabled=false; btn.textContent=was;
+        alert('Did NOT save — '+((r.error&&r.error.message)||'the database refused that write.'));
+        return;
+      }
+      loadAll();
+    });
+  }
+  function wireAsk(scope){
+    Array.prototype.forEach.call((scope||document).querySelectorAll('[data-disp]'), function(b){
+      b.onclick=function(){ setDisp(b, b.getAttribute('data-id'), b.getAttribute('data-disp')); };
+    });
+  }
+
+  // A part on a CANCELED job that nobody has dispositioned. Deliberately NOT awaiting_parts --
+  // 271 parts sit there legitimately waiting to arrive, and burying 24 real questions under
+  // them is how a queue stops getting opened. Canceled is unambiguous: nobody is installing it.
+  function loadStranded(){
+    var box=document.getElementById('stranded'); if(!box) return;
+    sb.from('job_part')
+      .select('id,number,name,qty,source,ship_to,cost_cents,photo_ref,created_at,job:job_id!inner(id,status,claim_number,warranty_company,customer:customer_id(first_name,last_name,city,state))')
+      .eq('job.status','canceled').is('disposition',null).not('must_return','is',true).is('returned_at',null)
+      .order('created_at',{ascending:true})
+      .then(function(r){
+        if(r.error){ box.innerHTML=''; return; }
+        var rows=r.data||[];
+        if(!rows.length){ box.innerHTML=''; return; }
+        box.innerHTML =
+          '<div class="sect"><h2>🤔 Nobody has said</h2><span class="n">'+rows.length+'</span>' +
+            '<div class="why">We bought these for jobs that got canceled. Nobody has recorded whether they went back, ' +
+            'got used, or are sitting in storage. One tap each and this list empties.</div></div>' +
+          rows.map(strandedHtml).join('');
+        wireAsk(box); hydratePics(box);
+      });
+  }
+
+  function strandedHtml(p){
+    var j=p.job||{}, c=j.customer||{};
+    var who=[]; if(j.warranty_company) who.push('<b>'+esc(j.warranty_company)+'</b>');
+    if(j.claim_number) who.push('Claim '+esc(j.claim_number));
+    if(c.city||c.state) who.push(esc([c.city,c.state].filter(Boolean).join(', ')));
+    var age=ageDays(p.created_at);
+    return '<div class="jobgrp"><h3>'+esc(custName(c))+'</h3>' +
+      '<div class="jobmeta">'+(who.join(' · ')||'—')+' · <b>job canceled</b></div>' +
+      '<div class="prow">' + thumbHtml(p) +
+        '<div class="pbody">' + numHtml(p) +
+          '<div class="pname">'+esc(p.name||'Part')+(partQty(p)>1?' <b>×'+partQty(p)+'</b>':'')+(p.source?' · from '+esc(p.source):'')+'</div>' +
+          '<span class="page'+(age>=14?' risk':'')+'">bought '+(age===0?'today':age+'d ago')+'</span>' +
+          // A vendor-supplied part on a claim that died is almost always owed back -- say so,
+          // but never write it. The office knows whether it ever physically arrived; we don't.
+          (j.warranty_company ? '<div class="pterms">⚠️ '+esc(j.warranty_company)+' supplied this and the claim was canceled — usually owed back</div>' : '') +
+          '<div class="ask">' +
+            '<button data-id="'+esc(p.id)+'" data-disp="return">↩️ Owed back</button>' +
+            '<button data-id="'+esc(p.id)+'" data-disp="shelf">🏬 On our shelf</button>' +
+            '<button data-id="'+esc(p.id)+'" data-disp="used">🔧 We used it</button>' +
+          '</div>' +
+        '</div>' +
+      '</div></div>';
+  }
+
+  // The shelf. What we physically hold and can pull for another job. Searchable because the
+  // question that creates it is always "do we already have one of these?"
+  var shelfRows=[];
+  function loadShelf(){
+    var box=document.getElementById('shelf'); if(!box) return;
+    sb.from('job_part')
+      .select('id,number,name,qty,source,cost_cents,photo_ref,created_at,job:job_id(id,status,claim_number,warranty_company,customer:customer_id(first_name,last_name))')
+      .eq('disposition','shelf').is('returned_at',null).order('created_at',{ascending:false})
+      .then(function(r){
+        if(r.error){ box.innerHTML=''; return; }
+        shelfRows=r.data||[];
+        if(!shelfRows.length){ box.innerHTML=''; return; }
+        box.innerHTML =
+          '<div class="sect"><h2>🏬 On our shelf</h2><span class="n">'+shelfRows.length+'</span>' +
+            '<div class="why">Parts we already have in storage. Search before you order — one of these ' +
+            'may cover today\'s job.</div></div>' +
+          '<input class="srch" id="shq" type="search" placeholder="Search part # or name…" autocomplete="off">' +
+          '<div id="shlist"></div>';
+        var q=document.getElementById('shq');
+        q.oninput=function(){ renderShelf(q.value); };
+        renderShelf('');
+      });
+  }
+  function shelfMatch(p, q){
+    q=String(q||'').trim().toLowerCase();
+    if(!q) return true;
+    return [p.number,p.name,p.source].some(function(v){ return String(v||'').toLowerCase().indexOf(q)>=0; });
+  }
+  function renderShelf(q){
+    var el=document.getElementById('shlist'); if(!el) return;
+    var hits=shelfRows.filter(function(p){ return shelfMatch(p,q); });
+    el.innerHTML = hits.length
+      ? hits.map(shelfHtml).join('')
+      : '<div class="empty">Nothing on the shelf matches “'+esc(q)+'”.</div>';
+    wireAsk(el); hydratePics(el);
+  }
+  function shelfHtml(p){
+    var j=p.job||{}, c=j.customer||{};
+    // Say whose job paid for it. Pulling it for a different job moves real cost, and the office
+    // should see that rather than discover it on the invoice.
+    var bought = 'bought for <b>'+esc(custName(c))+'</b>' + (j.status?' · job '+esc(j.status):'');
+    if(p.cost_cents) bought += ' · $'+(Math.round(p.cost_cents)/100).toFixed(2);
+    return '<div class="jobgrp"><div class="prow" style="border-top:none">' + thumbHtml(p) +
+      '<div class="pbody">' + numHtml(p) +
+        '<div class="pname">'+esc(p.name||'Part')+(partQty(p)>1?' <b>×'+partQty(p)+'</b>':'')+(p.source?' · from '+esc(p.source):'')+'</div>' +
+        '<div class="pfrom">'+bought+'</div>' +
+        '<div class="ask">' +
+          '<button data-id="'+esc(p.id)+'" data-disp="return">↩️ Send it back instead</button>' +
+          '<button data-id="'+esc(p.id)+'" data-disp="used">🔧 We used it</button>' +
+        '</div>' +
+      '</div>' +
+    '</div></div>';
+  }
+
+  // shared bits so the three lists render a part identically
+  function thumbHtml(p){
+    return p.photo_ref
+      ? '<div class="pthumb"><img data-ph="'+esc(p.photo_ref)+'" alt="part photo"></div>'
+      : '<div class="pthumb">📦</div>';
+  }
+  function numHtml(p){
+    return p.number
+      ? '<div class="pnum">🔩 '+esc(p.number)+'</div>'
+      : '<div class="pnum"><span class="missing">No part # — read it off the photo</span></div>';
   }
 
   boot();

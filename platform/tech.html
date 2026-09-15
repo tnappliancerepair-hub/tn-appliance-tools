@@ -830,6 +830,9 @@
     var eta = fmtEta(p.eta);
     if (p.disposition==='used')  return { cls:'done', ic:'✅', t:'Installed: '+nm, eta:'' };
     if (p.disposition==='return')return { cls:'done', ic:'↩️', t:'To return: '+nm, eta:'' };
+    // We kept it (073). It is at the shop, not on order and not coming to the customer --
+    // reading it as "On order" is how a tech waits on a part that is already in the building.
+    if (p.disposition==='shelf') return { cls:'wait', ic:'🏬', t:'On our shelf at the shop: '+nm, eta:'' };
     // already with him — never send him to a counter for a part in his own van
     if (low==='on the truck' || low==='in hand')
       return { cls:'done', ic:'✅', t:'Already with you: '+nm, eta:'' };

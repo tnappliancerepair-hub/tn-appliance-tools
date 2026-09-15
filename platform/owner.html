@@ -303,7 +303,11 @@
     // PARTS — cost vs charge on billed jobs in this window (the margin the owner set, realized).
     var winJobIds={}; invWin.forEach(function(v){ if(v.job_id) winJobIds[v.job_id]=1; });
     // sell_cents / cost_cents are the UNIT price (072) -- four door bins is four, not one.
-    var partsRev=0, partsCost=0; parts.forEach(function(p){ if(!winJobIds[p.job_id]) return; var d=(p.disposition||''); if(d==='return'||d==='unused'||d==='missing') return; var q=Math.max(1,Math.floor(+p.qty||1)); partsRev+=(p.sell_cents||0)*q; partsCost+=(p.cost_cents||0)*q; });
+    // job_part_disposition_check allows exactly used | return | not_here | shelf (019 + 073).
+    // This line used to exclude 'unused'/'missing' -- values the constraint has NEVER allowed --
+    // so a part that NEVER ARRIVED (not_here) was being counted as real parts cost against the
+    // job's margin. The three real exclusions: sent back, never showed, or we kept it.
+    var partsRev=0, partsCost=0; parts.forEach(function(p){ if(!winJobIds[p.job_id]) return; var d=(p.disposition||''); if(d==='return'||d==='not_here'||d==='shelf') return; var q=Math.max(1,Math.floor(+p.qty||1)); partsRev+=(p.sell_cents||0)*q; partsCost+=(p.cost_cents||0)*q; });
     var partsMargin=partsRev-partsCost;
     var mPct=(settings.parts&&settings.parts.markup_pct!=null)?+settings.parts.markup_pct:50;
     var takeHome = collected - techCollected - partsCost; // collected revenue minus tech cut AND parts cost (before overhead)

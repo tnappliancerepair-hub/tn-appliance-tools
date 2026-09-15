@@ -1686,16 +1686,26 @@
   }
   // ── USED / UNUSED, from the office (Danielle 2026-09-14: "need spot to show used un used").
   // The tech can set this from his card; the office could only ever LOOK at it. The database
-  // allows exactly three values -- used | return | not_here -- so the select speaks HER words
-  // and writes the DB's. "Unused" IS "return" at this shop: an unused part goes back to the
-  // vendor, which is what the returns worklist runs off.
+  // allows exactly four values -- used | return | not_here | shelf -- so the select speaks HER
+  // words and writes the DB's. "Unused" IS "return" at this shop: an unused part goes back to
+  // the vendor, which is what the returns worklist runs off. "On our shelf" (073) is the one
+  // she asked for on 9/15 -- the job died, we still have the part, and it is ours to reuse.
   // ⚠️ It writes `disposition` ONLY. `must_return` is the VENDOR's rule and outranks the tech's
   // tap -- a core is owed back even when it was USED -- so marking a part used must never
   // clear an obligation somebody is going to get charged for.
-  var DISP_LABEL = { '': 'Not marked yet', used: '🔧 Used on the job', 'return': '↩️ Unused, going back', not_here: '⚠️ Never arrived' };
+  var DISP_LABEL = { '': 'Not marked yet', used: '🔧 Used on the job', 'return': '↩️ Unused, going back', shelf: '🏬 On our shelf', not_here: '⚠️ Never arrived' };
+  // ONE definition of "this part was actually supplied to THIS job's repair". Three readers
+  // depend on it -- the invoice worksheet, the tile's parts tally, and the tile's part list --
+  // and each used to carry its own copy of the value list, so widening `disposition` meant
+  // remembering all three. A part that went back, never showed, or that we KEPT (shelf) is
+  // not part of this repair and must not bill on it.
+  function partOnThisJob(disp){
+    var d = String(disp || '');
+    return d !== 'return' && d !== 'not_here' && d !== 'shelf';
+  }
   function dispSel(p){
     var cur = String((p && p.disposition) || '');
-    var opts = ['', 'used', 'return', 'not_here'].map(function(v){
+    var opts = ['', 'used', 'return', 'shelf', 'not_here'].map(function(v){
       return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + DISP_LABEL[v] + '</option>';
     }).join('');
     return '<div class="tprow"><select class="tp_disp" style="flex:1">' + opts + '</select></div>' +
@@ -1706,6 +1716,7 @@
   function dispNote(v){
     if (v === 'used') return 'Bills on the invoice.';
     if (v === 'return') return 'Comes OFF the invoice and shows on the returns list.';
+    if (v === 'shelf') return 'Comes OFF this invoice. We keep it — it shows on the shelf so another job can use it.';
     if (v === 'not_here') return 'Not billed. Tell the vendor it never showed up.';
     return 'Mark it so the invoice and the returns list are right.';
   }
@@ -2227,10 +2238,10 @@
         m.textContent=(cents(p.value)||cents(c.value))?('margin '+money(mar)+(q>1?(' each · '+money(mar*q)+' on '+q):'')):'';
         m.style.color=mar<0?'#e5484d':'#1f7a37'; };
       sb.from('job_part').select('id,name,number,qty,cost_cents,sell_cents,disposition').eq('job_id',job.id).order('created_at').then(function(r){
-        // Bill only what the shop actually supplied. The CHECK constraint allows exactly
-        // used | return | not_here, so the old 'unused'/'missing' clauses here could never
-        // match a row -- dead guards that read as protection. These two are the real ones.
-        var parts=(r.data||[]).filter(function(p){ var d=(p.disposition||''); return d!=='return'&&d!=='not_here'; });
+        // Bill only what the shop actually supplied -- see partOnThisJob(). The old inline
+        // clauses here named 'unused'/'missing', which the CHECK constraint has never allowed,
+        // so they were dead guards that read as protection.
+        var parts=(r.data||[]).filter(function(p){ return partOnThisJob(p.disposition); });
         if(!parts.length){ box.innerHTML=''; return; }
         box.innerHTML='<div class="sec" style="margin-top:2px">🔧 Parts the tech used <span class="hint" style="font-weight:400">— enter your cost; customer pays cost + '+mPct+'%'+(mAdd>0?' (min '+money(mAdd)+' margin)':'')+'</span></div>'+
           parts.map(function(p){ var nm=(p.name||'Part'), q=partQty(p);
@@ -2624,7 +2635,7 @@
         var seenPart = {};
         (pr.data || []).forEach(function (p) {
           if (!p.job_id) return;
-          var d = String(p.disposition||''); if (d==='return'||d==='not_here') return;
+          if (!partOnThisJob(p.disposition)) return;
           // count PHYSICAL parts, not rows -- Xano duplicates some and the mirror copies both,
           // which would otherwise inflate "2 of 5 sent" on the tile.
           var pk = partKeyOB(p);
@@ -2641,7 +2652,7 @@
           }
           if (p.eta && (!t.eta || p.eta < t.eta)) t.eta = p.eta;
         });
-        (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; var d=String(p.disposition||''); if (d==='return'||d==='not_here') return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name }); });
+        (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; if (!partOnThisJob(p.disposition)) return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name }); });
         tagsByJob = {};
         (tgr.data || []).forEach(function (t) { if (!t.job_id || !t.tag) return; (tagsByJob[t.job_id] = tagsByJob[t.job_id] || []).push(t.tag); });
         tagLibrary = lbr.data || [];

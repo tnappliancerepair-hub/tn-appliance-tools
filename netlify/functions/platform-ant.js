@@ -51,7 +51,10 @@ async function buildSnapshot(ctx) {
   });
   let techPaidMonth = 0; payouts.forEach((p) => { if (inMonth(p.paid_at)) techPaidMonth += p.amount_cents || 0; });
   // cost_cents is the UNIT cost (072) -- multiply, or a 4-part job reports as a 1-part job.
-  let partsCost = 0; parts.forEach((p) => { const disp = p.disposition || ''; if (disp === 'return' || disp === 'unused' || disp === 'missing') return; const q = Math.max(1, Math.floor(Number(p.qty) || 1)); if (billedJobIds[p.job_id]) partsCost += (p.cost_cents || 0) * q; });
+  // Same correction as owner.html: 'unused'/'missing' are not values job_part_disposition_check
+  // has ever allowed, so a never-arrived part (not_here) was landing in parts spend. Real set is
+  // used | return | not_here | shelf -- exclude sent-back, never-showed, and kept-as-stock.
+  let partsCost = 0; parts.forEach((p) => { const disp = p.disposition || ''; if (disp === 'return' || disp === 'not_here' || disp === 'shelf') return; const q = Math.max(1, Math.floor(Number(p.qty) || 1)); if (billedJobIds[p.job_id]) partsCost += (p.cost_cents || 0) * q; });
   const takeHome = collected - techPaidMonth - partsCost;
   // completed jobs with no invoice = money finished but not billed
   let unbilledN = 0; jobs.forEach((j) => { if (j.status === 'completed' && !invByJob[j.id]) unbilledN++; });

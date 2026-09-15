@@ -1605,6 +1605,11 @@
   function shipLine(p){
     var where = p.source ? String(p.source).trim() : '';
     var when  = p.eta ? (' · '+esc(String(p.eta).slice(0,10))) : '';
+    // We already have it (073). Outranks every route + tracking read below -- whatever the
+    // vendor's paperwork still says about shipping it, it is sitting at the shop.
+    if(p.disposition==='shelf'){
+      return '<div class="pship ok"><b>🏬 On our shelf</b> — already at the shop, grab it on your way.</div>';
+    }
     if(!p.ship_tracking && window.AntPartRoute.isPickup(p.ship_to)){
       return '<div class="pship go"><b>🏬 PICK THIS UP</b>'+(where?(' — '+esc(where)):'')+when+
              '<br><span style="font-weight:600">Nobody is shipping it. Grab it before you head over.</span></div>';
@@ -1662,13 +1667,19 @@
     var landed=sent.filter(function(p){return p.ship_delivered===true || !!p.bought_at;}).length;
     // Will-call parts are NOT "not shipped yet" -- nothing is coming, he has to go get them.
     // Counting them as un-shipped is exactly how a part stays on the counter all week.
-    var pick=list.filter(function(p){ return !p.ship_tracking && !p.bought_at && window.AntPartRoute.isPickup(p.ship_to); });
+    var pick=list.filter(function(p){ return p.disposition!=='shelf' && !p.ship_tracking && !p.bought_at && window.AntPartRoute.isPickup(p.ship_to); });
+    // Parts we already own and are holding at the shop. Neither "sent" nor "not shipped yet" --
+    // counting them as un-shipped tells him to wait on something in the building.
+    // Exclusive of `sent`, same as `pick` -- a part that DID ship and was later marked shelf is
+    // already counted above, and double-counting it makes `still` subtract twice.
+    var onShelf=list.filter(function(p){ return p.disposition==='shelf' && !p.ship_tracking && !p.bought_at; });
     var head='';
-    if(list.length && (sent.length || pick.length)){
-      var still=list.length-sent.length-pick.length;
+    if(list.length && (sent.length || pick.length || onShelf.length)){
+      var still=list.length-sent.length-pick.length-onShelf.length;
       var bits=[];
       if(sent.length) bits.push(sent.length+' of '+list.length+' sent');
       if(landed) bits.push(landed+' delivered');
+      if(onShelf.length) bits.push(onShelf.length+' on our shelf');
       if(still>0) bits.push(still+' not shipped yet');
       head=(bits.length?'<div class="pship head">📦 '+bits.join(' · ')+'</div>':'');
     }
