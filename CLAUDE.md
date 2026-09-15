@@ -4,6 +4,10 @@
 
 Teddy: *"Close that after-hours hole on the ring group"* · *"Ann only before 9 am and after 5 pm."*
 Follow-on to Danielle's *"Getting work calls after 6. Get them before 9 sometimes too."*
+**✅ CLOSE HOUR CONFIRMED = 6 PM.** I asked whether "after 5 pm" meant Ann owns 5:00 on (humans
+through 4:59) or humans through 5:59; Teddy: **"6 is fine" → "6"**. So the window is **Mon-Fri
+9:00am-5:59pm CT** and Ann owns 6:00 PM on. Every mention of 9-5 below was the first cut and has
+been moved to 9-6 in the same lockstep — the gates must never disagree.
 
 ### 🥇 THE HOLE — `office-texml.js` computed the CT hour and never gated on it
 The Vapi side was already clean (Ann's `transferCall` tool is physically STRIPPED off-hours, so
@@ -12,14 +16,16 @@ for the 9am "ring Danielle first" rule. **So anything reaching the ring DID `+1 
 directly, or any number bound to the TeXML app instead of to Ann, dialed a dispatcher's personal
 cell at any hour of any day.**
 - **PROVEN in the live transfer log, and it matches her words exactly** — 7 days of
-  `phone_transfer_outcome`: **57 transfers, 4 rang a personal cell outside Mon-Fri 9-5.**
-  **Mon 09-14 6:11 PM + 6:12 PM** rang Danielle FIRST ("calls after 6"); **Thu 09-10 8:53 AM**
-  rang her and she **ANSWERED** ("before 9 sometimes too"); Wed 09-09 5:02 PM answered.
+  `phone_transfer_outcome`: **57 transfers, 4 rang a personal cell outside Mon-Fri 9-5**, and
+  **3 of those 4 are still outside the final 9-6 window**: **Mon 09-14 6:11 PM + 6:12 PM** rang
+  Danielle FIRST ("calls after 6"), and **Thu 09-10 8:53 AM** rang her and she **ANSWERED**
+  ("before 9 sometimes too"). ⚠️ The 4th (Wed 09-09 **5:02 PM**, answered) is IN-window at 9-6 and
+  will still ring — that is the honest cost of closing at 6 instead of 5, and it is Teddy's call.
 - ⚠️ **The 6:11/6:12 pair came in on `+16158211400` → the WARRANTY DESK TeXML app** (`?order=warranty`),
   not through Ann at all. That is the "bound to the TeXML app instead of to Ann" path in the wild —
   the gate runs **before** the cascade regardless of `?order=`, so it is closed too.
 
-### ✅ THE GATE — Mon-Fri 9:00am-4:59pm CT, otherwise the cascade dials NO ONE
+### ✅ THE GATE — Mon-Fri 9:00am-5:59pm CT, otherwise the cascade dials NO ONE
 Caller gets a text and control falls back to Ann via `<Reject/>` — the same hand-back the proven
 missed-by-everyone tail already uses. **Fail-safe in BOTH directions, which is the whole design:**
 - **The hour is LOCAL** (`ctNow()`, no network) so a slow/blank vault read can never wedge it, and
@@ -30,15 +36,18 @@ missed-by-everyone tail already uses. **Fail-safe in BOTH directions, which is t
 - **🔴 FIRST LEG ONLY** (caught reviewing my own diff): a `?leg=2+` request is the action webhook for
   a ring that ALREADY happened. Gating it would (a) throw away that call's answered/missed outcome
   and (b) text a caller *"we're closed"* seconds after they hung up with a human — any call that
-  started 4:59 and ended 5:00.
+  started 5:59 and ended 6:00.
 - Revert with no redeploy: vault **`OFFICE_HOURS_GATE=off`**. Window tunable via
-  `OFFICE_HOURS_OPEN`/`OFFICE_HOURS_CLOSE` (clamped 0-23, default 9/17; CLOSE is exclusive).
+  `OFFICE_HOURS_OPEN`/`OFFICE_HOURS_CLOSE` (clamped 0-23, default 9/**18**; CLOSE is exclusive, so
+  18 = last human minute 5:59pm). One vault value walks the whole window either way, no redeploy.
 - Collapsed the duplicated caller-textback into ONE shared helper so the off-hours and
   missed-by-everyone paths can never drift.
-- **VERIFIED LIVE at 9:15 PM CT:** leg 1 → `<Reject/>` + one `office_transfer_offhours_blocked`
-  row (`ct_hour:21, open_hour:9, close_hour:17`), nobody dialed. leg 2 → still logged its
-  `phone_transfer_outcome` normally, proving the first-leg guard. Probe used a shop DID as the
-  caller so **no SMS fired**.
+- **VERIFIED LIVE (twice — once per close hour):** leg 1 → `<Reject/>` + one
+  `office_transfer_offhours_blocked` row, nobody dialed; leg 2 → still logged its
+  `phone_transfer_outcome` normally, proving the first-leg guard. The audit rows show the window
+  moving under it: `close_hour:17` on the first ship, **`close_hour:18` after Teddy said 6**.
+  Both probes used a shop DID as the caller so the skip fired and **no SMS was sent** (confirmed
+  0 `offhours_textback` / 0 `missed_call_textback` sends).
 
 ### 🔴 FOUND WHILE WIRING IT — the missed-call textback has NEVER ONCE SENT
 Customer-direction `sendSms` runs through the intake-only gate, and **neither `missed_call_textback`
@@ -53,12 +62,14 @@ nor the new `offhours_textback` matched `INTAKE_OK`** — so the "sorry we misse
   `callback_ack` (22 in 14d), `customer_schedule_request` (17), `payment_confirmation` (7). The first
   two look reactive too. `platform_reminder` (57) self-resolved on 09-03.
 
-### 🕔 9-6 → 9-5 EVERYWHERE, so the gates cannot disagree
-**`get_business_hours` (`vapi-tool`) is the one Ann calls BEFORE any transfer.** Left at 9-6 it would
-report OPEN at 5:30, she would attempt a transfer into a ring group that refuses to dial, and the
-caller sits through a DEAD hand-off instead of Ann just taking the message. Moved it, plus
-`vapi-admin isBizHoursCT` (the hard tool-strip), `relay-to-tech`, and every spoken "9 to 6" line.
-**Unit-proven that both gates agree at every boundary** (8am/9am/4pm/5pm/6pm/weekend).
+### 🕔 ALL FOUR GATES MOVE TOGETHER, OR ANN LIES TO THE CALLER
+**`get_business_hours` (`vapi-tool`) is the one Ann calls BEFORE any transfer.** If it disagrees with
+the ring group by even one hour she reports OPEN, attempts a transfer into a cascade that refuses to
+dial, and the caller sits through a DEAD hand-off instead of Ann just taking the message. So the
+close hour moves in ONE commit across: `office-texml` (the ring gate) · `vapi-tool get_business_hours`
+· `vapi-admin isBizHoursCT` (the hard tool-strip) · `relay-to-tech` (no texting a tech off-hours) ·
+and every spoken line (`vapi-admin` prompt blocks, `telnyx-ai-admin`, `phone-hours-gate`).
+**Unit-proven that the gates agree at every boundary** (8am/9am/4pm/5pm/6pm/7pm/weekend).
 - **LEFT `telnyx-cutover-watch` at 8-6 ON PURPOSE** — that is an ops ALERTING window, not a
   human-reachability gate.
 
@@ -70,21 +81,28 @@ window and acting on another. Converted to **replace-in-place**.
 - **Also fixed the `TECH-TRANSFER` strip**, which was non-global and required a literal trailing
   `\n\n` — on any spacing drift it fails to match and leaves a **DUPLICATE block** (the exact
   documented footgun). Now the proven `MARK[\s\S]*?MARK\s*` with the `g` flag.
-- **VERIFIED on the LIVE assistant, before → after:** `"9 to 6"` **2 → 0**, `"9 to 5"` **0 → 2**,
-  `"after 6 PM"` **1 → 0**; each block mark appears exactly **2×** (one block, no duplicate) and the
-  prompt is **63,429 → 63,429 chars** — a pure in-place swap, nothing stacked. Full prompt backed up
-  first.
+- **VERIFIED on the LIVE assistant, both times.** First ship (9-6→9-5): `"9 to 6"` **2 → 0**,
+  `"9 to 5"` **0 → 2**, `"after 6 PM"` **1 → 0**. Then the 6 PM correction re-ran the same two
+  injectors and swapped it straight back: `"9 to 5"` **2 → 0** · `"9 to 6"` **0 → 2** ·
+  `"9 AM to 5 PM"` **1 → 0** · `"9 AM to 6 PM"` **0 → 1** · `"after 5 PM"` **2 → 0** ·
+  `"after 6 PM"` **0 → 2** · `"9–5"` **2 → 0** · `"9–6"` **0 → 2**. Each block mark appears exactly
+  **2×** (one block, no duplicate) and the prompt is **62,279 → 62,279 chars** — a pure in-place
+  swap, nothing stacked. That second clean round-trip is the real proof the injector is
+  correctable now, not just that it fired once. Full prompt backed up before each run.
 - ⚠️ **STANDING: a skip-if-present prompt injector is a one-way door.** It can CREATE a block and can
   never CORRECT one, so the live assistant silently drifts from the repo. Every block injector should
   be replace-in-place with a **global, whitespace-tolerant** strip.
 
-### 🧪 `tests/office-hours-gate.test.js` — 30/30
-The decision is lifted **verbatim out of the shipped file** so the test can never drift from the
-code. Covers 8am/9am/4pm/5pm/6pm/9pm/2am/**midnight** (hour 0 must not read as falsy-open), weekends,
-the `h:-1` broken-clock fail-open, blank + undefined vault reads, the kill switch **and near-miss
-values that must NOT disable it** (`'on'`, `'false'`), the tunable window, out-of-range clamping, and
-the first-leg guard.
-- Off-hours text is **151 chars of pure GSM-7 = ONE segment**. An em-dash or curly apostrophe would
+### 🧪 `tests/office-hours-gate.test.js` — 32/32
+The decision is lifted **verbatim out of the shipped file** (regex-extracted at test time) so the
+test can never drift from the code — which is exactly why moving 5→6 was a 6-line edit with
+instant proof. Covers 8am/9am/4pm/**5pm rings**/**6pm blocked**/7pm/9pm/2am/**midnight** (hour 0
+must not read as falsy-open), weekends, the `h:-1` broken-clock fail-open, blank + undefined vault
+reads, the kill switch **and near-miss values that must NOT disable it** (`'on'`, `'false'`), the
+tunable window **in both directions** (`CLOSE=17` pulls 5pm back out, `CLOSE=19` puts 6pm in),
+out-of-range clamping, and the first-leg guard.
+- Off-hours text re-measured after the copy change: still **151 chars of pure GSM-7 = ONE segment**
+  (5pm→6pm is the same character count). An em-dash or curly apostrophe would
   flip it to UCS-2 at 70 chars/segment — 3× the cost.
 
 ### ⏭️ OPEN
