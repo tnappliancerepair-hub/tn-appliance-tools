@@ -16,7 +16,7 @@
 <style>
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-  header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:9px;padding:11px 14px;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  header{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:9px;padding:11px 14px;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);flex-wrap:wrap}
   header .brand{font-weight:800}
   header .sp{flex:1}
   header a,header button{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
@@ -280,7 +280,7 @@
     app.innerHTML=
       '<header><span class="brand">🗓 Needs Scheduled</span><span class="sp"></span>'+
         '<a href="/platform/office-board.html">Board</a><a href="/platform/dispatch.html">Dispatch</a><a href="/platform/messages.html">💬 Messages</a>'+
-        '<button id="newjob">＋ New job</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
+        '<button id="newjob">＋ New customer &amp; job</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
         '<div class="toprow"><div><div class="ttl">Jobs waiting to be scheduled</div><div class="sub">'+unsRegion.length+' in '+(region==='LA'?'Louisiana':'Middle TN')+' · grouped by who covers the ZIP</div></div>'+regBar+'</div>'+
         body+

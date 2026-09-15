@@ -116,7 +116,15 @@ console.log('\n— one definition, not four copies —');
 Object.keys(SURFACES).forEach(function (name) {
   const S = SURFACES[name];
   t(name + ' loads the shared module', /src="\/platform\/ant-new-job\.js"/.test(S));
-  t(name + ' carries a ＋ New job button', /id="newjob"[^>]*>＋ New job/.test(S));
+  // ⚠️ THE LABEL IS THE FEATURE. Danielle asked THREE TIMES on 2026-09-15 for "a place
+  // to add ppl" — and the button was already there, saying "＋ New job". She is scanning for
+  // a CUSTOMER, so a button that only says "job" reads as "not it," and she told Sofia there
+  // was no way to add a new customer. The sheet behind it always said "New customer & job";
+  // the button is the only thing she can see WITHOUT tapping, so it has to say it too.
+  t(name + ' says CUSTOMER on the button, not just job',
+    /id="newjob"[^>]*>[^<]*[Cc]ustomer[^<]*<\/button>/.test(S));
+  t(name + ' header wraps so the longer label cannot shove a button off a phone',
+    /header\{[^}]*flex-wrap:wrap/.test(S));
   t(name + ' opens the shared sheet', /AntNewJob\.open\(/.test(S));
   // the giveaway that somebody pasted the chain back into a page instead of calling open()
   t(name + ' does not keep its own copy of the insert chain',

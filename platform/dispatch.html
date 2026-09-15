@@ -6,7 +6,7 @@
     --new:#6b7280; --scheduled:#2563eb; --in_progress:#b45309; --awaiting_parts:#7c3aed; --completed:#3f8f24; --canceled:#9ca3af; }
   @media(prefers-color-scheme:dark){ :root:not([data-theme="light"]){ --bg:#0f130c; --panel:#171c12; --ink:#eef2e6; --muted:#9aa38c; --line:#2a3220; --brand:#5bb537; --chip:#20281a; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35); } }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-  header{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;padding:11px 14px;z-index:6}
+  header{position:sticky;top:0;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;padding:11px 14px;z-index:6;flex-wrap:wrap}
   .brand{font-weight:800} .sp{flex:1}
   header a,header button{background:var(--panel);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:7px 11px;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
   .wrap{max-width:900px;margin:0 auto;padding:12px 12px 40px}
@@ -598,7 +598,7 @@
         '<div class="rq-acts"><button class="ok" data-approve="'+o.id+'">✓ Approve</button><button data-counter="'+o.id+'">Counter</button><button class="no" data-deny="'+o.id+'">Deny</button></div></div>'; }).join('')+'</div>' : '';
 
     app.innerHTML=
-      '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a><a href="/platform/messages.html">💬 Messages</a><a href="/platform/office-board.html">Board</a><a href="/platform/returns.html">📦 Returns</a><button id="newjob">＋ New job</button><button id="coverage">🗺️ Coverage</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
+      '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a><a href="/platform/messages.html">💬 Messages</a><a href="/platform/office-board.html">Board</a><a href="/platform/returns.html">📦 Returns</a><button id="newjob">＋ New customer &amp; job</button><button id="coverage">🗺️ Coverage</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
         reqSection+
         '<div class="weeknav">'+navHtml+'</div>'+
