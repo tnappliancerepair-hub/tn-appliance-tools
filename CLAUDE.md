@@ -12,7 +12,22 @@ Teddy sent a photo of a Rocketbook page: **LG · Fridge · 7 years · Ashland Ci
   it is the same shape as the parts notes shipped the same morning: the information existed, it just
   had no surface.
 
-### ✅ `＋ New job` in the board header (LIVE, verified on the served page)
+### ✅ `＋ New job` — ONE module, FOUR office surfaces (LIVE, verified on every served page)
+**🔴 THE FIRST CUT WAS ONE PAGE AND THAT WASN'T ENOUGH — Danielle, same morning, three times over,
+correcting herself twice to be precise:** *"there is no place to add ppl in the new system. Until
+that is added i cant put any new job in"* … *"Working on 3 systems."* And Sofia, per her: *"She
+don't know how to add ppl."* She was right when she said it **and still right an hour after the
+button shipped** — because she doesn't work one page. She works **board · dispatch · needs-scheduled
+· messages**, and the call comes in wherever she is standing. Three of those four still had no door.
+- **✅ `platform/ant-new-job.js` (NEW) — ONE definition, mounted on all four.** Self-contained: its
+  own `anj-*` CSS (collides with nothing) and it **resolves the shop + the person from `app_user`
+  itself** — the host page supplies nothing but a signed-in client. Name defaults to `'Office'` so a
+  slow lookup can never block a write. Same shape as `ant-part-route.js` / `ant-part-note.js`, which
+  exist because copies drift. `AntNewJob.open({sb, trade, onDone})`.
+- **Sheet header reads `＋ New customer & job`** — she asked for a place to add **PEOPLE** three
+  times, and "New job" doesn't read as that to somebody hunting for it.
+- ⚠️ **She is ALSO stuck on the old system** (*"cant add to old without [a] date"*). This sheet
+  **requires no date** — a lead with no appointment yet is exactly what belongs in **New**.
 A sheet: name · phone · what it is · what it's doing · city · **where they came from** (Google
 search/maps · Google Ads · Google LSA · website · referral · repeat · other).
 - **Writes the SAME shape `createLeadJob()` writes server-side**, so a lead typed here is
@@ -36,16 +51,23 @@ search/maps · Google Ads · Google LSA · website · referral · repeat · othe
   them may fail it. **Nothing here can text a customer.**
 
 ### 🧪 PROVEN
-**`tests/office-new-job.test.js` 40/40** — `newJobGate` + `leadPhoneKey` are **regex-lifted out of the
+**`tests/office-new-job.test.js` 57/57** (40/40 when it lived on one page) — `newJobGate` + `leadPhoneKey` are **regex-lifted out of the
 shipped page**, so the test runs the rule the office actually gets. **Deliberately exercised the
 regression it exists for:** flipping `source` to `office_google` fails the suite 2/40. The allowlist
 assertion is **count-checked** because `.every()` on an empty array passes vacuously — the lesson from
-the same morning's dead check. Full suite **14/14 files green**; part-note still 65/65.
+the same morning's dead check. A block asserts **all four surfaces load the module, carry the button,
+call `open()`, and do NOT keep their own copy of the insert chain** — a pasted-back copy fails on
+purpose. Full suite **14/14 files green**; part-note still 65/65.
 
 ### ⏭️ OPEN
 - **The LG fridge in Ashland City is NOT on the board yet** — the name + phone on that Rocketbook page
   are hidden behind the iMessage compose bar in the screenshot, and a fabricated phone number is worse
   than no card. Read them off the paper and it is a 20-second entry now instead of a retype.
+- **Danielle + Sofia have to be TOLD it is there and reload once.** She was texting *"there is no
+  place to add ppl"* an hour after it shipped. `tech-autoupdate.js` is on the board and shows the
+  "🔄 New version ready" bar, but a stranded tab does not self-heal — a hard reload is the cure.
+- **Deliberately NOT added to `returns.html` / `stale-scheduled.html` / `ready.html`** — those are
+  worklists somebody clears, not places a phone rings. Add one the day somebody says it is missing.
 - The QR on that notepad is the **Rocketbook page marker**, not lead data — don't chase it.
 
 ## 💬🔩 2026-09-15 (Mon) — TEDDY: "they need to mark where those parts are so the tech knows... and communicate back and forth" — the tech's tap wrote a column and told NOBODY — READ FIRST
