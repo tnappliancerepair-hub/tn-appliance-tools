@@ -1,6 +1,6 @@
 # Appliance Ant
 
-## 📞🚫 2026-09-15 (Mon) — "OUTGOING CALLS NOT WORKING": the carrier was fine, the BUTTON rang the wrong desk — READ FIRST
+## 📞🚫 2026-09-15 (Mon) — SOFIA'S THREAD, BOTH HALVES: "outgoing calls not working" was the carrier being FINE and the BUTTON ringing the wrong desk · "no way to add a new customer" was a button that already existed under the wrong NAME — READ FIRST
 
 Sofia, 12:24 PM: *"The office phone won't let me call out."* She was right. Nothing about the
 phone system was broken.
@@ -19,6 +19,28 @@ credentials** (caller ID `+16152802949`). Inbound is healthy. The carrier is hea
 - `telnyx-provision?action=cdr` is **BROKEN** — Telnyx now rejects `filter[record_type]=voice`
   (`10011 No matching record type`). Use **`sms-audit?kind=ai|voice|trunk`**, which maps to the
   real types (`ai-voice-assistant` / `call-control` / `sip-trunking`).
+
+### 👤❌ THE HALF OF HER THREAD I HADN'T SEEN — "Danielle says there's no way to add a new customer"
+Scrolling above the 12:24 PM line, Sofia is asking Danielle how to make a new job, and the
+answer she got back was **"there's no way to add a new customer."** That is WRONG — and it is
+our fault she believes it. Verified against the LIVE served pages, not the repo: the module is
+on main and **all four surfaces already carry the button** (`office-board` 2 hits, `messages`,
+`dispatch`, `needs-scheduled` 1 each; `AntNewJob.open(` wired on every one).
+- **🔴 THE LABEL WAS THE WHOLE BUG.** The sheet header says **"＋ New customer & job"** — but you
+  only see that AFTER you tap. The **button**, the only thing on the board she can actually see,
+  said **"＋ New job."** Danielle asked **three separate times** for *"a place to add ppl."* She
+  scanned for a CUSTOMER, read "job", concluded it wasn't there, and told Sofia so. Renamed the
+  button to **"＋ New customer & job"** on all four.
+- **⚠️ All four headers are `display:flex` with NO `flex-wrap`** — a longer label would have shoved
+  a button off the right edge of a phone instead of dropping to a second line (dispatch carries
+  brand + 4 links + 4 buttons). `flex-wrap:wrap` added to each in the same change.
+- **Pinned by test** (`office-new-job` 61/61): the button must carry the word *customer* and the
+  header must wrap. Non-vacuity proven by mutation — restoring the old label fails 1, dropping
+  the wrap fails 1.
+- **⚠️ STANDING: a feature she cannot NAME is a feature she does not have.** The 9/15 entry below
+  already recorded *"she asked for a place to add PEOPLE three times, and 'New job' doesn't read
+  as that"* — and then only fixed the sheet. Fix the **label on the thing she has to find**, not
+  the one behind it. Verify a discoverability fix by reading the button, not the modal.
 
 ### 🔴 THE ACTUAL BUG — the Call button is a BRIDGE, and it rang somebody else's phone
 The board's 📞 Call is not a dialer. Telnyx rings the office person's **own cell first**, and
@@ -61,9 +83,13 @@ restoring the old front-end branch fails 2, dropping the refusal reason fails 1.
 **17/17 files green**.
 
 ### ⏭️ OPEN
-- **🔴 THIS FIX IS INERT UNTIL MERGED — Netlify deploys from `main`, and the branch is 8 commits
+- **🔴 THIS FIX IS INERT UNTIL MERGED — Netlify deploys from `main`, and the branch is 10 commits
   ahead.** Sofia keeps ringing Danielle's desk until `claude/supabase-ant-system-testing-vnbgym`
   lands on main. Nothing here is a database change; it is all front-end + Netlify functions.
+- **Danielle + Sofia have to be TOLD the add-customer button exists — it is LIVE right now.**
+  The renamed label ships with the merge, but the button itself has been on main since this
+  morning. She is telling Sofia it isn't there. One sentence from Teddy ("top of the board,
+  ＋ New job, it makes the customer too") unblocks her today without waiting on anything.
 - **Carrie has NO cell in the vault** (`OFFICE_CELL_CARRIE` is empty) — she'll now get an honest
   "no cell on file" instead of ringing Danielle, but she still can't call out until it's set.
 - **The credential connection's outbound profile is still UNVERIFIED.** The softphone dials over
