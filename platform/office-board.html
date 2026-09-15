@@ -2259,7 +2259,12 @@
       jt2.disabled=true; if(m2) m2.textContent='Saving…';
       var upd={technician2_id:val};
       if(val && !job.needs_two_techs) upd.needs_two_techs=true;   // naming him IS the flag
-      sb.from('job').update(upd).eq('id',job.id).select('id').then(function(r){
+      // ⚠️ A DAY OFF IS A FACT, NOT A PREFERENCE. Naming a helper puts a real drive on his day,
+      // so check he is actually working it before the write. His LOAD is only a warning -- the
+      // office overrides capacity all the time and shouldn't have to fight the board -- but a
+      // man who is off is off, and booking him is how a two-man stop shows up one man short.
+      // A failed check never blocks the save: worst case we lose the warning, not the booking.
+      var doSave=function(){ sb.from('job').update(upd).eq('id',job.id).select('id').then(function(r){
         jt2.disabled=false;
         // An RLS-blocked write comes back with zero rows and NO error — never call that saved.
         if(r.error||!r.data||!r.data.length){ jt2.value=job.technician2_id||''; if(m2) m2.textContent='Did NOT save — try again.'; return; }
@@ -2268,7 +2273,27 @@
         if(val) notifyAssigned(job.id, val);
         var fb=document.querySelector('#jflags button[data-flag="two"]'); if(fb&&job.needs_two_techs) fb.classList.add('on');
         loadBoard();
-      });
+      }); };
+      // No helper picked (clearing the seat), or no day booked yet -> nothing to check against.
+      if(!val || !job.scheduled_day){ doSave(); return; }
+      var hn=(function(){ var o=jt2.options[jt2.selectedIndex]; return (o&&o.textContent||'He').split(' ')[0]; })();
+      sb.from('tech_time_off').select('day').eq('technician_id',val).eq('day',job.scheduled_day).limit(1)
+        .then(function(offR){
+          if(!offR.error && offR.data && offR.data.length){
+            jt2.disabled=false; jt2.value=job.technician2_id||'';
+            if(m2) m2.textContent='🌴 '+hn+' is off '+job.scheduled_day+' — move the day or pick somebody else.';
+            return;
+          }
+          // Load check is advisory only: count what he already carries that day, either seat.
+          sb.from('job').select('id,technician_id,technician2_id')
+            .eq('scheduled_day',job.scheduled_day).not('status','in','(completed,canceled)')
+            .or('technician_id.eq.'+val+',technician2_id.eq.'+val).limit(50)
+            .then(function(ld){
+              var n=(!ld.error&&ld.data)?ld.data.filter(function(x){ return String(x.id)!==String(job.id); }).length:0;
+              doSave();
+              if(n>=6 && m2) setTimeout(function(){ m2.textContent='Saved ✓ — heads up, that makes '+(n+1)+' stops on '+hn+"'s day."; },600);
+            });
+        });
     }; }
 
     var jtile=document.getElementById('jtileSend');
