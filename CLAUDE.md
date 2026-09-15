@@ -50,8 +50,12 @@ Both of them said "notes are not saving," and it was **one bug seen from both en
   write; changed → **keep BOTH, his first, hers after**, and tell her *"A note came in from the field
   while you had this open — both are saved."* The tile's **"📋 Request report"** button had the same
   clobber (it appended to the **cached** copy) — it reads live first now too.
-- ⚠️ **The writes were never broken** — 12 jobs had notes touched in 48h, 2 from today. Proving that
-  first is what stopped this being chased as an RLS/save bug for the third time.
+- ⚠️ **The writes were never broken.** Checked first, and it is what stopped this being chased as an
+  RLS/save bug for the third time: the save already has `.select()` + a row check (a refused write says
+  *"Did NOT save"*), and notes with plainly-current content sit on today's jobs (22080 *"Customer will
+  not be available until closer to 3"*, 22046 *"The home is a rental. The tenant name is Arianna"*).
+  ⚠️ **`job.updated_at` is NOT a note timestamp** — the mirror stamps it on every active job every 5
+  min, so it cannot date a note. There is no `notes_updated_at`; the content is the only evidence.
 
 ### 🧪 PROVEN
 - **`tests/part-route.test.js` 40/40** — the anchor that matters: **every `ship_to` string the migrate
