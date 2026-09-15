@@ -1358,3 +1358,9 @@
 # Kill: vault LSA_LEAD_WATCH=false. Quiet just the 3h nag: LSA_LEAD_RENAG=false.
 [functions."lsa-lead-watch-cron"]
   schedule = "6-59/10 * * * *"
+
+# new-lead-alert — an unknown number called the shop; text Teddy AND Danielle the number.
+# Every 2 minutes, all day and all night. NO hours gate, deliberately (Teddy 2026-09-15:
+# "as soon as they call us, even after hours"). Core is curlable with ?dry=1.
+[functions."new-lead-alert-cron"]
+  schedule = "*/2 * * * *"

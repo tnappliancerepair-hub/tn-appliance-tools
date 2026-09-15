@@ -161,7 +161,7 @@ async function _handle(event) {
   // REAL calls only — the warm ping fired ~20-30x/hr and buried real calls ~13:1, making
   // the phone data impossible to read. (Teddy 2026-08-20)
   const isWarm = q.warm === '1' || digits === '6155551212' || digits === '16155551212';
-  try { if (crud && !isWarm) crud.logEvent('telnyx_precall_hit', { body_keys: Object.keys(body || {}).slice(0, 20), from_resolved: from || '', digits_len: digits.length, b64: !!event.isBase64Encoded, raw: String(raw || '').slice(0, 500), at_ms: Date.now() }); } catch (_) {}
+  try { if (crud && !isWarm) crud.logEvent('telnyx_precall_hit', { body_keys: Object.keys(body || {}).slice(0, 20), from_resolved: from || '', to_resolved: toDigits || '', digits_len: digits.length, b64: !!event.isBase64Encoded, raw: String(raw || '').slice(0, 500), at_ms: Date.now() }); } catch (_) {}
 
   // Generic, warm fallback — used for an unknown caller OR any lookup hiccup, so the
   // call NEVER waits on us. The assistant just asks who it's speaking with.
