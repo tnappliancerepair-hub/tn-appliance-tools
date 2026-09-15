@@ -91,6 +91,8 @@
   .fldsave{display:flex;align-items:center;gap:9px;margin-top:7px;min-height:22px}
   .fldsave button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 12px;font-weight:800;font-size:12.5px;cursor:pointer}
   .fldsave button.dirty{background:var(--brand);color:#fff;border-color:var(--brand)}
+  /* nothing typed yet = nothing to save. Reads as inert so it never looks like a claim. */
+  .fldsave button.inert{opacity:.45}
   .fldsave .fs-msg{font-size:12px;font-weight:700}
   .fldsave .fs-msg.ok{color:#12a150}
   .fldsave .fs-msg.err{color:#b91c1c}
@@ -150,6 +152,11 @@
   .mgrid{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
   .mtile{position:relative;width:calc(33.333% - 6px);aspect-ratio:3/4;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#0c0c0c;cursor:pointer}
   .mtile img,.mtile video{width:100%;height:100%;object-fit:cover;display:block}
+  /* Same rule as the office board: a tile whose signed URL hasn't arrived shows a camera,
+     never a broken glyph or a blank square. The camera sits behind; the photo covers it. */
+  .mtile::before{content:"\1F4F7";position:absolute;inset:0;z-index:0;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.5}
+  .mtile img,.mtile video{position:relative;z-index:1;background:#0c0c0c}
+  .mtile img[data-ph]:not([data-phdone]),.mtile img[data-phfail]{visibility:hidden}
   .mtile .playo{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:30px;text-shadow:0 2px 10px rgba(0,0,0,.7);background:rgba(0,0,0,.14);pointer-events:none}
   .mtile .vlabel{position:absolute;left:7px;bottom:7px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.02em}
   .mtile .del{position:absolute;top:6px;right:6px;width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,.85);background:#e5484d;color:#fff;font-size:14px;display:grid;place-items:center;box-shadow:0 2px 9px rgba(0,0,0,.4);padding:0;line-height:1}
@@ -370,6 +377,15 @@
   function tdr(){ return (job.tdr && job.tdr[0]) || null; }
 
   function render() {
+    // ⚠️ A RE-RENDER MUST NEVER EAT WHAT THE TECH IS TYPING.
+    // render() rebuilds the whole report card from the server copy, and loadJob() ->
+    // render() is fired by a dozen ordinary actions -- adding a photo is the one that
+    // bit Jimmy (2026-09-15: "not saving in the what failed box"). He types the failed
+    // component, taps the camera, the upload succeeds, loadJob() runs, and the box he
+    // just filled comes back empty with a button under it reading "Saved". Nothing was
+    // saved and nothing said so. Stash anything not yet on the server here and put it
+    // back after the card is rebuilt.
+    var carried = grabUnsavedFlds();
     var s = st(job.status), cust = job.customer || {}, a = attrs(), t = tdr();
     var addr = [cust.address, cust.city, cust.state].filter(Boolean).join(', ');
     var phone = (cust.phone||'').replace(/[^0-9+]/g,'');
@@ -861,6 +877,7 @@
     app.querySelectorAll('#reportCard input[data-ins]').forEach(function(i){ i.addEventListener('change', paintFlds); });
     paintFlds();
     wireFieldSaves();   // each report field gets its own Save + confirmation
+    restoreUnsavedFlds(carried);   // put back anything the tech had typed but not saved
     document.getElementById('saveTdr').onclick = saveTdr;
     var onoteBtn=document.getElementById('onoteSave'); if(onoteBtn) onoteBtn.onclick=sendOfficeNote;
 
@@ -2390,7 +2407,41 @@
   function fldDirty(id){
     var el=document.getElementById(id), b=document.getElementById('fsbtn_'+id); if(!el||!b) return;
     var dirty=(el.value||'').trim()!==String(fldLast[id]==null?'':fldLast[id]).trim();
-    b.classList.toggle('dirty',dirty); b.textContent=dirty?'Save':'Saved';
+    var has=!!(el.value||'').trim();
+    b.classList.toggle('dirty',dirty);
+    // "Saved" over an EMPTY box is a lie the tech can read as "I typed this and it took".
+    // An empty field has nothing saved, so it never claims otherwise.
+    b.textContent = dirty ? 'Save' : (has ? 'Saved \u2713' : 'Save');
+    b.classList.toggle('inert', !dirty && !has);
+  }
+
+  // ── KEEPING UNSAVED TYPING ALIVE ACROSS A RE-RENDER ────────────────────────────
+  // Anything in a report box that is NOT yet on the server. Compared against fldLast,
+  // which is the last value we know landed, so a field the tech never touched carries
+  // nothing and a saved field carries nothing either -- only genuinely at-risk text.
+  function grabUnsavedFlds(){
+    var out={};
+    try{
+      Object.keys(FLD_COLS).forEach(function(id){
+        var el=document.getElementById(id); if(!el) return;
+        var v=(el.value||'');
+        if(v.trim() && v.trim()!==String(fldLast[id]==null?'':fldLast[id]).trim()) out[id]=v;
+      });
+    }catch(_){}
+    return out;
+  }
+  // Put it back and leave the button reading "Save" (orange), so the tech can SEE it is
+  // still his to save rather than being told it already happened.
+  function restoreUnsavedFlds(carried){
+    if(!carried) return;
+    try{
+      Object.keys(carried).forEach(function(id){
+        var el=document.getElementById(id); if(!el) return;
+        if((el.value||'').trim()) return;          // server already has something newer
+        el.value=carried[id]; fldDirty(id);
+      });
+      if(Object.keys(carried).length) paintFlds();
+    }catch(_){}
   }
   function fldSave(id, silent){
     var el=document.getElementById(id); if(!el) return;

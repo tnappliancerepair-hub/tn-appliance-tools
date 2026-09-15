@@ -242,6 +242,16 @@
   @media (prefers-reduced-motion: reduce){ .jp-num.flash{animation:none} .board .card{transition:none} .board .card:hover{transform:none} }
   .mtile{position:relative;display:inline-flex;width:62px;height:62px;border-radius:9px;overflow:hidden;border:1px solid var(--line);background:#0b0d08;align-items:center;justify-content:center;vertical-align:middle;margin-right:6px}
   .mtile img{width:100%;height:100%;object-fit:cover;display:block}
+  /* ⚠️ A PHOTO THAT HASN'T LOADED MUST NOT READ AS "THERE ARE NO PHOTOS".
+     Every tile is an <img> with no src until media-sign.js signs it, so a slow session or an
+     expired signature used to leave a blank square -- which is exactly what "no pics on
+     office end" (Jimmy, 2026-09-15) looked like while the photos were provably on disk. The
+     camera sits BEHIND the image: unsigned = you see the camera, loaded = the photo covers
+     it. No :has(), so it holds on every phone in the crew. */
+  .mtile::before,#jmedia .mgthumb::before{content:"\1F4F7";position:absolute;inset:0;z-index:0;display:flex;align-items:center;justify-content:center;font-size:17px;opacity:.55}
+  .mtile img,#jmedia .mgthumb img{position:relative;z-index:1;background:#0b0d08}
+  .mtile img[data-ph]:not([data-phdone]),#jmedia .mgthumb img[data-ph]:not([data-phdone]){visibility:hidden}
+  .mtile img[data-phfail],#jmedia .mgthumb img[data-phfail]{visibility:hidden}
   .vtile .vcover{position:absolute;inset:0}
   .vtile .play{position:absolute;color:#fff;font-size:20px;line-height:1;text-shadow:0 1px 5px rgba(0,0,0,.7);pointer-events:none}
   .cardmedia{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap}
