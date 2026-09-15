@@ -119,7 +119,13 @@ const INTENTS = {
     args: 'technician_id, pct (0-100), optional tech_name',
     apply: async (ctx, a) => {
       const pct = Math.max(0, Math.min(100, Number(a.pct)));
-      const t = await applyTechField(ctx, a.technician_id, { commission_pct: pct, commission_type: 'percent' });
+      // ⚠️ THE VOCABULARY IS LOAD-BEARING. Every reader (platform/pay-calc.js ruleFor,
+      // office-board.html, tech.html) matches commission_type === 'labor_pct' exactly, and
+      // owner.html's commission card writes that same string. This intent used to write
+      // 'percent' — a value NOTHING recognises, so the rate was stored, looked set in the
+      // row, and silently fell through to the company default on every payout. A commission
+      // that reads back fine and pays the wrong number is worse than one that fails loudly.
+      const t = await applyTechField(ctx, a.technician_id, { commission_pct: pct, commission_type: 'labor_pct', commission_flat_cents: null });
       return { ...t, label: `Set ${a.tech_name || 'tech'} commission to ${pct}%` + (t.before.commission_pct != null ? ` (was ${t.before.commission_pct}%)` : '') };
     },
   },

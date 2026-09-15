@@ -1,5 +1,70 @@
 # Appliance Ant
 
+## 💵🔤 2026-09-15 (Mon) — TEDDY: "adjust lees commission to 50%" — HE WAS RIGHT, AND LEE HAD NO RULE AT ALL · THE WORD WAS THE BUG, FOURTH TIME TODAY — READ FIRST
+
+Teddy: *"Please adjust lees commission to 50%."* He was right, and the cause was worse than a
+wrong number: **Lee had NO commission rule on the platform** (`commission_type` null,
+`commission_pct` null), so `pay-calc.ruleFor()` fell through to the company default —
+**40%**. Every job Lee closed was being figured 10 points of labor light.
+
+### 🥇 THE FINDING — a commission rule is a STRING MATCH, and three writers each invented their own spelling
+`platform/pay-calc.js ruleFor()` is the ONE resolver every pay surface reads (owner board,
+tech app, office invoice worksheet). It matches **`commission_type === 'labor_pct'`** exactly,
+and **anything else silently falls through to the company default.** That fallback is the
+dangerous part: the row still stores the pct, the owner board still renders it, and the
+payout quietly uses a different number. Measured live:
+
+| writer | wrote | any reader recognise it? |
+|---|---|---|
+| `platform/owner.html` commission card (the human path) | `labor_pct` | ✅ the canonical one |
+| `_lib/owner-actions.js set_tech_commission` (Ant + API path) | **`percent`** | ❌ dead → default |
+| `platform-provision.js` ×2 (EVERY tech a shop creates) | **`pct`** | ❌ dead → default |
+| `platform-ant.js` tech money card (reader) | read **`flat`** | ❌ writers write `flat_per_job` |
+
+- **Proven on live rows, not inferred:** the two deactivated decoy seats carried
+  `commission_type:'pct'` — stamped by `platform-provision` at creation. So **every tech
+  created through `shoppack`/`addtech` got a dead rule**: rate looks set, pays the default.
+- **⚠️ SAME CLASS AS THE ＋ New job BUTTON, THE PAID FOLDER, AND APPLE MAPS — fourth time
+  today.** There the WORD the human read was wrong; here the WORD the CODE reads is wrong.
+  Identical failure shape: the thing is there, the string doesn't match, so it may as well
+  not be.
+
+### ✅ FIXED — one vocabulary, `labor_pct` | `flat_per_job`, everywhere
+- `_lib/owner-actions.js` — `set_tech_commission` writes `labor_pct` (+ clears
+  `commission_flat_cents`, so switching a tech off a flat rate can't leave a stale one).
+- `platform-provision.js` (2 sites) — new techs are created `labor_pct`, so no future shop
+  inherits the bug.
+- **`platform-ant.js` — TWO bugs, and the second is the one techs feel.** It matched `'flat'`
+  where writers write `flat_per_job`, AND **it ignored the company default entirely** — so a
+  tech with no override (the normal case) opened *his own* money card and saw **$0** while the
+  owner board showed him earning. It now mirrors `pay-calc.ruleFor()`: override wins, else the
+  company default. **A tech who opens his pay and sees zero stops trusting the number.**
+- **Live rows healed:** Lee → `labor_pct 50`; the 2 decoy seats' dead `'pct'` → `labor_pct`.
+  **0 rows carry a dead `commission_type`.** All five active techs now match the Xano
+  `TECH_PAY_RATES` table exactly (Teddy 50 · Jimmy 45 · Andre 40 · **Lee 50** · John 40).
+
+### 🧪 PROVEN
+**`tests/commission-vocab.test.js` 4/4** — the allowed set is **lifted OUT of the shipped
+resolver** (regex over `ruleFor()`), never hardcoded, so the test cannot drift from what
+ships. Non-vacuity proven by mutation, four ways: restoring `'percent'` fails 2, restoring
+`'pct'` fails 2, restoring `'flat'` fails 2, dropping the company-settings fetch fails 1.
+Full suite **38/38**.
+- 🐞 **Caught TWO of my own weak assertions.** (1) `!/'percent'/` also matched the *comment*
+  recording why the name changed — **second time today** a test fired on a code comment; now
+  strips comments and anchors to the write. (2) `/settings/` passed even with the company
+  SELECT gutted, because `coSettings`/`coComm` still contain the word downstream — now pins
+  the actual `&select=…settings`. **An assertion that survives its own mutation is decoration.**
+
+### ⏭️ OPEN
+- **John Houk still has NO override** — he reads 40% only because that happens to equal the
+  company default. Correct today, but if the default ever moves, John moves with it silently.
+  One tap on the owner page pins him; left alone because it isn't what was asked.
+- **Xano-side `TECH_PAY_RATES` in `office-board.html` is a SECOND hardcoded copy** of the same
+  rates (Lee was already 50 there — that's why the Xano board looked fine while the platform
+  underpaid). The two agree right now; nothing keeps them agreeing. It retires with Xano.
+- 🔴 **INERT UNTIL MERGED** — the three code fixes ship on the next merge; **the live data fix
+  (Lee at 50%) is already in the database and is working now.**
+
 ## 🧭✅💵 2026-09-15 (Mon) — ANDRE: "can we add Apple Maps" + "an option for no parts needed" · DANIELLE: "need a paid folder" — THE SAME BUG THREE TIMES: THE WORD, NOT THE FEATURE — READ FIRST
 
 Three asks, one root cause, and it is the one this board keeps getting caught by: **the thing

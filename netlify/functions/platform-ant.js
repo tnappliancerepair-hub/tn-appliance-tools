@@ -193,19 +193,32 @@ async function buildTechSnapshot(ctx) {
     d.get(`job?technician_id=eq.${TID}&select=id,status,problem,scheduled_day,first_stop,completed_at,created_at,customer:customer_id(first_name,last_name,zip,city)&limit=1500`),
     d.get(`invoice?select=job_id,labor_cents,collected_cents,status,paid_at&limit=3000`),
     d.get(`tech_payout?technician_id=eq.${TID}&select=amount_cents,paid_at&limit=3000`),
-    d.get(`company?id=eq.${ctx.companyId}&select=name`),
+    d.get(`company?id=eq.${ctx.companyId}&select=name,settings`),
   ]);
   const me = (meRows && meRows[0]) || {};
   const shopName = (coRows && coRows[0] && coRows[0].name) || 'your shop';
-  const flat = me.commission_type === 'flat';
-  const pct = flat ? null : (me.commission_pct != null ? +me.commission_pct : null);
+  // The tech's pay rule — mirrors platform/pay-calc.js ruleFor(): their own override wins,
+  // else the COMPANY DEFAULT. Two bugs lived here: it matched 'flat' where every writer
+  // writes 'flat_per_job', and it ignored the company default entirely — so a tech with no
+  // override (the normal case) saw his own money card read $0 while the owner board showed
+  // him earning. A tech who opens his pay and sees zero stops trusting the number.
+  const coSettings = (coRows && coRows[0] && coRows[0].settings) || {};
+  const coComm = coSettings.commission || {};
+  const hasOverride = (me.commission_type === 'labor_pct' && me.commission_pct != null)
+    || (me.commission_type === 'flat_per_job' && me.commission_flat_cents != null);
+  const flat = hasOverride
+    ? me.commission_type === 'flat_per_job'
+    : coComm.type === 'flat_per_job';
+  const flatCents = hasOverride ? (me.commission_flat_cents || 0) : Math.round(+coComm.flat_cents || 0);
+  const pct = flat ? null
+    : (hasOverride ? +me.commission_pct : (+coComm.labor_pct || 0));
   const myJob = {}; jobs.forEach((j) => { myJob[j.id] = j; });
   const invByJob = {}; invs.forEach((v) => { if (myJob[v.job_id]) invByJob[v.job_id] = v; });
   const ms = Date.parse(monthStartISO());
   let earnedMonth = 0, collectedEarnedLife = 0;
   jobs.forEach((j) => {
     if (j.status !== 'completed') return; const v = invByJob[j.id]; if (!v) return;
-    const cut = flat ? (me.commission_flat_cents || 0) : Math.round((v.labor_cents || 0) * (pct != null ? pct : 0) / 100);
+    const cut = flat ? flatCents : Math.round((v.labor_cents || 0) * (pct != null ? pct : 0) / 100);
     if (inMonthTs(j.completed_at || j.created_at, ms)) earnedMonth += cut;
     if (v.status === 'paid') collectedEarnedLife += cut;
   });

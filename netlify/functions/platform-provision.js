@@ -100,7 +100,7 @@ exports.handler = async function (event) {
     if (seat.role === 'tech') {
       const linked = await rest(`technician?company_id=eq.${co.id}&app_user_id=eq.${appUserId}&select=id&limit=1`);
       if (!(Array.isArray(linked.d) && linked.d[0])) {
-        const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: seat.name, active: true, commission_type: 'pct', commission_pct: 50 }) });
+        const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: seat.name, active: true, commission_type: 'labor_pct', commission_pct: 50 }) });
         if (!ti.ok) return { ok: false, error: 'create_technician ' + ti.status + ' ' + JSON.stringify(ti.d).slice(0, 200) };
       }
     }
@@ -581,7 +581,7 @@ exports.handler = async function (event) {
         }
       }
       if (!techRow) {
-        const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: techName, active: true, commission_type: 'pct', commission_pct: pct }) });
+        const ti = await rest('technician', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ company_id: co.id, app_user_id: appUserId, name: techName, active: true, commission_type: 'labor_pct', commission_pct: pct }) });
         if (!ti.ok) return json(200, { ok: false, step: 'create_technician', status: ti.status, error: JSON.stringify(ti.d).slice(0, 300) });
         techRow = Array.isArray(ti.d) ? ti.d[0] : ti.d; techNote = 'created';
       }
