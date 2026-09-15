@@ -1,5 +1,5 @@
 // Unit test for the office-texml OFF-HOURS RING GATE (Teddy 2026-09-15:
-// "close that after-hours hole on the ring group - Ann only before 9 am and after 5 pm").
+// "close that after-hours hole on the ring group"; close hour confirmed as "6").
 //
 // This is LIVE CALL ROUTING. A wrong gate either (a) rings a dispatcher's personal cell at
 // 2am - the exact thing Danielle reported - or (b) silently kills every business-hours
@@ -35,13 +35,14 @@ const blocked = (ct, gate, open, close) => decide(gate, open, close, ct).blocked
 let n = 0;
 const ok = (cond, msg) => { assert.ok(cond, msg); n++; };
 
-// ── the window Teddy asked for: humans 9:00am - 4:59pm CT, Ann owns everything else.
+// ── the window Teddy asked for: humans 9:00am - 5:59pm CT, Ann owns everything else.
 ok(blocked(wd(8)) === true,  'weekday 8am is BLOCKED (before 9)');
 ok(blocked(wd(9)) === false, 'weekday 9am RINGS (open hour, Danielle-first)');
 ok(blocked(wd(12)) === false, 'weekday noon RINGS');
-ok(blocked(wd(16)) === false, 'weekday 4pm RINGS (last human hour)');
-ok(blocked(wd(17)) === true, 'weekday 5pm is BLOCKED - Ann owns 5:00 on');
-ok(blocked(wd(18)) === true, 'weekday 6pm is BLOCKED - this is Danielle\'s exact complaint');
+ok(blocked(wd(16)) === false, 'weekday 4pm RINGS');
+ok(blocked(wd(17)) === false, 'weekday 5pm RINGS (last human hour - Teddy: close at 6)');
+ok(blocked(wd(18)) === true, 'weekday 6pm is BLOCKED - Ann owns 6:00 on, Danielle\'s exact complaint');
+ok(blocked(wd(19)) === true, 'weekday 7pm is BLOCKED');
 ok(blocked(wd(21)) === true, 'weekday 9pm is BLOCKED');
 ok(blocked(wd(2)) === true,  'weekday 2am is BLOCKED');
 ok(blocked(wd(0)) === true,  'midnight is BLOCKED (hour 0 must not read as falsy-open)');
@@ -64,19 +65,20 @@ ok(blocked(wd(22), ' OFF ') === false, 'kill switch is trimmed + case-insensitiv
 ok(blocked(wd(22), 'on') === true, "'on' does NOT disable the gate");
 ok(blocked(wd(22), 'false') === true, "a near-miss value ('false') does NOT disable the gate");
 
-// ── window is vault-tunable, and garbage falls back to 9/17.
-ok(blocked(wd(17), '', '9', '18') === false, 'OFFICE_HOURS_CLOSE=18 puts 5pm back in the window');
-ok(blocked(wd(7), '', '7', '17') === false, 'OFFICE_HOURS_OPEN=7 opens 7am');
-ok(blocked(wd(8), '', 'banana', 'banana') === true, 'garbage hours fall back to the 9/17 default');
+// ── window is vault-tunable, and garbage falls back to 9/18.
+ok(blocked(wd(17), '', '9', '17') === true, 'OFFICE_HOURS_CLOSE=17 pulls 5pm back out - one vault value walks it back');
+ok(blocked(wd(18), '', '9', '19') === false, 'OFFICE_HOURS_CLOSE=19 puts 6pm in the window');
+ok(blocked(wd(7), '', '7', '18') === false, 'OFFICE_HOURS_OPEN=7 opens 7am');
+ok(blocked(wd(8), '', 'banana', 'banana') === true, 'garbage hours fall back to the 9/18 default');
 ok(decide('', '99', '-4', wd(12)).openHour === 9, 'out-of-range OPEN clamps back to 9');
-ok(decide('', '99', '-4', wd(12)).closeHour === 17, 'out-of-range CLOSE clamps back to 17');
+ok(decide('', '99', '-4', wd(12)).closeHour === 18, 'out-of-range CLOSE clamps back to 18');
 ok(decide('', '0', '0', wd(12)).openHour === 0, 'hour 0 is a legal configured value, not garbage');
 
 console.log('office-hours-gate: ' + n + '/' + n + ' pass');
 
 // ── FIRST LEG ONLY. A ?leg=2+ request is the action webhook for a ring that already
 // happened; gating it would discard that call's answered/missed outcome and text a caller
-// "we're closed" right after they hung up with a human (4:59 ring, 5:00 callback).
+// "we're closed" right after they hung up with a human (5:59 ring, 6:00 callback).
 const legSrc = lift(/const firstLeg = [^\n]+/, 'firstLeg');
 // eslint-disable-next-line no-new-func
 const isFirstLeg = new Function('qs', legSrc + '\nreturn firstLeg;');

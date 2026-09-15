@@ -252,7 +252,7 @@ exports.handler = async function (event) {
   // HERE: this ring group had no hour gate at all, so anything that reached the ring DID
   // (+1 615-588-9591) DIRECTLY, or any number bound to this TeXML app instead of to Ann,
   // dialed a dispatcher's personal cell at ANY hour of any day. Now the cascade refuses to
-  // dial outside Mon-Fri 9:00am-4:59pm CT; the caller gets a text and control falls back to
+  // dial outside Mon-Fri 9:00am-5:59pm CT; the caller gets a text and control falls back to
   // Ann (the <Reject/> below is exactly how the proven missed-by-everyone path hands back).
   //
   // FAIL-SAFE BY CONSTRUCTION, in both directions:
@@ -264,17 +264,17 @@ exports.handler = async function (event) {
   //     off-hours calls is recoverable; silently killing every business-hours transfer is not.
   //   * instant revert with no redeploy: vault OFFICE_HOURS_GATE=off.
   // Window is vault-tunable without a redeploy (OFFICE_HOURS_OPEN / OFFICE_HOURS_CLOSE,
-  // clamped 0-23) so Teddy can slide it; defaults are 9 and 17 per his instruction. CLOSE is
-  // exclusive - 17 means the last human-reachable minute is 4:59pm and Ann owns 5:00 on.
+  // clamped 0-23) so Teddy can slide it; defaults are 9 and 18 per his instruction. CLOSE is
+  // exclusive - 18 means the last human-reachable minute is 5:59pm and Ann owns 6:00 on.
   const hoursGateOn = String(hoursGateRaw || '').trim().toLowerCase() !== 'off';
   let openHour = parseInt(hoursOpenRaw, 10); if (!(openHour >= 0 && openHour <= 23)) openHour = 9;
-  let closeHour = parseInt(hoursCloseRaw, 10); if (!(closeHour >= 0 && closeHour <= 23)) closeHour = 17;
+  let closeHour = parseInt(hoursCloseRaw, 10); if (!(closeHour >= 0 && closeHour <= 23)) closeHour = 18;
   const clockUnknown = !(_ct.h >= 0);
   const officeOpen = clockUnknown || (_ct.weekday && _ct.h >= openHour && _ct.h < closeHour);
   // FIRST LEG ONLY. A ?leg=2+ request is the action webhook for a ring that ALREADY
   // happened - the call may well have bridged. Gating it would (a) throw away that call's
   // answered/missed outcome log and (b) text a caller "we're closed" seconds after they
-  // finished talking to a human, on any call that started at 4:59 and ended at 5:00.
+  // finished talking to a human, on any call that started at 5:59 and ended at 6:00.
   const firstLeg = !(parseInt(qs.leg, 10) >= 2);
   if (hoursGateOn && !officeOpen && firstLeg) {
     await raceLog('office_transfer_offhours_blocked', { ct_hour: _ct.h, weekday: _ct.weekday, open_hour: openHour, close_hour: closeHour, warranty: warrantyFirst, leg: String(qs.leg || '1') }, 600);   // 600ms cap: pure
@@ -282,7 +282,7 @@ exports.handler = async function (event) {
     await textbackCaller(
       // 151 chars, pure GSM-7 (no em-dash / curly quotes) = ONE segment. An em-dash or a
       // curly apostrophe flips the whole body to UCS-2 at 70 chars/segment - 3x the cost.
-      "Thanks for calling TN Appliance Exchange. We're closed - open weekdays 9am to 5pm Central. Reply here with what your appliance is doing and we'll help.",
+      "Thanks for calling TN Appliance Exchange. We're closed - open weekdays 9am to 6pm Central. Reply here with what your appliance is doing and we'll help.",
       'offhours_textback',
     );
     return xmlResp('  <Reject/>');
