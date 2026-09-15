@@ -193,36 +193,48 @@ exports.handler = async function (event) {
     paths.push(['GET', '/real-estate/v2/offices', null]);
     paths.push(['GET', '/v1/case-lifecycle', null]);
     paths.push(['OPTIONS', '/v1/case-lifecycle/dispatch_status_update', null]);
-    // CONTROL — a path that cannot exist. With a well-formed token the gateway routes first
-    // and validates the JWT per-route, so this must 404. That is what makes a 401 on a real
-    // path meaningful: 401 = the route EXISTS and our issuer isn't trusted for it; 404 = no route.
-    paths.push(['POST', '/dispatch-connector/v1/__ant_control_should_404__', lifecycle]);
+    // TWO CONTROLS. The gateway turned out to match on PREFIX, not full path — a nonsense
+    // sub-path under a known prefix still 401s. So we need both to read the map correctly:
+    //   A) unknown prefix      -> expect 404 (nothing is routed there)
+    //   B) nonsense sub-path under a KNOWN prefix -> 401 (the prefix is routed + JWT-gated)
+    // Together they prove the unit of routing is the prefix, which is why the routing-id
+    // guesses all 404'd: they were unknown prefixes, not missing segments.
+    paths.push(['POST', '/__ant_unknown_prefix__/v1/x', lifecycle]);
+    paths.push(['POST', '/dispatch-connector/v1/__ant_nonsense_subpath__', lifecycle]);
 
     const results = [];
     for (const [meth, path, body] of paths) {
       const r = await hit(`${host}${path}`, { method: meth, headers: bearer, body: body ? JSON.stringify(body) : undefined }, 4500);
       results.push({ method: meth, path, status: r.status, ms: r.ms, body: (r.body || r.error || '').slice(0, 120) });
     }
-    const control = results.find((r) => r.path.includes('__ant_control_should_404__'));
-    const controlSane = control && control.status === 404;
-    // A route that EXISTS but rejects our issuer. This is the signal we care about.
-    const routed = results.filter((r) => r.status === 401 && !r.path.includes('__ant_control'));
-    const missing = results.filter((r) => r.status === 404 && !r.path.includes('__ant_control'));
+    const isCtl = (r) => r.path.includes('__ant_');
+    const ctlUnknownPrefix = results.find((r) => r.path.includes('__ant_unknown_prefix__'));
+    const ctlKnownPrefix = results.find((r) => r.path.includes('__ant_nonsense_subpath__'));
+    const prefixRouting = !!(ctlUnknownPrefix && ctlUnknownPrefix.status === 404
+      && ctlKnownPrefix && ctlKnownPrefix.status === 401);
+
+    // With prefix routing confirmed, a 401 means the PREFIX is live and JWT-gated. It does
+    // NOT prove the exact sub-path — only a trusted token can settle that. Say so.
+    const gated = results.filter((r) => r.status === 401 && !isCtl(r));
+    const missing = results.filter((r) => r.status === 404 && !isCtl(r));
+    const prefixOf = (p) => '/' + String(p).replace(/^\//, '').split('/')[0];
+    const livePrefixes = [...new Set(gated.map((r) => prefixOf(r.path)))];
 
     let read;
-    if (!controlSane) {
-      read = `Control path returned ${control && control.status} instead of 404 — the gateway is rejecting before it routes, so status codes cannot tell existing paths from missing ones on this host.`;
-    } else if (routed.length) {
-      read = `CONTROL IS SANE (404). ${routed.length} path(s) returned 401 "issuer not configured" — those routes EXIST and our token is simply issued by an untrusted issuer. ${missing.length} path(s) 404 = no route. This host is real; we need a key whose issuer it trusts.`;
+    if (prefixRouting) {
+      read = `Routing is by PREFIX (unknown prefix 404s, nonsense sub-path under a known prefix 401s). Live + JWT-gated prefixes here: ${livePrefixes.join(', ') || 'none'}. Those services exist and reject our token only because its issuer isn't trusted on this host — we need a key this host trusts. The 401 does NOT by itself prove the exact sub-path; a trusted token settles that.`;
+    } else if (missing.length === results.filter((r) => !isCtl(r)).length) {
+      read = `Every non-control path 404s — this gateway has no routes for us at all.`;
     } else {
-      read = `CONTROL IS SANE (404) and every real path also 404s — this gateway has no routes deployed for us at all.`;
+      read = `Control pair was inconclusive (unknown-prefix=${ctlUnknownPrefix && ctlUnknownPrefix.status}, known-prefix-nonsense=${ctlKnownPrefix && ctlKnownPrefix.status}); read the raw results rather than the summary.`;
     }
 
     return json(200, {
       ok: true, step, host, minted_via: m.via,
-      control_returns_404: !!controlSane,
-      routes_that_exist: routed.map((r) => r.path),
-      routes_missing: missing.map((r) => r.path),
+      controls: { unknown_prefix: ctlUnknownPrefix && ctlUnknownPrefix.status, nonsense_subpath_under_known_prefix: ctlKnownPrefix && ctlKnownPrefix.status },
+      routing_is_by_prefix: prefixRouting,
+      live_jwt_gated_prefixes: livePrefixes,
+      prefixes_with_no_route: [...new Set(missing.map((r) => prefixOf(r.path)))],
       results,
       read,
     });
