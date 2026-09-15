@@ -1,5 +1,86 @@
 # Appliance Ant
 
+## 📞💰 2026-09-15 (Mon) — TEDDY: "the LSA ads are working, we got five or six calls today and I'm not sure where those calls are going" — HE WAS RIGHT ON THE COUNT, AND THE ANSWER IS "NOWHERE IN PARTICULAR" — READ FIRST
+
+Teddy: *"I've got a new thing going on right now — the LSA ads, they're working. We've got probably
+five or six calls today, but I'm not sure where those calls are going. They went unanswered. I need
+those to go directly to me, probably during business hours, so we can try to get them on schedule."*
+
+### 🥇 MEASURED FIRST — his count was exact, and the leads ARE real
+**LSA delivered 6 leads on 2026-09-15** (5 PHONE_CALL + 1 MESSAGE), **5 of them CHARGED at ~$18.05
+each**, campaign ENABLED at $40.71/day. Times, Central: **10:24 · 2:49 · 2:51 · 2:55 · 3:14 PM**, then
+a message at **3:47 PM**. Two of them name the appliance (`repair_refrigerator` ×2, `repair_dryer`).
+
+### 🔴 WHERE THEY WENT — nothing anywhere marks an LSA call as an LSA call
+- **There is NO dedicated LSA line.** LSA calls land on **615-280-2949**, which is also the Google
+  Business Profile number, the website number and the number on every business card. The instant a
+  paid lead arrives it is **indistinguishable from any other call**, so Ann answers it like the other
+  55 that day.
+- **Four of them landed between 2:49 and 3:14 PM, and in that entire window there were ZERO transfer
+  attempts to a human** — the day's last transfer fired at **1:46 PM**. Read off
+  `phone_transfer_outcome`: 9 transfers today, 6 answered, 3 missed, **none after 1:46**.
+- **61 inbound AI calls today produced 0 `callback_request`, 0 `call_outcome`, and 0 jobs.** All
+  **29** jobs created today came from warranty EMAIL (`servicepower_email` 10, `email_generic_warranty`
+  7, `ahs_email` 6, backfill 3, `warranty_email` 2, manual 1). **Not one job came from a phone call.**
+- So they were not going anywhere in particular — Ann answered them and **nothing was written down**.
+
+### 🐞 THE 845-8500 LINE IS BOUND TO THE WRONG THING (separate bug, found in the same pass)
+`google-line-texml` exists and does exactly the right thing for a paid lead — **ring Teddy's cell 25s
+with real ringback, hand to Ann on a miss, text him the caller, log `google_ads_call`.** But
+**`+1 615-845-8500` is currently bound to Ann's AI assistant, not to that TeXML app** (read live off
+`telnyx-provision?action=routes`), so the ring-Teddy-first logic **never runs**. Proof: `google_ads_call`
+= **0 events** today. The `Ant Google Line` TeXML app does not exist; a stray `Ant Verify Line` from a
+`&verify=1` run sits on the Baton Rouge DID 225-605-1234. **That is the Google SEARCH line, not LSA** —
+fixing it does not fix LSA, but it is broken and worth one command: `telnyx-provision?action=googleline`.
+
+### ✅ SHIPPED — `lsa-lead-watch` (+ `-cron`, `6-59/10`): a paid lead now reaches his phone in ~10 min
+Within ~10 minutes of Google booking a lead, Teddy gets **"LSA LEAD (we paid ~$18) — refrigerator
+repair, call at 2:49 PM CT. Call them back in the Local Services app. 3rd LSA lead today."** One nag at
+3h if it is **still open in the LSA app** — unanswered leads cost the money AND the ranking, because
+**LSA ranks on responsiveness**. A lead already settled there (BOOKED/DECLINED/EXPIRED) is never nagged;
+one of today's six had already flipped to DECLINED by the time this shipped.
+- **⚠️ THIS IS NOT THE ROUTING FIX HE ASKED FOR, AND IT CANNOT BE.** `contact_details` is **rejected
+  outright** by the API — probed `phone_number`, `consumer_name` and `email` live, all three return
+  *"Request contains an invalid argument."* **Google does not expose the caller's number on this
+  resource**, so nothing we build can dial them or match a lead to a job. The app is the only place
+  the number exists. This is the interim that stops a paid lead going unnoticed.
+- **⚠️ THE CLOCK IS THE LOAD-BEARING PART.** `creation_date_time` is in the **ACCOUNT** timezone, and
+  cid `8532272803` is **America/Chicago** (verified live) — i.e. **already Central**. Read it as a wall
+  clock; shift it through UTC and a 2:49 PM lead reads 7:49 PM on his phone and the 3h nag fires five
+  hours early. Also: **`segments.date` is rejected on `local_services_lead`**, so the window has to be
+  a `WHERE` on `creation_date_time`.
+- **Owner only.** Tag `lsa_lead` allowlisted in `office-gate`'s `CASH_INTAKE_TAGS` — it is cash intake
+  by the plainest reading of the rule. **An un-allowlisted tag is written and delivered NOWHERE**, the
+  trap `cash-ready-notify` sat in for three weeks. Danielle/Sofia/Carrie get nothing, by test.
+- **Forward-only by construction:** nothing older than 3h is ever a first touch, so the first run can
+  never fire at the 38-lead back catalogue. Capped 5/run, gated 7a–9p CT.
+
+### 🧪 PROVEN
+**`tests/lsa-lead-watch.test.js` 13/13** — every clock and label helper is **regex-lifted OUT of the
+shipped file**, so the test cannot drift from what actually texts him. Non-vacuity mutation-proven
+**four ways**: shifting the Central stamp through UTC fails 2, un-allowlisting the tag fails 1,
+dropping the forward-only floor fails 1, and making an unparseable stamp read as OLD (which would nag
+forever) fails 1. Full suite **58/58**. The exact GAQL the watcher sends was run against the **live**
+account first — 6 rows, today's leads, correct times.
+
+### ⏭️ OPEN — THE ROUTING DECISION IS TEDDY'S
+**🔴 INERT UNTIL MERGED** — rides the same 16-commit branch; Netlify deploys from `main`.
+- **The real fix he asked for = a dedicated LSA number pointed at `google-line-texml`** (ring him 25s
+  → Ann catches the miss → he gets the caller's number by text). That is **proven code that already
+  exists**. Two moves, in this order: (1) `telnyx-provision?action=googleline&num=<DID>` to stand the
+  TeXML app up on a DID, (2) **Teddy changes the phone number on the LSA listing** to that DID.
+  **Step 2 is his** — it is a live ad account that is currently spending, and a number change there
+  can trigger re-verification. Do not touch it without him.
+- **Do NOT just reuse 615-845-8500** — it muddies Search-vs-LSA attribution, and `google_ads_call`
+  rows would stop meaning "Google Ads". A fresh DID (`telnyx-provision?action=searchnew|buynew`) keeps
+  the two channels separately measurable, which is the whole point of a dedicated line.
+- **Ann writes NOTHING down about her calls.** 61 calls, 0 `call_outcome`, 0 `callback_request`,
+  0 jobs. We cannot say what happened on any call today. That is a bigger gap than LSA and is the
+  reason "where did the calls go" had to be answered by subtraction.
+- **Every one of today's leads is still ACTIVE/NEW in the LSA app** — from Google's side they look
+  unhandled, which hurts rank. Worth working the app tonight; genuinely bad ones can be **disputed
+  for a refund** there.
+
 ## 🧑‍🤝‍🧑📅 2026-09-15 (Mon) — "a second man button but no way to add two people to the schedule" — HE WAS RIGHT TWICE: the picker is BUILT-BUT-UNMERGED, and the SCHEDULING half never existed — READ FIRST
 
 Teddy: *"We need a second man scheduling strategy. We have a second man button but not a way to
