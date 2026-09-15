@@ -160,7 +160,7 @@ exports.handler = async function (event) {
     vendor_ids: 'AHS vendor ids: 822418 (North Shore LA), 822218 (South Shore LA), 839828 (Middle TN)',
   } : null;
 
-  let read = 'Every probed path 404s — including the bare root, on a host that does answer. The token is valid and names our org, so this is not auth: the gateway simply has no routes provisioned for this key. See config_ticket.';
+  let read = 'Every probed path 404s with our token. Before concluding "the host is empty", re-run the paths WITHOUT an Authorization header: a known prefix answers 403 RBAC and an unrouted one answers 404 "Not Found", which tells you whether the prefix is deployed at all. Measured 2026-09-15 on sandbox: the prefix IS deployed, our token clears RBAC, and the service then 404s every path including one that cannot exist. See config_ticket.';
   if (reachable.length) read = `${reachable.length} path(s) are REACHABLE with our token — the integration is not auth-blocked, it is path/schema work.`;
   else if (forbidden.length) read = `${forbidden.length} path(s) EXIST but our key is not authorized — this is the genuine "waiting on Frontdoor" state (config ticket / BD rep).`;
 

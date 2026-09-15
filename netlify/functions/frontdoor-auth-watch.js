@@ -41,9 +41,11 @@ exports.handler = async function (event) {
   // not linked; anything else = the key is authorized.
   let status = 0, err = '', body = '';
   try {
-    // Probe PRODUCTION on purpose. Measured 2026-09-15: the sandbox gateway has zero routes
-    // deployed (every path 404s, control included), so watching it would wait forever on a
-    // host that serves nothing. /dispatch-connector is live + JWT-gated on production; while
+    // Probe PRODUCTION on purpose. Measured 2026-09-15: on SANDBOX our token gets past RBAC
+    // and then every path under /dispatch-connector returns an empty 404 — including a control
+    // path that cannot exist — so sandbox can never produce a positive signal no matter how
+    // long we watch it. (The sandbox prefix IS routed; unauthenticated it answers 403 RBAC.
+    // "Empty host" was an earlier misread.) /dispatch-connector is live + JWT-gated on production; while
     // we hold only a sandbox key it answers 401 "Jwt issuer is not configured". The day a
     // production key is vaulted, that 401 turns into something else — and that is the signal.
     const resp = await fd.dispatchStatusUpdate({ dispatchId: 1, statusCode: 70, description: 'Technician in Route to Location', vendorId: '839828', tenant: 'AHS', baseOverride: fd.PROD_BASE });

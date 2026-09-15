@@ -105,7 +105,8 @@ async function api(method, path, bodyObj, baseOverride) {
 // Push a dispatch status update (+ optional note) into Frontdoor.
 //   POST /dispatch-connector/v1/webhook
 // baseOverride lets a caller probe a specific gateway regardless of FRONTDOOR_ENV. Needed
-// because the SANDBOX gateway is empty — every path 404s there, control included — so a
+// because on SANDBOX our token clears RBAC and then every path under the prefix returns an
+// empty 404, control path included (the prefix IS routed there — unauth gives 403 RBAC) — so a
 // watcher pointed at sandbox would wait forever on a host that serves nothing. The real
 // dispatch-connector service is on production.
 async function dispatchStatusUpdate({ dispatchId, statusCode, description, note, vendorId, source, tenant, items, startTime, endTime, baseOverride }) {
@@ -186,7 +187,8 @@ function vendorForArea(area) {
 }
 
 // Measured 2026-09-15: production routes by PREFIX and /dispatch-connector is live +
-// JWT-gated there; api.sandbox.frontdoorhome.com has no routes deployed at all.
+// JWT-gated there; on api.sandbox.frontdoorhome.com the same prefix is routed but answers an
+// empty 404 for every path we can reach, so it can never return a positive signal.
 const PROD_BASE = 'https://api.frontdoorhome.com';
 // The `source` Frontdoor provisioned for our account. Override per-tenant if a shop is ever
 // onboarded under a different contractor identity.
