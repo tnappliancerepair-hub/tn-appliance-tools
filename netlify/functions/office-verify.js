@@ -13,7 +13,7 @@
 // vault holds a password, that fallback never runs and the old one stops working.
 'use strict';
 
-const { getSecretPreferVault } = require('./_lib/secrets');
+const { getSecretPreferVault, getSecretFresh } = require('./_lib/secrets');
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
 function json(c, b) { return { statusCode: c, headers: { ...CORS, 'Content-Type': 'application/json' }, body: JSON.stringify(b) }; }
@@ -26,8 +26,19 @@ exports.handler = async function (event) {
   if (!pw) return json(200, { success: false });
 
   // Primary: the vault-managed office password.
+  //
+  // 🔴 READ IT FRESH. secrets.js caches a REAL value for the life of a warm container
+  // (only the EMPTY case has a 20s TTL), so a cached getSecret means ROTATING THE OFFICE
+  // PASSWORD SILENTLY DOES NOTHING -- set-secret returns {stored:true}, the vault holds
+  // the new value, and every warm container keeps checking against the old one until it
+  // happens to recycle. Measured 2026-09-15: the new password was refused for 90+ seconds
+  // straight after a confirmed write, with the owner locked out of his own office.
+  // A password gate is exactly the thing that must never answer from cache.
   let vaultPw = '';
-  try { vaultPw = String((await getSecretPreferVault('OFFICE_PASSWORD')) || '').trim(); } catch (_) {}
+  try { vaultPw = String((await getSecretFresh('OFFICE_PASSWORD')) || '').trim(); } catch (_) {}
+  // Fall back to the cached/env read only if the fresh one came back empty (vault blip) --
+  // never lock the office out over a transient read.
+  if (!vaultPw) { try { vaultPw = String((await getSecretPreferVault('OFFICE_PASSWORD')) || '').trim(); } catch (_) {} }
   if (vaultPw && pw === vaultPw) return json(200, { success: true, valid: true, ok: true, via: 'vault' });
 
   // Safety net — only while the vault is empty (never lock the office out).
