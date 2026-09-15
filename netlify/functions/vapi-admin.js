@@ -21,7 +21,7 @@ const PROXY = 'https://tnapplianceexchange.net/.netlify/functions/vapi-tool';
 const INBOUND_NAME = 'Ann'; // renamed from 'Ant Inbound' 2026-07-19 — the phone assistant is Ann (Ant's assistant)
 
 // Business hours, computed server-side in America/Chicago. A LIVE person (tech,
-// Danielle, or the office) is reachable ONLY Mon–Fri 9 AM–6 PM Central. This is
+// Danielle, or the office) is reachable ONLY Mon–Fri 9 AM–5 PM Central. This is
 // the HARD gate: off-hours the transferCall tool is removed entirely so Ann
 // physically cannot ring anyone, no matter what the prompt-level rules say.
 function isBizHoursCT(d) {
@@ -30,7 +30,11 @@ function isBizHoursCT(d) {
   const wd = (parts.find((p) => p.type === 'weekday') || {}).value || '';
   const hour = parseInt((parts.find((p) => p.type === 'hour') || {}).value || '0', 10);
   const isWeekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd);
-  return isWeekday && hour >= 9 && hour < 18; // 9:00 AM through 5:59 PM CT
+  // 9:00 AM through 4:59 PM CT (Teddy 2026-09-15: "Ann only before 9 am and after 5 pm").
+  // Was 9-6. MUST stay in lockstep with the office-texml ring-group gate and relay-to-tech,
+  // or Ann keeps a transferCall tool she can only use to reach a ring group that refuses to
+  // dial - the caller waits through a dead transfer instead of Ann just taking the message.
+  return isWeekday && hour >= 9 && hour < 17;
 }
 
 const TOOLS = [
@@ -481,7 +485,7 @@ ${MARK}
     return { statusCode: 200, body: JSON.stringify({ ok: resp.ok && applied, assistant: got.json.name, applied, status: resp.status, error: resp.ok ? null : resp.json }, null, 2) };
   }
 
-  // Phone hours (Teddy 2026-07-18): a live person answers Mon–Fri 9–6 CT ONLY —
+  // Phone hours (Teddy 2026-07-18): a live person answers Mon–Fri 9–5 CT ONLY —
   // no humans evenings or weekends; Ant is 24/7. Attaches get_business_hours + a
   // rules block so Ant checks open/closed before offering a person or a callback.
   // Idempotent. GET ?action=business_hours&secret=<admin>
@@ -495,11 +499,11 @@ ${MARK}
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const MARK = '<!-- BUSINESS-HOURS -->';
     if (!String(msgs[si].content || '').includes(MARK)) {
-      const BLOCK = `${MARK}\n## PHONE HOURS — a live person is here Mon–Fri 9–6 Central ONLY; you (Ant) are 24/7 [highest priority]\n`
-        + `The office is staffed by a live person Monday through Friday, 9 AM to 6 PM Central. There is NO one to answer live in the evenings (after 6 PM) or on weekends. You are available 24/7 and can handle almost everything yourself.\n`
-        + `- If a caller asks our hours: "Our team's here Monday through Friday, 9 to 6 Central — and I'm here any time, day or night."\n`
+      const BLOCK = `${MARK}\n## PHONE HOURS — a live person is here Mon–Fri 9–5 Central ONLY; you (Ant) are 24/7 [highest priority]\n`
+        + `The office is staffed by a live person Monday through Friday, 9 AM to 5 PM Central. There is NO one to answer live in the evenings (after 5 PM) or on weekends. You are available 24/7 and can handle almost everything yourself.\n`
+        + `- If a caller asks our hours: "Our team's here Monday through Friday, 9 to 5 Central — and I'm here any time, day or night."\n`
         + `- BEFORE you offer to connect someone to a live person, or promise a callback, CALL get_business_hours and follow its guidance.\n`
-        + `- WHEN CLOSED (evenings + weekends): never offer or imply a live transfer and never say someone will pick up now. Handle it yourself (look things up, book, send the intake/quick-check link, answer questions), then take their name + number + what they need with capture_callback and set honest expectations: "our team will follow up during business hours — Monday through Friday, 9 to 6." Give the next open time if they ask.\n`
+        + `- WHEN CLOSED (evenings + weekends): never offer or imply a live transfer and never say someone will pick up now. Handle it yourself (look things up, book, send the intake/quick-check link, answer questions), then take their name + number + what they need with capture_callback and set honest expectations: "our team will follow up during business hours — Monday through Friday, 9 to 5." Give the next open time if they ask.\n`
         + `- WHEN OPEN: help as normal; if a live transfer is enabled and they want a person, connect them per the transfer rules.\n`
         + `Never promise a specific callback time you can't guarantee.\n${MARK}\n\n`;
       msgs[si].content = BLOCK + String(msgs[si].content || '');
@@ -534,7 +538,7 @@ ${MARK}
       + `You do NOT have an arrival clock time from our routing, and you NEVER make one up. Never read back our internal scheduled time-of-day (it's a routing placeholder, not a promise), and never say "around 3," "this afternoon," "in a few minutes," "soon." If you don't have an exact time, SAY SO plainly — "I don't have an exact arrival time for you" — then give them the accurate ways to get one below. A wrong time breaks trust; "I don't know that exactly, but here's how you can find out" builds it.\n`
       + `THE TIMES WE CAN STAND BEHIND (use these):\n`
       + `1. WARRANTY-COMPANY WINDOW: If the customer's warranty company already gave them a time or window, THAT is the time we'll be there. If they mention one, affirm it warmly: "If your warranty company gave you that window, that's the window we'll be there for." Do NOT invent a window they didn't mention.\n`
-      + `2. CHECK WITH THE OFFICE: For a real-time answer during business hours (Mon–Fri 9 AM–6 PM Central — confirm with get_business_hours), transfer them to the OFFICE (transferCall → the office, which rings Teddy + Danielle); the office can reach their technician and give an accurate update. Do NOT transfer the caller straight to the tech. You can also use relay_to_tech to text the tech to call the customer back.\n`
+      + `2. CHECK WITH THE OFFICE: For a real-time answer during business hours (Mon–Fri 9 AM–5 PM Central — confirm with get_business_hours), transfer them to the OFFICE (transferCall → the office, which rings Teddy + Danielle); the office can reach their technician and give an accurate update. Do NOT transfer the caller straight to the tech. You can also use relay_to_tech to text the tech to call the customer back.\n`
       + `3. FOLLOW-THE-TECH LINK: When their technician taps "on my way," they'll get a text link to follow him live on their phone and see an accurate, specific arrival time. Let them know that's coming so they watch for it.\n`
       + `ALWAYS FINE: confirm the DAY they're scheduled, and collect the customer's OWN availability. Outside business hours, never ring or transfer anyone — take a message with capture_callback.\n${MARK}\n\n`;
     // strip EVERY prior copy of this block (global, whitespace-tolerant — collapses any
@@ -647,8 +651,8 @@ ${MARK}
     let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
     if (openNow) tools.push({ type: 'transferCall', destinations: dests });
     const MARK = '<!-- TECH-TRANSFER -->';
-    const BLOCK = `${MARK}\n## TRANSFER ROUTING — CALLS COME TO THE OFFICE FIRST, MON–FRI 9–6 CENTRAL [high priority]\n`
-      + `CALL get_business_hours before ANY transfer. We connect a caller to a live person ONLY Monday–Friday, 9 AM–6 PM Central. Outside that (after 6 PM, before 9 AM, all weekend): transfer NO ONE. Handle it yourself, take a message with capture_callback, and tell them we follow up when we open.\n`
+    const BLOCK = `${MARK}\n## TRANSFER ROUTING — CALLS COME TO THE OFFICE FIRST, MON–FRI 9–5 CENTRAL [high priority]\n`
+      + `CALL get_business_hours before ANY transfer. We connect a caller to a live person ONLY Monday–Friday, 9 AM–5 PM Central. Outside that (after 5 PM, before 9 AM, all weekend): transfer NO ONE. Handle it yourself, take a message with capture_callback, and tell them we follow up when we open.\n`
       + `DURING business hours, when a caller needs a live person:\n`
       + `• DEFAULT — transfer to THE OFFICE (it rings Teddy + Danielle). This is the FIRST stop for essentially every handoff: general questions, complaints, "let me speak to someone," AND a homeowner asking about their appointment, their tech, or when he's coming. We bring the caller to US first; the office loops in the technician if needed. NEVER transfer a caller straight to a technician.\n`
       + `• AMERICAN HOME SHIELD / AHS or ANY warranty/insurance REP: if a "Danielle" destination is present, transfer them DIRECTLY to Danielle. If not (she's off the phones), take their dispatch/claim + callback with capture_callback.\n`

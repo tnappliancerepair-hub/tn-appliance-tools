@@ -149,14 +149,16 @@ exports.handler = async function (event) {
     g('OFFICE_CELL_DANIELLE'), gf('OFFICE_REACH_DANIELLE'), g('TELNYX_SIP_USERNAME_DANIELLE'),
     g('OFFICE_CELL_TEDDY'), gf('OFFICE_REACH_TEDDY'), g('TELNYX_SIP_USERNAME_TEDDY'), g('TELNYX_SIP_USERNAME'),
     g('OFFICE_RING_SECONDS'), g('OFFICE_FIRST_SOLO_SECONDS'), gf('TRANSFER_CONFIRM'),
+    gf('OFFICE_HOURS_GATE'), g('OFFICE_HOURS_OPEN'), g('OFFICE_HOURS_CLOSE'),
   ]);
-  const secretsTimeout = new Promise((res) => setTimeout(() => res(new Array(15).fill('')), SECRET_BUDGET_MS));
+  const secretsTimeout = new Promise((res) => setTimeout(() => res(new Array(18).fill('')), SECRET_BUDGET_MS));
   const [
     callerIdRaw, webrtcRaw,
     cellSofia, reachSofia, sipSofiaU,
     cellDanielle, reachDanielle, sipDanielleU,
     cellTeddy, reachTeddy, sipTeddyU, sipTeddyLegacyU,
     ringRaw, soloRaw, confirmRaw,
+    hoursGateRaw, hoursOpenRaw, hoursCloseRaw,
   ] = await Promise.race([secretsP, secretsTimeout]);
 
   // "Press 1 to accept" is OPT-IN, default OFF (Teddy 2026-08-20: both dispatchers had
@@ -225,6 +227,66 @@ exports.handler = async function (event) {
   const primary = danielleFirst ? DANIELLE : SOFIA;
   const secondary = danielleFirst ? SOFIA : DANIELLE;
   const orderQS = warrantyFirst ? `order=${order}&` : '';
+
+  // Text the CALLER back. Shared by the off-hours gate and the missed-by-everyone tail so
+  // the two can never drift. Reactive (they just called us), customer-direction only, and
+  // guarded by _lib/sms (opt-out / quiet-hours / dedup). Awaited against a 1500ms cap so it
+  // gets a real chance to send but can NEVER hang the call teardown; any failure is
+  // swallowed. Warranty-rep calls (warranty desk) are skipped - different flow.
+  const textbackCaller = async (msg, tag) => {
+    try {
+      const from = String(formField(event, 'From') || '').replace(/[^\d+]/g, '');
+      const skip = !from || SHOP_DIDS.includes(from) || from === callerId || !from.startsWith('+1') || from.length < 12 || warrantyFirst;
+      if (skip) return;
+      await Promise.race([
+        Promise.resolve(sendSms(from, msg, 'customer', tag)).catch(() => {}),
+        new Promise((r) => setTimeout(r, 1500)),
+      ]);
+    } catch (_) {}
+  };
+
+  // ── OFF-HOURS GATE (Teddy 2026-09-15: "close that after-hours hole on the ring group -
+  // Ann only before 9 am and after 5 pm"). Danielle was getting work calls after 6 and
+  // before 9. The Vapi side was already clean - Ann's transferCall tool is physically
+  // STRIPPED outside business hours, so she cannot ring anyone off-hours. The hole was
+  // HERE: this ring group had no hour gate at all, so anything that reached the ring DID
+  // (+1 615-588-9591) DIRECTLY, or any number bound to this TeXML app instead of to Ann,
+  // dialed a dispatcher's personal cell at ANY hour of any day. Now the cascade refuses to
+  // dial outside Mon-Fri 9:00am-4:59pm CT; the caller gets a text and control falls back to
+  // Ann (the <Reject/> below is exactly how the proven missed-by-everyone path hands back).
+  //
+  // FAIL-SAFE BY CONSTRUCTION, in both directions:
+  //   * the hour comes from ctNow() - local, no network, so a slow/blank vault read can
+  //     never wedge the gate. A blank read leaves the gate ON, and during business hours an
+  //     ON gate rings exactly as before, so a vault failure never blocks a real transfer.
+  //   * if ctNow() itself ever fails it returns h:-1 - UNKNOWN. An unknown clock must NEVER
+  //     silence the phones, so h < 0 is treated as OPEN (ring). Losing the gate for a few
+  //     off-hours calls is recoverable; silently killing every business-hours transfer is not.
+  //   * instant revert with no redeploy: vault OFFICE_HOURS_GATE=off.
+  // Window is vault-tunable without a redeploy (OFFICE_HOURS_OPEN / OFFICE_HOURS_CLOSE,
+  // clamped 0-23) so Teddy can slide it; defaults are 9 and 17 per his instruction. CLOSE is
+  // exclusive - 17 means the last human-reachable minute is 4:59pm and Ann owns 5:00 on.
+  const hoursGateOn = String(hoursGateRaw || '').trim().toLowerCase() !== 'off';
+  let openHour = parseInt(hoursOpenRaw, 10); if (!(openHour >= 0 && openHour <= 23)) openHour = 9;
+  let closeHour = parseInt(hoursCloseRaw, 10); if (!(closeHour >= 0 && closeHour <= 23)) closeHour = 17;
+  const clockUnknown = !(_ct.h >= 0);
+  const officeOpen = clockUnknown || (_ct.weekday && _ct.h >= openHour && _ct.h < closeHour);
+  // FIRST LEG ONLY. A ?leg=2+ request is the action webhook for a ring that ALREADY
+  // happened - the call may well have bridged. Gating it would (a) throw away that call's
+  // answered/missed outcome log and (b) text a caller "we're closed" seconds after they
+  // finished talking to a human, on any call that started at 4:59 and ended at 5:00.
+  const firstLeg = !(parseInt(qs.leg, 10) >= 2);
+  if (hoursGateOn && !officeOpen && firstLeg) {
+    await raceLog('office_transfer_offhours_blocked', { ct_hour: _ct.h, weekday: _ct.weekday, open_hour: openHour, close_hour: closeHour, warranty: warrantyFirst, leg: String(qs.leg || '1') }, 600);   // 600ms cap: pure
+    // measurement on a path that ends the call anyway - never make the caller wait on it.
+    await textbackCaller(
+      // 151 chars, pure GSM-7 (no em-dash / curly quotes) = ONE segment. An em-dash or a
+      // curly apostrophe flips the whole body to UCS-2 at 70 chars/segment - 3x the cost.
+      "Thanks for calling TN Appliance Exchange. We're closed - open weekdays 9am to 5pm Central. Reply here with what your appliance is doing and we'll help.",
+      'offhours_textback',
+    );
+    return xmlResp('  <Reject/>');
+  }
   // CELLS ONLY (Teddy 2026-08-17): the softphone/app (SIP) legs returned an instant
   // "busy" that both dropped the caller AND made Ann bail after one ring ("looks like
   // they stepped away"). The transfer log proved cells connect and sip legs fail, so
@@ -292,20 +354,10 @@ exports.handler = async function (event) {
   }
   // ── MISSED BY EVERYONE — the cascade rang every dispatcher and nobody caught it, so
   // there are no stages left to ring. Text the CALLER back so a dropped hand-off never
-  // loses the customer (Teddy 2026-08-27). Reactive (they just called us), customer-
-  // direction only, guarded by _lib/sms (opt-out / quiet-hours / dedup). Awaited against a
-  // 1500ms cap so it gets a real chance to send but can NEVER hang the call teardown; any
-  // failure is swallowed. Warranty-rep calls (warranty desk) are skipped — different flow.
-  try {
-    const from = String(formField(event, 'From') || '').replace(/[^\d+]/g, '');
-    const skip = !from || SHOP_DIDS.includes(from) || from === callerId || !from.startsWith('+1') || from.length < 12 || warrantyFirst;
-    if (!skip) {
-      const msg = "Sorry we missed your call to Tennessee Appliance Exchange — we'll call you right back. Or just reply to this text and we'll help you get your appliance handled.";
-      await Promise.race([
-        Promise.resolve(sendSms(from, msg, 'customer', 'missed_call_textback')).catch(() => {}),
-        new Promise((r) => setTimeout(r, 1500)),
-      ]);
-    }
-  } catch (_) {}
+  // loses the customer (Teddy 2026-08-27). See textbackCaller above for the guards.
+  await textbackCaller(
+    "Sorry we missed your call to Tennessee Appliance Exchange \u2014 we'll call you right back. Or just reply to this text and we'll help you get your appliance handled.",
+    'missed_call_textback',
+  );
   return xmlResp('  <Reject/>');
 };

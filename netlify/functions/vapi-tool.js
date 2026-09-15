@@ -145,7 +145,11 @@ function businessHoursNow() {
   const dow = DOW[p.weekday];
   let hour = parseInt(p.hour, 10); if (hour === 24) hour = 0;
   const isWeekday = dow >= 1 && dow <= 5;
-  const open = isWeekday && hour >= 9 && hour < 18;
+  // 9:00 AM - 4:59 PM CT (Teddy 2026-09-15: "Ann only before 9 am and after 5 pm"). Was 9-6.
+  // This is the tool Ann calls BEFORE any transfer, so it must match the office-texml ring-group
+  // gate exactly - if it says open at 5:30 she attempts a transfer into a ring group that refuses
+  // to dial, and the caller sits through a dead hand-off instead of Ann just taking the message.
+  const open = isWeekday && hour >= 9 && hour < 17;
   const now_ct = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long', hour: 'numeric', minute: '2-digit', hour12: true }).format(now) + ' Central';
   let next_open = 'open now';
   if (!open) {
@@ -159,11 +163,11 @@ function businessHoursNow() {
   return {
     open,
     now_ct,
-    hours_text: 'Our team answers the phone Monday through Friday, 9 AM to 6 PM Central. We are closed evenings and weekends — but our assistant is here any time, day or night.',
+    hours_text: 'Our team answers the phone Monday through Friday, 9 AM to 5 PM Central. We are closed evenings and weekends — but our assistant is here any time, day or night.',
     next_open_text: next_open,
     guidance: open
       ? 'We are currently OPEN (a live person is in the office). If a live transfer is enabled and the caller wants a person, connect them per the transfer rules; otherwise take a message and the office can follow up today.'
-      : 'We are currently CLOSED for live calls. Do NOT offer or attempt a transfer and do NOT imply anyone will pick up now. Handle the request yourself, take name + number + what they need with capture_callback, and set expectations: our team follows up during business hours, Monday–Friday 9 to 6 Central. Next available: ' + next_open + '.',
+      : 'We are currently CLOSED for live calls. Do NOT offer or attempt a transfer and do NOT imply anyone will pick up now. Handle the request yourself, take name + number + what they need with capture_callback, and set expectations: our team follows up during business hours, Monday–Friday 9 to 5 Central. Next available: ' + next_open + '.',
   };
 }
 

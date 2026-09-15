@@ -325,7 +325,12 @@ function scrubTimes(msg) {
 // passes through opt-out / quiet-hours / dedup / caps below. The intake-only pause was a
 // TN-flood fix and must not gag a customer's shop — legacy TN sends carry non-platform tags
 // (ann_*, cash_*, etc.) so they stay intake-only; only platform_* tenant traffic is un-paused.
-const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound|tech.?field|satisfaction|platform_/i;
+// `textback` (missed_call_textback / offhours_textback) is REACTIVE - the customer dialed
+// our number seconds ago and nobody could pick up. Same class the gate already allows via
+// reply|response|answer|inbound, and it was being dropped: `sms_paused_intake_only` shows
+// missed_call_textback blocked live on 2026-09-11, so that safety net has never actually
+// sent. Quiet hours still hard-block it, so a 2am caller is not texted back at 2am.
+const INTAKE_OK = /intake|availab|quick.?check|finish.?upload|\bmedia\b|shoot|model.?photo|\bvideo\b|new.?lead|resume|book.?media|reply|response|answer|translated|inbound|tech.?field|satisfaction|textback|platform_/i;
 function isIntakeOrAvailability(kind, tag) {
   if (String(process.env.CUSTOMER_TEXTS_ALL || '') === '1') return true;   // re-enable all
   return INTAKE_OK.test(((kind || '') + ' ' + (tag || '')));

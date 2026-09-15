@@ -25,13 +25,14 @@ function cap(promise, ms, fallback) {
   ]);
 }
 // Business hours (America/Chicago): we contact a human — even a text to a tech —
-// ONLY Mon–Fri 9 AM–6 PM Central. Off-hours we hold the message for the morning
+// ONLY Mon–Fri 9 AM–5 PM Central. Off-hours we hold the message for the morning
 // and text NO ONE. (Teddy 2026-07-22: no calls OR texts to anyone off-hours.)
 function isBizHoursCT() {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
   const wd = (parts.find((p) => p.type === 'weekday') || {}).value || '';
   const hour = parseInt((parts.find((p) => p.type === 'hour') || {}).value || '0', 10);
-  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd) && hour >= 9 && hour < 18;
+  // 9:00 AM - 4:59 PM CT. Was 9-6; moved to 5 with the ring-group gate (Teddy 2026-09-15).
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd) && hour >= 9 && hour < 17;
 }
 function digits(p) { return String(p || '').replace(/\D/g, ''); }
 function e164(p) { const d = digits(p); if (d.length === 10) return '+1' + d; if (d.length === 11 && d[0] === '1') return '+' + d; return d ? '+' + d : ''; }

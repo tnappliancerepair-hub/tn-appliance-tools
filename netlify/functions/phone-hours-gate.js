@@ -1,6 +1,6 @@
 // phone-hours-gate — the automatic on/off switch for LIVE human transfers.
 // Ann answers 24/7, but a caller is connected to a real person (tech, Danielle,
-// or the office ring) ONLY Mon–Fri 9 AM–6 PM Central. This cron re-runs the
+// or the office ring) ONLY Mon–Fri 9 AM–5 PM Central. This cron re-runs the
 // wiretechs sync on a tight cadence; wiretechs itself is hours-aware, so it
 // ADDS the transferCall tool at 9 AM and REMOVES it at 6 PM (and all weekend).
 // Off-hours Ann has no transfer capability at all — she can only take a message.
