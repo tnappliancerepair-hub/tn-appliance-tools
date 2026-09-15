@@ -321,6 +321,7 @@
 
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-windows.js"></script>
+<script src="/platform/ant-part-route.js"></script>
 <script src="/platform/features.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -919,6 +920,7 @@
         if(t.here >= t.n)      f.push('<span class="fchip fpartsok" title="Every part on this job has been delivered — ready to schedule">✅ PARTS HERE ('+t.n+') — BOOK IT</span>');
         else if(t.here)        f.push('<span class="fchip fpartsgo" title="Some parts delivered, rest still moving">📦 PARTS '+t.here+'/'+t.n+' HERE</span>');
         else if(t.sent)        f.push('<span class="fchip fpartsgo" title="Shipped by the vendor, not delivered yet">🚚 PARTS SENT ('+t.sent+'/'+t.n+')'+(t.eta?' · '+esc(String(t.eta).slice(5)):'')+'</span>');
+        else if(t.pickup)      f.push('<span class="fchip fpartsgo" title="Will-call — somebody has to go get this one; nothing is being shipped">🏬 PICK UP ('+t.pickup+' of '+t.n+') — no one is shipping it</span>');
         else                   f.push('<span class="fchip fparts">🔧 NEEDS PARTS ('+t.n+' on order)</span>');
       } else f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
     }
@@ -1170,7 +1172,14 @@
     // ✓ Mark complete — set the job completed straight from the tile (a card moving column = a "file")
     b.querySelectorAll('.act-complete[data-job]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var id=el.getAttribute('data-job'); try{ if(window.AntMagic){ var rc=el.getBoundingClientRect(); AntMagic.award('file', rc.left+rc.width/2, rc.top); } }catch(_){} el.disabled=true; el.textContent='Saving…'; sb.from('job').update({status:'completed',completed_at:new Date().toISOString()}).eq('id',id).then(function(r){ if(r.error){ el.disabled=false; el.textContent='✓ Mark complete'; return; } loadBoard(); }); }; });
     // 📋 Request report — flag the tech (office note) that the report is needed
-    b.querySelectorAll('.act-report[data-job]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var id=el.getAttribute('data-job'); var j=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; el.disabled=true; el.textContent='Requested ✓'; var line='📋 Tech report requested — '+new Date().toLocaleDateString(); var prev=(j&&j.office_notes)?j.office_notes+'\n':''; sb.from('job').update({office_notes:prev+line}).eq('id',id).then(function(){ if(j) j.office_notes=prev+line; }); }; });
+    b.querySelectorAll('.act-report[data-job]').forEach(function(el){ el.onclick=function(ev){ ev.stopPropagation(); var id=el.getAttribute('data-job'); var j=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; el.disabled=true; el.textContent='Requested ✓'; var line='📋 Tech report requested — '+new Date().toLocaleDateString();
+      // read LIVE before appending -- the cached copy can be minutes old, and writing it back
+      // would erase whatever the tech sent in the meantime.
+      sb.from('job').select('office_notes').eq('id',id).limit(1).then(function(cur){
+        var live=String((cur&&cur.data&&cur.data[0]&&cur.data[0].office_notes)||'');
+        var next=(live?live.replace(/\s+$/,'')+'\n':'')+line;
+        return sb.from('job').update({office_notes:next}).eq('id',id).select('id').then(function(){ if(j) j.office_notes=next; });
+      }); }; });
     b.querySelectorAll('.card[data-job]').forEach(function(c){ c.onclick=function(){ var j=jobsCache.filter(function(x){return x.id===c.getAttribute('data-job');})[0]; if(j) openJob(j); }; });
     hydratePics(b);
     // 🎰 The Great Hall — badge + garland + once-a-day welcome; an owl for a genuinely-new job.
@@ -1635,12 +1644,13 @@
   // ── 🔩 PARTS — the office parts editor, directly under Status. Add / remove / adjust the part
   // numbers on the job (job_part). Add + remove are immediate; an inline edit saves on change. ──
   // Route the part travels: pick it up from the distributor, or it ships to the customer's home.
-  function shipSel(v){ v=v||'';
-    return '<select class="tp_ship">'+
-      '<option value=""'+(v===''?' selected':'')+'>Route…</option>'+
-      '<option value="distributor"'+(v==='distributor'?' selected':'')+'>🏭 Pick up from distributor</option>'+
-      '<option value="customer"'+(v==='customer'?' selected':'')+'>🏠 Shipping to customer\'s home</option>'+
-    '</select>'; }
+  // ONE route vocabulary for the whole platform — see /platform/ant-part-route.js. The old
+  // two-option select knew 'distributor' | 'customer' while the Xano migrate writes six human
+  // strings, so a mirrored row showed "Route…" (read as "it didn't save") and the row's inline
+  // save then wrote null over the real route. The shared select always carries the current
+  // value, so an unrecognised route displays and round-trips instead of being erased.
+  function shipSel(v){ return window.AntPartRoute.selectHtml(v, 'class="tp_ship"'); }
+  function routeIsPickup(v){ return window.AntPartRoute.isPickup(v); }
   function partKeyOB(p){
     var n = String((p && p.number) || '');
     var m = n.match(/part\s*#\s*([A-Za-z0-9-]{5,})/i);
@@ -1720,11 +1730,29 @@
     return '<div class="tprow" style="font-size:12px;color:var(--muted)">🧾 Picked up '+(bits.length?bits.join(' '):'')+rc+'</div>';
   }
   function tpShipState(p){
+    // A will-call part is not "waiting on a shipment" — it is sitting on a counter with the
+    // tech's name on it. Saying "not shipped yet" about it is how a part gets left behind.
+    if(!p.ship_tracking && routeIsPickup(p.ship_to)){
+      var where = p.source ? (' at '+esc(p.source)) : '';
+      return '<div class="tpship go">🏬 Will-call — pick up'+where+'</div>';
+    }
     if(!p.ship_tracking) return '<div class="tpship none">Not shipped yet</div>';
     var cls = p.ship_delivered ? 'tpship ok' : 'tpship go';
     var lbl = p.ship_delivered ? '✅ Delivered' : (p.ship_status ? '🚚 '+esc(p.ship_status) : '🚚 Sent');
     if(p.ship_carrier && !p.ship_status) lbl += ' · '+esc(p.ship_carrier);
     return '<div class="'+cls+'">'+lbl+' <a href="'+tpTrackUrl(p)+'" target="_blank" rel="noopener">'+esc(p.ship_tracking)+'</a></div>';
+  }
+  // MERGE, NEVER CLOBBER. base = what the box held when the drawer opened, typed = what she
+  // has in it now, live = what is actually stored right now. If the field moved under her
+  // (a tech appended from the field), keep BOTH -- his first, hers after. Pure so it is tested.
+  function mergeNotes(base, typed, live){
+    base=String(base==null?'':base); typed=String(typed==null?'':typed); live=String(live==null?'':live);
+    if(live===base) return { text:typed, merged:false };
+    if(typed.indexOf(base)===0){
+      var added=typed.slice(base.length).replace(/^\n+/,'');
+      return { text: added ? (live.replace(/\s+$/,'')+'\n'+added) : live, merged:true };
+    }
+    return { text: live.replace(/\s+$/,'')+'\n'+typed, merged:true };
   }
   // HOW MANY of this part (072). cost_cents / sell_cents are the UNIT price, so every
   // total below is qty x unit -- two of a $65 part is $130, and billing it as $65 is the
@@ -1886,7 +1914,7 @@
         '<div style="display:flex;gap:8px;align-items:center"><input id="jcutoffVal" placeholder="e.g. 2:00 PM" value="'+esc(job.customer_cutoff||'')+'" style="flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"><button class="primary" id="jcutoffSave">Save</button></div>' +
         '<span class="hint" id="jcutoffMsg" style="display:block;margin-top:5px"></span>' +
       '</div>' +
-      '<div class="sec">Office notes</div><textarea id="jnotes" placeholder="Parts on order, gate code, upsell offered, anything the team should see…">'+esc(job.office_notes||'')+'</textarea>' +
+      '<div class="sec">Office notes</div><textarea id="jnotes" placeholder="Parts on order, gate code, upsell offered, anything the team should see…">'+esc(job.office_notes||'')+'</textarea><div class="hint" id="jnotesMsg"></div>' +
       '<div class="srow" style="margin-top:8px"><button class="primary" id="jnotesSave">Save notes</button></div>' +
       // ── 🔩 FIND THE PART — CSR parts search across the shop's suppliers (interchangeable) ──
       '<div class="sec">🔩 Find the part <button type="button" class="supcfg" id="jfindCfg" title="Choose your suppliers">⚙️ Suppliers</button></div>' +
@@ -2079,7 +2107,37 @@
     sb2.innerHTML=ALLSTATUS.map(function(s){ return '<button data-s="'+s.key+'" class="'+(job.status===s.key?'on':'')+'" style="'+(job.status===s.key?'background:'+s.color:'')+'">'+esc(s.label)+'</button>'; }).join('');
     sb2.querySelectorAll('button[data-s]').forEach(function(b){ b.onclick=function(){ var ns=b.getAttribute('data-s'); var upd={status:ns}; if(ns==='completed') upd.completed_at=new Date().toISOString(); sb.from('job').update(upd).eq('id',job.id).then(function(r){ if(!r.error){ job.status=ns; try{ if(window.AntMagic){ var rc=b.getBoundingClientRect(); AntMagic.award('file', rc.left+rc.width/2, rc.top); } }catch(_){} sb2.querySelectorAll('button').forEach(function(x){ x.className=''; x.style.background=''; }); b.className='on'; b.style.background=statusMeta(ns).color; if(ns==='completed' && window.antCelebrate){ try{ window.antCelebrate({ tag:'Job done', big:'JOB COMPLETE! 🎉', sub:fullName(job.customer)||'', sound:'both' }); }catch(_){ } } loadBoard(); } }); }; });
 
-    document.getElementById('jnotesSave').onclick=function(){ var t=document.getElementById('jnotes').value; var btn=document.getElementById('jnotesSave'); btn.disabled=true; btn.textContent='Saving…'; sb.from('job').update({office_notes:t}).eq('id',job.id).select('id').then(function(r){ btn.disabled=false; /* zero rows + no error = RLS refused it; never call that saved */ if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){ btn.textContent='Did NOT save'; setTimeout(function(){ btn.textContent='Save notes'; },2500); return; } job.office_notes=t; btn.textContent='Saved ✓'; setTimeout(function(){ btn.textContent='Save notes'; },1500); }); };
+    // ── OFFICE NOTES — a merge, never a clobber ────────────────────────────────────────
+    // Danielle + Jimmy both reported "notes are not saving" on 2026-09-15, from opposite ends.
+    // They were the SAME bug: the tech's note appends after a fresh read, but this Save wrote
+    // the whole field from the textarea as it looked when the drawer was RENDERED. She keeps a
+    // job open while she works; anything a tech sent in between was gone the moment she saved.
+    // Last write wins, and the office is nearly always last -- so his note vanished, and from
+    // her side the board "lost" notes too.
+    //
+    // Now: re-read live at save time. Unchanged -> plain write. Changed -> keep BOTH, with hers
+    // after his. Nobody's words are ever dropped, and she is told what happened.
+    var notesBase = String(job.office_notes || '');
+    document.getElementById('jnotesSave').onclick=function(){
+      var ta=document.getElementById('jnotes'), btn=document.getElementById('jnotesSave');
+      var typed=String(ta.value||'');
+      btn.disabled=true; btn.textContent='Saving…';
+      sb.from('job').select('office_notes').eq('id',job.id).limit(1).then(function(cur){
+        var live = String((cur && cur.data && cur.data[0] && cur.data[0].office_notes) || '');
+        var mg = mergeNotes(notesBase, typed, live);
+        var next = mg.text, merged = mg.merged;
+        return sb.from('job').update({office_notes:next}).eq('id',job.id).select('id').then(function(r){
+          btn.disabled=false;
+          // zero rows + no error = RLS refused it; never call that saved
+          if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){ btn.textContent='Did NOT save'; setTimeout(function(){ btn.textContent='Save notes'; },2500); return; }
+          job.office_notes=next; notesBase=next; ta.value=next;
+          btn.textContent = merged ? 'Saved ✓ (merged)' : 'Saved ✓';
+          if(merged){ var m=document.getElementById('jnotesMsg'); if(m){ m.textContent='A note came in from the field while you had this open — both are saved.'; setTimeout(function(){ m.textContent=''; },6000); } }
+          setTimeout(function(){ btn.textContent='Save notes'; },1800);
+          loadBoard();
+        });
+      }).catch(function(){ btn.disabled=false; btn.textContent='Did NOT save'; setTimeout(function(){ btn.textContent='Save notes'; },2500); });
+    };
 
     // Conversation — office reads the shared thread + texts the customer (office_message).
     loadThread(job);
@@ -2571,8 +2629,11 @@
           // which would otherwise inflate "2 of 5 sent" on the tile.
           var pk = partKeyOB(p);
           if (pk) { var sk = p.job_id + '|' + pk; if (seenPart[sk]) return; seenPart[sk] = 1; }
-          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, owed:0, eta:null, owedDue:null };
+          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, pickup:0, owed:0, eta:null, owedDue:null };
           t.n++; if (p.ship_tracking || p.bought_at) t.sent++; if (p.ship_delivered || p.bought_at) t.here++;
+          // Will-call: nobody ships it and nobody texts when it lands. It reads as "on order"
+          // forever unless the tile says out loud that somebody has to go get it.
+          if (!p.ship_tracking && !p.bought_at && window.AntPartRoute.isPickup(p.ship_to)) t.pickup = (t.pickup||0)+1;
           if (p.must_return && !p.returned_at) {
             t.owed = (t.owed||0)+1;
             // soonest deadline wins -- the tile's job is to say which stop is about to cost money

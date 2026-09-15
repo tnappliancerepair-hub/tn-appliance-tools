@@ -1,5 +1,79 @@
 # Appliance Ant
 
+## 🏬📝 2026-09-15 (Mon) — DANIELLE + JIMMY, SAME MORNING: "notes are not saving" (two writers, last one wins) · "had parts at marcon's and had no clue" (the tech card NEVER showed the route) — READ FIRST
+
+Two texts, 9:37 AM, opposite ends of the same two bugs.
+Danielle: *"Notes are not saving on job board. Also not showing on Jimmy's end that he had to pick
+up the part from marcones cause that also didn't save. Says it was shipped but its fir pick up."*
+Jimmy: *"Notes are not saving on the offices, had parts at marcon's and had no clue."*
+
+### 🥇 BUG 1 — `ship_to` carried TWO VOCABULARIES that had never met
+- **The office `<select>` knew exactly two values** — `distributor` | `customer`. **`platform-tn-parts-migrate`
+  writes SIX human strings** off Xano's `notes.where_kind`: `Pickup — parts house` · `Pickup — shop/storage`
+  · `On the truck` · `In hand` · `Ship to customer` · `To the shop`.
+- So a mirrored row **matched no `<option>`**, the browser fell back to the first one, and the box read
+  **"Route…"** — which is exactly "I marked it and it's not saving."
+- **Worse, it then ERASED it.** The row's inline save writes every field at once, so the moment she
+  touched the ETA beside it, `ship_to` went out as `'' → null`. **Measured live: 2,145 of 2,178 rows
+  null**, only 4 distinct values left standing (`customer` 16 · `distributor` 7 · `Pickup — parts house` 5
+  · `On the truck` 3). That is the hole they went down.
+- **✅ `platform/ant-part-route.js` (NEW) — ONE catalog, every surface** (same shape as `ant-windows.js`,
+  which exists because `winLbl`/`fmtWin`/`schWin` drifted three ways). `label()` · `isPickup()` ·
+  `selectHtml()`. **The rule: a value we did not mint is still a value** — unknown free text is rendered
+  as its own selected option, so it displays AND round-trips. The picker can never blank what it doesn't
+  recognise. Verified on all four live values; before this, two of the four were invisible + erasable.
+
+### 🥇 BUG 2 — the tech card never rendered the route at ALL
+`platform/tech-job.html` grepped clean for `source` and `ship_to`: **it didn't even SELECT them.**
+`shipLine()` returned `''` whenever there was no tracking number — so a will-call part sitting on
+Marcone's counter was **invisible to the one person who had to go get it.** That is Jimmy's whole text.
+- Now every part shows its route + parts house, and a will-call says **"🏬 PICK THIS UP — Marcone ·
+  Nobody is shipping it. Grab it before you head over."** The headline counts them separately and
+  **names the counter** (*"🏬 PICK UP 2 parts at Marcone"*) — "pick up 1 part" sends nobody anywhere.
+- **Will-call is no longer counted as "not shipped yet"** on the tech card, and the office drawer stops
+  saying *"Not shipped yet"* about a part that is already sitting there. New office tile chip:
+  **🏬 PICK UP (n of N) — no one is shipping it**.
+- **🐞 FOUND IN THE SAME PASS — the day list was sending techs to a counter for a part in their own van.**
+  `platform/tech.html partLabel` tested `ship_to` against `/cust|home|site|door/` and treated *anything
+  else* as "go pick it up" — so **`On the truck` and `In hand` both read "Pick up at Marcone."** Now
+  `On the truck`/`In hand` → **"✅ Already with you"**, `To the shop` → "🏢 Coming to the shop", and an
+  unrecognised route is shown **verbatim** rather than swallowed into a generic "On order".
+
+### 🥇 BUG 3 — the notes had two writers and the office always won
+Both of them said "notes are not saving," and it was **one bug seen from both ends**:
+- The **tech** appends after a **fresh read** (`tech-job.html` / `tech.html`). Correct.
+- The **office Save wrote the whole field from the textarea as it looked when the drawer RENDERED.**
+  She keeps a job open while she works → anything a tech sent in between was gone the second she saved.
+  **Last write wins, and the office is nearly always last** → his note vanished, and from her side the
+  board "lost" notes.
+- **✅ `mergeNotes(base, typed, live)` — merge, never clobber.** Save re-reads live; unchanged → plain
+  write; changed → **keep BOTH, his first, hers after**, and tell her *"A note came in from the field
+  while you had this open — both are saved."* The tile's **"📋 Request report"** button had the same
+  clobber (it appended to the **cached** copy) — it reads live first now too.
+- ⚠️ **The writes were never broken** — 12 jobs had notes touched in 48h, 2 from today. Proving that
+  first is what stopped this being chased as an RLS/save bug for the third time.
+
+### 🧪 PROVEN
+- **`tests/part-route.test.js` 40/40** — the anchor that matters: **every `ship_to` string the migrate
+  can write is regex-lifted OUT OF THE SHIPPED FUNCTION and asserted against the catalog.** Add a
+  seventh string without teaching the catalog and it **FAILS on purpose**. Plus: unknown free text stays
+  selected, `On the truck` is NOT a pickup, quotes escape, and all three surfaces load the one catalog.
+- **`tests/office-notes-merge.test.js` 19/19** — `mergeNotes` lifted out of the shipped page; covers the
+  real 9/15 race (Jimmy appends while her drawer sits open → both survive), a rewrite-the-box case, null
+  inputs, and that a zero-row write is still never called saved.
+- Full suite **11/11 green**.
+
+### ⏭️ OPEN
+- **Front-end is on the branch, not live** — Netlify deploys from `main`. The office picker + the tech's
+  route line ship on merge.
+- **🔴 TEDDY'S CALL — `keepTypedParts` only protects a BLANK Xano value.** A **DIFFERENT non-empty**
+  Xano value still overwrites, by design ("Xano stays system of record"). So if Danielle types a
+  `source` on a MIRRORED row and Xano's supplier field says something else, **the 15-min cron reverts
+  her every time.** Native rows (`xano_id` null) are safe. Flipping that direction changes which system
+  is authoritative — not mine to decide, but it is the remaining half of "it's not saving."
+- The 2,145 nulled routes **self-heal for mirrored rows** on the next migrate (blank-in + blank-existing
+  → the Xano value lands). Rows the office typed and then erased are gone; those need re-entry.
+
 ## 🔩🔢 2026-09-15 (Mon) — PARTS ON THE TDR: many parts per machine, each with its own COUNT — READ FIRST
 
 Teddy: *"when they're adding parts we need to have multiple options available because a lot of

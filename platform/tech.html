@@ -225,6 +225,7 @@
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-page.js"></script>
 <script src="/platform/ant-windows.js"></script>
+<script src="/platform/ant-part-route.js"></script>
 <script src="/platform/pay-calc.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -817,23 +818,35 @@
   function fmtEta(d){ if(!d) return ''; var s=String(d).slice(0,10); var m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m) return s;
     var dt=new Date(+m[1],+m[2]-1,+m[3]); if(isNaN(dt)) return s;
     return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+  // Route vocabulary comes from /platform/ant-part-route.js so this line and the office's
+  // picker can never drift. The old test was `ship_to` against /cust|home|site|door/ and
+  // anything else meant "go pick it up" -- which told a tech to drive to the parts house for
+  // a part already sitting On the truck.
   function partLabel(p){
     var nm = p.name || p.number || 'part';
     var src = (p.source||'').trim();
-    var ship = (p.ship_to||'').toLowerCase();
+    var ship = (p.ship_to||'').trim();
+    var low = ship.toLowerCase();
     var eta = fmtEta(p.eta);
     if (p.disposition==='used')  return { cls:'done', ic:'✅', t:'Installed: '+nm, eta:'' };
     if (p.disposition==='return')return { cls:'done', ic:'↩️', t:'To return: '+nm, eta:'' };
+    // already with him — never send him to a counter for a part in his own van
+    if (low==='on the truck' || low==='in hand')
+      return { cls:'done', ic:'✅', t:'Already with you: '+nm, eta:'' };
     // not ordered yet
-    if (p.order_status==='to_order' || (!p.order_status && !p.eta && !p.disposition))
+    if (p.order_status==='to_order' || (!p.order_status && !p.eta && !p.disposition && !ship))
       return { cls:'todo', ic:'🛒', t:nm+' — not ordered yet', eta:'' };
-    // ordered / on the way / claim
-    if (/cust|home|site|door/.test(ship))
+    if (/cust|home|site/.test(low))
       return { cls:'wait', ic:'🏠', t:'At the customer: '+nm, eta:eta };
-    if (ship && !/cust|home|site|door/.test(ship))
-      return { cls:'wait', ic:'📦', t:'Pick up'+(src?' at '+src:'')+': '+nm, eta:eta };
-    if (src)
+    if (window.AntPartRoute.isPickup(ship))
+      return { cls:'wait', ic:'🏬', t:'PICK UP'+(src?' at '+src:'')+': '+nm, eta:eta };
+    // heading to the shop, not to the customer and not to him — he grabs it there, later
+    if (low==='to the shop')
+      return { cls:'wait', ic:'🏢', t:'Coming to the shop: '+nm, eta:eta };
+    if (!ship && src)
       return { cls:'wait', ic:'📦', t:'Pick up at '+src+': '+nm, eta:eta };
+    // a route we do not recognise is still a route — show his words, never swallow them
+    if (ship) return { cls:'wait', ic:'📦', t:ship+': '+nm, eta:eta };
     return { cls:'wait', ic:'🚚', t:'On order: '+nm, eta:eta };
   }
   function partsChip(j){

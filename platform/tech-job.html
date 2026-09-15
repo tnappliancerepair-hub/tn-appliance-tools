@@ -281,6 +281,7 @@
 
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-windows.js"></script>
+<script src="/platform/ant-part-route.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
@@ -1452,7 +1453,7 @@
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
   function loadParts(){
     var box=document.getElementById('partsBox'); if(!box) return;
-    sb.from('job_part').select('id,name,number,qty,order_status,disposition,photo_ref,cost_cents,sell_cents,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at,bought_at,bought_by,bought_from,receipt_ref').eq('job_id',jobId).order('created_at').then(function(r){
+    sb.from('job_part').select('id,name,number,qty,order_status,disposition,photo_ref,cost_cents,sell_cents,source,ship_to,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at,bought_at,bought_by,bought_from,receipt_ref').eq('job_id',jobId).order('created_at').then(function(r){
       if(r.error){
         var card=document.getElementById('partsCard');
         if(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')){ if(card) card.classList.add('hidden'); }
@@ -1597,14 +1598,31 @@
     if(c.indexOf('usps')>=0) return 'https://tools.usps.com/go/TrackConfirmAction?tLabels='+encodeURIComponent(t);
     return 'https://www.fedex.com/fedextrack/?trknbr='+encodeURIComponent(t);   // FedEx is the default here
   }
+  // WHERE THIS PART IS. Jimmy, 2026-09-15: "had parts at marcon's and had no clue." He was
+  // right -- this card rendered nothing at all unless the part had a tracking number, so a
+  // will-call part sitting on Marcone's counter was invisible to the one person who had to go
+  // get it. The route + the parts house now show on every part, and a will-call says so loudly.
   function shipLine(p){
-    if(!p.ship_tracking) return '';
+    var where = p.source ? String(p.source).trim() : '';
+    var when  = p.eta ? (' · '+esc(String(p.eta).slice(0,10))) : '';
+    if(!p.ship_tracking && window.AntPartRoute.isPickup(p.ship_to)){
+      return '<div class="pship go"><b>🏬 PICK THIS UP</b>'+(where?(' — '+esc(where)):'')+when+
+             '<br><span style="font-weight:600">Nobody is shipping it. Grab it before you head over.</span></div>';
+    }
+    if(!p.ship_tracking){
+      var route = window.AntPartRoute.label(p.ship_to);
+      var bits = [];
+      if(where) bits.push('📍 '+esc(where));
+      if(route) bits.push(esc(route));
+      if(!bits.length) return '';
+      return '<div class="pship">'+bits.join(' · ')+when+'</div>';
+    }
     var url=trackUrl(p), num=esc(p.ship_tracking), car=esc(p.ship_carrier||'');
-    var when=p.eta?(' · '+esc(String(p.eta).slice(0,10))):'';
     var cls='pship', txt;
     if(p.ship_delivered===true){ cls+=' ok'; txt='✅ Delivered'+when; }
     else if(p.ship_status){ cls+=' go'; txt='🚚 '+esc(p.ship_status)+when; }
     else { cls+=' go'; txt='🚚 Sent'+(car?(' · '+car):'')+when; }
+    if(where) txt += ' · '+esc(where);
     return '<div class="'+cls+'">'+txt+' <a href="'+url+'" target="_blank" rel="noopener">'+num+'</a></div>';
   }
   // Xano carries more than one parts row for the same physical part on some jobs, and the
@@ -1642,13 +1660,24 @@
     // tells him a part he is holding hasn't shipped.
     var sent=list.filter(function(p){return !!p.ship_tracking || !!p.bought_at;});
     var landed=sent.filter(function(p){return p.ship_delivered===true || !!p.bought_at;}).length;
+    // Will-call parts are NOT "not shipped yet" -- nothing is coming, he has to go get them.
+    // Counting them as un-shipped is exactly how a part stays on the counter all week.
+    var pick=list.filter(function(p){ return !p.ship_tracking && !p.bought_at && window.AntPartRoute.isPickup(p.ship_to); });
     var head='';
-    if(list.length && sent.length){
-      var still=list.length-sent.length;
-      var bits=[sent.length+' of '+list.length+' sent'];
+    if(list.length && (sent.length || pick.length)){
+      var still=list.length-sent.length-pick.length;
+      var bits=[];
+      if(sent.length) bits.push(sent.length+' of '+list.length+' sent');
       if(landed) bits.push(landed+' delivered');
       if(still>0) bits.push(still+' not shipped yet');
-      head='<div class="pship head">📦 '+bits.join(' · ')+'</div>';
+      head=(bits.length?'<div class="pship head">📦 '+bits.join(' · ')+'</div>':'');
+    }
+    if(pick.length){
+      // Name the counter, not just the count -- "pick up 1 part" sends nobody anywhere.
+      var houses={}; pick.forEach(function(p){ var w=(p.source||'').trim(); if(w) houses[w]=1; });
+      var names=Object.keys(houses);
+      head += '<div class="pship head go"><b>🏬 PICK UP '+pick.length+' part'+(pick.length>1?'s':'')+'</b>'+
+              (names.length?(' at '+esc(names.join(' + '))):'')+' — nobody is shipping '+(pick.length>1?'them':'it')+'.</div>';
     }
     box.innerHTML = head + warn + (list.length ? list.map(partCard).join('') : '<div class="note" style="margin-bottom:2px">No parts yet — add the part(s) you need below.</div>');
   }
