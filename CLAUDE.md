@@ -1,5 +1,70 @@
 # Appliance Ant
 
+## 🧑‍🤝‍🧑📅 2026-09-15 (Mon) — "a second man button but no way to add two people to the schedule" — HE WAS RIGHT TWICE: the picker is BUILT-BUT-UNMERGED, and the SCHEDULING half never existed — READ FIRST
+
+Teddy: *"We need a second man scheduling strategy. We have a second man button but not a way to
+add two people to a person for the schedule."* Both halves of that sentence are true, for two
+different reasons.
+
+### 🥇 THE BUTTON HE'S LOOKING AT IS THE OLD FLAG, NOT THE PICKER
+The `🧑‍🤝‍🧑 Two-man` button on the live board is `needs_two_techs` — **migration 014, a FLAG and
+nothing more.** It announces a problem and names nobody. The picker that actually names the second
+man shipped this morning in commit `122246d` and is **one of 14 commits ahead of `main`** — and
+**Netlify deploys from `main`**, so he has never seen it. Measured live: **0 jobs carry a
+`technician2_id`; 2 are flagged two-man with nobody named.** That is the whole gap on that half —
+it is a merge, not a build.
+
+### 🔴 THE SCHEDULING HALF WAS MISSING ON THE BRANCH TOO
+`platform/dispatch.html` **never even SELECTED `technician2_id`.** The board was structurally blind
+to the second seat, so a named helper was invisible:
+- his **column didn't show the stop** — he's booked in reality, blank on the board
+- **`bookedOn()` didn't count it** → his "N slots left" badge over-reported capacity
+- **`winDayJobs()` didn't count it** → the "8-11 AM · 1 of 3 left" window count was wrong
+- **`suggestSlot()` would book him onto a day he was already spoken for**
+- and the drawer let the office name a helper **who was on PTO that day**
+
+### ⚖️ THE DECISION — a two-man stop costs the helper a FULL slot, not a half
+Capacity is about **where a body can be.** A man helping at a stop cannot be at another customer's
+house at the same time. Half-slot accounting would let dispatch give him his own 6 stops **plus** 6
+helper stops — **twelve places at once.** The asymmetry decides it: **undercounting strands a real
+customer; overcounting costs at most a conservative day.** (This closes the open item recorded
+2026-09-15: *"whether a two-man stop consumes a full slot on the helper's day or a half is a
+scheduling decision, not mine."*)
+
+### ✅ SHIPPED
+- **`onJob()` is the ONE predicate every capacity reader shares** — grid badge, window count and
+  suggester can never disagree about whether a tech is spoken for. Same shape as `ruleFor()` /
+  `partOnThisJob()`: one definition, every surface.
+- **The helper's own column now shows the stop**, colored distinctly (violet) and labelled
+  **"🧑‍🤝‍🧑 with Jimmy"** instead of an ordinal. **It takes his time but it is NOT his job** — the
+  primary owns the report and the labor cut, so it must never read like one of his own.
+- **Route-fit counts a helper stop** as somewhere he already is, so `suggestSlot` clusters around it.
+- **⚠️ A DAY OFF IS A FACT, NOT A PREFERENCE.** Naming a helper now checks `tech_time_off` for that
+  exact day and **refuses** if he's off. His **load is a warning only** — the office overrides
+  capacity constantly and shouldn't fight the board (same stance as the window picker) — but a man
+  who is off is off, and booking him is how a two-man stop shows up **one man short**. A failed
+  check never blocks the save: worst case we lose the warning, not the booking.
+
+### 🧪 PROVEN
+**`tests/two-man-capacity.test.js` 7/7** — the predicates + the counter are **lifted out of the
+shipped page and EXECUTED**, so the test can't drift from what the office gets. The load-bearing
+assertion runs the real `bookedOn`: a tech primary on 3 and helper on 3 reads **6**, not 3, not 4.5.
+Non-vacuity mutation-proven **six ways**: dropping `technician2_id` from the select fails 1,
+reverting `bookedOn` to the primary seat fails 3, hiding the stop on his column fails 1, the window
+count ignoring him fails 1, rendering it as his own job fails 1, dropping the day-off guard fails 1.
+Full suite **45/45**.
+
+### ⏭️ OPEN
+- **🔴 INERT UNTIL MERGED** — this rides the same 15-commit branch. The picker AND the scheduling
+  both land on the merge; migration 077 is already live database-side, so the column just sits there.
+- **The map is deliberately left alone.** A helper's pin would sit at the *same address* as the
+  primary's — a duplicate dot at identical coordinates is noise for zero information. The legend
+  still counts by primary.
+- **`j.warranty_company` is read by the week-grid block hint but is NOT in the dispatch select**, so
+  the 🛡 marker can never fire. Pre-existing, unrelated, one word to fix in the select when someone
+  is in there next.
+
+
 ## 💵🔤 2026-09-15 (Mon) — TEDDY: "adjust lees commission to 50%" — HE WAS RIGHT, AND LEE HAD NO RULE AT ALL · THE WORD WAS THE BUG, FOURTH TIME TODAY — READ FIRST
 
 Teddy: *"Please adjust lees commission to 50%."* He was right, and the cause was worse than a
