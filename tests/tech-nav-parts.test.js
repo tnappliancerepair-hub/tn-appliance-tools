@@ -26,11 +26,11 @@ const eq = (l, got, want) => {
 const ok = (l, cond) => eq(l, !!cond, true);
 
 // Load the shipped catalog the way a browser does, with a navigator we control.
-const NAV_SRC = R('platform/ant-nav.js');
+const NAV_SRC = R('platform/ant-maps.js');
 function loadNav(ua, platform) {
   const g = { navigator: { userAgent: ua, platform: platform } };
   new Function('window', NAV_SRC)(g);
-  return g.AntNav;
+  return g.AntMaps;
 }
 const iphone = loadNav('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15', 'iPhone');
 const ipad13 = loadNav('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', 'MacIntel'); // iPadOS 13+ lies
@@ -79,8 +79,8 @@ console.log('\nevery surface that navigates reads the ONE catalog');
   .forEach((p) => {
     const S = R(p);
     const name = path.basename(p);
-    ok(name + ' loads ant-nav.js', S.includes('/platform/ant-nav.js'));
-    ok(name + ' calls AntNav', /AntNav\.(linksHtml|primaryUrl)\(/.test(S));
+    ok(name + ' loads ant-maps.js', S.includes('/platform/ant-maps.js'));
+    ok(name + ' calls AntMaps', /AntMaps\.(linksHtml|primaryUrl)\(/.test(S));
     ok(name + ' keeps NO hardcoded Google link of its own', !S.includes('maps.google.com'));
   });
 
@@ -114,6 +114,23 @@ ok('the column is labelled with the word she uses: Paid', /label:'[^']*Paid'/.te
 // so this checks the LABEL the office actually reads, not the file's bytes.)
 ok('it no longer calls itself Shop Money Paid', !/label:'Shop Money Paid'/.test(OB));
 ok('the key is still shop_paid, so nothing parked there moves', paidCol.includes("key:'shop_paid'"));
+
+console.log('\n⚠️ ant-nav.js is the TECH APP SHELL — not a maps file');
+// I clobbered this file writing the maps catalog: `cat > platform/ant-nav.js` silently
+// replaced the shared tab bar (My Day · Pay · Stats · More) that tech.html and tech-job.html
+// load, which would have deleted the tech app's entire bottom navigation. The maps catalog
+// lives in ant-maps.js. This asserts the two never trade places again.
+const NAVSHELL = R('platform/ant-nav.js');
+ok('ant-nav.js still injects the tech tab bar', /class *= *'tabbar'|className *= *'tabbar'/.test(NAVSHELL));
+ok('ant-nav.js still carries the My Day tab', NAVSHELL.includes("'My Day'"));
+ok('ant-nav.js is NOT the maps catalog', !/AntMaps|maps\.apple\.com/.test(NAVSHELL));
+ok('ant-maps.js is NOT the app shell', !/tabbar|My Day/.test(NAV_SRC));
+['platform/tech.html', 'platform/tech-job.html'].forEach((p) => {
+  ok(path.basename(p) + ' still loads the tech app shell', R(p).includes('/platform/ant-nav.js'));
+});
+['platform/dispatch.html', 'platform/job-view.html'].forEach((p) => {
+  ok(path.basename(p) + ' does NOT get a tech tab bar', !R(p).includes('/platform/ant-nav.js'));
+});
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);

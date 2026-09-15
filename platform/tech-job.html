@@ -290,6 +290,7 @@
 
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-windows.js"></script>
+  <script src="/platform/ant-maps.js"></script>
 <script src="/platform/ant-part-route.js"></script>
 <script src="/platform/ant-part-note.js"></script>
 <script src="/platform/ant-thread.js"></script>
@@ -388,7 +389,7 @@
         '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+(job.scheduled_day?'<div class="unit">📅 '+esc(fmtDay(job.scheduled_day))+'</div>':'')+'</div>' +
         '<span class="spill s-'+esc(job.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
-        '<div class="links">'+(phone?'<a class="antcall" data-name="'+esc(fullName(cust)||'')+'" data-job="'+esc(jobId||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?AntNav.linksHtml(addr):'')+'</div>' +
+        '<div class="links">'+(phone?'<a class="antcall" data-name="'+esc(fullName(cust)||'')+'" data-job="'+esc(jobId||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?AntMaps.linksHtml(addr):'')+'</div>' +
         '</div>' +
 
       // ── 2 · The job — On my way / Start / Complete + schedule + waiver ──
@@ -1966,7 +1967,7 @@
 
   function onMyWay(){
     var cust=job.customer||{}; var addr=[cust.address,cust.city,cust.state].filter(Boolean).join(', ');
-    if(addr) window.open(AntNav.primaryUrl(addr),'_blank','noopener'); // open nav right away
+    if(addr) window.open(AntMaps.primaryUrl(addr),'_blank','noopener'); // open nav right away
     var btn=document.getElementById('otwBtn'); if(btn){ btn.disabled=true; }
     notifyCustomer('otw','On-my-way'); // tell the customer — and tell the TECH if it didn't go
     // Stamp the time so the tile flips to "on" + shows "On way 11:29am". Best-effort:

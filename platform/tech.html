@@ -247,6 +247,7 @@
 
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-page.js"></script>
+  <script src="/platform/ant-maps.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/ant-part-route.js"></script>
 <script src="/platform/ant-part-note.js"></script>
@@ -899,7 +900,7 @@
     var links = '';
     var cnm = [cust.first_name, cust.last_name].filter(Boolean).join(' ').trim();
     if (phone) links += '<a class="antcall" data-name="'+esc(cnm)+'" data-job="'+esc(j.id||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>';
-    if (addr) links += AntNav.linksHtml(addr);
+    if (addr) links += AntMaps.linksHtml(addr);
     var attrs = (j.unit && j.unit.attributes) || {};
     var brand = attrs.brand || '', model = attrs.model || '';
     var tdr = (j.tdr && j.tdr[0]) || null;
@@ -970,7 +971,7 @@
       '<span class="spill s-'+esc(j.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
       mateChip + crewChip +
       (j.time_window?'<div class="winchip">🕐 '+esc(AntWindows.label(j.time_window))+'</div>':'') +
-      (addr?'<a class="addr" target="_blank" rel="noopener" href="'+AntNav.primaryUrl(addr)+'">📍 '+esc(addr)+'</a>':'') +
+      (addr?'<a class="addr" target="_blank" rel="noopener" href="'+AntMaps.primaryUrl(addr)+'">📍 '+esc(addr)+'</a>':'') +
       (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
       '<a class="openbtn" href="'+openUrl+'">Open job — video, model &amp; report →</a>' +
       intakeHtml(j) +

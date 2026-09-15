@@ -11,7 +11,7 @@ Every navigate link on the platform was **hardcoded `maps.google.com`** — **si
 four files** (`tech.html` ×2, `tech-job.html` ×2, `dispatch.html`, `job-view.html`), already
 drifted into three different shapes. On an iPhone that bounces a tech through a browser page
 on the way to the app he actually drives with, and **four of five techs are on iPhones.**
-- **✅ `platform/ant-nav.js` (NEW) — ONE nav catalog, every surface.** Same shape as
+- **✅ `platform/ant-maps.js` (NEW) — ONE nav catalog, every surface.** Same shape as
   `ant-windows.js` / `ant-part-route.js` / `ant-thread.js`, which all exist because pasted
   copies drift. `isApple()` · `appleUrl()` · `googleUrl()` · `primaryUrl()` · `linksHtml()`.
   **Zero hardcoded Google links remain in any platform page** — pinned by test.
@@ -66,13 +66,35 @@ served page, not by trusting this changelog:
 **She is reporting bugs that are already fixed, because the fixes are on a branch.** That is the
 whole cost of the unmerged state, stated plainly.
 
+### 🔴 A MISTAKE I MADE AND CAUGHT — I CLOBBERED A LIVE MODULE
+I named the new catalog `ant-nav.js` and `cat >`-wrote it **without checking whether that file
+already existed. It did.** `platform/ant-nav.js` is the **tech APP SHELL** — the bottom tab bar
+(My Day · Pay · Stats · More) + the floating "📋 Report N%" pill that `tech.html` and
+`tech-job.html` both load. My write **silently deleted the tech app's entire bottom navigation**,
+and because the real module self-injects on any page that loads it, the script tag I added to
+`dispatch.html` / `job-view.html` would have **stapled a tech tab bar onto two office pages.**
+- **Caught it** on the commit's `git status`: the file showed `M` (modified) where a genuinely
+  new file shows `A`. That one letter was the whole tell.
+- **Fixed:** the shell restored **byte-identical** from `HEAD~1` (diff is empty), the catalog
+  renamed to **`ant-maps.js`** / `AntMaps`, and the two office pages now load **only** the maps
+  catalog. `ant-theme.css` still styles `.tabbar` / `.progpill`, so nothing is orphaned.
+- **⚠️ PINNED so it cannot repeat silently:** the test now asserts `ant-nav.js` still injects
+  `.tabbar` + carries `'My Day'`, that it is **not** the maps catalog and the maps catalog is
+  **not** the shell, that both tech pages still load the shell, and that dispatch/job-view do
+  **not**. Mutation-proven — re-doing exactly what I did fails **3** assertions on purpose.
+- **⚠️ STANDING (Working rule #1, violated): grep for the FILENAME before `cat >`, not just for
+  the behaviour you're replacing.** I searched for `maps.google.com` and never once asked whether
+  `ant-nav.js` was taken. A new file that reports `M` instead of `A` is an overwrite.
+
 ### 🧪 PROVEN
-**`tests/tech-nav-parts.test.js` 48/48** — the nav catalog is loaded as the **REAL shipped file**
+**`tests/tech-nav-parts.test.js` 56/56** — the nav catalog is loaded as the **REAL shipped file**
 (a browser runs exactly those bytes) against four controlled user-agents; the finish-status rule
 and the `shop_paid` column are **regex-lifted out of the shipped pages**. Non-vacuity proven by
 mutation, six ways: making detection *remove* a map fails **10**; dropping Apple's `daddr` fails 2;
 pasting one hardcoded Google link back fails 2; removing the `none` option fails 1; sending a
-no-parts stop to Awaiting Parts fails 1; restoring "Shop Money Paid" fails 1. Full suite **34/34**.
+no-parts stop to Awaiting Parts fails 1; restoring "Shop Money Paid" fails 1; **re-clobbering the
+app shell fails 3**; a tech page losing its tab bar fails 1; dispatch gaining one fails 1.
+Full suite **34/34**.
 - 🐞 **Caught one of my own assertions being too crude** — `!OB.includes('Shop Money Paid')` also
   matched the *comment* recording why the name changed. Anchored to `label:'…'` instead. A test that
   fires on a code comment is a test that will cry wolf and get waved through.

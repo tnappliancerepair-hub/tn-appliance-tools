@@ -42,7 +42,7 @@
   .center .big{font-size:44px;margin-bottom:8px}
 </style>
   <link rel="stylesheet" href="/platform/ant-theme.css">
-  <script src="/platform/ant-nav.js"></script>
+  <script src="/platform/ant-maps.js"></script>
 </head>
 <body>
 <div id="app"><div class="center"><div class="big">🐜</div><p>Loading…</p></div></div>
@@ -91,7 +91,7 @@
         '<span class="badge" style="background:'+s.c+'">'+esc(s.l)+'</span></div>'+
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'')+
         (flags?'<div>'+flags+'</div>':'')+
-        '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?AntNav.linksHtml(addr):'')+'</div>'+
+        '<div class="links">'+(phone?'<a href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?AntMaps.linksHtml(addr):'')+'</div>'+
       '</div>'+
 
       '<div class="card"><div class="sec">From the customer</div>'+

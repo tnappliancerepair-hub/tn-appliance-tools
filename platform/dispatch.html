@@ -202,7 +202,7 @@
 <div id="app"></div>
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-page.js"></script>
-  <script src="/platform/ant-nav.js"></script>
+  <script src="/platform/ant-maps.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script src="/platform/ant-new-job.js"></script>
@@ -676,7 +676,7 @@
     var jc=job.customer||{};
     var jaddr=[jc.address,jc.city,jc.state].filter(Boolean).join(', ');
     // The office is deciding WHERE to send a truck - the street belongs on the sheet, not one tap away.
-    var addrHtml = jaddr ? '<a class="maddr" target="_blank" rel="noopener" href="'+AntNav.primaryUrl(jaddr)+'">📍 '+esc(jaddr)+'</a>' : '';
+    var addrHtml = jaddr ? '<a class="maddr" target="_blank" rel="noopener" href="'+AntMaps.primaryUrl(jaddr)+'">📍 '+esc(jaddr)+'</a>' : '';
     ov.innerHTML='<div class="sheet"><h3>'+esc(fullName(job.customer)||'Customer')+'</h3><div class="msub">'+esc((job.unit&&job.unit.label)||'')+(job.problem?' · '+esc(job.problem):'')+'</div>'+addrHtml+covNote+avRow+holdHtml+sugHtml+
       '<label>Tech</label><select id="a-tech">'+techOpts+'</select>'+
       '<label>Day</label><input id="a-day" type="date" value="'+esc((hold&&hold.proposed_day)||job.scheduled_day||selDay)+'">'+
