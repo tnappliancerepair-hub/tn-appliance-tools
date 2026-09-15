@@ -17,19 +17,27 @@ function officeActor(){ try{ return (window.OfficeStaff&&OfficeStaff.name())||'o
 // (Telnyx rings your cell, then connects the customer — shop # as caller ID), so a
 // dead tel: link on a Windows desktop never blocks a callout.
 function _isTouch(){ try{ return matchMedia('(pointer:coarse)').matches||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }catch(_){ return false; } }
+// The signed-in person's first name, lowercased, as the server's seat key. An
+// unrecognised seat is passed through on purpose so the server can refuse it by
+// name instead of quietly ringing somebody else.
+function officeSeat(){ try{ return String(officeActor()||'').trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g,'')||'danielle'; }catch(_){ return 'danielle'; } }
 async function callOut(tel, disp, ev){
   if(_isTouch()){ try{ location.href='tel:'+String(tel).replace(/[^\d+]/g,''); }catch(_){} return; }
   if(ev&&ev.preventDefault) ev.preventDefault();
   var btn=ev&&ev.currentTarget, orig=btn?btn.textContent:'';
   var pw=''; try{ pw=(window.OfficeAuth&&OfficeAuth.password&&OfficeAuth.password())||localStorage.getItem('ant_office_pw')||''; }catch(_){}
   if(!pw){ pw=(prompt('Office password (to connect the call):')||'').trim(); if(!pw)return; try{localStorage.setItem('ant_office_pw',pw);}catch(_){}}
-  var who='danielle'; try{ var n=officeActor(); if(/teddy/i.test(n)) who='teddy'; }catch(_){}
+  // Ring the seat that is ACTUALLY signed in. This was 'teddy, else danielle', so
+  // Sofia/Carrie tapping Call rang Danielle's phone on another desk and theirs sat
+  // silent — which is what "the office phone won't let me call out" looked like.
+  var who=officeSeat();
   if(btn) btn.textContent='📞 Ringing…';
   try{
     var r=await fetch('/.netlify/functions/office-callout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw,to:tel,who:who,actor:officeActor()})});
     var d=await r.json().catch(function(){return{};});
     if(d&&d.ok){ if(btn){ btn.textContent='📞 Answer your phone'; setTimeout(function(){if(btn)btn.textContent=orig;},15000); } }
     else if(d&&d.error==='unauthorized'){ try{localStorage.removeItem('ant_office_pw');}catch(_){} if(btn)btn.textContent='📞 Wrong pw — retry'; }
+    else if(d&&d.error==='no_cell_for_seat'){ if(btn)btn.textContent='📞 No cell on file for you'; alert(d.message||'No cell is set up for your seat.'); }
     else { if(btn)btn.textContent='📞 Failed — dial '+disp; }
   }catch(_){ if(btn)btn.textContent='📞 Failed — dial '+disp; }
 }

@@ -7,7 +7,8 @@
 //   POST { password, to, who? }
 //     password  office password (verified via Xano verify_office_password)
 //     to        customer phone (any format; normalized to E.164)
-//     who       'teddy' | 'danielle' (whose cell rings). Default danielle.
+//     who       which OFFICE SEAT's cell rings — teddy | danielle | sofia | carrie.
+//               Default danielle. An unknown seat is refused, never redirected.
 //
 // Reuses the existing "Ant Office Ring Group" TeXML application (it already has an
 // outbound voice profile). The app id is resolved by name at runtime unless
@@ -57,10 +58,35 @@ exports.handler = async function (event) {
   const customer = e164(b.to);
   if (!customer) return json(400, { ok: false, error: 'no valid customer number' });
 
-  const who = String(b.who || 'danielle').toLowerCase();
-  const cell = who === 'teddy'
-    ? ((await getSecret('OFFICE_CELL_TEDDY')) || '+16154855795')
-    : ((await getSecret('OFFICE_CELL_DANIELLE')) || '+16154850713');
+  // Whose cell rings. This used to be a two-way branch — 'teddy', else Danielle —
+  // so EVERY other seat silently rang Danielle's phone. Sofia, 2026-09-15: "The
+  // office phone won't let me call out." From her desk that is exactly what it
+  // looks like: she taps Call, the page says "Answer your phone", and the phone
+  // that rings is on somebody else's desk. The call did go out; it just never
+  // reached her, and nothing in the response said so.
+  //
+  // So the seat is resolved by NAME against the vault, and an unknown seat is a
+  // LOUD failure rather than a quiet redirect. Ringing the wrong person's cell is
+  // worse than not ringing at all: the caller-facing leg still dials the customer
+  // the moment that wrong phone is answered, and the office person who tapped the
+  // button never learns why nothing happened.
+  const who = String(b.who || 'danielle').toLowerCase().replace(/[^a-z]/g, '');
+  const SEATS = {
+    teddy:    { key: 'OFFICE_CELL_TEDDY',    fallback: '+16154855795' },
+    danielle: { key: 'OFFICE_CELL_DANIELLE', fallback: '+16154850713' },
+    sofia:    { key: 'OFFICE_CELL_SOFIA',    fallback: '+16292594602' },
+    carrie:   { key: 'OFFICE_CELL_CARRIE',   fallback: '' },
+  };
+  const seat = SEATS[who];
+  if (!seat) {
+    return json(200, { ok: false, error: 'no_cell_for_seat', who,
+      message: 'No cell is set up for ' + (b.who || who) + ', so there is nothing to ring. Ask Teddy to add it, or dial from your phone.' });
+  }
+  const cell = e164((await getSecret(seat.key)) || seat.fallback);
+  if (!cell) {
+    return json(200, { ok: false, error: 'no_cell_for_seat', who,
+      message: 'No cell is set up for ' + (b.who || who) + ', so there is nothing to ring. Ask Teddy to add it, or dial from your phone.' });
+  }
   const from = (await getSecret('TELNYX_OFFICE_CUSTOMER_NUMBER')) || (await getSecret('TELNYX_OFFICE_CALLER_NUMBER')) || '+16155889500';
 
   const KEY = await getSecret('TELNYX_API_KEY');

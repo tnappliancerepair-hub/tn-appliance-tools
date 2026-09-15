@@ -116,14 +116,17 @@ async function callOut(tel, disp, ev){
   var pw='';
   try{ pw=(window.OfficeAuth&&OfficeAuth.password&&OfficeAuth.password())||localStorage.getItem('ant_office_pw')||''; }catch(_){}
   if(!pw){ pw=(prompt('Office password (to connect the call):')||'').trim(); if(!pw)return false; try{localStorage.setItem('ant_office_pw',pw);}catch(_){}}
+  // Ring the seat that is actually signed in (was 'teddy, else danielle' — every
+  // other seat silently rang Danielle's phone instead of their own).
   var who='danielle';
-  try{ var n=(window.OfficeStaff&&OfficeStaff.name&&OfficeStaff.name())||''; if(/teddy/i.test(n)) who='teddy'; }catch(_){}
+  try{ var n=(window.OfficeStaff&&OfficeStaff.name&&OfficeStaff.name())||''; var f=String(n).trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g,''); if(f) who=f; }catch(_){}
   if(btn) btn.textContent='📞 Ringing your phone…';
   try{
     var r=await fetch('/.netlify/functions/office-callout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw,to:tel,who:who})});
     var d=await r.json().catch(function(){return{};});
     if(d&&d.ok){ if(btn){ btn.textContent='📞 Answer your phone — connecting '+disp; setTimeout(function(){if(btn)btn.textContent=orig;},15000); } }
     else if(d&&d.error==='unauthorized'){ try{localStorage.removeItem('ant_office_pw');}catch(_){} if(btn)btn.textContent='📞 Wrong password — tap again'; }
+    else if(d&&d.error==='no_cell_for_seat'){ if(btn)btn.textContent='📞 No cell on file for you'; alert(d.message||'No cell is set up for your seat.'); }
     else { if(btn)btn.textContent='📞 Couldn’t connect — dial '+disp; }
   }catch(_){ if(btn)btn.textContent='📞 Couldn’t connect — dial '+disp; }
   return false;
