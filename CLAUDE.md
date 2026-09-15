@@ -1,5 +1,72 @@
 # Appliance Ant
 
+## 🔩🔢 2026-09-15 (Mon) — PARTS ON THE TDR: many parts per machine, each with its own COUNT — READ FIRST
+
+Teddy: *"when they're adding parts we need to have multiple options available because a lot of
+times there's going to be multiple parts needed… and a little ticker at the end that they can
+adjust — one, two, three, four — some things they need multiples of."*
+
+### 🥇 THE GAP — the report's parts field was ONE TEXT BOX
+`platform/tech-job.html`'s "📦 Part & part #" was a single `#tp` input (`job_tdr.part_number`). A
+tech with three parts crammed them into it, and had **nowhere at all to say he needed two of
+something.** `job_part` was already one row per part, so "multiple parts" was structurally there —
+**the miss was the COUNT.** Without it he types "x4" into the name (junk the office has to read) or
+logs four identical rows — which **068's `part_key()` read-layer dedupe COLLAPSES back to one**, so
+the extra three vanish and the shop eats the cost.
+
+### ✅ WHAT THE TECH SEES NOW
+- The report's parts field is a **LIST** — add as many parts as the machine needs, each with a big
+  **− N +** ticker and an ✕ to drop it. `splitPartText()` reads "Heating element WPW10295370" the way
+  he says it out loud (last token that looks like a part number becomes the number, the rest the name).
+- **The same ticker on every card in the parts tracker below, and on its add form** — because both
+  views are the **SAME `job_part` rows**. One write, two lenses, so a part added in the report
+  instantly carries its order status, shipment, return obligation and price everywhere the office,
+  the portal and the invoice already read it.
+- **Adding a part already on the machine RAISES the count instead of making a second row** — a
+  duplicate is exactly what the dedupe collapses, so the extra would have vanished silently.
+- `job_tdr.part_number` is **still written**, as a joined summary (`W10250000 ×2, BT68-135`), so the
+  office board, the warranty claim, Ann and the brain keep reading what they read yesterday. The box
+  is now **hidden** — the list owns the write, so there is no dead Save button on it, and
+  `openParts()` searches a **real part number** instead of the joined summary.
+
+### ⚠️ THE MONEY RULE — `cost_cents`/`sell_cents` STAY THE UNIT PRICE
+They already mean that on all **2,178** existing rows; redefining them to "line total" would
+**silently re-price the whole book**. So every reader **MULTIPLIES**, and the readers were the work:
+office invoice worksheet (line total, parts sum, shop economics, margin) · `invoice_line` now carries
+a real `qty` · the tech's in-field invoice seed · `owner.html` P&L parts revenue + cost ·
+`platform-ant.js` parts spend. **Two of a $65 part billing as $65 is the failure this guards against.**
+- **Counted as PHYSICAL parts, not rows, wherever someone CARRIES or SHIPS them:** owed-back +
+  ship-back on the tech card, the returns worklist "Owed back" tile, and the customer's *"your 4 parts
+  are on order."* One row at qty 4 is four parts — **"1 owed back" is how three get left in the truck.**
+- **`platform-sp-parts-sync` must never write `qty`** (added to its never-touch list). The vendor's
+  list says what it SENT, not how many the machine needs — letting it write would re-count his job.
+  The Xano mirror is safe by construction: `qty` isn't in its payload, so merge-duplicates skips it.
+
+### 🧪 PROVEN, not asserted
+- **`docs/sql/072_part_qty.sql` APPLIED** — `qty int not null default 1` + `check (qty >= 1)`.
+  Verified live: column, constraint, and **all 2,178 rows at 1**. **NOT NULL on purpose** — a nullable
+  count makes "unknown" and "one" indistinguishable at the exact moment a reader multiplies.
+- **Live DB proof** on a part attached to a long-canceled job: ticker write landed (1→4), **a 0 was
+  REFUSED**, **a null was REFUSED**, reverted — **0 rows off the default afterward.**
+- **`portal_get` re-created with `CREATE OR REPLACE`** (keeps its grants — `pg_get_functiondef` does
+  NOT include them) and **exercised against a real customer who HAS parts**: returns `qty`, and
+  cost/sell/tracking/rma/part-# all still absent. ⚠️ Per the standing regex footgun, a bad regex in a
+  SECURITY DEFINER function **deploys clean and only throws for the rows that reach it** — so exercise
+  it on a row that hits the branch, never trust "it applied OK."
+- **`tests/part-qty.test.js` 24/24** — the three pure functions are **regex-lifted out of the shipped
+  page at test time**, so they cannot drift from what the tech actually taps.
+- **`tests/part-qty-money.test.js` 17/17** — a standing guard that every part-money **TOTAL** carries a
+  count and every priced `job_part` read asks for `qty`. Anchored by name; **if an anchor stops
+  matching, that FAILS on purpose** (a silently-skipped check is how this rots).
+
+### ⏭️ OPEN
+- **Front-end is on the branch, not live** — Netlify deploys from `main`, and this branch carries 4
+  unmerged commits. The **migration + `portal_get` ARE live** (they're database-side), so until the
+  merge every row simply reads qty 1 — correct, just not yet adjustable. Merge to ship the UI.
+- **`ant-tdr-card.js` (the Xano-side card on Teddy Tool / warranty-review) was deliberately NOT
+  touched.** It already has a multi-part editor; adding a count there means reopening the documented
+  `parts_needed` JSON-column bug (`docs/parts-needed-fix-2026-07-04.md`). The crew is on the platform.
+
 ## 🚪📭 2026-09-15 (Mon, late) — AHS/FRONTDOOR: we can RECEIVE, we cannot SEND — and our 9/3 + 9/8 replies WERE NEVER SENT TO AKSHAY (they went to Teddy's own gmail). He has followed up TWICE and heard nothing since 8/31 — READ FIRST
 
 Teddy: *"Let's focus on AHS api"* → *"start from the beginning and try everything over"* →
