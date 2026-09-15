@@ -1,36 +1,41 @@
 # Frontdoor / AHS API — implementation spec (captured 2026-06-24)
 
-## 🔴 DIAGNOSED 2026-09-15 — it was never a 403. The config ticket was never processed.
-Probed live (`frontdoor-probe?secret=<admin>`) instead of guessing:
-- **Our token is valid and correctly identifies us.** Claims carry `org_name: "tn appliance
-  exchange llc"`, `dev_email: tnappliancerepair@gmail.com`, `applicationId /aud:
-  040c014f-06e5-4697-a336-137dfa942128` (the Client ID we gave Brian). Auth is NOT the problem.
-- **But `roles` is exactly `["external-partner"]`** — the generic developer-portal role. No
-  contractor/dispatch scope, **no routing-id, no OfficeIds, no entitlements of any kind.**
-- **Every path returns 404 — including the bare `/` root**, on a host that demonstrably answers
-  (`api.sandbox.frontdoorhome.com` resolves and serves a plain "Not Found"). Dispatch-connector,
-  case-lifecycle, address API, health: all 404.
-- ⚠️ **`sandbox.api.frontdoorhome.com` DOES NOT RESOLVE** (DNS fail) — the RE-v2 note further
-  down this doc is wrong for sandbox. `api.sandbox.frontdoorhome.com` is the correct host, and
-  `api.frontdoorhome.com` is the production one.
+## 🟢 RE-RUN FROM SCRATCH 2026-09-15 — the sandbox gateway is EMPTY; the service is on PRODUCTION
+Teddy: *"start from the beginning of the api process and try everything over."* Did exactly that
+(`frontdoor-rerun?secret=<admin>&step=hosts|auth|identity|paths`) and it overturns the earlier read.
 
-**Read: a valid key + zero routes + only the generic role = step 2 (the CONFIG TICKET) was
-never completed.** That is the whole blocker. It is not Brian's dev team writing code, and it is
-not production access — it is the ticket that links the key to our contractor account and issues
-the routing-id. `frontdoor-probe` now returns the ticket pre-filled from the token's own claims.
+**The endpoints are REAL and they are on PRODUCTION at the prefix we already coded.**
+- **`api.sandbox.frontdoorhome.com` has ZERO routes.** Every path 404s — including a control path
+  under a known prefix. Nothing is deployed there. **That is the entire source of the 404s since June.**
+- **`api.frontdoorhome.com` routes by PREFIX** (proven with a control pair: unknown prefix → 404,
+  nonsense sub-path under a known prefix → 401). Live + JWT-gated prefixes: **`/dispatch-connector`**,
+  `/address`, `/dtc`, `/real-estate`.
+- Our token there → **`401 "Jwt issuer is not configured"`** = production does not trust the sandbox issuer.
+- ⚠️ **THE ROUTING-ID THEORY IS DEAD.** `/ahs`, `/ftdr`, org_id and applicationId all 404 as unknown
+  prefixes. There is no routing-id segment to be issued.
+- ⚠️ **`/v1/case-lifecycle/dispatch_status_update` is NOT a real prefix** on either host — the
+  "simpler contractor endpoint" from Getting Started is not ours. **`/dispatch-connector` is the one.**
 
-- ⚠️ **AND THE WATCHER WAS LYING ABOUT IT.** `frontdoor-auth-watch` treated ANY non-403 as
-  "authorized", so a 404 tripped it — it texted Teddy a false all-clear **twice** (2026-08-12
-  and 2026-09-10, 29 days apart, just past its own 30-day dedup). Fixed: only 200/201/202 (live),
-  400/422 (endpoint took the auth, rejected the body) or 405 (real path, wrong method) count.
-  403 and 404 both stay quiet and log as distinct states — **they need opposite fixes: a 403 is
-  theirs to clear, a 404 is ours.**
-- **STANDING: a 404 is not a permissions signal.** Any watcher that infers "we got access" from
-  the absence of one specific error code will eventually celebrate a wrong URL.
+**Auth was never the problem, and is now fully exhausted as a theory:**
+- Sandbox password-grant mints; `introspect` → **`active: true`**.
+- Both production token URLs reject our client_id as **`invalid_client`** → **our key is sandbox-only**.
+- `scopes_supported` is only `openid, offline_access, email, phone, profile` — **no dispatch or
+  contractor scope exists to request**, so we are not under-asking. `roles` is always `["external-partner"]`.
+- `userinfo` (with `openid`) returns only `sub` + `tid`. The IdP has nothing more to give us.
 
-Full public API reference captured while chasing dev-portal access. **We can build the
-whole integration from this — the ONLY blocker is generating API Keys, which requires
-developer-portal login (Teddy doesn't have it yet; that provisioning is the open ask).**
+**→ THE ASK IS A PRODUCTION API KEY**, from the BD rep / `partnerapiadmin@frontdoorhome.com` —
+not a sandbox config ticket. Full copy-paste ask: `docs/frontdoor-production-key-ask-2026-09-15.md`.
+
+- ⚠️ **AND THE WATCHER WAS LYING.** `frontdoor-auth-watch` treated ANY non-403 as "authorized", so a
+  404 tripped it — false all-clear texts on **2026-08-12** and **2026-09-10** (29d apart, just past its
+  own 30d dedup). Fixed: only 200/201/202, 400/422 (auth taken, body rejected = a PASS) or 405 count.
+  It also now probes **production** — it was watching the empty sandbox gateway, so it would have
+  waited forever — and reports `issuer_not_trusted` until a production key exists. Pinned by
+  `tests/frontdoor-auth-gate.test.js` (26 assertions, decision regex-lifted from the shipped file).
+- ⚠️ **STANDING: a 404 is not a permissions signal, and a 401 is not proof a sub-path exists.** Gate on
+  codes that prove success, never on "not the error I was waiting for" — and always probe a control
+  path before reading a route map out of status codes. My first control assumed route-then-auth; the
+  gateway does auth-per-prefix, and the control is what caught it before I published a wrong map.
 
 ## ⚠️ REALITY (6/24, from the portal's Getting Started page): being in the portal ≠ usable API
 Generating an API key is only step 1. To get a key that actually WORKS you must also:

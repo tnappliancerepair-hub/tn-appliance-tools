@@ -39,17 +39,31 @@ exports.handler = async function (event) {
 
   // Probe the dispatch endpoint (sandbox, harmless bogus dispatch). 403 = still
   // not linked; anything else = the key is authorized.
-  let status = 0, err = '';
+  let status = 0, err = '', body = '';
   try {
-    const resp = await fd.dispatchStatusUpdate({ dispatchId: 1, statusCode: 70, description: 'Technician in Route to Location', vendorId: '822418', tenant: 'AHS' });
+    // Probe PRODUCTION on purpose. Measured 2026-09-15: the sandbox gateway has zero routes
+    // deployed (every path 404s, control included), so watching it would wait forever on a
+    // host that serves nothing. /dispatch-connector is live + JWT-gated on production; while
+    // we hold only a sandbox key it answers 401 "Jwt issuer is not configured". The day a
+    // production key is vaulted, that 401 turns into something else — and that is the signal.
+    const resp = await fd.dispatchStatusUpdate({ dispatchId: 1, statusCode: 70, description: 'Technician in Route to Location', vendorId: '839828', tenant: 'AHS', baseOverride: fd.PROD_BASE });
     status = Number(resp && resp.status) || 0;
+    body = String((resp && resp.raw) || '').slice(0, 160);
   } catch (e) { err = String((e && e.message) || e).slice(0, 160); }
 
   // Only these prove the endpoint accepted our token. 404 deliberately excluded.
   const REACHABLE = [200, 201, 202, 400, 405, 422];
   const cleared = REACHABLE.includes(status);
-  const state = cleared ? 'reachable' : status === 403 ? 'not_authorized' : status === 404 ? 'path_not_found' : status === 401 ? 'token_rejected' : 'unknown';
-  if (dry) return j(200, { ok: true, dryrun: true, http_status: status, error: err, cleared, state });
+  // 401 + "issuer is not configured" is the specific, expected state while we hold a
+  // sandbox-only key: the service is right there and simply does not trust our issuer.
+  const issuerUntrusted = status === 401 && /issuer is not configured/i.test(body);
+  const state = cleared ? 'reachable'
+    : issuerUntrusted ? 'issuer_not_trusted (need a PRODUCTION key)'
+    : status === 403 ? 'not_authorized'
+    : status === 404 ? 'path_not_found'
+    : status === 401 ? 'token_rejected'
+    : 'unknown';
+  if (dry) return j(200, { ok: true, dryrun: true, probed: fd.PROD_BASE + '/dispatch-connector/v1/webhook', http_status: status, body, error: err, cleared, state });
 
   if (cleared) {
     await logCleared(status);
@@ -57,5 +71,5 @@ exports.handler = async function (event) {
     try { await sendSms(OWNER, msg, 'owner', 'frontdoor_auth_cleared'); } catch (_) {}
     return j(200, { ok: true, cleared: true, http_status: status, alerted: true });
   }
-  return j(200, { ok: true, cleared: false, state, http_status: status || 0, error: err });
+  return j(200, { ok: true, cleared: false, state, http_status: status || 0, body, error: err });
 };

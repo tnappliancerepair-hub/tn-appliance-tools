@@ -80,8 +80,8 @@ async function getToken(force) {
   return token;
 }
 
-async function api(method, path, bodyObj) {
-  const base = await apiBase();
+async function api(method, path, bodyObj, baseOverride) {
+  const base = baseOverride || await apiBase();
   const token = await getToken();
   const r = await fetch(`${base}${path}`, {
     method,
@@ -104,7 +104,11 @@ async function api(method, path, bodyObj) {
 
 // Push a dispatch status update (+ optional note) into Frontdoor.
 //   POST /dispatch-connector/v1/webhook
-async function dispatchStatusUpdate({ dispatchId, statusCode, description, note, vendorId, source, tenant, items, startTime, endTime }) {
+// baseOverride lets a caller probe a specific gateway regardless of FRONTDOOR_ENV. Needed
+// because the SANDBOX gateway is empty — every path 404s there, control included — so a
+// watcher pointed at sandbox would wait forever on a host that serves nothing. The real
+// dispatch-connector service is on production.
+async function dispatchStatusUpdate({ dispatchId, statusCode, description, note, vendorId, source, tenant, items, startTime, endTime, baseOverride }) {
   const vid = vendorId || vendorCtx.current('ahs').vendor_id || (await getSecret('FRONTDOOR_VENDOR_ID')) || '';
   const nowIso = new Date().toISOString();
   const object = {
@@ -123,7 +127,7 @@ async function dispatchStatusUpdate({ dispatchId, statusCode, description, note,
   // Overall deadline: token(6s) + webhook(7s) + any 401 retry can never collectively hang past
   // ~16s, so a slow/unresponsive Frontdoor endpoint fails fast with a clear error instead of
   // stalling the caller past the function/client cap (this was the 25s HTTP-000 hang).
-  const call = api('POST', '/dispatch-connector/v1/webhook', { data: [{ type: 'status', object }] });
+  const call = api('POST', '/dispatch-connector/v1/webhook', { data: [{ type: 'status', object }] }, baseOverride);
   const deadline = new Promise((_, rej) => setTimeout(() => rej(new Error('Frontdoor push deadline exceeded (16s)')), 16000));
   return Promise.race([call, deadline]);
 }
@@ -177,4 +181,8 @@ function vendorForArea(area) {
   return null;
 }
 
-module.exports = { isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, env, apiBase, VENDOR_AREAS, areaForVendor, vendorForArea };
+// Measured 2026-09-15: production routes by PREFIX and /dispatch-connector is live +
+// JWT-gated there; api.sandbox.frontdoorhome.com has no routes deployed at all.
+const PROD_BASE = 'https://api.frontdoorhome.com';
+
+module.exports = { PROD_BASE, isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, env, apiBase, VENDOR_AREAS, areaForVendor, vendorForArea };
