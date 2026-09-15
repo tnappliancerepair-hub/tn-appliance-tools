@@ -292,6 +292,7 @@
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/ant-part-route.js"></script>
 <script src="/platform/ant-part-note.js"></script>
+<script src="/platform/ant-thread.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
@@ -2017,24 +2018,55 @@
   }
 
   // ── CONVERSATION (shared thread) ────────────────────────────────────────────
-  function ftime(iso){ if(!iso) return ''; try{ var d=new Date(iso); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' · '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } }
-  function whoOf(m){
-    var s=String(m.sender||'');
-    if(m.direction==='in') return { cls:'cust', who:'👤 '+((job.customer&&fullName(job.customer))||'Customer') };
-    if(s==='ann'||s==='') return { cls:'ann', who:'🤖 Ant · AI' };
-    if(/^office/i.test(s)) return { cls:'you', who:'🏢 Office'+(s.indexOf(':')>0?' · '+s.split(':').slice(1).join(':'):'') };
-    if(/^tech/i.test(s)) return { cls:'you', who:'🔧 '+(s.indexOf(':')>0?s.split(':').slice(1).join(':'):'You') };
-    return { cls:'you', who:esc(s||'You') };
-  }
+  // The thread renders through /platform/ant-thread.js — ONE definition shared with the
+  // office inbox and the board drawer, so the tech and the office looking at the same
+  // conversation see the same thing. It also owns the message-vs-note rule: a waiver
+  // signature or a mirrored dispatch email is a fact about the job, not the customer
+  // speaking, and it stops taking up a bubble.
   function loadThread(){
     var box=document.getElementById('thr'); if(!box) return;
-    sb.from('thread_message').select('direction,sender,body,created_at').eq('job_id',jobId).order('created_at',{ascending:true}).limit(200).then(function(r){
+    // Whole scroll for this CUSTOMER, not just this job — a tech walking into a return
+    // visit needs what was said last time, not a thread that starts at today. Falls back
+    // to the job's own slice if the customer never resolved.
+    var q = job.customer_id
+      ? sb.from('thread_message').select('direction,sender,body,kind,channel,created_at').eq('customer_id',job.customer_id)
+      : sb.from('thread_message').select('direction,sender,body,kind,channel,created_at').eq('job_id',jobId);
+    q.order('created_at',{ascending:true}).limit(300).then(function(r){
       var rows=(r.data||[]);
-      if(!rows.length){ box.innerHTML='<div class="note">No messages yet — send the first one below.</div>'; return; }
-      box.innerHTML=rows.map(function(m){ var w=whoOf(m); return '<div class="bub '+w.cls+'"><span class="who">'+esc(w.who)+'</span>'+esc(m.body||'')+'<span class="tm">'+esc(ftime(m.created_at))+'</span></div>'; }).join('');
-      box.scrollTop=box.scrollHeight;
+      if(!window.AntThread){ box.innerHTML='<div class="note">Messages are still loading — pull down to refresh.</div>'; return; }
+      window.AntThread.mount(box, rows, {
+        me:'tech',
+        customerName:(job.customer&&fullName(job.customer))||'Customer',
+        emptyText:'No messages yet — send the first one below.'
+      });
+      markThreadSeen(rows);
     });
   }
+  // ── WHO HAS SEEN IT ────────────────────────────────────────────────────────────────
+  // The office has been able to mark a conversation read since 09-14 (152 of them today
+  // alone) but nothing ever recorded the other direction, so Danielle texts a tech through
+  // the thread and has no idea whether he ever looked. This records that he did.
+  //
+  // Deliberately its OWN event type. The office's unread queue runs on 'thread_read'; if a
+  // tech's mark landed in that same bucket, him opening a job would silently clear HER dot
+  // and she'd lose a customer who was waiting. Her queue stays hers.
+  var _seenKey='';
+  function markThreadSeen(rows){
+    try{
+      if(!me||!me.company_id||!job.customer_id) return;
+      var newest=null;
+      for(var i=rows.length-1;i>=0;i--){ var m=rows[i]; if(m.direction==='in'&&!(window.AntThread&&window.AntThread.isNote(m))){ newest=m; break; } }
+      if(!newest) return;                                  // nothing a person said to see
+      var k=job.customer_id+'|'+newest.created_at;
+      if(k===_seenKey) return; _seenKey=k;                 // don't re-stamp on every poll
+      var who=(myTech&&myTech.name)||(me&&me.name)||'Tech';
+      // Best-effort on purpose: a receipt is a courtesy, never a reason a tech can't read
+      // his own messages.
+      sb.from('event').insert({ company_id:me.company_id, type:'thread_seen', entity:'customer',
+        payload:{ customer_id:job.customer_id, job_id:jobId, at:new Date().toISOString(), by:'tech:'+who, through:String(newest.created_at) } });
+    }catch(_){}
+  }
+
   function sendMsg(){
     var box=document.getElementById('msgBox'), err=document.getElementById('msgErr'), btn=document.getElementById('msgSend');
     var text=(box&&box.value||'').trim(); err.textContent='';

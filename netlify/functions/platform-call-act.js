@@ -109,7 +109,7 @@ exports.handler = async function (event) {
       const lbl = dayLabel(iso) + (winWord[win] || '');
       if (job && job.id && cust && cust.id) {
         await db.insert('schedule_offer', { company_id: co.id, job_id: job.id, customer_id: cust.id, direction: 'customer', proposed_day: iso, win, note, status: 'pending', created_by: 'ann' });
-        try { await db.insert('thread_message', { company_id: co.id, customer_id: cust.id, job_id: job.id, direction: 'in', channel: 'call', sender: 'ann', body: `📅 Requested ${lbl}${note ? ' — ' + note : ''} (by phone)` }); } catch (_) {}
+        try { await db.insert('thread_message', { company_id: co.id, customer_id: cust.id, job_id: job.id, direction: 'in', channel: 'call', sender: 'ann', kind: 'note', body: `📅 Requested ${lbl}${note ? ' — ' + note : ''} (by phone)` }); } catch (_) {}
         return json(200, { ok: true, say: `Perfect — I've put in a request for ${lbl}. We don't lock exact clock times, but the office will confirm your day and text you.`, day: iso, win });
       }
       // no existing job — land it as a fresh lead carrying the requested day
@@ -126,7 +126,7 @@ exports.handler = async function (event) {
       const note = String(g('note') || '').slice(0, 300);
       const cb = phone || (cust && cust.phone) || '';
       if (job && job.id && cust && cust.id) {
-        await db.insert('thread_message', { company_id: co.id, customer_id: cust.id, job_id: job.id, direction: 'in', channel: 'call', sender: 'ann', body: `📞 CALLBACK for ${name || 'customer'}${note ? ' — ' + note : ''}${cb ? ' — call back ' + cb : ''}` });
+        await db.insert('thread_message', { company_id: co.id, customer_id: cust.id, job_id: job.id, direction: 'in', channel: 'call', sender: 'ann', kind: 'note', body: `📞 CALLBACK for ${name || 'customer'}${note ? ' — ' + note : ''}${cb ? ' — call back ' + cb : ''}` });
         const op = await ownerPhone(db, co.id);
         if (op && sms) { try { await sms.sendSms(op, `📞 Callback: ${name || 'a customer'}${cb ? ' (' + cb + ')' : ''}${note ? ' — ' + note : ''} — on their ${job.unit_label || 'job'}.`, 'office', 'ann_callback'); } catch (_) {} }
         return json(200, { ok: true, say: `You got it${name ? ', ' + name : ''} — I've flagged this for the office and they'll call you right back.` });

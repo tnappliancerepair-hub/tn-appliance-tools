@@ -80,6 +80,7 @@
 <script src="/platform/config.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script src="/platform/ant-new-job.js"></script>
+<script src="/platform/ant-thread.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
 <script src="/platform/vendor/boot-watchdog.js"></script>
@@ -219,8 +220,18 @@
       var ta=document.getElementById('ctext'); if(ta) ta.focus();
     });
   }
+  // Renders through /platform/ant-thread.js — ONE definition shared with the board drawer
+  // and the tech's job page. It owns the message-vs-note rule: a waiver signature, a
+  // finished-intake marker or a mirrored warranty dispatch email is a fact about the job,
+  // not the customer speaking, so it reads as a quiet centered line instead of taking a
+  // blue customer bubble and burying the real texts. Measured 09-15: 81% of the inbound
+  // side of this thread was exactly that.
   function renderScroll(msgs){
     var sc=document.getElementById('scroll'); if(!sc) return;
+    if(window.AntThread){
+      window.AntThread.mount(sc, msgs||[], { me:'office', customerName:curName, emptyText:'Nothing yet — send the first text below.' });
+      return;
+    }
     if(!msgs.length){ sc.innerHTML='<div class="empty">Nothing yet — send the first text below.</div>'; return; }
     var out='', lastDay='';
     msgs.forEach(function(m){

@@ -60,7 +60,7 @@ async function grantFor(db, token) {
   return g;
 }
 async function note(db, g, body) {
-  try { await db.insert('thread_message', { company_id: g.company_id, customer_id: g.customer_id, job_id: g.job_id, direction: 'in', channel: 'portal', sender: 'customer', body }); } catch (_) {}
+  try { await db.insert('thread_message', { company_id: g.company_id, customer_id: g.customer_id, job_id: g.job_id, direction: 'in', channel: 'portal', sender: 'customer', kind: 'note', body }); } catch (_) {}
 }
 
 // The moment the customer finishes intake, ping the SHOP with a link straight into the

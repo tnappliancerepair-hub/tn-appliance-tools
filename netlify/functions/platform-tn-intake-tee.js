@@ -221,7 +221,7 @@ async function waiverPass(db, events, dry, sigimg) {
       // Only on the first record. A re-run must never re-post the note. (If the
       // waiver_signed_at read above failed we skip rather than risk re-spamming the thread --
       // the job patch still lands, so nothing is lost, and the next clean run posts it.)
-      if (firstTime) { await db.insert('thread_message', { company_id: TN_COMPANY, job_id: pjob, direction: 'in', channel: 'portal', sender: 'customer', body: sum.slice(0, 300) }); res.noted = (res.noted || 0) + 1; }
+      if (firstTime) { await db.insert('thread_message', { company_id: TN_COMPANY, job_id: pjob, direction: 'in', channel: 'portal', sender: 'customer', kind: 'note', body: sum.slice(0, 300) }); res.noted = (res.noted || 0) + 1; }
       else res.renoted_skipped = (res.renoted_skipped || 0) + 1;
       res.records++;
       // signature IMAGE (best-effort): read jobs.waiver_signature_b64 if the XS was extended to store it.

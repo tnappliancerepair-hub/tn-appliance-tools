@@ -50,7 +50,7 @@ exports.handler = async function (event) {
     const noteBits = [];
     if (patch.phone) noteBits.push('phone → ' + patch.phone);
     if (addrBits) noteBits.push('service address → ' + addrBits);
-    await fetch(`${base}/rest/v1/thread_message`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify({ company_id: companyId, customer_id: customerId, job_id: grant.job_id || null, direction: 'in', channel: 'portal', sender: 'customer', body: '✏️ Customer verified their info' + (noteBits.length ? ': ' + noteBits.join(' · ') : '') }), signal: AbortSignal.timeout(8000) });
+    await fetch(`${base}/rest/v1/thread_message`, { method: 'POST', headers: { ...H, Prefer: 'return=minimal' }, body: JSON.stringify({ company_id: companyId, customer_id: customerId, job_id: grant.job_id || null, direction: 'in', channel: 'portal', sender: 'customer', kind: 'note', body: '✏️ Customer verified their info' + (noteBits.length ? ': ' + noteBits.join(' · ') : '') }), signal: AbortSignal.timeout(8000) });
   } catch (_) {}
 
   return json(200, { ok: true, saved });

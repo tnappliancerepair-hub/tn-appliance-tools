@@ -141,7 +141,7 @@ async function createWarrantyJob(db, co, n) {
   });
   try {
     await db.insert('thread_message', {
-      company_id: companyId, customer_id: customer.id, job_id: job.id, direction: 'in', channel: 'email', sender: 'warranty',
+      company_id: companyId, customer_id: customer.id, job_id: job.id, direction: 'in', channel: 'email', sender: 'warranty', kind: 'note',
       body: `📥 ${n.warranty_company || 'Warranty'} dispatch${n.claim_number ? ' #' + n.claim_number : ''}: ${label}${n.problem ? ' — ' + n.problem : ''}${n.service_window ? ' · ' + n.service_window : ''}`,
     });
   } catch (_) {}
@@ -182,7 +182,7 @@ async function applyDispatchUpdate(db, co, s, live) {
   try {
     await db.insert('thread_message', {
       company_id: companyId, customer_id: jobRow.customer_id, job_id: jobId,
-      direction: 'in', channel: 'email', sender: 'warranty', body: note,
+      direction: 'in', channel: 'email', sender: 'warranty', kind: 'note', body: note,
     });
   } catch (_) {}
   return { operation: s.operation, dispatch_id: s.dispatch_id, job_id: jobId, matched: true, mode: 'applied', moved_to: target || null };

@@ -324,6 +324,7 @@
 <script src="/platform/ant-part-route.js"></script>
 <script src="/platform/ant-part-note.js"></script>
 <script src="/platform/ant-new-job.js"></script>
+<script src="/platform/ant-thread.js"></script>
 <script src="/platform/features.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -1960,6 +1961,7 @@
       '<div class="sec" style="margin-bottom:6px"><button type="button" id="jmsgtoggle" style="width:100%;text-align:left;font-weight:800">💬 Messages<span class="hint" id="jmsgcount" style="font-weight:600"></span> <span id="jmsgcaret" style="float:right">▸</span></button></div>' +
       '<div id="jconvo" style="display:none">' +
         '<div id="jthread" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:2px 0;font-size:13px">Loading…</div>' +
+        '<div class="hint" id="jseen" style="margin:5px 0 0"></div>' +
         '<textarea id="jmsg" placeholder="Text the customer…" style="min-height:56px;margin-top:6px"></textarea>' +
         '<div class="srow"><button class="primary" id="jmsgSend">Send text</button><button id="jreview">⭐ Request review</button><span class="hint" id="jmsgHint" style="align-self:center"></span></div>' +
         // This drawer shows only THIS job's slice. The whole scroll with the person — every
@@ -2354,28 +2356,42 @@
     function g(id){ return document.getElementById(id).value; }
   }
 
-  function threadBubble(m){
-    var out=(m.direction==='out'); var s=String(m.sender||'');
-    var who = out
-      ? (s.indexOf('office:')===0 ? '🏢 '+s.slice(7)
-         : s.indexOf('tech:')===0 ? '🔧 '+s.slice(5)
-         : s==='ann' ? '🐜 Ann' : s==='tech' ? '🔧 Tech' : '🏢 Office')
-      : '👤 Customer';
-    var align=out?'flex-end':'flex-start';
-    var bg=out?'var(--brand)':'var(--chip)';
-    var col=out?'var(--brand-ink,#fff)':'var(--ink)';
-    return '<div style="align-self:'+align+';max-width:82%;background:'+bg+';color:'+col+';padding:7px 10px;border-radius:12px;line-height:1.35"><div style="font-size:10px;opacity:.75;margin-bottom:2px">'+esc(who)+'</div>'+esc(m.body||'')+'</div>';
-  }
+  // Renders through /platform/ant-thread.js — ONE definition shared with the Messages page
+  // and the tech's job page, so all three seats reading the same conversation see the same
+  // thing. It owns the message-vs-note rule too: a waiver signature or a mirrored dispatch
+  // email is a fact about the job, not the customer speaking, so it stops wearing a blue
+  // customer bubble and burying the real texts.
   function loadThread(job){
     var box=document.getElementById('jthread'); if(!box) return;
-    sb.from('thread_message').select('sender,direction,body,created_at,channel').eq('job_id',job.id).order('created_at').then(function(r){
+    sb.from('thread_message').select('sender,direction,body,kind,created_at,channel').eq('job_id',job.id).order('created_at').then(function(r){
       var b=document.getElementById('jthread'); if(!b) return;
       if(r.error){ b.innerHTML='<div class="hint">Couldn\'t load messages.</div>'; return; }
       var rows=r.data||[];
-      b.innerHTML = rows.length ? rows.map(threadBubble).join('') : '<div class="hint">No messages yet.</div>';
-      b.scrollTop=b.scrollHeight;
-      var cnt=document.getElementById('jmsgcount'); if(cnt) cnt.textContent=rows.length?' ('+rows.length+')':'';
+      var st=window.AntThread
+        ? window.AntThread.mount(b, rows, { me:'office', customerName:fullName(job.customer)||'Customer', emptyText:'No messages yet.' })
+        : { messages: rows.length };
+      // Count what was SAID, not every row — "(47)" made of 44 waiver lines is a lie about
+      // how much conversation is in there.
+      var cnt=document.getElementById('jmsgcount'); if(cnt) cnt.textContent=st.messages?' ('+st.messages+')':'';
+      loadSeenBy(job);
     });
+  }
+
+  // ── WHO HAS SEEN IT ────────────────────────────────────────────────────────────────
+  // Danielle texts a tech through the thread and has had no way to know whether he ever
+  // opened it. The tech app stamps a 'thread_seen' event when he reads; this shows it.
+  function loadSeenBy(job){
+    var box=document.getElementById('jseen'); if(!box||!job.customer_id) return;
+    sb.from('event').select('payload,created_at').eq('company_id',companyId).eq('type','thread_seen')
+      .order('created_at',{ascending:false}).limit(200).then(function(r){
+        if(r.error||!r.data){ box.textContent=''; return; }
+        var hit=null;
+        for(var i=0;i<r.data.length;i++){ var p=r.data[i].payload||{}; if(String(p.customer_id)===String(job.customer_id)){ hit=r.data[i]; break; } }
+        if(!hit){ box.textContent=''; return; }
+        var p=hit.payload||{}, who=String(p.by||'').replace(/^tech:/,'');
+        var t=''; try{ t=new Date(p.at||hit.created_at).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }catch(_){}
+        box.textContent='✓ Opened by '+(who||'the tech')+(t?' · '+t:'');
+      });
   }
   // ── 🔁 PREVIOUS VISITS — prior jobs for this customer, newest first, with each visit's
   // outcome + what failed / what happened (from its TDR) so recalls & repeat trips have context.

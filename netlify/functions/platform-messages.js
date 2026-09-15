@@ -56,6 +56,26 @@ async function authUser(base, key, accessToken) {
 }
 const nameOf = (c) => [c && c.first_name, c && c.last_name].filter(Boolean).join(' ').trim();
 
+// ── MESSAGE vs NOTE ─────────────────────────────────────────────────────────────────
+// A NOTE is a line one of our own functions composed about something that happened — the
+// waiver signature, the finished-intake marker, a mirrored warranty dispatch email, the day
+// a caller asked for on the phone. Nobody spoke it, so it can never mean the customer is
+// waiting on a reply, and it must not render as their speech.
+//
+// The column (migration 075) is the truth. The channel test behind it is the SAFETY NET for
+// any writer that hasn't been taught to stamp kind yet: measured on the live board, every
+// single inbound row that is not an SMS was machine-composed (1004 portal + 39 email + 10
+// call + 2 lsa, against 239 real texts). Falling back to it means a new note written by an
+// un-updated caller still behaves, instead of quietly reappearing as a fake customer reply.
+// Outbound is never inferred — some of our own rows are the real text and some are a log
+// line about having sent one, and wrongly hiding something we told a customer is the
+// expensive direction.
+function isNote(m) {
+  if (!m) return false;
+  if (String(m.kind || '') === 'note') return true;
+  return m.direction === 'in' && String(m.channel || '') !== 'sms';
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   const q = event.queryStringParameters || {};
@@ -119,14 +139,19 @@ exports.handler = async function (event) {
       const lim = Math.min(Math.max(parseInt(p.limit, 10) || 400, 50), 1000);
       const rows = await db.get(
         `thread_message?company_id=eq.${companyId}&customer_id=not.is.null` +
-        `&select=customer_id,job_id,direction,channel,sender,body,created_at&order=created_at.desc&limit=${lim}`
+        `&select=customer_id,job_id,direction,channel,sender,body,kind,created_at&order=created_at.desc&limit=${lim}`
       );
+      // `last` is the newest row of ANY kind (it's the preview line she reads), but
+      // `lastSaid` — the newest thing a HUMAN actually said — is what decides whether she
+      // owes anyone a reply. Before this they were the same row, so a waiver signature or a
+      // warranty dispatch email read as "the customer replied" and sat on her queue.
       const byCust = new Map();
       for (const m of rows) {
         let c = byCust.get(m.customer_id);
-        if (!c) { c = { customer_id: m.customer_id, last: m, n: 0, last_in_at: null }; byCust.set(m.customer_id, c); }
+        if (!c) { c = { customer_id: m.customer_id, last: m, lastSaid: null, n: 0, last_in_at: null }; byCust.set(m.customer_id, c); }
         c.n++;
-        if (m.direction === 'in' && !c.last_in_at) c.last_in_at = m.created_at;
+        if (!isNote(m) && !c.lastSaid) c.lastSaid = m;
+        if (m.direction === 'in' && !isNote(m) && !c.last_in_at) c.last_in_at = m.created_at;
       }
       const ids = [...byCust.keys()];
       let people = [];
@@ -158,11 +183,13 @@ exports.handler = async function (event) {
             last_at: c.last.created_at,
             last_direction: c.last.direction,
             last_sender: c.last.sender || '',
-            // "they spoke last" is the office's real to-do signal
-            needs_reply: c.last.direction === 'in',
-            // UNREAD = they spoke last AND she hasn't marked it read since. Newest-mark-wins.
-            unread: c.last.direction === 'in' &&
-                    !(readAt.has(c.customer_id) && readAt.get(c.customer_id) >= String(c.last.created_at)),
+            last_kind: isNote(c.last) ? 'note' : 'message',
+            // "they spoke last" is the office's real to-do signal — and only a human can
+            // speak. A note is something we recorded, not somebody waiting on her.
+            needs_reply: !!(c.lastSaid && c.lastSaid.direction === 'in'),
+            // UNREAD = a person spoke last AND she hasn't marked it read since. Newest-mark-wins.
+            unread: !!(c.lastSaid && c.lastSaid.direction === 'in') &&
+                    !(readAt.has(c.customer_id) && readAt.get(c.customer_id) >= String(c.lastSaid.created_at)),
           };
         })
         .sort((a, b) => String(b.last_at).localeCompare(String(a.last_at)));
@@ -177,7 +204,7 @@ exports.handler = async function (event) {
       const cus = (await db.get(`customer?id=eq.${cid}&company_id=eq.${companyId}&select=id,first_name,last_name,phone,email,address,city,state,zip&limit=1`))[0];
       if (!cus) return json(200, { ok: false, error: 'not_your_customer' });
       const [messages, jobs] = await Promise.all([
-        db.get(`thread_message?company_id=eq.${companyId}&customer_id=eq.${cid}&select=id,job_id,direction,channel,sender,body,created_at&order=created_at.asc&limit=500`),
+        db.get(`thread_message?company_id=eq.${companyId}&customer_id=eq.${cid}&select=id,job_id,direction,channel,sender,body,kind,created_at&order=created_at.asc&limit=500`),
         db.get(`job?company_id=eq.${companyId}&customer_id=eq.${cid}&select=id,status,scheduled_day,problem&order=scheduled_day.desc.nullslast&limit=25`),
       ]);
       return json(200, { ok: true, customer: { ...cus, name: nameOf(cus) }, jobs, messages });

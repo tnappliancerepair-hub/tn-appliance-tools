@@ -192,7 +192,7 @@
               // board. None of these may be allowed to fail the thing that matters.
               var line = '📞 Lead from ' + chan + ' — ' + what + (problem ? ' — ' + problem : '') +
                          (city ? ' (' + city + ')' : '') + ' · taken by ' + who;
-              try { sb.from('thread_message').insert({ company_id: cid, customer_id: cust.id, job_id: jobId, direction: 'in', channel: 'call', sender: 'office', body: line }); } catch (_) {}
+              try { sb.from('thread_message').insert({ company_id: cid, customer_id: cust.id, job_id: jobId, direction: 'in', channel: 'call', sender: 'office', kind: 'note', body: line }); } catch (_) {}
               try { sb.from('event').insert({ company_id: cid, type: 'office_lead_created', entity: 'job', payload: { job_id: jobId, channel: chan, by: who, had_phone: !!digits } }); } catch (_) {}
               try { sb.from('portal_grant').insert({ company_id: cid, customer_id: cust.id, job_id: jobId }); } catch (_) {}
               close();
