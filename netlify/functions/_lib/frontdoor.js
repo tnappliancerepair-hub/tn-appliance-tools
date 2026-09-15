@@ -112,7 +112,11 @@ async function dispatchStatusUpdate({ dispatchId, statusCode, description, note,
   const vid = vendorId || vendorCtx.current('ahs').vendor_id || (await getSecret('FRONTDOOR_VENDOR_ID')) || '';
   const nowIso = new Date().toISOString();
   const object = {
-    source: source || 'DISPATCH_ME',
+    // Frontdoor (Akshay Kyatam) told us this exact value on 2026-08-24: "please use the
+    // following value as the source in the request payload when calling our webhook API:
+    // TN_APPLIANCE_EXCHANGE". The old 'DISPATCH_ME' was a guess copied out of the public
+    // enum in the spec and was never what they provisioned for us.
+    source: source || FD_SOURCE,
     tenant: tenant || 'AHS',
     dispatch_id: Number(dispatchId),
     vendor_id: String(vid),
@@ -184,5 +188,8 @@ function vendorForArea(area) {
 // Measured 2026-09-15: production routes by PREFIX and /dispatch-connector is live +
 // JWT-gated there; api.sandbox.frontdoorhome.com has no routes deployed at all.
 const PROD_BASE = 'https://api.frontdoorhome.com';
+// The `source` Frontdoor provisioned for our account. Override per-tenant if a shop is ever
+// onboarded under a different contractor identity.
+const FD_SOURCE = 'TN_APPLIANCE_EXCHANGE';
 
-module.exports = { PROD_BASE, isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, env, apiBase, VENDOR_AREAS, areaForVendor, vendorForArea };
+module.exports = { PROD_BASE, FD_SOURCE, isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, env, apiBase, VENDOR_AREAS, areaForVendor, vendorForArea };

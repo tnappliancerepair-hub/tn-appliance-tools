@@ -103,7 +103,7 @@ exports.handler = async function (event) {
 
   const nowIso = new Date().toISOString();
   const connectorBody = { data: [{ type: 'status', object: {
-    source: 'DISPATCH_ME', tenant: 'AHS', dispatch_id: dispatchId, vendor_id: vendorId,
+    source: 'TN_APPLIANCE_EXCHANGE', tenant: 'AHS', dispatch_id: dispatchId, vendor_id: vendorId,
     description: 'Technician in Route to Location', status_code: 70,
     note: 'Ant probe — ignore', updated_at: nowIso, start_time: nowIso, end_time: nowIso,
   } }] };

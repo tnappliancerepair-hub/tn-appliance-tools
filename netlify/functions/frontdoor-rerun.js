@@ -174,7 +174,7 @@ exports.handler = async function (event) {
     const lifecycle = { dispatchNumber: dispatchId, status: 'JobComplete' };
     const nowIso = new Date().toISOString();
     const connector = { data: [{ type: 'status', object: {
-      source: 'DISPATCH_ME', tenant: 'AHS', dispatch_id: dispatchId, vendor_id: '839828',
+      source: 'TN_APPLIANCE_EXCHANGE', tenant: 'AHS', dispatch_id: dispatchId, vendor_id: '839828',
       description: 'Job Complete', status_code: 10, note: 'Ant probe — ignore',
       updated_at: nowIso, start_time: nowIso, end_time: nowIso } }] };
 
