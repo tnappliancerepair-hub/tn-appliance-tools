@@ -31,17 +31,27 @@ then. We have the wrong destination — we can receive but we have not been able
   `TO: Akshay.Kyatam@frontdoor.com`. ⚠️ **Gmail's `in:sent` index lags ~20s** — the first read 4s after
   the send returned 0 and looked exactly like a failure. **Wait, then re-query; don't trust the 200 OR
   a single empty read.**
-  ⚠️ **STALE DRAFT STILL SITS IN GMAIL** — `1a0a3b083eba2a8a`, same thread. Sending creates a NEW
-  message; it does not consume the draft. **It is a duplicate of an email that already went out —
-  delete it in Gmail so nobody sends Akshay the same thing twice.** (`gmail-send` has no delete
-  action; this is a manual one-tap.)
-  ⏭️ **NOW: watch for Akshay's reply.** If it stays quiet past ~**Sept 22**, escalate to Brian Bullock
-  (`Brian.Bullock@ahs.com`) — as a **NEW email, not a reply-all** (he is not on this thread).
-  ⚠️ **THERE IS NO Cc ON THIS THREAD** (verified 9/15) — Akshay's 9/3 + 9/8 messages carry an
-  EMPTY Cc to `tnappliancerepair@gmail.com` alone, so reply-all reaches him ONLY. Brian Bullock /
-  Vaibhav / Shivam / Adarsha / Danny appear only in quoted body text from an older forwarded
-  thread. Brian is still the escalation if it stays quiet — but that is a **NEW email**, not a
-  reply-all. Keep the Cc empty on this one: it owns our silence and retracts our own false claim,
+  📨 **AKSHAY GOT IT TWICE — and that is the cost of the stale draft.** Sending via the API creates a
+  NEW message and does NOT consume the draft, so `1a0a3b083eba2a8a` stayed in the thread; Teddy then
+  hit Send on it at **8:11:17 AM CT** → message **`1a0a531772478be3`**, same `To: Akshay.Kyatam@frontdoor.com`,
+  Cc empty, **same body**, 66 min after the 7:05 one. Drafts on the thread now read **0** (the send
+  consumed it), so there is nothing left to delete. Harm is low — a duplicate apology, not a wrong
+  one — and no action is needed unless Akshay mentions it. ⚠️ **STANDING: an API send leaves the draft
+  behind, and a leftover draft is a loaded gun.** Either delete it in the same breath as the send, or
+  don't compose a draft at all when the send is programmatic.
+  ⏭️ **NOW: watch for Akshay's reply** (checked 9/15 ~8:20 AM CT — `from:Akshay.Kyatam@frontdoor.com
+  newer_than:1d` → **count 0**, nothing back yet). If it stays quiet past ~**Sept 22**, escalate to
+  Brian Bullock (`Brian.Bullock@ahs.com`) — as a **NEW email, not a reply-all**.
+  ⚠️ **REPLY-ALL REACHES AKSHAY ALONE** (verified 9/15) — his 9/3 + 9/8 messages carry an EMPTY Cc
+  to `tnappliancerepair@gmail.com`, so a reply on this thread goes to him only. Brian is still the
+  escalation if it stays quiet — but that is a **NEW email**, not a reply-all.
+  🔴 **CORRECTION 2026-09-15 — "Brian is not on this thread" is TOO STRONG, and it changes the
+  escalation.** Our own **8/31 SENT message (`1a0584a387f59e03`) carried a REAL Cc header**:
+  **Brian Bullock**, Vaibhav Parashar, Adarsha Dash, Shivam Arora, Danny Suarez (+ a typo'd
+  `jpoivacek@gmail.com`). So Brian is not cold — **the last thing he saw from us is the 8/31 email
+  claiming the broken direction was "Confirmed working,"** and he never saw the 9/15 retraction
+  (that one is Cc-empty). **A Brian escalation must therefore LEAD with the retraction**, not assume
+  he knows; walking in as if he has been following is how the 8/31 false claim becomes his baseline. Keep the Cc empty on this one: it owns our silence and retracts our own false claim,
   and cc'ing a senior contact on that reads as going over the head of the one person who HAS
   been responsive.
 
