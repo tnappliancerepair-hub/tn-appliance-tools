@@ -87,7 +87,7 @@ call — and Data Axle turned out to be almost right already, which is the good 
 | aggregator | live state today | what it costs | verdict |
 |---|---|---|---|
 | **Data Axle** | **EXISTS + UNCLAIMED.** `3137 Skinner Dr, Antioch TN 37013-3965` ✅ · `(615) 280-2949` ✅ · name reads **"TN Appliance Exchange Inc"** ❌ | **FREE** | 🥇 **do it first** — claim it + fix Inc→LLC |
-| **Foursquare** | ✅ **CLAIMED 2026-09-15 ($20 paid) — but it claimed carrying the WRONG (La Vergne) ADDRESS.** The trap below fired for real. Fix it in the venue manager NOW, before syndication carries it | **$20** one-time, PAID | 🔴 **OPEN — address correction + duplicate check outstanding** |
+| **Foursquare** | ✅ **CLAIMED 2026-09-15 ($20 paid).** The record carried the WRONG (La Vergne) address — and **Foursquare gates editing behind ownership, so claiming was the ONLY way to fix it.** The $20 bought INSTANT verification instead of 1-3 days of the ghost sitting claimed-but-uncorrectable | **$20** one-time, PAID — correctly | 🟡 **correction in progress** — 4 field edits + duplicate check |
 | **Neustar / Localeze** (now **TransUnion Digital Business Profile**) | 403s bots, can't read from here | **~$297/yr, NOT free** | 🟡 **Teddy's call** — real money, see below |
 
 - **✅ THE GOOD NEWS: Data Axle is NOT the source of the La Vergne ghost.** I half-expected to find the
@@ -148,20 +148,31 @@ Established 2012
      Antioch TN 37013** (never La Vergne / 5403 Murfreesboro Rd), and website reads
      **`https://tnapplianceexchange.net`** — Foursquare pre-fills `http://www.…`, which is a redirect
      hop and not the canonical string. Phone `(615) 280-2949` pre-fills correctly.
-   - **🚨 THE TRAP FIRED — 2026-09-15. The claim went through on the LA VERGNE address.** Teddy paid the
-     $20 and the record claimed before the NAP fields were corrected, so Foursquare now holds the ghost
-     and will push it to **Apple Maps, Uber, Samsung and Snapchat**. **This is now a live correction, not
-     a claim task.** ⏭️ Venue manager → edit **address → 3137 Skinner Dr, Antioch TN 37013** · **name →
-     TN Appliance Exchange LLC** · **website → `https://tnapplianceexchange.net`** · **category →
-     Appliance repair service** (never store/used/refurbished). ⚠️ **AND CHECK FOR A SECOND VENUE at the
-     Antioch address** — if Foursquare already carries a correct Antioch record, we now own the stale one
-     and there are TWO, which suppresses rank exactly like the Yelp `-2` and the Nextdoor duplicate.
-     **Two records = a MERGE support request, not an edit.** ⚠️ Foursquare blocks bots (their own support
-     article 403s us), so this can only be read by a human in a browser — same shape as Yelp/BBB.
-   - ⚠️ **STANDING, EARNED THE HARD WAY: on a syndicating aggregator, FIX THE FIELDS BEFORE YOU CLAIM.**
-     A claim is not a neutral act — it publishes whatever the record currently says to every downstream
-     platform that aggregator feeds. The cost of claiming a stale record is strictly worse than not
-     claiming it at all.
+   - **🔴 CORRECTION TO MY OWN RULE — "fix the fields before you claim" is IMPOSSIBLE on Foursquare, and
+     Teddy was right to pay.** I wrote the trap above as "correct the NAP on the detail form BEFORE the
+     payment step." **You cannot.** The pre-claim screen is a **REVIEW** screen, not an edit screen —
+     Foursquare gates every field edit behind verified ownership. So on a record carrying the wrong
+     address, **claiming is the only path to fixing it**, and the $20 is buying **instant** edit rights
+     instead of waiting 1-3 business days on the free phone-verification path. That makes the $20 a
+     BETTER buy than I framed it: it is not convenience, it is **cutting 1-3 days off the window where a
+     syndicating aggregator holds your wrong address under your own verified ownership**. On a platform
+     that feeds Apple Maps / Uber / Samsung / Snapchat, that window is the whole risk.
+   - **⏭️ THE CORRECTION, now that edit rights exist** — venue manager → **address → 3137 Skinner Dr,
+     Antioch TN 37013** · **name → TN Appliance Exchange LLC** · **website →
+     `https://tnapplianceexchange.net`** (it pre-fills `http://www.…`, a redirect hop) · **category →
+     Appliance repair service** (never store/used/refurbished). Syndication runs days-to-weeks, so a
+     same-day correction beats it downstream.
+   - ⚠️ **AND CHECK FOR A SECOND VENUE at the Antioch address.** If Foursquare already carries a correct
+     Antioch record, we now own the stale La Vergne one and there are TWO — which suppresses map rank
+     exactly like the Yelp `-2` and the Nextdoor duplicate. **Two records = a MERGE support request, not
+     an edit**; correcting the address on the one we own does NOT collapse the other. ⚠️ Foursquare blocks
+     bots (their own support article 403s us), so this is human-in-a-browser only — same as Yelp/BBB.
+   - ⚠️ **STANDING, CORRECTED: before writing a "fix it before you claim" instruction for ANY directory,
+     check whether that platform lets you edit WITHOUT ownership.** Most do not. Where editing is gated
+     behind the claim, the sequence is forced — **claim FAST, then fix IMMEDIATELY** — and paying to
+     expedite verification is buying down the exposure window, not buying convenience. The "fix first"
+     rule only applies where a platform genuinely offers a pre-claim edit (a public "suggest an edit"
+     path, e.g. GBP-style).
 
 - 🔎 **One more long-tail read while in there: `citylifestyle.com` is CLEAN** (3137 Skinner, Antioch TN,
   615-280-2949 — verified live). No action. Recorded so nobody re-audits it.
