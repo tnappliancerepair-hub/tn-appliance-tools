@@ -39,9 +39,19 @@ then. We have the wrong destination — we can receive but we have not been able
   one — and no action is needed unless Akshay mentions it. ⚠️ **STANDING: an API send leaves the draft
   behind, and a leftover draft is a loaded gun.** Either delete it in the same breath as the send, or
   don't compose a draft at all when the send is programmatic.
-  ⏭️ **NOW: watch for Akshay's reply** (checked 9/15 ~8:20 AM CT — `from:Akshay.Kyatam@frontdoor.com
-  newer_than:1d` → **count 0**, nothing back yet). If it stays quiet past ~**Sept 22**, escalate to
-  Brian Bullock (`Brian.Bullock@ahs.com`) — as a **NEW email, not a reply-all**.
+  ⏭️ **NOW: watch for Akshay's reply.** Checked 9/15 ~8:25 AM CT, BOTH ways: `from:Akshay.Kyatam@frontdoor.com
+  newer_than:1d` → **0**, and the wider `from:frontdoor.com newer_than:3d` → 4 distinct, **none of them
+  an API reply** (2 dispatch notifications 7:40 + 7:46 AM CT, an estimate-processed notice, and Ben
+  Kelly on an unrelated "Company vacation" thread). ⚠️ **Use the WIDE query, not just Akshay** — a
+  colleague (Vaibhav / Shivam / Adarsha) could answer instead of him.
+  🆕 **BEN KELLY IS LIVE TODAY — and he may be the better escalation than Brian.** `Ben.Kelly@frontdoor.com`
+  replied to us 9/15 7:27 AM CT (different thread). Per the 2026-06 entry below, **Ben is the BD rep for
+  PRODUCTION access** — which is literally ask #2 in the email we just sent Akshay ("a production
+  credential for Client ID 040c014f-…"). So if Akshay stays quiet, the ladder is: **Ben (warm, owns the
+  exact thing we're asking for) → Brian (senior, but his last impression is our false 8/31 claim)**.
+  Either is a **NEW email**, never a reply-all on `1a0341dcd5f4a3e4`.
+  📡 Those 2 dispatch notifications are also a live re-confirmation that **them→us is still flowing**.
+  If it stays quiet past ~**Sept 22**, escalate.
   ⚠️ **REPLY-ALL REACHES AKSHAY ALONE** (verified 9/15) — his 9/3 + 9/8 messages carry an EMPTY Cc
   to `tnappliancerepair@gmail.com`, so a reply on this thread goes to him only. Brian is still the
   escalation if it stays quiet — but that is a **NEW email**, not a reply-all.
