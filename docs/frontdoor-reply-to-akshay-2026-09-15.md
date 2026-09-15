@@ -147,7 +147,7 @@ Production returns `invalid_client — "client_id: 040c014f-06e5-4697-a336-137df
 ## THE EMAIL
 
 **To:** Akshay.Kyatam@frontdoor.com
-**Cc:** reply-all on the existing thread (Brian Bullock · Vaibhav Parashar · Shivam Arora · Adarsha Dash · Danny Suarez · jpivacek@gmail.com — **fix the `jpoivacek@` typo**)
+**Cc:** none — **verified 2026-09-15.** Akshay's Sept 3 and Sept 8 messages carry an EMPTY Cc and go only to `tnappliancerepair@gmail.com`, so reply-all reaches him alone. (Brian Bullock, Vaibhav Parashar, Shivam Arora, Adarsha Dash and Danny Suarez appear only inside quoted body text from an older forwarded thread — none of them is a live recipient here.) Leave it that way: this email owns our silence and retracts a false claim, and cc'ing a senior contact on that would read as going over the head of the one person who has been responsive.
 **Subject:** Re: [External] Re: Sandbox Integration Ready for Testing – Please Verify Inbound and Outbound Updates
 
 ---
@@ -240,23 +240,25 @@ https://tnapplianceexchange.net
   and **confirm `Akshay.Kyatam@frontdoor.com` is in the To: line before you hit send.** The
   last two replies we composed went to `jpivacek@gmail.com` instead of to him and never left
   the building. That is the single reason this thread stalled. Check the To: line.
-- ⚠️ **The thread's Cc carries `jpoivacek@gmail.com` — a typo** (Teddy's address is
-  `jpivacek@gmail.com`, no "o"). Reply-all will propagate the typo. Fix it in the Cc line if
-  you want Teddy's personal inbox copied. **Danny Suarez** is also on the thread Cc.
+- ✅ **Cc is empty and should stay empty.** Akshay's last two messages have no Cc at all, so
+  reply-all goes to him only — nothing to fix, nothing to strip. (The `jpoivacek@gmail.com`
+  typo was on his Aug 24 opener's To: line and has not been on the thread since.)
 - **Do not paste the webhook token value.** Akshay sent it in the clear on Aug 24; we don't
   need to repeat it. The Client ID is an identifier and is already in the thread.
 - **Do not include Teddy's cell.** 866-268-0111 is the published line.
 - **After sending, verify it sent** — open Sent and confirm the To: line. Don't assume.
 - If there's still no answer by ~Sept 22, escalate to Brian Bullock (Brian.Bullock@ahs.com) —
-  he's on the Cc and owns the relationship. The ask becomes: "can someone confirm which path
-  our sandbox key is meant to POST a status update to."
+  he owns the relationship, but he is **not** on this thread, so that is a NEW email, not a
+  reply-all. The ask becomes: "can someone confirm which path our sandbox key is meant to POST
+  a status update to."
 
 ---
 
 ## What the verification changed
 
-The first draft was wrong in six places. Each was caught by re-checking against a live
-source rather than the prior session's notes.
+The first draft was wrong in seven places. Each was caught by re-checking against a live
+source rather than the prior session's notes. #7 was caught in the final pre-send pass, which
+is the argument for doing one.
 
 | # | First draft said | Verified truth | Why it mattered |
 |---|---|---|---|
@@ -265,7 +267,14 @@ source rather than the prior session's notes.
 | 2 | "It came through **7 separate times**" | 7 log entries = **3 distinct payloads** (schedule ×1 re-sent, status ×2) | He knows what he sent. Overstating it invites a third correction. |
 | 3 | "823 **requests**" | 823 **events**; Frontdoor POSTs arrays and we log per event. 637 distinct after retries. | Wrong noun, and he can see his own send count. |
 | 4 | "Akshay's Sept 8 message is the last one on the thread" | Superseded by #6 — **his** Sept 8 2:35 AM message IS the last one he knows about, because ours never sent. | Determines which message to reply-all to. |
-| 5 | Cc list omitted Danny Suarez; didn't flag the `jpoivacek@` typo | Both confirmed on-thread | Teddy's personal copy silently doesn't arrive. |
+| 5 | Cc list omitted Danny Suarez; didn't flag the `jpoivacek@` typo | Superseded by #7 — there is no Cc on this thread at all | — |
+| **7** | **"Reply-all cc's Brian Bullock + 4 others; Brian is on the Cc and is the escalation"** | **Akshay's Sept 3 + Sept 8 messages have an EMPTY Cc and go only to `tnappliancerepair@gmail.com`. Every one of those five names appears only in quoted body text from an older forwarded thread. Proven: a Gmail search for `Brian.Bullock@ahs.com` returns these messages by BODY match, with `CC:` blank on every hit.** | Two ways. We'd have told Teddy to fix a Cc that isn't there. And the escalation plan assumed a reply-all would reach Brian — it won't; that has to be a new email. |
+
+**Draft is already composed and sitting in Gmail** (created 2026-09-15 01:1x CT, draft id
+`1a0a3b083eba2a8a`, in thread `1a0341dcd5f4a3e4` on `tnappliancerepair@gmail.com`). Its `To:`
+line was written programmatically as `Akshay.Kyatam@frontdoor.com` and then **read back out of
+Gmail to confirm it** — which is the one check whose absence caused this whole mess. Nothing
+sends until someone explicitly sends it.
 
 **Also retired by #6:** the "he went quiet because our Sept 8 email inverted his
 inbound/outbound vocabulary" theory. He never received that email. The no-inbound/outbound
