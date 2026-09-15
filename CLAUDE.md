@@ -1,5 +1,53 @@
 # Appliance Ant
 
+## 📞🆕 2026-09-15 (Mon) — "CASH JOB FROM GOOGLE" — the board had NO add-a-job button, so a phone lead lived on PAPER — READ FIRST
+
+Teddy sent a photo of a Rocketbook page: **LG · Fridge · 7 years · Ashland City**, captioned
+*"Cash job from google."* Measured before building anything:
+- **No cash lead from Ashland City anywhere on the board.** Every Ashland row in 14 days is AHS
+  or NSA warranty. **No `google_ads_call`, no `callback_request`, no `lsa_lead_received`** in 4 days.
+- **`platform/office-board.html` had NO add-a-job button at all.** Every card arrives from the Xano
+  mirror, a warranty email, or a web form. **A CASH job that came in on the PHONE had nowhere to
+  land** — so it sat on a notepad until somebody re-typed it. That is how a paid lead gets lost, and
+  it is the same shape as the parts notes shipped the same morning: the information existed, it just
+  had no surface.
+
+### ✅ `＋ New job` in the board header (LIVE, verified on the served page)
+A sheet: name · phone · what it is · what it's doing · city · **where they came from** (Google
+search/maps · Google Ads · Google LSA · website · referral · repeat · other).
+- **Writes the SAME shape `createLeadJob()` writes server-side**, so a lead typed here is
+  indistinguishable from one Ann captured on a call: **customer → unit → job(`new`) → thread line →
+  portal token**. Browser-side on the office user's **OWN session** — RLS scopes all five of those
+  tables to their shop (verified: all five are tenant-scoped `ALL`), so **no service key in the page**.
+- **🔴 `source` is ALWAYS `'manual'`, and that is LOAD-BEARING.** `'manual'` is on
+  `platform-lead-watch`'s `LEAD_SOURCES` allowlist — the watcher that pages the owner when a lead sits
+  with nobody replying. **A prettier source (`office_google`) makes every typed lead invisible to that
+  watcher, silently** — the exact trap `cash_ready_notify` fell into for three weeks. WHERE it came
+  from rides the thread line + an `office_lead_created` audit event instead.
+- **Refuses a card with no machine, and a card with neither a name nor a phone** — that is the
+  junk-shell shape the board already drowns in (406 intake artifacts); it doesn't get to add one more.
+  Name-only and phone-only both pass (an LSA chat lead has no phone; a caller may give no name).
+- **⚠️ Customer match is on the TRAILING 10 DIGITS, never the raw string** — platform phones are stored
+  BOTH as `+1XXXXXXXXXX` and bare `XXXXXXXXXX`, so an exact match makes one human two cards. A 7-digit
+  scrap returns **no key at all**: a new row is safer than the wrong person's card. (This is strictly
+  better than `createLeadJob`'s server-side exact-`eq` match, which misses the same way.)
+- Every insert that matters **proves a row came back** (an RLS-blocked write returns zero rows and NO
+  error). The thread/event/portal trailers are **best-effort** — the job is already real and none of
+  them may fail it. **Nothing here can text a customer.**
+
+### 🧪 PROVEN
+**`tests/office-new-job.test.js` 40/40** — `newJobGate` + `leadPhoneKey` are **regex-lifted out of the
+shipped page**, so the test runs the rule the office actually gets. **Deliberately exercised the
+regression it exists for:** flipping `source` to `office_google` fails the suite 2/40. The allowlist
+assertion is **count-checked** because `.every()` on an empty array passes vacuously — the lesson from
+the same morning's dead check. Full suite **14/14 files green**; part-note still 65/65.
+
+### ⏭️ OPEN
+- **The LG fridge in Ashland City is NOT on the board yet** — the name + phone on that Rocketbook page
+  are hidden behind the iMessage compose bar in the screenshot, and a fabricated phone number is worse
+  than no card. Read them off the paper and it is a 20-second entry now instead of a retype.
+- The QR on that notepad is the **Rocketbook page marker**, not lead data — don't chase it.
+
 ## 💬🔩 2026-09-15 (Mon) — TEDDY: "they need to mark where those parts are so the tech knows... and communicate back and forth" — the tech's tap wrote a column and told NOBODY — READ FIRST
 
 Teddy, right after the merge: *"The office needs to be able to communicate with the technicians.
