@@ -193,20 +193,38 @@ exports.handler = async function (event) {
     paths.push(['GET', '/real-estate/v2/offices', null]);
     paths.push(['GET', '/v1/case-lifecycle', null]);
     paths.push(['OPTIONS', '/v1/case-lifecycle/dispatch_status_update', null]);
+    // CONTROL — a path that cannot exist. With a well-formed token the gateway routes first
+    // and validates the JWT per-route, so this must 404. That is what makes a 401 on a real
+    // path meaningful: 401 = the route EXISTS and our issuer isn't trusted for it; 404 = no route.
+    paths.push(['POST', '/dispatch-connector/v1/__ant_control_should_404__', lifecycle]);
 
     const results = [];
     for (const [meth, path, body] of paths) {
       const r = await hit(`${host}${path}`, { method: meth, headers: bearer, body: body ? JSON.stringify(body) : undefined }, 4500);
       results.push({ method: meth, path, status: r.status, ms: r.ms, body: (r.body || r.error || '').slice(0, 120) });
     }
-    const alive = results.filter((r) => ![0, 404].includes(r.status));
+    const control = results.find((r) => r.path.includes('__ant_control_should_404__'));
+    const controlSane = control && control.status === 404;
+    // A route that EXISTS but rejects our issuer. This is the signal we care about.
+    const routed = results.filter((r) => r.status === 401 && !r.path.includes('__ant_control'));
+    const missing = results.filter((r) => r.status === 404 && !r.path.includes('__ant_control'));
+
+    let read;
+    if (!controlSane) {
+      read = `Control path returned ${control && control.status} instead of 404 — the gateway is rejecting before it routes, so status codes cannot tell existing paths from missing ones on this host.`;
+    } else if (routed.length) {
+      read = `CONTROL IS SANE (404). ${routed.length} path(s) returned 401 "issuer not configured" — those routes EXIST and our token is simply issued by an untrusted issuer. ${missing.length} path(s) 404 = no route. This host is real; we need a key whose issuer it trusts.`;
+    } else {
+      read = `CONTROL IS SANE (404) and every real path also 404s — this gateway has no routes deployed for us at all.`;
+    }
+
     return json(200, {
       ok: true, step, host, minted_via: m.via,
+      control_returns_404: !!controlSane,
+      routes_that_exist: routed.map((r) => r.path),
+      routes_missing: missing.map((r) => r.path),
       results,
-      alive_count: alive.length,
-      read: alive.length
-        ? `${alive.length} path(s) answered with something other than 404 — those are real.`
-        : 'Every path 404s on this host. Try ?host=https://api.frontdoorhome.com to repeat against production.',
+      read,
     });
   }
 
