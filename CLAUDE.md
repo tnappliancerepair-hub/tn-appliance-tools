@@ -87,7 +87,7 @@ call — and Data Axle turned out to be almost right already, which is the good 
 | aggregator | live state today | what it costs | verdict |
 |---|---|---|---|
 | **Data Axle** | **EXISTS + UNCLAIMED.** `3137 Skinner Dr, Antioch TN 37013-3965` ✅ · `(615) 280-2949` ✅ · name reads **"TN Appliance Exchange Inc"** ❌ | **FREE** | 🥇 **do it first** — claim it + fix Inc→LLC |
-| **Foursquare** | **record EXISTS** — the claim flow found it and pre-filled phone + website (confirmed live 2026-09-15 from Teddy's screens) | **$20** one-time as the flow presents it; free phone-verification path exists but is not surfaced on the payment step | 🥈 **do it** — feeds Apple Maps, Uber, Samsung, Snapchat. **Fix the address + LLC + https on the form BEFORE claiming** |
+| **Foursquare** | ✅ **CLAIMED 2026-09-15 ($20 paid) — but it claimed carrying the WRONG (La Vergne) ADDRESS.** The trap below fired for real. Fix it in the venue manager NOW, before syndication carries it | **$20** one-time, PAID | 🔴 **OPEN — address correction + duplicate check outstanding** |
 | **Neustar / Localeze** (now **TransUnion Digital Business Profile**) | 403s bots, can't read from here | **~$297/yr, NOT free** | 🟡 **Teddy's call** — real money, see below |
 
 - **✅ THE GOOD NEWS: Data Axle is NOT the source of the La Vergne ghost.** I half-expected to find the
@@ -148,6 +148,20 @@ Established 2012
      Antioch TN 37013** (never La Vergne / 5403 Murfreesboro Rd), and website reads
      **`https://tnapplianceexchange.net`** — Foursquare pre-fills `http://www.…`, which is a redirect
      hop and not the canonical string. Phone `(615) 280-2949` pre-fills correctly.
+   - **🚨 THE TRAP FIRED — 2026-09-15. The claim went through on the LA VERGNE address.** Teddy paid the
+     $20 and the record claimed before the NAP fields were corrected, so Foursquare now holds the ghost
+     and will push it to **Apple Maps, Uber, Samsung and Snapchat**. **This is now a live correction, not
+     a claim task.** ⏭️ Venue manager → edit **address → 3137 Skinner Dr, Antioch TN 37013** · **name →
+     TN Appliance Exchange LLC** · **website → `https://tnapplianceexchange.net`** · **category →
+     Appliance repair service** (never store/used/refurbished). ⚠️ **AND CHECK FOR A SECOND VENUE at the
+     Antioch address** — if Foursquare already carries a correct Antioch record, we now own the stale one
+     and there are TWO, which suppresses rank exactly like the Yelp `-2` and the Nextdoor duplicate.
+     **Two records = a MERGE support request, not an edit.** ⚠️ Foursquare blocks bots (their own support
+     article 403s us), so this can only be read by a human in a browser — same shape as Yelp/BBB.
+   - ⚠️ **STANDING, EARNED THE HARD WAY: on a syndicating aggregator, FIX THE FIELDS BEFORE YOU CLAIM.**
+     A claim is not a neutral act — it publishes whatever the record currently says to every downstream
+     platform that aggregator feeds. The cost of claiming a stale record is strictly worse than not
+     claiming it at all.
 
 - 🔎 **One more long-tail read while in there: `citylifestyle.com` is CLEAN** (3137 Skinner, Antioch TN,
   615-280-2949 — verified live). No action. Recorded so nobody re-audits it.
