@@ -65,6 +65,25 @@
   .badge{flex:0 0 auto;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;color:#fff;white-space:nowrap}
   .prob{margin-top:9px;font-size:14.5px}
   .intake{margin-top:10px;background:var(--chip);border-radius:10px;padding:10px 12px;font-size:13.5px}
+  /* 💬 WHO IS WAITING ON ME. Not a messaging client -- a tech's screen answers "what do I
+     do next", not "what can I do". This card exists only when a customer on one of his jobs
+     spoke last and nobody has answered. Silent otherwise. */
+  .inbox{margin:0 0 12px;border:1px solid var(--line);border-left:3px solid #2563eb;border-radius:10px;background:var(--chip);overflow:hidden}
+  .inbox .ih{display:block;width:100%;text-align:left;padding:11px 13px;border:0;background:none;color:inherit;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  .inbox .ih b{font-size:16px}
+  .inbox .ih span{display:block;font-size:12px;opacity:.7;margin-top:2px;font-weight:500}
+  .inbox .ilist{display:none;border-top:1px solid var(--line)}
+  .inbox.open .ilist{display:block}
+  .irow{display:block;padding:10px 13px;border-top:1px solid var(--line);color:inherit;text-decoration:none}
+  .irow:first-child{border-top:0}
+  .irow .in1{display:flex;gap:8px;align-items:baseline}
+  .irow .inm{font-weight:700;font-size:14px}
+  .irow .iwhen{margin-left:auto;font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .irow .ibody{font-size:13px;opacity:.85;margin-top:3px;overflow-wrap:anywhere}
+  .irow .iunit{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .irow.ack{opacity:.55}
+  .inbox.quiet{border-left-color:var(--line)}
+  .idiv{padding:6px 13px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:700}
   .nodaybtn{display:block;width:100%;text-align:left;margin:0 0 12px;padding:11px 13px;border:1px solid var(--line);border-left:3px solid #d99413;border-radius:10px;background:var(--chip);color:inherit;font:inherit;font-size:14px;cursor:pointer}
   .nodaybtn b{font-size:16px}
   .nodaybtn span{display:block;font-size:12px;opacity:.7;margin-top:2px}
@@ -231,6 +250,7 @@
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/ant-part-route.js"></script>
 <script src="/platform/ant-part-note.js"></script>
+<script src="/platform/ant-thread.js"></script>
 <script src="/platform/pay-calc.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -1189,6 +1209,106 @@
   // in the system and invisible on this screen, which reads as "the new system lost my job".
   // On Xano they lived in the office's needs-scheduled queue and a tech never had to see them;
   // here there is no such place, so say the number out loud and make it one tap.
+  // ── 💬 WHO IS WAITING ON ME ────────────────────────────────────────────────────
+  // Teddy, 2026-09-15: "we want the text messages to be readable by the technicians and by
+  // the office." A tech could already read a thread INSIDE a job — but only if he happened
+  // to open that job. A customer who texts back about Thursday's stop was invisible to him
+  // today, so the answer always went through Danielle.
+  //
+  // This is deliberately NOT an inbox of everything. It is the short list of customers on
+  // HIS jobs who spoke last and have not been answered — the same "needs a reply" rule the
+  // office queue uses, scoped to him. It renders nothing when nobody is waiting.
+  //
+  // Scoping is in CODE, not RLS: RLS gives him the shop, and the shop has ~1,700
+  // conversations. He gets the customers on his own open jobs, either seat.
+  function loadInbox(){
+    var el = document.getElementById('inboxCard');
+    if (!el || !myTech || !window.AntThread) return;
+    // His OPEN jobs across every day — a reply about Thursday matters today, so this
+    // deliberately ignores the day filter the rest of the page is looking at.
+    sb.from('job')
+      .select('id,customer_id,scheduled_day,unit:unit_id(label),customer:customer_id(first_name,last_name)')
+      .or('technician_id.eq.' + myTech.id + ',technician2_id.eq.' + myTech.id)
+      .not('status','in','(completed,canceled)')
+      .limit(400)
+      .then(function(jr){
+        var jobs = (jr && jr.data) || [];
+        var byCust = {}, ids = [];
+        jobs.forEach(function(j){
+          if (!j.customer_id) return;
+          // newest-scheduled job wins as the one to open — that's the visit he'd be talking about
+          var cur = byCust[j.customer_id];
+          if (!cur || String(j.scheduled_day||'') > String(cur.scheduled_day||'')) byCust[j.customer_id] = j;
+          if (ids.indexOf(j.customer_id) < 0) ids.push(j.customer_id);
+        });
+        if (!ids.length) return;
+        // PostgREST puts the filter in the URL: ~180 uuids is a ~7KB URL. Chunk it, the same
+        // way the office board does, rather than find out where the ceiling is in the field.
+        var chunks = [], SZ = 100;
+        for (var i = 0; i < ids.length; i += SZ) chunks.push(ids.slice(i, i + SZ));
+        Promise.all(chunks.map(function(c){
+          return sb.from('thread_message')
+            .select('customer_id,direction,sender,body,kind,channel,created_at')
+            .in('customer_id', c)
+            .order('created_at', { ascending: false })
+            .limit(400);
+        })).then(function(parts){
+          var rows = [];
+          parts.forEach(function(r){ if (r && r.data) rows = rows.concat(r.data); });
+          rows.sort(function(a,b){ return String(b.created_at).localeCompare(String(a.created_at)); });
+          // Newest thing a HUMAN said, per customer. A warranty dispatch email or a waiver
+          // marker is not the customer talking — that is the whole point of kind (075), and
+          // it is why this asks AntThread instead of keeping its own copy of the rule.
+          var said = {};
+          rows.forEach(function(m){
+            if (window.AntThread.isNote(m)) return;
+            if (!said[m.customer_id]) said[m.customer_id] = m;
+          });
+          var waiting = [];
+          Object.keys(said).forEach(function(cid){
+            var m = said[cid];
+            if (m.direction !== 'in') return;          // we spoke last — nothing owed
+            var j = byCust[cid]; if (!j) return;
+            waiting.push({ job: j, msg: m, ack: window.AntThread.isAck(m) });
+          });
+          if (!waiting.length) { el.innerHTML = ''; return; }
+          waiting.sort(function(a,b){ return String(b.msg.created_at).localeCompare(String(a.msg.created_at)); });
+          // Measured on TN's live board: of 57 customers who spoke last, 26 said nothing but
+          // "Yes" / "Thanks" / a tapback. So the headline is the count that is actually HIS to
+          // do — but the acknowledgements are still listed underneath, dimmed. Nothing is
+          // hidden: if the rule ever miscalls one, he can still see it.
+          var real = waiting.filter(function(w){ return !w.ack; });
+          var acks = waiting.filter(function(w){ return w.ack; });
+          var n = real.length;
+          function rowHtml(w){
+            var c = w.job.customer || {};
+            var nm = [c.first_name, c.last_name].filter(Boolean).join(' ').trim() || 'Customer';
+            var unit = (w.job.unit && w.job.unit.label) || '';
+            return '<a class="irow' + (w.ack ? ' ack' : '') + '" href="/platform/tech-job.html?job=' + encodeURIComponent(w.job.id) + '">' +
+              '<div class="in1"><span class="inm">' + esc(nm) + '</span>' +
+                '<span class="iwhen">' + esc(window.AntThread.when(w.msg.created_at)) + '</span></div>' +
+              '<div class="ibody">' + esc(String(w.msg.body || '').slice(0, 160)) + '</div>' +
+              (unit ? '<div class="iunit">' + esc(unit) + '</div>' : '') +
+            '</a>';
+          }
+          var head = n
+            ? '<b>' + n + '</b> customer' + (n===1?'':'s') + ' need' + (n===1?'s':'') + ' an answer' +
+              '<span>tap to read — opening the job shows the whole conversation</span>'
+            : '<b>' + acks.length + '</b> reply' + (acks.length===1?'':'ies') + ', nothing to answer' +
+              '<span>all just a thanks or a thumbs-up — tap if you want to look</span>';
+          el.innerHTML = '<div class="inbox' + (n ? '' : ' quiet') + '" id="inboxBox">' +
+            '<button class="ih" id="inboxToggle">' + head + '</button>' +
+            '<div class="ilist">' + real.map(rowHtml).join('') +
+              (acks.length && n ? '<div class="idiv">' + acks.length + ' just said thanks</div>' : '') +
+              acks.map(rowHtml).join('') +
+            '</div></div>';
+          var tg = document.getElementById('inboxToggle'), bx = document.getElementById('inboxBox');
+          if (tg && bx) tg.onclick = function(){ bx.classList.toggle('open'); };
+        }).catch(function(){ /* a heads-up is a nicety — never let it break his day list */ });
+      })
+      .catch(function(){ /* same */ });
+  }
+
   function loadNoDay(){
     var el = document.getElementById('noDayChip');
     if (!el || !myTech) return;
@@ -1219,13 +1339,14 @@
     var stopsTxt = (stopCount && stopCount!==openN) ? (' · '+stopCount+' stop'+(stopCount===1?'':'s')) : '';
     var note = myTech ? '' : '<div class="note">Your login isn\'t linked to a technician yet, so this shows all the shop\'s open jobs. Ask the office to link you as a tech.</div>';
     var empty = viewDay ? ('Nothing on '+esc(fmtDayLabel(viewDay))+'.') : 'No open jobs right now. 🎉';
-    var body = topbarHtml() + (myTech ? '<div id="payCard"></div>' : '') + '<div id="lbCard"></div>' + (myTech ? '<div id="statsCard"></div><div id="timeoffCard"></div>' : '') +
+    var body = topbarHtml() + (myTech ? '<div id="inboxCard"></div><div id="payCard"></div>' : '') + '<div id="lbCard"></div>' + (myTech ? '<div id="statsCard"></div><div id="timeoffCard"></div>' : '') +
       '<div class="daylabel">'+dl+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+stopsTxt+'</div>' + note + '<div id="noDayChip"></div>' +
       (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">'+empty+'</div>');
     document.getElementById('body').innerHTML = body;
     restoreDrafts(jobs);   // put back anything a failed save was holding on this phone
     if (myTech) loadPay();
     if (myTech && viewDay) loadNoDay();
+    if (myTech) loadInbox();
     loadLeaderboard();
     if (myTech){ loadStats(); loadTimeOff(); }
     // wire actions

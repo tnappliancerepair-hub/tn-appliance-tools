@@ -16,6 +16,7 @@
 
      AntThread.mount(el, rows, opts)   render into el (scrolls to the newest)
      AntThread.isNote(m)               the rule, on its own, for callers that need it
+     AntThread.isAck(m)                is this only a thank-you? (for "who is waiting on me")
      AntThread.speaker(m)              who said it, as a person reads it
 
    opts: { me:'office'|'tech'|'customer', customerName, emptyText }
@@ -39,6 +40,45 @@
     if (!m) return false;
     if (String(m.kind || '') === 'note') return true;
     return m.direction === 'in' && String(m.channel || '') !== 'sms';
+  }
+
+  // IS THIS JUST AN ACKNOWLEDGEMENT? Different question from the office's 8-way intent
+  // classifier in platform-unanswered.js — that one asks "what is this about, so I can draft
+  // a reply". This one asks "does a human have to stop and read it".
+  //
+  // Validated against all 57 real customer-spoke-last rows on TN's live board, not invented:
+  // roughly half are "Yes" / "Thanks" / "Perfect" / a tapback, and a tech who opens a list of
+  // twelve and finds ten thank-yous stops opening the list. That is the documented way a
+  // queue dies.
+  //
+  // ⚠️ THE SAFE DIRECTION IS TO SHOW, NOT HIDE — the opposite of a spam filter. A missed
+  // "it's still not fixed" costs the job; an extra "Thank you!" costs one line of screen. So
+  // this only returns true when the WHOLE message is an acknowledgement and nothing else:
+  // "Yes, how long will it take to get the part?" is a question, not a yes.
+  var ACK_WORDS = /^(ok|okay|k|yes|yea|yeah|yep|yup|sure|thanks|thank you|thanx|ty|thx|perfect|great|awesome|got it|sounds good|that works|this works|works for me|will do|see you( soon| then)?|see ya|appreciate it|no thank you|no thanks|you too|same to you|bye|cool|nice|excellent|10 4|10-4|copy|roger)$/;
+  // A tapback REACTION quotes our own outbound text back at us, so the body can run 90
+  // characters and still be a thumbs-up. The quoted half must never be read as the customer
+  // talking. "Questioned" is deliberately NOT here — that reaction IS a question.
+  var ACK_REACTION = /^\s*(liked|loved|laughed at|emphasized|disliked|gefällt|gefaellt)\s*[:：]?\s*[“"„']/i;
+  var ACK_EMOJI_REACTION = /^\s*[​\s]*[❤👍👎😂😮‼️🤣💖]+[​\s]*(to|zu)\s*[“"„']/i;
+
+  function isAck(m) {
+    if (!m || m.direction !== 'in') return false;
+    var raw = String(m.body || '');
+    if (ACK_REACTION.test(raw) || ACK_EMOJI_REACTION.test(raw)) return true;
+    // strip emoji, zero-width joiners and trailing punctuation, then compare the WHOLE thing
+    var b = raw
+      .replace(/[​-‏️]/g, '')
+      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[←-➿⬀-⯿]/g, ' ')
+      .replace(/[^\w\s'-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    if (!b) return true;                    // a bare 👍 with no words is an acknowledgement
+    // allow one leading "ok"/"yes" before a thanks: "ok thanks", "yes thank u"
+    b = b.replace(/^(ok|okay|yes|yeah|yep|yup)\s+(?=(thanks|thank you|thank u|ty|thx|that works|this works|perfect|great|sounds good))/, '');
+    b = b.replace(/\bthank u\b/, 'thank you');
+    return ACK_WORDS.test(b);
   }
 
   // Who said it. sender is 'office:Danielle' / 'tech:Jimmy' / 'ann' / 'customer', and on
@@ -151,5 +191,5 @@
     return { notes: notes, messages: messages };
   }
 
-  window.AntThread = { mount: mount, isNote: isNote, speaker: speaker, when: when, receipt: receipt };
+  window.AntThread = { mount: mount, isNote: isNote, isAck: isAck, speaker: speaker, when: when, receipt: receipt };
 })();

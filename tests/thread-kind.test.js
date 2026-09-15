@@ -232,5 +232,65 @@ t('the board drawer asks for it',  /body,kind,delivery_status,created_at,channel
 t('the tech page asks for it',     (TECHJOB.match(/kind,channel,delivery_status,created_at/g) || []).length === 2);
 t('the migration indexes the lookup the receipt runs', /thread_provider_id_idx/.test(SQL76));
 
+console.log('\n— IS IT ONLY A THANK-YOU? (the tech inbox) —');
+// Different question from the office's 8-way intent classifier in platform-unanswered.js —
+// that one asks "what is this about, so I can draft a reply". This asks "does a human have to
+// stop and read it". Hand-labelled against all 57 real customer-spoke-last rows on TN's live
+// board; roughly half are a "Yes" or a tapback.
+const A = (b, dir) => T.isAck({ direction: dir || 'in', body: b });
+t('a bare yes is an acknowledgement', A('Yes') && A('Yes.') && A('Yes 👍'));
+t('so is thanks, in the forms people actually type',
+  A('Thanks') && A('Thank you!') && A('Ok, Ty!') && A('Ok thanks') && A('Yes thank u'));
+t('so is a bare emoji with no words at all', A('👍'));
+// A tapback quotes OUR OWN outbound back at us, so it can run 90 characters and still be a
+// thumbs-up. Length rules would fail on exactly these.
+t('a tapback reaction is an acknowledgement, however long',
+  A('Liked “Yes”') &&
+  A('Liked “👤 Perfect! You are on the schedule for tomorrow. Let us know if you have any questions. Thanks!”') &&
+  A('​👍​ to “ Hi Dwight, good news - your range repair is scheduled. Your tech is Jimmy, coming Wednesday”'));
+t('including the German tapback that is really on this board', A('Gefällt: „Hi Micah, a reminder from TN Appliance”'));
+t('"Questioned" is a reaction but it is NOT an acknowledgement', !A('Questioned “your part is in”'));
+
+console.log('\n— the safe direction is to SHOW, not hide —');
+// The reverse of a spam filter: a missed "it is still not fixed" costs the job, an extra
+// "Thank you!" costs one line of screen.
+t('a yes that keeps talking is a question, not a yes', !A('Yes, how long will it take to get the part?'));
+t('the whole message must be the acknowledgement', !A('Ok. We will be here all afternoon tomorrow to let him in. Thank you.'));
+t('a failed repair is never an ack', !A("I uploaded the video. Unfortunately it sounds the same. I'm not sure it was fixed."));
+t('a wrong-appliance report is never an ack', !A("It's my ge oven not a dishwasher"));
+t('a no-show report is never an ack', !A('No one showed'));
+// Yes closes a loop; no opens one. A standalone "No" on this board is a declined day.
+t('a bare NO is NOT an ack — it is usually a declined day', !A('No') && !A('Nope'));
+t('but "no thank you" declines an OFFER and closes it', A('No thank you') && A('No thanks'));
+t('only the customer can acknowledge — our own text never counts', !A('Thanks', 'out'));
+t('a missing body does not throw', T.isAck(null) === false && T.isAck({ direction: 'in' }) === true);
+
+console.log('\n— the tech finally has somewhere to read them —');
+// Teddy, 2026-09-15: "we want the text messages to be readable by the technicians and by the
+// office." He could already read a thread INSIDE a job — but only if he opened that job. A
+// customer replying about Thursday's stop was invisible to him today.
+const TECH = read('platform/tech.html');
+t('the tech day list loads the one thread module', /src="\/platform\/ant-thread\.js"/.test(TECH));
+t('it asks AntThread for the rule instead of keeping its own copy',
+  /window\.AntThread\.isNote\(m\)/.test(TECH) && /window\.AntThread\.isAck\(m\)/.test(TECH));
+t('the inbox is scoped to HIS customers in code, not left to RLS',
+  /loadInbox[\s\S]{0,900}?\.or\('technician_id\.eq\.'[\s\S]{0,80}technician2_id\.eq\./.test(TECH));
+t('it spans every open day — a reply about Thursday matters today',
+  /loadInbox[\s\S]{0,900}?not\('status','in','\(completed,canceled\)'\)/.test(TECH));
+// 156 customers on one tech is a ~7KB filter in the URL. Chunk it rather than find the
+// ceiling in the field.
+t('the customer filter is chunked', /loadInbox[\s\S]{0,2000}?i \+= SZ\) chunks\.push/.test(TECH));
+t('the headline counts what is actually his to do', /need' \+ \(n===1\?'s':''\) \+ ' an answer/.test(TECH));
+t('the acknowledgements are still listed, never hidden',
+  /acks\.map\(rowHtml\)/.test(TECH) && /just said thanks/.test(TECH));
+t('it renders nothing at all when nobody is waiting', /if \(!waiting\.length\) \{ el\.innerHTML = ''; return; \}/.test(TECH));
+const inboxFn = TECH.slice(TECH.indexOf('function loadInbox()'), TECH.indexOf('function loadNoDay()'));
+t('ANCHOR: loadInbox still lifts out of the page', inboxFn.length > 200 && /loadInbox/.test(inboxFn));
+t('BOTH of its queries catch — a failed lookup never breaks his day list',
+  (inboxFn.match(/\.catch\(function\(\)\{/g) || []).length === 2,
+  (inboxFn.match(/\.catch\(function\(\)\{/g) || []).length);
+t('tapping a row opens the job, where the whole thread already lives',
+  /irow[^"]*" href="\/platform\/tech-job\.html\?job=/.test(TECH));
+
 console.log('\n' + (fail ? '✖ ' : '✓ ') + pass + '/' + (pass + fail) + ' passed');
 process.exit(fail ? 1 : 0);
