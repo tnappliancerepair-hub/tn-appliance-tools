@@ -1,5 +1,9 @@
 # Frontdoor / AHS — follow-up nudge to Akshay (2026-09-15)
 
+> **Figures below were re-verified 2026-09-15 against the full event set.** An earlier pass read
+> them off a capped query (`limit=500` returned exactly 500 — the cap, not the count) and
+> undercounted by ~40%. The real numbers are 823 events / 277 distinct dispatch IDs.
+
 ## Where this actually stands
 **Teddy already answered correctly on 2026-09-08.** That reply said, in his words:
 
@@ -20,7 +24,7 @@ sending rather than just bumping the thread.
 | `api.sandbox.frontdoorhome.com` returns **404 on every path including its own root** | It isn't a wrong *path* — that whole host has no routes for us. Possibly the sandbox inbound API was never deployed/exposed. |
 | On `api.frontdoorhome.com`, `/dispatch-connector` **does** respond — `401 "Jwt issuer is not configured"` | The service is real and live on production; our sandbox token just isn't trusted there. |
 | Tested `/{routing-id}` shapes — `/ahs`, `/ftdr`, our org-id — **all 404 as unknown prefixes** | **The routing-id theory is dead.** Don't ask for a routing-id; ask for the base URL. |
-| **161 distinct dispatches / 500 events received, latest 9/14** | Turns "inbound is working" into a number they can verify against their own send log. |
+| **823 events across 277 distinct dispatch IDs, latest 9/14** | Turns "inbound is working" into a number they can verify against their own send log. |
 | We are now genuinely sending `source: TN_APPLIANCE_EXCHANGE` | ⚠️ On 8/31 we *told* them we were, but the code still had `DISPATCH_ME`. Fixed 9/15. Don't re-state it as though it were always true. |
 
 ---
@@ -34,7 +38,7 @@ sending rather than just bumping the thread.
 > Following up on my note from the 8th — still just need the outbound endpoint to close this out.
 >
 > **Inbound (Frontdoor → us) is confirmed and steady.** Since we last spoke we've received
-> **161 distinct dispatches across 500 events, most recently September 14**. Dispatch
+> **823 events across 277 distinct dispatch IDs, most recently September 14**. Dispatch
 > **22863999** came through 7 times, both the `schedule` and `status` operations. Nothing is
 > being dropped — happy to reconcile against your send log any time.
 >
@@ -77,6 +81,8 @@ relationship and brought Akshay's team in.
 ## Our side is ready
 - **`frontdoor_push_shadow` = 100 events/90d** — on-my-way→EN_ROUTE, start→IN_PROGRESS,
   complete→COMPLETE with the composed TDR note, all firing, just logging.
-- ⛔ **Do NOT flip `FRONTDOOR_WEBHOOK_LIVE=1` yet** — those 161 are *sandbox* dispatches; going
-  live now would create 161 junk jobs on the real board. Dark mode is correct until production.
+- ⛔ **Do NOT flip `FRONTDOOR_WEBHOOK_LIVE=1` yet** — **270** of those dispatch IDs carry a `schedule` op, and live mode calls
+  `create_job_from_email` without `dry_run` — so flipping now would create **270 junk jobs** on the
+  real board. The payloads are plainly test fixtures (dispatch ids `123456` and `999000111`,
+  customer "Testuser Spence"). Dark mode is correct until production.
 - Go-live order: get a 200 on outbound → swap production creds both directions → then flip.
