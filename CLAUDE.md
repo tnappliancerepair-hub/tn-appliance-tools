@@ -1,5 +1,84 @@
 # Appliance Ant
 
+## 📞🚫 2026-09-15 (Mon) — "OUTGOING CALLS NOT WORKING": the carrier was fine, the BUTTON rang the wrong desk — READ FIRST
+
+Sofia, 12:24 PM: *"The office phone won't let me call out."* She was right. Nothing about the
+phone system was broken.
+
+### 🥇 MEASURED FIRST — "outgoing calls are down" has a much scarier reading, and it was wrong
+Before touching anything, read the carrier. **Telnyx over 30 days: 1,132 inbound AI-assistant
+calls / 2,542 minutes**; balance $16.65 **unfrozen**; the **Default outbound voice profile
+enabled with US/CA whitelisted**; the **Ant Office Ring Group TeXML app active** with that
+profile attached and the right `voice_url`; and **all three office seats returning valid SIP
+credentials** (caller ID `+16152802949`). Inbound is healthy. The carrier is healthy.
+- **⚠️ ONE MEASUREMENT NEARLY SENT ME THE WRONG WAY.** `sms-audit?kind=voice` (record type
+  `call-control`) returned **0 outbound over 2 days** and I started to read that as the outage.
+  Widening the window killed the theory: **`call-control` is 0 over 30 days too** — we simply
+  never bill under that record type. Ann runs under `ai-voice-assistant`. **A zero is only
+  evidence once you have shown the same query returns non-zero somewhere.**
+- `telnyx-provision?action=cdr` is **BROKEN** — Telnyx now rejects `filter[record_type]=voice`
+  (`10011 No matching record type`). Use **`sms-audit?kind=ai|voice|trunk`**, which maps to the
+  real types (`ai-voice-assistant` / `call-control` / `sip-trunking`).
+
+### 🔴 THE ACTUAL BUG — the Call button is a BRIDGE, and it rang somebody else's phone
+The board's 📞 Call is not a dialer. Telnyx rings the office person's **own cell first**, and
+only when they answer does it dial the customer and bridge the two. Whose cell to ring was a
+**two-way branch — `'teddy'`, else Danielle.** `office-identity.js` exists precisely so Sofia
+signs in as *"Sofia"* — so **every call she placed rang DANIELLE'S cell on another desk.** Her
+page said *"Answer your phone."* Hers never rang, and nothing in the response said why.
+**Carrie, Alec and Alyse had the same seat, silently.**
+- Corroborated by our own audit trail: **`office_callout_bridge` = 0 events in 30 days.**
+- **✅ FIXED:** the seat resolves by **NAME** against the vault (`OFFICE_CELL_<NAME>`), and an
+  unknown seat — or one whose cell is blank, **which is Carrie today** — is **REFUSED before
+  anything is dialed**, with a message naming the person. Both front-ends (`office-board.html`,
+  `callbacks.html`) now send the seat that is actually signed in and surface that message.
+- **🔴 THE REFUSAL MATTERS MORE THAN THE ROUTING.** Ringing the wrong person is **worse** than
+  not ringing: the customer leg dials the moment that wrong phone is answered, so a misrouted
+  callout can connect a customer to someone who wasn't calling them — while the person who
+  tapped the button learns nothing. **Alec + Alyse deliberately reach the server as themselves**
+  so they're told "no cell on file for you" instead of quietly ringing a coworker.
+
+### 📵 THE OTHER HALF — the softphone couldn't tell a REFUSAL from a finished call
+`office-phone.html` treated every hangup identically: *"Call ended"*, faded in 2.5s. A call
+Telnyx **refuses** goes straight to `hangup` **without ever reaching `active`**, carrying the
+cause on the event — and we threw it into a `dbg()` log nobody reads. So a refused call and a
+completed call looked the same from the desk. **That IS "it won't let me call out."**
+- Now: a never-connected **outbound** hangup is reported as a refusal (inbound hangups and
+  calls that genuinely connected still read "Call ended" — those are normal). The wording points
+  at the **fix**, not a code: a carrier refusal (`CALL_REJECTED`/403/`SERVICE_UNAVAILABLE`) says
+  *"the line is not cleared to dial out — tell Teddy"*; a bad number blames the number. A reason
+  holds **12s**, not 2.5s.
+- **⚠️ THE ONE THAT KEEPS THIS FROM RECURRING: an UNRECOGNISED cause is shown VERBATIM, never
+  swallowed.** Hiding a code we didn't anticipate is exactly how this stayed invisible. Same rule
+  the waiver/SMS work landed on 9/14: **a refusal is not a failure, and reporting it as one
+  teaches people to distrust a working tool.**
+
+### 🧪 PROVEN
+**`tests/office-callout.test.js` 44/44** — the `SEATS` table, the seat resolver and
+`dialFailReason` are all **regex-lifted out of the shipped files**, so the test runs the rule the
+office actually gets. Non-vacuity proven by mutation: restoring the old server branch fails 6,
+restoring the old front-end branch fails 2, dropping the refusal reason fails 1. Full suite
+**17/17 files green**.
+
+### ⏭️ OPEN
+- **🔴 THIS FIX IS INERT UNTIL MERGED — Netlify deploys from `main`, and the branch is 8 commits
+  ahead.** Sofia keeps ringing Danielle's desk until `claude/supabase-ant-system-testing-vnbgym`
+  lands on main. Nothing here is a database change; it is all front-end + Netlify functions.
+- **Carrie has NO cell in the vault** (`OFFICE_CELL_CARRIE` is empty) — she'll now get an honest
+  "no cell on file" instead of ringing Danielle, but she still can't call out until it's set.
+- **The credential connection's outbound profile is still UNVERIFIED.** The softphone dials over
+  the *"Ant office phone"* credential connection (`2988827155447678681`), and a credential
+  connection with **no `outbound_voice_profile_id` registers fine and fails every dial** — the
+  same class as the 2026-06 call-control app that killed every transfer. `action=connections`
+  maps each row down to `{id,name}` and discards `outbound`, so nothing deployed can read it.
+  Added **`telnyx-provision?action=credinfo`** (read-only, reports `has_outbound_profile`) —
+  **run it the moment the branch is on main.** If it comes back false, `fixoutbound`'s
+  full-object PATCH is the pattern (**a partial PATCH is silently dropped**).
+- **Brian Bullock (Frontdoor Senior PM) emailed 12:25 PM today** on the integration thread —
+  *"checking in to see what is outstanding."* See the Frontdoor entry: he is the escalation, and
+  **his last impression of us is the 8/31 email claiming the broken direction was "Confirmed
+  working."** Any reply to him must **LEAD with that retraction**.
+
 ## 💬👀 2026-09-15 (Mon) — THE CONVERSATION, READABLE BY BOTH SEATS: 81% of the "customer" side was OUR OWN machine · the delivery receipt was already arriving and being thrown away · "opened" does not exist for SMS — READ FIRST
 
 Teddy: *"we've got working communication between the office and the tech and the tech back to the
