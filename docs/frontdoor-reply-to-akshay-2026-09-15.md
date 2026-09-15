@@ -1,81 +1,82 @@
-# Reply to Akshay — AHS/Frontdoor sandbox → production (2026-09-15)
+# Frontdoor / AHS — follow-up nudge to Akshay (2026-09-15)
 
-**Send from `tnappliancerepair@gmail.com`, reply-all on the existing thread**
-*"Sandbox Integration Ready for Testing – Please Verify Inbound and Outbound Updates"*
-To: Akshay.Kyatam@frontdoor.com · Cc: Brian Bullock, Shivam Arora, Vaibhav Parashar, Adarsha Dash, Danny Suarez
+## Where this actually stands
+**Teddy already answered correctly on 2026-09-08.** That reply said, in his words:
 
-## Why this matters
-Akshay has been waiting on us since **2026-08-24**. He asked a direct question on 9/3 and
-followed up on 9/8 — *"Could you please verify whether it was received on your end?"* — and we
-never gave him the clean yes. Meanwhile his sandbox has sent us **161 distinct dispatches, 500
-events, most recently 2026-09-14**. We have every one of them. **He is ready to go to
-production and is only waiting on our confirmation plus our production webhook credentials.**
+> *"Inbound (your dispatches → us): working… Outbound (our status push → you): not yet verified.
+> Our push authenticates, but posting a status update to `/dispatch-connector/v1/webhook` returns
+> a 404 — so we're pointed at the wrong endpoint."*
 
-## The one real ask
-He never gave us the **inbound** endpoint (our system → Frontdoor). He gave us our own webhook
-URL and token, and the `source` value — but not his base URL or path. We inferred
-`api.sandbox.frontdoorhome.com` from the public docs, and **that host returns 404 on every path
-including its own root**, so our status pushes have had nowhere to land. That is the single
-missing piece.
+…and asked for exactly the two right things: (1) the routing-id / which endpoint our Client ID is
+authorized to push to, and (2) production credentials.
+
+**So the ball has been in Frontdoor's court for 7 days.** This is a *nudge*, not a re-ask —
+and it carries new diagnostic detail we didn't have on the 8th, which is what makes it worth
+sending rather than just bumping the thread.
+
+## What's new since 9/8 (worth telling them)
+| finding | why it sharpens the ask |
+|---|---|
+| `api.sandbox.frontdoorhome.com` returns **404 on every path including its own root** | It isn't a wrong *path* — that whole host has no routes for us. Possibly the sandbox inbound API was never deployed/exposed. |
+| On `api.frontdoorhome.com`, `/dispatch-connector` **does** respond — `401 "Jwt issuer is not configured"` | The service is real and live on production; our sandbox token just isn't trusted there. |
+| Tested `/{routing-id}` shapes — `/ahs`, `/ftdr`, our org-id — **all 404 as unknown prefixes** | **The routing-id theory is dead.** Don't ask for a routing-id; ask for the base URL. |
+| **161 distinct dispatches / 500 events received, latest 9/14** | Turns "inbound is working" into a number they can verify against their own send log. |
+| We are now genuinely sending `source: TN_APPLIANCE_EXCHANGE` | ⚠️ On 8/31 we *told* them we were, but the code still had `DISPATCH_ME`. Fixed 9/15. Don't re-state it as though it were always true. |
 
 ---
 
-## Draft
+## Draft — reply-all on the existing thread
+*To: Akshay.Kyatam@frontdoor.com · Cc: Brian Bullock, Shivam Arora, Vaibhav Parashar, Adarsha Dash, Danny Suarez*
+*Subject: (keep) Re: [External] Re: Sandbox Integration Ready for Testing – Please Verify Inbound and Outbound Updates*
 
 > Hi Akshay,
 >
-> Apologies for the slow close on this — confirming everything now.
+> Following up on my note from the 8th — still just need the outbound endpoint to close this out.
 >
-> **Outbound (Frontdoor → our webhook): confirmed working.** Yes, we received dispatch
-> **22863999** — 7 events for it, both the `schedule` and `status` operations, exactly as you
-> described. More broadly we've received **161 distinct dispatches / 500 events** from your
-> sandbox, most recently on **September 14**. Nothing is being lost.
+> **Inbound (Frontdoor → us) is confirmed and steady.** Since we last spoke we've received
+> **161 distinct dispatches across 500 events, most recently September 14**. Dispatch
+> **22863999** came through 7 times, both the `schedule` and `status` operations. Nothing is
+> being dropped — happy to reconcile against your send log any time.
 >
-> They're currently landing in validation mode rather than creating live work orders — that's
-> deliberate on our side, so your sandbox test dispatches don't create real jobs on our
-> technicians' boards. We flip that to live the moment we're on production traffic.
+> **Outbound (us → Frontdoor) is the one open item**, and I can be more specific than I was
+> last week about where it's failing:
 >
-> **Inbound (our system → Frontdoor): we need one thing from you.** This is where we've been
-> stuck, and I think it's a gap in what we were given rather than anything on your end. We have
-> the `source` value (`TN_APPLIANCE_EXCHANGE`) and the API key you enabled, and our token
-> generates and introspects as active. But we were never given **your inbound endpoint** — the
-> base URL and path we should POST status updates to.
+> - `https://api.sandbox.frontdoorhome.com` returns **404 on every path we try, including the
+>   bare service root**. So this doesn't look like us using a wrong path — it looks like there
+>   may be no inbound API exposed on that host for us.
+> - On `https://api.frontdoorhome.com`, `/dispatch-connector` **does** respond — it returns
+>   `401 "Jwt issuer is not configured"`, which reads like production correctly declining a
+>   sandbox-issued token.
+> - We also tried routing-id-style prefixes (`/ahs`, `/ftdr`, our org id) and they all 404 as
+>   unknown prefixes, so I don't think a routing-id is what we're missing.
 >
-> We'd been assuming `https://api.sandbox.frontdoorhome.com`, based on the public docs, but that
-> host returns 404 on every path we try, including the service root — so there's nothing there
-> for us to reach. On `https://api.frontdoorhome.com` the `/dispatch-connector` service does
-> respond, but rejects our sandbox-issued token with *"Jwt issuer is not configured"*, which
-> reads like production correctly not trusting a sandbox token.
+> **So the single thing I need is the base URL + path you want our status updates posted to**
+> — plus a sample request body, so we match your schema exactly rather than guess. Our token
+> generates and introspects as active, and we're sending `source: TN_APPLIANCE_EXCHANGE` per
+> your 8/24 note.
 >
-> So, could you send:
-> 1. The **exact inbound URL** (base + path) for dispatch status updates in sandbox, and
-> 2. A sample request body you'd accept — we want to match your schema exactly rather than guess.
+> The moment we get a 200 on that push we're clear to proceed to production. We'll send our
+> production webhook credentials the same day, and we'd need the production API key/ClientId
+> from your side since the sandbox one won't authenticate against production.
 >
-> With that we can complete the round-trip on dispatch 22863999 same day.
->
-> **On production:** we're ready. Once inbound is confirmed, we'll send production webhook
-> credentials immediately and can turn it around the same day. On your side we'd need the
-> production API key/ClientId, since the sandbox one won't authenticate against production.
->
-> For reference, our AHS vendor IDs are **839828** (Middle TN), **822418** (North Shore, LA) and
+> Our AHS vendor IDs for reference: **839828** (Middle TN), **822418** (North Shore, LA),
 > **822218** (South Shore, LA).
 >
-> Thanks for your patience on this one — appreciate you and the team pushing it forward.
+> Thanks Akshay — appreciate you staying on this.
 >
 > James (Teddy) Pivacek
 > TN Appliance Exchange LLC
 
 ---
 
-## Notes for us
-- ⚠️ **Do NOT flip `FRONTDOOR_WEBHOOK_LIVE=1` yet.** These are *sandbox* dispatches. Going live
-  now would create **161 junk jobs** on the real board. Dark mode is the correct posture until
-  we're on production traffic. The dry-run has been doing its job.
-- ✅ **Fixed 2026-09-15:** our connector was sending `source: "DISPATCH_ME"` — a guess copied
-  from the public enum. Akshay told us on 8/24 to send `TN_APPLIANCE_EXCHANGE`. Now corrected in
-  `_lib/frontdoor.js` (`FD_SOURCE`).
-- Everything else is built: **`frontdoor_push_shadow` = 100 events/90d**, on-my-way→EN_ROUTE,
-  start→IN_PROGRESS, complete→COMPLETE with the composed TDR note, all firing, just logging.
-- ⚠️ **The 8/31 email overclaimed.** We told Akshay inbound was "confirmed working" and read the
-  404 as "no sandbox dispatch to reference." It was the route missing, not the dispatch. That's
-  part of why this stalled for two weeks — worth being precise about now.
+## If this gets no reply
+Brian Bullock is already cc'd. A one-line direct note to Brian — *"we're one endpoint URL away
+from going live, can you help unstick it?"* — is the right escalation, since he owns the
+relationship and brought Akshay's team in.
+
+## Our side is ready
+- **`frontdoor_push_shadow` = 100 events/90d** — on-my-way→EN_ROUTE, start→IN_PROGRESS,
+  complete→COMPLETE with the composed TDR note, all firing, just logging.
+- ⛔ **Do NOT flip `FRONTDOOR_WEBHOOK_LIVE=1` yet** — those 161 are *sandbox* dispatches; going
+  live now would create 161 junk jobs on the real board. Dark mode is correct until production.
+- Go-live order: get a 200 on outbound → swap production creds both directions → then flip.
