@@ -384,13 +384,21 @@ function onNotification(n){
   }
   if(st === 'active'){
     activeCall = call;
+    connectedIds[call.id] = 1;     // it really did connect — a later hangup is normal
     playRemote(call);
     inCallUI();
     return;
   }
   if(st === 'hangup' || st === 'destroy' || st === 'purge'){
+    // A call that goes straight to hangup WITHOUT ever reaching 'active' did not
+    // "end" — it was REFUSED. The cause is right here on the event and we used to
+    // throw it away, so the page said "Call ended" and the person at the desk had
+    // no idea why. Sofia, 2026-09-15: "The office phone won't let me call out."
+    // A refusal is not a failure; tell the human which one it was.
+    var neverConnected = (call.direction !== 'inbound') && !connectedIds[call.id];
     if(activeCall && call.id === activeCall.id){ activeCall=null; muted=false; }
-    endedUI();
+    delete connectedIds[call.id];
+    endedUI(neverConnected ? dialFailReason(call) : '');
     return;
   }
   if(st === 'trying' || st === 'requesting' || st === 'early' || st === 'answering'){
@@ -447,11 +455,32 @@ function inCallUI(){
   document.getElementById('pop-state').textContent = 'On the call';
   document.getElementById('pop').classList.remove('ring');
 }
-function endedUI(){
+function endedUI(reason){
   clearIncoming();
-  document.getElementById('pop-state').textContent = 'Call ended';
+  document.getElementById('pop-state').textContent = reason || 'Call ended';
   document.getElementById('pop').classList.remove('ring');
-  setTimeout(()=>{ if(!activeCall) hidePop(); }, 2500);
+  // A plain "ended" can disappear; a reason someone has to ACT on gets 12s.
+  setTimeout(()=>{ if(!activeCall) hidePop(); }, reason ? 12000 : 2500);
+}
+
+// Telnyx hands back a SIP-ish cause on a refused call. Translate the handful that
+// actually happen into something the office can act on, and fall back to showing
+// the raw cause rather than hiding it — an unfamiliar code we can look up beats a
+// blank "Call ended" that tells nobody anything.
+var connectedIds = {};
+function dialFailReason(call){
+  var c = String((call && (call.cause || call.sipReason || '')) || '').toUpperCase();
+  var code = (call && (call.causeCode || call.sipCode)) || '';
+  if(/NORMAL_CLEARING/.test(c) && !code) return 'Call ended';
+  if(/CALL_REJECTED|FORBIDDEN|NOT_ACCEPTABLE|SERVICE_UNAVAILABLE|INCOMPATIBLE/.test(c) || String(code) === '403')
+    return 'The carrier refused this call — the line is not cleared to dial out. Tell Teddy.';
+  if(/NO_ROUTE|UNALLOCATED|INVALID_NUMBER|NO_USER_RESPONSE|DESTINATION_OUT_OF_ORDER/.test(c) || String(code) === '404')
+    return 'That number could not be reached — check the digits.';
+  if(/USER_BUSY/.test(c)) return 'Busy — they are on another call.';
+  if(/NO_ANSWER|ORIGINATOR_CANCEL|ALLOTTED_TIMEOUT/.test(c)) return 'No answer.';
+  if(/REJECTED|DECLINE/.test(c)) return 'They declined.';
+  if(c || code) return 'Call did not go through (' + (c || ('code ' + code)) + ') — tell Teddy if it keeps happening.';
+  return 'Call did not go through — tell Teddy if it keeps happening.';
 }
 function answer(){
   clearIncoming(); dbg('answer() called');

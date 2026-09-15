@@ -102,5 +102,39 @@ function seatOf(name) { sb.__actor = function () { return name; };
   t(n + ' is passed through as themselves (server refuses by name)', seatOf(n) === n.toLowerCase());
 });
 
+console.log('\n— the softphone says WHY a call was refused —');
+// The other half of "the office phone won't let me call out". A call that Telnyx
+// refuses goes straight to 'hangup' without ever reaching 'active', carrying the
+// cause on the event — and the page threw that away and printed "Call ended".
+// From the desk, a refused call and a completed call looked identical.
+const PHONE = read('office-phone.html');
+const reasonFn = PHONE.match(/function dialFailReason\(call\)\{[\s\S]*?\n\}/);
+t('ANCHOR: dialFailReason still lifts out of the page', !!reasonFn);
+t('a never-connected OUTBOUND hangup is treated as a refusal',
+  /var neverConnected = \(call\.direction !== 'inbound'\) && !connectedIds\[call\.id\];/.test(PHONE));
+t('reaching active marks the call as genuinely connected',
+  /connectedIds\[call\.id\] = 1;/.test(PHONE));
+t('the reason is passed to endedUI', /endedUI\(neverConnected \? dialFailReason\(call\) : ''\)/.test(PHONE));
+t('a reason stays on screen long enough to read', /reason \? 12000 : 2500/.test(PHONE));
+
+const sb2 = {};
+new Function('exports', (reasonFn ? reasonFn[0] : 'function dialFailReason(){}') + '\nexports.f = dialFailReason;')(sb2);
+const reasonOf = sb2.f;
+[
+  [{ cause: 'CALL_REJECTED' },        /not cleared to dial out/, 'a carrier refusal points at the real fix'],
+  [{ causeCode: 403 },                /not cleared to dial out/, 'a bare 403 does too'],
+  [{ cause: 'SERVICE_UNAVAILABLE' },  /not cleared to dial out/, 'so does service-unavailable'],
+  [{ cause: 'INVALID_NUMBER' },       /check the digits/,        'a bad number blames the number, not the line'],
+  [{ cause: 'USER_BUSY' },            /Busy/,                    'busy is busy'],
+  [{ cause: 'NO_ANSWER' },            /No answer/,               'no answer is no answer'],
+  [{ cause: 'NORMAL_CLEARING' },      /^Call ended$/,            'a normal clear is not alarming'],
+].forEach(function (c) { t(c[2], c[0] && c[1].test(reasonOf(c[0])), reasonOf(c[0])); });
+// The one that matters most: an UNFAMILIAR cause must still be shown. Hiding a code
+// we did not anticipate is how this bug survived — a code someone can look up beats
+// a blank "Call ended" that tells nobody anything.
+t('an unrecognised cause is SHOWN, never swallowed',
+  /SOMETHING_WEIRD_99/.test(reasonOf({ cause: 'SOMETHING_WEIRD_99' })), reasonOf({ cause: 'SOMETHING_WEIRD_99' }));
+t('no cause at all still reports a failure', /did not go through/.test(reasonOf({})));
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
