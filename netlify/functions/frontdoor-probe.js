@@ -132,8 +132,30 @@ exports.handler = async function (event) {
 
   const reachable = results.filter((r) => [200, 201, 202, 400, 405, 422].includes(r.status));
   const forbidden = results.filter((r) => r.status === 403);
+  const allNotFound = results.length > 0 && results.every((r) => r.status === 404);
 
-  let read = 'Every probed path 404s — the URL shape is wrong (most likely the missing routing-id segment) OR none of these APIs are provisioned for this key.';
+  // The JWT carries everything the config ticket asks for. When every path 404s — including
+  // the bare root, on a host that demonstrably answers — the gateway has no routes for this
+  // key, which is exactly what an unprocessed config ticket looks like. So hand back the
+  // filled-in ticket instead of another "still blocked" line.
+  const ticket = (allNotFound && !routing) ? {
+    why: 'Token is valid and identifies us correctly, but carries only the generic "external-partner" role with no routing-id or entitlements, and every path 404s. That is an unprocessed config ticket, not an authorization problem.',
+    file_at: 'https://ftdr-developer.atlassian.net/servicedesk/customer/portal/3/group/11/create/53',
+    also_email: 'partnerapiadmin@frontdoorhome.com',
+    fields: {
+      portal_account_email: claims.dev_email || null,
+      organisation_name: claims.org_name || null,
+      api_key_client_id: claims.applicationId || claims.aud || null,
+      api_key_username: '(FRONTDOOR_API_USERNAME — see frontdoor-keys)',
+      environment: env === 'production' ? 'Production' : 'Sandbox',
+      org_id: claims.org_id || null,
+      developer_id: claims.dev_id || null,
+    },
+    ask: 'Link this API key to our ProConnect contractor account and enable the dispatch status/note surface (Case-Lifecycle dispatch_status_update and/or dispatch-connector). Please also confirm the routing-id segment for our URLs — every path 404s without it.',
+    vendor_ids: 'AHS vendor ids: 822418 (North Shore LA), 822218 (South Shore LA), 839828 (Middle TN)',
+  } : null;
+
+  let read = 'Every probed path 404s — including the bare root, on a host that does answer. The token is valid and names our org, so this is not auth: the gateway simply has no routes provisioned for this key. See config_ticket.';
   if (reachable.length) read = `${reachable.length} path(s) are REACHABLE with our token — the integration is not auth-blocked, it is path/schema work.`;
   else if (forbidden.length) read = `${forbidden.length} path(s) EXIST but our key is not authorized — this is the genuine "waiting on Frontdoor" state (config ticket / BD rep).`;
 
@@ -145,5 +167,6 @@ exports.handler = async function (event) {
     results,
     summary: { probed: results.length, reachable: reachable.length, forbidden: forbidden.length, not_found: results.filter((r) => r.status === 404).length },
     read,
+    config_ticket: ticket,
   });
 };

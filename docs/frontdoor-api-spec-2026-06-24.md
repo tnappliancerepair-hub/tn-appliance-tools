@@ -1,5 +1,33 @@
 # Frontdoor / AHS API — implementation spec (captured 2026-06-24)
 
+## 🔴 DIAGNOSED 2026-09-15 — it was never a 403. The config ticket was never processed.
+Probed live (`frontdoor-probe?secret=<admin>`) instead of guessing:
+- **Our token is valid and correctly identifies us.** Claims carry `org_name: "tn appliance
+  exchange llc"`, `dev_email: tnappliancerepair@gmail.com`, `applicationId /aud:
+  040c014f-06e5-4697-a336-137dfa942128` (the Client ID we gave Brian). Auth is NOT the problem.
+- **But `roles` is exactly `["external-partner"]`** — the generic developer-portal role. No
+  contractor/dispatch scope, **no routing-id, no OfficeIds, no entitlements of any kind.**
+- **Every path returns 404 — including the bare `/` root**, on a host that demonstrably answers
+  (`api.sandbox.frontdoorhome.com` resolves and serves a plain "Not Found"). Dispatch-connector,
+  case-lifecycle, address API, health: all 404.
+- ⚠️ **`sandbox.api.frontdoorhome.com` DOES NOT RESOLVE** (DNS fail) — the RE-v2 note further
+  down this doc is wrong for sandbox. `api.sandbox.frontdoorhome.com` is the correct host, and
+  `api.frontdoorhome.com` is the production one.
+
+**Read: a valid key + zero routes + only the generic role = step 2 (the CONFIG TICKET) was
+never completed.** That is the whole blocker. It is not Brian's dev team writing code, and it is
+not production access — it is the ticket that links the key to our contractor account and issues
+the routing-id. `frontdoor-probe` now returns the ticket pre-filled from the token's own claims.
+
+- ⚠️ **AND THE WATCHER WAS LYING ABOUT IT.** `frontdoor-auth-watch` treated ANY non-403 as
+  "authorized", so a 404 tripped it — it texted Teddy a false all-clear **twice** (2026-08-12
+  and 2026-09-10, 29 days apart, just past its own 30-day dedup). Fixed: only 200/201/202 (live),
+  400/422 (endpoint took the auth, rejected the body) or 405 (real path, wrong method) count.
+  403 and 404 both stay quiet and log as distinct states — **they need opposite fixes: a 403 is
+  theirs to clear, a 404 is ours.**
+- **STANDING: a 404 is not a permissions signal.** Any watcher that infers "we got access" from
+  the absence of one specific error code will eventually celebrate a wrong URL.
+
 Full public API reference captured while chasing dev-portal access. **We can build the
 whole integration from this — the ONLY blocker is generating API Keys, which requires
 developer-portal login (Teddy doesn't have it yet; that provisioning is the open ask).**
