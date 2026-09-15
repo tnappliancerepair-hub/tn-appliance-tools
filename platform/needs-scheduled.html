@@ -90,6 +90,7 @@
 <script src="/platform/ant-page.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
+<script src="/platform/ant-new-job.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
 <script src="/platform/vendor/boot-watchdog.js"></script>
@@ -279,12 +280,14 @@
     app.innerHTML=
       '<header><span class="brand">🗓 Needs Scheduled</span><span class="sp"></span>'+
         '<a href="/platform/office-board.html">Board</a><a href="/platform/dispatch.html">Dispatch</a><a href="/platform/messages.html">💬 Messages</a>'+
-        '<button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
+        '<button id="newjob">＋ New job</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
         '<div class="toprow"><div><div class="ttl">Jobs waiting to be scheduled</div><div class="sub">'+unsRegion.length+' in '+(region==='LA'?'Louisiana':'Middle TN')+' · grouped by who covers the ZIP</div></div>'+regBar+'</div>'+
         body+
       '</div>';
 
+    var _nj=document.getElementById('newjob');
+    if(_nj) _nj.onclick=function(){ if(window.AntNewJob) window.AntNewJob.open({sb:sb,onDone:load}); };
     document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick=load;
     Array.prototype.forEach.call(document.querySelectorAll('.regtog button[data-reg]'),function(el){ el.onclick=function(){ region=el.getAttribute('data-reg'); render(); }; });

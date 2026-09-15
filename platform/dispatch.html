@@ -204,6 +204,7 @@
 <script src="/platform/ant-page.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
+<script src="/platform/ant-new-job.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
 <script src="/platform/vendor/boot-watchdog.js"></script>
@@ -597,7 +598,7 @@
         '<div class="rq-acts"><button class="ok" data-approve="'+o.id+'">✓ Approve</button><button data-counter="'+o.id+'">Counter</button><button class="no" data-deny="'+o.id+'">Deny</button></div></div>'; }).join('')+'</div>' : '';
 
     app.innerHTML=
-      '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a><a href="/platform/messages.html">💬 Messages</a><a href="/platform/office-board.html">Board</a><a href="/platform/returns.html">📦 Returns</a><button id="coverage">🗺️ Coverage</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
+      '<header><span class="brand">🐜 Dispatch</span><span class="sp"></span><a href="/platform/needs-scheduled.html">🗓 Needs Scheduled</a><a href="/platform/messages.html">💬 Messages</a><a href="/platform/office-board.html">Board</a><a href="/platform/returns.html">📦 Returns</a><button id="newjob">＋ New job</button><button id="coverage">🗺️ Coverage</button><button id="refresh">Refresh</button><button id="out">Sign out</button></header>'+
       '<div class="wrap">'+
         reqSection+
         '<div class="weeknav">'+navHtml+'</div>'+
@@ -608,6 +609,8 @@
         traySection+
       '</div>';
 
+    var _nj=document.getElementById('newjob');
+    if(_nj) _nj.onclick=function(){ if(window.AntNewJob) window.AntNewJob.open({sb:sb,onDone:function(){ location.reload(); }}); };
     document.getElementById('out').onclick=function(){ sb.auth.signOut().then(renderSignIn); };
     document.getElementById('refresh').onclick=load;
     var covBtn=document.getElementById('coverage'); if(covBtn) covBtn.onclick=openCoverage;

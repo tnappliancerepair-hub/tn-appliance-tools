@@ -323,6 +323,7 @@
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/ant-part-route.js"></script>
 <script src="/platform/ant-part-note.js"></script>
+<script src="/platform/ant-new-job.js"></script>
 <script src="/platform/features.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -631,121 +632,13 @@
   }
 
   // ── ＋ NEW JOB — the door a PHONE lead walks through ─────────────────────────
-  // Measured 2026-09-15: this board had NO add-a-job button at all. Every card arrived
-  // from the Xano mirror, a warranty email, or a web form -- so a CASH job that came in
-  // on the phone (Google search, maps, LSA, a referral) had nowhere to land and lived on
-  // a paper notepad until somebody re-typed it. That is exactly how a paid lead gets lost.
-  //
-  // Writes the SAME shape createLeadJob() writes server-side, so a lead typed here is
-  // indistinguishable from one Ann captured on a call: customer -> unit -> job(new) ->
-  // thread line -> portal token. Browser-side on the office user's OWN session, because
-  // RLS scopes every one of those tables to their shop -- no service key in the page.
-  //
-  // source is ALWAYS 'manual'. That exact string is on platform-lead-watch's LEAD_SOURCES
-  // allowlist, and that watcher is what pages the owner when a lead sits with nobody
-  // replying. A prettier source here ('office_google', say) would silently unhook the
-  // safety net -- the same trap cash-ready-notify fell into. WHERE it came from is
-  // recorded on the thread line and the audit event instead.
-  // The two decisions worth pinning, pure so the test runs the SHIPPED rule and not a copy.
-  // gate: what makes a typed lead worth a card at all.
-  function newJobGate(f){
-    f = f || {};
-    if(!String(f.what||'').trim()) return 'Say what the appliance is — a card with no machine helps nobody.';
-    if(!String(f.phone||'').trim() && !String(f.name||'').trim()) return 'Need at least a name or a phone number.';
-    return '';
-  }
-  // leadPhoneKey: platform phones are stored in mixed formats (+1XXXXXXXXXX and bare
-  // XXXXXXXXXX), so a customer is matched on the trailing 10 digits, never the raw string.
-  // Anything that isn't a full 10 digits returns '' -- a partial suffix would match the
-  // WRONG person, and a new row is safer than the wrong human's card.
-  function leadPhoneKey(phone){
-    var d=String(phone||'').replace(/\D/g,'');
-    return d.length>=10 ? d.slice(-10) : '';
-  }
-
+  // The sheet itself lives in /platform/ant-new-job.js -- ONE definition, mounted on every
+  // office surface (board, dispatch, needs-scheduled, messages), because the call comes in
+  // wherever Danielle happens to be standing. A second copy of this drifts; the route
+  // picker earned that lesson three vocabularies ago.
   function openNewJob(){
-    var ov=document.createElement('div'); ov.className='ov';
-    var opt=function(v,t){ return '<option value="'+esc(v)+'">'+esc(t)+'</option>'; };
-    var selCss='width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit';
-    ov.innerHTML='<div class="sheet"><h2>＋ New job</h2>'+
-      '<div class="hint" style="margin:-2px 0 4px">A lead that came in by phone, text, or word of mouth. It lands in <b>New</b> the moment you save.</div>'+
-      '<label>Their name</label><input id="nj_name" autocomplete="off" placeholder="Sarah Miller">'+
-      '<label>Phone <span class="hint">so somebody can call them back</span></label>'+
-      '<input id="nj_phone" type="tel" inputmode="tel" autocomplete="off" placeholder="(615) 555-0142">'+
-      '<label>What is it <span class="hint">brand + appliance</span></label>'+
-      '<input id="nj_what" autocomplete="off" placeholder="LG refrigerator">'+
-      '<label>What is it doing</label><textarea id="nj_problem" placeholder="Not cooling. About 7 years old."></textarea>'+
-      '<label>City</label><input id="nj_city" autocomplete="off" placeholder="Ashland City">'+
-      '<label>Where did they come from</label>'+
-      '<select id="nj_chan" style="'+selCss+'">'+
-        opt('Google','Google — search or maps')+
-        opt('Google Ads','Google — paid ad')+
-        opt('Google LSA','Google — Local Services (LSA)')+
-        opt('Website','Our website')+
-        opt('Referral','Referral / word of mouth')+
-        opt('Repeat customer','Repeat customer')+
-        opt('Other','Other')+
-      '</select>'+
-      '<div class="srow"><button id="nj_cancel">Cancel</button><button class="primary" id="nj_save">Create job</button></div>'+
-      '<div class="err" id="nj_err"></div></div>';
-    document.body.appendChild(ov);
-    var close=function(){ try{ document.body.removeChild(ov); }catch(e){} };
-    ov.onclick=function(e){ if(e.target===ov) close(); };
-    document.getElementById('nj_cancel').onclick=close;
-    var nmEl=document.getElementById('nj_name'); if(nmEl) nmEl.focus();
-
-    document.getElementById('nj_save').onclick=function(){
-      var gv=function(id){ var e=document.getElementById(id); return e?String(e.value||'').trim():''; };
-      var err=document.getElementById('nj_err');
-      var name=gv('nj_name'), phone=gv('nj_phone'), what=gv('nj_what');
-      var problem=gv('nj_problem'), city=gv('nj_city'), chan=gv('nj_chan')||'Other';
-      // A card with no machine and nobody to call is the junk shell this board already
-      // drowns in (the 406 intake artifacts). Refuse to add one more.
-      var gate=newJobGate({ what:what, phone:phone, name:name });
-      if(gate){ err.textContent=gate; return; }
-
-      var btn=document.getElementById('nj_save'); btn.disabled=true; btn.textContent='Creating…'; err.textContent='';
-      var fail=function(m){ btn.disabled=false; btn.textContent='Create job'; err.textContent=m||'Could not create that — try again.'; };
-      var parts=name?name.split(/\s+/):[];
-      var first=parts[0]||null, last=parts.slice(1).join(' ')||null;
-      var digits=leadPhoneKey(phone);
-
-      var withCustomer=function(cust){
-        if(!cust||!cust.id) return fail('Could not save the customer.');
-        var kind=(shopTrade==='automotive')?'vehicle':'appliance';
-        sb.from('unit').insert({ company_id:companyId, customer_id:cust.id, kind:kind, label:what, attributes:{} }).select('id').then(function(u){
-          if(u.error||!u.data||!u.data.length) return fail('Could not save the appliance.');
-          sb.from('job').insert({ company_id:companyId, customer_id:cust.id, unit_id:u.data[0].id, status:'new', problem:(problem||what), source:'manual' }).select('id').then(function(j){
-            if(j.error||!j.data||!j.data.length) return fail('Could not create the job.');
-            var jobId=j.data[0].id;
-            // Trailers are best-effort on purpose: the JOB is already real and on the
-            // board. None of these may be allowed to fail the thing that matters.
-            var line='📞 Lead from '+chan+' — '+what+(problem?' — '+problem:'')+(city?' ('+city+')':'')+' · taken by '+whoAmI();
-            try{ sb.from('thread_message').insert({ company_id:companyId, customer_id:cust.id, job_id:jobId, direction:'in', channel:'call', sender:'office', body:line }); }catch(_){}
-            try{ sb.from('event').insert({ company_id:companyId, type:'office_lead_created', entity:'job', payload:{ job_id:jobId, channel:chan, by:whoAmI(), had_phone:!!digits } }); }catch(_){}
-            try{ sb.from('portal_grant').insert({ company_id:companyId, customer_id:cust.id, job_id:jobId }); }catch(_){}
-            close(); loadBoard();
-          });
-        });
-      };
-
-      var mk=function(){
-        sb.from('customer').insert({ company_id:companyId, first_name:first, last_name:last, phone:phone||null, city:city||null }).select('id').then(function(c){
-          if(c.error||!c.data||!c.data.length) return fail('Could not save the customer.');
-          withCustomer(c.data[0]);
-        });
-      };
-
-      // Reuse the existing customer on this phone. A second row for the same person is
-      // how one human becomes two cards -- and platform phones are stored in mixed
-      // formats (+1XXXXXXXXXX and bare XXXXXXXXXX), so match on the trailing 10 digits,
-      // never the raw string.
-      if(digits){
-        sb.from('customer').select('id').eq('company_id',companyId).ilike('phone','%'+digits).limit(1).then(function(f){
-          if(!f.error && f.data && f.data.length) withCustomer(f.data[0]); else mk();
-        });
-      } else mk();
-    };
+    if(!window.AntNewJob){ alert('Still loading — give it a second and tap again.'); return; }
+    window.AntNewJob.open({ sb:sb, trade:shopTrade, onDone:function(){ loadBoard(); } });
   }
 
   // ── SETTINGS (per-shop config: review link + parts distributor) ─────────────

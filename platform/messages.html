@@ -79,6 +79,7 @@
 <div id="app"><div class="empty">Loading…</div></div>
 <script src="/platform/config.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
+<script src="/platform/ant-new-job.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
 <script src="/platform/vendor/boot-watchdog.js"></script>
@@ -282,6 +283,7 @@
   function shell(){
     app.innerHTML=
       '<header><span class="brand">💬 Messages</span><span class="sp"></span>'+
+        '<button id="newjob" style="border:1px solid var(--line);background:transparent;color:inherit;border-radius:9px;padding:7px 12px;font-weight:700;cursor:pointer">＋ New job</button>'+
         '<button id="refresh" style="border:1px solid var(--line);background:transparent;color:inherit;border-radius:9px;padding:7px 12px;font-weight:700;cursor:pointer">Refresh</button></header>'+
       '<nav class="hop" aria-label="Jump to">'+
         '<a href="/platform/office-board.html">🗂 Board</a>'+
@@ -303,6 +305,8 @@
           '<div class="cmsg" id="cmsg"></div>'+
         '</div>'+
       '</div>';
+    var _nj=document.getElementById('newjob');
+    if(_nj) _nj.onclick=function(){ if(window.AntNewJob) window.AntNewJob.open({sb:sb,onDone:function(){ loadList(); }}); };
     document.getElementById('refresh').onclick=function(){ loadList(); if(curId) openThread(curId); };
     document.getElementById('csend').onclick=send;
     document.getElementById('ctext').addEventListener('keydown',function(e){
