@@ -89,7 +89,10 @@ exports.handler = async function (event) {
 
   if (!(await fd.isConfigured())) return json(200, { ok: false, error: 'FRONTDOOR_* keys not in vault' });
 
-  const base = await fd.apiBase();
+  // &base=prod forces the PRODUCTION gateway while still minting the SANDBOX token.
+  // Needed to tell 'this host has no routes' apart from 'this host does not trust our
+  // issuer' — the two look identical from a single-host probe and we got that wrong once.
+  const base = String(q.base || '').toLowerCase().startsWith('prod') ? fd.PROD_BASE : await fd.apiBase();
   const env = await fd.env();
   const routing = String(q.routing || (await getSecretFresh('FRONTDOOR_ROUTING_ID')) || '').trim();
   const vendorId = String((await getSecret('FRONTDOOR_VENDOR_ID')) || '822418').trim();
