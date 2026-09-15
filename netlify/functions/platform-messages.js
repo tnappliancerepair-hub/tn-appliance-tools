@@ -16,7 +16,7 @@
 'use strict';
 
 const { getSecret, getSecretStatus } = require('./_lib/secrets');
-const { sendSms } = require('./_lib/sms');
+const { sendSms, sendSmsDetailed } = require('./_lib/sms');
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Content-Type': 'application/json' };
 function json(c, b) { return { statusCode: c, headers: CORS, body: JSON.stringify(b) }; }
 
@@ -204,7 +204,7 @@ exports.handler = async function (event) {
       const cus = (await db.get(`customer?id=eq.${cid}&company_id=eq.${companyId}&select=id,first_name,last_name,phone,email,address,city,state,zip&limit=1`))[0];
       if (!cus) return json(200, { ok: false, error: 'not_your_customer' });
       const [messages, jobs] = await Promise.all([
-        db.get(`thread_message?company_id=eq.${companyId}&customer_id=eq.${cid}&select=id,job_id,direction,channel,sender,body,kind,created_at&order=created_at.asc&limit=500`),
+        db.get(`thread_message?company_id=eq.${companyId}&customer_id=eq.${cid}&select=id,job_id,direction,channel,sender,body,kind,delivery_status,created_at&order=created_at.asc&limit=500`),
         db.get(`job?company_id=eq.${companyId}&customer_id=eq.${cid}&select=id,status,scheduled_day,problem&order=scheduled_day.desc.nullslast&limit=25`),
       ]);
       return json(200, { ok: true, customer: { ...cus, name: nameOf(cus) }, jobs, messages });
@@ -231,12 +231,24 @@ exports.handler = async function (event) {
       }
 
       const phone = String(cus.phone || '').trim();
-      let texted = false;
-      if (phone) { try { texted = await sendSms(phone, text, 'customer', 'platform_thread_msg'); } catch (_) {} }
+      let texted = false, providerId = null;
+      // sendSmsDetailed hands back the carrier's message id. Stamping it on the row is what
+      // lets the delivery receipt find this exact bubble later (migration 076) — without it
+      // the receipt arrives knowing only a carrier id and has nowhere to land.
+      if (phone) {
+        try {
+          const r = await sendSmsDetailed(phone, text, 'customer', 'platform_thread_msg');
+          texted = !!r.sent; providerId = r.provider_id || null;
+        } catch (_) {}
+      }
       const label = (isTech ? 'tech' : 'office') + (myName ? ':' + myName : '');
       const row = await db.insertRet('thread_message', {
         company_id: companyId, customer_id: cid, job_id: jobId,
         direction: 'out', channel: 'sms', sender: label, body: text,
+        provider_id: providerId,
+        // Only claim a state we actually know. 'sent' means the carrier took it; whether it
+        // reached the handset is the receipt's job, and no phone means nothing was sent at all.
+        delivery_status: providerId ? 'sent' : (texted ? 'sent' : (phone ? 'failed' : null)),
       });
       // A write that returns nothing never happened — never report it as sent.
       if (!row) return json(200, { ok: false, error: 'not_logged', texted });

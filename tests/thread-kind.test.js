@@ -118,7 +118,7 @@ t('the unread dot follows the same rule',
   /unread:\s*!!\(c\.lastSaid && c\.lastSaid\.direction === 'in'\)/.test(SRV));
 t('a note can never become lastSaid', /if \(!isNote\(m\) && !c\.lastSaid\)/.test(SRV));
 t('the list still asks the database for kind', /select=customer_id,job_id,direction,channel,sender,body,kind,created_at/.test(SRV));
-t('the thread still asks the database for kind', /select=id,job_id,direction,channel,sender,body,kind,created_at/.test(SRV));
+t('the thread still asks the database for kind', /select=id,job_id,direction,channel,sender,body,kind,delivery_status,created_at/.test(SRV));
 
 console.log('\n— ONE definition, three surfaces —');
 // ant-part-route.js and ant-part-note.js exist because copies drifted. Same rule here: the
@@ -174,6 +174,63 @@ console.log('\n— the writers stamp it, so the fallback stays a net —');
  ['the typed-lead line',       'platform/ant-new-job.js']].forEach(([name, p]) => {
   t(name + " stamps kind:'note'", /kind: 'note'/.test(read(p)));
 });
+
+console.log('\n— the delivery receipt (076) —');
+const DLR    = read('netlify/functions/_lib/sms-dlr.js');
+const GUARD  = read('netlify/functions/_lib/sms-guard.js');
+const SMSLIB = read('netlify/functions/_lib/sms.js');
+const NOTIFY = read('netlify/functions/platform-tech-notify.js');
+const SQL76  = read('docs/sql/076_thread_delivery.sql');
+const THREADJS = read('platform/ant-thread.js');
+
+// ⚠️ THE ONE THAT MATTERS MOST. Teddy asked to see "if the customer opened it" — SMS has no
+// read receipt and never will. Telling a tech a customer READ something we only know was
+// DELIVERED is how he stops trusting the tool. Nothing on this path may claim it.
+t('a delivered text says Delivered, not read',
+  /✓ Delivered/.test(THREADJS) && !/anth-rcpt[^]*?\b(read|opened|seen)\b/i.test(THREADJS.match(/function receipt\(m\)[\s\S]*?\n  \}/)[0]));
+t("the receipt renderer never emits 'read'/'opened'",
+  !/'read'|"read"|Opened|Read receipt/i.test(THREADJS.match(/function receipt\(m\)[\s\S]*?\n  \}/)[0]));
+t('the migration says so out loud', /does not exist for SMS/i.test(SQL76));
+t('the receipt module says so out loud', /does not exist for SMS/i.test(DLR));
+
+t('nothing is shown until the carrier tells us',
+  T.receipt({ direction: 'out', delivery_status: null }) === '' &&
+  T.receipt({ direction: 'out', delivery_status: 'sent' }) === '');
+t('a delivered text gets a tick', /Delivered/.test(T.receipt({ direction: 'out', delivery_status: 'delivered' })));
+t('a bounced text says so plainly', /NOT reach/.test(T.receipt({ direction: 'out', delivery_status: 'failed' })));
+t('an inbound message never carries a receipt', T.receipt({ direction: 'in', delivery_status: 'delivered' }) === '');
+
+console.log('\n— the carrier id survives the whole send path —');
+// Without the id, a receipt arrives knowing only a carrier reference and has nowhere to land.
+t('telnyxDirect hands back the id', /return \{ ok: true, id \}/.test(GUARD));
+t('deliver carries it out',        /return \{ ok: true, id: dr\.id \}/.test(GUARD));
+t('guardedSend returns it',        /provider_id: dres\.id \|\| null/.test(GUARD));
+t('sendSmsDetailed returns it',    /provider_id: res\.provider_id \|\| null/.test(SMSLIB));
+t('the office send stamps it on the row', /provider_id: providerId/.test(SRV));
+t('the tech + office free-form sends stamp it', (NOTIFY.match(/provider_id: pid/g) || []).length === 2);
+
+// ⚠️ An object is ALWAYS truthy. telnyxDirect and deliver both used to return a bare
+// boolean; if any call site still read the return value directly, every FAILED send would
+// now look successful and we would tell Danielle a text went out that never did.
+t('every telnyxDirect call site reads .ok, never the object',
+  !/if \(await telnyxDirect\(/.test(GUARD) && /const dr = await telnyxDirect\([\s\S]{0,80}?if \(dr\.ok\)/.test(GUARD));
+t('every deliver call site reads .ok, never the object',
+  !/if \(await deliver\(/.test(GUARD) && /const dres = await deliver\([\s\S]{0,60}?const ok = dres\.ok/.test(GUARD));
+t('the xano path claims no id it does not have', /return \{ ok: true, id: null \}/.test(GUARD));
+
+console.log('\n— the receipt finds its bubble —');
+t('success is recorded now, not just failure', /anyDelivered/.test(DLR));
+t('failure recording is unchanged',            /sms_delivery_failed/.test(DLR));
+t('it matches on the carrier id',              /provider_id=eq\./.test(DLR));
+t('it is time-boxed so it can never stall a live inbound text', /AbortSignal\.timeout\(4000\)/.test(DLR));
+t('it never throws',                           /catch \(_\) \{ return \{ isDlr: false, failed: false \}; \}/.test(DLR));
+t('delivered stamps a time',                   /patch\.delivered_at/.test(DLR));
+
+console.log('\n— every reader asks for it —');
+t('the Messages page asks the server for delivery_status', /body,kind,delivery_status,created_at/.test(SRV));
+t('the board drawer asks for it',  /body,kind,delivery_status,created_at,channel/.test(OFFICE));
+t('the tech page asks for it',     (TECHJOB.match(/kind,channel,delivery_status,created_at/g) || []).length === 2);
+t('the migration indexes the lookup the receipt runs', /thread_provider_id_idx/.test(SQL76));
 
 console.log('\n' + (fail ? '✖ ' : '✓ ') + pass + '/' + (pass + fail) + ' passed');
 process.exit(fail ? 1 : 0);

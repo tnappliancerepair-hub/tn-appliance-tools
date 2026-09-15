@@ -2029,8 +2029,8 @@
     // visit needs what was said last time, not a thread that starts at today. Falls back
     // to the job's own slice if the customer never resolved.
     var q = job.customer_id
-      ? sb.from('thread_message').select('direction,sender,body,kind,channel,created_at').eq('customer_id',job.customer_id)
-      : sb.from('thread_message').select('direction,sender,body,kind,channel,created_at').eq('job_id',jobId);
+      ? sb.from('thread_message').select('direction,sender,body,kind,channel,delivery_status,created_at').eq('customer_id',job.customer_id)
+      : sb.from('thread_message').select('direction,sender,body,kind,channel,delivery_status,created_at').eq('job_id',jobId);
     q.order('created_at',{ascending:true}).limit(300).then(function(r){
       var rows=(r.data||[]);
       if(!window.AntThread){ box.innerHTML='<div class="note">Messages are still loading — pull down to refresh.</div>'; return; }

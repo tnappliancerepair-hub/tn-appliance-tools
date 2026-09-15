@@ -115,9 +115,10 @@ exports.handler = async function (event) {
       // office tile + customer portal read. sender 'tech:<name>' so every surface shows who.
       const text = String(p.body || '').trim().slice(0, 1000);
       if (!text) return json(200, { ok: false, error: 'empty' });
-      let sent = false;
-      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_tech_msg'); } catch (_) {} }
-      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'sms', sender: techName ? ('tech:' + techName) : 'tech', body: text });
+      let sent = false, pid = null;
+      // Keep the carrier's message id so the delivery receipt can find this bubble (076).
+      if (phone) { try { const r = await sendSmsDetailed(phone, text, 'customer', 'platform_tech_msg'); sent = !!r.sent; pid = r.provider_id || null; } catch (_) {} }
+      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'sms', sender: techName ? ('tech:' + techName) : 'tech', body: text, provider_id: pid, delivery_status: sent ? 'sent' : (phone ? 'failed' : null) });
       return json(200, { ok: true, texted: sent, no_phone: !phone });
     }
 
@@ -127,9 +128,9 @@ exports.handler = async function (event) {
       // 'office:<name>' so the shared thread shows who spoke — office, tech, or customer.
       const text = String(p.body || '').trim().slice(0, 1000);
       if (!text) return json(200, { ok: false, error: 'empty' });
-      let sent = false;
-      if (phone) { try { sent = await sendSms(phone, text, 'customer', 'platform_office_msg'); } catch (_) {} }
-      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'sms', sender: techName ? ('office:' + techName) : 'office', body: text });
+      let sent = false, pid = null;
+      if (phone) { try { const r = await sendSmsDetailed(phone, text, 'customer', 'platform_office_msg'); sent = !!r.sent; pid = r.provider_id || null; } catch (_) {} }
+      await db.insert('thread_message', { company_id: companyId, customer_id: job.customer_id, job_id: job.id, direction: 'out', channel: 'sms', sender: techName ? ('office:' + techName) : 'office', body: text, provider_id: pid, delivery_status: sent ? 'sent' : (phone ? 'failed' : null) });
       return json(200, { ok: true, texted: sent, no_phone: !phone });
     }
 

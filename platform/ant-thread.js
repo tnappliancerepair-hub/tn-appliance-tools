@@ -59,6 +59,20 @@
     return s;
   }
 
+  // ⚠️ THE CEILING, AND IT IS NOT A BUILD PROBLEM: **SMS has no "read".** No carrier reports
+  // one. The strongest true thing anyone can say about a text is that the handset received
+  // it. So this says DELIVERED and never "read" / "opened" / "seen" — telling a tech a
+  // customer read something we only know was delivered is how he stops trusting the tool.
+  // Nothing at all is shown until the carrier tells us, because a silent bubble is honest
+  // and a wrong tick is not.
+  function receipt(m) {
+    if (!m || m.direction !== 'out') return '';
+    var st = String(m.delivery_status || '');
+    if (st === 'delivered') return '<span class="anth-rcpt anth-ok">✓ Delivered</span>';
+    if (st === 'failed') return '<span class="anth-rcpt anth-bad">⚠ Did NOT reach their phone</span>';
+    return '';
+  }
+
   function when(iso) {
     if (!iso) return '';
     try {
@@ -90,6 +104,9 @@
     '.anth-out{align-self:flex-end;background:#2563eb;color:#fff;border-bottom-right-radius:5px}',
     '.anth-who{display:block;font-size:10.5px;font-weight:700;opacity:.72;margin-bottom:2px}',
     '.anth-at{display:block;font-size:10px;opacity:.6;margin-top:3px;text-align:right}',
+    '.anth-rcpt{font-size:10px;font-weight:700;margin-left:6px}',
+    '.anth-ok{opacity:.8}',
+    '.anth-bad{color:#fecaca}',
     // A note is a fact about the job, not speech — so it never gets a bubble or a side.
     '.anth-note{align-self:center;max-width:94%;text-align:center;font-size:12px;opacity:.7;padding:3px 10px;line-height:1.4}',
     '.anth-empty{opacity:.65;font-size:13px;padding:6px 2px}',
@@ -125,7 +142,7 @@
         html += '<div class="anth-b ' + (out ? 'anth-out' : 'anth-in') + '">' +
           '<span class="anth-who">' + esc(speaker(m, o)) + '</span>' +
           esc(m.body || '') +
-          '<span class="anth-at">' + esc(when(m.created_at)) + '</span>' +
+          '<span class="anth-at">' + esc(when(m.created_at)) + receipt(m) + '</span>' +
           '</div>';
       }
     }
@@ -134,5 +151,5 @@
     return { notes: notes, messages: messages };
   }
 
-  window.AntThread = { mount: mount, isNote: isNote, speaker: speaker, when: when };
+  window.AntThread = { mount: mount, isNote: isNote, speaker: speaker, when: when, receipt: receipt };
 })();

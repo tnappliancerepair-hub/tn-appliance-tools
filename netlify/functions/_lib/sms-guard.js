@@ -229,10 +229,14 @@ const PLATFORM_TAG_RE = /^platform_/i;
 const PLATFORM_DIRECT_ON = String(process.env.PLATFORM_SMS_DIRECT || '1') !== '0';
 const CUSTOMER_FROM = process.env.TELNYX_FROM_CUSTOMER || '+16155889500';
 
+// Returns { ok, id } — the carrier's message id is what lets the delivery receipt find its
+// way back to the right bubble in the thread (migration 076). It used to be logged and
+// dropped. ⚠️ An object is ALWAYS truthy, so every call site below reads .ok explicitly;
+// changing this shape without changing them would make a failed send look successful.
 async function telnyxDirect(to, body, tag) {
   let key = process.env.TELNYX_API_KEY;
   if (!key) { try { key = await require('./secrets').getSecret('TELNYX_API_KEY'); } catch (_) {} }
-  if (!key) return false;
+  if (!key) return { ok: false, id: null };
   try {
     const r = await fetch('https://api.telnyx.com/v2/messages', {
       method: 'POST',
@@ -243,24 +247,28 @@ async function telnyxDirect(to, body, tag) {
     const id = d && d.data && d.data.id;
     if (r.ok && id) {
       try { await crud.logEvent('platform_sms_direct', { to, tag: tag || '', from: CUSTOMER_FROM, id, at_ms: Date.now() }); } catch (_) {}
-      return true;
+      return { ok: true, id };
     }
     try { await crud.logEvent('platform_sms_direct_failed', { to, tag: tag || '', status: r.status, detail: JSON.stringify(d).slice(0, 200), at_ms: Date.now() }); } catch (_) {}
-    return false;
-  } catch (_) { return false; }
+    return { ok: false, id: null };
+  } catch (_) { return { ok: false, id: null }; }
 }
 
 // One delivery door: platform tenant traffic goes direct, everything else keeps the
 // long-proven Xano path (its Telnyx creds + fallback behavior are untouched).
+// Returns { ok, id } — id is the carrier's message id when we sent it ourselves, and null
+// when it went out through Xano (that path never hands one back, so those bubbles simply
+// carry no receipt rather than a wrong one).
 async function deliver(to, body, tag) {
   if (PLATFORM_DIRECT_ON && PLATFORM_TAG_RE.test(String(tag || ''))) {
-    if (await telnyxDirect(to, body, tag)) return true;
+    const dr = await telnyxDirect(to, body, tag);
+    if (dr.ok) return { ok: true, id: dr.id };
   }
   const x = await xanoSend(to, body, tag);
-  if (x.sent) return true;
+  if (x.sent) return { ok: true, id: null };
   // Xano ANSWERED and said no -> that is its gate doing its job. Respect it; never route
   // around a deliberate refusal.
-  if (x.answered) return false;
+  if (x.answered) return { ok: false, id: null };
 
   // Xano never answered. Until now the customer's text was simply LOST here -- the one thing
   // CLAUDE.md calls out as breaking if Xano vanished. Every guard above (opt-out, quiet
@@ -268,12 +276,13 @@ async function deliver(to, body, tag) {
   // already run and allowed this message, so handing it to the carrier directly loosens
   // nothing; it just stops the old system's outage from silencing the new one.
   // Reversible: SMS_XANO_DOWN_FALLBACK=0.
-  if (String(process.env.SMS_XANO_DOWN_FALLBACK || '1') === '0') return false;
-  const ok = await telnyxDirect(to, body, tag || 'ant_guarded');
+  if (String(process.env.SMS_XANO_DOWN_FALLBACK || '1') === '0') return { ok: false, id: null };
+  const fb = await telnyxDirect(to, body, tag || 'ant_guarded');
+  const ok = fb.ok;
   // Audit to SUPABASE, not crud.logEvent -- that writes to Xano, which is the thing that
   // just failed. A record of an outage must not live inside the outage.
   try { await sbgWrite({ phone: toE164(to), action: ok ? 'sms_sent_xano_down' : 'sms_lost_both_paths', tag: tag || '', kind: 'customer', reason: 'xano_unreachable', at_ms: Date.now() }); } catch (_) {}
-  return ok;
+  return { ok, id: fb.id };
 }
 
 async function block(to, reason, kind, tag) { try { await crud.logEvent('sms_guard_blocked', { phone: to, reason, kind: kind || '', tag: tag || '', at_ms: Date.now() }); } catch (_) {} }
@@ -396,14 +405,15 @@ async function guardedSend({ phone, message, tag, kind, allowQuiet }) {
   } catch (_) { outMsg = message; }
 
   // 5. Send + record (record drives the frequency counters).
-  const ok = await deliver(to, outMsg, tag);
+  const dres = await deliver(to, outMsg, tag);
+  const ok = dres.ok;
   if (ok) {
     // Store the real dedup key, computed from the FULL message - the old marker kept only
     // the first 200 characters, which is what made two different intake links collide.
     await sbgWrite({ phone: to, action: 'sms_guard_sent', body_key: bodyKey(message), tag: tag || '', kind: kind || '', at_ms: now });
     try { await budgeted(crud.logEvent('sms_guard_sent', { phone: to, kind: kind || '', tag: tag || '', body: message.slice(0, 200), at_ms: now })); } catch (_) {}
   }
-  return { sent: ok, reason: ok ? (checks.length ? 'sent_shadow' : 'sent') : 'send_failed', shadow: checks.length ? checks : undefined };
+  return { sent: ok, reason: ok ? (checks.length ? 'sent_shadow' : 'sent') : 'send_failed', provider_id: dres.id || null, shadow: checks.length ? checks : undefined };
 }
 
 module.exports = {

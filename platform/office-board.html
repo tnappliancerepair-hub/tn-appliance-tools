@@ -2363,7 +2363,7 @@
   // customer bubble and burying the real texts.
   function loadThread(job){
     var box=document.getElementById('jthread'); if(!box) return;
-    sb.from('thread_message').select('sender,direction,body,kind,created_at,channel').eq('job_id',job.id).order('created_at').then(function(r){
+    sb.from('thread_message').select('sender,direction,body,kind,delivery_status,created_at,channel').eq('job_id',job.id).order('created_at').then(function(r){
       var b=document.getElementById('jthread'); if(!b) return;
       if(r.error){ b.innerHTML='<div class="hint">Couldn\'t load messages.</div>'; return; }
       var rows=r.data||[];

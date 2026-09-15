@@ -111,7 +111,7 @@ async function sendSmsDetailed(recipient, body, role, tag) {
     // is never silently dropped. Reversible: CREW_SMS_VIA_CUSTOMER_LINE=0.
     if (CREW_REROUTE_ON) {
       const cr = await _crewSendDirect(to, body, tag || ('ant_' + (role || 'internal')));
-      if (cr.ok) return { sent: true, reason: 'sent' };
+      if (cr.ok) return { sent: true, reason: 'sent', provider_id: cr.id || null };
       // else fall through to the legacy Xano path below
     }
 
@@ -129,7 +129,10 @@ async function sendSmsDetailed(recipient, body, role, tag) {
   // Customer-direction — full guard (opt-out enforced now; rest shadow until flag).
   const allowQuiet = QUIET_OK_RE.test(String(tag || '') + ' ' + String(role || ''));
   const res = await guard.guardedSend({ phone: to, message: body, tag: tag || ('ant_' + (role || 'sms')), kind: role || 'customer', allowQuiet });
-  return { sent: !!res.sent, reason: res.sent ? 'sent' : (res.reason || 'send_failed') };
+  // provider_id is the carrier's message id. A caller that files this text into a thread
+  // stamps it on the row so the delivery receipt can find its way back to the right bubble
+  // (migration 076). Every existing caller reads .sent and is unchanged.
+  return { sent: !!res.sent, reason: res.sent ? 'sent' : (res.reason || 'send_failed'), provider_id: res.provider_id || null };
 }
 
 // The long-proven boolean contract every existing caller uses. Unchanged behavior.
