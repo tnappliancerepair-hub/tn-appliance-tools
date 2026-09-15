@@ -158,6 +158,8 @@
   #jtparts .tpcard{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:9px 10px;margin-bottom:8px;display:flex;flex-direction:column;gap:7px}
   #jtparts .tprow{display:flex;gap:7px;align-items:center}
   #jtparts .tpcard input,#jtparts .tpcard select{padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit;box-sizing:border-box;min-width:0}
+  #jtparts .tp_qty{flex:0 0 66px;width:66px;text-align:center;font-weight:800}
+  #jtparts .tp_qlab{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-weight:700;flex:0 0 auto}
   #jtparts .tp_num{flex:1 1 40%;font-family:ui-monospace,Menlo,monospace}
   #jtparts .tp_name{flex:1 1 55%}
   #jtparts .tp_src{flex:1 1 auto;width:100%}
@@ -1724,6 +1726,11 @@
     if(p.ship_carrier && !p.ship_status) lbl += ' · '+esc(p.ship_carrier);
     return '<div class="'+cls+'">'+lbl+' <a href="'+tpTrackUrl(p)+'" target="_blank" rel="noopener">'+esc(p.ship_tracking)+'</a></div>';
   }
+  // HOW MANY of this part (072). cost_cents / sell_cents are the UNIT price, so every
+  // total below is qty x unit -- two of a $65 part is $130, and billing it as $65 is the
+  // whole failure this guards against. NOT NULL in the DB, so a blank box reads as one.
+  function partQty(p){ var n=Math.floor(+((p&&p.qty)||1)); return n>=1?n:1; }
+  function qtyOf(v){ var n=Math.floor(parseInt(v,10)); return n>=1?n:1; }
   function loadTparts(job){
     var box=document.getElementById('jtparts'); if(!box) return;
     box.innerHTML='<div class="sec">🔩 Parts</div><div class="hint">Loading…</div>';
@@ -1732,12 +1739,12 @@
     // What the vendor actually SENT, straight off their own record (platform-sp-parts-sync).
     // Office gets the operational detail — carrier, tracking, delivered — that the customer
     // portal deliberately withholds. Same row, different lens.
-    sb.from('job_part').select('id,number,name,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at,return_due_at,return_penalty_cents,return_po,rma_number,cost_cents,receipt_ref,bought_at,bought_by,bought_from').eq('job_id',job.id).order('created_at').then(function(r){
+    sb.from('job_part').select('id,number,name,qty,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at,return_due_at,return_penalty_cents,return_po,rma_number,cost_cents,receipt_ref,bought_at,bought_by,bought_from').eq('job_id',job.id).order('created_at').then(function(r){
       var parts=(r&&r.data)||[];
       var rows=parts.map(function(p){
         return '<div class="tpcard" data-pid="'+esc(p.id)+'">'+
           '<div class="tprow"><input class="tp_num" value="'+esc(p.number||'')+'" placeholder="Part #"><input class="tp_name" value="'+esc(p.name||'')+'" placeholder="Name (optional)"><button type="button" class="del" data-del="'+esc(p.id)+'" title="Remove">✕</button></div>'+
-          '<div class="tprow"><input class="tp_src" list="ant_part_srcs" value="'+esc(p.source||'')+'" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
+          '<div class="tprow"><label class="tp_qlab">How many <input class="tp_qty" type="number" min="1" step="1" value="'+partQty(p)+'"></label><input class="tp_src" list="ant_part_srcs" value="'+esc(p.source||'')+'" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
           '<div class="tprow">'+shipSel(p.ship_to)+'<label class="tpeta">ETA <input class="tp_eta" type="date" value="'+esc(p.eta||'')+'"></label></div>'+
           dispSel(p)+
           tpShip(p)+tpBought(p)+
@@ -1747,7 +1754,7 @@
         '<div id="jtp_rows">'+rows+'</div>'+
         '<div class="tpcard" id="jtp_new">'+
           '<div class="tprow"><input id="jtp_num" placeholder="Part #" style="font-family:ui-monospace,Menlo,monospace"><input id="jtp_name" placeholder="Name (optional)"><button type="button" class="tpadd" id="jtp_add">+ Add</button></div>'+
-          '<div class="tprow"><input id="jtp_src" list="ant_part_srcs" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
+          '<div class="tprow"><label class="tp_qlab">How many <input id="jtp_qty" class="tp_qty" type="number" min="1" step="1" value="1"></label><input id="jtp_src" list="ant_part_srcs" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
           '<div class="tprow">'+shipSel('').replace('class="tp_ship"','id="jtp_ship" class="tp_ship"')+'<label class="tpeta">ETA <input id="jtp_eta" class="tp_eta" type="date"></label></div>'+
         '</div>'+
         '<div class="hint" id="jtp_msg" style="margin-top:4px"></div>';
@@ -1769,12 +1776,12 @@
       if(ab) ab.onclick=function(){
         var gv=function(id){ var e=document.getElementById(id); return e?(e.value||'').trim():''; };
         var num=gv('jtp_num'), nm=gv('jtp_name'); if(!num && !nm) return; ab.disabled=true;
-        sb.from('job_part').insert({ company_id:companyId, job_id:job.id, number:num||null, name:nm||null, source:gv('jtp_src')||null, ship_to:gv('jtp_ship')||null, eta:gv('jtp_eta')||null }).select('id').then(function(rr){ if(rr.error||!rr.data||!rr.data.length){ ab.disabled=false; var m=document.getElementById('jtp_msg'); if(m)m.textContent='Couldn\'t add — try again.'; return; } loadTparts(job); loadBoard(); }); };
+        sb.from('job_part').insert({ company_id:companyId, job_id:job.id, number:num||null, name:nm||null, qty:qtyOf(gv('jtp_qty')), source:gv('jtp_src')||null, ship_to:gv('jtp_ship')||null, eta:gv('jtp_eta')||null }).select('id').then(function(rr){ if(rr.error||!rr.data||!rr.data.length){ ab.disabled=false; var m=document.getElementById('jtp_msg'); if(m)m.textContent='Couldn\'t add — try again.'; return; } loadTparts(job); loadBoard(); }); };
       // inline edits — any field on a saved part card writes all five on change
       box.querySelectorAll('#jtp_rows .tpcard[data-pid]').forEach(function(rowEl){ var pid=rowEl.getAttribute('data-pid');
         var save=function(){
           var g=function(sel){ var e=rowEl.querySelector(sel); return e?(e.value||'').trim():''; };
-          sb.from('job_part').update({ number:g('.tp_num')||null, name:g('.tp_name')||null, source:g('.tp_src')||null, ship_to:g('.tp_ship')||null, eta:g('.tp_eta')||null, disposition:g('.tp_disp')||null }).eq('id',pid).select('id').then(function(res){
+          sb.from('job_part').update({ number:g('.tp_num')||null, name:g('.tp_name')||null, qty:qtyOf(g('.tp_qty')), source:g('.tp_src')||null, ship_to:g('.tp_ship')||null, eta:g('.tp_eta')||null, disposition:g('.tp_disp')||null }).eq('id',pid).select('id').then(function(res){
             var m=document.getElementById('jtp_msg');
             // A constraint rejection here must NOT read as saved -- the only legal values are
             // used | return | not_here, and a silent failure would leave the invoice wrong.
@@ -2091,7 +2098,9 @@
     var techRule=(function(){ var c=(shopSettings&&shopSettings.commission)||{}; if(c.type==='flat_per_job') return {type:'flat_per_job',flat_cents:Math.round(+c.flat_cents||0)}; return {type:'labor_pct',pct:+c.labor_pct||0}; })();
     function commissionCents(laborC){ if(!techRule) return 0; if(techRule.type==='flat_per_job') return techRule.flat_cents||0; return Math.round(laborC*(techRule.pct||0)/100); }
     function commissionNote(){ if(techRule&&techRule.type==='flat_per_job') return '(flat '+money(techRule.flat_cents||0)+' + tips)'; return '('+(techRule&&techRule.pct||0)+'% of labor + tips)'; }
-    function partsCostCents(){ var s=0; document.querySelectorAll('#jparts .pc').forEach(function(i){ s+=cents(i.value); }); return s; }
+    // The cost box is per part -- what the shop actually spent is qty x it.
+    function rowQty(i){ var row=i.closest('[data-qty]'); return row?Math.max(1,parseInt(row.getAttribute('data-qty'),10)||1):1; }
+    function partsCostCents(){ var s=0; document.querySelectorAll('#jparts .pc').forEach(function(i){ s+=cents(i.value)*rowQty(i); }); return s; }
     var techPayTouched=false;
     // parts pricing rule (shared with the parts editor): customer cost = our cost + markup %,
     // but never less than a $10 margin on a small part.
@@ -2154,27 +2163,32 @@
       var box=document.getElementById('jparts'); if(!box) return;
       // customer cost = our cost + markup %, floored so the margin is never under $10 (mAdd).
       var retail=function(costC){ costC=+costC||0; if(costC<=0) return 0; return Math.max(Math.round(costC*(1+mPct/100)), costC+mAdd); };
-      var pmUpd=function(pid){ var c=box.querySelector('.pc[data-part="'+pid+'"]'), p=box.querySelector('.pp[data-part="'+pid+'"]'), m=box.querySelector('.pm[data-part="'+pid+'"]'); if(!c||!p||!m) return; var mar=cents(p.value)-cents(c.value); m.textContent=(cents(p.value)||cents(c.value))?('margin '+money(mar)):''; m.style.color=mar<0?'#e5484d':'#1f7a37'; };
-      sb.from('job_part').select('id,name,number,cost_cents,sell_cents,disposition').eq('job_id',job.id).order('created_at').then(function(r){
+      var pmUpd=function(pid){ var c=box.querySelector('.pc[data-part="'+pid+'"]'), p=box.querySelector('.pp[data-part="'+pid+'"]'), m=box.querySelector('.pm[data-part="'+pid+'"]'); if(!c||!p||!m) return;
+        var row=p.closest('[data-qty]'), q=row?Math.max(1,parseInt(row.getAttribute('data-qty'),10)||1):1;
+        var mar=cents(p.value)-cents(c.value);
+        m.textContent=(cents(p.value)||cents(c.value))?('margin '+money(mar)+(q>1?(' each · '+money(mar*q)+' on '+q):'')):'';
+        m.style.color=mar<0?'#e5484d':'#1f7a37'; };
+      sb.from('job_part').select('id,name,number,qty,cost_cents,sell_cents,disposition').eq('job_id',job.id).order('created_at').then(function(r){
         // Bill only what the shop actually supplied. The CHECK constraint allows exactly
         // used | return | not_here, so the old 'unused'/'missing' clauses here could never
         // match a row -- dead guards that read as protection. These two are the real ones.
         var parts=(r.data||[]).filter(function(p){ var d=(p.disposition||''); return d!=='return'&&d!=='not_here'; });
         if(!parts.length){ box.innerHTML=''; return; }
         box.innerHTML='<div class="sec" style="margin-top:2px">🔧 Parts the tech used <span class="hint" style="font-weight:400">— enter your cost; customer pays cost + '+mPct+'%'+(mAdd>0?' (min '+money(mAdd)+' margin)':'')+'</span></div>'+
-          parts.map(function(p){ var nm=(p.name||'Part');
+          parts.map(function(p){ var nm=(p.name||'Part'), q=partQty(p);
             var costV=p.cost_cents?(p.cost_cents/100).toFixed(2):'';
             var sellV=(p.sell_cents!=null?p.sell_cents:retail(p.cost_cents)); sellV=sellV?(sellV/100).toFixed(2):'';
-            return '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px"><span class="k" style="flex:1 1 140px;min-width:120px">'+esc(nm)+(p.number?' <span class="mono">'+esc(p.number)+'</span>':'')+'</span>'+
+            return '<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px" data-qty="'+q+'"><span class="k" style="flex:1 1 140px;min-width:120px">'+esc(nm)+(p.number?' <span class="mono">'+esc(p.number)+'</span>':'')+(q>1?' <b style="color:var(--brand)">×'+q+'</b>':'')+'</span>'+
               '<span class="v" style="font-size:12px;color:var(--muted)">Our cost $<input class="pc" data-part="'+esc(p.id)+'" inputmode="decimal" style="width:66px" value="'+costV+'"></span>'+
               '<span class="v" style="font-size:12px">Customer $<input class="pp" data-part="'+esc(p.id)+'" data-name="'+esc(nm)+'" inputmode="decimal" style="width:74px" value="'+sellV+'"></span>'+
               '<span class="pm" data-part="'+esc(p.id)+'" style="font-size:11.5px;font-weight:700;flex:1 1 100%;margin-left:2px"></span></div>'; }).join('');
-        var sumParts=function(){ var s=0; box.querySelectorAll('.pp').forEach(function(i){ s+=cents(i.value); }); document.getElementById('parts').value=s?(s/100).toFixed(2):''; recompute(); };
+        var qtyOfInput=function(i){ var row=i.closest('[data-qty]'); return row?(Math.max(1,parseInt(row.getAttribute('data-qty'),10)||1)):1; };
+        var sumParts=function(){ var s=0; box.querySelectorAll('.pp').forEach(function(i){ s+=cents(i.value)*qtyOfInput(i); }); document.getElementById('parts').value=s?(s/100).toFixed(2):''; recompute(); };
         box.querySelectorAll('.pm').forEach(function(m){ pmUpd(m.getAttribute('data-part')); });
         // typing cost auto-fills the customer price from the owner's margin; the price stays editable (override).
         box.querySelectorAll('.pc').forEach(function(i){ i.oninput=function(){ var pid=i.getAttribute('data-part'); var sc=retail(cents(i.value)); var ppi=box.querySelector('.pp[data-part="'+pid+'"]'); if(ppi){ ppi.value=sc?(sc/100).toFixed(2):''; } pmUpd(pid); sumParts(); }; });
         box.querySelectorAll('.pp').forEach(function(i){ i.oninput=function(){ pmUpd(i.getAttribute('data-part')); sumParts(); }; });
-        var pre=0; parts.forEach(function(p){ pre+=(p.sell_cents!=null?p.sell_cents:retail(p.cost_cents))||0; });
+        var pre=0; parts.forEach(function(p){ pre+=(((p.sell_cents!=null?p.sell_cents:retail(p.cost_cents))||0)*partQty(p)); });
         if(pre>0){ document.getElementById('parts').value=(pre/100).toFixed(2); recompute(); }
       });
     })();
@@ -2292,11 +2306,13 @@
     var pricedParts=[]; Array.prototype.forEach.call(document.querySelectorAll('#jparts .pp'), function(i){
       var pid=i.getAttribute('data-part');
       var costI=document.querySelector('#jparts .pc[data-part="'+pid+'"]');
-      pricedParts.push({id:pid, name:i.getAttribute('data-name'), cents:cents(i.value), costC:costI?cents(costI.value):0});
+      var prow=i.closest('[data-qty]'), pq=prow?Math.max(1,parseInt(prow.getAttribute('data-qty'),10)||1):1;
+      // cents / costC stay the UNIT price -- that is what gets written back onto job_part.
+      pricedParts.push({id:pid, name:i.getAttribute('data-name'), qty:pq, cents:cents(i.value), costC:costI?cents(costI.value):0});
     });
     pricedParts.forEach(function(p){ if(p.id) sb.from('job_part').update({sell_cents:p.cents>0?p.cents:null, cost_cents:p.costC>0?p.costC:null}).eq('id',p.id).then(function(){}); });
     var shipC=cents(g('ship')), tipC=cents(g('tip')), techPayC=cents(g('techpay'));
-    var partsCostC=0; document.querySelectorAll('#jparts .pc').forEach(function(i){ partsCostC+=cents(i.value); });
+    var partsCostC=0; document.querySelectorAll('#jparts .pc').forEach(function(i){ var pr=i.closest('[data-qty]'); var pq=pr?Math.max(1,parseInt(pr.getAttribute('data-qty'),10)||1):1; partsCostC+=cents(i.value)*pq; });
     var tripApply=document.getElementById('jtripapply'); var applied=tripApply&&tripApply.checked && (laborC+partsC)>0;
     var sub=laborC+partsC+shipC+(applied?0:feeC), taxp=parseFloat(g('tax'))||0, taxC=Math.round(sub*taxp/100), tot=sub+taxC+tipC;
     var paid=document.getElementById('jpaid').checked, method=document.getElementById('jmethod').value||null;
@@ -2317,7 +2333,7 @@
         var lines=[]; if(laborC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'labor',description:'Labor',qty:1,unit_cents:laborC});
         // itemize the tech's priced parts as their own lines; fall back to one lump "Parts" line
         var pp=pricedParts.filter(function(p){return p.cents>0;});
-        if(pp.length){ pp.forEach(function(p){ lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:p.name||'Part',qty:1,unit_cents:p.cents}); }); }
+        if(pp.length){ pp.forEach(function(p){ lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:p.name||'Part',qty:Math.max(1,+p.qty||1),unit_cents:p.cents}); }); }
         else if(partsC){ lines.push({company_id:companyId,invoice_id:invoiceId,kind:'part',description:'Parts',qty:1,unit_cents:partsC}); }
         if(feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'fee',description:'Trip charge',qty:1,unit_cents:feeC});
         if(applied&&feeC)lines.push({company_id:companyId,invoice_id:invoiceId,kind:'credit',description:'Trip applied to repair',qty:1,unit_cents:-feeC});

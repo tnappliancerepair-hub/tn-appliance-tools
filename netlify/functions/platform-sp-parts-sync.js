@@ -14,7 +14,9 @@
 // SAFETY -- this is additive by construction:
 //   * never deletes a row
 //   * never touches what a human/tech owns: disposition, photo_ref, cost_cents, sell_cents,
-//     returned_at/returned_by, rma_number, return_tracking, return_carrier
+//     qty, returned_at/returned_by, rma_number, return_tracking, return_carrier
+//     (qty is the tech's ticker -- the vendor's list says what it SENT, not how many the
+//      machine needs, so letting it write qty would quietly re-count his job)
 //   * only fills BLANK fields, plus the ship_* columns it owns outright
 //   * an empty value from the API can never erase a known one
 //

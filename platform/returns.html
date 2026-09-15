@@ -152,7 +152,7 @@
     // was USED -- so filtering on disposition alone hid every core and every vendor-stated
     // obligation from the one screen the office actually ships returns from.
     sb.from('job_part')
-      .select('id,number,name,source,photo_ref,created_at,disposition,must_return,return_due_at,return_penalty_cents,return_po,rma_number,job:job_id(id,claim_number,warranty_company,scheduled_day,customer:customer_id(first_name,last_name,phone,city,state))')
+      .select('id,number,name,qty,source,photo_ref,created_at,disposition,must_return,return_due_at,return_penalty_cents,return_po,rma_number,job:job_id(id,claim_number,warranty_company,scheduled_day,customer:customer_id(first_name,last_name,phone,city,state))')
       .or('disposition.eq.return,must_return.is.true').is('returned_at',null).order('created_at',{ascending:true})
       .then(function(r){
         if(r.error){
@@ -172,6 +172,7 @@
       });
   }
 
+  function partQty(p){ var n=Math.floor(+((p&&p.qty)||1)); return n>=1?n:1; }
   function renderScore(owed, oldest, rows){
     var s=document.getElementById('score'); if(!s) return;
     // Money at risk is stated PER PO, not per part -- a 3-part AHS notice carries one $295.74,
@@ -193,7 +194,10 @@
     var list=document.getElementById('list');
     if(!rows.length){ renderScore(0,0,[]); list.innerHTML='<div class="empty"><div class="big">✅</div>Nothing owed back — every warranty part is accounted for. Nice.</div>'; return; }
     var oldest=0; rows.forEach(function(p){ oldest=Math.max(oldest, ageDays(p.created_at)); });
-    renderScore(rows.length, oldest, rows);
+    // Count the parts she has to physically ship, not the rows -- a row at qty 4 is four
+    // parts, and "1 owed back" is how three of them get left in the truck.
+    var units=0; rows.forEach(function(p){ units+=partQty(p); });
+    renderScore(units, oldest, rows);
     // group by job, preserving oldest-first order
     var groups=[], byJob={};
     rows.forEach(function(p){
@@ -252,7 +256,7 @@
     var src = p.source ? ' · ↩ '+esc(p.source) : '';
     return '<div class="prow">' + thumb +
       '<div class="pbody">' + num +
-        '<div class="pname">'+esc(p.name||'Unused part')+src+'</div>' +
+        '<div class="pname">'+esc(p.name||'Unused part')+(partQty(p)>1?' <b>×'+partQty(p)+'</b>':'')+src+'</div>' +
         // say WHOSE rule this is -- the tech found it unused, or the vendor wants it back
         // regardless (which is how a used core ends up on this list).
         '<div class="pwho">'+(p.must_return ? '↩️ vendor wants it back' : '🔧 tech flagged unused')+'</div>' +

@@ -394,14 +394,19 @@
       // SANITIZED by portal_get: names only, never a part number, a cost, or a tracking number.
       // It answers the one question a waiting customer actually has: where is my part.
       var parts = j.parts || [], partsHtml = '';
+      // Count PARTS, not rows -- one row can be four door bins (072), and "your part is on
+      // order" when four are coming reads as a smaller wait than it is.
+      var pq = function(p){ var n = Math.floor(+((p && p.qty) || 1)); return n >= 1 ? n : 1; };
+      var sumQ = function(arr){ return arr.reduce(function(n, p){ return n + pq(p); }, 0); };
       if (parts.length && j.status !== 'completed' && j.status !== 'canceled') {
-        var landed = parts.filter(function(p){ return p.delivered; }).length;
-        var onWay  = parts.filter(function(p){ return p.shipped && !p.delivered; }).length;
-        var waiting = parts.length - landed - onWay;
+        var total  = sumQ(parts);
+        var landed = sumQ(parts.filter(function(p){ return p.delivered; }));
+        var onWay  = sumQ(parts.filter(function(p){ return p.shipped && !p.delivered; }));
+        var waiting = total - landed - onWay;
         var head;
-        if (landed === parts.length) head = parts.length === 1 ? 'Your part is here.' : 'All ' + parts.length + ' parts are here.';
-        else if (landed || onWay)    head = (landed ? landed + ' here' : '') + (landed && onWay ? ' · ' : '') + (onWay ? onWay + ' on the way' : '') + (waiting ? ' · ' + waiting + ' on order' : '');
-        else                         head = parts.length === 1 ? 'Your part is on order.' : 'Your ' + parts.length + ' parts are on order.';
+        if (landed === total)     head = total === 1 ? 'Your part is here.' : 'All ' + total + ' parts are here.';
+        else if (landed || onWay) head = (landed ? landed + ' here' : '') + (landed && onWay ? ' · ' : '') + (onWay ? onWay + ' on the way' : '') + (waiting ? ' · ' + waiting + ' on order' : '');
+        else                      head = total === 1 ? 'Your part is on order.' : 'Your ' + total + ' parts are on order.';
         var etas = parts.map(function(p){ return p.eta; }).filter(Boolean).sort();
         var etaLine = (!landed && etas.length) ? '<div class="pkmeta">Expected ' + esc(fmtDay(etas[0])) + '</div>' : '';
         partsHtml = '<div class="parts"><div class="pkhead">📦 Your parts — ' + esc(head) + '</div>' + etaLine +
@@ -409,7 +414,8 @@
             var tag = p.delivered ? '<span class="pk ok">Here</span>'
                     : p.shipped  ? '<span class="pk go">On the way</span>'
                                  : '<span class="pk wait">On order</span>';
-            return '<div class="pkrow"><span>' + esc(p.name || 'Part') + '</span>' + tag + '</div>';
+            var n = pq(p);
+            return '<div class="pkrow"><span>' + esc(p.name || 'Part') + (n > 1 ? ' <b>×' + n + '</b>' : '') + '</span>' + tag + '</div>';
           }).join('') +
           '<div class="pkfoot">We\'ll reach out to get you scheduled as soon as everything lands.</div></div>';
       }

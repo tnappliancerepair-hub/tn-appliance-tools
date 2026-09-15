@@ -160,6 +160,24 @@
   /* Parts for this job — per-part card: order / claim-only, then Used / Return / Not here */
   .cbwarn{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.35);border-radius:11px;padding:10px 13px;font-size:13px;font-weight:700;color:#c67a0f;margin-bottom:12px}
   :root[data-theme="dark"] .cbwarn,:root:not([data-theme="light"]) .cbwarn{color:#f5b451}
+  /* Qty ticker — big taps, a tech uses this with a glove on. Same control in both
+     parts views (the TDR quick list and the tracker card) so they read as one thing. */
+  .qty{display:inline-flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel);flex:0 0 auto}
+  .qty button{width:40px;height:40px;border:0;background:transparent;color:var(--ink);font-size:20px;font-weight:800;line-height:1;cursor:pointer;padding:0}
+  .qty button:active{background:var(--line)}
+  .qty button[disabled]{opacity:.32;cursor:default}
+  .qty .n{min-width:34px;text-align:center;font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+  .qty.big .n{min-width:40px;font-size:18px}
+  /* The TDR's own parts list — one line per part, count on the right. */
+  .tplist{display:flex;flex-direction:column;gap:8px;margin-bottom:9px}
+  .tprow{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:11px;padding:8px 9px;background:var(--panel)}
+  .tprow .tpn{flex:1 1 auto;min-width:0;font-weight:700;font-size:14.5px;line-height:1.25;overflow-wrap:anywhere}
+  .tprow .tpn small{display:block;font-family:ui-monospace,Menlo,monospace;font-weight:600;color:var(--muted);font-size:12.5px}
+  .tprow .tprm{flex:0 0 auto;width:38px;height:38px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--muted);font-size:15px;font-weight:800;cursor:pointer}
+  .tpadd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .tpadd input{flex:1 1 180px;min-width:0}
+  .tpadd .addb{flex:0 0 auto;padding:11px 15px;font-weight:800;white-space:nowrap}
+  .tpmulti{font-size:12px;color:var(--muted);margin:2px 0 8px}
   .pcard{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;background:var(--bg)}
   .pcard .pname{font-weight:800;font-size:16px;line-height:1.25}
   .pcard .pnum{font-family:ui-monospace,Menlo,monospace;color:var(--muted);font-size:13px;margin-top:3px}
@@ -478,9 +496,20 @@
           // 📦 Part & part # + status + the "office, I need this part" alert
           '<div class="fld">' +
             '<div class="fld-ic">📦</div><div class="fld-body">' +
-              '<div class="fld-lab">Part &amp; part #</div>' +
-              '<div class="fld-hint">The part you used — and its number</div>' +
-              '<input id="tp" placeholder="Part number" value="'+esc(t?t.part_number||'':'')+'">' +
+              '<div class="fld-lab">Parts</div>' +
+              '<div class="fld-hint">Every part this machine needs — add as many as it takes</div>' +
+              // Hidden: the joined summary that still lands in job_tdr.part_number, so the
+              // office board, the warranty claim, Ann and the brain keep reading exactly
+              // what they read before. The tech never types in here -- the list writes it.
+              '<input id="tp" type="hidden" value="'+esc(t?t.part_number||'':'')+'">' +
+              '<div class="tplist" id="tpParts"></div>' +
+              '<div class="tpmulti">Need more than one of something? Use the <b>− 1 +</b> ticker on that part.</div>' +
+              '<div class="tpadd">' +
+                '<input id="tpNew" placeholder="Part name + number (e.g. Heating element WPW10295370)">' +
+                '<span class="qty big" id="tpNewQty"><button type="button" data-tq="-" disabled>−</button><span class="n">1</span><button type="button" data-tq="+">+</button></span>' +
+                '<button type="button" class="addb" id="tpAdd">➕ Add part</button>' +
+              '</div>' +
+              '<div class="note hidden" id="tpMsg"></div>' +
               '<div class="btnrow psrow" id="psrow">' +
                 '<button type="button" data-ps="please_order">🛒 Please order</button>' +
                 '<button type="button" data-ps="truck">🚚 On my truck</button>' +
@@ -548,6 +577,10 @@
         '</div>' +
         '<div class="paddrow"><input id="pAddName" placeholder="Part name (e.g. water valve)"><input id="pAddNum" placeholder="Part #"></div>' +
         '<div class="paddrow" style="margin-top:8px"><input id="pAddCost" inputmode="decimal" placeholder="Your cost $ (optional)"></div>' +
+        '<div class="paddrow" style="margin-top:8px;align-items:center;gap:10px">' +
+          '<span style="font-size:13px;color:var(--muted);font-weight:700">How many?</span>' +
+          '<span class="qty big" id="pAddQty"><button type="button" data-aq="-" disabled>−</button><span class="n">1</span><button type="button" data-aq="+">+</button></span>' +
+        '</div>' +
         '<div class="note" style="margin:6px 0 0">Enter what it <b>cost you</b> — the office/owner set the margin, so the customer price fills in automatically. Never guess what to charge.</div>' +
         '<button class="full primary" id="pAddBtn" style="margin-top:8px">➕ Add this part</button>' +
         '<div class="err" id="pAddErr"></div></div>' +
@@ -717,13 +750,42 @@
     };
     var amAdd=document.getElementById('amAdd'); if(amAdd) amAdd.onclick=addMachine;
 
+    // Parts in the report — add a part, nudge its count, drop one. Same job_part rows
+    // as the tracker card below, so both views move together.
+    var tpAddBtn=document.getElementById('tpAdd'); if(tpAddBtn) tpAddBtn.onclick=tdrAddPart;
+    var tpNewEl=document.getElementById('tpNew');
+    if(tpNewEl) tpNewEl.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); tdrAddPart(); } });
+    var tpNewQtyBox=document.getElementById('tpNewQty');
+    if(tpNewQtyBox) tpNewQtyBox.onclick=function(e){
+      var b=e.target.closest('button[data-tq]'); if(!b) return;
+      tpNewQty = Math.max(1, tpNewQty + (b.getAttribute('data-tq')==='+' ? 1 : -1));
+      paintNewQty();
+    };
+    var tpBox=document.getElementById('tpParts');
+    if(tpBox) tpBox.onclick=function(e){
+      var b=e.target.closest('button[data-qact]'); if(!b) return;
+      var id=b.getAttribute('data-qid'), act=b.getAttribute('data-qact');
+      if(act==='inc') setPartQty(id, 1);
+      else if(act==='dec') setPartQty(id, -1);
+      else if(act==='rm') delPart(id);
+    };
+    paintNewQty();
+
     // Parts tracker — add a part + per-part order/disposition/photo taps (delegated).
     var pAdd=document.getElementById('pAddBtn'); if(pAdd) pAdd.onclick=addPart;
+    var pAddQtyBox=document.getElementById('pAddQty');
+    if(pAddQtyBox) pAddQtyBox.onclick=function(e){
+      var b=e.target.closest('button[data-aq]'); if(!b) return;
+      pAddQty = Math.max(1, pAddQty + (b.getAttribute('data-aq')==='+' ? 1 : -1));
+      paintAddQty();
+    };
+    paintAddQty();
     var pBox=document.getElementById('partsBox');
     if(pBox) pBox.onclick=function(e){
       var b=e.target.closest('[data-pact]'); if(!b) return;
       var id=b.getAttribute('data-pid'), act=b.getAttribute('data-pact'), val=b.getAttribute('data-pval');
-      if(act==='order') partOrder(id,val);
+      if(act==='qty') setPartQty(id, +val);
+      else if(act==='order') partOrder(id,val);
       else if(act==='disp') partDisp(id,val);
       else if(act==='del') delPart(id);
       else if(act==='photo'){ var f=pBox.querySelector('input[data-pfile="'+id+'"]'); if(f) f.click(); }
@@ -961,8 +1023,9 @@
         });
       } else {
         // fresh → seed the parts you logged at RETAIL (owner's margin); costs stay hidden
-        sb.from('job_part').select('name,number,cost_cents,sell_cents').eq('job_id',jobId).order('created_at').then(function(pr){
-          invItems=[]; (pr.data||[]).forEach(function(p){ var retail=p.sell_cents||retailCents(p.cost_cents); if(retail>0) invItems.push({ desc:(p.name||'Part')+(p.number?' · '+p.number:''), cents:retail }); });
+        sb.from('job_part').select('name,number,qty,cost_cents,sell_cents').eq('job_id',jobId).order('created_at').then(function(pr){
+          // sell_cents is the UNIT price -- a line is qty x unit, or two of a part bills as one.
+          invItems=[]; (pr.data||[]).forEach(function(p){ var unit=p.sell_cents||retailCents(p.cost_cents); var q=partQty(p); if(unit>0) invItems.push({ desc:(p.name||'Part')+(p.number?' · '+p.number:'')+(q>1?' ×'+q:''), cents:unit*q }); });
           renderInvItems(); recomputeInv();
         });
       }
@@ -1389,15 +1452,134 @@
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
   function loadParts(){
     var box=document.getElementById('partsBox'); if(!box) return;
-    sb.from('job_part').select('id,name,number,order_status,disposition,photo_ref,cost_cents,sell_cents,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at,bought_at,bought_by,bought_from,receipt_ref').eq('job_id',jobId).order('created_at').then(function(r){
+    sb.from('job_part').select('id,name,number,qty,order_status,disposition,photo_ref,cost_cents,sell_cents,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at,bought_at,bought_by,bought_from,receipt_ref').eq('job_id',jobId).order('created_at').then(function(r){
       if(r.error){
         var card=document.getElementById('partsCard');
         if(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')){ if(card) card.classList.add('hidden'); }
         else box.innerHTML='<div class="note">Couldn\'t load parts.</div>';
         return;
       }
-      renderParts(r.data||[]);
+      partsList = dedupeParts(r.data||[]);
+      renderParts(partsList);      // the detail card (order / disposition / cost / proof)
+      renderTdrParts(partsList);   // the quick list inside the report
+      syncTdrPartNumber(partsList);
     });
+  }
+
+  // ── PARTS IN THE REPORT — multiple parts, each with its own count ────────────
+  // Teddy 2026-09-15: "a lot of times there's going to be multiple parts needed... and a
+  // little ticker at the end they can adjust — some things they need multiples of."
+  //
+  // This list and the tracker card below it are the SAME job_part rows, not two lists.
+  // One write, two lenses -- the same rule the rest of the platform runs on. So a part the
+  // tech adds here immediately carries its order status, shipment, return obligation and
+  // price everywhere the office, the customer portal and the invoice already read it.
+  var partsList = [];
+  var tpNewQty = 1;
+  function partQty(p){ var n = Math.floor(+((p&&p.qty)||1)); return n >= 1 ? n : 1; }
+  // Split what he typed into a name and a part number. The number is the LAST token that
+  // looks like one (>=5 chars, has a digit) -- "Heating element WPW10295370" reads the way
+  // he says it out loud, and a bare number still works.
+  function splitPartText(text){
+    var raw = String(text==null?'':text).trim().replace(/\s+/g,' ');
+    if(!raw) return { name:'', number:'' };
+    var toks = raw.split(' '), numIdx = -1;
+    for(var i=0;i<toks.length;i++){
+      var t = toks[i].replace(/[^A-Za-z0-9-]/g,'');
+      if(t.length>=5 && /[0-9]/.test(t) && /^[A-Za-z0-9-]+$/.test(t)) numIdx = i;
+    }
+    if(numIdx < 0) return { name:raw, number:'' };
+    var number = toks[numIdx].replace(/[^A-Za-z0-9-]/g,'');
+    var name = toks.slice(0,numIdx).concat(toks.slice(numIdx+1)).join(' ').trim();
+    return { name:name, number:number };
+  }
+  function renderTdrParts(list){
+    var box=document.getElementById('tpParts'); if(!box) return;
+    if(!list.length){ box.innerHTML='<div class="note" style="margin:0">No parts on this machine yet — add the first one below.</div>'; return; }
+    box.innerHTML = list.map(function(p){
+      var q=partQty(p), nm=p.name||(p.number?'':'Part');
+      return '<div class="tprow">'+
+        '<span class="tpn">'+esc(nm||'Part')+(p.number?'<small>🔩 '+esc(p.number)+'</small>':'')+'</span>'+
+        '<span class="qty" data-qid="'+esc(p.id)+'">'+
+          '<button type="button" data-qact="dec" data-qid="'+esc(p.id)+'"'+(q<=1?' disabled':'')+'>−</button>'+
+          '<span class="n">'+q+'</span>'+
+          '<button type="button" data-qact="inc" data-qid="'+esc(p.id)+'">+</button>'+
+        '</span>'+
+        '<button type="button" class="tprm" data-qact="rm" data-qid="'+esc(p.id)+'" title="Remove this part">✕</button>'+
+      '</div>';
+    }).join('');
+  }
+  // The joined summary that still lands in job_tdr.part_number -- the TEXT column the
+  // office board, the warranty claim and Ann all read. Written only when it actually
+  // changed, so this can never fight the tech's own per-field saves.
+  function partsSummary(list){
+    return (list||[]).map(function(p){
+      var label = p.number || p.name || 'Part', q = partQty(p);
+      return label + (q>1 ? ' ×'+q : '');
+    }).join(', ');
+  }
+  function syncTdrPartNumber(list){
+    var el=document.getElementById('tp'); if(!el) return;
+    var next=partsSummary(list);
+    if(next === String(el.value||'').trim()) { paintFlds(); return; }
+    el.value=next; fldLast.tp=next; paintFlds();
+    var row={ company_id:me.company_id, job_id:jobId, part_number: next || null };
+    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(function(){});
+  }
+  function tpMsg(text, bad){
+    var m=document.getElementById('tpMsg'); if(!m) return;
+    if(!text){ m.classList.add('hidden'); m.textContent=''; return; }
+    m.classList.remove('hidden'); m.textContent=text; m.style.color = bad ? 'var(--danger,#b91c1c)' : '';
+  }
+  // Nudging the count is the whole ask -- and it must never write a 0 (the DB refuses it,
+  // and a 0 would read as "no part" to every surface downstream).
+  function setPartQty(id, delta){
+    var cur=null; partsList.forEach(function(p){ if(String(p.id)===String(id)) cur=p; });
+    if(!cur) return;
+    var next=partQty(cur)+delta;
+    if(next<1) return;
+    cur.qty=next;                                   // paint it now; the tech sees it move
+    renderTdrParts(partsList); syncTdrPartNumber(partsList);
+    sb.from('job_part').update({qty:next}).eq('id',id).select('id').then(function(r){
+      if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){ tpMsg('Count did NOT save — tap it again.',true); loadParts(); return; }
+      tpMsg(''); loadParts();                       // re-read so the tracker card agrees
+    });
+  }
+  function tdrAddPart(){
+    var inp=document.getElementById('tpNew'), btn=document.getElementById('tpAdd');
+    var text=((inp&&inp.value)||'').trim();
+    if(!text){ if(inp) inp.focus(); tpMsg('Type the part name or number first.',true); return; }
+    var parsed=splitPartText(text), want=tpNewQty;
+    // Already on this machine? Add to the count instead of making a second row -- two rows
+    // for one part is exactly what the read-layer dedupe collapses, so the extra would vanish.
+    var key=partKey({number:parsed.number||text}), hit=null;
+    if(key) partsList.forEach(function(p){ if(!hit && partKey(p)===key) hit=p; });
+    if(hit){
+      var n=partQty(hit)+want;
+      if(inp) inp.value=''; tpNewQty=1; paintNewQty();
+      hit.qty=n; renderTdrParts(partsList); syncTdrPartNumber(partsList);
+      sb.from('job_part').update({qty:n}).eq('id',hit.id).select('id').then(function(r){
+        if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){ tpMsg('Could not update that part — try again.',true); }
+        else tpMsg('Already on this job — count is now '+n+'.');
+        loadParts();
+      });
+      return;
+    }
+    if(btn){ btn.disabled=true; btn.textContent='Adding…'; }
+    var row={ company_id:me.company_id, job_id:jobId, name:parsed.name, number:parsed.number, qty:want };
+    sb.from('job_part').insert(row).select('id').then(function(r){
+      if(btn){ btn.disabled=false; btn.textContent='➕ Add part'; }
+      if(r&&r.error){
+        tpMsg(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'') ? 'Parts tracking turns on once migration 019 is run in Supabase.' : r.error.message, true);
+        return;
+      }
+      if(inp) inp.value=''; tpNewQty=1; paintNewQty(); tpMsg(''); loadParts();
+    });
+  }
+  function paintNewQty(){
+    var box=document.getElementById('tpNewQty'); if(!box) return;
+    var n=box.querySelector('.n'); if(n) n.textContent=tpNewQty;
+    var dec=box.querySelector('button[data-tq="-"]'); if(dec) dec.disabled = tpNewQty<=1;
   }
   // Parts pricing — the owner sets ONE margin (settings.parts); the tech only ever enters COST.
   // retail = max(cost × (1 + markup%), cost + minimum-added). The tech never asks "what do we charge."
@@ -1448,10 +1630,10 @@
   function renderParts(list){
     var box=document.getElementById('partsBox'); if(!box) return;
     list = dedupeParts(list);
-    var toReturn=list.filter(function(p){return p.disposition==='return';}).length;
+    var toReturn=list.filter(function(p){return p.disposition==='return';}).reduce(function(n,p){return n+partQty(p);},0);
     // The vendor's own obligation, known at order time -- separate from what the tech tapped.
     // A core is owed back even when it gets USED, so this must not key off disposition.
-    var owed=list.filter(function(p){return p.must_return && !p.returned_at;}).length;
+    var owed=list.filter(function(p){return p.must_return && !p.returned_at;}).reduce(function(n,p){return n+partQty(p);},0);
     var warn='';
     if(owed) warn+='<div class="cbwarn">↩️ '+owed+' part'+(owed>1?'s':'')+' the vendor wants back — take '+(owed>1?'them':'it')+' with you before you leave.</div>';
     if(toReturn) warn+='<div class="cbwarn">🔁 '+toReturn+' to ship back — send them or the shop eats a chargeback.</div>';
@@ -1480,12 +1662,24 @@
     var retail = retailCents(p.cost_cents);
     var priceRow = '<div class="pprice">' +
         '<label class="pcost">Your cost <span class="pdol">$</span><input inputmode="decimal" data-pcost="'+esc(p.id)+'" value="'+costV+'" placeholder="0.00"></label>' +
-        '<span class="pretail" data-pretail="'+esc(p.id)+'">'+(p.cost_cents?('Customer pays <b>'+fmtUSD(retail)+'</b>'):'Enter cost → price fills in')+'</span>' +
+        '<span class="pretail" data-pretail="'+esc(p.id)+'">'+(p.cost_cents?('Customer pays <b>'+fmtUSD(retail)+'</b>'+(q>1?' each · <b>'+fmtUSD(retail*q)+'</b> for '+q:'')):'Enter cost → price fills in')+'</span>' +
+      '</div>';
+    var q=partQty(p);
+    // Count lives on its own line so the money below it is unambiguous: the price shown is
+    // per part, the line total is qty x that.
+    var qtyRow = '<div class="pprice" style="align-items:center">' +
+        '<span style="font-size:13px;color:var(--muted);font-weight:700">How many</span>' +
+        '<span class="qty" data-qid="'+esc(p.id)+'">' +
+          '<button type="button" data-pact="qty" data-pid="'+esc(p.id)+'" data-pval="-1"'+(q<=1?' disabled':'')+'>−</button>' +
+          '<span class="n">'+q+'</span>' +
+          '<button type="button" data-pact="qty" data-pid="'+esc(p.id)+'" data-pval="1">+</button>' +
+        '</span>' +
       '</div>';
     return '<div class="pcard">' +
-      '<div class="pname">'+esc(p.name||'Part')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+(p.must_return?' <span class="mustret">↩️ OWED BACK</span>':'')+'</div>' +
+      '<div class="pname">'+esc(p.name||'Part')+(q>1?' <span class="mustret" style="background:var(--line);color:var(--ink)">×'+q+'</span>':'')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+(p.must_return?' <span class="mustret">↩️ OWED BACK</span>':'')+'</div>' +
       (p.number?'<div class="pnum">🔩 '+esc(p.number)+'</div>':'') +
       shipLine(p) +
+      qtyRow +
       priceRow +
       '<button class="pordbtn'+((os==='to_order'||os==='ordered')?' sel':'')+'" data-pact="order" data-pid="'+esc(p.id)+'" data-pval="to_order">📦 '+(os==='ordered'?'Ordered':'Please order this part')+'</button>' +
       '<button class="pclaimbtn'+(os==='claim_only'?' sel':'')+'" data-pact="order" data-pid="'+esc(p.id)+'" data-pval="claim_only">📋 Just the part # for the claim (not ordered)</button>' +
@@ -1498,18 +1692,42 @@
       '<button class="pdel" data-pact="del" data-pid="'+esc(p.id)+'">Remove part</button>' +
     '</div>';
   }
+  var pAddQty = 1;
+  function paintAddQty(){
+    var box=document.getElementById('pAddQty'); if(!box) return;
+    var n=box.querySelector('.n'); if(n) n.textContent=pAddQty;
+    var dec=box.querySelector('button[data-aq="-"]'); if(dec) dec.disabled = pAddQty<=1;
+  }
   function addPart(){
     var nm=(document.getElementById('pAddName').value||'').trim(), num=(document.getElementById('pAddNum').value||'').trim();
     var cc=dollarsToCents(document.getElementById('pAddCost').value);
     var err=document.getElementById('pAddErr'); err.textContent='';
     if(!nm && !num){ err.textContent='Add a part name or number.'; return; }
-    var btn=document.getElementById('pAddBtn'); btn.disabled=true; btn.textContent='Adding…';
-    var row={company_id:me.company_id, job_id:jobId, name:nm, number:num};
+    var btn=document.getElementById('pAddBtn');
+    // Same part already on this machine -> raise the count. A second row would just get
+    // collapsed by the read-layer dedupe, and the count would be lost with it.
+    var key=partKey({number:num||nm}), hit=null;
+    if(key) (partsList||[]).forEach(function(x){ if(!hit && partKey(x)===key) hit=x; });
+    if(hit){
+      var n=partQty(hit)+pAddQty;
+      btn.disabled=true; btn.textContent='Updating…';
+      sb.from('job_part').update({qty:n}).eq('id',hit.id).select('id').then(function(r){
+        btn.disabled=false; btn.textContent='➕ Add this part';
+        if(r&&r.error){ err.textContent=r.error.message; return; }
+        err.textContent='';
+        document.getElementById('pAddName').value=''; document.getElementById('pAddNum').value=''; document.getElementById('pAddCost').value='';
+        pAddQty=1; paintAddQty(); loadParts();
+      });
+      return;
+    }
+    btn.disabled=true; btn.textContent='Adding…';
+    var row={company_id:me.company_id, job_id:jobId, name:nm, number:num, qty:pAddQty};
     if(cc>0){ row.cost_cents=cc; row.sell_cents=retailCents(cc); }   // cost → auto retail (owner's margin)
     sb.from('job_part').insert(row).then(function(r){
       btn.disabled=false; btn.textContent='➕ Add this part';
       if(r.error){ err.textContent=/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')?'Parts tracking turns on once migration 019 is run in Supabase.':r.error.message; return; }
-      document.getElementById('pAddName').value=''; document.getElementById('pAddNum').value=''; document.getElementById('pAddCost').value=''; loadParts();
+      document.getElementById('pAddName').value=''; document.getElementById('pAddNum').value=''; document.getElementById('pAddCost').value='';
+      pAddQty=1; paintAddQty(); loadParts();
     });
   }
   // Tech edits a part's cost → recompute retail from the owner's margin, store both, live-update the row.
@@ -2002,7 +2220,9 @@
   }
   function openParts(key) {
     var pq=document.getElementById('partq');
-    var q=((pq&&pq.value)||'').trim() || (document.getElementById('tp').value||'').trim() || (attrs().model||'') || (job.unit&&job.unit.label) || '';
+    // A real part number beats the joined summary -- "A ×2, B" is not a search term.
+    var firstPart=''; (partsList||[]).forEach(function(p){ if(!firstPart) firstPart=(p.number||p.name||'').trim(); });
+    var q=((pq&&pq.value)||'').trim() || firstPart || (attrs().model||'') || (job.unit&&job.unit.label) || '';
     if (!q) { alert('Add a model # or part # first — tap 📸 Capture model # to read it off the sticker.'); return; }
     if(window.AntSuppliers) AntSuppliers.open(key, q, shopSettings);
   }
@@ -2047,6 +2267,7 @@
   // markup for each field stays one line.
   function wireFieldSaves(){
     Object.keys(FLD_COLS).forEach(function(id){
+      if(id==='tp') return;   // parts are a list now — the list owns the write, not a box
       var el=document.getElementById(id); if(!el) return;
       if(document.getElementById('fsbtn_'+id)) return;            // already wired
       fldLast[id]=(el.value||'').trim();

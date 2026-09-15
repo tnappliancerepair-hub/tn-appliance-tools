@@ -247,7 +247,7 @@
     var invP  = sb.from('invoice').select('job_id,labor_cents,total_cents,collected_cents,status,paid_at,created_at').limit(3000);
     var techP = sb.from('technician').select('id,name,active,phone,commission_type,commission_pct,commission_flat_cents,max_stops,service_area,service_types').limit(200);
     var payP  = sb.from('tech_payout').select('technician_id,job_id,amount_cents,paid_at').limit(5000);
-    var partP = AntPage.all(function(){ return sb.from('job_part').select('job_id,cost_cents,sell_cents,disposition'); },{label:'owner parts'});
+    var partP = AntPage.all(function(){ return sb.from('job_part').select('job_id,qty,cost_cents,sell_cents,disposition'); },{label:'owner parts'});
     Promise.all([jobsP, invP, techP, payP, partP]).then(function(res){
       var jobs = (res[0].data)||[], invs = (res[1].data)||[], techs = (res[2].data)||[], payouts = (res[3].data)||[], parts = (res[4]&&res[4].data)||[];
       render(jobs, invs, techs, payouts, parts);
@@ -302,7 +302,8 @@
     var owedToTechs=0, techCollected=0; Object.keys(payAgg).forEach(function(id){ owedToTechs+=payAgg[id].owed; techCollected+=payAgg[id].collectible; });
     // PARTS — cost vs charge on billed jobs in this window (the margin the owner set, realized).
     var winJobIds={}; invWin.forEach(function(v){ if(v.job_id) winJobIds[v.job_id]=1; });
-    var partsRev=0, partsCost=0; parts.forEach(function(p){ if(!winJobIds[p.job_id]) return; var d=(p.disposition||''); if(d==='return'||d==='unused'||d==='missing') return; partsRev+=(p.sell_cents||0); partsCost+=(p.cost_cents||0); });
+    // sell_cents / cost_cents are the UNIT price (072) -- four door bins is four, not one.
+    var partsRev=0, partsCost=0; parts.forEach(function(p){ if(!winJobIds[p.job_id]) return; var d=(p.disposition||''); if(d==='return'||d==='unused'||d==='missing') return; var q=Math.max(1,Math.floor(+p.qty||1)); partsRev+=(p.sell_cents||0)*q; partsCost+=(p.cost_cents||0)*q; });
     var partsMargin=partsRev-partsCost;
     var mPct=(settings.parts&&settings.parts.markup_pct!=null)?+settings.parts.markup_pct:50;
     var takeHome = collected - techCollected - partsCost; // collected revenue minus tech cut AND parts cost (before overhead)

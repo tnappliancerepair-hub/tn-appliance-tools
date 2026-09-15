@@ -31,7 +31,7 @@ async function buildSnapshot(ctx) {
     d.get(`company?id=eq.${CID}&select=name,settings`),
     d.get(`invoice?select=job_id,total_cents,collected_cents,status,paid_at,created_at&limit=3000`),
     d.get(`job?select=id,status,technician_id,warranty_company,completed_at,created_at&limit=3000`),
-    d.get(`job_part?select=job_id,cost_cents,disposition&limit=10000`),
+    d.get(`job_part?select=job_id,qty,cost_cents,disposition&limit=10000`),
     d.get(`tech_payout?select=amount_cents,paid_at&limit=5000`),
     d.get(`technician?select=id,name,active,commission_pct,max_stops,service_area&limit=200`),
     d.get(`job?select=id,status,problem,scheduled_day,technician_id,warranty_company,customer:customer_id(first_name,last_name,zip,city)&status=not.in.(completed,canceled)&limit=500`),
@@ -50,7 +50,8 @@ async function buildSnapshot(ctx) {
     if (v.status !== 'paid' && due > 0 && j && !j.warranty_company) { unpaidN++; unpaidCents += due; }
   });
   let techPaidMonth = 0; payouts.forEach((p) => { if (inMonth(p.paid_at)) techPaidMonth += p.amount_cents || 0; });
-  let partsCost = 0; parts.forEach((p) => { const disp = p.disposition || ''; if (disp === 'return' || disp === 'unused' || disp === 'missing') return; if (billedJobIds[p.job_id]) partsCost += p.cost_cents || 0; });
+  // cost_cents is the UNIT cost (072) -- multiply, or a 4-part job reports as a 1-part job.
+  let partsCost = 0; parts.forEach((p) => { const disp = p.disposition || ''; if (disp === 'return' || disp === 'unused' || disp === 'missing') return; const q = Math.max(1, Math.floor(Number(p.qty) || 1)); if (billedJobIds[p.job_id]) partsCost += (p.cost_cents || 0) * q; });
   const takeHome = collected - techPaidMonth - partsCost;
   // completed jobs with no invoice = money finished but not billed
   let unbilledN = 0; jobs.forEach((j) => { if (j.status === 'completed' && !invByJob[j.id]) unbilledN++; });
