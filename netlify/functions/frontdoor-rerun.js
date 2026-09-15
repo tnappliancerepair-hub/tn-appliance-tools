@@ -42,7 +42,10 @@ async function hit(url, opts, ms) {
   try {
     const r = await fetch(url, { ...opts, signal: AbortSignal.timeout(ms || 5000) });
     const tx = await r.text();
-    return { status: r.status, ms: Date.now() - t0, len: tx.length, body: tx.slice(0, 260), ct: r.headers.get('content-type') || '' };
+    // Parse the FULL body before truncating for display. The first cut truncated first, which
+    // chopped every ~900-char JWT and made a working auth read as "nothing mints".
+    let parsed = null; try { parsed = JSON.parse(tx); } catch (_) {}
+    return { status: r.status, ms: Date.now() - t0, len: tx.length, body: tx.slice(0, 260), json: parsed, ct: r.headers.get('content-type') || '' };
   } catch (e) {
     return { status: 0, ms: Date.now() - t0, error: String((e && e.message) || e).slice(0, 110) };
   }
@@ -98,9 +101,11 @@ exports.handler = async function (event) {
       for (const [sLabel, build] of shapes) {
         const f = new URLSearchParams(); build(f);
         const r = await hit(u, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: f.toString() }, 7000);
-        let tokenAcquired = false, claims = null;
-        try { const j = JSON.parse(r.body || '{}'); const t = j.access_token || j.accessToken || j.token; tokenAcquired = !!t; if (t) claims = claimsOf(t); } catch (_) {}
-        rows.push({ token_url: label, grant: sLabel, status: r.status, minted: tokenAcquired, roles: claims && claims.roles, iss: claims && claims.iss, body: tokenAcquired ? '(token — hidden)' : (r.body || r.error || '').slice(0, 180) });
+        const j = r.json || {};
+        const t = j.access_token || j.accessToken || j.token;
+        const tokenAcquired = !!t;
+        const claims = t ? claimsOf(t) : null;
+        rows.push({ token_url: label, grant: sLabel, status: r.status, minted: tokenAcquired, roles: claims && claims.roles, iss: claims && claims.iss, body: tokenAcquired ? '(token minted — hidden)' : (r.body || r.error || '').slice(0, 180) });
       }
     }
     const working = rows.filter((r) => r.minted);
@@ -113,7 +118,9 @@ exports.handler = async function (event) {
       const f = new URLSearchParams();
       f.set('grant_type', 'password'); f.set('client_id', clientId); f.set('username', username); f.set('password', password);
       const r = await hit(u, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: f.toString() }, 7000);
-      try { const j = JSON.parse(r.body || '{}'); const t = j.access_token || j.accessToken || j.token; if (t) return { token: t, via: label, url: u }; } catch (_) {}
+      const j = r.json || {};
+      const t = j.access_token || j.accessToken || j.token;
+      if (t) return { token: t, via: label, url: u };
     }
     return null;
   }
