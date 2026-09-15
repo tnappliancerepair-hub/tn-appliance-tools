@@ -1,5 +1,92 @@
 # Appliance Ant
 
+## 🧭✅💵 2026-09-15 (Mon) — ANDRE: "can we add Apple Maps" + "an option for no parts needed" · DANIELLE: "need a paid folder" — THE SAME BUG THREE TIMES: THE WORD, NOT THE FEATURE — READ FIRST
+
+Three asks, one root cause, and it is the one this board keeps getting caught by: **the thing
+exists (or is one line from existing) and the WORD the person uses does not.** To them that is
+identical to it not being there. Third instance today, after the ＋ New job button.
+
+### 🧭 ANDRE #1 — Apple Maps: he was right, it was never there
+Every navigate link on the platform was **hardcoded `maps.google.com`** — **six of them across
+four files** (`tech.html` ×2, `tech-job.html` ×2, `dispatch.html`, `job-view.html`), already
+drifted into three different shapes. On an iPhone that bounces a tech through a browser page
+on the way to the app he actually drives with, and **four of five techs are on iPhones.**
+- **✅ `platform/ant-nav.js` (NEW) — ONE nav catalog, every surface.** Same shape as
+  `ant-windows.js` / `ant-part-route.js` / `ant-thread.js`, which all exist because pasted
+  copies drift. `isApple()` · `appleUrl()` · `googleUrl()` · `primaryUrl()` · `linksHtml()`.
+  **Zero hardcoded Google links remain in any platform page** — pinned by test.
+- **⚠️ THE RULE THAT MAKES THIS SAFE: detection may only ever REORDER, never REMOVE.** Both
+  maps always render, **spelled out by name** ("🧭 Apple Maps" / "🗺️ Google Maps"), so a tech
+  reads the app he uses and taps it. If the Apple sniff is ever wrong — a new iPad UA, a Mac in
+  some desktop mode — the worst case is the buttons are in the other order. **A tech in a
+  driveway is the wrong place to discover that a clever platform guess took his map away.**
+  Tested on iPhone, an **iPadOS-13+ iPad reporting itself as a Macintosh**, Android, and a UA we
+  have never seen — all four get both links.
+- Apple gets **`?daddr=`** (start directions from where I am) because that is what a tech means by
+  "navigate". **Google deliberately keeps `?q=`**, its long-standing behaviour here, so adding
+  Apple Maps **costs the Google techs nothing**. The single-link `📍 address` line follows the device.
+
+### ✅ ANDRE #2 — "no parts needed" — a BLANK is not an ANSWER
+The TDR part-status picker offered `used` · `truck` · `please_order` · `return` · `missing`.
+**There was no way to say "this stop needed nothing."** So Andre left it blank — and a blank is
+**indistinguishable from a field nobody filled in**, so the office cannot tell *"he checked,
+nothing needed"* from *"he never answered."* He says it happens frequently, and it is exactly
+the silence-is-ambiguous class the waiver/SMS work landed on: **a refusal is not a failure, and
+neither is a clean stop.**
+- Added **`none` — "✅ No parts needed"** to BOTH tech surfaces (the day-list `<select>` and the
+  job-page one-tap button row). **NO MIGRATION NEEDED** — `job_tdr.part_status` is plain `text`
+  with no CHECK (013), unlike `job_part.disposition`. Don't confuse the two.
+- **It reads back on his own card** (`📋 Report: … · ✅ no parts needed`) so he can see it stuck.
+- **⚠️ It must NOT park the job in Awaiting Parts.** Both finish paths were already allowlists
+  (`return_needed` / `please_order` / `missing`), so `none` correctly closes the job — verified,
+  not assumed. The rule is now **regex-lifted out of the shipped page** into the test, so an edit
+  that ever sends a no-parts stop to Awaiting Parts fails on purpose.
+
+### 💵 DANIELLE — "Need a paid folder. I have everything but that in new system"
+**The folder was already there and already LIVE.** It called itself **"Shop Money Paid"**, and she
+was scanning a ~15-column board for the word she actually uses. Renamed to **💵 Paid**.
+- **The key stays `shop_paid`** — `stageOf` matches on key, not label, so **every job already
+  parked there stays exactly where it is.** No migration, no re-homing.
+- Position left alone (last = end of the line, correct), and it was never a 15-column drag anyway:
+  every card carries a **Move →** select and the drawer has **📁 Move to folder**, both built from
+  the same column list, so the rename fixes all three surfaces at once.
+
+### 📋 HER OTHER THREE, MEASURED AGAINST LIVE — ALL ALREADY FIXED, ALL INERT
+Same text thread, and this is the honest status: **three of her four are DONE on the branch and
+invisible to her because Netlify deploys from `main`.** Verified by diffing the repo against the
+served page, not by trusting this changelog:
+
+| her words | state | on live `main`? |
+|---|---|---|
+| "no place to add ppl" | the ＋ button + its rename | button LIVE (mislabelled), rename on branch |
+| "need a way to add and schedule a 2nd man" | `technician2_id` (077) | **NO** — 0 hits served |
+| "still says customer even tho info has been added" | `repaintDrawerHead` | **NO** — 0 hits served |
+| "no place to add warranty number" | `d_warco`/`d_claim`/`d_disp` on the drawer | **NO** — 0 hits served |
+
+**She is reporting bugs that are already fixed, because the fixes are on a branch.** That is the
+whole cost of the unmerged state, stated plainly.
+
+### 🧪 PROVEN
+**`tests/tech-nav-parts.test.js` 48/48** — the nav catalog is loaded as the **REAL shipped file**
+(a browser runs exactly those bytes) against four controlled user-agents; the finish-status rule
+and the `shop_paid` column are **regex-lifted out of the shipped pages**. Non-vacuity proven by
+mutation, six ways: making detection *remove* a map fails **10**; dropping Apple's `daddr` fails 2;
+pasting one hardcoded Google link back fails 2; removing the `none` option fails 1; sending a
+no-parts stop to Awaiting Parts fails 1; restoring "Shop Money Paid" fails 1. Full suite **34/34**.
+- 🐞 **Caught one of my own assertions being too crude** — `!OB.includes('Shop Money Paid')` also
+  matched the *comment* recording why the name changed. Anchored to `label:'…'` instead. A test that
+  fires on a code comment is a test that will cry wolf and get waved through.
+
+### ⏭️ OPEN
+- **🔴 ALL OF THIS IS INERT UNTIL MERGED** — 12 commits ahead of `main`. Andre keeps getting bounced
+  into a browser and Danielle keeps not finding her paid folder until the branch lands.
+- **Danielle can be told two things TODAY, no merge required:** the ＋ New job button is live right
+  now (top of the board, it makes the customer too), and the paid folder is live right now under
+  the name **Shop Money Paid**, last column on the right.
+- Nothing yet shows the office a `none` part status — the board reads `job.parts_status`, not
+  `job_tdr.part_status`, so today the value of Andre's tap is that the job closes cleanly instead
+  of looking unanswered. Surfacing it on the tile is a small follow-on if the office wants it.
+
 ## 📞🚫 2026-09-15 (Mon) — SOFIA'S THREAD, BOTH HALVES: "outgoing calls not working" was the carrier being FINE and the BUTTON ringing the wrong desk · "no way to add a new customer" was a button that already existed under the wrong NAME — READ FIRST
 
 Sofia, 12:24 PM: *"The office phone won't let me call out."* She was right. Nothing about the

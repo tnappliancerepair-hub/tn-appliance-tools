@@ -373,7 +373,13 @@
     { key:'completion',      label:'Completion',        color:'var(--completed)' },
     { key:'needs_invoiced',  label:'Needs Invoiced',    color:'#f59e0b' },
     { invoiced:true },                                   // → one "{Tech} Invoiced" column per tech
-    { key:'shop_paid',       label:'Shop Money Paid',   color:'#16a34a' },
+    // ⚠️ THE LABEL IS THE FEATURE. Danielle, 2026-09-15: "Need a paid folder. I have
+    // everything but that in new system." The folder was already here and already live — it
+    // just called itself "Shop Money Paid", and she was scanning a 15-column board for the
+    // word she actually uses. Same miss as the ＋ New job button the same morning: a feature
+    // she cannot NAME is a feature she does not have. The key stays shop_paid, so every job
+    // already parked here stays exactly where it is.
+    { key:'shop_paid',       label:'💵 Paid',        color:'#16a34a' },
   ];
   function firstName(n){ return (String(n||'').trim().split(/\s+/)[0]) || 'Tech'; }
   // Active techs scoped to the selected region (by service_area ZIP prefix when known; a

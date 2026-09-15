@@ -899,7 +899,7 @@
     var links = '';
     var cnm = [cust.first_name, cust.last_name].filter(Boolean).join(' ').trim();
     if (phone) links += '<a class="antcall" data-name="'+esc(cnm)+'" data-job="'+esc(j.id||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>';
-    if (addr) links += '<a target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">🧭 Navigate</a>';
+    if (addr) links += AntNav.linksHtml(addr);
     var attrs = (j.unit && j.unit.attributes) || {};
     var brand = attrs.brand || '', model = attrs.model || '';
     var tdr = (j.tdr && j.tdr[0]) || null;
@@ -918,7 +918,7 @@
       '<div class="two"><input id="tb'+j.id+'" placeholder="Brand" value="'+esc(tdr?tdr.brand||brand:brand)+'"><input id="tm'+j.id+'" placeholder="Model #" value="'+esc(tdr?tdr.model||model:model)+'"></div>' +
       '<input id="tc'+j.id+'" placeholder="What failed (e.g. heating element)" value="'+esc(tdr?tdr.failed_component||'':'')+'">' +
       '<input id="tp'+j.id+'" placeholder="Part number used" value="'+esc(tdr?tdr.part_number||'':'')+'">' +
-      '<select id="tps'+j.id+'"><option value="">Part status…</option>'+pso('used','Installed it')+pso('truck','Off my truck stock')+pso('please_order','Office needs to order it')+pso('return','Old / unused — send back')+pso('missing','Not here / discrepancy')+'</select>' +
+      '<select id="tps'+j.id+'"><option value="">Part status…</option>'+pso('none','✅ No parts needed')+pso('used','Installed it')+pso('truck','Off my truck stock')+pso('please_order','Office needs to order it')+pso('return','Old / unused — send back')+pso('missing','Not here / discrepancy')+'</select>' +
       '<input id="tr'+j.id+'" placeholder="Root cause (short)" value="'+esc(tdr?tdr.root_cause||'':'')+'">' +
       '<input id="th'+j.id+'" type="number" inputmode="decimal" step="0.25" min="0" placeholder="Labor hours" value="'+esc(tdr&&tdr.labor_hours!=null?tdr.labor_hours:'')+'">' +
       // Relabelled 2026-09-14: this box writes job_tdr.notes -- the CLAIM record -- and only
@@ -938,7 +938,7 @@
         '<div class="fg">' + supplierBtnsHtml(j.id) + '</div></div>' +
       '<button type="button" class="needpart" data-needpart="'+j.id+'">🔧 Office — I need this part</button>' +
       '<button class="primary" data-savetdr="'+j.id+'">Save report + finish</button></div>';
-    var tdrDone = tdr ? '<div class="tdrdone">📋 Report: <b>'+esc(tdr.failed_component||'')+'</b>'+(tdr.part_number?' · '+esc(tdr.part_number):'')+' · '+esc(tdr.outcome)+(tdr.held===false?' · came back':'')+'</div>' : '';
+    var tdrDone = tdr ? '<div class="tdrdone">📋 Report: <b>'+esc(tdr.failed_component||'')+'</b>'+(tdr.part_status==='none'?' · ✅ no parts needed':(tdr.part_number?' · '+esc(tdr.part_number):''))+' · '+esc(tdr.outcome)+(tdr.held===false?' · came back':'')+'</div>' : '';
     // completed job → a tappable "You earned" chip (filled once pay data loads); tap = confetti.
     var earnSlot = (myTech && j.status==='completed') ? '<div class="earnslot" id="earn_'+j.id+'"></div>' : '';
     var openUrl = '/platform/tech-job.html?job='+encodeURIComponent(j.id)+'&v='+Math.floor(Date.now()/3600000);
@@ -970,7 +970,7 @@
       '<span class="spill s-'+esc(j.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
       mateChip + crewChip +
       (j.time_window?'<div class="winchip">🕐 '+esc(AntWindows.label(j.time_window))+'</div>':'') +
-      (addr?'<a class="addr" target="_blank" rel="noopener" href="https://maps.google.com/?q='+encodeURIComponent(addr)+'">📍 '+esc(addr)+'</a>':'') +
+      (addr?'<a class="addr" target="_blank" rel="noopener" href="'+AntNav.primaryUrl(addr)+'">📍 '+esc(addr)+'</a>':'') +
       (j.problem?'<div class="prob">'+esc(j.problem)+'</div>':'') +
       '<a class="openbtn" href="'+openUrl+'">Open job — video, model &amp; report →</a>' +
       intakeHtml(j) +
