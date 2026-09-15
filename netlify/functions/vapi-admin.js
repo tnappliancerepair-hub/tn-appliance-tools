@@ -498,7 +498,11 @@ ${MARK}
     const si = msgs.findIndex((m) => m.role === 'system');
     if (si < 0) return { statusCode: 200, body: JSON.stringify({ ok: false, error: 'no system message' }) };
     const MARK = '<!-- BUSINESS-HOURS -->';
-    if (!String(msgs[si].content || '').includes(MARK)) {
+    // REPLACE-IN-PLACE, not skip-if-present. This was skip-if-present, which meant the
+    // block could never be CORRECTED on a live assistant - re-running saw the MARK and
+    // did nothing, so the prompt kept quoting the old 9-6 hours forever. Strip is global
+    // + whitespace-tolerant; a non-global strip leaves a DUPLICATE block behind.
+    {
       const BLOCK = `${MARK}\n## PHONE HOURS — a live person is here Mon–Fri 9–5 Central ONLY; you (Ant) are 24/7 [highest priority]\n`
         + `The office is staffed by a live person Monday through Friday, 9 AM to 5 PM Central. There is NO one to answer live in the evenings (after 5 PM) or on weekends. You are available 24/7 and can handle almost everything yourself.\n`
         + `- If a caller asks our hours: "Our team's here Monday through Friday, 9 to 5 Central — and I'm here any time, day or night."\n`
@@ -506,7 +510,8 @@ ${MARK}
         + `- WHEN CLOSED (evenings + weekends): never offer or imply a live transfer and never say someone will pick up now. Handle it yourself (look things up, book, send the intake/quick-check link, answer questions), then take their name + number + what they need with capture_callback and set honest expectations: "our team will follow up during business hours — Monday through Friday, 9 to 5." Give the next open time if they ask.\n`
         + `- WHEN OPEN: help as normal; if a live transfer is enabled and they want a person, connect them per the transfer rules.\n`
         + `Never promise a specific callback time you can't guarantee.\n${MARK}\n\n`;
-      msgs[si].content = BLOCK + String(msgs[si].content || '');
+      const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\s*', 'g'), '');
+      msgs[si].content = BLOCK + cur;
     }
     let tools = Array.isArray(model.tools) ? model.tools.slice() : [];
     if (!tools.some((t) => tname(t) === 'get_business_hours')) {
@@ -646,7 +651,7 @@ ${MARK}
     // HARD business-hours gate: off-hours we REMOVE the transferCall tool entirely
     // so Ann literally has no way to ring a human — she takes a message instead.
     // On-hours we (re)attach it. This flips automatically via the phone-hours-gate
-    // cron at 9 AM / 6 PM CT, and any manual wiretechs call also respects it.
+    // cron at 9 AM / 5 PM CT, and any manual wiretechs call also respects it.
     const openNow = isBizHoursCT();
     let tools = Array.isArray(model.tools) ? model.tools.filter((t) => t.type !== 'transferCall') : [];
     if (openNow) tools.push({ type: 'transferCall', destinations: dests });
@@ -658,7 +663,7 @@ ${MARK}
       + `• AMERICAN HOME SHIELD / AHS or ANY warranty/insurance REP: if a "Danielle" destination is present, transfer them DIRECTLY to Danielle. If not (she's off the phones), take their dispatch/claim + callback with capture_callback.\n`
       + `• To get a message to a specific tech WITHOUT transferring the caller, use relay_to_tech — it texts the tech and alerts the office. Use this instead of ever sending the caller to a tech's phone.\n${MARK}\n\n`;
     {
-      const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\n\\n'), '');
+      const cur = String(msgs[si].content || '').replace(new RegExp(MARK + '[\\s\\S]*?' + MARK + '\\s*', 'g'), '');
       msgs[si].content = BLOCK + cur;
     }
     const resp = await vapi('PATCH', `/assistant/${id}`, key, { model: Object.assign({}, model, { tools, messages: msgs }) });
