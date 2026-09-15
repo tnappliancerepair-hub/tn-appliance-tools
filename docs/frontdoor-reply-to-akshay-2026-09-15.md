@@ -1,16 +1,50 @@
 # Frontdoor / AHS — follow-up to Akshay (drafted 2026-09-15, triple-verified)
 
 > Every factual claim below was re-verified on 2026-09-15 against a live source — the
-> emails re-pulled from Gmail, the numbers re-queried uncapped, the API re-probed.
-> The verification pass found **five errors in the first draft** and they are corrected
-> here. See "What the verification changed" at the bottom.
+> emails re-pulled from Gmail, the numbers re-queried uncapped, the API re-probed, and
+> the outbox checked against `in:sent`. The verification pass found **six errors in the
+> first draft**, one of them severe enough to invert the whole email's posture. See
+> "What the verification changed" at the bottom.
+
+## 🔴 READ THIS FIRST — the ball has been in OUR court since Aug 31, not theirs
+
+**Our September 8 reply was never sent to Akshay.** Neither was our September 3 one. Both
+were sent to `jpivacek@gmail.com` — Teddy's own personal address — not to Frontdoor.
+
+Confirmed three independent ways on 2026-09-15:
+
+1. Thread view: every message from us after Aug 31 carries `To: james pivacek <jpivacek@gmail.com>`, empty Cc.
+2. `in:sent subject:"Verify Inbound and Outbound Updates" newer_than:45d` → 4 sends, **all** to `jpivacek@`. Only the **Aug 31** message has `To: Akshay Kyatam`.
+3. `from:tnappliancerepair@gmail.com to/cc:Akshay.Kyatam@frontdoor.com after:2026/09/01` → **count: 0.**
+
+### What the thread actually looks like from Akshay's side
+
+| when (CT) | who | what |
+|---|---|---|
+| Aug 24 9:12 AM · 9:33 AM | **Akshay** | Sandbox enabled for our Client ID; webhook URL + token; use `source: TN_APPLIANCE_EXCHANGE` |
+| **Aug 31 9:47 AM** | **US** | *"Inbound (our system → Frontdoor): **Confirmed working**"* ← the false claim, and **the last thing he ever heard from us** |
+| Sep 3 9:51 AM | **Akshay** | Follow-up #1 — *"we have already started sending outbound requests… 22863999 is the Dispatch ID we sent. Could you please verify whether it was received on your end?"* |
+| Sep 8 2:35 AM | **Akshay** | Follow-up #2 — *"Just following up on my previous email regarding the webhook integration testing. Could you please let us know if everything looks good"* |
+| Sep 8 10:34 · 10:46 AM | *(us, to ourselves)* | Reply drafted and sent to `jpivacek@gmail.com`. **Never reached Frontdoor.** |
+
+**So: 15 days of OUR silence, and two unanswered follow-ups from him.** Frontdoor is not
+stonewalling and never was. The last thing Akshay has from us is an email telling him the
+broken direction works — which is exactly why he has no reason to go look at it, and why
+his two follow-ups read as "everything good?" rather than "what's broken?"
+
+**This retires the earlier "he went quiet because we inverted his vocabulary" theory.** He
+never received the email that inverted it. The reason he went quiet is simpler: **we never
+replied.** (The vocabulary rule below still stands for the email we are about to send — it
+just wasn't the cause.)
+
+---
 
 ## Why this draft is written the way it is
 
-**1. Akshay asked us a direct question twice and we have never answered it.**
+**1. Akshay asked us a direct question twice and has never received an answer.**
 Sept 3 and Sept 8 both ask the same thing: *"22863999 is the Dispatch ID that we sent in
-the request. Could you please verify whether it was received on your end?"* We answered
-around it twice. The answer is **yes**, and we can prove it to the second.
+the request. Could you please verify whether it was received on your end?"* The answer is
+**yes**, and we can prove it to the second. It leads the email.
 
 **2. Our Aug 31 email told them the broken direction was working.** Verbatim, from us:
 
@@ -20,24 +54,17 @@ around it twice. The answer is **yes**, and we can prove it to the second.
 > we don't yet have a live sandbox dispatch to reference"*
 
 That was wrong. We read a 404 as "dispatch not found" — a pass. It wasn't (proof below).
-**Consequence: Akshay believes TN → Frontdoor works, because we told him it does.** He has
-no reason to go look at it. Until we retract that, he won't.
+**Consequence: Akshay believes TN → Frontdoor works, because we told him it does, and
+nothing has corrected it in 15 days.** Until we retract it, he won't look.
 
-**3. We inverted his vocabulary on Sept 8.** Akshay's convention, his own words, both
-directions, confirmed verbatim:
+**3. Never use "inbound"/"outbound" with Frontdoor.** Akshay's convention, his own words,
+both directions, confirmed verbatim:
 
 - *"Please generate a token and verify the inbound integration (your system to Frontdoor)"* → **inbound = us → them**
 - *"we have started sending outbound updates (Frontdoor to your webhook)"* → **outbound = them → us**
 
-Our Aug 31 email matched it. **Our Sept 8 email reversed it** — *"Inbound (your dispatches
-→ us): working. Outbound (our status push → you): not yet verified … returns a 404."*
-
-Read in his dictionary, our Sept 8 email says *"us → you works; **you → us** is 404ing"* —
-the exact direction he had just watched return `{"ok":true,"received":1}` with his own eyes.
-From his side our last email was incoherent. Seven days of silence follows naturally.
-
-**So this draft drops the words "inbound" and "outbound" entirely** and uses arrows. There
-is no version of this thread where those two words help us.
+That is the opposite of how we use the words internally. **This draft drops both words
+entirely and uses arrows.** There is no version of this thread where those two words help us.
 
 ---
 
@@ -53,7 +80,7 @@ is no version of this thread where those two words help us.
 
 Two-way is what they built and it is what they are gating go-live on. The blocker is not
 permission — and it is not that their sandbox is switched off (it isn't; see below). It is
-that we have never actually reached them, and we told them we had.
+that we have never actually reached them, we told them we had, and then we stopped replying.
 
 The draft still asks the question plainly at the end, so if the answer ever *is* "contractor
 status-push isn't available to you," we hear it and stop chasing it.
@@ -82,15 +109,15 @@ row per *event*, so 823 is events, not HTTP requests. The email says "events".
 ⚠️ An older note said "161 dispatches / 500 events." Those came off a silently-capped query.
 Do not re-use them.
 
-## Verified API state (re-probed 2026-09-15)
+## Verified API state (re-probed 2026-09-15, and again immediately before send)
 
 Unauthenticated control pair, run against **both** hosts, identical results:
 
 | path | sandbox | production |
 |---|---|---|
-| `/` · `/health` · `/zzz-cannot-exist/control` | 404 `Not Found` | 404 `Not Found` |
+| `/` · `/health` · `/zzz-not-a-real-prefix/v1/x` | 404 `Not Found` | 404 `Not Found` |
 | `/dispatch-connector/v1/webhook` | **403 `RBAC: access denied`** | **403 `RBAC: access denied`** |
-| `/dispatch-connector/zzz-nonsense-subpath` | **403 `RBAC: access denied`** | **403 `RBAC: access denied`** |
+| `/dispatch-connector/dispatch-connector/v1/webhook` | **403 `RBAC: access denied`** | **403 `RBAC: access denied`** |
 | `/address/v1/zip` | **403 `RBAC: access denied`** | **403 `RBAC: access denied`** |
 | `/v1/case-lifecycle/dispatch_status_update` | 404 `Not Found` | 404 `Not Found` |
 
@@ -120,14 +147,16 @@ Production returns `invalid_client — "client_id: 040c014f-06e5-4697-a336-137df
 ## THE EMAIL
 
 **To:** Akshay.Kyatam@frontdoor.com
-**Cc:** reply-all on the existing thread (Brian Bullock · Vaibhav Parashar · Shivam Arora · Adarsha Dash · Danny Suarez · jpoivacek@gmail.com)
+**Cc:** reply-all on the existing thread (Brian Bullock · Vaibhav Parashar · Shivam Arora · Adarsha Dash · Danny Suarez · jpivacek@gmail.com — **fix the `jpoivacek@` typo**)
 **Subject:** Re: [External] Re: Sandbox Integration Ready for Testing – Please Verify Inbound and Outbound Updates
 
 ---
 
 Hi Akshay,
 
-Direct answer to your question first, then a correction I owe you.
+I owe you a reply — two, really. You followed up on September 3 and again on September 8 and
+got nothing back from me. That's on us, and I'm sorry. Here's the answer to your question,
+and then a correction I owe you on something I told you August 31.
 
 **Yes — we received dispatch 22863999.** It's in our log 7 times, which de-duplicates to
 three payloads you sent: the schedule (September 3 at 6:16 AM Central, re-sent September 5),
@@ -143,7 +172,8 @@ you saw in our response. That's a deliberate safety catch on our side while we'r
 and we lift it the moment we go to production. Nothing has been lost.
 
 **Now the correction.** On August 31 I told you our side calling yours was confirmed working.
-That was wrong, and I'd rather say so plainly than let it sit.
+That was wrong, and I'd rather say so plainly than let it sit — especially since it's been
+sitting for two weeks.
 
 What I had was a 404 from `api.sandbox.frontdoorhome.com`, and I read it as "dispatch not
 found" — which would have been a pass. This week I re-tested it properly. I made up a path
@@ -192,7 +222,8 @@ direction on offer today? Either answer is workable. We just want to stop guessi
 For the production webhook: it's the same URL and the same token you already have, and it's
 live now. We can rotate to a fresh production token on your word, same day.
 
-Once we get a 200 on a status update from our side, we're clear to go.
+Once we get a 200 on a status update from our side, we're clear to go. And you'll get a same-day
+reply from me from here on.
 
 Thank you,
 
@@ -205,16 +236,17 @@ https://tnapplianceexchange.net
 
 ## Send notes
 
-- **Reply-all into the existing thread**, don't start a new one. ⚠️ **Our Sept 8 reply is the
-  last message on the thread** (Sept 8, 10:46 AM CT) — Akshay's follow-up came in at 2:35 AM CT
-  that morning and we answered it the same day. So this is us following up on our own last
-  message, not on his.
+- 🔴 **Reply-all to AKSHAY'S Sept 8, 2:35 AM message** — the last message he actually sent —
+  and **confirm `Akshay.Kyatam@frontdoor.com` is in the To: line before you hit send.** The
+  last two replies we composed went to `jpivacek@gmail.com` instead of to him and never left
+  the building. That is the single reason this thread stalled. Check the To: line.
 - ⚠️ **The thread's Cc carries `jpoivacek@gmail.com` — a typo** (Teddy's address is
   `jpivacek@gmail.com`, no "o"). Reply-all will propagate the typo. Fix it in the Cc line if
   you want Teddy's personal inbox copied. **Danny Suarez** is also on the thread Cc.
 - **Do not paste the webhook token value.** Akshay sent it in the clear on Aug 24; we don't
   need to repeat it. The Client ID is an identifier and is already in the thread.
 - **Do not include Teddy's cell.** 866-268-0111 is the published line.
+- **After sending, verify it sent** — open Sent and confirm the To: line. Don't assume.
 - If there's still no answer by ~Sept 22, escalate to Brian Bullock (Brian.Bullock@ahs.com) —
   he's on the Cc and owns the relationship. The ask becomes: "can someone confirm which path
   our sandbox key is meant to POST a status update to."
@@ -223,22 +255,27 @@ https://tnapplianceexchange.net
 
 ## What the verification changed
 
-The first draft was wrong in five places. Each was caught by re-checking against a live
+The first draft was wrong in six places. Each was caught by re-checking against a live
 source rather than the prior session's notes.
 
 | # | First draft said | Verified truth | Why it mattered |
 |---|---|---|---|
-| 1 | Sandbox host "has no routes deployed at all — bare root included" | `/dispatch-connector` **is** routed there — unauthenticated requests get `403 RBAC`, not 404. Only unrouted prefixes 404. | **This was the big one.** It would have been a second false technical claim inside the email whose whole purpose is retracting the first one — and Akshay could disprove it in ten seconds. |
+| **6** | **"Frontdoor has been silent 7 days; Teddy answered correctly on Sept 8"** | **Our Sept 3 AND Sept 8 replies went to `jpivacek@gmail.com`, not to Akshay. `in:sent … to:Akshay after 2026/09/01` → count 0. Akshay has heard nothing from us since Aug 31 and has followed up twice.** | **Severe.** The email was written as "following up on our own note, ball in their court." Sent that way it would have read as blaming a partner for a gap we caused — on top of the false claim we're already retracting. Posture inverted: we open by owning 15 days of silence. |
+| 1 | Sandbox host "has no routes deployed at all — bare root included" | `/dispatch-connector` **is** routed there — unauthenticated requests get `403 RBAC`, not 404. Only unrouted prefixes 404. | A second false technical claim inside the email whose whole purpose is retracting the first one — and Akshay could disprove it in ten seconds. |
 | 2 | "It came through **7 separate times**" | 7 log entries = **3 distinct payloads** (schedule ×1 re-sent, status ×2) | He knows what he sent. Overstating it invites a third correction. |
 | 3 | "823 **requests**" | 823 **events**; Frontdoor POSTs arrays and we log per event. 637 distinct after retries. | Wrong noun, and he can see his own send count. |
-| 4 | "Akshay's Sept 8 message is the last one on the thread" | **Our** Sept 8 reply is last (10:46 AM CT vs his 2:35 AM CT) | Changes the framing from "chasing him" to "following up on our own note." |
+| 4 | "Akshay's Sept 8 message is the last one on the thread" | Superseded by #6 — **his** Sept 8 2:35 AM message IS the last one he knows about, because ours never sent. | Determines which message to reply-all to. |
 | 5 | Cc list omitted Danny Suarez; didn't flag the `jpoivacek@` typo | Both confirmed on-thread | Teddy's personal copy silently doesn't arrive. |
+
+**Also retired by #6:** the "he went quiet because our Sept 8 email inverted his
+inbound/outbound vocabulary" theory. He never received that email. The no-inbound/outbound
+rule still stands for the email we're about to send — it just wasn't the cause of the stall.
 
 **Confirmed correct and unchanged:** all five two-way proofs (verbatim) · the Aug 31
 "Confirmed working" quote (verbatim) · Akshay's inbound/outbound convention in both
-directions (verbatim) · our Sept 8 inversion (verbatim) · 276 distinct dispatch IDs · 7 log
-entries for 22863999 · the 2026-07-10 → 2026-09-14 range · the raw ops split · production
-`401 "Jwt issuer is not configured"` (verbatim) · `invalid_client` on
-`login.frontdoorhome.com` · sandbox token mints · `source: TN_APPLIANCE_EXCHANGE` in the
-shipped code · Client ID · 270 of 276 dispatch IDs carry a `schedule` op (the junk-job risk
-that keeps `FRONTDOOR_WEBHOOK_LIVE` off).
+directions (verbatim) · 276 distinct dispatch IDs · 7 log entries for 22863999 · the
+2026-07-10 → 2026-09-14 range · the raw ops split · production `401 "Jwt issuer is not
+configured"` (verbatim) · `invalid_client` on `login.frontdoorhome.com` · sandbox token mints ·
+`source: TN_APPLIANCE_EXCHANGE` in the shipped code · Client ID · 270 of 276 dispatch IDs carry
+a `schedule` op (the junk-job risk that keeps `FRONTDOOR_WEBHOOK_LIVE` off) · the full
+unauthenticated/authenticated probe matrix, re-run immediately before send with identical results.
