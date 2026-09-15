@@ -1769,16 +1769,19 @@
       if(ab) ab.onclick=function(){
         var gv=function(id){ var e=document.getElementById(id); return e?(e.value||'').trim():''; };
         var num=gv('jtp_num'), nm=gv('jtp_name'); if(!num && !nm) return; ab.disabled=true;
-        sb.from('job_part').insert({ company_id:companyId, job_id:job.id, number:num||null, name:nm||null, source:gv('jtp_src')||null, ship_to:gv('jtp_ship')||null, eta:gv('jtp_eta')||null }).then(function(rr){ if(rr.error){ ab.disabled=false; var m=document.getElementById('jtp_msg'); if(m)m.textContent='Couldn\'t add — try again.'; return; } loadTparts(job); loadBoard(); }); };
+        sb.from('job_part').insert({ company_id:companyId, job_id:job.id, number:num||null, name:nm||null, source:gv('jtp_src')||null, ship_to:gv('jtp_ship')||null, eta:gv('jtp_eta')||null }).select('id').then(function(rr){ if(rr.error||!rr.data||!rr.data.length){ ab.disabled=false; var m=document.getElementById('jtp_msg'); if(m)m.textContent='Couldn\'t add — try again.'; return; } loadTparts(job); loadBoard(); }); };
       // inline edits — any field on a saved part card writes all five on change
       box.querySelectorAll('#jtp_rows .tpcard[data-pid]').forEach(function(rowEl){ var pid=rowEl.getAttribute('data-pid');
         var save=function(){
           var g=function(sel){ var e=rowEl.querySelector(sel); return e?(e.value||'').trim():''; };
-          sb.from('job_part').update({ number:g('.tp_num')||null, name:g('.tp_name')||null, source:g('.tp_src')||null, ship_to:g('.tp_ship')||null, eta:g('.tp_eta')||null, disposition:g('.tp_disp')||null }).eq('id',pid).then(function(res){
+          sb.from('job_part').update({ number:g('.tp_num')||null, name:g('.tp_name')||null, source:g('.tp_src')||null, ship_to:g('.tp_ship')||null, eta:g('.tp_eta')||null, disposition:g('.tp_disp')||null }).eq('id',pid).select('id').then(function(res){
             var m=document.getElementById('jtp_msg');
             // A constraint rejection here must NOT read as saved -- the only legal values are
             // used | return | not_here, and a silent failure would leave the invoice wrong.
             if(res&&res.error){ if(m) m.textContent='Didn\'t save that part — try again.'; return; }
+            // STANDING RULE: a Supabase write is only saved when a ROW COMES BACK. A blocked
+            // update returns zero rows and NO error, which would print "Saved" over nothing.
+            if(!res||!res.data||!res.data.length){ if(m) m.textContent='Didn\'t save that part — tell the office before you move on.'; return; }
             if(m){m.textContent='Saved ✓'; setTimeout(function(){if(m)m.textContent='';},1200);}
             loadBoard();
             // Used/unused moves real money, so refresh the invoice worksheet now instead of

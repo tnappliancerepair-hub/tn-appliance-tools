@@ -62,6 +62,48 @@ function pf(base, key) {
   const H = { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
   return {
     async get(path) { const r = await fetch(`${base}/rest/v1/${path}`, { headers: H, signal: AbortSignal.timeout(10000) }); return r.ok ? r.json() : []; },
+    // THE GUARD (2026-09-15). merge-duplicates REPLACES every column present in the payload, and
+    // this payload always carries source/ship_to/eta/disposition -- so a blank from Xano wrote NULL
+    // over whatever the office had typed on the part card, every 15 minutes. That is exactly what
+    // Danielle reported as "part info is not saving": it DID save, then the next cron erased it.
+    // Same rule already proven on the job mirror: an EMPTY Xano value may never replace a non-empty
+    // platform value. A DIFFERENT non-empty value still wins -- Xano stays the system of record.
+    // We SUBSTITUTE rather than drop the key (PostgREST rejects a bulk upsert whose objects have
+    // different key sets, PGRST102), and only ever touch a key the payload already carries.
+    async keepTypedParts(rows, keys) {
+      if (!rows.length) return 0;
+      try {
+        const ids = rows.map((r) => r.xano_id).filter(Boolean);
+        const cur = new Map();
+        for (let i = 0; i < ids.length; i += 150) {
+          // xano_id here is a STRING key ('po:12' / 'wp:34:ABC') -> must be quoted in in.()
+          const chunk = ids.slice(i, i + 150).map((v) => '"' + String(v).replace(/"/g, '') + '"').join(',');
+          const r = await fetch(
+            `${base}/rest/v1/job_part?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,${keys.join(',')}`,
+            { headers: H, signal: AbortSignal.timeout(12000) },
+          );
+          const got = await r.json().catch(() => null);
+          if (Array.isArray(got)) got.forEach((x) => cur.set(String(x.xano_id), x));
+        }
+        let kept = 0;
+        for (const row of rows) {
+          const ex = cur.get(String(row.xano_id));
+          if (!ex) continue;
+          for (const k of keys) {
+            if (!(k in row)) continue;   // never ADD a key -> key sets stay uniform
+            const blankIn = row[k] == null || String(row[k]).trim() === '';
+            const hasEx = ex[k] != null && String(ex[k]).trim() !== '';
+            if (blankIn && hasEx) { row[k] = ex[k]; kept++; }
+          }
+        }
+        if (kept) console.log('[tn-parts-migrate] kept ' + kept + ' typed value(s) the migrate would have blanked');
+        return kept;
+      } catch (e) {
+        // Never let the guard break the migrate - worst case is today's behavior.
+        console.error('[tn-parts-migrate] keepTypedParts skipped: ' + String((e && e.message) || e));
+        return 0;
+      }
+    },
     // Upsert job_part on (company_id,xano_id) -> idempotent (no dup on re-run). Chunked at 500.
     async upsertParts(rows) {
       let n = 0;
@@ -151,6 +193,10 @@ function mapWarrantyStatus(status, requiresReturn) {
   return {};
 }
 
+// Columns a HUMAN owns on the office part card (office-board.html -> loadTparts). A blank from
+// Xano must never wipe one of these. Money included: the office types cost/sell on the worksheet.
+const OFFICE_OWNED = ['number', 'name', 'source', 'ship_to', 'eta', 'disposition', 'order_status', 'cost_cents', 'sell_cents'];
+
 // A row is worth landing only if it carries something useful beyond the join keys.
 function meaningful(row) {
   return !!(row.number || row.name || row.source || row.cost_cents || row.sell_cents || row.eta || row.ship_to || row.order_status || row.disposition);
@@ -183,7 +229,7 @@ async function partsOrdersPass(db, rows, dry) {
     if (dry) { res.upserted++; if (res.sample.length < 10) res.sample.push({ job: a.job_id, number: row.number, source: row.source, ship_to: row.ship_to, eta: row.eta, status: row.order_status }); continue; }
     out.push(row);
   }
-  if (!dry && out.length) { try { res.upserted = await db.upsertParts(out); } catch (e) { res.errors++; res.upsert_error = String((e && e.message) || e).slice(0, 200); } }
+  if (!dry && out.length) { try { res.kept_typed = await db.keepTypedParts(out, OFFICE_OWNED); res.upserted = await db.upsertParts(out); } catch (e) { res.errors++; res.upsert_error = String((e && e.message) || e).slice(0, 200); } }
   if (dry) res.debug = dbg;
   return res;
 }
@@ -227,7 +273,7 @@ async function warrantyPartsPass(db, events, dry) {
     res.upserted = out.length;
     res.sample = out.slice(0, 10).map((r) => ({ number: r.number, name: r.name, source: r.source, disposition: r.disposition, status: r.order_status }));
   } else if (out.length) {
-    try { res.upserted = await db.upsertParts(out); } catch (e) { res.errors++; res.upsert_error = String((e && e.message) || e).slice(0, 200); }
+    try { res.kept_typed = await db.keepTypedParts(out, OFFICE_OWNED); res.upserted = await db.upsertParts(out); } catch (e) { res.errors++; res.upsert_error = String((e && e.message) || e).slice(0, 200); }
   }
   return res;
 }
@@ -286,3 +332,7 @@ exports.handler = async function (event) {
 };
 
 module.exports.runMigrate = runMigrate;
+
+// exported for unit tests (see tests/parts-keeptyped.test.js)
+module.exports._pf = pf;
+module.exports._OFFICE_OWNED = OFFICE_OWNED;
