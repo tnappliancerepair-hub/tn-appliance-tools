@@ -609,6 +609,23 @@ exports.handler = async function (event) {
       return json(200, { ok: r.ok, connections: conns });
     }
 
+    // Read-only: a credential connection's OUTBOUND config. The office softphone
+    // dials over this connection, and a credential connection with no
+    // outbound_voice_profile_id cannot place a call — it registers fine and every
+    // dial dies instantly, which reads to the human as "it won't let me call out".
+    // Same failure class as the 2026-06 call-control app that had no outbound profile.
+    if (action === 'credinfo') {
+      const id = q.id || '2988827155447678681';   // "Ant office phone"
+      const r = await fetch(`${TELNYX}/credential_connections/${id}`, { headers: H, signal: AbortSignal.timeout(12000) });
+      const d = await r.json().catch(() => ({}));
+      const c = d.data || {};
+      return json(200, {
+        ok: r.ok, status: r.status, id, name: c.connection_name,
+        active: c.active, outbound: c.outbound, inbound_webhook: c.webhook_event_url,
+        has_outbound_profile: !!(c.outbound && c.outbound.outbound_voice_profile_id),
+      });
+    }
+
     if (action === 'messaging') {
       // Read-only: which numbers can TEXT, and where each one's INBOUND routes.
       // Lists every phone number → its messaging profile → that profile's inbound
