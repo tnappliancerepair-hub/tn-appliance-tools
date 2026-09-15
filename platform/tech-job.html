@@ -196,6 +196,15 @@
   .pdisp button.pu.sel{background:#34a853;color:#fff;border-color:transparent}
   .pdisp button.pr.sel{background:var(--in_progress);color:#fff;border-color:transparent}
   .pdisp button.pn.sel{background:#e5484d;color:#fff;border-color:transparent}
+  /* The per-part conversation with the office. Loud enough to be seen mid-job with one hand. */
+  .pnotewrap{margin-top:12px;border-top:1px dashed var(--line);padding-top:11px}
+  .pnotelab{font-size:12.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
+  .pnote{white-space:pre-wrap;font-size:13.5px;line-height:1.45;background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+  .pnote-office{border-color:color-mix(in srgb,var(--in_progress) 55%,transparent);background:color-mix(in srgb,var(--in_progress) 9%,var(--chip))}
+  .pnotewrap textarea{width:100%;min-height:52px;font-size:16px;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--panel);color:var(--ink);font-family:inherit}
+  .pnotebtn{width:100%;margin-top:7px;font-weight:800;border:1.5px solid var(--line);background:var(--panel)}
+  .pnotemsg{font-size:12.5px;color:var(--muted);margin-top:6px}
+  .pnewchip{display:inline-block;font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:999px;background:var(--in_progress);color:#fff;margin-left:6px;vertical-align:middle}
   .pphoto{display:flex;align-items:center;gap:10px;margin-top:11px}
   .pphoto .snap{width:56px;height:56px;border:1.5px dashed var(--line);border-radius:11px;display:grid;place-items:center;font-size:22px;background:var(--panel);cursor:pointer;flex:0 0 auto}
   .pphoto img{width:56px;height:56px;object-fit:cover;border-radius:11px;border:1px solid var(--line);cursor:pointer}
@@ -282,6 +291,7 @@
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/ant-part-route.js"></script>
+<script src="/platform/ant-part-note.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
@@ -788,6 +798,7 @@
       if(act==='qty') setPartQty(id, +val);
       else if(act==='order') partOrder(id,val);
       else if(act==='disp') partDisp(id,val);
+      else if(act==='note') partNoteSend(id);
       else if(act==='del') delPart(id);
       else if(act==='photo'){ var f=pBox.querySelector('input[data-pfile="'+id+'"]'); if(f) f.click(); }
       else if(act==='viewphoto') openMedia('photo','storage',val);
@@ -1453,7 +1464,7 @@
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
   function loadParts(){
     var box=document.getElementById('partsBox'); if(!box) return;
-    sb.from('job_part').select('id,name,number,qty,order_status,disposition,photo_ref,cost_cents,sell_cents,source,ship_to,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at,bought_at,bought_by,bought_from,receipt_ref').eq('job_id',jobId).order('created_at').then(function(r){
+    sb.from('job_part').select('id,name,number,qty,order_status,disposition,photo_ref,cost_cents,sell_cents,source,ship_to,ship_tracking,ship_carrier,ship_status,ship_delivered,eta,must_return,returned_at,bought_at,bought_by,bought_from,receipt_ref,note,note_at,note_by,note_role').eq('job_id',jobId).order('created_at').then(function(r){
       if(r.error){
         var card=document.getElementById('partsCard');
         if(/job_part|does not exist|relation|schema cache/i.test(r.error.message||'')){ if(card) card.classList.add('hidden'); }
@@ -1692,6 +1703,20 @@
     }
     box.innerHTML = head + warn + (list.length ? list.map(partCard).join('') : '<div class="note" style="margin-bottom:2px">No parts yet — add the part(s) you need below.</div>');
   }
+  // THE PER-PART CONVERSATION (074). The office marks where a part is days before the visit;
+  // this is where he answers about THAT part -- "didn't need this one", "used it, job's done".
+  // Tapping ✅ / ↩️ / ❌ above already writes the sentence for him, so this box is only for
+  // what a tap can't say. His side and hers are the same running note, appended, never replaced.
+  function partNoteBlock(p){
+    var note = window.AntPartNote.html(p, { emptyHtml:'' });
+    return '<div class="pnotewrap">' +
+      '<div class="pnotelab">💬 With the office about this part</div>' +
+      (note || '<div class="pnotemsg" style="margin:0 0 7px">Nothing said about this one yet.</div>') +
+      '<textarea data-pnote="'+esc(p.id)+'" placeholder="Wrong part came, need a different one, already installed it \u2014 anything the office should know about THIS part."></textarea>' +
+      '<button type="button" class="pnotebtn" data-pact="note" data-pid="'+esc(p.id)+'">📤 Send to the office</button>' +
+      '<div class="pnotemsg" data-pnotemsg="'+esc(p.id)+'"></div>' +
+    '</div>';
+  }
   function partCard(p){
     var os=p.order_status||'', dp=p.disposition||'';
     var photo = p.photo_ref
@@ -1715,8 +1740,11 @@
           '<button type="button" data-pact="qty" data-pid="'+esc(p.id)+'" data-pval="1">+</button>' +
         '</span>' +
       '</div>';
+    // The office said something here and he hasn't answered -- say so on the name, where his
+    // eye already is, not buried at the bottom of the card.
+    var newChip = window.AntPartNote.officeSpokeLast(p) ? '<span class="pnewchip">💬 office</span>' : '';
     return '<div class="pcard">' +
-      '<div class="pname">'+esc(p.name||'Part')+(q>1?' <span class="mustret" style="background:var(--line);color:var(--ink)">×'+q+'</span>':'')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+(p.must_return?' <span class="mustret">↩️ OWED BACK</span>':'')+'</div>' +
+      '<div class="pname">'+newChip+esc(p.name||'Part')+(q>1?' <span class="mustret" style="background:var(--line);color:var(--ink)">×'+q+'</span>':'')+(p.number?' <span style="color:var(--completed)">✓</span>':'')+(p.must_return?' <span class="mustret">↩️ OWED BACK</span>':'')+'</div>' +
       (p.number?'<div class="pnum">🔩 '+esc(p.number)+'</div>':'') +
       shipLine(p) +
       qtyRow +
@@ -1728,7 +1756,7 @@
         '<button class="pu'+(dp==='used'?' sel':'')+'" data-pact="disp" data-pid="'+esc(p.id)+'" data-pval="used">✅ Used</button>' +
         '<button class="pr'+(dp==='return'?' sel':'')+'" data-pact="disp" data-pid="'+esc(p.id)+'" data-pval="return">↩️ Return</button>' +
         '<button class="pn'+(dp==='not_here'?' sel':'')+'" data-pact="disp" data-pid="'+esc(p.id)+'" data-pval="not_here">❌ Not here</button>' +
-      '</div>' + photo +
+      '</div>' + photo + partNoteBlock(p) +
       '<button class="pdel" data-pact="del" data-pid="'+esc(p.id)+'">Remove part</button>' +
     '</div>';
   }
@@ -1786,10 +1814,56 @@
       else loadParts();
     });
   }
+  // ONE TAP IS THE MESSAGE (074). Before this, tapping Used / Return / Not-here wrote a column
+  // and told NOBODY -- no note, no chip, no text -- which is why only 3 of 495 'used' marks in
+  // the whole book came from a tech. Jimmy tapped ❌ Not here on BOTH dryer thermostats for
+  // Bailey Pope (SquareTrade 007984184139) on 9/11 and the office never heard it. The tap now
+  // says so in the part's own note, so he never has to type to be heard.
   function partDisp(id,val){
     var btn=document.querySelector('[data-pact="disp"][data-pid="'+id+'"][data-pval="'+val+'"]');
     var next=(btn&&btn.classList.contains('sel'))?null:val;
-    sb.from('job_part').update({disposition:next}).eq('id',id).then(function(r){ if(r.error){ alert(r.error.message); return; } loadParts(); });
+    var who=(myTech&&myTech.name)||me.name||'Tech';
+    var say=window.AntPartNote.sentenceFor(next||'cleared');
+    // Re-read the note live so we append to what the office has NOW -- a line she saved thirty
+    // seconds ago must survive his tap.
+    sb.from('job_part').select('note').eq('id',id).limit(1).then(function(cur){
+      var live=(cur&&cur.data&&cur.data[0]&&cur.data[0].note)||'';
+      var patch=window.AntPartNote.patch(live, say, who, 'tech');
+      patch.disposition=next;
+      sb.from('job_part').update(patch).eq('id',id).select('id').then(function(r){
+        if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){
+          alert((r&&r.error&&r.error.message)||'That did NOT save — tap it again, and tell the office if it keeps failing.');
+          return;
+        }
+        loadParts();
+      });
+    });
+  }
+  // Free text about ONE part -- for what a tap can't say ("they sent the 25194, I need the
+  // 25201"). Same append rule: re-read live, never replace, and a write is only saved when a
+  // ROW COMES BACK (a blocked update returns zero rows and NO error).
+  function partNoteSend(id){
+    var ta=document.querySelector('[data-pnote="'+id+'"]');
+    var btn=document.querySelector('[data-pact="note"][data-pid="'+id+'"]');
+    var msg=document.querySelector('[data-pnotemsg="'+id+'"]');
+    if(!ta||!btn) return;
+    var text=(ta.value||'').trim();
+    if(!text){ ta.focus(); if(msg){ msg.style.color='var(--danger, #b91c1c)'; msg.textContent='Type it first, then tap Send.'; } return; }
+    var who=(myTech&&myTech.name)||me.name||'Tech';
+    btn.disabled=true; btn.textContent='Sending…'; if(msg){ msg.style.color=''; msg.textContent=''; }
+    sb.from('job_part').select('note').eq('id',id).limit(1).then(function(cur){
+      var live=(cur&&cur.data&&cur.data[0]&&cur.data[0].note)||'';
+      sb.from('job_part').update(window.AntPartNote.patch(live, text, who, 'tech')).eq('id',id).select('id').then(function(r){
+        btn.disabled=false; btn.textContent='📤 Send to the office';
+        if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){
+          if(msg){ msg.style.color='var(--danger, #b91c1c)'; msg.textContent='That did NOT send — your note is still here. Tap Send again.'; }
+          return;
+        }
+        ta.value='';
+        if(msg){ msg.style.color='var(--completed, #166534)'; msg.textContent='✅ Sent — it\u2019s on the office\u2019s job tile now.'; }
+        loadParts();
+      });
+    });
   }
   function delPart(id){
     if(!window.confirm('Remove this part?')) return;

@@ -14,7 +14,10 @@
 // SAFETY -- this is additive by construction:
 //   * never deletes a row
 //   * never touches what a human/tech owns: disposition, photo_ref, cost_cents, sell_cents,
-//     qty, returned_at/returned_by, rma_number, return_tracking, return_carrier
+//     qty, note/note_at/note_by/note_role, returned_at/returned_by, rma_number,
+//     return_tracking, return_carrier
+//     (the note is what the office and the tech said to each other about this part -- the
+//      vendor has no standing in that conversation and can only erase it)
 //     (qty is the tech's ticker -- the vendor's list says what it SENT, not how many the
 //      machine needs, so letting it write qty would quietly re-count his job)
 //   * only fills BLANK fields, plus the ship_* columns it owns outright

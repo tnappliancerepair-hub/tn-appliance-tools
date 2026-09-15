@@ -226,6 +226,7 @@
 <script src="/platform/ant-page.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/ant-part-route.js"></script>
+<script src="/platform/ant-part-note.js"></script>
 <script src="/platform/pay-calc.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -855,8 +856,13 @@
   function partsChip(j){
     var parts = (j.parts||[]).filter(Boolean);
     if (!parts.length) return '';
-    var rows = parts.map(partLabel).map(function(r){
-      return '<div class="prow '+r.cls+'"><span class="pic">'+r.ic+'</span><span>'+esc(r.t)+'</span>'+(r.eta?'<span class="eta">ETA '+esc(r.eta)+'</span>':'')+'</div>';
+    var rows = parts.map(function(p){
+      var r = partLabel(p);
+      // THE OFFICE SPOKE ABOUT THIS PART (074) and he hasn't answered. He reads this list
+      // before he drives, so the heads-up belongs here -- not only inside the job.
+      var said = window.AntPartNote.officeSpokeLast(p)
+        ? '<div class="prow wait"><span class="pic">💬</span><span>'+esc(String(p.note||'').split('\n').slice(-1)[0].trim())+'</span></div>' : '';
+      return '<div class="prow '+r.cls+'"><span class="pic">'+r.ic+'</span><span>'+esc(r.t)+'</span>'+(r.eta?'<span class="eta">ETA '+esc(r.eta)+'</span>':'')+'</div>' + said;
     }).join('');
     return '<div class="partsbox">'+rows+'</div>';
   }
@@ -1470,7 +1476,7 @@
       'id,status,problem,scheduled_day,time_window,availability,office_notes,waiver_name,waiver_signed_at,customer_id,stop_id,' +
       'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held),' +
-      'parts:job_part(name,number,source,ship_to,eta,order_status,disposition)'
+      'parts:job_part(name,number,source,ship_to,eta,order_status,disposition,note,note_by,note_role)'
     );
     if (viewDay) q = q.eq('scheduled_day', viewDay).neq('status','canceled');   // one day: show what's scheduled + already done
     else q = q.not('status','in','(completed,canceled)');                       // default: everything still open

@@ -322,6 +322,7 @@
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-windows.js"></script>
 <script src="/platform/ant-part-route.js"></script>
+<script src="/platform/ant-part-note.js"></script>
 <script src="/platform/features.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -338,6 +339,13 @@
   var app = document.getElementById('app');
   var cfg = window.ANT_SUPABASE || {};
   var sb = null, rt = null, companyId = null, shopSettings = {}, features = {};
+  // WHO IS SIGNED IN. This board never resolved it -- it only ever loaded the company -- so a
+  // note written here had no author. Three people work this board (Danielle, Sofia, Carrie);
+  // "the office said it" is not good enough when the tech is deciding whether to trust an ETA.
+  // Resolved once at boot, the same way the tech pages do it. Falls back to 'Office' so a slow
+  // or failed lookup can never block a write.
+  var officeName = 'Office';
+  function whoAmI(){ return officeName || 'Office'; }
 
   // ── STATUS COLUMNS ─────────────────────────────────────────────────────────
   var COLS = [
@@ -924,6 +932,14 @@
         else                   f.push('<span class="fchip fparts">🔧 NEEDS PARTS ('+t.n+' on order)</span>');
       } else f.push('<span class="fchip fparts">🔧 NEEDS PARTS</span>');
     }
+    // ── THE TECH SAID SOMETHING ABOUT A PART (074) ─────────────────────────────────────
+    // These two go ABOVE the owed-back chip because they are the only flags on this tile
+    // that mean a human is waiting on an answer right now. Before this, a tech tapping
+    // "❌ Not here" made the part disappear from the tile entirely and appear on no worklist
+    // — he reported a problem and the system's answer was to hide the row.
+    var sayT = partsShipByJob[j.id];
+    if(sayT && sayT.missing && !terminal) f.push('<span class="fchip fmissing" title="The tech says this part never showed up — somebody has to chase the vendor today">❌ '+sayT.missing+' PART'+(sayT.missing>1?'S':'')+' NEVER CAME</span>');
+    if(sayT && sayT.techsaid) f.push('<span class="fchip ftechsaid" title="The tech said something about a part on this job and nobody has answered">💬 TECH ON PARTS ('+sayT.techsaid+')</span>');
     var owedT = partsShipByJob[j.id];
     // AHS puts a hard clock on its returns ("within 30 days or $X comes out of your payables");
     // SquareTrade states none. When there IS one, the tile carries it -- N owed back is a list,
@@ -1740,6 +1756,19 @@
     var rc = p.receipt_ref ? ' <a href="#" class="tprcpt" data-ref="'+esc(p.receipt_ref)+'">🧾 receipt</a>' : ' <span class="hint">(no receipt photo)</span>';
     return '<div class="tprow" style="font-size:12px;color:var(--muted)">🧾 Picked up '+(bits.length?bits.join(' '):'')+rc+'</div>';
   }
+  // THE PER-PART CONVERSATION (074), her side. She marks where a part is days before the
+  // visit; this is where the tech answers about THAT part -- "didn't need this one", "they
+  // sent the wrong number". Same running note both sides append to, never replace.
+  function tpNote(p){
+    var body = window.AntPartNote.html(p, { emptyHtml:'' }).replace('class="pnote', 'class="tpnote');
+    var mine = window.AntPartNote.techSpokeLast(p)
+      ? '<div class="tpship go" style="margin-top:6px">💬 '+esc(p.note_by||'The tech')+' is waiting on an answer</div>' : '';
+    return mine + body +
+      '<div class="tpnotebox">' +
+        '<textarea class="tp_notein" placeholder="Tell the tech about this part — where it is, when it lands, what changed."></textarea>' +
+        '<button type="button" class="tpadd tp_notesend">Send</button>' +
+      '</div>';
+  }
   function tpShipState(p){
     // A will-call part is not "waiting on a shipment" — it is sitting on a counter with the
     // tech's name on it. Saying "not shipped yet" about it is how a part gets left behind.
@@ -1778,15 +1807,19 @@
     // What the vendor actually SENT, straight off their own record (platform-sp-parts-sync).
     // Office gets the operational detail — carrier, tracking, delivered — that the customer
     // portal deliberately withholds. Same row, different lens.
-    sb.from('job_part').select('id,number,name,qty,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at,return_due_at,return_penalty_cents,return_po,rma_number,cost_cents,receipt_ref,bought_at,bought_by,bought_from').eq('job_id',job.id).order('created_at').then(function(r){
+    sb.from('job_part').select('id,number,name,qty,source,ship_to,eta,ship_tracking,ship_carrier,ship_status,ship_delivered,disposition,must_return,returned_at,return_due_at,return_penalty_cents,return_po,rma_number,cost_cents,receipt_ref,bought_at,bought_by,bought_from,note,note_at,note_by,note_role').eq('job_id',job.id).order('created_at').then(function(r){
       var parts=(r&&r.data)||[];
+      // The values as stored RIGHT NOW, so an inline edit can tell the tech what actually
+      // changed ("🏬 Will-call at Marcone · ETA Sep 18") instead of re-announcing every field
+      // every time she touches the row. Refreshed after each successful save.
+      var tpWas={}; parts.forEach(function(p){ tpWas[p.id]={ ship_to:p.ship_to||'', eta:p.eta||'', source:p.source||'' }; });
       var rows=parts.map(function(p){
         return '<div class="tpcard" data-pid="'+esc(p.id)+'">'+
           '<div class="tprow"><input class="tp_num" value="'+esc(p.number||'')+'" placeholder="Part #"><input class="tp_name" value="'+esc(p.name||'')+'" placeholder="Name (optional)"><button type="button" class="del" data-del="'+esc(p.id)+'" title="Remove">✕</button></div>'+
           '<div class="tprow"><label class="tp_qlab">How many <input class="tp_qty" type="number" min="1" step="1" value="'+partQty(p)+'"></label><input class="tp_src" list="ant_part_srcs" value="'+esc(p.source||'')+'" placeholder="Where it\'s coming from (e.g. American Home Shield)"></div>'+
           '<div class="tprow">'+shipSel(p.ship_to)+'<label class="tpeta">ETA <input class="tp_eta" type="date" value="'+esc(p.eta||'')+'"></label></div>'+
           dispSel(p)+
-          tpShip(p)+tpBought(p)+
+          tpShip(p)+tpBought(p)+tpNote(p)+
         '</div>';
       }).join('');
       box.innerHTML='<div class="sec">🔩 Parts <span class="hint" style="font-weight:400">— part #, where it\'s coming from, the route &amp; ETA</span></div>'+SRC_LIST+
@@ -1820,7 +1853,20 @@
       box.querySelectorAll('#jtp_rows .tpcard[data-pid]').forEach(function(rowEl){ var pid=rowEl.getAttribute('data-pid');
         var save=function(){
           var g=function(sel){ var e=rowEl.querySelector(sel); return e?(e.value||'').trim():''; };
-          sb.from('job_part').update({ number:g('.tp_num')||null, name:g('.tp_name')||null, qty:qtyOf(g('.tp_qty')), source:g('.tp_src')||null, ship_to:g('.tp_ship')||null, eta:g('.tp_eta')||null, disposition:g('.tp_disp')||null }).eq('id',pid).select('id').then(function(res){
+          var patch={ number:g('.tp_num')||null, name:g('.tp_name')||null, qty:qtyOf(g('.tp_qty')), source:g('.tp_src')||null, ship_to:g('.tp_ship')||null, eta:g('.tp_eta')||null, disposition:g('.tp_disp')||null };
+          // ── WHERE THE PART IS, SAID OUT LOUD (074) ──────────────────────────────────────
+          // Teddy: "they need to be able to mark where those parts are so the tech knows
+          // where they're at." The field existed; nothing told him it changed. Measured on
+          // this board: ship_to was set on 25 of 1,194 parts and eta on 5. Only a real move
+          // speaks -- retyping a name or a cost stays silent so the note keeps its signal.
+          var was=tpWas[pid]||{ship_to:'',eta:'',source:''};
+          var moved = (patch.ship_to||'')!==was.ship_to || (patch.eta||'')!==was.eta || (patch.source||'')!==was.source;
+          var say = moved ? window.AntPartNote.routeSentence(patch.ship_to, patch.source, patch.eta) : '';
+          var finish=function(){
+            tpWas[pid]={ ship_to:patch.ship_to||'', eta:patch.eta||'', source:patch.source||'' };
+            sb.from('job_part').update(patch).eq('id',pid).select('id').then(done);
+          };
+          var done=function(res){
             var m=document.getElementById('jtp_msg');
             // A constraint rejection here must NOT read as saved -- the only legal values are
             // used | return | not_here, and a silent failure would leave the invoice wrong.
@@ -1828,14 +1874,42 @@
             // STANDING RULE: a Supabase write is only saved when a ROW COMES BACK. A blocked
             // update returns zero rows and NO error, which would print "Saved" over nothing.
             if(!res||!res.data||!res.data.length){ if(m) m.textContent='Didn\'t save that part — tell the office before you move on.'; return; }
-            if(m){m.textContent='Saved ✓'; setTimeout(function(){if(m)m.textContent='';},1200);}
+            if(m){m.textContent=say?'Saved ✓ — the tech has been told':'Saved ✓'; setTimeout(function(){if(m)m.textContent='';},1600);}
+            if(say) loadTparts(job);
             loadBoard();
             // Used/unused moves real money, so refresh the invoice worksheet now instead of
             // letting her find out the total changed the next time she opens it.
             try{ if(window.__antReloadInvoiceParts) window.__antReloadInvoiceParts(); }catch(_){}
+          };
+          // Nothing moved -> plain write, no line in the note. Something moved -> re-read the
+          // note live first (the tech may have just appended from the field) and fold her
+          // change into the SAME running conversation.
+          if(!say){ finish(); return; }
+          sb.from('job_part').select('note').eq('id',pid).limit(1).then(function(cur){
+            var live=(cur&&cur.data&&cur.data[0]&&cur.data[0].note)||'';
+            var np=window.AntPartNote.patch(live, say, whoAmI(), 'office');
+            patch.note=np.note; patch.note_at=np.note_at; patch.note_by=np.note_by; patch.note_role=np.note_role;
+            finish();
           });
         };
         rowEl.querySelectorAll('input,select').forEach(function(inp){ inp.onchange=save; });
+        // Her free-text line about THIS part — for what a route change can't say.
+        var nin=rowEl.querySelector('.tp_notein'), nbtn=rowEl.querySelector('.tp_notesend');
+        if(nin&&nbtn) nbtn.onclick=function(){
+          var text=(nin.value||'').trim();
+          var m=document.getElementById('jtp_msg');
+          if(!text){ nin.focus(); return; }
+          nbtn.disabled=true; nbtn.textContent='Sending…';
+          sb.from('job_part').select('note').eq('id',pid).limit(1).then(function(cur){
+            var live=(cur&&cur.data&&cur.data[0]&&cur.data[0].note)||'';
+            sb.from('job_part').update(window.AntPartNote.patch(live, text, whoAmI(), 'office')).eq('id',pid).select('id').then(function(res){
+              nbtn.disabled=false; nbtn.textContent='Send';
+              if((res&&res.error)||!res||!res.data||!res.data.length){ if(m) m.textContent='That did NOT send — try again.'; return; }
+              nin.value=''; if(m){ m.textContent='Sent to the tech ✓'; setTimeout(function(){if(m)m.textContent='';},1600); }
+              loadTparts(job); loadBoard();
+            });
+          });
+        };
         // Keep the plain-English consequence in step with the pick, before she even saves.
         var dsel=rowEl.querySelector('.tp_disp'), dnote=rowEl.querySelector('.tp_dispnote');
         if(dsel&&dnote) dsel.addEventListener('change', function(){ dnote.textContent=dispNote(dsel.value||''); });
@@ -2514,7 +2588,16 @@
       +'.tpship{font-size:12px;font-weight:600;margin-top:5px;padding:4px 8px;border-radius:8px;background:#f3f1f8;color:#6b6480;display:inline-block}'
       +'.tpship.ok{background:#e6f7ee;color:#0f7a42}.tpship.go{background:#fff1e0;color:#a65a00}'
       +'.tpship.ret{background:#fdecef;color:#a3203a}.tpship.none{opacity:.75}'
-      +'.tpship a{color:inherit;text-decoration:underline}';
+      +'.tpship a{color:inherit;text-decoration:underline}'
+      // A part the tech says never arrived is the loudest thing on this board — red, not a nit.
+      +'.fchip.fmissing{background:#fdecef;color:#a3203a;border-color:#e2607a;font-weight:800}'
+      +'.fchip.ftechsaid{background:#eef2ff;color:#3730a3;border-color:#a5b4fc;font-weight:800}'
+      // The per-part conversation inside the drawer.
+      +'.tpnote{white-space:pre-wrap;font-size:12.5px;line-height:1.45;background:#f7f7fb;border:1px solid #e4e2ee;border-radius:9px;padding:7px 9px;margin-top:6px}'
+      +'.tpnote.pnote-tech{background:#eef2ff;border-color:#a5b4fc}'
+      +'.tpnotebox{margin-top:6px;display:flex;gap:6px;align-items:flex-start}'
+      +'.tpnotebox textarea{flex:1;min-height:38px;font:inherit;font-size:13px;border:1px solid #d8d5e6;border-radius:8px;padding:6px 8px;resize:vertical}'
+      +'.tpnotebox button{white-space:nowrap;font-weight:700}';
     document.head.appendChild(st);
   })();
   // Board select tiers, hoisted so the deep-link single-row fetch reuses the SAME
@@ -2613,7 +2696,7 @@
       // with history and creeping back up on the cap. (Both systems freezing, 2026-09-10.)
       var msgP   = sb.rpc('board_latest_inbound');
       // the parts the tech logged → the 🔧 part-# chip (fallback when the job row has none)
-      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta,must_return,returned_at,return_due_at,bought_at', jids) : none;
+      var partsP = jids.length ? inChunks('job_part', 'job_id,number,name,disposition,ship_tracking,ship_delivered,eta,must_return,returned_at,return_due_at,bought_at,note,note_role', jids) : none;
       // the colorful tags on each job + the shop's editable tag library
       var tagP = jids.length ? inChunks('job_tag', 'job_id,tag:tag_id(id,label,color)', jids) : none;
       var libP = sb.from('tag').select('id,label,color').order('created_at');
@@ -2635,12 +2718,24 @@
         var seenPart = {};
         (pr.data || []).forEach(function (p) {
           if (!p.job_id) return;
+          // ── COUNTED BEFORE THE MONEY RULE, ON PURPOSE (074) ──────────────────────────────
+          // partOnThisJob() is an INVOICE rule: a part we never received, sent back, or kept
+          // must not be billed. The tile is not an invoice — it is the office's attention
+          // surface — and running the money rule here is exactly what hid a tech's report.
+          // Jimmy tapped ❌ Not here on BOTH dryer thermostats for Bailey Pope (SquareTrade
+          // 007984184139) on 9/11; the guard below dropped them, returns.html reads
+          // 'return' OR must_return so they weren't there either, and the job sat in_progress
+          // past its day with nobody chasing the vendor. A missing part and a part the tech
+          // spoke about are the loudest things on this tile, so they're tallied first.
+          var att = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, pickup:0, owed:0, eta:null, owedDue:null, missing:0, techsaid:0 };
+          if (window.AntPartNote.isMissing(p)) att.missing++;
+          if (window.AntPartNote.techSpokeLast(p)) att.techsaid++;
           if (!partOnThisJob(p.disposition)) return;
           // count PHYSICAL parts, not rows -- Xano duplicates some and the mirror copies both,
           // which would otherwise inflate "2 of 5 sent" on the tile.
           var pk = partKeyOB(p);
           if (pk) { var sk = p.job_id + '|' + pk; if (seenPart[sk]) return; seenPart[sk] = 1; }
-          var t = partsShipByJob[p.job_id] = partsShipByJob[p.job_id] || { n:0, sent:0, here:0, pickup:0, owed:0, eta:null, owedDue:null };
+          var t = att;
           t.n++; if (p.ship_tracking || p.bought_at) t.sent++; if (p.ship_delivered || p.bought_at) t.here++;
           // Will-call: nobody ships it and nobody texts when it lands. It reads as "on order"
           // forever unless the tile says out loud that somebody has to go get it.
@@ -2706,6 +2801,14 @@
   function boot() {
     renderShell();
     // Company (RLS returns only this shop's row via the company_self policy).
+    sb.auth.getUser().then(function(u){
+      var uid = u && u.data && u.data.user && u.data.user.id;
+      if(!uid) return;
+      return sb.from('app_user').select('name').eq('auth_user_id', uid).limit(1).then(function(r){
+        var nm = r && r.data && r.data[0] && String(r.data[0].name || '').trim();
+        if(nm) officeName = nm;
+      });
+    }).catch(function(){ /* a name we can't resolve is 'Office' -- never a blocked board */ });
     sb.from('company').select('id,name,trade,settings,features').limit(1).then(function (r) {
       if (!r.error && r.data && r.data[0]) { companyId = r.data[0].id; shopSettings = r.data[0].settings || {}; features = r.data[0].features || {}; shopName = r.data[0].name; var el = document.getElementById('shop'); if (el) el.textContent = shopName; }
       // 🎰 Board skin — default-on Jackpot; a shop can flip settings.skin to 'clean'.

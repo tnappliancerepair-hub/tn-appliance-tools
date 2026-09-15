@@ -1,5 +1,100 @@
 # Appliance Ant
 
+## 💬🔩 2026-09-15 (Mon) — TEDDY: "they need to mark where those parts are so the tech knows... and communicate back and forth" — the tech's tap wrote a column and told NOBODY — READ FIRST
+
+Teddy, right after the merge: *"The office needs to be able to communicate with the technicians.
+Whenever they're ordering the parts, which could be many days before, they need to be able to mark
+where those parts are so the tech knows where they're at. They need to be able to communicate back
+and forth on that... And if the tech doesn't need that, they need to be able to communicate back to
+the office. Like, hey, I didn't need this part. I need to return it. Or, hey, I used the part. The
+job's complete. Or, hey, I used this part, but I didn't need that part."*
+
+### 🥇 THE GAP — the parts DATA flowed both ways; the CONVERSATION didn't exist
+**Measured live before building anything: 1,194 parts across 466 open TN jobs.**
+- **`ship_to` — WHERE THE PART IS — set on 25 of them (2%). `eta` on 5 (0.4%).** The office has had
+  that field the whole time. The 9/15 route-picker bug (two vocabularies, blanked on every
+  neighbouring edit) is why, and **that fix only went live with this merge** — it had been sitting
+  on the branch.
+- **Of 495 `used` marks in the book, THREE came from a tech.** The other 492 are the Xano mirror's
+  vendor bookkeeping. **Nobody uses a button that has no effect**, and the tech's tap had none: it
+  wrote `job_part.disposition` and produced no note, no chip, no text.
+
+### 🔴 THE LIVE VICTIM — a tech reported a problem and the system HID IT
+**Jimmy tapped ❌ Not here on BOTH dryer thermostats (WE04X25194 + WE04X25201) for Bailey Pope,
+SquareTrade claim `007984184139`, on 9/11.** He was saying *these parts never showed up*. What
+happened:
+- the office **tile dropped both rows** — `partOnThisJob()` (an INVOICE rule) was being run on the
+  tile, which is an **ATTENTION surface**;
+- **`returns.html` reads `disposition='return'` OR `must_return`**, so they weren't there either;
+- no note, no flag, no text. The job sat `in_progress` past its scheduled day with nobody chasing.
+- ⚠️ And the vendor record says those parts **shipped** (FedEx `530552333795`). Vendor says sent,
+  tech says never came — exactly the conflict the office has to see. It saw nothing.
+
+### ✅ `docs/sql/074_part_note.sql` (APPLIED + verified) — the note lives ON THE PART
+`note` · `note_at` · `note_by` · **`note_role` (`office|tech`)**. A job-level note can't say WHICH
+part, and *"I used this one but not that one"* is a sentence about a row.
+- **`note_role` IS the entire unread signal.** Tech spoke last → the office tile lights up; office
+  spoke last → his card lights up. **Answering takes the ball back.** Self-clearing — no
+  read-receipt table, no per-user state to drift. Proven live: `customer` is **REFUSED** by the
+  CHECK; her line + his line both survive an append; reverted, **0 residue**.
+- ⛔ **Deliberately NOT `thread_message`** — that is the CUSTOMER's thread and renders in the
+  portal. Part numbers, cost and "the wrong one came" must never leak there. Verified against the
+  deployed `portal_get`: its only `note` is `schedule_offer.note`; `job_part.note` is not on the
+  allowlist and the portal never reads `job_part` directly.
+
+### 💬 `platform/ant-part-note.js` (NEW) — ONE definition, both surfaces
+Same shape as `ant-part-route.js`, which exists because three copies of the route logic drifted.
+- **ONE TAP IS THE MESSAGE.** A tech in a kitchen should not type. ✅ / ↩️ / ❌ / 🏬 writes the
+  sentence for him; the office moving a route/ETA/parts-house writes hers. Free text is there for
+  what a tap can't say — **not the price of being heard**.
+- **APPEND, re-read live first, never replace** — the rule `job.office_notes` earned the hard way.
+  Neither side can blank what the other just said.
+- **The office only speaks when something actually MOVED** — retyping a name or a cost stays
+  silent, so the note keeps its signal.
+
+### 🩹 THE VANISHING ACT — an invoice rule was running on an attention surface
+`partOnThisJob()` is correct for MONEY (don't bill a part we never got, sent back, or kept). Running
+it on the **office tile** is what deleted Jimmy's report. The tile now counts **before** that guard
+and carries two new chips, above owed-back because they mean a human is waiting right now:
+**❌ N PARTS NEVER CAME** (red) and **💬 TECH ON PARTS (n)**. Bailey Pope's job goes from showing
+*nothing* about those two parts to showing both.
+- **The money rule is unchanged and pinned** — the test asserts `not_here`/`return`/`shelf` stay off
+  the invoice AND that the tile counts them anyway.
+
+### 🔒 NOBODY ELSE MAY ERASE WHAT A HUMAN SAID
+The note columns are added to `platform-tn-parts-migrate`'s **`OFFICE_OWNED`** and to
+`platform-sp-parts-sync`'s never-touch list. They are not in either payload today, so neither can
+reach them — **named now so the day somebody widens a payload the guard is already standing.** This
+is the sixth instance of "the mirror erased what a human typed"; the cheap move is to name the
+column before the payload grows into it.
+
+### 🐞 CAUGHT BEFORE SHIPPING — the office board never knew who was signed in
+First cut attributed her line with `(me && me.name)`. **`office-board.html` has no `me`** — it only
+ever loaded the company — and **`me &&` does NOT guard an undeclared identifier** (that's a
+ReferenceError, not undefined), so every office note would have thrown. Fixed by resolving
+`app_user` at boot the way the tech pages do, defaulting to `'Office'` so a slow lookup can never
+block a write. **Three people work this board (Danielle · Sofia · Carrie)** — "the office said it"
+isn't good enough when a tech is deciding whether to trust an ETA. Pinned by a test that fails if
+any bare `me.` returns to that file.
+
+### 🧪 PROVEN
+- **`tests/part-note.test.js` 65/65** — the module is the real shipped file; `partOnThisJob` and the
+  tile's attention counting are **regex-lifted out of office-board.html** so they can't drift.
+  Anchors on: her line surviving his reply · the role flipping · every surface loading the one
+  module and asking for `note_role` · a write only counting when a ROW COMES BACK · the mirror +
+  vendor-sync guards · and four separate assertions that the customer can never see any of it.
+- ⚠️ **One assertion in the first cut was VACUOUS** (`!/note/.test('')` — can never fail). Replaced
+  with four real ones. A silently-passing check is how a suite rots.
+- Full suite **13/13 green**.
+
+### ⏭️ OPEN
+- **Front-end ships on the next merge**; migration 074 is already live (database-side), so until
+  then the columns simply sit empty.
+- **Jimmy's two thermostats are a human pass** — the tile will now say NEVER CAME on Bailey Pope;
+  somebody has to ask the vendor where FedEx `530552333795` actually went.
+- **The office's 2% route coverage is a habit, not a bug, from here** — the picker works as of this
+  merge. Worth watching whether `ship_to` climbs; if it doesn't, the field isn't the problem.
+
 ## 🏬📦 2026-09-15 (Mon) — DANIELLE, SAME THREAD, ONE LINE UP: "do we need to return it. Its in storage." — the part we already own had NO PLACE TO EXIST — READ FIRST
 
 Scrolling above her "notes are not saving" text (the entry below) there is a second, separate

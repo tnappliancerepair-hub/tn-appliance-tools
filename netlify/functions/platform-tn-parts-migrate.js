@@ -205,7 +205,12 @@ function mapWarrantyStatus(status, requiresReturn) {
 
 // Columns a HUMAN owns on the office part card (office-board.html -> loadTparts). A blank from
 // Xano must never wipe one of these. Money included: the office types cost/sell on the worksheet.
-const OFFICE_OWNED = ['number', 'name', 'source', 'ship_to', 'eta', 'disposition', 'order_status', 'cost_cents', 'sell_cents'];
+// note/note_at/note_by/note_role are the office<->tech conversation ABOUT this part (074).
+// They are not in this payload today, so keepTypedParts can't reach them -- they are listed
+// anyway so that the day somebody adds them to the mirror's shape, the guard is already
+// standing. This is the fifth instance of "the mirror erased what a human typed"; the cheap
+// move is to name the column before the payload grows into it, not after.
+const OFFICE_OWNED = ['number', 'name', 'source', 'ship_to', 'eta', 'disposition', 'order_status', 'cost_cents', 'sell_cents', 'note', 'note_at', 'note_by', 'note_role'];
 
 // A row is worth landing only if it carries something useful beyond the join keys.
 function meaningful(row) {
