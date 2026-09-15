@@ -1350,3 +1350,11 @@
 # half-built / techless shops. Core stays curlable: ?secret=<admin>&dry=1
 [functions."platform-tenant-watch-cron"]
   schedule = "17 14 * * *"
+
+# lsa-lead-watch — tells Teddy the moment Google charges us for a Local Services lead.
+# Every 10 min on an offset nothing else uses (6), 7a-9p CT, owner only, capped 5/run,
+# forward-only (nothing older than 3h is ever a first touch) so it can never fire at the
+# 38-lead back catalogue. Dry-run it first: lsa-lead-watch?secret=<admin>&dry=1
+# Kill: vault LSA_LEAD_WATCH=false. Quiet just the 3h nag: LSA_LEAD_RENAG=false.
+[functions."lsa-lead-watch-cron"]
+  schedule = "6-59/10 * * * *"

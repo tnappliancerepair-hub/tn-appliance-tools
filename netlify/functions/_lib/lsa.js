@@ -90,6 +90,56 @@ async function report(days) {
   };
 }
 
+// recentLeads — the individual leads, newest first, for the alerting path.
+//
+// ⚠️ contact_details IS NOT AVAILABLE. Probed every subfield live 2026-09-15
+// (phone_number / consumer_name / email) and the API rejects all three with
+// "Request contains an invalid argument." Google does not expose the caller's number
+// on this resource, so a lead can never be auto-dialed or auto-matched to a job the
+// way the ads-line calls can. service_id and category_id DO come back, which is what
+// makes an alert useful ("refrigerator repair") instead of just a bare count.
+//
+// ⚠️ segments.date is rejected on local_services_lead, so the window has to be a
+// WHERE on creation_date_time. That field is in the ACCOUNT timezone, which for this
+// account is America/Chicago (verified live) -- i.e. already Central, no conversion.
+async function recentLeads(sinceMs) {
+  const c = await creds();
+  if (!c.refresh || !c.devToken) return { ok: false, configured: false, leads: [] };
+  const token = await accessToken(c);
+  const found = await lsaCid(token, c);
+  if (!found.cid) return { ok: true, found: false, leads: [], tried: found.tried };
+  const since = sinceMs || (Date.now() - 6 * 3600000);
+  // Format the floor in Central, because that is the clock the field is written in.
+  let floor;
+  try {
+    const p = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    }).formatToParts(new Date(since)).reduce((a, x) => (a[x.type] = x.value, a), {});
+    floor = `${p.year}-${p.month}-${p.day} ${p.hour === '24' ? '00' : p.hour}:${p.minute}:${p.second}`;
+  } catch (_) { floor = new Date(since).toISOString().slice(0, 19).replace('T', ' '); }
+
+  const r = await gaql(token, c, found.cid,
+    'SELECT local_services_lead.id, local_services_lead.lead_type, local_services_lead.lead_status, ' +
+    'local_services_lead.lead_charged, local_services_lead.creation_date_time, ' +
+    'local_services_lead.service_id, local_services_lead.category_id FROM local_services_lead ' +
+    `WHERE local_services_lead.creation_date_time >= '${floor}'`);
+  if (!r.ok) return { ok: false, status: r.status, error: r.error, leads: [] };
+  const leads = (r.results || []).map((x) => {
+    const l = x.localServicesLead || {};
+    return {
+      id: String(l.id || ''),
+      type: l.leadType || '',
+      status: l.leadStatus || '',
+      charged: l.leadCharged === true,
+      created_ct: String(l.creationDateTime || '').slice(0, 19),
+      service_id: l.serviceId || '',
+    };
+  }).filter((l) => l.id);
+  leads.sort((a, b) => (a.created_ct < b.created_ct ? 1 : -1));
+  return { ok: true, found: true, cid: found.cid, leads };
+}
+
 // Legacy Local Services endpoint. Kept because it carries review count / responsiveness,
 // but it only answers for accounts under a manager we can reach - which the LSA account
 // is not, so it is usually empty. report() is the one to trust.
@@ -113,4 +163,4 @@ async function accountReports(days) {
   } catch (err) { return { ok: false, error: String(err.message || err) }; }
 }
 
-module.exports = { report, accountReports };
+module.exports = { report, recentLeads, accountReports };
