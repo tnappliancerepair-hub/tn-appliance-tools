@@ -967,7 +967,7 @@
     if(j.status==='completed' && !iv) f.push('<span class="fchip fclose" title="Completed but no invoice — finish the paperwork">⚠️ NOT CLOSED OUT</span>');
     if(!hasReport(j) && (j.status==='scheduled'||j.status==='in_progress')) f.push('<span class="fchip fdiag" title="No tech report on file yet">🔍 DIAGNOSIS</span>');
     if(j.office_notes && String(j.office_notes).trim()) f.push('<span class="fchip fnote" title="Office note on this job">📋 NOTE</span>');
-    if(j.needs_two_techs) f.push('<span class="fchip">🧑‍🤝‍🧑 2-man</span>');
+    if(j.needs_two_techs) f.push('<span class="fchip">🧑‍🤝‍🧑 2-man'+(j.helper&&j.helper.name?' · '+esc(j.helper.name):'')+'</span>');
     if(j.long_job) f.push('<span class="fchip">⏳ Long job</span>');
     return f.join('');
   }
@@ -1310,10 +1310,12 @@
   }
 
   // Fire-and-forget: text the newly-assigned tech that a job is on their plate.
-  function notifyAssigned(jobId){
+  // techId is optional — pass it to text the SECOND man specifically. Without it the server
+  // texts whoever is the primary tech, which is what every existing caller wants.
+  function notifyAssigned(jobId, techId){
     sb.auth.getSession().then(function(s){
       var tok=(s&&s.data&&s.data.session&&s.data.session.access_token)||'';
-      fetch('/.netlify/functions/platform-tech-notify?do=notify_assigned',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok})}).catch(function(){});
+      fetch('/.netlify/functions/platform-tech-notify?do=notify_assigned',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job:jobId,access_token:tok,tech:techId||''})}).catch(function(){});
     });
   }
 
@@ -1455,17 +1457,34 @@
   // call, the customer via intake, the tech in the cockpit) fills it; anyone can correct
   // it here, and it writes to the SAME customer/unit/job rows every surface reads. Input
   // once, shared across the office tile, the tech app, the cockpit, and the customer portal.
+  // The open drawer's header + subtitle, repainted from what she just typed. Without this
+  // the title is frozen at whatever the board card held when the drawer opened.
+  function repaintDrawerHead(v){
+    var h=document.getElementById('jcusthead');
+    if(h){ var nm=[v.first,v.last].filter(Boolean).join(' ').trim(); h.textContent=nm||'Customer'; }
+    var sub=document.getElementById('jcustsub');
+    if(sub){ sub.textContent=[v.appliance||'', v.phone?('· '+v.phone):''].filter(Boolean).join(' '); }
+    var pr=document.getElementById('jcustprob');
+    if(pr){ pr.textContent=v.problem||''; pr.style.display=v.problem?'':'none'; }
+  }
+
   function loadDetails(job){
     var box=document.getElementById('jdetails'); if(!box) return;
     var IST='width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:7px;box-sizing:border-box';
     var di=function(id,label,val,ph,ta){ return '<label style="font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:2px 0 2px">'+esc(label)+'</label>'+(ta?'<textarea id="'+id+'" style="'+IST+';min-height:52px;resize:vertical" placeholder="'+esc(ph||'')+'">'+esc(val||'')+'</textarea>':'<input id="'+id+'" style="'+IST+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'">'); };
-    sb.from('job').select('id,problem,availability,customer_id,unit_id,customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes)').eq('id',job.id).limit(1).single().then(function(r){
+    sb.from('job').select('id,problem,availability,warranty_company,claim_number,dispatch_id,customer_id,unit_id,customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes)').eq('id',job.id).limit(1).single().then(function(r){
       var j=(r&&r.data)||{}; var c=j.customer||{}; var u=j.unit||{}; var a=u.attributes||{};
       box.innerHTML=
         '<div style="display:flex;gap:8px"><div style="flex:1">'+di('d_appl','Appliance',u.label,'Washer')+'</div><div style="flex:1">'+di('d_brand','Brand',a.brand,'Whirlpool')+'</div></div>'+
         di('d_model','Model #',a.model,'off the sticker')+
         di('d_prob','Problem',j.problem,'what it\'s doing',true)+
         di('d_avail','Availability',j.availability,'days that work')+
+        // Danielle 2026-09-15: "Also no place to add warranty number." She was right — the
+        // board SEARCHES on claim_number and dispatch_id and renders them on the card, but
+        // nothing anywhere let her type one. On a job she creates by hand (a warranty call
+        // that came in on the phone) there was no way to get the number onto the record at all.
+        '<div style="display:flex;gap:8px"><div style="flex:1">'+di('d_warco','Warranty company',j.warranty_company,'AHS / SquareTrade / NSA')+'</div><div style="flex:1">'+di('d_claim','Warranty / claim #',j.claim_number,'off the dispatch')+'</div></div>'+
+        di('d_disp','Dispatch #',j.dispatch_id,'if they gave you one')+
         '<div style="display:flex;gap:8px"><div style="flex:1">'+di('d_first','First name',c.first_name,'')+'</div><div style="flex:1">'+di('d_last','Last name',c.last_name,'')+'</div></div>'+
         di('d_phone','Phone',c.phone,'(555) 123-4567')+
         di('d_addr','Address',c.address,'123 Main St')+
@@ -1478,12 +1497,25 @@
         var ops=[];
         if(j.customer_id) ops.push(sb.from('customer').update({first_name:gv('d_first')||null,last_name:gv('d_last')||null,phone:gv('d_phone')||null,address:gv('d_addr')||null,city:gv('d_city')||null,state:gv('d_state')||null}).eq('id',j.customer_id));
         if(j.unit_id) ops.push(sb.from('unit').update({label:gv('d_appl')||null,attributes:attrs}).eq('id',j.unit_id));
-        ops.push(sb.from('job').update({problem:gv('d_prob')||null,availability:gv('d_avail')||null}).eq('id',job.id));
+        ops.push(sb.from('job').update({
+          problem:gv('d_prob')||null, availability:gv('d_avail')||null,
+          warranty_company:gv('d_warco')||null, claim_number:gv('d_claim')||null, dispatch_id:gv('d_disp')||null
+        }).eq('id',job.id));
         Promise.all(ops).then(function(rr){
           var err=rr.filter(function(x){return x&&x.error;})[0];
           btn.disabled=false; btn.textContent='Save details';
           if(err){ msg.textContent=err.error.message; return; }
-          msg.textContent='Saved ✓ — everyone sees it'; loadBoard();
+          msg.textContent='Saved ✓ — everyone sees it';
+          // Danielle 2026-09-15: "Still says customer even tho info has been added."
+          // She was right. The drawer header is rendered ONCE from the board card's cached
+          // customer/unit, and loadBoard() only refreshes the board BEHIND the open drawer —
+          // so she'd type Paula Dufour, watch the form save it, and the title above still
+          // read "Customer · Appliance" until she closed and reopened. Repaint it in place.
+          repaintDrawerHead({
+            first:gv('d_first'), last:gv('d_last'), phone:gv('d_phone'),
+            appliance:gv('d_appl'), problem:gv('d_prob')
+          });
+          loadBoard();
           setTimeout(function(){ if(msg) msg.textContent=''; },2500);
         });
       };
@@ -1937,11 +1969,11 @@
     var ov=document.createElement('div'); ov.className='ov';
     ov.innerHTML='<div class="sheet drawer">' +
       '<div class="custname" id="jcusthead">'+esc(fullName(cust)||'Customer')+'</div>' +
-      '<div class="sub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
+      '<div class="sub" id="jcustsub">'+esc(unit||'')+(phone?' · '+esc(cust.phone):'')+'</div>' +
       // Call the customer from the SHOP's line — the office person's own cell never shows up
       // on the customer's screen. Falls back to a normal tel: dial if calling isn't on yet.
       (phone?'<div style="margin-top:8px"><a class="antcall" data-name="'+esc(fullName(cust)||'')+'" data-job="'+esc(job.id||'')+'" href="tel:'+esc(phone)+'" style="display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:10px;border:1px solid rgba(120,200,160,.4);background:rgba(60,170,110,.16);color:#2b7a52;font-weight:700;text-decoration:none">📞 Call from the shop line</a></div>':'') +
-      (job.problem?'<div class="sub" style="margin-top:6px">'+esc(job.problem)+'</div>':'') +
+      '<div class="sub" id="jcustprob" style="margin-top:6px'+(job.problem?'':';display:none')+'">'+esc(job.problem||'')+'</div>' +
       // ── 📝 JOB DETAILS — the editable job/customer record, moved to the very top ──
       '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       // ── 📁 MOVE TO FOLDER — every board column as a folder; pick one to move the job there ──
@@ -1993,6 +2025,15 @@
         '<div class="err" id="rsErr"></div>' +
       '</div>' +
       '<div class="sec">Assigned tech</div><div class="srow"><select id="jtech" style="flex:1"><option value="">Unassigned</option>'+techOptions(job.technician_id)+'</select></div>' +
+      // ── 🧑‍🤝‍🧑 SECOND MAN ────────────────────────────────────────────────────────────
+      // Danielle 2026-09-15: "Need a way to add and schedule a 2nd man to a job."
+      // The two-man FLAG below has existed since 014, but it only ever said a problem
+      // existed — there was no way to name who the second man is or get the stop onto his
+      // day, so the answer was always a phone call. Naming him here puts the job on BOTH
+      // techs' days and counts against both their loads on dispatch.
+      '<div class="sec">🧑‍🤝‍🧑 Second man <span class="hint" style="font-weight:400">— heavy lift, tight spot, two sets of hands</span></div>' +
+      '<div class="srow"><select id="jtech2" style="flex:1"><option value="">No second man</option>'+techOptions(job.technician2_id)+'</select></div>' +
+      '<span class="hint" id="jtech2Msg" style="display:block;margin-top:4px">He sees it on his day too, and gets a text with the job.</span>' +
       '<div class="srow" style="margin-top:8px;gap:8px;flex-wrap:wrap"><input id="jtileNote" placeholder="Note to the tech (e.g. need the part # — what happened?)" style="flex:1;min-width:180px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box"><button id="jtileSend">📲 Text tile to tech</button></div>' +
       '<span class="hint" id="jtileMsg" style="display:block;margin-top:4px">Texts the assigned tech a link straight to this job\'s tile with your note.</span>' +
       '<div class="sec">📅 Schedule</div><div id="jsched"><div class="hint">Loading…</div></div>' +
@@ -2198,6 +2239,32 @@
     // Assign / reassign the tech — office dispatch (RLS lets the office write its own job rows).
     var jt=document.getElementById('jtech');
     if(jt){ jt.onchange=function(){ var val=jt.value||null; jt.disabled=true; sb.from('job').update({technician_id:val, platform_booked_at:new Date().toISOString()}).eq('id',job.id).then(function(r){ jt.disabled=false; var je=document.getElementById('jerr'); if(r.error){ jt.value=job.technician_id||''; if(je) je.textContent='Couldn\'t reassign — try again.'; return; } job.technician_id=val; if(val) notifyAssigned(job.id); loadBoard(); }); }; }
+    // Second man. Same write shape as the primary assign, plus the two things that make it
+    // real rather than a label: he gets the same job text the primary tech gets, and the
+    // two-man flag turns itself on so the card and dispatch both show what she just did.
+    var jt2=document.getElementById('jtech2');
+    if(jt2){ jt2.onchange=function(){
+      var val=jt2.value||null, m2=document.getElementById('jtech2Msg');
+      if(val && val===String(job.technician_id||'')){
+        jt2.value=job.technician2_id||'';
+        if(m2) m2.textContent='That is already the tech on this job — pick somebody else.';
+        return;
+      }
+      jt2.disabled=true; if(m2) m2.textContent='Saving…';
+      var upd={technician2_id:val};
+      if(val && !job.needs_two_techs) upd.needs_two_techs=true;   // naming him IS the flag
+      sb.from('job').update(upd).eq('id',job.id).select('id').then(function(r){
+        jt2.disabled=false;
+        // An RLS-blocked write comes back with zero rows and NO error — never call that saved.
+        if(r.error||!r.data||!r.data.length){ jt2.value=job.technician2_id||''; if(m2) m2.textContent='Did NOT save — try again.'; return; }
+        job.technician2_id=val; if(upd.needs_two_techs) job.needs_two_techs=true;
+        if(m2) m2.textContent=val?'Saved ✓ — it is on his day too, and he has been texted.':'Saved ✓ — second man removed.';
+        if(val) notifyAssigned(job.id, val);
+        var fb=document.querySelector('#jflags button[data-flag="two"]'); if(fb&&job.needs_two_techs) fb.classList.add('on');
+        loadBoard();
+      });
+    }; }
+
     var jtile=document.getElementById('jtileSend');
     if(jtile){ jtile.onclick=function(){ var ni=document.getElementById('jtileNote'); textTileToTech(job.id, ni?ni.value:'', jtile, document.getElementById('jtileMsg')); }; }
 
@@ -2631,9 +2698,9 @@
   // Board select tiers, hoisted so the deep-link single-row fetch reuses the SAME
   // shape the board renders from -- a second copy would drift and openJob() would
   // get a row missing fields it reads.
-  var SEL_BASE_MIN  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,technician_id,warranty_company,';
+  var SEL_BASE_MIN  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,technician_id,technician2_id,warranty_company,';
   var SEL_BASE_RICH = SEL_BASE_MIN + 'board_stage,claim_number,dispatch_id,service_window,time_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
-  var SEL_TAIL_RICH = 'customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name)';
+  var SEL_TAIL_RICH = 'customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name),helper:technician2_id(name)';
   var SEL_TAIL_MIN  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
 
   // Undo for a board removal. A canceled job drops out of the board query completely,

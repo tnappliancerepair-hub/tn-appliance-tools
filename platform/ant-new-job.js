@@ -139,6 +139,15 @@
           opt('Repeat customer', 'Repeat customer') +
           opt('Other', 'Other') +
         '</select>' +
+        // Danielle 2026-09-15: "no place to add warranty number." She works warranty all day,
+        // so a job she types by hand has to be able to carry its claim from the start —
+        // otherwise she saves, reopens the drawer, and types it a second time. Optional:
+        // a cash lead just leaves it blank.
+        '<label>Warranty <span class="anj-hint">leave blank for a cash job</span></label>' +
+        '<div style="display:flex;gap:8px">' +
+          '<input id="anj_warco" autocomplete="off" placeholder="AHS / SquareTrade" style="flex:1">' +
+          '<input id="anj_claim" autocomplete="off" placeholder="Claim / WO #" style="flex:1">' +
+        '</div>' +
         '<div class="anj-row"><button id="anj_cancel">Cancel</button><button class="anj-go" id="anj_save">Create job</button></div>' +
         '<div class="anj-err" id="anj_err"></div>' +
       '</div>';
@@ -154,6 +163,7 @@
       var err = d.getElementById('anj_err');
       var name = gv('anj_name'), phone = gv('anj_phone'), what = gv('anj_what');
       var problem = gv('anj_problem'), city = gv('anj_city'), chan = gv('anj_chan') || 'Other';
+      var warco = gv('anj_warco'), claim = gv('anj_claim');
 
       var bad = gate({ what: what, phone: phone, name: name });
       if (bad) { err.textContent = bad; return; }
@@ -184,14 +194,20 @@
             if (u.error || !u.data || !u.data.length) return fail('Could not save the appliance.');
             sb.from('job').insert({
               company_id: cid, customer_id: cust.id, unit_id: u.data[0].id,
-              status: 'new', problem: (problem || what), source: 'manual'
+              // ⚠️ source stays 'manual' AND THAT IS LOAD-BEARING even on a warranty job:
+              // 'manual' is on platform-lead-watch's LEAD_SOURCES allowlist, and a prettier
+              // source makes every typed lead invisible to the watcher that pages the owner
+              // when nobody replies. Who it's for rides warranty_company, not source.
+              status: 'new', problem: (problem || what), source: 'manual',
+              warranty_company: warco || null, claim_number: claim || null
             }).select('id').then(function (j) {
               if (j.error || !j.data || !j.data.length) return fail('Could not create the job.');
               var jobId = j.data[0].id;
               // Trailers are best-effort ON PURPOSE: the JOB is already real and on the
               // board. None of these may be allowed to fail the thing that matters.
               var line = '📞 Lead from ' + chan + ' — ' + what + (problem ? ' — ' + problem : '') +
-                         (city ? ' (' + city + ')' : '') + ' · taken by ' + who;
+                         (city ? ' (' + city + ')' : '') +
+                         (warco ? ' · ' + warco + (claim ? ' #' + claim : '') : '') + ' · taken by ' + who;
               try { sb.from('thread_message').insert({ company_id: cid, customer_id: cust.id, job_id: jobId, direction: 'in', channel: 'call', sender: 'office', kind: 'note', body: line }); } catch (_) {}
               try { sb.from('event').insert({ company_id: cid, type: 'office_lead_created', entity: 'job', payload: { job_id: jobId, channel: chan, by: who, had_phone: !!digits } }); } catch (_) {}
               try { sb.from('portal_grant').insert({ company_id: cid, customer_id: cust.id, job_id: jobId }); } catch (_) {}

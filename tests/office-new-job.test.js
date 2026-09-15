@@ -96,8 +96,12 @@ t('the unit is trade-aware (vehicle for an automotive shop)', /automotive[\s\S]{
 console.log('\n— a write is only saved when a row comes back —');
 // The standing rule: an RLS-blocked write returns ZERO rows and NO error, so `if(r.error)`
 // is false and it reads as success. Every insert that MATTERS must prove a row returned.
+// Window is generous on purpose: it only has to reach past the insert's own field list to
+// the .select() that follows it. A tight window fails the moment a comment or a field is
+// added inside the insert, which looks exactly like the guard being REMOVED — and a test
+// that cries wolf about a safety check is how the real removal gets waved through.
 ['customer', 'unit', 'job'].forEach(function (tbl) {
-  const seg = MOD.match(new RegExp("sb\\.from\\('" + tbl + "'\\)[\\s\\S]{0,380}"));
+  const seg = MOD.match(new RegExp("sb\\.from\\('" + tbl + "'\\)[\\s\\S]{0,900}"));
   t(tbl + ' insert asks for the row back', !!seg && /\.select\('id'\)/.test(seg[0]));
   t(tbl + ' insert fails loudly when no row comes back',
     !!seg && /if\s*\(\s*\w+\.error\s*\|\|\s*!\w+\.data\s*\|\|\s*!\w+\.data\.length\s*\)\s*return fail\(/.test(seg[0]));
