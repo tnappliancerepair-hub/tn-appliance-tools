@@ -87,7 +87,7 @@ call — and Data Axle turned out to be almost right already, which is the good 
 | aggregator | live state today | what it costs | verdict |
 |---|---|---|---|
 | **Data Axle** | **EXISTS + UNCLAIMED.** `3137 Skinner Dr, Antioch TN 37013-3965` ✅ · `(615) 280-2949` ✅ · name reads **"TN Appliance Exchange Inc"** ❌ | **FREE** | 🥇 **do it first** — claim it + fix Inc→LLC |
-| **Foursquare** | no public listing found (their search needs a login, so unconfirmed — the claim flow searches first and handles claim-or-create either way) | **FREE** (an optional $20 one-time "instant management" upsell exists — skip it, the free path just takes 1-3 days) | 🥈 **do it** — feeds Apple Maps, Uber, Samsung, Snapchat |
+| **Foursquare** | **record EXISTS** — the claim flow found it and pre-filled phone + website (confirmed live 2026-09-15 from Teddy's screens) | **$20** one-time as the flow presents it; free phone-verification path exists but is not surfaced on the payment step | 🥈 **do it** — feeds Apple Maps, Uber, Samsung, Snapchat. **Fix the address + LLC + https on the form BEFORE claiming** |
 | **Neustar / Localeze** (now **TransUnion Digital Business Profile**) | 403s bots, can't read from here | **~$297/yr, NOT free** | 🟡 **Teddy's call** — real money, see below |
 
 - **✅ THE GOOD NEWS: Data Axle is NOT the source of the La Vergne ghost.** I half-expected to find the
@@ -129,8 +129,25 @@ Established 2012
    as *TN Appliance Exchange Inc* → tap **Claim Now** → fix the name to **LLC** → confirm category is
    repair, not store. Free, no card.
 2. **Foursquare** → `foursquare.com/venue/claim` → search the business → claim it if it appears, create it
-   if it doesn't → phone-call verification (they call 615-280-2949) → **1-3 business days**. Free.
-   **Decline the $20 "instant" upsell** — it only skips the wait.
+   if it doesn't → **⚠️ BEFORE the payment step, fix the three NAP fields on the detail form** (see the
+   trap below) → verify → done.
+   - **⚠️ THE $20 READS AS MANDATORY AND ISN'T — but don't burn an hour proving it.** Step 4 says
+     *"We will charge you a one-time **$20 fee** to verify that you are the owner"* with a single **Pay
+     $20** button and no visible alternative. Three independent sources confirm $20 is the **expedited /
+     instant-management** option and the free path is **phone-call verification** (they call
+     615-280-2949, 1-3 business days). **Scroll BELOW the Pay button first** — that is where a
+     "verify another way" link lives if it's offered. If it isn't there: **pay the $20.** It is one-time,
+     it is 1/15th of the Localeze annual we declined, and chasing the free path through their support
+     contact form costs more in Teddy's hours than the $20 is worth. Do NOT tick *"save this card for
+     future venue management billing."*
+   - **🚨 THE REAL TRAP IS THE FORM, NOT THE FEE.** Foursquare syndicates to Apple Maps, Uber, Samsung
+     and Snapchat — so claiming a record that still carries the **La Vergne** address pushes the ghost
+     UPSTREAM into four more platforms and makes NAP consistency measurably WORSE than not claiming at
+     all. Before paying or verifying, confirm on the detail form: name reads **TN Appliance Exchange
+     LLC** (the LLC suffix is the exact field Data Axle has wrong), address reads **3137 Skinner Dr,
+     Antioch TN 37013** (never La Vergne / 5403 Murfreesboro Rd), and website reads
+     **`https://tnapplianceexchange.net`** — Foursquare pre-fills `http://www.…`, which is a redirect
+     hop and not the canonical string. Phone `(615) 280-2949` pre-fills correctly.
 
 - 🔎 **One more long-tail read while in there: `citylifestyle.com` is CLEAN** (3137 Skinner, Antioch TN,
   615-280-2949 — verified live). No action. Recorded so nobody re-audits it.
