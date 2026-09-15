@@ -1,5 +1,137 @@
 # Appliance Ant
 
+## 💬👀 2026-09-15 (Mon) — THE CONVERSATION, READABLE BY BOTH SEATS: 81% of the "customer" side was OUR OWN machine · the delivery receipt was already arriving and being thrown away · "opened" does not exist for SMS — READ FIRST
+
+Teddy: *"we've got working communication between the office and the tech and the tech back to the
+office... Danielle also mentioned something about the text messages. We want the text messages to be
+readable by the technicians and by the office, and we want them to be scrollable. And we want to be
+able to see if the customer opened it or if the techs have opened it."*
+
+### 🥇 THE FINDING — most of the "customer" half of the thread was never a customer
+Measured on TN's live board before writing a line: **1,055 of 1,294 inbound rows (81%) are a line one
+of our own functions composed** — a waiver signature, a finished-intake marker, a mirrored warranty
+dispatch email, a portal page-view — and **every one was rendering as blue CUSTOMER speech**, burying
+the 239 real texts. Danielle's **"← they replied" queue read 85; 39 of those were warranty dispatch
+EMAILS.** The queue is now **56**, and every one is a real SMS.
+- ⚠️ **I was wrong first and corrected it.** I theorised the 994 waiver rows were the false flags and
+  measured it: **`waiver_false_flags: 0`** — a waiver is never the last thing on a thread. The dispatch
+  emails were. **Measure the theory before building the fix for it.**
+
+### ✅ `docs/sql/075_thread_kind.sql` (APPLIED) — MESSAGE vs NOTE, the one rule
+`thread_message.kind` (`message|note`). **message** = a human said this, it gets a bubble.
+**note** = we recorded that something happened, it gets a quiet centered line.
+- **⚠️ THE BACKFILL IS INBOUND-ONLY, AND THAT IS THE WHOLE CARE.** My first draft also swept
+  `out/sms`. Listed every direction+channel combo with samples first and found that column is
+  **MIXED** — 85 real Danielle texts sitting alongside 12 `sender='tech'` log lines, not separable by
+  channel. **An extra line on our own half costs a scroll; wrongly hiding something we told a customer
+  costs the job.** Outbound is never inferred.
+- Result: 1,055 notes / 539 messages.
+
+### 💬 `platform/ant-thread.js` (NEW) — ONE renderer, three seats
+The office inbox, the board drawer and the tech's job page each had their own private copy of the
+bubble markup and they had drifted three ways. Same shape as `ant-part-route.js` / `ant-part-note.js`.
+`mount(el, rows, opts)` · `isNote(m)` · `isAck(m)` · `speaker(m)` · `when(iso)` · `receipt(m)`.
+- **⚠️ `.anth` deliberately sets NO padding and NO height** — it is injected after each host's own
+  CSS, so a padding rule here would have cramped the desktop Messages panel that already sets its own.
+- `speaker()` shows a bare first name ("Lee","John") on rows teed from the old system rather than
+  swallowing an unrecognised sender into a generic "Us".
+- **The tech's thread now loads the whole CUSTOMER, not just the open job** — he was reading one
+  slice of a conversation that had been going on across three jobs.
+
+### ✅ "HAVE THE TECHS OPENED IT" — `thread_seen`, in its OWN bucket
+The tech opening a job stamps an `event` row `type:'thread_seen'`, and the office drawer shows
+**"✓ Opened by Jimmy · Sep 15, 2:14 PM"**.
+- **🔴 DELIBERATELY NOT `thread_read`** — that is the OFFICE's mark, the one that clears Danielle's
+  unread dot. A tech glancing at a job must never silence a customer in her queue. Pinned by a test.
+
+### 📬 "HAVE THEY OPENED IT" — the receipt was ALREADY ARRIVING and we were dropping it
+Telnyx POSTs `message.finalized` to the **same messaging-profile webhook as inbound**, so
+`_lib/sms-dlr.js` has been handed a receipt for **every text ever sent** — and recorded only the
+FAILURES, dropping every success on the floor. `docs/sql/076_thread_delivery.sql` (APPLIED) adds
+`provider_id` / `delivery_status` / `delivered_at`; the carrier id is now threaded through the whole
+send path and the bubble renders **✓ Delivered** or **⚠ Did NOT reach their phone**.
+- **🔴 THE DANGEROUS EDIT, done atomically:** `telnyxDirect` and `deliver` went from a bare boolean to
+  `{ok,id}`. **An object is always truthy** — any call site left on `if (await fn())` would have made
+  **every failed send read as successful**. All three were fixed in the same commit and a test pins
+  that every call site reads `.ok`.
+- **⚠️ STANDING, SAID OUT LOUD IN THE MIGRATION + THE MODULE: "the customer opened it" DOES NOT EXIST
+  FOR SMS.** No carrier reports a read; **Delivered is the ceiling.** A test asserts the receipt
+  renderer contains no "read"/"opened"/"seen". A portal page-view is the only honest "opened" signal
+  and is not built.
+- Proven live: insert probe → PATCH by provider_id → `delivered`, `stamped: True` → deleted, residue 0.
+
+### 🧑‍🤝‍🧑 `docs/sql/077_second_tech.sql` (APPLIED) — Danielle: *"Need a way to add and schedule a 2nd man"*
+`needs_two_techs` has existed since 014 and is a **FLAG and nothing more** — it announced a problem
+and left the answer to a phone call. `job.technician2_id` (ON DELETE **SET NULL**, not cascade — a
+tech leaving must never delete the job he was helping on; Billy left in July) + a CHECK that one
+person can't hold both seats. Office picker in the drawer (**naming him IS the flag**), he gets the
+same job text prefixed **"🧑‍🤝‍🧑 Second man on this one"**, and **the tech's day query matches EITHER
+seat** so the stop lands on his list.
+- **🐞 FOUND WHILE WIRING IT:** the picker would have rendered **blank after a real save** —
+  `techOptions(job.technician2_id)` preselects the saved helper and a refused write resets to it, and
+  **the board select never fetched that column.** Now in `SEL_BASE_MIN` (the drawer is reachable from
+  the lean fallback tier too) + `helper:technician2_id(name)` on the tail so the 2-man chip says WHO.
+- **🔴 THE DEDUP TRAP:** assigning the primary tech and naming a helper 20 seconds later are two
+  different people who each need the job. The 10-minute dedup was **job-wide** and would have silently
+  eaten the helper's text. Now **per-person**.
+
+### 📥 THE TECH FINALLY HAS SOMEWHERE TO READ THEM (`loadInbox` on `platform/tech.html`)
+He could read a thread **inside** a job — only if he opened that job. A customer replying about
+Thursday's stop was invisible to him today, so the answer always went back through Danielle. Scoped in
+**CODE** to the customers on his own open jobs, either seat (RLS gives him the shop, and the shop has
+~1,700 conversations); **chunked at 100** because 156 customers is a ~7KB filter in the URL.
+- **🔴 MEASURING IT CHANGED THE DESIGN.** Of the 57 customers shop-wide who spoke last, **26 said
+  nothing but "Yes" / "Thanks" / a tapback.** Jimmy's raw count was 12. Ship "12 waiting" and after two
+  days of thank-yous he stops opening it — the documented way a queue dies.
+- **`AntThread.isAck()`**, hand-labelled against all 57 real rows. **A different question from the
+  office's 8-way classifier** in `platform-unanswered.js` — that asks *what is this about so I can
+  draft a reply*, this asks *does a human have to stop and read it*. The clean tell is a **tapback**
+  (`Liked "…"`, `👍 to "…"`, and a real German `Gefällt: „…"` that is actually on this board) because
+  it quotes our own outbound back and can run 90 chars while still being a thumbs-up — **a length rule
+  fails on exactly those.**
+- **⚠️ THE SAFE DIRECTION IS TO SHOW, NOT HIDE — the reverse of a spam filter.** Only fires when the
+  WHOLE message is an acknowledgement ("Yes, how long will it take to get the part?" is a question,
+  not a yes). **A bare "No" is NOT an ack** — yes closes a loop, no opens one, and here it is almost
+  always a declined day; "No thank you" declines an offer and does close. The acks are still listed
+  under a divider, dimmed — **nothing is hidden**, so a miscall stays visible.
+- **Live: John 7 · Andre 4 · Jimmy 4 · Teddy 3 · Lee 2**, and the top items are real work gone quiet —
+  Andre's *"It's my ge oven not a dishwasher"* (wrong appliance on the ticket), Jimmy's *"I uploaded
+  the video. Unfortunately it sounds the same. I'm not sure it was fixed."* sitting **five days**,
+  John's customer chasing him about a 9/2 visit.
+
+### 🩹 DANIELLE'S OTHER TWO BOARD COMPLAINTS
+*"Still says customer even tho info has been added"* — the drawer header never repainted after a save,
+so it read **"Customer"** while the form below held Paula Dufour. `repaintDrawerHead(v)` now runs after
+`d_save`. *"No place to add warranty number"* — warranty company / claim # / dispatch # are now on the
+drawer form **and** on the ＋ New job sheet (which carries them into the thread line: `· AHS #12345`).
+
+### 🧪 PROVEN
+**`tests/thread-kind.test.js` 110/110** — `isNote` is regex-lifted out of BOTH the browser module and
+the server and asserted to agree on every real row shape. **`tests/second-tech.test.js` 39/39.** Full
+suite **15/15 files green**. Non-vacuity proven by mutation every time: drifting the server `isNote`,
+reverting the either-seat query, the per-person dedup, the board select, the shared-rule call, one of
+the two catches, and the bare-"No" ack each fail the suite on purpose.
+- **🐞 Caught two of my own assertions whose top-level `|` was an ALTERNATION, not a conjunction** —
+  the left half alone satisfied them. Same family as the documented `.every()`-on-an-empty-array trap:
+  reads like a check, can never fail.
+- **🐞 And one window that was too tight** — a 3,200-char match window missed a catch at 5,253. Bound
+  a lift to the FUNCTION, never a magic character count; a test that cries wolf about a safety check
+  is how the real removal gets waved through.
+
+### ⏭️ OPEN
+- **🔴 FRONT-END IS BRANCH-ONLY — Netlify deploys from `main`.** Migrations 075/076/077 ARE live
+  (database-side), so until the merge the columns simply sit there. **4 commits on
+  `claude/supabase-ant-system-testing-vnbgym` need merging** before Danielle or any tech sees any of it.
+- **Four messages across five techs are still over-surfaced** as needing an answer ("Okay, that will
+  work. Thank You!"). Safe direction, low cost — **deliberately not chased**, because every extra
+  pattern is a chance to swallow a real one.
+- **Dispatch capacity still counts a stop against the primary tech only.** Whether a two-man stop
+  consumes a full slot on the helper's day or a half is a scheduling decision, not mine.
+- **Kyle Hunter needs a human today** — "I uploaded the video, it sounds the same, I'm not sure it was
+  fixed," 5 days unanswered. Andre's ticket says dishwasher and the customer says GE oven.
+- Latent: **`set-secret.js` writes to Xano while `_lib/secrets.js` reads Supabase first** — a rotation
+  silently no-ops for any key already in Supabase `app_config`.
+
 ## 📞🆕 2026-09-15 (Mon) — "CASH JOB FROM GOOGLE" — the board had NO add-a-job button, so a phone lead lived on PAPER — READ FIRST
 
 Teddy sent a photo of a Rocketbook page: **LG · Fridge · 7 years · Ashland City**, captioned
