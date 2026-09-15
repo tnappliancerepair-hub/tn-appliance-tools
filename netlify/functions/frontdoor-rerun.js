@@ -113,10 +113,11 @@ exports.handler = async function (event) {
   }
 
   // Everything below needs a live token.
-  async function mint() {
+  async function mint(scope) {
     for (const [label, u] of TOKEN_URLS) {
       const f = new URLSearchParams();
       f.set('grant_type', 'password'); f.set('client_id', clientId); f.set('username', username); f.set('password', password);
+      if (scope) f.set('scope', scope);
       const r = await hit(u, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: f.toString() }, 7000);
       const j = r.json || {};
       const t = j.access_token || j.accessToken || j.token;
@@ -134,9 +135,27 @@ exports.handler = async function (event) {
     const origin = new URL(m.url).origin;
     const bearer = { Authorization: `Bearer ${m.token}`, Accept: 'application/json' };
     const rows = {};
-    rows.openid_configuration = await hit(`${origin}/.well-known/openid-configuration`, { method: 'GET' }, 6000);
-    rows.userinfo = await hit(`${origin}/oauth2/userinfo`, { method: 'GET', headers: bearer }, 6000);
-    rows.jwks = await hit(`${origin}/.well-known/jwks.json`, { method: 'GET' }, 6000);
+    const disc = await hit(`${origin}/.well-known/openid-configuration`, { method: 'GET' }, 6000);
+    // What the IdP says it CAN issue. If a dispatch/contractor scope exists here and we've
+    // never asked for it, that is the whole fix — we'd be under-requesting, not unprovisioned.
+    const dj = disc.json || {};
+    rows.discovery = {
+      status: disc.status,
+      scopes_supported: dj.scopes_supported || null,
+      grant_types_supported: dj.grant_types_supported || null,
+      issuer: dj.issuer || null,
+      claims_supported: (dj.claims_supported || []).slice(0, 60),
+    };
+    rows.userinfo_no_scope = await hit(`${origin}/oauth2/userinfo`, { method: 'GET', headers: bearer }, 6000);
+    // userinfo refused for want of the openid scope — mint a second token that HAS it.
+    const mo = await mint('openid');
+    if (mo) {
+      const r2 = await hit(`${origin}/oauth2/userinfo`, { method: 'GET', headers: { Authorization: `Bearer ${mo.token}`, Accept: 'application/json' } }, 6000);
+      rows.userinfo_with_openid = { status: r2.status, data: r2.json ? safeVal('userinfo', r2.json) : (r2.body || '').slice(0, 300) };
+      rows.openid_token_claims = claimsOf(mo.token);
+    } else {
+      rows.userinfo_with_openid = { error: 'could not mint a token with scope=openid' };
+    }
     // introspect tells us the token's scope/active state as the IdP sees it
     const introF = new URLSearchParams(); introF.set('token', m.token); introF.set('client_id', clientId);
     rows.introspect = await hit(`${origin}/oauth2/introspect`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: introF.toString() }, 6000);
