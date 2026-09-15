@@ -1,5 +1,68 @@
 # Appliance Ant
 
+## 🔩🗑️ 2026-09-15 (Mon) — DANIELLE: "PART INFO IS NOT SAVING" — she was right, and it SAVED then a cron ERASED it every 15 min (5th time this class shipped) — READ FIRST
+
+Danielle, 8:49pm: *"Part info on my end is not saving. When I mark where it comes from i.e warranty or
+pick up marcones its not saving."* She was right, and the save was never the problem.
+
+### 🥇 THE BUG — `platform-tn-parts-migrate` overwrote her typing on a 15-minute cron
+The migrate upserts `job_part` with **`resolution=merge-duplicates`**, which **REPLACES every column
+present in the payload** — and that payload ALWAYS carries `source` / `ship_to` / `eta` /
+`disposition` / `number` / `name`, built from Xano. Xano is **blank** on nearly all of them, so
+`source: null` was written straight over whatever the office typed on the part card, **every 15
+minutes** (cron `13-59/15`). She types it, sees `Saved ✓`, and it is gone before she looks again.
+- **PROVEN on the live dry-run BEFORE touching anything:** the forward window re-upserts **45
+  warranty parts, nearly every one carrying `source: None`** — i.e. 45 rows queued to be blanked.
+- **The data shape confirms it:** hand-added parts (no `xano_id`) keep their source **480/480**;
+  mirrored rows keep a hand-typed source only when they have aged OUT of the newest-80 window.
+  So the rows she is actively working — a part that was just ordered — are exactly the ones erased.
+- **⚠️ FIFTH TIME THIS CLASS HAS SHIPPED.** The job mirror got `keepTyped()` on 2026-09-10
+  ("THE MIRROR WAS ERASING THE OFFICE'S OWN WORK"). **`job_part` never got it.**
+
+### ✅ THE FIX — `keepTypedParts()`, the same narrow rule already proven on the mirror
+**An EMPTY Xano value may never replace a non-empty platform value. A DIFFERENT non-empty value
+still wins** — Xano stays the system of record, so a genuine correction there still lands.
+- **SUBSTITUTES, never drops the key** — PostgREST rejects a bulk upsert whose objects have
+  different key sets (**PGRST102**, the thing that failed an entire job write on 2026-09-10) — and
+  it **refuses to ADD a key the payload does not already carry** (`if (!(k in row)) continue`), since
+  the two passes send different key sets.
+- Guards what a HUMAN owns on the card: `number · name · source · ship_to · eta · disposition ·
+  order_status · cost_cents · sell_cents`.
+- **FAILS OPEN** — a guard error can never break the migrate; worst case is the old behavior.
+- **Unit-verified 17/17** (`tests/parts-keeptyped.test.js`): blank-keeps, real-value-wins,
+  never-adds-a-key, whitespace-only-is-blank, unknown-row-untouched, money columns, fail-open.
+- **PROVEN LIVE end-to-end**, not off the unit tests: wrote a sentinel `source` onto a real mirrored
+  part **inside the forward window** (`wp:21968:…`, which the dry-run had queued with `source: None`)
+  → ran the migrate for real → **`upserted 45 · kept_typed 1 · errors 0`** → read the row back, the
+  sentinel **survived**. Pre-fix that same run wrote null. Sentinel removed, **0 residue**.
+
+### 🔴 SAME PASS — the save itself could not tell "saved" from "refused"
+`platform/office-board.html`'s part update + insert had **no `.select()`**, so an RLS-blocked write
+returns **zero rows and NO error** and printed **"Saved ✓"** over nothing. Both now prove a row came
+back first. (Not the cause here — the writes were landing — but it is the standing rule and it is
+one line. **A Supabase write is only saved when a ROW COMES BACK.**)
+- **`platform-sp-parts-sync` checked and LEFT ALONE** — it is genuinely blank-only on update and
+  never touches `source` on an existing row. The migrate was the only eraser.
+
+### ⚠️ STANDING: a `merge-duplicates` upsert is a BLANKING MACHINE for every column it sends
+Any mirror/sync that upserts a table a human also edits must carry a keep-typed guard, or it silently
+erases their work on its own schedule. **Before shipping one, list the columns a human can type into
+that same row** — if the payload sends any of them, it needs the guard. Same class as the job mirror;
+this is the fifth instance, and the tell is always the same: *"it's not saving."*
+
+### 📞 HER OTHER REPORT — "getting work calls after 6, before 9 sometimes too"
+Checked rather than assumed. **The Ann gate is WORKING** — read the live assistant at 9:00 PM CT
+Monday and **`transferCall` is physically stripped** (18 tools, no transfer), so Ann cannot ring
+anyone off-hours, and `relay_to_tech` is off-hours-safe too. Her cell is **nowhere customer-facing**
+(every hit in the repo is an internal alert destination or a gate allowlist).
+- **⏭️ THE RESIDUAL HOLE, not closed (Teddy's call — it is live call routing):** `office-texml.js`
+  computes the CT hour but uses it ONLY for the 9am "ring Danielle first" rule — **the ring group
+  itself has no off-hours gate.** So anything that reaches the ring DID **+1 615-588-9591** directly,
+  or any number bound to the TeXML app instead of to Ann, rings her cell at any hour. Closing it is
+  a few lines (refuse to dial an office cell outside Mon-Fri 9-6 CT, take a message instead) but it
+  changes live call routing, so it waits for Teddy.
+
+
 ## 📝🏚️ 2026-09-14 (Sun, late) — JIMMY'S NOTE HAD NOWHERE TO GO (not a save bug, a missing path) · AND THE "USED APPLIANCE STORE" GHOST IS FOUND: it's the OLD LA VERGNE STORE, still live on BBB + TWO Yelp listings — READ FIRST
 
 Teddy relayed three things: Yellow Pages adjustments land Thursday, he left a voicemail with BBB
