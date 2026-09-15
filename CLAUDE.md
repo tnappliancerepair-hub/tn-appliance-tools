@@ -1,5 +1,92 @@
 # Appliance Ant
 
+## 📲💵 2026-09-15 (Mon) — TEDDY: "all new jobs coming in tomorrow — I need to be text messaged, Danielle needs to be text messaged. New cash lead. Even after hours." + "pause all ads until next week" — READ FIRST
+
+Teddy, after reaching today's six LSA leads himself: *"reached out to them all — we've lost those
+jobs. But let's create a strategy for the ones coming in tomorrow. All new jobs coming in tomorrow
+as they come in. I need to be text messaged about it. Danielle needs to be text messaged about it.
+New cash lead. We need their phone number and their information. As soon as they call us, even
+after hours."* Then: *"I think we should pause all ads until next week."*
+
+### 🥇 THE NUMBERS WERE ALREADY HERE — nothing was reading them
+The LSA API **cannot** give the caller's number (`contact_details` rejected outright, probed live).
+But the **pre-call webhook has it on every inbound call** and nothing consumed it: `telnyx_precall_hit`
+logged **72 rows / 35 distinct callers today**, and **four of today's LSA leads sit in it by the
+minute** — 14:49 · 14:51 · 14:55 · 15:14 against LSA's 2:49 · 2:51 · 2:55 · 3:14 PM. The phone
+numbers Teddy went and chased by hand were in our own event log the whole afternoon.
+
+### ✅ SHIPPED — `new-lead-alert` (+ `-cron`, `*/2`): an unknown number rings, BOTH phones know
+**"NEW CASH LEAD — (615) 525-5531 called the main line at 2:49 PM CT. They are not in our system, so
+nobody has their job yet. Call them back: 6155255531"** → **Teddy AND Danielle**, within ~2 minutes,
+**any hour**. Names the line dialed, so a Google-Ads call reads differently from a walk-in.
+- **🔴 NO BUSINESS-HOURS GATE, DELIBERATELY.** *"even after hours"* was explicit. Every sibling
+  watcher here IS gated (lsa-lead-watch 7a–9p, platform-lead-watch 8a–8p), so the absence is easy to
+  "fix" by accident — **pinned by a test that reads the shipped source**. Roles `owner`/`office` are
+  `INTERNAL_ROLES` in `_lib/sms`, so quiet hours can't suppress it either. A 2am lead lands at 2am.
+- **⚠️ THIS IS THE FIRST THING TO REACH DANIELLE'S PHONE SINCE 2026-08-28** ("No more texting
+  Danielle, Sofia or Carrie"). He asked for her by name, so `office-gate` opens for **EXACTLY one
+  tag, to HER only** (`ALLOWED_TO_DANIELLE`). **Sofia and Carrie stay shut.** Widening that set is
+  how the flood comes back — anything else she should see belongs on the board, not her phone.
+  Kill her copy alone: vault `NEW_LEAD_ALERT_DANIELLE=false`.
+- **⚠️ THE GATE TRAP, CAUGHT BY THE TEST ON THE FIRST RUN:** a tag allowlisted for Danielle and
+  **not** for Teddy drops the **OWNER's own copy** — `office-gate` refuses and the caller sees
+  `sent:false`, which nothing reads. `new_cash_lead` had to go in `CASH_INTAKE_TAGS` too. Same class
+  as `cash-ready-notify` texting nobody for three weeks.
+- **🔴 WHY A CRON AND NOT AN INLINE SEND.** Precall is the dynamic-variables webhook; **Telnyx drops
+  it after ~2s and then speaks the literal `{{greeting}}` at a live customer** (documented). Its
+  lookup already races a 2000ms deadline. Hanging a carrier round-trip off that path trades a paid
+  lead's greeting for a text. This reads the row precall **already writes** — nothing in it can harm
+  a live call. Worst-case latency ~2 min.
+- **⚠️ NO AREA-CODE FILTER BY DEFAULT.** Tempting — 9 of today's 21 alerts are out-of-region and
+  mostly robocalls — but **Nashville is a transplant city** and a 407 caller is a real homeowner
+  often enough. **Toll-free is the one safe cut** (a homeowner doesn't call from an 800 number).
+  The dial exists so a noisy feed gets **tuned instead of muted**: `NEW_LEAD_ALERT_LOCAL_ONLY=true`.
+  **Default OFF** — his instruction is the default; the dial is his.
+- **Fails in the safe direction, both ways:** the dedup ledger **fails CLOSED** (a bad read throws
+  and sends nothing — an empty set would re-text every caller in the window), and an unresolvable
+  customer lookup reads as **UNKNOWN, not known** (an extra text costs a glance; a swallowed lead
+  costs the job). One text per caller per 24h, capped 6/run. Never texts the customer.
+- **`telnyx-precall-context` gained ONE log field** (`to_resolved`, already computed) so the alert
+  can name the line. Zero change to the call path.
+
+### 🧪 PROVEN
+**`tests/new-lead-alert.test.js` 23/23** — every rule **regex-lifted out of the shipped file**, so
+the test can't drift. **Replayed the real gate over today's 35 actual callers: 21 alerts, and all
+four lost LSA callers are in them** (3 toll-free + 11 known customers correctly skipped). Non-vacuity
+mutation-proven **ten ways**: re-blocking Danielle fails 2, dropping Teddy's copy fails 1, widening
+her door fails 1, a business-hours gate fails 1, an area-code filter fails 2, a fail-open ledger
+fails 1, a lookup that swallows a lead fails 1, shrinking the dedup fails 1, scheduling the core
+fails 1, defaulting the dial on fails 1. Full suite **81/81**.
+- 🐞 **Caught two of my own weak assertions.** One fired on a **code comment** (the word "schedule"
+  in the header — third time this class has shown up); the other on an unrelated **inner `catch`**
+  around a `JSON.parse`. Both replaced by **EXECUTING the real function against a stubbed fetch**
+  rather than pattern-matching it. **An assertion that survives its own mutation is decoration.**
+- 🐞 **And a lifter bug worth remembering:** `function ${name}` matches **mid-token inside `async
+  function`**, so the lift handed back a SYNC body full of `await` that wouldn't even parse. Any
+  regex-lift of an async helper needs `(?:async )?`.
+
+### 💸 ADS PAUSED (verified by read-back)
+- **Google Search:** the one enabled campaign — *After-Hours Appliance Repair — Nashville Metro*,
+  **$42.86/day** — set to PAUSED. Read back: **0 enabled campaigns** on cid 9267688121.
+- **ChatGPT/OpenAI Ads:** *TN Appliance Exchange campaign*, **$35/day** TN+LA — paused.
+- **Meta:** not configured, nothing running.
+- **🔴 LSA IS STILL SPENDING AND ONLY TEDDY CAN STOP IT.** Local Services has **no write API for any
+  advertiser** — budget/on-off/hours are dashboard-only. It reads **ENABLED, $40.71/day** right now.
+  **ads.google.com/localservices → Settings → pause.** ~30 seconds.
+
+### ⏭️ OPEN
+- **🔴 INERT UNTIL MERGED** — rides the same branch; Netlify deploys from `main`. **Nothing texts
+  anybody until this lands**, so the merge is the whole go-live for tomorrow morning.
+- **"Their information" is the honest gap.** At pickup we have the number and the line — that is all
+  that exists at that moment. The name/appliance/problem is what **Ann is supposed to write down and
+  doesn't**: 61 calls today → 0 `call_outcome`, 0 `callback_request`, 0 jobs. The
+  `conversation_insight_result` webhook DOES produce a perfect plain-English summary ("Mark contacted
+  us to schedule his LG refrigerator ice maker…") but fired **3 times in 2 days**, and those very
+  summaries say *"the tools failed"* — **Ann's tools are erroring mid-call.** That is the next fix,
+  and it is the one that turns this alert from a phone number into a lead.
+- **Volume is 21/day × 2 phones on today's traffic.** Watch it for a day; if it reads noisy, one
+  vault key (`NEW_LEAD_ALERT_LOCAL_ONLY=true`) cuts it to ~12.
+
 ## 📞💰 2026-09-15 (Mon) — TEDDY: "the LSA ads are working, we got five or six calls today and I'm not sure where those calls are going" — HE WAS RIGHT ON THE COUNT, AND THE ANSWER IS "NOWHERE IN PARTICULAR" — READ FIRST
 
 Teddy: *"I've got a new thing going on right now — the LSA ads, they're working. We've got probably
