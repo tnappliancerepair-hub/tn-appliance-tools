@@ -1,5 +1,71 @@
 # Appliance Ant
 
+## 📝📷 2026-09-15 (Mon, night) — JIMMY: "Not saving in the (what failed) box and no pics on office end" — RIGHT ON BOTH, AND NEITHER WAS A SAVE FAILURE — READ FIRST
+
+Jimmy, from the field, with a screenshot of an empty **What failed** box sitting above a button
+reading **"Saved"**. Both halves were **display**, not storage — which is exactly why they were
+hard to see.
+
+### 🥇 THE PHOTOS WERE NEVER MISSING — measured before touching anything
+**20 `Tech photo` rows landed today**, every one correctly company-scoped (`be4d11a1…`), attached
+to the right job, with the right R2 key prefix. `job_media` is healthy, the office board queries
+it correctly, and `provider:'r2'` is on its accept list. **Nothing was lost.**
+
+### 🔴 "WHAT FAILED" WAS BEING ERASED, NOT REFUSED — and a photo is what erased it
+`render()` rebuilds the WHOLE report card from the server copy of the TDR, and `loadJob()` →
+`render()` fires on a dozen ordinary actions. **`addTechPhoto()` calls `loadJob()` on success** —
+so the sequence is: type the failed component → tap the camera → upload succeeds → card rebuilt →
+**the box he just filled comes back empty.** The `blur` handler does save, but it races the
+re-render, and on a phone a tap into the file picker does not reliably blur first.
+- **✅ `render()` now carries unsaved text across the rebuild.** Compared against `fldLast` (the
+  last value we know landed), so an untouched or already-saved field carries **nothing** — only
+  genuinely at-risk text moves. **A value that arrived from the server always beats stale local
+  text**, so this can never overwrite the office typing into the same TDR from the board.
+- **⚠️ ORDER IS THE WHOLE FIX** — capture BEFORE the rebuild, restore AFTER `wireFieldSaves()`
+  (which resets `fldLast` from the fresh DOM). Reversed, either half is a no-op. Pinned by a test.
+
+### 🔴 AN EMPTY BOX WAS CLAIMING TO BE "SAVED"
+The per-field button doubles as the status line and read **"Saved"** whenever the field was not
+dirty — **including a field that had never held anything.** That is the sentence that told Jimmy
+his text had landed. It now says Saved only when something IS saved. **A control that reports
+state must not report a state it cannot know.**
+
+### 📷 A PHOTO THAT CANNOT BE SIGNED MUST NOT LOOK LIKE A PHOTO THAT ISN'T THERE
+Every tile is an **`<img>` with NO src** until `media-sign.js` signs it. Three ordinary things
+left it blank **forever**, and all three read to a human as "there are no pictures":
+1. **the session wasn't ready on first paint** → silent `return`, no retry; only a DOM mutation
+   could ever trigger another attempt;
+2. **the board sat open past the signature's ONE HOUR life** → `data-phdone` was permanent and the
+   cache never expired, so tiles that HAD loaded went broken and could never recover;
+3. **one failed signing call** → no retry, no message.
+- **✅ Fixed CENTRALLY in `media-sign.js`** — so office-board, tech-job AND tech.html all get it
+  (the one-definition rule; patching three pages would drift). Cache expires **under** the
+  signature (50 min vs 60), a missing session is **retried with backoff**, an image that fails to
+  load **re-signs itself once**, and anything still unresolved is marked `data-phfail`.
+- **Both pages paint a 📷 BEHIND the image** — unsigned shows the camera, loaded covers it. So a
+  slow signer reads as *loading*, never as *empty*. **No `:has()`**, so it holds on every phone in
+  the crew. This is the follow-on 2026-09-14 explicitly left undone ("same src-less `<img>` pattern
+  still lives in office-board (3 spots) … not touched").
+
+### 🧪 PROVEN
+**`tests/tech-report-unsaved.test.js` 8/8** — the helpers are **lifted out of the shipped file and
+EXECUTED against a fake DOM**, not pattern-matched (pattern-matching would only prove the words are
+there). Mutation-proven **three ways**: stopping the capture fails 1, clobbering a newer server
+value fails 1, restoring the old "Saved" label fails 1. Full suite **89/89**.
+
+### ⏭️ OPEN
+- **🔴 INERT UNTIL MERGED** — rides the same branch; Netlify deploys from `main`. Jimmy keeps losing
+  the box until it lands. **Techs must fully close + reopen the app once** after the merge.
+- **The office half is a FIX FOR THE LIKELY CAUSE, not a confirmed reproduction.** The data proves
+  the photos are there and the board's query + render are correct, so the failure is in signing or
+  display — but nobody has watched Danielle's screen. If tiles still read empty after the merge,
+  the next thing to check is whether she sees **📷 placeholders** (signer failing → look at
+  `platform-media-urls`) or **"No photos or videos yet"** (a different job, or the wrong board).
+- **⚠️ STANDING: a re-render that rebuilds a form from the server will eat whatever a human is
+  mid-way through typing.** Any surface that both auto-refreshes and takes typed input needs this
+  carry — the tech's day list and the office drawer are the next places to check.
+
+
 ## 📲💵 2026-09-15 (Mon) — TEDDY: "all new jobs coming in tomorrow — I need to be text messaged, Danielle needs to be text messaged. New cash lead. Even after hours." + "pause all ads until next week" — READ FIRST
 
 Teddy, after reaching today's six LSA leads himself: *"reached out to them all — we've lost those
