@@ -1,61 +1,69 @@
 # Appliance Ant
 
-## 🚪🟢 2026-09-15 (Mon, late) — AHS/FRONTDOOR RE-RUN FROM SCRATCH: the SANDBOX GATEWAY IS EMPTY. The service is LIVE on PRODUCTION at the prefix we already coded. We need a PRODUCTION KEY — READ FIRST
+## 🚪🚨 2026-09-15 (Mon, late) — AHS/FRONTDOOR: WE ARE THE BLOCKER. Their sandbox has sent us 161 dispatches since 8/24 and they are waiting on US to say go — READ FIRST
 
-Teddy: *"Let's focus on AHS api"* → *"start from the beginning of the api process and try everything
-over."* Did exactly that — hosts, auth, identity, then the path map — and it **overturned my own
-earlier conclusion from the same session** (I had said "file a sandbox config ticket"; that was wrong).
+Teddy: *"Let's focus on AHS api"* → *"start from the beginning and try everything over"* → **"did we
+send the correct email asking for the correct thing?"** That last question is what cracked it. I had
+just told him to go ask for a production key. **Checking the actual inbox instead of our own notes
+showed we did not need to ask for anything — the integration has been live in sandbox for three weeks.**
 
-### 🥇 THE FINDING — we have been knocking on an empty building
-- **`api.sandbox.frontdoorhome.com` has ZERO ROUTES.** Every path 404s, *including a control path
-  under a known prefix.* Nothing is deployed there. **That single fact is the entire source of the
-  404s we have chased since June.** There was never anything to configure in sandbox.
-- **`api.frontdoorhome.com` is real and routes by PREFIX.** Live + JWT-gated prefixes:
-  **`/dispatch-connector`** · `/address` · `/dtc` · `/real-estate`. Our token there returns
-  **`401 "Jwt issuer is not configured"`** — production simply doesn't trust the sandbox issuer.
-- **⚠️ THE ROUTING-ID THEORY IS DEAD.** `/ahs`, `/ftdr`, org_id and applicationId all 404 as unknown
-  prefixes. There is no segment to be issued.
-- **⚠️ `/v1/case-lifecycle/dispatch_status_update` IS NOT REAL** on either host — the "simpler
-  contractor endpoint" from Getting Started isn't ours. **`/dispatch-connector` is the one, and it is
-  exactly what `_lib/frontdoor.dispatchStatusUpdate` already posts to.**
+### 🥇 THE TRUTH (read off Gmail + our own event_log, not the changelog)
+- **2026-08-24 — Frontdoor ENABLED our Client ID for sandbox** (Akshay Kyatam, Akshay.Kyatam@frontdoor.com,
+  cc Brian Bullock + Shivam Arora + 3 others). He gave us our webhook URL + token and told us to send
+  **`source: TN_APPLIANCE_EXCHANGE`**.
+- **They have been sending us dispatches ever since. We have EVERY one: 161 distinct dispatches / 500
+  `frontdoor_webhook_event` rows, first 09-01, latest 2026-09-14 17:41 CT.** Dispatch **22863999** — the
+  one Akshay specifically asked us to confirm — is here **7 times** (schedule + status).
+- **He asked us to confirm on 9/3, followed up 9/8, and we never closed it.** His words: *"Once you
+  confirm that both the outbound and inbound flows are working as expected, we should be good to
+  proceed with the production go-live."* **The ball has been in our court since 8/24.**
+- ⚠️ **OUR 8/31 EMAIL OVERCLAIMED.** We told him inbound was "confirmed working" and read the 404 as
+  "no sandbox dispatch to reference yet." It was the ROUTE missing, not the dispatch. That misread is
+  a big part of why this sat for two weeks.
 
-### 🔑 AUTH IS EXHAUSTED AS A THEORY — it was never the problem
-- Sandbox password-grant **mints**; `introspect` → **`active: true`**.
-- **Both production token URLs reject our client_id as `invalid_client`** → **our key is sandbox-only.**
-- **`scopes_supported` is only `openid, offline_access, email, phone, profile`** — **no dispatch or
-  contractor scope exists to ask for**, so we are not under-requesting. `roles` is always
-  `["external-partner"]`; `userinfo` returns only `sub`+`tid`. The IdP has nothing more to give.
+### 🔴 THE ONE REAL GAP — they never gave us the INBOUND endpoint
+They gave us OUR webhook URL, the token, and the source value. They never gave us **their** base URL +
+path for status pushes. We inferred `api.sandbox.frontdoorhome.com` from the public docs and **that host
+404s on every path including its own root** (proven with a control pair — see below), so our pushes have
+had nowhere to land. **That is the entire ask: the exact inbound URL + a sample body.**
+**Draft reply ready to send: `docs/frontdoor-reply-to-akshay-2026-09-15.md`** (reply-all on the existing
+thread) — confirms 22863999 + the 161, asks for the endpoint, offers production creds same day.
 
-### ⏭️ THE ASK CHANGED — a PRODUCTION API KEY, not a sandbox ticket
-BD rep + **`partnerapiadmin@frontdoorhome.com`** (cc Brian). Portal → *Your API key* → **Add API Key**
-with environment **Production** (ClientId is environment-specific — the sandbox one can never work).
-**Copy-paste ask + our shareable identifiers: `docs/frontdoor-production-key-ask-2026-09-15.md`.**
-🔒 Never send the key password; Frontdoor doesn't need it.
+### 🐞 CODE BUG FOUND + FIXED — we were sending the wrong `source`
+`_lib/frontdoor.js` hardcoded **`source: 'DISPATCH_ME'`** — a guess copied out of the public enum in the
+spec. Akshay told us on 8/24 to send **`TN_APPLIANCE_EXCHANGE`**. Fixed (`FD_SOURCE`), plus both probes.
+
+### 🗺️ THE GATEWAY MAP (from the from-scratch re-run, `frontdoor-rerun`)
+- **`api.sandbox.frontdoorhome.com` has ZERO routes** — every path 404s incl. a control under a known prefix.
+- **`api.frontdoorhome.com` is real and routes by PREFIX** (control pair: unknown prefix→404, nonsense
+  sub-path under a known prefix→401). Live + JWT-gated: **`/dispatch-connector`** · `/address` · `/dtc` ·
+  `/real-estate`. Our sandbox token there → `401 "Jwt issuer is not configured"`.
+- **THE ROUTING-ID THEORY IS DEAD** — `/ahs`, `/ftdr`, org_id, applicationId all 404 as unknown prefixes.
+- **Auth is exhausted as a theory:** sandbox mints + `introspect active:true`; both production token URLs
+  say `invalid_client` (**our key is sandbox-only**); `scopes_supported` is only the five stock OIDC
+  scopes so **no dispatch scope exists to request**; `roles` always `["external-partner"]`.
+
+### ⛔ DO NOT FLIP `FRONTDOOR_WEBHOOK_LIVE=1` YET
+Those 161 are **sandbox test** dispatches. Going live now creates **161 junk jobs on the real board**.
+Dark mode is the CORRECT posture until we're on production traffic — the dry-run has been doing its job.
+Go-live order: confirm inbound → production creds both ways → *then* flip.
 
 ### 🔴 THE WATCHER WAS LYING, TWICE OVER
-`frontdoor-auth-watch` (a) treated **any non-403 as "authorized"**, so a 404 tripped it → false
-all-clear texts on **2026-08-12** and **2026-09-10** (29d apart, just past its own 30d dedup), and
-(b) **probed the empty SANDBOX gateway**, so it would have waited forever on a host serving nothing.
-**Fixed both:** only 200/201/202 · 400/422 (auth taken, body rejected = a **PASS**) · 405 count as
-reachable; it probes **production** now and reports **`issuer_not_trusted`** until a prod key exists.
-Pinned by **`tests/frontdoor-auth-gate.test.js` — 26 assertions, decision regex-lifted verbatim from
-the shipped file** so nobody can widen it back.
-
-### ✅ EVERYTHING DOWNSTREAM IS BUILT AND ALREADY RUNNING
-**`frontdoor_push_shadow` = 100 events in 90 days** — on-my-way→EN_ROUTE, start→IN_PROGRESS,
-complete→COMPLETE + the composed TDR note fire on every AHS job today, they just log. **Go-live:**
-vault the **production** `FRONTDOOR_*` values + `FRONTDOOR_ENV=production` → re-run
-`frontdoor-rerun?...&step=paths&host=https://api.frontdoorhome.com` (**a 400 is the win**) → flip
-**`FRONTDOOR_PUSH_LIVE=1`**.
+`frontdoor-auth-watch` (a) treated **any non-403 as "authorized"** → false all-clear texts **08-12** and
+**09-10** (29d apart, just past its own 30d dedup), and (b) **probed the empty sandbox gateway**. Both
+fixed: only 200/201/202 · 400/422 (auth taken, body rejected = a **PASS**) · 405 count; probes PRODUCTION;
+reports `issuer_not_trusted`. Pinned by **`tests/frontdoor-auth-gate.test.js` (26 assertions, decision
+regex-lifted verbatim from the shipped file)**.
 
 ### ⚠️ STANDING LESSONS
-- **A 404 is not a permissions signal, and a 401 is not proof a sub-path exists.** Gate watchers on
-  codes that prove success, never on "not the error I was waiting for."
-- **Probe a CONTROL path before reading a route map out of status codes.** My first control assumed
-  route-then-auth; this gateway does auth-per-prefix, and the control is the only reason I caught it
-  before publishing a wrong map. Two controls (unknown prefix vs nonsense sub-path under a known one)
-  is what actually resolves prefix-routing.
-- **When a sandbox environment answers nothing at all, suspect the sandbox — not your credentials.**
+- **CHECK THE INBOX BEFORE BUILDING A DIAGNOSTIC.** I mapped a gateway, decoded JWTs and wrote two
+  probes before reading the thread that said they'd enabled us three weeks ago. **The partner's own
+  email is primary source; our changelog is hearsay.** One `gmail-search` first would have saved all of it.
+- **A 404 is not a permissions signal, and a 401 is not proof a sub-path exists.** Probe a CONTROL path
+  before reading a route map out of status codes — this gateway authenticates per-PREFIX, and the
+  control is the only reason I caught it before publishing a wrong map.
+- **When a partner asks a direct yes/no question, answer it that day.** Two weeks of silence read as a
+  blocked integration when we were the ones holding it.
 
 ## 📵🕔 2026-09-15 (Mon, late) — AFTER-HOURS HOLE CLOSED: the ring group had NO hour gate, and the missed-call textback had never once sent — READ FIRST
 
@@ -7742,7 +7750,7 @@ Standing tracker. Each gated API = a superpower we rent. Request access EARLY (c
 **🎯 MORE APIs TO PURSUE (Teddy asked 6/24 — warranty vendor ones = biggest Danielle-replacement levers):**
 | API | Unlocks | Action / status |
 |---|---|---|
-| **Frontdoor / AHS Status API** 🥇 | Ant pushes job status + notes straight into the Frontdoor Contractor Portal → **kills Danielle's manual portal updating** | **🟢 RE-RUN FROM SCRATCH 2026-09-15 — the blocker is a PRODUCTION KEY, and the sandbox gateway is EMPTY.** Teddy asked to start the API process over taking nothing on faith; `frontdoor-rerun` (NEW: `&step=hosts|auth|identity|paths`) walked it and **overturned the earlier read**. **(1) `api.sandbox.frontdoorhome.com` HAS ZERO ROUTES** — every path 404s incl. a control under a known prefix. **That is the entire source of the 404s since June; there was never anything to configure in sandbox.** **(2) `api.frontdoorhome.com` is REAL and routes by PREFIX** (proven with a control pair: unknown prefix→404, nonsense sub-path under a known prefix→401). Live + JWT-gated: **`/dispatch-connector`** · `/address` · `/dtc` · `/real-estate`. Our token there → **401 "Jwt issuer is not configured"** = production doesn't trust the sandbox issuer. **(3) THE ROUTING-ID THEORY IS DEAD** — `/ahs`, `/ftdr`, org_id, applicationId all 404 as unknown prefixes. **(4) `/v1/case-lifecycle/dispatch_status_update` IS NOT REAL** on either host — `/dispatch-connector` is the one, and it is exactly what `_lib/frontdoor.dispatchStatusUpdate` already posts to. **AUTH IS EXHAUSTED AS A THEORY:** sandbox mints + `introspect active:true`; **both production token URLs say `invalid_client` → our key is SANDBOX-ONLY**; `scopes_supported` is only `openid/offline_access/email/phone/profile` so **no dispatch scope exists to request**; `roles` always `["external-partner"]`. ⏭️ **TEDDY — THE ASK IS A PRODUCTION API KEY** (portal → Your API key → Add API Key, environment **Production** — ClientId is env-specific) via the **BD rep + `partnerapiadmin@frontdoorhome.com`** (cc Brian). **Copy-paste ask + our shareable ids in `docs/frontdoor-production-key-ask-2026-09-15.md`** 🔒 never send the key password. ⚠️ **THE WATCHER WAS LYING TWICE OVER:** it treated any non-403 as authorized (false all-clear texts **08-12 + 09-10**, 29d apart just past its own 30d dedup) **and probed the empty sandbox gateway** — both fixed; it now probes PRODUCTION, counts only 200/201/202 · 400/422 · 405, and reports `issuer_not_trusted` until a prod key exists (pinned by `tests/frontdoor-auth-gate.test.js`, 26 assertions lifted from the shipped file). ✅ **Everything downstream is BUILT + running: `frontdoor_push_shadow` = 100 events/90d** (on-my-way→EN_ROUTE, start→IN_PROGRESS, complete→COMPLETE + composed TDR note, all firing, just logging). **Go-live:** vault the PRODUCTION `FRONTDOOR_*` + `FRONTDOOR_ENV=production` → re-run `frontdoor-rerun&step=paths&host=https://api.frontdoorhome.com` (**a 400 is the win**) → flip `FRONTDOOR_PUSH_LIVE=1`. |
+| **Frontdoor / AHS Status API** 🥇 | Ant pushes job status + notes straight into the Frontdoor Contractor Portal → **kills Danielle's manual portal updating** | **🚨 2026-09-15: WE ARE THE BLOCKER, not them.** Read the INBOX (not our notes): **Frontdoor enabled our Client ID for sandbox on 2026-08-24** (Akshay Kyatam, cc Brian + Shivam) and **has been sending us dispatches ever since — 161 distinct / 500 `frontdoor_webhook_event` rows, latest 2026-09-14.** Dispatch **22863999**, the one he asked us to confirm, is here **7×**. He asked 9/3, followed up 9/8, **we never answered**: *"Once you confirm both flows we should be good to proceed with the production go-live."* ⚠️ Our **8/31 email OVERCLAIMED** — said inbound was "confirmed working" and misread the 404 as "no dispatch to reference." **THE ONE REAL GAP: they never gave us their INBOUND endpoint** (base+path for status pushes). We inferred `api.sandbox.frontdoorhome.com` from public docs and **it 404s on every path incl. its own root**. ⏭️ **TEDDY: reply-all on the existing thread — draft ready in `docs/frontdoor-reply-to-akshay-2026-09-15.md`** (confirms 22863999 + the 161, asks for the inbound URL + sample body, offers production webhook creds same day). 🐞 **FIXED:** connector sent `source:'DISPATCH_ME'` (a guess from the public enum) — Akshay specified **`TN_APPLIANCE_EXCHANGE`** on 8/24; now `FD_SOURCE`. 🗺️ Gateway map (`frontdoor-rerun`): sandbox host has **zero routes**; production routes by **PREFIX** (`/dispatch-connector` · `/address` · `/dtc` · `/real-estate` live+JWT-gated), our sandbox token → `401 "Jwt issuer is not configured"`; **routing-id theory DEAD**; auth exhausted (`introspect active:true`, both prod token URLs `invalid_client` → **key is sandbox-only**, only the 5 stock OIDC scopes exist). ⛔ **DO NOT flip `FRONTDOOR_WEBHOOK_LIVE=1`** — those 161 are SANDBOX tests; live now = **161 junk jobs on the real board**. Dark mode is correct until production traffic. ⚠️ Watcher was lying twice (any-non-403=authorized → false all-clears 08-12 + 09-10; and it watched the EMPTY sandbox) — both fixed, now probes production, pinned by `tests/frontdoor-auth-gate.test.js` (26 assertions). ✅ Downstream built + running: **`frontdoor_push_shadow` = 100 events/90d**. |
 | **ServicePower CLAIMS API** 🥈🥈 | READ claim status + payment data (later auto-SUBMIT claims) | **🟢🟢🟢 6/24 — CLAIMS READ FULLY PROVEN LIVE (a SEPARATE REST/JSON API from the dispatch SOAP).** ServiceClaims = JSON over HTTPS — prod `https://claimworks.servicepower.com:8443/services/claim/v1/retrieval`, same vaulted servicer creds in a JSON `authentication{userId,password}` block (NOT a header). Connector `_lib/servicepower-claims.js` (`retrieveClaims`, CCYYMMDD→ISO, cred-redacted) + `servicepower-claims-test.js` (owner-gated `?secret=&call=&claim=&mfg=`). **KEY FINDINGS:** (1) **`manufacturerName` = `SQUARE TRADE`** (WITH the space) — our single warranty client; connector defaults to it (override vault `SERVICEPOWER_MFG_NAME`). The earlier "Invalid" failures were the missing space + querying under NSA/SERVICEPOWER (valid contracted names but NOT our client). (2) **retrieval key = the DISPATCH/CALL number we ALREADY have on every job** — pass it as `callNumber`, no claim# needed. (3) portal "Claim Number" is two-part `<callNumber> - <claimIdentifier>` (claimIdentifier = claimBatchNumber+claimSequenceNumber). (4) API only returns claims **past Incomplete** (i.e. submitted). **VALIDATED vs Danielle's screen** (MONAHAN dispatch 069469374138): status Paid, EFT# 1157090212, paid 6/20/26, period-end 6/16/26, paid_total $150, GE dryer — **every field matched.** 6/6 dispatch-board calls → 6/6 Paid claims ($105/$150). Statuses (portal dropdown): D-Dtr/F-Forwarded/I-Incomplete/K-FSS/M-Mfg Review/P-Paid/R-Rejected/S-Approved/W-Mfg Reject. Spec: `docs/servicepower-claims-api-spec-2026-06-24.md`. **NEXT: `servicepower-claims-sync` poller (read→reconcile payments, surface rejects) + claims auto-SUBMIT (v1.10, shadow-first).** |
 | **ServicePower DISPATCH API** 🥈 | Auto status/note push for SquareTrade jobs | **🟢🟢 6/24 LIVE (READ) — AUTHENTICATED + PULLING REAL PRODUCTION JOBS.** SOAP/SPDService (`urn:SPDServicerService`), servicer acct **TNA00001**. `getCallInfo` returns our real dispatches (name/addr/appliance/problem/schedule/status). Connector `_lib/servicepower.js` (`getCallInfo`+`updateCallInfo`, UserInfo auth) + `servicepower-test.js`. Creds VAULTED + WORKING (`SERVICEPOWER_USER_ID`= the short ServiceDispatch UserID from support, `_PASSWORD`= reset ≤10char, `_SVCR_ACCT`=TNA00001, `_ENV`=**production**). **KEY FIXES that cracked it:** (1) inner SOAP elements must be UNQUALIFIED (no `impl:` prefix) — only the wrapper is namespaced; (2) creds are PRODUCTION (reset via my.servicepower.com) so ENV=production not development; (3) date window must be narrow (wide range → SP007). **Live status codes seen (from real data):** OPEN, ACCEPTED=**3**(subID 1939), CLAIMED=**1**, COMPLETED, CANCELLED, REJECTED. **board view:** `servicepower-jobs.js` pulled 280 real jobs (TN164/LA116). **🟢🟢🟢 WRITE IS LIVE — PROVEN (6/24): Ant wrote a real note into ServicePower via `updateCallInfo` (`erroroccurred:N / UPDATED SUCCESSFULLY`).** No read-only/email needed — it was a chain of format fixes: (1) identifier needs **CallNumber + FSSCallId + MfgId** together (FSSCallId was the missing key; SP062 until added); (2) **NotesDate must be YYYYMMDD** (SP064 until fixed); (3) status IDs **OPEN=2 ACCEPTED=3 CANCELLED=4 COMPLETED=5 REJECTED=6 RESCHEDULED=7** (§14.3); re-pushing the same status = SP064 "already this status" (idempotent guard, expected). Connector `_lib/servicepower.js` + `servicepower-push.js` (shadow default; manual admin live write via secret+confirm+manual:true). **🟢 LIFECYCLE WIRING DONE (SHADOW) 6/24:** `tech-job.html` fires `servicepower-push` on On-my-way→`en_route` / Start→`in_progress` / Complete→`completed` (+tech report as the note) for ServicePower jobs only; **`servicepower-push` now AUTO-RESOLVES FSSCallId+MfgId** from the dispatch board (chunked 2-day windows, early-exit, dodges SP007) so the live write is self-sufficient — proven in shadow (call 098149274130 → fss 49826309, mfg I565, status COMPLETED/5). **TO GO LIVE: set vault `SERVICEPOWER_PUSH_LIVE=true`** (then lifecycle taps write to the portal automatically; until then they shadow-log to event_log `servicepower_push_shadow`). **STILL TODO: auto-accept OPEN dispatches + wire office-board lifecycle paths (tech-job covers the tech path).** Spec: `docs/servicepower-api-spec-2026-06-24.md`. |
 | **ServicePower CLAIMS SUBMISSION (TDR-as-claim)** | Auto-FILE the claim when a job completes | **🔶 IN PROGRESS 6/24 — DIRECTION LOCKED (Teddy): the TDR for each vendor IS the claim.** A SquareTrade job's TDR captures exactly what SquareTrade's claim needs; AHS = different fields. **The tech NEVER learns vendor codes** — fills a plain TDR, Ant translates → claim codes. Full submission schema self-served from `https://claimworks.servicepower.com/servicessample/claim/v1/claimsubmissionrequestv1.json` (endpoint `…:8443/services/claim/v1/submission`, JSON, same auth). **BUILT:** `servicepower-claims-build.js` (owner-gated `?secret=&job_id=`/`&call=`) assembles the SQUARE TRADE claim from a completed job+TDR — PROVEN on MONAHAN (job 19165): auto-filled customer/model/complaint/dispatch#/dates; flagged gaps (brand, completion stamp, labor$, service-performed, codes). **TO FINISH:** (1) **official code lists** from the portal (Defect/Repair/Category dropdowns + part fault/job codes) → refine `CODE_MAP` so Ant maps the plain TDR accurately; (2) **SquareTrade labor-rate source** ($105/$150 fixed — flat per job-type? Danielle-set?); (3) build `servicepower-claims-submit.js` (shadow-first, then live on Teddy's OK for one real claim). AHS submission = same pattern once we have AHS's claim fields. |
