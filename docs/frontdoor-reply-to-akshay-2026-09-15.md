@@ -34,7 +34,7 @@ his two follow-ups read as "everything good?" rather than "what's broken?"
 
 **This retires the earlier "he went quiet because we inverted his vocabulary" theory.** He
 never received the email that inverted it. The reason he went quiet is simpler: **we never
-replied.** (The vocabulary rule below still stands for the email we are about to send — it
+replied.** (The vocabulary rule below still stands for the email we sent — it
 just wasn't the cause.)
 
 ---
@@ -270,15 +270,29 @@ is the argument for doing one.
 | 5 | Cc list omitted Danny Suarez; didn't flag the `jpoivacek@` typo | Superseded by #7 — there is no Cc on this thread at all | — |
 | **7** | **"Reply-all cc's Brian Bullock + 4 others; Brian is on the Cc and is the escalation"** | **Akshay's Sept 3 + Sept 8 messages have an EMPTY Cc and go only to `tnappliancerepair@gmail.com`. Every one of those five names appears only in quoted body text from an older forwarded thread. Proven: a Gmail search for `Brian.Bullock@ahs.com` returns these messages by BODY match, with `CC:` blank on every hit.** | Two ways. We'd have told Teddy to fix a Cc that isn't there. And the escalation plan assumed a reply-all would reach Brian — it won't; that has to be a new email. |
 
-**Draft is already composed and sitting in Gmail** (created 2026-09-15 01:1x CT, draft id
-`1a0a3b083eba2a8a`, in thread `1a0341dcd5f4a3e4` on `tnappliancerepair@gmail.com`). Its `To:`
-line was written programmatically as `Akshay.Kyatam@frontdoor.com` and then **read back out of
-Gmail to confirm it** — which is the one check whose absence caused this whole mess. Nothing
-sends until someone explicitly sends it.
+## ✅ SENT — 2026-09-15, 7:05:37 AM CT
+
+Message id **`1a0a4f55771043dd`**, thread `1a0341dcd5f4a3e4`, from `tnappliancerepair@gmail.com`,
+**`To: Akshay.Kyatam@frontdoor.com`**, Cc empty. Composed programmatically (no hand-typed `To:`
+line anywhere in the chain) and then **read back out of Gmail's Sent folder** — the one check
+whose absence caused this whole mess.
+
+**The proof is the query that used to return zero.** `in:sent to:Akshay.Kyatam@frontdoor.com`
+returned **count 0** for Sept 3 and Sept 8. Run today it returns this message, with
+`TO: Akshay.Kyatam@frontdoor.com`.
+
+⚠️ **Gmail's `in:sent` index lags roughly 20 seconds.** The first read 4 seconds after the send
+returned **0 hits** and was indistinguishable from a failed send. Wait and re-query before
+concluding anything — and never take the API's `200 {"mode":"sent"}` as proof on its own.
+
+⚠️ **The draft was NOT consumed.** `gmail-send` with `send:true` POSTs to `/messages/send`, which
+creates a *new* message; draft `1a0a3b083eba2a8a` still sits in the same thread. It is now a
+duplicate of an email that already went out — **delete it in Gmail** so nobody sends Akshay the
+same thing twice. (`gmail-send` has no delete action; this is a manual one-tap.)
 
 **Also retired by #6:** the "he went quiet because our Sept 8 email inverted his
 inbound/outbound vocabulary" theory. He never received that email. The no-inbound/outbound
-rule still stands for the email we're about to send — it just wasn't the cause of the stall.
+rule still stands for the email we sent — it just wasn't the cause of the stall.
 
 **Confirmed correct and unchanged:** all five two-way proofs (verbatim) · the Aug 31
 "Confirmed working" quote (verbatim) · Akshay's inbound/outbound convention in both
