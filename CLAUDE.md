@@ -1,5 +1,105 @@
 # Appliance Ant
 
+## 💾🐜 2026-09-16 (Wed, PM) — "THE MOST RELIABLE SYSTEM": ANDRE'S DEAD-END FOUND (51 JOBS STRANDED) · A DURABLE OUTBOX SO BAD SIGNAL CAN'T EAT A WRITE · SOFIA'S EDITS PROVEN REVERTED BY THE MIRROR IN 3½ MIN · A HELD SPOT NOW SAYS WHEN AND WHAT TIME — READ FIRST
+
+Teddy set the mandate: *"A lot of these guys are traveling. They've got poor signal… Sometimes it
+doesn't save. We want this to be the most reliable tool for the technicians and for the office
+alike… they can feel confident that it's going to save."* Plus Andre (can't complete a job, "put the
+information in four times"), Sofia (*"I'm not able to update phone numbers and it saves"*), and
+Danielle (a held spot must show **when and what time**). **All four shipped. 🔴 ALL OF IT IS INERT
+UNTIL THE BRANCH LANDS ON `main` — Netlify deploys from main.**
+
+### 🥇 ANDRE WAS RIGHT — AND IT WASN'T A SAVE FAILURE, IT WAS A DEAD END
+Measured on the live board before touching anything: **his writes DO land** (2 completions that
+day), so it was never a blanket RLS block. The real shape — three jobs sitting *right now* with a
+rich `root_cause`, an **EMPTY `failed_component`**, `outcome='fixed'`, and status not completed
+(`ae7a08a8` Jimmy, `c0526d2d` Jimmy, `72b040db` Andre). **51 jobs stranded in exactly that state in
+90 days; 502 of 801 TDRs (63%) carry notes with no failed_component.**
+- **THE MECHANISM:** `saveTdr()` refused to finish without "What failed", printed its refusal into
+  `#tdrErr` **below the Save button**, then `focus()` scrolled him **UP** to the empty box. On a phone
+  **the message was never on screen** — the button just read dead. Type it again, tap, nothing. Four times.
+- **✅ THE GATE NOW TALKS.** It asks straight out — *"Nothing to put in What failed? OK = nothing on
+  this machine actually failed, we'll write 'No failure found' and finish. Cancel = take me back up
+  to fill it in."* — and on Cancel it **paints the box RED, scrolls to it, focuses it** and says why
+  right on the field. `platform/tech.html` had the same dead end and **worse** (it gated EVERY
+  outcome, not just `fixed`).
+
+### 📡 THE DURABLE OUTBOX — `platform/ant-save.js` (NEW), the mandate itself
+The platform tech app had **no service worker and no retry** — every write a bare live round-trip.
+`AntSave.write()` now fronts every tech write: on a network-shaped failure it **queues to
+localStorage and reports "📡 Saved on your phone"**, then drains on reconnect, on the next app open,
+and on a 15s retry. Same-key items **merge** (a re-tap updates the held row, never stacks); an
+office note **appends at send time** off a fresh read, so a held note lands under whatever the office
+typed while he was in a dead zone. FIFO, 60 items, 7 days.
+- **⚠️ A SERVER REFUSAL IS NOT A SIGNAL PROBLEM** — `networkish()` treats anything carrying an error
+  `code` as the server having spoken, so an RLS refusal is reported, never silently queued forever.
+- Finishing a job offline queues the report **and** the status flip, and the customer "job complete"
+  text fires **only when the status actually lands** (`then:'job_finished'`), never off a queued write.
+- Wired into report fields, the finish, status taps and office notes on **both** tech surfaces.
+- **`tests/tech-save-reliability.test.js` 28/28**, mutation-proven **18 ways**.
+- 🐞 **MUT4 SURVIVED THE FIRST RUN** — my assertion matched `window.confirm(` *inside a dead guard*.
+  The documented trap, again: **presence is not reachability.** Rewritten to lift the gate by its
+  stable comment header and EXECUTE it. MUT10/MUT12 also survived until each routing assertion was
+  scoped to its own brace-balanced function body — an identical line inside `saveTdr` was satisfying
+  an assertion about `fldSave`.
+
+### 🔴 SOFIA'S EDITS WERE BEING UNDONE BY THE MIRROR — PROVEN ON THE LIVE BOARD IN 3½ MINUTES
+Not guessed. Wrote a sentinel name onto a real mirrored customer at 18:17:42Z and watched it:
+`18:20:05 ZZSENTINEL · 18:20:37 ZZSENTINEL · 18:21:09 ZZSENTINEL · **18:21:41 Cailin**` — the mirror
+put it back. **`customer.updated_at` is stamped by the mirror on every run** (same trap as
+`job.updated_at`), and **3,823 of TN's 3,862 customers are mirrored**, so this was every customer she
+could reasonably be editing. `keepTyped()` only refuses a **BLANK** incoming Xano value — a
+**DIFFERENT non-empty one still wins**.
+- **✅ THE FIX IS NOT FLIPPING WHO IS AUTHORITATIVE** (that stays Teddy's call). It's telling Xano
+  what she typed, through the office editor that already exists: **`update-customer-name`** writes the
+  customer row **and the denormalized `customer_phone` onto that customer's jobs** — which is the
+  **exact field the mirror reads back** (`j.customer_phone`). Next run the mirror writes HER value.
+- A job **born on the platform** (no `xano_id`) is never pushed — nothing can revert it.
+- **AND the silent-RLS half:** all three drawer updates had **no `.select()`**, so a blocked write
+  returned zero rows and no error and printed **"Saved ✓"** over nothing. Every one proves a row came
+  back now; a refused write says so. If the Xano push fails she's told **now**, in words, that the old
+  system still has the old info and it may come back.
+- `xano_id` added to **`SEL_BASE_MIN`** — the drawer opens from the lean fallback tier too.
+- **`tests/office-save-reliability.test.js` 15/15**, mutation-proven **8 ways**.
+- 🐞 **MUT3 SURVIVED** — commenting the push out left the suite green. Executing a lifted function
+  proves the function works and **nothing** about the handler still calling it. Now asserts the call
+  is on a live line of `d_save` with comments stripped and a falsy short-circuit rejected.
+- **Zero residue** — the test customer is byte-for-byte as she was.
+
+### 🕒 A HELD SPOT NOW SAYS WHEN *AND WHAT TIME* (Danielle)
+The display was the smaller half. A hold stored the **day and nothing else**, so the window she had
+just agreed with the customer was thrown away **twice**: `holdFromDrawer` ignored the window picker
+two controls above it, and `bookHoldConfirmed` had **`const win='';` hardcoded** — so **confirming a
+hold booked a job with no window every single time**, at the exact moment the customer said yes.
+Same on the scheduling grid (its hold button ignored the picker sitting beside it).
+- A hold now carries **`window`** (the words the customer heard) + **`hour`** (the routing sort key),
+  read from the *same control the real booking already used*, so a hold and a booking can never
+  disagree. Confirm books what was held; with no held window it falls back to the old next-open-stop
+  behaviour, so nothing already working changes.
+- Reads like an answer: **⏳ Held for Jimmy · 📅 Friday, Sep 18 · 🕒 12-4pm · held 3h ago**. The board
+  **tile** carries it too (`⏳ HELD Fri 9/18 · 12-4pm`) so "held for when?" is answerable while
+  scanning. A hold with **no window says so plainly**; one sitting **over a day is flagged ⚠**.
+- **`tests/schedule-hold-window.test.js` 15/15**, mutation-proven **11 ways** — including a
+  **round-trip through the REAL handler against a stubbed store**, so nothing was written onto the
+  live board to prove it.
+- ⚠️ **`office-schedule-requests.js` is a shared `.js` and is NOT covered by the `/*.html` no-cache
+  rule** — its `?v=` was bumped on all **17** pages in the same commit. Standing rule, burned again.
+
+### 🧪 PROVEN
+Full suite **150/150**. Four commits on `claude/supabase-ant-system-testing-vnbgym`.
+
+### ⏭️ OPEN
+- **🔴 MERGE TO `main`** — Netlify deploys from main. Until it lands, Andre still hits the dead end,
+  Sofia's phone edits still revert in ~3½ minutes, and a held spot still forgets its window.
+- **Techs must fully close + reopen the app once** after the merge to pick up `ant-save.js`.
+- **The mirror-authority question is still Teddy's** and is now the ONLY thing standing behind this
+  class: today the office pushes its edit into Xano so the mirror agrees. If a field is ever edited
+  on the platform that has **no Xano push path**, the mirror will keep reverting it.
+- Carried over: 225-605-1234 rings a stray "Ant Verify Line" instead of Ann; **888-268-8998 — the
+  most-published number — is not in the 10DLC campaign**, so its texts are silently dropped; the
+  office password never re-verifies (`authOk()` should re-verify on load; `cash-leads.html` should
+  stop storing the raw password).
+
 ## 🧾🗓️ 2026-09-16 (Wed) — DANIELLE: "I swore Andre had stops for Friday" — NOTHING WAS LOST, AND THE REASON NOBODY COULD PROVE IT IS NOW FIXED · SCHEDULING RECEIPTS ON EVERY SURFACE · PHONE-NUMBER INVENTORY — READ FIRST
 
 Three asks in one thread. All shipped; the third one is the durable fix.
