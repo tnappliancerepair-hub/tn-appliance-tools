@@ -883,45 +883,56 @@ async function syncTnToPlatform(limit, opts) {
         held++;
       }
 
-      // ── A TECH WORKING THE JOB TODAY BEATS A STALE XANO 'completed' ──────────────────
-      // Jimmy, 2026-09-16: he tapped On my way at 9:49 and the job read Complete. Nothing on
-      // the platform completed it -- EVERY platform path that writes 'completed' also writes
-      // completed_at (tech Complete, the office board's Mark complete, platform-stale-scheduled)
-      // and his was null. It came from Xano, where the Xano-side TDR card closes visit one by
-      // writing scheduling_status alone -- no timestamp, no current_status. Parts were ordered,
-      // the office booked the return trip, the status was never reset, and this mirror carried
-      // that stale 'completed' back down every 5 minutes. He tapped Start at 10:59 and it was
-      // re-completed at 11:01. He could not hold his own job open.
+      // ── A JOB BOOKED FOR TODAY OR LATER IS NOT A FINISHED JOB ───────────────────────
+      // Jimmy, 2026-09-16: "This job shows Complete, only thing I did was hit on the way.
+      // Haven't even been to the job." He is right, and his tap is NOT what completed it. Read
+      // off the live records: Xano job 21941 scheduling_status='completed', written 09-10
+      // 18:39:57Z (event_log office_set_job_status, actor tech, from in_progress) for VISIT ONE
+      // -- with job_completed_at NULL and current_status still 'in_progress', because the
+      // Xano-side card writes that one column and no timestamp. Parts were ordered, the office
+      // booked the RETURN TRIP here for 09-16, and this mirror carried that six-day-old
+      // completion back down every 5 minutes onto a visit that had not happened yet. He opened
+      // his stop and it already said Complete.
       //
       // RANK cannot catch it: in_progress(2) < completed(4), so it reads as moving FORWARD.
-      // The rule that does: a tech does not drive to a job that is already finished. If he went
-      // en route or started TODAY on the platform, his work is the live truth for the rest of
-      // that day and Xano's 'completed' is stale. Deliberately same-day only -- it cannot touch
-      // the 334 jobs that legitimately read completed with no platform stamp, because none of
-      // them have a tech en route today. Worst case if Xano is right and the office closed the
-      // job first: it shows in_progress until he taps Complete, or until tomorrow. That is far
-      // cheaper than a tech who cannot work his stop.
-      // Deliberately NOT gated on wasDone. A RETURN TRIP is the commonest shape here -- visit one
-      // completes (real stamp), parts are ordered, the office books the second visit, and the tech
-      // drives back. He carries an old completed_at by design. Skipping him because of it would
-      // hand him the exact phantom this guard exists to kill. The narrow gate is ex.status: if the
-      // PLATFORM row already says completed, this never fires, so a live completion is never undone.
-      if (jr.status === 'completed' && ex.status !== 'completed' && ex.status !== 'canceled'
-          && (isTodayCT(ex.en_route_at) || isTodayCT(ex.started_at))) {
-        jr.status = ex.status;
-        keptWorking++;
-      }
-      // ...and RECOVER a row that is already poisoned. The hold above only helps while the
-      // platform row is still clean, because it holds ex.status -- once the stale 'completed'
-      // has landed, ex.status IS 'completed' and that branch is inert forever. Which is Jimmy's
-      // exact sequence: the mirror wrote completed BEFORE he ever got there, then he tapped On
-      // my way at 9:49 into an already-finished job. So: a completion carrying NO platform stamp,
-      // on a job a tech went en route to or started TODAY, is not a completion. Put the row back
-      // where he actually is. Both gates stay narrow -- the missing stamp means we never touch a
-      // real platform completion, and same-day means we never touch the 334 legitimately-completed.
-      if (ex.status === 'completed' && !ex.completed_at
-          && (isTodayCT(ex.en_route_at) || isTodayCT(ex.started_at))) {
-        jr.status = isTodayCT(ex.started_at) ? 'in_progress' : 'scheduled';
+      // The tell is the CALENDAR, not the tech. A completion is a claim about a visit that has
+      // already happened. If the platform has this job booked for today or a future day, that
+      // booking is NEWER than the completion, so the completion cannot be about it.
+      //
+      // Measured on the live book, and the measurement is what makes this safe: 334 jobs read
+      // completed from Xano with no platform stamp. 330 of them are scheduled in the PAST or
+      // carry no day at all -- genuinely finished office-side -- and this never touches one of
+      // them. Exactly 4 are booked today-or-later, and those 4 ARE the phantoms (Jimmy's 21941
+      // plus the return trips 21569 / 21572 / 21829). Both gates are load-bearing: the missing
+      // completed_at means a REAL platform completion can never be undone, and the
+      // forward-booking means a genuinely finished job can never be reopened.
+      //
+      // It fires on the BOOKING, not on a tap, so the tech never opens a job that claims work
+      // he has not done. The same-day en-route/started clause is only the backstop for a job a
+      // tech is actively working that carries no scheduled_day at all.
+      // The booking must be NEWER than the completion, not merely in the future. A job the tech
+      // finishes TODAY is trivially "scheduled today or later" -- keying on that alone would undo
+      // every completion on the day it happened. So: no platform stamp means there is no date to
+      // beat and today-or-later is enough (the 4); a real stamp means the booked day has to fall
+      // strictly AFTER the day that completion was recorded, which is exactly the return-trip
+      // shape -- visit one closes 09-10, the office books visit two for 09-16, and the tech
+      // drives back carrying visit one's stamp by design.
+      const bookDay = ex.scheduled_day ? String(ex.scheduled_day).slice(0, 10) : '';
+      const doneDay = ex.completed_at && Number.isFinite(Date.parse(ex.completed_at))
+        ? CT_DAY.format(new Date(Date.parse(ex.completed_at))) : '';
+      const bookedAhead = !!bookDay && bookDay >= todayCT && (!doneDay || bookDay > doneDay);
+      const workingToday = isTodayCT(ex.en_route_at) || isTodayCT(ex.started_at);
+      // workingToday alone only counts when there is no platform completion to argue with; a
+      // real stamp plus a tech poking at the job the same day is a finished job, not a phantom.
+      if (jr.status === 'completed' && ex.status !== 'canceled'
+          && (bookedAhead || (workingToday && !ex.completed_at))) {
+        // Prefer what the platform already knows. Only when the row is itself poisoned (it has
+        // taken the stale 'completed') do we pick a state, and then we pick the honest one: he
+        // is only in_progress if he actually tapped Start today. En route is still driving, and
+        // a return trip nobody has left for yet is simply scheduled.
+        jr.status = (ex.status && ex.status !== 'completed')
+          ? ex.status
+          : (isTodayCT(ex.started_at) ? 'in_progress' : 'scheduled');
         keptWorking++;
       }
 
