@@ -271,6 +271,10 @@
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
+  // ONE report per job. PostgREST hands back an OBJECT for job_tdr (unique index on job_id
+  // makes the embed to-one) but would hand back an ARRAY if that index were ever dropped --
+  // e.g. to allow a report per machine. Read both shapes so the tech always sees what he filed.
+  function oneTdr(v){ if (!v) return null; return Array.isArray(v) ? (v[0] || null) : v; }
   var STATUS = {
     new:{l:'New',c:'var(--new)'}, scheduled:{l:'Scheduled',c:'var(--scheduled)'},
     in_progress:{l:'In progress',c:'var(--in_progress)'}, awaiting_parts:{l:'Awaiting parts',c:'var(--awaiting_parts)'},
@@ -960,7 +964,13 @@
     if (addr) links += AntMaps.linksHtml(addr);
     var attrs = (j.unit && j.unit.attributes) || {};
     var brand = attrs.brand || '', model = attrs.model || '';
-    var tdr = (j.tdr && j.tdr[0]) || null;
+    // job_tdr carries a UNIQUE index on job_id, so PostgREST embeds it as a TO-ONE and
+    // hands back an OBJECT (or null) -- never an array. Reading [0] made every filed
+    // report invisible to the tech who filed it: the readback line vanished, every field
+    // re-rendered blank, and the button kept saying "Complete + report" instead of "Edit
+    // report" (Danielle 2026-09-16: "she can see the information, it's just not visible to
+    // them"). oneTdr() reads correctly under BOTH shapes so a future index change is safe.
+    var tdr = oneTdr(j.tdr);
     // contextual actions
     var acts = '';
     if (j.status !== 'in_progress' && j.status !== 'completed') acts += '<button class="act act-start" data-act="in_progress" data-id="'+j.id+'">▶ Start</button>';
