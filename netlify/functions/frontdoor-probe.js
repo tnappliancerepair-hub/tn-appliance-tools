@@ -89,11 +89,28 @@ async function probe(base, token, method, path, body) {
 //   bare   — the object at the top level, no data[] envelope
 function buildShapes(obj) {
   const withItems = { ...obj, items: [{ id: 0, legacy_item_id: 0, description: '' }] };
+  // dispatch_id/vendor_id are the two fields whose JSON type we had to guess. A struct
+  // unmarshal blows up on a type mismatch, so both directions get their own row.
+  const strId = { ...obj, dispatch_id: String(obj.dispatch_id) };
+  const numVendor = { ...obj, vendor_id: Number(obj.vendor_id) };
+  const minimal = {
+    source: obj.source, tenant: obj.tenant, dispatch_id: obj.dispatch_id,
+    vendor_id: obj.vendor_id, description: obj.description, status_code: obj.status_code,
+  };
   return {
-    spec:   { data: [{ type: 'status', object: obj }] },
-    items:  { data: [{ type: 'status', object: withItems }] },
-    strobj: { data: [{ type: 'status', object: JSON.stringify(obj) }] },
-    bare:   obj,
+    spec:        { data: [{ type: 'status', object: obj }] },
+    items:       { data: [{ type: 'status', object: withItems }] },
+    strobj:      { data: [{ type: 'status', object: JSON.stringify(obj) }] },
+    bare:        obj,
+    // `data` as a single object rather than an array — the classic unmarshal mismatch.
+    dataobj:     { data: { type: 'status', object: obj } },
+    // envelope with no `data` key at all.
+    array:       [{ type: 'status', object: obj }],
+    // same envelope, one field's type flipped at a time.
+    spec_strid:  { data: [{ type: 'status', object: strId }] },
+    spec_numvid: { data: [{ type: 'status', object: numVendor }] },
+    spec_min:    { data: [{ type: 'status', object: minimal }] },
+    bare_min:    minimal,
   };
 }
 
