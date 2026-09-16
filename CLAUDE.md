@@ -1,5 +1,99 @@
 # Appliance Ant
 
+## 🧟🔧 2026-09-16 (Wed) — JIMMY: "This job shows Complete, only thing I did was hit on the way" + "part numbers are not showing in the office" — RIGHT ON BOTH, AND THE FIRST ONE WAS COMING FROM XANO EVERY 5 MINUTES — READ FIRST
+
+Jimmy, from the field, two reports in one thread. **Teddy's direction, locked: "At this point, Xano
+is on the back burner. We are completely moving over to Supabase. That's what we're trying to fix
+right now is the Supabase, not the Xano."** So both fixes are platform-side — nothing was written
+to Xano, and Jimmy's belief that On-my-way caused it was tested rather than argued with.
+
+### 🥇 ON-MY-WAY DID NOT COMPLETE HIS JOB — THE MIRROR DID, AND IT HAD ALREADY DONE IT
+`onMyWay()` writes **`en_route_at` and nothing else** — no status, no `completed_at`. And **EVERY
+platform path that writes `'completed'` also writes `completed_at`** (the tech's Complete, the
+office board's Mark complete, `platform-stale-scheduled`). His `completed_at` was **null**, so no
+platform surface did it. Read off his live row: job **21941, status `completed`, `completed_at`
+NULL, `en_route_at` 14:49Z (9:49am CT), `started_at` 15:59Z (10:59am CT)**.
+- **THE SOURCE IS THE XANO-SIDE TDR CARD.** `ant-tdr-card.js:1681` closes visit one by POSTing
+  `office_set_job_status {scheduling_status:'completed'}`, and that endpoint writes **that column
+  alone** — no timestamp, no `current_status`. Parts get ordered, the office books the return trip,
+  the status is never reset, and `platform-tn-mirror` carried that stale `completed` down **every 5
+  minutes**. He tapped Start at 10:59 and it was re-completed at **11:01:16**. He could not hold his
+  own job open. `event_log` confirms `actor=tech` stamps on the other three at 9/9 and 9/10.
+- **⚠️ `RANK` COULD NOT CATCH IT** — `in_progress`(2) < `completed`(4), so it reads as moving
+  **FORWARD**. The never-walk-backwards guard is structurally blind to this whole class.
+
+### ✅ THE FIX — a tech working a job TODAY beats a stale Xano completed (2 branches, both needed)
+1. **HOLD** — a platform row that is still clean keeps its own status when a tech went en route or
+   started **today** (America/Chicago) and Xano says completed.
+2. **🔴 RECOVER — and this is the one that actually saved Jimmy.** The hold branch holds
+   `ex.status`, so **the moment the stale completed has landed, `ex.status` IS `completed` and the
+   branch is inert for that job forever** — a self-locking state. And that is his exact sequence:
+   the mirror wrote completed **before he ever got there**, then he tapped On my way into an
+   already-finished job. So a completion carrying **no platform stamp**, on a job a tech went en
+   route to or started **today**, is not a completion — the row goes back to where he actually is
+   (`in_progress` if he started, `scheduled` if he is still driving).
+- **BOTH GATES ARE THE WHOLE SAFETY ARGUMENT:** the **missing `completed_at`** means it can never
+  touch a real platform completion; **same-day** means it can never touch the **334 jobs that
+  legitimately read completed with no platform stamp** (finished office-side). A stamp-only guard
+  would have un-completed every one of them.
+- **⚠️ DELIBERATELY NOT GATED ON `completed_at` BEING ABSENT ON THE HOLD PATH — that was a bug in
+  my own first cut, found by the mutation pass.** A **RETURN TRIP is the commonest shape here**:
+  visit one completes with a real stamp, parts arrive, the tech drives back carrying that stamp by
+  design. Gating on `!wasDone` handed him this exact phantom **on every second visit**.
+- **VERIFIED LIVE, and the precision is the proof:** first mirror run after deploy flipped
+  **21941 `completed` → `in_progress` at 16:31:52Z**, and left **21569 / 21572 / 21829 untouched** —
+  those are future return trips nobody is driving to yet (21829's en route is 9/8; the other two
+  have none). It fired on exactly the one job that needed it.
+
+### 🩹 THE TECH'S PAGE STOPS LYING IN THE MEANTIME (`platform/tech-job.html`)
+A phantom-completed job was **offering the tech a "How'd we do?" review ask for a customer nobody
+had visited yet.** `ghostDone()` (completed + no stamp + scheduled today-or-later) now paints an
+honest banner naming it as a return trip whose status was never reset, and:
+- **the review ask is gated on `completed_at`, not on status** — a status-only gate can text a real
+  customer about a job that has not happened;
+- **Reopen is HIDDEN on a phantom** — it writes the platform row and the mirror overwrites it inside
+  5 minutes, so offering it is a promise we can't keep. The banner says so out loud.
+
+### 🔧 "PART NUMBERS ARE NOT SHOWING IN THE OFFICE" — an INVOICE rule was running on an ATTENTION surface
+The board's part chip filtered through `partOnThisJob()`, which is correct for **money** (don't bill
+a part we never got, sent back, or kept) and wrong for a tile whose job is to **tell a human what is
+going on**. Measured on the live book: **13 jobs where every part was hidden and the chip was blank**,
+40 more partially hidden — and the bigger one, **578 of 951 jobs with parts (61%) carry MORE THAN ONE
+part while the chip only ever showed the first with no hint there were others.** Jimmy's 21941 is
+exactly that shape (cut-off fuse + thermistor, one shown).
+- Chip now shows every part + a **`+N`** hint. **The money rule is untouched and still runs on the
+  shipment tally** — verified on the deployed page that the surviving `partOnThisJob` call is in
+  `partsShipByJob`, not the chip.
+
+### 🧪 PROVEN
+**`tests/mirror-working-guard.test.js` 17/17** — `RANK`, the America/Chicago clock helpers and
+**both guard branches are lifted OUT of the shipped mirror and EXECUTED**, so the test cannot drift
+from what runs. Non-vacuity mutation-proven **ten ways**: neutering the hold fails 3, re-adding the
+`completed_at` gate fails 1 (the return trip), letting it fire on a platform completion fails 1,
+dropping the same-day restriction fails 3 (the 334-job trap), ignoring `started_at` fails 2, dropping
+`en_route_at` from the select fails 1, dropping recovery's missing-stamp gate fails 2, dropping
+recovery's same-day gate fails 1, recovering to `in_progress` when he is only en route fails 1,
+neutering recovery fails 2. Plus **`tests/tech-job-ghost-complete.test.js` 10/10** and
+**`tests/office-part-numbers.test.js` 8/8**. Full suite **134/134**.
+- 🐞 **A mutation that PASSED is what found the return-trip bug.** Blinding `wasDone` didn't fail a
+  single assertion — chasing why exposed that the guard skipped every second visit. **A mutation
+  that survives is not a clean bill of health; it is an uncovered case pointing at itself.**
+- 🐞 **And a lifter lesson: anchor a lift on a STABLE comment header, not on the condition.** My
+  first lift anchored on `if (!wasDone && …)`, so every condition mutation broke the **lift** and
+  read as "the test file crashed" instead of "the guard stopped working."
+
+### ⏭️ OPEN
+- **The Xano-side root cause is untouched, by direction.** `office_set_job_status` still writes one
+  column with no timestamp, so Xano will keep producing stale completions — the mirror now absorbs
+  them. If Xano ever comes off the back burner, the fix there is to stamp `job_completed_at` +
+  `current_status` alongside `scheduling_status`.
+- **The three future return trips (21569, 21572, 21829) still read completed on the board today.**
+  Correct — nobody is driving to them yet. They self-heal the moment a tech taps On my way, and the
+  tech page's banner covers him until then.
+- **Offered, not built:** a watchdog invariant on the phantom signature (completed + no stamp +
+  scheduled today-or-later) in `platform-migration-watch`, so the class is alarmed rather than
+  discovered by a tech in a driveway.
+
 ## 📝📷 2026-09-15 (Mon, night) — JIMMY: "Not saving in the (what failed) box and no pics on office end" — RIGHT ON BOTH, AND NEITHER WAS A SAVE FAILURE — READ FIRST
 
 Jimmy, from the field, with a screenshot of an empty **What failed** box sitting above a button
