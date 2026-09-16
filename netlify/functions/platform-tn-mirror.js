@@ -861,13 +861,18 @@ async function syncTnToPlatform(limit, opts) {
     for (let i = 0; i < xids.length; i += 200) {
       const chunk = xids.slice(i, i + 200).join(',');
       const r = await fetch(
-        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at,scheduled_day,scheduled_start,technician_id,platform_booked_at`,
+        `${url}/rest/v1/job?company_id=eq.${TN_COMPANY}&xano_id=in.(${chunk})&select=xano_id,status,completed_at,en_route_at,started_at,scheduled_day,scheduled_start,technician_id,platform_booked_at`,
         { headers: { apikey: key, Authorization: 'Bearer ' + key }, signal: AbortSignal.timeout(12000) },
       );
       const rows = await r.json().catch(() => null);
       if (Array.isArray(rows)) rows.forEach((x) => cur.set(Number(x.xano_id), x));
     }
-    let held = 0, keptSched = 0, keptTech = 0, keptPending = 0;
+    let held = 0, keptSched = 0, keptTech = 0, keptPending = 0, keptWorking = 0;
+    // Is this timestamp today, in the shop's timezone? Used to tell 'a tech is on this job
+    // right now' from 'a tech was on it last week'.
+    const CT_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const todayCT = CT_DAY.format(new Date());
+    const isTodayCT = (iso) => { if (!iso) return false; const t = Date.parse(iso); return Number.isFinite(t) && CT_DAY.format(new Date(t)) === todayCT; };
     for (const jr of jobRows) {
       const ex = cur.get(Number(jr.xano_id));
       if (!ex) continue;                                   // brand-new job: take Xano's status
@@ -876,6 +881,35 @@ async function syncTnToPlatform(limit, opts) {
       if (back || (wasDone && jr.status !== 'completed' && jr.status !== 'canceled')) {
         jr.status = ex.status;                             // keep the platform's further-along state
         held++;
+      }
+
+      // ── A TECH WORKING THE JOB TODAY BEATS A STALE XANO 'completed' ──────────────────
+      // Jimmy, 2026-09-16: he tapped On my way at 9:49 and the job read Complete. Nothing on
+      // the platform completed it -- EVERY platform path that writes 'completed' also writes
+      // completed_at (tech Complete, the office board's Mark complete, platform-stale-scheduled)
+      // and his was null. It came from Xano, where the Xano-side TDR card closes visit one by
+      // writing scheduling_status alone -- no timestamp, no current_status. Parts were ordered,
+      // the office booked the return trip, the status was never reset, and this mirror carried
+      // that stale 'completed' back down every 5 minutes. He tapped Start at 10:59 and it was
+      // re-completed at 11:01. He could not hold his own job open.
+      //
+      // RANK cannot catch it: in_progress(2) < completed(4), so it reads as moving FORWARD.
+      // The rule that does: a tech does not drive to a job that is already finished. If he went
+      // en route or started TODAY on the platform, his work is the live truth for the rest of
+      // that day and Xano's 'completed' is stale. Deliberately same-day only -- it cannot touch
+      // the 334 jobs that legitimately read completed with no platform stamp, because none of
+      // them have a tech en route today. Worst case if Xano is right and the office closed the
+      // job first: it shows in_progress until he taps Complete, or until tomorrow. That is far
+      // cheaper than a tech who cannot work his stop.
+      // Deliberately NOT gated on wasDone. A RETURN TRIP is the commonest shape here -- visit one
+      // completes (real stamp), parts are ordered, the office books the second visit, and the tech
+      // drives back. He carries an old completed_at by design. Skipping him because of it would
+      // hand him the exact phantom this guard exists to kill. The narrow gate is ex.status: if the
+      // PLATFORM row already says completed, this never fires, so a live completion is never undone.
+      if (jr.status === 'completed' && ex.status !== 'completed' && ex.status !== 'canceled'
+          && (isTodayCT(ex.en_route_at) || isTodayCT(ex.started_at))) {
+        jr.status = ex.status;
+        keptWorking++;
       }
       // ── AND DON'T ERASE A BOOKING MADE ON THE PLATFORM ───────────────────────────
       // Same bug, second field. The row above rewrites technician_id / scheduled_day /
@@ -908,6 +942,7 @@ async function syncTnToPlatform(limit, opts) {
       if (!jr.technician_id && ex.technician_id) { jr.technician_id = ex.technician_id; keptTech++; }
     }
     if (held) console.log('[tn-mirror] kept platform status on ' + held + ' job(s) the mirror would have reverted');
+    if (keptWorking) console.log('[tn-mirror] kept ' + keptWorking + ' job(s) a tech is working today off a stale Xano completed');
     if (keptSched || keptTech) console.log('[tn-mirror] kept platform booking: ' + keptSched + ' day(s), ' + keptTech + ' tech(s)');
     if (keptPending) console.log('[tn-mirror] held ' + keptPending + ' booking(s) still queued for Xano');
   } catch (e) {
