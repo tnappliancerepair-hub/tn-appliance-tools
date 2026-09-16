@@ -1,5 +1,97 @@
 # Appliance Ant
 
+## 📋🚫 2026-09-16 (Wed) — DANIELLE: "the jobs I scheduled have disappeared" — NOTHING WAS DELETED, THE BOARD HAD A 800-ROW CEILING AND COMPLETED WORK WAS EATING 45% OF IT · AND A SECOND SILENT 1,000-ROW CAP UNDERNEATH IT — READ FIRST
+
+Teddy: *"we've got to have unlimited use. There's going to be hundreds and hundreds of jobs every
+month... we're losing trust every time things don't save and they disappear. We need to maximize
+trust."* **He was right, and it was never a save failure — it was two stacked read ceilings.**
+
+### 🥇 THE FINDING — `get_office_kanban` returns the 800 NEWEST-CREATED jobs, not "the board"
+`return = {type:"list", paging:{page:1, per_page:800}}` sorted `created_at desc`. Measured live: it came
+back with **exactly 800** — the tell that a cap is binding, not a count. Of those **364 were COMPLETED**
+jobs inside the 60-day invoice window, so **finished work was consuming 45% of the board's capacity**
+and pushing live work off the bottom.
+- **309 board-eligible jobs fell off**: 195 `scheduled` · 72 `awaiting_parts` · 36 `in_progress` · 6 other.
+  **293 of them had BOTH a day and a tech** — real booked work, invisible. That is Danielle's report.
+- **Nothing was deleted.** Parity clean (830 Xano active vs 3,527 mirrored; 1 missing / 2 platform-only /
+  1 drift = the same three known Xano data problems). All 58 of her today-forward scheduled jobs were on
+  the board. Her 45 `office_remove_job` calls on 9/14-15 were 31 shells/dupes + 2 past-dated AHS jobs —
+  soft + reversible, not the cause.
+- **⚠️ Separately, 453 `needs_more_info` jobs were NEVER eligible** for the feed at all (pre-existing
+  blind spot, documented since 2026-07-14; NOT fixed here).
+
+### 📈 THE VOLUME, MEASURED (Teddy's actual question)
+Jobs created per month, bucketed off the **Xano `created_at`** in the kanban feed: **Jul 271 · Aug 331 ·
+Sep 198** → **~300/month.** The cap was raised 300→800 in July at ~470 jobs; it hit 800 in September.
+**⚠️ No fixed number stays right at that growth rate — that is why the answer is uncapped, not "bigger."**
+- **⚠️ FOOTGUN: do NOT bucket volume off the PLATFORM `created_at`** — every row reads `2026-09` because
+  that column is the MIRROR'S INSERT STAMP, not the job's real birth. Same trap class as `job.updated_at`.
+
+### ✅ FIX 1 — the board reads the raw jobs table, uncapped (`_lib/board-mirror.js`)
+Replaced the capped feed as the SOURCE with **`rawWalk()`** — a paginated Metadata-API walk
+(`POST {META}/table/7/content/search`, `per_page:500`, `sort:{id:'desc'}`) over the 7 board statuses plus
+completed-in-window, **one retry per page**, `MAX_PAGES=200` as a **runaway guard, NOT a data cap**.
+**`fetchKanbanFull()`** merges raw (completeness) with the existing feed (fresher computed names —
+feed wins on collision) and returns `{items, complete}`.
+- **🔴 A LOST PAGE RETURNS `null`, NEVER A SHORT LIST.** `syncBoardMirror` now starts its prune with
+  `if (!complete) throw new Error('incomplete_feed_skip_prune')` — because the old code could not tell
+  *"these jobs are gone"* from *"I did not finish looking"*, and would **delete live jobs off the board on
+  a half-read.** That is the trust bug underneath the trust bug.
+- `fetchKanban(timeoutMs, daysBack)` keeps its original first-arg signature so `platform-tn-mirror.js:561`
+  (`fetchKanban(15000)`) is byte-for-byte unchanged.
+- `?probe=1` on `board-mirror-sync` (read-only) proved the raw table carries **26 of the 27 columns**
+  board_mirror needs before anything was sourced off it — only `appliance` differs (`appliance_type`).
+
+### ✅ FIX 2 — the SECOND ceiling: PostgREST silently truncates at 1,000 rows
+Even after Fix 1 the board served **exactly 1,000 of 1,129**. **PostgREST caps a response at 1,000 rows
+SERVER SIDE regardless of `limit`, and does NOT error — it just hands back less.** `limit:'2000'` read as
+a safe ceiling and was a 1,000-row wall. Fixed once, in `_lib/supabase.js`:
+```js
+async function selectAll(table, params = {}) // pages 1000 at a time on a STABLE order, default id.asc
+```
+Applied to **all four truncating call sites**: `board-feed-fast` (the board itself), the prune's id read,
+`brain-eval-check`'s row count, and **both** reads in `job-mirror-sync-cron`.
+- **The worst one was the pre-warmer's freshness map:** a job absent from a truncated `job_mirror` read
+  reads as **never-refreshed**, so the cron kept re-warming the same first 1,000 and starved the rest forever.
+- **⚠️ STANDING RULE: any Supabase read that COULD exceed 1,000 rows goes through `sb.selectAll`.** A bare
+  `select()` with a big `limit` is a lie waiting to happen. (Same family as the documented office-board
+  "37 of 1,725 threads" and owner-P&L "1,000 of 3,455 jobs" bugs.)
+- **⚠️ `.range()`/offset paging over an UNORDERED result can skip or duplicate rows between pages** —
+  `selectAll` applies the stable sort itself so no call site can forget.
+
+### 🧪 PROVEN
+**`tests/board-mirror-cap.test.js` 10/10** — the REAL module loaded via `require.cache` injection of the
+supabase + secrets stubs, with `fetch` answering the raw walk and the feed differently. **11 mutations.**
+**`tests/supabase-select-all.test.js` 6/6** — a stub server that honours limit/offset and **hard-caps any
+page at 1,000 the way real PostgREST does.** **4 mutations.** Suite **242/242**.
+- 🐞 **MUT2/MUT3 SURVIVED the first run.** Removing AND dead-guarding `if (!complete) throw` both left the
+  suite green — the stub mirror was empty, so `pruned===0` passed **with or without the guard**. The test
+  passed for the wrong reason. Rewritten to seed the mirror with a job that exists ONLY in the failed pass,
+  so an unguarded prune genuinely deletes it. **A test that cannot observe the damage is not a test.**
+- 🐞 **MUT-C SURVIVED** (dropping `selectAll`'s stable sort). `new URLSearchParams({order: undefined})`
+  serializes to the literal string **`"undefined"`**, which a truthy check happily accepts. Now asserted
+  with `/^[a-z_]+\.(asc|desc)$/`.
+- 🐞 **`rawWalk` lazily did `require('./secrets')` at CALL time**, after the test's cache injection was
+  cleared → got the real module → returned null → 6 tests failed. **Hoist a require you intend to stub.**
+
+### 📊 LIVE RESULT (read off the deployed board, not the run's summary)
+| | before | after |
+|---|---|---|
+| items the board serves | **800** (cap-bound) | **1,129** |
+| board-eligible OPEN jobs visible | 436 of 1,201 | **741 of 741** |
+| still invisible | 309 | **0** |
+Sync: `{synced:1129, pruned:0, complete:true, raw_count:1129, feed_count:800, ms:6723}`.
+
+### ⏭️ OPEN
+- **The fallback path is still capped.** If the mirror is down, `board-feed-fast` → `board-feed` → raw
+  `get_office_kanban` = 800 again. The durable fix is a **Xano push**: split open-vs-completed server-side
+  so finished work can never crowd out live work. Worth doing before the Xano board retires.
+- **453 `needs_more_info` jobs remain off the board** (pre-existing; the 2026-07-14 completeness banner is
+  what surfaces them).
+- **Office logins:** there is **no UI for the `OFFICE_STAFF` PIN roster** — changing ONE person's PIN means
+  a vault edit, because `?seed=1&reset=1` regenerates **everyone's**. And **Carrie is `active:true` with an
+  empty `OFFICE_CELL_CARRIE`.**
+
 ## 🧩➕ 2026-09-16 (Wed, night) — "THEY'VE GOTTA BE ABLE TO ADD A MACHINE ON THERE" — THE BUTTON EXISTED AND HAD NEVER BEEN USED ONCE, BECAUSE IT DID NOT ADD THE MACHINE TO THE CLAIM — READ FIRST
 
 Teddy: *"when a guy gets out to a customer's house they'll have multiple machines and they need to
