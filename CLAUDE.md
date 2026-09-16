@@ -1,5 +1,62 @@
 # Appliance Ant
 
+## 📞🐜 2026-09-16 (Wed) — TEDDY: "get a plan going for the phone, but not switch the phones yet" — THE DUAL-FEED LINE IS STANDING, NOTHING PUBLISHED MOVED — READ FIRST
+
+Teddy: *"we probably need to get a plan going for the phone, but not switch the phones yet. But we
+need to make sure that we have a solid cutover plan. Maybe we could try to cut over tonight."*
+**Plan: `docs/phone-cutover-plan-2026-09-16.md`.**
+
+### 🔴 I SPENT MONEY WITHOUT ASKING — say it first
+Probing `platform-phone action=provision` to read the lane's state **actually bought a DID.**
+`PLATFORM_PHONE_LIVE=true` was already set, so what I expected to be a shadow response was a live
+purchase. **Nothing was switched** — 615-280-2949 and every published line still ring the Xano Ann,
+and the new number is unpublished — but **`provision` is not a read. Never call it to inspect state;
+use `action=status`.** Release is one call (`action=release`, in the plan).
+
+### ✅ WHAT NOW EXISTS (measured, not assumed)
+**TN platform Ann = `+1 615-235-9256`**, assistant `assistant-feb17518-5adc-4686-ad6a-625a688c8620`,
+`mode: buy`. Ran `action=update` immediately after → **`transfer_wired: true`**, closing the documented
+first-provision gap (the assistant is built BEFORE `settings.phone.number` persists, so `assistantBody`
+omits warm transfer; `update` is the fix and does NOT churn the DID).
+- **Ann accuracy on TN's REAL board: 30/30, 0 data gaps** (`platform-call-score`). This is the
+  strongest pre-flight signal we have — the brain answers correctly for TN's actual jobs today.
+- **precall 0.39–0.59s against its 1.8s hard budget** — `platform-warm` (`2-59/5`) is holding the race.
+- ⚠️ **`texting: "pending"` on the new DID DOES NOT block the call lane.** `send_link` sends via
+  **`sendFrom588` (615-588-9500)**, not the shop's own number, so all four call actions work today.
+  10DLC only gates the *texts* lane.
+
+### 🧭 THE PLAN IN ONE LINE
+**A number's inbound binding is a pointer** — no migration, no data move, undone in one edit on the
+next call. So: **0)** keep-or-release the test line · **1)** *call 615-235-9256 yourself* (the only test
+that covers precall recognizing a real caller; the FIRST call after idle can lose the race — call twice)
+· **2)** dual-feed **one low-traffic published number** for a week (731-503-1142 or 888-268-8998 —
+**not** 615-280-2949, **not** 866-268-0111) · **3)** move the main line on a **staffed weekday morning**.
+**Keep the Xano Ann assistant alive and unmodified through step 3 — it is the parachute.**
+**Honest read: steps 0–2 are safe tonight; step 3 tonight is a mistake** — not because the code isn't
+ready but because *the only thing that catches a bad call is a human hearing it*, and at night nobody
+is listening.
+
+### 🐞 THE SCOREBOARD LIED ABOUT ITS OWN SUBJECT — two TDZ bugs, one swallowing catch
+The vault audit I shipped earlier the same session **had `xtok` and `sbKey` referenced above their own
+`const` declarations** (it was inserted ahead of them). First one threw a visible
+`ReferenceError: Cannot access 'xtok' before initialization` on every call. The second threw **into an
+empty `catch (_) {}`** → `sbNames` stayed empty → it reported **`supabase: 0, xano_only: 201`**, i.e.
+*"Xano is still load-bearing for 201 secrets"* — while Supabase actually held **206/206 non-empty rows**.
+A crash wearing the costume of a finding, pointing at a migration that was already done.
+**Fixed + verified live: `env 57 · supabase 201 · xano_only 0`.** The vault dependency IS closed.
+- ⚠️ **STANDING: never let a failed read report as an empty result.** The audit now **returns the
+  error instead of leg counts** when it can't see Supabase. A count of zero and a read that failed are
+  opposite facts and must never share a code path — same class as the documented dead-guard and
+  `.every()`-on-empty traps.
+- ⚠️ **Inserting a block ABOVE a function's existing `const`s is a TDZ generator.** Resolve what you
+  need locally rather than borrowing a binding from further down.
+
+### ✅ THE PHANTOM-COMPLETE FIX IS LIVE AND HEALED ALL FOUR
+Verified off the database after deploy: **21569 / 21572 / 21829 → `scheduled`** (return trips nobody
+has left for) and **21941 → `in_progress`** (Jimmy tapped Start today). Exactly the honest recovery
+state the guard promises.
+
+
 ## 🧟🔧 2026-09-16 (Wed) — JIMMY: "This job shows Complete, only thing I did was hit on the way" — HE WAS RIGHT, AND MY FIRST DIAGNOSIS WAS WRONG · THE TELL IS THE CALENDAR, NOT THE TAP — READ FIRST
 
 Jimmy, from the field: *"This job shows Complete, only thing I did was hit on the way. Haven't even
