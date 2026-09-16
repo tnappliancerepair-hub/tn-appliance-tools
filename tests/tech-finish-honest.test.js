@@ -83,7 +83,10 @@ function jobEnv() {
 }
 
 // ── sandbox for the day list ───────────────────────────────────────
-function listEnv(checkedValue) {
+// partStatus is the second half of the rule: the day list used to read the outcome alone,
+// so "Job complete" + "Office needs to order it" finished a job whose part was not ordered
+// (Danielle, 2026-09-16). finishStatusFor owns both pickers now, so the lift carries it.
+function listEnv(checkedValue, partStatus) {
   const btn = fakeEl();
   const radios = ['fixed', 'return_needed', 'not_fixable'].map((v) => ({
     value: v, checked: v === checkedValue, name: 'oJOB1'
@@ -92,12 +95,14 @@ function listEnv(checkedValue) {
     btn,
     document: {
       getElementsByName: (n) => (n === 'oJOB1' ? radios : []),
+      getElementById: (id) => (id === 'tpsJOB1' ? { value: partStatus || '' } : null),
       querySelector: (sel) => (sel.indexOf('data-savetdr') >= 0 ? btn : null)
     }
   };
   vm.createContext(ctx);
   vm.runInContext(
-    lift(LIST, 'outcomeOf') + '\n' + lift(LIST, 'finishLabel') + '\n' + lift(LIST, 'paintFinishBtn'),
+    lift(LIST, 'outcomeOf') + '\n' + lift(LIST, 'finishStatusFor') + '\n'
+      + lift(LIST, 'finishLabel') + '\n' + lift(LIST, 'paintFinishBtn'),
     ctx
   );
   return ctx;
@@ -238,6 +243,16 @@ test('day list: a return visit does not promise a finish either', () => {
   vm.runInContext('paintFinishBtn("JOB1")', e);
   assert.match(e.btn.textContent, /stays OPEN/i);
   assert.doesNotMatch(e.btn.textContent, /finish the job/i);
+  assert.ok(e.btn._cls.has('staysopen'));
+});
+
+test('day list: THE INVISIBLE ONE — "Job complete" + a part to order does NOT finish', () => {
+  // The bug Danielle hit: this surface read the outcome alone, so these two taps landed
+  // COMPLETED here while the same two taps landed awaiting_parts on the job page.
+  const e = listEnv('fixed', 'please_order');
+  assert.strictEqual(vm.runInContext('finishStatusFor("JOB1")', e), 'awaiting_parts');
+  vm.runInContext('paintFinishBtn("JOB1")', e);
+  assert.match(e.btn.textContent, /stays OPEN/i);
   assert.ok(e.btn._cls.has('staysopen'));
 });
 

@@ -1,5 +1,104 @@
 # Appliance Ant
 
+## ✅🚫 2026-09-16 (Wed, night) — DANIELLE: "jobs are being marked completed and they're NOT" — TWO MECHANISMS, and the obvious signal was a TRAP · PLUS the Copy-all she couldn't find WAS ALREADY THERE — READ FIRST
+
+Teddy relayed two from Danielle: *"the new system is mistakenly marking jobs completed and they're
+not... yesterday she was dealing with jobs that were saying they were completed and they were not"*
+and *"on the old Xano system she had a copy all button... she really liked that last one."*
+**She was right on both. Neither was a save failure — a fourth in the documented class.**
+
+### 🪤 THE TRAP I ALMOST SHIPPED — `current_status` looks like the signal and is NOISE
+The obvious tell: **362 of 550 platform-completed jobs carry an Xano `current_status` that
+disagrees** with the completion. Keying the fix on that disagreement would have wrongly reopened
+~200 genuinely closed jobs. **Measured it against `office_stage` first** (the folder Danielle
+herself drags a card into) and the theory died: inside the FILED_DONE bucket — invoice/paid/done,
+unambiguously finished work — **90 read `current_status='scheduled'` and 82 read `in_progress`.
+60% of definitively finished jobs "disagree."** Xano's `office_set_job_status` writes
+`scheduling_status` ONLY, no timestamp, never reset, so the two columns diverge **by design**.
+**Pinned: the test asserts `!/current_status/.test(GATE_SRC)` so it can never creep back in.**
+
+### 🥇 MECHANISM 1 — the day list ignored the part picker (the invisible one)
+**Two tech surfaces disagreed on identical inputs.** `platform/tech-job.html` decides the finish
+status from BOTH pickers; `platform/tech.html` (the DAY LIST) read only the outcome. So a tech who
+picks **✅ Job complete** and taps **Please order** on a part got **`completed` on the day list** and
+`awaiting_parts` on the job page — the exact shape of Jimmy's 9/16 report, one surface further down.
+- **✅ FIXED:** one `finishStatusFor(id)` on the day list, reading the outcome **and** `#tps<id>`,
+  and **all three status writes + both label paths route through it** (queued/offline path, live
+  path, the button label, and both button-restore sites). The part `<select>` now **repaints the
+  button** the way the radios already did, so the words can never disagree with the write.
+- 1 live instance measured (`outcome=fixed, part_status=missing → completed`) — small today,
+  **a live trap on every stop**, and the one a tech can't see happening.
+
+### 🥇 MECHANISM 2 — the mirror carried a STALE Xano completion onto live work (the volume)
+`RANK` treats `in_progress`(2) < `completed`(4), so a **six-day-old completion from visit one** reads
+as *forward* progress and the never-walk-backwards guard **defends** it. The 9/16 calendar guard
+("the calendar outranks the completion") only fires on a booking **today-or-later** — structurally
+blind to a return trip booked for **yesterday**, which is most of Danielle's pile.
+- **✅ FIXED — the office's own filing outranks a stale completion** (`platform-tn-mirror.js`).
+  `OFFICE_ACTIVE_STAGE = {schedule, scheduled, parts, autho, upgrade}`. If Xano says completed but
+  the office has the card filed as still-to-do, the mirror keeps the job open. Recovery state is the
+  same honest rule as the calendar guard: `in_progress` only if the tech tapped Start **today**,
+  else `scheduled`.
+- **FOUR load-bearing conditions, each one a way to be wrong:** the platform row has **no
+  `completed_at`** (nobody finished it HERE) · Xano has **no `job_completed_at`** (the card path that
+  DOES stamp a real completion is respected) · the job isn't `canceled` · the stage is in the active
+  set. **`followup` and `rep-*` are deliberately NOT in the set** — those are places a *finished* job
+  legitimately waits.
+- **Measured:** 30+ real customers in 9 days reading Completed against a disagreeing Xano status;
+  41 jobs sitting in an active folder; **19 pass all four gates cleanly.** The existing phantom
+  guard reports `phantom_sig: 0` — it IS holding; this is the class it cannot see.
+- **Why it matters beyond the board:** a spurious completion fires `job_completed` →
+  `review-request-sweep` **texts a real customer "how'd we do?" about work that never happened**,
+  plus a "your repair is done" text, and the job drops off the tech's open list.
+
+### 📋 THE COPY-ALL — it was already built, under a name she doesn't use, in a place she doesn't look
+`platform/office-board.html` has had a whole-report copy since 9/16 AM (confirmed live on `main`).
+It read **"📋 Copy the whole report"** and sat at the **BOTTOM** of the panel next to Save, under two
+textareas and a 6-button outcome grid. The Xano button she likes says **"📋 Copy all"** and lives in
+the panel **HEADER**. **Fourth instance of the documented class** (＋ New job · Shop Money Paid →
+💵 Paid · the add-customer button): *a feature she cannot NAME, in a place she does not look, is a
+feature she does not have.*
+- **✅ FIXED:** a **"📋 Copy all"** button in the TDR panel header (float-right `.tcpall`, mirroring
+  the existing `.supcfg` pattern) **and** the bottom one renamed to match — the header for finding
+  it, the bottom one for the post-edit moment.
+- **⚠️ BOTH run the SAME `claimText()` + `copyText()`** — one list, one composer. A pasted second
+  copy would drift off the documented **`TDR_OUTCOMES[i][2]` is the words, `[1]` is the emoji** rule
+  and put 🔁 in a real claim. The test fails if the composer is ever written twice.
+
+### 🧪 PROVEN
+**`tests/completed-honesty.test.js` 23/23 (NEW) — 10 mutations.** Part 1 lifts `outcomeOf` /
+`finishStatusFor` / `finishLabel` out of the shipped day list and EXECUTES them against a fake DOM,
+then asserts **all 18 outcome×part combinations agree** with `finishStatus` lifted from
+`tech-job.html`. Part 2 lifts `RANK`, the CT clock helpers, `OFFICE_ACTIVE_STAGE` and the gate (via
+`new Function`) and runs them. **Mutations killed:** day-list rule ignores the part picker · a status
+write bypasses the rule · the picker stops repainting · the label reads the raw outcome · drop the
+platform `completed_at` gate · drop the Xano `job_completed_at` gate · dead-guard the whole gate ·
+widen the active set to `paid`+`followup` · **also key on `current_status`** · a tech working right
+now recovers to `scheduled`.
+**`tests/tech-finish-honest.test.js` 19/19** — repaired (its `listEnv()` lift didn't know about the
+new function) + one new test: *"Job complete" + a part to order does NOT finish*.
+**`tests/office-tdr-copy.test.js` 16/16** — +3 pinning the header placement, the words "Copy all" on
+both buttons, and exactly ONE `copyText(claimText()` in the file. Suite **39/39 files, 0 failures**.
+- 🐞 **MY OWN SELECTOR WAS WRONG and the test caught it.** Three lines say "TDR — technician report"
+  (loading + error placeholders + the real render); `.find()` grabbed the **loading placeholder** and
+  the header assertion failed against correct code. Now pinned to the line carrying the claim hint.
+- 🐞 **MUT-D SURVIVED the first run.** My dead-guard regex expected `x && false && copyText(`; the
+  real shape is a **leading** falsy short-circuit (`false && copyText(`). **Presence is not
+  reachability** — third time this exact trap has been paid for. Widened to `(false|0|null|undefined) &&`.
+- 🐞 **My suite runner reported 36 false FAILs.** It grepped for a success line, but the suite has
+  four output formats (`# pass N`, `N/N passed`, `N passed, 0 failed`, `✓ N passed`). **Detect
+  FAILURE, never success** — `grep -qE '(^# fail [1-9])|not ok|FAILED|AssertionError'`.
+
+### ⏭️ OPEN
+- **The 19 clean matches are a mirror fix, not a data fix** — the next sync run reopens them; nobody
+  has to touch a card. Watch the run's `reopened N job(s) the office has filed as still-to-do` line.
+- **The root cause is still Xano-side, by direction:** `office_set_job_status` writes one column with
+  no timestamp and never resets it, so Xano keeps producing stale completions. The mirror absorbs
+  them. It dies with the cutover.
+- **A job the office has NOT filed into a folder yet** (blank `office_stage`) is still carried by a
+  stale Xano completion — deliberately: with no calendar signal and no office signal there is nothing
+  to outrank it, and guessing would close live work or reopen finished work.
+
 ## 📋🚫 2026-09-16 (Wed) — DANIELLE: "the jobs I scheduled have disappeared" — NOTHING WAS DELETED, THE BOARD HAD A 800-ROW CEILING AND COMPLETED WORK WAS EATING 45% OF IT · AND A SECOND SILENT 1,000-ROW CAP UNDERNEATH IT — READ FIRST
 
 Teddy: *"we've got to have unlimited use. There's going to be hundreds and hundreds of jobs every

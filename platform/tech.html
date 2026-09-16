@@ -437,16 +437,31 @@
     for(var i=0;i<rs.length;i++){ if(rs[i].checked) o=rs[i].value; }
     return o;
   }
-  function finishLabel(id){
+  // ── WHAT THE FINISH ACTUALLY DOES — one rule, and it reads BOTH pickers ───────
+  // Danielle, 2026-09-16: "jobs were mistakenly being added as job completed whenever it
+  // was not completed." This surface was one of the ways. The JOB PAGE has always decided
+  // the landing status from the outcome AND the part status, but this day list looked only
+  // at the outcome -- so the same two taps ("Job complete" + "Office needs to order it")
+  // landed awaiting_parts on one screen and COMPLETED on the other. A job whose part has
+  // not even been ordered dropped off the tech's list, texted the customer "your repair is
+  // done", and asked them for a review. Same inputs must land the same status everywhere.
+  function finishStatusFor(id){
     var o=outcomeOf(id);
-    return o==='return_needed' ? '\uD83D\uDCBE Save report \u2014 job stays OPEN for the part'
-         : o                   ? '\u2705 Save report + finish the job'
-         :                       'Save report + finish';
+    var pe=document.getElementById('tps'+id);
+    var ps=pe?String(pe.value||''):'';
+    if(!o) return 'unanswered';
+    return (o==='return_needed'||ps==='please_order'||ps==='missing') ? 'awaiting_parts' : 'completed';
+  }
+  function finishLabel(id){
+    var s=finishStatusFor(id);
+    return s==='awaiting_parts' ? '\uD83D\uDCBE Save report \u2014 job stays OPEN for the part'
+         : s==='completed'      ? '\u2705 Save report + finish the job'
+         :                        'Save report + finish';
   }
   function paintFinishBtn(id){
     var b=document.querySelector('button[data-savetdr="'+id+'"]'); if(!b) return;
     b.textContent=finishLabel(id);
-    b.classList.toggle('staysopen', outcomeOf(id)==='return_needed');
+    b.classList.toggle('staysopen', finishStatusFor(id)==='awaiting_parts');
   }
   function saveTdr(id, btn){
     var job = jobsCache.filter(function(x){return String(x.id)===String(id);})[0];
@@ -492,25 +507,25 @@
     saveMsg(id, 'Saving…', 'info');
     AntSave.write({ sb:sb, table:'job_tdr', op:'upsert', onConflict:'job_id', row:row, key:'tdr:'+id }).then(function(r){
       if (r.refused){
-        if(btn){btn.disabled=false;btn.textContent=finishLabel(id);btn.classList.toggle('staysopen',outcome==='return_needed');}
+        if(btn){btn.disabled=false;btn.textContent=finishLabel(id);btn.classList.toggle('staysopen',finishStatusFor(id)==='awaiting_parts');}
         saveMsg(id, "That didn't save — " + (r.message || 'tap Save again') + ". Your report is held on this phone — tell the office before you leave.", 'err');
         return;
       }
       if (r.queued){
         // No signal at the stop. The report AND the finish are both held and send
         // themselves, report first. He is done; he does not have to come back to it.
-        var qs = outcome === 'return_needed' ? 'awaiting_parts' : 'completed';
+        var qs = finishStatusFor(id);
         var qu = { status: qs }; if (qs==='completed') qu.completed_at = new Date().toISOString();
         AntSave.write({ sb:sb, table:'job', op:'update', match:{id:id}, row:qu, key:'jobstatus:'+id });
         clearDraft(id);
-        if(btn){btn.disabled=false;btn.textContent=finishLabel(id);btn.classList.toggle('staysopen',outcome==='return_needed');}
+        if(btn){btn.disabled=false;btn.textContent=finishLabel(id);btn.classList.toggle('staysopen',finishStatusFor(id)==='awaiting_parts');}
         saveMsg(id, '\uD83D\uDCE1 Saved on your phone — it sends itself the moment you have signal.', 'info');
         pageMsg('\uD83D\uDCE1 No signal here — your report and the finish are held on this phone and send themselves. Nothing is lost; you can keep going.', 'info');
         return;
       }
       clearDraft(id);
       saveMsg(id, '✅ Report saved', 'ok');
-      var newStatus = outcome === 'return_needed' ? 'awaiting_parts' : 'completed';
+      var newStatus = finishStatusFor(id);
       var jobUpd = { status: newStatus };
       if (newStatus==='completed') jobUpd.completed_at = new Date().toISOString();
       if (newStatus==='completed' && !job.waiver_signed_at && window.confirm('Release isn\'t signed. Confirm the customer signed it?')){
@@ -1470,6 +1485,12 @@
     // Every outcome tap repaints the finish button, so it always names what the save will do.
     b.querySelectorAll('.tdr .outc input[type=radio]').forEach(function(r){
       r.addEventListener('change', function(){ paintFinishBtn(String(r.name).slice(1)); });
+    });
+    // BOTH pickers decide the landing status, so BOTH have to repaint the button. Without
+    // this, tapping "Office needs to order it" leaves the button reading "finish the job"
+    // while the save correctly holds it open -- a button lying about its own outcome.
+    b.querySelectorAll('.tdr select[id^="tps"]').forEach(function(sel){
+      sel.addEventListener('change', function(){ paintFinishBtn(String(sel.id).slice(3)); });
     });
     b.querySelectorAll('button[data-find]').forEach(function(el){ el.onclick=function(){ findPart(el.getAttribute('data-find-id'), el.getAttribute('data-find')); }; });
     b.querySelectorAll('button[data-supcfg]').forEach(function(el){ el.onclick=function(){ AntSuppliers.chooser(companySettings, function(){ refreshSuppliers(el.getAttribute('data-supcfg')); }); }; });

@@ -855,6 +855,44 @@ async function syncTnToPlatform(limit, opts) {
   // truth for work that hasn't been touched on the platform; the moment a human does
   // something on the platform, that progress wins until Xano catches up.
   const RANK = { new: 0, scheduled: 1, in_progress: 2, awaiting_parts: 3, completed: 4, canceled: 4 };
+
+  // ── THE OFFICE'S OWN FILING OUTRANKS A STALE COMPLETION ──────────────────────────
+  // Danielle, 2026-09-16: "yesterday she was dealing with jobs that were saying that they
+  // were completed and they were not." She is right, and the calendar guard below could not
+  // catch these: it only fires on a booking TODAY OR LATER, so a return trip booked for
+  // yesterday that nobody has done reads completed forever.
+  //
+  // The durable tell is her own hand. office_stage is the column the Xano board writes when
+  // she DRAGS a card into a folder -- a deliberate act, and one that does not decay with the
+  // calendar. If the card is sitting in Scheduled / Needs Scheduled / Waiting Parts while
+  // scheduling_status says completed, the completion is the stale half and she has already
+  // told us so.
+  //
+  // ⚠️ MEASURED FIRST, AND THE MEASUREMENT KILLED THE OBVIOUS ANSWER. current_status looks
+  // like the signal -- 335 of the 550 completed jobs carry one that disagrees. It is noise:
+  // of the jobs Danielle herself filed into invoice/paid/done (unambiguously finished),
+  // 90 still read current_status 'scheduled' and 82 read 'in_progress'. 60% of definitively
+  // finished work "disagrees", so keying on it would reopen ~200 closed jobs. office_stage
+  // does not have that problem: 326 finished jobs sit in a money/done folder, and exactly
+  // 41 sit in an active one.
+  //
+  // Both extra gates are load-bearing. Xano's job_completed_at must be empty -- a real
+  // completion timestamp beats a card someone forgot to move -- and the platform's own
+  // completed_at must be empty, so a tech who genuinely finished the job HERE can never
+  // have it undone (the same rule the never-walk-backwards guard runs on).
+  //
+  // DELIBERATELY NARROW: 'followup', 'needinv', 'inv-*', 'paid', 'done' and the per-tech
+  // 'rep-*' report columns are all places a FINISHED job legitimately waits, so none of them
+  // reopens anything. Only the folders that mean "this still has to happen" do.
+  const OFFICE_ACTIVE_STAGE = new Set(['schedule', 'scheduled', 'parts', 'autho', 'upgrade']);
+  const officeStage = new Map();   // xano job id -> { stage, doneStamp }
+  for (const j of jobs) {
+    const id = Number(j.id); if (!id) continue;
+    officeStage.set(id, {
+      stage: String(j.office_stage || '').trim().toLowerCase(),
+      doneStamp: Number(j.job_completed_at) > 0,
+    });
+  }
   try {
     const xids = jobRows.map((r) => r.xano_id).filter(Boolean);
     const cur = new Map();
@@ -867,7 +905,7 @@ async function syncTnToPlatform(limit, opts) {
       const rows = await r.json().catch(() => null);
       if (Array.isArray(rows)) rows.forEach((x) => cur.set(Number(x.xano_id), x));
     }
-    let held = 0, keptSched = 0, keptTech = 0, keptPending = 0, keptWorking = 0;
+    let held = 0, keptSched = 0, keptTech = 0, keptPending = 0, keptWorking = 0, keptFiled = 0;
     // Is this timestamp today, in the shop's timezone? Used to tell 'a tech is on this job
     // right now' from 'a tech was on it last week'.
     const CT_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -936,6 +974,18 @@ async function syncTnToPlatform(limit, opts) {
         keptWorking++;
       }
 
+      // The office filed this card as still-to-do (see the block above the loop). Same
+      // recovery as the calendar guard: keep whatever the platform already knows, and only
+      // pick a state when the row itself has taken the stale 'completed'.
+      const os = officeStage.get(Number(jr.xano_id));
+      if (jr.status === 'completed' && ex.status !== 'canceled' && !ex.completed_at
+          && os && !os.doneStamp && OFFICE_ACTIVE_STAGE.has(os.stage)) {
+        jr.status = (ex.status && ex.status !== 'completed')
+          ? ex.status
+          : (isTodayCT(ex.started_at) ? 'in_progress' : 'scheduled');
+        keptFiled++;
+      }
+
       // ── AND DON'T ERASE A BOOKING MADE ON THE PLATFORM ───────────────────────────
       // Same bug, second field. The row above rewrites technician_id / scheduled_day /
       // scheduled_start from Xano on EVERY run, so the office booking a job on the platform
@@ -968,6 +1018,7 @@ async function syncTnToPlatform(limit, opts) {
     }
     if (held) console.log('[tn-mirror] kept platform status on ' + held + ' job(s) the mirror would have reverted');
     if (keptWorking) console.log('[tn-mirror] kept ' + keptWorking + ' job(s) a tech is working today off a stale Xano completed');
+    if (keptFiled) console.log('[tn-mirror] reopened ' + keptFiled + ' job(s) the office has filed as still-to-do off a stale Xano completed');
     if (keptSched || keptTech) console.log('[tn-mirror] kept platform booking: ' + keptSched + ' day(s), ' + keptTech + ' tech(s)');
     if (keptPending) console.log('[tn-mirror] held ' + keptPending + ' booking(s) still queued for Xano');
   } catch (e) {

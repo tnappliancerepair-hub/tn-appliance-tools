@@ -198,3 +198,43 @@ test('the new fields save under the never-blank rule', () => {
   assert.match(clean, /keep\('notes',\s*document\.getElementById\('t_notes'\)\.value,\s*t\.notes\)/,
     'notes must go through keep()');
 });
+
+// ── Danielle 2026-09-16: "on the old Xano system she had a Copy all button, on the new
+// Supabase one each area has its own little copy area — she really liked that last one."
+//
+// The whole-report copy ALREADY existed here. It read "Copy the whole report" and sat at the
+// BOTTOM of the panel next to Save, under two textareas and a 6-button outcome grid. The Xano
+// button she likes says "Copy all" and lives in the panel HEADER. A feature she cannot NAME,
+// in a place she does not look, is a feature she does not have.
+test('Copy all is in the TDR panel HEADER, by the name she hunts for', () => {
+  const clean = stripComments(SRC);
+  // Two other lines say "TDR — technician report" (the loading + error placeholders).
+  // The REAL rendered header is the one carrying the claim hint — pin that one.
+  const hdr = clean.split('\n').find((l) => l.includes('class="sec"')
+    && l.includes('TDR — technician report')
+    && l.includes('what the office files the claim from'));
+  assert.ok(hdr, 'the TDR panel section header is gone');
+  assert.ok(/id="t_copyall_top"/.test(hdr), 'Copy all is not in the panel header — she scrolls past it');
+  assert.ok(/📋 Copy all</.test(hdr), 'the header button must read "Copy all" — the words she looks for');
+});
+
+test('the button next to Save reads "Copy all" too', () => {
+  const clean = stripComments(SRC);
+  assert.ok(/id="t_copyall">📋 Copy all</.test(clean),
+    'the bottom copy button must carry the same name, or one of the two is unfindable');
+  assert.ok(!/Copy the whole report</.test(clean),
+    'the old wording is back — she does not scan for "the whole report"');
+});
+
+test('both Copy all buttons run the SAME composer — no second copy of the rule', () => {
+  const clean = stripComments(SRC);
+  assert.ok(/\['t_copyall_top'\s*,\s*'t_copyall'\]/.test(clean),
+    'both copy buttons must be wired from one list');
+  const composes = clean.match(/copyText\(\s*claimText\(\)/g) || [];
+  assert.strictEqual(composes.length, 1,
+    'claimText is composed in more than one place — the emoji-vs-words rule will drift');
+  // and the one call site must be REACHABLE. Presence is not reachability: a falsy
+  // short-circuit in front of it reads as wired and does nothing.
+  const guarded = /(?:false|0|null|undefined)\s*&&\s*copyText\(\s*claimText\(\)/.test(clean);
+  assert.ok(!guarded, 'the copy call is dead-guarded — the button would do nothing');
+});
