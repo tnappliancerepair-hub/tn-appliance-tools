@@ -1,5 +1,53 @@
 # Appliance Ant
 
+## 📋📄 2026-09-16 (Wed, night) — SOFIA: "copied and pasted from the job board into AHS and it left it all blank" — YOU CANNOT DRAG-SELECT A FORM FIELD, AND THE PANEL WAS HIDING THE PART NUMBER — READ FIRST
+
+Sofia: *"I submitted a report yesterday and copied and pasted the information from the job board into
+AHS and it left it all blank. I had to resubmit and type out."* **She was right, and it is not a save
+bug — it is a COPY bug, and a browser behaviour, not a glitch.**
+
+### 🥇 THE FINDING — a page selection SKIPS the contents of `<input>` / `<textarea>`
+`office-board.html`'s drawer TDR panel renders every value as a form control
+(`<input id="t_fc" value="…">`, `<textarea id="t_rc">…</textarea>`). **Dragging across the panel and
+hitting copy selects the LABELS and skips every value** — form controls are selection boundaries. So
+she got `Model # What failed What happened to the machine Labor hours` with nothing between them.
+**That IS "it left it all blank."** There was **no copy button anywhere on the office board's TDR** —
+the per-field copy buttons this file recorded on 2026-07-03 are not in the file; the only ones that
+exist are on `warranty-review.html`, a page she is not working from.
+
+### 🔴 AND SHE COULDN'T HAVE COPIED IT BY ANY MEANS — the panel hid a third of the claim
+The tech writes **9** fields (`brand · model · failed_component · part_number · part_status ·
+root_cause · labor_hours · notes · outcome`). The office panel showed **5**. **Measured on the live
+board: 412 filed reports on AHS/Frontdoor jobs — 307 of them (75%) carry a `part_number` the office
+could not see at all**, plus 118 with tech `notes`. Field-by-field hand-typing could not have
+recovered those either; she was retyping a claim from a panel that never had the part number on it.
+
+### ✅ THE FIX
+- **`part_number` + `notes` now render in the panel**, and save through the same **`keep()`** rule, so
+  an empty box still means *"I didn't touch it"* and the office can never blank what the tech filed.
+- **A 📋 on every field + one "Copy the whole report"**, composed from the **LIVE inputs** (so an edit
+  she just made copies too) — the value is never something she has to hand-select.
+- **The outcome copies as WORDS.** ⚠️ `TDR_OUTCOMES` rows are **`[value, icon, label]`** — `[1]` is
+  the emoji, `[2]` is the words. My first cut pasted 🔁 into a claim. Caught by reading the render
+  (`'<span>'+o[1]+'</span>'+o[2]`), not by assuming the order.
+- **A refused clipboard write is reported, never faked.** `navigator.clipboard` is refused off a
+  secure context and by Safari without a gesture; it falls back to `execCommand`, and a failed
+  fallback says *"couldn't copy — select it by hand."* **A fake ✓ is how someone pastes nothing into
+  a real claim.** (The one pre-existing copy chip on the tile still shows ✓ unconditionally — same
+  class, left alone, it only carries a ref/part number.)
+
+### 🧪 PROVEN
+**`tests/office-tdr-copy.test.js` 13/13** — `copyText` + `claimText` are **lifted out of the shipped
+page and EXECUTED** against a fake clipboard that **refuses**, which is the one behaviour that
+matters. Mutation-proven **5 ways**: reporting success on a refused copy fails 1, copying the emoji
+fails 1, dropping the part-# field fails 2, dropping its `keep()` fails 1, removing the fallback
+fails 2. Suite **181/181**.
+
+### ⚠️ STANDING: if a human has to get a value OUT of a surface, a form field is not a display
+Anything rendered as `<input>`/`<textarea>` cannot be drag-copied. Any screen someone copies FROM —
+claims, part numbers, addresses, confirmation codes — needs an explicit copy control, and that
+control must report honestly. Same family as the documented "a refusal is not a failure" rule.
+
 ## 👁️📋 2026-09-16 (Wed, night) — DANIELLE: "she can see the information, it's just not visible to THEM" — A TECH COULD NOT SEE HIS OWN FILED REPORT, AND THAT IS WHY HE COULD NOT CLOSE THE JOB — READ FIRST
 
 Teddy relayed the detail that cracked the whole "not saving" class: *"every time that they put a
