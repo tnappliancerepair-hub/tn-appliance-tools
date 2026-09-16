@@ -152,6 +152,14 @@ function buildShapes(obj) {
       dispatch: { external_id: String(obj.dispatch_id) },
       vendor: { external_id: String(obj.vendor_id) },
     } },
+    // ACCEPTED 2026-09-16: {type, data:{external_id, message, status}} returns 200
+    // {"errors":null} with `status` as a STRING (description or code-as-string; an object
+    // or a number dies at unmarshal). These rows check whether the fields we actually need
+    // to carry — note, vendor_id, status_code, timestamps — survive alongside it.
+    ok_desc:     { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj.description, status: obj.description } },
+    ok_plus:     { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj.note || obj.description, status: obj.description, status_code: String(obj.status_code), vendor_id: String(obj.vendor_id), tenant: obj.tenant, source: obj.source, updated_at: obj.updated_at } },
+    ok_note:     { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj.note || obj.description, status: obj.description, note: obj.note } },
+    ok_vendor:   { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj.description, status: obj.description, vendor_id: String(obj.vendor_id) } },
   };
 }
 
