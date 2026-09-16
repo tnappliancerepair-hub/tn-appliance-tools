@@ -82,6 +82,9 @@
   .fld{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:10px;display:flex;gap:11px;align-items:flex-start;transition:border-color .15s ease}
   .fld.filled{border-left-color:#10b981}
   .fld.empty{border-left-color:#f5a623;background:rgba(245,166,35,.055)}
+  /* A box the report genuinely cannot finish without. Amber = not filled in yet;
+     RED = you are standing on it and it is why the finish did not go through. */
+  .fld.needs{border-left-color:#dc2626 !important;background:rgba(220,38,38,.07);box-shadow:0 0 0 2px rgba(220,38,38,.18)}
   .fld-ic{font-size:19px;flex-shrink:0;margin-top:1px;line-height:1}
   .fld-body{flex:1;min-width:0}
   .fld-lab{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800}
@@ -311,6 +314,7 @@
 <script src="/platform/media-sign.js"></script>
 <script src="/platform/ant-suppliers.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@3/dist/tus.min.js"></script>
+<script src="/platform/ant-save.js?v=20260916-outbox"></script>
 <script src="/ant-sounds.js"></script>
 <script src="/ant-celebrate.js"></script>
 <script>
@@ -336,6 +340,7 @@
   if (!cfg.url || !cfg.anonKey) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Not connected yet.</p></div>'; return; }
   if (!jobId) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>No job selected. <a href="/platform/tech.html">Back to My Jobs</a></p></div>'; return; }
   sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+  if (window.AntSave) AntSave.attach(sb);   // drain anything held from a no-signal stop
 
   function signIn(msg) {
     app.innerHTML = '<div class="gate"><h2>🐜 Sign in</h2><input id="em" type="email" placeholder="Email" autocomplete="username"><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button class="primary" id="go">Sign in</button><div class="err">'+esc(msg||'')+'</div></div>';
@@ -343,6 +348,13 @@
       sb.auth.signInWithPassword({ email: document.getElementById('em').value.trim(), password: document.getElementById('pw').value }).then(function(r){ if(r.error) signIn(r.error.message); else boot(); });
     };
   }
+
+  // A finish that went through late (he had no signal at the stop) still owes the
+  // customer their "repair is done" text. Registered every boot so it fires even
+  // when the app was closed between the stop and the signal coming back.
+  if (window.AntSave) AntSave.on('job_finished', function(arg){
+    if (arg && arg.ns==='completed' && String(arg.job)===String(jobId)) notifyCustomer('complete','Job-complete');
+  });
 
   function boot() {
     sb.auth.getUser().then(function(u){
@@ -2478,10 +2490,17 @@
     var b=document.getElementById('fsbtn_'+id); if(b){ b.disabled=true; }
     if(!silent) fldSetMsg(id,'Saving…','');
     var row={ company_id:me.company_id, job_id:jobId }; row[col]=val;
-    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(function(r){
+    // Through the outbox: one bar of signal is no longer the difference between
+    // keeping what he typed and losing it. A refusal is still reported as a refusal.
+    AntSave.write({ sb:sb, table:'job_tdr', op:'upsert', onConflict:'job_id', row:row, key:'tdr:'+jobId }).then(function(r){
       if(b) b.disabled=false;
-      if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){
-        fldSetMsg(id,'Did NOT save — tap Save again', 'err'); return;
+      if(r.refused){ fldSetMsg(id,'Did NOT save — tap Save again', 'err'); return; }
+      if(r.queued){
+        // Held on his phone. Deliberately NOT recorded as on-the-server: the button
+        // keeps reading "Save" and the carry-across still guards the text, so nothing
+        // anywhere claims the office has this yet.
+        fldSetMsg(id,'\uD83D\uDCE1 Saved on your phone','');
+        return;
       }
       fldLast[id]=raw; fldDirty(id); fldSetMsg(id,'Saved ✓','ok'); paintFlds();
     });
@@ -2546,25 +2565,44 @@
     var when=new Date().toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     var line='— '+who+' · '+when+'\n'+text;
     btn.disabled=true; btn.textContent='Sending…'; msg.style.color=''; msg.textContent='Sending…';
-    // Re-read first so we append to whatever the office has NOW, not to our stale copy.
-    sb.from('job').select('office_notes').eq('id',jobId).limit(1).then(function(cur){
-      var live=(cur&&cur.data&&cur.data[0]&&cur.data[0].office_notes)||'';
-      var next=(String(live).trim()? String(live).replace(/\s+$/,'')+'\n\n':'')+line;
-      sb.from('job').update({office_notes:next}).eq('id',jobId).select('id').then(function(r){
-        btn.disabled=false; btn.textContent='📤 Send to the office';
-        if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){
-          msg.style.color='var(--danger, #b91c1c)';
-          msg.textContent='That did NOT send — your note is still here. Tap Send again, and tell the office if it keeps failing.';
-          return;
-        }
-        job.office_notes=next; ta.value='';
-        var body=app.querySelector('.officecard .officebody');
-        if(body) body.textContent=next;
-        else { var placeholder=app.querySelector('.officecard .note'); if(placeholder){ placeholder.className='officebody'; placeholder.textContent=next; } }
-        msg.style.color='var(--completed, #166534)';
-        msg.textContent='✅ Sent — it\u2019s on the office\u2019s job tile now.';
-      });
+    // APPEND through the outbox. It re-reads the office's copy at the moment it
+    // actually goes out, so a note held through a dead stop still lands UNDER
+    // whatever Danielle typed while he had no signal — never over it.
+    AntSave.write({ sb:sb, table:'job', op:'append', column:'office_notes',
+                    matchCol:'id', matchVal:jobId, text:line, key:'onote:'+jobId }).then(function(r){
+      btn.disabled=false; btn.textContent='📤 Send to the office';
+      if(r.refused){
+        msg.style.color='var(--danger, #b91c1c)';
+        msg.textContent='That did NOT send — your note is still here. Tap Send again, and tell the office if it keeps failing.';
+        return;
+      }
+      if(r.queued){
+        ta.value=''; msg.style.color='';
+        msg.textContent='📡 Saved on your phone — it goes to the office the moment you have signal.';
+        return;
+      }
+      var next=r.value||line;
+      job.office_notes=next; ta.value='';
+      var body=app.querySelector('.officecard .officebody');
+      if(body) body.textContent=next;
+      else { var placeholder=app.querySelector('.officecard .note'); if(placeholder){ placeholder.className='officebody'; placeholder.textContent=next; } }
+      msg.style.color='var(--completed, #166534)';
+      msg.textContent='✅ Sent — it’s on the office’s job tile now.';
     });
+  }
+
+  // Take the tech straight to the box the report cannot finish without, and say why
+  // right THERE — beside the box, not under a button he has already scrolled past.
+  // Clears itself the moment he starts typing, so it never nags at a box he just fixed.
+  function needField(id, why){
+    var el=document.getElementById(id); if(!el) return;
+    var card=el.closest?el.closest('.fld'):null;
+    if(card) card.classList.add('needs');
+    try{ el.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
+    setTimeout(function(){ try{ el.focus(); }catch(_){} },260);
+    try{ fldSetMsg(id, why, 'err'); }catch(_){}
+    var clear=function(){ if(card) card.classList.remove('needs'); try{ fldSetMsg(id,'',''); }catch(_){} el.removeEventListener('input',clear); };
+    el.addEventListener('input', clear);
   }
 
   function saveTdr() {
@@ -2584,7 +2622,27 @@
     }
 
     var comp=v('tc');
-    if(!comp && outcomeSel==='fixed'){ var e=document.getElementById('tc'); if(e)e.focus(); err.textContent='Add what failed before you mark it complete.'; return; }
+    // ── THE FINISH GATE ───────────────────────────────────────────
+    // "What failed" is what the warranty claim gets built on, so a completed job
+    // should carry one. But a lot of real stops end with nothing broken ("machine
+    // was working on every cycle", "customer is just unsatisfied with the product")
+    // — and the old gate refused those by printing a line into #tdrErr, which sits
+    // BELOW the button, while focus() jumped the tech UP to the box. On a phone he
+    // never saw the message: the button just looked dead. Measured 2026-09-16:
+    // 51 jobs stranded in exactly that state in 90 days.
+    // So there is no silent refusal any more. Either he says nothing failed (one tap,
+    // written down honestly so the claim still reads true), or we put him on the box
+    // and make the ask impossible to miss.
+    if(!comp && outcomeSel==='fixed'){
+      if(window.confirm('Nothing to put in "What failed"?\n\nOK — nothing on this machine actually failed. We\u2019ll write “No failure found” and finish.\n\nCancel — take me back up to fill it in.')){
+        var ce=document.getElementById('tc');
+        if(ce){ ce.value='No failure found'; try{ fldDirty('tc'); paintFlds(); }catch(_){} }
+        comp='No failure found';
+      } else {
+        needField('tc','This is the one the report can\u2019t finish without — then tap Save report + finish.');
+        return;
+      }
+    }
     var outcome=outcomeSel;
     btn.disabled=true; btn.textContent='Saving…';
     var cb=document.getElementById('tcb'); var held=!(cb&&cb.checked);
@@ -2593,20 +2651,18 @@
     var insp=collectInspection(); if(insp) row.inspection=insp;
     var lh=v('th'); if(lh && !isNaN(parseFloat(lh))) row.labor_hours=parseFloat(lh);
     if(!held) row.reopened_at=new Date().toISOString();
+    var putTdr=function(){ return AntSave.write({ sb:sb, table:'job_tdr', op:'upsert', onConflict:'job_id', row:row, key:'tdr:'+jobId }); };
     var done=function(r){
-      if(r.error){
+      if(r.refused){
+        var em=r.message||'';
         // Resilient to columns that may not be migrated yet — save the rest of the report anyway.
-        if(row.part_status!==undefined && /part_status/i.test(r.error.message||'')){ delete row.part_status; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(done); return; }
-        if(row.inspection!==undefined && /inspection/i.test(r.error.message||'')){ delete row.inspection; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(done); return; }
-        if(row.labor_hours!==undefined && /labor_hours/i.test(r.error.message||'')){
+        if(row.part_status!==undefined && /part_status/i.test(em)){ delete row.part_status; putTdr().then(done); return; }
+        if(row.inspection!==undefined && /inspection/i.test(em)){ delete row.inspection; putTdr().then(done); return; }
+        if(row.labor_hours!==undefined && /labor_hours/i.test(em)){
           // keep the hours from being lost — fold them into notes/root cause
           if(lh) row.root_cause=(row.root_cause?row.root_cause+' · ':'')+'Labor '+lh+'h';
-          delete row.labor_hours; sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(done); return;
+          delete row.labor_hours; putTdr().then(done); return;
         }
-        btn.disabled=false; btn.textContent='Save report + finish'; err.textContent=r.error.message; return;
-      }
-      // Zero rows + no error = the write was blocked. Never call that saved.
-      if(!r || !Array.isArray(r.data) || !r.data.length){
         btn.disabled=false; btn.textContent='Save report + finish';
         err.textContent='That did NOT save. Your typing is still on screen — tap Save again, and tell the office before you leave.';
         return;
@@ -2614,6 +2670,18 @@
       // "Please order" or "Missing" or a needed return → the part isn't in hand, so the job waits.
       var ns=(outcome==='return_needed'||partStatus==='please_order'||partStatus==='missing')?'awaiting_parts':'completed';
       var ju={status:ns}; if(ns==='completed') ju.completed_at=new Date().toISOString();
+      // No signal at the stop. The report is held on his phone and so is the finish —
+      // queued in that order, so the status can never land ahead of the report it
+      // belongs to. He is done here; he does not have to come back and re-type it.
+      if(r.queued){
+        AntSave.write({ sb:sb, table:'job', op:'update', match:{id:jobId}, row:ju,
+                        key:'jobstatus:'+jobId, then:'job_finished', thenArg:{job:jobId, ns:ns} });
+        app.innerHTML='<div class="center"><div class="big">\uD83D\uDCE1</div><h2>Saved on your phone</h2>'+
+          '<p>No signal here — your report and the finish are both held and send themselves the moment you have a bar. '+
+          'You can close the app; nothing is lost.</p>'+
+          '<p style="margin-top:16px"><a href="/platform/tech.html">Back to My Jobs</a></p></div>';
+        return;
+      }
       var finish=function(){
         if(ns==='completed'){ notifyCustomer('complete','Job-complete'); } // text the customer their repair is done + receipt link
         // 🎉 Job done — confetti + fanfare. The reward that makes techs want to close jobs.
@@ -2624,12 +2692,21 @@
         wireReviewAsk();
       };
       // Set the job status; if completed_at isn't a column yet, retry without it.
+      // Signal can die in the gap between the report landing and this — so this goes
+      // through the outbox too, and a drop here holds the finish instead of losing it.
       var setStatus=function(u){
-        sb.from('job').update(u).eq('id',jobId).select('id').then(function(r2){
-          if(r2 && r2.error && /completed_at/i.test(r2.error.message||'')){ setStatus({status:ns}); return; }
-          if(!r2 || r2.error || !Array.isArray(r2.data) || !r2.data.length){
+        AntSave.write({ sb:sb, table:'job', op:'update', match:{id:jobId}, row:u,
+                        key:'jobstatus:'+jobId, then:'job_finished', thenArg:{job:jobId, ns:ns} }).then(function(r2){
+          if(r2.refused && /completed_at/i.test(r2.message||'')){ setStatus({status:ns}); return; }
+          if(r2.refused){
             btn.disabled=false; btn.textContent='Save report + finish';
             err.textContent='Report saved, but the job status did NOT update. Tell the office before you leave.';
+            return;
+          }
+          if(r2.queued){
+            app.innerHTML='<div class="center"><div class="big">\uD83D\uDCE1</div><h2>Report saved</h2>'+
+              '<p>Signal dropped before the finish went through, so it is held on your phone and sends itself. Nothing is lost.</p>'+
+              '<p style="margin-top:16px"><a href="/platform/tech.html">Back to My Jobs</a></p></div>';
             return;
           }
           finish();
@@ -2637,7 +2714,7 @@
       };
       setStatus(ju);
     };
-    sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id').then(done);
+    putTdr().then(done);
   }
 
   sb.auth.getSession().then(function(r){ if(r.data&&r.data.session) boot(); else signIn(); });
