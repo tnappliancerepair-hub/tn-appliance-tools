@@ -65,6 +65,7 @@ function sbStub() {
     upsert: async (_t, rows) => { calls.upserted.push(rows); },
     del: async (_t, filter) => { calls.deleted.push(filter); },
     select: async (_t, params) => { calls.selects.push(params); return []; },
+    selectAll: async (_t, params) => { calls.selects.push(params); return []; },
   };
 }
 
@@ -154,7 +155,7 @@ test('LOAD-BEARING: an incomplete read never prunes the mirror', async () => {
   const sb = sbStub();
   // The mirror ALREADY holds the scheduled job -- this is what makes the test bite. With an
   // empty mirror there is nothing to delete and it would pass with or without the guard.
-  sb.select = async (_t, params) => { sb.calls.selects.push(params); return [{ id: 1 }, { id: 9 }]; };
+  sb.selectAll = async (_t, params) => { sb.calls.selects.push(params); return [{ id: 1 }, { id: 9 }]; };
   const { syncBoardMirror } = load(sb);
   const out = await syncBoardMirror();
   assert.equal(out.ok, true);
@@ -168,7 +169,7 @@ test('a complete read DOES prune, so finished jobs stop lingering', async () => 
   const s = stub({ pages: { scheduled: [[job(1, 'scheduled')]] }, feed: [job(9, 'completed')] });
   global.fetch = s.fn;
   const sb = sbStub();
-  sb.select = async (_t, params) => { sb.calls.selects.push(params); return [{ id: 1 }, { id: 9 }, { id: 77 }]; };
+  sb.selectAll = async (_t, params) => { sb.calls.selects.push(params); return [{ id: 1 }, { id: 9 }, { id: 77 }]; };
   const { syncBoardMirror } = load(sb);
   const out = await syncBoardMirror();
   assert.equal(out.complete, true);
@@ -176,19 +177,16 @@ test('a complete read DOES prune, so finished jobs stop lingering', async () => 
   assert.ok(String(sb.calls.deleted[0].id).includes('77'));
 });
 
-test('the prune reads EVERY mirror id, not PostgREST first page', async () => {
-  const s = stub({ pages: {} });
-  global.fetch = s.fn;
+test('allMirrorIds delegates to the paging reader, never a bare capped select', async () => {
+  const s2 = stub({ pages: {} });
+  global.fetch = s2.fn;
   const sb = sbStub();
-  let pages = 0;
-  sb.select = async (_t, params) => {
-    sb.calls.selects.push(params);
-    pages += 1;
-    if (pages <= 2) return Array.from({ length: 1000 }, (_, i) => ({ id: (pages - 1) * 1000 + i + 1 }));
-    return [];
-  };
+  let usedBareSelect = false;
+  sb.select = async () => { usedBareSelect = true; return []; };
+  sb.selectAll = async (_t, params) => { sb.calls.selects.push(params); return [{ id: 1 }, { id: 2 }]; };
   const { allMirrorIds } = load(sb);
   const ids = await allMirrorIds();
-  assert.equal(ids.length, 2000, 'a truncated id read leaves finished jobs stuck on the board');
-  assert.ok(sb.calls.selects.some((p) => p.offset === '1000'), 'must actually page with offset');
+  assert.deepEqual(ids, [1, 2]);
+  assert.equal(usedBareSelect, false,
+    'a bare select() truncates at 1000 server side - the prune would then leave finished jobs stuck on the board');
 });

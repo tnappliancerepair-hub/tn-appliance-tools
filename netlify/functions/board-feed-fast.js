@@ -25,10 +25,13 @@ const COLS = [
 
 const SITE = 'https://tnapplianceexchange.net';
 
+// PostgREST caps a response at 1000 rows SERVER SIDE no matter what `limit` asks for,
+// and it does not error - it just hands back less. `limit: '2000'` read as a safe ceiling
+// and was silently a 1000-row wall: measured 2026-09-16 the mirror held 1,129 jobs and the
+// board was served exactly 1,000. sb.selectAll pages until the table runs out.
 async function fromMirror() {
-  const rows = await sb.select('board_mirror', { select: COLS, limit: '2000' });
-  if (!Array.isArray(rows) || rows.length === 0) return null;
-  return rows;
+  const rows = await sb.selectAll('board_mirror', { select: COLS, order: 'id.desc' });
+  return rows.length ? rows : null;
 }
 
 async function fromFeed() {
@@ -48,7 +51,9 @@ exports.handler = async function () {
   try {
     const raced = await Promise.race([
       fromMirror(),
-      new Promise((res) => setTimeout(() => res('__slow__'), 6000)),
+      // 2 pages of 1000 measured ~200ms; 10s leaves room without letting a cold
+      // Supabase read hang the board.
+      new Promise((res) => setTimeout(() => res('__slow__'), 10000)),
     ]);
     items = raced === '__slow__' ? null : raced;
   } catch (_) { items = null; }

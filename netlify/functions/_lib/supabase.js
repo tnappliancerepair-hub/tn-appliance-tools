@@ -85,6 +85,43 @@ async function select(table, params = {}) {
   return r.json();
 }
 
+// selectAll — select() but it keeps going until the table runs out.
+//
+// WHY THIS EXISTS: PostgREST caps a response at 1000 rows SERVER SIDE regardless of what
+// `limit` asks for, and it does NOT error - it quietly hands back less. So `limit: '2000'`
+// reads like a generous ceiling and is actually a 1000-row wall. That is not theoretical:
+// on 2026-09-16 board_mirror held 1,129 jobs and the office board was served exactly
+// 1,000. 129 real jobs invisible, no error anywhere. Every "the jobs disappeared" report
+// this shop has had traces back to a silent truncation like this one.
+//
+// Any read that COULD exceed 1000 rows uses this. A bare select() with a big limit is a
+// lie waiting to happen.
+//
+// `order` matters: paging an unordered result can skip or repeat rows between pages, so
+// it defaults to a stable id sort. MAX_PAGES is a runaway guard, never a data cap - if it
+// is ever actually reached that is a bug worth seeing, so it logs.
+const SELECT_ALL_PAGE = 1000;
+const SELECT_ALL_MAX_PAGES = 100; // 100k rows
+async function selectAll(table, params = {}) {
+  const order = params.order || 'id.asc';
+  const out = [];
+  for (let page = 0; page < SELECT_ALL_MAX_PAGES; page++) {
+    const rows = await select(table, {
+      ...params,
+      order,
+      limit: String(SELECT_ALL_PAGE),
+      offset: String(page * SELECT_ALL_PAGE),
+    });
+    if (!Array.isArray(rows) || !rows.length) break;
+    for (const r of rows) out.push(r);
+    if (rows.length < SELECT_ALL_PAGE) break;
+    if (page === SELECT_ALL_MAX_PAGES - 1) {
+      console.error(`[supabase] selectAll(${table}) hit the page guard at ${out.length} rows - raise it or narrow the query`);
+    }
+  }
+  return out;
+}
+
 // recordEvent — the event_log writer. Mirrors the Xano event_log row shape so
 // office reads can swap source with no UI change. Best-effort by default: never
 // throw into a caller's hot path (an audit write must not break a real action).
@@ -194,4 +231,4 @@ async function rpc(fn, args = {}) {
   return r.json();
 }
 
-module.exports = { cfg, isConnected, insert, upsert, select, update, del, recordEvent, rpc };
+module.exports = { cfg, isConnected, insert, upsert, select, update, del, recordEvent, rpc, selectAll};

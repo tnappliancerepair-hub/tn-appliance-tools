@@ -22,7 +22,7 @@ exports.handler = async function (event) {
     } catch (e) { err = String((e && e.message) || e); }
     // best-effort total count (PostgREST HEAD count would be cleaner; keep it simple)
     if (tableOk) {
-      try { const all = await sb.select('brain_predictions', { select: 'id', limit: '1000' }); rowCount = all.length; } catch (_) {}
+      try { const all = await sb.selectAll('brain_predictions', { select: 'id', order: 'id.asc' }); rowCount = all.length; } catch (_) {}
     }
   }
   return json(200, {

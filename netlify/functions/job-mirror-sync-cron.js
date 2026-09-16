@@ -30,16 +30,21 @@ exports.handler = async function () {
     if (!(await sb.isConnected())) return { statusCode: 200, body: JSON.stringify({ ok: true, skipped: 'supabase_not_configured' }) };
 
     // 1) active jobs with a tech, straight from the board mirror (no Xano hit)
-    const board = await sb.select('board_mirror', {
+    // selectAll, not select: PostgREST truncates at 1000 server side, so `limit: '2000'`
+    // silently skipped every job past the first thousand - they never got pre-warmed.
+    const board = await sb.selectAll('board_mirror', {
       select: 'id,technician_id,scheduling_status',
-      limit: '2000',
+      order: 'id.asc',
     }).catch(() => []);
     const active = (Array.isArray(board) ? board : []).filter(
       (j) => j && j.technician_id && ACTIVE.has(String(j.scheduling_status || ''))
     );
 
     // 2) current mirror freshness
-    const mirror = await sb.select('job_mirror', { select: 'job_id,updated_at', limit: '5000' }).catch(() => []);
+    // Truncating THIS one is worse than missing rows: a job absent from the freshness map
+    // reads as never-refreshed, so the cron would keep re-warming the same first 1000 and
+    // starve the rest forever.
+    const mirror = await sb.selectAll('job_mirror', { select: 'job_id,updated_at', order: 'job_id.asc' }).catch(() => []);
     const freshAt = new Map();
     for (const m of (Array.isArray(mirror) ? mirror : [])) freshAt.set(Number(m.job_id), Date.parse(m.updated_at || 0) || 0);
 

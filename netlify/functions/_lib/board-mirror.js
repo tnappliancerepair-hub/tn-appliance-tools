@@ -202,15 +202,10 @@ async function fetchKanbanFull(timeoutMs) {
 // ever under-prunes (the safe direction), but it leaves finished jobs lingering on the
 // board, so page it properly.
 async function allMirrorIds() {
-  const out = [];
-  for (let offset = 0; offset < 20000; offset += 1000) {
-    const page = await sb.select('board_mirror', { select: 'id', limit: '1000', offset: String(offset) });
-    if (!Array.isArray(page) || !page.length) break;
-    for (const r of page) out.push(r.id);
-    if (page.length < 1000) break;
-  }
-  return out;
+  const rows = await sb.selectAll('board_mirror', { select: 'id', order: 'id.asc' });
+  return rows.map((r) => r.id);
 }
+
 
 // Pull the heavy Xano query once, upsert every job into board_mirror, prune the
 // jobs that fell off the feed. Returns { ok, synced, pruned, ms }.
