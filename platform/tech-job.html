@@ -420,7 +420,7 @@
         '<div class="stimes">'+statusTimes()+'</div>' +
         '<button class="full" id="schedBtn">📅 Schedule on my day · move · hand off</button>' +
         '<div id="schedBox" class="hidden" style="margin-top:10px"></div>' +
-        (ghostDone()?'<div class="ghostdone">⚠️ This says Complete, but nothing here recorded anyone finishing it — and it is still on the schedule. That is a bad status coming from the office system, not anything you did. Work the job normally. The office has to correct it on their end; reopening it here gets overwritten within a few minutes.</div>':'') +
+        (ghostDone()?'<div class="ghostdone">⚠️ Marked Complete on an earlier visit and back on your schedule — a return trip whose status was never reset. Not anything you did. Work it normally. The office has to reset it on their end; reopening it here gets overwritten within a few minutes.</div>':'') +
         (!ghostDone()&&(job.status==='completed'||job.status==='canceled')?'<button class="full reopen" id="reopenBtn" style="margin-top:8px">↩️ Made a mistake? Reopen &amp; change how this ended</button>':'') +
         (job.status==='completed'&&job.completed_at?reviewAskHtml():'') +
         // Release of liability — big and unmissable, right where the tech works the job.
@@ -1159,15 +1159,20 @@
   function addDaysStr(n){ var d=new Date(); d.setDate(d.getDate()+n); return dstr(d); }
   function fmtDay(d){ if(!d) return ''; var p=String(d).split('-'); if(p.length!==3) return d; var dt=new Date(+p[0],+p[1]-1,+p[2]); return dt.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
 
-  // A job can reach a tech already reading "completed" when nobody ever finished it. Xano keeps
-  // the state in TWO columns (scheduling_status + current_status) and a fresh intake can get
-  // stamped completed on one of them alone -- Jimmy hit this 2026-09-16 on a job he had only
-  // tapped On-my-way for. The mirror reads the stamped column, so the phantom wins here too.
-  // The tell is that NOTHING recorded a completion (setStatus always writes completed_at on a
-  // real finish) while the job is still on the schedule for today or later; a genuine
+  // A RETURN TRIP reads "completed" to the tech. Traced 2026-09-16 off Jimmy's job 21941:
+  // the Xano-side TDR card (ant-tdr-card.js) closes visit one by calling office_set_job_status
+  // with scheduling_status 'completed' -- and that endpoint writes ONLY that column, never
+  // job_completed_at and never current_status. Parts get ordered, the office reschedules the
+  // return visit, and nothing resets the status. The mirror (every 5 min) then carries that
+  // stale 'completed' down onto the tech's platform job, so Jimmy opened a stop he had only
+  // tapped On-my-way for and saw a finished job -- with a "How'd we do?" review ask attached,
+  // aimed at a customer still waiting on parts.
+  //
+  // The tell: NOTHING here recorded the completion (setStatus always writes completed_at on a
+  // real platform finish) AND the job is still on the schedule for today or later. A genuine
   // completion carries the stamp and sits in the past. Deliberately NOT keyed on the missing
   // stamp alone -- 334 jobs legitimately read completed with no platform stamp because they
-  // were finished in the office system, and calling those phantoms would be far worse.
+  // were closed office-side, and calling all of those phantoms would be far worse than the bug.
   function ghostDone(){
     if(!job || job.status!=='completed' || job.completed_at || !job.scheduled_day) return false;
     var n=new Date();
