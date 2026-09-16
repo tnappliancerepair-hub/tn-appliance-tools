@@ -1,5 +1,66 @@
 # Appliance Ant
 
+## ✅🔁 2026-09-16 (Wed, night) — JIMMY: "it's saving but not closing the job out" — THE FINISH BUTTON WAS PROMISING A FINISH IT DOES NOT DO — READ FIRST
+
+Jimmy, from the field: *"Still won't complete it out, it's saving but not closing t ge job out."*
+**He was right, and — third one in a row — it was never a save failure.**
+
+### 🥇 THE FINDING — the status is decided by TWO pickers, and the button spoke for neither
+A save lands `awaiting_parts` when **outcome is `return_needed` OR the part is `please_order`/`missing`**,
+and `completed` otherwise. **All of those read "Save report + finish."** So a tech can tap a button that
+says finish and get a job that stays open, with nothing on screen saying so. Worse, the invisible one:
+he can pick **✅ Job complete**, tap **Please order** on a part, and the job still will not close.
+
+### 🔴 WHY IT HIT JIMMY — a return trip inherits the PREVIOUS visit's answer
+His job (**Randi Graham, AHS dishwasher, `ed17125b`**) is a return trip. The report was written
+**2026-09-10** with `outcome=return_needed`; he came back **09-16** with the parts. `tech-job.html` did
+`outcomeSel = (tdr() && tdr().outcome) || 'fixed'` — so the picker re-selected *last week's* answer and
+**the default action on the second visit was "do not close this job."** He filled the report, every field
+said **Saved ✓**, the pill said **Report 100%**, he tapped **Save report + finish** → straight back to
+`awaiting_parts`.
+- **⚠️ The pill lied too:** the Job-status card is `data-always`, so `paintFlds` counted it filled
+  **even with nothing picked**. That is why his phone read 100% on an unanswered report.
+- **Measured on the live board: of 19 open jobs whose report was re-written on a LATER day, 14 still
+  carried `return_needed`.** Read honestly — several of those 14 are genuine diagnosis-only trips, so
+  **the routing is not what is broken. The sentence on the button is.**
+
+### ✅ THE FIX — both tech surfaces, no routing logic touched
+- **One function owns what the button claims** (`finishStatus()` / `paintFinishBtn()`), and **both**
+  pickers repaint it. A stays-open save reads **"💾 Save report — job stays OPEN for the part"** and
+  goes **amber**, so it can never again look *or* read like a finish.
+- **A return trip is asked fresh.** When the saved outcome is `return_needed` the pick is **cleared** and
+  he must say how THIS visit ended — the ask painted **on the card** and scrolled to (the `needField`
+  pattern), never a line under a button he has already passed.
+- **The pill counts honestly** — an unanswered picker no longer reads as 100%.
+- **🔴 The day list can no longer default to `fixed`.** `tech.html` did `var outcome='fixed'` when no
+  radio was checked. With the picker cleared that default would **CLOSE a job that still needs a part** —
+  the dangerous direction. It now refuses and asks.
+
+### 🧪 PROVEN
+**`tests/tech-finish-honest.test.js` 18/18** — `finishStatus`/`paintFinishBtn`/`needOutcome`/`outcomeOf`/
+`finishLabel` are **lifted out of the shipped pages and EXECUTED**; the gates are checked comment-stripped,
+on a live line, and **ordered before the first write**. Mutation-proven **9 ways**: re-applying the stale
+outcome fails 1, always claiming a finish fails 3, dropping part status from the decision fails 2, removing
+the gate fails 1, dead-guarding it fails 1, counting an unanswered picker as filled fails 1, re-checking the
+stale radio fails 1, the silent `fixed` default fails 1, day-list always-finish fails 1. Suite **199/199**.
+
+### ⚠️ STANDING: a button must name the state the save will actually land
+If a control's outcome depends on inputs the label ignores, the label is a lie the moment they disagree.
+And **a multi-visit form must never inherit the previous visit's answer as its default** — that makes the
+default action "do nothing" on exactly the trip that was supposed to finish the work. Same family as the
+documented "a refusal is not a failure" and "presence is not reachability" rules.
+
+### ⚖️ THE THREE-IN-A-ROW PATTERN (Teddy, same night: *"most of them are just having to do with not saving information where they can see it visually"*)
+**He named the class exactly. None of the three was a save failure:**
+| who | what saved | what he/she could not see |
+|---|---|---|
+| **Danielle/tech** | the report | `job_tdr` embeds to-ONE, read as an array → readback line never rendered |
+| **Sofia** | the report | form fields cannot be drag-copied, and the part # was not on the panel |
+| **Jimmy** | the report | the button said *finish* and the job stayed open |
+**The data was in the database all three times.** The failure is always the surface — so the fix is always
+in what the human is shown, not in the write.
+
+
 ## 📋📄 2026-09-16 (Wed, night) — SOFIA: "copied and pasted from the job board into AHS and it left it all blank" — YOU CANNOT DRAG-SELECT A FORM FIELD, AND THE PANEL WAS HIDING THE PART NUMBER — READ FIRST
 
 Sofia: *"I submitted a report yesterday and copied and pasted the information from the job board into
