@@ -24,6 +24,56 @@ exports.handler = async function (event) {
   if (q.secret !== guard) return json(403, { ok: false, error: 'forbidden' });
   const dry = q.dryrun === '1';
 
+  // ── CUTOVER SCOREBOARD ────────────────────────────────────────────────────────
+  // The directive is to stop depending on Xano. The vault is the invisible half of that
+  // dependency: ~300 secret names resolve through getSecret, and until every one of them
+  // answers from env or Supabase, "Supabase is self-sufficient" is not true no matter how
+  // many lanes have crossed. This reports, per name, WHICH LEG answers -- and never a value.
+  //   ?secret=<admin>&audit=1      every name, bucketed; xano_only is the list that must reach 0
+  //   ?secret=<admin>&probe=NAME   one name: which leg answers it, and how many bytes
+  if (q.audit === '1' || q.probe) {
+    const sbNames = new Set(); const xNames = new Set(); const bytes = {};
+    try {
+      const r = await fetch(`${SB_VAULT_URL}/rest/v1/app_config?select=name,value`,
+        { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey }, signal: AbortSignal.timeout(15000) });
+      if (r.ok) for (const row of (await r.json()) || []) {
+        const n = String(row.name || '').trim();
+        if (n && String(row.value || '')) { sbNames.add(n); bytes[n] = String(row.value).length; }
+      }
+    } catch (_) {}
+    const tid2 = await configTableId();
+    for (let page = 1; page <= 10; page++) {
+      const r = await fetch(`${XANO_META}/table/${tid2}/content/search`, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + xtok, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ search: {}, sort: { id: 'asc' }, per_page: 200, page }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!r.ok) break;
+      const items = (await r.json()).items || [];
+      if (!items.length) break;
+      for (const it of items) { const n = String(it.name || '').trim(); if (n && String(it.value || '')) xNames.add(n); }
+      if (items.length < 200) break;
+    }
+    const legOf = (n) => process.env[n] ? 'env' : sbNames.has(n) ? 'supabase' : xNames.has(n) ? 'xano_only' : 'unset';
+    if (q.probe) {
+      const n = String(q.probe);
+      return json(200, { ok: true, name: n, leg: legOf(n), bytes: process.env[n] ? process.env[n].length : (bytes[n] || 0),
+        note: 'leg is which store answers first. xano_only = this breaks when Xano goes away.' });
+    }
+    const all = [...new Set([...sbNames, ...xNames, ...Object.keys(process.env)])].sort();
+    const buckets = { env: [], supabase: [], xano_only: [] };
+    for (const n of all) { const l = legOf(n); if (buckets[l]) buckets[l].push(n); }
+    return json(200, {
+      ok: buckets.xano_only.length === 0,
+      reading: buckets.xano_only.length === 0
+        ? 'Vault is Xano-free: every secret resolves from Netlify env or Supabase.'
+        : buckets.xano_only.length + ' secret(s) still answer ONLY from Xano. Run this endpoint with no flags to copy them across.',
+      counts: { env: buckets.env.length, supabase: buckets.supabase.length, xano_only: buckets.xano_only.length },
+      xano_only: buckets.xano_only,
+      supabase_backed: buckets.supabase.length,
+    });
+  }
+
   const xtok = process.env.XANO_METADATA_TOKEN || (await getSecret('XANO_METADATA_TOKEN'));
   const sbKey = process.env.PLATFORM_SUPABASE_SERVICE_KEY || (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY'));
   if (!xtok) return json(200, { ok: false, error: 'no XANO_METADATA_TOKEN' });
