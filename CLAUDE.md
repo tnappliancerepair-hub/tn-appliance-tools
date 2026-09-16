@@ -1,5 +1,72 @@
 # Appliance Ant
 
+## 🧩➕ 2026-09-16 (Wed, night) — "THEY'VE GOTTA BE ABLE TO ADD A MACHINE ON THERE" — THE BUTTON EXISTED AND HAD NEVER BEEN USED ONCE, BECAUSE IT DID NOT ADD THE MACHINE TO THE CLAIM — READ FIRST
+
+Teddy: *"when a guy gets out to a customer's house they'll have multiple machines and they need to
+add a machine, which in turn they need a whole nother TDR for that machine... if they have a fridge
+on there and then the customer says hey we also have a dishwasher that needs fixed, they've gotta
+fill out that TDR for the dishwasher. **The technician needs the ability to add a machine to a claim
+on their app — the office also needs the same ability.**"*
+
+### 🥇 THE FINDING — the tech's ＋ Add machine has existed for months and **ZERO** machines have ever been added with it
+`source='tech_add_machine'` returns **0 rows in the entire platform history.** The spine was never the
+problem — **migration 020** gave every machine its own job linked by `stop_id`, so each machine already
+gets its own `job_tdr` for free. Two reasons nobody used it, and they are both the same bug wearing
+different clothes:
+1. **🔴 IT DID NOT ADD THE MACHINE TO THE CLAIM.** The insert copied customer, tech, day and stop —
+   and **NOT `warranty_company` / `claim_number` / `dispatch_id`.** So the dishwasher added to an AHS
+   fridge claim landed looking like an **unrelated cash job with no claim on it**, which is the one
+   field the office needs to file it. *"Add a machine to a claim"* was the one thing it did not do.
+2. **It sat in card 9 of a long page, under the parts tracker.** A tech standing in a kitchen never
+   scrolled to it. **And the office had NO add button at all** — only a read-only "🧩 N machines" chip.
+
+### ✅ `platform/ant-add-machine.js` (NEW) — ONE definition, both surfaces
+Same shape as `ant-new-job.js` / `ant-part-route.js` / `ant-windows.js`, which all exist because pasted
+copies drift (the route picker earned that lesson with **three** vocabularies). The sheet, the write,
+AND the stop read all live here, so the office and the tech can never disagree about what is on a stop.
+- **THE CLAIM RIDES — and unticking it is a VISIBLE CHOICE, never a silent assumption.** Filing a
+  covered claim for an uncovered machine is the one expensive mistake in this flow, so the sheet names
+  it out loud — **"Put it on the same claim — AHS #12345"** — with a tick the tech clears when the
+  customer's second machine genuinely is not on it.
+- **THE VISIT RIDES** — same truck, same day, same window, same door (`technician_id` · `scheduled_day`
+  · `scheduled_start` · `service_window` · `time_window` · `availability` · `access_notes`).
+- **⚠️ THE PARENT'S PROGRESS DOES NOT.** A machine nobody has looked at yet is **never** `awaiting_parts`
+  and **never** `completed` — inheriting either would bury a brand-new appliance in the parts queue or
+  close it before anyone saw it. `in_progress` only when the tech is standing there right now.
+- **⚠️ A LEAN-TIER CARD CANNOT LAND A CLAIMLESS MACHINE.** The office board's fallback select
+  (`SEL_BASE_MIN`) carries `warranty_company` but **not `claim_number`/`dispatch_id`/`stop_id`** — a card
+  loaded from that tier looks **exactly** like a job with no claim, which is the precise failure this
+  module exists to end. **`hydrate()`** tops the parent up from the database before the sheet opens —
+  but ONLY for fields that were never **LOADED** (`undefined`). **A field that was loaded and is empty
+  is an ANSWER, not a gap**, and re-reading it would overwrite a real one.
+- A write is only saved when a **ROW COMES BACK** (an RLS refusal returns zero rows and no error), and a
+  job whose parent is not on a stop yet makes the parent the **anchor** first, so both hang off one
+  `stop_id`. Nothing in the module can text a customer.
+
+### 🔧 TECH (`platform/tech-job.html`) + 🏢 OFFICE (`platform/office-board.html`)
+- The machine card **moved out of card 9** to sit above the diagnosis, and the page now **SELECTS the
+  claim fields** — without them loaded the copy had nothing to copy.
+- The office drawer gained a **real 🧩 Machines on this stop section** (it only had the read-only chip):
+  every machine as a tappable chip (**a ✓ means that machine's report is already filed**), tap one to
+  open **its own** drawer where ITS report is filed, and **the same ＋ Add machine button the tech has**.
+  Office adds are stamped `source:'office_add_machine'` so the two are distinguishable in the record.
+
+### 🧪 PROVEN
+**`tests/add-machine.test.js` 25/25** — the module is **lifted out of the shipped file and EXECUTED**
+against a fake client. Mutation-proven **12 ways**: dropping the claim fails 3, inheriting the parent's
+status fails 2, calling a zero-row insert a save fails 1, skipping `hydrate` fails 1, **dead-guarding**
+that call fails 1, re-reading an answered field fails 2, copying blanks fails 1, losing the stop anchor
+fails 1, removing the office button fails 1, dropping the claim from the tech select fails 1, keeping a
+second stop query fails 1, shipping the shared `.js` with no `?v=` fails 1. Suite **224/224**.
+- 🐞 **MUT4 SURVIVED THE FIRST RUN.** Testing `hydrate()` proves the FUNCTION works and **nothing
+  whatever** about `open()` still calling it — deleting that one line left the suite green. Rewritten to
+  **open the REAL sheet and watch for the read**. Same class as the documented dead-guard trap, and the
+  third time this exact lesson has been paid for.
+
+### ⚠️ STANDING: a field that was never LOADED and a field that is genuinely EMPTY look identical, and treating them the same corrupts data
+A tiered select is a fact about the SELECT, not about the row. Any code that copies fields off a
+record has to know which tier loaded it — top up what was never read, and never overwrite what was.
+
 ## ✅🔁 2026-09-16 (Wed, night) — JIMMY: "it's saving but not closing the job out" — THE FINISH BUTTON WAS PROMISING A FINISH IT DOES NOT DO — READ FIRST
 
 Jimmy, from the field: *"Still won't complete it out, it's saving but not closing t ge job out."*
