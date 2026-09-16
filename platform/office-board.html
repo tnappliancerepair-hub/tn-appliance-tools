@@ -293,6 +293,11 @@
   .fchip.fclose{background:rgba(255,120,70,.14);color:#ff8a52;border-color:rgba(255,120,70,.42)}
   .fchip.fdiag{background:rgba(90,169,255,.14);color:#5aa9ff;border-color:rgba(90,169,255,.42)}
   .fchip.fmm{background:rgba(180,140,255,.16);color:#b48cff;border-color:rgba(180,140,255,.46)}
+  /* 🧩 machines on this stop — one chip per machine, tap to open that machine's own report */
+  .mmrow{display:flex;flex-wrap:wrap;gap:6px}
+  .mmchip{padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .mmchip.cur{background:rgba(180,140,255,.16);color:#b48cff;border-color:rgba(180,140,255,.5);cursor:default}
+  .mmchip.mmadd{border-style:dashed;color:var(--muted);font-weight:800}
   .fchip.fnote{background:rgba(245,166,35,.14);color:#e0a11a;border-color:rgba(245,166,35,.4)}
   .cardacts{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
   .cardact{flex:1;min-width:118px;font-size:12px;font-weight:800;padding:8px 6px;border-radius:9px;border:1px solid var(--line);background:var(--chip);color:var(--ink);cursor:pointer}
@@ -338,6 +343,8 @@
 <script src="/platform/ant-part-route.js"></script>
 <script src="/platform/ant-part-note.js"></script>
 <script src="/platform/ant-new-job.js"></script>
+<!-- ＋ Add machine — the sheet AND the write, shared byte-for-byte with the tech app. -->
+<script src="/platform/ant-add-machine.js?v=20260916-machine"></script>
 <script src="/platform/ant-thread.js"></script>
 <script src="/platform/features.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
@@ -2114,6 +2121,13 @@
       '<div class="sub" id="jcustprob" style="margin-top:6px'+(job.problem?'':';display:none')+'">'+esc(job.problem||'')+'</div>' +
       // ── 📝 JOB DETAILS — the editable job/customer record, moved to the very top ──
       '<div class="sec">Job details <span class="hint" style="font-weight:400">— shared with the tech app &amp; the customer</span></div><div id="jdetails" style="font-size:13px;color:var(--muted)">Loading…</div>' +
+      // ── 🧩 MACHINES ON THIS STOP ──────────────────────────────────────────────────────
+      // Teddy 2026-09-16: "the technician needs the ability to add a machine to a claim on
+      // their app — the office also needs the same ability." A warranty claim often covers
+      // two appliances and lands as ONE job; each machine needs its OWN report to be filed.
+      // Same write as the tech's button (ant-add-machine.js) so the two can never disagree.
+      '<div class="sec">🧩 Machines on this stop <span class="hint" style="font-weight:400">— each one gets its own report</span></div>' +
+      '<div id="jmachines" style="font-size:13px;color:var(--muted)">Loading…</div>' +
       // ── 📁 MOVE TO FOLDER — every board column as a folder; pick one to move the job there ──
       '<div class="sec">📁 Move to folder</div>' +
       '<select id="jmovefolder" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;font-weight:700;box-sizing:border-box">' +
@@ -2270,6 +2284,7 @@
         loadBoard();
       }); };
     loadIntake(job);
+    loadMachines(job);
     loadTags(job);
     loadTdr(job);
     loadTparts(job);
@@ -2623,6 +2638,53 @@
         box.textContent='✓ Opened by '+(who||'the tech')+(t?' · '+t:'');
       });
   }
+  // ── 🧩 MACHINES ON THIS STOP ─────────────────────────────────────────────────────────
+  // One machine = one job = one report. The siblings are linked by stop_id, and the read +
+  // the write BOTH live in ant-add-machine.js so the office and the tech's app can never
+  // drift on what is on the stop or what rides onto a new machine (the claim does).
+  // A ✓ on a chip means that machine's report is already filed.
+  function loadMachines(job){
+    var box=document.getElementById('jmachines'); if(!box) return;
+    if(!window.AntAddMachine){ box.innerHTML='<div class="hint">Add-machine is still loading…</div>'; return; }
+    window.AntAddMachine.siblings(sb, job, function(list){
+      if(!list.length) list=[{id:job.id, unit:job.unit, tdr:null, status:job.status}];
+      list.sort(function(a,b){ return (String(a.id)===String(job.id)?-1:0)-(String(b.id)===String(job.id)?-1:0); });
+      var chips=list.map(function(m){
+        var cur=String(m.id)===String(job.id);
+        var filed=!!(m.tdr && (Array.isArray(m.tdr)? m.tdr.length : m.tdr.id));
+        return '<button type="button" class="mmchip'+(cur?' cur':'')+'" data-mid="'+esc(m.id)+'">'
+             + esc((m.unit&&m.unit.label)||'Machine') + (filed?' ✓':'') + '</button>';
+      }).join('');
+      var claim = window.AntAddMachine.claimOf(job);
+      box.innerHTML='<div class="mmrow">'+chips+'<button type="button" class="mmchip mmadd" id="jmachAdd">＋ Add machine</button></div>'
+        + '<div class="hint" style="margin-top:5px">'
+        + (list.length>1 ? esc(String(list.length))+' machines on this visit — a ✓ means that one\'s report is in.'
+                         : 'One machine on this visit.')
+        + (claim ? ' A machine you add here goes on ' + esc(claim) + ' unless you untick it.' : '')
+        + '</div>';
+      box.querySelectorAll('.mmchip[data-mid]').forEach(function(b){
+        b.onclick=function(){
+          var mid=b.getAttribute('data-mid');
+          if(String(mid)===String(job.id)) return;
+          // Open the sibling's own drawer — that is where ITS report is filed.
+          var sib=(jobsCache||[]).filter(function(j){ return String(j.id)===String(mid); })[0];
+          if(sib){ try{ document.querySelectorAll('.ov').forEach(function(o){ o.remove(); }); }catch(_){} openJob(sib); return; }
+          // Not on the board right now (different filter / column) — fetch it straight.
+          sb.from('job').select(SEL_BASE_RICH+SEL_TAIL_RICH).eq('id',mid).limit(1).then(function(r){
+            if(r.error||!r.data||!r.data[0]){ alert("Couldn't open that machine — try the board filter."); return; }
+            try{ document.querySelectorAll('.ov').forEach(function(o){ o.remove(); }); }catch(_){}
+            openJob(r.data[0]);
+          });
+        };
+      });
+      var add=document.getElementById('jmachAdd');
+      if(add) add.onclick=function(){
+        window.AntAddMachine.open({ sb:sb, companyId:companyId, job:job, source:'office_add_machine',
+          onDone:function(){ loadMachines(job); loadBoard(); } });
+      };
+    });
+  }
+
   // ── 🔁 PREVIOUS VISITS — prior jobs for this customer, newest first, with each visit's
   // outcome + what failed / what happened (from its TDR) so recalls & repeat trips have context.
   function loadPrevVisits(job){

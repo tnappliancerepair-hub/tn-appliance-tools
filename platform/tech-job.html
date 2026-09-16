@@ -307,6 +307,7 @@
   <script src="/platform/ant-maps.js"></script>
 <script src="/platform/ant-part-route.js"></script>
 <script src="/platform/ant-part-note.js"></script>
+<script src="/platform/ant-add-machine.js?v=20260916-machine"></script>
 <script src="/platform/ant-thread.js"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -374,7 +375,10 @@
   }
 
   function loadJob() {
-    var base = 'id,status,problem,availability,access_notes,office_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,';
+    // warranty_company/claim_number/dispatch_id are read for one reason: ADD A MACHINE
+    // copies them onto the sibling. Without them loaded here the second appliance lands
+    // with no claim on it -- which is exactly why the old add-machine button was useless.
+    var base = 'id,status,problem,availability,access_notes,office_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,scheduled_start,service_window,time_window,warranty_company,claim_number,dispatch_id,';
     var tail = 'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes,kind),media:job_media(id,kind,provider,ref,label),tdr:job_tdr(*)';
     var done = function(r){
       if (r.error || !r.data || !r.data[0]) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Couldn\'t open that job. <a href="/platform/tech.html">Back</a></p></div>'; return; }
@@ -484,6 +488,17 @@
           (job.access_notes?'<div class="kv">🔑 '+esc(job.access_notes)+'</div>':'') +
           '<div class="note" style="margin-top:8px">📹 Their video &amp; photos are in <b>Photos &amp; Video</b> below.</div>' +
         '</div>' : '') +
+
+      // ── 3b · 🧩 The machines at this stop ──
+      // This was card 9, below the invoice and the whole conversation -- which is why
+      // ＋ Add machine had never been used ONCE in the platform's history (measured
+      // 2026-09-16: zero tech_add_machine rows, ever). A tech hearing "we've also got a
+      // dishwasher" needs this BEFORE he starts a report, not after he has finished one.
+      '<div class="card" id="machineCard"><div class="sec">🧩 This stop — machines</div>' +
+        '<div class="note" style="margin:-2px 0 9px">Another appliance on this visit? Add it here — it keeps the same claim and the same day, and gets its <b>own report</b>.</div>' +
+        '<div id="splitFlag"></div>' +
+        '<div id="machineBox" class="mchips"><button class="mchip cur">'+esc((job.unit&&job.unit.label)||'This machine')+'</button></div>' +
+      '</div>' +
 
       // ── 4 · 🧠 Diagnose & price — the Teddy Tool, folded into the job tile ──
       '<div class="card"><div class="sec">🧠 Diagnose &amp; price</div>' +
@@ -675,18 +690,7 @@
           '<button class="primary" id="msgSend" style="align-self:stretch;min-width:74px">Send</button>' +
         '</div><div class="err" id="msgErr"></div></div>' +
 
-      // ── 9 · 🧩 This stop + heads-up for the office ──
-      '<div class="card" id="machineCard"><div class="sec">🧩 This stop — machines</div>' +
-        '<div class="note" style="margin:-2px 0 9px">Several appliances on one visit? Switch between them or add another — each keeps its own report.</div>' +
-        '<div id="splitFlag"></div>' +
-        '<div id="machineBox" class="mchips"><button class="mchip cur">'+esc((job.unit&&job.unit.label)||'This machine')+'</button></div>' +
-        '<div id="addMachineBox" class="hidden" style="margin-top:11px">' +
-          '<input id="amLabel" placeholder="What machine? (e.g. Kenmore dryer)">' +
-          '<input id="amProblem" placeholder="What\'s it doing? (optional)" style="margin-top:8px">' +
-          '<button class="primary full" id="amAdd" style="margin-top:8px">Add machine</button>' +
-          '<div class="err" id="amErr"></div>' +
-        '</div></div>' +
-
+      // ── 9 · 📋 Heads-up for the office ──
       '<div class="card"><div class="sec">📋 Heads-up for the office</div>' +
         '<div class="note" style="margin:-2px 0 9px">Flag this job so the office blocks the right slot next time — a wider window, or a second tech.</div>' +
         '<div class="btnrow psrow" id="schedflags">' +
@@ -794,14 +798,14 @@
       var t=e.target.closest('.mtile'); if(t) openMedia(t.getAttribute('data-kind'),t.getAttribute('data-provider'),t.getAttribute('data-ref'));
     };
 
-    // Machines at this stop — tap a chip to switch machines; ＋ Add machine reveals the form.
+    // Machines at this stop — tap a chip to switch machines; ＋ Add machine opens the
+    // shared sheet (ant-add-machine.js), the SAME write the office board uses.
     var mBox=document.getElementById('machineBox');
     if(mBox) mBox.onclick=function(e){
       var b=e.target.closest('.mchip'); if(!b) return;
-      if(b.id==='addMachineChip'){ var box=document.getElementById('addMachineBox'); if(box) box.classList.toggle('hidden'); return; }
+      if(b.id==='addMachineChip'){ addMachine(); return; }
       var mid=b.getAttribute('data-mid'); if(mid && mid!==String(jobId)) location.href='?job='+mid;
     };
-    var amAdd=document.getElementById('amAdd'); if(amAdd) amAdd.onclick=addMachine;
 
     // Parts in the report — add a part, nudge its count, drop one. Same job_part rows
     // as the tracker card below, so both views move together.
@@ -1423,10 +1427,11 @@
   function loadMachines(){
     loadSplitFlag();
     var box=document.getElementById('machineBox'); if(!box) return;
-    var sid = job.stop_id || jobId;
-    sb.from('job').select('id,unit:unit_id(label),tdr:job_tdr(id)').or('stop_id.eq.'+sid+',id.eq.'+sid).then(function(r){
-      if(r.error || !r.data || !r.data.length){ renderMachines([{id:jobId,unit:job.unit,tdr:job.tdr}]); return; }
-      renderMachines(r.data);
+    // ONE read, shared with the office board (ant-add-machine.js). A second copy of this
+    // query is how the two surfaces end up disagreeing about what is on the stop.
+    if(!window.AntAddMachine){ renderMachines([{id:jobId,unit:job.unit,tdr:job.tdr}]); return; }
+    window.AntAddMachine.siblings(sb, job, function(list){
+      renderMachines((list && list.length) ? list : [{id:jobId,unit:job.unit,tdr:job.tdr}]);
     });
   }
   function renderMachines(list){
@@ -1507,30 +1512,18 @@
     sb.from('event').insert({ company_id:me.company_id, type:'multi_appliance_resolved', entity:'job', payload:payload });
   }
 
+  // ＋ Add machine — the sheet and the write both live in ant-add-machine.js so the
+  // office board cannot drift from what the tech gets. It carries the CLAIM onto the new
+  // machine (that was the missing piece: the sibling used to land with no warranty company
+  // and no claim number, so the office had nothing to file), and drops him straight onto
+  // the new machine's own report.
   function addMachine(){
-    var label=(document.getElementById('amLabel').value||'').trim();
-    var prob=(document.getElementById('amProblem').value||'').trim();
-    var err=document.getElementById('amErr'); err.textContent='';
-    if(!label){ err.textContent='What machine is it?'; return; }
-    var btn=document.getElementById('amAdd'); btn.disabled=true; btn.textContent='Adding…';
-    var sid = job.stop_id || jobId;
-    var kind = (job.unit&&job.unit.kind)||'appliance';
-    var fail=function(e){ btn.disabled=false; btn.textContent='Add machine'; err.textContent=(e&&/stop_id|does not exist|column|schema cache/i.test(e.message||''))?'Run migration 020 in Supabase to enable multi-machine.':((e&&e.message)||'Couldn\'t add — try again.'); };
-    var proceed=function(){
-      sb.from('unit').insert({company_id:me.company_id, customer_id:job.customer_id, kind:kind, label:label}).select('id').then(function(ru){
-        if(ru.error||!ru.data||!ru.data[0]){ fail(ru.error); return; }
-        var uid=ru.data[0].id;
-        var ns=(job.status==='completed'||job.status==='canceled')?'scheduled':(job.status||'scheduled');
-        sb.from('job').insert({company_id:me.company_id, customer_id:job.customer_id, unit_id:uid, technician_id:job.technician_id, stop_id:sid, status:ns, problem:prob, scheduled_day:job.scheduled_day, source:'tech_add_machine'}).select('id').then(function(rj){
-          if(rj.error||!rj.data||!rj.data[0]){ fail(rj.error); return; }
-          resolveSplitFlag('added');   // the flag has been acted on — stop offering it
-          location.href='?job='+rj.data[0].id;
-        });
-      });
-    };
-    // make THIS job the stop anchor if it isn't one yet, then create the sibling
-    if(!job.stop_id){ sb.from('job').update({stop_id:sid}).eq('id',jobId).then(function(r){ if(r.error){ fail(r.error); return; } proceed(); }); }
-    else proceed();
+    if(!window.AntAddMachine){ alert('Add-machine is still loading \u2014 give it a second and tap again.'); return; }
+    window.AntAddMachine.open({ sb:sb, companyId:me.company_id, job:job, source:'tech_add_machine',
+      onDone:function(r){
+        resolveSplitFlag('added');   // the flag has been acted on — stop offering it
+        location.href='?job='+r.id;
+      } });
   }
 
   // ── PARTS TRACKER — per-part order / claim-only, then Used / Return / Not here + proof ──
