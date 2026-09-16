@@ -134,6 +134,24 @@ function buildShapes(obj) {
     msg_str:     { type: 'status', data: { external_id: String(obj.dispatch_id), message: JSON.stringify(obj) } },
     msg_text:    { type: 'status', data: { ...obj, external_id: String(obj.dispatch_id), message: obj.description } },
     msg_obj_all: { type: 'status', data: { ...obj, external_id: String(obj.dispatch_id), message: obj } },
+    // message must be a STRING (an object dies at unmarshal) and clears BLE_0049, landing
+    // on BLE_0050 "Status Missing" — they want a field literally named `status`, and the
+    // flattened `status_code` does not satisfy it. Their OWN inbound events to us spell it
+    // `status: { code, description }` (see frontdoor-webhook summarize), so the object form
+    // is the lead candidate; the scalar forms are the cheap alternatives.
+    st_obj:      { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj.description, status: { code: obj.status_code, description: obj.description } } },
+    st_desc:     { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj.description, status: obj.description } },
+    st_code:     { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj.description, status: obj.status_code } },
+    st_codestr:  { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj.description, status: String(obj.status_code) } },
+    // Full mirror of the inbound event vocabulary we already parse from them.
+    mirror:      { type: 'status', data: {
+      external_id: String(obj.dispatch_id),
+      external_organization_id: obj.tenant,
+      message: obj.description,
+      status: { code: obj.status_code, description: obj.description, updated_at: obj.updated_at },
+      dispatch: { external_id: String(obj.dispatch_id) },
+      vendor: { external_id: String(obj.vendor_id) },
+    } },
   };
 }
 
