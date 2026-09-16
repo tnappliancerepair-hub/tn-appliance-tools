@@ -260,6 +260,7 @@
 <script src="/platform/vendor/boot-watchdog.js"></script>
 <script src="/platform/media-sign.js"></script>
 <script src="/platform/ant-suppliers.js"></script>
+<script src="/platform/ant-save.js?v=20260916-outbox"></script>
 <script src="/ant-sounds.js"></script>
 <script src="/ant-celebrate.js"></script>
 <script>
@@ -282,6 +283,7 @@
     return;
   }
   sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+  if (window.AntSave) AntSave.attach(sb);   // drain anything held from a no-signal stop
 
   function renderSignIn(msg) {
     app.innerHTML = '<div class="gate"><h1>🐜 My jobs</h1><p>Sign in to see your day.</p>' +
@@ -424,10 +426,24 @@
     if(!job){ saveMsg(id, "This job didn't load right — tap Refresh, then save again.", 'err'); return; }
     var v = function(pre){ var e=document.getElementById(pre+id); return e?e.value.trim():''; };
     var comp = v('tc');
-    if(!comp){ var e=document.getElementById('tc'+id); if(e){e.focus();}
-      saveMsg(id, 'Add what failed first — that one field is required, then tap Save again.', 'err'); return; }
     var outcome = 'fixed'; var rs = document.getElementsByName('o'+id);
     for (var i=0;i<rs.length;i++){ if(rs[i].checked) outcome = rs[i].value; }
+    // ── THE FINISH GATE ──────────────────────────────────────────
+    // Same dead end as the job page, and worse here: this one refused EVERY outcome,
+    // so a tech coming back for a part could not save either. Now it only asks on a
+    // job he is calling finished, it asks out loud, and there is an honest way through
+    // when nothing on the machine actually failed.
+    if(!comp && outcome==='fixed'){
+      if(window.confirm('Nothing to put in "What failed"?\n\nOK — nothing on this machine actually failed. We\u2019ll write “No failure found” and finish.\n\nCancel — take me back to fill it in.')){
+        var ce=document.getElementById('tc'+id); if(ce) ce.value='No failure found';
+        comp='No failure found';
+      } else {
+        var e=document.getElementById('tc'+id);
+        if(e){ try{ e.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){} setTimeout(function(){ try{ e.focus(); }catch(_){} },260); }
+        saveMsg(id, 'This is the one the report can\u2019t finish without — then tap Save again.', 'err');
+        return;
+      }
+    }
     if (btn){ btn.disabled=true; btn.textContent='Saving…'; }
     var lhe = document.getElementById('th'+id); var lh = lhe ? parseFloat(lhe.value) : NaN;
     var row = { company_id: me.company_id, job_id: id,
@@ -440,16 +456,22 @@
     // Hold his typing locally BEFORE the network call, so a failure can't lose it.
     saveDraft(id, row);
     saveMsg(id, 'Saving…', 'info');
-    withRetry(function(){ return sb.from('job_tdr').upsert(row, { onConflict: 'job_id' }).select('id'); }).then(function(r){
-      if (r && r.error){
+    AntSave.write({ sb:sb, table:'job_tdr', op:'upsert', onConflict:'job_id', row:row, key:'tdr:'+id }).then(function(r){
+      if (r.refused){
         if(btn){btn.disabled=false;btn.textContent='Save report + finish';}
-        saveMsg(id, "Didn't save — " + (r.error.message || 'try again') + ". Your report is held on this phone; tap Save again.", 'err');
+        saveMsg(id, "That didn't save — " + (r.message || 'tap Save again') + ". Your report is held on this phone — tell the office before you leave.", 'err');
         return;
       }
-      // Zero rows + no error = RLS blocked it. Never call that saved.
-      if (!r || !Array.isArray(r.data) || !r.data.length){
+      if (r.queued){
+        // No signal at the stop. The report AND the finish are both held and send
+        // themselves, report first. He is done; he does not have to come back to it.
+        var qs = outcome === 'return_needed' ? 'awaiting_parts' : 'completed';
+        var qu = { status: qs }; if (qs==='completed') qu.completed_at = new Date().toISOString();
+        AntSave.write({ sb:sb, table:'job', op:'update', match:{id:id}, row:qu, key:'jobstatus:'+id });
+        clearDraft(id);
         if(btn){btn.disabled=false;btn.textContent='Save report + finish';}
-        saveMsg(id, "That didn't save. Your report is held on this phone — tell the office before you leave.", 'err');
+        saveMsg(id, '\uD83D\uDCE1 Saved on your phone — it sends itself the moment you have signal.', 'info');
+        pageMsg('\uD83D\uDCE1 No signal here — your report and the finish are held on this phone and send themselves. Nothing is lost; you can keep going.', 'info');
         return;
       }
       clearDraft(id);
@@ -462,8 +484,13 @@
         jobUpd.waiver_signed_at = new Date().toISOString();
         jobUpd.waiver_name = (fullName(job.customer)||'Customer')+(by?' (confirmed by '+by+')':'');
       }
-      withRetry(function(){ return sb.from('job').update(jobUpd).eq('id', id).select('id'); }).then(function(u){
-        if (!u || u.error || !Array.isArray(u.data) || !u.data.length){
+      AntSave.write({ sb:sb, table:'job', op:'update', match:{id:id}, row:jobUpd, key:'jobstatus:'+id }).then(function(u){
+        if (u.queued){
+          saveMsg(id, '✅ Report saved — the finish is held on your phone and sends itself.', 'info');
+          pageMsg('✅ Report saved. Signal dropped before the finish went through, so it is held on this phone and sends itself. Nothing is lost.', 'info');
+          loadJobs(); return;
+        }
+        if (u.refused){
           saveMsg(id, '✅ Report saved — but the job status did NOT update. Tell the office.', 'err');
           pageMsg('⚠️ Report saved, but the job status did NOT update. Tell the office before you leave.', 'err');
           loadJobs(); return;
@@ -534,17 +561,22 @@
     if(btn){ btn.disabled=true; btn.textContent='Sending\u2026'; }
     saveMsg(id,'Sending to the office\u2026','info');
     var reset=function(){ if(btn){ btn.disabled=false; btn.textContent='\ud83d\udce4 Send this note to the office now'; } };
-    sb.from('job').select('office_notes').eq('id',id).limit(1).then(function(cur){
-      var live=(cur&&cur.data&&cur.data[0]&&cur.data[0].office_notes)||'';
-      var next=(String(live).trim()? String(live).replace(/\s+$/,'')+'\n\n':'')+line;
-      withRetry(function(){ return sb.from('job').update({office_notes:next}).eq('id',id).select('id'); }).then(function(r){
-        reset();
-        if((r&&r.error)||!r||!Array.isArray(r.data)||!r.data.length){
-          saveMsg(id,"That did NOT send \u2014 your note is still on this phone. Tap Send again.",'err'); return;
-        }
-        var j=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; if(j) j.office_notes=next;
-        saveMsg(id,'\u2705 Sent to the office \u2014 it\u2019s on their job tile now.','ok');
-      });
+    // APPEND through the outbox: it re-reads the office's copy at the moment it
+    // actually goes out, so a note held through a dead stop lands UNDER whatever
+    // Danielle typed while he had no signal, never over it.
+    AntSave.write({ sb:sb, table:'job', op:'append', column:'office_notes',
+                    matchCol:'id', matchVal:id, text:line, key:'onote:'+id }).then(function(r){
+      reset();
+      if(r.refused){
+        saveMsg(id,"That did NOT send \u2014 your note is still on this phone. Tap Send again.",'err'); return;
+      }
+      if(r.queued){
+        if(ta) ta.value='';
+        saveMsg(id,'\uD83D\uDCE1 Saved on your phone \u2014 it goes to the office the moment you have signal.','info');
+        return;
+      }
+      var j=jobsCache.filter(function(x){return String(x.id)===String(id);})[0]; if(j) j.office_notes=r.value||line;
+      saveMsg(id,'\u2705 Sent to the office \u2014 it\u2019s on their job tile now.','ok');
     });
   }
 
@@ -553,9 +585,15 @@
     var guess = v('tp') || v('tc') || '';
     var what = prompt('What part does the office need to order?', guess);
     if(what==null) return; what = what.trim(); if(!what) return;
-    sb.from('job_tdr').upsert({ company_id: me.company_id, job_id: id, part_number: what, part_status:'please_order' }, { onConflict:'job_id' }).then(function(r){
-      if(r.error){ alert('Couldn\'t flag it: '+r.error.message); return; }
-      sb.from('job').update({ status:'awaiting_parts' }).eq('id', id).then(function(){ alert('✅ Office flagged — '+what+' queued to order.'); loadJobs(); });
+    AntSave.write({ sb:sb, table:'job_tdr', op:'upsert', onConflict:'job_id', key:'tdr:'+id,
+                    row:{ company_id: me.company_id, job_id: id, part_number: what, part_status:'please_order' } }).then(function(r){
+      if(r.refused){ alert('Couldn\'t flag it: '+(r.message||'try again')); return; }
+      AntSave.write({ sb:sb, table:'job', op:'update', match:{id:id}, row:{ status:'awaiting_parts' }, key:'jobstatus:'+id }).then(function(){
+        alert(r.queued
+          ? '\uD83D\uDCE1 Saved on your phone — '+what+' goes to the office the moment you have signal.'
+          : '✅ Office flagged — '+what+' queued to order.');
+        loadJobs();
+      });
     });
   }
 

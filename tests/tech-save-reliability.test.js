@@ -13,6 +13,7 @@ const fs = require('fs'), path = require('path'), assert = require('assert'), vm
 const ROOT = path.join(__dirname, '..');
 const SAVE_SRC = fs.readFileSync(path.join(ROOT, 'platform', 'ant-save.js'), 'utf8');
 const TECHJOB = fs.readFileSync(path.join(ROOT, 'platform', 'tech-job.html'), 'utf8');
+const TECHDAY = fs.readFileSync(path.join(ROOT, 'platform', 'tech.html'), 'utf8');
 
 // ── a fake browser just real enough ──────────────────────────────────────────────
 function boot(opts) {
@@ -308,13 +309,14 @@ await ta('needField scrolls to the box, reddens it, and clears itself', async ()
 // ── 8. the page is actually wired to the outbox ─────────────────────────────────
 // Cut one function out of the shipped page by name, so an assertion about the
 // report save can never be satisfied by an identical line living in the finish.
-function fnBody(name) {
-  const a = TECHJOB.indexOf('function ' + name + '(');
-  assert.ok(a > 0, name + ' not found in tech-job.html');
-  let i = TECHJOB.indexOf('{', a), depth = 0;
-  for (let j = i; j < TECHJOB.length; j++) {
-    if (TECHJOB[j] === '{') depth++;
-    else if (TECHJOB[j] === '}') { depth--; if (!depth) return TECHJOB.slice(a, j + 1); }
+function fnBody(name, src) {
+  const S = src || TECHJOB;
+  const a = S.indexOf('function ' + name + '(');
+  assert.ok(a > 0, name + ' not found in the shipped page');
+  let i = S.indexOf('{', a), depth = 0;
+  for (let j = i; j < S.length; j++) {
+    if (S[j] === '{') depth++;
+    else if (S[j] === '}') { depth--; if (!depth) return S.slice(a, j + 1); }
   }
   throw new Error('unbalanced ' + name);
 }
@@ -358,6 +360,67 @@ await ta('a held report never tells him the office has it', async () => {
   assert.ok(/Saved on your phone/.test(blk), 'says where it is');
   assert.ok(/nothing is lost/i.test(blk), 'tells him he can walk away');
   assert.ok(!/Report saved<\/h2>/.test(blk), 'must not claim the report is filed');
+});
+
+// ── 9. the tech's DAY LIST — the other surface he works from ───────────────────
+// It carried the same dead end, and worse: its gate refused EVERY outcome, so a
+// tech coming back for a part could not save either.
+function runDayGate(compIn, outcome, answer) {
+  const src = fnBody('saveTdr', TECHDAY);
+  const a = src.indexOf('THE FINISH GATE');
+  assert.ok(a > 0, 'day-list finish-gate header not found');
+  const s0 = src.lastIndexOf('\n', a) + 1;
+  const e0 = src.indexOf('if (btn){ btn.disabled=true;', a);
+  assert.ok(e0 > s0, 'day-list finish-gate tail not found');
+  const rec = { asked: false, sentToBox: false, msg: '' };
+  const box = { value: compIn, scrollIntoView() {}, focus() {} };
+  const sandbox = {
+    console, setTimeout,
+    window: { confirm(m) { rec.asked = true; rec.prompt = m; return answer; } },
+    document: { getElementById: (id) => (id === 'tc7' ? box : null) },
+    saveMsg(jid, text, kind) { rec.sentToBox = true; rec.msg = text; rec.kind = kind; },
+  };
+  vm.createContext(sandbox);
+  const fn = vm.runInContext('(function(id, comp, outcome){\n' + src.slice(s0, e0) + '\nreturn comp;\n})', sandbox);
+  rec.comp = fn(7, compIn, outcome);
+  return rec;
+}
+
+await ta('the day list no longer blocks a return visit on "what failed"', async () => {
+  const r = runDayGate('', 'return_needed', false);
+  assert.strictEqual(r.asked, false, 'a return visit must not be gated');
+  assert.strictEqual(r.sentToBox, false, 'and must not be bounced');
+  assert.strictEqual(r.comp, '', 'it goes straight through');
+});
+
+await ta('the day list asks instead of dead-ending on a finished job', async () => {
+  const yes = runDayGate('', 'fixed', true);
+  assert.strictEqual(yes.asked, true, 'it asks');
+  assert.strictEqual(yes.comp, 'No failure found', 'and finishes with an honest value');
+  const no = runDayGate('', 'fixed', false);
+  assert.strictEqual(no.comp, undefined, 'the other answer stops the finish');
+  assert.ok(/can\u2019t finish without|cannot finish without|can’t finish without/.test(no.msg), 'and says why: ' + no.msg);
+});
+
+await ta('the day list writes go through the outbox too', async () => {
+  assert.ok(/ant-save\.js\?v=/.test(TECHDAY), 'loaded and version-busted');
+  assert.ok(/AntSave\.attach\(sb\)/.test(TECHDAY), 'attached');
+  const rep = fnBody('saveTdr', TECHDAY);
+  assert.ok(/AntSave\.write\(/.test(rep) && !/sb\.from\('job_tdr'\)/.test(rep), 'the report');
+  assert.ok(/key:'jobstatus:'\+id/.test(rep), 'the finish');
+  const note = fnBody('sendOfficeNote', TECHDAY);
+  assert.ok(/op:'append'/.test(note), 'the note appends rather than clobbering');
+  assert.ok(!/sb\.from\(/.test(note), 'no bare read-modify-write left');
+});
+
+await ta('a held day-list report keeps its finish, in order', async () => {
+  const rep = fnBody('saveTdr', TECHDAY);
+  const i = rep.indexOf('if (r.queued){');
+  assert.ok(i > 0, 'the queued branch exists');
+  const blk = rep.slice(i, i + 800);
+  assert.ok(/key:'jobstatus:'\+id/.test(blk), 'the finish is queued behind the report, not dropped');
+  assert.ok(/on your phone/i.test(blk), 'and he is told where it is');
+  assert.ok(!/Report saved'/.test(blk), 'it must not claim the office has the report');
 });
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed\n');
