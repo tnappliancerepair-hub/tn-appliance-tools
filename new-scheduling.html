@@ -1048,13 +1048,17 @@ function __initCalendar() {
       fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) }).then(loadWeek).catch(loadWeek);
       return;
     }
-    bookConfirmedHold(jobId, techId, date);
+    // Book the window it was HELD for. Confirming used to append the job as the next open
+    // stop and pass no window at all, so the slot she promised the customer was lost at the
+    // exact moment they said yes. (Teddy 2026-09-16)
+    const h = HOLDS.filter((x) => Number(x.job_id) === Number(jobId))[0] || {};
+    bookConfirmedHold(jobId, techId, date, Number(h.hour || 0), String(h.window || ''));
   };
-  async function bookConfirmedHold(jobId, techId, date) {
+  async function bookConfirmedHold(jobId, techId, date, heldHour, heldWin) {
     try {
-      const hour = nextStopHourCT(techId, date, jobId);
+      const hour = (heldHour >= 8 && heldHour <= 21) ? heldHour : nextStopHourCT(techId, date, jobId);
       // ONE shared save (ant-schedule.js).
-      const r = await AntSchedule.schedule({ jobId: jobId, techId: techId, startMs: ctMs(date, hour), actor: 'Danielle', receipt: false });
+      const r = await AntSchedule.schedule({ jobId: jobId, techId: techId, startMs: ctMs(date, hour), etaWindow: heldWin || '', actor: 'Danielle', receipt: false });
       if (!r.ok) { alert('Could not confirm: ' + (r.error || 'try again')); return; }
       await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) });
       loadWeek();
@@ -1604,6 +1608,7 @@ function __initCalendar() {
     const cust = (h.customer || '').trim() || 'Customer';
     const appl = (h.appliance || '').trim();
     const age = holdAgeLabel(h.at);
+    const win = String(h.window || '').trim();
     const ageStyle = age.stale
       ? 'color:#fff;background:#c62828;font-weight:800;padding:1px 7px;border-radius:6px;font-size:10.5px'
       : 'color:#a67c10;font-weight:800;font-size:10.5px';
@@ -1611,6 +1616,7 @@ function __initCalendar() {
       <div class="blk hold" data-hold-job="${h.job_id}" title="Tentative hold — waiting on the customer">
         <div class="row1"><span class="time">⏳</span><span class="name">${escapeHtml(cust)}</span></div>
         <div class="row2"><span class="appl">TENTATIVE${appl ? ' · ' + escapeHtml(appl) : ''}</span></div>
+        ${win ? `<div class="row2" style="margin-top:2px"><span style="background:#e0b22a;color:#3a2c00;font-weight:800;padding:1px 7px;border-radius:6px;font-size:10.5px">🕒 held for ${escapeHtml(win)}</span></div>` : ''}
         <div class="row2" style="margin-top:2px"><span style="${ageStyle}">⏱ ${age.text}</span></div>
         <div class="hold-actions">
           <button type="button" class="hold-confirm" onclick="event.stopPropagation();confirmHold(${h.job_id},${Number(h.tech_id) || 0},'${h.date}')">✓ Confirm</button>
@@ -2719,6 +2725,11 @@ function __initCalendar() {
     const sel = document.querySelector('#rescheduleWindow .win-opt.sel');
     return sel ? Number(sel.getAttribute('data-h')) : 11;
   }
+  // The same window in the words the customer hears. A HOLD has to carry this, not just the
+  // hour - Teddy 2026-09-16: "a held spot [needs] to show when and what time it's held for."
+  // The hold button sits right next to this picker and was ignoring it.
+  const WIN_LABEL = { 8: '8-11am', 11: '11am-2pm', 14: '2-5pm' };
+  function getRescheduleWinLabel() { return WIN_LABEL[getRescheduleWinHour()] || ''; }
   // Window picker toggle.
   (function wireWinPicker() {
     const wp = document.getElementById('rescheduleWindow');
@@ -2808,7 +2819,7 @@ function __initCalendar() {
     const appl = mj.appliance_type || mj.appliance || '';
     const btn = document.getElementById('holdSlotBtn'); btn.disabled = true; btn.textContent = '…';
     try {
-      await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'hold', job_id: manageJobId, tech_id: techId, date: date, customer: cust, appliance: appl }) });
+      await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'hold', job_id: manageJobId, tech_id: techId, date: date, hour: getRescheduleWinHour(), window: getRescheduleWinLabel(), customer: cust, appliance: appl }) });
       closeManageJobModal(); loadWeek();
     } catch (_) { manageError.textContent = 'Could not hold — try again.'; }
     btn.disabled = false; btn.textContent = '⏳ Hold';
@@ -3171,7 +3182,7 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
 <script src="/api-spec/client/ant-client.js?v=20260601-1"></script>
 <script src="/office-search.js?v=20260812a"></script>
 <script src="/office-caller-pop.js?v=20260812"></script>
-<script src="/office-schedule-requests.js?v=20260812b"></script>
+<script src="/office-schedule-requests.js?v=20260916-holdwindow"></script>
 <script src="/office-map.js?v=20260703b"></script>
 <script src="/office-jobs-map.js?v=20260703-7"></script>
   <script src="/office-ant.js?v=20260528-1"></script>

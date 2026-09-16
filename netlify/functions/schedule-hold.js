@@ -6,8 +6,16 @@ const { primeXanoToken } = require('./_lib/secrets');
 // real appointment when the customer says yes, or releases it. No auto-expire —
 // it sits until she acts. (Teddy 2026-07-03)
 //
-//   GET                         -> { ok, holds:[{job_id,tech_id,date,customer,appliance,at}] }  (active only)
-//   POST { action:'hold', job_id, tech_id, date, customer?, appliance? }  -> { ok }
+//   GET   -> { ok, holds:[{job_id,tech_id,date,window,hour,customer,appliance,at}] }  (active only)
+//   POST { action:'hold', job_id, tech_id, date, window?, hour?, customer?, appliance? }  -> { ok }
+//
+// A hold carries the WINDOW it is holding, not just the day (Teddy 2026-09-16: "Danielle
+// needs the scheduling part for a held spot to show when and what time it's held for").
+// It used to store the day alone, so the arrival window she had just discussed with the
+// customer was thrown away at hold time AND again at confirm time - the office board
+// booked a confirmed hold with an empty window every single time. `window` is the
+// customer-facing label the office picked ("8am-12pm", "2-4pm"); `hour` is the routing
+// sort key that goes with it, so confirming lands the job in the window it was held for.
 //   POST { action:'release', job_id }                                     -> { ok }
 'use strict';
 
@@ -45,7 +53,7 @@ exports.handler = async function (event) {
     for (const r of holds) {
       const m = asObj(r.metadata); const jid = Number(m.job_id || 0); if (!jid) continue;
       const at = Number(r.created_at) || Number(m.at_ms) || 0;
-      if (!latest[jid] || at > latest[jid].at) latest[jid] = { job_id: jid, tech_id: Number(m.tech_id || 0), date: String(m.date || ''), customer: String(m.customer || ''), appliance: String(m.appliance || ''), by: String(m.by || 'office'), time_pref: String(m.time_pref || ''), city: String(m.city || ''), zip: String(m.zip || ''), phone: String(m.phone || ''), at };
+      if (!latest[jid] || at > latest[jid].at) latest[jid] = { job_id: jid, tech_id: Number(m.tech_id || 0), date: String(m.date || ''), window: String(m.window || ''), hour: Number(m.hour || 0), customer: String(m.customer || ''), appliance: String(m.appliance || ''), by: String(m.by || 'office'), time_pref: String(m.time_pref || ''), city: String(m.city || ''), zip: String(m.zip || ''), phone: String(m.phone || ''), at };
     }
     const active = Object.values(latest).filter((h) => h.at > (clearedAt[h.job_id] || 0) && h.date);
     return j(200, { ok: true, holds: active });
@@ -64,7 +72,11 @@ exports.handler = async function (event) {
       // (Teddy 2026-08-12: "the customer's done their part; the office approves or reaches
       // back out"). time_pref carries what the customer asked for ("Friday afternoon").
       const by = String(b.by || 'office').slice(0, 20);
-      await writeEvent('schedule_hold', { job_id: jobId, tech_id: Number(b.tech_id || 0), date, customer: String(b.customer || '').slice(0, 80), appliance: String(b.appliance || '').slice(0, 40), by, time_pref: String(b.time_pref || '').slice(0, 40), city: String(b.city || '').slice(0, 60), zip: String(b.zip || '').slice(0, 12), phone: String(b.phone || '').replace(/\D/g, '').slice(0, 11), at_ms: Date.now() });
+      // The window is what she promised the customer; the hour is only how the job sorts on
+      // the tech's day. Both ride the hold so Confirm books the same slot she held.
+      const hour = Number(b.hour || 0);
+      await writeEvent('schedule_hold', { job_id: jobId, tech_id: Number(b.tech_id || 0), date,
+        window: String(b.window || '').slice(0, 40), hour: (hour >= 8 && hour <= 21) ? hour : 0, customer: String(b.customer || '').slice(0, 80), appliance: String(b.appliance || '').slice(0, 40), by, time_pref: String(b.time_pref || '').slice(0, 40), city: String(b.city || '').slice(0, 60), zip: String(b.zip || '').slice(0, 12), phone: String(b.phone || '').replace(/\D/g, '').slice(0, 11), at_ms: Date.now() });
       return j(200, { ok: true });
     }
     if (action === 'release') {

@@ -81,7 +81,11 @@
     listEl.innerHTML = '';
     reqs.forEach(function (r) {
       var row = document.createElement('div'); row.className = 'sreq-row';
-      var when = prettyDate(r.date) + (r.time_pref ? ' · ' + esc(r.time_pref) : '');
+      // Say the time as well as the day. time_pref is what the CUSTOMER asked for in their
+      // own words; `window` is the slot the office put on the hold. Either answers
+      // "held for when?" - a bare date does not. (Teddy 2026-09-16)
+      var whenTime = r.time_pref || r.window || '';
+      var when = prettyDate(r.date) + (whenTime ? ' · ' + esc(whenTime) : '');
       var loc = [r.city, r.zip].filter(Boolean).join(', ');
       var ph = prettyPhone(r.phone);
       var locLine = [loc, ph].filter(Boolean).join('  ·  📞 ');

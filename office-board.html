@@ -1454,7 +1454,14 @@ function cardHtml(j){
   else tags.push('<span class="tag" style="background:#e8f4ff;color:#0a6ebd;border:1px solid #a9d4f5;font-weight:800">🔍 Diagnosis</span>');
   if(PARTS_WAIT.test(j.parts_status||''))tags.push('<span class="tag parts">parts</span>');
   if(OFFICE_NOTE_JOBS.has(j.id))tags.push('<span class="tag" style="background:#fff3d0;color:#7a5410;border:1px solid #f0c674;font-weight:800" title="Office note sent to the tech">📋 note</span>');
-  if(HOLD_MAP[j.id])tags.push('<span class="tag" style="background:rgba(224,178,42,0.16);color:#8a6410;border:1px solid #e0b22a;font-weight:800" title="Tentative hold — waiting on the customer to confirm">⏳ HELD</span>');
+  // The tile says WHAT the spot is held for, not just that one exists - she scans this board
+  // all day and shouldn't have to open a drawer to answer "held for when?" (Teddy 2026-09-16).
+  if(HOLD_MAP[j.id]){
+    const _h=HOLD_MAP[j.id];
+    const _dy=holdDayShort(_h.date), _wn=String(_h.window||'').trim();
+    const _txt='⏳ HELD'+(_dy?' '+_dy:'')+(_wn?' · '+_wn:'');
+    tags.push('<span class="tag" style="background:rgba(224,178,42,0.16);color:#8a6410;border:1px solid #e0b22a;font-weight:800" title="Tentative hold — '+esc(holdAgeLabel(_h.at))+', waiting on the customer to confirm">'+esc(_txt)+'</span>');
+  }
   // Long job — takes N stop-slots on the tech's day so he isn't over-scheduled. (Teddy 2026-07-09)
   const _slots=slotsOf(j.id);
   if(_slots>1)tags.push('<span class="tag" style="background:#efe7fb;color:#5b3ba3;border:1px solid #c9b6ee;font-weight:800" title="Long job — eats '+_slots+' stops on the tech\'s day">⏱ '+_slots+' slots</span>');
@@ -2553,7 +2560,9 @@ function renderDrawer(d){
         </div>
         ${scheduled?`<button onclick="askMoveFromDrawer(${jid})" title="Text the customer to APPROVE the new day BEFORE moving them. Only moves if they say yes; keeps their current day if they decline or don't reply. Records their OK." style="width:100%;margin-top:2px;padding:11px;border-radius:9px;background:rgba(31,111,237,0.12);color:#1f6fed;border:1px solid rgba(31,111,237,0.45);font-weight:800;cursor:pointer">📲 Ask customer first (approve the move)</button>`:''}
         ${HOLD_MAP[jid]?`<div style="margin-top:4px;padding:9px 11px;border:1px dashed #e0b22a;border-radius:9px;background:rgba(224,178,42,0.10)">
-          <div style="font-size:12.5px;font-weight:800;color:#8a6410">⏳ Held for ${esc(TECH_NAME[HOLD_MAP[jid].tech_id]||('tech '+HOLD_MAP[jid].tech_id))} on ${esc(HOLD_MAP[jid].date)} — waiting on the customer</div>
+          <div style="font-size:14px;font-weight:800;color:#8a6410">⏳ Held for ${esc(TECH_NAME[HOLD_MAP[jid].tech_id]||('tech '+HOLD_MAP[jid].tech_id))}</div>
+          <div style="font-size:13.5px;font-weight:800;color:#6b4e08;margin-top:3px">📅 ${esc(holdDayLabel(HOLD_MAP[jid].date))}${HOLD_MAP[jid].window?` · 🕒 <span style="background:#e0b22a;color:#3a2c00;padding:1px 7px;border-radius:6px">${esc(HOLD_MAP[jid].window)}</span>`:` · <span style="font-weight:600;color:#8a6410">no window picked — confirm drops it on the next open stop</span>`}</div>
+          <div style="font-size:11.5px;color:#8a6410;margin-top:3px">${esc(holdAgeLabel(HOLD_MAP[jid].at))} · waiting on the customer</div>
           <div style="display:flex;gap:8px;margin-top:7px">
             <button onclick="confirmHoldFromDrawer(${jid})" style="flex:1;padding:9px;border-radius:8px;background:var(--ok);color:#fff;border:0;font-weight:800;cursor:pointer">✓ Confirm — book it</button>
             <button onclick="releaseHoldFromDrawer(${jid})" style="flex:1;padding:9px;border-radius:8px;background:#fff;color:#b04a3a;border:1px solid #d9a99f;font-weight:800;cursor:pointer">✕ Release</button>
@@ -3177,6 +3186,40 @@ function drawCalHtml(){
 function drawCalMove(delta){ DCAL.m+=delta; if(DCAL.m<0){DCAL.m=11;DCAL.y--;} if(DCAL.m>11){DCAL.m=0;DCAL.y++;} const el=document.getElementById('drawCal'); if(el) el.innerHTML=drawCalHtml(); }
 function drawCalPick(d){ DCAL.sel=new Date(DCAL.y,DCAL.m,d); const el=document.getElementById('drawCal'); if(el) el.innerHTML=drawCalHtml();
   const inp=document.getElementById('schDay'); if(inp) inp.value=DCAL.y+'-'+String(DCAL.m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+// Read the arrival window the office picked in the Schedule card above. Same control the
+// real booking uses (schPos: the value IS the routing hour, data-win IS the customer-facing
+// window label) - so a hold and a booking can never disagree about the slot.
+function drawerWindowPick(){
+  const el=document.getElementById('schPos');
+  const opt=el&&el.selectedOptions&&el.selectedOptions[0];
+  return {
+    hour: parseInt((el&&el.value)||'0',10)||0,
+    window: (opt&&opt.getAttribute&&opt.getAttribute('data-win'))||''
+  };
+}
+// Short form for the board tile - "Thu 9/18".
+function holdDayShort(dateStr){
+  const d=String(dateStr||''); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return '';
+  try{ return new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric',timeZone:'America/Chicago'}); }
+  catch(_){ return d; }
+}
+// A held spot has to say WHEN and WHAT TIME it is holding, in words (Teddy 2026-09-16).
+// "2026-09-18" is a database value, not an answer to "what day is that spot held for?".
+function holdDayLabel(dateStr){
+  const d=String(dateStr||''); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return d||'no day';
+  try{ return new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'America/Chicago'}); }
+  catch(_){ return d; }
+}
+// How long it has been sitting, so a forgotten hold stands out (same reading as the
+// scheduling grid's tentative block).
+function holdAgeLabel(at){
+  const t=Number(at)||0; if(!t) return 'held (time unknown)';
+  const mins=Math.max(0,Math.round((Date.now()-t)/60000));
+  if(mins<1) return 'held just now';
+  if(mins<60) return 'held '+mins+'m ago';
+  if(mins<1440) return 'held '+Math.round(mins/60)+'h ago';
+  return '⚠ held '+Math.round(mins/1440)+'d ago';
+}
 async function holdFromDrawer(id){
   const tech=parseInt((document.getElementById('schTech')||{}).value||'0',10);
   const day=(document.getElementById('schDay')||{}).value||'';
@@ -3185,10 +3228,14 @@ async function holdFromDrawer(id){
   const c=window.__drawerCust||{}, j=window.__drawerJob||{};
   const cust=((c.first_name||'')+' '+(c.last_name||'')).trim();
   const appl=j.appliance_type||j.appliance||'';
+  // Teddy 2026-09-16: "a held spot [needs] to show when and what time it's held for."
+  // The window was being thrown away here AND again at Confirm, so a held spot forgot the
+  // one thing she had just agreed with the customer. It rides the hold now.
+  const w=drawerWindowPick();
   toast('Holding…');
   try{
-    await fetch('/.netlify/functions/schedule-hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'hold',job_id:parseInt(id,10),tech_id:tech,date:day,customer:cust,appliance:appl})});
-    toast('Held ⏳ — waiting on the customer'); await loadHoldMap(); renderBoard(); openDrawer(String(id));
+    await fetch('/.netlify/functions/schedule-hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'hold',job_id:parseInt(id,10),tech_id:tech,date:day,window:w.window,hour:w.hour,customer:cust,appliance:appl})});
+    toast(w.window?('Held ⏳ '+w.window+' — waiting on the customer'):'Held ⏳ — waiting on the customer'); await loadHoldMap(); renderBoard(); openDrawer(String(id));
   }catch(_){toast('⚠ could not hold');}
 }
 // True Central-time ms for a "YYYY-MM-DD" + CT hour (DST-aware). The old code
@@ -3206,13 +3253,16 @@ function ctStartMs(dateStr,ctHour){
 function confirmHoldFromDrawer(id){
   const h=HOLD_MAP[id]; if(!h){toast('No hold on this job');return;}
   if(!(h.tech_id&&h.date)){toast('Hold missing tech/day');return;}
-  // No arrival window — book it as the next stop position on that tech's day.
-  bookHoldConfirmed(id,h.tech_id,h.date);
+  // Book the window it was HELD for. This used to pass nothing, so confirming a hold
+  // dropped the customer's agreed window on the floor every time (Teddy 2026-09-16).
+  bookHoldConfirmed(id,h.tech_id,h.date,h.window||'',Number(h.hour||0));
 }
-async function bookHoldConfirmed(id,techId,date){
-  const hour=await appendHourForDay(techId,date);   // next stop position (hidden key)
+async function bookHoldConfirmed(id,techId,date,heldWin,heldHour){
+  // The held hour keeps the job in the slot she promised; with no held window we fall back
+  // to the old behaviour (append as the next open stop on that tech's day).
+  const hour=(heldHour>=8&&heldHour<=21)?heldHour:await appendHourForDay(techId,date);
   const startMs=ctStartMs(date,hour);
-  const win='';
+  const win=heldWin||'';
   toast('Booking…');
   try{
     const r=await AntSchedule.schedule({jobId:parseInt(id,10),techId:techId,startMs:startMs,etaWindow:win,actor:officeActor()});   // one shared save (ant-schedule.js)
@@ -3902,6 +3952,6 @@ initAuth();
   <script src="/ant-track.js" defer></script>
 <script src="/office-caller-pop.js?v=20260812"></script>
 <script src="/job-history-card.js?v=20260813"></script>
-<script src="/office-schedule-requests.js?v=20260812b"></script>
+<script src="/office-schedule-requests.js?v=20260916-holdwindow"></script>
 </body>
 </html>
