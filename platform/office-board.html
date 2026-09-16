@@ -1159,7 +1159,8 @@
         else if(disp) refChip = copyChip('Disp '+disp, disp, 'ref');
         var pnum = String(j.tdr_part_number||'').trim();
         if(!pnum){ var jp=partsByJob[j.id]; if(jp && jp.length){ pnum=String(jp[0].number||'').trim(); } }
-        var partChip = pnum ? copyChip('🔧 '+pnum, pnum, 'part') : '';
+        var pmore = (partsByJob[j.id] && partsByJob[j.id].length > 1) ? partsByJob[j.id].length - 1 : 0;
+        var partChip = pnum ? copyChip('🔧 '+pnum+(pmore?' +'+pmore:''), pnum, 'part') : '';
         var vendor = vendorBadge(j.warranty_company);
         var city = j.customer && j.customer.city ? String(j.customer.city).trim() : '';
         var cityChip = city ? '<span class="citychip">📍 '+esc(city)+'</span>' : '';
@@ -2883,7 +2884,16 @@
           }
           if (p.eta && (!t.eta || p.eta < t.eta)) t.eta = p.eta;
         });
-        (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; if (!partOnThisJob(p.disposition)) return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name }); });
+        // partsByJob feeds the tile's 🔧 part-number chip. It is an ATTENTION surface, not a
+        // money one, so partOnThisJob() must NOT run here -- that is the INVOICE rule (don't bill
+        // a part we never got, sent back, or kept). Running it here meant the instant a tech marked
+        // a part 'never came' its NUMBER vanished from the office, leaving Danielle a red
+        // "❌ 2 PARTS NEVER CAME" chip and nothing to chase the vendor with. Jimmy reported exactly
+        // that 2026-09-16 ("part numbers are not showing in the office"). Same class as the
+        // 2026-09-15 fix that moved the tile's COUNTING ahead of the same guard -- the counting got
+        // corrected then, the display did not. The invoice worksheet keeps its own query and still
+        // applies partOnThisJob(), so billing is untouched.
+        (pr.data || []).forEach(function (p) { if (!p.job_id || !String(p.number||'').trim()) return; (partsByJob[p.job_id] = partsByJob[p.job_id] || []).push({ number:p.number, name:p.name, disposition:p.disposition }); });
         tagsByJob = {};
         (tgr.data || []).forEach(function (t) { if (!t.job_id || !t.tag) return; (tagsByJob[t.job_id] = tagsByJob[t.job_id] || []).push(t.tag); });
         tagLibrary = lbr.data || [];
