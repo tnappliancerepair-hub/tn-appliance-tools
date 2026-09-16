@@ -119,6 +119,10 @@
   /* 📋 TDR — the office claim surface */
   #jtdr .tinp{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box;margin-bottom:8px}
   #jtdr .tlab{font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin:6px 0 3px}
+  #jtdr .tlabrow{display:flex;align-items:center;gap:8px;margin:6px 0 3px}
+  #jtdr .tlabrow .tlab{margin:0}
+  #jtdr .tcp{font-size:11px;line-height:1;padding:2px 6px;border-radius:6px;cursor:pointer;border:1px solid var(--line);background:var(--chip);color:var(--muted)}
+  #jtdr .tcp:active{transform:translateY(1px)}
   #jtdr .tpart,#jtparts .tpart{display:flex;gap:7px;align-items:center;margin-bottom:7px}
   #jtdr .tpart input,#jtparts .tpart input{flex:1 1 auto;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit;font-family:ui-monospace,Menlo,monospace}
   #jtdr .tpart .del,#jtparts .tpart .del{flex:0 0 auto;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:8px;padding:7px 10px;font-weight:800;cursor:pointer}
@@ -1700,6 +1704,41 @@
       var curModel=t.model||attrs.model||'';
       var IN='class="tinp"';
       var outs=TDR_OUTCOMES.map(function(o){ return '<button type="button" class="tout'+(t.outcome===o[0]?' on':'')+'" data-o="'+o[0]+'"><span>'+o[1]+'</span>'+o[2]+'</button>'; }).join('');
+      // Every value below lives inside an <input>/<textarea>, and a drag-selection across a
+      // page SKIPS form-control contents -- so selecting the panel and hitting copy yields the
+      // labels with nothing between them. That is Sofia 2026-09-16: "copied and pasted the
+      // information from the job board into AHS and it left it all blank." Each field gets its
+      // own copy button, and the whole report gets one, so the value is never what she has to
+      // hand-select.
+      function lab(text,forId){
+        return '<div class="tlabrow"><span class="tlab">'+esc(text)+'</span>'+
+               '<button type="button" class="tcp" data-cp="'+forId+'" title="Copy this">📋</button></div>';
+      }
+      // Report the truth: a clipboard write can be refused (insecure context, Safari without a
+      // user gesture) and a fake checkmark is how someone pastes nothing into a real claim.
+      function copyText(str,onOk,onBad){
+        str=String(str==null?'':str);
+        if(!str.trim()){ onBad('nothing there to copy'); return; }
+        function fallback(){
+          try{
+            var ta=document.createElement('textarea');
+            ta.value=str; ta.setAttribute('readonly','');
+            ta.style.position='fixed'; ta.style.top='-1000px'; ta.style.opacity='0';
+            document.body.appendChild(ta);
+            ta.select(); ta.setSelectionRange(0,str.length);   // iOS needs the explicit range
+            var ok=document.execCommand('copy');
+            document.body.removeChild(ta);
+            ok?onOk():onBad('couldn\'t copy — select it by hand');
+          }catch(_){ onBad('couldn\'t copy — select it by hand'); }
+        }
+        try{
+          if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+            navigator.clipboard.writeText(str).then(function(){ onOk(); }, fallback);
+            return;
+          }
+        }catch(_){}
+        fallback();
+      }
       // An outcome-only row (the office picked how the job ended) is NOT a filed report.
       // Say so, or a blank form reads as "the tech's report saved and it was empty".
       var hasReport = !!((t.failed_component||'').trim() || (t.root_cause||'').trim());
@@ -1709,13 +1748,52 @@
       box.innerHTML=
         '<div class="sec">📋 TDR — technician report <span class="hint" style="font-weight:400">— what the office files the claim from</span></div>'+
         noRepBanner+
-        '<span class="tlab">Model #</span><input '+IN+' id="t_model" value="'+esc(curModel)+'" placeholder="off the sticker" style="font-family:ui-monospace,Menlo,monospace">'+
-        '<span class="tlab">What failed</span><input '+IN+' id="t_fc" value="'+esc(t.failed_component||'')+'" placeholder="e.g. heating element">'+
-        '<span class="tlab">What happened to the machine</span><textarea '+IN+' id="t_rc" placeholder="Details for the claim" style="min-height:56px;resize:vertical">'+esc(t.root_cause||'')+'</textarea>'+
-        '<span class="tlab">Labor hours</span><input '+IN+' id="t_lh" inputmode="decimal" value="'+esc(t.labor_hours!=null?t.labor_hours:'')+'" placeholder="e.g. 1.5">'+
+        lab('Model #','t_model')+'<input '+IN+' id="t_model" value="'+esc(curModel)+'" placeholder="off the sticker" style="font-family:ui-monospace,Menlo,monospace">'+
+        lab('What failed','t_fc')+'<input '+IN+' id="t_fc" value="'+esc(t.failed_component||'')+'" placeholder="e.g. heating element">'+
+        lab('Part #','t_pn')+'<input '+IN+' id="t_pn" value="'+esc(t.part_number||'')+'" placeholder="what the tech put on" style="font-family:ui-monospace,Menlo,monospace">'+
+        lab('What happened to the machine','t_rc')+'<textarea '+IN+' id="t_rc" placeholder="Details for the claim" style="min-height:56px;resize:vertical">'+esc(t.root_cause||'')+'</textarea>'+
+        lab('Tech notes','t_notes')+'<textarea '+IN+' id="t_notes" placeholder="Anything else the tech wrote" style="min-height:44px;resize:vertical">'+esc(t.notes||'')+'</textarea>'+
+        lab('Labor hours','t_lh')+'<input '+IN+' id="t_lh" inputmode="decimal" value="'+esc(t.labor_hours!=null?t.labor_hours:'')+'" placeholder="e.g. 1.5">'+
         '<span class="tlab">Outcome — how the job ended (for the claim)</span>'+
         '<div class="touts" id="t_outs">'+outs+'</div>'+
-        '<div class="srow" style="justify-content:flex-start"><button class="primary" id="t_save">💾 Save report</button><span class="hint" id="t_msg" style="align-self:center"></span></div>';
+        '<div class="srow" style="justify-content:flex-start;flex-wrap:wrap"><button class="primary" id="t_save">💾 Save report</button><button type="button" id="t_copyall">📋 Copy the whole report</button><span class="hint" id="t_msg" style="align-self:center"></span></div>';
+
+      // ── copy, so nothing has to be hand-selected out of a form field ──────────────
+      function tdrVal(id){ var e=document.getElementById(id); return e?String(e.value||'').trim():''; }
+      function outcomeLabel(){
+        var on=box.querySelector('#t_outs .tout.on'); if(!on) return '';
+        var v=on.getAttribute('data-o');
+        // TDR_OUTCOMES rows are [value, icon, label] — [1] is the emoji, [2] is the words.
+        for(var i=0;i<TDR_OUTCOMES.length;i++){ if(TDR_OUTCOMES[i][0]===v) return TDR_OUTCOMES[i][2]; }
+        return v||'';
+      }
+      // Reads the LIVE inputs, not the row we loaded — so an edit she just made copies too.
+      function claimText(){
+        var L=[];
+        var machine=[ (t.brand||''), tdrVal('t_model') ].filter(Boolean).join(' ').trim();
+        if(machine) L.push('Machine: '+machine);
+        var fc=tdrVal('t_fc'), pn=tdrVal('t_pn');
+        if(fc||pn) L.push('Failed: '+(fc||'(not recorded)')+(pn?' (part '+pn+')':''));
+        else if(pn) L.push('Part: '+pn);
+        var rc=tdrVal('t_rc');   if(rc) L.push('What happened: '+rc);
+        var nt=tdrVal('t_notes');if(nt) L.push('Tech notes: '+nt);
+        var lh=tdrVal('t_lh');   if(lh) L.push('Labor: '+lh+' hr'+(parseFloat(lh)===1?'':'s'));
+        var oc=outcomeLabel();   if(oc) L.push('Outcome: '+oc);
+        return L.join('\n');
+      }
+      function flash(msg){ var m=document.getElementById('t_msg'); if(!m) return;
+        m.textContent=msg; setTimeout(function(){ if(m&&m.textContent===msg) m.textContent=''; },2200); }
+      box.querySelectorAll('.tcp[data-cp]').forEach(function(b){ b.onclick=function(){
+        copyText(tdrVal(b.getAttribute('data-cp')),
+          function(){ var o=b.textContent; b.textContent='✓'; setTimeout(function(){ b.textContent=o; },1000); },
+          function(why){ flash(why); });
+      }; });
+      var cpAll=document.getElementById('t_copyall');
+      if(cpAll) cpAll.onclick=function(){
+        copyText(claimText(),
+          function(){ flash('Report copied ✓ — paste it into the claim'); },
+          function(why){ flash(why); });
+      };
 
       // outcome — save immediately
       box.querySelectorAll('#t_outs .tout[data-o]').forEach(function(btn){ btn.onclick=function(){
@@ -1745,7 +1823,9 @@
         }
         keep('model',           document.getElementById('t_model').value, curModel);
         keep('failed_component',document.getElementById('t_fc').value,    t.failed_component);
+        keep('part_number',     document.getElementById('t_pn').value,    t.part_number);
         keep('root_cause',      document.getElementById('t_rc').value,    t.root_cause);
+        keep('notes',           document.getElementById('t_notes').value, t.notes);
         if(lhv && !isNaN(parseFloat(lhv))) row.labor_hours=parseFloat(lhv);
         else if(t.labor_hours==null) row.labor_hours=null;
         var ops=[ sb.from('job_tdr').upsert(row,{onConflict:'job_id'}).select('id') ];
