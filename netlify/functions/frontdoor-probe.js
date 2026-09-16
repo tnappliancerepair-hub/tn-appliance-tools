@@ -119,6 +119,13 @@ function buildShapes(obj) {
     typetop_o:   { type: 'status', object: obj },
     typetop_arr: { type: 'status', data: [{ object: obj }] },
     typeboth:    { type: 'status', data: { type: 'status', object: obj } },
+    // `type` at top level clears BLE_0042 and lands on BLE_0048 "ExternalID Missing" —
+    // a field we have never sent. Their error spells it PascalCase (a Go struct name),
+    // so the JSON tag could be any of three casings, at either level.
+    ext_snake:   { type: 'status', external_id: String(obj.dispatch_id), data: obj },
+    ext_camel:   { type: 'status', externalId: String(obj.dispatch_id), data: obj },
+    ext_pascal:  { type: 'status', ExternalID: String(obj.dispatch_id), data: obj },
+    ext_in_data: { type: 'status', data: { ...obj, external_id: String(obj.dispatch_id) } },
   };
 }
 
