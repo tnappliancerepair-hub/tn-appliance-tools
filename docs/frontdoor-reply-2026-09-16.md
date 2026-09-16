@@ -92,7 +92,81 @@ asking them to eyeball one.
 
 ---
 
-## Draft
+## ⭐ SIMPLIFIED DRAFT — SEND THIS ONE
+
+Short version: leads with the state, puts the three asks up front, moves the technical detail to a
+reference block at the bottom. The long draft further down is kept as the record.
+
+**Subject:** Re: Testing – Please Verify Inbound and Outbound Updates
+
+Hi Vaibhav,
+
+That fixed it — thank you. We are working in both directions now. Short summary, then three things
+I need from you.
+
+**Where we stand**
+
+- **Frontdoor → TN Appliance:** working. 89 events across 32 dispatch ids in the last five days.
+  Nothing dropping on our end.
+- **TN Appliance → Frontdoor:** working as of this morning. Status pushes are returning
+  `200 {"errors":null}`.
+
+**One thing your connector team will want to know:** the request format in the API doc is not the
+one the connector accepts. The documented `{"data": [{"type": "status", "object": {...}}]}` returns
+`CONNECTOR_BLE_0007 "Failed to unmarshal struct to JSON string"` every time. That single mismatch is
+what we were stuck on for the last two weeks. I worked the correct shape out from your error codes —
+it is at the bottom of this email in case it is useful to whoever owns the connector.
+
+**Three things I need from you**
+
+1. **Which value do you want in the `status` field?** Both the description
+   (`"Technician in Route to Location"`) and the code as a string (`"70"`) return 200, so I cannot
+   tell from the response which one your system actually reads. We are sending the description — if
+   it should be the number, just say so and we will change it.
+
+2. **Can someone confirm one landed?** I pushed status 70 to dispatch **22863999** this morning and
+   got a 200. We have no way to read it back, so a quick "yes, we see it on the dispatch" would let
+   us call this verified rather than just accepted.
+
+3. **Will the production feed be filtered to our vendor ids?** The sandbox events we are receiving
+   carry vendor ids 1396202, 157992 and 1636528 with mostly Virginia addresses — not our three
+   accounts (822418 North Shore LA, 822218 South Shore LA, 839828 Middle TN). I assume that is just
+   a shared sandbox, but I need it confirmed before we turn on automatic job creation, so we do not
+   create work orders that belong to another contractor.
+
+Once I have those three answers we are ready to move to production credentials.
+
+Appreciate the quick turnaround.
+
+James "Teddy" Pivacek
+TN Appliance Exchange LLC
+
+---
+
+**Reference — the request shape your connector accepts:**
+
+```json
+{
+  "type": "status",
+  "data": {
+    "external_id": "22863999",
+    "message": "Jimmy is on the way",
+    "status": "Technician in Route to Location",
+    "status_code": "70",
+    "vendor_id": "822418",
+    "tenant": "AHS",
+    "source": "TN_APPLIANCE_EXCHANGE"
+  }
+}
+```
+
+- `type` must be at the **top level** — inside `data` it returns `BLE_0042 "Type Missing in request"`
+- `external_id` must be **inside `data`** — at the top level it returns `BLE_0048 "ExternalID Missing"`
+- `message` and `status` must be non-empty **strings** — an object or a number fails at unmarshal
+
+---
+
+## Draft (long version — kept as the record)
 
 **Subject:** Re: Testing – Please Verify Inbound and Outbound Updates
 
