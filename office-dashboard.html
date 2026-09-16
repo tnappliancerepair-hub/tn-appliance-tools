@@ -1417,6 +1417,8 @@ async function submitScheduleJob() {
       body: JSON.stringify({ job_id: __schedJobId, technician_id: techId, scheduled_start_ms: startMs }),
     });
     const d = await r.json().catch(() => ({}));
+    // RECEIPT — this surface saved silently until 2026-09-16 (see ant-schedule.js).
+    try { window.AntSchedule && AntSchedule.receipt({ jobId: __schedJobId, techId: techId, startMs: startMs, actor: (function(){ try { return (window.OfficeStaff && OfficeStaff.name()) || 'office'; } catch (_) { return 'office'; } })(), confirmed: !!(r.ok && d.success) }); } catch (_) {}
     if (r.ok && d.success) {
       closeScheduleJob();
       if (activeTab === 'today') loadOfficeToday(); else loadJobs();
@@ -1780,5 +1782,6 @@ async function submitSetStatus() {
 </script>
 <script src="/ant-shell.js?v=20260703h" defer></script>
   <script src="/ant-track.js" defer></script>
+<script src="/ant-schedule.js"></script>
 </body>
 </html>

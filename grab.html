@@ -103,6 +103,9 @@ async function grab(){
     const r=await fetch(XANO+'/danielle_schedule_parallel_job',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({job_id:JOB,technician_id:TECH,scheduled_start_ms:startMs,service_eta_window:''})});
     const d=await r.json();
+    // RECEIPT — a tech grabbing a route-fill job is a real schedule change; record it
+    // the same as an office save so the day's history is complete.
+    try{ window.AntSchedule && AntSchedule.receipt({jobId:JOB,techId:TECH,startMs:startMs,actor:'tech:'+TECH,confirmed:!!(d&&d.success)}); }catch(_){}
     if(d&&d.success){
       stage.innerHTML='<div class="ok"><div class="ant">✅</div><div class="big">Got it — it is yours.</div><div class="note">'+esc(LABEL)+' is on your day. We just texted the customer a live arrival window. Drive safe 🐜</div></div>';
     }else{
@@ -113,6 +116,7 @@ async function grab(){
 }
 render();
 </script>
+<script src="/ant-schedule.js"></script>
 <script defer src="/ant-valuebar.js"></script>
   <script src="/ant-track.js" defer></script>
 </body>

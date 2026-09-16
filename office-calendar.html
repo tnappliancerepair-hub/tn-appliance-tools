@@ -1648,10 +1648,19 @@ function __initCalendar() {
         res = await fetch(`${XANO_BASE}/reassign_job`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId, technician_id: newTechId }) });
       }
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) { alert((data && (data.error || data.message)) || 'Move failed — refreshing.'); loadWeek(); }
+      const _ok = !(!res.ok || !data.success);
+      // RECEIPT — who moved this, to whom, onto what day, and did it stick. This surface
+      // saved silently until 2026-09-16, which is why "I swore Andre had Friday stops" had
+      // no record to answer with. Guarded + fire-and-forget: logging can never fail a move.
+      try { window.AntSchedule && AntSchedule.receipt({ jobId: jobId, techId: newTechId, startMs: j.scheduled_start, actor: _calActor(), confirmed: _ok }); } catch (_) {}
+      if (!_ok) { alert((data && (data.error || data.message)) || 'Move failed — refreshing.'); loadWeek(); }
       // success: leave the optimistic move in place (no full reload = no freeze)
     } catch (_) { alert('Network problem — refreshing.'); loadWeek(); }
   }
+
+  // Who is doing this, for the schedule receipt. Mirrors office-board's officeActor():
+  // resolves to the signed-in staffer once office-identity.js is on this page, 'office' until then.
+  function _calActor() { try { return (window.OfficeStaff && OfficeStaff.name()) || 'office'; } catch (_) { return 'office'; } }
 
   function renderHeader(data) {
     weekRange.textContent = fmtWeekRange(data.week_start_ct, data.week_end_ct);
@@ -2279,7 +2288,9 @@ function __initCalendar() {
         body: JSON.stringify({ job_id: manageJobId, technician_id: techId, scheduled_start_ms: newStartMs }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
+      const _ok2 = !(!res.ok || !data.success);
+      try { window.AntSchedule && AntSchedule.receipt({ jobId: manageJobId, techId: techId, startMs: newStartMs, actor: _calActor(), confirmed: _ok2 }); } catch (_) {}
+      if (!_ok2) {
         manageError.textContent = (data && (data.error || data.message)) || `Reschedule failed (${res.status})`;
       } else {
         closeManageJobModal(); loadWeek(); return;
@@ -2690,5 +2701,6 @@ if (document.readyState === 'loading') { document.addEventListener('DOMContentLo
 })();
 </script>
   <script src="/ant-track.js" defer></script>
+<script src="/ant-schedule.js"></script>
 </body>
 </html>

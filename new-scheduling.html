@@ -1054,7 +1054,7 @@ function __initCalendar() {
     try {
       const hour = nextStopHourCT(techId, date, jobId);
       // ONE shared save (ant-schedule.js).
-      const r = await AntSchedule.schedule({ jobId: jobId, techId: techId, startMs: ctMs(date, hour), actor: 'Danielle' });
+      const r = await AntSchedule.schedule({ jobId: jobId, techId: techId, startMs: ctMs(date, hour), actor: 'Danielle', receipt: false });
       if (!r.ok) { alert('Could not confirm: ' + (r.error || 'try again')); return; }
       await fetch('/.netlify/functions/schedule-hold', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'release', job_id: jobId }) });
       loadWeek();
@@ -1930,8 +1930,8 @@ function __initCalendar() {
     try {
       // ONE shared save (ant-schedule.js) — schedule when the day changed, else reassign.
       const r = dayChanged
-        ? await AntSchedule.schedule({ jobId: jobId, techId: newTechId, startMs: j.scheduled_start, actor: 'Danielle' })
-        : await AntSchedule.reassign({ jobId: jobId, techId: newTechId, actor: 'Danielle' });
+        ? await AntSchedule.schedule({ jobId: jobId, techId: newTechId, startMs: j.scheduled_start, actor: 'Danielle', receipt: false })
+        : await AntSchedule.reassign({ jobId: jobId, techId: newTechId, actor: 'Danielle', receipt: false });
       if (!r.ok) { alert(r.error || 'Move failed — refreshing.'); loadWeek(); }
       else { confirmAndReceipt(jobId, newTechId, newDateStr || curDateStr); }   // verify + receipt
       // success: leave the optimistic move in place (no full reload = no freeze)
@@ -2779,7 +2779,7 @@ function __initCalendar() {
       // both first-time scheduling and rescheduling in one call.
       // ONE shared save (ant-schedule.js) — endpoint + terminal_locked recovery live in
       // that single module every office surface calls, so this can't drift again.
-      const r = await AntSchedule.schedule({ jobId: manageJobId, techId: techId, startMs: newStartMs, actor: 'Danielle' });
+      const r = await AntSchedule.schedule({ jobId: manageJobId, techId: techId, startMs: newStartMs, actor: 'Danielle', receipt: false });
       if (!r.ok) {
         manageError.textContent = r.error || `Reschedule failed`;
       } else {
