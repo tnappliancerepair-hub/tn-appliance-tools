@@ -22,7 +22,9 @@ const WORKING_SRC = (SRC.match(/A TECH WORKING THE JOB TODAY[\s\S]*?\n( {6}if \(
 assert.ok(RANK_SRC, 'RANK must exist in platform-tn-mirror.js');
 assert.ok(CLOCK_SRC, 'the America/Chicago day helpers must exist');
 assert.ok(HELD_SRC, 'the never-walk-backwards guard must exist');
+const RECOVER_SRC = (SRC.match(/RECOVER a row that is already poisoned[\s\S]*?\n( {6}if \([\s\S]*?\n {6}\}\n)/) || [])[1];
 assert.ok(WORKING_SRC, 'the tech-working-today guard must exist');
+assert.ok(RECOVER_SRC, 'the phantom-recovery branch must exist');
 
 // Run the REAL guard blocks over one (jr, ex) pair and report what the mirror would write.
 const applyGuard = new Function('jr', 'ex', `
@@ -31,6 +33,7 @@ const applyGuard = new Function('jr', 'ex', `
   let held = 0, keptWorking = 0;
   ${HELD_SRC}
   ${WORKING_SRC}
+  ${RECOVER_SRC}
   return { status: jr.status, held, keptWorking };
 `);
 
@@ -136,4 +139,50 @@ test('the mirror selects en_route_at and started_at', () => {
 test('the guard is same-day scoped, not stamp-only', () => {
   assert.ok(/isTodayCT\(ex\.en_route_at\) \|\| isTodayCT\(ex\.started_at\)/.test(SRC),
     'dropping the same-day restriction would un-complete the 334 legitimately-completed jobs');
+});
+
+
+// ── RECOVERY: the row is ALREADY poisoned ────────────────────────────────────────────
+// The hold above only helps while the platform row is still clean -- it holds ex.status, so
+// once the stale 'completed' has landed it is inert forever. That is Jimmy's real sequence:
+// the mirror wrote completed BEFORE he got there, then he tapped On my way at 9:49 into an
+// already-finished job. Verified on his live row 2026-09-16: status completed, completed_at
+// null, en_route_at 14:49Z, started_at 15:59Z.
+test('a poisoned row a tech STARTED today recovers to in_progress', () => {
+  const r = applyGuard(
+    { status: 'completed' },
+    { status: 'completed', completed_at: null, en_route_at: stamp(0), started_at: stamp(0) },
+  );
+  assert.strictEqual(r.status, 'in_progress', 'he is standing in the kitchen');
+  assert.strictEqual(r.keptWorking, 1);
+});
+
+test('a poisoned row a tech is only EN ROUTE to recovers to scheduled', () => {
+  const r = applyGuard(
+    { status: 'completed' },
+    { status: 'completed', completed_at: null, en_route_at: stamp(0), started_at: null },
+  );
+  assert.strictEqual(r.status, 'scheduled', 'he is driving -- not there yet');
+  assert.strictEqual(r.keptWorking, 1);
+});
+
+// THE OTHER LOAD-BEARING ONE. A real platform completion has a stamp. Recovery must never
+// reach it, or every job a tech finished today gets re-opened under him.
+test('a REAL platform completion today is never recovered', () => {
+  const r = applyGuard(
+    { status: 'completed' },
+    { status: 'completed', completed_at: stamp(0), en_route_at: stamp(0), started_at: stamp(0) },
+  );
+  assert.strictEqual(r.status, 'completed');
+  assert.strictEqual(r.keptWorking, 0);
+});
+
+test('a stamp-less completion nobody is working today is left alone', () => {
+  // This is the 334. Finished office-side, no platform stamp, no tech en route.
+  const r = applyGuard(
+    { status: 'completed' },
+    { status: 'completed', completed_at: null, en_route_at: stamp(-8), started_at: null },
+  );
+  assert.strictEqual(r.status, 'completed');
+  assert.strictEqual(r.keptWorking, 0);
 });

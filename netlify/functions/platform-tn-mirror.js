@@ -911,6 +911,20 @@ async function syncTnToPlatform(limit, opts) {
         jr.status = ex.status;
         keptWorking++;
       }
+      // ...and RECOVER a row that is already poisoned. The hold above only helps while the
+      // platform row is still clean, because it holds ex.status -- once the stale 'completed'
+      // has landed, ex.status IS 'completed' and that branch is inert forever. Which is Jimmy's
+      // exact sequence: the mirror wrote completed BEFORE he ever got there, then he tapped On
+      // my way at 9:49 into an already-finished job. So: a completion carrying NO platform stamp,
+      // on a job a tech went en route to or started TODAY, is not a completion. Put the row back
+      // where he actually is. Both gates stay narrow -- the missing stamp means we never touch a
+      // real platform completion, and same-day means we never touch the 334 legitimately-completed.
+      if (ex.status === 'completed' && !ex.completed_at
+          && (isTodayCT(ex.en_route_at) || isTodayCT(ex.started_at))) {
+        jr.status = isTodayCT(ex.started_at) ? 'in_progress' : 'scheduled';
+        keptWorking++;
+      }
+
       // ── AND DON'T ERASE A BOOKING MADE ON THE PLATFORM ───────────────────────────
       // Same bug, second field. The row above rewrites technician_id / scheduled_day /
       // scheduled_start from Xano on EVERY run, so the office booking a job on the platform
