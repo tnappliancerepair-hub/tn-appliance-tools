@@ -111,6 +111,14 @@ function buildShapes(obj) {
     spec_numvid: { data: [{ type: 'status', object: numVendor }] },
     spec_min:    { data: [{ type: 'status', object: minimal }] },
     bare_min:    minimal,
+    // `dataobj` is the only envelope that gets past unmarshal — it answers BLE_0042
+    // "Type Missing in request" even though we send type INSIDE data, so they look for
+    // `type` somewhere else. These four walk the plausible placements.
+    typetop:     { type: 'status', data: { object: obj } },
+    typetop_d:   { type: 'status', data: obj },
+    typetop_o:   { type: 'status', object: obj },
+    typetop_arr: { type: 'status', data: [{ object: obj }] },
+    typeboth:    { type: 'status', data: { type: 'status', object: obj } },
   };
 }
 
