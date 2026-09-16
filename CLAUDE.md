@@ -1,5 +1,68 @@
 # Appliance Ant
 
+## 👁️📋 2026-09-16 (Wed, night) — DANIELLE: "she can see the information, it's just not visible to THEM" — A TECH COULD NOT SEE HIS OWN FILED REPORT, AND THAT IS WHY HE COULD NOT CLOSE THE JOB — READ FIRST
+
+Teddy relayed the detail that cracked the whole "not saving" class: *"every time that they put a
+report in, she can see the information. It's just not visible to them, and they're unable to close
+out the ticket ... because it's not showing that the TDR is completed ... having to redo it because
+it didn't save."* **She was right, it was never a save failure, and the office seeing it while the
+tech does not is the exact fingerprint of the bug.**
+
+### 🥇 THE FINDING — `job_tdr` embeds as a TO-ONE, and both tech surfaces read it as an array
+`job_tdr` carries a **UNIQUE index on `job_id`** (`job_tdr_job_id_key` — it has to, `onConflict:'job_id'`
+depends on it). PostgREST detects that and treats the embed as **to-one**, so it returns an **OBJECT**.
+**Measured live, not reasoned:** a job with a report comes back `"tdr": {…}`, one without comes back
+`"tdr": null` — while **every other reverse embed on `job` correctly returns `[]`** (`job_media`,
+`job_part`, `job_tag`, `thread_message`, all checked in the same call). `job_tdr` is the ONLY one, and
+it is the only one the code read as an array.
+- `platform/tech.html` → `var tdr = (j.tdr && j.tdr[0]) || null;` → **always null**
+- `platform/tech-job.html` → `function tdr(){ return (job.tdr && job.tdr[0]) || null; }` → **always null**
+- `platform/tech-job.html` machine switcher → `(m.tdr && m.tdr.length)` → an object has no `.length` → **the ✓ never appeared**
+
+### 🔴 WHAT THE TECH ACTUALLY EXPERIENCED — four failures off one line
+1. The **`📋 Report: …` readback line never rendered.** Nothing on screen said it saved.
+2. **Every field came back BLANK** on re-open — his own diagnosis, part #, root cause, hours, notes.
+3. The button kept reading **"✓ Complete + report"** instead of **"Edit report"** — *"it's not showing
+   that the TDR is completed."*
+4. **The outcome radio silently reset to `fixed`** and part-status to blank (both initialize from
+   `tdr()`), so re-saving a `return_needed` job would have flipped it to completed.
+
+So he retypes it. And if nothing on that machine actually failed, the retype dead-ends on the
+What-failed gate — **the two bugs compound into "I can't close this job."** The office saw it the
+whole time because `office-board.html` queries `job_tdr` **directly** (`.from('job_tdr')`, always an
+array) and reads the mirror's `job.tdr_*` columns — two paths that never touch the broken embed.
+
+### ✅ THE FIX — `oneTdr()`, shape-agnostic on purpose
+`function oneTdr(v){ if (!v) return null; return Array.isArray(v) ? (v[0] || null) : v; }` — reads the
+object PostgREST returns today AND the array it would return if that unique index were ever dropped
+(e.g. to allow a report per machine). **Defined locally in each page rather than in a shared module**
+deliberately: a shared `.js` that fails to load would white-screen the tech app, and this is one pure
+line. **The two copies are pinned byte-identical by a test** so they can never drift.
+
+### 📊 WHAT IT COST — measured on the live board
+**801 jobs carry a filed report. 93 sit `in_progress`** — and split on the TECH'S OWN outcome:
+**73 `return_needed`** (real open parts work, correct), but **18 `fixed` + 2 `not_fixable` = 20 jobs
+the crew finished and could not close**, 6 of them touched in the last three days. That is the
+unbilled pile Danielle was describing. It stops growing now; the 20 are a human pass (Danielle's
+board, not mine to close — a bulk status flip is also what texts real customers about old work).
+
+### 🧪 PROVEN
+**`tests/tech-report-readback.test.js` 8/8** — `oneTdr` is **lifted out of each shipped page and
+EXECUTED** against every shape (object / array / empty array / null / undefined / 0 / ''), the two
+definitions are asserted **identical**, and the source is asserted to contain **zero** remaining
+`.tdr[0]` / `.tdr.length` reads with comments stripped. Mutation-proven **5 ways**: restoring `[0]`
+on the day list fails 2, on the job page fails 2, restoring `.length` on the machine chip fails 2,
+letting the two definitions drift fails 2, making `oneTdr` object-only fails 1. Suite **168/168**.
+
+### ⚠️ STANDING: a reverse embed is an ARRAY *unless* the child's FK column is uniquely indexed
+Then PostgREST silently hands back an object and `[0]` is `undefined` — **no error, no warning, the
+feature just reads empty forever.** Before consuming an embed, either check for a unique index on the
+join column or read it shape-agnostically. The one-query sweep that settles it:
+`select t.relname, pg_get_indexdef(ix.indexrelid) from pg_index ix join pg_class i on i.oid=ix.indexrelid
+join pg_class t on t.oid=ix.indrelid where ix.indisunique and not ix.indisprimary` — a **composite**
+unique (like `job_tag(job_id, tag_id)`) or a **partial** one (like `thread_message … where channel='reminder'`)
+does NOT collapse the embed; only a unique index on the FK column alone does.
+
 ## 🔧🖊️ 2026-09-16 (Wed, late) — "GUYS ARE LOSING TRUST": THREE REPORTS, THREE DIFFERENT CAUSES, AND TWO WERE ALREADY FIXED AND SITTING UNMERGED — READ FIRST
 
 Teddy relayed four lines: *"Sofia says it's not saving either. We have to fix where it saves so
