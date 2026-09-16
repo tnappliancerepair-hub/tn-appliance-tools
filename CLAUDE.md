@@ -1,5 +1,83 @@
 # Appliance Ant
 
+## 🔧🖊️ 2026-09-16 (Wed, late) — "GUYS ARE LOSING TRUST": THREE REPORTS, THREE DIFFERENT CAUSES, AND TWO WERE ALREADY FIXED AND SITTING UNMERGED — READ FIRST
+
+Teddy relayed four lines: *"Sofia says it's not saving either. We have to fix where it saves so
+they can see"* · *"Jimmy said yesterday it was saving on his end but today it's not saving"* ·
+**"We need reliability. Guys are losing trust in the system"** · *"John says the sign button not
+working now for the customer to sign he said it worked earlier but"*. Measured all three against
+the live board before writing a line. **They are three DIFFERENT bugs. Two were already fixed
+hours earlier and are invisible because the branch has not landed on `main`.**
+
+### 🥇 THE HEADLINE — the trust problem is a DEPLOY problem, not a code problem
+`claude/supabase-ant-system-testing-vnbgym` is **6 commits ahead of `main`, and Netlify deploys
+from `main`.** So Jimmy and Sofia are provably running pre-fix code. Their complaints are the
+exact bugs already closed, still live in front of them.
+- **JIMMY = the "What failed" dead end** (fixed on the branch, commit `33615220e`). **Proven, not
+  guessed:** every one of his reports today carries a rich `root_cause` and an **EMPTY
+  `failed_component`** — **5 of his 13 reports in two days carry that signature, the highest of
+  anyone.** One of them is `ae7a08a8`, literally a job where NOTHING failed ("No failures on this
+  machine, it was working on every single cycle"), so he has nothing to type in the box the gate
+  demands. He writes the report, taps the button, `saveTdr()` refuses, prints the refusal **below
+  the Save button** and scrolls him UP — on a phone the message is never on screen. The button
+  just reads dead. **"It's not saving."** Yesterday it saved because yesterday the parts failed.
+- **SOFIA = the mirror reverting her edit** (fixed on the branch, `fd028aea4`). Already proven
+  with a live sentinel: her value survived 3½ minutes and the mirror put the old one back.
+- **⚠️ THE LESSON, said plainly: a fix that is not merged is not a fix.** Five reliability
+  commits sat one merge away while the crew lost confidence in the tool. **Merging is the single
+  highest-value action available right now** — it is worth more than anything else built today.
+
+### ✍️ JOHN'S IS GENUINELY NEW — and "worked earlier" was the whole clue
+Not a dead button. **`platform/tech.html`'s `openSignPad` still carried the 1×1-canvas defect
+`tech-job.html` had fixed on 2026-09-14 — plus a second one that page had already guarded.**
+- **(1) It floored a zero measurement** (`Math.max(1, rect*dpr)`), baking a 1×1 bitmap that
+  silently swallows every stroke. **A floor that hides a bad measurement is worse than the crash
+  it prevents** — third time this exact footgun has shipped. Now it **refuses** a zero rect,
+  retries on the next frame, and sizes on the **first finger-down**, so it can never be stuck blank.
+- **(2) 🔴 THE WORSE ONE — the keyboard was erasing the signature.** `sizePad` was wired straight
+  to `resize` and re-committed the same dimensions every time, and **assigning `canvas.width`
+  CLEARS the canvas.** The customer's name field sits directly above the pad, so opening or
+  dismissing the phone keyboard fired resize and **wiped a signature they had already drawn.**
+  That is exactly why it "worked earlier" — it is a layout race, so it comes and goes. It now
+  re-commits **only when the size actually changed**, so a real rotation still resizes and a
+  keyboard never wipes anything.
+- **Measured first:** every waiver that went through the pad (`waiver_ack.signed_with =
+  'tech_device'`) carries its drawn image — **the save path was never the problem.** The pad was
+  losing the signature before it ever got to save.
+- **`tests/tech-sign-pad.test.js` 10/10** — `sizePad`/`ensureSized` are **lifted out of the
+  shipped page and EXECUTED** against a fake canvas that **clears on a width write**, which is the
+  one behaviour that matters. Mutation-proven **5 ways**: restoring the floor fails 6,
+  re-committing on every resize fails 2, dropping the retry fails 1, unwiring the first-touch
+  sizing fails 1, dead-guarding that call fails 1. Suite **160/160**.
+- 🐞 **Two harness bugs of mine, both caught by the tests failing honestly:** the code-lift ended
+  before the `requestAnimationFrame` retry line (re-anchored on the pre-existing `resize` wiring,
+  so REMOVING the retry now fails a test instead of breaking the lift and reading as a crash), and
+  my exported accessor `sized` **collided with the lifted block's own `sized` variable** and
+  overwrote it. **Never name a test accessor after a variable inside the code you lifted.**
+
+### ✅ RULED OUT BY MEASUREMENT (recorded so nobody re-chases them)
+- **Not a global write failure** — 14 TDR writes landed today, 11 complete; every tech wrote.
+- **Not the office reading the wrong place** — `hasReport()` reads the mirror's `job.tdr_*` while
+  techs write the `job_tdr` TABLE, which looked like the answer to *"fix where it saves so they
+  can see"*. **Measured: 747 reports, 742 visible, 5 invisible — and those 5 are test/empty rows.**
+  Real gap, wrong scale. Not the cause.
+- **Not a phantom `AntSave`** — checked that `main` doesn't call the durable outbox without
+  shipping `ant-save.js`; it references neither. `main` is internally consistent.
+- **Not the sign LINK** — 6 of 8 texted links converted in 10 days. ⏭️ It still drops the customer
+  at the TOP of a 4-step intake page with the release at step 4; the portal already deep-links
+  `#step4` and the tech's text does not. Worth one line, but it is friction, not John's bug.
+- **⚠️ A latent one worth knowing:** the mirror's new booked-ahead guard reverts a completion whose
+  booked day is AFTER the day it was completed — correct for return trips (all 20 live matches are
+  old return trips, which is the intended behaviour) but it would also undo a job a tech finishes
+  EARLY. Nothing has hit it. Left alone rather than widened on a guess.
+
+### ⏭️ OPEN
+- **🔴 MERGE THE BRANCH.** Six commits. Until it lands: Andre keeps hitting the dead end, Jimmy
+  keeps writing reports the button refuses, Sofia's phone edits keep reverting in 3½ minutes, a
+  held spot still forgets its window, and the signature still wipes on the keyboard.
+- **Techs must fully close + reopen the app once** after the merge.
+- Optional follow-on: point the texted waiver link at `#step4` so the customer lands ON the release.
+
 ## 💾🐜 2026-09-16 (Wed, PM) — "THE MOST RELIABLE SYSTEM": ANDRE'S DEAD-END FOUND (51 JOBS STRANDED) · A DURABLE OUTBOX SO BAD SIGNAL CAN'T EAT A WRITE · SOFIA'S EDITS PROVEN REVERTED BY THE MIRROR IN 3½ MIN · A HELD SPOT NOW SAYS WHEN AND WHAT TIME — READ FIRST
 
 Teddy set the mandate: *"A lot of these guys are traveling. They've got poor signal… Sometimes it
