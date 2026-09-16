@@ -58,19 +58,84 @@ function shape(j) {
 // jobs table is faster and carries more (model, serial, street, claim), so it passes a short
 // wait and lets the slow feed go rather than spending its whole run on it. (2026-09-10)
 const KANBAN_TIMEOUT_MS = Number(process.env.BOARD_MIRROR_KANBAN_TIMEOUT_MS || 70000);
-async function fetchKanban(timeoutMs) {
+async function fetchKanban(timeoutMs, daysBack) {
   const ms = Number(timeoutMs) > 0 ? Number(timeoutMs) : KANBAN_TIMEOUT_MS;
-  const r = await fetch(`${XANO}/get_office_kanban`, { signal: AbortSignal.timeout(ms) });
+  const qs = (daysBack === undefined || daysBack === null) ? '' : `?days_back=${Number(daysBack)}`;
+  const r = await fetch(`${XANO}/get_office_kanban${qs}`, { signal: AbortSignal.timeout(ms) });
   if (!r.ok) throw new Error('xano_' + r.status);
   const d = await r.json();
   return Array.isArray(d.items) ? d.items : [];
+}
+
+// THE 800-ROW CEILING, AND WHY ONE QUERY CANNOT CLEAR IT.
+//
+// get_office_kanban returns `page 1, per_page 800` sorted `created_at desc` - so it is
+// the 800 NEWEST-CREATED jobs, not "the board". That was fine at 300-500 jobs. It is not
+// fine now: measured 2026-09-16 the feed came back with EXACTLY 800 rows, of which 364
+// were COMPLETED jobs inside the 60-day invoice window. Finished work was eating 45% of
+// the board's capacity, and 309 jobs that are eligible for the board - 195 scheduled,
+// 72 awaiting parts, 36 in progress, 293 of them booked with a day AND a tech - fell off
+// the bottom. Nothing was deleted; the office simply could not see them. That is what
+// "the jobs I scheduled disappeared" actually was.
+//
+// Raising per_page is the obvious move and it is the wrong one: it is a Xano-side change
+// (manual push) on this workspace's heaviest, most saturation-prone query, and it grows
+// the payload for every reader forever.
+//
+// Instead take TWO cheap passes and merge:
+//   days_back=0  -> the completed window collapses to "completed since right now", so
+//                   effectively NO completed jobs qualify and all 800 slots go to open
+//                   work. Measured: 745 open jobs, comfortably under the cap, complete.
+//   days_back=60 -> the normal mixed feed, which is what carries the finished jobs each
+//                   tech's Invoice column needs.
+// Union by id = every open job plus the invoice window, with room to spare.
+//
+// Run them SEQUENTIALLY, never in parallel. This endpoint measured 3-4s alone and 8-15s
+// at six concurrent readers; firing two heavy queries at once is how we saturate Xano and
+// make WRITES time out. The caller here is a cron with minutes to spend.
+//
+// Returns { items, complete }. `complete` is false when either pass failed, and the
+// caller MUST NOT prune on an incomplete read - a failed half looks exactly like "those
+// jobs are gone" and would delete good rows out of the mirror.
+async function fetchKanbanFull(timeoutMs) {
+  let open = null, windowed = null;
+  try { open = await fetchKanban(timeoutMs, 0); } catch (_) {}
+  try { windowed = await fetchKanban(timeoutMs); } catch (_) {}
+
+  const complete = Array.isArray(open) && Array.isArray(windowed);
+  const byId = new Map();
+  // windowed first, then open overwrites - open is the pass that matters for live work.
+  for (const src of [windowed, open]) {
+    if (!Array.isArray(src)) continue;
+    for (const j of src) {
+      const id = Number(j && j.id);
+      if (Number.isFinite(id)) byId.set(id, j);
+    }
+  }
+  return { items: Array.from(byId.values()), complete };
+}
+
+// Read EVERY id out of board_mirror, not the first page. PostgREST caps a response at
+// 1000 rows server-side no matter what `limit` asks for, and the mirror now holds more
+// than that - so a single read silently returns a truncated set. Truncation here only
+// ever under-prunes (the safe direction), but it leaves finished jobs lingering on the
+// board, so page it properly.
+async function allMirrorIds() {
+  const out = [];
+  for (let offset = 0; offset < 20000; offset += 1000) {
+    const page = await sb.select('board_mirror', { select: 'id', limit: '1000', offset: String(offset) });
+    if (!Array.isArray(page) || !page.length) break;
+    for (const r of page) out.push(r.id);
+    if (page.length < 1000) break;
+  }
+  return out;
 }
 
 // Pull the heavy Xano query once, upsert every job into board_mirror, prune the
 // jobs that fell off the feed. Returns { ok, synced, pruned, ms }.
 async function syncBoardMirror() {
   const t0 = Date.now();
-  const items = await fetchKanban();
+  const { items, complete } = await fetchKanbanFull();
   if (!items.length) return { ok: false, error: 'empty_feed', ms: Date.now() - t0 };
 
   // Stamp every row with this run's timestamp so max(synced_at) is a TRUE heartbeat
@@ -83,9 +148,13 @@ async function syncBoardMirror() {
 
   await sb.upsert('board_mirror', rows, { onConflict: 'id' });
 
+  // Only prune when BOTH passes came back. On a half-read the missing half is not
+  // "jobs that went away", it is a query that failed - pruning on it would delete real
+  // work out of the mirror. Upserting what we did get is always safe; deleting is not.
   let pruned = 0;
   try {
-    const existing = await sb.select('board_mirror', { select: 'id', limit: '2000' });
+    if (!complete) throw new Error('incomplete_feed_skip_prune');
+    const existing = (await allMirrorIds()).map((id) => ({ id }));
     const live = new Set(ids);
     const stale = existing.map((x) => x.id).filter((id) => !live.has(id));
     for (let i = 0; i < stale.length; i += 200) {
@@ -95,7 +164,7 @@ async function syncBoardMirror() {
     }
   } catch (_) { /* prune best-effort */ }
 
-  return { ok: true, synced: rows.length, pruned, ms: Date.now() - t0 };
+  return { ok: true, synced: rows.length, pruned, complete, ms: Date.now() - t0 };
 }
 
-module.exports = { syncBoardMirror, fetchKanban, shape, COLS };
+module.exports = { syncBoardMirror, fetchKanban, fetchKanbanFull, allMirrorIds, shape, COLS };

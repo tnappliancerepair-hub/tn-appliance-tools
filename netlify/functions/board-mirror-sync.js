@@ -7,7 +7,7 @@
 //   ?secret=<...>&dry=1                   -> pull only, report would_sync count (no write)
 'use strict';
 
-const { syncBoardMirror, fetchKanban } = require('./_lib/board-mirror');
+const { syncBoardMirror, fetchKanbanFull } = require('./_lib/board-mirror');
 const { getSecret } = require('./_lib/secrets');
 
 const ADMIN_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -20,8 +20,8 @@ exports.handler = async function (event) {
   }
   try {
     if (q.dry === '1') {
-      const items = await fetchKanban();
-      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, dry: true, would_sync: items.length }) };
+      const { items, complete } = await fetchKanbanFull();
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, dry: true, would_sync: items.length, complete }) };
     }
     const out = await syncBoardMirror();
     return { statusCode: out.ok ? 200 : 502, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) };
