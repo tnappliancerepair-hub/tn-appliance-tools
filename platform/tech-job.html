@@ -47,6 +47,8 @@
   .links a{font-size:13px;font-weight:700;color:var(--brand);text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:8px 12px}
   button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:10px 13px;font-weight:700}
   button.primary{background:var(--pop);color:var(--pop-ink);border-color:transparent;box-shadow:var(--pop-glow)}
+  /* Keeps-it-open save: amber, so the finish button never LOOKS like a finish when it isn't. */
+  button.primary.staysopen{background:linear-gradient(135deg,#f5a623,#d98613);color:#231a02;box-shadow:0 8px 26px rgba(245,166,35,.45)}
   button.otw{background:#7c5cff;color:#fff;border-color:transparent}
   button.review{background:#f59e0b;color:#231a02;border-color:transparent}
   button.reopen{background:#fdecea;color:#b0201a;border-color:#f4c9c4}
@@ -879,24 +881,32 @@
         var was = b.classList.contains('sel');
         app.querySelectorAll('#psrow button[data-ps]').forEach(function(x){ x.classList.remove('sel'); });
         if (was) { partStatus = ''; } else { b.classList.add('sel'); partStatus = b.getAttribute('data-ps'); }
-        paintFlds();
+        paintFlds(); paintFinishBtn();
       };
     });
-    // Job status — big TN picker (single-select). Preselect from the saved TDR outcome.
-    outcomeSel = (tdr() && tdr().outcome) || 'fixed';
+    // Job status — big TN picker (single-select).
+    // A RETURN TRIP HAS TO BE ANSWERED FRESH. The saved outcome is the answer for the visit
+    // BEFORE this one, so pre-selecting "needs a return visit" makes the default action on
+    // THIS trip "do not close the job" -- the tech finishes the return, taps a button that
+    // says finish, and the job drops straight back into Awaiting parts. Measured on the live
+    // board 2026-09-16: of 19 open jobs whose report was re-written on a LATER day, 14 still
+    // carried return_needed. So the stale pick is cleared and he has to say how it ended.
+    var priorOutcome = (tdr() && tdr().outcome) || '';
+    outcomeSel = priorOutcome === 'return_needed' ? '' : (priorOutcome || 'fixed');
     app.querySelectorAll('#ostat .sbtn').forEach(function(b){
-      if (b.getAttribute('data-o') === outcomeSel) b.classList.add('sel');
+      if (outcomeSel && b.getAttribute('data-o') === outcomeSel) b.classList.add('sel');
       b.onclick = function(){
         app.querySelectorAll('#ostat .sbtn').forEach(function(x){ x.classList.remove('sel'); });
         b.classList.add('sel'); outcomeSel = b.getAttribute('data-o');
-        var sv = document.getElementById('saveTdr');
-        if (sv) sv.textContent = outcomeSel === 'reassign' ? 'Send back to the office' : 'Save report + finish';
+        var oc=document.getElementById('ostat'); var ocard=oc&&oc.closest?oc.closest('.fld'):null;
+        if(ocard) ocard.classList.remove('needs');
+        paintFlds(); paintFinishBtn();
       };
     });
     // Live green-fill feedback as the tech types — the same satisfying TN behavior.
     app.querySelectorAll('#reportCard .fld input:not([type=checkbox])').forEach(function(i){ i.addEventListener('input', paintFlds); });
     app.querySelectorAll('#reportCard input[data-ins]').forEach(function(i){ i.addEventListener('change', paintFlds); });
-    paintFlds();
+    paintFlds(); paintFinishBtn();
     wireFieldSaves();   // each report field gets its own Save + confirmation
     restoreUnsavedFlds(carried);   // put back anything the tech had typed but not saved
     document.getElementById('saveTdr').onclick = saveTdr;
@@ -2541,7 +2551,13 @@
         f.classList.toggle('filled', anyc); f.classList.toggle('empty', !anyc);
         return;
       }
-      if(f.hasAttribute('data-always')){ f.classList.add('filled'); f.classList.remove('empty'); }
+      if(f.hasAttribute('data-always')){
+        // The Job-status card is always SHOWN, but on a return trip we clear the stale
+        // pick -- and an unanswered picker must never read as a 100% report. This is why
+        // Jimmy's phone said "Report 100%" on a job that had not been answered this visit.
+        var okA = f.querySelector('#ostat') ? !!outcomeSel : true;
+        f.classList.toggle('filled', okA); f.classList.toggle('empty', !okA);
+      }
       else{
         var any=false;
         f.querySelectorAll('input:not([type=checkbox])').forEach(function(i){ if((i.value||'').trim()) any=true; });
@@ -2552,6 +2568,44 @@
     });
     // feed the floating "📋 Report N%" pill (ant-nav.js)
     if(total){ window.antProg={ icon:'📋', label:'Report', pct:Math.round(filled/total*100), href:'#reportCard' }; if(window.antProgUpdate) window.antProgUpdate(); }
+  }
+
+  // ── WHAT THE FINISH BUTTON ACTUALLY DOES ──────────────────────
+  // The status a save lands is decided by BOTH pickers, not just the outcome:
+  //   awaiting_parts  when outcome is return_needed OR the part is please_order/missing
+  //   completed       otherwise
+  // The button read "Save report + finish" for every one of those, so a tech could tap a
+  // button that promises a finish and get a job that stays open -- with nothing on screen
+  // saying so. Jimmy, 2026-09-16: "it's saving but not closing the job out."
+  // One function owns the sentence now and both pickers repaint it, so the button can
+  // never again claim to do something the save will not do.
+  function finishStatus(){
+    if(outcomeSel==='reassign') return 'reassign';
+    if(!outcomeSel) return 'unanswered';
+    return (outcomeSel==='return_needed'||partStatus==='please_order'||partStatus==='missing')
+      ? 'awaiting_parts' : 'completed';
+  }
+  function paintFinishBtn(){
+    var sv=document.getElementById('saveTdr'); if(!sv) return;
+    var s=finishStatus();
+    sv.textContent = s==='reassign'       ? 'Send back to the office'
+                   : s==='awaiting_parts' ? '💾 Save report — job stays OPEN for the part'
+                   : s==='unanswered'     ? 'Save report + finish'
+                   :                        '✅ Save report + finish the job';
+    sv.classList.toggle('staysopen', s==='awaiting_parts');
+  }
+  // Same treatment as needField, but the Job-status card is a button grid, not an input:
+  // paint it red, scroll him to it, and put the ask ON the card -- never a line under a
+  // button he has already scrolled past.
+  function needOutcome(){
+    var oc=document.getElementById('ostat'); if(!oc) return;
+    var card=oc.closest?oc.closest('.fld'):null;
+    if(card){
+      card.classList.add('needs');
+      var hint=card.querySelector('.fld-hint');
+      if(hint) hint.textContent='You were back out for the part — how did it end THIS time?';
+    }
+    try{ oc.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
   }
 
   // 📤 TECH -> OFFICE NOTE. Appends to job.office_notes, the one field the office
@@ -2621,12 +2675,16 @@
       if(!window.confirm('This sends the job back to the office to reassign — you\'ll be taken off it. Continue?')) return;
       btn.disabled=true; btn.textContent='Sending…';
       sb.from('job').update({status:'new', technician_id:null}).eq('id',jobId).then(function(r){
-        if(r.error){ btn.disabled=false; btn.textContent='Send back to the office'; err.textContent=r.error.message; return; }
+        if(r.error){ btn.disabled=false; paintFinishBtn(); err.textContent=r.error.message; return; }
         app.innerHTML='<div class="center"><div class="big">🔄</div><h2>Sent back to the office</h2><p>They\'ll reassign it. Thanks for the heads-up.</p><p style="margin-top:16px"><a href="/platform/tech.html">Back to My Jobs</a></p></div>';
       });
       return;
     }
 
+    // A return trip cleared the picker on purpose — he has to say how THIS visit ended
+    // before a single row is written. Nothing is saved and nothing is lost; his typing is
+    // untouched on screen and the button keeps its real label.
+    if(!outcomeSel){ needOutcome(); return; }
     var comp=v('tc');
     // ── THE FINISH GATE ───────────────────────────────────────────
     // "What failed" is what the warranty claim gets built on, so a completed job
@@ -2669,7 +2727,7 @@
           if(lh) row.root_cause=(row.root_cause?row.root_cause+' · ':'')+'Labor '+lh+'h';
           delete row.labor_hours; putTdr().then(done); return;
         }
-        btn.disabled=false; btn.textContent='Save report + finish';
+        btn.disabled=false; paintFinishBtn();
         err.textContent='That did NOT save. Your typing is still on screen — tap Save again, and tell the office before you leave.';
         return;
       }
@@ -2705,7 +2763,7 @@
                         key:'jobstatus:'+jobId, then:'job_finished', thenArg:{job:jobId, ns:ns} }).then(function(r2){
           if(r2.refused && /completed_at/i.test(r2.message||'')){ setStatus({status:ns}); return; }
           if(r2.refused){
-            btn.disabled=false; btn.textContent='Save report + finish';
+            btn.disabled=false; paintFinishBtn();
             err.textContent='Report saved, but the job status did NOT update. Tell the office before you leave.';
             return;
           }

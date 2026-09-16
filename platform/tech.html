@@ -49,6 +49,8 @@
   .shell{max-width:620px;margin:0 auto;padding:14px 14px 48px}
   button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:9px 12px;font-weight:700}
   button.primary{background:var(--pop);color:var(--pop-ink);border-color:transparent;box-shadow:var(--pop-glow)}
+  button.primary.staysopen{background:linear-gradient(135deg,#f5a623,#d98613);color:#231a02;box-shadow:0 8px 26px rgba(245,166,35,.45)}
+  .tdr .reask{background:rgba(245,166,35,.12);border-left:3px solid #f5a623;padding:7px 10px;border-radius:8px;font-size:13px;font-weight:700;margin-bottom:5px}
   button:disabled{opacity:.5;cursor:default}
   .daylabel{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:6px 2px 12px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin-bottom:13px;box-shadow:var(--shadow)}
@@ -425,13 +427,41 @@
 
   // Save the completion report (TDR) — the brain-food. Upsert one per job, then move the
   // job's status by the outcome (fixed -> completed, needs a part -> awaiting parts).
+  //
+  // The button used to read "Save report + finish" no matter which of those it was about
+  // to do, so a tech could tap finish and watch the job stay open with nothing saying why
+  // (Jimmy, 2026-09-16: "it's saving but not closing the job out"). These three own the
+  // sentence now, and the radios repaint it on every tap.
+  function outcomeOf(id){
+    var rs=document.getElementsByName('o'+id), o='';
+    for(var i=0;i<rs.length;i++){ if(rs[i].checked) o=rs[i].value; }
+    return o;
+  }
+  function finishLabel(id){
+    var o=outcomeOf(id);
+    return o==='return_needed' ? '\uD83D\uDCBE Save report \u2014 job stays OPEN for the part'
+         : o                   ? '\u2705 Save report + finish the job'
+         :                       'Save report + finish';
+  }
+  function paintFinishBtn(id){
+    var b=document.querySelector('button[data-savetdr="'+id+'"]'); if(!b) return;
+    b.textContent=finishLabel(id);
+    b.classList.toggle('staysopen', outcomeOf(id)==='return_needed');
+  }
   function saveTdr(id, btn){
     var job = jobsCache.filter(function(x){return String(x.id)===String(id);})[0];
     if(!job){ saveMsg(id, "This job didn't load right — tap Refresh, then save again.", 'err'); return; }
     var v = function(pre){ var e=document.getElementById(pre+id); return e?e.value.trim():''; };
     var comp = v('tc');
-    var outcome = 'fixed'; var rs = document.getElementsByName('o'+id);
-    for (var i=0;i<rs.length;i++){ if(rs[i].checked) outcome = rs[i].value; }
+    // Deliberately NOT defaulting to 'fixed'. A return trip starts with nothing selected,
+    // and a silent 'fixed' default there would COMPLETE a job that still needs another part.
+    var outcome = outcomeOf(id);
+    if(!outcome){
+      var oc=document.querySelector('#tdr_'+id+' .outc');
+      if(oc){ try{ oc.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){} }
+      saveMsg(id, 'How did it end this time? Pick one, then tap Save.', 'err');
+      return;
+    }
     // ── THE FINISH GATE ──────────────────────────────────────────
     // Same dead end as the job page, and worse here: this one refused EVERY outcome,
     // so a tech coming back for a part could not save either. Now it only asks on a
@@ -462,7 +492,7 @@
     saveMsg(id, 'Saving…', 'info');
     AntSave.write({ sb:sb, table:'job_tdr', op:'upsert', onConflict:'job_id', row:row, key:'tdr:'+id }).then(function(r){
       if (r.refused){
-        if(btn){btn.disabled=false;btn.textContent='Save report + finish';}
+        if(btn){btn.disabled=false;btn.textContent=finishLabel(id);btn.classList.toggle('staysopen',outcome==='return_needed');}
         saveMsg(id, "That didn't save — " + (r.message || 'tap Save again') + ". Your report is held on this phone — tell the office before you leave.", 'err');
         return;
       }
@@ -473,7 +503,7 @@
         var qu = { status: qs }; if (qs==='completed') qu.completed_at = new Date().toISOString();
         AntSave.write({ sb:sb, table:'job', op:'update', match:{id:id}, row:qu, key:'jobstatus:'+id });
         clearDraft(id);
-        if(btn){btn.disabled=false;btn.textContent='Save report + finish';}
+        if(btn){btn.disabled=false;btn.textContent=finishLabel(id);btn.classList.toggle('staysopen',outcome==='return_needed');}
         saveMsg(id, '\uD83D\uDCE1 Saved on your phone — it sends itself the moment you have signal.', 'info');
         pageMsg('\uD83D\uDCE1 No signal here — your report and the finish are held on this phone and send themselves. Nothing is lost; you can keep going.', 'info');
         return;
@@ -982,6 +1012,11 @@
     var pst = tdr ? (tdr.part_status||'') : '';
     function pso(v,l){ return '<option value="'+v+'"'+(pst===v?' selected':'')+'>'+l+'</option>'; }
     var findQ = esc((tdr&&tdr.model)||model||(tdr&&tdr.part_number)||'');
+    var reAsk = !!(tdr && tdr.outcome==='return_needed');
+    var initOut = reAsk ? '' : ((tdr&&tdr.outcome) || 'fixed');
+    var initLbl = initOut==='return_needed' ? '\uD83D\uDCBE Save report \u2014 job stays OPEN for the part'
+                : initOut                   ? '\u2705 Save report + finish the job'
+                :                             'Save report + finish';
     var tdrPanel = '<div class="tdr" id="tdr_'+j.id+'">' +
       '<div class="two"><input id="tb'+j.id+'" placeholder="Brand" value="'+esc(tdr?tdr.brand||brand:brand)+'"><input id="tm'+j.id+'" placeholder="Model #" value="'+esc(tdr?tdr.model||model:model)+'"></div>' +
       '<input id="tc'+j.id+'" placeholder="What failed (e.g. heating element)" value="'+esc(tdr?tdr.failed_component||'':'')+'">' +
@@ -996,8 +1031,14 @@
       '<textarea id="tno'+j.id+'" placeholder="Notes for the report \u2014 goes on the claim">'+esc(tdr?tdr.notes||'':'')+'</textarea>' +
       '<button type="button" class="needpart" data-officenote="'+j.id+'">📤 Send this note to the office now</button>' +
       '<div class="outc">' +
-        '<label><input type="radio" name="o'+j.id+'" value="fixed"'+(!tdr||tdr.outcome==='fixed'?' checked':'')+'> Fixed today</label>' +
-        '<label><input type="radio" name="o'+j.id+'" value="return_needed"'+(tdr&&tdr.outcome==='return_needed'?' checked':'')+'> Needs a return / part</label>' +
+        // A RETURN TRIP IS ANSWERED FRESH. The saved outcome belongs to the visit BEFORE
+        // this one -- re-checking "needs a return / part" makes the default action on this
+        // trip "do not close the job", so the tech finishes the return, taps a button that
+        // says finish, and the job lands right back in Awaiting parts. Same fix as the job
+        // page; see tech-job.html for the measurement.
+        (reAsk?'<div class="reask">\u21A9\uFE0F You were back out for the part \u2014 how did it end THIS time?</div>':'') +
+        '<label><input type="radio" name="o'+j.id+'" value="fixed"'+((!reAsk&&(!tdr||tdr.outcome==='fixed'))?' checked':'')+'> Fixed today</label>' +
+        '<label><input type="radio" name="o'+j.id+'" value="return_needed"> Needs a return / part</label>' +
         '<label><input type="radio" name="o'+j.id+'" value="not_fixable"'+(tdr&&tdr.outcome==='not_fixable'?' checked':'')+'> Not fixable</label>' +
       '</div>' +
       (tdr ? '<label class="cameback"><input type="checkbox" id="tcb'+j.id+'"'+(tdr.held===false?' checked':'')+'> This came back — the last fix didn\'t hold</label>' : '') +
@@ -1005,7 +1046,7 @@
         '<input id="fp'+j.id+'" placeholder="Model # or part #" value="'+findQ+'">' +
         '<div class="fg">' + supplierBtnsHtml(j.id) + '</div></div>' +
       '<button type="button" class="needpart" data-needpart="'+j.id+'">🔧 Office — I need this part</button>' +
-      '<button class="primary" data-savetdr="'+j.id+'">Save report + finish</button></div>';
+      '<button class="primary'+(initOut==='return_needed'?' staysopen':'')+'" data-savetdr="'+j.id+'">'+initLbl+'</button></div>';
     var tdrDone = tdr ? '<div class="tdrdone">📋 Report: <b>'+esc(tdr.failed_component||'')+'</b>'+(tdr.part_status==='none'?' · ✅ no parts needed':(tdr.part_number?' · '+esc(tdr.part_number):''))+' · '+esc(tdr.outcome)+(tdr.held===false?' · came back':'')+'</div>' : '';
     // completed job → a tappable "You earned" chip (filled once pay data loads); tap = confetti.
     var earnSlot = (myTech && j.status==='completed') ? '<div class="earnslot" id="earn_'+j.id+'"></div>' : '';
@@ -1426,6 +1467,10 @@
     b.querySelectorAll('button[data-review]').forEach(function(el){ el.onclick=function(){ sendReview(el.getAttribute('data-review'), el); }; });
     b.querySelectorAll('button[data-tdr]').forEach(function(el){ el.onclick=function(){ var p=document.getElementById('tdr_'+el.getAttribute('data-tdr')); if(p) p.classList.toggle('open'); }; });
     b.querySelectorAll('button[data-savetdr]').forEach(function(el){ el.onclick=function(){ saveTdr(el.getAttribute('data-savetdr'), el); }; });
+    // Every outcome tap repaints the finish button, so it always names what the save will do.
+    b.querySelectorAll('.tdr .outc input[type=radio]').forEach(function(r){
+      r.addEventListener('change', function(){ paintFinishBtn(String(r.name).slice(1)); });
+    });
     b.querySelectorAll('button[data-find]').forEach(function(el){ el.onclick=function(){ findPart(el.getAttribute('data-find-id'), el.getAttribute('data-find')); }; });
     b.querySelectorAll('button[data-supcfg]').forEach(function(el){ el.onclick=function(){ AntSuppliers.chooser(companySettings, function(){ refreshSuppliers(el.getAttribute('data-supcfg')); }); }; });
     b.querySelectorAll('button[data-needpart]').forEach(function(el){ el.onclick=function(){ officeNeedPart(el.getAttribute('data-needpart')); }; });
