@@ -1,5 +1,91 @@
 # Appliance Ant
 
+## 🧾🗓️ 2026-09-16 (Wed) — DANIELLE: "I swore Andre had stops for Friday" — NOTHING WAS LOST, AND THE REASON NOBODY COULD PROVE IT IS NOW FIXED · SCHEDULING RECEIPTS ON EVERY SURFACE · PHONE-NUMBER INVENTORY — READ FIRST
+
+Three asks in one thread. All shipped; the third one is the durable fix.
+
+### 🥇 THE JOBS WERE NEVER LOST — and "was it ever there?" now has an answer
+Danielle: *"I swore andre had stops for Friday scheduled but they're not there."* Teddy relayed she
+was afraid the jobs **disappeared**. Measured before answering: **0 missing, 0 canceled**, 3,537 TN
+jobs on the board, Andre holding 14 stops. **Both boards agree Friday was never populated** — his
+Thursday is thin and Friday is empty because **19 LA-South jobs are sitting unscheduled**, not
+because anything vanished.
+- ⚠️ **But I could not PROVE it from the record, and that is the real finding.** A scheduling
+  receipt system already existed (`schedule-receipt.js` + `schedule_receipt` events) and was wired
+  into **exactly ONE of seven scheduling surfaces** (`new-scheduling.html`). Every save made from
+  office-board, needs-scheduled, office-do-next, office-ready, the calendar, the dashboard or a
+  tech's grab left **no trace that it happened**. So "did I schedule that?" was unanswerable
+  everywhere except one screen.
+- ⚠️ **`job.updated_at` cannot date a scheduling change** — the platform mirror stamps it on every
+  active job every 5 minutes. It looks like evidence and is noise.
+
+### ✅ THE FIX — the receipt moved INTO the shared save module, so every surface got it at once
+`ant-schedule.js` is the one module all the office surfaces route their saves through (it exists
+because five slightly-different save paths had drifted). Putting the receipt there covers them all
+and **cannot drift** — a new surface that uses the module is covered the day it ships.
+- **A FAILED save writes a receipt too, and that path is deliberately NOT opt-out-able.** `receipt:
+  false` suppresses only the success write. **"I tried to book this and it refused" is the single
+  most valuable row in the table** — it is the one that answers Danielle's question — so no caller
+  can turn it off.
+- **Day is computed `en-CA` in `America/Chicago`.** A 7pm CT booking formatted off UTC reads as the
+  NEXT day — the documented off-by-one that made Ann state the wrong scheduled day on 2026-07-22.
+- `reassign()` writes **`day: ''`** on purpose: it changes WHO, not WHEN, and stamping a day there
+  would invent a booking that never happened.
+- **The 3 bypass pages get a receipt-only call, NOT a conversion to `AntSchedule.schedule()`**
+  (office-calendar drag + reschedule, office-dashboard, grab). Rerouting their saves would change
+  which side effects fire — including a customer text — so the receipt rides alongside the existing
+  write instead of replacing it. **Pinned by a test** that fails if someone "tidies" them later.
+
+### 🔴 IT WOULD HAVE BEEN DEAD ON ARRIVAL ON THE PAGES DANIELLE ACTUALLY USES
+`netlify.toml` sets `no-cache` on **`/*.html` only**. `ant-schedule.js` is a **`.js`** file, so the
+browser keeps whatever copy it holds. Five office pages loaded it as **`?v=20260720-packet`** (a
+July string) and four more with **no query param at all** — every one would have gone on serving
+the pre-receipt copy. The save would work, the receipt would silently never fire, and the screens
+that raised the question would still have no answer. All 10 pages now request
+**`?v=20260916-receipt`**. ⚠️ **STANDING: a shared `.js` module is NOT covered by the html
+no-cache rule — bump its `?v=` in the same commit that changes its behavior, or the change is
+invisible to the people already using the app.**
+
+### 🧪 PROVEN
+**`tests/schedule-receipt.test.js` 12/12** — loads the **real shipped `ant-schedule.js`** into a
+`vm` sandbox with a stubbed fetch, so the test cannot drift from what the office runs.
+Mutation-proven **seven ways**: dropping the success receipt fails 2, dropping the failure receipt
+fails 1, letting `receipt:false` suppress a failure fails 1, stamping a day on `reassign` fails 1,
+formatting the day in UTC fails 1, removing a bypass page's call fails 1, converting a bypass page
+to `AntSchedule.schedule()` fails 1.
+- 🐞 **A mutation SURVIVED the first cut and that is what hardened the test.** The coverage check
+  matched the string `AntSchedule.receipt(` — which happily matched a **dead-guarded** call
+  (`&& false && AntSchedule.receipt(...)`). **Presence is not reachability.** It now strips
+  comments and rejects a falsy short-circuit in front of the call.
+- 🐞 **`tail -1` read as empty** because the runner ends on a blank line — grep for the count, don't
+  tail it, or a green run looks like a crash.
+
+### 🔑 DANIELLE'S LOGIN — not a password change, a stale saved password
+She could sign in on her phone but not her other device. **Nothing was rotated.** The office gate is
+**one shared password, no username** (`antlives`), and `office-auth.js` writes a **permanent**
+`tn_office_auth='1'` localStorage flag that **never expires and never re-verifies** — so a device
+that authed once stays in forever, and a device whose browser autofilled an older value fails
+against a gate that looks broken. Her phone was the already-flagged device.
+- ⚠️ **I nearly reported the password "was changed today at 11:48 AM."** The vault row's
+  `updated_at` read 2026-09-16 16:48 — and **all 206 rows carry that same stamp**, because it is my
+  own `vault-migrate` bulk copy. **A timestamp shared by every row in the table is not evidence
+  about any one of them.**
+- ⏭️ **OPEN (offered, not built): rotating the office password does NOT lock anyone out today.**
+  The permanent flag means a rotation only affects devices that have never signed in. Fixing it =
+  `authOk()` re-verifies on load, plus `cash-leads.html` stops storing the raw password.
+
+### 📞 PHONE-NUMBER INVENTORY — `docs/phone-number-inventory-2026-09-16.md`
+Teddy: *"we have 15 or 16 phone numbers and we really don't need that many… we've got too many
+possibilities happening right now."* Measured: **20 owned DIDs — 7 published, 7 operational, 6 dead
+weight.** Two live defects found: **225-605-1234 (Baton Rouge, published on 209 pages) is bound to
+a stray "Ant Verify Line" instead of Ann**, and **888-268-8998 — the MOST-published number — is not
+in the 10DLC campaign**, so any text from it is silently dropped by carriers.
+- ⚠️ **I over-reached and corrected it mid-doc.** The first draft said "scrub the 5 ghost numbers
+  out of the 9 live files." Checking what those references actually DO: only **2 are live dial
+  targets**; the rest are inert allowlists where removal risks a false new-lead alert.
+  **Bulk-scrubbing all five would be the 2026-07-22 normalize-1,353-pages mistake in a new
+  costume.** Releasing a DID is irreversible — every release stays Teddy's call.
+
 ## 📞🐜 2026-09-16 (Wed) — TEDDY: "get a plan going for the phone, but not switch the phones yet" — THE DUAL-FEED LINE IS STANDING, NOTHING PUBLISHED MOVED — READ FIRST
 
 Teddy: *"we probably need to get a plan going for the phone, but not switch the phones yet. But we
