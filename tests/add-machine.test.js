@@ -337,6 +337,30 @@ test('the tech page LOADS the claim fields, or the machine lands claimless', () 
   }
 });
 
+test('the dispatch-flag button is LIVE, not pointing at a form that no longer exists', () => {
+  // "＋ Add the dishwasher" used to fill an inline form on the page. That form is gone, so a
+  // button still reaching for #addMachineBox / #amLabel would silently do nothing -- the exact
+  // dead-button class this whole week has been spent removing.
+  const clean = stripComments(JOB);
+  for (const dead of ['addMachineBox', 'amLabel', 'amProblem']) {
+    assert.ok(!clean.includes(dead),
+      'tech-job.html still references #' + dead + ', which no longer exists');
+  }
+  const sfAdd = clean.slice(clean.indexOf("getElementById('sfAdd')"));
+  assert.ok(/addMachine\(\s*\{/.test(sfAdd.slice(0, 400)),
+    'the flag button must open the shared sheet');
+});
+
+test('a machine the dispatch already named is pre-filled, not retyped', () => {
+  const clean = stripComments(JOB);
+  const sfAdd = clean.slice(clean.indexOf("getElementById('sfAdd')"), clean.indexOf("getElementById('sfAdd')") + 400);
+  assert.ok(/label:\s*extra/.test(sfAdd), 'the machine the dispatch named must be filled in');
+  assert.ok(/problem:/.test(sfAdd), "what the dispatch said it is doing must be filled in too");
+  // and the sheet must actually honour it
+  assert.ok(/value="' \+ esc\(o\.label \|\| ''\) \+ '"/.test(MOD),
+    'the sheet must render the pre-filled machine name');
+});
+
 test('both surfaces read the stop through the shared siblings(), not a second query', () => {
   for (const [name, src] of [['tech-job.html', JOB], ['office-board.html', BOARD]]) {
     const clean = stripComments(src);

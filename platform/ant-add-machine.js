@@ -190,9 +190,9 @@
         '<h2>🧩 Add a machine to this stop</h2>' +
         '<div class="aam-hint">Same customer, same visit — but its own report, so the claim for this machine stands on its own.</div>' +
         '<label for="aamLabel">What machine is it?</label>' +
-        '<input id="aamLabel" placeholder="e.g. Kenmore dishwasher" autocomplete="off">' +
+        '<input id="aamLabel" placeholder="e.g. Kenmore dishwasher" autocomplete="off" value="' + esc(o.label || '') + '">' +
         '<label for="aamProb">What’s it doing? <span style="font-weight:400;color:var(--muted,#6b7280)">(optional)</span></label>' +
-        '<input id="aamProb" placeholder="e.g. won’t drain" autocomplete="off">' +
+        '<input id="aamProb" placeholder="e.g. won’t drain" autocomplete="off" value="' + esc(o.problem || '') + '">' +
         (claim
           ? '<div class="aam-claim"><input type="checkbox" id="aamClaim" checked>' +
             '<span><b>Put it on the same claim</b> — ' + esc(claim) + '.<br>' +
@@ -206,7 +206,9 @@
     var close = function () { try { d.body.removeChild(ov); } catch (_) {} };
     ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     ov.querySelector('#aamX').onclick = close;
-    setTimeout(function () { try { ov.querySelector('#aamLabel').focus(); } catch (_) {} }, 60);
+    setTimeout(function () {
+      try { ov.querySelector(o.label ? '#aamProb' : '#aamLabel').focus(); } catch (_) {}
+    }, 60);
 
     var go = ov.querySelector('#aamGo');
     go.onclick = function () {
