@@ -126,6 +126,14 @@ function buildShapes(obj) {
     ext_camel:   { type: 'status', externalId: String(obj.dispatch_id), data: obj },
     ext_pascal:  { type: 'status', ExternalID: String(obj.dispatch_id), data: obj },
     ext_in_data: { type: 'status', data: { ...obj, external_id: String(obj.dispatch_id) } },
+    // external_id INSIDE data (snake) clears BLE_0048 and lands on BLE_0049 "Message
+    // Missing". So the real schema is a flat event envelope — {type, data:{external_id,
+    // message, ...}} — not the {data:[{type,object}]} in their spec doc. `message` is
+    // the last unknown: payload object, JSON string of it, or plain text.
+    msg_obj:     { type: 'status', data: { external_id: String(obj.dispatch_id), message: obj } },
+    msg_str:     { type: 'status', data: { external_id: String(obj.dispatch_id), message: JSON.stringify(obj) } },
+    msg_text:    { type: 'status', data: { ...obj, external_id: String(obj.dispatch_id), message: obj.description } },
+    msg_obj_all: { type: 'status', data: { ...obj, external_id: String(obj.dispatch_id), message: obj } },
   };
 }
 
