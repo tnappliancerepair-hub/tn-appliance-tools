@@ -41,10 +41,13 @@ exports.handler = async function (event) {
         if (n && String(row.value || '')) { sbNames.add(n); bytes[n] = String(row.value).length; }
       }
     } catch (_) {}
-    const tid2 = await configTableId();
-    for (let page = 1; page <= 10; page++) {
+    // Resolve the Xano token LOCALLY. The scoreboard runs ahead of the migrate path's own
+    // `const xtok`, so borrowing that binding is a temporal-dead-zone throw, not a fallback.
+    const auditTok = process.env.XANO_METADATA_TOKEN || (await getSecret('XANO_METADATA_TOKEN'));
+    const tid2 = auditTok ? await configTableId() : 0;
+    for (let page = 1; auditTok && page <= 10; page++) {
       const r = await fetch(`${XANO_META}/table/${tid2}/content/search`, {
-        method: 'POST', headers: { Authorization: 'Bearer ' + xtok, 'Content-Type': 'application/json' },
+        method: 'POST', headers: { Authorization: 'Bearer ' + auditTok, 'Content-Type': 'application/json' },
         body: JSON.stringify({ search: {}, sort: { id: 'asc' }, per_page: 200, page }),
         signal: AbortSignal.timeout(20000),
       });
