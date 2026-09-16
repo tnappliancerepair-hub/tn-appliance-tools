@@ -51,13 +51,24 @@ AND the stop read all live here, so the office and the tech can never disagree a
   open **its own** drawer where ITS report is filed, and **the same ＋ Add machine button the tech has**.
   Office adds are stamped `source:'office_add_machine'` so the two are distinguishable in the record.
 
+### 🐞 AND IT EXPOSED A DEAD BUTTON — the watcher's own finding had nowhere to go
+The dispatch watcher already flags *"the dispatch mentions another machine"* and offers **"＋ Add the
+dishwasher."** That button filled the inline form — and moving the card to the shared sheet **deleted
+the form out from under it**, so the one button that acts on the watcher's finding reached for
+`#addMachineBox` / `#amLabel`, got null, and **silently did nothing.** Now it opens the shared sheet
+with **the machine name AND what the dispatch said it is doing already filled in**, focusing whichever
+field is still empty — the watcher already READ both, so the tech confirms instead of retyping. Pinned
+by a test that fails if any reference to the deleted form ever returns.
+
 ### 🧪 PROVEN
-**`tests/add-machine.test.js` 25/25** — the module is **lifted out of the shipped file and EXECUTED**
+**`tests/add-machine.test.js` 27/27** — the module is **lifted out of the shipped file and EXECUTED**
 against a fake client. Mutation-proven **12 ways**: dropping the claim fails 3, inheriting the parent's
 status fails 2, calling a zero-row insert a save fails 1, skipping `hydrate` fails 1, **dead-guarding**
 that call fails 1, re-reading an answered field fails 2, copying blanks fails 1, losing the stop anchor
 fails 1, removing the office button fails 1, dropping the claim from the tech select fails 1, keeping a
-second stop query fails 1, shipping the shared `.js` with no `?v=` fails 1. Suite **224/224**.
+second stop query fails 1, shipping the shared `.js` with no `?v=` fails 1, pointing the flag button
+back at the deleted form fails 2, the sheet ignoring the pre-filled name fails 1 (**14 mutations**).
+Suite **226/226**.
 - 🐞 **MUT4 SURVIVED THE FIRST RUN.** Testing `hydrate()` proves the FUNCTION works and **nothing
   whatever** about `open()` still calling it — deleting that one line left the suite green. Rewritten to
   **open the REAL sheet and watch for the read**. Same class as the documented dead-guard trap, and the
