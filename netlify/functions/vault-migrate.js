@@ -33,14 +33,23 @@ exports.handler = async function (event) {
   //   ?secret=<admin>&probe=NAME   one name: which leg answers it, and how many bytes
   if (q.audit === '1' || q.probe) {
     const sbNames = new Set(); const xNames = new Set(); const bytes = {};
+    // Resolve the Supabase key LOCALLY -- same temporal-dead-zone trap as the Xano token.
+    const auditSbKey = process.env.PLATFORM_SUPABASE_SERVICE_KEY || (await getSecret('PLATFORM_SUPABASE_SERVICE_KEY'));
+    // A FAILED READ MUST NOT LOOK LIKE AN EMPTY VAULT. Swallowing this is what made the
+    // scoreboard report supabase:0 / xano_only:201 while Supabase actually held all 206 rows --
+    // a crash wearing the costume of a finding, pointing at a migration that was already done.
+    let sbReadError = null;
     try {
       const r = await fetch(`${SB_VAULT_URL}/rest/v1/app_config?select=name,value`,
-        { headers: { apikey: sbKey, Authorization: 'Bearer ' + sbKey }, signal: AbortSignal.timeout(15000) });
-      if (r.ok) for (const row of (await r.json()) || []) {
+        { headers: { apikey: auditSbKey, Authorization: 'Bearer ' + auditSbKey }, signal: AbortSignal.timeout(15000) });
+      if (!r.ok) sbReadError = 'supabase_http_' + r.status;
+      else for (const row of (await r.json()) || []) {
         const n = String(row.name || '').trim();
         if (n && String(row.value || '')) { sbNames.add(n); bytes[n] = String(row.value).length; }
       }
-    } catch (_) {}
+    } catch (e) { sbReadError = 'supabase_read_failed: ' + (e && e.message ? e.message : String(e)); }
+    if (sbReadError) return json(200, { ok: false, error: sbReadError,
+      note: 'Refusing to report leg counts on a failed Supabase read -- every migrated name would read xano_only and look like an open dependency.' });
     // Resolve the Xano token LOCALLY. The scoreboard runs ahead of the migrate path's own
     // `const xtok`, so borrowing that binding is a temporal-dead-zone throw, not a fallback.
     const auditTok = process.env.XANO_METADATA_TOKEN || (await getSecret('XANO_METADATA_TOKEN'));
