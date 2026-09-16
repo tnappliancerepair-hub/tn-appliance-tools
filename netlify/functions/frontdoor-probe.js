@@ -18,7 +18,10 @@
 // not provisioned for a ProConnect contractor — which is a BD-rep conversation, not a
 // code fix. If everything 404s, the URL shape is wrong (routing-id).
 //
-//   GET ?secret=<admin>[&routing=<routing-id>][&dispatch=<id>]
+//   GET ?secret=<admin>[&routing=<routing-id>][&dispatch=<id>][&base=prod]
+//   GET ?secret=<admin>&shape=all   -> payload-shape matrix (see buildShapes below).
+//                                      Use this once auth+routing are through and the
+//                                      only thing failing is the body.
 'use strict';
 
 const { getSecret, getSecretFresh } = require('./_lib/secrets');
@@ -71,6 +74,29 @@ async function probe(base, token, method, path, body) {
 }
 
 // What each status tells us. This is the whole point of the probe.
+// ── Payload-shape variants ───────────────────────────────────────────────────
+// 2026-09-16: Frontdoor fixed the sandbox instance and the dispatch-connector now
+// REACHES their business logic — it answers 500 CONNECTOR_BLE_0007 "Failed to unmarshal
+// struct to JSON string" instead of the old empty 404. So auth + routing are DONE and
+// the only thing left is the body. Rather than burn a partner round-trip per guess, this
+// sends the same status update in every plausible shape in ONE call and reports each
+// status + their error code side by side.
+//
+//   spec   — exactly what their 2026-06-24 spec documents (what we ship today)
+//   items  — spec + the `items` array their own example includes (we omit it; it may be required)
+//   strobj — `object` as a JSON-ENCODED STRING. Their error says "unmarshal struct to JSON
+//            string", which is literally what a struct-where-a-string-was-expected looks like.
+//   bare   — the object at the top level, no data[] envelope
+function buildShapes(obj) {
+  const withItems = { ...obj, items: [{ id: 0, legacy_item_id: 0, description: '' }] };
+  return {
+    spec:   { data: [{ type: 'status', object: obj }] },
+    items:  { data: [{ type: 'status', object: withItems }] },
+    strobj: { data: [{ type: 'status', object: JSON.stringify(obj) }] },
+    bare:   obj,
+  };
+}
+
 function verdict(s) {
   if (s === 200 || s === 201 || s === 202) return 'LIVE';
   if (s === 400 || s === 422) return 'REACHABLE — auth accepted, body rejected (this is a PASS)';
@@ -105,12 +131,44 @@ exports.handler = async function (event) {
   const claims = decodeClaims(token);
 
   const nowIso = new Date().toISOString();
-  const connectorBody = { data: [{ type: 'status', object: {
+  const statusObject = {
     source: 'TN_APPLIANCE_EXCHANGE', tenant: 'AHS', dispatch_id: dispatchId, vendor_id: vendorId,
     description: 'Technician in Route to Location', status_code: 70,
     note: 'Ant probe — ignore', updated_at: nowIso, start_time: nowIso, end_time: nowIso,
-  } }] };
+  };
+  const connectorBody = { data: [{ type: 'status', object: statusObject }] };
   const lifecycleBody = { dispatchNumber: dispatchId, status: 'JobComplete' };
+
+  // ?shape=spec|items|strobj|bare|all — send the SAME status update in each payload shape
+  // against the one path that matters, and report their status + error code for each. One
+  // call answers "which body do you actually accept?" without another partner round-trip.
+  if (q.shape) {
+    const shapes = buildShapes(statusObject);
+    const want = String(q.shape).toLowerCase() === 'all'
+      ? Object.keys(shapes)
+      : String(q.shape).toLowerCase().split(',').map((x) => x.trim()).filter((x) => shapes[x]);
+    if (!want.length) return json(400, { ok: false, error: 'shape must be one or more of: ' + Object.keys(shapes).join('|') + ' (or all)' });
+
+    const tried = [];
+    for (const name of want) {
+      const r = await probe(base, token, 'POST', '/dispatch-connector/v1/webhook', shapes[name]);
+      r.shape = name;
+      r.verdict = verdict(r.status);
+      // Their error code is the useful signal — a DIFFERENT code means the shape changed
+      // how far the request got, which is progress even when it still fails.
+      try { r.their_code = (JSON.parse(r.body_snippet || '{}').error || {}).code || null; } catch (_) { r.their_code = null; }
+      tried.push(r);
+    }
+    const accepted = tried.filter((r) => [200, 201, 202].includes(r.status));
+    return json(200, {
+      ok: true, mode: 'shape-matrix', env, api_base: base, dispatch_id: dispatchId, vendor_id: vendorId,
+      results: tried,
+      accepted_shapes: accepted.map((r) => r.shape),
+      read: accepted.length
+        ? `ACCEPTED: ${accepted.map((r) => r.shape).join(', ')} — ship that shape.`
+        : 'No shape accepted yet. Compare their_code across rows: a different code per shape tells you which field they are choking on; the same code everywhere means it is not the envelope.',
+    });
+  }
 
   // Ordered cheapest-signal-first. The routing-id variants only run when we have one.
   const targets = [

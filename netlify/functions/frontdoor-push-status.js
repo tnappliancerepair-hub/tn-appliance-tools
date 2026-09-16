@@ -80,8 +80,13 @@ exports.handler = async function (event) {
 
   // LIVE: push into Frontdoor.
   try {
+    // `items` is optional in our shape today, but Frontdoor's own spec example carries it
+    // and their connector rejects our body with CONNECTOR_BLE_0007 (2026-09-16). Plumbed
+    // through so the fix is a caller-side flip, not another code change, the moment we
+    // learn whether they require it.
     const resp = await fd.dispatchStatusUpdate({
       dispatchId: dispatchNumber, statusCode, description, note, vendorId, tenant,
+      items: Array.isArray(b.items) && b.items.length ? b.items : undefined,
     });
     await logEvent('frontdoor_push_sent', { ...payloadPreview, at_ms: Date.now() });
     return j(200, { ok: true, mode: 'live', pushed: payloadPreview, response: resp });
