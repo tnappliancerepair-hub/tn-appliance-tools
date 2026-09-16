@@ -7,7 +7,7 @@
 //   ?secret=<...>&dry=1                   -> pull only, report would_sync count (no write)
 'use strict';
 
-const { syncBoardMirror, fetchKanbanFull } = require('./_lib/board-mirror');
+const { syncBoardMirror, fetchKanbanFull, probeRawJobs } = require('./_lib/board-mirror');
 const { getSecret } = require('./_lib/secrets');
 
 const ADMIN_FALLBACK = 'tn-vapi-admin-9f83b1c4e7a206d5';
@@ -19,6 +19,13 @@ exports.handler = async function (event) {
     return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: false, error: 'unauthorized' }) };
   }
   try {
+    // ?probe=1 -> does the RAW jobs table carry every column board_mirror needs?
+    // Answer this before sourcing the board off it; a missing column would drop data
+    // silently, which is the exact failure we are removing.
+    if (q.probe === '1') {
+      const out = await probeRawJobs();
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) };
+    }
     if (q.dry === '1') {
       const { items, complete } = await fetchKanbanFull();
       return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true, dry: true, would_sync: items.length, complete }) };

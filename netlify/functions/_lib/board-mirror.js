@@ -167,4 +167,37 @@ async function syncBoardMirror() {
   return { ok: true, synced: rows.length, pruned, complete, ms: Date.now() - t0 };
 }
 
-module.exports = { syncBoardMirror, fetchKanban, fetchKanbanFull, allMirrorIds, shape, COLS };
+
+// Read-only probe: pull ONE real row off Xano's raw jobs table and report which of the
+// COLS the board needs are actually present on it. Sourcing the mirror off the raw table
+// is how the 800 cap goes away for good, but only if the row carries the same fields the
+// computed feed does - a quietly missing column is the same disappearing-jobs bug wearing
+// a different hat.
+const META = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:meta/workspace/1';
+async function probeRawJobs() {
+  const { getSecret } = require('./secrets');
+  const token = (await getSecret('XANO_METADATA_TOKEN')) || process.env.XANO_METADATA_TOKEN;
+  if (!token) return { ok: false, error: 'no_metadata_token' };
+  const r = await fetch(`${META}/table/7/content/search`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ search: { scheduling_status: 'scheduled' }, sort: { id: 'desc' }, per_page: 1, page: 1 }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!r.ok) return { ok: false, error: 'meta_' + r.status };
+  const d = await r.json();
+  const row = (d.items || [])[0];
+  if (!row) return { ok: false, error: 'no_row' };
+  const keys = Object.keys(row);
+  const present = COLS.filter((c) => keys.includes(c));
+  const missing = COLS.filter((c) => !keys.includes(c));
+  // near-miss names for anything missing, so a rename is obvious rather than silent
+  const hints = {};
+  for (const m of missing) {
+    const stem = m.split('_')[0];
+    hints[m] = keys.filter((k) => k.includes(stem)).slice(0, 6);
+  }
+  return { ok: true, total_columns: keys.length, cols_needed: COLS.length, present: present.length, missing, hints };
+}
+
+module.exports = { syncBoardMirror, fetchKanban, fetchKanbanFull, allMirrorIds, probeRawJobs, shape, COLS };
