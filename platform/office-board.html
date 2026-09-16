@@ -1476,6 +1476,32 @@
   // once, shared across the office tile, the tech app, the cockpit, and the customer portal.
   // The open drawer's header + subtitle, repainted from what she just typed. Without this
   // the title is frozen at whatever the board card held when the drawer opened.
+  // ── THE OTHER HALF OF SOFIA'S FIX ─────────────────────────────────────────────
+  // A customer edit that only lands on the platform is temporary on a MIRRORED job:
+  // platform-tn-mirror rewrites first/last/phone/city/state/zip from Xano every 5 minutes,
+  // and keepTyped only blocks a BLANK incoming value - a different non-empty one still wins.
+  // So push the same edit into Xano through the proven office editor (update-customer-name:
+  // partial PUT on the customer row + the denormalized customer_phone on that customer's
+  // jobs + the job's service_* address). Then the mirror writes HER value back, not the old one.
+  // Native jobs (no xano_id) have nothing to sync - they were born here and the mirror
+  // never touches them.
+  function syncCustomerToXano(job, hasCust, cust, msg){
+    if(!hasCust || !job || !job.xano_id) return;   // nothing mirrored -> nothing to revert it
+    var body={ job_id:Number(job.xano_id), actor:'office' };
+    ['first_name','last_name','phone','address','city','state'].forEach(function(k){
+      if(cust[k]!==undefined) body[k]=cust[k]||'';
+    });
+    fetch('/.netlify/functions/update-customer-name',{
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if(d&&d.ok) return;
+      // Be honest: it saved HERE, but the old system still holds the old value, so the
+      // mirror will put it back. She needs to know now, not in five minutes.
+      if(msg) msg.textContent='Saved here \u2014 but the old system still has the old info, so it may come back. Tell Teddy.';
+    }).catch(function(){
+      if(msg) msg.textContent='Saved here \u2014 couldn\u2019t reach the old system, so it may come back. Tell Teddy.';
+    });
+  }
   function repaintDrawerHead(v){
     var h=document.getElementById('jcusthead');
     if(h){ var nm=[v.first,v.last].filter(Boolean).join(' ').trim(); h.textContent=nm||'Customer'; }
@@ -1511,18 +1537,32 @@
         var gv=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
         var btn=document.getElementById('d_save'), msg=document.getElementById('d_msg'); btn.disabled=true; btn.textContent='Saving…'; msg.textContent='';
         var attrs=Object.assign({},a,{brand:gv('d_brand')||null,model:gv('d_model')||null});
+        var cust={first_name:gv('d_first')||null,last_name:gv('d_last')||null,phone:gv('d_phone')||null,address:gv('d_addr')||null,city:gv('d_city')||null,state:gv('d_state')||null};
+        // Sofia 2026-09-16: "I'm not able to update phone numbers and it saves."
+        // Two separate reasons a save could read as fine and not be:
+        //   1) a blocked write returns ZERO rows and NO error, so `if(err)` is false and we
+        //      printed "Saved" over nothing. Every update below now proves a row came back.
+        //   2) the customer row is MIRRORED from Xano, and platform-tn-mirror rewrites
+        //      first/last/phone/city/state/zip every 5 minutes. keepTyped only protects a BLANK
+        //      Xano value - a DIFFERENT non-empty one still wins - so her corrected phone was
+        //      being put back within five minutes. Fix: push the same edit into Xano (the system
+        //      of record) so the mirror writes HER value back, not the old one.
         var ops=[];
-        if(j.customer_id) ops.push(sb.from('customer').update({first_name:gv('d_first')||null,last_name:gv('d_last')||null,phone:gv('d_phone')||null,address:gv('d_addr')||null,city:gv('d_city')||null,state:gv('d_state')||null}).eq('id',j.customer_id));
-        if(j.unit_id) ops.push(sb.from('unit').update({label:gv('d_appl')||null,attributes:attrs}).eq('id',j.unit_id));
+        var hasCust=!!j.customer_id;
+        if(hasCust) ops.push(sb.from('customer').update(cust).eq('id',j.customer_id).select('id'));
+        if(j.unit_id) ops.push(sb.from('unit').update({label:gv('d_appl')||null,attributes:attrs}).eq('id',j.unit_id).select('id'));
         ops.push(sb.from('job').update({
           problem:gv('d_prob')||null, availability:gv('d_avail')||null,
           warranty_company:gv('d_warco')||null, claim_number:gv('d_claim')||null, dispatch_id:gv('d_disp')||null
-        }).eq('id',job.id));
+        }).eq('id',job.id).select('id'));
         Promise.all(ops).then(function(rr){
           var err=rr.filter(function(x){return x&&x.error;})[0];
+          var blocked=rr.filter(function(x){return x&&!x.error&&x.data&&x.data.length===0;}).length;
           btn.disabled=false; btn.textContent='Save details';
           if(err){ msg.textContent=err.error.message; return; }
+          if(blocked){ msg.textContent='Did NOT save — the database refused it. Tell Teddy.'; return; }
           msg.textContent='Saved ✓ — everyone sees it';
+          syncCustomerToXano(job, hasCust, cust, msg);
           // Danielle 2026-09-15: "Still says customer even tho info has been added."
           // She was right. The drawer header is rendered ONCE from the board card's cached
           // customer/unit, and loadBoard() only refreshes the board BEHIND the open drawer —
@@ -1533,7 +1573,8 @@
             appliance:gv('d_appl'), problem:gv('d_prob')
           });
           loadBoard();
-          setTimeout(function(){ if(msg) msg.textContent=''; },2500);
+          // Don't wipe a warning the Xano sync just put up - only clear the plain 'Saved'.
+          setTimeout(function(){ if(msg && msg.textContent.indexOf('Saved \u2713')===0) msg.textContent=''; },2500);
         });
       };
     }).catch(function(){ if(box) box.innerHTML='<div style="font-size:12.5px;color:var(--muted)">Couldn\'t load details.</div>'; });
@@ -2740,7 +2781,9 @@
   // Board select tiers, hoisted so the deep-link single-row fetch reuses the SAME
   // shape the board renders from -- a second copy would drift and openJob() would
   // get a row missing fields it reads.
-  var SEL_BASE_MIN  = 'id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,technician_id,technician2_id,warranty_company,';
+  // xano_id rides in the LEAN tier too: the drawer is reachable from the fallback select, and
+  // a customer edit has to be pushed back to Xano or the 5-minute mirror puts the old value back.
+  var SEL_BASE_MIN  = 'id,xano_id,status,problem,source,scheduled_day,created_at,office_notes,customer_id,technician_id,technician2_id,warranty_company,';
   var SEL_BASE_RICH = SEL_BASE_MIN + 'board_stage,claim_number,dispatch_id,service_window,time_window,parts_status,parts_eta,tdr_diagnosis,tdr_failed_component,tdr_part_number,stop_id,availability,scheduled_start,checklist,customer_cutoff,';
   var SEL_TAIL_RICH = 'customer:customer_id(first_name,last_name,phone,city,state),unit:unit_id(label),technician:technician_id(name),helper:technician2_id(name)';
   var SEL_TAIL_MIN  = 'customer:customer_id(first_name,last_name,phone),unit:unit_id(label),technician:technician_id(name)';
