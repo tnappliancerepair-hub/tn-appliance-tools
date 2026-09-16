@@ -14,17 +14,81 @@ issues?"*
 
 ---
 
-## Everything in the draft, verified live 2026-09-16 (not from notes)
+## THE HEADLINE — we are through. Both directions work.
 
-| Claim in the draft | How it was measured | Result |
+**TN Appliance → Frontdoor returns `HTTP 200 {"errors":null}`.** Their sandbox fix cleared the wall,
+and the remaining blocker turned out to be that **their published spec documents a different request
+envelope than their connector accepts.** Fifteen days of correct-per-the-doc payloads were dying at
+unmarshal for that reason alone.
+
+### The ladder, one validator error at a time (all measured live, 2026-09-16)
+
+| Body we sent | Their answer |
+|---|---|
+| `{ data: [ { type, object } ] }` ← **their published spec** | `500 CONNECTOR_BLE_0007` Failed to unmarshal struct to JSON string |
+| `{ data: { type, object } }` (object, not array) | `400 CONNECTOR_BLE_0042` Type Missing in request |
+| `{ type, data: {…} }` (type hoisted to top level) | `400 CONNECTOR_BLE_0048` ExternalID Missing |
+| + `external_id` **inside** `data` | `400 CONNECTOR_BLE_0049` Message Missing |
+| + `message` as a **string** | `400 CONNECTOR_BLE_0050` Status Missing |
+| + `status` as a **string** | ✅ **`200 {"errors":null}`** |
+
+### The envelope their connector actually accepts
+
+```json
+{
+  "type": "status",
+  "data": {
+    "external_id": "22863999",
+    "message": "Jimmy is on the way",
+    "status": "Technician in Route to Location",
+    "status_code": "70",
+    "vendor_id": "822418",
+    "tenant": "AHS",
+    "source": "TN_APPLIANCE_EXCHANGE",
+    "updated_at": "2026-09-16T13:4x:xxZ"
+  }
+}
+```
+
+Load-bearing, each one measured rather than guessed:
+- `type` is **top level**. Nested inside `data` → `BLE_0042`.
+- `external_id` is **inside `data`**. At top level (snake, camel or Pascal) → `BLE_0048`.
+- `message` and `status` must be **non-empty strings**. An object or a bare number → `BLE_0007`.
+- Extra fields alongside that minimum are tolerated, so the note, numeric code and vendor id ride along.
+
+---
+
+## Verified live 2026-09-16 (not from notes)
+
+| Claim | How it was measured | Result |
 |---|---|---|
-| Their fix worked | `frontdoor-probe?secret=…` → `POST /dispatch-connector/v1/webhook` | **500 `CONNECTOR_BLE_0007`**, not the old empty 404 |
-| Same result through the real connector | `frontdoor-test?secret=…&push=1&dispatch=22863999` | identical error + `request_id b20301c5-…` |
-| Frontdoor → our webhook still flowing | `list_recent_event_log?action=frontdoor_webhook_event&days_back=4` | **70 events, 23 distinct dispatch ids**, latest 2026-09-15 5:52 PM CT |
-| Sandbox stream is not addressed to us | vendor_id distribution across those 70 | `1396202` ×15, `157992` ×14, `1636528` ×2 — **none of our three** |
-| Wrong geography for us | state distribution | VA ×27, TX ×2, TN ×2 |
+| Their sandbox fix worked | `frontdoor-probe?secret=…&shape=all` | past auth + routing, into their validator |
+| The accepted envelope | 24-row shape matrix against `/dispatch-connector/v1/webhook` | `ok_desc`, `ok_plus`, `ok_note`, `ok_vendor` all **200** |
+| Confirmed via the real connector, not the probe | `frontdoor-test?secret=…&push=1&dispatch=22863999` | `http_status 200`, `{"errors":null}` |
+| `status` must be a string | `st_obj` (object) and `st_code` (number) vs `st_desc` / `st_codestr` | objects/numbers **500**, strings **200** |
+| Frontdoor → our webhook still flowing | `list_recent_event_log?action=frontdoor_webhook_event&days_back=5` | **89 events, 32 distinct dispatch ids** |
+| Sandbox stream is not addressed to us | vendor_id distribution across those events | `1396202`, `157992`, `1636528` — **none of our three** |
+| Not a dispatch-specific failure | `shape=bare` against `999999999`, `22941139`, `22928169` | identical `BLE_0009` for all three |
 
 Our vendor ids are **822418** (North Shore LA), **822218** (South Shore LA), **839828** (Middle TN).
+
+---
+
+## Two questions left — both cheap for them to answer
+
+1. **Which value belongs in `status`?** Both the description string
+   (`"Technician in Route to Location"`) and the code as a string (`"70"`) return 200, so their
+   validator accepts either and we cannot tell from the outside which one their system actually
+   reads. We are sending the description. **If it should be the numeric code, say so and it is a
+   one-word change on our side.**
+2. **Will the production feed be scoped to our vendor ids?** Every dispatch id we tried — including
+   real ones from their own sandbox stream — failed dispatch lookup identically, and the sandbox
+   events carry vendor ids that are not ours, mostly Virginia addresses. That is consistent with a
+   shared sandbox rather than a problem, but we want it confirmed before go-live.
+
+**Honest caveat we should state rather than hide:** `200 {"errors":null}` means *accepted*. We have
+no read-back, so we cannot independently confirm the status actually landed on the dispatch. Worth
+asking them to eyeball one.
 
 ---
 
@@ -34,81 +98,83 @@ Our vendor ids are **822418** (North Shore LA), **822218** (South Shore LA), **8
 
 Hi Vaibhav,
 
-Thank you — that fixed it. I re-tested both directions this morning. Here is exactly where we stand.
+Thank you — that fixed it, and we are through on both directions. Here is exactly where we stand.
 
-**Frontdoor → our webhook: confirmed, we are receiving you.** Over the last four days our log shows
-70 events across 23 distinct dispatch ids, most recently 2026-09-15 at 5:52 PM Central. Nothing is
-being dropped on our side.
+**Frontdoor → TN Appliance: confirmed.** Over the last five days our log shows 89 events across 32
+distinct dispatch ids. Nothing is being dropped on our end.
 
-**TN Appliance Exchange → your dispatch-connector: your fix cleared the blocker we reported.** Until
-today, every path under `/dispatch-connector/` on the sandbox host returned an empty-bodied 404 with
-our token. As of this morning the endpoint is processing our request and returning a specific
-application error instead:
+**TN Appliance → Frontdoor: now returning `200 {"errors":null}`.** Once your sandbox fix landed I
+was able to work the request body down against your validator, and I think you will want to know
+what I found: **the envelope in the API doc is not the one the connector accepts.** Sending the
+documented `{"data": [{"type": "status", "object": {...}}]}` returns
+`CONNECTOR_BLE_0007 "Failed to unmarshal struct to JSON string"` every time. That single mismatch is
+what the last couple of weeks were stuck on.
 
-```
-POST https://api.sandbox.frontdoorhome.com/dispatch-connector/v1/webhook
-500  {"error":{"code":"CONNECTOR_BLE_0007","message":"Failed to unmarshal struct to JSON string"}}
-     request_id : b20301c5-bf7f-4936-9516-22452d65c3a2
-     timestamp  : 2026-09-16T13:25:48Z
-```
-
-So authentication and routing are both working now, and the only thing left is the request body.
-That is where I could use your help.
-
-This is the exact payload we send, built from the spec we were given:
+Working backwards from your error codes, the shape it accepts is:
 
 ```json
-{ "data": [ { "type": "status", "object": {
-  "source": "TN_APPLIANCE_EXCHANGE",
-  "tenant": "AHS",
-  "dispatch_id": 22863999,
-  "vendor_id": "822418",
-  "description": "Technician in Route to Location",
-  "status_code": 70,
-  "note": "Ant connectivity test - ignore",
-  "updated_at": "2026-09-16T13:25:48Z",
-  "start_time": "2026-09-16T13:25:48Z",
-  "end_time": "2026-09-16T13:25:48Z"
-} } ] }
+{
+  "type": "status",
+  "data": {
+    "external_id": "22863999",
+    "message": "Jimmy is on the way",
+    "status": "Technician in Route to Location",
+    "status_code": "70",
+    "vendor_id": "822418",
+    "tenant": "AHS",
+    "source": "TN_APPLIANCE_EXCHANGE"
+  }
+}
 ```
 
-Could you look up `request_id b20301c5-bf7f-4936-9516-22452d65c3a2` and tell me which field it is
-rejecting? Two guesses, in case either is a quick yes or no:
+The specifics, in case they are useful to whoever owns the connector:
 
-1. Should `object` be a nested JSON object as above, or a JSON-encoded string?
-2. Is the `items` array required? Your spec example includes it; we omit it when a job has no line
-   items.
+- `type` has to be at the top level — inside `data` it returns `BLE_0042 "Type Missing in request"`.
+- `external_id` has to be inside `data` — at the top level it returns `BLE_0048 "ExternalID Missing"`.
+- `message` and `status` have to be non-empty **strings** — as an object or a number they fail at
+  unmarshal.
 
-Either way I can re-test within minutes of hearing back.
+Two things I would like to confirm before we call this done:
 
-**One thing to sort out before production.** The sandbox updates we are receiving are not addressed
-to us — across those 70 events the vendor ids are 1396202, 1636528 and 157992, and 27 of the
-dispatches are in Virginia. None carry our vendor ids (822418, 822218, 839828), and none are in our
-service area of Middle Tennessee and Louisiana. That is harmless in sandbox and we are deliberately
-running our receiver in validate-only mode because of it, but I want to confirm before we cut over:
-in production, will the feed to our webhook be filtered to our vendor ids only?
+1. **Which value do you want in `status`?** Both `"Technician in Route to Location"` and `"70"`
+   return 200, so I cannot tell from the response which one your system actually reads. We are
+   currently sending the description. If it should be the numeric code, just say the word.
+2. **Can you eyeball one on your side?** I pushed status 70 to dispatch **22863999** this morning
+   and got `200 {"errors":null}`. Since we have no read-back, a quick confirmation that it landed
+   on the dispatch would let us treat this as verified rather than accepted.
 
-Once that is confirmed and the payload question is answered, we are ready to move to production and
-will send production webhook credentials.
+One last thing on the sandbox data: the events we are receiving carry vendor ids 1396202, 157992 and
+1636528 and are mostly Virginia addresses, rather than our three accounts (822418 North Shore LA,
+822218 South Shore LA, 839828 Middle TN). I assume that is just a shared sandbox stream — but I want
+to confirm the production feed will be filtered to our vendor ids before we turn on automatic job
+creation, so we do not create work orders that belong to another contractor.
 
-Thanks again for turning this around quickly.
+Appreciate you turning this around quickly.
 
-James Pivacek
+James "Teddy" Pivacek
 TN Appliance Exchange LLC
 
 ---
 
-## What changes on our side after this goes out
+## What changed on our side
 
-- **Do NOT set `FRONTDOOR_WEBHOOK_LIVE=1`.** Reinforced, with a better reason than before: the
-  sandbox stream is not just test data, it is **other partners' dispatches**. Going live on this feed
-  would create jobs for vendors that are not us, in states we do not serve.
-- The payload hypotheses are now testable in one shot: **`frontdoor-probe?secret=<admin>&shape=all`**
-  sends the same status update as `spec` / `items` / `strobj` (object as a JSON string) / `bare` (no
-  `data[]` envelope) and reports each status plus their error code side by side. Run it the moment
-  they answer — or before, if we want to beat them to it.
-- `frontdoor-push-status` now accepts an optional `items` array, so if the answer is "items is
-  required" it is a caller-side flip, not a code change.
-- **Hygiene:** `FRONTDOOR_WEBHOOK_TOKEN` is written out in full in `CLAUDE.md`, which is committed.
-  It only authorizes writes into our own dark receiver, so the blast radius is small, but it belongs
-  in the vault only. Worth rotating when we issue the production token anyway.
+- **`_lib/frontdoor.js`** now sends the accepted flat envelope. Vault `FRONTDOOR_LEGACY_SHAPE=1`
+  restores the documented `data[]` body as a one-line reversal if production turns out to differ —
+  we have never been able to test production (our sandbox token gets `401 "Jwt issuer is not
+  configured"` there).
+- **`tests/frontdoor-payload-shape.test.js`** pins the shape, capturing the real body by stubbing
+  fetch and calling the exported helper. Mutation-proven four ways: reverting to the documented
+  envelope fails 8, status-as-a-number fails 1, hoisting `external_id` fails 1, allowing an empty
+  message fails 1.
+- **`frontdoor-probe?secret=…&shape=all`** reproduces the whole 24-row ladder in one call.
+
+### Still do NOT set `FRONTDOOR_WEBHOOK_LIVE=1`
+
+Unchanged and reinforced. Flipping it would create jobs from a stream addressed to *other*
+contractors in states we do not serve. That waits on their answer to the vendor-scoping question.
+
+### Token hygiene
+
+`FRONTDOOR_WEBHOOK_TOKEN` is written out in full in `CLAUDE.md`, which is committed. It only
+authorizes writes into our own dark receiver, but it should be rotated when the production token
+is issued.
