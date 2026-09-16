@@ -1,5 +1,96 @@
 # Appliance Ant
 
+## 📦🚚 2026-09-16 (Wed) — JOHN: "Pick up at servicepower_api" — THE DAY LIST WAS SENDING TECHS TO A COUNTER FOR PARTS FEDEX ALREADY HAD — READ FIRST
+
+Teddy, with a screenshot of John's day list: *"This was confusing for John this morning. Service
+power job square trade is Sent directly to the customer."* **He was right, and the line was wrong
+twice over — 718 parts across 369 jobs.**
+
+### 🥇 THE FINDING — `source` answers WHO SUPPLIED IT, and it was being rendered as WHERE TO DRIVE
+`platform/tech.html partLabel` ended with `if (!ship && src) → 'Pick up at ' + src`. So a blank
+route plus ANY supplier produced a driving instruction. Two separate lies in that one line:
+1. **`servicepower_api` is a PROVENANCE MARKER, not a place.** `platform-sp-parts-sync` stamps it
+   on every row it writes — deliberately, so the API intake path stays measurable against the email
+   path (that is why the writer is NOT the thing to fix; the marker earns its keep). **Nobody can
+   drive to an API.**
+2. **Those parts are SHIPPED.** Measured on the live board: **410 of 447 `servicepower_api` rows
+   carry a real carrier AND a tracking number.** You do not get a FedEx number for a part sitting
+   on a counter.
+
+### 🔴 THE DEEPER ROOT CAUSE — the day list never ASKED for the shipment
+No amount of label logic could have saved it: `tech.html` selected
+`job_part(name,number,source,ship_to,eta,order_status,disposition,note…)` — **`ship_tracking` was
+not in the select at all.** The surface was structurally blind to the answer. **A tiered select is
+a fact about the SELECT, not about the row** — same class as the dispatch board that could not see
+`technician2_id` because it never fetched it.
+
+### 🔁 THIRD TIME THIS MONTH: TWO TECH SURFACES DISAGREED ON ONE ROW
+`tech-job.html shipLine` has read the shipment FIRST all along. Same part, same job, two answers:
+| surface | what it said |
+|---|---|
+| **job page** | `🚚 Sent · FedEx · servicepower_api` + a tappable tracking number |
+| **day list** | `📦 Pick up at servicepower_api: WATER VALVE` |
+Same shape as the finish button (9/16) and the completed status (9/16). **The day list keeps
+lagging the job page** — worth a standing sweep, not another one-off.
+
+### ✅ THE FIX — one catalog, every surface (`platform/ant-part-route.js`)
+Three shared rules, so the two surfaces can never drift again:
+- **`isShipped(p)`** — a tracking number is the one unambiguous answer and **OUTRANKS every route
+  guess below it**. Day list now reads it first, exactly like the job page.
+- **`isVendorSupplied(src)`** — the warranty company ships its own parts, so a blank route on one
+  of those is *"it's coming"*, **never** *"go get it"*. Nobody picks a part up at American Home Shield.
+- **`supplierName(src)`** — `servicepower_api` → **ServicePower**. Our own bookkeeping never reaches
+  a tech's eyes. Anything a human wrote comes back untouched (the standing "a value we did not mint
+  is still a value" rule).
+- **`ship_tracking,ship_carrier,ship_status,ship_delivered` added to the day-list select.**
+
+### 📊 MEASURED ON THE LIVE BOARD — 718 parts / 369 jobs were reading "Pick up"
+| | parts | now reads |
+|---|---|---|
+| really shipped (carrier + tracking) | **394** | 🚚 Sent · FedEx |
+| vendor-supplied, not moved yet | **248** | 📦 ServicePower is sending it |
+| **a real parts house — UNCHANGED** | **76** | 🏬 Pick up at Marcone |
+**John's exact stop, rendered through the shipped function:** all 4 of his diaphragm/valve parts
+flipped `📦 Pick up at servicepower_api` → `🚚 Sent · FedEx`; the 5th (`disposition:'return'`)
+correctly still reads **↩️ To return** — disposition outranks the shipment, untouched.
+
+### ⚠️ MARCONE'S WILL-CALL IS DELIBERATELY LEFT ALONE
+A real parts house genuinely has a counter, and the asymmetry decides it: **telling a tech "it's
+coming" when it is actually will-call means he shows up without the part — a failed visit.** Telling
+him "pick up" when it ships costs a wasted drive. So only the **vendor** case lost its pickup
+instruction; the 76 parts-house rows keep today's behavior.
+
+### 🧪 PROVEN
+**`tests/part-supplier-route.test.js` 57/57 (NEW) — 8 mutations, all killed.** `partLabel` (day
+list) AND `shipLine` (job page) are both **lifted out of the shipped pages and EXECUTED against the
+same row, then asserted to AGREE** — the disagreement IS the defect class, so the test pins the
+agreement, not the wording. Mutations killed: revert the shipped-first branch (fails 5) · restore
+`'Pick up at '+src` (fails 9) · drop `ship_tracking` from the select (fails 1) · make `supplierName`
+a passthrough so the marker leaks (fails 4) · **dead-guard the shipped check** (fails 5) ·
+`isVendorSupplied` always false (fails 14) · strip the `?v=` (fails 1) · remove the module from a
+page that calls it (fails 2). Suite **40/40 files, 0 failures**.
+- 🐞 **I ADDED A CALL TO A PAGE THAT DOES NOT LOAD THE MODULE.** `returns.html` renders `p.source`
+  in 3 places but **never loaded `ant-part-route.js`** — my first pass would have thrown on the
+  returns worklist. Caught by grepping the script tags before trusting the edit. Script tag added.
+- 🐞 **THE `?v=` WAS MISSING ON ALL THREE EXISTING TAGS, and here it is FATAL, not cosmetic.** The
+  documented rule says a stale shared `.js` makes a change *invisible*. Not this time: the PAGES
+  gained calls to new functions while the cached MODULE would still be the old copy → 
+  `supplierName is not a function` → **the day list crashes on every phone that already has the
+  file.** All four tags now carry `?v=20260916-supplier`.
+
+### ⏭️ OPEN — one question only Teddy can answer
+**I did NOT write "sent to the customer" anywhere, on purpose.** Teddy says SquareTrade ships direct
+to the homeowner, and he is almost certainly right — but **`partsFromNotes` parses part / desc / qty
+/ carrier / tracking / requires-return and NO destination field**, so the record does not carry it.
+Asserting a destination would swap one confident-wrong label for another. **If SquareTrade always
+ships to the customer's door, say so and it is a one-word change** (`Sent · FedEx` → `Sent to the
+customer · FedEx`). Until then the tracking number is the honest answer and it is one tap away on
+the job page.
+- **The day list still cannot show an ETA** — `eta` is null on all 447 rows because **FedEx Track is
+  403'ing** (documented, unresolved). The tracking number is there; the "when" is not.
+- **Standing: the day list keeps lagging the job page.** Third instance this month. Worth one sweep
+  comparing every shared rule across the two surfaces rather than waiting for a fourth field report.
+
 ## ✅🚫 2026-09-16 (Wed, night) — DANIELLE: "jobs are being marked completed and they're NOT" — TWO MECHANISMS, and the obvious signal was a TRAP · PLUS the Copy-all she couldn't find WAS ALREADY THERE — READ FIRST
 
 Teddy relayed two from Danielle: *"the new system is mistakenly marking jobs completed and they're

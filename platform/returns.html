@@ -95,6 +95,8 @@
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
 <script src="/platform/vendor/supa-guard.js"></script>
 <script src="/platform/vendor/boot-watchdog.js"></script>
+<!-- supplier names (servicepower_api -> ServicePower). returns.html renders p.source. -->
+<script src="/platform/ant-part-route.js?v=20260916-supplier"></script>
 <script>
 (function(){
   var cfg = window.ANT_SUPABASE || {};
@@ -263,7 +265,8 @@
     // a second pasted copy is how two of these quietly stop agreeing.
     var thumb = thumbHtml(p);
     var num = numHtml(p);
-    var src = p.source ? ' · ↩ '+esc(p.source) : '';
+    var srcNice = window.AntPartRoute.supplierName(p.source);
+    var src = srcNice ? ' · ↩ '+esc(srcNice) : '';
     return '<div class="prow">' + thumb +
       '<div class="pbody">' + num +
         '<div class="pname">'+esc(p.name||'Unused part')+(partQty(p)>1?' <b>×'+partQty(p)+'</b>':'')+src+'</div>' +
@@ -359,7 +362,7 @@
       '<div class="jobmeta">'+(who.join(' · ')||'—')+' · <b>job canceled</b></div>' +
       '<div class="prow">' + thumbHtml(p) +
         '<div class="pbody">' + numHtml(p) +
-          '<div class="pname">'+esc(p.name||'Part')+(partQty(p)>1?' <b>×'+partQty(p)+'</b>':'')+(p.source?' · from '+esc(p.source):'')+'</div>' +
+          '<div class="pname">'+esc(p.name||'Part')+(partQty(p)>1?' <b>×'+partQty(p)+'</b>':'')+(window.AntPartRoute.supplierName(p.source)?' · from '+esc(window.AntPartRoute.supplierName(p.source)):'')+'</div>' +
           '<span class="page'+(age>=14?' risk':'')+'">bought '+(age===0?'today':age+'d ago')+'</span>' +
           // A vendor-supplied part on a claim that died is almost always owed back -- say so,
           // but never write it. The office knows whether it ever physically arrived; we don't.
@@ -417,7 +420,7 @@
     if(p.cost_cents) bought += ' · $'+(Math.round(p.cost_cents)/100).toFixed(2);
     return '<div class="jobgrp"><div class="prow" style="border-top:none">' + thumbHtml(p) +
       '<div class="pbody">' + numHtml(p) +
-        '<div class="pname">'+esc(p.name||'Part')+(partQty(p)>1?' <b>×'+partQty(p)+'</b>':'')+(p.source?' · from '+esc(p.source):'')+'</div>' +
+        '<div class="pname">'+esc(p.name||'Part')+(partQty(p)>1?' <b>×'+partQty(p)+'</b>':'')+(window.AntPartRoute.supplierName(p.source)?' · from '+esc(window.AntPartRoute.supplierName(p.source)):'')+'</div>' +
         '<div class="pfrom">'+bought+'</div>' +
         '<div class="ask">' +
           '<button data-id="'+esc(p.id)+'" data-disp="return">↩️ Send it back instead</button>' +

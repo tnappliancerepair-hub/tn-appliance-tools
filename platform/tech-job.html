@@ -304,7 +304,7 @@
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-windows.js"></script>
   <script src="/platform/ant-maps.js"></script>
-<script src="/platform/ant-part-route.js"></script>
+<script src="/platform/ant-part-route.js?v=20260916-supplier"></script>
 <script src="/platform/ant-part-note.js"></script>
 <script src="/platform/ant-add-machine.js?v=20260916-machine"></script>
 <script src="/platform/ant-thread.js"></script>
@@ -1680,7 +1680,8 @@
   // will-call part sitting on Marcone's counter was invisible to the one person who had to go
   // get it. The route + the parts house now show on every part, and a will-call says so loudly.
   function shipLine(p){
-    var where = p.source ? String(p.source).trim() : '';
+    // supplierName, never the raw column: 'servicepower_api' is our own provenance marker
+    var where = window.AntPartRoute.supplierName(p.source);
     var when  = p.eta ? (' · '+esc(String(p.eta).slice(0,10))) : '';
     // We already have it (073). Outranks every route + tracking read below -- whatever the
     // vendor's paperwork still says about shipping it, it is sitting at the shop.
@@ -1762,7 +1763,7 @@
     }
     if(pick.length){
       // Name the counter, not just the count -- "pick up 1 part" sends nobody anywhere.
-      var houses={}; pick.forEach(function(p){ var w=(p.source||'').trim(); if(w) houses[w]=1; });
+      var houses={}; pick.forEach(function(p){ var w=window.AntPartRoute.supplierName(p.source); if(w) houses[w]=1; });
       var names=Object.keys(houses);
       head += '<div class="pship head go"><b>🏬 PICK UP '+pick.length+' part'+(pick.length>1?'s':'')+'</b>'+
               (names.length?(' at '+esc(names.join(' + '))):'')+' — nobody is shipping '+(pick.length>1?'them':'it')+'.</div>';

@@ -83,6 +83,42 @@
     return html;
   }
 
+  // ─── WHO SUPPLIED IT vs WHERE TO DRIVE ────────────────────────────────────
+  // John, 2026-09-16: his day list read "Pick up at servicepower_api: WATER VALVE".
+  //
+  // `job_part.source` answers WHO SUPPLIED IT. It was being rendered as WHERE TO DRIVE.
+  // Two separate lies in that one line:
+  //   1. `servicepower_api` is a PROVENANCE MARKER platform-sp-parts-sync stamps on every
+  //      row it writes -- kept on purpose so the API intake path stays measurable against
+  //      the email path. It is a system name. Nobody can drive to an API.
+  //   2. Those parts are SHIPPED. Measured on the live board: 410 of 447 servicepower_api
+  //      rows carry a real carrier AND a tracking number. You do not get a FedEx number for
+  //      a part waiting on a counter.
+
+  // Human words for a supplier. A marker we mint for our own bookkeeping must never reach a
+  // tech's eyes; anything a human wrote comes back untouched (same rule as label()).
+  var SUPPLIER_WORDS = { 'servicepower_api': 'ServicePower' };
+  function supplierName(v) {
+    var s = norm(v); if (!s) return '';
+    return SUPPLIER_WORDS[s.toLowerCase()] || s;
+  }
+
+  // Does the WARRANTY COMPANY supply this part? Then the vendor ships it and a blank route
+  // can never mean "go get it" -- a tech does not pick parts up at American Home Shield.
+  var VENDORS = /servicepower|square\s*trade|squaretrade|front\s*door|frontdoor|american home shield|\bahs\b|\bnsa\b|allstate/i;
+  function isVendorSupplied(v) {
+    var s = norm(v); if (!s) return false;
+    return /\(warranty\)/i.test(s) || VENDORS.test(s);
+  }
+
+  // Is it already on its way? A carrier tracking number is the one unambiguous answer, and
+  // it outranks every route guess below it. The job page has read it this way all along;
+  // the day list did not, which is how the two surfaces ended up saying opposite things
+  // about the same row.
+  function isShipped(p) {
+    return !!(p && String(p.ship_tracking == null ? '' : p.ship_tracking).trim());
+  }
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -93,6 +129,9 @@
     OPTIONS: OPTIONS,
     label: label,
     isPickup: isPickup,
+    supplierName: supplierName,
+    isVendorSupplied: isVendorSupplied,
+    isShipped: isShipped,
     selectHtml: selectHtml
   };
 })(typeof window !== 'undefined' ? window : globalThis);

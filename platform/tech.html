@@ -251,7 +251,7 @@
 <script src="/platform/ant-page.js"></script>
   <script src="/platform/ant-maps.js"></script>
 <script src="/platform/ant-windows.js"></script>
-<script src="/platform/ant-part-route.js"></script>
+<script src="/platform/ant-part-route.js?v=20260916-supplier"></script>
 <script src="/platform/ant-part-note.js"></script>
 <script src="/platform/ant-thread.js"></script>
 <script src="/platform/pay-calc.js"></script>
@@ -957,6 +957,8 @@
   function partLabel(p){
     var nm = p.name || p.number || 'part';
     var src = (p.source||'').trim();
+    // never show a tech our own provenance marker ('servicepower_api') as a place
+    var house = window.AntPartRoute.supplierName(src);
     var ship = (p.ship_to||'').trim();
     var low = ship.toLowerCase();
     var eta = fmtEta(p.eta);
@@ -968,18 +970,34 @@
     // already with him — never send him to a counter for a part in his own van
     if (low==='on the truck' || low==='in hand')
       return { cls:'done', ic:'✅', t:'Already with you: '+nm, eta:'' };
+    // A TRACKING NUMBER OUTRANKS EVERY ROUTE GUESS BELOW. John, 2026-09-16: this list told
+    // him "Pick up at servicepower_api" for a part FedEx was already carrying. The job page
+    // has read the shipment first all along; this one never read it at all -- it did not even
+    // SELECT ship_tracking, so it was structurally blind to the answer.
+    if (window.AntPartRoute.isShipped(p)) {
+      if (p.ship_delivered === true) return { cls:'done', ic:'✅', t:'Delivered: '+nm, eta:eta };
+      var car = (p.ship_carrier||'').trim();
+      var st  = (p.ship_status||'').trim();
+      return { cls:'wait', ic:'🚚', t:(st||'Sent')+(car?(' · '+car):'')+': '+nm, eta:eta };
+    }
     // not ordered yet
     if (p.order_status==='to_order' || (!p.order_status && !p.eta && !p.disposition && !ship))
       return { cls:'todo', ic:'🛒', t:nm+' — not ordered yet', eta:'' };
     if (/cust|home|site/.test(low))
       return { cls:'wait', ic:'🏠', t:'At the customer: '+nm, eta:eta };
     if (window.AntPartRoute.isPickup(ship))
-      return { cls:'wait', ic:'🏬', t:'PICK UP'+(src?' at '+src:'')+': '+nm, eta:eta };
+      return { cls:'wait', ic:'🏬', t:'PICK UP'+(house?' at '+house:'')+': '+nm, eta:eta };
     // heading to the shop, not to the customer and not to him — he grabs it there, later
     if (low==='to the shop')
       return { cls:'wait', ic:'🏢', t:'Coming to the shop: '+nm, eta:eta };
-    if (!ship && src)
-      return { cls:'wait', ic:'📦', t:'Pick up at '+src+': '+nm, eta:eta };
+    if (!ship && src) {
+      // `source` says WHO SUPPLIED IT, not where to drive. The warranty company ships its own
+      // parts, so a blank route on one of those is "it's coming", never "go get it" -- nobody
+      // picks a part up at American Home Shield.
+      if (window.AntPartRoute.isVendorSupplied(src))
+        return { cls:'wait', ic:'📦', t:house+' is sending it: '+nm, eta:eta };
+      return { cls:'wait', ic:'🏬', t:'Pick up at '+house+': '+nm, eta:eta };
+    }
     // a route we do not recognise is still a route — show his words, never swallow them
     if (ship) return { cls:'wait', ic:'📦', t:ship+': '+nm, eta:eta };
     return { cls:'wait', ic:'🚚', t:'On order: '+nm, eta:eta };
@@ -1751,7 +1769,7 @@
       'technician_id,technician2_id,technician:technician_id(name),helper:technician2_id(name),' +
       'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held),' +
-      'parts:job_part(name,number,source,ship_to,eta,order_status,disposition,note,note_by,note_role)'
+      'parts:job_part(name,number,source,ship_to,eta,order_status,disposition,ship_tracking,ship_carrier,ship_status,ship_delivered,note,note_by,note_role)'
     );
     if (viewDay) q = q.eq('scheduled_day', viewDay).neq('status','canceled');   // one day: show what's scheduled + already done
     else q = q.not('status','in','(completed,canceled)');                       // default: everything still open

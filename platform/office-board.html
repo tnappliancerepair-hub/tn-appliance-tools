@@ -344,7 +344,7 @@
 
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-windows.js"></script>
-<script src="/platform/ant-part-route.js"></script>
+<script src="/platform/ant-part-route.js?v=20260916-supplier"></script>
 <script src="/platform/ant-part-note.js"></script>
 <script src="/platform/ant-new-job.js"></script>
 <!-- ＋ Add machine — the sheet AND the write, shared byte-for-byte with the tech app. -->
@@ -1972,7 +1972,8 @@
     // A will-call part is not "waiting on a shipment" — it is sitting on a counter with the
     // tech's name on it. Saying "not shipped yet" about it is how a part gets left behind.
     if(!p.ship_tracking && routeIsPickup(p.ship_to)){
-      var where = p.source ? (' at '+esc(p.source)) : '';
+      var nice = window.AntPartRoute.supplierName(p.source);
+      var where = nice ? (' at '+esc(nice)) : '';
       return '<div class="tpship go">🏬 Will-call — pick up'+where+'</div>';
     }
     if(!p.ship_tracking) return '<div class="tpship none">Not shipped yet</div>';
