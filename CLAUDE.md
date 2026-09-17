@@ -1,5 +1,96 @@
 # Appliance Ant
 
+## 🕐🧭 2026-09-17 (Thu) — LEE: "MY SCHEDULE IS ALL OUT OF ORDER" — THE DAY WAS SORTED BY THE MAP, NOT THE CLOCK — READ FIRST
+
+Lee: *"my schedule is all out of order — rather than starting with the earlier jobs first and
+later jobs last."* He was right, and it was the same bug on TWO surfaces. Teddy: **"fix this for
+everyone."** Done, merged, live (`d18f92c91`).
+
+### 🥇 THE FINDING — `routeOrder()` is a fact about the MAP and says NOTHING about the CLOCK
+Both `platform/tech.html` (his day list) and `platform/dispatch.html` (the office board) ran a
+tech's day through a **nearest-neighbour sweep over the 5-digit ZIP**, seeded at the day's LOWEST
+zip. The arrival window never entered the sort. **Replayed on his REAL Wed 2026-09-17:**
+
+| | what Lee saw | what the office promised |
+|---|---|---|
+| 🧭 1 | **11-2** 37040 Blanca Antonio | 8-11 Jon Bartlett |
+| 🧭 2 | 11-2 37042 Karla Fuss | 8-11 Jason Brandt |
+| 🧭 3 | 11-2 37042 Lawrence White | 11-2 … |
+| 🧭 4 | **8-11** 37043 Jon Bartlett | |
+
+His **8-11 AM stop rendered FOURTH** and an 11-2 stop rendered FIRST — purely because 37040 was
+the numerically lowest ZIP on the day. **The legacy Xano dashboard was never wrong** (it sorts
+`scheduled_start` ascending); this was a regression introduced with the platform's route layer.
+
+### ✅ THE RULE — the window is a PROMISE, so it is the primary key; the route only breaks TIES
+`AntWindows.orderDay(jobs,{routeFn,hourOf})` in the **ONE shared catalog** (`ant-windows.js`), so
+the two surfaces can never drift apart again — which is exactly how they came to disagree.
+Group by start hour → run the groups earliest-first → let the route cluster **only INSIDE a
+window**. His 11-2 block still sweeps `37040 → 37042 → 37042` instead of zig-zagging, so the
+anti-cross-town win is kept where it is free.
+- **`startHourFor(job)` — best honest signal first:** ① **`time_window`** (the promise the office
+  picked and the customer heard) → ② **`scheduled_start`** read on the **CENTRAL** clock → ③
+  **`service_window`** (the vendor's words, ONLY when they name a real clock) → ④ **null =
+  genuinely unknown, sorts AFTER everything that has a time** (an untimed stop must never jump
+  ahead of a promised 8am).
+- **Measured on the 44 upcoming assigned jobs: ① and ② agree on 42.** On the 2 that disagree the
+  **customer heard the `time_window`**, so it wins. (`time_window` on 36/44; `scheduled_start` on
+  **44/44**, so the fallback is what actually carries the 8 windowless jobs.)
+- **⚠️ A stop is ONE stop at ONE time.** Several machines at one address take the **EARLIEST**
+  window of the group — never later than something a customer was already promised.
+
+### 🧾 THE VENDOR WINDOW IS FREE TEXT AND MOSTLY ISN'T A TIME AT ALL
+`service_window` holds `2-6pm` and `09/18/2026 8-10` **and** `48 hours/2 business days`. **Parsed
+all 60 distinct live values: 60/60 correct** — every SLA phrase + bare date refused, every real
+clock read right including the **`12-4pm` noon trap** and 24h (`13:00 - 15:00`).
+- **🔴 THE SLA GUARD IS LOAD-BEARING, and the mutation run is what proved it.** A turnaround
+  phrase can carry a number RANGE: without the guard **`"2-3 business days"` parses as 2 PM** and
+  silently drops that job into the afternoon (`1-2 days`→1pm, `3-5 business days`→3pm). None of
+  those shapes are on the board *today* — the guard is protecting against the next vendor string,
+  and the test now pins it.
+
+### 🔴 TWO TRAPS THIS WOULD HAVE HIT (both documented, both caught before shipping)
+1. **A tiered select is a fact about the SELECT.** Neither page selected `scheduled_start` or
+   `service_window` — tiers ② and ③ would have been **structurally dead** while looking wired.
+   Both added to both selects.
+2. **The shared `.js` had NO `?v=` on ANY of its six tags.** `netlify.toml` no-caches `/*.html`
+   ONLY, so a phone keeps its cached module: the new HTML calls `orderDay()` against an old cached
+   copy → **`orderDay is not a function` → the day list crashes on every phone that already has
+   the file.** Identical shape to the `supplierName` trap on 2026-09-16. All six now carry
+   `?v=20260917-dayorder`.
+
+### 🧪 PROVEN
+**`tests/day-time-order.test.js` 64/64 (NEW)** — the whole ordering cluster (`zip5`/`jZip`/
+`routeOrder`/`stopKey`/`stopHour`/`routeSequence`) is **lifted out of the shipped page and
+EXECUTED against Lee's REAL Wednesday**, not a hand-made fixture that could drift from the board.
+**Mutation-proven 10 ways:** revert tech.html to the ZIP sweep fails 8 · revert dispatch.html
+fails 2 · dead-guard the call crashes it · drop `scheduled_start` from the select fails 2 · let an
+SLA phrase through fails 4 · prefer `scheduled_start` over the promised window fails 2 · sort an
+untimed stop first fails 2 · read the stamp in UTC fails 4 · a multi-machine stop taking the
+LATEST window fails 2 · ship the module with no `?v=` fails 1. Suite **41/41 files, 0 failures**.
+- 🐞 **ONE MUTATION SURVIVED THE FIRST RUN** — removing the SLA guard changed nothing, because no
+  string on the board today needs it. **A surviving mutation is not a clean bill of health; it is
+  an uncovered case pointing at itself.** Chasing it found the `"2-3 business days"` → 2 PM hole
+  and the test now covers it.
+- **VERIFIED FOR THE WHOLE CREW, not just Lee:** every upcoming multi-stop tech-day replayed
+  through the shipped code — **10 days, all non-decreasing by hour, 0 still out of order.**
+  Andre's 9/21 reads `8 → 15`, where the 15 comes from the vendor-window fallback — tier ③ firing
+  on real data.
+- **Verified against the SERVED files after publish** (not the deploy API): live `tech.html` +
+  live `ant-windows.js?v=` re-lifted and re-run → Lee's Wednesday comes out 8-11, 8-11, 11-2,
+  11-2, 11-2, 2-5, 2-5.
+
+### ⚠️ STANDING: a day is ordered by the CLOCK; the map is only a tie-break
+Any surface that sequences a tech's stops sorts on the promised window FIRST. Route/ZIP/distance
+heuristics may only reorder stops that already share a window — a heuristic that can move a stop
+across a window is rewriting a promise the customer was given. And **the day-order rule lives in
+`ant-windows.js` alone** — a second copy is how the board and the day list disagreed to begin with.
+
+### ➕ ALSO (one word, in a select this change was already editing)
+`warranty_company` added to the dispatch select. The week-grid block hint has read it forever but
+it was never selected, so the 🛡 marker **could never fire** — the pre-existing gap this file has
+carried since 2026-09-15 as "one word to fix when someone is in there next."
+
 ## 🚀🕰️ 2026-09-17 (Thu) — MERGED TO MAIN (John + Danielle's fixes are LIVE) · TWO TESTS THAT FAILED ONLY BETWEEN 7PM AND MIDNIGHT · AHS + AMAZON API CHECK · `parts_status` IS NEVER UPDATED BY THE PARTS SYNC — READ FIRST
 
 ### ✅ THE MERGE IS DONE — `main` = `303a599a9`, Netlify published
