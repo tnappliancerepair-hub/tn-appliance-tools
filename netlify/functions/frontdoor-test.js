@@ -23,7 +23,12 @@ exports.handler = async function (event) {
   // found" is still a PASS — it means auth + endpoint + schema were accepted.
   // &note=<text> overrides the note body — use it to prove a realistic 900-char TDR survives.
   if (q.push === '1') {
-    const st = fd.STATUS[String(q.code || 'EN_ROUTE').toUpperCase()] || fd.STATUS.EN_ROUTE;
+    // No silent fallback. Defaulting an unknown key to EN_ROUTE once sent a Parts-Arrived
+    // note out under status 70 -- a wrong status that looks like a clean 200 is exactly the
+    // class of bug this whole integration has been paying for.
+    const key = String(q.code || 'EN_ROUTE').toUpperCase();
+    const st = fd.STATUS[key];
+    if (!st) return json(400, { ok: false, mode: 'push', error: 'unknown status key: ' + key, known: Object.keys(fd.STATUS).sort() });
     try {
       const r = await fd.dispatchStatusUpdate({
         dispatchId: q.dispatch || 999999, statusCode: st.code, description: st.description,

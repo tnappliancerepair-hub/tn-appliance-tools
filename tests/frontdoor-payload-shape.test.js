@@ -25,6 +25,8 @@
 'use strict';
 const assert = require('node:assert');
 const { test } = require('node:test');
+const fs = require('node:fs');
+const path = require('node:path');
 
 process.env.FRONTDOOR_CLIENT_ID = 'probe-client';
 process.env.FRONTDOOR_API_USERNAME = 'probe-user';
@@ -182,4 +184,60 @@ test('refuses to push with no vendor_id, and the error names the fix', async () 
 test('a supplied vendor_id still goes through untouched', async () => {
   const { body } = await capture({ ...ARGS, vendorId: '839828' });
   assert.equal(body.data[0].object.vendor_id, '839828', 'Middle TN vendor rides through');
+});
+
+// --- catalog integrity -------------------------------------------------------------
+// Added 2026-09-17 after expanding STATUS 13 -> 23 dropped PARTS_ARRIVED by accident, and
+// frontdoor-test's `|| STATUS.EN_ROUTE` fallback sent a Parts-Arrived note out under status
+// 70 with a clean 200. A wrong status that looks like a success is the exact failure mode
+// this whole integration has been paying for, so the catalog is pinned three ways.
+
+test('every status the tech app can send exists in the catalog', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'tech-job.html'), 'utf8');
+  const m = html.match(/const FD_STATUS_MAP\s*=\s*\{([^}]*)\}/);
+  assert.ok(m, 'FD_STATUS_MAP not found in tech-job.html');
+  const keys = [...m[1].matchAll(/:\s*'([A-Z_]+)'/g)].map((x) => x[1]);
+  assert.ok(keys.length >= 8, `expected the lifecycle map, got ${keys.length} entries`);
+  for (const k of keys) {
+    assert.ok(fd.STATUS[k], `tech-job.html maps to '${k}' but STATUS has no such key -- it would silently send the wrong status`);
+  }
+});
+
+test('no two statuses share a code, and outbound never collides with inbound', () => {
+  const codes = Object.values(fd.STATUS).map((v) => v.code);
+  assert.equal(codes.length, new Set(codes).size, 'duplicate status_code in STATUS');
+  for (const [k, v] of Object.entries(fd.STATUS)) {
+    assert.ok(!fd.INBOUND_STATUS[v.code],
+      `${k} (${v.code}) is in INBOUND_STATUS -- that is Frontdoor's decision to set, not ours to push`);
+  }
+});
+
+test("we never push a status that is the warranty company's decision", () => {
+  // Authorization outcomes + cash-out are theirs. Pushing one would be claiming a decision
+  // we do not make, which is how an integration loses its credentials.
+  for (const code of [350, 360, 370, 450, 470, 480, 500]) {
+    assert.ok(fd.INBOUND_STATUS[code], `${code} should be named as inbound-only`);
+    assert.ok(!Object.values(fd.STATUS).some((v) => v.code === code),
+      `${code} (${fd.INBOUND_STATUS[code]}) must not be in the outbound catalog`);
+  }
+});
+
+test('the catalog still contains every code we have told Frontdoor we send', () => {
+  // This is the one that would have caught the real mistake. Expanding STATUS 13 -> 23
+  // dropped PARTS_ARRIVED, and nothing noticed because PARTS_ARRIVED is not in the tech
+  // app's lifecycle map -- it fires from the office parts flow. Once a code is in an email
+  // to the partner it is a commitment, so the committed set is pinned here by number.
+  const CLAIMED = {
+    10: 'Job Complete', 20: 'In Progress', 30: 'Appointment Set', 40: 'Job Cancelled',
+    60: 'Unable to Contact Customer', 70: 'Technician in Route', 80: 'Technician May Be Delayed',
+    90: 'Technician Arrived', 100: 'In Progress w/ Parts on Order', 110: 'In Progress w/ Need to Replace',
+    120: 'Customer Missed Appointment', 140: 'Incomplete', 150: 'On Hold', 160: 'Parts/Equipment Status',
+    260: 'Dispatch Accepted', 270: 'Reschedule Appointment Set', 280: 'Left message for Customer',
+    290: 'Authorization Reported', 380: 'Parts Ordered', 400: 'Return Appointment Set',
+    410: 'Parts Arrived', 440: 'Job Invoiced', 460: '2nd Opinion Requested',
+  };
+  const have = new Set(Object.values(fd.STATUS).map((v) => v.code));
+  const missing = Object.keys(CLAIMED).map(Number).filter((c) => !have.has(c));
+  assert.deepEqual(missing, [],
+    'dropped from the catalog after being promised to Frontdoor: ' + missing.map((c) => `${c} ${CLAIMED[c]}`).join(', '));
 });
