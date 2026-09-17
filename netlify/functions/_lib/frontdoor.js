@@ -173,21 +173,61 @@ async function dispatchStatusUpdate({ dispatchId, statusCode, description, note,
   return Promise.race([call, deadline]);
 }
 
-// Status-code catalog (subset we use) — see spec doc for the full list.
+// Status-code catalog. Frontdoor's full vocabulary is 47 codes (see the spec doc); these
+// are the ones a CONTRACTOR reports. The rest are Frontdoor's own to set -- authorization
+// decisions (350/360/370/450/470/480), cash-out (500), CIL (320/330/340) and the
+// customer-side appointment/survey codes -- so we want to RECEIVE those on the webhook,
+// not push them. Sending a status that is the warranty company's decision to make is how
+// an integration gets its credentials pulled.
+//
+// `wired` marks the ones a lifecycle tap fires automatically today. The rest are in the
+// vocabulary and probe clean, but still need an office-side trigger -- do not claim a
+// status is automatic to a partner unless it says wired here.
 const STATUS = {
+  // --- wired: fire from the tech app lifecycle today
+  EN_ROUTE: { code: 70, description: 'Technician in Route to Location', wired: true },
+  ARRIVED: { code: 90, description: 'Technician Arrived at Location', wired: true },
+  IN_PROGRESS: { code: 20, description: 'In Progress', wired: true },
+  PARTS_ORDERED: { code: 380, description: 'Parts Ordered', wired: true },
+  PARTS_ON_ORDER: { code: 100, description: 'In Progress with Parts on Order', wired: true },
+  RETURN_SET: { code: 400, description: 'Return Appointment Set', wired: true },
+  ON_HOLD: { code: 150, description: 'On Hold', wired: true },
+  COMPLETE: { code: 10, description: 'Job Complete', wired: true },
+
+  // --- in the connector, awaiting an office-side trigger
   APPOINTMENT_SET: { code: 30, description: 'Appointment Set' },
-  EN_ROUTE: { code: 70, description: 'Technician in Route to Location' },
-  ARRIVED: { code: 90, description: 'Technician Arrived at Location' },
-  IN_PROGRESS: { code: 20, description: 'In Progress' },
-  PARTS_ON_ORDER: { code: 100, description: 'In Progress with Parts on Order' },
-  PARTS_ORDERED: { code: 380, description: 'Parts Ordered' },
-  PARTS_ARRIVED: { code: 410, description: 'Parts Arrived' },
-  RETURN_SET: { code: 400, description: 'Return Appointment Set' },
   AUTH_REPORTED: { code: 290, description: 'Authorization Reported' },
-  COMPLETE: { code: 10, description: 'Job Complete' },
   INVOICED: { code: 440, description: 'Job Invoiced' },
   CANCELLED: { code: 40, description: 'Job Cancelled' },
-  ON_HOLD: { code: 150, description: 'On Hold' },
+
+  // --- added 2026-09-17: every one maps to a signal this system ALREADY produces, so they
+  // are a wiring job, not a build. Descriptions are verbatim from Frontdoor's published
+  // list; we ask them to confirm each pair rather than assume our wording is theirs.
+  DISPATCH_ACCEPTED: { code: 260, description: 'Dispatch Accepted' },          // auto-accept
+  UNABLE_TO_CONTACT: { code: 60, description: 'Unable to Contact Customer' },  // intake no-reply
+  LEFT_MESSAGE: { code: 280, description: 'Left message for Customer' },       // voicemail / callback
+  DELAYED: { code: 80, description: 'Technician May Be Delayed' },             // tech-late watcher
+  CUSTOMER_MISSED: { code: 120, description: 'Customer Missed Appointment' },  // no-show check
+  RESCHEDULED: { code: 270, description: 'Reschedule Appointment Set' },       // reschedule_job
+  NEED_TO_REPLACE: { code: 110, description: 'In Progress w/ Need to Replace' }, // not_fixable TDR
+  PARTS_STATUS: { code: 160, description: 'Parts/Equipment Status' },          // parts ETA update
+  INCOMPLETE: { code: 140, description: 'Incomplete' },                        // visit ended unfinished
+  SECOND_OPINION: { code: 460, description: '2nd Opinion Requested' },
+};
+
+// Frontdoor's decisions, not ours. Listed so nobody wires a push for one by mistake, and
+// so the inbound webhook has a name for what it should be RECEIVING.
+const INBOUND_STATUS = {
+  350: 'Authorization Approved',
+  360: 'Authorization Denied',
+  370: 'Authorization Approved w/ Limitations',
+  450: 'Authorization Awaiting Contractor Input',
+  470: 'Draft Autho for Contractor Review',
+  480: 'Autho Review with Agent',
+  500: 'Cash out Approved',
+  320: 'CIL Offered', 330: 'CIL Accepted', 340: 'CIL Declined',
+  300: 'Appliance Options Offered', 310: 'Appliance Replaced',
+  130: 'Possible Denial', 50: 'Automated Dispatch Load Successful', 250: 'Dispatch Assigned',
 };
 
 // Case-Lifecycle status update — the SIMPLER contractor endpoint from the Getting
@@ -230,4 +270,4 @@ const PROD_BASE = 'https://api.frontdoorhome.com';
 // onboarded under a different contractor identity.
 const FD_SOURCE = 'TN_APPLIANCE_EXCHANGE';
 
-module.exports = { PROD_BASE, FD_SOURCE, isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, env, apiBase, VENDOR_AREAS, areaForVendor, vendorForArea };
+module.exports = { PROD_BASE, FD_SOURCE, isConfigured, getToken, api, dispatchStatusUpdate, caseLifecycleStatusUpdate, STATUS, INBOUND_STATUS, env, apiBase, VENDOR_AREAS, areaForVendor, vendorForArea };
