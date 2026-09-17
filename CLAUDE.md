@@ -1,5 +1,131 @@
 # Appliance Ant
 
+## 🔇🧾 2026-09-17 (Thu) — "SUPABASE HAS TO BEAT XANO": THE PLATFORM FAILS SILENTLY WHERE XANO FAILS LOUDLY — 79 WRITES + 11 READS CLOSED AT THE ROOT — READ FIRST
+
+Teddy: *"We need this new supabase to be an upgrade to the xano system. We need it to be more
+reliable and better than xano."* Measured it before building. **It was not, and the reason is one
+sentence: Xano fails LOUDLY, Supabase fails SILENTLY.** Both halves of that are now closed at the
+root rather than one call site at a time.
+
+### 🥇 THE FINDING — a refused Supabase write returns HTTP 204, EMPTY BODY, NO ERROR
+Proven live against production (anon PATCH on a real job row), not reasoned:
+```
+without .select()  ->  HTTP 204, EMPTY BODY, no error
+with    .select()  ->  HTTP 200, []
+```
+supabase-js hands the first one back as **`{data:null, error:null}`**. So the universal call-site
+shape — `if (r.error) { complain } else { "Saved ✓" }` — **prints SUCCESS over a write that was
+refused and changed nothing.** That is not a bug in one page; it is the DEFAULT BEHAVIOUR of every
+write on the platform. **Swept: 79 of 123 writes had no `.select()`.**
+- **It had already been paid for FIVE separate times** — Sofia's phone edits, the office notes, the
+  TDR outcome picker, the office TDR save, the part disposition. Each one found by a human noticing
+  their work vanish; each fixed one call site at a time. **This fixes the CLASS.**
+
+### ✅ THE WRITE GUARD — `platform/vendor/supa-guard.js` (every write, every page, no call-site change)
+Wraps `createClient` so every write builder (a) is **forced to return a representation** and (b)
+reports **zero-rows-back as a refusal**. Call sites that already check `r.error` start telling the
+truth; call sites that ignore the result are byte-for-byte unchanged.
+- **⚠️ THE VERDICT IS DELIBERATELY NARROW, because a false "that did NOT save" is its own bug** — it
+  teaches the office to ignore the warning, which is exactly how the real one gets missed. Zero rows
+  only means REFUSED when a successful write could not possibly have returned zero:
+  **insert/upsert** always (no filter; checked: 0 call sites use `ignoreDuplicates`) ·
+  **update ONLY when it targets ONE row by identity** (`id=eq.` in the query — 69 of 71 update sites,
+  and it reads the filters AFTER the chain is built, since `b.url` is only complete at then-time) ·
+  **delete NEVER** (a delete matching nothing is legitimate — "clear this job's tags" when it has
+  none — and is indistinguishable from a refusal). dispatch's `withdrawOtherOffers`
+  (`job_id + status=pending + id=neq`) legitimately matches zero rows on the NORMAL case and is exempt.
+- **SAFE TO APPLY UNIVERSALLY, verified two ways before shipping:** all 18 written tables grant
+  SELECT alongside their writes (so a forced `.select()` can never turn a working write into a false
+  refusal), and **ZERO** SELECT/ALL policies key on `status`/`deleted`/`archived`/`active` (so no row
+  can become invisible *as a result of* the update that just changed it).
+- **`supa-guard.js` was already on all 26 platform pages** (it was the white-screen net), loaded right
+  after the library and before `createClient` — which is exactly why it is the correct universal hook.
+
+### 🕳️ THE READ-SIDE TWIN — PostgREST caps at 1,000 rows SERVER SIDE and does NOT error
+Same shape, opposite direction: `.limit(3000)` reads like *"give me everything"* and is a 1,000-row
+wall. Converted the last **11 raw over-the-cap reads** to `AntPage.all` (dispatch 4, needs-scheduled
+1, owner 3, tech 3). **Zero raw `.limit(>=1000)` remain on any platform page.**
+- **Measured live so nobody has to guess the urgency — these are LATENT, not live:** coverage 203 ·
+  invoice 133 · schedule_offer 40 · tech_time_off 50 · tech_payout 0 · usage_event 0 · **job
+  max-per-tech 392** of 3,584. At the real volume (off `scheduled_day`, since the platform
+  `created_at` is the MIRROR'S INSERT STAMP — documented footgun): Jun 87 · Jul 78 · Aug 55 per tech
+  → **the busiest tech's own job read crosses 1,000 in roughly 7-11 months.** It would have crossed
+  silently.
+- **🔴 AND THE REGRESSION THAT CONVERSION INTRODUCES — the real reason this wasn't a one-line sweep.**
+  `AntPage.all` **RESOLVES** on a lost page (hands back what it got plus `{error, partial}` rather
+  than rejecting — deliberately, so a list still renders). On a **MONEY** surface that silence IS the
+  bug: the page's own `.catch()` stops firing and it draws a **confident WRONG take-home** off a
+  short read. `owner.html` + `tech.html` now **refuse to render a number they know is incomplete,
+  BEFORE touching a single row**, and say so in words ("showing nothing rather than a wrong total").
+- **⚠️ `ant-page.js` shipped 2026-09-10 on all five pages with NO `?v=`** — latent until the day the
+  pager itself changes, at which point every phone keeps the old copy and the money pages go back to
+  under-reading with nothing on screen to say so. All five now carry `?v=20260917-readguard`.
+
+### 🧪 PROVEN
+**`tests/write-guard.test.js` 149/149 (NEW)** — loads the **REAL vendored `supabase-js.js` and the
+REAL shipped `supa-guard.js`** into a `vm` with a fetch that behaves like PostgREST (204 without
+`Prefer: return=representation`, `[]` with it). Nothing of ours is mocked. **Mutation-proven 10
+ways:** remove the forced select (fails 10) · remove the verdict (7) · judge a delete (1) · judge
+every update (4) · swallow a real server error (2) · overwrite the caller's own `.select()` columns
+(1) · drop the idempotence guard (1) · strip a `?v=` (1) · remove the tag from a page (2) · move a
+page's guard tag ABOVE the library (1).
+**`tests/read-guard.test.js` 48/48 (NEW)** — `ant-page.js` had **NO test at all** since it shipped,
+while carrying the owner's take-home and every tech's pay. Loads the real pager and EXECUTES it
+against a fake PostgREST that hard-caps a page at 1,000 the way the real server does.
+**Mutation-proven 13 ways:** remove owner's refusal (4) · remove tech's (4) · dead-guard it (1) ·
+check only `r.error` and not `r.partial` (4) · move the refusal after the rows are used (1) / after
+render (1) / after the pay math (1) · revert one read to a raw `.limit(3000)` (1) · let a lost page
+read as end-of-table (3) · drop the stable ordering (1) · stop retrying a lost page (3) · strip a
+`?v=` (1) · **stop at a full page — the off-by-one that served exactly 1,000 of 1,129 (11).**
+Suite **43/43 files, 0 failures.**
+- 🐞 **A MUTATION SURVIVED (96/96) AND IT WAS A REAL TEST BUG.** The write-guard idempotence check
+  used `eq()`, which compares `JSON.stringify` — and `JSON.stringify(function)` is `undefined` for
+  BOTH sides, so it could never fail. The documented trap verbatim: *an assertion that survives its
+  own mutation is decoration.* Now an identity comparison plus a one-request follow-on.
+- 🐞 **A SECOND MUTATION SURVIVED (48/48) FOR THE SAME REASON.** "It refuses BEFORE it computes the
+  total" anchored on `render(` — the LAST thing in the block either way, so moving the guard directly
+  above it read as correct while being semantically identical. **The rule with teeth: decide whether
+  the read is trustworthy BEFORE touching a single row** (the guard must precede the first `res[0]`).
+  All three placement mutations now fail.
+- 🐞 **My own fake server was wrong and the test caught it** — it returned 204 for a plain `.select()`
+  READ because it only returned a body when `Prefer` was set. A real GET always returns a body.
+- 🐞 **Loading a 110KB minified bundle in a bare `vm` needs `document.currentScript` with BOTH `src`
+  AND `tagName`** (webpack does `t.currentScript.tagName.toUpperCase()`) plus
+  `getElementsByTagName`. And wrap `runInContext` in a try/catch that prints only `e.message` —
+  node prints the offending source line, and the whole bundle IS line 1.
+
+### 📡 LIVE-VERIFIED AGAINST THE **SERVED** FILES, NOT THE REPO
+Downloaded the served `supa-guard.js` + `supabase-js.js` + `ant-page.js` and ran real chains through
+them: a refusal is caught · exactly ONE round trip carrying `Prefer: return=representation` · a real
+write passes through untouched · the bulk withdraw is NOT falsely flagged · a delete-nothing is NOT
+flagged · reads untouched · the served pager reads 2,400 rows not 1,000, orders every page `id.asc`,
+asks again after an exactly-full page, REPORTS a lost page (`error`+`partial`) and retried it once.
+All five served pages carry the `?v=`; zero raw over-cap reads are served anywhere.
+
+### ⚠️ STANDING RULES (this is the class, not the instance)
+- **A Supabase write is only saved when a ROW COMES BACK.** The guard now enforces it at the client
+  root, so no new call site can reintroduce it — but never *rely* on the absence of an error.
+- **`supa-guard.js` must load AFTER the supabase library and BEFORE the page builds its client.**
+  Either way round and it silently does nothing. Pinned by a test on all 26 pages.
+- **Bump `?v=` on `supa-guard.js` / `ant-page.js` in the same commit that changes them.**
+  `netlify.toml` no-caches `/*.html` **ONLY** — a shared `.js` stays on the phone. A stale cached
+  guard is a page running WITHOUT the protection while every other file is new. **Fatal, not cosmetic.**
+- **A money surface must REFUSE to render a number off a read it knows was short.** `AntPage.all`
+  resolves rather than rejects, so `.catch()` will not save you — check `error || partial` explicitly.
+- **Before adding a new table the pages write to, check its RLS grants SELECT** — otherwise the
+  forced representation turns a working write into a false refusal.
+
+### ⏭️ THE HONEST SCOREBOARD — what still stands between the platform and beating Xano
+This closes the two ways the platform could be wrong **silently**. What it does NOT close: **the
+platform still cannot tell us when something breaks.** There is **ZERO client-side error reporting**
+— no page reports a JS exception anywhere. **21 changelog entries in this file are titled with a crew
+member reporting that something broke** (Lee, John, Jimmy, Danielle, Sofia, Andre — counted, not
+remembered), which is the proof: every platform bug to date was found by a human noticing their own
+work break. Xano has `event_log` + watchdog agents that text Teddy. **That is the
+next structural gap, and it is bigger than either of today's.** Known blocker: `event.company_id` is
+NOT NULL, so an error thrown before the client boots has no company to attach to — it needs either a
+`slug` param or a table with a nullable company.
+
 ## 🕐🧭 2026-09-17 (Thu) — LEE: "MY SCHEDULE IS ALL OUT OF ORDER" — THE DAY WAS SORTED BY THE MAP, NOT THE CLOCK — READ FIRST
 
 Lee: *"my schedule is all out of order — rather than starting with the earlier jobs first and
