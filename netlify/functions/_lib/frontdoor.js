@@ -180,20 +180,28 @@ async function dispatchStatusUpdate({ dispatchId, statusCode, description, note,
 // not push them. Sending a status that is the warranty company's decision to make is how
 // an integration gets its credentials pulled.
 //
-// `wired` marks the ones a lifecycle tap fires automatically today. The rest are in the
-// vocabulary and probe clean, but still need an office-side trigger -- do not claim a
-// status is automatic to a partner unless it says wired here.
+// THREE TIERS, and the difference is load-bearing when we tell a partner what is automatic:
+//   wired:true  -- a real call site in tech-job.html sends this on a tech tap TODAY.
+//   mapped:true -- present in FD_STATUS_MAP but NOTHING passes that key yet. One call site
+//                  away from live. A map entry is NOT proof of wiring -- claiming these as
+//                  automatic is exactly the overclaim that put a wrong status on Frontdoor's
+//                  test dispatch, so they get their own tier.
+//   neither     -- in the vocabulary, probes clean, needs an office-side trigger.
+// Never tell a partner a status is automatic unless it says wired:true here.
 const STATUS = {
-  // --- wired: fire from the tech app lifecycle today
-  EN_ROUTE: { code: 70, description: 'Technician in Route to Location', wired: true },
-  ARRIVED: { code: 90, description: 'Technician Arrived at Location', wired: true },
-  IN_PROGRESS: { code: 20, description: 'In Progress', wired: true },
-  PARTS_ORDERED: { code: 380, description: 'Parts Ordered', wired: true },
-  PARTS_ON_ORDER: { code: 100, description: 'In Progress with Parts on Order', wired: true },
+  // --- wired: a live call site fires these on a tech tap today (verified by grepping the
+  // actual lifecycle()/pushSP() invocations, not the map -- see the tier note above)
+  EN_ROUTE: { code: 70, description: 'Technician in Route to Location', wired: true },   // a-otw tap
+  IN_PROGRESS: { code: 20, description: 'In Progress', wired: true },                    // job started
+  COMPLETE: { code: 10, description: 'Job Complete', wired: true },                      // job closed
+
+  // --- mapped in FD_STATUS_MAP but no code path passes the key yet. One call site from live.
+  ARRIVED: { code: 90, description: 'Technician Arrived at Location', mapped: true },
+  PARTS_ORDERED: { code: 380, description: 'Parts Ordered', mapped: true },
+  PARTS_ON_ORDER: { code: 100, description: 'In Progress with Parts on Order', mapped: true },
+  RETURN_SET: { code: 400, description: 'Return Appointment Set', mapped: true },
+  ON_HOLD: { code: 150, description: 'On Hold', mapped: true },
   PARTS_ARRIVED: { code: 410, description: 'Parts Arrived' },   // office parts flow, not the tech tap
-  RETURN_SET: { code: 400, description: 'Return Appointment Set', wired: true },
-  ON_HOLD: { code: 150, description: 'On Hold', wired: true },
-  COMPLETE: { code: 10, description: 'Job Complete', wired: true },
 
   // --- in the connector, awaiting an office-side trigger
   APPOINTMENT_SET: { code: 30, description: 'Appointment Set' },

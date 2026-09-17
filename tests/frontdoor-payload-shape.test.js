@@ -242,17 +242,47 @@ test('the catalog still contains every code we have told Frontdoor we send', () 
     'dropped from the catalog after being promised to Frontdoor: ' + missing.map((c) => `${c} ${CLAIMED[c]}`).join(', '));
 });
 
-test('wired:true means the tech app actually fires it -- nothing else', () => {
-  // The email tells Frontdoor which statuses are automatic today. That claim has to be
-  // enforced, not remembered: PARTS_ARRIVED was briefly marked wired while living only in
-  // the office parts flow, which would have overstated what is automatic to a partner.
+test('wired:true means a real call site fires it -- a map entry is not wiring', () => {
+  // The email tells Frontdoor which statuses are automatic today, so the claim has to be
+  // enforced against the INVOCATIONS, not the lookup table. The old version of this test
+  // compared wired:true against FD_STATUS_MAP membership and passed while five statuses
+  // were marked wired that nothing ever called -- the map had the entry, no code path
+  // passed the key. Same bug class as PARTS_ARRIVED: a table entry read as proof of wiring.
   const html = fs.readFileSync(path.join(__dirname, '..', 'tech-job.html'), 'utf8');
+
   const m = html.match(/const FD_STATUS_MAP\s*=\s*\{([^}]*)\}/);
   assert.ok(m, 'FD_STATUS_MAP not found');
-  const fired = new Set([...m[1].matchAll(/:\s*'([A-Z_]+)'/g)].map((x) => x[1]));
-  const claimed = new Set(Object.entries(fd.STATUS).filter(([, v]) => v.wired).map(([k]) => k));
-  const over = [...claimed].filter((k) => !fired.has(k));
-  const under = [...fired].filter((k) => !claimed.has(k));
-  assert.deepEqual(over, [], 'marked wired but the tech app never sends it: ' + over.join(', '));
-  assert.deepEqual(under, [], 'the tech app sends it but it is not marked wired: ' + under.join(', '));
+  const mapped = new Map([...m[1].matchAll(/(\w+)\s*:\s*'([A-Z_]+)'/g)].map((x) => [x[1], x[2]]));
+
+  // Ground truth: the lowercase lifecycle keys actually handed to lifecycle()/pushSP()/pushFD().
+  const calls = new Set();
+  for (const re of [/lifecycle\([^)]*?,\s*'([a-z_]+)'\s*\)/g, /push(?:SP|FD)\(\s*'([a-z_]+)'/g]) {
+    for (const x of html.matchAll(re)) calls.add(x[1]);
+  }
+  assert.ok(calls.size >= 3, 'found no lifecycle invocations -- the parse broke, not the code');
+
+  const fired = new Set([...calls].map((k) => mapped.get(k)).filter(Boolean));
+  const wired = new Set(Object.entries(fd.STATUS).filter(([, v]) => v.wired).map(([k]) => k));
+  const over = [...wired].filter((k) => !fired.has(k));
+  const under = [...fired].filter((k) => !wired.has(k));
+  assert.deepEqual(over, [], 'marked wired but NO call site sends it: ' + over.join(', '));
+  assert.deepEqual(under, [], 'a call site sends it but it is not marked wired: ' + under.join(', '));
+});
+
+test('mapped:true is the map-but-no-call-site tier, and never overlaps wired', () => {
+  // These are the five that made the email overclaim. They are one call site from live and
+  // we want them visible, but they must never be reported to a partner as automatic.
+  const html = fs.readFileSync(path.join(__dirname, '..', 'tech-job.html'), 'utf8');
+  const m = html.match(/const FD_STATUS_MAP\s*=\s*\{([^}]*)\}/);
+  const inMap = new Set([...m[1].matchAll(/:\s*'([A-Z_]+)'/g)].map((x) => x[1]));
+
+  for (const [k, v] of Object.entries(fd.STATUS)) {
+    assert.ok(!(v.wired && v.mapped), k + ' cannot be both wired and mapped');
+    if (v.mapped) assert.ok(inMap.has(k), k + ' is marked mapped but is not in FD_STATUS_MAP');
+  }
+  // Everything in the map is accounted for by exactly one of the two tiers.
+  for (const k of inMap) {
+    const v = fd.STATUS[k] || {};
+    assert.ok(v.wired || v.mapped, k + ' is in FD_STATUS_MAP but tagged neither wired nor mapped');
+  }
 });
