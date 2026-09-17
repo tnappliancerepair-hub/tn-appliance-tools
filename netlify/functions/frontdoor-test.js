@@ -21,12 +21,13 @@ exports.handler = async function (event) {
   // ?push=1 — prove the Dispatch Status Update plumbing against SANDBOX (auth → POST →
   // structured response). ?dispatch=<id> &code=<STATUS key, e.g. EN_ROUTE>. A "dispatch not
   // found" is still a PASS — it means auth + endpoint + schema were accepted.
+  // &note=<text> overrides the note body — use it to prove a realistic 900-char TDR survives.
   if (q.push === '1') {
     const st = fd.STATUS[String(q.code || 'EN_ROUTE').toUpperCase()] || fd.STATUS.EN_ROUTE;
     try {
       const r = await fd.dispatchStatusUpdate({
         dispatchId: q.dispatch || 999999, statusCode: st.code, description: st.description,
-        note: 'Ant connectivity test — ignore', vendorId: q.vendor || undefined,
+        note: q.note || 'Ant connectivity test — ignore', vendorId: q.vendor || undefined,
       });
       return json(200, { ok: r.ok, mode: 'push', api_base: await fd.apiBase(), sent_status: st, http_status: r.status, data: r.data, raw: (r.raw || '').slice(0, 400) });
     } catch (e) { return json(200, { ok: false, mode: 'push', error: String((e && e.message) || e) }); }
