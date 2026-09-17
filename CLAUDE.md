@@ -1,5 +1,91 @@
 # Appliance Ant
 
+## 🚀🕰️ 2026-09-17 (Thu) — MERGED TO MAIN (John + Danielle's fixes are LIVE) · TWO TESTS THAT FAILED ONLY BETWEEN 7PM AND MIDNIGHT · AHS + AMAZON API CHECK · `parts_status` IS NEVER UPDATED BY THE PARTS SYNC — READ FIRST
+
+### ✅ THE MERGE IS DONE — `main` = `303a599a9`, Netlify published
+Retires every "🔴 INERT UNTIL MERGED" flag in the two entries below. Live for the crew now:
+John's parts routing (`🚚 Sent · FedEx` instead of `📦 Pick up at servicepower_api`), Danielle's
+completed-honesty gate + the `📋 Copy all` header button, the add-machine sheet, the finish-button
+fix. **Techs must fully close + reopen the app once.**
+
+### 🕰️ THE BUG THAT ALMOST SHIPPED THE MERGE — two tests failed ONLY in the evening
+Ran the suite before merging (**not** after) and **2 of 40 files failed**:
+`mirror-working-guard` + `completed-honesty`, both on `expected 'in_progress', got 'scheduled'`.
+**The guard was CORRECT both times — the TEST HELPERS were wrong**, and wrong in the way that
+hides itself: green all day, red 7pm–midnight CT, green again after midnight.
+- **The mechanism:** `stamp()` built its timestamp on the **UTC** calendar day
+  (`new Date(); n.setUTCHours(19,0,0,0)`) while `day()` built the scheduled day on the
+  **CENTRAL** one. It was 22:11 CDT = **03:11 UTC the NEXT day**, so `stamp(0)` landed on
+  *tomorrow* in Central, `isTodayCT(started_at)` rightly said no, and the booked-ahead guard fell
+  through to `scheduled`. The same inline pattern had been copy-pasted into `completed-honesty`.
+- **The fix:** `stamp()` is now **`day(offset) + 'T19:00:00.000Z'`** — anchored on the Central day
+  *by construction*, so the two can never disagree. 19:00Z is 2pm CDT / 1pm CST, the same CT date
+  either side of the DST flip (which was the original comment's intent — it just anchored wrong).
+- **PROVEN, and proven non-vacuous:** replayed **120 hour-slots across 5 dates incl. both 2026 DST
+  flips** with a faked clock. Fixed helper agrees at **every** hour; the OLD helper mismatches on
+  **exactly UTC hours 00–05 = 7pm–midnight Central** (27/120). So the check fails on the bug it
+  was written for. Suite **40/40 files, 0 failures**.
+- ⚠️ **STANDING: a test that mixes a UTC-anchored timestamp with a CT-anchored day is green most
+  of the day and red in the evening.** Same off-by-one family as the documented `dayCT()` bug that
+  made Ann state the wrong scheduled day. **Anchor BOTH on the same timezone, and run the suite
+  BEFORE the merge, not after** — an evening-only failure is invisible to a morning run.
+
+### 🔌 API CHECK — AHS/Frontdoor + Amazon (both read-only, nothing flipped)
+- **Frontdoor: our side is holding, the ball is theirs.** Sandbox push still returns
+  **`200 {"errors":null}`** on dispatch 22863999 — yesterday's envelope fix is live. Production
+  still **`401 "Jwt issuer is not configured"`** (sandbox token not trusted there) = ask #3 in the
+  9/16 email. No reply yet, but that email is one day old — not a stall.
+- 🔴 **THE WEBHOOK MUST STAY DARK, re-measured today: 64 events in 3 days, vendor ids
+  `1396202` / `157992` / `1636528`, ZERO for our `822418`/`822218`/`839828`.** Still other
+  contractors' jobs. `FRONTDOOR_WEBHOOK_LIVE` stays off.
+- **Amazon: configured + authenticating, stalled 45 days on THEIR side.** `configured:true` (all 6
+  creds), `token_acquired:true`, still `env: sandbox`. **Checked our own sent folder first** (the
+  documented Frontdoor lesson) and we are clean: they asked a question 7/28, we answered 7/28 +
+  8/02, they said *"in our review queue"* **8/03**, we nudged **8/18**. **Nothing inbound since
+  8/03.** ⏭️ **Needs a human nudge.**
+- ⚠️ **`amazon-api-watch` / `google-api-watch` / `vendor-api-watch` edge-403 on manual HTTP**
+  (scheduled fns — the documented footgun). To check an approval by hand, query `gmail-search`
+  directly. And **use separate plain `from:` / `to:` operators, never brace-OR** (false negatives),
+  and expect each hit 3× — the multi-inbox fan-out returns the same mail per connected account.
+
+### 🔩 `job.parts_status` IS NEVER UPDATED WHEN SERVICEPOWER SUPPLIES THE PARTS
+Found while answering "where is DA62-04027A". **202 open jobs carrying a real FedEx-tracked part
+read `parts_status: 'not_needed'`**, 24 more read empty.
+- **Why:** `platform-sp-parts-sync` writes the `job_part` rows (with tracking) and **never touches
+  `job.parts_status`**. That scalar is **purely mirrored from Xano** (`platform-tn-mirror` L780),
+  and Xano never learned about the API-sourced parts either.
+- 🔴 **DO NOT "fix" it by writing `parts_status` from the sync — it would be reverted inside 5
+  minutes.** `parts_status` is in the mirror's `keepTyped` list, which only blocks a *blank* Xano
+  value; a **different non-blank** value (`not_needed`) still wins. Writing a field the mirror will
+  undo is theater, not a fix. **The fix belongs in the READERS** — trust the `job_part` rows the
+  way the office tile's `partsShipByJob` tally already does.
+- 🐞 **AND office-board's `PARTS_WAIT_RE = /to_order|await|order|need|backorder/i` MATCHES the
+  literal value `not_needed`** — it reads *"no parts needed"* as *"waiting on parts"*. Today that
+  lands the right outcome on 202 tiles **purely by accident**, because the scalar is stale-wrong in
+  the same direction. **If Xano ever starts reporting `not_needed` correctly, 202 tiles lose their
+  parts chip at once.** Same substring family as `dishwasher`⊃`washer` and `STRANGE`⊃`RANGE`.
+- **Honest per-surface blast radius** (I first said "148 blind" and corrected it — the `need`
+  substring is why the chip fires): office-board **26** open jobs get no chip (2 today-forward);
+  **`ready.html` rates 12 jobs scheduled today-forward as clean-to-roll while a tracked part is in
+  transit** (its narrower `/awaiting|order/` does NOT match `not_needed`). That last one is the
+  actionable one.
+
+### 📦 DA62-04027A (Samsung fridge water inlet valve) — it is on a LIVE job
+Marcone **$132.30 net, 139 in stock** (Louisville 32 / Denton 12, same-day); cash price **$176.40**
+(cost ÷ .75) + **$115** flat labor (`fridge_water_valve`). **But this one is WARRANTY** — John's
+SquareTrade claim `054003084130`, Sheila K, Denham Springs, Samsung fridge, *"small cube icemaker
+quit working."* His TDR 9/10: `return_needed`, failed component **"inlet valve"**, 3.5 hrs.
+ServicePower supplied it (FedEx `539404733972`; ice case `DA97-22162B` on `383407689917`), so we do
+not buy it — the Marcone price only matters if the same valve shows up on a cash job.
+- ⏭️ **Three things on that claim need a human** (left alone per the standing "Claude stays OFF the
+  live scheduling board" rule): the job is **16 days overdue** (scheduled 9/01, still `scheduled`,
+  TDR says `return_needed` — it never moved to awaiting-parts, so it is off John's day list while
+  both parts are in transit); there is a **duplicate job AND a duplicate customer row** for Sheila
+  K minted 9/15 from an *"Allstate Protection Plans: Claim Update"* email (it has a name + phone so
+  the artifact filter will NOT park it — it sits in New looking like work); and **FedEx Track still
+  403s** (*"could not authorize your credentials"*), which is why `eta` is null everywhere and why
+  `fedex-returns-autoclose` has still never been able to close a return.
+
 ## 📦🚚 2026-09-16 (Wed) — JOHN: "Pick up at servicepower_api" — THE DAY LIST WAS SENDING TECHS TO A COUNTER FOR PARTS FEDEX ALREADY HAD — READ FIRST
 
 Teddy, with a screenshot of John's day list: *"This was confusing for John this morning. Service
