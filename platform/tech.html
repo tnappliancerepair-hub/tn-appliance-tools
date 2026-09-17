@@ -248,7 +248,7 @@
 <div id="app"><div class="shell"><div class="empty">🐜 Loading…</div></div></div>
 
 <script src="/platform/config.js"></script>
-<script src="/platform/ant-page.js"></script>
+<script src="/platform/ant-page.js?v=20260917-readguard"></script>
   <script src="/platform/ant-maps.js"></script>
 <script src="/platform/ant-windows.js?v=20260917-dayorder"></script>
 <script src="/platform/ant-part-route.js?v=20260916-supplier"></script>
@@ -1587,9 +1587,14 @@
     var card=document.getElementById('payCard'); if(!card||!myTech) return;
     var rule=window.PayCalc.ruleFor(myTech, window.PayCalc.companyDefault(companySettings));
     var jobsP=sb.from('job').select('id,completed_at,customer:customer_id(first_name,last_name)').eq('technician_id',myTech.id).eq('status','completed').order('completed_at',{ascending:false,nullsFirst:false}).limit(500);
-    var invP=sb.from('invoice').select('job_id,labor_cents,status').limit(3000);
-    var payP=sb.from('tech_payout').select('job_id,amount_cents').eq('technician_id',myTech.id).limit(3000);
+    var invP=AntPage.all(function(){ return sb.from('invoice').select('job_id,labor_cents,status'); },{label:'invoice'});
+    var payP=AntPage.all(function(){ return sb.from('tech_payout').select('job_id,amount_cents').eq('technician_id',myTech.id); },{label:'tech_payout'});
     Promise.all([jobsP,invP,payP]).then(function(res){
+      // A short read here understates a tech's pay. Say so rather than show a wrong number.
+      if (res.some(function(r){ return r && (r.error || r.partial); })) {
+        card.innerHTML = '<div class="muted">Could not load all your pay — showing nothing rather than a wrong total. Pull to refresh.</div>';
+        return;
+      }
       var jobs=(res[0].data)||[], invs=(res[1].data)||[], pays=(res[2].data)||[];
       var invByJob={}; invs.forEach(function(v){ if(v.job_id) invByJob[v.job_id]=v; });
       var paidByJob={}; pays.forEach(function(p){ paidByJob[p.job_id]=(paidByJob[p.job_id]||0)+(p.amount_cents||0); });
@@ -1690,7 +1695,7 @@
   // Self-contained inline SVG — no chart library, CSP-safe.
   function loadStats(){
     var el=document.getElementById('statsCard'); if(!el||!myTech) return;
-    sb.from('job').select('scheduled_day,completed_at,status').eq('technician_id',myTech.id).limit(3000).then(function(r){
+    AntPage.all(function(){ return sb.from('job').select('scheduled_day,completed_at,status').eq('technician_id',myTech.id); },{label:'tech stats'}).then(function(r){
       var jobs=r.data||[]; var days=[], idx={}, today=new Date();
       for(var i=13;i>=0;i--){ var d=new Date(today); d.setDate(d.getDate()-i); var key=d.toISOString().slice(0,10); var o={key:key,dom:d.getDate(),stops:0,done:0}; days.push(o); idx[key]=o; }
       jobs.forEach(function(j){

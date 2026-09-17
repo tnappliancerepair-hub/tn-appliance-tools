@@ -203,7 +203,7 @@
 <body>
 <div id="app"></div>
 <script src="/platform/config.js"></script>
-<script src="/platform/ant-page.js"></script>
+<script src="/platform/ant-page.js?v=20260917-readguard"></script>
   <script src="/platform/ant-maps.js"></script>
 <script src="/platform/ant-windows.js?v=20260917-dayorder"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
@@ -803,7 +803,7 @@
     var close=function(){ try{document.body.removeChild(ov);}catch(e){} }; ov.onclick=function(e){ if(e.target===ov) close(); };
     var msgEl=ov.querySelector('#cov-msg'); function setMsg(t){ if(msgEl) msgEl.textContent=t; }
     var cid=(company&&company.id);
-    function refreshCov(){ sb.from('coverage').select('zip,tech_id,rank').limit(4000).then(function(r){ covRows=(r.data)||[]; render(); }); }
+    function refreshCov(){ AntPage.all(function(){ return sb.from('coverage').select('zip,tech_id,rank'); },{label:'coverage'}).then(function(r){ covRows=(r.data)||[]; render(); }); }
     function refreshTechs(){ sb.rpc('company_roster').then(function(tr){ techs=((tr.data)||[]).filter(function(t){return t.active!==false;}); render(); }); }
     function chainFromRow(rowEl){ var ids=[]; Array.prototype.forEach.call(rowEl.querySelectorAll('.cov-t'),function(s){ var v=s.value; if(v && ids.indexOf(v)<0) ids.push(v); }); return ids; }
     function saveArea(rowEl, btn){
@@ -859,9 +859,9 @@
     sb.rpc('company_roster').then(function(tr){
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
       var jP=AntPage.all(function(){ return sb.from('job').select('id,status,problem,availability,scheduled_day,time_window,scheduled_start,service_window,warranty_company,technician_id,technician2_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)'); },{label:'dispatch jobs'});
-      var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
-      var offerP=sb.from('schedule_offer').select('id,job_id,customer_id,direction,proposed_day,win,note,technician_id,status,created_at').eq('status','pending').gte('proposed_day',todayIso).limit(1000);
-      var covP=sb.from('coverage').select('zip,tech_id,rank').limit(4000);
+      var oP=AntPage.all(function(){ return sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso); },{label:'tech_time_off'});
+      var offerP=AntPage.all(function(){ return sb.from('schedule_offer').select('id,job_id,customer_id,direction,proposed_day,win,note,technician_id,status,created_at').eq('status','pending').gte('proposed_day',todayIso); },{label:'schedule_offer'});
+      var covP=AntPage.all(function(){ return sb.from('coverage').select('zip,tech_id,rank'); },{label:'coverage'});
       Promise.all([jP,oP,offerP,covP]).then(function(res){
         jobs=(res[0].data)||[];
         timeOff=(res[1]&&res[1].data)||[]; offSet={}; timeOff.forEach(function(o){ offSet[o.technician_id+'|'+o.day]=true; });
