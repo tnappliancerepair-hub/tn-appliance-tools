@@ -241,3 +241,18 @@ test('the catalog still contains every code we have told Frontdoor we send', () 
   assert.deepEqual(missing, [],
     'dropped from the catalog after being promised to Frontdoor: ' + missing.map((c) => `${c} ${CLAIMED[c]}`).join(', '));
 });
+
+test('wired:true means the tech app actually fires it -- nothing else', () => {
+  // The email tells Frontdoor which statuses are automatic today. That claim has to be
+  // enforced, not remembered: PARTS_ARRIVED was briefly marked wired while living only in
+  // the office parts flow, which would have overstated what is automatic to a partner.
+  const html = fs.readFileSync(path.join(__dirname, '..', 'tech-job.html'), 'utf8');
+  const m = html.match(/const FD_STATUS_MAP\s*=\s*\{([^}]*)\}/);
+  assert.ok(m, 'FD_STATUS_MAP not found');
+  const fired = new Set([...m[1].matchAll(/:\s*'([A-Z_]+)'/g)].map((x) => x[1]));
+  const claimed = new Set(Object.entries(fd.STATUS).filter(([, v]) => v.wired).map(([k]) => k));
+  const over = [...claimed].filter((k) => !fired.has(k));
+  const under = [...fired].filter((k) => !claimed.has(k));
+  assert.deepEqual(over, [], 'marked wired but the tech app never sends it: ' + over.join(', '));
+  assert.deepEqual(under, [], 'the tech app sends it but it is not marked wired: ' + under.join(', '));
+});

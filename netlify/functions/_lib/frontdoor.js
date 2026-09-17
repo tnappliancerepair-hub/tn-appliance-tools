@@ -190,7 +190,7 @@ const STATUS = {
   IN_PROGRESS: { code: 20, description: 'In Progress', wired: true },
   PARTS_ORDERED: { code: 380, description: 'Parts Ordered', wired: true },
   PARTS_ON_ORDER: { code: 100, description: 'In Progress with Parts on Order', wired: true },
-  PARTS_ARRIVED: { code: 410, description: 'Parts Arrived', wired: true },
+  PARTS_ARRIVED: { code: 410, description: 'Parts Arrived' },   // office parts flow, not the tech tap
   RETURN_SET: { code: 400, description: 'Return Appointment Set', wired: true },
   ON_HOLD: { code: 150, description: 'On Hold', wired: true },
   COMPLETE: { code: 10, description: 'Job Complete', wired: true },
