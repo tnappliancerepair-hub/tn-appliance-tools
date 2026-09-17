@@ -282,6 +282,14 @@ console.log('\nevery page that talks to Supabase loads the guard, and busts its 
     // is new. netlify.toml no-caches /*.html only, so a shared .js keeps whatever the phone
     // holds — the documented trap that took the day list down on 2026-09-16.
     ok(f + ' cache-busts it (?v=)', /\?v=/.test(tag || ''));
+    // ORDER IS THE WHOLE THING. The guard wraps createClient, so it must run AFTER the
+    // library exists and BEFORE the page builds its client. Either way round and the guard
+    // silently does nothing -- a page that looks protected and is not.
+    const gAt = src.indexOf('supa-guard.js');
+    const libAt = src.indexOf('vendor/supabase-js.js');
+    const createAt = src.indexOf('supabase.createClient');
+    ok(f + ' loads the guard AFTER the supabase library', libAt >= 0 && gAt > libAt);
+    ok(f + ' loads the guard BEFORE it builds a client', gAt < createAt);
   });
   ok('found real pages to check', checked >= 20);
 }
