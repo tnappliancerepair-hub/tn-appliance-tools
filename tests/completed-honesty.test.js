@@ -211,15 +211,19 @@ t('it prefers what the platform already knows over guessing', () => {
   assert.strictEqual(r.status, 'awaiting_parts');
 });
 
+// 19:00Z is 2pm CDT / 1pm CST -- the same CT calendar day either side of the DST flip.
+// ANCHORED ON THE CENTRAL calendar day, never the UTC one: after 7pm CT the UTC date has already
+// rolled over, so a UTC-anchored stamp landed on TOMORROW in Central and isTodayCT() correctly
+// said no. That made these tests fail only in the evening and pass again after midnight.
+const ctStamp = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) + 'T19:00:00.000Z';
+
 t('a tech who tapped Start today reads in_progress, not scheduled', () => {
-  const now = new Date(); now.setUTCHours(19, 0, 0, 0);
-  const r = applyGate(XANO_DONE(), PLAT({ started_at: now.toISOString() }), 'scheduled', false);
+  const r = applyGate(XANO_DONE(), PLAT({ started_at: ctStamp() }), 'scheduled', false);
   assert.strictEqual(r.status, 'in_progress');
 });
 
 t('en route is driving, not arrived', () => {
-  const now = new Date(); now.setUTCHours(19, 0, 0, 0);
-  const r = applyGate(XANO_DONE(), PLAT({ en_route_at: now.toISOString() }), 'scheduled', false);
+  const r = applyGate(XANO_DONE(), PLAT({ en_route_at: ctStamp() }), 'scheduled', false);
   assert.strictEqual(r.status, 'scheduled');
 });
 

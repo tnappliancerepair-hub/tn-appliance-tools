@@ -36,18 +36,17 @@ const applyGuard = new Function('jr', 'ex', `
   return { status: jr.status, held, keptWorking };
 `);
 
-// 19:00Z is 2pm CDT / 1pm CST -- the same CT calendar day either side of the DST flip.
-const stamp = (offsetDays) => {
-  const n = new Date();
-  n.setDate(n.getDate() + offsetDays);
-  n.setUTCHours(19, 0, 0, 0);
-  return n.toISOString();
-};
 const day = (offsetDays) => {
   const n = new Date();
   n.setDate(n.getDate() + offsetDays);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(n);
 };
+// 19:00Z is 2pm CDT / 1pm CST -- the same CT calendar day either side of the DST flip.
+// ANCHORED ON day(), i.e. on the CENTRAL calendar day, never on the UTC one. After 7pm CT the
+// UTC date has already rolled over, so a UTC-anchored stamp landed on TOMORROW in Central and
+// the guard correctly refused to call it "today" -- these tests failed only in the evening and
+// passed again after midnight, which is the worst way for a test to be wrong.
+const stamp = (offsetDays) => day(offsetDays) + 'T19:00:00.000Z';
 const XANO_DONE = () => ({ xano_id: 21941, status: 'completed' });
 
 let n = 0;
