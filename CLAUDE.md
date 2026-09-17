@@ -1,5 +1,79 @@
 # Appliance Ant
 
+## 🚪✅ 2026-09-17 (Thu) — FRONTDOOR: THE 200 WE CELEBRATED YESTERDAY NEVER SAVED. IT WAS ONE JSON TYPE, AND THE ENVELOPE WAS RIGHT ALL ALONG — READ FIRST
+
+**🔴 CORRECTION TO YESTERDAY'S ENTRY.** The 2026-09-16 entry records `200 {"errors":null}` on the
+flat envelope as "BOTH DIRECTIONS WORK." **It did not work.** Akshay Kyatam, 7:30 AM today:
+*"The status was not saved because the request format was incorrect. **Surprisingly, the API still
+returned a 200 response even for incorrect request.** We're not sure why the request was
+acknowledged despite not being processed successfully."* Nothing we sent yesterday reached the
+Contractor Portal. **A 200 from `/dispatch-connector/v1/webhook` is not evidence of anything.**
+
+### 🥇 THE FINDING — the envelope was NEVER the problem. It is ONE JSON TYPE.
+He sent the body that saves in their environment and it is **`{ data: [ { type, object } ] }` —
+the envelope their own spec documented**. So the fifteen-day stall, and yesterday's whole
+walk-the-validator exercise (BLE_0042 → 0048 → 0049 → 0050), chased the wrong thing. Measured
+this morning with **his body as the CONTROL** and one field changed per request:
+
+| row | result |
+|---|---|
+| his body verbatim | **200** |
+| **`status_code` as a number `70`** | **500 `CONNECTOR_BLE_0007`** |
+| **`dispatch_id` as a string `"22863999"`** | **500 `CONNECTOR_BLE_0007`** |
+| `items` removed · `username` removed · `start_time`/`end_time` added | 200 each |
+| our vendor ids 822418 / 839828 in place of his 1396202 | 200 |
+
+**The two adjacent id fields want OPPOSITE types: `status_code` is a STRING, `dispatch_id` is a
+NUMBER.** We were sending `status_code: Number(...)`. That one character class produced every
+BLE_0007 we ever saw. `items` + `username` are optional (both 200 absent).
+
+### ✅ SHIPPED — one body, and the false positive is DELETED not flagged
+`_lib/frontdoor.js` sends the documented envelope with `status_code: String(...)`, plus
+`username` (their portal shows who made the change; defaults to the shop, pass the tech's name).
+**The flat envelope is GONE from the connector, not parked behind `FRONTDOOR_LEGACY_SHAPE`** —
+**a one-line "reversal" to a body that silently no-ops is worse than having no reversal**, and
+that flag is now inert. It survives only in `frontdoor-probe`, where a diagnostic belongs.
+- **✅ VERIFIED END-TO-END THROUGH THE REAL CONNECTOR** (not the probe): `frontdoor-test?push=1&dispatch=22863999&vendor=839828`
+  → **`ok:true, http_status 200, {"errors":null}"`**. ⚠️ Still **ACCEPTED, not confirmed-saved** —
+  we have no read-back, so the draft asks Akshay to eyeball the portal.
+- **🐞 THE REAL-CONNECTOR RUN SURFACED A SECOND BUG, and it was OURS:** a first push came back
+  **400 `CONNECTOR_BLE_0030 "VendorID missing"`** — because **`FRONTDOOR_VENDOR_ID` is empty in
+  the vault**, so `vid` resolved to `''` and we sent `vendor_id: ""`. `frontdoor-push-job`
+  resolves the vendor from the job's area so the live path was never affected; every *other*
+  caller silently was. Now it **throws before the request with the fix in the message** (names
+  all three vendor ids). **A blank config value that reads as a partner error is the class this
+  file keeps paying for.**
+- **🧪 `tests/frontdoor-payload-shape.test.js` REWRITTEN — 14/14.** It previously pinned the
+  false positive GREEN, which is the worst kind of passing test. Now pins the saving shape + both
+  type rules, by stubbing fetch and calling the REAL exported `dispatchStatusUpdate`.
+  **Mutation-proven 10 ways:** `status_code` back to a number (1) · `dispatch_id` as a string (2)
+  · the flat envelope (11) · drop the description (2) · fold the note into the description (2) ·
+  drop the username (1) · always send items (1) · revert `source` to DISPATCH_ME (1) ·
+  dead-guard the vendor check (1) · strip the ids out of the guard message (1). Suite **255/255**.
+- 🐞 **A PROBE ROW SILENTLY NEVER RAN.** `?shape=` lowercases its argument, so the camelCase
+  `ak_isoZ` key was unreachable and reported an empty result that read like a timeout. Renamed +
+  pinned in a comment. **A shape key that cannot be selected is a test that cannot fail.**
+
+### 📋 HIS OTHER TWO ANSWERS
+- **Which value they process:** `status_code` — but send **both** `status_code` and `description`
+  "to ensure the status is interpreted correctly." We send both.
+- **Production scoping:** *"the sandbox environment contains shared test data and vendor mappings.
+  In production, you will receive data only for your actual vendors and configured mappings."*
+  Confirms the receiver is safe in production and **`FRONTDOOR_WEBHOOK_LIVE` must stay off on
+  sandbox** — that feed carries other contractors' dispatches (vendor ids 1396202/157992/1636528,
+  none ours).
+
+### ⏭️ OPEN
+- **`docs/frontdoor-reply-2026-09-17.md` is drafted and NOT SENT** (Teddy's call). It reports the
+  two type rules, hands their connector team the exact body that 200s-and-no-ops (they said they
+  would investigate that), asks them to confirm the pushes landed in the portal, and asks for a
+  production credential.
+- **Production is still untested** — our sandbox token gets `401 "Jwt issuer is not configured"`
+  against `api.frontdoorhome.com`.
+- **⚠️ STANDING: a 2xx is not a receipt.** This endpoint acknowledges a wrong-envelope request and
+  drops it. Never treat a status code as proof a partner stored anything — get a read-back, or get
+  a human to look.
+
 ## 🕐🚪 2026-09-17 (Thu) — DANIELLE: "JOBS ARE ALL MIXED UP" — THE BOARD READ IN THE ORDER ROWS WERE *WRITTEN* · AND A TECH FINALLY GOT A NUMBER FOR THE PERSON AT THE DOOR — READ FIRST
 
 Two crew texts, both fixed, both live.

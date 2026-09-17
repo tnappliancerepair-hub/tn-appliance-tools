@@ -24,7 +24,7 @@ and both are type mismatches on adjacent fields that want opposite types:**
 | removed `items` | 200 |
 | removed `username` | 200 |
 | added `start_time` / `end_time` | 200 |
-| our vendor id `822418` in place of `1396202` | 200 |
+| our vendor ids `822418` / `839828` in place of `1396202` | 200 |
 
 So `status_code` must be a **string** and `dispatch_id` must be a **number**. We had been
 sending `status_code` as a number, which is what produced every BLE_0007 we saw. Our
@@ -48,10 +48,11 @@ behaviour; it is only this wrong-envelope case that is silently accepted.
 
 **Two things we need from you:**
 
-1. **Please confirm the statuses landed.** We sent several test pushes to dispatch
-   **22863999** this morning, each with the note **"Ant probe — please ignore"**. If they
-   are visible in the Contractor Portal, we are done on sandbox. Sorry for the noise on
-   your test dispatch — we kept it to one dispatch deliberately.
+1. **Please confirm the statuses landed.** We sent our test pushes to dispatch
+   **22863999** this morning, noted either **"Ant probe — please ignore"** or **"Ant
+   connectivity test — ignore"**, status 70 / Technician in Route to Location. If those are
+   visible in the Contractor Portal then we are done on sandbox. Apologies for the noise on
+   your test dispatch — we deliberately kept every test on that one.
 
 2. **Production credentials.** Our sandbox token gets `401 "Jwt issuer is not configured"`
    against `api.frontdoorhome.com`, so we have never been able to test production. We are
