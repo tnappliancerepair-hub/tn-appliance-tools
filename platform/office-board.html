@@ -1068,12 +1068,45 @@
   var colSort = (function(){ try{ return JSON.parse(localStorage.getItem('ant_office_colsort')||'{}')||{}; }catch(_){ return {}; } })();
   function saveColSort(){ try{ localStorage.setItem('ant_office_colsort', JSON.stringify(colSort)); }catch(_){} }
   function sortFieldLabel(by){ for(var i=0;i<SORT_FIELDS.length;i++){ if(SORT_FIELDS[i][0]===by) return SORT_FIELDS[i][1].replace(/^[^ ]+ /,''); } return by; }
+  // ── DEFAULT COLUMN ORDER — the clock, same rule as the tech's day list ───────
+  // Danielle, 2026-09-17: "Yea its not right on my end either. Jobs are all mixed up."
+  // She was right, and it was the office half of Lee's bug. The board loads its cards
+  // `created_at desc`, and with no column sort picked that IS the order they render --
+  // so a tech's column read in the order the rows happened to be WRITTEN. A job booked
+  // for tomorrow sat under one booked for next month, and the board disagreed with the
+  // day list the techs had just had fixed the same morning.
+  //
+  // THE RULE is the one already in the catalog: the window is a PROMISE, so it is the
+  // primary key. Soonest day first, then the hour the customer was told. Nothing else
+  // moves -- a job with no day, and anything already done, keeps the order it had, so
+  // Completed / Needs-Invoiced still read newest-first the way the office expects.
+  //
+  // Route/ZIP is deliberately NOT a tie-break here: a column is a worklist, not a drive.
+  // The lane that IS a drive (dispatch's week grid) does the route pass; this one doesn't.
+  function dayClockKey(j, includeDone){
+    var d = String((j && j.scheduled_day) || '').trim();
+    if(!d) return '';
+    if(!includeDone && (j.status==='completed' || j.status==='canceled')) return '';
+    // startHourFor reads time_window -> scheduled_start (Central) -> the vendor's words.
+    // An untimed stop sorts AFTER every stop that has a time -- it must never jump ahead
+    // of a promised 8am. (On the lean fallback select only scheduled_day is loaded, so
+    // the clock degrades to unknown and the day order still holds. A tiered select is a
+    // fact about the SELECT, not about the row.)
+    var h = (window.AntWindows && AntWindows.startHourFor) ? AntWindows.startHourFor(j) : null;
+    return d + ' ' + (h == null ? '99.99' : (h < 10 ? '0' : '') + h.toFixed(2));
+  }
+  function defaultOrder(list){
+    var sched=[], rest=[];
+    (list||[]).forEach(function(j){ (dayClockKey(j) ? sched : rest).push(j); });
+    sched.sort(function(a,b){ var ka=dayClockKey(a), kb=dayClockKey(b); return ka<kb?-1:(ka>kb?1:0); });
+    return sched.concat(rest);   // sort is stable, so ties keep the newest-first order
+  }
   function jobSortVal(j, by){
     switch(by){
       case 'name':    return (fullName(j.customer)||'').toLowerCase();
       case 'tech':    return (j.technician&&j.technician.name?j.technician.name:'').toLowerCase();
       case 'created': return j.created_at ? new Date(j.created_at).getTime() : 0;
-      case 'due':     return j.scheduled_day ? String(j.scheduled_day) : '';
+      case 'due':     return dayClockKey(j, true);   // day + the promised window, so a day reads in order
       case 'status':  return (statusMeta(j.status).label||'').toLowerCase();
       case 'vendor':  return (j.warranty_company||'').toLowerCase();
       case 'city':    return (j.customer&&j.customer.city?String(j.customer.city):'').toLowerCase();
@@ -1081,7 +1114,7 @@
     return '';
   }
   function sortList(list, s){
-    if(!s||!s.by) return list;
+    if(!s||!s.by) return defaultOrder(list);   // no sort picked -> read it by the clock
     var dir = s.dir==='desc' ? -1 : 1;
     return list.slice().sort(function(a,b){
       var va=jobSortVal(a,s.by), vb=jobSortVal(b,s.by);
