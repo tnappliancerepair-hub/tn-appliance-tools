@@ -1,5 +1,111 @@
 # Appliance Ant
 
+## 🕐🚪 2026-09-17 (Thu) — DANIELLE: "JOBS ARE ALL MIXED UP" — THE BOARD READ IN THE ORDER ROWS WERE *WRITTEN* · AND A TECH FINALLY GOT A NUMBER FOR THE PERSON AT THE DOOR — READ FIRST
+
+Two crew texts, both fixed, both live.
+
+### 🥇 THE OFFICE HALF OF LEE'S BUG — the board sorted by `created_at`, not by the clock
+Lee, 8:34 AM: *"my schedule looks wacky again like it had been thrown around every which way."*
+Jimmy: *"Yeah, mine is too."* **Danielle, same thread: *"Yea its not right on my end either. Jobs
+are all mixed up."*** The tech half shipped at 8:41 AM (`d18f92c91` — seven minutes after Lee's
+text) and Jimmy came back **"All my jobs fix now and are in order."** Danielle's half was untouched.
+- **THE CAUSE, and it is one line:** `office-board.html` loads its cards
+  **`.order('created_at', { ascending: false })`**, and `sortList` returned the list **untouched**
+  when no column sort was picked. So a column rendered **in the order the rows happened to be
+  WRITTEN** — which is the mirror's insert stamp, not anything about the work.
+- **PROVEN ON ANDRE'S REAL COLUMN, pulled live in the board's own order:** his **TODAY** stops sat
+  at positions **5, 6, 8, 9 and 10** — underneath work booked for the **21st** and the **25th**.
+  ```
+  BEFORE  A21a  A18a  A21b  A25   A17b  A17c  A18b  A17a  A17d  A17e
+  AFTER   A17a  A17b  A17c  A17d  A17e  A18a  A18b  A21a  A21b  A25
+  ```
+- **✅ THE RULE IS THE ONE ALREADY IN THE CATALOG** — `AntWindows.startHourFor`, the same
+  `ant-windows.js` the day list and the dispatch grid read. **The window is a PROMISE, so it is the
+  primary key: soonest day first, then the hour the customer was told.** `dayClockKey` builds
+  `"<day> <hh.hh>"`, `defaultOrder` sorts on it, and the **`due`** column sort now returns the same
+  key so picking it by hand agrees with the default.
+- **DELIBERATELY NARROW — nothing the office is used to moves.** Only live work that HAS a day is
+  reordered. **Completed / canceled keep their day out of the key** (Completed + Needs-Invoiced
+  still read newest-first), a card with no day keeps the order it had, and **the sort is stable** so
+  ties hold their newest-first position. **No route/ZIP tie-break here on purpose — a column is a
+  worklist, not a drive.** (The tech's day list still clusters by ZIP *inside* a window; that is a
+  different question.)
+- **⚠️ `SEL_BASE_MIN` (the emergency fallback tier) stays lean** — no `time_window`/`scheduled_start`
+  there, so on that tier the hour reads unknown and the **day** order still holds. Correct
+  degradation, worth knowing before someone "fixes" it.
+- **🧪 `tests/board-day-order.test.js` 28/28 (NEW)** — lifts `dayClockKey`/`defaultOrder`/`sortList`/
+  `jobSortVal` **out of the shipped page** and runs them against **Andre's real column**, including
+  an assertion that the RAW order buries today (the complaint itself is pinned). **Mutation-proven
+  9 ways.** Verified after publish against the **SERVED** board, not the repo.
+- 🐞 **A MUTATION LOOKED LIKE IT SURVIVED AND HADN'T RUN.** My perl pattern said `j.status=='completed'`
+  where the source has `===`, so **the mutation never applied** and read as "the test can't see it."
+  Every mutation now goes through a helper that **asserts exactly one match before it writes.**
+- 🐞 **AND ONE GENUINELY SURVIVED.** Changing the comparator to `return ka<kb?-1:1` (never 0) left the
+  stability assertion green — V8's insertion sort still places an "a is greater" tie AFTER, i.e.
+  **stable by accident.** Chasing it found the mutation that actually tests the claim (`-1` on equal,
+  fails 3) plus sorting in place (fails 6). **A tie-break assertion has to be broken in the direction
+  that REVERSES ties, not merely one that stops returning 0.**
+- 🐞 **A TEST FIXTURE, NOT THE CODE, FAILED FIRST.** `'2026-09-25T13:00:00+00'` (offset with no
+  minutes) is an **INVALID date** — tier 2 returned null and it fell through to the vendor-window
+  parser. Fixed the fixtures to the real wire format `+00:00` **and added explicit tier-3 assertions**,
+  since tier 3 had just proven it was load-bearing.
+
+### 🚪 A TECH: "IS THERE ANY WAY TO ADD A TENANT TO A ORDER SO I CAN CALL THEM AHEAD OF TIME"
+Texted from the road, 21 minutes out from a stop. He was right and **there was nowhere to put it.**
+The platform carries **exactly ONE phone per customer.** On a rental the account is the landlord or
+the property manager; the person who **signs for the part and opens the door is the TENANT.**
+- **MEASURED BEFORE BUILDING:** **11 jobs ever** carry a second phone written into free text
+  (`access_notes`/`office_notes`/`availability`), and **6 of those 11 are a DIFFERENT number than the
+  one on file** — *"send same message to my wife Carmen @985-788-2174"*, *"281-907-3113: if number on
+  file doesn't work"*. Small — and **every one is a truck roll riding on a call the tech cannot place
+  from the app.**
+  - ⚠️ **My first count said 1,144 of 3,554 jobs and was garbage** — a loose regex with optional
+    separators matches any 10-digit run (tracking numbers, model numbers). **Re-measured with
+    separators required. Never quote a phone-shaped count off a separator-optional regex.**
+- **✅ `docs/sql/078_site_contact.sql` (APPLIED):** `job.site_contact_name` + `job.site_contact_phone`.
+  **Two plain columns on purpose** — a second CUSTOMER row would double-count the person everywhere
+  that counts people (dedup, lead attribution, the messages inbox) to solve a phone-number problem;
+  and **not an enum**, because the name field carries the relationship in the office's own words
+  ("Carmen (wife)", "tenant - Maria", "property manager"). New columns inherit `job`'s tenant RLS.
+- **TWO DOORS IN, because the number turns up at both ends:** the **office drawer** (the claim arrives
+  with a tenant on it) and the **tech's own job-details editor** (the customer hands him a second
+  number in the driveway). Both write both columns.
+- **It renders as one more tap-to-call chip** on the day list and the job page, routed through
+  `antcall` like every other call so it is **logged against the job**.
+- **🔴 IT IS A NUMBER TO CALL, NEVER A MESSAGING IDENTITY.** We have **no consent** from this person
+  and they are **not the account holder**, so **nothing automated may ever text it.** The migration
+  says that in words; **words do not enforce.** The test does: **every mention of the column anywhere
+  in the repo must be one of four shapes** — a select, a read, an input, a save — or the suite goes
+  red. Nothing under `netlify/functions/` or `colony-loop/` has ever heard of it, and that is asserted.
+- **⚠️ `siteCallHtml` is defined LOCALLY on each tech page, not in a shared `.js`** — same reasoning
+  as `oneTdr()`: **a shared module that fails to load white-screens the tech app**, and this is one
+  small pure function. **The two copies are asserted BYTE-IDENTICAL** (three copies of the route
+  picker drifted into three vocabularies; two copies of this will not).
+- **⚠️ `table/jobs.xs` has a legacy `on_site_contact_id`** — an int FK from the Xano era, **a
+  different thing entirely.** Match the exact column names or it reads as a leak.
+- **🧪 `tests/site-contact.test.js` 47/47 (NEW)** — `siteCallHtml` lifted out of **BOTH** pages and
+  **EXECUTED** (real / blank / whitespace / punctuation-only / null / `+1` / quote / `<script>`).
+  **Mutation-proven 17 ways:** drift the two copies (fails 1) · stop escaping the name (3) · stop
+  stripping the phone (6) · render a blank one (6) · drop the columns from any of the **four** selects
+  (2 each) · drop either save (2 each) · stop rendering on either page (1 each) · **leak the number
+  next to a send (1) or onto the send line (2)** · make 078 un-re-runnable (1) · soften the never-text
+  rule (1) · drop the `antcall` routing (3). Suite **45/45 files, 0 failures.**
+- 🐞 **A MUTATION SURVIVED THE FIRST RUN AND IT WAS A REAL HOLE.** The never-text check asked whether
+  a line naming the phone **also** named a sender — so putting `var _sc = j && j.site_contact_phone`
+  on the line **ABOVE** the fetch walked straight past it. **Same family as the dead-guard trap: a
+  same-line check is not a reachability check.** Replaced with the shape allowlist, which has no line
+  to hide beside.
+- ⏭️ **THE DEEPER FIX IS THAT HE SHOULD NOT HAVE TO CALL AT ALL** — the app should already know the
+  part landed. That is blocked on the documented **FedEx Track 403** (credentials, Teddy's side).
+
+### ⚠️ STANDING
+- **A worklist reads by the CLOCK, not by `created_at`.** Any surface that renders a queue of
+  scheduled work sorts on the promised window first. `created_at` on the platform is the **mirror's
+  insert stamp** — it is noise, and defaulting to it is how a board "throws jobs around every which
+  way." The rule lives in `ant-windows.js` alone.
+- **A second phone on a job is dialable, not textable.** Any new column that holds a number belonging
+  to someone who is not the account holder needs the same allowlist test, or consent leaks by accident.
+
 ## 🔇🧾 2026-09-17 (Thu) — "SUPABASE HAS TO BEAT XANO": THE PLATFORM FAILS SILENTLY WHERE XANO FAILS LOUDLY — 79 WRITES + 11 READS CLOSED AT THE ROOT — READ FIRST
 
 Teddy: *"We need this new supabase to be an upgrade to the xano system. We need it to be more
