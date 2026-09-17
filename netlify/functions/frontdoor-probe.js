@@ -202,7 +202,7 @@ function buildAkshayShapes(ourVendorId, nowIso) {
     ak_noitems: wrap(drop(AK, 'items')),                                 // is items[] required?
     ak_nouser:  wrap(drop(AK, 'username')),                              // is username required?
     ak_nonote:  wrap(drop(AK, 'note')),
-    ak_isoZ:    wrap({ ...AK, updated_at: nowIso }),                     // our .toISOString() Z form vs his +0000
+    ak_isoutc:  wrap({ ...AK, updated_at: nowIso }),                     // our .toISOString() Z form vs his +0000
     ak_times:   wrap({ ...AK, start_time: nowIso, end_time: nowIso }),   // are extra fields tolerated at unmarshal?
     ak_strid:   wrap({ ...AK, dispatch_id: String(AK.dispatch_id) }),
     ak_ourvid:  wrap({ ...AK, vendor_id: String(ourVendorId) }),         // their dispatch, OUR vendor id
@@ -257,6 +257,8 @@ exports.handler = async function (event) {
   // ?shape=spec|items|strobj|bare|all — send the SAME status update in each payload shape
   // against the one path that matters, and report their status + error code for each. One
   // call answers "which body do you actually accept?" without another partner round-trip.
+  // NOTE: ?shape= is lowercased below, so every key above must be all-lowercase or it
+  // is unreachable and the row silently never runs (ak_isoZ did exactly that once).
   if (q.shape) {
     const shapes = { ...buildShapes(statusObject), ...buildAkshayShapes(vendorId, nowIso) };
     const want = String(q.shape).toLowerCase() === 'all'

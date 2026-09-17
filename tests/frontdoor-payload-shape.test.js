@@ -1,20 +1,27 @@
-// Pins the ONE payload envelope Frontdoor's connector actually accepts.
+// Pins the ONE payload Frontdoor's connector actually SAVES.
 //
-// Their published spec (docs/frontdoor-api-spec-2026-06-24.md) documents
-// { data: [ { type: 'status', object: {...} } ] }. Measured live against their repaired
-// sandbox on 2026-09-16, that shape is REJECTED at unmarshal. The connector wants a FLAT
-// event envelope. Walked one validator error at a time:
+// History matters here, because this file used to pin the opposite thing. On 2026-09-16 we
+// walked their validator one error at a time and landed on a FLAT envelope
+// {type, data:{external_id, message, status}} that returned 200 {"errors":null} on every
+// call. We shipped it and pinned it. Akshay Kyatam, 2026-09-17: that request was never
+// saved -- "Surprisingly, the API still returned a 200 response even for incorrect
+// request." So the old green test was pinning a false positive.
 //
-//   data:[{type,object}]  -> 500 CONNECTOR_BLE_0007  Failed to unmarshal struct to JSON string
-//   data:{type,object}    -> 400 CONNECTOR_BLE_0042  Type Missing in request
-//   {type, data:{...}}    -> 400 CONNECTOR_BLE_0048  ExternalID Missing
-//   + external_id in data -> 400 CONNECTOR_BLE_0049  Message Missing
-//   + message as a STRING -> 400 CONNECTOR_BLE_0050  Status Missing
-//   + status as a STRING  -> 200 {"errors":null}
+// THE RULE THAT REPLACES IT: a 200 from this endpoint is not evidence. The only shapes
+// asserted below are ones measured against their sandbox with a CONTROL -- Akshay's own
+// working body -- and one field changed per request:
 //
-// Fifteen days of the integration stalled on this, so the shape is pinned rather than
-// trusted to a comment. The body is captured by stubbing global.fetch and calling the REAL
-// exported dispatchStatusUpdate — not by re-reading a hand-copy of the object literal.
+//   ak_exact   (his body verbatim)          -> 200
+//   ak_numcode (status_code as a NUMBER)    -> 500 CONNECTOR_BLE_0007
+//   ak_strid   (dispatch_id as a STRING)    -> 500 CONNECTOR_BLE_0007
+//   ak_noitems / ak_nouser / ak_times       -> 200  (all three optional)
+//
+// So the envelope was never wrong -- it is the { data:[{type,object}] } their spec
+// documented all along. Fifteen days went to ONE JSON type, on two adjacent id fields that
+// want OPPOSITE types: status_code is a string, dispatch_id is a number.
+//
+// The body is captured by stubbing global.fetch and calling the REAL exported
+// dispatchStatusUpdate -- not by re-reading a hand-copy of the object literal.
 'use strict';
 const assert = require('node:assert');
 const { test } = require('node:test');
@@ -63,64 +70,95 @@ test('posts to the dispatch-connector webhook path', async () => {
   assert.ok(/\/dispatch-connector\/v1\/webhook$/.test(c.url), 'webhook path unchanged');
 });
 
-test('uses the FLAT envelope, not the documented data[] one', async () => {
+test('uses the DOCUMENTED data[] envelope -- the one that saves', async () => {
   const { body } = await capture(ARGS);
-  assert.equal(body.type, 'status', 'type at TOP level — anything else is BLE_0042');
-  assert.ok(!Array.isArray(body.data), 'data must NOT be an array — that is BLE_0007');
-  assert.equal(typeof body.data, 'object', 'data is an object');
-  assert.ok(!('object' in body), 'no top-level `object` wrapper');
+  assert.ok(Array.isArray(body.data), 'data is an array -- the flat envelope 200s and saves nothing');
+  assert.equal(body.data.length, 1);
+  assert.equal(body.data[0].type, 'status', 'type sits beside object, inside data[]');
+  assert.equal(typeof body.data[0].object, 'object', 'object is a real object, not a JSON string');
+  assert.ok(!('type' in body), 'no top-level type -- that is the flat envelope');
+  assert.ok(!('external_id' in body), 'no top-level external_id -- that is the flat envelope');
 });
 
-test('carries external_id INSIDE data as a string', async () => {
+test('dispatch_id is a NUMBER (a string is BLE_0007)', async () => {
   const { body } = await capture(ARGS);
-  // Top-level external_id (any casing) is what returns BLE_0048 — it has to be nested.
-  assert.ok(!('external_id' in body) && !('externalId' in body) && !('ExternalID' in body),
-    'external_id must be inside data, not top level');
-  assert.equal(body.data.external_id, '22863999', 'external_id present inside data');
-  assert.equal(typeof body.data.external_id, 'string', 'external_id is a string');
+  const o = body.data[0].object;
+  assert.equal(typeof o.dispatch_id, 'number', 'measured: ak_strid -> 500 CONNECTOR_BLE_0007');
+  assert.equal(o.dispatch_id, 22863999);
 });
 
-test('message is a non-empty STRING (an object dies at unmarshal)', async () => {
+test('status_code is a STRING (a number is BLE_0007)', async () => {
   const { body } = await capture(ARGS);
-  assert.equal(typeof body.data.message, 'string', 'message must be a string');
-  assert.ok(body.data.message.length > 0, 'message is non-empty — empty is BLE_0049');
-  assert.equal(body.data.message, 'Jimmy is on the way', 'the tech note is the useful message');
+  const o = body.data[0].object;
+  assert.equal(typeof o.status_code, 'string', 'measured: ak_numcode -> 500 CONNECTOR_BLE_0007');
+  assert.equal(o.status_code, '70');
+  // The asymmetry is the whole point: the two id-ish fields want opposite types.
+  assert.notEqual(typeof o.status_code, typeof o.dispatch_id, 'string vs number, deliberately');
 });
 
-test('message falls back to the description when there is no note', async () => {
+test('the human-readable description rides alongside the code', async () => {
+  const { body } = await capture(ARGS);
+  const o = body.data[0].object;
+  // Akshay: "We use the status_code value for status processing. However, we recommend
+  // sending both the status_code and description fields."
+  assert.equal(o.description, 'Technician in Route to Location');
+  assert.ok(o.description.length > 0, 'never send a bare code with no description');
+});
+
+test("the tech's note is carried as note, not folded into description", async () => {
+  const { body } = await capture(ARGS);
+  const o = body.data[0].object;
+  assert.equal(o.note, 'Jimmy is on the way');
+  assert.equal(o.description, 'Technician in Route to Location', 'the note never overwrites the status wording');
+});
+
+test('an absent note sends empty, never undefined', async () => {
   const { body } = await capture({ ...ARGS, note: '' });
-  assert.equal(body.data.message, 'Technician in Route to Location', 'never sends an empty message');
+  assert.equal(body.data[0].object.note, '', 'a missing key would drop out of JSON entirely');
 });
 
-test('status is a non-empty STRING, not a number and not an object', async () => {
+test('vendor, tenant and source are present and correctly typed', async () => {
   const { body } = await capture(ARGS);
-  assert.equal(typeof body.data.status, 'string', 'status must be a string — a number is BLE_0007');
-  assert.ok(body.data.status.length > 0, 'status is non-empty — empty is BLE_0050');
-  assert.equal(body.data.status, 'Technician in Route to Location');
+  const o = body.data[0].object;
+  assert.equal(o.vendor_id, '822418');
+  assert.equal(typeof o.vendor_id, 'string', 'vendor_id is a string in their working body');
+  assert.equal(o.tenant, 'AHS', 'tenant defaults to AHS');
+  assert.equal(o.source, 'TN_APPLIANCE_EXCHANGE', 'the source Akshay provisioned for us');
 });
 
-test('the numeric code still rides along, as a string', async () => {
+test('a status carries a person -- username defaults, and is overridable', async () => {
   const { body } = await capture(ARGS);
-  assert.equal(body.data.status_code, '70', 'status_code carried as a string');
-});
-
-test('vendor, tenant and source ride along inside data', async () => {
-  const { body } = await capture(ARGS);
-  assert.equal(body.data.vendor_id, '822418');
-  assert.equal(body.data.tenant, 'AHS', 'tenant defaults to AHS');
-  assert.equal(body.data.source, 'TN_APPLIANCE_EXCHANGE', 'the source Akshay provisioned for us');
+  assert.equal(body.data[0].object.username, 'TN APPLIANCE EXCHANGE', 'their portal shows who made the change');
+  const named = await capture({ ...ARGS, username: 'Jimmy Pivacek' });
+  assert.equal(named.body.data[0].object.username, 'Jimmy Pivacek');
 });
 
 test('items only appear when actually supplied', async () => {
   const bare = await capture(ARGS);
-  assert.ok(!('items' in bare.body.data), 'no empty items array');
-  const withItems = await capture({ ...ARGS, items: [{ id: 0, legacy_item_id: 0, description: '' }] });
-  assert.equal(withItems.body.data.items.length, 1, 'items nest inside data when passed');
+  assert.ok(!('items' in bare.body.data[0].object), 'no empty items array -- measured optional');
+  const withItems = await capture({ ...ARGS, items: [{ id: 822, legacy_item_id: 822, description: 'Dryer' }] });
+  assert.equal(withItems.body.data[0].object.items.length, 1, 'items nest inside object when passed');
 });
 
-test('FRONTDOOR_LEGACY_SHAPE=1 restores the documented envelope (one-line reversal)', async () => {
+test('timestamps are ISO strings and default to now', async () => {
+  const { body } = await capture(ARGS);
+  const o = body.data[0].object;
+  [o.updated_at, o.start_time, o.end_time].forEach((t) => {
+    assert.equal(typeof t, 'string');
+    assert.ok(!isNaN(Date.parse(t)), 'parseable ISO -- measured tolerated alongside their +0000 form');
+  });
+});
+
+test('the 200-but-never-saved flat envelope cannot come back', async () => {
+  // It was shipped, pinned green, and wrote nothing to their portal for a day. Keeping it
+  // behind a vault flag would be a one-line reversal to a silent no-op, so it is gone --
+  // including via the old FRONTDOOR_LEGACY_SHAPE key, which is now inert.
   const { body } = await capture(ARGS, { FRONTDOOR_LEGACY_SHAPE: '1' });
-  assert.ok(Array.isArray(body.data), 'legacy flag brings back data[]');
-  assert.equal(body.data[0].type, 'status');
-  assert.equal(body.data[0].object.dispatch_id, 22863999, 'legacy keeps dispatch_id numeric');
+  assert.ok(Array.isArray(body.data), 'the flag no longer changes the envelope');
+  assert.ok(!('message' in body.data[0].object), 'no `message` field -- that was the flat shape');
+  assert.ok(!('status' in body.data[0].object), 'no `status` field -- that was the flat shape');
+
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'netlify', 'functions', '_lib', 'frontdoor.js'), 'utf8');
+  const live = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  assert.ok(!/external_id/.test(live), 'the flat envelope is not built anywhere on a live line');
 });

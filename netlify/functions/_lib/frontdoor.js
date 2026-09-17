@@ -109,14 +109,32 @@ async function api(method, path, bodyObj, baseOverride) {
 // empty 404, control path included (the prefix IS routed there — unauth gives 403 RBAC) — so a
 // watcher pointed at sandbox would wait forever on a host that serves nothing. The real
 // dispatch-connector service is on production.
-async function dispatchStatusUpdate({ dispatchId, statusCode, description, note, vendorId, source, tenant, items, startTime, endTime, baseOverride }) {
+async function dispatchStatusUpdate({ dispatchId, statusCode, description, note, vendorId, source, tenant, items, username, startTime, endTime, baseOverride }) {
   const vid = vendorId || vendorCtx.current('ahs').vendor_id || (await getSecret('FRONTDOOR_VENDOR_ID')) || '';
   const nowIso = new Date().toISOString();
   const desc = description || '';
 
-  // The status object as their PUBLISHED SPEC documents it (docs/frontdoor-api-spec-2026-06-24).
-  // Kept intact because it is what the spec + Akshay's 8/24 email describe, and production may
-  // still want it — but on the sandbox it is rejected (see LEGACY_SHAPE below).
+  // THE BODY THEIR CONNECTOR ACTUALLY SAVES. Measured against their sandbox 2026-09-17
+  // after Akshay Kyatam sent the payload that works in their environment.
+  //
+  // It is the envelope their spec documented all along -- { data: [ { type, object } ] }.
+  // The envelope was never the problem. What killed it for fifteen days is one JSON TYPE,
+  // and the two adjacent id fields want OPPOSITE types, which is not guessable:
+  //
+  //   status_code "70"   (STRING)  -> 200        |  status_code 70   (number) -> 500 BLE_0007
+  //   dispatch_id 22863999 (NUMBER) -> 200       |  dispatch_id "..." (string) -> 500 BLE_0007
+  //
+  // Optional, measured: items[] and username are both fine to omit (200 either way), and
+  // start_time / end_time ride along without upsetting unmarshal. Reproduce any row with
+  // frontdoor-probe?secret=<admin>&shape=ak_exact,ak_numcode,ak_strid (one shape per call).
+  //
+  // 200 IS NOT PROOF OF A SAVE. Akshay, 2026-09-17: "the API still returned a 200 response
+  // even for incorrect request... we'll need to investigate that further." Our 2026-09-16
+  // flat-envelope {type, data:{external_id, message, status}} returned 200 {"errors":null}
+  // on every call and wrote NOTHING to the Contractor Portal. That shape is deliberately
+  // gone from this file rather than parked behind a vault flag: a one-line "reversal" to a
+  // body that silently no-ops is worse than having no reversal at all. It survives only in
+  // frontdoor-probe, where a diagnostic belongs. FRONTDOOR_LEGACY_SHAPE is now inert.
   const object = {
     // Frontdoor (Akshay Kyatam) told us this exact value on 2026-08-24: "please use the
     // following value as the source in the request payload when calling our webhook API:
@@ -127,54 +145,20 @@ async function dispatchStatusUpdate({ dispatchId, statusCode, description, note,
     dispatch_id: Number(dispatchId),
     vendor_id: String(vid),
     description: desc,
-    status_code: Number(statusCode),
+    // A STRING. This one character class is what the whole integration hung on.
+    status_code: String(statusCode),
     note: note || '',
+    // Who made the change, as it reads in their Contractor Portal. Optional to them; we
+    // send the tech's name when we have it so a status has a person on it.
+    username: username || 'TN APPLIANCE EXCHANGE',
     updated_at: nowIso,
     start_time: startTime || nowIso,
     end_time: endTime || nowIso,
   };
   if (Array.isArray(items) && items.length) object.items = items;
 
-  // MEASURED 2026-09-16 against their repaired sandbox: the documented
-  // { data: [ { type, object } ] } envelope is REJECTED at unmarshal, and the connector
-  // actually wants a FLAT EVENT ENVELOPE. Walked one validator error at a time:
-  //   data:[{type,object}]  -> 500 CONNECTOR_BLE_0007  Failed to unmarshal struct to JSON string
-  //   data:{type,object}    -> 400 CONNECTOR_BLE_0042  Type Missing in request
-  //   {type, data:{...}}    -> 400 CONNECTOR_BLE_0048  ExternalID Missing
-  //   + external_id in data -> 400 CONNECTOR_BLE_0049  Message Missing
-  //   + message as a STRING -> 400 CONNECTOR_BLE_0050  Status Missing
-  //   + status as a STRING  -> 200 {"errors":null}
-  // `status` must be a string (an object or a bare number dies at unmarshal); extra fields
-  // alongside the accepted minimum are tolerated, so the note / vendor / code all ride along.
-  // Reproduce any row with: frontdoor-probe?secret=<admin>&shape=all
-  const flat = {
-    type: 'status',
-    data: {
-      external_id: String(dispatchId),
-      // Their validator wants a human-readable `message`; the tech's note is the useful
-      // payload, and the status description is the honest fallback when there is no note.
-      message: note || desc,
-      status: desc,
-      status_code: String(statusCode),
-      vendor_id: String(vid),
-      tenant: tenant || 'AHS',
-      source: source || FD_SOURCE,
-      updated_at: nowIso,
-      start_time: startTime || nowIso,
-      end_time: endTime || nowIso,
-    },
-  };
-  if (Array.isArray(items) && items.length) flat.data.items = items;
+  const body = { data: [{ type: 'status', object }] };
 
-  // One vault key flips back to the documented shape if Frontdoor tells us production
-  // differs from sandbox — we have never been able to test production (our sandbox token
-  // gets 401 "Jwt issuer is not configured" there), so this stays a one-line reversal.
-  const legacy = (await getSecretFresh('FRONTDOOR_LEGACY_SHAPE')) === '1';
-  const body = legacy ? { data: [{ type: 'status', object }] } : flat;
-
-  // Overall deadline: token(6s) + webhook(7s) + any 401 retry can never collectively hang past
-  // ~16s, so a slow/unresponsive Frontdoor endpoint fails fast with a clear error instead of
-  // stalling the caller past the function/client cap (this was the 25s HTTP-000 hang).
   const call = api('POST', '/dispatch-connector/v1/webhook', body, baseOverride);
   const deadline = new Promise((_, rej) => setTimeout(() => rej(new Error('Frontdoor push deadline exceeded (16s)')), 16000));
   return Promise.race([call, deadline]);
