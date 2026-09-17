@@ -250,7 +250,7 @@
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-page.js"></script>
   <script src="/platform/ant-maps.js"></script>
-<script src="/platform/ant-windows.js"></script>
+<script src="/platform/ant-windows.js?v=20260917-dayorder"></script>
 <script src="/platform/ant-part-route.js?v=20260916-supplier"></script>
 <script src="/platform/ant-part-note.js"></script>
 <script src="/platform/ant-thread.js"></script>
@@ -1152,6 +1152,14 @@
   // expand each stop back into its machines so they sit together and share a stop number —
   // otherwise a washer/dryer/fridge visit reads as three stops and inflates the whole day.
   function stopKey(j){ return String(j.stop_id || j.id); }
+  // Several machines at one address is ONE stop at ONE time. If two machines of the same
+  // visit ever carry different windows, the stop runs at the EARLIEST of them -- never
+  // later than something a customer was already promised.
+  function stopHour(mates){
+    var best=null;
+    (mates||[]).forEach(function(j){ var h=AntWindows.startHourFor(j); if(h!=null&&(best==null||h<best)) best=h; });
+    return best;
+  }
   function routeSequence(jobs){
     stopByJob={}; matesByJob={}; stopCount=0;
     var byDay={}, order=[];
@@ -1163,7 +1171,9 @@
       // group this day's open jobs into stops, preserving the order they arrived in
       var groups={}, reps=[];
       open.forEach(function(j){ var sk=stopKey(j); if(!groups[sk]){ groups[sk]=[]; reps.push(j); } groups[sk].push(j); });
-      var seq=routeOrder(reps);
+      // 🕐 The CLOCK owns the day; the route only breaks ties inside a window. One shared
+      // rule in ant-windows.js so the board and this list can never disagree again.
+      var seq=AntWindows.orderDay(reps,{ routeFn:routeOrder, hourOf:function(r){ return stopHour(groups[stopKey(r)]); } });
       if(k!=='~' && seq.length>=3){ seq.forEach(function(r,i){ groups[stopKey(r)].forEach(function(j){ stopByJob[j.id]=i+1; }); }); }
       seq.forEach(function(r){
         var mates=groups[stopKey(r)];
@@ -1765,7 +1775,7 @@
   }
   function loadJobs(){
     var q = sb.from('job').select(
-      'id,status,problem,scheduled_day,time_window,availability,office_notes,waiver_name,waiver_signed_at,customer_id,stop_id,' +
+      'id,status,problem,scheduled_day,time_window,scheduled_start,service_window,availability,office_notes,waiver_name,waiver_signed_at,customer_id,stop_id,' +
       'technician_id,technician2_id,technician:technician_id(name),helper:technician2_id(name),' +
       'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held),' +

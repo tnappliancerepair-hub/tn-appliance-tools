@@ -205,7 +205,7 @@
 <script src="/platform/config.js"></script>
 <script src="/platform/ant-page.js"></script>
   <script src="/platform/ant-maps.js"></script>
-<script src="/platform/ant-windows.js"></script>
+<script src="/platform/ant-windows.js?v=20260917-dayorder"></script>
 <script src="/platform/vendor/supabase-js.js"></script>
 <script src="/platform/ant-new-job.js"></script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -531,7 +531,8 @@
             var cellHolds=offers.filter(function(o){ return o.direction==='shop' && String(o.technician_id)===String(t.id) && o.proposed_day===d; });
             var cap=capOf(t); var cnt=mine.length+cellHolds.length; var rem=Math.max(0,cap-cnt);
             var tier=cnt>=5?'red':(cnt>=3?'yellow':'green');
-            var route=routeOrder(mine);
+            // 🕐 Clock first, route second -- the lane must read in the order the tech drives it.
+            var route=AntWindows.orderDay(mine,{ routeFn:routeOrder });
             var blocks=route.map(function(j,idx){ var city=(j.customer&&j.customer.city)||'';
                 var hint = j.status==='awaiting_parts' ? '📦 ' : (String(j.warranty_company||'').trim() ? '🛡 ' : '');
                 // A helper stop is a real drive on HIS day, so it takes a slot -- but it is not his
@@ -857,7 +858,7 @@
     var todayIso=isoDay(new Date());
     sb.rpc('company_roster').then(function(tr){
       techs=((tr.data)||[]).filter(function(t){ return t.active!==false; });
-      var jP=AntPage.all(function(){ return sb.from('job').select('id,status,problem,availability,scheduled_day,time_window,technician_id,technician2_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)'); },{label:'dispatch jobs'});
+      var jP=AntPage.all(function(){ return sb.from('job').select('id,status,problem,availability,scheduled_day,time_window,scheduled_start,service_window,warranty_company,technician_id,technician2_id,customer_id,customer:customer_id(first_name,last_name,zip,city,address,state),unit:unit_id(label)').not('status','in','(completed,canceled)'); },{label:'dispatch jobs'});
       var oP=sb.from('tech_time_off').select('technician_id,day').gte('day',todayIso).limit(4000);
       var offerP=sb.from('schedule_offer').select('id,job_id,customer_id,direction,proposed_day,win,note,technician_id,status,created_at').eq('status','pending').gte('proposed_day',todayIso).limit(1000);
       var covP=sb.from('coverage').select('zip,tech_id,rank').limit(4000);

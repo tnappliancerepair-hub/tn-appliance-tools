@@ -42,6 +42,103 @@
   function slotsFor(key) { var w = get(key); return w ? w.slots : 0; }
   function hourFor(key) { var w = get(key); return w ? w.hour : null; }
 
+  // ── DAY ORDER ──────────────────────────────────────────────────────────────────
+  // Lee, 2026-09-17: "my schedule is all out of order -- it should start with the earlier
+  // jobs and end with the later ones." He was right. Both the day list and the board ran a
+  // tech's day through a nearest-neighbour ZIP sweep, which is a fact about the MAP and
+  // says nothing about the clock -- so an 8-11 stop rendered fourth and an 11-2 stop first.
+  //
+  // THE RULE: the window is what the customer was TOLD, so it is the primary key. The
+  // route is only an optimisation and only gets to reorder stops that SHARE a window.
+  // A day runs by the clock; the map breaks ties.
+
+  // Read an ISO timestamp as an hour on the CENTRAL clock (fractional, so 11:05 -> 11.08
+  // sorts after 11:00). Central by construction -- reading it in UTC would put an evening
+  // stop on tomorrow, the documented off-by-one that keeps biting this codebase.
+  function hourOfIsoCT(iso) {
+    if (!iso) return null;
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    try {
+      var parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', hour12: false
+      }).formatToParts(d);
+      var h = null, m = 0;
+      parts.forEach(function (x) {
+        if (x.type === 'hour') h = parseInt(x.value, 10);
+        if (x.type === 'minute') m = parseInt(x.value, 10);
+      });
+      if (h == null || isNaN(h)) return null;
+      if (h === 24) h = 0;                       // some engines render midnight as 24
+      return h + (isNaN(m) ? 0 : m) / 60;
+    } catch (e) { return null; }
+  }
+
+  // The VENDOR's window is free text and most of it is not a time of day at all --
+  // "48 hours/2 business days" is a turnaround promise. Only read it when it genuinely
+  // names a clock time, and never let an SLA phrase through.
+  function parseWindowText(txt) {
+    var s = String(txt || '').toLowerCase();
+    if (!s.trim()) return null;
+    if (/\b(hours?|business\s*days?|days?|weeks?|asap)\b/.test(s)) return null;  // an SLA, not a clock
+    s = s.replace(/\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/g, ' ');                  // drop a leading date
+    var m = s.match(/(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|\u2013|\u2014|to)\s*\d/);
+    if (!m) return null;
+    var h = parseInt(m[1], 10), mins = parseInt(m[2] || '0', 10);
+    if (isNaN(h) || h > 23 || h < 0) return null;
+    if (isNaN(mins) || mins > 59) mins = 0;
+    var mer = (m[3] || '').replace(/[^ap]/g, '');
+    if (h >= 13) return h + mins / 60;                       // already an unambiguous 24h clock
+    if (mer === 'p') { if (h !== 12) h += 12; }
+    else if (mer === 'a') { if (h === 12) h = 0; }
+    else if (h >= 1 && h <= 6) { h += 12; }                  // a service day runs ~7am-7pm: 1-6 means afternoon
+    return h + mins / 60;
+  }
+
+  // What hour does this job start at? Best honest signal first:
+  //   1. time_window    -- the promise the office picked and the customer heard
+  //   2. scheduled_start -- the booked timestamp, read on the Central clock
+  //   3. service_window  -- the vendor's words, ONLY when they name a real clock time
+  //   4. null            -- genuinely unknown; sorts AFTER everything that has a time
+  // Measured on TN's 44 upcoming assigned jobs: (1) and (2) agree on 42. On the 2 that
+  // disagree the customer heard the time_window, so it wins.
+  function startHourFor(job) {
+    if (!job) return null;
+    var w = get(job.time_window);
+    if (w) return w.hour;
+    var h = hourOfIsoCT(job.scheduled_start);
+    if (h != null) return h;
+    return parseWindowText(job.service_window);
+  }
+
+  // Order ONE day's stops. Groups by start hour, runs the groups earliest-first, and lets
+  // routeFn cluster by area only INSIDE a group. A stop with no time at all lands after
+  // every stop that has one -- it must never jump ahead of a promised 8am.
+  //   routeFn — the caller's route heuristic, applied within a window (optional)
+  //   hourOf  — override the key; the tech app folds several machines at one address into
+  //             one stop and passes that stop's earliest hour (optional)
+  function orderDay(jobs, opts) {
+    opts = opts || {};
+    var routeFn = typeof opts.routeFn === 'function' ? opts.routeFn : null;
+    var hourOf = typeof opts.hourOf === 'function' ? opts.hourOf : startHourFor;
+    var buckets = [], byHour = {};
+    (jobs || []).forEach(function (j) {
+      var h = hourOf(j);
+      var k = (h == null) ? '~' : String(h);
+      if (!byHour[k]) { byHour[k] = { hour: h, jobs: [] }; buckets.push(byHour[k]); }
+      byHour[k].jobs.push(j);
+    });
+    buckets.sort(function (a, b) {
+      if (a.hour == null && b.hour == null) return 0;
+      if (a.hour == null) return 1;
+      if (b.hour == null) return -1;
+      return a.hour - b.hour;
+    });
+    var out = [];
+    buckets.forEach(function (b) { out = out.concat(routeFn ? routeFn(b.jobs) : b.jobs); });
+    return out;
+  }
+
   // How many of a window's slots are already spoken for, given the jobs already on that
   // tech's day. Pass the jobs you already have — this never queries.
   function taken(jobs, key, excludeJobId) {
@@ -94,6 +191,8 @@
     get: get, label: label, short: short, isWindow: isWindow,
     slotsFor: slotsFor, hourFor: hourFor,
     taken: taken, remaining: remaining, isFull: isFull,
+    startHourFor: startHourFor, orderDay: orderDay,
+    hourOfIsoCT: hourOfIsoCT, parseWindowText: parseWindowText,
     optionText: optionText, selectHtml: selectHtml, chipsHtml: chipsHtml
   };
 })(window);
