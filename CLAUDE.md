@@ -54,6 +54,47 @@ that flag is now inert. It survives only in `frontdoor-probe`, where a diagnosti
   `ak_isoZ` key was unreachable and reported an empty result that read like a timeout. Renamed +
   pinned in a comment. **A shape key that cannot be selected is a test that cannot fail.**
 
+### 🧪 ALL 13 STATUS CODES SWEPT + A REAL 900-CHAR TDR NOTE — all 200 (2026-09-17 PM)
+Teddy's question: *"can they get on-the-way, waiting-on-parts, job-completed? Can we test all
+of that before we send the email?"* **Yes for acceptance, no for rendering — and the split is
+the whole point.** Swept every code in `STATUS` through the REAL connector against sandbox on
+dispatch 22863999 / vendor 839828, in lifecycle order: **30 · 70 · 90 · 20 · 380 · 100 · 410 ·
+400 · 290 · 150 · 10 · 440 · 40 → 13 of 13 returned `200 {"errors":null}`.** Then pushed a
+**real ~900-char TDR** as the note on Job Complete → also 200.
+- **⚠️ WHAT THAT DOES AND DOESN'T PROVE.** It proves their validator ACCEPTS every code inside
+  the known-good envelope — worth knowing, since a code outside their vocabulary should have
+  failed the way a numeric `status_code` did. It does **NOT** prove the portal renders any of
+  them, because **a 200 from this endpoint is not a receipt** (their own words). Three asks in
+  the email cover the gap: did the pushes land, do our 13 code↔description pairs match their
+  catalog, and what is the real note cap.
+- **`frontdoor-test` gained `&note=`** so the field that does the actual work can be probed at
+  real size. Every prior probe sent a 30-char connectivity string, which is why the defects
+  below went 3 months unseen.
+
+### 🔴 PROBING THE NOTE AT REAL SIZE FOUND THREE DEFECTS — AND ONE OF THEM COSTS MONEY
+`_lib/frontdoor-tdr.js composeTdrNote` builds the text an AHS reviewer reads on a completed
+claim. **It had NO test.** At 30 chars it looked fine; at 900 it was broken three ways:
+1. **🔴 LABOR AND PARTS-TO-RETURN WERE BEING SILENTLY DROPPED.** Both are composed LAST, so
+   any long diagnosis pushed them past the 900 cap and `.slice(0,900)` ate them with no signal.
+   **Labor is what AHS pays on. Parts-to-return is the CHARGEBACK field** — the standing vendor
+   rule is that an unreturned part means the repair is not paid AND the part can be charged
+   back. Measured on a realistic dryer report: `Labor:` and `Parts to return:` both **absent**.
+   **Fixed by RESERVING the tail out of the budget and trimming the prose around it**, so the
+   two load-bearing facts can never be the thing that falls off the end.
+2. **Doubled periods** (`reads open as well..`) — a tech's free text usually already ends in
+   punctuation. One branch guarded with `/[.!?]$/` and **five did not**; `dot()` is now the one rule.
+3. **Mid-word truncation** — `cleaned the blower housing` cut to `cleaned the blower`. `trimTo()`
+   backs off to a sentence end, else a word boundary.
+- ⚠️ **The prose also restates itself** — `Work performed:` repeats the Diagnosis + Failed lines
+  almost verbatim, burning ~300 chars of the budget. Left alone deliberately: what an AHS
+  reviewer wants to read is a copy decision, not a correctness one. The reserve makes it safe.
+- **🧪 `tests/frontdoor-tdr-note.test.js` 9/9 (NEW).** Mutation-proven **4 ways**: revert the
+  tail reservation (fails 4) · `dot()` always appends (2) · `trimTo` back to a bare slice (2) ·
+  budget forgets to reserve the tail (1). Suite **266/266**.
+- ⚠️ **STANDING: probe a field at the size it will actually carry.** A 30-char smoke string
+  through a 900-char field tests the plumbing and nothing about the payload. Every defect here
+  was invisible until the note was real.
+
 ### 📋 HIS OTHER TWO ANSWERS
 - **Which value they process:** `status_code` — but send **both** `status_code` and `description`
   "to ensure the status is interpreted correctly." We send both.
