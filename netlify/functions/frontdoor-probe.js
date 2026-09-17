@@ -163,6 +163,55 @@ function buildShapes(obj) {
   };
 }
 
+// ── Akshay's working payload, 2026-09-17 ────────────────────────────────────
+// He sent the body that SAVES in their environment, and it is the DOCUMENTED
+// { data:[{type,object}] } envelope after all — so the envelope was never the problem.
+// He also told us the 200 we walked to on 2026-09-16 was a FALSE POSITIVE: that request
+// was acknowledged and never saved. ("Surprisingly, the API still returned a 200 response
+// even for incorrect request.")
+//
+// So a 200 is NOT proof any more. These rows start from his literal body as the CONTROL
+// and change ONE field at a time, so the field their unmarshal actually chokes on is
+// measured instead of guessed. Two fields differ from his by necessity and neither is a
+// shape change: the note is labelled as a probe so it is obvious in their portal, and the
+// username is ours rather than his.
+//
+// The four deltas between his working body and the `spec` row that gave us BLE_0007:
+//   status_code "70" (STRING) vs 70 (number)   <- prime suspect
+//   items[] present vs absent
+//   username present vs absent
+//   no start_time/end_time vs both present
+function buildAkshayShapes(ourVendorId, nowIso) {
+  const AK = {
+    source: 'TN_APPLIANCE_EXCHANGE',
+    tenant: 'AHS',
+    dispatch_id: 22863999,          // his dispatch; sandbox is shared test data
+    vendor_id: '1396202',           // the sandbox vendor that OWNS that dispatch, not ours
+    description: 'Technician in Route to Location',
+    status_code: '70',              // STRING in his working body
+    note: 'Ant probe — please ignore',
+    updated_at: '2026-03-19T19:49:55.46+0000',
+    items: [{ legacy_item_id: 822, id: 822, description: 'Air Conditioning (Central-Electric)' }],
+    username: 'TN APPLIANCE EXCHANGE',
+  };
+  const wrap = (o) => ({ data: [{ type: 'status', object: o }] });
+  const drop = (o, k) => { const c = { ...o }; delete c[k]; return c; };
+  return {
+    ak_exact:   wrap(AK),                                                // CONTROL — must be 200 AND visible in their portal
+    ak_numcode: wrap({ ...AK, status_code: Number(AK.status_code) }),    // the prime suspect, isolated
+    ak_noitems: wrap(drop(AK, 'items')),                                 // is items[] required?
+    ak_nouser:  wrap(drop(AK, 'username')),                              // is username required?
+    ak_nonote:  wrap(drop(AK, 'note')),
+    ak_isoZ:    wrap({ ...AK, updated_at: nowIso }),                     // our .toISOString() Z form vs his +0000
+    ak_times:   wrap({ ...AK, start_time: nowIso, end_time: nowIso }),   // are extra fields tolerated at unmarshal?
+    ak_strid:   wrap({ ...AK, dispatch_id: String(AK.dispatch_id) }),
+    ak_ourvid:  wrap({ ...AK, vendor_id: String(ourVendorId) }),         // their dispatch, OUR vendor id
+    // What the connector would actually put on the wire: his shape, our clock, our
+    // username, items only when the job carries them.
+    ak_ship:    wrap({ ...drop(AK, 'items'), updated_at: nowIso }),
+  };
+}
+
 function verdict(s) {
   if (s === 200 || s === 201 || s === 202) return 'LIVE';
   if (s === 400 || s === 422) return 'REACHABLE — auth accepted, body rejected (this is a PASS)';
@@ -209,7 +258,7 @@ exports.handler = async function (event) {
   // against the one path that matters, and report their status + error code for each. One
   // call answers "which body do you actually accept?" without another partner round-trip.
   if (q.shape) {
-    const shapes = buildShapes(statusObject);
+    const shapes = { ...buildShapes(statusObject), ...buildAkshayShapes(vendorId, nowIso) };
     const want = String(q.shape).toLowerCase() === 'all'
       ? Object.keys(shapes)
       : String(q.shape).toLowerCase().split(',').map((x) => x.trim()).filter((x) => shapes[x]);
