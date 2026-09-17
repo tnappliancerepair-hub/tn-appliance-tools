@@ -164,6 +164,36 @@ the full set we want implemented** since other contractors are working the same 
   by grep: both returned **0 matches** on a realistic note. Fixed by reserving the tail out of the
   budget; `trimTo` backs off to a sentence end, else a word boundary.
 
+### 🔒 THEN WE PINNED THE EMAIL ITSELF — the draft can no longer drift from the connector
+The 8-vs-3 overclaim happened because **the email was the one artifact with a partner on the other
+end and ZERO test coverage.** Fixing the code and the test still left the DRAFT free to drift.
+- **🧪 `tests/frontdoor-email-matches-code.test.js` 12/12 (NEW).** Everything is **parsed out of the
+  real files, nothing hand-copied**: the "what we send" table (every code must exist in `STATUS`
+  with that exact code, and the sets must match **both directions** — no code we can't send, no
+  status we never mention), `**live**` ⇔ `wired:true`, `mapped` ⇔ `mapped:true`, every other row
+  must literally read `ready` (a blank cell is an unreviewed claim), the prose counts ("23
+  statuses", "Three fire automatically", "Five more are already mapped") computed from the code,
+  every authorization code in the do-not-push paragraph asserted **inbound-only**, all 11 demo
+  codes sendable, the vendor ids paired with their real areas, and the advertised note length
+  (886) asserted **≤ `composeTdrNote`'s cap** so we can't promise a report we can't compose.
+  Plus a leak guard: the owner's cell and anything token-shaped can never appear in a partner email.
+  **Mutation-proven 9 ways, each one a lie we could otherwise have sent:** email calls a mapped
+  status live (**the exact bug**, fails 2) · code wires one while the email still says mapped (3) ·
+  email advertises a code we can't send (3) · prose count drifts from the table (1) · an AHS
+  authorization decision enters our outbound catalog (3) · a demo step cites an unsendable code (1)
+  · the owner cell leaks in (1) · a tier cell silently blanks (1) · the note cap drops below the
+  length we advertised (1). Suite **284/284**.
+- 🐞 **The test caught its own wrong assumption on the first run.** It read `INBOUND_STATUS` as
+  `{code: N}` objects; it is keyed **BY code** (`code -> description`). A green run would have meant
+  the do-not-push promise was never actually checked.
+- **✅ VERIFIED THREE-WAY AGAINST THE SERVED BUILD, not the repo:** pulled the deployed catalog off
+  `frontdoor-test` (via the **refusal path**, so nothing was pushed and their test dispatch gained
+  no new noise) → **served 23 · local 23 · email 23, all three sets identical**, `PARTS_ARRIVED`
+  present.
+- **⚠️ STANDING: if a document makes a claim about the code, a test must parse BOTH and compare.**
+  A reviewed-once draft rots the moment the code moves. The email is now the fourth artifact pinned
+  this way (after the payload shape, the wiring tiers, and the TDR note).
+
 ### ⏭️ OPEN
 - **`docs/frontdoor-reply-2026-09-17.md` is drafted and NOT SENT** (Teddy's call). v3 leads with the
   11-step lifecycle demonstration, states the 23 we send (3 live / 5 mapped / 15 ready) and the 15
@@ -177,6 +207,9 @@ the full set we want implemented** since other contractors are working the same 
 - **⚠️ STANDING: a 2xx is not a receipt.** This endpoint acknowledges a wrong-envelope request and
   drops it. Never treat a status code as proof a partner stored anything — get a read-back, or get
   a human to look.
+- **⚠️ The email is now PINNED to the connector** (`tests/frontdoor-email-matches-code.test.js`) — if
+  a status changes tier, a code is added, or a count moves, the suite goes red **before** the email
+  goes out. Re-run `node --test tests/*.test.js` after any connector change and before sending.
 - **⚠️ STANDING: a lookup-table entry is not proof of wiring, and a fallback is not a default.**
   Twice in one session a map entry was read as behaviour (`PARTS_ARRIVED`, then five statuses in
   `FD_STATUS_MAP`). Before telling anyone — especially a partner — that something is automatic,
