@@ -104,16 +104,83 @@ claim. **It had NO test.** At 30 chars it looked fine; at 900 it was broken thre
   sandbox** — that feed carries other contractors' dispatches (vendor ids 1396202/157992/1636528,
   none ours).
 
+### 🏁 THEN WE PROVED THE WHOLE LIFECYCLE, AND EXPANDED THE CATALOG 13 → 23 (Teddy: *"we want to stand out as the leaders in this"*)
+Teddy's two asks: **test every status ourselves rather than wait for their go-ahead**, and **state
+the full set we want implemented** since other contractors are working the same API. Both done.
+- **THE SPLIT THAT ANSWERS "should we test first":** what we can prove alone = **whether their
+  validator accepts each status** (needs nothing from them, and a rejected code is far cheaper
+  found today than in production). What ONLY they can confirm = **whether anything RENDERS** —
+  because a 200 is not a receipt. So: test now, ask them only the questions we genuinely cannot
+  answer. All 13 original codes → `200 {"errors":null}` on dispatch 22863999 / vendor 839828,
+  plus a realistic 900-char TDR note on COMPLETE.
+- **READ THEIR OWN 47-CODE LIST AND SPLIT IT** (`docs/frontdoor-api-spec-2026-06-24.md`) rather
+  than inventing asks. **23 are a contractor's to report → our `STATUS` catalog** (was 13). **15
+  are the warranty company's DECISION → new `INBOUND_STATUS` map, which we deliberately do NOT
+  push**: authorization outcomes (350/360/370/450/470/480), cash-out (500), CIL (320/330/340),
+  appliance options (300/310), possible denial (130), automated load (50), dispatch assigned (250).
+  **Declining to push those is the credibility move** — asserting a decision we don't make is how
+  an integration gets its credentials pulled. A test pins that none of the 15 can ever be sent.
+- **11-STEP LIFECYCLE DEMONSTRATION, all 200:** 260 Accepted → 30 Appointment Set → 70 En Route →
+  90 Arrived → 20 In Progress → 380 Parts Ordered → 100 Parts on Order → 410 Parts Arrived → 400
+  Return Set → 10 Complete (886-char full TDR) → 440 Invoiced. A demonstration beats a claim.
+- **THE RECEIVE HALF IS THE REAL DIFFERENTIATOR, and it is already built.** `frontdoor-webhook.js`
+  handles all four of their operations (Schedule / Status / Notes / NCC), auto-advances on safe
+  codes, and **flags authorization outcomes for a human rather than acting on them.** It is dark
+  for exactly one reason: **the sandbox feed is other contractors' dispatches** (vendor ids
+  1396202/157992/1636528, none ours). So the email asks for a **vendor-scoped production feed**,
+  not for them to build anything.
+
+### 🐞 TWO BUGS I INTRODUCED AND CAUGHT — BOTH THE SAME CLASS: A TABLE ENTRY READ AS PROOF OF BEHAVIOUR
+1. **I dropped `PARTS_ARRIVED` (410) while expanding the catalog.** Found by RUNNING the sweep,
+   not by reading the diff — the output said `PARTS_ARRIVED|70`. Worse, **`frontdoor-test` silently
+   fell back to `EN_ROUTE` on an unknown key**, so a Parts-Arrived note went out **under status 70
+   with a clean 200**. That wrong entry is on their test dispatch and the email discloses it.
+   `frontdoor-test` now **returns 400 listing the valid keys** instead of guessing. **A fallback
+   that turns a typo into a plausible wrong answer is worse than a crash.**
+2. **🔴 THE ONE THAT ALMOST REACHED THE PARTNER: the draft claimed EIGHT statuses fire
+   automatically. THREE do.** `FD_STATUS_MAP` in `tech-job.html` has 8 entries and I read that as
+   wiring. **Only three lifecycle keys are ever PASSED to it** — `en_route` (a-otw tap),
+   `in_progress` (job started / cancel), `completed` (job closed). ARRIVED · PARTS_ORDERED ·
+   PARTS_ON_ORDER · RETURN_SET · ON_HOLD sit in the map with **no code path handing them over**.
+   Caught by grepping the actual `lifecycle()` / `pushSP()` invocations — `grep -c` per key
+   returned **0** for all five.
+- **✅ `STATUS` now carries THREE TIERS, mutually exclusive: `wired`** (a real call site sends it
+  today — 3) · **`mapped`** (in FD_STATUS_MAP, one call site from live — 5) · **neither** (needs an
+  office trigger — 15). Email corrected to **3 live + 5 mapped**, with the tiers defined in plain
+  words for the reader.
+- **⚠️ THE TEST WAS ASSERTING THE SAME WRONG THING.** It compared `wired:true` against
+  **FD_STATUS_MAP membership**, so it passed green while all five were mis-flagged. Rewritten to
+  parse the **actual invocations** out of `tech-job.html` and map them through FD_STATUS_MAP —
+  the real ground truth — and it **asserts the parse found something** so a regex miss reads as a
+  broken test, never a clean pass. **Mutation-proven 5 ways:** re-claim ARRIVED as wired (fails 1
+  — the exact overclaim) · unwire EN_ROUTE (2) · mark a non-mapped status mapped (1) · set both
+  tiers (2) · leave a map entry untiered (1). Suite **272/272**.
+- **🧪 `tests/frontdoor-tdr-note.test.js` (NEW, 9 tests)** — `frontdoor-tdr.js` composes the report
+  an AHS reviewer reads on a completed claim and had **NO test**. Three real defects: double
+  periods (five of six branches appended one to text that usually already ends in punctuation) ·
+  mid-word truncation (`.slice(0,900)` cut "cleaned the blower housing" → "cleaned the blower") ·
+  and **the expensive one — Labor and Parts-to-return were composed LAST, so a long diagnosis
+  pushed them past 900 and the slice ate them.** Parts-to-return is the chargeback field. Verified
+  by grep: both returned **0 matches** on a realistic note. Fixed by reserving the tail out of the
+  budget; `trimTo` backs off to a sentence end, else a word boundary.
+
 ### ⏭️ OPEN
-- **`docs/frontdoor-reply-2026-09-17.md` is drafted and NOT SENT** (Teddy's call). It reports the
-  two type rules, hands their connector team the exact body that 200s-and-no-ops (they said they
-  would investigate that), asks them to confirm the pushes landed in the portal, and asks for a
-  production credential.
+- **`docs/frontdoor-reply-2026-09-17.md` is drafted and NOT SENT** (Teddy's call). v3 leads with the
+  11-step lifecycle demonstration, states the 23 we send (3 live / 5 mapped / 15 ready) and the 15
+  we deliberately do not, asks for the auth outcomes + notes + NCC + a vendor-scoped production
+  feed, hands their connector team the exact body that 200s-and-no-ops, and discloses the wrong
+  status-70 entry from bug #1.
+- **⚠️ The 5 `mapped` statuses are ONE CALL SITE each from live** — the map is there, nothing passes
+  the key. Wiring them is the cheapest credibility win available before go-live.
 - **Production is still untested** — our sandbox token gets `401 "Jwt issuer is not configured"`
   against `api.frontdoorhome.com`.
 - **⚠️ STANDING: a 2xx is not a receipt.** This endpoint acknowledges a wrong-envelope request and
   drops it. Never treat a status code as proof a partner stored anything — get a read-back, or get
   a human to look.
+- **⚠️ STANDING: a lookup-table entry is not proof of wiring, and a fallback is not a default.**
+  Twice in one session a map entry was read as behaviour (`PARTS_ARRIVED`, then five statuses in
+  `FD_STATUS_MAP`). Before telling anyone — especially a partner — that something is automatic,
+  **grep the CALL SITES, not the table**, and make the test assert the invocations.
 
 ## 🕐🚪 2026-09-17 (Thu) — DANIELLE: "JOBS ARE ALL MIXED UP" — THE BOARD READ IN THE ORDER ROWS WERE *WRITTEN* · AND A TECH FINALLY GOT A NUMBER FOR THE PERSON AT THE DOOR — READ FIRST
 
