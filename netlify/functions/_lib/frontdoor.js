@@ -111,6 +111,15 @@ async function api(method, path, bodyObj, baseOverride) {
 // dispatch-connector service is on production.
 async function dispatchStatusUpdate({ dispatchId, statusCode, description, note, vendorId, source, tenant, items, username, startTime, endTime, baseOverride }) {
   const vid = vendorId || vendorCtx.current('ahs').vendor_id || (await getSecret('FRONTDOOR_VENDOR_ID')) || '';
+  // Refuse rather than send an empty vendor. Measured 2026-09-17: a blank vendor_id comes
+  // back as 400 CONNECTOR_BLE_0030 "VendorID missing", which reads like a Frontdoor problem
+  // and is actually our own unset config. FRONTDOOR_VENDOR_ID is empty in the vault, so any
+  // caller that does not resolve one itself lands here -- frontdoor-push-job does resolve it
+  // from the job's area, frontdoor-test did not. Fail with the fix in the message.
+  if (!String(vid).trim()) {
+    throw new Error('Frontdoor push needs a vendor_id -- pass vendorId, or set FRONTDOOR_VENDOR_ID. Ours: '
+      + Object.entries(VENDOR_AREAS).map(([v, m]) => v + ' (' + m.area + ')').join(', '));
+  }
   const nowIso = new Date().toISOString();
   const desc = description || '';
 

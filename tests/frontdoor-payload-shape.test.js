@@ -162,3 +162,24 @@ test('the 200-but-never-saved flat envelope cannot come back', async () => {
   const live = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
   assert.ok(!/external_id/.test(live), 'the flat envelope is not built anywhere on a live line');
 });
+
+test('refuses to push with no vendor_id, and the error names the fix', async () => {
+  // Measured 2026-09-17: a blank vendor_id comes back 400 CONNECTOR_BLE_0030 "VendorID
+  // missing" -- which reads like their problem and is our own unset config. Fail here,
+  // with our real vendor ids in the message, instead of at their end.
+  const prevFetch = global.fetch;
+  global.fetch = async (url) => (/oauth2\/token/.test(String(url))
+    ? { ok: true, status: 200, text: async () => JSON.stringify({ access_token: 't', expires_in: 3600 }) }
+    : { ok: true, status: 200, text: async () => '{"errors":null}' });
+  try {
+    await assert.rejects(
+      () => fd.dispatchStatusUpdate({ ...ARGS, vendorId: '   ' }),
+      (e) => /vendor_id/i.test(e.message) && /822418/.test(e.message) && /North Shore/.test(e.message),
+      'the message has to carry the fix, not just the complaint');
+  } finally { global.fetch = prevFetch; }
+});
+
+test('a supplied vendor_id still goes through untouched', async () => {
+  const { body } = await capture({ ...ARGS, vendorId: '839828' });
+  assert.equal(body.data[0].object.vendor_id, '839828', 'Middle TN vendor rides through');
+});
