@@ -327,6 +327,30 @@
   var sb = null, me = null, myTech = null, job = null, shopSettings = {}, companyTrade = '', partStatus = '', outcomeSel = 'fixed', invoice = null;
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+
+  // ── A SECOND PERSON TO CALL ON THIS JOB ──────────────────────────────────────
+  // A tech, 2026-09-17: "Is there any way to add a tenant to a order so I can call them
+  // ahead of time to see if parts arrived." He was right: the platform carries exactly ONE
+  // phone per customer, and on a rental that is the landlord or the property manager. The
+  // person who signed for the part and opens the door is the tenant, so the number the tech
+  // had was the wrong one to dial.
+  //
+  // The NAME rides on the button, so he knows who is answering before it rings.
+  // NOTHING AUTOMATED MAY EVER TEXT THIS NUMBER -- we have no consent from this person and
+  // they are not the account holder. A tech taps it and dials. That is the whole feature.
+  //
+  // This is defined LOCALLY on each tech surface, not in a shared .js, for the same reason
+  // oneTdr() is: a shared module that fails to load white-screens the tech app, and this is
+  // one small pure function. The two copies are pinned byte-identical by a test so they can
+  // never drift apart the way three copies of the route picker did.
+  function siteCallHtml(j){
+    var p = String((j && j.site_contact_phone) || '').replace(/[^0-9+]/g, '');
+    if (!p) return '';
+    var who = String((j && j.site_contact_name) || '').trim() || 'Also at this address';
+    return '<a class="antcall" data-name="' + esc(who) + '" data-job="' + esc((j && j.id) || '') +
+           '" href="tel:' + esc(p) + '">📞 ' + esc(who) + '</a>';
+  }
+
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
   // ONE report per job. PostgREST hands back an OBJECT for job_tdr (unique index on job_id
   // makes the embed to-one) but would hand back an ARRAY if that index were ever dropped --
@@ -377,7 +401,7 @@
     // warranty_company/claim_number/dispatch_id are read for one reason: ADD A MACHINE
     // copies them onto the sibling. Without them loaded here the second appliance lands
     // with no claim on it -- which is exactly why the old add-machine button was useless.
-    var base = 'id,status,problem,availability,access_notes,office_notes,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,scheduled_start,service_window,time_window,warranty_company,claim_number,dispatch_id,';
+    var base = 'id,status,problem,availability,access_notes,office_notes,site_contact_name,site_contact_phone,waiver_name,waiver_signed_at,customer_id,technician_id,scheduled_day,scheduled_start,service_window,time_window,warranty_company,claim_number,dispatch_id,';
     var tail = 'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes,kind),media:job_media(id,kind,provider,ref,label),tdr:job_tdr(*)';
     var done = function(r){
       if (r.error || !r.data || !r.data[0]) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Couldn\'t open that job. <a href="/platform/tech.html">Back</a></p></div>'; return; }
@@ -430,7 +454,7 @@
         '<div><div class="cust">'+esc(fullName(cust)||'Customer')+'</div>'+(job.unit&&job.unit.label?'<div class="unit">'+esc(job.unit.label)+'</div>':'')+(job.scheduled_day?'<div class="unit">📅 '+esc(fmtDay(job.scheduled_day))+'</div>':'')+'</div>' +
         '<span class="spill s-'+esc(job.status||'new')+'" style="flex:none">'+esc(s.l)+'</span></div>' +
         (job.problem?'<div class="prob">'+esc(job.problem)+'</div>':'') +
-        '<div class="links">'+(phone?'<a class="antcall" data-name="'+esc(fullName(cust)||'')+'" data-job="'+esc(jobId||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>':'')+(addr?AntMaps.linksHtml(addr):'')+'</div>' +
+        '<div class="links">'+(phone?'<a class="antcall" data-name="'+esc(fullName(cust)||'')+'" data-job="'+esc(jobId||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>':'')+siteCallHtml(job)+(addr?AntMaps.linksHtml(addr):'')+'</div>' +
         '</div>' +
 
       // ── 2 · The job — On my way / Start / Complete + schedule + waiver ──
@@ -1268,6 +1292,10 @@
       di('jd_avail','Availability',job.availability,'days that work')+
       '<div style="display:flex;gap:8px"><div style="flex:1">'+di('jd_first','First name',c.first_name,'')+'</div><div style="flex:1">'+di('jd_last','Last name',c.last_name,'')+'</div></div>'+
       di('jd_phone','Phone',c.phone,'(555) 123-4567')+
+      // The TECH is usually the one who finds out there is a tenant -- he knocks and a
+      // renter answers. Let him put the number in from the driveway; the office sees it
+      // on the tile immediately. A number to DIAL, never to text.
+      '<div style="display:flex;gap:8px"><div style="flex:1">'+di('jd_scname','Someone else at the door',job.site_contact_name,'tenant / spouse / prop mgr')+'</div><div style="flex:1">'+di('jd_scphone','Their phone',job.site_contact_phone,'(555) 123-4567')+'</div></div>'+
       di('jd_addr','Address',c.address,'123 Main St')+
       '<div style="display:flex;gap:8px"><div style="flex:2">'+di('jd_city','City',c.city,'')+'</div><div style="flex:1">'+di('jd_state','State',c.state,'TN')+'</div></div>'+
       '<button class="primary full" id="jd_save">Save details</button><div class="err" id="jd_msg"></div>';
@@ -1278,7 +1306,7 @@
       var ops=[];
       if(job.customer_id) ops.push(sb.from('customer').update({first_name:gv('jd_first')||null,last_name:gv('jd_last')||null,phone:gv('jd_phone')||null,address:gv('jd_addr')||null,city:gv('jd_city')||null,state:gv('jd_state')||null}).eq('id',job.customer_id).select('id'));
       if(job.unit&&job.unit.id) ops.push(sb.from('unit').update({label:gv('jd_appl')||null,attributes:attrsNew}).eq('id',job.unit.id).select('id'));
-      ops.push(sb.from('job').update({problem:gv('jd_prob')||null,availability:gv('jd_avail')||null}).eq('id',jobId).select('id'));
+      ops.push(sb.from('job').update({problem:gv('jd_prob')||null,availability:gv('jd_avail')||null,site_contact_name:gv('jd_scname')||null,site_contact_phone:gv('jd_scphone')||null}).eq('id',jobId).select('id'));
       Promise.all(ops).then(function(rr){
         var err=rr.filter(function(x){return x&&x.error;})[0];
         btn.disabled=false; btn.textContent='Save details';

@@ -272,6 +272,30 @@
   var sb = null, me = null, myTech = null, companySettings = {}, companyTrade = '';
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+
+  // ── A SECOND PERSON TO CALL ON THIS JOB ──────────────────────────────────────
+  // A tech, 2026-09-17: "Is there any way to add a tenant to a order so I can call them
+  // ahead of time to see if parts arrived." He was right: the platform carries exactly ONE
+  // phone per customer, and on a rental that is the landlord or the property manager. The
+  // person who signed for the part and opens the door is the tenant, so the number the tech
+  // had was the wrong one to dial.
+  //
+  // The NAME rides on the button, so he knows who is answering before it rings.
+  // NOTHING AUTOMATED MAY EVER TEXT THIS NUMBER -- we have no consent from this person and
+  // they are not the account holder. A tech taps it and dials. That is the whole feature.
+  //
+  // This is defined LOCALLY on each tech surface, not in a shared .js, for the same reason
+  // oneTdr() is: a shared module that fails to load white-screens the tech app, and this is
+  // one small pure function. The two copies are pinned byte-identical by a test so they can
+  // never drift apart the way three copies of the route picker did.
+  function siteCallHtml(j){
+    var p = String((j && j.site_contact_phone) || '').replace(/[^0-9+]/g, '');
+    if (!p) return '';
+    var who = String((j && j.site_contact_name) || '').trim() || 'Also at this address';
+    return '<a class="antcall" data-name="' + esc(who) + '" data-job="' + esc((j && j.id) || '') +
+           '" href="tel:' + esc(p) + '">📞 ' + esc(who) + '</a>';
+  }
+
   function fullName(c){ return c ? [c.first_name, c.last_name].filter(Boolean).join(' ').trim() : ''; }
   // ONE report per job. PostgREST hands back an OBJECT for job_tdr (unique index on job_id
   // makes the embed to-one) but would hand back an ARRAY if that index were ever dropped --
@@ -1024,6 +1048,7 @@
     var links = '';
     var cnm = [cust.first_name, cust.last_name].filter(Boolean).join(' ').trim();
     if (phone) links += '<a class="antcall" data-name="'+esc(cnm)+'" data-job="'+esc(j.id||'')+'" href="tel:'+esc(phone)+'">📞 Call</a>';
+    links += siteCallHtml(j);   // the tenant / spouse / PM, if the office put one on the job
     if (addr) links += AntMaps.linksHtml(addr);
     var attrs = (j.unit && j.unit.attributes) || {};
     var brand = attrs.brand || '', model = attrs.model || '';
@@ -1780,7 +1805,7 @@
   }
   function loadJobs(){
     var q = sb.from('job').select(
-      'id,status,problem,scheduled_day,time_window,scheduled_start,service_window,availability,office_notes,waiver_name,waiver_signed_at,customer_id,stop_id,' +
+      'id,status,problem,scheduled_day,time_window,scheduled_start,service_window,availability,office_notes,site_contact_name,site_contact_phone,waiver_name,waiver_signed_at,customer_id,stop_id,' +
       'technician_id,technician2_id,technician:technician_id(name),helper:technician2_id(name),' +
       'customer:customer_id(first_name,last_name,phone,address,city,state,zip),unit:unit_id(label,attributes),' +
       'media:job_media(kind,provider,ref,label),tdr:job_tdr(brand,model,failed_component,part_number,part_status,root_cause,labor_hours,notes,outcome,held),' +
