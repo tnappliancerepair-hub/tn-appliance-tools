@@ -195,11 +195,28 @@ end and ZERO test coverage.** Fixing the code and the test still left the DRAFT 
   this way (after the payload shape, the wiring tiers, and the TDR note).
 
 ### ⏭️ OPEN
-- **`docs/frontdoor-reply-2026-09-17.md` is drafted and NOT SENT** (Teddy's call). v3 leads with the
-  11-step lifecycle demonstration, states the 23 we send (3 live / 5 mapped / 15 ready) and the 15
-  we deliberately do not, asks for the auth outcomes + notes + NCC + a vendor-scoped production
-  feed, hands their connector team the exact body that 200s-and-no-ops, and discloses the wrong
-  status-70 entry from bug #1.
+- **✅ SENT 2026-09-17 6:45 PM CDT — msg `1a0b1c283323aa88`, thread `1a0341dcd5f4a3e4`.** Body =
+  `docs/frontdoor-reply-2026-09-17.md` **v4** (rewritten short + proof-first at Teddy's direction:
+  540-word body, every table moved below a `## Reference` divider so it reads in under a minute).
+  **VERIFIED off the raw `To:` header, not an operator query** — all six on the line
+  (Akshay · Vaibhav · Brian Bullock · Adarsha · Shivam · Danny), `jpivacek@gmail.com` NOT on it,
+  0 leftover drafts. It leads with the one-JSON-type finding, then the 11-step run, then the four
+  asks (production credential · confirm 22863999 landed · auth outcomes + notes + NCC pushed to us
+  · vendor-scoped production feed), and discloses the wrong status-70 entry from bug #1.
+- **🔴 THE SELF-SEND FAILURE HAPPENED A THIRD TIME — and this is the mechanism.** Teddy's own send
+  four minutes earlier (**`1a0b1bf2dcbda9b8`, 6:41 PM**) carried the correct v4 body and went
+  **`To: james pivacek <jpivacek@gmail.com>`, Cc empty.** Cause: he hit Reply-all on the **`Fwd:`
+  copy** sitting in the thread (`1a0b023f51e8ce29`, 11:12 AM) — **a forward composes with an empty
+  `To:`**, so autocomplete filled his own address. Same root cause as the lost 9/3 and 9/8 replies.
+  **`jpivacek@gmail.com` is on the thread's Cc line**, which is why autocomplete keeps offering it.
+  ⚠️ **STANDING: never reply from a `Fwd:` copy on a partner thread — open the partner's own message.
+  Better: send it through `gmail-send` (`from` + `to` + `thread_id` + `send:true`), where the
+  recipient list is explicit and autocomplete cannot participate.**
+- ⚠️ **`gmail-send.js` has NO `Cc` support** — it builds `From/To/Subject` only. Multiple recipients
+  go in `to` comma-separated (all land in To:, none in Cc:). Fine for a working thread; add Cc if a
+  future partner email needs the shape. **Verify a send by reading the message's raw `To:` header
+  (`gmail-search?full=1`), NOT by per-address `to:` operator queries** — those index unevenly and
+  returned 0 for four of six real recipients ~1 min after a send that demonstrably reached all six.
 - **⚠️ The 5 `mapped` statuses are ONE CALL SITE each from live** — the map is there, nothing passes
   the key. Wiring them is the cheapest credibility win available before go-live.
 - **Production is still untested** — our sandbox token gets `401 "Jwt issuer is not configured"`
