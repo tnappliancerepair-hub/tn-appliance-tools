@@ -405,7 +405,7 @@
     var tail = 'customer:customer_id(first_name,last_name,phone,address,city,state),unit:unit_id(id,label,attributes,kind),media:job_media(id,kind,provider,ref,label),tdr:job_tdr(*)';
     var done = function(r){
       if (r.error || !r.data || !r.data[0]) { app.innerHTML = '<div class="center"><div class="big">🐜</div><p>Couldn\'t open that job. <a href="/platform/tech.html">Back</a></p></div>'; return; }
-      job = r.data[0]; render();
+      job = r.data[0]; render(); watchWaiver();   // a release signed on the customer's phone shows up here on its own
     };
     // Try with the optional columns (scheduling flags = migration 014, status timestamps =
     // migration 018). If either set isn't there yet, fall back so the cockpit always opens.
@@ -418,6 +418,45 @@
         sb.from('job').select(base + tail).eq('id', jobId).limit(1).then(done);
       });
     });
+  }
+
+  // ── Lee, 2026-09-18: "the liability waiver isn't loading into the system." ──────
+  // It IS landing (verified live: 15 of his last 20 jobs carry waiver_signed_at). What
+  // was missing is that NOTHING here ever re-read it. He texts the link, the customer
+  // signs on THEIR phone, and this page keeps saying "Not signed yet" until he happens
+  // to reload. Neither tech surface had a timer, a visibilitychange handler or a focus
+  // handler -- so the only way the screen learned anything was a tap.
+  //
+  // Deliberately NOT a loadJob(): a full re-render on a timer would blow away whatever
+  // he is typing into the report, an open panel and his scroll position. This reads
+  // three columns and patches that one banner in place.
+  var _wvTimer = null;
+  function paintWaiverSigned(row){
+    job.waiver_signed_at = row.waiver_signed_at;   // so the finish gate stops asking
+    job.waiver_name = row.waiver_name;
+    var warn = document.querySelector('.wvwarn');
+    if (warn){
+      warn.className = 'wvok';
+      warn.textContent = '\u2705 Release of liability signed' + (row.waiver_name ? ' \u2014 ' + row.waiver_name : '');
+    }
+    var t = document.getElementById('wvToggle');
+    if (t) t.textContent = '\u270d\ufe0f Release signed \u2014 tap to re-sign';
+    var b = document.getElementById('wvText');
+    if (b){ b.disabled = true; b.textContent = '\u2705 They signed it'; }
+  }
+  function checkWaiver(){
+    if (!job || !job.id || job.waiver_signed_at || document.hidden) return;
+    sb.from('job').select('id,waiver_signed_at,waiver_name').eq('id', job.id).limit(1)
+      .then(function(r){
+        var row = r && r.data && r.data[0];
+        if (row && row.waiver_signed_at) paintWaiverSigned(row);
+      }, function(){});
+  }
+  function watchWaiver(){
+    if (_wvTimer) return;
+    _wvTimer = setInterval(checkWaiver, 20000);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) checkWaiver(); });
+    window.addEventListener('focus', checkWaiver);
   }
 
   function attrs(){ return (job.unit && job.unit.attributes) || {}; }

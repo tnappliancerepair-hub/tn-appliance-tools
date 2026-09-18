@@ -353,11 +353,22 @@
   function restoreDrafts(jobs){
     (jobs || []).forEach(function(j){
       var row = getDraft(j.id); if (!row) return;
-      var put = function(pre, val){ var e = document.getElementById(pre + j.id); if (e && val != null && val !== '' && !e.value) e.value = val; };
+      // TWO kinds of draft, and they mean opposite things.
+      //   'failed' = a Save he tapped that never reached the server -> shout, he must re-send.
+      //   'typing' = words still in his hands, held across a card rebuild -> say NOTHING.
+      // A typing draft is NEWER than the box the server just rendered (he typed it after
+      // the last blur-save), so it OVERWRITES. A failed draft only fills blanks.
+      var typing = (draftKind(j.id) === 'typing');
+      var put = function(pre, val){
+        var e = document.getElementById(pre + j.id);
+        if (!e || val == null || val === '') return;
+        if (!typing && e.value) return;      // failed-save draft never stomps a server value
+        e.value = val;
+      };
       put('tc', row.failed_component); put('tb', row.brand); put('tm', row.model);
       put('tp', row.part_number); put('tr', row.root_cause); put('tps', row.part_status);
       put('th', row.labor_hours); put('tno', row.notes);
-      saveMsg(j.id, '⚠ This report never saved — it is held on this phone. Tap Save report to send it.', 'err');
+      if (!typing) saveMsg(j.id, '⚠ This report never saved — it is held on this phone. Tap Save report to send it.', 'err');
     });
   }
 
@@ -405,6 +416,83 @@
   function saveDraft(jobId, row){ try { localStorage.setItem(draftKey(jobId), JSON.stringify({ row: row, at: Date.now() })); } catch(_){} }
   function clearDraft(jobId){ try { localStorage.removeItem(draftKey(jobId)); } catch(_){} }
   function getDraft(jobId){ try { var d = JSON.parse(localStorage.getItem(draftKey(jobId)) || 'null'); return d && d.row ? d.row : null; } catch(_){ return null; } }
+  // Drafts come from two places now and they mean different things. A FAILED save is
+  // alarming and gets the loud red line; ordinary in-progress typing is not, and must
+  // restore silently. An older draft carries no kind -- treat it as the failed kind so
+  // nothing that exists today changes behaviour.
+  function draftKind(jobId){ try { var d = JSON.parse(localStorage.getItem(draftKey(jobId)) || 'null'); return (d && d.kind) || 'failed'; } catch(_){ return 'failed'; } }
+  function saveDraftKind(jobId, row, kind){ try { localStorage.setItem(draftKey(jobId), JSON.stringify({ row: row, at: Date.now(), kind: kind })); } catch(_){} }
+
+  // ── THE REPORT BOXES ARE NOT SAFE UNTIL SOMETHING PERSISTS THEM ────────────────
+  // Every report field on this page, box id prefix -> job_tdr column.
+  var TDR_FLDS = { tb:'brand', tm:'model', tc:'failed_component', tp:'part_number',
+                   tps:'part_status', tr:'root_cause', th:'labor_hours', tno:'notes' };
+  // What is in this job's boxes right now, non-empty only.
+  function cardTyping(jobId){
+    var out = {};
+    Object.keys(TDR_FLDS).forEach(function(pre){
+      var e = document.getElementById(pre + jobId); if (!e) return;
+      var v = (e.value || '').trim(); if (v) out[TDR_FLDS[pre]] = v;
+    });
+    return out;
+  }
+  // Hold typing on the phone the moment it is typed. loadJobs() rebuilds every card from
+  // the server, so before this, anything typed and not yet finished was simply destroyed --
+  // by On-my-way, Start, Complete, confirming the release, signing the pad, flagging a
+  // part, editing job details, or changing the day. John reported it as "as I add things
+  // to my report they aren't saving". The job page got this on 2026-09-15 for Jimmy's
+  // identical bug; the day list never did. Fourth time the day list has lagged the job page.
+  function holdTyping(jobId){
+    var t = cardTyping(jobId);
+    if (!Object.keys(t).length) return;
+    saveDraftKind(jobId, t, 'typing');
+  }
+  // Blur = he moved on, so send that one field. Single-column upsert, the same shape the
+  // job page uses, through AntSave so a dead zone queues it instead of losing it. This is
+  // what lets a report be written across a visit instead of only at the finish tap.
+  function fieldBlurSave(jobId, pre){
+    var col = TDR_FLDS[pre]; if (!col) return;
+    var e = document.getElementById(pre + jobId); if (!e) return;
+    var raw = (e.value || '').trim();
+    var last = e.getAttribute('data-saved');
+    if (last != null && raw === last) return;          // nothing changed since the last save
+    if (!raw && last == null) return;                  // never had anything in it
+    var val = raw;
+    if (col === 'labor_hours'){ var n = parseFloat(raw); val = (raw && !isNaN(n)) ? n : null; }
+    else if (!raw) val = null;
+    // Name him on the row from the very first keystroke -- a blur-save can CREATE the
+    // report row, and an unattributed report is the office guessing whose it is.
+    var row = { company_id: me.company_id, job_id: jobId, tech: myTech ? myTech.name : (me.name || '') };
+    row[col] = val;
+    AntSave.write({ sb:sb, table:'job_tdr', op:'upsert', onConflict:'job_id', row:row, key:'tdr:'+jobId }).then(function(r){
+      if (r && r.refused){
+        saveMsg(jobId, 'That did NOT save — tap Save report, and tell the office before you leave.', 'err');
+        return;
+      }
+      // Queued on the phone counts as held, not as on-the-server: leave the draft alone so
+      // a rebuild still puts it back, and say nothing -- the outbox reports itself.
+      if (r && r.queued) return;
+      e.setAttribute('data-saved', raw);
+      // It is on the server now, so it no longer needs holding. Drop just this field.
+      var d = getDraft(jobId);
+      if (d && draftKind(jobId) === 'typing'){
+        delete d[col];
+        if (Object.keys(d).length) saveDraftKind(jobId, d, 'typing'); else clearDraft(jobId);
+      }
+    });
+  }
+  // Wire one job's report boxes. Called for every card after it renders.
+  function wireTdrFields(jobId){
+    Object.keys(TDR_FLDS).forEach(function(pre){
+      var e = document.getElementById(pre + jobId); if (!e || e.getAttribute('data-wired')) return;
+      e.setAttribute('data-wired','1');
+      e.setAttribute('data-saved', (e.value || '').trim());   // what the server just handed us
+      var ev = (e.tagName === 'SELECT') ? 'change' : 'input';
+      e.addEventListener(ev, function(){ holdTyping(jobId); });
+      e.addEventListener('blur', function(){ fieldBlurSave(jobId, pre); });
+      if (e.tagName === 'SELECT') e.addEventListener('change', function(){ fieldBlurSave(jobId, pre); });
+    });
+  }
 
   // Retry a write up to 3x with backoff. Supabase/PostgREST hiccups and flaky truck
   // signal are transient; one failed attempt must not cost the tech his report.
@@ -888,6 +976,49 @@
       }
     } catch(_){}
     window.prompt('Copy this link:', url);
+  }
+
+  // ── Lee, 2026-09-18: "I send the liability waiver and it's not loading into the system."
+  // It IS landing. Verified live: 15 of his last 20 jobs carry waiver_signed_at. The break
+  // is that NOTHING on the tech's screen ever re-reads it — neither tech surface had a
+  // single timer, visibilitychange handler or focus handler. He texts the link, the customer
+  // signs on THEIR phone, and his card keeps saying "Release not signed yet" until he happens
+  // to tap something that reloads the day.
+  //
+  // Deliberately NOT a full loadJobs(): this reads three columns for the unsigned jobs on
+  // screen and patches that ONE line in place. No card rebuild means a background refresh
+  // can never disturb a report he is in the middle of typing. (Doing this with a full
+  // reload, before the hold-on-type work below existed, would have made John's bug worse.)
+  var _relTimer = null;
+  function unsignedOnScreen(){
+    return Array.prototype.map.call(
+      document.querySelectorAll('#body .rel.unsigned [data-signhere]'),
+      function(el){ return el.getAttribute('data-signhere'); });
+  }
+  function paintSigned(id, row){
+    var btn = document.querySelector('#body [data-signhere="' + id + '"]');
+    var rel = btn ? btn.closest('.rel') : null;
+    if (!rel) return;
+    rel.className = 'rel signed';
+    rel.innerHTML = '\u270d\ufe0f Release signed' + (row.waiver_name ? ' \u2014 ' + esc(row.waiver_name) : '');
+    // keep the in-memory copy honest so the finish-gate stops prompting "Release isn't signed"
+    var jc = (jobsCache || []).filter(function(x){ return String(x.id) === String(id); })[0];
+    if (jc){ jc.waiver_signed_at = row.waiver_signed_at; jc.waiver_name = row.waiver_name; }
+    pageMsg('\u270d\ufe0f Release signed' + (row.waiver_name ? ' by ' + row.waiver_name : '') + '. The office can see it.', 'ok');
+  }
+  function checkWaivers(){
+    if (!me || document.hidden) return;
+    var ids = unsignedOnScreen();
+    if (!ids.length) return;
+    sb.from('job').select('id,waiver_signed_at,waiver_name').in('id', ids).then(function(r){
+      ((r && r.data) || []).forEach(function(row){ if (row.waiver_signed_at) paintSigned(row.id, row); });
+    }, function(){});
+  }
+  function watchWaivers(){
+    if (_relTimer) return;
+    _relTimer = setInterval(checkWaivers, 20000);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) checkWaivers(); });
+    window.addEventListener('focus', checkWaivers);
   }
 
   // Ask the customer for a Google review (server composes the shop's review template +
@@ -1520,6 +1651,7 @@
       '<div class="daylabel">'+dl+' · '+jobs.length+' job'+(jobs.length===1?'':'s')+stopsTxt+'</div>' + note + '<div id="noDayChip"></div>' +
       (jobs.length ? jobs.map(cardHtml).join('') : '<div class="empty">'+empty+'</div>');
     document.getElementById('body').innerHTML = body;
+    (jobs || []).forEach(function(j){ wireTdrFields(j.id); });   // save-on-blur + hold-on-type. MUST run before restoreDrafts (it snapshots the server value).
     restoreDrafts(jobs);   // put back anything a failed save was holding on this phone
     if (myTech) loadPay();
     if (myTech && viewDay) loadNoDay();
@@ -1836,6 +1968,7 @@
           shell('<div class="empty">Loading your day…</div>');
           mountAntDock();
           sb.from('company').select('settings,trade').limit(1).then(function(c){ var co=(c.data&&c.data[0])||{}; companySettings = co.settings || {}; companyTrade = co.trade || ''; loadJobs(); });
+          watchWaivers();   // a release signed on the customer's phone shows up here on its own
         });
       });
     });
