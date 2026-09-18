@@ -25,6 +25,12 @@ const QUERY = 'newer_than:45d '
   + '("status api" OR "api access" OR "api integration" OR "api credentials" OR "developer portal" OR "developer token" OR "api key" OR "services agreement" OR marconeai OR "api request" OR "integration request" OR "write access" OR "update access" OR "read-only" OR "read only" OR spdservice OR updatecallinfo OR "api enabled" OR "enabled write" '
   //  + distributor-ACCOUNT onboarding phrases so a wholesale/distributor approval (ERP,
   //    CoreCentric, etc.) pings us too — those replies have no "API" phrase. (2026-08-05)
+  //  + credential-DELIVERY phrasing. Akshay's 2026-09-18 note said "provision production
+  //    access ... production credentials are ready" -- and NONE of the phrases above match
+  //    that ("api access" != "production access"). Measured 2026-09-18: the live query
+  //    returned 12 matches and that email was NOT among them, so the watcher would have
+  //    slept through the one email this whole integration is waiting on. (2026-09-18)
+  + ' OR "production access" OR "production credentials" OR "production credential" OR "credentials are ready" OR "production key"'
   + ' OR "account approved" OR "application approved" OR "account number" OR "wholesale account" OR "new account" OR "distributor account" OR "account is now active" OR "account setup") '
   + '(frontdoor OR "american home shield" OR ahs OR servicepower OR "service power" OR "reliable parts" OR reliable OR marcone '
   //  + the in-flight parts distributors we applied to (ERP, CoreCentric, Supco). (2026-08-05)
