@@ -68,7 +68,14 @@ async function searchAt(key, q, lat, lng, radiusM) {
       signal: AbortSignal.timeout(8000),
     });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) return { ok: false, status: r.status, err: (d && d.error && (d.error.status || d.error.message)) || 'error', places: [] };
+    // Carry BOTH: `err` is the short code the map paints with, `why` is Google's own
+    // sentence. A bare "PERMISSION_DENIED" is three different problems wearing one name
+    // (API not enabled / referrer-locked browser key / billing off) and it cost us months
+    // of not knowing which. The sentence names it outright.
+    if (!r.ok) return { ok: false, status: r.status,
+      err: (d && d.error && (d.error.status || d.error.message)) || 'error',
+      why: (d && d.error && d.error.message) || '',
+      places: [] };
     return { ok: true, places: (d && d.places) || [] };
   } catch (e) {
     return { ok: false, err: String((e && e.message) || e).slice(0, 80), places: [] };
@@ -174,7 +181,7 @@ exports.handler = async function (event) {
 
   const results = await pool(grid, 8, async (pt) => {
     const s = await searchAt(key, keyword, pt.lat, pt.lng, radiusM);
-    if (!s.ok) return { lat: pt.lat, lng: pt.lng, rank: null, name: null, err: s.err || ('http_' + s.status) };
+    if (!s.ok) return { lat: pt.lat, lng: pt.lng, rank: null, name: null, err: s.err || ('http_' + s.status), why: s.why || '' };
     const { rank, name } = rankOf(s.places);
     return { lat: pt.lat, lng: pt.lng, rank, name };
   });
@@ -199,6 +206,17 @@ exports.handler = async function (event) {
     points: results, summary, errors: errCount,
     competitors, sab_hidden,
   };
+  // A scan where EVERY point errored is a blind scan, not a bad rank. Say why, once,
+  // at the top — so nobody reads an all-red map as "we don't show up anywhere."
+  if (errCount === results.length && results.length) {
+    const firstWhy = (results.find((r) => r.why) || {}).why || '';
+    payload.blocked = true;
+    payload.blocked_because = firstWhy || (results[0] && results[0].err) || 'unknown';
+    payload.blocked_hint = 'Every grid point was refused, so this map shows NOTHING about our rank. ' +
+      'Usual causes: "Places API (New)" not enabled on the key\'s Cloud project, or the vaulted ' +
+      'GOOGLE_PLACES_API_KEY is a referrer-restricted BROWSER key (server calls have no referrer), ' +
+      'or billing is off. The sentence in blocked_because names which.';
+  }
   payload.scanned_ms = Date.now();
   payload.scanned_at = new Date(payload.scanned_ms).toISOString();
 
