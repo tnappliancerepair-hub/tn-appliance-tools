@@ -70,7 +70,12 @@ exports.handler = async function (event) {
 
   const pushLive = (await getSecret('FRONTDOOR_PUSH_LIVE')) === '1';
   const configured = await fd.isConfigured();
-  const payloadPreview = { dispatch_id: Number(dispatchNumber), status_code: Number(statusCode), description, note, vendor_id: vendorId, tenant };
+  // `items` rides from frontdoor-push-job (the STAR line-item ids off their own dispatch).
+  // It belongs in the PREVIEW, not just the live call -- shadow mode is the only place we
+  // can read what we would send, so a field missing from the preview is a field nobody can
+  // verify until it hits production.
+  const items = Array.isArray(b.items) && b.items.length ? b.items : undefined;
+  const payloadPreview = { dispatch_id: Number(dispatchNumber), status_code: Number(statusCode), description, note, vendor_id: vendorId, tenant, items };
 
   // SHADOW: log what we would send, send nothing.
   if (!pushLive || !configured) {
@@ -80,13 +85,10 @@ exports.handler = async function (event) {
 
   // LIVE: push into Frontdoor.
   try {
-    // `items` is optional in our shape today, but Frontdoor's own spec example carries it
-    // and their connector rejects our body with CONNECTOR_BLE_0007 (2026-09-16). Plumbed
-    // through so the fix is a caller-side flip, not another code change, the moment we
-    // learn whether they require it.
+    // Akshay asked for `items` on 2026-09-18 and his own working body carries it, so we
+    // send it on every status now rather than guess which ones need it.
     const resp = await fd.dispatchStatusUpdate({
-      dispatchId: dispatchNumber, statusCode, description, note, vendorId, tenant,
-      items: Array.isArray(b.items) && b.items.length ? b.items : undefined,
+      dispatchId: dispatchNumber, statusCode, description, note, vendorId, tenant, items,
     });
     await logEvent('frontdoor_push_sent', { ...payloadPreview, at_ms: Date.now() });
     return j(200, { ok: true, mode: 'live', pushed: payloadPreview, response: resp });

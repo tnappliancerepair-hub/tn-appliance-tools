@@ -92,15 +92,39 @@ exports.handler = async function (event) {
     } catch (_) {}
   }
 
+  // Echo back the STAR line-item ids Frontdoor sent US on this dispatch. Akshay asked for
+  // `items` on 2026-09-18 and his own working body carries it
+  //   items: [{ id: 822, legacy_item_id: 822, description: "Air Conditioning (Central-Electric)" }]
+  // -- id and legacy_item_id holding the SAME value. Ours come off their own dispatch XML
+  // (<WorkOrderLineList Id="20242" Description="Dryer">), cached by frontdoor-item-ids under
+  // a compound action key, so this is ONE exact-match lookup and never a Gmail hop in the
+  // tech's tap path.
+  //
+  // Sent on EVERY status, not a chosen subset: we have no measurement saying which statuses
+  // want items (the one we had was a single row generalized to 23 -- see _lib/frontdoor.js),
+  // and his working example carried it. Purely additive -- a job with no cached items pushes
+  // exactly as it does today, so a cache miss can never cost us a status update.
+  let items;
+  try {
+    const row = await crud.searchOne(crud.TABLES.event_log, { action: 'frontdoor_items_' + jobId }, { id: 'desc' });
+    let md = (row && row.metadata) || {};
+    if (typeof md === 'string') { try { md = JSON.parse(md); } catch (_) { md = {}; } }
+    const src = Array.isArray(md.items) ? md.items : [];
+    const built = src
+      .map((it) => ({ id: Number((it || {}).id), legacy_item_id: Number((it || {}).id), description: String((it || {}).description || '') }))
+      .filter((x) => Number.isFinite(x.id) && x.id > 0);
+    if (built.length) items = built;
+  } catch (_) {}
+
   // Hand off to the single push path (it owns shadow/live + logging). Secret stays server-side.
   try {
     const r = await fetch(`${FN}/frontdoor-push-status`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret, dispatch_number: dispatchNumber, status_key: statusKey, note: note || undefined, vendor_id: vendorId, tenant: 'AHS' }),
+      body: JSON.stringify({ secret, dispatch_number: dispatchNumber, status_key: statusKey, note: note || undefined, vendor_id: vendorId, tenant: 'AHS', items }),
       signal: AbortSignal.timeout(12000),
     });
     const d = await r.json().catch(() => ({}));
-    return json(200, { ok: !!(d && d.ok), mode: d && d.mode, dispatch_number: dispatchNumber, vendor_id: vendorId, detail: d });
+    return json(200, { ok: !!(d && d.ok), mode: d && d.mode, dispatch_number: dispatchNumber, vendor_id: vendorId, items_sent: items ? items.length : 0, detail: d });
   } catch (e) {
     return json(200, { ok: false, error: String((e && e.message) || e).slice(0, 160) });
   }

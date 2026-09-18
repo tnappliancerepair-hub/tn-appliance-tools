@@ -321,6 +321,18 @@
 [functions."frontdoor-auth-watch"]
   schedule = "23 13,18,23 * * *"
 
+# 🚪 Frontdoor STAR line-item ids — Akshay asked for `items` on our status pushes
+# (2026-09-18), and the ids have been in every dispatch email all along:
+#   <WorkOrderLineList Id="20242" Description="Dryer">
+# The AHS intake reads only Description and drops the Id, and that intake is XanoScript
+# (Mac push only), so this captures them Netlify-side instead: reads the last 3 days of
+# dispatch XML, resolves each dispatch to a job, caches the ids to event_log. Then
+# frontdoor-push-job echoes them on every push. Idempotent (already_cached = no-op), so
+# the overlapping window is free. Core stays curlable for the dry-run + the one-time
+# ?days=90 backfill -- a scheduled fn edge-403s on manual HTTP. Hourly at :27.
+[functions."frontdoor-item-ids-cron"]
+  schedule = "27 * * * *"
+
 # Cash-pay nudge — UNPAID cash customers waiting to be scheduled get "we don't
 # schedule until you pay — fastest path is the $50 Quick Check" + their link.
 # CASH ONLY (warranty never charged), deduped, 9a-7p CT. Hourly at :20.

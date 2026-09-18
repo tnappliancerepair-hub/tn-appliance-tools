@@ -133,9 +133,17 @@ async function dispatchStatusUpdate({ dispatchId, statusCode, description, note,
   //   status_code "70"   (STRING)  -> 200        |  status_code 70   (number) -> 500 BLE_0007
   //   dispatch_id 22863999 (NUMBER) -> 200       |  dispatch_id "..." (string) -> 500 BLE_0007
   //
-  // Optional, measured: items[] and username are both fine to omit (200 either way), and
   // start_time / end_time ride along without upsetting unmarshal. Reproduce any row with
   // frontdoor-probe?secret=<admin>&shape=ak_exact,ak_numcode,ak_strid (one shape per call).
+  //
+  // WHAT THE items[] MEASUREMENT ACTUALLY PROVED, and what it did not. The 2026-09-17 probe
+  // dropped items and got a 200 -- on ONE status (70, En Route), on one dispatch. That got
+  // written up here as "items[] is fine to omit", which is a claim about all 23 statuses
+  // drawn from a single row. Same shape as reading a FD_STATUS_MAP entry as proof of
+  // wiring. A measured 200 on one row is evidence about that row.
+  // Akshay asked for items on 2026-09-18, so we send it on EVERY push now -- the ids come
+  // off their own dispatch (<WorkOrderLineList Id="..">, captured by frontdoor-item-ids),
+  // which removes the question instead of answering it.
   //
   // 200 IS NOT PROOF OF A SAVE. Akshay, 2026-09-17: "the API still returned a 200 response
   // even for incorrect request... we'll need to investigate that further." Our 2026-09-16
