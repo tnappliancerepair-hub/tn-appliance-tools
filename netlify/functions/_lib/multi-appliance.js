@@ -37,7 +37,7 @@
 //   detect(label, problem, { model, vendorProduct }) -> { multi, appliances:[canon], primary, extra:[canon], why, text }
 'use strict';
 
-const { APPLIANCES } = require('./appliance-vocab');
+const { APPLIANCES, segToAppliance } = require('./appliance-vocab');
 
 // One unit sold as two things. "dual"/"combo"/"all in one" describe a single machine.
 const COMBO = /\bcombo\b|\bdual\b|all[\s-]?in[\s-]?one|\b1\s*pc\b|one\s*piece|\bstackable\b|\bstacked\b/i;
@@ -203,4 +203,45 @@ function detect(label, problem, opts) {
   return { multi: appliances.length >= 2 && !why, kind, appliances, in_problem: inProblem, primary, extra, why, text: text.trim() };
 }
 
-module.exports = { detect, appliancesIn, intakeText, comboOneMachine, addedAtStop, modelAppliance, COMBO, COMBO_PRODUCT, COMBO_MODEL_FAMILIES, MODEL_FAMILIES, REFERENCE };
+// ── What machine IS this? ────────────────────────────────────────────────────────────
+// The ONE rule for naming a unit, shared by the mirror (which writes it every 5 min) and
+// the one-time backfill (which repairs the frozen rows the mirror never revisits). Two
+// copies of this would drift, and the two callers write the SAME column — so they would
+// disagree on the same row on alternating runs.
+//
+// Tiers, best-evidence first. Each returns null when it does not know, and "I do not know"
+// is a real answer the caller writes as the placeholder — never a guess.
+//   1. the appliance FIELD ("washer", "refrigerator ice maker") — short, clean, already on
+//      88% of rows. segToAppliance's substring match is CORRECT here and only here: the
+//      value is a tidy label, and the vocabulary is ordered so dishwasher beats washer.
+//   2. the LABEL ("Samsung dryer") — same shape, brand-prefixed.
+//   3. the PROBLEM text — free prose, so this must go through appliancesIn (word-boundary
+//      + masking), never segToAppliance: "makes a STRANGE noise" contains "range" and a
+//      substring match reads it as a stove. And it only speaks when the text names EXACTLY
+//      ONE appliance: two is a real multi-machine question for a human, not a coin flip.
+//   4. the MODEL prefix, last and alone. Elsewhere this is evidence-only and may not decide
+//      anything; here nothing else has spoken, so it is not overriding a witness, it IS the
+//      witness. It returns '' on an unknown prefix, so it cannot invent.
+const KIND_PLACEHOLDERS = ['', 'appliance', 'other', 'unknown', 'n/a', 'none'];
+function isPlaceholderKind(v) { return KIND_PLACEHOLDERS.indexOf(String(v == null ? '' : v).trim().toLowerCase()) >= 0; }
+
+function unitKind(src) {
+  src = src || {};
+  const clean = (v) => (isPlaceholderKind(v) ? '' : String(v).trim());
+
+  const fromField = segToAppliance(clean(src.appliance));
+  if (fromField) return fromField;
+
+  const fromLabel = segToAppliance(clean(src.label));
+  if (fromLabel) return fromLabel;
+
+  const inProblem = appliancesIn(String(src.problem || ''));
+  if (inProblem.length === 1) return inProblem[0];
+
+  const fromModel = modelAppliance(src.model);
+  if (fromModel) return fromModel;
+
+  return null;
+}
+
+module.exports = { detect, unitKind, isPlaceholderKind, KIND_PLACEHOLDERS, appliancesIn, intakeText, comboOneMachine, addedAtStop, modelAppliance, COMBO, COMBO_PRODUCT, COMBO_MODEL_FAMILIES, MODEL_FAMILIES, REFERENCE };

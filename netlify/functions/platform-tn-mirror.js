@@ -13,6 +13,7 @@
 
 const { getSecret, primeXanoToken} = require('./_lib/secrets');
 const { fetchKanban } = require('./_lib/board-mirror');
+const { unitKind, isPlaceholderKind } = require('./_lib/multi-appliance');
 
 // The real TN tenant — "TN Appliance Exchange LLC" (created 9/3, full book + all 8 crew/office
 // logins). Was pointed at the older 8/27 setup tenant (7b421706 / slug tn-appliance), which
@@ -543,6 +544,70 @@ async function backfillModels(url, key, dryrun) {
   return out;
 }
 
+// Manual: ?backfill_kinds=1 (add &dryrun=1 to count + eyeball a sample first). (2026-09-18)
+//
+// The mirror now names the machine on every run - but it only walks the ACTIVE statuses, so
+// a unit FREEZES the moment its job completes. Every finished job's unit therefore keeps the
+// placeholder forever and no amount of waiting fixes it. Same shape as backfillModels, and
+// cheaper: it needs nothing from Xano, because the answer (attributes.appliance, the label,
+// the model) is already sitting on the platform row - the old code just threw it away.
+//
+// ADDITIVE + BLANK-ONLY + RE-RUNNABLE: it only ever touches a unit whose kind is still a
+// placeholder, so it can never overwrite a real type a human or a later mirror run set.
+async function backfillKinds(url, key, dryrun) {
+  const H = { apikey: key, Authorization: 'Bearer ' + key };
+  // Page explicitly. PostgREST caps a response at 1,000 rows SILENTLY, so a single read would
+  // leave the oldest units permanently unnamed with no error anywhere to say so.
+  const units = [];
+  for (let offset = 0; offset < 20000; offset += 1000) {
+    const r = await fetch(
+      `${url}/rest/v1/unit?company_id=eq.${TN_COMPANY}&select=id,xano_id,kind,label,attributes&order=id.asc&limit=1000&offset=${offset}`,
+      { headers: H, signal: AbortSignal.timeout(15000) },
+    );
+    if (!r.ok) return { ok: false, error: 'unit_read_' + r.status };
+    const rows = await r.json().catch(() => null);
+    if (!Array.isArray(rows)) return { ok: false, error: 'unit_read_bad_body' };
+    units.push(...rows);
+    if (rows.length < 1000) break;
+  }
+
+  const blanks = units.filter((u) => isPlaceholderKind(u.kind));
+  const rows = [];
+  const byKind = {};
+  let stillUnknown = 0;
+  for (const u of blanks) {
+    const a = (u.attributes && typeof u.attributes === 'object') ? u.attributes : {};
+    const k = unitKind({ appliance: a.appliance, label: u.label, model: a.model });
+    if (!k) { stillUnknown++; continue; }
+    byKind[k] = (byKind[k] || 0) + 1;
+    // xano_id is the upsert conflict target, and a platform-native unit may not have one.
+    // Those get patched by id instead so a born-here machine is not left unnamed.
+    rows.push(u.xano_id == null ? { _id: u.id, kind: k } : { company_id: TN_COMPANY, xano_id: Number(u.xano_id), kind: k });
+  }
+
+  const out = {
+    ok: true, units: units.length, placeholder_kind: blanks.length,
+    fillable: rows.length, still_unknown: stillUnknown, by_kind: byKind,
+    sample: rows.slice(0, 8),
+  };
+  if (dryrun) { out.dryrun = true; return out; }
+
+  const viaUpsert = rows.filter((r) => r.xano_id != null);
+  const viaPatch = rows.filter((r) => r._id != null);
+  let filled = 0;
+  if (viaUpsert.length) filled += (await upsert(url, key, 'unit', viaUpsert, 'company_id,xano_id')).length;
+  for (const r of viaPatch) {
+    const pr = await fetch(`${url}/rest/v1/unit?id=eq.${r._id}`, {
+      method: 'PATCH',
+      headers: { ...H, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ kind: r.kind }), signal: AbortSignal.timeout(12000),
+    });
+    if (pr.ok) filled++;
+  }
+  out.filled = filled;
+  return out;
+}
+
 async function syncTnToPlatform(limit, opts) {
   const t0 = Date.now();
   const dryrun = !!(opts && opts.dryrun);
@@ -661,7 +726,12 @@ async function syncTnToPlatform(limit, opts) {
           // `label` falls back to the literal 'Appliance' when Xano has no brand/type, so that
           // placeholder counts as blank too - otherwise it quietly overwrites a real appliance name.
           const inStr = String(incoming == null ? '' : incoming).trim();
-          const blankIn = !inStr || (k === 'label' && inStr === 'Appliance');
+          // A PLACEHOLDER is blank. `label` falls back to the literal 'Appliance' and `kind`
+          // to 'appliance' when Xano has no type for this job - so without this, one feed run
+          // that happened to arrive typeless would quietly overwrite a machine we already knew.
+          const blankIn = !inStr
+            || (k === 'label' && inStr === 'Appliance')
+            || (k === 'kind' && isPlaceholderKind(inStr));
           if (blankIn && String(existing == null ? '' : existing).trim()) {
             row[k] = existing; kept++;
           }
@@ -702,7 +772,14 @@ async function syncTnToPlatform(limit, opts) {
   const unitRows = jobs.map((j) => ({
     company_id: TN_COMPANY, xano_id: Number(j.id),
     customer_id: custIdByXano.get(Number(j.customer_id)),
-    kind: 'appliance',
+    // The appliance type the row ALREADY carries. This used to be the hardcoded string
+    // 'appliance', which is why 1,372 of 1,438 units could not say what machine they were
+    // while `attributes.appliance` sat right below holding the answer on 88% of them. That
+    // blank type is the dead tier in brain_lookup (model -> family -> brand -> TYPE -> trade)
+    // and the reason a repair corpus can report "compressor, 7 times" without naming what it
+    // was in. unitKind returns null when it genuinely does not know, and the placeholder is
+    // the honest answer for that - never a guess.
+    kind: unitKind({ appliance: j.appliance, label: [String(j.brand || ''), String(j.appliance || '')].filter(Boolean).join(' '), problem: j.problem_summary, model: modelFor(j) }) || 'appliance',
     label: [String(j.brand || ''), String(j.appliance || '')].filter(Boolean).join(' ').trim() || 'Appliance',
     // model + serial ride here so every surface reading the mirror can name the exact
     // machine. attributes is a single jsonb column and merge-duplicates replaces it whole,
@@ -710,7 +787,7 @@ async function syncTnToPlatform(limit, opts) {
     // model on the next run for any job whose row happened to arrive without one.
     attributes: { brand: String(j.brand || ''), appliance: String(j.appliance || ''), model: modelFor(j), serial: serialFor(j) },
   })).filter((u) => u.customer_id);
-  await keepTyped('unit', unitRows, ['label', 'attributes']);
+  await keepTyped('unit', unitRows, ['label', 'attributes', 'kind']);
   const upUnit = await upsert(url, key, 'unit', unitRows, 'company_id,xano_id');
   const unitIdByXanoJob = new Map(upUnit.map((r) => [Number(r.xano_id), r.id]));
 
@@ -1069,6 +1146,11 @@ exports.handler = async function (event) {
       const { url, key } = await cfg();
       if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
       return json(200, await backfillTdr(url, key, q.dryrun === '1'));
+    }
+    if (q.backfill_kinds === '1') {
+      const { url, key } = await cfg();
+      if (!url || !key) return json(200, { ok: false, error: 'platform supabase not configured' });
+      return json(200, await backfillKinds(url, key, q.dryrun === '1'));
     }
     if (q.backfill_models === '1') {
       const { url, key } = await cfg();
