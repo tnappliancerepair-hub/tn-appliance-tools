@@ -181,11 +181,15 @@ async function dispatchStatusUpdate({ dispatchId, statusCode, description, note,
 // an integration gets its credentials pulled.
 //
 // THREE TIERS, and the difference is load-bearing when we tell a partner what is automatic:
-//   wired:true  -- a real call site in tech-job.html sends this on a tech tap TODAY.
-//   mapped:true -- present in FD_STATUS_MAP but NOTHING passes that key yet. One call site
-//                  away from live. A map entry is NOT proof of wiring -- claiming these as
-//                  automatic is exactly the overclaim that put a wrong status on Frontdoor's
-//                  test dispatch, so they get their own tier.
+//   wired:true  -- a real call site sends this TODAY, off a real event. The producer is
+//                  either the tech's tap (tech-job.html) or, where the browser can't know
+//                  the truth, the server (tech-complete.js / mark-parts-ordered.js /
+//                  ant-schedule.js). Pinned by tests/frontdoor-payload-shape, which parses
+//                  the actual invocations on BOTH surfaces -- not the lookup table.
+//   mapped:true -- was: in FD_STATUS_MAP but nothing passed the key. EMPTY as of 2026-09-18,
+//                  when all five were given real producers. Kept as a tier because the
+//                  distinction is what stopped us telling Frontdoor eight statuses were
+//                  automatic when three were. A map entry is NOT proof of wiring.
 //   neither     -- in the vocabulary, probes clean, needs an office-side trigger.
 // Never tell a partner a status is automatic unless it says wired:true here.
 const STATUS = {
@@ -195,12 +199,15 @@ const STATUS = {
   IN_PROGRESS: { code: 20, description: 'In Progress', wired: true },                    // job started
   COMPLETE: { code: 10, description: 'Job Complete', wired: true },                      // job closed
 
-  // --- mapped in FD_STATUS_MAP but no code path passes the key yet. One call site from live.
-  ARRIVED: { code: 90, description: 'Technician Arrived at Location', mapped: true },
-  PARTS_ORDERED: { code: 380, description: 'Parts Ordered', mapped: true },
-  PARTS_ON_ORDER: { code: 100, description: 'In Progress with Parts on Order', mapped: true },
-  RETURN_SET: { code: 400, description: 'Return Appointment Set', mapped: true },
-  ON_HOLD: { code: 150, description: 'On Hold', mapped: true },
+  // --- wired 2026-09-18: the five that used to be map-only now each have a producer.
+  // Three are decided SERVER-side on purpose: the browser only knows which button was
+  // tapped, not what status the job actually lands on, which is why a parts-needed finish
+  // used to tell Frontdoor the job was COMPLETE.
+  ARRIVED: { code: 90, description: 'Technician Arrived at Location', wired: true },          // Start tap
+  PARTS_ORDERED: { code: 380, description: 'Parts Ordered', wired: true },                    // office places the order
+  PARTS_ON_ORDER: { code: 100, description: 'In Progress with Parts on Order', wired: true }, // finish: parts needed
+  RETURN_SET: { code: 400, description: 'Return Appointment Set', wired: true },              // re-booked after a visit
+  ON_HOLD: { code: 150, description: 'On Hold', wired: true },                                // finish: autho / 2nd opinion
   PARTS_ARRIVED: { code: 410, description: 'Parts Arrived' },   // office parts flow, not the tech tap
 
   // --- in the connector, awaiting an office-side trigger

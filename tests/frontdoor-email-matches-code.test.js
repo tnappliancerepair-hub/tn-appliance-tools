@@ -87,8 +87,16 @@ test('the counts the email states in prose match the counts in the code', () => 
   assert.ok(EMAIL.includes(total + ' statuses'), 'email should say "' + total + ' statuses"');
   assert.ok(EMAIL.includes(words[wired] + ' fire automatically'),
     'email should say "' + words[wired] + ' fire automatically" (code has ' + wired + ' wired)');
-  assert.ok(EMAIL.includes(words[mapped] + ' more are already mapped'),
-    'email should say "' + words[mapped] + ' more are already mapped" (code has ' + mapped + ')');
+  // The mapped tier is now EMPTY. A leftover "N more are already mapped" sentence would be a
+  // promise about a tier that no longer exists, so when the code has none the email must claim
+  // none -- and the moment a status goes back to mapped, the sentence has to come back with it.
+  if (mapped === 0) {
+    assert.ok(!/are already mapped/.test(EMAIL),
+      'no status is mapped any more, but the email still claims some are');
+  } else {
+    assert.ok(EMAIL.includes(words[mapped] + ' more are already mapped'),
+      'email should say "' + words[mapped] + ' more are already mapped" (code has ' + mapped + ')');
+  }
 });
 
 test('every authorization code we tell them we do NOT push is inbound-only', () => {

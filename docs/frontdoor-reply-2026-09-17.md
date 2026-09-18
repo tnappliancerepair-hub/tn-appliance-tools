@@ -112,10 +112,11 @@ technician recorded on site — no retyping by our office:
 
 ### What we send
 
-23 statuses, all accepted by your sandbox. Three fire automatically from the technician's app
-today. Five more are already mapped in the app and need one line each to go live. The rest are in
-our connector and need an office-side trigger. Every one maps to a signal our system already
-produces, so none of this is a build — it is wiring:
+23 statuses, all accepted by your sandbox. Eight fire automatically today — three from the
+technician's app, five more we wired since Thursday off events our system was already producing
+(a technician arriving, the office ordering a part, a job parked on parts, a return visit booked,
+a job placed on hold). The rest are in our connector and need an office-side trigger. Every one
+maps to a signal we already emit, so none of this is a build — it is wiring:
 
 | code | status | fires from | today |
 |---|---|---|---|
@@ -126,16 +127,16 @@ produces, so none of this is a build — it is wiring:
 | 280 | Left message for Customer | voicemail / callback captured | ready |
 | 70 | Technician in Route | tech taps "on my way" | **live** |
 | 80 | Technician May Be Delayed | running-late watcher | ready |
-| 90 | Technician Arrived | tech taps "start" | mapped |
+| 90 | Technician Arrived | tech taps "start" | **live** |
 | 120 | Customer Missed Appointment | no-show check | ready |
 | 20 | In Progress | tech taps "start" | **live** |
-| 380 | Parts Ordered | part ordered on the job | mapped |
-| 100 | In Progress w/ Parts on Order | awaiting parts | mapped |
+| 380 | Parts Ordered | office marks the part ordered | **live** |
+| 100 | In Progress w/ Parts on Order | tech closes: part needed | **live** |
 | 160 | Parts/Equipment Status | parts ETA changes | ready |
 | 410 | Parts Arrived | parts received | ready |
-| 400 | Return Appointment Set | return visit booked | mapped |
+| 400 | Return Appointment Set | office books the return visit | **live** |
 | 110 | In Progress w/ Need to Replace | technician reports not repairable | ready |
-| 150 | On Hold | job held | mapped |
+| 150 | On Hold | tech closes: authorization / 2nd opinion | **live** |
 | 290 | Authorization Reported | authorization submitted | ready |
 | 460 | 2nd Opinion Requested | second opinion requested | ready |
 | 140 | Incomplete | visit ended unfinished | ready |
@@ -143,9 +144,12 @@ produces, so none of this is a build — it is wiring:
 | 440 | Job Invoiced | invoice submitted | ready |
 | 40 | Job Cancelled | job cancelled | ready |
 
-"**live**" means a technician tap sends it today with nobody doing anything. "mapped" means the
-status is already in the app's lifecycle table but no tap passes it yet — one line each. We would
-rather draw that line honestly than call eight things automatic when three of them are.
+"**live**" means it sends itself today with nobody doing anything — a technician tap, or an
+office action the job record already knows about. "ready" means the status is built in our
+connector and waiting on an office-side trigger; we have not called it automatic, because it
+isn't yet. On Thursday that column read three live and five "mapped" — in the app's lifecycle
+table but with no code actually passing them. We would rather draw that line honestly than call
+eight things automatic before they are, so we went and wired the five.
 
 **We have deliberately not built a push for any authorization outcome** — 350 Approved, 360
 Denied, 370 Approved with Limitations, 450 Awaiting Contractor Input, 470 Draft for Review, 480

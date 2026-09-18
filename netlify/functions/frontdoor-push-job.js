@@ -34,6 +34,22 @@ function resolveVendor(job, techOverride) {
   return '839828';                     // TN crew
 }
 
+// RETURN_SET (400) is "Return Appointment Set" -- a SECOND visit, not a first booking.
+// The office schedules from six surfaces and none of them can tell which one it is; the
+// job row can. So the browser reports the EVENT ("a schedule happened") and we decide
+// here whether the STATUS is true. A visit has happened if a tech started one, or if the
+// job is parked waiting on a part from one.
+//
+// A fresh booking falls through silently instead of telling Frontdoor a return was set
+// for a job nobody has been to yet. (APPOINTMENT_SET (30) is the honest status for that
+// case. Deliberately not wired -- one claim at a time, and every status we call
+// automatic has to survive being checked.)
+const RETURN_PARTS = new Set(['awaiting_parts', 'ordered', 'on_order', 'to_order', 'parts_needed', 'pending']);
+function looksLikeReturn(job) {
+  if (Number(job.job_started_at || 0) > 0) return true;
+  return RETURN_PARTS.has(String(job.parts_status || '').toLowerCase());
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
   if (event.httpMethod !== 'POST') return json(405, { ok: false, error: 'POST only' });
@@ -51,6 +67,9 @@ exports.handler = async function (event) {
 
   const dispatchNumber = String(job.dispatch_source_id || job.claim_number || '').trim();
   if (!dispatchNumber) return json(200, { ok: true, skipped: 'no_dispatch_number' });
+
+  // Only claim a return when the record says one is true. See looksLikeReturn above.
+  if (statusKey === 'RETURN_SET' && !looksLikeReturn(job)) return json(200, { ok: true, skipped: 'not_a_return' });
 
   const vendorId = resolveVendor(job, b.technician_id);
   const secret = (await getSecret('VAPI_ADMIN_SECRET')) || 'tn-vapi-admin-9f83b1c4e7a206d5';

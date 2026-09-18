@@ -21,6 +21,47 @@ const crud = require('./_lib/xano/metadata-crud');
 const reviewAsk = require('./_lib/review-ask');
 const TABLES = crud.TABLES;
 const XANO = 'https://xbtp-g9bh-ditq.n7e.xano.io/api:3e_TffpA';
+const FN = 'https://tnapplianceexchange.net/.netlify/functions';
+
+// 🔁 FRONTDOOR/AHS status, decided HERE instead of in the browser.
+//
+// The tech page used to fire pushSP('completed') on EVERY successful finish, so a
+// parts-needed or held trip told Frontdoor the job was DONE. The browser can't know
+// better -- it only has the button the tech tapped. This file already derives the true
+// resulting status (STATUS_MAP, right below), and that is the SAME map that writes
+// scheduling_status, so deriving the partner status from it means the warranty portal
+// can never disagree with the office board about where the job stands.
+//
+// It also covers BOTH callers at once (tech-job.html and tech-daily-dashboard.html) --
+// the dashboard never pushed Frontdoor at all.
+//
+// no_fix_possible is deliberately absent: there is no status in our wired set that
+// honestly means "cannot be repaired" (110 Need to Replace is a different claim), so we
+// say nothing rather than pick a close-enough one.
+const FD_BY_STATUS = { completed: 'COMPLETE', awaiting_parts: 'PARTS_ON_ORDER', held: 'ON_HOLD' };
+// What the portal reads for the two non-terminal outcomes. COMPLETE gets no note here --
+// frontdoor-push-job composes the full TDR for it.
+const FD_NOTE = {
+  parts_needed: 'Visit complete, part on order. Returning to install once it lands.',
+  warranty_auth_needed: 'On hold pending authorization.',
+  reassignment_needed: 'On hold - second opinion requested.',
+};
+
+// Best-effort + time-boxed: a partner push must never fail, slow, or change a tech's
+// completion. frontdoor-push-job resolves the dispatch # + vendor server-side and no-ops
+// for any job that isn't an AHS/Frontdoor dispatch, and the whole path stays SHADOW
+// until FRONTDOOR_PUSH_LIVE=1, so this is safe to wire ahead of the credential.
+async function pushFrontdoor(jobId, want, note) {
+  const key = FD_BY_STATUS[want];
+  if (!key) return;
+  try {
+    await fetch(`${FN}/frontdoor-push-job`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId, status_key: key, note: note || undefined }),
+      signal: AbortSignal.timeout(6000),
+    });
+  } catch (_) { /* the tech's completion already landed; the push is not allowed to matter */ }
+}
 
 // Fire the "How'd we do?" review ask the INSTANT a job is completed (Teddy 2026-08-14:
 // "make it instant instead of hourly"). Best-effort, never blocks/breaks completion;
@@ -103,6 +144,10 @@ exports.handler = async function (event) {
     } catch (_) { /* alert is best-effort — completion already succeeded */ }
     // Honest "came out, nothing wrong" is still a happy customer → ask instantly.
     await fireInstantReviewAsk(jobId, 'tech_complete_nff');
+    // Nothing failed, but the visit IS finished -- the portal should say so. The note is
+    // left blank on purpose: frontdoor-push-job composes the whole TDR server-side on
+    // COMPLETE, which reads better on the claim than anything we'd write here.
+    await pushFrontdoor(jobId, 'completed');
     return j(200, { success: true, completion_type: 'no_fault_found', no_fault: true });
   }
 
@@ -164,6 +209,10 @@ exports.handler = async function (event) {
     if ((STATUS_MAP[ct] || 'completed') === 'completed') {
       await fireInstantReviewAsk(jobId, 'tech_complete');
     }
+
+    // Tell the warranty portal where the job ACTUALLY landed. Ordered last so the
+    // customer's review ask is never waiting behind a partner API call.
+    await pushFrontdoor(jobId, want, FD_NOTE[ct]);
   }
 
   return j(200, d && typeof d === 'object' ? d : { success: false, error: 'no response' });

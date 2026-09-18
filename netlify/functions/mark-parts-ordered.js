@@ -53,5 +53,33 @@ exports.handler = async function (event) {
   let notify = null;
   if (jobId) { try { notify = await require('./_lib/part-notify').notifyPartOrdered({ job_id: jobId, eta_date: eta }); } catch (_) {} }
 
+  // 🔁 Tell the warranty portal the part is ordered (Frontdoor/AHS status 380) with the
+  // part, tracking and ETA in the note -- the exact three things the office used to type
+  // into the portal by hand. frontdoor-push-job resolves the dispatch # + vendor and
+  // no-ops for any job that isn't an AHS dispatch, and the path stays SHADOW until
+  // FRONTDOOR_PUSH_LIVE=1. Best-effort + time-boxed: the order already landed, so a
+  // partner push is never allowed to fail or slow this response.
+  //
+  // A part number IS wanted here -- this is the warranty company, who is paying for the
+  // part. (The never-share-a-part-number rule is about CUSTOMER-facing surfaces.)
+  if (jobId) {
+    const bits = [];
+    const pn = s(order.part_number, 80); const nm = s(order.part_name, 120);
+    if (nm && pn && pn !== 'TBD') bits.push(nm + ' (' + pn + ')');
+    else if (nm) bits.push(nm);
+    else if (pn && pn !== 'TBD') bits.push('part ' + pn);
+    const trk = s(b.tracking, 80);
+    if (trk) bits.push('tracking ' + trk);
+    if (eta) bits.push('ETA ' + eta);
+    const note = 'Part ordered' + (bits.length ? ': ' + bits.join(' - ') : '') + '.';
+    try {
+      await fetch('https://tnapplianceexchange.net/.netlify/functions/frontdoor-push-job', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, status_key: 'PARTS_ORDERED', note }),
+        signal: AbortSignal.timeout(6000),
+      });
+    } catch (_) {}
+  }
+
   return { statusCode: 200, headers: CORS, body: JSON.stringify({ ok: true, job_id: jobId, eta, customer_notified: !!(notify && notify.ok && notify.reason !== 'shadow'), notify_mode: notify && notify.reason }) };
 };

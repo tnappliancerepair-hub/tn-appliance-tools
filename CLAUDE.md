@@ -1,5 +1,99 @@
 # Appliance Ant
 
+## 🚪⚡ 2026-09-18 (Fri) — FRONTDOOR 3 AUTOMATIC → 8: the five "mapped" statuses wired · and the COMPLETE push was LYING on every non-repair finish — READ FIRST
+
+The #1 item off the finish-line plan (*"come back with delivery, not a nudge"*): the five `mapped`
+statuses were each **one call site from live**. Wiring them took **3 automatic → 8**, entirely our
+side, no partner dependency — so Monday's email reports something we DID instead of asking for an
+update. **`_lib/frontdoor.js` now reports wired 8 · mapped 0 · catalog 23.**
+
+### 🥇 THE BUG THE WIRING FOUND — the tech app was telling Frontdoor COMPLETE on a job that was NOT complete
+`tech-job.html` fired `pushSP('completed', …)` on **every successful finish**, so a
+**part-needed** or **on-hold** close was pushing **10 Job Complete** to the portal. The cause is
+structural, not a typo: **the browser only knows which BUTTON was tapped, not what status the job
+lands on.** `tech-complete.js` already derives the truth from `STATUS_MAP` — the same map that
+writes `scheduling_status` — so the push moved **server-side**, and the portal can no longer
+disagree with the office board. The browser call is now `{spOnly:true}` (ServicePower only).
+- **⚠️ THE RULE THIS SESSION EARNED: the browser reports the EVENT, the server decides the STATUS.**
+  Both RETURN_SET and the finish status are wired that way, for the same reason.
+- **`no_fix_possible` is deliberately given NO status.** Nothing in our wired set honestly means
+  *"cannot be repaired"* (110 Need to Replace is a different claim), so we say nothing rather than
+  pick a close-enough code. Pinned by a test.
+
+### ✅ THE FIVE, EACH WITH A REAL DISTINCT PRODUCER (no two statuses off one event)
+| status | fires from | file |
+|---|---|---|
+| **ARRIVED (90)** | tech taps Start | `tech-job.html` — `'arrived,in_progress'` |
+| **PARTS_ORDERED (380)** | office marks the part ordered (has tracking + ETA) | `mark-parts-ordered.js` |
+| **PARTS_ON_ORDER (100)** | finish: parts needed → `awaiting_parts` | `tech-complete.js` |
+| **RETURN_SET (400)** | a re-booking after a visit | `ant-schedule.js` + a server truth-check |
+| **ON_HOLD (150)** | finish: autho / 2nd opinion → `held` | `tech-complete.js` |
+- **🧠 `tech-complete.js` was the leverage:** it has **two** browser callers (`tech-job.html` +
+  `tech-daily-dashboard.html`, which had **never** pushed Frontdoor at all), so ONE server hook
+  covered two statuses on two surfaces. A one-call-site-each estimate was wrong — only ARRIVED is
+  genuinely tech-side; the other four fire from office/server actions.
+- **`ant-schedule.js` was the leverage on the office side** — the ONE shared save behind **six**
+  scheduling surfaces, so a new screen can't ship without the push. `?v=20260916-receipt` →
+  **`?v=20260918-fdreturn` on all 10 pages** that load it (the documented shared-`.js` cache rule:
+  `netlify.toml` no-caches `/*.html` ONLY).
+- **🔴 RETURN_SET (400) IS "Return Appointment Set" — A SECOND VISIT.** None of the six office
+  surfaces can tell a first booking from a return; **the job row can.** So the browser reports
+  *"a schedule happened"* and `frontdoor-push-job.js` decides whether the STATUS is true
+  (`looksLikeReturn` = a tech started a visit, OR the job is parked on parts from one). A fresh
+  booking falls through **silently** instead of claiming a return on a dispatch nobody has been to.
+  **30 Appointment Set is the honest status for that case and is deliberately NOT wired** — one
+  claim at a time, and every status we call automatic has to survive being checked.
+- **`FD_STATUS_MAP` narrowed 8 entries → 3** (`en_route`/`in_progress`/`arrived`) — ONLY what the
+  browser can actually send. **A map entry with no call site on the page is the exact shape that
+  made the 9/17 email claim eight automatic statuses when three were true.**
+
+### 🧪 PROVEN — and the ground truth now scans BOTH surfaces
+`tests/frontdoor-payload-shape.test.js` **22/22** (was 20). The wiring check parses the real
+invocations out of the browser **and** the three server call sites (each asserted to **EXIST**, so
+a rename/delete reads as a failed test, and each asserted to yield **>0 hits**, so a broken parse
+can never read as a clean pass), then compares **both directions** against `wired:true`.
+`tests/frontdoor-email-matches-code.test.js` **12/12**. Suite **300/300, 48 files, 0 failures.**
+**Mutation-proven 11 ways, every one a lie we could otherwise ship:** unwire ARRIVED while the
+email still calls it live (fails 4) · revert the Start tap to `in_progress` only (3) ·
+mark-parts-ordered stops pushing PARTS_ORDERED (1) · ant-schedule stops pushing RETURN_SET (1) ·
+tech-complete stops mapping completed→COMPLETE (2) · **drop `spOnly` so the browser claims COMPLETE
+again — the exact live bug (2)** · dead-guard the RETURN_SET check (1) · drop `looksLikeReturn`
+from it (1) · break the comma-split (1) · delete a server call-site file (1) · email drift (the
+12/12 above).
+- 🐞 **TWO MUTATIONS SURVIVED THE FIRST RUN, and both were real holes in MY assertions.**
+  (1) The dead-guard check anchored on `statusKey === 'RETURN_SET'`, so a **LEADING** `false &&`
+  sat *before* the match start and sailed through — **the documented leading-short-circuit trap,
+  paid for again.** Now matches the WHOLE line. (2) The wiring test splits `'arrived,in_progress'`
+  **itself**, so it stayed green while the PAGE lost its runtime `.split(',')` — IN_PROGRESS would
+  have silently stopped firing forever. **A test that does the parsing the code is supposed to do
+  is not testing the code.** Now pins the split.
+- 🐞 **And a third I caught by reasoning before it could pass wrongly:** my first `spOnly`
+  exclusion used a lookahead `(?![^)]*spOnly)` — which can NEVER work, because the argument
+  contains `.slice(0,240)` and the `)` stops `[^)]*` before it reaches `spOnly`. `'completed'`
+  would have leaked back in as a browser key. Switched to line-scoped parsing.
+
+### 📧 THE EMAIL MOVED WITH THE CODE (it is pinned, so it had to)
+`docs/frontdoor-reply-2026-09-17.md`: five rows `mapped` → **`**live**`**, each "fires from" cell
+now naming the real producer, prose *"Three fire automatically … Five more are already mapped"* →
+**"Eight fire automatically today — three from the technician's app, five more we wired since
+Thursday."** **The mapped tier is now EMPTY, so the test asserts the email claims NONE** — a
+leftover "N more are already mapped" sentence would be a promise about a tier that no longer
+exists, and the sentence must come back the moment a status does.
+- **⚠️ A part number IS wanted in the PARTS_ORDERED note** — that is the warranty company, who is
+  paying for the part. The never-share-a-part-number rule is about **CUSTOMER-facing** surfaces.
+
+### ⏭️ OPEN
+- **🔴 ALL OF IT IS SHADOW UNTIL THE CREDENTIAL LANDS** — `frontdoor-push-status` logs
+  `frontdoor_push_shadow` until vault **`FRONTDOOR_PUSH_LIVE=1`**, which is right: wiring ahead of
+  the production credential costs nothing and means go-live is a flag, not a build.
+- **🔴 INERT UNTIL MERGED — Netlify serves `main`.** On `claude/supabase-ant-system-testing-vnbgym`.
+- **Monday 9/22 is now a delivery email, not a nudge:** *"since Thursday we wired five more —
+  eight of the twenty-three fire automatically now."* Then the single ask (production credential).
+- ⚠️ **STANDING: before telling a partner something is automatic, grep the CALL SITES — and make
+  the test parse the real invocations on EVERY surface that can produce them.** A server-side
+  producer is invisible to a browser-only scan, which is how four of these could have read as
+  unwired while working fine.
+
 ## 🏷️🧠 2026-09-18 (Fri) — THE MIRROR KNEW WHAT EVERY MACHINE WAS AND THREW IT AWAY: 95% of units said "appliance" · 4.6% → 90.5% · the dead tier under the #1 goal — READ FIRST
 
 Teddy's idea: *"can we make videos from the uploads loaded by the techs? Automatically and automate

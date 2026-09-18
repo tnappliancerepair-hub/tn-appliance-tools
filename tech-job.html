@@ -217,7 +217,7 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/ant-schedule.js?v=20260916-receipt"></script>
+<script src="/ant-schedule.js?v=20260918-fdreturn"></script>
 <script src="/ant-constraints.js"></script>
 <script src="/ant-addons.js"></script>
 <script src="/ant-video-upload.js"></script>
@@ -1720,8 +1720,13 @@ function isSPJob(){
   const ni=String((job&&job.notes_internal)||'');
   return /SERVICEPOWER DISPATCH/i.test(ni) || !!(job&&job.claim_number);
 }
-function pushSP(statusKey,notes){
-  pushFD(statusKey,notes);   // Frontdoor/AHS push too — self-gates server-side, no-ops if not an AHS job
+function pushSP(statusKey,notes,opts){
+  // opts.spOnly — ServicePower only, skip Frontdoor. Used by the COMPLETE path: the
+  // browser only knows which BUTTON was tapped, not what status the job actually lands
+  // on, so it used to tell Frontdoor "COMPLETE" even for a parts-needed or held finish.
+  // tech-complete.js now derives that server-side from the same map that writes
+  // scheduling_status, so the portal can never disagree with the office board.
+  if(!(opts&&opts.spOnly)) pushFD(statusKey,notes);   // self-gates server-side, no-ops if not an AHS job
   try{
     if(!JOB_ID || !isSPJob()) return;
     fetch('/.netlify/functions/servicepower-push',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1732,7 +1737,14 @@ function pushSP(statusKey,notes){
 // Same idea as pushSP: fires as the tech moves the job so the AHS portal updates itself
 // (kills Danielle's manual status typing). frontdoor-push-job resolves the dispatch # +
 // vendor server-side and no-ops for any non-AHS job. Maps our lifecycle keys → FD statuses.
-const FD_STATUS_MAP={en_route:'EN_ROUTE',in_progress:'IN_PROGRESS',completed:'COMPLETE',arrived:'ARRIVED',parts_ordered:'PARTS_ORDERED',parts_on_order:'PARTS_ON_ORDER',return_set:'RETURN_SET',on_hold:'ON_HOLD'};
+// This map is ONLY what the BROWSER can honestly send -- three keys, each with a real
+// call site on this page. It used to carry eight, and the five with no caller are exactly
+// what made the partner email claim eight statuses were automatic when three were.
+// A map entry is not wiring, so anything the browser can't send doesn't live here:
+//   COMPLETE / PARTS_ON_ORDER / ON_HOLD -> tech-complete.js, off the real outcome
+//   PARTS_ORDERED                        -> mark-parts-ordered.js, when the office orders
+//   RETURN_SET                           -> ant-schedule.js, the one shared office save
+const FD_STATUS_MAP={en_route:'EN_ROUTE',in_progress:'IN_PROGRESS',arrived:'ARRIVED'};
 function isFDJob(){ return /ahs|american home shield|frontdoor|home shield|hsa|2-?10|two-?ten/i.test(String((job&&job.warranty_company)||'')); }
 function pushFD(statusKey,notes){
   try{
@@ -1765,7 +1777,7 @@ async function lifecycle(ep,okMsg,spStatus){
     // Via tech-lifecycle: a return trip auto-clears the prior visit's stale flag so
     // "On my way" / "Start" work + re-notify the customer on every 2nd/3rd/4th trip.
     const d=await fetchT('/.netlify/functions/tech-lifecycle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,action:ep})}).then(r=>r.json()).catch(()=>({}));
-    if(d.success){ toast(okMsg); if(spStatus) pushSP(spStatus); await loadJob(); }   // loadJob re-renders buttons
+    if(d.success){ toast(okMsg); if(spStatus) String(spStatus).split(',').forEach(k=>{ const t=k.trim(); if(t) pushSP(t); }); await loadJob(); }   // loadJob re-renders buttons
     else {
       const e=String(d.error||'failed');
       // A repeat/out-of-order tap (already on-my-way / already started) is harmless —
@@ -1935,7 +1947,7 @@ function completeFlow(){
         _cok=true;
         toast('Job completed ✓');
         const rpt=(document.getElementById('notes')||{}).value||'';
-        pushSP('completed', rpt ? ('Job completed. '+rpt).slice(0,240) : 'Job completed.');
+        pushSP('completed', rpt ? ('Job completed. '+rpt).slice(0,240) : 'Job completed.', {spOnly:true});   // Frontdoor status is derived from the real outcome in tech-complete.js
         loadJob();
         // Auto-flag returns at job close: don't let an unused part leave in the truck
         // uncounted. If this job has warranty parts still to return (or unchecked),
@@ -2309,7 +2321,7 @@ function renderReleaseBanner(){
 }
 // Start-job gate: can't start until the release is signed (or a logged override).
 function startJobGated(){
-  if(waiverSigned || waiverOverride){ lifecycle('tech_job_started','Job started ✓','in_progress'); return; }
+  if(waiverSigned || waiverOverride){ lifecycle('tech_job_started','Job started ✓','arrived,in_progress'); return; }
   const ov=document.createElement('div'); ov.id='release-gate';
   ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,14,22,0.74);display:flex;align-items:center;justify-content:center;padding:20px';
   ov.innerHTML='<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:24px;text-align:center">'
@@ -2329,7 +2341,7 @@ function startJobGated(){
     const r=(reason||'').trim()||'no reason given';
     try{ await fetch(XANO+'/record_event_log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'waiver_start_override',metadata_json:JSON.stringify({job_id:JOB_ID,technician_id:TECH_ID,reason:r,at_ms:Date.now()})})}); }catch(_){}
     waiverOverride=true; renderReleaseBanner(); ov.remove();
-    lifecycle('tech_job_started','Job started — release skipped (logged) ✓','in_progress');
+    lifecycle('tech_job_started','Job started — release skipped (logged) ✓','arrived,in_progress');
   };
 }
 // Customer signs in a new tab; refresh state when the tech returns to the ticket.

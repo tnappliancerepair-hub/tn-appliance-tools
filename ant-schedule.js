@@ -83,6 +83,19 @@
       // if the tab navigates away; forward-only (only a real schedule triggers it);
       // schedule-packet itself dedups per day + suppresses the link if intake's done.
       try { fetch('/.netlify/functions/schedule-packet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id: jobId }), keepalive: true }); } catch (_) {}
+      // 🔁 Tell the warranty portal a RETURN appointment was set (Frontdoor/AHS status
+      // 400). Every office surface books through here, so wiring it once covers all of
+      // them -- and a new screen can't ship without it.
+      //
+      // We fire on EVERY schedule and let the server decide: a browser can't tell a
+      // return trip from a first booking, but the job row can (frontdoor-push-job checks
+      // job_started_at / parts_status and skips 'not_a_return'). So this reports the
+      // EVENT and the server decides whether the STATUS is true. It also no-ops for any
+      // job that isn't an AHS dispatch, and stays SHADOW until FRONTDOOR_PUSH_LIVE=1.
+      //
+      // Fire-and-forget + keepalive, same as the packet above: a partner push is a record
+      // of the save, never part of it, and can NEVER fail a booking that already landed.
+      try { fetch('/.netlify/functions/frontdoor-push-job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true, body: JSON.stringify({ job_id: jobId, status_key: 'RETURN_SET', technician_id: techId, note: 'Return appointment set for ' + (dayCT(startMs) || 'the scheduled day') + '.' }) }); } catch (_) {}
       // confirmed:true is honest here -- danielle_schedule_parallel_job re-reads the job and
       // returns failure if it is still not scheduled ($final_ok, 2026-08-04), so data.success
       // IS a server-verified save. A caller doing its own stronger read-back verify (see

@@ -192,14 +192,42 @@ test('a supplied vendor_id still goes through untouched', async () => {
 // 70 with a clean 200. A wrong status that looks like a success is the exact failure mode
 // this whole integration has been paying for, so the catalog is pinned three ways.
 
+
+// The lifecycle keys the BROWSER actually hands to a Frontdoor push, read off tech-job.html.
+// Line-scoped on purpose: a pushSP(..., {spOnly:true}) call is ServicePower ONLY and must not
+// count as a Frontdoor call site. (A lookahead can't do this -- the argument contains
+// .slice(0,240), and the ')' stops [^)]* before it ever reaches spOnly.)
+// One tap can report two true statuses in order ('arrived,in_progress'), so the list is split.
+function browserFdKeys(html) {
+  const keys = new Set();
+  for (const line of html.split('\n')) {
+    if (/spOnly/.test(line)) continue;
+    for (const re of [/lifecycle\([^)]*?,\s*'([a-z_,\s]+)'\s*\)/g, /push(?:SP|FD)\(\s*'([a-z_,\s]+)'/g]) {
+      for (const x of line.matchAll(re)) for (const k of x[1].split(',')) { const t = k.trim(); if (t) keys.add(t); }
+    }
+  }
+  return keys;
+}
+
 test('every status the tech app can send exists in the catalog', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'tech-job.html'), 'utf8');
   const m = html.match(/const FD_STATUS_MAP\s*=\s*\{([^}]*)\}/);
   assert.ok(m, 'FD_STATUS_MAP not found in tech-job.html');
-  const keys = [...m[1].matchAll(/:\s*'([A-Z_]+)'/g)].map((x) => x[1]);
-  assert.ok(keys.length >= 8, `expected the lifecycle map, got ${keys.length} entries`);
-  for (const k of keys) {
+  const pairs = [...m[1].matchAll(/(\w+)\s*:\s*'([A-Z_]+)'/g)].map((x) => [x[1], x[2]]);
+  for (const [, k] of pairs) {
     assert.ok(fd.STATUS[k], `tech-job.html maps to '${k}' but STATUS has no such key -- it would silently send the wrong status`);
+  }
+
+  // Non-vacuity + the direction that actually bites: a call site with NO map entry is a
+  // SILENT no-op (pushFD looks the key up and returns), so the tap does nothing and
+  // nobody finds out. Anchored to the real invocations rather than a count, which is how
+  // the old `>= 8` guard went stale the moment the map was narrowed to what the browser
+  // can honestly send.
+  const calls = browserFdKeys(html);
+  assert.ok(calls.size >= 3, 'found no lifecycle invocations -- the parse broke, not the code');
+  const inMap = new Set(pairs.map(([lc]) => lc));
+  for (const lc of calls) {
+    assert.ok(inMap.has(lc), `tech-job.html pushes '${lc}' but FD_STATUS_MAP has no entry -- pushFD would silently no-op`);
   }
 });
 
@@ -254,19 +282,88 @@ test('wired:true means a real call site fires it -- a map entry is not wiring', 
   assert.ok(m, 'FD_STATUS_MAP not found');
   const mapped = new Map([...m[1].matchAll(/(\w+)\s*:\s*'([A-Z_]+)'/g)].map((x) => [x[1], x[2]]));
 
-  // Ground truth: the lowercase lifecycle keys actually handed to lifecycle()/pushSP()/pushFD().
-  const calls = new Set();
-  for (const re of [/lifecycle\([^)]*?,\s*'([a-z_]+)'\s*\)/g, /push(?:SP|FD)\(\s*'([a-z_]+)'/g]) {
-    for (const x of html.matchAll(re)) calls.add(x[1]);
-  }
+  // Ground truth A -- the BROWSER: lowercase lifecycle keys actually handed to
+  // lifecycle()/pushSP()/pushFD(). One tap can report two true statuses in order
+  // ('arrived,in_progress'), so split the list or IN_PROGRESS silently reads as unwired.
+  const calls = browserFdKeys(html);
   assert.ok(calls.size >= 3, 'found no lifecycle invocations -- the parse broke, not the code');
 
+  // This test splits 'arrived,in_progress' itself, so it would keep passing if the PAGE
+  // stopped splitting at runtime -- and IN_PROGRESS would quietly never fire again. Pin
+  // the split that makes a two-status tap actually send two statuses.
+  const multi = [...calls].length && /'[a-z_]+,[a-z_]+'/.test(html);
+  if (multi) {
+    assert.ok(/spStatus\)[\s\S]{0,120}?\.split\(','\)[\s\S]{0,40}?forEach/.test(html),
+      'a lifecycle key carries a comma list but nothing splits it on send -- only the first status would go');
+  }
+
   const fired = new Set([...calls].map((k) => mapped.get(k)).filter(Boolean));
+
+  // Ground truth B -- the SERVER. Four of the eight are decided server-side on purpose:
+  // the browser only knows which button was tapped, not what status the job lands on, so
+  // scanning tech-job.html alone would report them as unwired and this test would be
+  // enforcing the wrong thing. Each file is asserted to EXIST, so a rename or delete shows
+  // up as a failed test rather than a status quietly losing its producer.
+  const SERVER_SITES = [
+    'netlify/functions/tech-complete.js',       // COMPLETE / PARTS_ON_ORDER / ON_HOLD, off the real outcome
+    'netlify/functions/mark-parts-ordered.js',  // PARTS_ORDERED, when the office places the order
+    'ant-schedule.js',                          // RETURN_SET, the one shared office save
+  ];
+  for (const rel of SERVER_SITES) {
+    const fp = path.join(__dirname, '..', rel);
+    assert.ok(fs.existsSync(fp), rel + ' is gone -- a wired status just lost its producer');
+    const src = fs.readFileSync(fp, 'utf8');
+    let hits = 0;
+    for (const x of src.matchAll(/status_key:\s*'([A-Z_]+)'/g)) { fired.add(x[1]); hits++; }
+    const fm = src.match(/const FD_BY_STATUS\s*=\s*\{([^}]*)\}/);
+    if (fm) for (const x of fm[1].matchAll(/\w+\s*:\s*'([A-Z_]+)'/g)) { fired.add(x[1]); hits++; }
+    assert.ok(hits > 0, rel + ' no longer pushes any Frontdoor status -- the parse broke, or the wiring did');
+  }
   const wired = new Set(Object.entries(fd.STATUS).filter(([, v]) => v.wired).map(([k]) => k));
   const over = [...wired].filter((k) => !fired.has(k));
   const under = [...fired].filter((k) => !wired.has(k));
   assert.deepEqual(over, [], 'marked wired but NO call site sends it: ' + over.join(', '));
   assert.deepEqual(under, [], 'a call site sends it but it is not marked wired: ' + under.join(', '));
+});
+
+test('COMPLETE is decided server-side -- the browser must never claim it', () => {
+  // The tech app only knows which BUTTON was tapped. Until 2026-09-18 the Complete tap
+  // pushed COMPLETE unconditionally, so a "part needed" or "on hold" finish was telling
+  // Frontdoor the job was done. tech-complete.js derives the status from the same
+  // STATUS_MAP that writes scheduling_status, so the portal cannot disagree with the
+  // board. The `spOnly` flag on that one call is what keeps the browser out of it --
+  // drop it and the old lie comes straight back with no other test noticing.
+  const html = fs.readFileSync(path.join(__dirname, '..', 'tech-job.html'), 'utf8');
+  assert.ok(!browserFdKeys(html).has('completed'),
+    "tech-job.html pushes 'completed' to Frontdoor again -- COMPLETE belongs to tech-complete.js, which knows the real outcome");
+
+  const srv = fs.readFileSync(path.join(__dirname, '..', 'netlify', 'functions', 'tech-complete.js'), 'utf8');
+  const m = srv.match(/const FD_BY_STATUS\s*=\s*\{([^}]*)\}/);
+  assert.ok(m, 'FD_BY_STATUS not found in tech-complete.js');
+  assert.ok(/completed\s*:\s*'COMPLETE'/.test(m[1]),
+    'tech-complete.js no longer maps a completed job to COMPLETE');
+  assert.ok(!/no_fix_possible/.test(m[1]),
+    'no_fix_possible was given a status -- nothing in our wired set honestly means "cannot be repaired"');
+});
+
+test('RETURN_SET is only claimed when a visit actually happened', () => {
+  // The office schedules from six surfaces and none of them can tell a first booking from
+  // a return. ant-schedule.js reports the EVENT; frontdoor-push-job decides whether the
+  // STATUS is true. Without that guard a brand-new job gets "Return Appointment Set" on a
+  // dispatch nobody has been to -- a false claim, in writing, to the partner.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'netlify', 'functions', 'frontdoor-push-job.js'), 'utf8');
+  const live = src.split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+  // Match the WHOLE line, not from `statusKey` onward: a dead guard is written as a
+  // LEADING falsy short-circuit (`if (false && statusKey === ...)`), which sits before
+  // that anchor and slipped straight past the first version of this assertion.
+  const guard = live.split('\n').find((l) => /statusKey === 'RETURN_SET'/.test(l));
+  assert.ok(guard, 'the RETURN_SET truth guard is gone -- a fresh booking would report a return visit');
+  assert.ok(/!looksLikeReturn\(job\)/.test(guard),
+    'the RETURN_SET guard no longer consults looksLikeReturn');
+  assert.ok(!/\b(false|0|null|undefined)\s*&&/.test(guard),
+    'the RETURN_SET guard is short-circuited off -- present but unreachable');
+  assert.ok(/function looksLikeReturn/.test(live) && /job_started_at/.test(live) && /parts_status/.test(live),
+    'looksLikeReturn no longer reads the two signals that prove a visit happened');
 });
 
 test('mapped:true is the map-but-no-call-site tier, and never overlaps wired', () => {
@@ -284,5 +381,16 @@ test('mapped:true is the map-but-no-call-site tier, and never overlaps wired', (
   for (const k of inMap) {
     const v = fd.STATUS[k] || {};
     assert.ok(v.wired || v.mapped, k + ' is in FD_STATUS_MAP but tagged neither wired nor mapped');
+  }
+
+  // And the browser map holds ONLY what the BROWSER can send. A key in here with no call
+  // site on this page is the exact shape that made the email claim eight automatic
+  // statuses when three were true -- the four decided server-side do not belong here.
+  const browserCalls = browserFdKeys(html);
+  for (const [lc] of [...m[1].matchAll(/(\w+)\s*:\s*'[A-Z_]+'/g)].map((x) => [x[1]])) {
+    assert.ok(browserCalls.has(lc), "FD_STATUS_MAP has '" + lc + "' but nothing on this page passes it -- a map entry is not wiring");
+  }
+  for (const [lc] of [...m[1].matchAll(/(\w+)\s*:\s*'[A-Z_]+'/g)].map((x) => [x[1]])) {
+    assert.ok(browserCalls.has(lc), "FD_STATUS_MAP has '" + lc + "' but nothing on this page passes it -- a map entry is not wiring");
   }
 });
