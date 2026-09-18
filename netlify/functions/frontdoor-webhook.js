@@ -106,6 +106,18 @@ function summarize(ev) {
     out.appliance = item.description || '';
     out.brand = (item.attributes && item.attributes.Brand) || '';
     out.symptom = (Array.isArray(item.symptoms) && item.symptoms.join('; ')) || '';
+    // The STAR item ids Frontdoor puts on the dispatch. Akshay, 2026-09-18: the outbound
+    // `items` object is "mandatory for certain statuses" -- and its shape is
+    // [{ id, legacy_item_id, description }], ids that originate HERE and nowhere else.
+    // The email-intake path carries no item id at all (checked: no parser reads one), so
+    // this inbound event is the only place we can ever learn them. Captured now, while the
+    // receiver is still dark, so the ids are already on the record the day the production
+    // feed turns on instead of us discovering we never kept them. Summary-only, additive.
+    out.items = (Array.isArray(d.items) ? d.items : []).map((it) => ({
+      id: (it && it.id != null) ? it.id : null,
+      legacy_item_id: (it && it.legacy_item_id != null) ? it.legacy_item_id : null,
+      description: (it && it.description) || '',
+    }));
     out.priority = d.priority || ''; out.autho_required = !!d.isAuthoRequired;
     out.dispatch_type = d.dispatchType || ''; out.trade = d.trade || '';
     out.contract_id = (d.contract && d.contract.external_id != null) ? String(d.contract.external_id) : '';

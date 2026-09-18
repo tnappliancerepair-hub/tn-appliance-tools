@@ -1,5 +1,41 @@
 # Appliance Ant
 
+## 🚪📬 2026-09-18 (Fri) — AKSHAY ANSWERED: dispatch 22863999 VERIFIED ON THEIR SIDE · feed scoping IN WRITING (gate 3 cleared) · production provisioning started · the ONE new ask is `items` — READ FIRST
+
+Reply landed **5:49 AM CDT**, ~11h after Thursday's 6:45 PM email (msg `1a0b42324013a2dd`, thread
+`1a0341dcd5f4a3e4`). Same overnight turnaround as every exchange since we started engaging.
+**Three open asks closed, one new requirement, and it is ours.**
+
+### ✅ THE READ-BACK WE HAVE NEVER HAD — *"We have received and verified the status updates for dispatch 22863999."*
+A human on their side confirming the 11-step run actually **wrote to the Contractor Portal**. This is
+the first time the standing rule *"a 2xx is not a receipt"* has been settled by anything other than a
+status code. **Finish-line gate 2 is proven for SANDBOX** (production still waits on the credential).
+
+### ✅ GATE 3 CLEARED, IN WRITING — *"the production feed will be scoped to your vendor IDs only, so you should not receive dispatches belonging to other vendors."*
+That is the exact sentence `FRONTDOOR_WEBHOOK_LIVE` was gated on (the sandbox feed is other
+contractors' dispatches — 1396202/157992/1636528, none ours). **Still do NOT flip it** — the flag waits
+on the production feed existing, not just on the promise. But the written confirmation is banked.
+
+### 🟡 PRODUCTION CREDENTIAL IS MOVING — *"started working with the appropriate team to provision production access… we will let you know as soon as the production credentials are ready."*
+Gate 1 went **asked → in progress**. Still theirs, still the only thing everything else waits on.
+
+### ✅ TWO SMALLER ANSWERS
+- **Our catalog is right:** *"The status codes and descriptions you listed align with our supported status catalog."* All 23 code↔description pairs validated — so the description-vs-code question is moot for correctness.
+- **Note cap = 1,000 characters.** `composeTdrNote` caps at 900, so the advertised 886-char report is comfortably inside it, with ~100 chars of headroom we are currently leaving unused.
+
+### 🔴 THE NEW ASK, AND THE SNAG — *"Please include the items object in your requests. While it may not be required for every status, it is mandatory for certain statuses."*
+`dispatchStatusUpdate` only attaches `items` when a caller passes a non-empty array, and **no caller
+ever does** — so we have never sent it. It did NOT block the 11-step run (all 200, all verified), so
+this is about statuses we have not exercised, not a break.
+- **⚠️ WE CANNOT FILL IT FROM A REAL JOB TODAY.** Per their spec `items` is `[{id, legacy_item_id, description}]` — **STAR item ids that originate on THEIR dispatch**. Those ride in on the inbound `schedule` payload (`dispatch.items[]`), but **every AHS job we have arrives by EMAIL, and no parser in that path captures an item id** (checked). Guessing an id is inventing a claim about their record.
+- **✅ SHIPPED — the receiver now CAPTURES them.** `frontdoor-webhook.js summarize()` stores `out.items = [{id, legacy_item_id, description}]` for **every** machine on the dispatch (a multi-item claim is the normal case). Additive, summary-only, receiver is still dark — so the ids are already on the record the day the production feed turns on, instead of us discovering we never kept them. **Proven by executing the REAL shipped `summarize()`** against a two-machine payload: both ids captured, existing `appliance`/`brand`/`symptom` untouched, an item-less schedule yields `[]`, and the `status` branch gains no `items` key. Frontdoor suite **44/44**.
+- ⏭️ **THE ONE QUESTION LEFT FOR HIM: WHICH statuses require `items`.** He said "certain statuses" without naming them. One sentence in reply tells us whether this is urgent or production-only.
+
+### ⏭️ OPEN
+- **Reply to Akshay** (not yet sent — Teddy's call): thank him for the verification, put the vendor scoping back on the record, ask the single `items` question. Send via `gmail-send` with explicit `to` + `thread_id` — **never from a `Fwd:` copy** (the documented 3-time self-send failure).
+- **Everything else still waits on the production credential.** Gates 2 (prod half) and 4 are ours and are a credential swap.
+- ⚠️ **STANDING: an inbound payload is the only place a partner's own identifiers exist.** Capture them the day you see the field, even while the receiver is dark — the email path will never carry them.
+
 ## 🚪⚡ 2026-09-18 (Fri) — FRONTDOOR 3 AUTOMATIC → 8: the five "mapped" statuses wired · and the COMPLETE push was LYING on every non-repair finish — READ FIRST
 
 The #1 item off the finish-line plan (*"come back with delivery, not a nudge"*): the five `mapped`
