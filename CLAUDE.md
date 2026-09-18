@@ -1,5 +1,95 @@
 # Appliance Ant
 
+## 🏷️🧠 2026-09-18 (Fri) — THE MIRROR KNEW WHAT EVERY MACHINE WAS AND THREW IT AWAY: 95% of units said "appliance" · 4.6% → 90.5% · the dead tier under the #1 goal — READ FIRST
+
+Teddy's idea: *"can we make videos from the uploads loaded by the techs? Automatically and automate
+how to troubleshoot videos?"* Measured the raw material before building, and the measurement
+redirected the whole thing — then found a one-line discard sitting under the #1 north star.
+
+### 🥇 THE FINDING — `kind: 'appliance'` was HARDCODED on every unit, every 5 minutes
+`platform-tn-mirror` line 705 stamped the literal string `'appliance'` as `unit.kind` on every row
+it wrote — **while `attributes.appliance` sat on the SAME row holding the real answer.** Measured live:
+
+| unit.kind | rows |
+|---|---|
+| **`appliance`** (the placeholder) | **1,372 of 1,438 = 95%** |
+| refrigerator · washer · dishwasher · dryer · range · oven | 66 |
+
+…against **`attributes.appliance` populated on 1,260 (88%)** with clean values (`washer`,
+`refrigerator ice maker`, `Samsung dryer`). **This was never an inference problem. It was a discard.**
+- **⚠️ AND `keepTyped` DID NOT GUARD `kind`** (only `label` + `attributes`) — so a backfill would have
+  been stomped back to the placeholder inside 5 minutes. **The documented "writing a field the mirror
+  will undo is theater" class.** The fix had to be at the SOURCE, not a sweep.
+- **WHY IT MATTERS BEYOND THE COLUMN: it is the DEAD TIER in `brain_lookup`** (model → family → brand
+  → **TYPE** → trade). 95% of the type tier was the same string, so it could never narrow anything —
+  and it is why the repair corpus reports *"compressor, 7 times"* **without naming what it was in.**
+
+### ✅ `unitKind()` — ONE rule in `_lib/multi-appliance`, shared by the mirror + the backfill
+Both write the SAME column, so two copies would disagree on the same row on alternating runs. Tiers,
+best evidence first, **each returning null when it does not know — "I do not know" is a real answer
+the caller writes as the placeholder, never a guess:** ① the appliance FIELD (clean, 88% populated —
+`segToAppliance`'s substring match is correct **here and only here**, and the vocabulary is ordered so
+dishwasher beats washer) → ② the LABEL → ③ the PROBLEM text → ④ the MODEL prefix.
+- **⚠️ TIER 3 MUST USE `appliancesIn`, NEVER `segToAppliance`** — *"makes a **STRANGE** noise"* contains
+  `range`, and a substring match reads it as a stove. Word-boundary + masking only. **And it speaks
+  ONLY when the text names EXACTLY ONE appliance** — two is a real multi-machine question for a human,
+  not a coin flip.
+- **⚠️ `keepTyped` now guards `kind` WITH a placeholder-counts-as-blank rule.** Without that the guard
+  is **inert**: the incoming `'appliance'` is a non-empty string, so it sails through and overwrites
+  the real type every run. `'other'`/`'unknown'`/`'n/a'`/`'none'` count as blank too — **45 live rows
+  literally say `other`**, and treating that as a type is a lie with a name on it.
+- **`?backfill_kinds=1`** repairs what the mirror can NEVER reach: it only walks **ACTIVE** statuses, so
+  a unit **FREEZES** the moment its job completes. Additive · blank-only · re-runnable · **paged**
+  (PostgREST caps at 1,000 rows silently). Needs nothing from Xano — the answer is already on the row.
+
+### 📊 PROVEN AGAINST ALL 1,438 LIVE UNITS (the real resolver, not a fixture)
+**1,372 on the placeholder → 1,235 would fill → coverage 66 (4.6%) → 1,301 (90.5%).**
+refrigerator 390 · washer 319 · dryer 226 · dishwasher 162 · range 134 · microwave 3 · freezer 1.
+- **The 137 residual is HONEST, not a miss:** 71 say literally `appliance`, 61 say `other`, 2 say
+  `confirm with customer`. Only 23 carry a model and **every prefix appears exactly once** — adding
+  them means inventing a rule per row, which is the class this file keeps paying for. Refusing is right.
+
+### 🧪 PROVEN
+**`tests/unit-kind.test.js` 14/14 (NEW)** — executes the REAL shipped resolver against the live shapes
+(`refrigerator ice maker`, `dish washer`, `other`, brand-only, blank) **and** pins the wiring (the mirror
+computes instead of a constant; `kind` is in keepTyped; the placeholder rule is live). **Mutation-proven
+10 ways:** revert the mirror to the constant (fails 2) · drop `kind` from keepTyped (1) · make the
+placeholder rule inert (1) · read `j.problem` instead of `j.problem_summary` (1) · let an ambiguous
+two-appliance text pick the first (1) · scan free text with the substring matcher (2) · stop treating
+`other` as a placeholder (1) · let the model override a witness that already spoke (1) · make the
+backfill overwrite real kinds (1) · drop the backfill's paging (1). Suite **298/298**.
+- 🐞 **THE FEED FIELD IS `problem_summary`, NOT `problem`.** My first cut read `j.problem` — undefined on
+  that row — so **tier 3 was silently dead while looking perfectly wired.** Caught by grepping the
+  mirror's own field names, and now pinned by a test.
+- 🐞 **A MUTATION SURVIVED THE FIRST RUN, and it was the documented off-by-one.** "Drop the backfill's
+  paging" passed, because the assertion checked a page loop **EXISTED**, not that it **CONTINUES past a
+  full page** — an unconditional `break` reads exactly 1,000 units and leaves the rest unnamed forever
+  with no error. Same shape that once served 1,000 of 1,129. Now pinned on the short-page break itself.
+  **A loop that exists is not a loop that continues.**
+
+### 🎥 WHAT THIS CAME OUT OF — the tech-video idea, measured
+The premise inverted on measurement. **963 videos + 3,447 photos in 3 weeks, but they are the
+CUSTOMER's, not the crew's:** `Problem video` **955** (the homeowner's intake clip, written by
+`platform/intake.html`) vs **`Tech video` 8, ever**. And **the waiver carries NO media, likeness or
+publication release** — those clips were collected for *diagnosis*, inside customers' homes.
+**So the 955 are the one pile that cannot be published**, and there is no tech-footage corpus to clip.
+- **The second half of the idea is the strong one and needs no footage:** a SCRIPT engine off the repair
+  corpus (TDR + fault codes + model knowledge). **That is what the blank `kind` was blocking** — every
+  script it could write said "compressor" with no machine attached. This fix is step 1 of that.
+- ⏭️ **Before any footage: a one-line media release on the waiver** (*appliance only, never you or your
+  home*) **+ a tech-side "film this for the channel" button** tagged `Tech video`, so publishable clips
+  are separable from customer intake **by construction**. Then the auto-clipper has something safe to eat.
+- ⚠️ **Vizard (the auto-clipper, renews 9/21) still has nothing safe to eat and will not for weeks** —
+  last clip **2026-07-27**, all 16 of its jobs boat test footage. Cancel stands; it degrades cleanly
+  (`skipped: vizard_not_configured`, 200, no error spam) and can be resubscribed the day footage exists.
+
+### ⏭️ OPEN
+- **🔴 INERT UNTIL MERGED — Netlify serves `main`.** Committed to `claude/supabase-ant-system-testing-vnbgym`
+  (`9792eb851`). On merge the mirror names every ACTIVE unit within 5 minutes on its own; then run
+  **`platform-tn-mirror?backfill_kinds=1&dryrun=1`** to eyeball, and drop `&dryrun=1` to repair the frozen rows.
+- ⚠️ **STANDING: a constant in a mirror row is a discard.** Before inferring a field, check whether the
+  row already carries it — `attributes.appliance` held the answer for 88% of units the whole time.
+
 ## 🚪✅ 2026-09-17 (Thu) — FRONTDOOR: THE 200 WE CELEBRATED YESTERDAY NEVER SAVED. IT WAS ONE JSON TYPE, AND THE ENVELOPE WAS RIGHT ALL ALONG — READ FIRST
 
 **🔴 CORRECTION TO YESTERDAY'S ENTRY.** The 2026-09-16 entry records `200 {"errors":null}` on the
