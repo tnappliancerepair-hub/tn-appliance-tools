@@ -90,6 +90,73 @@ publication release** — those clips were collected for *diagnosis*, inside cus
 - ⚠️ **STANDING: a constant in a mirror row is a discard.** Before inferring a field, check whether the
   row already carries it — `attributes.appliance` held the answer for 88% of units the whole time.
 
+## 🚪🏁 2026-09-18 (Fri) — FRONTDOOR FINISH LINE: it is THREE HANDOVERS + ONE AFTERNOON, not more building · every outcome pre-answered — READ FIRST
+
+Teddy: *"do we think we're gonna be able to get this completed with Akshay? What is the finish line?
+Stay aggressive, finish as soon as possible without pushing. Anticipate every potential outcome and
+work on the strategy for it right now — no matter how it comes back, I want to come back harder."*
+**Full answer + a pre-written reply for all 12 branches: `docs/frontdoor-finish-line-2026-09-18.md`.**
+
+### 🥇 THE FINDING — Akshay is not the risk. WE have been the only thing that ever stalled this.
+Measured off the thread, not remembered. He **opened** it (8/24, enabled our Client ID unprompted),
+then **chased us twice on his own** (9/3, 9/8) while our replies were silently going to Teddy's own
+gmail. The moment we actually engaged 9/15, turnaround was **same-day to next-morning every time**:
+Brian same day · Vaibhav next morning (*"the Sandbox issue is fixed"*) · Akshay next morning — and he
+didn't just answer, he **went into his environment, pulled a request body that saves, and handed it to
+us.** That is a collaborator, not a gatekeeper. **Current quiet = ~22h spanning one night into a
+Friday. Normal, not a stall.** The failure mode to guard is our silence, not theirs.
+- ⚠️ **GMAIL FOOTGUN, new:** `from:<domain> newer_than:Nd` **COMBINED returns 0** even when each
+  operator alone returns mail (`from:Akshay.Kyatam@frontdoor.com` → 6 hits; `frontdoor.com newer_than:7d`
+  → 14). Same family as the documented brace-OR false negative. **Run a positive control before ever
+  reporting an absence** — I nearly reported "no reply" off a broken query.
+
+### 🏁 THE FINISH LINE, stated exactly — 4 gates, only 3 are theirs
+1. **Production credential issued** (theirs) — our token still issues from `login.sandbox.frontdoorhome.com`,
+   so prod returns `401 "Jwt issuer is not configured"`. Verified live again today. **Everything else on
+   our side is a credential swap.**
+2. **One real production push returns 200 AND a human confirms it rendered** (shared) — ⚠️ a 200 is not a
+   receipt, their words; we have **no read-back**, so this needs eyes exactly once.
+3. **Feed scoping to 822418 / 822218 / 839828 IN WRITING** (theirs) — said verbally 9/17, not written.
+   Until it is, `FRONTDOOR_WEBHOOK_LIVE` stays OFF (sandbox feed is other contractors' dispatches).
+4. **Flip both flags, watch one business day** (ours).
+**Realistic: if the credential lands early next week, gates 2-4 are ONE BUSINESS DAY.** Only branch G
+(a contract/security review) moves the date — detect it early.
+
+### ⚡ AGGRESSIVE WITHOUT PUSHING — the lever is NOT frequency
+- **UNBUNDLE.** All four asks ride one email, so the reply waits on the slowest. The credential is
+  probably a 10-minute provisioning action; auth-outcomes + feed-scoping may need a meeting. **A short
+  single-ask email is EASIER to answer than a nudge on a four-ask one** — reads less pushy, moves faster.
+- **COME BACK WITH DELIVERY, NOT A NUDGE.** *"Come back harder"* = the next email reports something new
+  we DID. **Ship the five `mapped` statuses first** (ARRIVED · PARTS_ORDERED · PARTS_ON_ORDER ·
+  RETURN_SET · ON_HOLD — each ONE call site from live) → **3 automatic becomes 8**, entirely ours, and
+  the next email becomes *"since Thursday we wired five more"* instead of *"any update?"*
+- **Escalate by ASKING WHO OWNS IT**, never over his head: *"is the credential yours to issue, or should
+  I ask someone else so I stop routing it through you?"* Ladder if needed: **Ben Kelly** (BD, owns
+  production access) → **Brian Bullock** (senior PM, already on-thread since 9/16, has seen the retraction).
+- **Cadence so we're never the quiet one again:** Mon 9/22 unbundled single-ask · Thu 9/25 who-owns-this ·
+  Tue 9/30 Ben Kelly. **Standing: never let 7 days pass with the ball on our side.**
+
+### 🎯 12 OUTCOME BRANCHES, EACH PRE-ANSWERED (full text in the doc)
+Full yes · credential-but-no-scoping (**take the win, keep the receiver dark — refusing to flip a switch
+we could flip is the most credible thing in the thread**) · confirmation-but-no-timeline · they answer
+the `status` description-vs-code question (one-word change, re-sweep, same-day) · **prod envelope differs**
+(`FRONTDOOR_LEGACY_SHAPE=1` is a one-line reversal, already built — **hand them the 24-row probe table,
+don't argue the spec**) · silence · **a contract/security gate** (answer same-day; ⚠️ anything with a
+purchase commitment goes to Teddy) · they pause (the method transfers to ServicePower/NSA — **our
+leverage was never one partner**) · they say the pushes didn't land (**we flagged that first**) · they
+flag the status-70 entry (**we disclosed it ourselves — a self-disclosed bug is a trust deposit**) ·
+they offer a call (**take it, bring ONE ask**) · a different Frontdoor person replies (answer them,
+never drop a recipient).
+
+### ⏭️ REGARDLESS OF THE ANSWER
+1. **Wire the 5 mapped statuses** (3→8 automatic) — do this first.
+2. **🔴 SOLVE THE READ-BACK.** `_lib/frontdoor.js` is WRITE-ONLY (`dispatchStatusUpdate` +
+   `caseLifecycleStatusUpdate`, no GET). That is why *"did it land?"* is an ASK instead of a CHECK — a
+   permanent dependency on a human's eyes. **Worth asking for explicitly**; it turns gate 2 from a favor
+   into self-service verification.
+3. Never go quiet — `gmail-send` with explicit `to` + `thread_id`, **never reply from a `Fwd:` copy.**
+4. Re-run `node --test tests/*.test.js` before every send (the email is pinned to the code).
+
 ## 🚪✅ 2026-09-17 (Thu) — FRONTDOOR: THE 200 WE CELEBRATED YESTERDAY NEVER SAVED. IT WAS ONE JSON TYPE, AND THE ENVELOPE WAS RIGHT ALL ALONG — READ FIRST
 
 **🔴 CORRECTION TO YESTERDAY'S ENTRY.** The 2026-09-16 entry records `200 {"errors":null}` on the
@@ -8602,6 +8669,37 @@ The one mechanism that makes "act AND reverse" safe: **every change routes throu
 ### NOTES / NEXT (the partner build order)
 - Foundation done = **#1 the reversible ledger**. Remaining: **#2** wire owner.html + comms/scheduling UIs to route their writes through `platform-owner-action` (so the human UI and Ant share one audited path + Undo), and add the goals model to owner.html (owner types targets → `set_goal`); **#3** the role-aware **Ant brain** — server-side, badge-scoped, tool-calling over these same intents + a universal `undo(action_id)` + read-only RLS queries for "how am I doing"; **#4** the pattern-learning layer (the "easier and easier" compounding — the ledger IS the training log).
 - FOOTGUN reminder: platform-* functions use the SERVICE key (bypass RLS) → company scoping + role gating MUST be enforced in code (done here via platform_whoami + MGMT gate + every query filtered by company_id).
+
+## 🎁 STANDING GOAL — GIVE AWAY THE MOST FREE APPLIANCE CONTENT IN THE TRADE (Teddy, 2026-09-18)
+
+**"We want to get out the most free content when it comes to working on appliances."**
+
+The trade hides information to protect markup — a tech in Appliance Pro Talk was afraid to even ASK
+for a model number so the customer couldn't price-shop the part. **Ant is the opposite ON PURPOSE.**
+Hand people the honest answer, the four options, ship them the part if they want to DIY, don't even
+check up on them. **Transparency is the strategy, not a weakness.** The model number isn't the asset —
+the trust is. (Same conviction that drives the 4-option cash TDR, the dual-tier parts menu, and
+Anthony's Gift.)
+
+**Why it compounds, not leaks:**
+- Free content is the acquisition layer for the map pack + AI answers (`/fix/`, `llms.txt`, GBP posts,
+  social) — the channels that actually produce local calls. See the GEO/AI-authority foundation.
+- Every giveaway is grounded in the ONE thing a copycat can't clone: **our own repair corpus**
+  (`get_common_failures`, `brain_lookup`, 49k HCP jobs, every TDR our techs close). A generic AI can
+  write a dryer article; only we can say *"on this exact platform family we've fixed 11 of these and
+  it was this part 9 times."*
+- The people we lose to DIY were never going to pay for the visit. The people we win are the ones who
+  tried it, hit the gas/240V/sealed wall, and now trust exactly one shop.
+
+**So: anything that gets MORE honest appliance knowledge in front of MORE people, for free, wins** —
+`/fix/` pages, fault-code answers, model-specific recall/bulletin surfacing, short-form video, GBP
+posts, review cards, the intake page's straight answer. When choosing what to build, "does this put
+real repair knowledge in a homeowner's hands at no cost?" is a yes-vote.
+
+**The guardrails that keep it honest, not reckless** (these are not exceptions, they're the reason
+people trust it): never publish a customer's media without a signed release · hard-gate the dangerous
+categories to Pro-only (gas · 240V · refrigerant/sealed system) · never publish a part number in a
+customer-facing surface (side-shopping rule) · never claim a fix we can't back with our own data.
 
 ## 🧠 THE #1 GOAL — BE THE MOST ADVANCED TROUBLESHOOTING BRAIN IN APPLIANCE REPAIR (standing north star, Teddy 2026-07-31)
 **"The most powerful troubleshooting brain is what's gonna dominate this market. My goal is to be that most advanced troubleshooting brain."** — Teddy. This is THE goal above all others. We are in the appliance-repair business trying to be *the source* — so being the **most educated servicer alive** is the daily work, not a project with an end. **Improve the repair knowledge base EVERY day.** The moat is knowledge nobody else has: 49k real HCP jobs + every TDR our techs close + the deepest fault-code/component/tech-sheet library in the trade, fused into one grounded brain (`ant-troubleshoot.js`).
