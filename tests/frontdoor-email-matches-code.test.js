@@ -138,10 +138,8 @@ test('the note length the email quotes is one composeTdrNote could actually prod
   // The email tells them the Job Complete note ran 886 characters and asks whether the field
   // stores ~900. If the composer's cap ever drops below what we advertised, the email is
   // promising a report we can no longer compose.
-  const src = fs.readFileSync(path.join(__dirname, '..', 'netlify', 'functions', '_lib', 'frontdoor-tdr.js'), 'utf8');
-  const caps = [...src.matchAll(/trimTo\([^,]+,\s*(\d+)\)/g)].map((m) => Number(m[1]));
-  assert.ok(caps.length, 'no trimTo cap found in frontdoor-tdr.js -- the parse broke');
-  const cap = Math.max(...caps);
+  const cap = require('../netlify/functions/_lib/frontdoor-tdr').NOTE_MAX;
+  assert.ok(Number.isFinite(cap) && cap > 0, 'frontdoor-tdr no longer exports a NOTE_MAX cap');
   const claimed = Number((EMAIL.match(/(\d{3,4})\s+characters/) || [])[1]);
   assert.ok(claimed, 'the email no longer states a character count for the report');
   assert.ok(claimed <= cap,

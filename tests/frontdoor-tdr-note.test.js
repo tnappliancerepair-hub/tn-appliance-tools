@@ -22,7 +22,9 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const tdrLib = require('../netlify/functions/_lib/frontdoor-tdr.js');
 
-const MAX = 900;
+// Read the cap off the SHIPPED composer. Hardcoding it here means a cap change fails
+// three assertions for the wrong reason -- the number is the code's to own, not the test's.
+const MAX = tdrLib.NOTE_MAX;
 
 // A real-shaped report: free text that already ends in periods, and long enough that the
 // naive slice-at-900 dropped the tail. This is the case that was broken in production.
@@ -31,7 +33,7 @@ function longBundle() {
     brand: 'Whirlpool',
     appliance_type: 'Dryer',
     tdr: {
-      diagnosis: 'No heat on any cycle. Drum turns, blower ok, airflow at vent is strong so not a restriction. Ohmed the heating element open at both terminals, and the thermal cutoff reads open as well.',
+      diagnosis: 'No heat on any cycle. Drum turns, blower ok, airflow at vent is strong so not a restriction. Ohmed the heating element open at both terminals, and the thermal cutoff reads open as well. Checked the cycling thermostat and the high-limit on the exhaust housing, both read within spec cold. Vent run to the exterior is clear and the flapper opens freely.',
       failed_component: 'Heating element and thermal cutoff kit',
       failure_cause: 'Element burned open, taking the thermal cutoff with it. Lint build-up in the blower housing contributed to the overheat.',
       verified_part_number: 'W10724237',
@@ -43,9 +45,29 @@ function longBundle() {
   };
 }
 
-test('the note never exceeds the 900-char field budget', () => {
+test('the note never exceeds the field budget', () => {
   const n = tdrLib.composeTdrNote(longBundle());
   assert.ok(n.length <= MAX, `note is ${n.length} chars, cap is ${MAX}`);
+});
+
+// NON-VACUITY GUARD for the two money tests below. They only mean anything while the
+// fixture's prose genuinely overflows the budget -- if the cap is ever raised past what
+// longBundle() composes, "LABOR survives" and "PARTS TO RETURN survives" would pass because
+// nothing was ever cut, not because the reservation works. (The cap moved 900 -> 980 on
+// 2026-09-18 when Akshay confirmed the field is 1,000; that left only ~50 chars of slack.)
+//
+// The property, with no composer logic duplicated here: strip the tail and the SAME prose
+// composes LONGER. That can only be true if reserving the tail forced the prose to be cut.
+test('the fixture still overflows the budget -- otherwise the two money tests are decoration', () => {
+  const noTail = longBundle();
+  delete noTail.tdr.labor_time_hours;
+  delete noTail.tdr.parts_not_used;
+  const proseOnly = tdrLib.composeTdrNote(noTail);
+  const full = tdrLib.composeTdrNote(longBundle());
+  assert.ok(full.length < proseOnly.length + 10,
+    `the tail now fits without cutting prose (full ${full.length} vs prose-only ${proseOnly.length}). ` +
+    `longBundle() no longer fills a ${MAX}-char budget, so the LABOR / PARTS-TO-RETURN tests below ` +
+    'cannot fail. Lengthen the fixture until the prose overflows again.');
 });
 
 test('LABOR survives a long diagnosis -- it is what AHS pays on', () => {

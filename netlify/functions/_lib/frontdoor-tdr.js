@@ -12,6 +12,10 @@ function dot(s) { s = clean(s); return !s || /[.!?]$/.test(s) ? s : s + '.'; }
 // Cut to a length without slicing a word in half. Prefer the last sentence end, fall back to
 // the last space. A note that stops at "cleaned the blower" reads worse than one that stops
 // a sentence early, so we never hand the portal a half-word.
+// Frontdoor's stated note ceiling is 1,000 characters (Akshay, 2026-09-18). We compose to
+// 980 so a boundary that is exclusive, or counted post-escaping, cannot cost us the note.
+const NOTE_MAX = 980;
+
 function trimTo(s, max) {
   s = clean(s);
   if (s.length <= max) return s;
@@ -69,8 +73,14 @@ function composeTdrNote(b) {
   // BODY is the prose (long, and it restates itself). TAIL is short and load-bearing:
   // labor is what AHS pays on, and parts-to-return is the chargeback field — an unreturned
   // part means the repair is not paid AND we can be charged for the part. So the tail is
-  // RESERVED out of the 900 budget and the prose is trimmed to fit around it. Composing the
+  // RESERVED out of the budget and the prose is trimmed to fit around it. Composing the
   // tail last and slicing the whole string was silently dropping both on any long diagnosis.
+  //
+  // The budget is 980, not 1000. Akshay confirmed the field on 2026-09-18: "Our API supports
+  // notes up to 1,000 characters." We had been at 900 on a guess, trimming ~80 characters of
+  // a reviewer-facing report for no reason. 20 characters are left on the table deliberately
+  // -- a stated limit that turns out to be exclusive, or counted after any transport escaping,
+  // costs us the whole note, and the note is what AHS pays the claim on.
   const body = ['TN Appliance TDR — ' + appliance + '.'];
   if (diag) body.push(dot('Diagnosis: ' + diag));
   if (comp) body.push(dot('Failed: ' + comp + (part ? ' (part ' + part + ')' : '') + (cause ? ' — ' + cause : '')));
@@ -81,10 +91,10 @@ function composeTdrNote(b) {
   if (toReturn.length) tail.push(dot('Parts to return: ' + toReturn.join(', ')));
 
   const tailStr = tail.join(' ');
-  if (!tailStr) return trimTo(body.join(' '), 900);
-  const budget = 900 - tailStr.length - 1;            // -1 for the joining space
+  if (!tailStr) return trimTo(body.join(' '), NOTE_MAX);
+  const budget = NOTE_MAX - tailStr.length - 1;            // -1 for the joining space
   const bodyStr = trimTo(body.join(' '), Math.max(0, budget));
   return clean(bodyStr + ' ' + tailStr);
 }
 
-module.exports = { composeTdrNote, workPerformed, partsList, clean, cap, dot, trimTo };
+module.exports = { NOTE_MAX, composeTdrNote, workPerformed, partsList, clean, cap, dot, trimTo };
