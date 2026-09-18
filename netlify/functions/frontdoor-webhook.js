@@ -113,11 +113,19 @@ function summarize(ev) {
     // this inbound event is the only place we can ever learn them. Captured now, while the
     // receiver is still dark, so the ids are already on the record the day the production
     // feed turns on instead of us discovering we never kept them. Summary-only, additive.
-    out.items = (Array.isArray(d.items) ? d.items : []).map((it) => ({
-      id: (it && it.id != null) ? it.id : null,
-      legacy_item_id: (it && it.legacy_item_id != null) ? it.legacy_item_id : null,
-      description: (it && it.description) || '',
-    }));
+    // ⚠️ THE FIELD NAME DIFFERS BY DIRECTION, and reading the wrong one captures nothing
+    // while looking perfectly wired. INBOUND (both schedule and status) sends
+    //   items: [{ external_id: 586, description: 'Dishwasher', ... }]
+    // OUTBOUND (what their connector wants back from us) is
+    //   items: [{ id: 822, legacy_item_id: 822, description: 'Air Conditioning (Central-Electric)' }]
+    // -- id and legacy_item_id carrying the SAME value in Akshay's own working body. So the
+    // one number we need to echo arrives here as `external_id`. Read that first; keep the
+    // outbound spellings as fallbacks in case their feed ever uses them.
+    out.items = (Array.isArray(d.items) ? d.items : []).map((it) => {
+      const o = it || {};
+      const id = [o.external_id, o.id, o.legacy_item_id].find((v) => v != null);
+      return { id: id != null ? id : null, description: o.description || '', status: o.status || '' };
+    });
     out.priority = d.priority || ''; out.autho_required = !!d.isAuthoRequired;
     out.dispatch_type = d.dispatchType || ''; out.trade = d.trade || '';
     out.contract_id = (d.contract && d.contract.external_id != null) ? String(d.contract.external_id) : '';

@@ -7,7 +7,9 @@ Reply landed **5:49 AM CDT**, ~11h after Thursday's 6:45 PM email (msg `1a0b4232
 **Three open asks closed, one new requirement, and it is ours.**
 
 ### ✅ THE READ-BACK WE HAVE NEVER HAD — *"We have received and verified the status updates for dispatch 22863999."*
-A human on their side confirming the 11-step run actually **wrote to the Contractor Portal**. This is
+A human on their side confirming status updates for that dispatch **reached the Contractor Portal**.
+⚠️ He said *"the status updates"*, not *"all eleven rendered"* — do not over-read it into a
+per-status confirmation. This is
 the first time the standing rule *"a 2xx is not a receipt"* has been settled by anything other than a
 status code. **Finish-line gate 2 is proven for SANDBOX** (production still waits on the credential).
 
@@ -23,13 +25,51 @@ Gate 1 went **asked → in progress**. Still theirs, still the only thing everyt
 - **Our catalog is right:** *"The status codes and descriptions you listed align with our supported status catalog."* All 23 code↔description pairs validated — so the description-vs-code question is moot for correctness.
 - **Note cap = 1,000 characters.** `composeTdrNote` caps at 900, so the advertised 886-char report is comfortably inside it, with ~100 chars of headroom we are currently leaving unused.
 
-### 🔴 THE NEW ASK, AND THE SNAG — *"Please include the items object in your requests. While it may not be required for every status, it is mandatory for certain statuses."*
-`dispatchStatusUpdate` only attaches `items` when a caller passes a non-empty array, and **no caller
-ever does** — so we have never sent it. It did NOT block the 11-step run (all 200, all verified), so
+### 🔴 THE NEW ASK — *"Please include the items object in your requests. While it may not be required for every status, it is mandatory for certain statuses."*
+`dispatchStatusUpdate` only attaches `items` when a caller passes a non-empty array, and **no
+connector caller ever does** — `frontdoor-push-job` doesn't send it and `frontdoor-test` (which drove
+the 11-step run) doesn't either, so **no real push has ever carried items.** (`frontdoor-push-status`
+DOES forward `b.items` — the plumbing is there, nothing feeds it. The 9/17 probe did send items, but
+only as `ak_exact` against HIS dispatch under HIS vendor id.) It did not block the 11-step run, so
 this is about statuses we have not exercised, not a break.
-- **⚠️ WE CANNOT FILL IT FROM A REAL JOB TODAY.** Per their spec `items` is `[{id, legacy_item_id, description}]` — **STAR item ids that originate on THEIR dispatch**. Those ride in on the inbound `schedule` payload (`dispatch.items[]`), but **every AHS job we have arrives by EMAIL, and no parser in that path captures an item id** (checked). Guessing an id is inventing a claim about their record.
-- **✅ SHIPPED — the receiver now CAPTURES them.** `frontdoor-webhook.js summarize()` stores `out.items = [{id, legacy_item_id, description}]` for **every** machine on the dispatch (a multi-item claim is the normal case). Additive, summary-only, receiver is still dark — so the ids are already on the record the day the production feed turns on, instead of us discovering we never kept them. **Proven by executing the REAL shipped `summarize()`** against a two-machine payload: both ids captured, existing `appliance`/`brand`/`symptom` untouched, an item-less schedule yields `[]`, and the `status` branch gains no `items` key. Frontdoor suite **44/44**.
-- ⏭️ **THE ONE QUESTION LEFT FOR HIM: WHICH statuses require `items`.** He said "certain statuses" without naming them. One sentence in reply tells us whether this is urgent or production-only.
+
+### 🥇 WHERE THE ITEM ID COMES FROM — **IT IS ALREADY IN THE DISPATCH EMAIL. WE JUST NEVER READ IT.**
+🔴 **CORRECTION TO MY OWN FIRST READ.** I wrote that we could not fill `items` from a real job because
+the ids only ride on the dark inbound webhook. **Wrong — checked against a live dispatch and the id is
+an ATTRIBUTE on a tag `ahs_email_intake` already splits:**
+```
+<WorkOrderLineList Id="20242" Description="Dryer">
+<WorkOrderLineList Id="20312" Description="Washer">     <- same dispatch #23457839, two machines
+<WorkOrderLineList Id="24522" Description="Dishwasher">
+```
+The XS reads **`Description="` only** (line 419) and drops `Id="`. So the one number Frontdoor wants
+echoed back has been arriving on every AHS dispatch all along.
+- **These are PER-DISPATCH LINE ids, not catalog codes for an appliance type** — the spec sample calls
+  a Dishwasher 586, our live one calls a Dishwasher 24522, and the two machines on one dispatch differ
+  (20242 / 20312). So there is nothing to look up; the id must be carried from intake.
+- **⚠️ THE FIELD NAME DIFFERS BY DIRECTION** (the trap that nearly shipped): inbound webhook sends
+  `items:[{external_id, description, status}]`, the AHS email sends the attribute `Id=`, and OUTBOUND
+  wants `items:[{id, legacy_item_id, description}]` — with **id == legacy_item_id** in Akshay's own
+  working body (822/822). Reading `it.id` on an inbound payload captures NOTHING while looking wired.
+- **✅ SHIPPED: the receiver now captures them** — `frontdoor-webhook.js summarize()` stores
+  `out.items = [{id, description, status}]` for **every** machine on the dispatch, reading
+  **`external_id` first** with the outbound spellings as fallbacks. Additive, summary-only, receiver
+  still dark. **Proven by executing the REAL shipped `summarize()`** against the spec-documented
+  inbound shape: both ids captured, `appliance`/`brand`/`symptom` untouched, an item-less schedule
+  yields `[]`, the `status` branch gains no `items` key. Frontdoor suite **44/44**.
+- ⏭️ **NOT BUILT — the actual fill.** Two steps, both real work: (1) read `Id="` in
+  `ahs_email_intake_POST.xs` + `create_job_from_email` and store the line ids on the job (a multi-item
+  claim needs all of them, one per machine — this lines up with the `stop_machine` model); (2) have
+  `frontdoor-push-job` pass them so every push carries `items`. **No proven failure today** — all 23
+  statuses returned 200 without items — so this is correctness ahead of a break, not a fire.
+
+### ⏭️ THE ONE QUESTION LEFT FOR HIM
+**WHICH statuses require `items`.** He said "certain statuses" without naming them, and his phrasing —
+*"including it consistently will help ensure **all** status updates are processed successfully"* —
+leaves open whether every one of the 11 fully rendered or only some. Worth asking plainly, because it
+decides whether the fill above is urgent or production-only. We no longer need to ask where the id
+comes from; we should confirm that the email's `Id=` is the value they expect back, and whether
+`legacy_item_id` should mirror it.
 
 ### ⏭️ OPEN
 - **Reply to Akshay** (not yet sent — Teddy's call): thank him for the verification, put the vendor scoping back on the record, ask the single `items` question. Send via `gmail-send` with explicit `to` + `thread_id` — **never from a `Fwd:` copy** (the documented 3-time self-send failure).
